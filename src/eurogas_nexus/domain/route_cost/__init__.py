@@ -1,0 +1,2 @@
+"""Route cost domain package."""
+

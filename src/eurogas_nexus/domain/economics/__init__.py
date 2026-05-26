@@ -1,0 +1,2 @@
+"""Economics domain package."""
+

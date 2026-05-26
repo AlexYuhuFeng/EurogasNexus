@@ -1,0 +1,2 @@
+"""Assets domain package."""
+
