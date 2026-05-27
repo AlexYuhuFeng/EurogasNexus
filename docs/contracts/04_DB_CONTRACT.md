@@ -8,8 +8,9 @@ source of truth.
 
 ## Bootstrap State
 
-The package is intentionally empty except for an import-safe package marker.
-The API app must not require a DB connection at import time.
+The package exposes import-safe DB settings, lazy engine/session factories,
+and neutral persistence metadata contracts. The API app must not require a DB
+connection at import time.
 
 ## Future Rules
 
@@ -28,3 +29,16 @@ The API app must not require a DB connection at import time.
 - Creating engines at import time.
 - Opening database connections in app factory code.
 - Introducing production credentials.
+
+
+## Milestone 3 Additions
+
+- `IngestionRunRecord` provides neutral ingestion run metadata mapping.
+- `IngestionRunRepository` defines a domain-safe repository contract.
+- `SqlAlchemyIngestionRunRepository` adapts SQLAlchemy rows into domain-safe dataclasses.
+
+
+## Milestone 4 Additions
+
+- Alembic revision `0002_m4_create_ingestion_runs` creates `ingestion_runs` DDL.
+- Migration lifecycle validation must include revision chain and repository integration checks.

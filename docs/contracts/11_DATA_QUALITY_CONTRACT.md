@@ -16,3 +16,9 @@ schema, and reconciliation checks.
 
 No quality checks are implemented.
 
+
+
+## Milestone 13 Additions
+
+- Added deterministic `QualityCheck` protocol and `QualityCheckResult` shell type.
+- Added unit tests to enforce deterministic, research-only result behavior.

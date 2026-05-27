@@ -22,3 +22,8 @@ controlled-action boundaries.
 - Official trading recommendations.
 - Auto-trading authorization.
 - Order or nomination submission authorization.
+
+
+## Milestone 9 Additions
+
+- Contract tests enforce presence of fail-closed entitlement and research-only boundary language.

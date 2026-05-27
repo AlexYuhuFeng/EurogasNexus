@@ -33,3 +33,15 @@ profiles, route modules, API services, and dependency providers.
 - Official approval endpoints.
 - Legal advice or official recommendation endpoints.
 - Live connector endpoints.
+
+
+## Milestone 6 Additions
+
+- Contract tests verify development profile exposes docs/openapi.
+- Contract tests verify release profile hides docs/openapi.
+
+
+## Milestone 14 Additions
+
+- Route registration explicitly wires v1/internal/dev package routers via profile flags.
+- Contract tests verify release excludes dev/internal paths and development currently exposes no dev/internal endpoints until added intentionally.

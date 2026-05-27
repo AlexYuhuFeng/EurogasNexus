@@ -22,3 +22,15 @@ Only package and directory boundaries exist.
 - Publishing SDK packages.
 - Adding command frameworks.
 - Implementing mutating operational commands.
+
+
+## Milestone 5 Additions
+
+- SDK exposes read-only `fetch_health(base_url)` API client.
+- CLI exposes read-only `run_health_check(base_url)` helper.
+- Both SDK and CLI call backend HTTP API surfaces only.
+
+
+## Milestone 6 Additions
+
+- AST-level boundary tests verify SDK/CLI do not import domain or application modules.

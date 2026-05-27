@@ -20,3 +20,9 @@ normalization steps.
 - Scheduled external pulls.
 - Provider credentials.
 - Production ETL jobs.
+
+
+## Milestone 15 Additions
+
+- Added `IngestionPayload` and `NormalizedRecord` shell types with explicit source-traceability fields.
+- Added ingestion contract tests to preserve no-live-dependency and traceability boundaries.
