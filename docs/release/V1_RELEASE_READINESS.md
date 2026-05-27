@@ -24,3 +24,15 @@ enforcement are deferred.
 This bootstrap can be rolled back by removing structural files and directories.
 No runtime data migration is required.
 
+
+
+## Validated Gates (Current)
+
+- Release API profile disables docs/openapi endpoints (contract-tested).
+- Required release-policy statements are present in this readiness document.
+
+## Still Deferred
+
+- Runtime release packaging automation.
+- Auth/audit/governance enforcement runtime.
+- Deployment templates and rollout playbooks.

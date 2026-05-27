@@ -39,3 +39,8 @@ release profile.
 No DB connection, external API, secret, or live connector is required to import
 the app.
 
+
+
+## Milestone 14 Note
+
+Internal/dev routers are explicitly registered behind profile flags. They currently define no endpoints, so no `/internal/*` or `/dev/*` paths are exposed yet.
