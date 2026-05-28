@@ -5,8 +5,7 @@ server-deployed backend service with future Web, Desktop, and SDK clients. The
 V1 target is a DB-first, API-first, SDK-ready internal backend for European
 pipeline gas, LNG reGas, and beach delivery resource research.
 
-This repository currently contains only product architecture boundaries,
-minimal Python packaging, and a FastAPI health shell.
+This repository contains product architecture boundaries, import-safe DB foundation artifacts, Alembic migration scaffolding, and FastAPI/SDK/CLI health shells.
 
 ## Current Scope
 
@@ -14,13 +13,13 @@ minimal Python packaging, and a FastAPI health shell.
 - Minimal FastAPI app importable from `apps.api.main`.
 - Development and release API route profiles.
 - Architecture contracts under `docs/contracts`.
-- Test scaffolding for API and product boundary checks.
+- Test scaffolding for API, contract, integration, SDK, and CLI checks.
 - PostgreSQL is the planned runtime source of truth; local files are limited to
   templates, archives, reports, fixtures, and development fallback.
 
 ## Documentation Map
 
-- ExecPlan: `.agent/plans/V1_BOOTSTRAP_EXECPLAN.md`
+- ExecPlans: `.agent/plans/` (Bootstrap + Milestones 2-7)
 - Architecture: `docs/architecture/V1_BACKEND_ARCHITECTURE.md`
 - Gap report: `docs/architecture/V1_GAP_REPORT.md`
 - Contract index: `docs/contracts/00_CONTRACT_INDEX.md`
@@ -46,7 +45,7 @@ minimal Python packaging, and a FastAPI health shell.
 
 ```powershell
 ruff check .
-pytest -q tests/api tests/contract
+pytest -q tests/api tests/contract tests/integration tests/sdk tests/cli tests/release tests/security tests/integration tests/sdk tests/cli
 python -c "from apps.api.main import app; print('app import ok'); print(len(app.routes))"
 ```
 

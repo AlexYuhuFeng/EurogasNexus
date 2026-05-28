@@ -20,3 +20,9 @@ repository access, data quality checks, and infrastructure interfaces.
 - Nomination submission flows.
 - ETRM replacement behavior.
 
+
+
+## Milestone 11 Additions
+
+- Workflow shell `get_ingestion_run(repository, run_id)` resolves ingestion metadata through repository abstraction only.
+- Workflow result includes explicit `research_only` and `human_review_required` flags.

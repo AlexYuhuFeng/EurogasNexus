@@ -6,7 +6,7 @@ Run validation from the repository root.
 
 ```powershell
 ruff check .
-pytest -q tests/api tests/contract
+pytest -q tests/api tests/contract tests/integration tests/sdk tests/cli tests/release tests/security tests/workflow tests/streaming tests/unit tests/ingestion tests/integration tests/sdk tests/cli tests/release tests/security
 python -c "from apps.api.main import app; print('app import ok'); print(len(app.routes))"
 ```
 
@@ -37,3 +37,10 @@ available and dependency installation is not permitted.
 
 Report validation as `PARTIAL` if only a subset of checks can run.
 
+
+
+## One-command Validation
+
+```bash
+./scripts/ops/validate_repo.sh
+```
