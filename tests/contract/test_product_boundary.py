@@ -64,6 +64,14 @@ def test_pyproject_excludes_deferred_heavy_dependencies() -> None:
 
 
 def test_api_import_does_not_load_database_layer() -> None:
+    # Remove modules that prior tests may have loaded so the check is
+    # meaningful.
+    for module_name in list(sys.modules):
+        if module_name == "eurogas_nexus.db" or module_name.startswith("eurogas_nexus.db."):
+            sys.modules.pop(module_name, None)
+        if module_name == "sqlalchemy" or module_name.startswith("sqlalchemy."):
+            sys.modules.pop(module_name, None)
+
     from apps.api.main import app
 
     assert any(route.path == "/v1/health" for route in app.routes)

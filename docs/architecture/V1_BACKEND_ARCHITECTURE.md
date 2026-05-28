@@ -47,17 +47,18 @@ They must not import domain, DB, or workflow internals.
 
 ## Current Runtime
 
-The current runtime is intentionally minimal:
-
 - `apps.api.main` exposes `app`.
 - `src/eurogas_nexus/api/app.py` creates the FastAPI app.
 - `src/eurogas_nexus/api/route_profiles.py` defines development and release
   profiles.
 - `GET /v1/health` returns shell status only.
+- PostgreSQL is available for local development via `docker compose up -d`.
+- DB foundation layer is import-safe: lazy engine/session factories, Alembic
+  scaffolding, neutral persistence metadata.
+- Alembic migrations applied: `0001_m2_baseline` → `0002_m4_create_ingestion_runs`.
 
 ## Deferred Runtime
 
-- PostgreSQL connection and Alembic migrations.
 - Worker and scheduler execution.
 - Auth, audit, entitlement, and governance enforcement.
 - Ingestion, data quality, connectors, and streaming.

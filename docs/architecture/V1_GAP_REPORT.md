@@ -12,16 +12,12 @@ Credential requirements: none.
 Next action: install the project in a local virtual environment with
 `pip install -e ".[dev]"`, then run the validation commands.
 
-## PARTIAL: PostgreSQL Runtime
+## RESOLVED: PostgreSQL Runtime Foundation
 
-PostgreSQL is the intended runtime source of truth, but no DB configuration,
-engine, session, models, repositories, or migrations are implemented in this
-bootstrap milestone.
-
-Credential requirements: future database URL or deployment secret reference.
-
-Next action: create a dedicated DB foundation ExecPlan before adding runtime DB
-code.
+PostgreSQL is the intended runtime source of truth. The DB foundation layer
+(configuration, lazy engine/session factories, declarative base, Alembic
+scaffolding) is implemented and import-safe. Live DB connections remain deferred
+by design — engines are created only through explicit factory calls.
 
 ## PARTIAL: External Data Sources
 
