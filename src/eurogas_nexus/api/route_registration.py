@@ -3,6 +3,8 @@
 from fastapi import FastAPI
 
 from eurogas_nexus.api.route_profiles import ApiRouteProfile, get_route_profile
+from eurogas_nexus.api.routes.dev.health import router as dev_health_router
+from eurogas_nexus.api.routes.internal.health import router as internal_health_router
 from eurogas_nexus.api.routes.v1.health import router as health_router
 
 
@@ -16,5 +18,11 @@ def register_routes(
 
     if route_profile.include_v1:
         app.include_router(health_router)
+
+    if route_profile.include_internal:
+        app.include_router(internal_health_router)
+
+    if route_profile.include_dev:
+        app.include_router(dev_health_router)
 
     return route_profile

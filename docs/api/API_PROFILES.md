@@ -34,6 +34,7 @@ release profile.
 | Profile | Docs | OpenAPI | V1 | Internal | Dev |
 | --- | --- | --- | --- | --- | --- |
 | `development` | enabled | enabled | enabled | disabled | enabled |
+| `internal` | disabled | disabled | enabled | enabled | disabled |
 | `release` | disabled | disabled | enabled | disabled | disabled |
 
 No DB connection, external API, secret, or live connector is required to import

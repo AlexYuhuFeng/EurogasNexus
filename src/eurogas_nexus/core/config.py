@@ -6,7 +6,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-ApiProfile = Literal["development", "release"]
+ApiProfile = Literal["development", "internal", "release"]
 RuntimeEnvironment = Literal["development", "test", "trial", "release"]
 
 
