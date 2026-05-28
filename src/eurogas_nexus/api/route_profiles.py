@@ -1,4 +1,4 @@
-"""Named route profiles for development and release deployments."""
+"""Named route profiles for development, internal, and release deployments."""
 
 from enum import StrEnum
 
@@ -9,6 +9,7 @@ class ApiProfileName(StrEnum):
     """Supported API exposure profiles."""
 
     DEVELOPMENT = "development"
+    INTERNAL = "internal"
     RELEASE = "release"
 
 
@@ -29,6 +30,12 @@ API_ROUTE_PROFILES: dict[ApiProfileName, ApiRouteProfile] = {
         expose_docs=True,
         expose_openapi=True,
         include_dev=True,
+    ),
+    ApiProfileName.INTERNAL: ApiRouteProfile(
+        name=ApiProfileName.INTERNAL,
+        expose_docs=False,
+        expose_openapi=False,
+        include_internal=True,
     ),
     ApiProfileName.RELEASE: ApiRouteProfile(
         name=ApiProfileName.RELEASE,
