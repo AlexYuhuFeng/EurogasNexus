@@ -5,10 +5,11 @@ from fastapi import APIRouter, Request
 from eurogas_nexus.core.config import Settings
 from eurogas_nexus.core.response import HealthResponse
 
-router = APIRouter(prefix="/v1", tags=["health"])
+router = APIRouter(tags=["health"])
 
 
-@router.get("/health", response_model=HealthResponse)
+@router.get("/api/v1/health", response_model=HealthResponse)
+@router.get("/v1/health", response_model=HealthResponse)
 def health(request: Request) -> HealthResponse:
     """Return import-safe service health."""
 
@@ -17,4 +18,5 @@ def health(request: Request) -> HealthResponse:
         version=settings.app_version,
         profile=settings.api_profile,
     )
+
 

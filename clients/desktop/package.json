@@ -1,0 +1,16 @@
+{
+  "name": "eurogas-nexus-desktop",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "web:build": "npm --prefix ../web run build",
+    "check": "cargo check --manifest-path src-tauri/Cargo.toml",
+    "tauri": "tauri",
+    "dev": "tauri dev",
+    "build": "tauri build"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.8.4"
+  }
+}

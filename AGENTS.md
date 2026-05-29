@@ -1,9 +1,10 @@
 # Eurogas Nexus Agent Guide
 
 Eurogas Nexus is a research-only European gas decision-support platform. This
-repository is in the V1.0 bootstrap phase for a DB-first, API-first, SDK-ready
-internal backend service covering European pipeline gas, LNG reGas, and beach
-delivery resource research.
+repository is in the V1.0 release preparation phase for a DB-first, API-first,
+SDK-required internal platform covering European pipeline gas, LNG reGas, and
+beach delivery resource research. V1 includes the backend/API, PostgreSQL
+runtime store, Python SDK, CLI, web workspace, and Windows client shell.
 
 ## Guardrails
 
@@ -14,6 +15,9 @@ delivery resource research.
 - API routes must remain separated into stable `v1`, `internal`, and `dev`
   profiles.
 - SDK and CLI code must call the backend API, not internal domain modules.
+- Clients access PostgreSQL-backed runtime data only through SDK/API
+  boundaries. No client opens PostgreSQL connections, imports backend
+  DB/runtime-store modules, or reads backend local data files directly.
 - Connectors must not perform analytics.
 - Domain modules must not import FastAPI.
 - Streaming/Kafka is optional and must not become a source of truth.
@@ -25,8 +29,13 @@ delivery resource research.
 - Do not add business features until a milestone document allows them.
 - Do not call external APIs, market data providers, LLM providers, or live
   infrastructure from import-time code or tests.
-- Do not add frontend, desktop, Node, Kafka, Redis, Celery, SSO/OIDC, or live
-  connector dependencies during this phase.
+- Do not add frontend, desktop, Node, Rust, Tauri, or client runtime
+  dependencies during backend foundation milestones. These dependencies are
+  allowed only inside selected web or Windows client milestones with documented
+  dependency review and offline fallback.
+- Do not add Kafka, Redis, Celery, company SSO/OIDC, or live connector
+  dependencies in V1 unless a later milestone explicitly scopes and reviews
+  them.
 - Do not add trade execution, order entry, order routing, trade capture,
   nomination submission, official approval, legal advice, official trading
   recommendations, auto-trading, ETRM replacement behavior, or company SSO/OIDC
@@ -37,10 +46,14 @@ delivery resource research.
 
 ## Dependency Policy
 
-Allowed default stack: Python, FastAPI, Pydantic, SQLAlchemy, Alembic,
+Allowed backend default stack: Python, FastAPI, Pydantic, SQLAlchemy, Alembic,
 PostgreSQL, HTTPX, pandas, NumPy, PyArrow, python-dateutil, PyYAML, pytest, and
 Ruff. Do not add dependencies unless they are necessary, permissive-licensed,
 and documented.
+
+Allowed client stack only when a selected client milestone requires it: React,
+TypeScript, Vite, plain CSS or CSS modules, MapLibre GL where available, Rust,
+and Tauri for the Windows shell. Electron is not approved for V1.
 
 Do not add GPL, LGPL, AGPL, SSPL, BUSL, Elastic, Redis-RSAL, Commons-Clause, or
 PolyForm dependencies without explicit review.

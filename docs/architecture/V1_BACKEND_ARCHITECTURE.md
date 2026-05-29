@@ -4,6 +4,9 @@ Eurogas Nexus V1 is a research-only backend service. It is designed as a
 server-deployed Python service with future worker, scheduler, Web, Desktop, and
 SDK clients.
 
+For the product north star and historical-reference interpretation, see
+`PROJECT_NORTH_STAR.md` and `REFERENCE_PROJECT_LESSONS.md`.
+
 ## Architectural Posture
 
 - DB-first: PostgreSQL is the runtime source of truth.
@@ -13,6 +16,8 @@ SDK clients.
   external APIs, LLM providers, or live connectors.
 - Research-only: outputs must not be official trading recommendations, legal
   advice, approvals, execution instructions, or nomination submissions.
+- Stepwise: historical implementations are reference material, not runtime
+  code to import wholesale.
 
 ## Layer Map
 
@@ -54,6 +59,7 @@ The current runtime is intentionally minimal:
 - `src/eurogas_nexus/api/route_profiles.py` defines development and release
   profiles.
 - `GET /v1/health` returns shell status only.
+- `GET /api/v1/health` is the preferred stable health path.
 
 ## Deferred Runtime
 
@@ -62,4 +68,10 @@ The current runtime is intentionally minimal:
 - Auth, audit, entitlement, and governance enforcement.
 - Ingestion, data quality, connectors, and streaming.
 - SDK and CLI implementation.
+
+## Delivery Roadmap
+
+Architecture work proceeds through `V1_STEPWISE_DELIVERY_ROADMAP.md`. Business
+features wait until DB, runtime store, API, governance, entitlement, and
+research-output contracts are explicit and tested.
 

@@ -1,5 +1,6 @@
 """Product boundary tests for the V1.0 bootstrap shell."""
 
+import subprocess
 import sys
 from pathlib import Path
 
@@ -64,11 +65,21 @@ def test_pyproject_excludes_deferred_heavy_dependencies() -> None:
 
 
 def test_api_import_does_not_load_database_layer() -> None:
-    from apps.api.main import app
+    script = (
+        "from apps.api.main import app; import sys; "
+        "print(any(route.path == '/v1/health' for route in app.routes)); "
+        "print('eurogas_nexus.db' in sys.modules); "
+        "print('sqlalchemy' in sys.modules)"
+    )
 
-    assert any(route.path == "/v1/health" for route in app.routes)
-    assert "eurogas_nexus.db" not in sys.modules
-    assert "sqlalchemy" not in sys.modules
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.stdout.splitlines() == ["True", "False", "False"]
 
 
 def test_agent_instructions_capture_research_only_boundary() -> None:

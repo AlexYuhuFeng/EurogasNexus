@@ -1,0 +1,296 @@
+:root {
+  --bg: #f5f7f8;
+  --surface: #ffffff;
+  --surface-strong: #edf2f4;
+  --text: #182026;
+  --muted: #5e6b75;
+  --border: #d7e0e5;
+  --accent: #0f766e;
+  --warning: #b45309;
+  --danger: #b42318;
+  --shadow: 0 12px 28px rgb(24 32 38 / 12%);
+}
+
+:root.dark {
+  --bg: #101820;
+  --surface: #16222b;
+  --surface-strong: #1e2d38;
+  --text: #edf5f7;
+  --muted: #a7b5be;
+  --border: #33444f;
+  --accent: #2dd4bf;
+  --warning: #f59e0b;
+  --danger: #f97066;
+  --shadow: 0 12px 28px rgb(0 0 0 / 30%);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+button,
+select,
+input {
+  font: inherit;
+}
+
+.app {
+  display: flex;
+  min-height: 100vh;
+  flex-direction: column;
+  background: var(--bg);
+}
+
+.app-header {
+  display: flex;
+  min-height: 64px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.app-header h1 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.app-header p {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.header-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-controls select {
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 0 8px;
+}
+
+.status-badge {
+  min-width: 72px;
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.status-live,
+.status-runtime {
+  background: rgb(15 118 110 / 14%);
+  color: var(--accent);
+}
+
+.status-delayed,
+.status-partial,
+.status-mocked {
+  background: rgb(180 83 9 / 14%);
+  color: var(--warning);
+}
+
+.status-unavailable {
+  background: rgb(180 35 24 / 14%);
+  color: var(--danger);
+}
+
+.app-nav {
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  padding: 0 8px;
+}
+
+.nav-btn {
+  min-height: 40px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0 12px;
+  white-space: nowrap;
+}
+
+.nav-btn:first-child,
+.nav-btn:hover {
+  border-bottom-color: var(--accent);
+  color: var(--text);
+}
+
+.app-main {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+}
+
+.map-container {
+  position: relative;
+  min-width: 0;
+  flex: 1;
+}
+
+.gas-map {
+  position: absolute;
+  inset: 0;
+}
+
+.map-overlay {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.map-overlay span {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 88%);
+  box-shadow: var(--shadow);
+  color: #182026;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 10px;
+}
+
+.sidebar {
+  display: flex;
+  width: min(380px, 38vw);
+  min-width: 320px;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  border-left: 1px solid var(--border);
+  background: var(--surface);
+  padding: 12px;
+}
+
+.panel {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 12px;
+}
+
+.panel h3 {
+  margin: 0 0 10px;
+  font-size: 13px;
+  letter-spacing: 0;
+}
+
+.panel p,
+.panel li,
+.route-row span,
+.metric-grid span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.alert {
+  color: var(--danger);
+}
+
+.route-list,
+.source-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.source-list {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
+.route-row,
+.metric-grid div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+
+.metric-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.credential-form {
+  display: grid;
+  gap: 8px;
+}
+
+.credential-form select,
+.credential-form input {
+  min-height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 0 8px;
+}
+
+.credential-form button {
+  min-height: 34px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #ffffff;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.credential-form button:disabled,
+.credential-form input:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+@media (max-width: 900px) {
+  .app-main {
+    flex-direction: column;
+  }
+
+  .map-container {
+    min-height: 58vh;
+  }
+
+  .sidebar {
+    width: 100%;
+    min-width: 0;
+    max-height: none;
+    border-left: 0;
+    border-top: 1px solid var(--border);
+  }
+
+  .app-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

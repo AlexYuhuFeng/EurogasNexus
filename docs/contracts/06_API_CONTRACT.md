@@ -8,11 +8,15 @@ profiles, route modules, API services, and dependency providers.
 ## Current Routes
 
 - `GET /v1/health`
+- `GET /api/v1/health`
+- `GET /api/internal/health` in the internal profile only.
+- `GET /api/dev/health` in the development profile only.
 
 ## Route Profiles
 
-- `development`: public V1 routes plus documentation and OpenAPI exposure.
-- `release`: public V1 routes without documentation or OpenAPI exposure.
+- `development`: public V1 routes, `/api/dev` diagnostics, documentation, and OpenAPI exposure.
+- `internal`: public V1 routes plus `/api/internal` routes without documentation or OpenAPI exposure.
+- `release`: public V1 routes without documentation, OpenAPI, dev routes, or internal routes.
 - Stable V1, internal, and development-only routes must remain separated by
   package and profile.
 
@@ -44,4 +48,11 @@ profiles, route modules, API services, and dependency providers.
 ## Milestone 14 Additions
 
 - Route registration explicitly wires v1/internal/dev package routers via profile flags.
-- Contract tests verify release excludes dev/internal paths and development currently exposes no dev/internal endpoints until added intentionally.
+- Contract tests verify release excludes dev/internal paths.
+
+## Milestone 1 Path Normalization
+
+- Preferred stable API prefix is `/api/v1`.
+- `/v1` remains a bootstrap compatibility prefix.
+- Internal routes use `/api/internal`.
+- Development routes use `/api/dev`.

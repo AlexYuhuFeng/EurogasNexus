@@ -1,0 +1,39 @@
+{
+  "alembic": {
+    "env_import_safe": true,
+    "migrations_run": false,
+    "versions_directory_present": true
+  },
+  "assumptions": [
+    "Existing ingestion_runs model and migration are preserved as current repository state.",
+    "PostgreSQL remains the runtime source of truth.",
+    "No live DB is required for app import or tests."
+  ],
+  "db_url_policy": {
+    "precedence": [
+      "RUNTIME_STORE_DATABASE_URL",
+      "DATABASE_URL",
+      "EUROGAS_NEXUS_DB_DSN"
+    ],
+    "legacy_fallback": "EUROGAS_NEXUS_DB_DSN",
+    "redaction_required": true
+  },
+  "lineage": {
+    "generated_at": "2026-05-28",
+    "source": "Milestone 1 local implementation and validation"
+  },
+  "missing_inputs": [
+    "Live runtime PostgreSQL DSN was not provided and was not required.",
+    "Vendor entitlement model is deferred."
+  ],
+  "required_tables": [
+    "ingestion_runs"
+  ],
+  "research_only": true,
+  "human_review_required": true,
+  "runtime_validation_script": "scripts/ops/validate_v1_runtime_db.py",
+  "warnings": [
+    "Runtime validation is read-only and exits non-zero if DB URL is missing.",
+    "No migrations are run automatically during import or validation."
+  ]
+}

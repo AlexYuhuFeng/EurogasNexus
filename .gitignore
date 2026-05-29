@@ -24,6 +24,11 @@ dist/*
 !dist/releases/
 !dist/releases/.gitkeep
 
+node_modules/
+clients/*/node_modules/
+clients/*/dist/
+clients/*/src-tauri/target/
+
 data/raw/*
 !data/raw/.gitkeep
 data/canonical/*

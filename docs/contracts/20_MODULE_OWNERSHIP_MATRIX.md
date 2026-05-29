@@ -22,10 +22,13 @@
 | `src/eurogas_nexus/cli` | CLI commands | Read-only health check helper shell |
 | `src/eurogas_nexus/internal` | Internal support | Reserved |
 | `src/eurogas_nexus/legacy` | Legacy quarantine | Reserved |
-| `clients/web` | Future web client | Empty placeholder |
-| `clients/desktop` | Future desktop client | Empty placeholder |
+| `clients/web` | Future web client | Placeholder with design docs |
+| `clients/desktop` | Future desktop client | Placeholder with design docs |
+| `docs/clients` | Client design authority | Active documentation package |
+| `docs/design` | UX layout blueprints | Active documentation package |
 | `packages/python-sdk` | Future SDK package | Empty placeholder |
-| `infra` | Deployment assets | Empty placeholders |
+| `infra/postgres` | PostgreSQL operator notes | Active documentation package |
+| `infra` | Deployment assets | Documentation placeholders |
 | `data` | Local data and fixtures | Empty placeholders |
 | `tests` | Test suites | API, contract, integration, SDK, and CLI tests active |
 

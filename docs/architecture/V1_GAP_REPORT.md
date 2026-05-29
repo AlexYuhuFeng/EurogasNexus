@@ -2,6 +2,19 @@
 
 This report records known gaps instead of inventing behavior.
 
+## PARTIAL: Product North-Star Alignment
+
+Historical local Eurogas Nexus implementations clarify the long-term product
+goal: a governed, map-centric European gas decision-support workspace served by
+DB-first backend APIs. The current repository now documents that north star, but
+it intentionally remains a backend-only V1 bootstrap.
+
+Credential requirements: none.
+
+Next action: follow `V1_STEPWISE_DELIVERY_ROADMAP.md` and do not import
+historical frontend, desktop, connector, LLM, or local-file runtime behavior
+into V1 without a scoped milestone.
+
 ## PARTIAL: Python Tooling Validation
 
 The repository declares minimal Python dependencies, but validation depends on a
@@ -14,14 +27,16 @@ Next action: install the project in a local virtual environment with
 
 ## PARTIAL: PostgreSQL Runtime
 
-PostgreSQL is the intended runtime source of truth, but no DB configuration,
-engine, session, models, repositories, or migrations are implemented in this
-bootstrap milestone.
+PostgreSQL is the runtime source of truth. The current repository has an
+import-safe DB foundation and live validation policy, but no live runtime DB has
+been validated in this worktree and no business-domain schemas are approved.
 
-Credential requirements: future database URL or deployment secret reference.
+Credential requirements: operator-provided database URL through
+`RUNTIME_STORE_DATABASE_URL`, `DATABASE_URL`, or legacy
+`EUROGAS_NEXUS_DB_DSN`. Do not commit or print the URL.
 
-Next action: create a dedicated DB foundation ExecPlan before adding runtime DB
-code.
+Next action: harden the DB runtime boundary in Milestone 2 using
+`docs/operations/LIVE_POSTGRESQL_V1.md` without adding business features.
 
 ## PARTIAL: External Data Sources
 
