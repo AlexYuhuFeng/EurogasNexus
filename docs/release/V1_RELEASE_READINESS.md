@@ -4,16 +4,16 @@
 
 Status: `RELEASE CANDIDATE`
 
-Eurogas Nexus now passes a local Docker PostgreSQL runtime test for the
-backend/API/SDK/CLI, Web workspace, and Windows/Tauri shell, but the full
-official V1 local release-candidate scope is complete.
+Eurogas Nexus passes a local Docker PostgreSQL runtime test for the
+backend/API/SDK/CLI, Web workspace, and Windows/Tauri shell. The official V1
+local release-candidate scope is complete.
 
 `Runtime DB` in the client means the UI is reading the local runtime
-PostgreSQL-backed API. In the latest local validation, ECB public FX,
-ENTSOG public operational flow, and GIE AGSI/ALSI keyed feeds were called
-explicitly and normalized into PostgreSQL. It does **not** mean EEX,
-Trayport, ICE OCM, Kpler, Platts, weather, or LLM provider feeds have been
-called or validated.
+PostgreSQL-backed API. In the latest local validation, ECB public FX, ENTSOG
+public operational flow, and GIE AGSI/ALSI keyed feeds were called explicitly
+and normalized into PostgreSQL. It does **not** mean EEX, Trayport, ICE OCM,
+Kpler, Platts, weather, broker, or LLM provider feeds have been called or
+validated.
 
 Authoritative current evidence:
 
@@ -42,14 +42,14 @@ Authoritative current evidence:
   ingestion.
 - Provider credentials are backend-owned: clients can submit keys, but plaintext
   credentials are never returned by the API or persisted in client storage.
-- No real vendor data, raw market data, contracts, strategies, secrets, or
-  credentials were added.
+- No raw provider data, provider credentials, full DB URLs, `.env` files, or
+  real commercial strategy parameters were added to the repository.
 
 ## Latest Validation Results
 
 ```text
 ruff check .        -> passed
-pytest -q           -> 325 passed
+pytest -q           -> 346 passed
 npm run build       -> passed for Web and Windows/Tauri
 app import          -> app import ok, 56 routes
 runtime DB          -> revision 0005_public_source_credentials, missing_tables=0
@@ -61,11 +61,9 @@ Windows build       -> Tauri cargo check and NSIS package passed
 
 ## Required Before Production Deployment
 
-- Every required row in `docs/release/V1_RELEASE_ACCEPTANCE_MATRIX.md` must be
-  `COMPLETE` or explicitly accepted as `PARTIAL` by the user.
 - Production scheduling/retry/monitoring for live ingestion should be added.
 - Commercial live connector execution for EEX, ICE OCM, Trayport, Kpler,
-  Platts, weather, and other keyed providers must remain gated until
+  Platts, weather, broker, and other keyed providers must remain gated until
   credentials, entitlement, internet policy, and operator validation are
   complete.
 - LLM provider execution must remain gated until API keys, prompt/citation

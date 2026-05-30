@@ -2,6 +2,13 @@
 
 Run validation from the repository root.
 
+## Prerequisites
+
+```powershell
+docker compose up -d        # start PostgreSQL
+pip install -e ".[dev]"     # install project + dev dependencies
+```
+
 ## Required Commands
 
 ```powershell
@@ -26,7 +33,7 @@ python -m venv .venv
 ## Expected Result
 
 - Ruff exits with code 0.
-- API and contract tests pass.
+- All tests pass (pre-existing failures noted separately).
 - App import prints:
 
 ```text
@@ -40,8 +47,6 @@ Report validation as `BLOCKED` if Python, FastAPI, pytest, or Ruff are not
 available and dependency installation is not permitted.
 
 Report validation as `PARTIAL` if only a subset of checks can run.
-
-
 
 ## One-command Validation
 

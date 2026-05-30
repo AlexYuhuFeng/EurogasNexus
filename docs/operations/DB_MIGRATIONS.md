@@ -4,6 +4,24 @@
 
 Operational runbook for Eurogas Nexus DB schema migrations.
 
+## Local Development
+
+Start the PostgreSQL container before running migrations:
+
+```powershell
+docker compose up -d
+```
+
+The local dev DSN is `postgresql+psycopg://eurogas:eurogas_dev@localhost:5432/eurogas_nexus`.
+
+To reset local data:
+
+```powershell
+docker compose down -v
+docker compose up -d
+alembic upgrade head
+```
+
 ## Environment
 
 - `RUNTIME_STORE_DATABASE_URL` is preferred for target environments.
@@ -11,6 +29,8 @@ Operational runbook for Eurogas Nexus DB schema migrations.
 - `EUROGAS_NEXUS_DB_DSN` remains a legacy fallback only.
 - Do not embed production credentials in repository files.
 - Do not print full DB URLs in logs, reports, or issue comments.
+- `alembic.ini` uses a placeholder DSN. Runtime URL resolution happens in
+  `alembic/env.py`.
 
 ## Apply migrations
 

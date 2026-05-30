@@ -32,7 +32,7 @@ Results:
 
 ```text
 Ruff: passed
-Python tests: 325 passed
+Python tests: 346 passed
 Web build: passed
 Desktop cargo check: passed
 Desktop package build: passed
