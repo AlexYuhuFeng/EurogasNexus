@@ -1,6 +1,6 @@
 # Holistic Real Runtime Test Report
 
-Date: 2026-05-29
+Date: 2026-05-30
 
 ## Scope Tested
 
@@ -9,24 +9,25 @@ This test ran the current Eurogas Nexus worktree as a local V1 runtime:
 - Docker PostgreSQL container: `eurogas-nexus-db`
 - Alembic migration to repository head
 - Synthetic V1 reference-network and observation seed
+- Explicit ECB, ENTSOG, and GIE AGSI/ALSI live ingestion into PostgreSQL
 - FastAPI backend on localhost
 - Runtime DB status route
 - API route surface used by a gas market researcher
 - SDK and CLI calls against the running local backend
 - Web client build and Vite dev proxy against the running local backend
-- Browser-level Web interaction checks
+- Browser-level Web interaction checks, including map, live source counts, and
+  provider credential panel
 - Windows/Tauri shell build and package checks
 
-No external market, weather, exchange, broker, LLM, or vendor API was called.
-No secrets or full database URLs were printed.
-ECB, ENTSOG, GIE, EEX, Trayport, ICE OCM, and weather entries are registered
-source posture records only; their live data transmission, entitlement, and
-provider storage flows were not tested.
+ECB, ENTSOG, and GIE AGSI/ALSI were called explicitly during this validation.
+EEX, Trayport, ICE OCM, Kpler, Platts, weather, broker, and LLM provider APIs
+were not called. No secrets or full database URLs were printed. No raw provider
+payloads were committed.
 
 ## Runtime DB Evidence
 
 - PostgreSQL container: healthy
-- Alembic revision: `0004_r16_observation_tables`
+- Alembic revision: `0005_public_source_credentials`
 - Missing required tables: `0`
 - Runtime DB validator: passed
 - Synthetic runtime seed:
@@ -38,27 +39,41 @@ provider storage flows were not tested.
   - `topology_market_mappings`: 5
   - `market_observations`: synthetic records
   - `flow_observations`: synthetic records
+  - `storage_observations`: synthetic records
+  - `lng_observations`: synthetic records
 
-The reference-network, market observation, and flow observation APIs read the
-configured runtime DB when a DB URL is present. Fixture fallback remains only
-for DB-free app import and offline tests.
+Live source ingestion added:
+
+- ECB FX reference rates: 6 normalized rows
+- ENTSOG operational flow data: 10 normalized rows
+- GIE AGSI storage data: 10 normalized rows
+- GIE ALSI LNG data: 10 normalized rows
+- GIE credential stored through backend credential API with encrypted DB
+  payload and redacted API/UI preview only
+
+The reference-network, market observation, flow observation, storage, and LNG
+observation APIs read the configured runtime DB when a DB URL is present.
+Fixture fallback remains only for DB-free app import and offline tests.
 
 ## API Walkthrough Evidence
 
 The running local backend passed:
 
-- 39 GET requests
-- 8 POST research workflow requests
 - `/v1/health` compatibility
 - `/api/v1/health`
 - `/api/v1/runtime/db`
 - DB-backed `/api/v1/reference-network/*`
-- source registry and ingestion run fixtures
-- market, physical, LNG, storage, weather, contracts, glossary fixtures
+- DB-backed `/api/v1/market/observations`
+- DB-backed `/api/v1/physical/flows`
+- DB-backed `/api/v1/storage/observations`
+- DB-backed `/api/v1/lng/observations`
+- provider credential routes under `/api/v1/credentials/*`
+- source registry with active row counts for ECB, ENTSOG, and GIE
 - route-cost, netback, feasibility, allocation, monitoring, nowcast, backtest,
   shadow-run, LLM-analysis placeholder, and research brief routes
 
-Reference-network response lineage reported `runtime-postgresql`.
+Runtime DB status reported revision `0005_public_source_credentials` with no
+missing required tables.
 
 ## SDK And CLI Evidence
 
@@ -74,7 +89,7 @@ Local SDK/CLI calls passed against `http://127.0.0.1:8010`:
 - SDK netback: `40.7`
 - SDK feasibility: `feasible`
 
-The Python package now declares the CLI entrypoint:
+The Python package declares the CLI entrypoint:
 
 ```text
 eurogas-nexus = eurogas_nexus.cli.main:main
@@ -82,25 +97,29 @@ eurogas-nexus = eurogas_nexus.cli.main:main
 
 ## Web Client Evidence
 
-The Web client now includes a MapLibre network workspace backed by `/api/v1`.
+The Web client includes a MapLibre network workspace backed by `/api/v1`.
 The header status says `Runtime DB` when PostgreSQL-backed API data is being
-used, to avoid implying live external vendor feed validation.
+used.
 
 Validated:
 
-- `npm install --ignore-scripts --no-audit --no-fund --loglevel=warn`
 - `npm run build`
-- Vite dev proxy `/api/v1/reference-network/nodes`
-- Vite dev proxy `/api/v1/runtime/db`
+- Vite dev proxy to `/api/v1`
 - English and Mandarin strings load from local JSON files
 - Light/dark/system theme control remains local UI preference only
 - Browser screenshot QA shows map nodes, route lines, side panels, status,
-  language switch, theme switch, and node popup with no console errors.
+  language switch, theme switch, node popup, active source counts,
+  infrastructure signal counts, and provider credential panel with no console
+  errors
 
-Known Web build note:
+Credential UX:
 
-- MapLibre is isolated into a dedicated vendor chunk because the map is the
-  primary V1 screen.
+- ECB and ENTSOG show as public/no-key providers.
+- GIE shows configured using a redacted preview only.
+- EEX, ICE OCM, Trayport, Kpler, Platts, Weather, and LLM providers have
+  credential entry surfaces but were not live-called.
+- Clients submit credentials to backend `/api/v1`; they do not store plaintext
+  provider keys locally.
 
 ## Windows Client Evidence
 
@@ -119,14 +138,17 @@ Validated:
 ```text
 ruff check .
 pytest -q
-npm run build
+npm run build  # clients/web
+cargo check --manifest-path clients/desktop/src-tauri/Cargo.toml --locked
+npm run build  # clients/desktop
 python -c "from apps.api.main import app; print('app import ok'); print(len(app.routes))"
 python scripts/ops/validate_v1_runtime_db.py --json
+python scripts/ops/ingest_public_sources.py --source all --limit 10 --json
 ```
 
-Current route count: `53`.
+Current route count: `56`.
 
-Current Python test count: `312 passed`.
+Current Python test count: `325 passed`.
 
 ## Fixes Made During Holistic Test
 
@@ -135,40 +157,47 @@ Current Python test count: `312 passed`.
   module/package collision.
 - Preserved API import safety by making DB imports request-time only.
 - Added DB-backed reference-network API reads when a runtime DB URL is present.
-- Added explicit synthetic PostgreSQL seed script for V1 reference-network data.
+- Added synthetic PostgreSQL seed script for V1 reference-network and
+  observation data.
+- Added public-source normalization for ECB, ENTSOG, GIE AGSI, and GIE ALSI.
+- Added explicit live public-source ingestion script.
+- Added DB-backed GIE storage and LNG observation routes.
+- Added backend-owned provider credential storage and credential API.
+- Added Web credential management panel for GIE, EEX, ICE OCM, Trayport,
+  Kpler, Platts, Weather, and LLM providers.
 - Added `/api/v1/runtime/db` with redacted DB status.
 - Added SDK and CLI access to runtime DB status.
 - Added an executable CLI entrypoint.
 - Replaced the Web map placeholder with a MapLibre network map and workspace
   panels backed by `/api/v1`.
-- Ignored generated Web `node_modules` and `dist` artifacts.
+- Renamed the client status badge from `Live` to `Runtime DB`.
+- Added a Tauri Windows shell that packages the shared Web bundle.
+- Removed unused Web dependencies and kept MapLibre in an explicit vendor map
+  chunk.
+- Ignored generated Web `node_modules`, `dist`, and Tauri target artifacts.
 
 ## Official Release Status
 
-Status: `NOT READY FOR OFFICIAL V1 RELEASE`
+Status: `RELEASE CANDIDATE`
 
-The backend/API/SDK/CLI/Web runtime is materially stronger and passes local
-holistic tests, but official V1 release is not proven because required product
-surfaces remain partial or mocked.
+The local backend/API/SDK/CLI/Web/Windows runtime is release-candidate ready for
+the tested scope. Official production use still requires operator acceptance of
+the remaining limitations below.
 
-## Remaining Release Blockers
+## Remaining Release Limitations
 
-- Windows client is still documentation-only. No Tauri shell has been built or
-  packaged.
-- Live ECB, ENTSOG, GIE, EEX, Trayport, ICE OCM, and weather connectors remain
-  mocked/offline. Credentials, entitlements, internet policy, and live-source
-  tests are not complete.
+- Live ingestion is operator-invoked; no production scheduler, retry policy, or
+  monitoring service is active yet.
+- EEX, Trayport, ICE OCM, Kpler, Platts, weather, broker, and LLM live
+  providers remain untested because credentials/entitlements were not supplied.
 - LLM analysis route is a placeholder. No provider integration, prompt logging,
   citation enforcement, or offline/live gating is implemented.
-- Most non-reference domain data still comes from synthetic route fixtures, not
-  persisted runtime DB tables.
-- Auth, audit persistence, entitlement enforcement routes, and export-governance
-  runtime checks are still shells or local models.
-- Web client needs browser-level interaction testing with screenshots/canvas
-  checks before UX can be called release-grade.
-- Web bundle should be code-split before production packaging.
+- Auth, audit persistence depth, entitlement enforcement routes, and export
+  governance runtime checks remain partial and should be hardened before
+  multi-user or production deployment.
 
 ## Commit Decision
 
-No official-release commit should be made until the blockers above are either
-implemented or explicitly accepted as release limitations by the user.
+The current work is suitable for a GitHub release-candidate sync. Do not tag it
+as a final production release until the remaining limitations are explicitly
+accepted or completed.

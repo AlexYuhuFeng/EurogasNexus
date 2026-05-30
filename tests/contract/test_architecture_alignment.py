@@ -117,12 +117,13 @@ def test_next_development_queue_selects_milestone_2() -> None:
 def test_current_pause_point_records_holistic_runtime_pause_state() -> None:
     text = _read_doc("docs/architecture/CURRENT_PAUSE_POINT.md")
 
-    assert "Holistic live runtime testing" in text
-    assert "not yet an" in text
-    assert "official V1 release" in text
-    assert "312 passed" in text
-    assert "53 routes" in text
-    assert "Windows client" in text
+    assert "Holistic local runtime testing" in text
+    assert "V1 release candidate" in text
+    assert "325 passed" in text
+    assert "56 routes" in text
+    assert "Windows/Tauri" in text
+    assert "Live ingestion: ECB=6, ENTSOG=10, GIE AGSI=10, GIE ALSI=10" in text
+    assert "Provider credentials are backend-owned" in text
     assert "data/release_v1/holistic_real_test_report.md" in text
 
 

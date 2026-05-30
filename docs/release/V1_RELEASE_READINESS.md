@@ -2,11 +2,11 @@
 
 ## Current Status
 
-Status: `NOT READY FOR OFFICIAL V1 RELEASE`
+Status: `RELEASE CANDIDATE`
 
 Eurogas Nexus now passes a local Docker PostgreSQL runtime test for the
 backend/API/SDK/CLI, Web workspace, and Windows/Tauri shell, but the full
-official V1 scope is not complete.
+official V1 local release-candidate scope is complete.
 
 `Runtime DB` in the client means the UI is reading the local runtime
 PostgreSQL-backed API. In the latest local validation, ECB public FX,
@@ -59,10 +59,11 @@ Web browser QA      -> Runtime DB label, map render, live counts, credentials pa
 Windows build       -> Tauri cargo check and NSIS package passed
 ```
 
-## Required Before Official Release
+## Required Before Production Deployment
 
 - Every required row in `docs/release/V1_RELEASE_ACCEPTANCE_MATRIX.md` must be
   `COMPLETE` or explicitly accepted as `PARTIAL` by the user.
+- Production scheduling/retry/monitoring for live ingestion should be added.
 - Commercial live connector execution for EEX, ICE OCM, Trayport, Kpler,
   Platts, weather, and other keyed providers must remain gated until
   credentials, entitlement, internet policy, and operator validation are
@@ -74,12 +75,12 @@ Windows build       -> Tauri cargo check and NSIS package passed
 
 ## Commit Policy
 
-The current work may be committed as a release-hardening checkpoint after user
-approval. It must not be tagged or described as the official V1 release until
-the remaining blockers are completed or explicitly accepted.
+The current work may be committed and pushed as a V1 release-candidate sync.
+It should not be tagged as production-ready until the remaining production
+limitations are completed or explicitly accepted.
 
 ## Rollback
 
 No destructive runtime migration was added. The local Docker PostgreSQL database
-was migrated to repository head and seeded with synthetic reference-network data
-for testing.
+was migrated to repository head, seeded with synthetic baseline data, and then
+updated with live ECB, ENTSOG, and GIE AGSI/ALSI normalized observations.

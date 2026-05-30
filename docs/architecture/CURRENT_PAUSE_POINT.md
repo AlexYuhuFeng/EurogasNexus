@@ -2,17 +2,10 @@
 
 ## Status
 
-Holistic live runtime testing has been performed against the current worktree.
-The project is stronger than the previous pause point, but it is **not yet an
-official V1 release**.
-
-Current implementation status:
-
-- Backend/API/SDK/CLI: locally validated against live Docker PostgreSQL.
-- Web client: builds successfully and has a MapLibre map workspace backed by
-  `/api/v1`.
-- Windows client: still not implemented; documentation only.
-- Live connectors and LLM provider access: still mocked/gated.
+Holistic local runtime testing has been performed against the current worktree.
+The project is now a **V1 release candidate for the tested local scope**:
+backend/API/SDK/CLI, Docker PostgreSQL runtime, Web client, and Windows/Tauri
+client.
 
 Read the full evidence report:
 
@@ -22,84 +15,82 @@ data/release_v1/holistic_real_test_report.md
 
 ## Runtime Evidence
 
-Validated on 2026-05-29:
+Validated on 2026-05-30:
 
 ```text
 ruff check .
 pytest -q
-npm run build
+npm run build  # clients/web
+cargo check --manifest-path clients/desktop/src-tauri/Cargo.toml --locked
+npm run build  # clients/desktop
 python -c "from apps.api.main import app; print('app import ok'); print(len(app.routes))"
 python scripts/ops/validate_v1_runtime_db.py --json
+python scripts/ops/ingest_public_sources.py --source all --limit 10 --json
 ```
 
 Results:
 
 ```text
 Ruff: passed
-Python tests: 312 passed
-Web build: passed, with Vite chunk-size warning
-App import: app import ok, 53 routes
-Runtime DB: revision 0003_r3_reference_network, missing_tables=0
+Python tests: 325 passed
+Web build: passed
+Desktop cargo check: passed
+Desktop package build: passed
+App import: app import ok, 56 routes
+Runtime DB: revision 0005_public_source_credentials, missing_tables=0
+Live ingestion: ECB=6, ENTSOG=10, GIE AGSI=10, GIE ALSI=10
 ```
 
-Live walkthrough:
+## Current Implementation Status
 
-```text
-API: 39 GET + 8 POST workflow calls passed
-SDK/CLI: health, runtime-db, nodes, route options, HDD/CDD, route cost,
-         netback, feasibility passed
-Web proxy: /api/v1/reference-network/nodes and /api/v1/runtime/db passed
-```
+- PostgreSQL is the runtime source of truth for reference network, market
+  observations, flow observations, storage observations, LNG observations,
+  ingestion run metadata, and provider credential metadata.
+- ECB public FX, ENTSOG public operational flow, and GIE AGSI/ALSI keyed feeds
+  were explicitly fetched and normalized into local PostgreSQL.
+- Provider credentials are backend-owned. Clients can submit keys through
+  `/api/v1`, but plaintext keys are not returned and are not stored in client
+  state, browser storage, Tauri config, reports, or repo files.
+- Web is the single UI source. Windows wraps the built Web bundle through
+  Tauri, so future UI/UX work should update Web first and then rebuild Windows.
+- Browser QA shows Runtime DB status, active source counts, infrastructure
+  signal counts, credential management panel, and rendered gas network map.
 
 ## Work Completed Since Previous Pause
 
-- Fixed pytest collection by enabling importlib import mode.
-- Converted `eurogas_nexus.db.repositories` into a package.
-- Added DB-backed reference-network API reads with DB-free import safety.
-- Added synthetic V1 PostgreSQL reference-network seed script.
-- Added `/api/v1/runtime/db`.
-- Added SDK and CLI runtime DB status calls.
-- Added actual CLI entrypoint.
-- Replaced the Web map placeholder with a MapLibre network map.
-- Added Web runtime/source/route/market panels.
-- Added `package-lock.json` by installing declared Web dependencies.
-- Ignored generated Web `node_modules` and `dist`.
+- Added Alembic revision `0005_public_source_credentials`.
+- Added storage, LNG, and provider credential tables.
+- Added public-source normalization for ECB, ENTSOG, GIE AGSI, and GIE ALSI.
+- Added explicit operator script `scripts/ops/ingest_public_sources.py`.
+- Added credential API under `/api/v1/credentials/*`.
+- Added Web Provider Credentials panel for GIE, EEX, ICE OCM, Trayport, Kpler,
+  Platts, Weather, and LLM providers.
+- Added DB-backed storage and LNG observation routes.
+- Corrected ENTSOG metadata to public/no-key for supported Transparency
+  Platform access.
+- Built and packaged the Tauri Windows client.
+- Verified the shared Web/Windows UI path.
 
-## Remaining Official Release Blockers
+## Remaining Release Limitations
 
-1. Windows client must be implemented and packaged with Tauri.
-2. Browser-level Web interaction testing is still needed.
-3. Web bundle should be code-split before production packaging.
-4. Live ECB, ENTSOG, GIE, EEX, Trayport, ICE OCM, and weather connectors remain
-   mocked/offline.
-5. LLM analysis route remains a placeholder and needs gated provider integration.
-6. Most non-reference data routes still serve synthetic fixtures rather than
-   DB-backed canonical tables.
-7. Auth, audit persistence, entitlement routes, and export-governance runtime
-   enforcement remain partial.
-
-## Commit Rule
-
-Do not create an official-release commit yet. The current work can be committed
-only as a **holistic validation and release-hardening checkpoint**, not as an
-official V1 release.
+1. Live ingestion is manual/operator-invoked; scheduler/retry/monitoring is not
+   productionized.
+2. EEX, ICE OCM, Trayport, Kpler, Platts, weather, broker, and LLM provider
+   live calls remain untested until credentials and entitlement approval exist.
+3. LLM analysis is still a placeholder.
+4. Auth, audit persistence depth, entitlement enforcement routes, and export
+   governance runtime checks need hardening before multi-user or production use.
 
 ## Next Prompt
 
 ```text
-Read AGENTS.md, CLAUDE_CODE_START_HERE.md,
-docs/architecture/CURRENT_PAUSE_POINT.md, and
+Read AGENTS.md, docs/architecture/CURRENT_PAUSE_POINT.md, and
 data/release_v1/holistic_real_test_report.md.
 
-Continue Eurogas Nexus V1 release hardening from the current worktree.
-Start with the first official-release blocker:
-implement the Windows client shell with Tauri, wrapping the existing Web
-workspace, using /api/v1 only and storing only non-sensitive UI preferences.
-After that, add browser-level Web interaction tests and code-split the Web
-bundle. Keep live vendor and LLM calls gated until credentials, entitlement,
-internet policy, and operator validation are explicitly available.
-
-Do not claim official V1 release readiness until every blocker in
-data/release_v1/holistic_real_test_report.md is complete or explicitly accepted
-as a release limitation by the user.
+Continue Eurogas Nexus from the V1 release-candidate state. Preserve the
+single shared Web UI source for both Web and Windows/Tauri. Use PostgreSQL as
+the runtime source of truth. Do not store provider credentials in clients.
+Start with productionizing live ingestion scheduling, credential health tests,
+and entitlement/export-governance hardening for the next provider selected by
+the operator.
 ```
