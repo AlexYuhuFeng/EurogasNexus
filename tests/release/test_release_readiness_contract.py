@@ -16,10 +16,10 @@ def test_release_profile_disables_docs_and_openapi() -> None:
     assert app.openapi_url is None
 
 
-def test_release_readiness_doc_records_partial_state_and_gates() -> None:
+def test_release_readiness_doc_records_release_candidate_state_and_gates() -> None:
     text = (ROOT / "docs" / "release" / "V1_RELEASE_READINESS.md").read_text(encoding="utf-8")
 
-    assert "`PARTIAL`" in text
+    assert "`RELEASE CANDIDATE`" in text
     assert "No development-only routes enabled in release profile" in text
     assert "No silent local file fallback in trial or release mode" in text
 

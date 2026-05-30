@@ -8,6 +8,11 @@ from pydantic import BaseModel, Field
 
 ApiProfile = Literal["development", "internal", "release"]
 RuntimeEnvironment = Literal["development", "test", "trial", "release"]
+DB_DSN_ENV_VARS = (
+    "RUNTIME_STORE_DATABASE_URL",
+    "DATABASE_URL",
+    "EUROGAS_NEXUS_DB_DSN",
+)
 
 
 class DbRuntimeConfig(BaseModel):
@@ -32,6 +37,18 @@ def parse_env_bool(value: str | None, *, default: bool) -> bool:
     raise ValueError(f"Invalid boolean value: {value!r}")
 
 
+def resolve_db_dsn_from_env() -> str | None:
+    """Resolve DB DSN for settings without importing DB modules."""
+
+    for env_var in DB_DSN_ENV_VARS:
+        raw_dsn = os.getenv(env_var)
+        dsn = raw_dsn.strip() if raw_dsn else None
+        if dsn:
+            return dsn
+
+    return None
+
+
 class Settings(BaseModel):
     """Settings loaded from environment variables without side effects."""
 
@@ -45,17 +62,12 @@ class Settings(BaseModel):
     def from_env(cls) -> "Settings":
         """Build settings from process environment variables."""
 
-        raw_dsn = os.getenv("EUROGAS_NEXUS_DB_DSN")
-        dsn = raw_dsn.strip() if raw_dsn else None
-        if dsn == "":
-            dsn = None
-
         return cls(
             app_version=os.getenv("EUROGAS_NEXUS_VERSION", "0.1.0"),
             environment=os.getenv("EUROGAS_NEXUS_ENV", "development"),
             api_profile=os.getenv("EUROGAS_NEXUS_API_PROFILE", "development"),
             db=DbRuntimeConfig(
-                dsn=dsn,
+                dsn=resolve_db_dsn_from_env(),
                 echo=parse_env_bool(os.getenv("EUROGAS_NEXUS_DB_ECHO"), default=False),
                 pool_pre_ping=parse_env_bool(
                     os.getenv("EUROGAS_NEXUS_DB_POOL_PRE_PING"),

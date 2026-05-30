@@ -8,11 +8,15 @@ Package: `src/eurogas_nexus/api/routes/v1`
 
 Purpose: stable public API routes intended for clients.
 
-Current route:
+Current routes:
 
 ```text
 GET /v1/health
+GET /api/v1/health
 ```
+
+Stable clients and SDKs should target `/api/v1`. `/v1` remains available for
+bootstrap compatibility.
 
 ## Internal
 
@@ -22,12 +26,16 @@ Purpose: future service-internal routes. These must be profile-gated and must
 not expose business actions without authorization, audit, and governance
 contracts.
 
+Current prefix: `/api/internal`
+
 ## Development
 
 Package: `src/eurogas_nexus/api/routes/dev`
 
 Purpose: future development-only diagnostics. These must not be enabled in
 release profile.
+
+Current prefix: `/api/dev`
 
 ## Current Profiles
 
@@ -40,8 +48,9 @@ release profile.
 No DB connection, external API, secret, or live connector is required to import
 the app.
 
+## Milestone 1 Path Normalization
 
-
-## Milestone 14 Note
-
-Internal/dev routers are explicitly registered behind profile flags. They currently define no endpoints, so no `/internal/*` or `/dev/*` paths are exposed yet.
+- Preferred stable prefix: `/api/v1`.
+- Bootstrap compatibility prefix: `/v1`.
+- Internal prefix: `/api/internal`.
+- Development prefix: `/api/dev`.

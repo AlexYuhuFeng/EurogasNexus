@@ -2,15 +2,16 @@
 
 ## Purpose
 
-The repository is a product-level monorepo for a research-only,
-server-deployed backend service with future Web, Desktop, and SDK clients. V1
-is DB-first, API-first, and SDK-ready.
+The repository is a product-level monorepo for a research-only V1 platform with
+backend/API, PostgreSQL runtime store, required Python SDK, CLI, web workspace,
+and Windows client shell. V1 is DB-first, API-first, SDK-ready, and
+SDK-required.
 
 ## Required Roots
 
 - `apps/`: deployable process entrypoints.
 - `src/eurogas_nexus/`: backend package.
-- `clients/`: future client shells only.
+- `clients/`: web and Windows client shells activated by selected milestones.
 - `packages/`: future distributable packages.
 - `release/` and `dist/releases/`: release preparation and artifacts.
 - `infra/`: deployment templates and service configuration.
@@ -22,11 +23,11 @@ is DB-first, API-first, and SDK-ready.
   data.
 - `alembic/`: migration boundary.
 
-## V1.0 Bootstrap Restrictions
+## V1.0 Phase Restrictions
 
-- Do not add frontend implementation.
-- Do not add desktop implementation.
-- Do not add Node tooling.
+- Do not add frontend, desktop, Node, Rust, Tauri, or client runtime
+  dependencies during backend foundation milestones.
+- Web and Windows milestones may add approved client tooling when selected.
 - Do not add live data connectors.
 - Do not add trade execution, order entry, order routing, trade capture,
   nomination submission, official approval, official recommendation,

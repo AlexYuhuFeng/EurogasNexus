@@ -1,5 +1,7 @@
 """DB foundation contract tests for milestone 2."""
 
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -19,20 +21,20 @@ def test_db_engine_factory_fails_closed_without_dsn() -> None:
 
 
 def test_importing_api_does_not_import_db_or_sqlalchemy() -> None:
-    import importlib
-    import sys
+    script = (
+        "import apps.api.main, sys; "
+        "print('eurogas_nexus.db' in sys.modules); "
+        "print('sqlalchemy' in sys.modules)"
+    )
 
-    # Ensure prior tests do not leak modules into this check.
-    for module_name in list(sys.modules):
-        if module_name == "eurogas_nexus.db" or module_name.startswith("eurogas_nexus.db."):
-            sys.modules.pop(module_name, None)
-        if module_name == "sqlalchemy" or module_name.startswith("sqlalchemy."):
-            sys.modules.pop(module_name, None)
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
 
-    importlib.import_module("apps.api.main")
-
-    assert "eurogas_nexus.db" not in sys.modules
-    assert "sqlalchemy" not in sys.modules
+    assert result.stdout.splitlines() == ["False", "False"]
 
 
 def test_alembic_baseline_files_exist() -> None:

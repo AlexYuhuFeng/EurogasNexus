@@ -1,0 +1,27 @@
+{
+  "milestone": "M2",
+  "name": "DB Runtime Hardening",
+  "status": "complete",
+  "date": "2026-05-29",
+  "acceptance": {
+    "docs_explain_operator_validation": true,
+    "script_never_prints_full_dsn": true,
+    "script_read_only": true,
+    "table_registry_tied_to_migrations": true,
+    "live_pg_documented_as_explicit_action": true,
+    "default_tests_db_free": true,
+    "runtime_store_contract_exists": true,
+    "app_import_db_free": true,
+    "targeted_validation_passes": true
+  },
+  "required_tables": [
+    {"name": "alembic_version", "introduced_in": "0001_m2_baseline"},
+    {"name": "ingestion_runs", "introduced_in": "0002_m4_create_ingestion_runs"}
+  ],
+  "db_url_precedence": [
+    "RUNTIME_STORE_DATABASE_URL",
+    "DATABASE_URL",
+    "EUROGAS_NEXUS_DB_DSN"
+  ],
+  "next_milestone": "R2 Runtime Store and Governance Foundation"
+}

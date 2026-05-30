@@ -6,4 +6,5 @@ def test_app_import_exposes_fastapi_app() -> None:
 
     assert app.title == "Eurogas Nexus"
     assert any(route.path == "/v1/health" for route in app.routes)
+    assert any(route.path == "/api/v1/health" for route in app.routes)
 

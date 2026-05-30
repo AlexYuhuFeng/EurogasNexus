@@ -1,4 +1,4 @@
-"""Repository boundary for DB-backed ingestion run metadata."""
+"""Repository boundary for DB-backed runtime metadata."""
 
 from dataclasses import dataclass
 from datetime import datetime
@@ -46,3 +46,10 @@ class SqlAlchemyIngestionRunRepository:
             finished_at_utc=row.finished_at_utc,
             notes=row.notes,
         )
+
+
+__all__ = [
+    "IngestionRun",
+    "IngestionRunRepository",
+    "SqlAlchemyIngestionRunRepository",
+]
