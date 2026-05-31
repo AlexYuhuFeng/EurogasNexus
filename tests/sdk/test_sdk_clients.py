@@ -2,6 +2,15 @@
 
 
 def test_sdk_all_clients_importable() -> None:
+    from eurogas_nexus.sdk.analysis import (
+        ask_analysis,
+        fetch_business_ontology,
+        generate_portfolio_report,
+    )
+    from eurogas_nexus.sdk.glossary import (
+        GlossaryTerm,
+        fetch_glossary,
+    )
     from eurogas_nexus.sdk.reference_network import (
         NodeDTO,
         fetch_nodes,
@@ -9,13 +18,26 @@ def test_sdk_all_clients_importable() -> None:
     from eurogas_nexus.sdk.research import (
         compute_route_cost,
     )
+    from eurogas_nexus.sdk.route_cost import (
+        compare_easington_contract_options,
+    )
     from eurogas_nexus.sdk.sources import (
         SourceSystem,
     )
+    from eurogas_nexus.sdk.strategy_lab import (
+        evaluate_strategy_lab,
+    )
     assert callable(fetch_nodes)
     assert callable(compute_route_cost)
+    assert callable(compare_easington_contract_options)
+    assert callable(ask_analysis)
+    assert callable(fetch_business_ontology)
+    assert callable(generate_portfolio_report)
+    assert callable(evaluate_strategy_lab)
+    assert callable(fetch_glossary)
     assert NodeDTO.model_fields
     assert SourceSystem.model_fields
+    assert GlossaryTerm.model_fields
 
 
 def test_health_client_imports() -> None:

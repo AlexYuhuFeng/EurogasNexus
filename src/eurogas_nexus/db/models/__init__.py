@@ -7,10 +7,17 @@ from sqlalchemy import DateTime, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from eurogas_nexus.db.base import Base
+from eurogas_nexus.db.models.analysis import (
+    AnalysisRunRecord,
+    BusinessOntologyRecord,
+    GeneratedReportRecord,
+)
+from eurogas_nexus.db.models.glossary import GlossaryTermRecord
 from eurogas_nexus.db.models.observation import (
     AuditEventRecord,
     EntitlementDecisionRecord,
     FlowObservationRecord,
+    FxObservationRecord,
     LngObservationRecord,
     MarketObservationRecord,
     ProviderCredentialRecord,
@@ -23,6 +30,19 @@ from eurogas_nexus.db.models.reference_network import (
     ReferenceMarketHub,
     ReferenceNode,
     TopologyMarketMapping,
+)
+from eurogas_nexus.db.models.route_cost import (
+    CapacityProfileRecord,
+    LiveMarketMarkRecord,
+    RouteCandidateRecord,
+    TsoTariffRecord,
+    UpstreamResourceContractRecord,
+)
+from eurogas_nexus.db.models.strategy import (
+    StrategyAlertRecord,
+    StrategyAllocationTargetRecord,
+    StrategyDefinitionRecord,
+    StrategyRunRecord,
 )
 
 IngestionRunStatus = Literal["queued", "running", "succeeded", "failed"]
@@ -43,11 +63,18 @@ class IngestionRunRecord(Base):
 
 __all__ = [
     "AuditEventRecord",
+    "AnalysisRunRecord",
+    "BusinessOntologyRecord",
     "EntitlementDecisionRecord",
     "FlowObservationRecord",
+    "FxObservationRecord",
+    "GlossaryTermRecord",
+    "GeneratedReportRecord",
     "IngestionRunRecord",
     "IngestionRunStatus",
     "LngObservationRecord",
+    "CapacityProfileRecord",
+    "LiveMarketMarkRecord",
     "MarketObservationRecord",
     "NodeFacilityMapping",
     "ProviderCredentialRecord",
@@ -55,6 +82,13 @@ __all__ = [
     "ReferenceFacility",
     "ReferenceMarketHub",
     "ReferenceNode",
+    "RouteCandidateRecord",
     "StorageObservationRecord",
+    "StrategyAlertRecord",
+    "StrategyAllocationTargetRecord",
+    "StrategyDefinitionRecord",
+    "StrategyRunRecord",
+    "TsoTariffRecord",
     "TopologyMarketMapping",
+    "UpstreamResourceContractRecord",
 ]

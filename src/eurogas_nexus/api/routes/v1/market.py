@@ -16,11 +16,36 @@ def list_observations(request: Request) -> dict:
 
 @router.get("/api/v1/market/fx")
 def list_fx(request: Request) -> dict:
+    fx_rows = _db_fx_observations()
+    if fx_rows is not None:
+        return _env(fx_rows, source="runtime-postgresql", synthetic=False)
+
     return _env(
         [
-            {"pair": "EURUSD", "rate": 1.0850, "observed_at_utc": "2026-05-29T12:00:00Z"},
-            {"pair": "EURGBP", "rate": 0.8510, "observed_at_utc": "2026-05-29T12:00:00Z"},
-            {"pair": "GBPUSD", "rate": 1.2750, "observed_at_utc": "2026-05-29T12:00:00Z"},
+            {
+                "pair": "EURUSD",
+                "base_currency": "EUR",
+                "quote_currency": "USD",
+                "rate": 1.0850,
+                "rate_type": "reference",
+                "value_date": "2026-05-29",
+                "observed_at_utc": "2026-05-29T12:00:00Z",
+                "source_system": "ECB",
+                "source_reference": "synthetic-ecb-fallback",
+                "freshness": "synthetic",
+            },
+            {
+                "pair": "EURGBP",
+                "base_currency": "EUR",
+                "quote_currency": "GBP",
+                "rate": 0.8510,
+                "rate_type": "reference",
+                "value_date": "2026-05-29",
+                "observed_at_utc": "2026-05-29T12:00:00Z",
+                "source_system": "ECB",
+                "source_reference": "synthetic-ecb-fallback",
+                "freshness": "synthetic",
+            },
         ],
         source="synthetic-fixture",
     )
@@ -70,6 +95,30 @@ def _db_market_observations() -> list[dict] | None:
         raise _db_unavailable(exc) from exc
 
 
+def _db_fx_observations() -> list[dict] | None:
+    if not _db_is_configured():
+        return None
+
+    sqlalchemy_error = _sqlalchemy_error_type()
+    try:
+        from eurogas_nexus.db.models import FxObservationRecord, MarketObservationRecord
+        from eurogas_nexus.db.session import get_session_factory
+
+        with get_session_factory()() as session:
+            rows = session.query(FxObservationRecord).order_by(
+                FxObservationRecord.observed_at_utc.desc(),
+                FxObservationRecord.pair,
+            ).all()
+            if rows:
+                return [_fx_row(row) for row in rows]
+            market_rows = session.query(MarketObservationRecord).filter(
+                MarketObservationRecord.source_system == "ECB"
+            ).order_by(MarketObservationRecord.observed_at_utc.desc())
+            return [_fx_row_from_market_observation(row) for row in market_rows.all()]
+    except sqlalchemy_error as exc:
+        raise _db_unavailable(exc) from exc
+
+
 def _market_row(row) -> dict:
     return {
         "observation_id": row.observation_id,
@@ -85,6 +134,42 @@ def _market_row(row) -> dict:
         "source_reference": row.source_reference,
         "freshness": row.freshness,
         "quality_score": row.quality_score,
+        "research_only": row.research_only,
+    }
+
+
+def _fx_row(row) -> dict:
+    return {
+        "observation_id": row.observation_id,
+        "pair": row.pair,
+        "base_currency": row.base_currency,
+        "quote_currency": row.quote_currency,
+        "rate": row.rate,
+        "rate_type": row.rate_type,
+        "value_date": row.value_date,
+        "observed_at_utc": row.observed_at_utc.isoformat(),
+        "source_system": row.source_system,
+        "source_reference": row.source_reference,
+        "freshness": row.freshness,
+        "research_only": row.research_only,
+    }
+
+
+def _fx_row_from_market_observation(row) -> dict:
+    quote = row.currency
+    pair = row.product.replace("/", "")
+    return {
+        "observation_id": row.observation_id,
+        "pair": pair,
+        "base_currency": "EUR",
+        "quote_currency": quote,
+        "rate": row.price,
+        "rate_type": "reference",
+        "value_date": row.period_start_utc.date().isoformat(),
+        "observed_at_utc": row.observed_at_utc.isoformat(),
+        "source_system": row.source_system,
+        "source_reference": row.source_reference,
+        "freshness": row.freshness,
         "research_only": row.research_only,
     }
 
@@ -147,13 +232,16 @@ def _db_unavailable(exc: Exception) -> HTTPException:
     )
 
 
-def _env(data: object, *, source: str) -> dict:
+def _env(data: object, *, source: str, synthetic: bool | None = None) -> dict:
+    warnings = []
+    if synthetic is not False:
+        warnings.append("Synthetic data only. Do not use for commercial decisions.")
     return {
         "data": data,
         "meta": {
             "research_only": True,
             "human_review_required": True,
             "source_references": [source],
-            "warnings": ["Synthetic data only. Do not use for commercial decisions."],
+            "warnings": warnings,
         },
     }

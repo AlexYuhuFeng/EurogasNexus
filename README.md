@@ -1,91 +1,17 @@
 # Eurogas Nexus
 
-Eurogas Nexus V1.0 is being prepared as a research-only, DB-first, API-first,
-SDK-required internal platform for European pipeline gas, LNG reGas, and beach
-delivery resource research. V1 includes backend/API, PostgreSQL runtime store,
-Python SDK, CLI, web workspace, and Windows client shell.
+Eurogas Nexus V1.0 is a DB-first, API-first, SDK-required European gas
+decision-support platform for pipeline gas, LNG regas, beach delivery resources,
+route economics, market marks, source posture, resource-pool optimization, and
+human-reviewed strategy analysis. V1 includes the backend/API, PostgreSQL
+runtime store, Python SDK, CLI, web workspace, and Windows client shell.
 
-This repository contains product architecture boundaries, import-safe DB foundation artifacts, Alembic migration scaffolding, and FastAPI/SDK/CLI health shells.
+PostgreSQL is the runtime source of truth. Web, Windows, CLI, and SDK clients
+must access runtime data through `/api/v1` or SDK calls. Clients must not open
+PostgreSQL connections, read backend local data files, or store vendor
+credentials.
 
-## Current Scope
-
-- Backend service package under `src/eurogas_nexus`.
-- Minimal FastAPI app importable from `apps.api.main`.
-- Development, internal, and release API route profiles.
-- Architecture contracts under `docs/contracts`.
-- Test scaffolding for API, contract, integration, SDK, and CLI checks.
-- PostgreSQL is the runtime source of truth; live local PostgreSQL validation is
-  part of V1 when a safe DB URL is configured. Local files are limited to
-  templates, archives, reports, fixtures, and development fallback.
-
-## Documentation Map
-
-- ExecPlans: `.agent/plans/`
-- Claude Code local launch and full V1 prompt: `CLAUDE_CODE_START_HERE.md`
-- Claude Code implementation directives: `docs/architecture/CLAUDE_CODE_IMPLEMENTATION_DIRECTIVES.md`
-- Target product architecture: `docs/architecture/TARGET_PRODUCT_ARCHITECTURE.md`
-- Whole project capability blueprint: `docs/architecture/WHOLE_PROJECT_CAPABILITY_BLUEPRINT.md`
-- Claude Code master execution index: `docs/architecture/CLAUDE_CODE_MASTER_EXECUTION_INDEX.md`
-- Reference evidence log: `docs/architecture/REFERENCE_EVIDENCE_LOG.md`
-- North star: `docs/architecture/PROJECT_NORTH_STAR.md`
-- Architecture decisions: `docs/architecture/ARCHITECTURE_DECISION_RECORD.md`
-- Claude Code delivery brief: `docs/architecture/CLAUDE_CODE_DELIVERY_BRIEF.md`
-- Claude Code goal-mode entrypoint: `docs/architecture/CLAUDE_CODE_GOAL_MODE.md`
-- Claude Code start prompts: `docs/architecture/CLAUDE_CODE_START_PROMPTS.md`
-- Current pause point: `docs/architecture/CURRENT_PAUSE_POINT.md`
-- Claude Code execution playbook: `docs/architecture/CLAUDE_CODE_EXECUTION_PLAYBOOK.md`
-- Next development queue: `docs/architecture/NEXT_DEVELOPMENT_QUEUE.md`
-- Offline Claude Code guide: `docs/architecture/OFFLINE_CLAUDE_CODE_GUIDE.md`
-- Live PostgreSQL V1 policy: `docs/operations/LIVE_POSTGRESQL_V1.md`
-- Worktree handoff: `docs/operations/WORKTREE_HANDOFF.md`
-- Client design index: `docs/clients/README.md`
-- Client tech stack: `docs/clients/CLIENT_TECH_STACK.md`
-- Client i18n/theme spec: `docs/clients/CLIENT_I18N_THEME_SPEC.md`
-- SDK client design spec: `docs/clients/SDK_CLIENT_DESIGN_SPEC.md`
-- CLI client design spec: `docs/clients/CLI_CLIENT_DESIGN_SPEC.md`
-- Client design system: `docs/clients/CLIENT_DESIGN_SYSTEM.md`
-- Web client design spec: `docs/clients/WEB_CLIENT_DESIGN_SPEC.md`
-- Windows client design spec: `docs/clients/WINDOWS_CLIENT_DESIGN_SPEC.md`
-- UX layout blueprints: `docs/design/UX_LAYOUT_BLUEPRINTS.md`
-- Reference lessons: `docs/architecture/REFERENCE_PROJECT_LESSONS.md`
-- Future client UX reference: `docs/architecture/FUTURE_CLIENT_UX_REFERENCE.md`
-- Domain delivery map: `docs/architecture/V1_DOMAIN_DELIVERY_MAP.md`
-- Stepwise roadmap: `docs/architecture/V1_STEPWISE_DELIVERY_ROADMAP.md`
-- Architecture: `docs/architecture/V1_BACKEND_ARCHITECTURE.md`
-- Gap report: `docs/architecture/V1_GAP_REPORT.md`
-- Contract index: `docs/contracts/00_CONTRACT_INDEX.md`
-- Product boundary: `docs/policies/PRODUCT_BOUNDARY_POLICY.md`
-- Dependency policy: `docs/policies/DEPENDENCY_POLICY.md`
-- Data policy: `docs/policies/DATA_POLICY.md`
-- API profiles: `docs/api/API_PROFILES.md`
-- API surface blueprint: `docs/api/API_SURFACE_BLUEPRINT.md`
-- Canonical data model blueprint: `docs/data/CANONICAL_DATA_MODEL_BLUEPRINT.md`
-- Research workflow blueprint: `docs/product/RESEARCH_WORKFLOW_BLUEPRINT.md`
-- Real-time market intelligence blueprint: `docs/product/REAL_TIME_MARKET_INTELLIGENCE_BLUEPRINT.md`
-- Documentation completion audit: `data/documentation_handoff/project_docs_completion_audit.md`
-- Validation: `docs/operations/VALIDATION.md`
-- Research-only compliance: `docs/compliance/RESEARCH_ONLY_COMPLIANCE.md`
-- Release readiness: `docs/release/V1_RELEASE_READINESS.md`
-- Full V1 release scope: `docs/release/V1_FULL_PROJECT_RELEASE_SCOPE.md`
-- Full V1 release execution plan: `docs/release/V1_FULL_PROJECT_RELEASE_EXECUTION_PLAN.md`
-- V1 release milestone backlog: `docs/release/V1_RELEASE_MILESTONE_BACKLOG.md`
-- V1 release acceptance matrix: `docs/release/V1_RELEASE_ACCEPTANCE_MATRIX.md`
-- V1 release ExecPlan template: `docs/release/V1_RELEASE_EXECPLAN_TEMPLATE.md`
-
-## Explicit Non-Goals For This Bootstrap
-
-- No business features.
-- No external API calls or LLM provider calls.
-- No frontend, desktop client, Node tooling, React, Tauri, or Rust during
-  backend foundation milestones. Web and Windows milestones may add their
-  approved client tooling when selected.
-- No Electron.
-- No Kafka, Redis, Celery, live connectors, or company SSO/OIDC.
-- No trade execution, order entry, order routing, trade capture, nomination
-  submission, official approval, legal advice, official trading
-  recommendations, auto-trading, ETRM replacement behavior, or company SSO/OIDC.
-
-## Local Validation
+## Start Here
 
 ```powershell
 ruff check .
@@ -93,14 +19,113 @@ pytest -q tests/api tests/contract tests/integration tests/sdk tests/cli tests/r
 python -c "from apps.api.main import app; print('app import ok'); print(len(app.routes))"
 ```
 
-## API Shell
+Core entry points:
 
-The health route is available at:
+- API app: `apps/api/main.py`
+- backend package: `src/eurogas_nexus`
+- DB models and runtime foundation: `src/eurogas_nexus/db`
+- Alembic migrations: `alembic/versions`
+- Python SDK: `src/eurogas_nexus/sdk`
+- Web client: `clients/web`
+- Windows shell: `clients/desktop`
+- current handoff: `docs/architecture/CURRENT_PAUSE_POINT.md`
+- project map: `PROJECT_DIRECTORY.md`
+- ExecPlans: `.agent/plans/`
+
+## API Prefix
+
+Stable client routes use:
 
 ```text
-GET /v1/health
-GET /api/v1/health
+/api/v1
 ```
 
-New SDK and CLI callers should target `/api/v1`. `/v1` remains a bootstrap
-compatibility path.
+Bootstrap compatibility remains for:
+
+```text
+/v1/health
+```
+
+New SDK, CLI, Web, and Windows code must target `/api/v1`.
+
+## Current V1 Capabilities
+
+- UK National Gas NTS route-cost support is UK-only in this release, but it is
+  not hard-coded to Easington or Bacton. Any UK NTS entry/exit point can be
+  priced when audited tariff rows exist in PostgreSQL.
+- Route economics include entry capacity, exit capacity where applicable,
+  National Gas commodity charges, contract tolerance allowance, live bid-based
+  PnL marking, early recovered cash value, and TSO-access constraints.
+- LNG regas readiness covers terminal access, slot/cargo window matching,
+  send-out capacity, cross-month allocation, delivery mode, physical entry
+  delivery requirements, pricing basis, and downstream TSO access.
+- Portfolio/resource-pool optimization supports multiple upstream resources,
+  contract-specific costs and tolerances, compatible sale options, route costs,
+  early cash value, and access constraints.
+- Strategy lab supports backtest, shadow-run, and live-monitor evaluation
+  contracts for SAP/ICIS day-ahead versus ICE OCM style intraday strategies,
+  5-minute bar windows, scoring components, allocation targets, stop-loss
+  controls, and warning output.
+- DeepSeek is the first V1 live LLM provider slot. LLM analysis and report
+  endpoints use backend snapshots, encrypted backend credentials, citations, and
+  human-review guardrails. Offline/test mode returns deterministic snapshot
+  output without provider calls.
+- ECB FX, ENTSOG flows, and GIE storage/LNG are represented as PostgreSQL-backed
+  runtime observations when ingested by an operator.
+- Glossary terms are backend-served and available through API, SDK, Web, and
+  Windows surfaces in English and Mandarin Chinese.
+
+All strategy, PnL, route, LNG, resource-pool, and market outputs are
+decision-support candidates requiring human review. They are not executable
+orders, auto-trading actions, nomination submissions, official approvals, legal
+advice, or official trading recommendations.
+
+## Product Boundary
+
+Do not add trade execution, order entry, order routing, trade capture,
+nomination submission, official approval, legal advice, official trading
+recommendations, auto-trading, ETRM replacement behavior, or company SSO/OIDC in
+V1 unless a future approved milestone explicitly changes this boundary.
+
+Do not commit secrets, real vendor data, internal commercial data, raw market
+data, contracts, or real business strategy parameters. This is a public
+repository.
+
+## Documentation Map
+
+ExecPlans: `.agent/plans/`
+
+- Claude Code entry: `CLAUDE_CODE_START_HERE.md`
+- master execution index: `docs/architecture/CLAUDE_CODE_MASTER_EXECUTION_INDEX.md`
+- implementation directives: `docs/architecture/CLAUDE_CODE_IMPLEMENTATION_DIRECTIVES.md`
+- current pause point: `docs/architecture/CURRENT_PAUSE_POINT.md`
+- market-practice audit EN/CN:
+  `docs/architecture/MARKET_PRACTICE_AUDIT-EN.md` and
+  `docs/architecture/MARKET_PRACTICE_AUDIT-CN.md`
+- map-first cockpit spec EN/CN:
+  `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-EN.md` and
+  `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-CN.md`
+- LLM analysis and reporting spec EN/CN:
+  `docs/architecture/LLM_ANALYSIS_REPORTING_SPEC-EN.md` and
+  `docs/architecture/LLM_ANALYSIS_REPORTING_SPEC-CN.md`
+- client API contract: `docs/clients/CLIENT_API_CONTRACT.md`
+- SDK design: `docs/clients/SDK_CLIENT_DESIGN_SPEC.md`
+- Web design: `docs/clients/WEB_CLIENT_DESIGN_SPEC.md`
+- Windows design: `docs/clients/WINDOWS_CLIENT_DESIGN_SPEC.md`
+- live PostgreSQL policy: `docs/operations/LIVE_POSTGRESQL_V1.md`
+- release scope and acceptance:
+  `docs/release/V1_FULL_PROJECT_RELEASE_SCOPE.md`,
+  `docs/release/V1_FULL_PROJECT_RELEASE_EXECUTION_PLAN.md`, and
+  `docs/release/V1_RELEASE_ACCEPTANCE_MATRIX.md`
+
+## 中文摘要
+
+Eurogas Nexus V1.0 以 PostgreSQL 为运行时事实来源，以 API/SDK 为访问边界。
+当前路线成本能力限定在英国 National Gas NTS，但不再限定为 Easington/Bacton
+示例；只要 PostgreSQL 中存在已审核的英国 NTS 费率行，系统就可以计算相应
+entry/exit 点的路线成本。
+
+Web 和 Windows 客户端必须通过 API/SDK 访问数据，不得直接连接数据库。供应商
+API Key 只能通过后端凭证接口保存。策略、PnL、路线、LNG regas、资源池优化、
+市场信号和术语表输出均为需要人工复核的决策支持结果，不是订单执行、自动交易、
+提名提交、官方审批、法律意见或官方交易建议。

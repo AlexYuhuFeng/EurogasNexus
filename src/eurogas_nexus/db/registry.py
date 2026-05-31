@@ -29,12 +29,32 @@ REQUIRED_TABLES: tuple[RequiredTable, ...] = (
     RequiredTable(name="node_facility_mappings", introduced_in="0003_r3_reference_network"),
     RequiredTable(name="topology_market_mappings", introduced_in="0003_r3_reference_network"),
     RequiredTable(name="market_observations", introduced_in="0004_r16_observation_tables"),
+    RequiredTable(name="fx_observations", introduced_in="0006_route_cost_decision_support"),
     RequiredTable(name="flow_observations", introduced_in="0004_r16_observation_tables"),
     RequiredTable(name="audit_events", introduced_in="0004_r16_observation_tables"),
     RequiredTable(name="entitlement_decisions", introduced_in="0004_r16_observation_tables"),
     RequiredTable(name="storage_observations", introduced_in="0005_public_source_credentials"),
     RequiredTable(name="lng_observations", introduced_in="0005_public_source_credentials"),
     RequiredTable(name="provider_credentials", introduced_in="0005_public_source_credentials"),
+    RequiredTable(name="tso_tariffs", introduced_in="0006_route_cost_decision_support"),
+    RequiredTable(
+        name="upstream_resource_contracts",
+        introduced_in="0006_route_cost_decision_support",
+    ),
+    RequiredTable(name="capacity_profiles", introduced_in="0006_route_cost_decision_support"),
+    RequiredTable(name="route_candidates", introduced_in="0006_route_cost_decision_support"),
+    RequiredTable(name="live_market_marks", introduced_in="0006_route_cost_decision_support"),
+    RequiredTable(name="glossary_terms", introduced_in="0006_route_cost_decision_support"),
+    RequiredTable(name="strategy_definitions", introduced_in="0007_strategy_lab_foundation"),
+    RequiredTable(name="strategy_runs", introduced_in="0007_strategy_lab_foundation"),
+    RequiredTable(name="strategy_allocation_targets", introduced_in="0007_strategy_lab_foundation"),
+    RequiredTable(name="strategy_alerts", introduced_in="0007_strategy_lab_foundation"),
+    RequiredTable(name="analysis_runs", introduced_in="0008_analysis_reporting_foundation"),
+    RequiredTable(name="generated_reports", introduced_in="0008_analysis_reporting_foundation"),
+    RequiredTable(
+        name="business_ontology_terms",
+        introduced_in="0008_analysis_reporting_foundation",
+    ),
 )
 
 

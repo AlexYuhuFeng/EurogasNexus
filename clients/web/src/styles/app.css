@@ -152,9 +152,156 @@ input {
   flex: 1;
 }
 
+.map-toolbar {
+  position: absolute;
+  z-index: 3;
+  top: 16px;
+  left: 16px;
+  right: 72px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.map-price-strip {
+  position: absolute;
+  z-index: 3;
+  top: 62px;
+  left: 16px;
+  right: 16px;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(120px, 1fr));
+  gap: 8px;
+}
+
+.map-price-strip div,
+.map-alert {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgb(255 255 255 / 92%);
+  box-shadow: var(--shadow);
+  color: #182026;
+  padding: 8px 10px;
+}
+
+.map-price-strip span,
+.map-alert span {
+  display: block;
+  color: #5e6b75;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.map-price-strip strong,
+.map-alert strong {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+}
+
+.map-toolbar input {
+  width: min(420px, 52vw);
+  min-height: 36px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: rgb(255 255 255 / 92%);
+  box-shadow: var(--shadow);
+  color: #182026;
+  padding: 0 12px;
+}
+
+.chip {
+  min-height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: rgb(255 255 255 / 92%);
+  box-shadow: var(--shadow);
+  color: #182026;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 0 10px;
+}
+
+.chip.active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #ffffff;
+}
+
 .gas-map {
   position: absolute;
   inset: 0;
+}
+
+.maplibre-canvas,
+.fallback-network-map {
+  position: absolute;
+  inset: 0;
+}
+
+.maplibre-canvas {
+  z-index: 0;
+}
+
+.fallback-network-map {
+  z-index: 2;
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.fallback-landmass {
+  fill: rgba(15, 118, 110, 0.2);
+  stroke: rgba(15, 118, 110, 0.65);
+  stroke-width: 4;
+}
+
+.fallback-grid {
+  stroke: rgba(94, 107, 117, 0.45);
+  stroke-width: 1.5;
+}
+
+.fallback-edge {
+  stroke: #2563eb;
+  stroke-linecap: round;
+  stroke-width: 2.25;
+  stroke-opacity: 0.7;
+}
+
+.fallback-edge.route {
+  stroke: #b45309;
+  stroke-width: 4;
+  stroke-opacity: 0.88;
+}
+
+.fallback-node circle {
+  fill: #2563eb;
+  stroke: #ffffff;
+  stroke-width: 2;
+}
+
+.fallback-node.hub circle {
+  fill: var(--accent);
+}
+
+.fallback-node.lng circle {
+  fill: #7c3aed;
+}
+
+.fallback-node.interconnection circle {
+  fill: #b45309;
+}
+
+.fallback-node text,
+.fallback-empty {
+  fill: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+  paint-order: stroke;
+  stroke: var(--surface);
+  stroke-width: 4;
 }
 
 .map-overlay {
@@ -175,6 +322,16 @@ input {
   font-size: 12px;
   font-weight: 700;
   padding: 6px 10px;
+}
+
+.map-alert-stack {
+  position: absolute;
+  z-index: 3;
+  right: 16px;
+  bottom: 16px;
+  display: grid;
+  width: min(360px, 40vw);
+  gap: 8px;
 }
 
 .sidebar {
@@ -246,6 +403,168 @@ input {
   gap: 8px;
 }
 
+.economics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.economics-grid label,
+.live-mark-row label,
+.settings-panel label {
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.economics-grid input,
+.live-mark-row input,
+.glossary-panel input,
+.settings-panel select {
+  min-height: 34px;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 0 8px;
+}
+
+.action-row,
+.live-mark-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.action-row button {
+  min-height: 34px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #ffffff;
+  cursor: pointer;
+  font-weight: 700;
+  padding: 0 10px;
+}
+
+.option-row,
+.glossary-row,
+.analysis-result,
+.analysis-section,
+.glossary-context {
+  display: grid;
+  gap: 6px;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+  margin-top: 10px;
+}
+
+.option-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+}
+
+.option-row div {
+  display: grid;
+  gap: 2px;
+}
+
+.option-row span,
+.glossary-row span,
+.glossary-row p {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.glossary-row p {
+  margin: 0;
+  line-height: 1.45;
+}
+
+.glossary-row button,
+.analysis-panel button {
+  min-height: 30px;
+  width: fit-content;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-strong);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 0 8px;
+}
+
+.analysis-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.analysis-panel textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  line-height: 1.4;
+  padding: 8px;
+  resize: vertical;
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.settings-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.strategy-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.strategy-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.strategy-summary span {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 8px;
+}
+
+.strategy-panel button {
+  min-height: 34px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #ffffff;
+  cursor: pointer;
+  font-weight: 700;
+  padding: 0 10px;
+}
+
+.strategy-result {
+  display: grid;
+  gap: 8px;
+}
+
 .credential-form select,
 .credential-form input {
   min-height: 34px;
@@ -279,6 +598,32 @@ input {
 
   .map-container {
     min-height: 58vh;
+  }
+
+  .map-toolbar {
+    right: 16px;
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+
+  .map-price-strip {
+    top: 112px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .map-alert-stack {
+    left: 16px;
+    right: 16px;
+    width: auto;
+  }
+
+  .map-toolbar input {
+    width: 100%;
+  }
+
+  .economics-grid,
+  .option-row {
+    grid-template-columns: 1fr;
   }
 
   .sidebar {

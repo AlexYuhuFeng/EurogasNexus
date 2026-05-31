@@ -81,6 +81,38 @@ Live ingestion: ECB=6, ENTSOG=10, GIE AGSI=10, GIE ALSI=10
 4. Auth, audit persistence depth, entitlement enforcement routes, and export
    governance runtime checks need hardening before multi-user or production use.
 
+## Route-Cost And Glossary Addendum
+
+Current in-progress route-cost and market-practice hardening adds:
+
+- UK National Gas NTS route-cost calculation from audited tariff rows without
+  hard-coding to Easington/Bacton examples;
+- DB tables for TSO tariffs, upstream resource contracts, capacity profiles,
+  route candidates, live market marks, glossary terms, strategy definitions,
+  strategy runs, strategy allocation targets, and strategy alerts;
+- `/api/v1/route-cost/*` endpoints and SDK helpers for route candidates,
+  generic UK NTS tariff rows, route-cost calculation, Easington option
+  comparison, live bid-based PnL marking, LNG regas readiness, and resource-pool
+  optimization;
+- `/api/v1/strategy-lab/evaluate` and SDK helpers for backtest, shadow-run, and
+  live-monitor paper strategy evaluation;
+- `/api/v1/glossary` and `/api/v1/glossary/{term}` bilingual glossary routes
+  with English, `zh`, and `zh-CN` support;
+- Web client panels for map layer/search, above-map portfolio/price/PnL/strategy
+  strip, UK NTS contract economics, live PnL, strategy lab, glossary, settings
+  language, and light/dark/system theme;
+- market-practice audit documents:
+  `docs/architecture/MARKET_PRACTICE_AUDIT-EN.md` and
+  `docs/architecture/MARKET_PRACTICE_AUDIT-CN.md`;
+- map-first trader cockpit UX documents:
+  `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-EN.md` and
+  `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-CN.md`.
+
+This addendum is the current pause marker for continuing the route-cost,
+glossary, strategy, cockpit UX, and market-practice work. Preserve UK National
+Gas NTS as the route-cost jurisdiction until a later milestone adds audited
+European TSO tariff coverage and route optimizer support.
+
 ## Next Prompt
 
 ```text

@@ -107,9 +107,22 @@ both bootstrap and full-envelope responses during transition.
 | `GET /api/v1/capacity/contracts` | capacity/contract context | planned |
 | `GET /api/v1/market/signals` | market movement signals | planned |
 | `GET /api/v1/weather/signals` | HDD/CDD and demand-pressure signals | planned |
-| `POST /api/v1/research/shadow-run` | strategy paper evaluation | planned |
-| `POST /api/v1/analysis/market-movement` | cited LLM-assisted market analysis | planned |
-| `GET /api/v1/glossary/terms` | backend-served glossary | planned |
+| `POST /api/v1/research/shadow-run` | legacy workflow shell | active |
+| `POST /api/v1/strategy-lab/evaluate` | strategy backtest/shadow/live-monitor paper evaluation | active |
+| `GET /api/v1/analysis/ontology` | business ontology for analysis and glossary QA | active |
+| `POST /api/v1/analysis/query` | DeepSeek-ready cited LLM/data analysis over backend snapshots | active |
+| `POST /api/v1/reports/portfolio` | portfolio/resource/strategy/PnL report generation | active |
+| `GET /api/v1/glossary/{term}/context` | glossary term operational context | active |
+| `POST /api/v1/analysis/market-movement` | legacy market movement placeholder | planned |
+| `GET /api/v1/glossary` | backend-served bilingual glossary | active |
+| `GET /api/v1/glossary/{term}` | backend-served bilingual glossary detail | active |
+| `GET /api/v1/route-cost/route-candidates` | DB-backed route candidates | active |
+| `GET /api/v1/route-cost/uk/tariffs` | UK NTS tariff rows available in DB/fallback | active |
+| `POST /api/v1/route-cost/calculate` | UK NTS route-cost calculation from tariff rows | active |
+| `POST /api/v1/route-cost/uk/easington/options` | UK Easington option PnL | active |
+| `POST /api/v1/route-cost/uk/easington/live-pnl` | UK Easington live bid-based PnL | active |
+| `POST /api/v1/route-cost/lng-regas/assess` | LNG regas readiness assessment | active |
+| `POST /api/v1/route-cost/resource-pool/optimize` | upstream portfolio/resource-pool allocation | active |
 
 Planned endpoints must be mocked locally until backend contracts exist.
 

@@ -16,9 +16,29 @@ def test_market_observation_importable() -> None:
 def test_fx_observation_importable() -> None:
     from eurogas_nexus.observations.market import FxObservation
 
-    fx = FxObservation(pair="EURUSD", rate=1.085)
+    fx = FxObservation(pair="EURUSD", rate=1.085, base_currency="EUR", quote_currency="USD")
     assert fx.pair == "EURUSD"
+    assert fx.base_currency == "EUR"
     assert fx.research_only is True
+
+
+def test_market_price_mark_supports_live_screen_fields() -> None:
+    from eurogas_nexus.observations.market import MarketPriceMark
+
+    mark = MarketPriceMark(
+        mark_id="ice-ocm-nbp-wd",
+        venue="ICE OCM",
+        hub="NBP",
+        product="within-day",
+        delivery_start_utc="2026-05-31T05:00:00Z",
+        delivery_end_utc="2026-06-01T05:00:00Z",
+        currency="GBP",
+        unit="GBP/MWh",
+        bid=28.2,
+        ask=28.4,
+    )
+    assert mark.bid == 28.2
+    assert mark.research_only is True
 
 
 def test_flow_observation_importable() -> None:
@@ -28,8 +48,10 @@ def test_flow_observation_importable() -> None:
         observation_id="flw-001", point_id="node-x", point_name="Test",
         direction="entry", flow_mcm_d=85.0,
         period_start_utc="2026-05-29T00:00:00Z", period_end_utc="2026-05-30T00:00:00Z",
+        tso="Example TSO",
     )
     assert obs.direction == "entry"
+    assert obs.tso == "Example TSO"
     assert obs.research_only is True
 
 
@@ -107,8 +129,10 @@ def test_contracts_models_importable() -> None:
     ctr = CapacityContract(
         contract_id="ctr-001", route_name="TTF-NCG",
         from_node_id="node-ttf", to_node_id="node-ncg", capacity_boe_d=500000.0,
+        capacity_mwh_per_day=2930000.0,
     )
     assert ctr.research_only is True
+    assert ctr.capacity_mwh_per_day == 2930000.0
 
     route = RouteEligibility(
         route_id="rte-001", from_node_id="node-ttf", to_node_id="node-ncg",

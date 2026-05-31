@@ -73,6 +73,9 @@ src/eurogas_nexus/sdk/
   reference_network_client.py
   scenario_client.py
   research_client.py
+  route_cost.py
+  glossary.py
+  strategy_lab.py
 ```
 
 ## Core Client Rules
@@ -154,6 +157,69 @@ Purpose:
 All methods must return metadata including assumptions, missing inputs,
 warnings, source references, lineage, `research_only`, and
 `human_review_required`.
+
+### Route Cost And Live PnL
+
+Purpose:
+
+- compare DB/API-backed route economics and live market marks without direct DB
+  access.
+
+Current V1 endpoints:
+
+```text
+GET /api/v1/route-cost/route-candidates
+GET /api/v1/route-cost/uk/tariffs
+POST /api/v1/route-cost/calculate
+POST /api/v1/route-cost/uk/easington/options
+POST /api/v1/route-cost/uk/easington/live-pnl
+POST /api/v1/route-cost/lng-regas/assess
+POST /api/v1/route-cost/resource-pool/optimize
+```
+
+Current V1 route-cost scope is UK National Gas NTS only. It must not be
+hard-coded to Easington/Bacton examples; any UK NTS point may be used when
+audited tariff rows exist in PostgreSQL. SDK methods must preserve backend
+warnings and must not imply execution or official trading recommendation.
+
+### Strategy Lab
+
+Purpose:
+
+- evaluate backtest, shadow-run, and live-monitor strategy inputs through the
+  backend API;
+- return paper allocation targets, risk-control status, missing inputs,
+  warnings, and source references.
+
+Current V1 endpoint:
+
+```text
+POST /api/v1/strategy-lab/evaluate
+```
+
+SDK strategy methods must call the backend API only. They must not import
+domain strategy modules, connect to PostgreSQL, call exchanges, or create
+orders/trades/nominations.
+
+### Glossary
+
+Purpose:
+
+- expose bilingual European gas trading vocabulary to scripts, CLI, Web, and
+  Windows clients.
+
+Current V1 endpoints:
+
+```text
+GET /api/v1/glossary?lang=en
+GET /api/v1/glossary?lang=zh-CN
+GET /api/v1/glossary/{term}?lang=en
+GET /api/v1/glossary/{term}?lang=zh-CN
+```
+
+SDK models must include term ID, term, category, localized definition, English
+definition, Mandarin Chinese definition, aliases, related terms, and source
+references.
 
 ## Authentication
 
