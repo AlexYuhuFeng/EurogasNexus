@@ -1,6 +1,7 @@
-"""Eurogas Nexus Python SDK — typed API clients for /api/v1.
+"""Eurogas Nexus Python SDK: typed API clients for /api/v1.
 
-Import from sub-modules for typed clients:
+Import typed clients from submodules, for example:
+
     from eurogas_nexus.sdk.reference_network import fetch_nodes, NodeDTO
     from eurogas_nexus.sdk.research import compute_route_cost, RouteCostResult
 """

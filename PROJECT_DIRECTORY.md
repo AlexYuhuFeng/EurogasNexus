@@ -44,16 +44,26 @@ the relevant milestone is selected.
 
 ## Current Implementation Shape
 
-The currently implemented component is the backend Python service:
+The current V1 release-candidate worktree implements backend, SDK, CLI, Web,
+and Windows shell surfaces for the tested local scope:
 
 - API entrypoint: `apps/api/main.py`
 - API package: `src/eurogas_nexus/api`
 - DB foundation: `src/eurogas_nexus/db`
-- SDK shell: `src/eurogas_nexus/sdk`
-- CLI shell: `src/eurogas_nexus/cli`
+- route-cost domain: `src/eurogas_nexus/domain/route_cost`
+- glossary domain: `src/eurogas_nexus/domain/glossary.py`
+- strategy-lab domain: `src/eurogas_nexus/domain/strategy_lab`
+- SDK clients: `src/eurogas_nexus/sdk`
+- CLI client: `src/eurogas_nexus/cli`
+- Web workspace: `clients/web`
+- Windows shell: `clients/desktop`
 
-Future client and deployment targets are represented by directory-level
-instructions plus detailed docs under `docs/clients/`.
+UK route-cost is active only for National Gas NTS in this release, but it must
+not be artificially limited to Easington/Bacton examples. Any UK NTS entry/exit
+point may be priced when audited tariff rows exist in PostgreSQL. Route cost,
+LNG regas readiness, resource-pool optimization, strategy lab, FX, market
+marks, credentials, and glossary surfaces are exposed through API/SDK/Web
+contracts. Clients must not read PostgreSQL directly.
 
 ## Development Direction
 
@@ -75,6 +85,13 @@ Claude Code should use:
 - `docs/product/REAL_TIME_MARKET_INTELLIGENCE_BLUEPRINT.md` as the map-first
   live-source, capacity/contract, strategy, weather, glossary, and LLM
   requirement source;
+- `docs/architecture/MARKET_PRACTICE_AUDIT-EN.md` and
+  `docs/architecture/MARKET_PRACTICE_AUDIT-CN.md` as the latest
+  market-practice audit for route cost, market marks, FX, physical signals,
+  contract/capacity, strategy, and glossary;
+- `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-EN.md` and
+  `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-CN.md` as the no-ambiguity
+  home-screen UX contract;
 - `docs/clients/README.md` as the client design index;
 - `docs/clients/CLIENT_TECH_STACK.md` as the fixed Web/Windows library
   authority;

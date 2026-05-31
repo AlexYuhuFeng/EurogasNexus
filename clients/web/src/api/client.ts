@@ -68,6 +68,12 @@ export interface MarketObsDTO {
   source_system?: string; freshness?: string;
 }
 
+export interface FxRateDTO {
+  pair: string; base_currency?: string; quote_currency?: string; rate: number;
+  rate_type?: string; value_date?: string; observed_at_utc: string;
+  source_system?: string; source_reference?: string; freshness?: string;
+}
+
 export interface FlowObsDTO {
   observation_id: string; point_id: string; point_name: string; direction: string;
   flow_mcm_d: number; period_start_utc: string; period_end_utc: string;
@@ -95,6 +101,109 @@ export interface RouteEligibilityDTO {
   eligibility: string; confidence: number; constraints: string[];
 }
 
+export interface RouteCandidateDTO {
+  route_id: string; route_name: string; start_point_name: string; target_point_name: string;
+  business_model: string; route_legs: Array<Record<string, unknown>>;
+  required_entry_point_name: string | null; required_exit_point_name: string | null;
+  required_tso_access: string[]; source_systems: string[];
+}
+
+export interface EasingtonContractRequest {
+  contract_id: string; gas_year: string; delivery_quantity_mwh_per_day: number;
+  contract_price_gbp_mwh: number; nbp_sale_price_gbp_mwh: number;
+  physical_exit_sale_price_gbp_mwh: number; physical_exit_point_name: string;
+  delivery_tolerance_pct: number; nomination_tolerance_pct: number;
+  tolerance_risk_allowance_gbp_mwh: number; settlement_frequency: string;
+  upstream_payment_lag_days: number; screen_sale_cash_lag_days: number;
+  annual_financing_rate_pct: number; owned_entry_capacity_mwh_per_day?: number | null;
+  owned_exit_capacity_mwh_per_day?: number | null; allowed_exit_points: string[];
+  eligible_sale_modes: string[];
+}
+
+export interface EasingtonOptionPnlDTO {
+  option_id: string; label: string; business_model: string; sale_price_gbp_mwh: number;
+  contract_cost_gbp_mwh: number; entry_capacity_charge_gbp_mwh: number;
+  exit_capacity_charge_gbp_mwh: number; commodity_charge_gbp_mwh: number;
+  tolerance_risk_allowance_gbp_mwh: number; early_cash_value_gbp_mwh: number;
+  total_charges_gbp_mwh: number; net_margin_gbp_mwh: number; net_pnl_gbp_per_day: number;
+  source_refs: string[]; route_legs: Array<Record<string, unknown>>;
+  tariff_status_summary: Record<string, number>; warnings: string[];
+  human_review_required: boolean;
+}
+
+export interface EasingtonOptionsResultDTO {
+  contract_id: string; gas_year: string; delivery_point_name: string;
+  delivery_quantity_mwh_per_day: number; delivery_tolerance_pct: number;
+  nomination_tolerance_pct: number; delivery_tolerance_mwh: number;
+  nomination_tolerance_mwh: number; options: EasingtonOptionPnlDTO[];
+  missing_inputs: string[]; warnings: string[]; source_refs: string[];
+  research_only: boolean; human_review_required: boolean;
+}
+
+export interface LiveMarketMarkDTO {
+  venue: string; hub: string; product: string; bid_gbp_mwh?: number | null;
+  ask_gbp_mwh?: number | null; last_gbp_mwh?: number | null;
+  mark_time_utc: string; source_system: string;
+}
+
+export interface LivePnlResultDTO extends EasingtonOptionsResultDTO {
+  live_marks: Array<{
+    option_id: string; venue: string; hub: string; product: string; status: string;
+    mark_price_gbp_mwh: number | null; live_net_margin_gbp_mwh: number | null;
+    live_net_pnl_gbp_per_day: number | null;
+    signal: { suggestion_type: string; suggested_action: string; rationale: string[]; warnings: string[] };
+  }>;
+}
+
+export interface StrategyPriceObservationDTO {
+  observation_id: string; source_system: string; venue: string; hub: string; product: string;
+  price_name: string; price_gbp_mwh: number; observed_at_utc: string;
+  delivery_start_utc: string; delivery_end_utc: string; bar_minutes?: number | null;
+  price_type?: string; source_reference?: string;
+}
+
+export interface StrategyResourceContextDTO {
+  resource_id: string; resource_name: string; available_quantity_mwh_per_day: number;
+  all_in_cost_gbp_mwh: number; delivery_tolerance_pct?: number | null;
+  nomination_tolerance_pct?: number | null; booked_entry_capacity_mwh_per_day?: number | null;
+  balancing_allowance_gbp_mwh?: number; required_tso_access: string[];
+  company_accessible_tsos?: string[] | null;
+}
+
+export interface StrategyComponentDTO {
+  component_id: string; component_type: string; weight?: number;
+  day_ahead_price_names?: string[]; intraday_price_names?: string[];
+  positive_spread_threshold_gbp_mwh?: number; negative_spread_threshold_gbp_mwh?: number;
+  time_window_start?: string | null; time_window_end?: string | null;
+  target_bar_minutes?: number | null;
+}
+
+export interface StrategyLabRequestDTO {
+  strategy_id: string; strategy_name: string; run_mode: string;
+  resource_contexts: StrategyResourceContextDTO[];
+  price_observations: StrategyPriceObservationDTO[];
+  components: StrategyComponentDTO[];
+  risk_control?: Record<string, unknown>;
+  existing_shadow_pnl_gbp?: number;
+  research_only?: boolean;
+}
+
+export interface StrategyAllocationTargetDTO {
+  market_bucket: string; target_allocation_pct: number; target_quantity_mwh_per_day: number;
+  reference_price_gbp_mwh: number | null; expected_margin_gbp_mwh: number | null;
+  rationale: string[];
+}
+
+export interface StrategyLabResultDTO {
+  strategy_id: string; strategy_name: string; run_mode: string; status: string;
+  weighted_score: number; day_ahead_average_gbp_mwh: number | null;
+  intraday_average_gbp_mwh: number | null;
+  intraday_vs_day_ahead_spread_gbp_mwh: number | null;
+  allocation_targets: StrategyAllocationTargetDTO[];
+  missing_inputs: string[]; warnings: string[]; source_refs: string[];
+  candidate_action_for_review: string; research_only: boolean; human_review_required: boolean;
+}
+
 export interface CapacityContractDTO {
   contract_id: string; route_name: string; from_node_id: string; to_node_id: string;
   capacity_boe_d: number; unit: string; start_utc: string; end_utc: string; status: string;
@@ -111,7 +220,32 @@ export interface RuntimeDbStatusDTO {
 }
 
 export interface GlossaryTermDTO {
-  term: string; definition: string;
+  term_id: string; term: string; category: string; definition: string;
+  definition_en: string; definition_zh_cn: string;
+  aliases: string[]; related_terms: string[]; source_refs: string[];
+}
+
+export interface GlossaryContextDTO {
+  term: string; context_type: string; description: string;
+  capacity: Record<string, unknown> | null; capacity_usage: Record<string, unknown> | null;
+  related_prices: Array<Record<string, unknown>>; related_routes: Array<Record<string, unknown>>;
+  related_sources: string[]; warnings: string[];
+  research_only: boolean; human_review_required: boolean;
+}
+
+export interface AnalysisRequestDTO {
+  question: string; task?: string; provider_id?: string; model?: string;
+  invoke_provider?: boolean; selected_terms?: string[]; selected_assets?: string[];
+  selected_contracts?: string[]; duration_start_utc?: string | null;
+  duration_end_utc?: string | null; include_sections?: string[]; language?: string;
+}
+
+export interface AnalysisResultDTO {
+  analysis_id: string; task: string; provider_id: string; provider_status: string;
+  answer_en: string; answer_zh_cn: string; citations: string[];
+  sections: Array<{ section_id: string; title: string; content: string; citations: string[]; warnings: string[] }>;
+  missing_inputs: string[]; warnings: string[]; snapshot_id: string;
+  created_at_utc: string; research_only: boolean; human_review_required: boolean;
 }
 
 // --- API functions ---
@@ -138,7 +272,7 @@ export const api = {
 
   lngObservations: () => get<LngObsDTO[]>("/lng/observations"),
 
-  fxRates: () => get<{ pair: string; rate: number }[]>("/market/fx"),
+  fxRates: () => get<FxRateDTO[]>("/market/fx"),
 
   credentialProviders: () => get<CredentialProviderDTO[]>("/credentials/providers"),
 
@@ -154,12 +288,30 @@ export const api = {
 
   routeEligibility: () => get<RouteEligibilityDTO[]>("/contracts/routes"),
 
+  routeCandidates: () => get<{ route_candidates: RouteCandidateDTO[] }>("/route-cost/route-candidates"),
+
+  compareEasingtonOptions: (body: EasingtonContractRequest) =>
+    post<EasingtonOptionsResultDTO>("/route-cost/uk/easington/options", body),
+
+  markEasingtonLivePnl: (contract: EasingtonContractRequest, marks: LiveMarketMarkDTO[]) =>
+    post<LivePnlResultDTO>("/route-cost/uk/easington/live-pnl", { contract, marks }),
+
+  evaluateStrategyLab: (body: StrategyLabRequestDTO) =>
+    post<StrategyLabResultDTO>("/strategy-lab/evaluate", body),
+
   capacityContracts: () => get<CapacityContractDTO[]>("/contracts/capacity"),
 
   runtimeDb: () => get<RuntimeDbStatusDTO>("/runtime/db"),
 
-  glossary: (lang: string = "en") =>
-    get<GlossaryTermDTO[]>("/glossary", { lang }),
+  glossary: (lang: string = "en", params?: { category?: string; q?: string }) =>
+    get<GlossaryTermDTO[]>("/glossary", { lang, ...(params ?? {}) }),
+
+  glossaryContext: (term: string) =>
+    get<GlossaryContextDTO>(`/glossary/${encodeURIComponent(term)}/context`),
+
+  analysisQuery: (body: AnalysisRequestDTO) => post<AnalysisResultDTO>("/analysis/query", body),
+
+  portfolioReport: (body: AnalysisRequestDTO) => post<AnalysisResultDTO>("/reports/portfolio", body),
 
   routeCost: (body: unknown) => post<unknown>("/research/route-cost", body),
   netback: (body: unknown) => post<unknown>("/research/netback", body),

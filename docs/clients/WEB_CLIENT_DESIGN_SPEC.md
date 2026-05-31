@@ -56,19 +56,24 @@ Internationalization and theme requirements:
 
 ## App Frame
 
+Use a map-first trader cockpit layout. The home screen must be dominated by the
+European gas map and must show portfolio exposure, live prices, indicative PnL,
+strategy process state, and warnings without forcing the trader to leave the
+map. The Top status bar remains the persistent runtime and warning anchor.
+
 Use this persistent layout:
 
 ```text
 +--------------------------------------------------------------------------------+
-| Top status bar: workspace name, backend status, DB status, profile, warnings     |
-+------+----------------------------------------------+--------------------------+
-| Nav  | Main workspace                               | Inspector                |
-|      |                                              |                          |
-|      | Map / scenario / context surface             | selected asset, sources, |
-|      |                                              | assumptions, lineage     |
-|      |                                              |                          |
-+------+----------------------------------------------+--------------------------+
-| Bottom panel: candidates, comparisons, warnings, missing inputs, output review   |
+| Top bar: workspace, backend/DB status, language/theme, warnings                 |
++--------------------------------------------------------------------------------+
+| Live strip above map: portfolio, hub prices, FX, live PnL, strategy process     |
++------+--------------------------------------------------+----------------------+
+| Nav  | Map-first home workspace                         | Inspector            |
+|      | European gas map with portfolio, routes,          | selected asset,      |
+|      | capacity, market, strategy, alert overlays        | sources, lineage     |
++------+--------------------------------------------------+----------------------+
+| Detail tabs/windows: prices, combinations, analysis, orders, warnings, manual   |
 +--------------------------------------------------------------------------------+
 ```
 
@@ -95,8 +100,15 @@ Primary navigation items:
 8. Glossary
 9. Runtime
 10. Settings
+11. Manual
+12. Order Records
 
 Navigation labels are product workflow labels, not implementation names.
+
+Home-screen authority:
+
+- `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-EN.md`
+- `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-CN.md`
 
 ## Screen: Runtime
 
@@ -125,12 +137,19 @@ States:
 
 Purpose:
 
-- inspect European gas infrastructure and route context.
+- operate the map-first trader cockpit for European gas infrastructure,
+  upstream portfolio exposure, route context, live market movement, strategy
+  process state, and warning state.
 
 Initial content:
 
 - map surface;
+- above-map price/process strip;
 - layer controls;
+- portfolio exposure overlay;
+- live PnL overlay;
+- active strategy process overlay;
+- route blocking/warning overlay;
 - selected asset inspector;
 - source/freshness badges;
 - warning banner for synthetic or incomplete data.
@@ -151,6 +170,8 @@ Layers:
 - weather/HDD/CDD and demand-pressure overlays;
 - contract/capacity exposure overlays;
 - research route candidate and warning overlays.
+- upstream resource contracts, resource pools, and external order records when
+  imported through backend API.
 
 Interactions:
 
@@ -160,8 +181,16 @@ Interactions:
 - filter by asset type;
 - inspect source and lineage;
 - open related scenario draft.
+- run backend route-cost, LNG regas, resource-pool, or strategy evaluation for
+  the selected route/resource context.
 
 Do not load live vendor data from the browser.
+
+External order records:
+
+- may be imported and displayed as reference context only;
+- must not become order entry, order amendment, order cancellation, trade
+  capture, or execution workflow.
 
 ## Screen: Capacity
 
@@ -245,6 +274,8 @@ Purpose:
 
 - inspect strategy backtests and paper shadow runs over approved market,
   physical, capacity, contract, and weather context.
+- monitor live strategy processes when the backend has authorized data and
+  operator-configured inputs.
 
 Content:
 
@@ -256,9 +287,22 @@ Content:
 - missed/blocked route reasons;
 - source snapshots;
 - warning stack.
+- time window such as 15:00-17:00;
+- bar size such as 5 minutes;
+- components such as SAP/ICIS day-ahead versus ICE OCM, mean reversion,
+  scoring, best buckets, and weighted combinations;
+- risk controls such as max OCM allocation, minimum day-ahead allocation,
+  maximum single-market volume, minimum expected margin, stop-loss, stale-data
+  blocking, and TSO-access blocking.
 
 Shadow run creates no orders, trades, nominations, execution records, or
 official recommendations.
+
+Current endpoint:
+
+```text
+POST /api/v1/strategy-lab/evaluate
+```
 
 ## Screen: Review
 
@@ -308,6 +352,7 @@ Purpose:
 
 - explain gas, LNG, storage, trading venue, capacity, route economics, weather,
   and data-governance terms in a consistent backend-served vocabulary.
+- support English and Mandarin Chinese from the same backend term contract.
 
 Content:
 
@@ -318,6 +363,14 @@ Content:
 - source/reference note;
 - reviewed timestamp.
 
+Current V1 contract:
+
+- use `GET /api/v1/glossary?lang=en`;
+- use `GET /api/v1/glossary?lang=zh-CN`;
+- show term, category, localized definition, aliases when useful, and related
+  terms;
+- do not hard-code glossary definitions in the client beyond test fixtures.
+
 ## LLM Analysis Panel
 
 Purpose:
@@ -327,12 +380,24 @@ Purpose:
 
 Rules:
 
-- use only backend-provided `/api/v1/analysis/*` outputs;
+- use only backend-provided `/api/v1/analysis/*`, `/api/v1/reports/*`, and
+  `/api/v1/glossary/{term}/context` outputs;
+- DeepSeek is the first supported V1 live provider, invoked only by backend when
+  the operator enables provider invocation and a credential is configured;
 - show citations/source references next to claims;
 - show assumptions, missing inputs, warnings, prompt/template version, and
   provider/model metadata when available;
 - label outputs as research-only and human-review-required;
 - never present LLM text as official trading advice.
+
+Current endpoints:
+
+```text
+GET /api/v1/analysis/ontology
+POST /api/v1/analysis/query
+POST /api/v1/reports/portfolio
+GET /api/v1/glossary/{term}/context
+```
 
 ## Screen: Settings
 
@@ -346,6 +411,8 @@ Allowed:
 - theme density;
 - default map layers;
 - local UI preferences.
+- language switch with English and Mandarin Chinese;
+- light, dark, and system theme switch.
 
 Forbidden:
 

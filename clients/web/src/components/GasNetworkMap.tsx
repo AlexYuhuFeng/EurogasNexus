@@ -8,13 +8,46 @@ interface GasNetworkMapProps {
   edges: EdgeDTO[];
   routes: RouteEligibilityDTO[];
   themeMode: "light" | "dark" | "system";
+  activeLayers: string[];
+  searchTerm: string;
 }
 
-export function GasNetworkMap({ nodes, edges, routes, themeMode }: GasNetworkMapProps) {
+export function GasNetworkMap({ nodes, edges, routes, themeMode, activeLayers, searchTerm }: GasNetworkMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const [mapReady, setMapReady] = useState(false);
+  const filteredNodes = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    return nodes.filter((node) => {
+      const layerMatch =
+        (activeLayers.includes("hubs") && node.node_type === "hub") ||
+        (activeLayers.includes("lng") && node.node_type === "lng") ||
+        (activeLayers.includes("ips") && node.node_type === "interconnection") ||
+        (activeLayers.includes("network") && !["hub", "lng", "interconnection"].includes(node.node_type));
+      const searchMatch = !term ||
+        node.name.toLowerCase().includes(term) ||
+        node.country.toLowerCase().includes(term) ||
+        node.node_type.toLowerCase().includes(term);
+      return layerMatch && searchMatch;
+    });
+  }, [activeLayers, nodes, searchTerm]);
   const nodeLookup = useMemo(() => new globalThis.Map(nodes.map((node) => [node.id, node])), [nodes]);
+  const visibleEdges = useMemo(() => {
+    const visibleNodeIds = new Set(filteredNodes.map((node) => node.id));
+    return edges
+      .map((edge) => {
+        const from = nodeLookup.get(edge.from_node_id);
+        const to = nodeLookup.get(edge.to_node_id);
+        if (!from || !to) return null;
+        if (!visibleNodeIds.has(from.id) && !visibleNodeIds.has(to.id)) return null;
+        return { ...edge, from, to };
+      })
+      .filter((edge): edge is NonNullable<typeof edge> => edge !== null);
+  }, [edges, filteredNodes, nodeLookup]);
+  const routeIds = useMemo(
+    () => new Set(routes.map((route) => `${route.from_node_id}:${route.to_node_id}`)),
+    [routes],
+  );
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -55,7 +88,8 @@ export function GasNetworkMap({ nodes, edges, routes, themeMode }: GasNetworkMap
     const map = mapRef.current;
     if (!map || !mapReady) return;
 
-    const nodeFeatures = nodes.map((node) => ({
+    const visibleNodeIds = new Set(filteredNodes.map((node) => node.id));
+    const nodeFeatures = filteredNodes.map((node) => ({
       type: "Feature" as const,
       properties: {
         id: node.id,
@@ -66,12 +100,10 @@ export function GasNetworkMap({ nodes, edges, routes, themeMode }: GasNetworkMap
       },
       geometry: { type: "Point" as const, coordinates: [node.lon, node.lat] },
     }));
-    const routeIds = new Set(routes.map((route) => `${route.from_node_id}:${route.to_node_id}`));
-    const edgeFeatures = edges
+    const edgeFeatures = visibleEdges
       .map((edge) => {
-        const from = nodeLookup.get(edge.from_node_id);
-        const to = nodeLookup.get(edge.to_node_id);
-        if (!from || !to) return null;
+        const from = edge.from;
+        const to = edge.to;
         return {
           type: "Feature" as const,
           properties: {
@@ -89,7 +121,6 @@ export function GasNetworkMap({ nodes, edges, routes, themeMode }: GasNetworkMap
           },
         };
       })
-      .filter((feature): feature is NonNullable<typeof feature> => feature !== null);
 
     if (!map.getSource("edges")) {
       map.addSource("edges", {
@@ -151,7 +182,60 @@ export function GasNetworkMap({ nodes, edges, routes, themeMode }: GasNetworkMap
         features: nodeFeatures,
       });
     }
-  }, [edges, mapReady, nodeLookup, nodes, routes]);
+  }, [filteredNodes, mapReady, routeIds, visibleEdges]);
 
-  return <div ref={containerRef} className="gas-map" aria-label="Gas network map" />;
+  function project(lon: number, lat: number): [number, number] {
+    const x = ((lon + 12) / 47) * 1000;
+    const y = ((63 - lat) / 29) * 620;
+    return [Math.max(0, Math.min(1000, x)), Math.max(0, Math.min(620, y))];
+  }
+
+  return (
+    <div className="gas-map" aria-label="Gas network map">
+      <div ref={containerRef} className="maplibre-canvas" />
+      <svg className="fallback-network-map" viewBox="0 0 1000 620" role="presentation">
+        <path
+          className="fallback-landmass"
+          d="M100 180 C150 120 235 100 320 120 C390 80 505 90 610 135 C750 135 865 210 900 330 C850 455 720 520 560 500 C440 570 300 540 220 465 C105 445 60 340 100 180 Z"
+        />
+        {[-5, 5, 15, 25].map((lon) => {
+          const [x] = project(lon, 50);
+          return <line key={`lon-${lon}`} className="fallback-grid" x1={x} x2={x} y1={30} y2={590} />;
+        })}
+        {[40, 45, 50, 55, 60].map((lat) => {
+          const [, y] = project(5, lat);
+          return <line key={`lat-${lat}`} className="fallback-grid" x1={35} x2={960} y1={y} y2={y} />;
+        })}
+        {visibleEdges.map((edge) => {
+          const [x1, y1] = project(edge.from.lon, edge.from.lat);
+          const [x2, y2] = project(edge.to.lon, edge.to.lat);
+          const routeCandidate = routeIds.has(`${edge.from_node_id}:${edge.to_node_id}`);
+          return (
+            <line
+              key={edge.id}
+              className={routeCandidate ? "fallback-edge route" : "fallback-edge"}
+              x1={x1}
+              y1={y1}
+              x2={x2}
+              y2={y2}
+            />
+          );
+        })}
+        {filteredNodes.map((node) => {
+          const [x, y] = project(node.lon, node.lat);
+          return (
+            <g key={node.id} className={`fallback-node ${node.node_type}`}>
+              <circle cx={x} cy={y} r={node.node_type === "hub" ? 7 : 5} />
+              <text x={x + 9} y={y - 8}>{node.name}</text>
+            </g>
+          );
+        })}
+        {filteredNodes.length === 0 && (
+          <text className="fallback-empty" x="500" y="310" textAnchor="middle">
+            Loading network layers
+          </text>
+        )}
+      </svg>
+    </div>
+  );
 }

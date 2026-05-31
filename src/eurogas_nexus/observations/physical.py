@@ -17,6 +17,10 @@ class FlowObservation:
     flow_mcm_d: float  # million cubic meters per day
     period_start_utc: str
     period_end_utc: str
+    tso: str = ""
+    country: str = ""
+    interconnection_point_code: str = ""
+    flow_status: str = "actual"  # "actual", "nomination", "allocation", "forecast"
     observed_at_utc: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     source_system: str = "synthetic-fixture"
     source_reference: str = ""
@@ -35,6 +39,12 @@ class CapacityObservation:
     capacity_mcm_d: float
     period_start_utc: str
     period_end_utc: str
+    direction: str = ""
+    tso: str = ""
+    country: str = ""
+    firmness: str = "firm"
+    product: str = "day"
+    booking_platform: str = ""
     observed_at_utc: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     source_system: str = "synthetic-fixture"
     source_reference: str = ""
@@ -53,6 +63,11 @@ class OutageEvent:
     status: str  # "active", "resolved", "scheduled"
     start_utc: str
     end_utc: str | None = None
+    affected_point_id: str = ""
+    affected_point_name: str = ""
+    tso: str = ""
+    country: str = ""
+    direction: str = ""
     capacity_impact_mcm_d: float = 0.0
     description: str = ""
     source_system: str = "synthetic-fixture"

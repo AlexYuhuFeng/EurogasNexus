@@ -16,6 +16,15 @@ class CapacityContract:
     to_node_id: str
     capacity_boe_d: float
     unit: str = "boe/d"
+    capacity_mwh_per_day: float | None = None
+    direction: str = ""
+    firmness: str = "firm"
+    capacity_product: str = "day"
+    contract_type: str = "capacity"
+    settlement_frequency: str = ""
+    payment_lag_days: int | None = None
+    tolerance_pct: float | None = None
+    overrun_charge_rule: str = ""
     start_utc: str = ""
     end_utc: str = ""
     status: str = "active"  # "active", "expiring", "expired"
@@ -35,6 +44,10 @@ class RouteEligibility:
     to_node_id: str
     eligibility: str  # "research_candidate", "confirmed", "ineligible"
     confidence: float  # 0.0 - 1.0
+    business_model: str = ""  # "virtual_hub_sale", "physical_delivery", "storage_cycle"
+    required_capacity_products: list[str] = field(default_factory=list)
+    required_market_marks: list[str] = field(default_factory=list)
+    required_physical_signals: list[str] = field(default_factory=list)
     constraints: list[str] = field(default_factory=list)
     notes: str = ""
     source_system: str = "synthetic-fixture"

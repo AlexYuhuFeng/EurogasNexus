@@ -29,6 +29,23 @@ class MarketObservationRecord(Base):
     research_only: Mapped[bool] = mapped_column(Boolean, nullable=False)
 
 
+class FxObservationRecord(Base):
+    __tablename__ = "fx_observations"
+
+    observation_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    pair: Mapped[str] = mapped_column(String(16), nullable=False)
+    base_currency: Mapped[str] = mapped_column(String(8), nullable=False)
+    quote_currency: Mapped[str] = mapped_column(String(8), nullable=False)
+    rate: Mapped[float] = mapped_column(Float, nullable=False)
+    rate_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    value_date: Mapped[str] = mapped_column(String(16), nullable=False)
+    observed_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    source_system: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_reference: Mapped[str] = mapped_column(String(128), nullable=False)
+    freshness: Mapped[str] = mapped_column(String(16), nullable=False)
+    research_only: Mapped[bool] = mapped_column(Boolean, nullable=False)
+
+
 class FlowObservationRecord(Base):
     __tablename__ = "flow_observations"
 

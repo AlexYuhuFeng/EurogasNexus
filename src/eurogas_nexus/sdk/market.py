@@ -17,8 +17,15 @@ class MarketObservation(BaseModel):
 
 class FxRate(BaseModel):
     pair: str
+    base_currency: str | None = None
+    quote_currency: str | None = None
     rate: float
+    rate_type: str | None = None
+    value_date: str | None = None
     observed_at_utc: str
+    source_system: str | None = None
+    source_reference: str | None = None
+    freshness: str | None = None
 
 
 class MarketSpread(BaseModel):

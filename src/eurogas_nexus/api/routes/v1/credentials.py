@@ -20,6 +20,7 @@ ProviderId = Literal[
     "Kpler",
     "Platts",
     "Weather",
+    "DEEPSEEK",
     "LLM",
 ]
 
@@ -34,7 +35,8 @@ PROVIDERS: tuple[dict[str, object], ...] = (
     {"provider_id": "Kpler", "display_name": "Kpler", "credential_required": True},
     {"provider_id": "Platts", "display_name": "Platts", "credential_required": True},
     {"provider_id": "Weather", "display_name": "Weather", "credential_required": True},
-    {"provider_id": "LLM", "display_name": "LLM Provider", "credential_required": True},
+    {"provider_id": "DEEPSEEK", "display_name": "DeepSeek LLM", "credential_required": True},
+    {"provider_id": "LLM", "display_name": "Generic LLM Provider", "credential_required": True},
 )
 
 
