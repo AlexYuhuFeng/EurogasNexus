@@ -52,6 +52,8 @@ and Windows shell surfaces for the tested local scope:
 - DB foundation: `src/eurogas_nexus/db`
 - route-cost domain: `src/eurogas_nexus/domain/route_cost`
 - market-positioning domain: `src/eurogas_nexus/domain/market_positioning.py`
+- market-positioning import domain:
+  `src/eurogas_nexus/domain/market_positioning_import.py`
 - glossary domain: `src/eurogas_nexus/domain/glossary.py`
 - operational glossary context: `src/eurogas_nexus/domain/analysis.py` and
   `/api/v1/glossary/{term}/context`
@@ -72,6 +74,9 @@ PnL snapshots are exposed through `/api/v1/portfolio/*` and
 Operational glossary context is also API-only and combines runtime capacity,
 usage, prices, live marks, routes, and linked contracts for terms such as
 Easington Entry Point, ICIS Heren, NBP, and ICE OCM.
+Internal/operator market-positioning imports use
+`/api/internal/portfolio/import-observations`; release clients continue to use
+read-only `/api/v1/portfolio/*` endpoints.
 
 ## Development Direction
 
@@ -106,6 +111,9 @@ Claude Code should use:
 - `docs/clients/OPERATIONAL_GLOSSARY_CONTEXT_SPEC-EN.md` and
   `docs/clients/OPERATIONAL_GLOSSARY_CONTEXT_SPEC-CN.md` as the glossary
   context and metric-rendering contract;
+- `docs/operations/MARKET_POSITIONING_IMPORTS-EN.md` and
+  `docs/operations/MARKET_POSITIONING_IMPORTS-CN.md` as the internal
+  entitlement/audit import runbook;
 - `docs/clients/README.md` as the client design index;
 - `docs/clients/CLIENT_TECH_STACK.md` as the fixed Web/Windows library
   authority;

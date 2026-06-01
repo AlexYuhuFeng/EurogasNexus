@@ -59,3 +59,15 @@ These tables are introduced by Alembic revision
 Milestone 2 should add importer-controlled upsert paths for customer order/PnL
 imports, entitlement-aware filtering, and audited lineage. It must still remain
 read-only from client surfaces unless the product boundary is formally changed.
+
+R19 implements the first internal import path:
+
+```text
+POST /api/internal/portfolio/import-observations
+```
+
+This route is internal/operator-only. It fails closed unless
+`entitlement_decisions` grants each source/dataset pair, and it writes
+`ingestion_runs` plus `audit_events` for both accepted and denied batches. Web,
+Windows, SDK, and CLI release clients must continue to use the read-only
+`/api/v1/portfolio/*` routes.

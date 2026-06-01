@@ -65,6 +65,9 @@ New SDK, CLI, Web, and Windows code must target `/api/v1`.
 - Imported external screen-order observations and portfolio PnL snapshots are
   DB-first, API/SDK-readable, and surfaced in the map-first cockpit as
   read-only decision-support context.
+- Internal/operator imports for screen-order observations and indicative PnL
+  snapshots are governed by fail-closed entitlement checks and write audit plus
+  ingestion-run evidence before `/api/v1/portfolio/*` exposes them read-only.
 - Strategy lab supports backtest, shadow-run, and live-monitor evaluation
   contracts for SAP/ICIS day-ahead versus ICE OCM style intraday strategies,
   5-minute bar windows, scoring components, allocation targets, stop-loss
@@ -118,6 +121,9 @@ ExecPlans: `.agent/plans/`
 - operational glossary context spec EN/CN:
   `docs/clients/OPERATIONAL_GLOSSARY_CONTEXT_SPEC-EN.md` and
   `docs/clients/OPERATIONAL_GLOSSARY_CONTEXT_SPEC-CN.md`
+- market-positioning import operations EN/CN:
+  `docs/operations/MARKET_POSITIONING_IMPORTS-EN.md` and
+  `docs/operations/MARKET_POSITIONING_IMPORTS-CN.md`
 - LLM analysis and reporting spec EN/CN:
   `docs/architecture/LLM_ANALYSIS_REPORTING_SPEC-EN.md` and
   `docs/architecture/LLM_ANALYSIS_REPORTING_SPEC-CN.md`

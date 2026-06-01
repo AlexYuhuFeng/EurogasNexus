@@ -29,7 +29,7 @@ Results:
 
 ```text
 Ruff: passed
-Python targeted tests: 320 passed
+Python targeted tests: 324 passed
 Web build: passed
 Desktop cargo check: passed
 App import: app import ok, 74 routes
@@ -70,6 +70,9 @@ analysis without page errors.
   duration-aware Easington Entry Point context can show capacity, capacity in
   use, utilization percentage, NBP/ICE OCM/ICIS prices, live marks, route
   candidates, linked contracts, warnings, and data-quality metadata.
+- Internal/operator market-positioning imports now have an entitlement-gated
+  path that writes screen-order observations and indicative PnL snapshots into
+  PostgreSQL while recording `ingestion_runs` and `audit_events`.
 
 ## Work Completed Since Previous Pause
 
@@ -86,6 +89,13 @@ analysis without page errors.
 - Added operational glossary context specs:
   `docs/clients/OPERATIONAL_GLOSSARY_CONTEXT_SPEC-EN.md` and
   `docs/clients/OPERATIONAL_GLOSSARY_CONTEXT_SPEC-CN.md`.
+- Added R19 market-positioning import control:
+  `/api/internal/portfolio/import-observations`, fail-closed
+  `entitlement_decisions` checks, repository upserts, and audit/ingestion-run
+  persistence.
+- Added market-positioning import runbooks:
+  `docs/operations/MARKET_POSITIONING_IMPORTS-EN.md` and
+  `docs/operations/MARKET_POSITIONING_IMPORTS-CN.md`.
 - Added `screen_order_observations` and `portfolio_pnl_snapshots` runtime tables
   for read-only imported screen-order state and portfolio PnL marks.
 - Added `/api/v1/portfolio/screen-orders`,
@@ -127,6 +137,9 @@ analysis without page errors.
 7. Operational glossary context is only as complete as the runtime DB records
    supplied by customer imports. Synthetic fallback context is for development
    demonstration only.
+8. Market-positioning imports are internal/operator-only and currently rely on
+   pre-existing entitlement rows. Production auth and operator role enforcement
+   still need hardening before multi-user deployment.
 
 ## Route-Cost And Glossary Addendum
 

@@ -7,6 +7,9 @@ from typing import Protocol
 from sqlalchemy.orm import Session
 
 from eurogas_nexus.db.models import IngestionRunRecord
+from eurogas_nexus.db.repositories.market_positioning_import import (
+    upsert_market_positioning_import_batch,
+)
 
 
 @dataclass(frozen=True)
@@ -52,4 +55,5 @@ __all__ = [
     "IngestionRun",
     "IngestionRunRepository",
     "SqlAlchemyIngestionRunRepository",
+    "upsert_market_positioning_import_batch",
 ]

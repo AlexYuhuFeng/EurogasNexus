@@ -129,6 +129,23 @@ both bootstrap and full-envelope responses during transition.
 
 Planned endpoints must be mocked locally until backend contracts exist.
 
+## Internal Import Route
+
+`POST /api/internal/portfolio/import-observations` is an internal/operator route,
+not a stable client route. It is available only when the API runs with the
+`internal` profile. Release clients must not call it.
+
+The route writes external screen-order observations and indicative portfolio PnL
+snapshots into PostgreSQL after entitlement checks pass. Missing entitlement
+denies the full batch and writes audit/ingestion-run evidence without writing
+observation rows.
+
+Read-only client surfaces remain:
+
+- `GET /api/v1/portfolio/screen-orders`;
+- `GET /api/v1/portfolio/pnl-snapshots`;
+- `GET /api/v1/portfolio/live-summary`.
+
 ## Operational Glossary Context
 
 `GET /api/v1/glossary/{term}/context` accepts:

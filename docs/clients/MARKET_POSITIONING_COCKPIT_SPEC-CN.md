@@ -55,3 +55,14 @@ V1 不允许从客户端修改或撤销这些订单。
 
 Milestone 2 应增加由导入器控制的客户订单/PnL upsert 路径、带授权过滤的查询、
 以及可审计 lineage。除非产品边界正式变更，客户端表面仍必须保持只读。
+## R19 内部导入路径
+
+R19 已实现首个内部导入路径：
+
+```text
+POST /api/internal/portfolio/import-observations
+```
+
+该路由仅供内部/操作员使用。除非 `entitlement_decisions` 对每一个来源和数据集组合授权，
+否则批次默认失败关闭。成功和拒绝的批次都会写入 `ingestion_runs` 与 `audit_events`。
+Web、Windows、SDK 和 CLI 正式客户端必须继续使用只读 `/api/v1/portfolio/*` 路由。
