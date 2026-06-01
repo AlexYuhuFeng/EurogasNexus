@@ -19,7 +19,30 @@ def test_windows_client_wraps_shared_web_workspace() -> None:
     assert config["build"]["beforeBuildCommand"] == "npm --prefix ../web run build"
     assert config["build"]["devUrl"] == "http://127.0.0.1:3000"
     assert config["app"]["windows"][0]["label"] == "main"
+    assert config["app"]["windows"][0]["decorations"] is False
+    assert config["app"]["windows"][0]["fullscreen"] is True
+    assert config["app"]["windows"][0]["visible"] is False
     assert config["bundle"]["active"] is True
+
+
+def test_windows_client_uses_startup_splash_window() -> None:
+    config = json.loads(
+        (ROOT / "clients" / "desktop" / "src-tauri" / "tauri.conf.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    main_rs = (
+        ROOT / "clients" / "desktop" / "src-tauri" / "src" / "main.rs"
+    ).read_text(encoding="utf-8")
+
+    windows = {window["label"]: window for window in config["app"]["windows"]}
+    assert windows["splashscreen"]["visible"] is True
+    assert windows["splashscreen"]["decorations"] is False
+    assert windows["splashscreen"]["fullscreen"] is False
+    assert 'get_webview_window("main")' in main_rs
+    assert 'get_webview_window("splashscreen")' in main_rs
+    assert "main_window.show()" in main_rs
+    assert "splashscreen.close()" in main_rs
 
 
 def test_windows_client_has_minimal_safe_permissions() -> None:

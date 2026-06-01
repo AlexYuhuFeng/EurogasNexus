@@ -119,10 +119,11 @@ def test_current_pause_point_records_holistic_runtime_pause_state() -> None:
 
     assert "Holistic local runtime testing" in text
     assert "V1 release candidate" in text
-    assert "346 passed" in text
-    assert "56 routes" in text
+    assert "318 passed" in text
+    assert "74 routes" in text
     assert "Windows/Tauri" in text
-    assert "Live ingestion: ECB=6, ENTSOG=10, GIE AGSI=10, GIE ALSI=10" in text
+    assert "Console after interactions: 0 errors, 0 warnings" in text
+    assert "screen_order_observations" in text
     assert "Provider credentials are backend-owned" in text
     assert "data/release_v1/holistic_real_test_report.md" in text
 

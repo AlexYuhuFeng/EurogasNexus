@@ -55,6 +55,14 @@ REQUIRED_TABLES: tuple[RequiredTable, ...] = (
         name="business_ontology_terms",
         introduced_in="0008_analysis_reporting_foundation",
     ),
+    RequiredTable(
+        name="screen_order_observations",
+        introduced_in="0009_market_positioning_foundation",
+    ),
+    RequiredTable(
+        name="portfolio_pnl_snapshots",
+        introduced_in="0009_market_positioning_foundation",
+    ),
 )
 
 

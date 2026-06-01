@@ -28,6 +28,9 @@ export default function App() {
     edges,
     sources,
     markets,
+    screenOrders,
+    pnlSnapshots,
+    portfolioSummary,
     fxRates,
     flows,
     storage,
@@ -231,6 +234,8 @@ export default function App() {
   }
 
   const primaryLiveMark = livePnl?.live_marks[0];
+  const latestPnlSnapshot = pnlSnapshots[0];
+  const activeOrder = screenOrders.find((order) => order.status !== "FILLED") ?? screenOrders[0];
   const firstStrategyTarget = strategyResult?.allocation_targets[0];
   const analysisPayload = {
     question: analysisQuestion,
@@ -312,7 +317,9 @@ export default function App() {
               <strong>
                 {primaryLiveMark
                   ? `GBP ${Math.round(primaryLiveMark.live_net_pnl_gbp_per_day ?? 0).toLocaleString()}/d`
-                  : t("home.pending")}
+                  : portfolioSummary
+                    ? `GBP ${Math.round(portfolioSummary.total_indicative_pnl_gbp).toLocaleString()}`
+                    : t("home.pending")}
               </strong>
             </div>
             <div>
@@ -327,6 +334,14 @@ export default function App() {
             themeMode={mode}
             activeLayers={activeLayers}
             searchTerm={searchTerm}
+            highlightedRoute={{
+              fromNodeId: "node-bacton",
+              toNodeId: "node-nbp",
+              label: activeOrder
+                ? `${activeOrder.venue} ${activeOrder.side} ${activeOrder.remaining_quantity_mwh.toLocaleString()} MWh`
+                : "Portfolio PnL route",
+              pnlGbp: primaryLiveMark?.live_net_pnl_gbp_per_day ?? latestPnlSnapshot?.indicative_pnl_gbp ?? null,
+            }}
           />
           <div className="map-overlay">
             <span>{t("map.nodes")}: {nodes.length}</span>
@@ -428,6 +443,52 @@ export default function App() {
                 </div>
               ))}
             </div>
+          </div>
+
+          <div className="panel positioning-panel">
+            <h3>{t("panel.positioning")}</h3>
+            {portfolioSummary && (
+              <div className="metric-grid">
+                <div>
+                  <span>{t("portfolio.indicative_pnl")}</span>
+                  <strong>GBP {Math.round(portfolioSummary.total_indicative_pnl_gbp).toLocaleString()}</strong>
+                </div>
+                <div>
+                  <span>{t("portfolio.cash_value")}</span>
+                  <strong>GBP {Math.round(portfolioSummary.total_cash_value_gbp).toLocaleString()}</strong>
+                </div>
+                <div>
+                  <span>{t("portfolio.open_orders")}</span>
+                  <strong>{portfolioSummary.open_order_count}</strong>
+                </div>
+              </div>
+            )}
+            {screenOrders.slice(0, 3).map((order) => (
+              <div key={order.order_observation_id} className="option-row live">
+                <div>
+                  <strong>{order.venue} {order.side} {order.product}</strong>
+                  <span>
+                    {order.hub} {order.status} · {order.filled_quantity_mwh.toLocaleString()} / {order.quantity_mwh.toLocaleString()} MWh
+                  </span>
+                </div>
+                <div>
+                  <strong>{order.price.toFixed(2)} {order.unit}</strong>
+                  <span>{order.contract_code}</span>
+                </div>
+              </div>
+            ))}
+            {pnlSnapshots.slice(0, 2).map((snapshot) => (
+              <div key={snapshot.pnl_snapshot_id} className="option-row">
+                <div>
+                  <strong>{snapshot.portfolio_id}</strong>
+                  <span>{snapshot.valuation_basis}</span>
+                </div>
+                <div>
+                  <strong>GBP {Math.round(snapshot.indicative_pnl_gbp).toLocaleString()}</strong>
+                  <span>{snapshot.quantity_mwh.toLocaleString()} MWh</span>
+                </div>
+              </div>
+            ))}
           </div>
 
           <div className="panel strategy-panel">
@@ -598,6 +659,7 @@ export default function App() {
               />
               <input
                 type="password"
+                autoComplete="current-password"
                 value={credentialValue}
                 disabled={!selectedCredentialProvider?.credential_required}
                 onChange={(event) => setCredentialValue(event.target.value)}

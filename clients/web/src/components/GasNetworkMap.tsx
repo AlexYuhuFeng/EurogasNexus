@@ -10,9 +10,23 @@ interface GasNetworkMapProps {
   themeMode: "light" | "dark" | "system";
   activeLayers: string[];
   searchTerm: string;
+  highlightedRoute?: {
+    fromNodeId: string;
+    toNodeId: string;
+    label: string;
+    pnlGbp: number | null;
+  };
 }
 
-export function GasNetworkMap({ nodes, edges, routes, themeMode, activeLayers, searchTerm }: GasNetworkMapProps) {
+export function GasNetworkMap({
+  nodes,
+  edges,
+  routes,
+  themeMode,
+  activeLayers,
+  searchTerm,
+  highlightedRoute,
+}: GasNetworkMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const [mapReady, setMapReady] = useState(false);
@@ -48,6 +62,13 @@ export function GasNetworkMap({ nodes, edges, routes, themeMode, activeLayers, s
     () => new Set(routes.map((route) => `${route.from_node_id}:${route.to_node_id}`)),
     [routes],
   );
+  const highlightedRoutePoints = useMemo(() => {
+    if (!highlightedRoute) return null;
+    const from = nodeLookup.get(highlightedRoute.fromNodeId);
+    const to = nodeLookup.get(highlightedRoute.toNodeId);
+    if (!from || !to) return null;
+    return { ...highlightedRoute, from, to };
+  }, [highlightedRoute, nodeLookup]);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -221,6 +242,33 @@ export function GasNetworkMap({ nodes, edges, routes, themeMode, activeLayers, s
             />
           );
         })}
+        {highlightedRoutePoints && (() => {
+          const [x1, y1] = project(highlightedRoutePoints.from.lon, highlightedRoutePoints.from.lat);
+          const [x2, y2] = project(highlightedRoutePoints.to.lon, highlightedRoutePoints.to.lat);
+          const controlX = (x1 + x2) / 2;
+          const controlY = Math.min(y1, y2) - 90;
+          const path = `M ${x1} ${y1} Q ${controlX} ${controlY} ${x2} ${y2}`;
+          const pnlText = highlightedRoutePoints.pnlGbp === null
+            ? ""
+            : `GBP ${Math.round(highlightedRoutePoints.pnlGbp).toLocaleString()}`;
+          return (
+            <g className="fallback-flow" aria-hidden="true">
+              <path className="fallback-flow-shadow" d={path} />
+              <path className="fallback-flow-path" d={path} />
+              <circle className="fallback-flow-pulse" r="7">
+                <animateMotion dur="3.8s" repeatCount="indefinite" path={path} />
+              </circle>
+              <text className="fallback-flow-label" x={controlX + 12} y={controlY - 14}>
+                {highlightedRoutePoints.label}
+              </text>
+              {pnlText && (
+                <text className="fallback-flow-value" x={controlX + 12} y={controlY + 4}>
+                  {pnlText}
+                </text>
+              )}
+            </g>
+          );
+        })()}
         {filteredNodes.map((node) => {
           const [x, y] = project(node.lon, node.lat);
           return (

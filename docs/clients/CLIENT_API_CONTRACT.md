@@ -98,9 +98,9 @@ both bootstrap and full-envelope responses during transition.
 | --- | --- | --- |
 | `GET /api/v1/health` | backend availability | active |
 | `GET /api/v1/runtime/status` | DB/runtime/operator status | planned |
-| `GET /api/v1/reference-network/nodes` | map nodes | planned |
-| `GET /api/v1/reference-network/segments` | map corridors/routes | planned |
-| `GET /api/v1/reference-network/facilities` | LNG, storage, terminals | planned |
+| `GET /api/v1/reference-network/nodes` | map nodes | active |
+| `GET /api/v1/reference-network/edges` | map corridors/routes | active |
+| `GET /api/v1/reference-network/facilities` | LNG, storage, terminals | active |
 | `POST /api/v1/scenarios/validate` | scenario missing-input check | planned |
 | `POST /api/v1/research/route-cost` | future research-only workflow | planned |
 | `GET /api/v1/sources/live-status` | ECB, ENTSOG, GIE, EEX, Trayport, ICE OCM, weather, LLM posture | planned |
@@ -112,6 +112,9 @@ both bootstrap and full-envelope responses during transition.
 | `GET /api/v1/analysis/ontology` | business ontology for analysis and glossary QA | active |
 | `POST /api/v1/analysis/query` | DeepSeek-ready cited LLM/data analysis over backend snapshots | active |
 | `POST /api/v1/reports/portfolio` | portfolio/resource/strategy/PnL report generation | active |
+| `GET /api/v1/portfolio/screen-orders` | read-only imported screen/broker order observations | active |
+| `GET /api/v1/portfolio/pnl-snapshots` | indicative portfolio/resource/strategy PnL snapshots | active |
+| `GET /api/v1/portfolio/live-summary` | cockpit order/PnL/cash summary | active |
 | `GET /api/v1/glossary/{term}/context` | glossary term operational context | active |
 | `POST /api/v1/analysis/market-movement` | legacy market movement placeholder | planned |
 | `GET /api/v1/glossary` | backend-served bilingual glossary | active |
@@ -162,5 +165,19 @@ Windows client:
 - no database URL or vendor API secret may be stored in the desktop client.
 
 Live source and LLM provider credentials are backend/operator concerns. Web and
-Windows clients must never store or transmit provider credentials except through
-ordinary backend authentication approved by a future auth milestone.
+Windows clients may submit provider keys only to the backend credential API over
+the approved API boundary, and must never store, log, display, cache, or return
+plaintext provider credentials.
+
+## Portfolio Positioning Boundary
+
+`/api/v1/portfolio/*` endpoints expose imported observation state only:
+
+- screen and broker order records are read-only external observations;
+- PnL snapshots are indicative valuation records for cockpit, SDK, and report
+  context;
+- live summary aggregates the latest imported observations for display.
+
+These endpoints must not create, amend, cancel, route, submit, approve, book, or
+capture trades/orders/nominations. Clients must label their output as
+human-reviewed decision support.

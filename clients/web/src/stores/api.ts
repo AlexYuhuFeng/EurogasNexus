@@ -17,9 +17,12 @@ import {
   LngObsDTO,
   MarketObsDTO,
   NodeDTO,
+  PortfolioLiveSummaryDTO,
+  PortfolioPnlSnapshotDTO,
   RouteCandidateDTO,
   RouteEligibilityDTO,
   RuntimeDbStatusDTO,
+  ScreenOrderObservationDTO,
   SourceSystemDTO,
   StrategyLabRequestDTO,
   StrategyLabResultDTO,
@@ -31,6 +34,9 @@ interface ApiState {
   edges: EdgeDTO[];
   sources: SourceSystemDTO[];
   markets: MarketObsDTO[];
+  screenOrders: ScreenOrderObservationDTO[];
+  pnlSnapshots: PortfolioPnlSnapshotDTO[];
+  portfolioSummary: PortfolioLiveSummaryDTO | null;
   fxRates: FxRateDTO[];
   flows: FlowObsDTO[];
   storage: StorageObsDTO[];
@@ -65,6 +71,9 @@ export const useApiStore = create<ApiState>((set) => ({
   edges: [],
   sources: [],
   markets: [],
+  screenOrders: [],
+  pnlSnapshots: [],
+  portfolioSummary: null,
   fxRates: [],
   flows: [],
   storage: [],
@@ -93,6 +102,9 @@ export const useApiStore = create<ApiState>((set) => ({
         edges,
         sources,
         markets,
+        screenOrders,
+        pnlSnapshots,
+        portfolioSummary,
         fxRates,
         flows,
         storage,
@@ -107,6 +119,9 @@ export const useApiStore = create<ApiState>((set) => ({
         api.edges(),
         api.sources(),
         api.marketObservations(),
+        api.screenOrders(),
+        api.pnlSnapshots(),
+        api.portfolioLiveSummary(),
         api.fxRates(),
         api.flowObservations(),
         api.storageObservations(),
@@ -122,6 +137,9 @@ export const useApiStore = create<ApiState>((set) => ({
         edges: edges.data,
         sources: sources.data,
         markets: markets.data,
+        screenOrders: screenOrders.data,
+        pnlSnapshots: pnlSnapshots.data,
+        portfolioSummary: portfolioSummary.data,
         fxRates: fxRates.data,
         flows: flows.data,
         storage: storage.data,

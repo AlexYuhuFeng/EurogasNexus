@@ -11,6 +11,11 @@ def test_sdk_all_clients_importable() -> None:
         GlossaryTerm,
         fetch_glossary,
     )
+    from eurogas_nexus.sdk.portfolio import (
+        fetch_live_summary,
+        fetch_pnl_snapshots,
+        fetch_screen_orders,
+    )
     from eurogas_nexus.sdk.reference_network import (
         NodeDTO,
         fetch_nodes,
@@ -34,6 +39,9 @@ def test_sdk_all_clients_importable() -> None:
     assert callable(fetch_business_ontology)
     assert callable(generate_portfolio_report)
     assert callable(evaluate_strategy_lab)
+    assert callable(fetch_screen_orders)
+    assert callable(fetch_pnl_snapshots)
+    assert callable(fetch_live_summary)
     assert callable(fetch_glossary)
     assert NodeDTO.model_fields
     assert SourceSystem.model_fields
@@ -62,6 +70,7 @@ def test_research_result_models() -> None:
 def test_sdk_does_not_import_backend_internals() -> None:
     import sys
     before = set(sys.modules.keys())
+    import eurogas_nexus.sdk.portfolio  # noqa: F401
     import eurogas_nexus.sdk.reference_network  # noqa: F401
     import eurogas_nexus.sdk.research  # noqa: F401
     import eurogas_nexus.sdk.sources  # noqa: F401

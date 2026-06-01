@@ -32,6 +32,7 @@ Place a compact live strip above the map with:
 - ICE OCM or other intraday marks when entitled;
 - ECB FX when cross-currency economics are visible;
 - live indicative PnL;
+- imported external screen-order posture and portfolio PnL snapshots;
 - active strategy process state;
 - latest decision-support signal;
 - warning count.
@@ -52,6 +53,11 @@ Required interactions:
   data;
 - launch route-cost, LNG regas readiness, resource-pool, or strategy evaluation
   through backend API calls only.
+
+When an active order/PnL context exists, the map must draw an animated
+highlighted corridor between relevant nodes with a concise label and PnL value.
+This animation is informational only; it is not a nomination, route dispatch,
+or executable order path. Motion must respect `prefers-reduced-motion`.
 
 ## Separate Detail Tabs Or Windows
 

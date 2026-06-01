@@ -76,6 +76,7 @@ src/eurogas_nexus/sdk/
   route_cost.py
   glossary.py
   strategy_lab.py
+  portfolio.py
 ```
 
 ## Core Client Rules
@@ -200,6 +201,28 @@ POST /api/v1/strategy-lab/evaluate
 SDK strategy methods must call the backend API only. They must not import
 domain strategy modules, connect to PostgreSQL, call exchanges, or create
 orders/trades/nominations.
+
+### Portfolio Positioning
+
+Purpose:
+
+- fetch imported external screen/broker order observations;
+- fetch indicative portfolio/resource/strategy PnL snapshots;
+- fetch the cockpit live summary used by Web and Windows surfaces.
+
+Required endpoints:
+
+```text
+GET /api/v1/portfolio/screen-orders
+GET /api/v1/portfolio/pnl-snapshots
+GET /api/v1/portfolio/live-summary
+```
+
+SDK portfolio methods must be read-only API clients. They must not connect to
+PostgreSQL, import backend DB/domain modules, call ICE OCM/EEX/Trayport/Kpler/
+Platts directly, create orders, route orders, cancel orders, submit nominations,
+or write local order/PnL files. Returned records are decision-support
+observations, not an execution or trade-capture ledger.
 
 ### Glossary
 

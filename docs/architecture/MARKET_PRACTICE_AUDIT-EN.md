@@ -129,6 +129,19 @@ Glossary layer:
 - Glossary terms must include category, English definition, Mandarin Chinese
   definition, aliases, related terms, and source references when available.
 
+Market-positioning layer:
+
+- `screen_order_observations` stores imported external ICE OCM, EEX, Trayport,
+  broker, or other screen-order state for display and analysis only.
+- `portfolio_pnl_snapshots` stores indicative portfolio/resource/strategy PnL,
+  cash-value, market-value, quantity, valuation-basis, warning, and source
+  context.
+- `/api/v1/portfolio/screen-orders`, `/api/v1/portfolio/pnl-snapshots`, and
+  `/api/v1/portfolio/live-summary` expose that state to SDK/Web/Windows.
+- `src/eurogas_nexus/sdk/portfolio.py` is the required programmatic access path.
+- This layer is not trade capture and must not place, route, cancel, nominate,
+  approve, or officially recommend any transaction.
+
 ## Internet Requirements
 
 No internet is required to implement the current contracts and tests.

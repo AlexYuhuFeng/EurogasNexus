@@ -13,6 +13,10 @@ from eurogas_nexus.db.models.analysis import (
     GeneratedReportRecord,
 )
 from eurogas_nexus.db.models.glossary import GlossaryTermRecord
+from eurogas_nexus.db.models.market_positioning import (
+    PortfolioPnlSnapshotRecord,
+    ScreenOrderObservationRecord,
+)
 from eurogas_nexus.db.models.observation import (
     AuditEventRecord,
     EntitlementDecisionRecord,
@@ -77,12 +81,14 @@ __all__ = [
     "LiveMarketMarkRecord",
     "MarketObservationRecord",
     "NodeFacilityMapping",
+    "PortfolioPnlSnapshotRecord",
     "ProviderCredentialRecord",
     "ReferenceEdge",
     "ReferenceFacility",
     "ReferenceMarketHub",
     "ReferenceNode",
     "RouteCandidateRecord",
+    "ScreenOrderObservationRecord",
     "StorageObservationRecord",
     "StrategyAlertRecord",
     "StrategyAllocationTargetRecord",

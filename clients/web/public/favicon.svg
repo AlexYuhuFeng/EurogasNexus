@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Eurogas Nexus">
+  <rect width="64" height="64" rx="12" fill="#101820"/>
+  <path d="M14 40c8-18 28-18 36-4" fill="none" stroke="#2dd4bf" stroke-width="6" stroke-linecap="round"/>
+  <path d="M16 26h16l16 14" fill="none" stroke="#f97316" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="16" cy="26" r="5" fill="#ffffff"/>
+  <circle cx="32" cy="26" r="5" fill="#ffffff"/>
+  <circle cx="48" cy="40" r="5" fill="#ffffff"/>
+</svg>

@@ -62,6 +62,9 @@ New SDK, CLI, Web, and Windows code must target `/api/v1`.
 - Portfolio/resource-pool optimization supports multiple upstream resources,
   contract-specific costs and tolerances, compatible sale options, route costs,
   early cash value, and access constraints.
+- Imported external screen-order observations and portfolio PnL snapshots are
+  DB-first, API/SDK-readable, and surfaced in the map-first cockpit as
+  read-only decision-support context.
 - Strategy lab supports backtest, shadow-run, and live-monitor evaluation
   contracts for SAP/ICIS day-ahead versus ICE OCM style intraday strategies,
   5-minute bar windows, scoring components, allocation targets, stop-loss
@@ -105,6 +108,9 @@ ExecPlans: `.agent/plans/`
 - map-first cockpit spec EN/CN:
   `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-EN.md` and
   `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-CN.md`
+- market positioning cockpit spec EN/CN:
+  `docs/clients/MARKET_POSITIONING_COCKPIT_SPEC-EN.md` and
+  `docs/clients/MARKET_POSITIONING_COCKPIT_SPEC-CN.md`
 - LLM analysis and reporting spec EN/CN:
   `docs/architecture/LLM_ANALYSIS_REPORTING_SPEC-EN.md` and
   `docs/architecture/LLM_ANALYSIS_REPORTING_SPEC-CN.md`

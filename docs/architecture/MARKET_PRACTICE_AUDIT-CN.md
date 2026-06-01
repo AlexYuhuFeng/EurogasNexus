@@ -119,3 +119,15 @@ API 条款、市场数据许可、依赖版本或官方 TSO 费率 PDF 时，才
    分析、外部订单记录、预警、术语表、用户手册和设置必须分离为标签或窗口。
 6. 路线成本保持英国 National Gas NTS 限定，直到后续里程碑加入经审计的欧洲 TSO
    tariff 覆盖和路线优化。
+
+## 市场持仓层
+
+- `screen_order_observations` 存储从 ICE OCM、EEX、Trayport、经纪商或其他屏幕
+  来源导入的外部订单状态，仅用于展示和分析。
+- `portfolio_pnl_snapshots` 存储组合/资源/策略层面的指示性 PnL、提前回款价值、
+  市值、数量、估值口径、预警和来源上下文。
+- `/api/v1/portfolio/screen-orders`、`/api/v1/portfolio/pnl-snapshots` 和
+  `/api/v1/portfolio/live-summary` 向 SDK、Web 和 Windows 客户端暴露这些状态。
+- `src/eurogas_nexus/sdk/portfolio.py` 是程序化访问的必需路径。
+- 该层不是交易捕获，不得下单、路由订单、撤单、提交提名、审批或给出官方交易
+  建议。
