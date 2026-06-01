@@ -450,6 +450,7 @@ input {
 
 .economics-grid label,
 .live-mark-row label,
+.glossary-controls label,
 .settings-panel label {
   display: grid;
   gap: 4px;
@@ -472,11 +473,34 @@ input {
 }
 
 .action-row,
-.live-mark-row {
+.live-mark-row,
+.context-shortcuts {
   display: flex;
   align-items: center;
   gap: 8px;
   margin-top: 10px;
+}
+
+.glossary-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.context-shortcuts {
+  flex-wrap: wrap;
+}
+
+.context-shortcuts button {
+  min-height: 30px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-strong);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 0 10px;
 }
 
 .action-row button {
@@ -519,7 +543,8 @@ input {
 
 .option-row span,
 .glossary-row span,
-.glossary-row p {
+.glossary-row p,
+.glossary-context span {
   color: var(--muted);
   font-size: 12px;
 }
@@ -527,6 +552,15 @@ input {
 .glossary-row p {
   margin: 0;
   line-height: 1.45;
+}
+
+.glossary-context p {
+  margin: 0;
+  line-height: 1.45;
+}
+
+.glossary-metrics {
+  margin: 2px 0;
 }
 
 .glossary-row button,

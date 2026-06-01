@@ -65,6 +65,8 @@ export default function App() {
   const [credentialLabel, setCredentialLabel] = useState("default");
   const [credentialValue, setCredentialValue] = useState("");
   const [glossaryQuery, setGlossaryQuery] = useState("");
+  const [glossaryDurationStart, setGlossaryDurationStart] = useState("2026-05-31T06:00");
+  const [glossaryDurationEnd, setGlossaryDurationEnd] = useState("2026-06-01T06:00");
   const [analysisQuestion, setAnalysisQuestion] = useState("Summarize current portfolio PnL, route, market, and strategy status.");
   const [invokeDeepSeek, setInvokeDeepSeek] = useState(false);
   const selectedCredentialProvider = useMemo(
@@ -237,6 +239,8 @@ export default function App() {
   const latestPnlSnapshot = pnlSnapshots[0];
   const activeOrder = screenOrders.find((order) => order.status !== "FILLED") ?? screenOrders[0];
   const firstStrategyTarget = strategyResult?.allocation_targets[0];
+  const glossaryLang = i18n.language.startsWith("zh") ? "zh-CN" : "en";
+  const glossaryShortcutTerms = ["Easington Entry Point", "ICIS Heren", "NBP", "ICE OCM"];
   const analysisPayload = {
     question: analysisQuestion,
     task: "PORTFOLIO_REPORT",
@@ -248,6 +252,25 @@ export default function App() {
     selected_contracts: [contract.contract_id],
     language: i18n.language.startsWith("zh") ? "zh-CN" : "en",
   };
+
+  function glossaryContextParams() {
+    return {
+      lang: glossaryLang,
+      duration_start_utc: glossaryDurationStart ? new Date(glossaryDurationStart).toISOString() : undefined,
+      duration_end_utc: glossaryDurationEnd ? new Date(glossaryDurationEnd).toISOString() : undefined,
+    };
+  }
+
+  function openGlossaryContext(term: string) {
+    fetchGlossaryContext(term, glossaryContextParams());
+  }
+
+  function formatContextValue(value: unknown) {
+    if (value === null || value === undefined || value === "") return "n/a";
+    if (typeof value === "number") return Number.isInteger(value) ? value.toLocaleString() : value.toFixed(2);
+    if (Array.isArray(value)) return value.join(", ");
+    return String(value);
+  }
 
   return (
     <div className="app">
@@ -565,6 +588,31 @@ export default function App() {
 
           <div className="panel glossary-panel">
             <h3>{t("panel.glossary")}</h3>
+            <div className="glossary-controls">
+              <label>
+                {t("glossary.duration_start")}
+                <input
+                  type="datetime-local"
+                  value={glossaryDurationStart}
+                  onChange={(event) => setGlossaryDurationStart(event.target.value)}
+                />
+              </label>
+              <label>
+                {t("glossary.duration_end")}
+                <input
+                  type="datetime-local"
+                  value={glossaryDurationEnd}
+                  onChange={(event) => setGlossaryDurationEnd(event.target.value)}
+                />
+              </label>
+            </div>
+            <div className="context-shortcuts">
+              {glossaryShortcutTerms.map((term) => (
+                <button key={term} type="button" onClick={() => openGlossaryContext(term)}>
+                  {term}
+                </button>
+              ))}
+            </div>
             <input
               value={glossaryQuery}
               onChange={(event) => setGlossaryQuery(event.target.value)}
@@ -578,7 +626,7 @@ export default function App() {
                     <span>{t("glossary.category")}: {term.category}</span>
                   </div>
                   <p>{i18n.language.startsWith("zh") ? term.definition_zh_cn : term.definition_en}</p>
-                  <button type="button" onClick={() => fetchGlossaryContext(term.term)}>
+                  <button type="button" onClick={() => openGlossaryContext(term.term)}>
                     {t("glossary.context")}
                   </button>
                   {term.related_terms.length > 0 && (
@@ -591,16 +639,49 @@ export default function App() {
               <div className="glossary-context">
                 <strong>{glossaryContext.term}: {glossaryContext.context_type}</strong>
                 <p>{glossaryContext.description}</p>
+                {glossaryContext.requested_duration && (
+                  <span>
+                    {t("glossary.duration")}: {formatContextValue(glossaryContext.requested_duration.duration_start_utc)} {"->"} {formatContextValue(glossaryContext.requested_duration.duration_end_utc)}
+                  </span>
+                )}
+                {glossaryContext.metrics.length > 0 && (
+                  <div className="metric-grid glossary-metrics">
+                    {glossaryContext.metrics.slice(0, 8).map((metric, index) => (
+                      <div key={`${glossaryContext.term}-metric-${index}`}>
+                        <span>{formatContextValue(metric.label)}</span>
+                        <strong>{formatContextValue(metric.value)} {formatContextValue(metric.unit)}</strong>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {glossaryContext.capacity_usage && (
                   <span>
-                    {t("glossary.capacity_usage")}: {String(glossaryContext.capacity_usage.usage_pct ?? "n/a")}%
+                    {t("glossary.capacity_usage")}: {formatContextValue(glossaryContext.capacity_usage.used)} / {formatContextValue(glossaryContext.capacity_usage.capacity)} {formatContextValue(glossaryContext.capacity_usage.unit)} ({formatContextValue(glossaryContext.capacity_usage.usage_pct)}%)
                   </span>
                 )}
                 {glossaryContext.related_prices.slice(0, 3).map((price, index) => (
                   <span key={`${glossaryContext.term}-price-${index}`}>
-                    {String(price.market_venue ?? price.source_system ?? "price")}: {String(price.price ?? "n/a")}
+                    {formatContextValue(price.market_venue ?? price.source_system ?? "price")}: {formatContextValue(price.price)} {formatContextValue(price.unit ?? price.currency)}
                   </span>
                 ))}
+                {glossaryContext.live_market_marks.slice(0, 2).map((mark, index) => (
+                  <span key={`${glossaryContext.term}-mark-${index}`}>
+                    {formatContextValue(mark.venue)} {formatContextValue(mark.product)}: bid {formatContextValue(mark.bid_gbp_mwh)} / ask {formatContextValue(mark.ask_gbp_mwh)}
+                  </span>
+                ))}
+                {glossaryContext.related_routes.slice(0, 3).map((route, index) => (
+                  <span key={`${glossaryContext.term}-route-${index}`}>
+                    {t("glossary.route")}: {formatContextValue(route.route_name)}
+                  </span>
+                ))}
+                {glossaryContext.related_contracts.slice(0, 3).map((contractItem, index) => (
+                  <span key={`${glossaryContext.term}-contract-${index}`}>
+                    {t("glossary.contract")}: {formatContextValue(contractItem.contract_name)} · {formatContextValue(contractItem.delivery_quantity_mwh_per_day)} MWh/d
+                  </span>
+                ))}
+                {glossaryContext.warnings.length > 0 && (
+                  <span>{t("glossary.warnings")}: {glossaryContext.warnings.slice(0, 3).join(", ")}</span>
+                )}
               </div>
             )}
           </div>

@@ -256,9 +256,15 @@ export interface GlossaryTermDTO {
 
 export interface GlossaryContextDTO {
   term: string; context_type: string; description: string;
+  description_en?: string | null; description_zh_cn?: string | null;
+  requested_duration?: Record<string, unknown> | null;
+  entity_summary?: Record<string, unknown> | null;
   capacity: Record<string, unknown> | null; capacity_usage: Record<string, unknown> | null;
+  metrics: Array<Record<string, unknown>>;
   related_prices: Array<Record<string, unknown>>; related_routes: Array<Record<string, unknown>>;
-  related_sources: string[]; warnings: string[];
+  related_contracts: Array<Record<string, unknown>>;
+  live_market_marks: Array<Record<string, unknown>>;
+  related_sources: string[]; data_quality: Record<string, unknown>; warnings: string[];
   research_only: boolean; human_review_required: boolean;
 }
 
@@ -341,8 +347,11 @@ export const api = {
   glossary: (lang: string = "en", params?: { category?: string; q?: string }) =>
     get<GlossaryTermDTO[]>("/glossary", { lang, ...(params ?? {}) }),
 
-  glossaryContext: (term: string) =>
-    get<GlossaryContextDTO>(`/glossary/${encodeURIComponent(term)}/context`),
+  glossaryContext: (
+    term: string,
+    params?: { lang?: string; duration_start_utc?: string; duration_end_utc?: string },
+  ) =>
+    get<GlossaryContextDTO>(`/glossary/${encodeURIComponent(term)}/context`, params),
 
   analysisQuery: (body: AnalysisRequestDTO) => post<AnalysisResultDTO>("/analysis/query", body),
 

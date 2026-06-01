@@ -53,6 +53,8 @@ and Windows shell surfaces for the tested local scope:
 - route-cost domain: `src/eurogas_nexus/domain/route_cost`
 - market-positioning domain: `src/eurogas_nexus/domain/market_positioning.py`
 - glossary domain: `src/eurogas_nexus/domain/glossary.py`
+- operational glossary context: `src/eurogas_nexus/domain/analysis.py` and
+  `/api/v1/glossary/{term}/context`
 - strategy-lab domain: `src/eurogas_nexus/domain/strategy_lab`
 - SDK clients: `src/eurogas_nexus/sdk`
 - CLI client: `src/eurogas_nexus/cli`
@@ -67,6 +69,9 @@ marks, credentials, and glossary surfaces are exposed through API/SDK/Web
 contracts. Imported external screen-order observations and indicative portfolio
 PnL snapshots are exposed through `/api/v1/portfolio/*` and
 `src/eurogas_nexus/sdk/portfolio.py`. Clients must not read PostgreSQL directly.
+Operational glossary context is also API-only and combines runtime capacity,
+usage, prices, live marks, routes, and linked contracts for terms such as
+Easington Entry Point, ICIS Heren, NBP, and ICE OCM.
 
 ## Development Direction
 
@@ -98,6 +103,9 @@ Claude Code should use:
 - `docs/clients/MARKET_POSITIONING_COCKPIT_SPEC-EN.md` and
   `docs/clients/MARKET_POSITIONING_COCKPIT_SPEC-CN.md` as the read-only
   imported order/PnL cockpit contract;
+- `docs/clients/OPERATIONAL_GLOSSARY_CONTEXT_SPEC-EN.md` and
+  `docs/clients/OPERATIONAL_GLOSSARY_CONTEXT_SPEC-CN.md` as the glossary
+  context and metric-rendering contract;
 - `docs/clients/README.md` as the client design index;
 - `docs/clients/CLIENT_TECH_STACK.md` as the fixed Web/Windows library
   authority;

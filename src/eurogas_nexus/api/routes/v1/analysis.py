@@ -78,9 +78,16 @@ def post_portfolio_report(body: PortfolioReportRequest, request: Request) -> dic
     )
 
 
-def _load_snapshot() -> AnalysisSnapshot:
+def _load_snapshot(
+    *,
+    duration_start_utc: datetime | None = None,
+    duration_end_utc: datetime | None = None,
+) -> AnalysisSnapshot:
     if _db_is_configured():
-        return _db_snapshot()
+        return _db_snapshot(
+            duration_start_utc=duration_start_utc,
+            duration_end_utc=duration_end_utc,
+        )
     return _fallback_snapshot()
 
 
@@ -118,6 +125,19 @@ def _fallback_snapshot() -> AnalysisSnapshot:
                 "source_reference": "synthetic-icis-heren",
             },
         ],
+        live_market_marks=[
+            {
+                "venue": "ICE OCM",
+                "hub": "NBP",
+                "product": "within-day",
+                "bid_gbp_mwh": 28.2,
+                "ask_gbp_mwh": 28.4,
+                "last_gbp_mwh": 28.3,
+                "mark_time_utc": now.isoformat(),
+                "source_system": "synthetic-fixture",
+                "source_reference": "synthetic-ice-ocm-live-mark",
+            }
+        ],
         fx_rates=[
             {
                 "pair": "EURGBP",
@@ -141,7 +161,11 @@ def _fallback_snapshot() -> AnalysisSnapshot:
             {
                 "point_name": "Easington Beach Terminal",
                 "capacity_mcm_d": 100.0,
+                "capacity_mwh_per_day": 1055000.0,
                 "capacity_type": "technical",
+                "direction": "entry",
+                "valid_from_utc": "2026-01-01T00:00:00Z",
+                "valid_to_utc": "2026-12-31T23:59:59Z",
                 "source_system": "synthetic-fixture",
                 "source_reference": "synthetic-easington-capacity",
             }
@@ -153,17 +177,35 @@ def _fallback_snapshot() -> AnalysisSnapshot:
                 "source_system": "synthetic-fixture",
             }
         ],
+        portfolio_context=[
+            {
+                "contract_id": "demo-easington-contract",
+                "contract_name": "Easington gas year contract",
+                "resource_type": "BEACH_DELIVERY",
+                "delivery_point_name": "Easington Entry Point",
+                "delivery_quantity_mwh_per_day": 10000.0,
+                "settlement_frequency": "monthly",
+                "eligible_sale_modes": ["VIRTUAL_HUB_SALE", "PHYSICAL_DELIVERY"],
+                "source_reference": "synthetic-easington-contract",
+            }
+        ],
         warnings=["Synthetic fallback context; connect PostgreSQL for customer use."],
     )
 
 
-def _db_snapshot() -> AnalysisSnapshot:
+def _db_snapshot(
+    *,
+    duration_start_utc: datetime | None = None,
+    duration_end_utc: datetime | None = None,
+) -> AnalysisSnapshot:
     sqlalchemy_error = _sqlalchemy_error_type()
     try:
         from eurogas_nexus.db.models import (
+            CapacityProfileRecord,
             FlowObservationRecord,
             FxObservationRecord,
             GlossaryTermRecord,
+            LiveMarketMarkRecord,
             MarketObservationRecord,
             RouteCandidateRecord,
             StrategyRunRecord,
@@ -175,15 +217,65 @@ def _db_snapshot() -> AnalysisSnapshot:
             glossary = session.query(GlossaryTermRecord).filter(
                 GlossaryTermRecord.active.is_(True)
             ).limit(50).all()
-            markets = session.query(MarketObservationRecord).order_by(
-                MarketObservationRecord.observed_at_utc.desc()
-            ).limit(50).all()
+            market_query = session.query(MarketObservationRecord)
+            if duration_start_utc:
+                market_query = market_query.filter(
+                    MarketObservationRecord.period_end_utc >= duration_start_utc
+                )
+            if duration_end_utc:
+                market_query = market_query.filter(
+                    MarketObservationRecord.period_start_utc <= duration_end_utc
+                )
+            markets = (
+                market_query.order_by(MarketObservationRecord.observed_at_utc.desc())
+                .limit(50)
+                .all()
+            )
+            live_mark_query = session.query(LiveMarketMarkRecord)
+            if duration_start_utc:
+                live_mark_query = live_mark_query.filter(
+                    LiveMarketMarkRecord.mark_time_utc >= duration_start_utc
+                )
+            if duration_end_utc:
+                live_mark_query = live_mark_query.filter(
+                    LiveMarketMarkRecord.mark_time_utc <= duration_end_utc
+                )
+            live_marks = (
+                live_mark_query.order_by(LiveMarketMarkRecord.mark_time_utc.desc())
+                .limit(50)
+                .all()
+            )
             fx_rows = session.query(FxObservationRecord).order_by(
                 FxObservationRecord.observed_at_utc.desc()
             ).limit(20).all()
-            flows = session.query(FlowObservationRecord).order_by(
-                FlowObservationRecord.period_end_utc.desc()
-            ).limit(50).all()
+            flow_query = session.query(FlowObservationRecord)
+            if duration_start_utc:
+                flow_query = flow_query.filter(
+                    FlowObservationRecord.period_end_utc >= duration_start_utc
+                )
+            if duration_end_utc:
+                flow_query = flow_query.filter(
+                    FlowObservationRecord.period_start_utc <= duration_end_utc
+                )
+            flows = (
+                flow_query.order_by(FlowObservationRecord.period_end_utc.desc())
+                .limit(50)
+                .all()
+            )
+            capacity_query = session.query(CapacityProfileRecord)
+            if duration_start_utc:
+                capacity_query = capacity_query.filter(
+                    CapacityProfileRecord.valid_to_utc >= duration_start_utc
+                )
+            if duration_end_utc:
+                capacity_query = capacity_query.filter(
+                    CapacityProfileRecord.valid_from_utc <= duration_end_utc
+                )
+            capacities = (
+                capacity_query.order_by(CapacityProfileRecord.valid_from_utc.desc())
+                .limit(50)
+                .all()
+            )
             routes = session.query(RouteCandidateRecord).filter(
                 RouteCandidateRecord.active.is_(True)
             ).limit(50).all()
@@ -208,8 +300,10 @@ def _db_snapshot() -> AnalysisSnapshot:
                     for row in glossary
                 ],
                 market_observations=[_market_row(row) for row in markets],
+                live_market_marks=[_live_mark_row(row) for row in live_marks],
                 fx_rates=[_fx_row(row) for row in fx_rows],
                 flow_observations=[_flow_row(row) for row in flows],
+                capacity_context=[_capacity_row(row) for row in capacities],
                 route_candidates=[_route_row(row) for row in routes],
                 strategy_runs=[_strategy_row(row) for row in strategies],
                 portfolio_context=[_contract_row(row) for row in contracts],
@@ -369,6 +463,20 @@ def _market_row(row) -> dict:
     }
 
 
+def _live_mark_row(row) -> dict:
+    return {
+        "venue": row.venue,
+        "hub": row.hub,
+        "product": row.product,
+        "bid_gbp_mwh": row.bid_gbp_mwh,
+        "ask_gbp_mwh": row.ask_gbp_mwh,
+        "last_gbp_mwh": row.last_gbp_mwh,
+        "mark_time_utc": row.mark_time_utc.isoformat(),
+        "source_system": row.source_system,
+        "source_reference": row.source_reference,
+    }
+
+
 def _fx_row(row) -> dict:
     return {
         "pair": row.pair,
@@ -391,6 +499,20 @@ def _flow_row(row) -> dict:
         "source_system": row.source_system,
         "source_reference": row.source_reference,
         "freshness": row.freshness,
+    }
+
+
+def _capacity_row(row) -> dict:
+    return {
+        "capacity_profile_id": row.capacity_profile_id,
+        "contract_id": row.contract_id,
+        "point_name": row.point_name,
+        "direction": row.direction,
+        "capacity_mwh_per_day": row.capacity_mwh_per_day,
+        "firmness": row.firmness,
+        "valid_from_utc": row.valid_from_utc.isoformat(),
+        "valid_to_utc": row.valid_to_utc.isoformat(),
+        "source_reference": row.source_reference,
     }
 
 
@@ -425,9 +547,12 @@ def _contract_row(row) -> dict:
         "contract_name": row.contract_name,
         "resource_type": row.resource_type,
         "delivery_point_name": row.delivery_point_name,
+        "gas_year": row.gas_year,
         "delivery_quantity_mwh_per_day": row.delivery_quantity_mwh_per_day,
+        "contract_price_gbp_mwh": row.contract_price_gbp_mwh,
         "settlement_frequency": row.settlement_frequency,
         "eligible_sale_modes": row.eligible_sale_modes,
+        "source_reference": row.contract_id,
     }
 
 

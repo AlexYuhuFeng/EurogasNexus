@@ -29,7 +29,7 @@ Results:
 
 ```text
 Ruff: passed
-Python targeted tests: 318 passed
+Python targeted tests: 320 passed
 Web build: passed
 Desktop cargo check: passed
 App import: app import ok, 74 routes
@@ -66,10 +66,26 @@ analysis without page errors.
   glossary context, and report-analysis output.
 - The Windows/Tauri shell now starts with a borderless splash window and then
   shows the shared Web client in a borderless fullscreen main window.
+- The glossary context endpoint now acts as an operational context surface:
+  duration-aware Easington Entry Point context can show capacity, capacity in
+  use, utilization percentage, NBP/ICE OCM/ICIS prices, live marks, route
+  candidates, linked contracts, warnings, and data-quality metadata.
 
 ## Work Completed Since Previous Pause
 
 - Added Alembic revision `0009_market_positioning_foundation`.
+- Added R18 operational glossary context using existing runtime tables:
+  `capacity_profiles`, `flow_observations`, `market_observations`,
+  `live_market_marks`, `route_candidates`, and
+  `upstream_resource_contracts`.
+- Extended `/api/v1/glossary/{term}/context` with `lang`,
+  `duration_start_utc`, `duration_end_utc`, `metrics`, `live_market_marks`,
+  `related_contracts`, and `data_quality`.
+- Added Web glossary quick-context buttons and duration selectors for
+  `Easington Entry Point`, `ICIS Heren`, `NBP`, and `ICE OCM`.
+- Added operational glossary context specs:
+  `docs/clients/OPERATIONAL_GLOSSARY_CONTEXT_SPEC-EN.md` and
+  `docs/clients/OPERATIONAL_GLOSSARY_CONTEXT_SPEC-CN.md`.
 - Added `screen_order_observations` and `portfolio_pnl_snapshots` runtime tables
   for read-only imported screen-order state and portfolio PnL marks.
 - Added `/api/v1/portfolio/screen-orders`,
@@ -108,6 +124,9 @@ analysis without page errors.
 6. Route-cost coverage is still UK National Gas NTS only. The model supports
    broader European TSO tariff expansion, but non-UK audited tariff ingestion is
    not in this checkpoint.
+7. Operational glossary context is only as complete as the runtime DB records
+   supplied by customer imports. Synthetic fallback context is for development
+   demonstration only.
 
 ## Route-Cost And Glossary Addendum
 
@@ -126,6 +145,9 @@ Current in-progress route-cost and market-practice hardening adds:
   live-monitor paper strategy evaluation;
 - `/api/v1/glossary` and `/api/v1/glossary/{term}` bilingual glossary routes
   with English, `zh`, and `zh-CN` support;
+- `/api/v1/glossary/{term}/context` operational context with optional language
+  and duration filters for Easington, ICIS Heren, NBP, ICE OCM, and generic
+  terms;
 - Web client panels for map layer/search, above-map portfolio/price/PnL/strategy
   strip, UK NTS contract economics, live PnL, strategy lab, glossary, settings
   language, and light/dark/system theme;
@@ -138,6 +160,9 @@ Current in-progress route-cost and market-practice hardening adds:
 - market-positioning cockpit documents:
   `docs/clients/MARKET_POSITIONING_COCKPIT_SPEC-EN.md` and
   `docs/clients/MARKET_POSITIONING_COCKPIT_SPEC-CN.md`.
+- operational glossary context documents:
+  `docs/clients/OPERATIONAL_GLOSSARY_CONTEXT_SPEC-EN.md` and
+  `docs/clients/OPERATIONAL_GLOSSARY_CONTEXT_SPEC-CN.md`.
 
 This addendum is the current pause marker for continuing the route-cost,
 glossary, strategy, cockpit UX, and market-practice work. Preserve UK National

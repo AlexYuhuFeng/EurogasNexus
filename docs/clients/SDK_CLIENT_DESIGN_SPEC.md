@@ -238,11 +238,19 @@ GET /api/v1/glossary?lang=en
 GET /api/v1/glossary?lang=zh-CN
 GET /api/v1/glossary/{term}?lang=en
 GET /api/v1/glossary/{term}?lang=zh-CN
+GET /api/v1/glossary/{term}/context?lang=en&duration_start_utc=...&duration_end_utc=...
 ```
 
 SDK models must include term ID, term, category, localized definition, English
 definition, Mandarin Chinese definition, aliases, related terms, and source
 references.
+
+The analysis SDK must expose `fetch_glossary_context(base_url, term, lang=...,
+duration_start_utc=..., duration_end_utc=...)`. Its model must preserve
+`metrics`, `capacity_usage`, `related_prices`, `live_market_marks`,
+`related_routes`, `related_contracts`, and `data_quality` so scripts and clients
+can show Easington capacity usage, ICIS Heren price context, NBP hub context,
+and ICE OCM live screen marks without reading PostgreSQL directly.
 
 ## Authentication
 

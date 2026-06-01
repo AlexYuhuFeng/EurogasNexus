@@ -63,12 +63,37 @@ def test_portfolio_report_returns_required_sections() -> None:
 def test_glossary_context_returns_easington_operational_context() -> None:
     client = TestClient(create_app())
 
-    response = client.get("/api/v1/glossary/Easington%20Entry%20Point/context")
+    response = client.get(
+        "/api/v1/glossary/Easington%20Entry%20Point/context",
+        params={
+            "lang": "en",
+            "duration_start_utc": "2026-05-31T00:00:00Z",
+            "duration_end_utc": "2026-06-02T00:00:00Z",
+        },
+    )
 
     assert response.status_code == 200
     data = response.json()["data"]
     assert data["context_type"] == "entry_point"
     assert "National Gas NTS" in data["description"]
+    assert data["requested_duration"]["duration_start_utc"].startswith("2026-05-31")
     assert data["capacity"] is not None
     assert data["capacity_usage"] is not None
+    assert data["capacity_usage"]["usage_pct"] == 42.0
     assert data["related_prices"]
+    assert data["live_market_marks"]
+    assert data["related_contracts"]
+    assert any(metric["metric_id"] == "capacity_usage_pct" for metric in data["metrics"])
+
+
+def test_glossary_context_returns_licensed_price_context_warning() -> None:
+    client = TestClient(create_app())
+
+    response = client.get("/api/v1/glossary/ICIS%20Heren/context", params={"lang": "zh-CN"})
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["context_type"] == "price_assessment"
+    assert "授权" in data["description"]
+    assert "ICIS_HEREN_REQUIRES_CUSTOMER_LICENSED_DATA" in data["warnings"]
+    assert any(price["market_venue"] == "ICIS Heren" for price in data["related_prices"])

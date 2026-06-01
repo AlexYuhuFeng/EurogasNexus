@@ -5,6 +5,7 @@ def test_sdk_all_clients_importable() -> None:
     from eurogas_nexus.sdk.analysis import (
         ask_analysis,
         fetch_business_ontology,
+        fetch_glossary_context,
         generate_portfolio_report,
     )
     from eurogas_nexus.sdk.glossary import (
@@ -37,6 +38,7 @@ def test_sdk_all_clients_importable() -> None:
     assert callable(compare_easington_contract_options)
     assert callable(ask_analysis)
     assert callable(fetch_business_ontology)
+    assert callable(fetch_glossary_context)
     assert callable(generate_portfolio_report)
     assert callable(evaluate_strategy_lab)
     assert callable(fetch_screen_orders)

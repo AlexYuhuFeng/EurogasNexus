@@ -367,8 +367,14 @@ Current V1 contract:
 
 - use `GET /api/v1/glossary?lang=en`;
 - use `GET /api/v1/glossary?lang=zh-CN`;
+- use `GET /api/v1/glossary/{term}/context?lang=...&duration_start_utc=...&duration_end_utc=...`;
 - show term, category, localized definition, aliases when useful, and related
   terms;
+- show quick operational context buttons for `Easington Entry Point`,
+  `ICIS Heren`, `NBP`, and `ICE OCM`;
+- show the selected duration, capacity, capacity in use, utilization percent,
+  related prices, live marks, routes, linked contracts, and warnings returned by
+  the backend context endpoint;
 - do not hard-code glossary definitions in the client beyond test fixtures.
 
 ## LLM Analysis Panel

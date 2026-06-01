@@ -61,7 +61,10 @@ interface ApiState {
   compareEasingtonOptions: (contract: EasingtonContractRequest) => Promise<void>;
   markEasingtonLivePnl: (contract: EasingtonContractRequest, marks: LiveMarketMarkDTO[]) => Promise<void>;
   evaluateStrategyLab: (scenario: StrategyLabRequestDTO) => Promise<void>;
-  fetchGlossaryContext: (term: string) => Promise<void>;
+  fetchGlossaryContext: (
+    term: string,
+    params?: { lang?: string; duration_start_utc?: string; duration_end_utc?: string },
+  ) => Promise<void>;
   askAnalysis: (body: AnalysisRequestDTO) => Promise<void>;
   generatePortfolioReport: (body: AnalysisRequestDTO) => Promise<void>;
 }
@@ -202,10 +205,10 @@ export const useApiStore = create<ApiState>((set) => ({
     }
   },
 
-  fetchGlossaryContext: async (term) => {
+  fetchGlossaryContext: async (term, params) => {
     set({ loading: true, error: null });
     try {
-      const result = await api.glossaryContext(term);
+      const result = await api.glossaryContext(term, params);
       set({ glossaryContext: result.data, meta: result.meta, loading: false });
     } catch (e) {
       set({ error: String(e), loading: false });

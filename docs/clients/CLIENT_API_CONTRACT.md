@@ -129,6 +129,32 @@ both bootstrap and full-envelope responses during transition.
 
 Planned endpoints must be mocked locally until backend contracts exist.
 
+## Operational Glossary Context
+
+`GET /api/v1/glossary/{term}/context` accepts:
+
+- `lang=en|zh|zh-CN`;
+- `duration_start_utc`;
+- `duration_end_utc`.
+
+The response is additive and must remain backward compatible with the earlier
+`description`, `capacity`, `capacity_usage`, `related_prices`,
+`related_routes`, `related_sources`, and `warnings` fields. New clients should
+also read:
+
+- `description_en` and `description_zh_cn`;
+- `requested_duration`;
+- `entity_summary`;
+- `metrics`;
+- `related_contracts`;
+- `live_market_marks`;
+- `data_quality`.
+
+For `Easington Entry Point`, the backend must combine capacity profiles, flow
+usage, NBP/ICE OCM/ICIS price context, route candidates, and linked upstream
+contracts. For `ICIS Heren`, the response must carry licensed-data warnings
+unless the customer runtime DB supplies entitled records.
+
 ## Error Handling
 
 Clients must classify failures as:

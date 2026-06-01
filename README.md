@@ -77,6 +77,10 @@ New SDK, CLI, Web, and Windows code must target `/api/v1`.
   runtime observations when ingested by an operator.
 - Glossary terms are backend-served and available through API, SDK, Web, and
   Windows surfaces in English and Mandarin Chinese.
+- Glossary context is operational: selecting `Easington Entry Point`,
+  `ICIS Heren`, `NBP`, or `ICE OCM` can show capacity, capacity in use,
+  utilization percentage, related prices, live marks, route candidates,
+  linked contracts, warnings, and data-quality metadata from the runtime API.
 
 All strategy, PnL, route, LNG, resource-pool, and market outputs are
 decision-support candidates requiring human review. They are not executable
@@ -111,6 +115,9 @@ ExecPlans: `.agent/plans/`
 - market positioning cockpit spec EN/CN:
   `docs/clients/MARKET_POSITIONING_COCKPIT_SPEC-EN.md` and
   `docs/clients/MARKET_POSITIONING_COCKPIT_SPEC-CN.md`
+- operational glossary context spec EN/CN:
+  `docs/clients/OPERATIONAL_GLOSSARY_CONTEXT_SPEC-EN.md` and
+  `docs/clients/OPERATIONAL_GLOSSARY_CONTEXT_SPEC-CN.md`
 - LLM analysis and reporting spec EN/CN:
   `docs/architecture/LLM_ANALYSIS_REPORTING_SPEC-EN.md` and
   `docs/architecture/LLM_ANALYSIS_REPORTING_SPEC-CN.md`

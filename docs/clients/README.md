@@ -25,10 +25,12 @@ When Claude Code is asked to implement clients, read these files in order:
 12. `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-CN.md`
 13. `docs/clients/MARKET_POSITIONING_COCKPIT_SPEC-EN.md`
 14. `docs/clients/MARKET_POSITIONING_COCKPIT_SPEC-CN.md`
-15. `docs/clients/WINDOWS_CLIENT_DESIGN_SPEC.md`
-16. `docs/clients/WINDOWS_DEMO_UX_REFERENCE.md`
-17. `docs/architecture/WEB_CLIENT_IMPLEMENTATION_BLUEPRINT.md`
-18. `docs/architecture/WINDOWS_CLIENT_IMPLEMENTATION_BLUEPRINT.md`
+15. `docs/clients/OPERATIONAL_GLOSSARY_CONTEXT_SPEC-EN.md`
+16. `docs/clients/OPERATIONAL_GLOSSARY_CONTEXT_SPEC-CN.md`
+17. `docs/clients/WINDOWS_CLIENT_DESIGN_SPEC.md`
+18. `docs/clients/WINDOWS_DEMO_UX_REFERENCE.md`
+19. `docs/architecture/WEB_CLIENT_IMPLEMENTATION_BLUEPRINT.md`
+20. `docs/architecture/WINDOWS_CLIENT_IMPLEMENTATION_BLUEPRINT.md`
 
 ## Product Rule
 
@@ -49,6 +51,12 @@ Imported screen orders and PnL snapshots are also API-only. They are exposed by
 `/api/v1/portfolio/*` and the Python SDK portfolio client as read-only
 decision-support observations, not order-entry, order-routing, trade-capture,
 or accounting records.
+
+Operational glossary context is API-only as well. Clients must use
+`/api/v1/glossary/{term}/context` with optional language and duration
+parameters to display capacity, capacity usage, prices, live marks, route
+candidates, and linked contracts for terms such as `Easington Entry Point`,
+`ICIS Heren`, `NBP`, and `ICE OCM`.
 
 ## Implementation Rule
 

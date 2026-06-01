@@ -1,5 +1,8 @@
 """Read-only /api/v1/glossary routes for English and Mandarin terms."""
 
+from datetime import datetime
+from typing import Annotated
+
 from fastapi import APIRouter, HTTPException, Query, Request
 
 from eurogas_nexus.domain.analysis import build_glossary_context
@@ -47,17 +50,25 @@ def get_term(
 def get_term_context(
     term: str,
     request: Request,
-    duration_start_utc: str | None = Query(None),
-    duration_end_utc: str | None = Query(None),
+    lang: str = Query("en", pattern="^(en|zh|zh-CN)$"),
+    duration_start_utc: Annotated[datetime | None, Query()] = None,
+    duration_end_utc: Annotated[datetime | None, Query()] = None,
 ) -> dict:
     """Return operational context for a glossary term when known."""
 
     from eurogas_nexus.api.routes.v1.analysis import _load_snapshot
 
-    snapshot = _load_snapshot()
-    context = build_glossary_context(term, snapshot)
-    if duration_start_utc or duration_end_utc:
-        context.warnings.append("DURATION_FILTER_REQUESTED_BUT_CONTEXT_IS_SNAPSHOT_BASED")
+    snapshot = _load_snapshot(
+        duration_start_utc=duration_start_utc,
+        duration_end_utc=duration_end_utc,
+    )
+    context = build_glossary_context(
+        term,
+        snapshot,
+        duration_start_utc=duration_start_utc,
+        duration_end_utc=duration_end_utc,
+        lang=lang,
+    )
     return _env(
         context.model_dump(mode="json"),
         source=snapshot.source,
