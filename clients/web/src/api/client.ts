@@ -68,6 +68,35 @@ export interface MarketObsDTO {
   source_system?: string; freshness?: string;
 }
 
+export interface ScreenOrderObservationDTO {
+  order_observation_id: string; provider_id: string; venue: string;
+  account_label: string; external_order_id: string; side: string; order_type: string;
+  hub: string; product: string; contract_code: string;
+  delivery_start_utc: string; delivery_end_utc: string;
+  price: number; currency: string; unit: string; quantity_mwh: number;
+  filled_quantity_mwh: number; remaining_quantity_mwh: number; status: string;
+  observed_at_utc: string; source_system: string; source_reference: string;
+  linked_strategy_id?: string | null; linked_resource_id?: string | null;
+  research_only: boolean; human_review_required: boolean;
+}
+
+export interface PortfolioPnlSnapshotDTO {
+  pnl_snapshot_id: string; portfolio_id: string; resource_id?: string | null;
+  strategy_id?: string | null; valuation_time_utc: string;
+  realized_pnl_gbp: number; unrealized_pnl_gbp: number; indicative_pnl_gbp: number;
+  cash_value_gbp: number; market_value_gbp: number; quantity_mwh: number;
+  valuation_basis: string; source_system: string; source_reference: string;
+  warnings: string[]; research_only: boolean; human_review_required: boolean;
+}
+
+export interface PortfolioLiveSummaryDTO {
+  portfolio_id: string; latest_valuation_time_utc?: string | null;
+  total_realized_pnl_gbp: number; total_unrealized_pnl_gbp: number;
+  total_indicative_pnl_gbp: number; total_cash_value_gbp: number;
+  open_order_count: number; filled_order_count: number; warnings: string[];
+  research_only: boolean; human_review_required: boolean;
+}
+
 export interface FxRateDTO {
   pair: string; base_currency?: string; quote_currency?: string; rate: number;
   rate_type?: string; value_date?: string; observed_at_utc: string;
@@ -265,6 +294,12 @@ export const api = {
   sources: () => get<SourceSystemDTO[]>("/sources"),
 
   marketObservations: () => get<MarketObsDTO[]>("/market/observations"),
+
+  screenOrders: () => get<ScreenOrderObservationDTO[]>("/portfolio/screen-orders"),
+
+  pnlSnapshots: () => get<PortfolioPnlSnapshotDTO[]>("/portfolio/pnl-snapshots"),
+
+  portfolioLiveSummary: () => get<PortfolioLiveSummaryDTO>("/portfolio/live-summary"),
 
   flowObservations: () => get<FlowObsDTO[]>("/physical/flows"),
 

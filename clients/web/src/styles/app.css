@@ -276,6 +276,45 @@ input {
   stroke-opacity: 0.88;
 }
 
+.fallback-flow-shadow,
+.fallback-flow-path {
+  fill: none;
+  stroke-linecap: round;
+}
+
+.fallback-flow-shadow {
+  stroke: rgb(24 32 38 / 30%);
+  stroke-width: 12;
+}
+
+.fallback-flow-path {
+  animation: route-dash 2.2s linear infinite;
+  stroke: #f97316;
+  stroke-dasharray: 14 12;
+  stroke-width: 6;
+}
+
+.fallback-flow-pulse {
+  fill: #ffffff;
+  stroke: #f97316;
+  stroke-width: 4;
+}
+
+.fallback-flow-label,
+.fallback-flow-value {
+  fill: #182026;
+  font-size: 14px;
+  font-weight: 800;
+  paint-order: stroke;
+  stroke: #ffffff;
+  stroke-width: 5;
+}
+
+.fallback-flow-value {
+  fill: #b42318;
+  font-size: 13px;
+}
+
 .fallback-node circle {
   fill: #2563eb;
   stroke: #ffffff;
@@ -463,6 +502,11 @@ input {
   margin-top: 10px;
 }
 
+.positioning-panel .option-row.live {
+  border-left: 3px solid #f97316;
+  padding-left: 8px;
+}
+
 .option-row {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: start;
@@ -589,6 +633,26 @@ input {
 .credential-form input:disabled {
   cursor: not-allowed;
   opacity: 0.55;
+}
+
+@keyframes route-dash {
+  from {
+    stroke-dashoffset: 26;
+  }
+
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fallback-flow-path {
+    animation: none;
+  }
+
+  .fallback-flow-pulse {
+    display: none;
+  }
 }
 
 @media (max-width: 900px) {

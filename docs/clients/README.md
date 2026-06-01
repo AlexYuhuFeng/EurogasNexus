@@ -21,10 +21,14 @@ When Claude Code is asked to implement clients, read these files in order:
 8. `docs/clients/SDK_CLIENT_DESIGN_SPEC.md`
 9. `docs/clients/CLI_CLIENT_DESIGN_SPEC.md`
 10. `docs/clients/WEB_CLIENT_DESIGN_SPEC.md`
-11. `docs/clients/WINDOWS_CLIENT_DESIGN_SPEC.md`
-12. `docs/clients/WINDOWS_DEMO_UX_REFERENCE.md`
-13. `docs/architecture/WEB_CLIENT_IMPLEMENTATION_BLUEPRINT.md`
-14. `docs/architecture/WINDOWS_CLIENT_IMPLEMENTATION_BLUEPRINT.md`
+11. `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-EN.md`
+12. `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-CN.md`
+13. `docs/clients/MARKET_POSITIONING_COCKPIT_SPEC-EN.md`
+14. `docs/clients/MARKET_POSITIONING_COCKPIT_SPEC-CN.md`
+15. `docs/clients/WINDOWS_CLIENT_DESIGN_SPEC.md`
+16. `docs/clients/WINDOWS_DEMO_UX_REFERENCE.md`
+17. `docs/architecture/WEB_CLIENT_IMPLEMENTATION_BLUEPRINT.md`
+18. `docs/architecture/WINDOWS_CLIENT_IMPLEMENTATION_BLUEPRINT.md`
 
 ## Product Rule
 
@@ -40,6 +44,11 @@ They must not read PostgreSQL, backend local files, raw vendor data, `.env`
 files, historical Desktop project files, or connector credentials directly. The
 only exception is a documented operations script that performs explicit
 read-only runtime DB validation.
+
+Imported screen orders and PnL snapshots are also API-only. They are exposed by
+`/api/v1/portfolio/*` and the Python SDK portfolio client as read-only
+decision-support observations, not order-entry, order-routing, trade-capture,
+or accounting records.
 
 ## Implementation Rule
 

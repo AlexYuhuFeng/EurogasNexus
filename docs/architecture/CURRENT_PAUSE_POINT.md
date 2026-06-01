@@ -4,8 +4,8 @@
 
 Holistic local runtime testing has been performed against the current worktree.
 The project is now a **V1 release candidate for the tested local scope**:
-backend/API/SDK/CLI, Docker PostgreSQL runtime, Web client, and Windows/Tauri
-client.
+backend/API/SDK/CLI, PostgreSQL runtime schema, Web client, and Windows/Tauri
+client shell.
 
 Read the full evidence report:
 
@@ -15,31 +15,38 @@ data/release_v1/holistic_real_test_report.md
 
 ## Runtime Evidence
 
-Validated on 2026-05-30:
+Validated on 2026-06-01:
 
 ```text
 ruff check .
-pytest -q
+pytest -q tests/api tests/contract tests/integration tests/sdk tests/security
 npm run build  # clients/web
 cargo check --manifest-path clients/desktop/src-tauri/Cargo.toml --locked
-npm run build  # clients/desktop
 python -c "from apps.api.main import app; print('app import ok'); print(len(app.routes))"
-python scripts/ops/validate_v1_runtime_db.py --json
-python scripts/ops/ingest_public_sources.py --source all --limit 10 --json
 ```
 
 Results:
 
 ```text
 Ruff: passed
-Python tests: 346 passed
+Python targeted tests: 318 passed
 Web build: passed
 Desktop cargo check: passed
-Desktop package build: passed
-App import: app import ok, 56 routes
-Runtime DB: revision 0005_public_source_credentials, missing_tables=0
-Live ingestion: ECB=6, ENTSOG=10, GIE AGSI=10, GIE ALSI=10
+App import: app import ok, 74 routes
 ```
+
+Rendered Web client smoke tested on Microsoft Edge through Playwright CLI:
+
+```text
+URL: http://127.0.0.1:3000/
+API: http://127.0.0.1:8000/api/v1/health
+Console after interactions: 0 errors, 0 warnings
+Screenshot: C:\Users\qqshu\.codex\memories\eurogas-r17-cockpit.png
+```
+
+The smoke test loaded the cockpit, compared UK NTS route options, marked live
+PnL, evaluated the paper strategy, opened glossary context, and ran snapshot
+analysis without page errors.
 
 ## Current Implementation Status
 
@@ -54,10 +61,25 @@ Live ingestion: ECB=6, ENTSOG=10, GIE AGSI=10, GIE ALSI=10
 - Web is the single UI source. Windows wraps the built Web bundle through
   Tauri, so future UI/UX work should update Web first and then rebuild Windows.
 - Browser QA shows Runtime DB status, active source counts, infrastructure
-  signal counts, credential management panel, and rendered gas network map.
+  signal counts, credential management panel, rendered gas network map,
+  animated route/PnL highlighting, route-cost comparison, strategy-lab output,
+  glossary context, and report-analysis output.
+- The Windows/Tauri shell now starts with a borderless splash window and then
+  shows the shared Web client in a borderless fullscreen main window.
 
 ## Work Completed Since Previous Pause
 
+- Added Alembic revision `0009_market_positioning_foundation`.
+- Added `screen_order_observations` and `portfolio_pnl_snapshots` runtime tables
+  for read-only imported screen-order state and portfolio PnL marks.
+- Added `/api/v1/portfolio/screen-orders`,
+  `/api/v1/portfolio/pnl-snapshots`, and
+  `/api/v1/portfolio/live-summary`.
+- Added SDK helpers in `eurogas_nexus.sdk.portfolio`.
+- Added Web Orders & Live PnL cockpit panel, animated route/PnL overlay, and
+  map-first market-positioning documents in English and Mandarin.
+- Hardened the Windows client startup contract for splashscreen-to-fullscreen
+  transition.
 - Added Alembic revision `0005_public_source_credentials`.
 - Added storage, LNG, and provider credential tables.
 - Added public-source normalization for ECB, ENTSOG, GIE AGSI, and GIE ALSI.
@@ -77,9 +99,15 @@ Live ingestion: ECB=6, ENTSOG=10, GIE AGSI=10, GIE ALSI=10
    productionized.
 2. EEX, ICE OCM, Trayport, Kpler, Platts, weather, broker, and LLM provider
    live calls remain untested until credentials and entitlement approval exist.
-3. LLM analysis is still a placeholder.
-4. Auth, audit persistence depth, entitlement enforcement routes, and export
+3. Screen-order and portfolio PnL endpoints are read-only import surfaces. V1
+   does not perform order entry, order routing, trade capture, or auto-trading.
+4. LLM analysis remains optional and must only invoke a configured backend
+   provider credential under explicit operator control.
+5. Auth, audit persistence depth, entitlement enforcement routes, and export
    governance runtime checks need hardening before multi-user or production use.
+6. Route-cost coverage is still UK National Gas NTS only. The model supports
+   broader European TSO tariff expansion, but non-UK audited tariff ingestion is
+   not in this checkpoint.
 
 ## Route-Cost And Glossary Addendum
 
@@ -107,6 +135,9 @@ Current in-progress route-cost and market-practice hardening adds:
 - map-first trader cockpit UX documents:
   `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-EN.md` and
   `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-CN.md`.
+- market-positioning cockpit documents:
+  `docs/clients/MARKET_POSITIONING_COCKPIT_SPEC-EN.md` and
+  `docs/clients/MARKET_POSITIONING_COCKPIT_SPEC-CN.md`.
 
 This addendum is the current pause marker for continuing the route-cost,
 glossary, strategy, cockpit UX, and market-practice work. Preserve UK National
@@ -123,6 +154,7 @@ Continue Eurogas Nexus from the V1 release-candidate state. Preserve the
 single shared Web UI source for both Web and Windows/Tauri. Use PostgreSQL as
 the runtime source of truth. Do not store provider credentials in clients.
 Start with productionizing live ingestion scheduling, credential health tests,
-and entitlement/export-governance hardening for the next provider selected by
+entitlement/export-governance hardening, and DB-backed import pipelines for
+screen orders, portfolio PnL marks, and audited non-UK TSO tariffs selected by
 the operator.
 ```

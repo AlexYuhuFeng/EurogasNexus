@@ -20,7 +20,20 @@
         "minHeight": 720,
         "center": true,
         "resizable": true,
-        "fullscreen": false
+        "decorations": false,
+        "fullscreen": true,
+        "visible": false
+      },
+      {
+        "label": "splashscreen",
+        "title": "Eurogas Nexus Loading",
+        "width": 520,
+        "height": 300,
+        "center": true,
+        "resizable": false,
+        "decorations": false,
+        "fullscreen": false,
+        "visible": true
       }
     ],
     "security": {

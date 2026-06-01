@@ -54,20 +54,33 @@ Startup flow:
 
 ```text
 Launch
-  -> load local UI preferences
-  -> show connection screen if backend URL is missing
-  -> call /api/v1/health
-  -> show runtime status
-  -> open workspace shell
+  -> show borderless loading/splash window
+  -> load packaged Web workspace in hidden main window
+  -> show borderless fullscreen main window
+  -> close loading/splash window
+  -> Web workspace calls /api/v1/health and runtime status routes
+  -> show connection/runtime/source warnings inside the workspace
 ```
 
 Window layout:
 
-- standard Windows app frame;
+- borderless fullscreen main trading workspace on startup;
+- separate small borderless loading window during startup;
 - persistent backend connection indicator;
 - same workspace navigation as web;
 - settings entry for backend URL and UI preferences;
 - safe error screen for backend unavailable.
+
+The current implementation authority is:
+
+- `clients/desktop/src-tauri/tauri.conf.json` defines hidden `main` and visible
+  `splashscreen` windows;
+- `clients/desktop/src-tauri/src/main.rs` shows `main`, focuses it, and closes
+  `splashscreen` after startup.
+
+The Windows shell does not implement an independent UI. It packages the same Web
+workspace so map animation, order/PnL labels, glossary, settings, and strategy
+surfaces remain identical across Web and Windows.
 
 ## Connection Screen
 

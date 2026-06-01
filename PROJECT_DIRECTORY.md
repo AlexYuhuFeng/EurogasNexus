@@ -51,6 +51,7 @@ and Windows shell surfaces for the tested local scope:
 - API package: `src/eurogas_nexus/api`
 - DB foundation: `src/eurogas_nexus/db`
 - route-cost domain: `src/eurogas_nexus/domain/route_cost`
+- market-positioning domain: `src/eurogas_nexus/domain/market_positioning.py`
 - glossary domain: `src/eurogas_nexus/domain/glossary.py`
 - strategy-lab domain: `src/eurogas_nexus/domain/strategy_lab`
 - SDK clients: `src/eurogas_nexus/sdk`
@@ -63,7 +64,9 @@ not be artificially limited to Easington/Bacton examples. Any UK NTS entry/exit
 point may be priced when audited tariff rows exist in PostgreSQL. Route cost,
 LNG regas readiness, resource-pool optimization, strategy lab, FX, market
 marks, credentials, and glossary surfaces are exposed through API/SDK/Web
-contracts. Clients must not read PostgreSQL directly.
+contracts. Imported external screen-order observations and indicative portfolio
+PnL snapshots are exposed through `/api/v1/portfolio/*` and
+`src/eurogas_nexus/sdk/portfolio.py`. Clients must not read PostgreSQL directly.
 
 ## Development Direction
 
@@ -92,6 +95,9 @@ Claude Code should use:
 - `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-EN.md` and
   `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-CN.md` as the no-ambiguity
   home-screen UX contract;
+- `docs/clients/MARKET_POSITIONING_COCKPIT_SPEC-EN.md` and
+  `docs/clients/MARKET_POSITIONING_COCKPIT_SPEC-CN.md` as the read-only
+  imported order/PnL cockpit contract;
 - `docs/clients/README.md` as the client design index;
 - `docs/clients/CLIENT_TECH_STACK.md` as the fixed Web/Windows library
   authority;

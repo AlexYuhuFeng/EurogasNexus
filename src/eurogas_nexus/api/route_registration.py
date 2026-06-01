@@ -13,6 +13,7 @@ from eurogas_nexus.api.routes.v1.health import router as health_router
 from eurogas_nexus.api.routes.v1.lng import router as lng_router
 from eurogas_nexus.api.routes.v1.market import router as market_router
 from eurogas_nexus.api.routes.v1.physical import router as physical_router
+from eurogas_nexus.api.routes.v1.portfolio import router as portfolio_router
 from eurogas_nexus.api.routes.v1.reference_network import router as reference_network_router
 from eurogas_nexus.api.routes.v1.research import router as research_router
 from eurogas_nexus.api.routes.v1.route_cost import router as route_cost_router
@@ -38,6 +39,7 @@ def register_routes(
         app.include_router(reference_network_router)
         app.include_router(sources_router)
         app.include_router(market_router)
+        app.include_router(portfolio_router)
         app.include_router(physical_router)
         app.include_router(lng_router)
         app.include_router(storage_router)
