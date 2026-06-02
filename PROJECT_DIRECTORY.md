@@ -77,8 +77,10 @@ linked contracts for terms such as Easington Entry Point, ICIS Heren, NBP, ICE
 OCM, and customer-loaded points such as St Fergus Entry Point. It is no longer
 limited to Easington/Bacton examples when PostgreSQL records exist.
 Internal/operator market-positioning imports use
-`/api/internal/portfolio/import-observations`; release clients continue to use
-read-only `/api/v1/portfolio/*` endpoints.
+`/api/internal/portfolio/import-observations` with
+`EUROGAS_NEXUS_INTERNAL_API_TOKEN`, `X-Eurogas-Internal-Token`, and
+`X-Eurogas-Principal`; release clients continue to use read-only
+`/api/v1/portfolio/*` endpoints.
 
 ## Development Direction
 

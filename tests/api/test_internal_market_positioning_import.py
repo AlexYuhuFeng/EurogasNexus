@@ -46,13 +46,17 @@ def test_internal_profile_imports_market_positioning_observations(
         session.commit()
 
     monkeypatch.setenv("RUNTIME_STORE_DATABASE_URL", database_url)
+    monkeypatch.setenv("EUROGAS_NEXUS_INTERNAL_API_TOKEN", "test-internal-token")
     monkeypatch.delenv("DATABASE_URL", raising=False)
     monkeypatch.delenv("EUROGAS_NEXUS_DB_DSN", raising=False)
 
     client = TestClient(create_app(Settings(api_profile="internal")))
     response = client.post(
         "/api/internal/portfolio/import-observations",
-        headers={"X-Eurogas-Principal": "ops-user"},
+        headers={
+            "X-Eurogas-Principal": "ops-user",
+            "X-Eurogas-Internal-Token": "test-internal-token",
+        },
         json=_payload(),
     )
 
@@ -64,6 +68,98 @@ def test_internal_profile_imports_market_positioning_observations(
     with Session(engine) as session:
         assert session.get(ScreenOrderObservationRecord, "order-api-001") is not None
         assert session.get(PortfolioPnlSnapshotRecord, "pnl-api-001") is not None
+
+
+def test_internal_import_fails_closed_when_internal_token_not_configured(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    db_path = tmp_path / "internal-import-auth-missing-config.sqlite"
+    database_url = f"sqlite+pysqlite:///{db_path.as_posix()}"
+    engine = create_engine(database_url, future=True)
+    Base.metadata.create_all(engine)
+    monkeypatch.setenv("RUNTIME_STORE_DATABASE_URL", database_url)
+    monkeypatch.delenv("EUROGAS_NEXUS_INTERNAL_API_TOKEN", raising=False)
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("EUROGAS_NEXUS_DB_DSN", raising=False)
+
+    client = TestClient(create_app(Settings(api_profile="internal")))
+    response = client.post(
+        "/api/internal/portfolio/import-observations",
+        headers={"X-Eurogas-Principal": "ops-user"},
+        json=_payload(),
+    )
+
+    assert response.status_code == 503
+    assert response.json()["detail"]["code"] == "internal_api_token_not_configured"
+    with Session(engine) as session:
+        assert session.get(ScreenOrderObservationRecord, "order-api-001") is None
+        assert session.get(PortfolioPnlSnapshotRecord, "pnl-api-001") is None
+
+
+def test_internal_import_rejects_missing_or_wrong_internal_token(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    db_path = tmp_path / "internal-import-auth-invalid-token.sqlite"
+    database_url = f"sqlite+pysqlite:///{db_path.as_posix()}"
+    engine = create_engine(database_url, future=True)
+    Base.metadata.create_all(engine)
+    monkeypatch.setenv("RUNTIME_STORE_DATABASE_URL", database_url)
+    monkeypatch.setenv("EUROGAS_NEXUS_INTERNAL_API_TOKEN", "test-internal-token")
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("EUROGAS_NEXUS_DB_DSN", raising=False)
+
+    client = TestClient(create_app(Settings(api_profile="internal")))
+    missing_response = client.post(
+        "/api/internal/portfolio/import-observations",
+        headers={"X-Eurogas-Principal": "ops-user"},
+        json=_payload(),
+    )
+    wrong_response = client.post(
+        "/api/internal/portfolio/import-observations",
+        headers={
+            "X-Eurogas-Principal": "ops-user",
+            "X-Eurogas-Internal-Token": "wrong-token",
+        },
+        json=_payload(),
+    )
+
+    assert missing_response.status_code == 401
+    assert missing_response.json()["detail"]["code"] == "internal_api_token_missing"
+    assert wrong_response.status_code == 403
+    assert wrong_response.json()["detail"]["code"] == "internal_api_token_invalid"
+    assert "test-internal-token" not in wrong_response.text
+    with Session(engine) as session:
+        assert session.get(ScreenOrderObservationRecord, "order-api-001") is None
+        assert session.get(PortfolioPnlSnapshotRecord, "pnl-api-001") is None
+
+
+def test_internal_import_requires_explicit_principal(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    db_path = tmp_path / "internal-import-auth-missing-principal.sqlite"
+    database_url = f"sqlite+pysqlite:///{db_path.as_posix()}"
+    engine = create_engine(database_url, future=True)
+    Base.metadata.create_all(engine)
+    monkeypatch.setenv("RUNTIME_STORE_DATABASE_URL", database_url)
+    monkeypatch.setenv("EUROGAS_NEXUS_INTERNAL_API_TOKEN", "test-internal-token")
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("EUROGAS_NEXUS_DB_DSN", raising=False)
+
+    client = TestClient(create_app(Settings(api_profile="internal")))
+    response = client.post(
+        "/api/internal/portfolio/import-observations",
+        headers={"X-Eurogas-Internal-Token": "test-internal-token"},
+        json=_payload(),
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"]["code"] == "internal_principal_missing"
+    with Session(engine) as session:
+        assert session.get(ScreenOrderObservationRecord, "order-api-001") is None
+        assert session.get(PortfolioPnlSnapshotRecord, "pnl-api-001") is None
 
 
 def test_release_profile_does_not_expose_internal_import_route() -> None:

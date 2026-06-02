@@ -29,7 +29,7 @@ Results:
 
 ```text
 Ruff: passed
-Python targeted tests: 326 passed
+Python targeted tests: 332 passed
 Web build: passed
 Desktop cargo check: passed
 App import: app import ok, 74 routes
@@ -77,7 +77,9 @@ analysis without page errors.
   PostgreSQL records exist for another point.
 - Internal/operator market-positioning imports now have an entitlement-gated
   path that writes screen-order observations and indicative PnL snapshots into
-  PostgreSQL while recording `ingestion_runs` and `audit_events`.
+  PostgreSQL while recording `ingestion_runs` and `audit_events`. The route now
+  requires a configured internal API token plus explicit token/principal request
+  headers before any DB access.
 
 ## Work Completed Since Previous Pause
 
@@ -100,6 +102,11 @@ analysis without page errors.
   non-profile entry points from runtime glossary/capacity/flow/price/route/
   contract records, and exposes the same context through the glossary SDK and
   grouped Web/Windows UI.
+- Added R21 internal operator auth gate:
+  `/api/internal/portfolio/import-observations` requires
+  `EUROGAS_NEXUS_INTERNAL_API_TOKEN`, `X-Eurogas-Internal-Token`, and
+  `X-Eurogas-Principal`; missing config, missing token, invalid token, or blank
+  principal fail closed before DB access.
 - Added R19 market-positioning import control:
   `/api/internal/portfolio/import-observations`, fail-closed
   `entitlement_decisions` checks, repository upserts, and audit/ingestion-run
@@ -148,9 +155,10 @@ analysis without page errors.
 7. Operational glossary context is only as complete as the runtime DB records
    supplied by customer imports. Synthetic fallback context is for development
    demonstration only.
-8. Market-positioning imports are internal/operator-only and currently rely on
-   pre-existing entitlement rows. Production auth and operator role enforcement
-   still need hardening before multi-user deployment.
+8. Market-positioning imports are internal/operator-only and now require a
+   static internal API token plus entitlement rows. Production multi-user role
+   enforcement, rotation workflow, and external secret-manager integration still
+   need hardening before multi-user deployment.
 
 ## Route-Cost And Glossary Addendum
 

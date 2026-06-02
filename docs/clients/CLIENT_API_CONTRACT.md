@@ -135,6 +135,16 @@ Planned endpoints must be mocked locally until backend contracts exist.
 not a stable client route. It is available only when the API runs with the
 `internal` profile. Release clients must not call it.
 
+The internal route requires:
+
+- backend env `EUROGAS_NEXUS_INTERNAL_API_TOKEN`;
+- request header `X-Eurogas-Internal-Token`;
+- request header `X-Eurogas-Principal`.
+
+The route fails closed before DB access if the token is not configured, missing,
+invalid, or if the principal is blank. This V1 token gate is not company
+SSO/OIDC and must not be used by Web, Windows, SDK, or CLI release clients.
+
 The route writes external screen-order observations and indicative portfolio PnL
 snapshots into PostgreSQL after entitlement checks pass. Missing entitlement
 denies the full batch and writes audit/ingestion-run evidence without writing

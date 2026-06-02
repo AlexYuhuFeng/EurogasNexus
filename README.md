@@ -74,6 +74,9 @@ New SDK, CLI, Web, and Windows code must target `/api/v1`.
 - Internal/operator imports for screen-order observations and indicative PnL
   snapshots are governed by fail-closed entitlement checks and write audit plus
   ingestion-run evidence before `/api/v1/portfolio/*` exposes them read-only.
+  The internal import route is additionally protected by
+  `EUROGAS_NEXUS_INTERNAL_API_TOKEN`, `X-Eurogas-Internal-Token`, and explicit
+  `X-Eurogas-Principal` headers.
 - Strategy lab supports backtest, shadow-run, and live-monitor evaluation
   contracts for SAP/ICIS day-ahead versus ICE OCM style intraday strategies,
   5-minute bar windows, scoring components, allocation targets, stop-loss

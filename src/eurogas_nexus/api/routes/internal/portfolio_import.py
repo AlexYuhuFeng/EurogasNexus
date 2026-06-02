@@ -5,6 +5,10 @@ from __future__ import annotations
 from fastapi import APIRouter, Header, HTTPException, Request
 
 from eurogas_nexus.domain.market_positioning_import import MarketPositioningImportBatch
+from eurogas_nexus.security.internal_api import (
+    InternalApiAuthError,
+    validate_internal_operator_headers,
+)
 
 router = APIRouter(prefix="/portfolio", tags=["internal-portfolio-import"])
 
@@ -14,8 +18,23 @@ def import_market_positioning_observations(
     body: MarketPositioningImportBatch,
     request: Request,
     x_eurogas_principal: str | None = Header(default=None, alias="X-Eurogas-Principal"),
+    x_eurogas_internal_token: str | None = Header(
+        default=None,
+        alias="X-Eurogas-Internal-Token",
+    ),
 ) -> dict:
     """Import external order/PnL observations into PostgreSQL-backed runtime tables."""
+
+    try:
+        principal = validate_internal_operator_headers(
+            token=x_eurogas_internal_token,
+            principal=x_eurogas_principal,
+        )
+    except InternalApiAuthError as exc:
+        raise HTTPException(
+            status_code=exc.status_code,
+            detail={"code": exc.code, "message": exc.message},
+        ) from exc
 
     if not _db_is_configured():
         raise HTTPException(
@@ -37,7 +56,7 @@ def import_market_positioning_observations(
             result = upsert_market_positioning_import_batch(
                 session,
                 body,
-                principal=x_eurogas_principal or "internal-operator",
+                principal=principal,
             )
         return _env(result.model_dump(mode="json"), request, warnings=result.warnings)
     except sqlalchemy_error as exc:

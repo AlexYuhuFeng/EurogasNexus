@@ -18,6 +18,20 @@ Internal profile only:
 POST /api/internal/portfolio/import-observations
 ```
 
+Required headers:
+
+```text
+X-Eurogas-Internal-Token: <operator-managed-token>
+X-Eurogas-Principal: <operator-or-job-id>
+```
+
+`EUROGAS_NEXUS_INTERNAL_API_TOKEN` must be configured in the backend runtime
+environment. The route fails closed before DB access when the token is missing
+from the environment, missing from the request, invalid, or when
+`X-Eurogas-Principal` is blank. This is a V1 internal operator token gate, not
+company SSO/OIDC. The token must never be logged, returned, committed, or stored
+in Web, Windows, SDK, or CLI clients.
+
 Release clients must continue to read:
 
 ```text
