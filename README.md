@@ -19,6 +19,12 @@ pytest -q tests/api tests/contract tests/integration tests/sdk tests/cli tests/r
 python -c "from apps.api.main import app; print('app import ok'); print(len(app.routes))"
 ```
 
+GitHub Actions runs Python validation plus parallel client build jobs:
+
+- Web artifact: `clients/web/dist`
+- Windows client artifact: Tauri NSIS `.exe`
+- Linux client artifact: Tauri Debian `.deb`
+
 Core entry points:
 
 - API app: `apps/api/main.py`
@@ -80,10 +86,12 @@ New SDK, CLI, Web, and Windows code must target `/api/v1`.
   runtime observations when ingested by an operator.
 - Glossary terms are backend-served and available through API, SDK, Web, and
   Windows surfaces in English and Mandarin Chinese.
-- Glossary context is operational: selecting `Easington Entry Point`,
-  `ICIS Heren`, `NBP`, or `ICE OCM` can show capacity, capacity in use,
-  utilization percentage, related prices, live marks, route candidates,
-  linked contracts, warnings, and data-quality metadata from the runtime API.
+- Glossary context is operational and DB-derived: selecting `Easington Entry
+  Point`, `ICIS Heren`, `NBP`, `ICE OCM`, or a customer-loaded point such as
+  `St Fergus Entry Point` can show matched entities, capacity, selected-duration
+  capacity usage, utilization percentage, related prices, live marks, route
+  candidates, linked contracts, warnings, and data-quality metadata from the
+  runtime API.
 
 All strategy, PnL, route, LNG, resource-pool, and market outputs are
 decision-support candidates requiring human review. They are not executable
@@ -139,12 +147,16 @@ ExecPlans: `.agent/plans/`
 
 ## 中文摘要
 
-Eurogas Nexus V1.0 以 PostgreSQL 为运行时事实来源，以 API/SDK 为访问边界。
+Eurogas Nexus V1.0 以 PostgreSQL 作为运行时事实来源，以 API/SDK 作为访问边界。
 当前路线成本能力限定在英国 National Gas NTS，但不再限定为 Easington/Bacton
-示例；只要 PostgreSQL 中存在已审核的英国 NTS 费率行，系统就可以计算相应
+示例；只要 PostgreSQL 中存在已审核的英国 NTS 费率行，系统即可计算相应
 entry/exit 点的路线成本。
 
 Web 和 Windows 客户端必须通过 API/SDK 访问数据，不得直接连接数据库。供应商
 API Key 只能通过后端凭证接口保存。策略、PnL、路线、LNG regas、资源池优化、
 市场信号和术语表输出均为需要人工复核的决策支持结果，不是订单执行、自动交易、
 提名提交、官方审批、法律意见或官方交易建议。
+
+术语表上下文也是数据库优先能力。选择 `Easington Entry Point`、`ICIS Heren`
+或客户加载的其他点位时，系统会通过 API 展示匹配实体、容量、所选时间段的容量
+使用量、价格、实时标记、路线、合同、预警和数据质量信息。

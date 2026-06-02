@@ -162,15 +162,23 @@ also read:
 - `description_en` and `description_zh_cn`;
 - `requested_duration`;
 - `entity_summary`;
+- `matched_entities`;
 - `metrics`;
 - `related_contracts`;
 - `live_market_marks`;
+- `context_sections`;
 - `data_quality`.
 
-For `Easington Entry Point`, the backend must combine capacity profiles, flow
-usage, NBP/ICE OCM/ICIS price context, route candidates, and linked upstream
-contracts. For `ICIS Heren`, the response must carry licensed-data warnings
-unless the customer runtime DB supplies entitled records.
+The backend must derive context from matching glossary terms, aliases, related
+terms, capacity profiles, flow observations, price observations, live marks,
+route candidates, and linked upstream contracts. Hard-coded examples such as
+`Easington Entry Point` are allowed as hints, but the client contract is not
+limited to Easington/Bacton. Customer-loaded terms such as `St Fergus Entry
+Point` must render when PostgreSQL contains matching runtime rows.
+
+For `ICIS Heren`, the response must carry licensed-data warnings unless the
+customer runtime DB supplies entitled records. Clients must display these
+warnings near the price section.
 
 ## Error Handling
 

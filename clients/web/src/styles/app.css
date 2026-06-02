@@ -563,6 +563,71 @@ input {
   margin: 2px 0;
 }
 
+.context-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: start;
+}
+
+.context-heading div,
+.context-section {
+  display: grid;
+  gap: 4px;
+}
+
+.context-heading span,
+.context-section > strong {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.context-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.context-chip-row span,
+.context-facts span {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 7px;
+}
+
+.context-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.context-record-list {
+  display: grid;
+  gap: 6px;
+}
+
+.context-record-list div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 7px;
+}
+
+.context-record-list small {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 11px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .glossary-row button,
 .analysis-panel button {
   min-height: 30px;

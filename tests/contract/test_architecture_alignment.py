@@ -119,7 +119,7 @@ def test_current_pause_point_records_holistic_runtime_pause_state() -> None:
 
     assert "Holistic local runtime testing" in text
     assert "V1 release candidate" in text
-    assert "324 passed" in text
+    assert "326 passed" in text
     assert "74 routes" in text
     assert "Windows/Tauri" in text
     assert "Console after interactions: 0 errors, 0 warnings" in text

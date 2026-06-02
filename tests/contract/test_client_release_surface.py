@@ -86,6 +86,18 @@ def test_client_dependency_policy_excludes_disallowed_frameworks() -> None:
     assert "@tauri-apps/cli" in names
 
 
+def test_ci_builds_web_windows_and_linux_clients() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+
+    assert "web-client-build" in workflow
+    assert "desktop-client-build" in workflow
+    assert "windows-latest" in workflow
+    assert "ubuntu-latest" in workflow
+    assert "--bundles ${{ matrix.bundle }}" in workflow
+    assert "clients/desktop/src-tauri/target/release/bundle/nsis/*.exe" in workflow
+    assert "clients/desktop/src-tauri/target/release/bundle/deb/*.deb" in workflow
+
+
 def test_web_client_uses_api_only_and_supports_mandarin_theme() -> None:
     api_client = (
         ROOT / "clients" / "web" / "src" / "api" / "client.ts"

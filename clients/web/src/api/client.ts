@@ -259,11 +259,16 @@ export interface GlossaryContextDTO {
   description_en?: string | null; description_zh_cn?: string | null;
   requested_duration?: Record<string, unknown> | null;
   entity_summary?: Record<string, unknown> | null;
+  matched_entities: Array<Record<string, unknown>>;
   capacity: Record<string, unknown> | null; capacity_usage: Record<string, unknown> | null;
   metrics: Array<Record<string, unknown>>;
   related_prices: Array<Record<string, unknown>>; related_routes: Array<Record<string, unknown>>;
   related_contracts: Array<Record<string, unknown>>;
   live_market_marks: Array<Record<string, unknown>>;
+  context_sections: Array<{
+    section_id: string; title: string; items: Array<Record<string, unknown>>;
+    metrics?: Array<Record<string, unknown>>; warnings: string[];
+  }>;
   related_sources: string[]; data_quality: Record<string, unknown>; warnings: string[];
   research_only: boolean; human_review_required: boolean;
 }

@@ -84,6 +84,15 @@ def test_glossary_context_returns_easington_operational_context() -> None:
     assert data["live_market_marks"]
     assert data["related_contracts"]
     assert any(metric["metric_id"] == "capacity_usage_pct" for metric in data["metrics"])
+    assert any(entity["entity_type"] == "capacity_point" for entity in data["matched_entities"])
+    assert {section["section_id"] for section in data["context_sections"]} >= {
+        "overview",
+        "capacity",
+        "prices",
+        "routes",
+        "contracts",
+        "data_quality",
+    }
 
 
 def test_glossary_context_returns_licensed_price_context_warning() -> None:
@@ -97,3 +106,4 @@ def test_glossary_context_returns_licensed_price_context_warning() -> None:
     assert "授权" in data["description"]
     assert "ICIS_HEREN_REQUIRES_CUSTOMER_LICENSED_DATA" in data["warnings"]
     assert any(price["market_venue"] == "ICIS Heren" for price in data["related_prices"])
+    assert any(section["section_id"] == "prices" for section in data["context_sections"])

@@ -29,7 +29,7 @@ Results:
 
 ```text
 Ruff: passed
-Python targeted tests: 324 passed
+Python targeted tests: 326 passed
 Web build: passed
 Desktop cargo check: passed
 App import: app import ok, 74 routes
@@ -66,10 +66,15 @@ analysis without page errors.
   glossary context, and report-analysis output.
 - The Windows/Tauri shell now starts with a borderless splash window and then
   shows the shared Web client in a borderless fullscreen main window.
+- GitHub Actions now validates the backend and builds all client delivery
+  surfaces in parallel: Web bundle, Windows Tauri NSIS `.exe`, and Linux Tauri
+  Debian `.deb`.
 - The glossary context endpoint now acts as an operational context surface:
-  duration-aware Easington Entry Point context can show capacity, capacity in
+  duration-aware terms can show matched runtime entities, capacity, capacity in
   use, utilization percentage, NBP/ICE OCM/ICIS prices, live marks, route
-  candidates, linked contracts, warnings, and data-quality metadata.
+  candidates, linked contracts, warnings, and data-quality metadata. Context is
+  DB-derived and no longer limited to Easington/Bacton profile examples when
+  PostgreSQL records exist for another point.
 - Internal/operator market-positioning imports now have an entitlement-gated
   path that writes screen-order observations and indicative PnL snapshots into
   PostgreSQL while recording `ingestion_runs` and `audit_events`.
@@ -89,6 +94,12 @@ analysis without page errors.
 - Added operational glossary context specs:
   `docs/clients/OPERATIONAL_GLOSSARY_CONTEXT_SPEC-EN.md` and
   `docs/clients/OPERATIONAL_GLOSSARY_CONTEXT_SPEC-CN.md`.
+- Added R20 intuitive glossary context generalization:
+  `GET /api/v1/glossary/{term}/context` now returns `matched_entities` and
+  `context_sections`, aggregates selected-duration capacity usage, derives
+  non-profile entry points from runtime glossary/capacity/flow/price/route/
+  contract records, and exposes the same context through the glossary SDK and
+  grouped Web/Windows UI.
 - Added R19 market-positioning import control:
   `/api/internal/portfolio/import-observations`, fail-closed
   `entitlement_decisions` checks, repository upserts, and audit/ingestion-run
@@ -159,8 +170,9 @@ Current in-progress route-cost and market-practice hardening adds:
 - `/api/v1/glossary` and `/api/v1/glossary/{term}` bilingual glossary routes
   with English, `zh`, and `zh-CN` support;
 - `/api/v1/glossary/{term}/context` operational context with optional language
-  and duration filters for Easington, ICIS Heren, NBP, ICE OCM, and generic
-  terms;
+  and duration filters for Easington, ICIS Heren, NBP, ICE OCM, and
+  customer-loaded non-profile terms whose context can be derived from runtime
+  records;
 - Web client panels for map layer/search, above-map portfolio/price/PnL/strategy
   strip, UK NTS contract economics, live PnL, strategy lab, glossary, settings
   language, and light/dark/system theme;

@@ -272,6 +272,10 @@ export default function App() {
     return String(value);
   }
 
+  function contextSource(item: Record<string, unknown>) {
+    return formatContextValue(item.source_reference ?? item.source_system ?? item.source_refs);
+  }
+
   return (
     <div className="app">
       <header className="app-header">
@@ -637,16 +641,34 @@ export default function App() {
             </div>
             {glossaryContext && (
               <div className="glossary-context">
-                <strong>{glossaryContext.term}: {glossaryContext.context_type}</strong>
+                <div className="context-heading">
+                  <div>
+                    <strong>{glossaryContext.term}</strong>
+                    <span>{glossaryContext.context_type}</span>
+                  </div>
+                  <span>{glossaryContext.data_quality.runtime_db ? t("data.runtime") : t("status.synthetic")}</span>
+                </div>
                 <p>{glossaryContext.description}</p>
                 {glossaryContext.requested_duration && (
                   <span>
                     {t("glossary.duration")}: {formatContextValue(glossaryContext.requested_duration.duration_start_utc)} {"->"} {formatContextValue(glossaryContext.requested_duration.duration_end_utc)}
                   </span>
                 )}
+                {glossaryContext.matched_entities.length > 0 && (
+                  <div className="context-section">
+                    <strong>{t("glossary.matched_entities")}</strong>
+                    <div className="context-chip-row">
+                      {glossaryContext.matched_entities.slice(0, 10).map((entity, index) => (
+                        <span key={`${glossaryContext.term}-entity-${index}`}>
+                          {formatContextValue(entity.entity_type)}: {formatContextValue(entity.label)}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 {glossaryContext.metrics.length > 0 && (
                   <div className="metric-grid glossary-metrics">
-                    {glossaryContext.metrics.slice(0, 8).map((metric, index) => (
+                    {glossaryContext.metrics.slice(0, 10).map((metric, index) => (
                       <div key={`${glossaryContext.term}-metric-${index}`}>
                         <span>{formatContextValue(metric.label)}</span>
                         <strong>{formatContextValue(metric.value)} {formatContextValue(metric.unit)}</strong>
@@ -654,31 +676,93 @@ export default function App() {
                     ))}
                   </div>
                 )}
-                {glossaryContext.capacity_usage && (
-                  <span>
-                    {t("glossary.capacity_usage")}: {formatContextValue(glossaryContext.capacity_usage.used)} / {formatContextValue(glossaryContext.capacity_usage.capacity)} {formatContextValue(glossaryContext.capacity_usage.unit)} ({formatContextValue(glossaryContext.capacity_usage.usage_pct)}%)
-                  </span>
+                {(glossaryContext.capacity || glossaryContext.capacity_usage) && (
+                  <div className="context-section context-section-capacity">
+                    <strong>{t("glossary.capacity")}</strong>
+                    <div className="context-facts">
+                      {glossaryContext.capacity && (
+                        <span>
+                          {formatContextValue(glossaryContext.capacity.point_name)}: {formatContextValue(glossaryContext.capacity.capacity_mwh_per_day ?? glossaryContext.capacity.capacity_mcm_d)} {formatContextValue(glossaryContext.capacity.capacity_mwh_per_day ? "MWh/d" : "mcm/d")}
+                        </span>
+                      )}
+                      {glossaryContext.capacity_usage && (
+                        <>
+                          <span>
+                            {t("glossary.average_used")}: {formatContextValue(glossaryContext.capacity_usage.used)} {formatContextValue(glossaryContext.capacity_usage.unit)}
+                          </span>
+                          <span>
+                            {t("glossary.capacity_usage")}: {formatContextValue(glossaryContext.capacity_usage.usage_pct)}%
+                          </span>
+                          <span>
+                            {t("glossary.peak_used")}: {formatContextValue(glossaryContext.capacity_usage.peak_used_mwh_per_day ?? glossaryContext.capacity_usage.peak_used_mcm_d)} {formatContextValue(glossaryContext.capacity_usage.unit)}
+                          </span>
+                          <span>
+                            {t("glossary.observations")}: {formatContextValue(glossaryContext.capacity_usage.observations_count)}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
                 )}
-                {glossaryContext.related_prices.slice(0, 3).map((price, index) => (
-                  <span key={`${glossaryContext.term}-price-${index}`}>
-                    {formatContextValue(price.market_venue ?? price.source_system ?? "price")}: {formatContextValue(price.price)} {formatContextValue(price.unit ?? price.currency)}
-                  </span>
-                ))}
-                {glossaryContext.live_market_marks.slice(0, 2).map((mark, index) => (
-                  <span key={`${glossaryContext.term}-mark-${index}`}>
-                    {formatContextValue(mark.venue)} {formatContextValue(mark.product)}: bid {formatContextValue(mark.bid_gbp_mwh)} / ask {formatContextValue(mark.ask_gbp_mwh)}
-                  </span>
-                ))}
-                {glossaryContext.related_routes.slice(0, 3).map((route, index) => (
-                  <span key={`${glossaryContext.term}-route-${index}`}>
-                    {t("glossary.route")}: {formatContextValue(route.route_name)}
-                  </span>
-                ))}
-                {glossaryContext.related_contracts.slice(0, 3).map((contractItem, index) => (
-                  <span key={`${glossaryContext.term}-contract-${index}`}>
-                    {t("glossary.contract")}: {formatContextValue(contractItem.contract_name)} · {formatContextValue(contractItem.delivery_quantity_mwh_per_day)} MWh/d
-                  </span>
-                ))}
+                {(glossaryContext.related_prices.length > 0 || glossaryContext.live_market_marks.length > 0) && (
+                  <div className="context-section">
+                    <strong>{t("glossary.prices")}</strong>
+                    <div className="context-record-list">
+                      {glossaryContext.related_prices.slice(0, 5).map((price, index) => (
+                        <div key={`${glossaryContext.term}-price-${index}`}>
+                          <span>{formatContextValue(price.market_venue ?? price.source_system ?? "price")}</span>
+                          <strong>{formatContextValue(price.price)} {formatContextValue(price.unit ?? price.currency)}</strong>
+                          <small>{formatContextValue(price.product)} · {contextSource(price)}</small>
+                        </div>
+                      ))}
+                      {glossaryContext.live_market_marks.slice(0, 4).map((mark, index) => (
+                        <div key={`${glossaryContext.term}-mark-${index}`}>
+                          <span>{formatContextValue(mark.venue)} {formatContextValue(mark.product)}</span>
+                          <strong>
+                            {t("economics.bid")} {formatContextValue(mark.bid_gbp_mwh)} / {t("economics.ask")} {formatContextValue(mark.ask_gbp_mwh)}
+                          </strong>
+                          <small>{formatContextValue(mark.hub)} · {contextSource(mark)}</small>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {glossaryContext.related_routes.length > 0 && (
+                  <div className="context-section">
+                    <strong>{t("glossary.routes")}</strong>
+                    <div className="context-record-list">
+                      {glossaryContext.related_routes.slice(0, 4).map((route, index) => (
+                        <div key={`${glossaryContext.term}-route-${index}`}>
+                          <span>{formatContextValue(route.route_name)}</span>
+                          <strong>{formatContextValue(route.business_model)}</strong>
+                          <small>{formatContextValue(route.required_tso_access)}</small>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {glossaryContext.related_contracts.length > 0 && (
+                  <div className="context-section">
+                    <strong>{t("glossary.contracts")}</strong>
+                    <div className="context-record-list">
+                      {glossaryContext.related_contracts.slice(0, 4).map((contractItem, index) => (
+                        <div key={`${glossaryContext.term}-contract-${index}`}>
+                          <span>{formatContextValue(contractItem.contract_name)}</span>
+                          <strong>{formatContextValue(contractItem.delivery_quantity_mwh_per_day)} MWh/d</strong>
+                          <small>{formatContextValue(contractItem.resource_type)} · {formatContextValue(contractItem.settlement_frequency)}</small>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div className="context-section">
+                  <strong>{t("glossary.data_quality")}</strong>
+                  <div className="context-chip-row">
+                    <span>{t("glossary.matched_entities")}: {formatContextValue(glossaryContext.data_quality.matched_entity_count)}</span>
+                    <span>{t("glossary.prices")}: {formatContextValue(glossaryContext.data_quality.market_observation_count)}</span>
+                    <span>{t("glossary.live_marks")}: {formatContextValue(glossaryContext.data_quality.live_mark_count)}</span>
+                  </div>
+                </div>
                 {glossaryContext.warnings.length > 0 && (
                   <span>{t("glossary.warnings")}: {glossaryContext.warnings.slice(0, 3).join(", ")}</span>
                 )}

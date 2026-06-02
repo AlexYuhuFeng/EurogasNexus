@@ -54,9 +54,11 @@ or accounting records.
 
 Operational glossary context is API-only as well. Clients must use
 `/api/v1/glossary/{term}/context` with optional language and duration
-parameters to display capacity, capacity usage, prices, live marks, route
-candidates, and linked contracts for terms such as `Easington Entry Point`,
-`ICIS Heren`, `NBP`, and `ICE OCM`.
+parameters to display matched entities, capacity, selected-duration capacity
+usage, prices, live marks, route candidates, linked contracts, warnings, and
+data quality. The context resolver is DB-derived and is not limited to
+Easington/Bacton examples; customer-loaded points render when PostgreSQL
+contains matching glossary and runtime rows.
 
 ## Implementation Rule
 

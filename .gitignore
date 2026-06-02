@@ -13,6 +13,8 @@ env/
 !.env.example
 
 .pytest_cache/
+.pytest-cache-*/
+.pytest-tmp-*/
 .ruff_cache/
 .coverage
 htmlcov/

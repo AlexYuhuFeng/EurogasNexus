@@ -39,6 +39,7 @@ class GlossaryContext(BaseModel):
     description_zh_cn: str | None = None
     requested_duration: dict | None = None
     entity_summary: dict | None = None
+    matched_entities: list[dict] = Field(default_factory=list)
     capacity: dict | None = None
     capacity_usage: dict | None = None
     metrics: list[dict] = Field(default_factory=list)
@@ -46,6 +47,7 @@ class GlossaryContext(BaseModel):
     related_routes: list[dict] = Field(default_factory=list)
     related_contracts: list[dict] = Field(default_factory=list)
     live_market_marks: list[dict] = Field(default_factory=list)
+    context_sections: list[dict] = Field(default_factory=list)
     related_sources: list[str] = Field(default_factory=list)
     data_quality: dict = Field(default_factory=dict)
     warnings: list[str] = Field(default_factory=list)

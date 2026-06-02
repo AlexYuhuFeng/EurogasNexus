@@ -133,7 +133,7 @@ def _fallback_snapshot() -> AnalysisSnapshot:
                 "bid_gbp_mwh": 28.2,
                 "ask_gbp_mwh": 28.4,
                 "last_gbp_mwh": 28.3,
-                "mark_time_utc": now.isoformat(),
+                "mark_time_utc": "2026-06-01T12:00:00Z",
                 "source_system": "synthetic-fixture",
                 "source_reference": "synthetic-ice-ocm-live-mark",
             }
@@ -295,6 +295,8 @@ def _db_snapshot(
                         "category": row.category,
                         "definition_en": row.definition_en,
                         "definition_zh_cn": row.definition_zh_cn,
+                        "aliases": row.aliases,
+                        "related_terms": row.related_terms,
                         "source_refs": row.source_refs,
                     }
                     for row in glossary

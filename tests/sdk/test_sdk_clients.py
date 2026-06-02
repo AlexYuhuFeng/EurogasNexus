@@ -9,8 +9,12 @@ def test_sdk_all_clients_importable() -> None:
         generate_portfolio_report,
     )
     from eurogas_nexus.sdk.glossary import (
+        GlossaryContext,
         GlossaryTerm,
         fetch_glossary,
+    )
+    from eurogas_nexus.sdk.glossary import (
+        fetch_glossary_context as fetch_glossary_context_direct,
     )
     from eurogas_nexus.sdk.portfolio import (
         fetch_live_summary,
@@ -45,9 +49,11 @@ def test_sdk_all_clients_importable() -> None:
     assert callable(fetch_pnl_snapshots)
     assert callable(fetch_live_summary)
     assert callable(fetch_glossary)
+    assert callable(fetch_glossary_context_direct)
     assert NodeDTO.model_fields
     assert SourceSystem.model_fields
     assert GlossaryTerm.model_fields
+    assert GlossaryContext.model_fields
 
 
 def test_health_client_imports() -> None:

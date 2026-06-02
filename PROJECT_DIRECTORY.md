@@ -71,9 +71,11 @@ marks, credentials, and glossary surfaces are exposed through API/SDK/Web
 contracts. Imported external screen-order observations and indicative portfolio
 PnL snapshots are exposed through `/api/v1/portfolio/*` and
 `src/eurogas_nexus/sdk/portfolio.py`. Clients must not read PostgreSQL directly.
-Operational glossary context is also API-only and combines runtime capacity,
-usage, prices, live marks, routes, and linked contracts for terms such as
-Easington Entry Point, ICIS Heren, NBP, and ICE OCM.
+Operational glossary context is also API-only and combines runtime matched
+entities, capacity, selected-duration usage, prices, live marks, routes, and
+linked contracts for terms such as Easington Entry Point, ICIS Heren, NBP, ICE
+OCM, and customer-loaded points such as St Fergus Entry Point. It is no longer
+limited to Easington/Bacton examples when PostgreSQL records exist.
 Internal/operator market-positioning imports use
 `/api/internal/portfolio/import-observations`; release clients continue to use
 read-only `/api/v1/portfolio/*` endpoints.
