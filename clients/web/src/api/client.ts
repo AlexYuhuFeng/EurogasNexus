@@ -1,6 +1,17 @@
 /** Typed API client for /api/v1. All data flows through backend API only. */
 
-const BASE = "/api/v1";
+const DEFAULT_BROWSER_BASE = "/api/v1";
+const DEFAULT_DESKTOP_BASE = "http://127.0.0.1:8000/api/v1";
+const envBase = import.meta.env.VITE_EUROGAS_API_BASE_URL as string | undefined;
+const isDesktopShell =
+  "__TAURI_INTERNALS__" in window ||
+  window.location.protocol === "tauri:" ||
+  window.location.hostname === "tauri.localhost";
+const BASE = (envBase?.trim() || (isDesktopShell ? DEFAULT_DESKTOP_BASE : DEFAULT_BROWSER_BASE)).replace(/\/$/, "");
+
+function apiUrl(path: string): string {
+  return new URL(`${BASE}${path}`, window.location.origin).toString();
+}
 
 export interface ApiMeta {
   research_only: boolean;
@@ -15,7 +26,7 @@ export interface ApiResponse<T> {
 }
 
 async function get<T>(path: string, params?: Record<string, string>): Promise<ApiResponse<T>> {
-  const url = new URL(`${BASE}${path}`, window.location.origin);
+  const url = new URL(apiUrl(path));
   if (params) {
     Object.entries(params).forEach(([k, v]) => { if (v) url.searchParams.set(k, v); });
   }
@@ -25,7 +36,7 @@ async function get<T>(path: string, params?: Record<string, string>): Promise<Ap
 }
 
 async function post<T>(path: string, body: unknown): Promise<ApiResponse<T>> {
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await fetch(apiUrl(path), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -323,7 +334,7 @@ export const api = {
   credentialProviders: () => get<CredentialProviderDTO[]>("/credentials/providers"),
 
   saveCredential: (providerId: string, body: { api_key: string; label: string }) =>
-    fetch(`${BASE}/credentials/${providerId}`, {
+    fetch(apiUrl(`/credentials/${providerId}`), {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),

@@ -2,11 +2,11 @@
 
 ## Purpose
 
-This backlog is the exact queue Claude Code should use for the full V1 release.
+This backlog is the exact queue Codex should use for the full V1 release.
 It complements `docs/release/V1_FULL_PROJECT_RELEASE_EXECUTION_PLAN.md` by
 listing the required ExecPlan path, report path, and proof for each milestone.
 
-If an ExecPlan listed here does not exist, Claude Code must create it from
+If an ExecPlan listed here does not exist, Codex must create it from
 `docs/release/V1_RELEASE_EXECPLAN_TEMPLATE.md` and execute that milestone in the
 same goal-mode run unless the user explicitly asks for planning only.
 
@@ -42,9 +42,9 @@ same goal-mode run unless the user explicitly asks for planning only.
 
 ## Backlog Rule
 
-Claude Code must select the first milestone whose status is not `complete`.
+Codex must select the first milestone whose status is not `complete`.
 
-If status markers are stale, Claude Code must inspect evidence:
+If status markers are stale, Codex must inspect evidence:
 
 - required report exists;
 - acceptance criteria are satisfied;

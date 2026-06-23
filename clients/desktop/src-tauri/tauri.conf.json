@@ -37,7 +37,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; connect-src 'self' http://localhost:* http://127.0.0.1:*; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; worker-src 'self' blob:;"
+      "csp": "default-src 'self'; connect-src 'self' http://localhost:* http://127.0.0.1:* https://tile.openstreetmap.org; img-src 'self' data: blob: https://tile.openstreetmap.org; style-src 'self' 'unsafe-inline'; script-src 'self'; worker-src 'self' blob:;"
     }
   },
   "bundle": {

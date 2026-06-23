@@ -2,7 +2,7 @@
 
 ## 目的
 
-本文档用于指导 Claude Code 或其他 CLI Agent 将 Eurogas Nexus V1 的市场、
+本文档用于指导 Codex 或其他 CLI Agent 将 Eurogas Nexus V1 的市场、
 路线、LNG、资源池、策略、合同和客户端设计继续贴近欧洲天然气交易实践。即使
 没有互联网，也应能依照本文档执行当前代码和测试范围内的开发。
 

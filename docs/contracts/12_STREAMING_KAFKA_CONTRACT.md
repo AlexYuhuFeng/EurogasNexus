@@ -24,7 +24,6 @@ service is present. Streaming must never be the runtime source of truth.
 - Live producers.
 - Broker-specific configuration.
 
-
 ## Milestone 12 Additions
 
 - Added dependency-free `StreamingEnvelope` shell type for future optional streaming integration.

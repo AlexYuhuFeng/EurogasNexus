@@ -247,5 +247,5 @@ A domain slice is not ready for implementation unless it has:
 - explicit non-goals;
 - rollback notes.
 
-If any of these are missing, Claude Code should add documentation first and stop
+If any of these are missing, Codex should add documentation first and stop
 before runtime code.

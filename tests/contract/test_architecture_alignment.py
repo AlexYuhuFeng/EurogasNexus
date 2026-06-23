@@ -9,6 +9,40 @@ def _read_doc(path: str) -> str:
     return (ROOT / path).read_text(encoding="utf-8")
 
 
+def test_repository_has_no_legacy_handoff_surface() -> None:
+    legacy_prefix = "CLAU" + "DE_CODE"
+    forbidden_names = [
+        f"{legacy_prefix}_START_HERE.md",
+        f"{legacy_prefix}_DELIVERY_BRIEF.md",
+        f"{legacy_prefix}_EXECUTION_PLAYBOOK.md",
+        f"{legacy_prefix}_GOAL_MODE.md",
+        f"{legacy_prefix}_IMPLEMENTATION_DIRECTIVES.md",
+        f"{legacy_prefix}_MASTER_EXECUTION_INDEX.md",
+        f"{legacy_prefix}_START_PROMPTS.md",
+        "OFFLINE_" + legacy_prefix + "_GUIDE.md",
+        "WORKTREE" + "_HANDOFF.md",
+    ]
+
+    for name in forbidden_names:
+        assert not any(path.name == name for path in ROOT.rglob(name))
+
+    searchable = [ROOT / "README.md", ROOT / "PROJECT_DIRECTORY.md", ROOT / "docs", ROOT / "data"]
+    matches: list[str] = []
+    for target in searchable:
+        if not target.exists():
+            continue
+        files = [target] if target.is_file() else target.rglob("*.md")
+        for file_path in files:
+            if "node_modules" in file_path.parts:
+                continue
+            content = file_path.read_text(encoding="utf-8")
+            lowered = content.lower()
+            if "clau" + "de code" in lowered or legacy_prefix in content:
+                matches.append(str(file_path.relative_to(ROOT)))
+
+    assert matches == []
+
+
 def test_project_north_star_preserves_v1_boundaries() -> None:
     text = _read_doc("docs/architecture/PROJECT_NORTH_STAR.md")
 
@@ -44,16 +78,6 @@ def test_stepwise_roadmap_starts_with_backend_foundations() -> None:
     assert "research_only" in text
     assert "human_review_required" in text
 
-
-def test_claude_code_playbook_is_positive_delivery_guidance() -> None:
-    text = _read_doc("docs/architecture/CLAUDE_CODE_EXECUTION_PLAYBOOK.md")
-
-    assert "How To Turn A Domain Idea Into A Slice" in text
-    assert "Preferred Implementation Order" in text
-    assert "Target File Ownership" in text
-    assert "Handoff Format" in text
-
-
 def test_target_product_architecture_explains_workflows() -> None:
     text = _read_doc("docs/architecture/TARGET_PRODUCT_ARCHITECTURE.md")
 
@@ -75,34 +99,10 @@ def test_architecture_decisions_are_explicit() -> None:
         "Live PostgreSQL Validation Is In V1",
         "Stable API Prefix Is `/api/v1`",
         "Domain Work Is Slice-Based",
-        "Claude Code Works Offline By Default",
+        "Offline Work Is The Default For Local Agents",
         "Historical Projects Are Evidence, Not Source",
     ]:
         assert phrase in text
-
-
-def test_offline_guide_marks_internet_requirements() -> None:
-    text = _read_doc("docs/architecture/OFFLINE_CLAUDE_CODE_GUIDE.md")
-
-    assert "Assume internet access is not available" in text
-    assert "Internet required: yes" in text
-    assert "Fallback if offline" in text
-    assert "LIVE_POSTGRESQL_V1.md" in text
-
-
-def test_goal_mode_entrypoint_points_to_next_queue() -> None:
-    text = _read_doc("docs/architecture/CLAUDE_CODE_GOAL_MODE.md")
-
-    assert "Copy-Paste Goal Prompt" in text
-    assert "CLAUDE_CODE_START_HERE.md" in text
-    assert "CLAUDE_CODE_MASTER_EXECUTION_INDEX.md" in text
-    assert "NEXT_DEVELOPMENT_QUEUE.md" in text
-    assert "CURRENT_PAUSE_POINT.md" in text
-    assert "CLAUDE_CODE_START_PROMPTS.md" in text
-    assert "Start with Milestone 2" in text
-    assert "Assume no internet access" in text
-    assert "live local PostgreSQL" in text
-
 
 def test_next_development_queue_selects_milestone_2() -> None:
     text = _read_doc("docs/architecture/NEXT_DEVELOPMENT_QUEUE.md")
@@ -192,30 +192,6 @@ def test_client_design_docs_are_ready_for_future_goal_mode() -> None:
     assert "Web M1 Workspace Shell Implementation Plan" in web_plan
     assert "Windows D1 Desktop Shell Implementation Plan" in windows_plan
 
-
-def test_claude_start_prompts_cover_all_surfaces() -> None:
-    text = _read_doc("docs/architecture/CLAUDE_CODE_START_PROMPTS.md")
-
-    assert "Backend Milestone 2 With Live PostgreSQL Readiness" in text
-    assert "SDK Client Milestone S1" in text
-    assert "CLI Client Milestone C1" in text
-    assert "Web Client Milestone W1" in text
-    assert "Windows Client Milestone D1" in text
-    assert "Full V1 Release Builder" in text
-    assert "Full V1 Autonomous Release Loop" in text
-    assert "CLAUDE_CODE_START_HERE.md" in text
-    assert "V1_FULL_PROJECT_RELEASE_EXECUTION_PLAN.md" in text
-    assert "V1_RELEASE_MILESTONE_BACKLOG.md" in text
-    assert "V1_RELEASE_ACCEPTANCE_MATRIX.md" in text
-    assert "V1_RELEASE_EXECPLAN_TEMPLATE.md" in text
-    assert "SDK_M1_API_CLIENT_EXECPLAN.md" in text
-    assert "CLI_M1_OPERATOR_COMMANDS_EXECPLAN.md" in text
-    assert "WEB_M1_WORKSPACE_SHELL_EXECPLAN.md" in text
-    assert "WINDOWS_D1_DESKTOP_SHELL_EXECPLAN.md" in text
-    assert "Documentation Polish Pass" in text
-    assert "Do not print secrets or full database URLs" in text
-
-
 def test_whole_project_blueprint_covers_requested_capabilities() -> None:
     text = _read_doc("docs/architecture/WHOLE_PROJECT_CAPABILITY_BLUEPRINT.md")
 
@@ -247,32 +223,7 @@ def test_reference_evidence_log_records_archived_sources() -> None:
     assert "ROUTE_COST_ENGINE_MODEL.md" in text
     assert "WINDOWS_DEMO_UX_REFERENCE.md" in text
 
-
-def test_master_execution_index_covers_all_surfaces_and_phases() -> None:
-    text = _read_doc("docs/architecture/CLAUDE_CODE_MASTER_EXECUTION_INDEX.md")
-
-    for phrase in [
-        "CLAUDE_CODE_START_HERE.md",
-        "milestone transaction",
-        "Backend Runtime Foundation",
-        "Runtime Store, Governance, And Data Model",
-        "Reference Network And Relationship Mapping",
-        "Research Workflows",
-        "SDK",
-        "CLI",
-        "Web Client",
-        "Windows Client",
-        "Release",
-        "V1_FULL_PROJECT_RELEASE_SCOPE.md",
-        "V1_FULL_PROJECT_RELEASE_EXECUTION_PLAN.md",
-        "V1_RELEASE_MILESTONE_BACKLOG.md",
-        "V1_RELEASE_ACCEPTANCE_MATRIX.md",
-        "V1_RELEASE_EXECPLAN_TEMPLATE.md",
-    ]:
-        assert phrase in text
-
-
-def test_full_v1_release_docs_are_precise_for_claude_execution() -> None:
+def test_full_v1_release_docs_are_precise_for_local_execution() -> None:
     scope = _read_doc("docs/release/V1_FULL_PROJECT_RELEASE_SCOPE.md")
     plan = _read_doc("docs/release/V1_FULL_PROJECT_RELEASE_EXECUTION_PLAN.md")
     matrix = _read_doc("docs/release/V1_RELEASE_ACCEPTANCE_MATRIX.md")
@@ -332,7 +283,7 @@ def test_full_v1_release_docs_are_precise_for_claude_execution() -> None:
 
     for phrase in [
         "V1 Release ExecPlan Template",
-        "plain Claude Code CLI",
+        "plain local CLI",
         "Files To Create Or Modify",
         "DB Impact",
         "API Impact",
@@ -395,77 +346,6 @@ def test_research_workflow_blueprint_preserves_research_boundary() -> None:
     ]:
         assert phrase in text
 
-
-def test_documentation_completion_audit_records_evidence_and_image_gap() -> None:
-    text = _read_doc("data/documentation_handoff/project_docs_completion_audit.md")
-
-    assert "Requirement Audit" in text
-    assert "CLAUDE_CODE_START_HERE.md" in text
-    assert "V1 requires SDK and clients use SDK/API" in text
-    assert "WHOLE_PROJECT_CAPABILITY_BLUEPRINT.md" in text
-    assert "CLAUDE_CODE_MASTER_EXECUTION_INDEX.md" in text
-    assert "V1_FULL_PROJECT_RELEASE_SCOPE.md" in text
-    assert "V1_RELEASE_MILESTONE_BACKLOG.md" in text
-    assert "V1_RELEASE_EXECPLAN_TEMPLATE.md" in text
-    assert "V1_RELEASE_ACCEPTANCE_MATRIX.md" in text
-    assert "SDK_CLIENT_DESIGN_SPEC.md" in text
-    assert "CLI_CLIENT_DESIGN_SPEC.md" in text
-    assert "WEB_CLIENT_DESIGN_SPEC.md" in text
-    assert "WINDOWS_CLIENT_DESIGN_SPEC.md" in text
-    assert "No image file was available" in text
-
-
-def test_claude_code_start_here_prevents_wrong_worktree_failure() -> None:
-    text = _read_doc("CLAUDE_CODE_START_HERE.md")
-
-    for phrase in [
-        "Required Working Directory",
-        r"C:\Users\qqshu\.codex\worktrees\71e0\EurogasNexus",
-        "If Claude Code reports that these files do not exist",
-        "Full-Permission Local Launch",
-        "--dangerously-skip-permissions",
-        r'--add-dir "C:\Users\qqshu\Desktop"',
-        "Full V1 Goal Prompt",
-        "first incomplete milestone",
-        "No client may connect to PostgreSQL directly",
-    ]:
-        assert phrase in text
-
-
-def test_execplans_do_not_require_codex_only_skills() -> None:
-    paths = [
-        ".agent/plans/CLI_M1_OPERATOR_COMMANDS_EXECPLAN.md",
-        ".agent/plans/SDK_M1_API_CLIENT_EXECPLAN.md",
-        ".agent/plans/WEB_M1_WORKSPACE_SHELL_EXECPLAN.md",
-        ".agent/plans/WINDOWS_D1_DESKTOP_SHELL_EXECPLAN.md",
-        "docs/release/V1_RELEASE_EXECPLAN_TEMPLATE.md",
-    ]
-
-    for path in paths:
-        text = _read_doc(path)
-        assert "REQUIRED SUB-SKILL" not in text
-        assert "plain Claude Code CLI" in text
-
-
-def test_no_ambiguity_directives_are_authoritative() -> None:
-    text = _read_doc("docs/architecture/CLAUDE_CODE_IMPLEMENTATION_DIRECTIVES.md")
-
-    for phrase in [
-        "Authority Order",
-        "Archived Desktop projects never outrank repository V1 docs",
-        "No Ambiguous Implementation Choices",
-        "Do not replace",
-        "PostgreSQL with SQLite",
-        "React/Vite with Next.js",
-        "Tauri with Electron",
-        "Documents Checkout Policy",
-        "Required V1 Product Shape",
-        "Fixed Client Stack",
-        "Not approved in V1",
-    ]:
-        assert phrase in text
-
-
 def test_realtime_market_intelligence_blueprint_covers_user_requirements() -> None:
     text = _read_doc("docs/product/REAL_TIME_MARKET_INTELLIGENCE_BLUEPRINT.md")
 
@@ -516,18 +396,3 @@ def test_client_stack_i18n_and_theme_are_fixed() -> None:
         "Missing translation keys fail tests",
     ]:
         assert phrase in i18n
-
-
-def test_worktree_handoff_prevents_documents_checkout_ambiguity() -> None:
-    text = _read_doc("docs/operations/WORKTREE_HANDOFF.md")
-
-    for phrase in [
-        r"C:\Users\qqshu\.codex\worktrees\71e0\EurogasNexus",
-        r"C:\Users\qqshu\Documents\Eurogasnexus",
-        "did not contain",
-        "uncommitted work",
-        "must not be deleted automatically",
-        "Required cleanup path",
-        "All five checks must print `True`",
-    ]:
-        assert phrase in text

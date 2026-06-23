@@ -1,7 +1,7 @@
 # V1 Release ExecPlan Template
 
 > **For agentic workers:** Optional helper skills may be used if available, but
-> this plan is fully executable by plain Claude Code CLI. Follow the checkbox
+> this plan is fully executable by plain local CLI. Follow the checkbox
 > tasks in order and update them as evidence is produced.
 
 **Goal:** Replace this line with the selected release milestone goal.
@@ -164,7 +164,7 @@ was created.
 
 ## Handoff Output
 
-Claude Code must end with:
+Codex must end with:
 
 - selected milestone;
 - files changed;

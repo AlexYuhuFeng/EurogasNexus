@@ -18,6 +18,12 @@ interface GasNetworkMapProps {
   };
 }
 
+function resolveEffectiveTheme(themeMode: GasNetworkMapProps["themeMode"]): "light" | "dark" {
+  if (themeMode === "dark") return "dark";
+  if (themeMode === "light") return "light";
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
 export function GasNetworkMap({
   nodes,
   edges,
@@ -30,6 +36,31 @@ export function GasNetworkMap({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const [mapReady, setMapReady] = useState(false);
+  const effectiveTheme = resolveEffectiveTheme(themeMode);
+  const mapColors = useMemo(
+    () => effectiveTheme === "dark"
+      ? {
+          background: "#0a0a0a",
+          edge: "#737373",
+          route: "#50e3c2",
+          node: "#3291ff",
+          hub: "#50e3c2",
+          lng: "#b978ff",
+          interconnection: "#f5a623",
+          stroke: "#0a0a0a",
+        }
+      : {
+          background: "#f5f5f5",
+          edge: "#a1a1a1",
+          route: "#171717",
+          node: "#007cf0",
+          hub: "#50e3c2",
+          lng: "#7928ca",
+          interconnection: "#f5a623",
+          stroke: "#ffffff",
+        },
+    [effectiveTheme],
+  );
   const filteredNodes = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
     return nodes.filter((node) => {
@@ -73,8 +104,6 @@ export function GasNetworkMap({
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
-    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    const dark = themeMode === "dark" || (themeMode === "system" && prefersDark);
     const map = new maplibregl.Map({
       container: containerRef.current,
       center: [7.8, 51.2],
@@ -84,18 +113,36 @@ export function GasNetworkMap({
       attributionControl: false,
       style: {
         version: 8,
-        sources: {},
+        sources: {
+          osm: {
+            type: "raster",
+            tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+            tileSize: 256,
+            attribution: "© OpenStreetMap contributors",
+          },
+        },
         layers: [
           {
             id: "background",
             type: "background",
-            paint: { "background-color": dark ? "#101820" : "#eef4f7" },
+            paint: { "background-color": mapColors.background },
+          },
+          {
+            id: "osm-raster",
+            type: "raster",
+            source: "osm",
+            paint: {
+              "raster-opacity": effectiveTheme === "dark" ? 0.32 : 0.48,
+              "raster-saturation": effectiveTheme === "dark" ? -0.75 : -0.9,
+              "raster-contrast": effectiveTheme === "dark" ? -0.1 : -0.2,
+            },
           },
         ],
       },
     });
 
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-left");
+    map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-left");
     map.on("load", () => setMapReady(true));
     mapRef.current = map;
     return () => {
@@ -103,7 +150,40 @@ export function GasNetworkMap({
       map.remove();
       mapRef.current = null;
     };
-  }, [themeMode]);
+  }, [mapColors.background]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    if (map.getLayer("background")) {
+      map.setPaintProperty("background", "background-color", mapColors.background);
+    }
+    if (map.getLayer("osm-raster")) {
+      map.setPaintProperty("osm-raster", "raster-opacity", effectiveTheme === "dark" ? 0.32 : 0.48);
+      map.setPaintProperty("osm-raster", "raster-saturation", effectiveTheme === "dark" ? -0.75 : -0.9);
+      map.setPaintProperty("osm-raster", "raster-contrast", effectiveTheme === "dark" ? -0.1 : -0.2);
+    }
+    if (!mapReady) return;
+
+    if (map.getLayer("edges-line")) {
+      map.setPaintProperty("edges-line", "line-color", ["case", ["get", "route_candidate"], mapColors.route, mapColors.edge]);
+    }
+    if (map.getLayer("nodes-circle")) {
+      map.setPaintProperty("nodes-circle", "circle-color", [
+        "match",
+        ["get", "node_type"],
+        "hub",
+        mapColors.hub,
+        "lng",
+        mapColors.lng,
+        "interconnection",
+        mapColors.interconnection,
+        mapColors.node,
+      ]);
+      map.setPaintProperty("nodes-circle", "circle-stroke-color", mapColors.stroke);
+    }
+  }, [effectiveTheme, mapColors, mapReady]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -153,7 +233,7 @@ export function GasNetworkMap({
         type: "line",
         source: "edges",
         paint: {
-          "line-color": ["case", ["get", "route_candidate"], "#f59e0b", "#3b82f6"],
+          "line-color": ["case", ["get", "route_candidate"], mapColors.route, mapColors.edge],
           "line-width": ["case", ["get", "route_candidate"], 3.5, 1.8],
           "line-opacity": 0.84,
         },
@@ -176,8 +256,18 @@ export function GasNetworkMap({
         source: "nodes",
         paint: {
           "circle-radius": ["case", ["==", ["get", "node_type"], "hub"], 7, 5],
-          "circle-color": ["case", ["==", ["get", "node_type"], "hub"], "#0f766e", "#2563eb"],
-          "circle-stroke-color": "#ffffff",
+          "circle-color": [
+            "match",
+            ["get", "node_type"],
+            "hub",
+            mapColors.hub,
+            "lng",
+            mapColors.lng,
+            "interconnection",
+            mapColors.interconnection,
+            mapColors.node,
+          ],
+          "circle-stroke-color": mapColors.stroke,
           "circle-stroke-width": 1.5,
         },
       });
@@ -203,7 +293,7 @@ export function GasNetworkMap({
         features: nodeFeatures,
       });
     }
-  }, [filteredNodes, mapReady, routeIds, visibleEdges]);
+  }, [filteredNodes, mapColors, mapReady, routeIds, visibleEdges]);
 
   function project(lon: number, lat: number): [number, number] {
     const x = ((lon + 12) / 47) * 1000;

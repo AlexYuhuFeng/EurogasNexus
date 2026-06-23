@@ -33,9 +33,9 @@ Use this order everywhere:
 
 All logs, reports, exceptions, and command output must use the redacted form.
 
-## What Claude Code May Do In V1
+## What Codex May Do In V1
 
-Claude Code may:
+Codex may:
 
 - implement import-safe SQLAlchemy engine/session helpers;
 - implement read-only validation against a configured live PostgreSQL URL;
@@ -45,7 +45,7 @@ Claude Code may:
 - run tests that do not require a live DB by default;
 - add opt-in live DB tests guarded by an environment marker.
 
-Claude Code may not:
+Codex may not:
 
 - start Docker unless the user explicitly requests it;
 - create a database without explicit operator instruction;

@@ -3,8 +3,8 @@
 ## Purpose
 
 This file is the execution reference for bringing non-route Eurogas Nexus V1
-models closer to real European gas market practice. It is written for Claude
-Code and other CLI agents that may not have internet access.
+models closer to real European gas market practice. It is written for Codex
+and other local implementation agents that may not have internet access.
 
 ## Absolute Product Boundary
 

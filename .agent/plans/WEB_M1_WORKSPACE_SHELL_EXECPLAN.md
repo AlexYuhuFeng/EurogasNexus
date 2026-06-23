@@ -1,7 +1,7 @@
 # Web M1 Workspace Shell Implementation Plan
 
 > **For agentic workers:** Optional helper skills may be used if available, but
-> this plan is fully executable by plain Claude Code CLI. Follow the checkbox
+> this plan is fully executable by plain local CLI. Follow the checkbox
 > tasks in order and update them as evidence is produced.
 
 **Goal:** Build the first Eurogas Nexus web workspace shell as an API-consuming client.

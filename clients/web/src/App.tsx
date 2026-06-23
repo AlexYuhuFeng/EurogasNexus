@@ -252,6 +252,19 @@ export default function App() {
     selected_contracts: [contract.contract_id],
     language: i18n.language.startsWith("zh") ? "zh-CN" : "en",
   };
+  const workflowSteps = ["discover", "compose", "price", "evaluate", "review"];
+  const destinationHubs = ["NBP", "TTF", "ZTP", "PEG", "THE"];
+  const selectedOption = (livePnl ?? routeOptions)?.options[0] ?? null;
+  const decisionPnl =
+    primaryLiveMark?.live_net_pnl_gbp_per_day ??
+    selectedOption?.net_pnl_gbp_per_day ??
+    portfolioSummary?.total_indicative_pnl_gbp ??
+    null;
+  const decisionMargin =
+    primaryLiveMark?.live_net_margin_gbp_mwh ?? selectedOption?.net_margin_gbp_mwh ?? null;
+  const salePrice = liveMark.bid_gbp_mwh ?? liveMark.last_gbp_mwh ?? contract.nbp_sale_price_gbp_mwh;
+  const routeCharge = selectedOption?.total_charges_gbp_mwh ?? null;
+  const activeWarning = [...(strategyResult?.warnings ?? []), ...(meta?.warnings ?? [])][0] ?? null;
 
   function glossaryContextParams() {
     return {
@@ -277,17 +290,24 @@ export default function App() {
   }
 
   return (
-    <div className="app">
-      <header className="app-header">
-        <div>
-          <h1>{t("app.title")}</h1>
-          <p>{t("app.subtitle")}</p>
+    <div className="app cockpit-app">
+      <header className="app-header cockpit-topbar">
+        <button className="topbar-icon-button" type="button" aria-label={t("topbar.menu")}><span className="topbar-menu-glyph" aria-hidden="true" /></button>
+        <div className="workspace-pill" aria-label={t("topbar.workspace_label")}>
+          <span>{t("topbar.workspace_label")}</span>
+          <strong>{t("topbar.workspace_tools")}</strong>
         </div>
+        <input
+          className="topbar-search"
+          value={searchTerm}
+          onChange={(event) => setSearchTerm(event.target.value)}
+          placeholder={t("map.search")}
+        />
         <div className="header-controls">
           <span className={`status-badge status-${dataStatus}`}>{t(`data.${dataStatus}`)}</span>
           <select value={i18n.language} onChange={(event) => i18n.changeLanguage(event.target.value)}>
-            <option value="en">English</option>
-            <option value="zh-CN">中文</option>
+            <option value="en">EN</option>
+            <option value="zh-CN">{t("settings.chinese")}</option>
           </select>
           <select value={mode} onChange={(event) => setMode(event.target.value as typeof mode)}>
             <option value="light">{t("theme.light")}</option>
@@ -297,24 +317,21 @@ export default function App() {
         </div>
       </header>
 
-      <nav className="app-nav">
-        {["network", "market", "scenario", "strategy", "review", "sources", "glossary", "runtime", "settings"].map(
-          (item) => (
-            <button key={item} className="nav-btn">
-              {t(`nav.${item}`)}
-            </button>
-          ),
-        )}
+      <nav className="workflow-strip" aria-label={t("workflow.label")}>
+        {workflowSteps.map((step, index) => (
+          <button key={step} className={index === 2 ? "workflow-step active" : "workflow-step"} type="button">
+            <span>{index + 1}</span>
+            {t(`workflow.${step}`)}
+          </button>
+        ))}
       </nav>
 
       <main className="app-main">
-        <section className="map-container" id="map">
+        <section className="map-container map-stage" id="map">
           <div className="map-toolbar">
-            <input
-              value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder={t("map.search")}
-            />
+            <button className="chip reset-chip" type="button" onClick={() => setSearchTerm("")}>
+              {t("map.reset")}
+            </button>
             {["network", "lng", "ips", "hubs"].map((layer) => (
               <button
                 key={layer}
@@ -382,17 +399,26 @@ export default function App() {
             </div>
             <div className="map-alert">
               <strong>{t("home.warning")}</strong>
-              <span>{[...(strategyResult?.warnings ?? []), ...(meta?.warnings ?? [])][0] ?? t("home.warning_clear")}</span>
+              <span>{activeWarning ?? t("home.warning_clear")}</span>
             </div>
           </div>
         </section>
 
-        <aside className="sidebar">
+        <aside className="scenario-rail">
           {error && <div className="panel alert">{error}</div>}
           {loading && <div className="panel">{t("status.loading")}</div>}
 
-          <div className="panel">
-            <h3>{t("panel.routes")}</h3>
+          <div className="panel scenario-intro">
+            <span className="eyebrow">{t("scenario.eyebrow")}</span>
+            <h2>{t("scenario.title")}</h2>
+            <p>{t("scenario.description")}</p>
+          </div>
+
+          <div className="panel route-selector-panel">
+            <div className="section-heading">
+              <span className="eyebrow">{t("scenario.active_route")}</span>
+              <strong>{t("panel.routes")}</strong>
+            </div>
             <div className="route-list">
               {routeCandidates.map((route) => (
                 <div key={route.route_id} className="route-row route-candidate">
@@ -414,7 +440,10 @@ export default function App() {
           </div>
 
           <div className="panel route-economics">
-            <h3>{t("panel.easington")}</h3>
+            <div className="section-heading">
+              <span className="eyebrow">{t("scenario.commercial_posture")}</span>
+              <strong>{t("panel.easington")}</strong>
+            </div>
             <div className="economics-grid">
               <label>{t("economics.volume")}<input type="number" value={contract.delivery_quantity_mwh_per_day} onChange={(event) => updateContractNumber("delivery_quantity_mwh_per_day", event.target.value)} /></label>
               <label>{t("economics.contract_price")}<input type="number" value={contract.contract_price_gbp_mwh} onChange={(event) => updateContractNumber("contract_price_gbp_mwh", event.target.value)} /></label>
@@ -452,6 +481,79 @@ export default function App() {
                 <strong>GBP {Math.round(mark.live_net_pnl_gbp_per_day ?? 0).toLocaleString()}/d</strong>
               </div>
             ))}
+          </div>
+
+        </aside>
+
+        <aside className="decision-rail">
+          <div className="panel trade-result-panel">
+            <div className="panel-title-row">
+              <div>
+                <span className="eyebrow">{t("result.eyebrow")}</span>
+                <h3>{t("result.title")}</h3>
+              </div>
+              <span className="status-pill">{primaryLiveMark ? t("result.live") : t("result.snapshot")}</span>
+            </div>
+            <div className="net-pnl-card">
+              <span>{t("result.net_pnl")}</span>
+              <strong>
+                {decisionPnl === null ? t("home.pending") : `GBP ${Math.round(decisionPnl).toLocaleString()}`}
+              </strong>
+              <small>
+                {t("result.net_margin")} {decisionMargin === null ? "n/a" : `${decisionMargin.toFixed(2)} GBP/MWh`}
+              </small>
+            </div>
+          </div>
+
+          <div className="panel route-alpha-panel">
+            <div className="panel-title-row">
+              <h3>{t("result.route_alpha")}</h3>
+              <span>{t("result.delta")}</span>
+            </div>
+            <div className="route-alpha-card">
+              <span>{t("result.optimal")}</span>
+              <strong>{selectedOption?.label ?? routeCandidates[0]?.route_name ?? t("home.pending")}</strong>
+              <small>
+                {selectedOption
+                  ? `${selectedOption.route_legs.length} ${t("result.legs")} / ${t("result.route_cost")} ${
+                      routeCharge === null ? "n/a" : `${routeCharge.toFixed(2)} GBP/MWh`
+                    }`
+                  : t("result.no_route")}
+              </small>
+            </div>
+            <div className="destination-switcher">
+              {destinationHubs.map((hub) => (
+                <button key={hub} type="button" className={hub === "NBP" ? "chip active" : "chip"}>
+                  {hub}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="panel economics-snapshot">
+            <h3>{t("result.economics_snapshot")}</h3>
+            <div className="metric-grid two-column">
+              <div>
+                <span>{t("result.purchase")}</span>
+                <strong>GBP {contract.contract_price_gbp_mwh.toFixed(2)}/MWh</strong>
+              </div>
+              <div>
+                <span>{t("result.sale")}</span>
+                <strong>GBP {salePrice.toFixed(2)}/MWh</strong>
+              </div>
+              <div>
+                <span>{t("result.route_cost")}</span>
+                <strong>{routeCharge === null ? "n/a" : `GBP ${routeCharge.toFixed(2)}/MWh`}</strong>
+              </div>
+              <div>
+                <span>{t("result.cash_value")}</span>
+                <strong>
+                  {selectedOption?.early_cash_value_gbp_mwh === undefined
+                    ? "n/a"
+                    : `GBP ${selectedOption.early_cash_value_gbp_mwh.toFixed(3)}/MWh`}
+                </strong>
+              </div>
+            </div>
           </div>
 
           <div className="panel">
@@ -854,7 +956,7 @@ export default function App() {
               {t("settings.language")}
               <select value={i18n.language} onChange={(event) => i18n.changeLanguage(event.target.value)}>
                 <option value="en">English</option>
-                <option value="zh-CN">中文</option>
+                <option value="zh-CN">{t("settings.chinese")}</option>
               </select>
             </label>
             <label>

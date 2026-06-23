@@ -9,7 +9,7 @@ a source of truth.
 ## Activation Condition
 
 Start web client coding only when the user explicitly asks to start the web
-phase or Claude Code selects a web milestone from a future queue.
+phase or Codex selects a web milestone from a future queue.
 
 Required backend readiness before coding:
 

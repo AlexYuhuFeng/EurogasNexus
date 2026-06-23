@@ -83,7 +83,7 @@ analysis without page errors.
 
 ## Work Completed Since Previous Pause
 
-- Added Alembic revision `0009_market_positioning_foundation`.
+- Added Alembic revision `0009_market_positioning`.
 - Added R18 operational glossary context using existing runtime tables:
   `capacity_profiles`, `flow_observations`, `market_observations`,
   `live_market_marks`, `route_candidates`, and

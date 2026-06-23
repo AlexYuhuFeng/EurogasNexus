@@ -3,7 +3,7 @@
 ## Purpose
 
 This is the full delivery plan for Eurogas Nexus across backend, SDK, CLI, web
-client, and Windows client. It is designed for Claude Code goal mode and assumes
+client, and Windows client. It is designed for local goal mode and assumes
 local, offline execution unless a specific milestone says otherwise.
 
 ## One Product, Five Surfaces
@@ -40,7 +40,6 @@ calculation contracts, SDK, CLI, validation, and release posture.
 Blueprint:
 
 - `docs/architecture/BACKEND_IMPLEMENTATION_BLUEPRINT.md`
-- `docs/architecture/CLAUDE_CODE_MASTER_EXECUTION_INDEX.md`
 - `docs/api/API_SURFACE_BLUEPRINT.md`
 - `docs/data/CANONICAL_DATA_MODEL_BLUEPRINT.md`
 - `docs/product/RESEARCH_WORKFLOW_BLUEPRINT.md`
@@ -180,16 +179,16 @@ Completion gate:
 - no direct DB or vendor API access;
 - installer/build process excludes raw data and credentials.
 
-## Claude Code Execution Rule
+## Codex Execution Rule
 
-Claude Code must execute one component milestone at a time.
+Codex must execute one component milestone at a time.
 
 Default next milestone:
 
 - backend Milestone 2 from `docs/architecture/NEXT_DEVELOPMENT_QUEUE.md`
 
 Do not start SDK, CLI, web, or Windows expansion until the user explicitly tells
-Claude Code to start that surface milestone or the queue selects it.
+Codex to start that surface milestone or the queue selects it.
 
 Client design documentation may be maintained before that point. Runtime client
 dependencies and client code must wait for a selected client milestone.

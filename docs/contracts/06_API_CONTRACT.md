@@ -38,12 +38,10 @@ profiles, route modules, API services, and dependency providers.
 - Legal advice or official recommendation endpoints.
 - Live connector endpoints.
 
-
 ## Milestone 6 Additions
 
 - Contract tests verify development profile exposes docs/openapi.
 - Contract tests verify release profile hides docs/openapi.
-
 
 ## Milestone 14 Additions
 

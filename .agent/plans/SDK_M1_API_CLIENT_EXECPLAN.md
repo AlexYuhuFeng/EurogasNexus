@@ -1,7 +1,7 @@
 # SDK M1 API Client Implementation Plan
 
 > **For agentic workers:** Optional helper skills may be used if available, but
-> this plan is fully executable by plain Claude Code CLI. Follow the checkbox
+> this plan is fully executable by plain local CLI. Follow the checkbox
 > tasks in order and update them as evidence is produced.
 
 **Goal:** Expand the Python SDK into a safe typed API client shell for stable `/api/v1` backend routes.

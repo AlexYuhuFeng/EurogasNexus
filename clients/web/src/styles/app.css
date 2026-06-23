@@ -802,3 +802,684 @@ input {
     flex-direction: column;
   }
 }
+
+
+/* Vercel reference cockpit redesign */
+:root {
+  --eg-ink: #171717;
+  --eg-on-ink: #ffffff;
+  --eg-body: #4d4d4d;
+  --eg-muted: #888888;
+  --eg-hairline: #ebebeb;
+  --eg-hairline-strong: #a1a1a1;
+  --eg-canvas: #ffffff;
+  --eg-canvas-soft: #fafafa;
+  --eg-canvas-soft-2: #f5f5f5;
+  --eg-link: #0070f3;
+  --eg-warning: #f5a623;
+  --eg-danger: #ee0000;
+  --eg-map-blue: #007cf0;
+  --eg-map-cyan: #50e3c2;
+  --eg-map-violet: #7928ca;
+  --eg-map-amber: #f5a623;
+  --eg-radius-sm: 6px;
+  --eg-radius-md: 8px;
+  --eg-pill: 100px;
+  --eg-shadow-1: inset 0 0 0 1px rgb(0 0 0 / 8%);
+  --eg-shadow-2: 0 1px 1px rgb(0 0 0 / 3%), 0 2px 2px rgb(0 0 0 / 4%), inset 0 0 0 1px rgb(0 0 0 / 8%);
+  --eg-shadow-3: 0 2px 2px rgb(0 0 0 / 4%), 0 8px 16px -8px rgb(0 0 0 / 10%), inset 0 0 0 1px rgb(0 0 0 / 8%);
+}
+
+:root.dark {
+  --eg-ink: #fafafa;
+  --eg-on-ink: #171717;
+  --eg-body: #d4d4d4;
+  --eg-muted: #a1a1a1;
+  --eg-hairline: #333333;
+  --eg-hairline-strong: #737373;
+  --eg-canvas: #111111;
+  --eg-canvas-soft: #0a0a0a;
+  --eg-canvas-soft-2: #171717;
+  --eg-link: #3291ff;
+  --eg-shadow-1: inset 0 0 0 1px rgb(255 255 255 / 10%);
+  --eg-shadow-2: 0 1px 1px rgb(0 0 0 / 16%), 0 2px 2px rgb(0 0 0 / 18%), inset 0 0 0 1px rgb(255 255 255 / 10%);
+  --eg-shadow-3: 0 2px 2px rgb(0 0 0 / 18%), 0 8px 16px -8px rgb(0 0 0 / 45%), inset 0 0 0 1px rgb(255 255 255 / 10%);
+}
+
+body {
+  background: var(--eg-canvas-soft);
+  color: var(--eg-ink);
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-feature-settings: "ss01", "ss02";
+}
+
+.cockpit-app {
+  min-height: 100vh;
+  overflow: hidden;
+  background: var(--eg-canvas-soft);
+  color: var(--eg-ink);
+}
+
+.cockpit-app .cockpit-topbar {
+  position: fixed;
+  z-index: 50;
+  top: 16px;
+  right: 16px;
+  left: 16px;
+  display: grid;
+  grid-template-columns: 40px 212px minmax(260px, 1fr) auto;
+  min-height: 48px;
+  align-items: center;
+  gap: 12px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.topbar-icon-button,
+.workspace-pill,
+.topbar-search,
+.cockpit-app .header-controls select,
+.cockpit-app .status-badge {
+  min-height: 40px;
+  border: 1px solid var(--eg-hairline);
+  background: rgb(255 255 255 / 92%);
+  box-shadow: var(--eg-shadow-2);
+  color: #171717;
+}
+
+:root.dark .topbar-icon-button,
+:root.dark .workspace-pill,
+:root.dark .topbar-search,
+:root.dark .cockpit-app .header-controls select,
+:root.dark .cockpit-app .status-badge {
+  background: rgb(17 17 17 / 92%);
+  color: var(--eg-ink);
+}
+
+.topbar-icon-button {
+  display: grid;
+  width: 40px;
+  place-items: center;
+  border-radius: 9999px;
+  cursor: pointer;
+}
+
+.topbar-menu-glyph::before {
+  content: "\2630";
+  font-size: 18px;
+  line-height: 1;
+}
+
+.workspace-pill {
+  display: grid;
+  align-content: center;
+  min-width: 0;
+  border-radius: var(--eg-pill);
+  padding: 0 20px;
+}
+
+.workspace-pill span,
+.eyebrow,
+.section-heading .eyebrow,
+.panel-title-row > span {
+  color: var(--eg-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  line-height: 16px;
+  text-transform: uppercase;
+}
+
+.workspace-pill strong {
+  display: block;
+  margin-top: -2px;
+  color: var(--eg-ink);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 20px;
+}
+
+.topbar-search {
+  width: 100%;
+  border-radius: var(--eg-pill);
+  padding: 0 18px;
+  font-size: 14px;
+  outline: none;
+}
+
+.topbar-search:focus,
+.cockpit-app input:focus,
+.cockpit-app select:focus,
+.cockpit-app textarea:focus,
+.cockpit-app button:focus-visible {
+  border-color: var(--eg-link);
+  outline: 2px solid rgb(0 112 243 / 18%);
+  outline-offset: 2px;
+}
+
+.cockpit-app .header-controls {
+  gap: 8px;
+}
+
+.cockpit-app .header-controls select {
+  min-width: 52px;
+  border-radius: var(--eg-pill);
+}
+
+.cockpit-app .status-badge {
+  border-radius: var(--eg-pill);
+  color: var(--eg-ink);
+}
+
+.workflow-strip {
+  position: fixed;
+  z-index: 45;
+  top: 76px;
+  left: 292px;
+  right: 430px;
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px;
+}
+
+.workflow-step {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--eg-hairline);
+  border-radius: var(--eg-pill);
+  background: rgb(255 255 255 / 88%);
+  box-shadow: var(--eg-shadow-1);
+  color: var(--eg-body);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 0 12px 0 8px;
+  white-space: nowrap;
+}
+
+.workflow-step span {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border-radius: 9999px;
+  background: var(--eg-canvas-soft-2);
+  color: var(--eg-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+}
+
+.workflow-step.active {
+  border-color: var(--eg-ink);
+  background: var(--eg-ink);
+  color: var(--eg-on-ink);
+}
+
+.workflow-step.active span {
+  background: rgb(255 255 255 / 16%);
+  color: var(--eg-on-ink);
+}
+
+.cockpit-app .app-main {
+  min-height: 100vh;
+  flex: 1;
+  background: var(--eg-canvas-soft);
+}
+
+.map-stage {
+  position: fixed;
+  inset: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.cockpit-app .map-toolbar {
+  top: 84px;
+  right: auto;
+  left: 16px;
+  z-index: 42;
+  max-width: calc(100vw - 48px);
+  flex-wrap: wrap;
+}
+
+.cockpit-app .map-price-strip {
+  top: auto;
+  right: 430px;
+  bottom: 18px;
+  left: 430px;
+  z-index: 35;
+  grid-template-columns: repeat(5, minmax(112px, 1fr));
+}
+
+.cockpit-app .map-price-strip div,
+.cockpit-app .map-alert,
+.cockpit-app .panel {
+  border: 1px solid var(--eg-hairline);
+  border-radius: var(--eg-radius-md);
+  background: rgb(255 255 255 / 92%);
+  box-shadow: var(--eg-shadow-2);
+  color: var(--eg-ink);
+}
+
+:root.dark .cockpit-app .map-price-strip div,
+:root.dark .cockpit-app .map-alert,
+:root.dark .cockpit-app .panel {
+  background: rgb(17 17 17 / 92%);
+}
+
+.cockpit-app .map-price-strip span,
+.cockpit-app .map-alert span,
+.cockpit-app .option-row span,
+.cockpit-app .glossary-row span,
+.cockpit-app .glossary-row p,
+.cockpit-app .glossary-context span,
+.cockpit-app .panel p,
+.cockpit-app .panel li,
+.cockpit-app .route-row span,
+.cockpit-app .metric-grid span {
+  color: var(--eg-body);
+}
+
+.cockpit-app .map-alert-stack {
+  right: 430px;
+  bottom: 88px;
+  z-index: 38;
+  width: min(420px, calc(100vw - 860px));
+}
+
+.scenario-rail,
+.decision-rail {
+  position: fixed;
+  z-index: 40;
+  top: 128px;
+  bottom: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.scenario-rail {
+  left: 16px;
+  width: 392px;
+}
+
+.decision-rail {
+  top: 88px;
+  right: 16px;
+  width: 392px;
+}
+
+.cockpit-app .panel {
+  padding: 16px;
+}
+
+.scenario-intro h2,
+.cockpit-app .panel h3 {
+  margin: 0;
+  color: var(--eg-ink);
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 28px;
+}
+
+.scenario-intro p {
+  margin: 8px 0 0;
+  line-height: 20px;
+}
+
+.section-heading,
+.panel-title-row {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.section-heading strong {
+  color: var(--eg-ink);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.cockpit-app .chip,
+.destination-switcher .chip,
+.context-shortcuts button,
+.glossary-row button,
+.analysis-panel button,
+.cockpit-app .action-row button,
+.strategy-panel button,
+.credential-form button {
+  min-height: 34px;
+  border: 1px solid var(--eg-hairline);
+  border-radius: var(--eg-pill);
+  background: var(--eg-canvas);
+  box-shadow: var(--eg-shadow-1);
+  color: var(--eg-ink);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 0 12px;
+}
+
+.cockpit-app .chip.active,
+.cockpit-app .action-row button,
+.strategy-panel button,
+.credential-form button {
+  border-color: var(--eg-ink);
+  background: var(--eg-ink);
+  color: var(--eg-on-ink);
+}
+
+.cockpit-app input,
+.cockpit-app select,
+.cockpit-app textarea,
+.credential-form select,
+.credential-form input,
+.economics-grid input,
+.live-mark-row input,
+.glossary-panel input,
+.settings-panel select {
+  border: 1px solid var(--eg-hairline);
+  border-radius: var(--eg-radius-sm);
+  background: var(--eg-canvas);
+  color: var(--eg-ink);
+  box-shadow: var(--eg-shadow-1);
+}
+
+.route-row,
+.metric-grid div,
+.option-row,
+.glossary-row,
+.analysis-result,
+.analysis-section,
+.glossary-context,
+.context-record-list div,
+.net-pnl-card,
+.route-alpha-card {
+  border-color: var(--eg-hairline);
+}
+
+.net-pnl-card,
+.route-alpha-card {
+  display: grid;
+  gap: 6px;
+  border: 1px solid var(--eg-hairline);
+  border-radius: var(--eg-radius-md);
+  background: linear-gradient(180deg, var(--eg-canvas) 0%, var(--eg-canvas-soft) 100%);
+  padding: 16px;
+}
+
+.net-pnl-card span,
+.route-alpha-card span,
+.status-pill {
+  color: var(--eg-body);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.net-pnl-card strong {
+  color: var(--eg-ink);
+  font-size: 32px;
+  font-weight: 600;
+  line-height: 40px;
+}
+
+.net-pnl-card small,
+.route-alpha-card small {
+  color: var(--eg-body);
+  font-size: 12px;
+}
+
+.route-alpha-card strong {
+  color: var(--eg-ink);
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 28px;
+}
+
+.status-pill {
+  border: 1px solid var(--eg-hairline);
+  border-radius: var(--eg-pill);
+  background: var(--eg-canvas-soft);
+  padding: 5px 10px;
+}
+
+.destination-switcher {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.two-column {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.two-column div {
+  display: grid;
+  min-height: 70px;
+  align-content: center;
+  border: 1px solid var(--eg-hairline);
+  border-radius: var(--eg-radius-md);
+  background: var(--eg-canvas-soft);
+  padding: 10px;
+}
+
+.cockpit-app .gas-map {
+  background: var(--eg-canvas-soft-2);
+}
+
+.cockpit-app .fallback-landmass {
+  fill: rgb(250 250 250 / 72%);
+  stroke: rgb(161 161 161 / 46%);
+  stroke-width: 3;
+}
+
+.cockpit-app .fallback-grid {
+  stroke: rgb(161 161 161 / 32%);
+  stroke-width: 1;
+}
+
+.cockpit-app .fallback-edge {
+  stroke: var(--eg-hairline-strong);
+  stroke-width: 1.8;
+  stroke-opacity: 0.72;
+}
+
+.cockpit-app .fallback-edge.route,
+.cockpit-app .fallback-flow-path {
+  stroke: var(--eg-ink);
+}
+
+.cockpit-app .fallback-flow-shadow {
+  stroke: rgb(0 0 0 / 12%);
+}
+
+.cockpit-app .fallback-node circle {
+  fill: var(--eg-map-blue);
+}
+
+.cockpit-app .fallback-node.hub circle {
+  fill: var(--eg-map-cyan);
+}
+
+.cockpit-app .fallback-node.lng circle {
+  fill: var(--eg-map-violet);
+}
+
+.cockpit-app .fallback-node.interconnection circle {
+  fill: var(--eg-map-amber);
+}
+
+.cockpit-app .fallback-node text,
+.cockpit-app .fallback-empty,
+.cockpit-app .fallback-flow-label,
+.cockpit-app .fallback-flow-value {
+  fill: var(--eg-ink);
+  stroke: var(--eg-canvas);
+}
+
+@media (max-width: 1200px) {
+  .cockpit-app .cockpit-topbar {
+    grid-template-columns: 40px 180px minmax(180px, 1fr) auto;
+  }
+
+  .workflow-strip {
+    right: 16px;
+    left: 16px;
+    top: 74px;
+  }
+
+  .scenario-rail,
+  .decision-rail {
+    width: min(360px, 38vw);
+  }
+
+  .cockpit-app .map-price-strip {
+    display: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .cockpit-app {
+    overflow: auto;
+  }
+
+  .cockpit-app .cockpit-topbar {
+    position: sticky;
+    top: 0;
+    right: auto;
+    left: auto;
+    grid-template-columns: 40px 1fr;
+    padding: 12px;
+    background: var(--eg-canvas-soft);
+  }
+
+  .topbar-search,
+  .cockpit-app .header-controls {
+    grid-column: 1 / -1;
+  }
+
+  .workflow-strip,
+  .map-stage,
+  .scenario-rail,
+  .decision-rail {
+    position: static;
+  }
+
+  .workflow-strip {
+    padding: 8px 12px;
+  }
+
+  .map-stage {
+    height: 58vh;
+    min-height: 420px;
+  }
+
+  .scenario-rail,
+  .decision-rail {
+    width: auto;
+    margin: 12px;
+  }
+
+  .cockpit-app .map-toolbar {
+    top: 12px;
+    left: 12px;
+  }
+
+  .cockpit-app .map-alert-stack {
+    right: 12px;
+    left: 12px;
+    bottom: 12px;
+    width: auto;
+  }
+}
+
+/* Light/dark map and cockpit state alignment */
+.cockpit-app .map-overlay {
+  z-index: 36;
+}
+
+.cockpit-app .map-overlay span {
+  border-color: var(--eg-hairline);
+  background: rgb(255 255 255 / 90%);
+  box-shadow: var(--eg-shadow-2);
+  color: var(--eg-ink);
+}
+
+:root.dark .cockpit-app .map-overlay span {
+  background: rgb(17 17 17 / 90%);
+}
+
+:root.dark .cockpit-app .fallback-landmass {
+  fill: rgb(23 23 23 / 76%);
+  stroke: rgb(115 115 115 / 42%);
+}
+
+:root.dark .cockpit-app .fallback-grid {
+  stroke: rgb(115 115 115 / 24%);
+}
+
+:root.dark .cockpit-app .fallback-edge {
+  stroke: rgb(115 115 115 / 92%);
+}
+
+:root.dark .cockpit-app .fallback-edge.route,
+:root.dark .cockpit-app .fallback-flow-path {
+  stroke: var(--eg-map-cyan);
+}
+
+:root.dark .cockpit-app .fallback-flow-shadow {
+  stroke: rgb(80 227 194 / 14%);
+}
+
+:root.dark .cockpit-app .fallback-flow-pulse {
+  fill: #0a0a0a;
+  stroke: var(--eg-map-cyan);
+}
+
+:root.dark .cockpit-app .fallback-node text,
+:root.dark .cockpit-app .fallback-empty,
+:root.dark .cockpit-app .fallback-flow-label,
+:root.dark .cockpit-app .fallback-flow-value {
+  stroke: #0a0a0a;
+}
+
+:root.dark .cockpit-app .maplibregl-ctrl-group {
+  border: 1px solid var(--eg-hairline);
+  background: rgb(17 17 17 / 92%);
+  box-shadow: var(--eg-shadow-2);
+}
+
+:root.dark .cockpit-app .maplibregl-ctrl button {
+  color: var(--eg-ink);
+  filter: invert(1);
+}
+
+.cockpit-app .maplibregl-popup-content {
+  border: 1px solid var(--eg-hairline);
+  border-radius: var(--eg-radius-md);
+  background: var(--eg-canvas);
+  box-shadow: var(--eg-shadow-3);
+  color: var(--eg-ink);
+}
+
+.cockpit-app .maplibregl-popup-tip {
+  border-top-color: var(--eg-canvas);
+}
+
+:root.dark .cockpit-app .net-pnl-card,
+:root.dark .cockpit-app .route-alpha-card {
+  background: linear-gradient(180deg, #111111 0%, #0a0a0a 100%);
+}
+
+:root.dark .cockpit-app .two-column div {
+  background: #111111;
+}

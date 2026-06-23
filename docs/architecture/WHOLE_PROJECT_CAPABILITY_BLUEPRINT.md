@@ -30,7 +30,7 @@ Eurogas Nexus has five deliverable surfaces:
 4. Web client.
 5. Windows client.
 
-Each surface has a separate implementation milestone path. Claude Code should
+Each surface has a separate implementation milestone path. Codex should
 execute one surface milestone at a time.
 
 ## Capability Families
@@ -46,8 +46,6 @@ Purpose:
 
 Primary docs:
 
-- `docs/architecture/CLAUDE_CODE_GOAL_MODE.md`
-- `docs/architecture/CLAUDE_CODE_MASTER_EXECUTION_INDEX.md`
 - `docs/architecture/NEXT_DEVELOPMENT_QUEUE.md`
 - `docs/operations/LIVE_POSTGRESQL_V1.md`
 - `docs/contracts/00_CONTRACT_INDEX.md`

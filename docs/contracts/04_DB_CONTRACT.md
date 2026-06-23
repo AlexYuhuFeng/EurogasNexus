@@ -38,13 +38,11 @@ URL is configured. See `docs/operations/LIVE_POSTGRESQL_V1.md`.
 - Printing full DB URLs.
 - Running migrations automatically during import, startup, or default tests.
 
-
 ## Milestone 3 Additions
 
 - `IngestionRunRecord` provides neutral ingestion run metadata mapping.
 - `IngestionRunRepository` defines a domain-safe repository contract.
 - `SqlAlchemyIngestionRunRepository` adapts SQLAlchemy rows into domain-safe dataclasses.
-
 
 ## Milestone 4 Additions
 

@@ -14,9 +14,7 @@ parameters.
 
 ## What happened?
 
-
 ## Expected behavior
-
 
 ## Reproduction steps
 

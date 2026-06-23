@@ -21,7 +21,6 @@ normalization steps.
 - Provider credentials.
 - Production ETL jobs.
 
-
 ## Milestone 15 Additions
 
 - Added `IngestionPayload` and `NormalizedRecord` shell types with explicit source-traceability fields.

@@ -16,8 +16,6 @@ schema, and reconciliation checks.
 
 No quality checks are implemented.
 
-
-
 ## Milestone 13 Additions
 
 - Added deterministic `QualityCheck` protocol and `QualityCheckResult` shell type.

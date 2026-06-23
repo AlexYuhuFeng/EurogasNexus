@@ -23,8 +23,6 @@ Only package boundaries exist.
 - Production identity-provider calls.
 - Permission bypasses hidden inside route handlers.
 
-
-
 ## Milestone 9 Additions
 
 - Contract tests validate that bootstrap-forbidden auth behaviors remain explicitly documented.

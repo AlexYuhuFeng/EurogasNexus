@@ -2,7 +2,7 @@
 
 ## V1 Decision
 
-DeepSeek is the first supported live LLM provider for V1. OpenAI, Claude, and
+DeepSeek is the first supported live LLM provider for V1. OpenAI and
 other providers remain credential/provider slots until later milestones add and
 test adapters.
 

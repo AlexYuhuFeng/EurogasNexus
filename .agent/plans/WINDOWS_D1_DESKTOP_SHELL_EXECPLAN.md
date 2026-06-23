@@ -1,7 +1,7 @@
 # Windows D1 Desktop Shell Implementation Plan
 
 > **For agentic workers:** Optional helper skills may be used if available, but
-> this plan is fully executable by plain Claude Code CLI. Follow the checkbox
+> this plan is fully executable by plain local CLI. Follow the checkbox
 > tasks in order and update them as evidence is produced.
 
 **Goal:** Build the first Windows desktop shell that packages the Eurogas Nexus web workspace as an API-consuming client.

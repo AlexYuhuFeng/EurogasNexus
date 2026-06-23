@@ -3,7 +3,7 @@
 ## Purpose
 
 This file is the authoritative V1 library contract for Web and Windows client
-implementation. Claude Code must not substitute frameworks or GPL-family
+implementation. Codex must not substitute frameworks or GPL-family
 dependencies.
 
 Historical Desktop evidence under `C:\Users\qqshu\Desktop` used React, Vite,
@@ -121,7 +121,7 @@ non-sensitive client preference.
 
 ## Offline Rule
 
-If Claude Code cannot install or verify packages because internet is
+If Codex cannot install or verify packages because internet is
 unavailable, it must:
 
 1. create the planned file structure;

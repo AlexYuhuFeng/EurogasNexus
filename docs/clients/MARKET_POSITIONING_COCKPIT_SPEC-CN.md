@@ -1,68 +1,50 @@
-# 市场持仓驾驶舱规范 - CN
+﻿# 甯傚満鎸佷粨椹鹃┒鑸辫鑼?- CN
 
-## 目的
+## 鐩殑
 
-本规范定义 V1 的只读订单/PnL 驾驶舱扩展。它用于帮助天然气交易人员在地图优先
-工作台中查看外部屏幕活动、组合估值、路线经济性和策略输出，但不会把 Eurogas
-Nexus 变成订单执行、订单路由、提名提交或 ETRM 系统。
+鏈鑼冨畾涔?V1 鐨勫彧璇昏鍗?PnL 椹鹃┒鑸辨墿灞曘€傚畠鐢ㄤ簬甯姪澶╃劧姘斾氦鏄撲汉鍛樺湪鍦板浘浼樺厛
+宸ヤ綔鍙颁腑鏌ョ湅澶栭儴灞忓箷娲诲姩銆佺粍鍚堜及鍊笺€佽矾绾跨粡娴庢€у拰绛栫暐杈撳嚭锛屼絾涓嶄細鎶?Eurogas
+Nexus 鍙樻垚璁㈠崟鎵ц銆佽鍗曡矾鐢便€佹彁鍚嶆彁浜ゆ垨 ETRM 绯荤粺銆?
+## 缁濆鏁版嵁杈圭晫
 
-## 绝对数据边界
-
-运行时事实来源是后端 API 背后的 PostgreSQL。客户端只能使用：
-
+杩愯鏃朵簨瀹炴潵婧愭槸鍚庣 API 鑳屽悗鐨?PostgreSQL銆傚鎴风鍙兘浣跨敤锛?
 ```text
-Web/Windows/SDK -> /api/v1/portfolio/* -> 后端仓储 -> PostgreSQL
+Web/Windows/SDK -> /api/v1/portfolio/* -> 鍚庣浠撳偍 -> PostgreSQL
 ```
 
-客户端不得直接连接 PostgreSQL，不得保存订单/PnL 文件，不得直接调用交易所，
-也不得读取后端原始数据文件。外部订单记录只是导入的观察数据，不是交易捕获记录，
-V1 不允许从客户端修改或撤销这些订单。
-
-## 已启用 API
+瀹㈡埛绔笉寰楃洿鎺ヨ繛鎺?PostgreSQL锛屼笉寰椾繚瀛樿鍗?PnL 鏂囦欢锛屼笉寰楃洿鎺ヨ皟鐢ㄤ氦鏄撴墍锛?涔熶笉寰楄鍙栧悗绔師濮嬫暟鎹枃浠躲€傚閮ㄨ鍗曡褰曞彧鏄鍏ョ殑瑙傚療鏁版嵁锛屼笉鏄氦鏄撴崟鑾疯褰曪紝
+V1 涓嶅厑璁镐粠瀹㈡埛绔慨鏀规垨鎾ら攢杩欎簺璁㈠崟銆?
+## 宸插惎鐢?API
 
 - `GET /api/v1/portfolio/screen-orders`
 - `GET /api/v1/portfolio/pnl-snapshots`
 - `GET /api/v1/portfolio/live-summary`
 
-所有端点都返回 `research_only=true` 和 `human_review_required=true`。
-
-## 已启用数据库表
-
+鎵€鏈夌鐐归兘杩斿洖 `research_only=true` 鍜?`human_review_required=true`銆?
+## 宸插惎鐢ㄦ暟鎹簱琛?
 - `screen_order_observations`
 - `portfolio_pnl_snapshots`
 
-这些表由 Alembic 版本 `0009_market_positioning_foundation` 引入。
+杩欎簺琛ㄧ敱 Alembic 鐗堟湰 `0009_market_positioning` 寮曞叆銆?
+## Web/Windows UX 瑙勫垯
 
-## Web/Windows UX 规则
-
-- 首页必须保持地图优先。
-- 如果节点上下文足够，地图必须用动画高亮展示当前订单/PnL 相关路线。
-- 当实时盯市结果尚未产生时，地图上方指标条必须使用运行时观察数据展示指示性
-  PnL。
-- 侧栏必须展示订单状态、已成交数量、剩余数量、合约代码、指示性 PnL、提前回款
-  价值和未完成屏幕订单数量。
-- 界面文案不得使用 “下单”、“路由订单”、“批准”、“提名” 或 “立即交易” 等执行类
-  表述。
-
-## 验收测试
+- 棣栭〉蹇呴』淇濇寔鍦板浘浼樺厛銆?- 濡傛灉鑺傜偣涓婁笅鏂囪冻澶燂紝鍦板浘蹇呴』鐢ㄥ姩鐢婚珮浜睍绀哄綋鍓嶈鍗?PnL 鐩稿叧璺嚎銆?- 褰撳疄鏃剁洴甯傜粨鏋滃皻鏈骇鐢熸椂锛屽湴鍥句笂鏂规寚鏍囨潯蹇呴』浣跨敤杩愯鏃惰瀵熸暟鎹睍绀烘寚绀烘€?  PnL銆?- 渚ф爮蹇呴』灞曠ず璁㈠崟鐘舵€併€佸凡鎴愪氦鏁伴噺銆佸墿浣欐暟閲忋€佸悎绾︿唬鐮併€佹寚绀烘€?PnL銆佹彁鍓嶅洖娆?  浠峰€煎拰鏈畬鎴愬睆骞曡鍗曟暟閲忋€?- 鐣岄潰鏂囨涓嶅緱浣跨敤 鈥滀笅鍗曗€濄€佲€滆矾鐢辫鍗曗€濄€佲€滄壒鍑嗏€濄€佲€滄彁鍚嶁€?鎴?鈥滅珛鍗充氦鏄撯€?绛夋墽琛岀被
+  琛ㄨ堪銆?
+## 楠屾敹娴嬭瘯
 
 - `tests/api/test_portfolio_api.py`
 - `tests/contract/test_market_positioning_models.py`
 - `tests/sdk/test_portfolio_client.py`
 - `tests/contract/test_client_release_surface.py`
 
-## 下一步扩展
+## 涓嬩竴姝ユ墿灞?
+Milestone 2 搴斿鍔犵敱瀵煎叆鍣ㄦ帶鍒剁殑瀹㈡埛璁㈠崟/PnL upsert 璺緞銆佸甫鎺堟潈杩囨护鐨勬煡璇€?浠ュ強鍙璁?lineage銆傞櫎闈炰骇鍝佽竟鐣屾寮忓彉鏇达紝瀹㈡埛绔〃闈粛蹇呴』淇濇寔鍙銆?## R19 鍐呴儴瀵煎叆璺緞
 
-Milestone 2 应增加由导入器控制的客户订单/PnL upsert 路径、带授权过滤的查询、
-以及可审计 lineage。除非产品边界正式变更，客户端表面仍必须保持只读。
-## R19 内部导入路径
-
-R19 已实现首个内部导入路径：
+R19 宸插疄鐜伴涓唴閮ㄥ鍏ヨ矾寰勶細
 
 ```text
 POST /api/internal/portfolio/import-observations
 ```
 
-该路由仅供内部/操作员使用。除非 `entitlement_decisions` 对每一个来源和数据集组合授权，
-否则批次默认失败关闭。成功和拒绝的批次都会写入 `ingestion_runs` 与 `audit_events`。
-Web、Windows、SDK 和 CLI 正式客户端必须继续使用只读 `/api/v1/portfolio/*` 路由。
+璇ヨ矾鐢变粎渚涘唴閮?鎿嶄綔鍛樹娇鐢ㄣ€傞櫎闈?`entitlement_decisions` 瀵规瘡涓€涓潵婧愬拰鏁版嵁闆嗙粍鍚堟巿鏉冿紝
+鍚﹀垯鎵规榛樿澶辫触鍏抽棴銆傛垚鍔熷拰鎷掔粷鐨勬壒娆￠兘浼氬啓鍏?`ingestion_runs` 涓?`audit_events`銆?Web銆乄indows銆丼DK 鍜?CLI 姝ｅ紡瀹㈡埛绔繀椤荤户缁娇鐢ㄥ彧璇?`/api/v1/portfolio/*` 璺敱銆?

@@ -29,3 +29,20 @@ def test_internal_and_dev_paths_use_api_prefixes() -> None:
     assert internal_client.get("/internal/health").status_code == 404
     assert dev_client.get("/api/dev/health").status_code == 200
     assert dev_client.get("/dev/health").status_code == 404
+
+
+def test_local_desktop_cors_preflight_for_api_v1_post() -> None:
+    client = TestClient(create_app(Settings(api_profile="release")))
+
+    response = client.options(
+        "/api/v1/route-cost/uk/easington/live-pnl",
+        headers={
+            "Origin": "http://tauri.localhost",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://tauri.localhost"
+    assert "POST" in response.headers["access-control-allow-methods"]

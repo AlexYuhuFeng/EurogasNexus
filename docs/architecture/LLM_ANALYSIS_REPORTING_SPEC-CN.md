@@ -2,7 +2,7 @@
 
 ## V1 决策
 
-DeepSeek 是 V1 第一个支持的实时 LLM Provider。OpenAI、Claude 和其他 provider
+DeepSeek 是 V1 第一个支持的实时 LLM Provider。OpenAI、other 和其他 provider
 保留为凭证/适配器槽位，后续里程碑再添加并测试。
 
 导入代码、测试、Web、Windows、SDK 和 CLI 都不得直接调用 LLM。唯一允许的实时

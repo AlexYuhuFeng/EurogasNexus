@@ -145,11 +145,11 @@ Research result models include:
 - `research_only`;
 - `human_review_required`.
 
-## Decision 9: Claude Code Works Offline By Default
+## Decision 9: Offline Work Is The Default For Local Agents
 
 Decision:
 
-Future Claude Code CLI sessions are assumed offline unless the user says
+Future local implementation sessions are assumed offline unless the user says
 otherwise.
 
 Implication:

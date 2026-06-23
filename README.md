@@ -116,9 +116,6 @@ repository.
 
 ExecPlans: `.agent/plans/`
 
-- Claude Code entry: `CLAUDE_CODE_START_HERE.md`
-- master execution index: `docs/architecture/CLAUDE_CODE_MASTER_EXECUTION_INDEX.md`
-- implementation directives: `docs/architecture/CLAUDE_CODE_IMPLEMENTATION_DIRECTIVES.md`
 - current pause point: `docs/architecture/CURRENT_PAUSE_POINT.md`
 - market-practice audit EN/CN:
   `docs/architecture/MARKET_PRACTICE_AUDIT-EN.md` and

@@ -49,19 +49,19 @@ REQUIRED_TABLES: tuple[RequiredTable, ...] = (
     RequiredTable(name="strategy_runs", introduced_in="0007_strategy_lab_foundation"),
     RequiredTable(name="strategy_allocation_targets", introduced_in="0007_strategy_lab_foundation"),
     RequiredTable(name="strategy_alerts", introduced_in="0007_strategy_lab_foundation"),
-    RequiredTable(name="analysis_runs", introduced_in="0008_analysis_reporting_foundation"),
-    RequiredTable(name="generated_reports", introduced_in="0008_analysis_reporting_foundation"),
+    RequiredTable(name="analysis_runs", introduced_in="0008_analysis_reporting"),
+    RequiredTable(name="generated_reports", introduced_in="0008_analysis_reporting"),
     RequiredTable(
         name="business_ontology_terms",
-        introduced_in="0008_analysis_reporting_foundation",
+        introduced_in="0008_analysis_reporting",
     ),
     RequiredTable(
         name="screen_order_observations",
-        introduced_in="0009_market_positioning_foundation",
+        introduced_in="0009_market_positioning",
     ),
     RequiredTable(
         name="portfolio_pnl_snapshots",
-        introduced_in="0009_market_positioning_foundation",
+        introduced_in="0009_market_positioning",
     ),
 )
 

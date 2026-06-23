@@ -9,28 +9,30 @@ selects that surface.
 
 ## Read Order
 
-When Claude Code is asked to implement clients, read these files in order:
+When Codex is asked to implement clients, read these files in order:
 
 1. `docs/architecture/PRODUCT_DELIVERY_MASTER_PLAN.md`
 2. `docs/clients/CLIENT_DELIVERY_MILESTONES.md`
 3. `docs/clients/CLIENT_API_CONTRACT.md`
 4. `docs/clients/CLIENT_DESIGN_SYSTEM.md`
 5. `docs/clients/CLIENT_TECH_STACK.md`
-6. `docs/clients/CLIENT_I18N_THEME_SPEC.md`
-7. `docs/product/REAL_TIME_MARKET_INTELLIGENCE_BLUEPRINT.md`
-8. `docs/clients/SDK_CLIENT_DESIGN_SPEC.md`
-9. `docs/clients/CLI_CLIENT_DESIGN_SPEC.md`
-10. `docs/clients/WEB_CLIENT_DESIGN_SPEC.md`
-11. `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-EN.md`
-12. `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-CN.md`
-13. `docs/clients/MARKET_POSITIONING_COCKPIT_SPEC-EN.md`
-14. `docs/clients/MARKET_POSITIONING_COCKPIT_SPEC-CN.md`
-15. `docs/clients/OPERATIONAL_GLOSSARY_CONTEXT_SPEC-EN.md`
-16. `docs/clients/OPERATIONAL_GLOSSARY_CONTEXT_SPEC-CN.md`
-17. `docs/clients/WINDOWS_CLIENT_DESIGN_SPEC.md`
-18. `docs/clients/WINDOWS_DEMO_UX_REFERENCE.md`
-19. `docs/architecture/WEB_CLIENT_IMPLEMENTATION_BLUEPRINT.md`
-20. `docs/architecture/WINDOWS_CLIENT_IMPLEMENTATION_BLUEPRINT.md`
+6. `docs/clients/UI_UX_STYLE_GUIDE-EN.md`
+7. `docs/clients/UI_UX_STYLE_GUIDE-CN.md`
+8. `docs/clients/CLIENT_I18N_THEME_SPEC.md`
+9. `docs/product/REAL_TIME_MARKET_INTELLIGENCE_BLUEPRINT.md`
+10. `docs/clients/SDK_CLIENT_DESIGN_SPEC.md`
+11. `docs/clients/CLI_CLIENT_DESIGN_SPEC.md`
+12. `docs/clients/WEB_CLIENT_DESIGN_SPEC.md`
+13. `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-EN.md`
+14. `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-CN.md`
+15. `docs/clients/MARKET_POSITIONING_COCKPIT_SPEC-EN.md`
+16. `docs/clients/MARKET_POSITIONING_COCKPIT_SPEC-CN.md`
+17. `docs/clients/OPERATIONAL_GLOSSARY_CONTEXT_SPEC-EN.md`
+18. `docs/clients/OPERATIONAL_GLOSSARY_CONTEXT_SPEC-CN.md`
+19. `docs/clients/WINDOWS_CLIENT_DESIGN_SPEC.md`
+20. `docs/clients/WINDOWS_DEMO_UX_REFERENCE.md`
+21. `docs/architecture/WEB_CLIENT_IMPLEMENTATION_BLUEPRINT.md`
+22. `docs/architecture/WINDOWS_CLIENT_IMPLEMENTATION_BLUEPRINT.md`
 
 ## Product Rule
 
@@ -63,6 +65,6 @@ contains matching glossary and runtime rows.
 ## Implementation Rule
 
 Do not add client runtime dependencies until a client milestone is selected.
-If Claude Code is offline and dependencies are missing, create contracts,
+If Codex is offline and dependencies are missing, create contracts,
 mocked API clients, file structure, and a gap report instead of pretending the
 client can build.

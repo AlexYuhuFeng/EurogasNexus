@@ -33,7 +33,7 @@ All endpoints return `research_only=true` and `human_review_required=true`.
 - `portfolio_pnl_snapshots`
 
 These tables are introduced by Alembic revision
-`0009_market_positioning_foundation`.
+`0009_market_positioning`.
 
 ## Web/Windows UX Rules
 

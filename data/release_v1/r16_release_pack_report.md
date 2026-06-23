@@ -92,7 +92,6 @@ glossary (2), research POST (8), compat (5)
 ### Exact Next Prompt for R14/R15 Toolchain Completion
 
 ```text
-Read AGENTS.md, CLAUDE_CODE_START_HERE.md, and
 docs/architecture/CURRENT_PAUSE_POINT.md.
 
 Internet is now available. Run:

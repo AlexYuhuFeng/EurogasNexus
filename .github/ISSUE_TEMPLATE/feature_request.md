@@ -14,12 +14,9 @@ parameters.
 
 ## Problem
 
-
 ## Proposed scope
 
-
 ## Non-goals
-
 
 ## Product boundary check
 

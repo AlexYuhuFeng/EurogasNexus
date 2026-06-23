@@ -45,8 +45,6 @@ class EurogasNexusError(Exception)
 class ConfigurationError(EurogasNexusError)
 ```
 
-
-
 ## DB Foundations
 
 ```python
@@ -61,7 +59,6 @@ class IngestionRunRepository(Protocol):
     def get_by_id(self, run_id: str) -> IngestionRun | None
 ```
 
-
 ## SDK / CLI Shell
 
 ```python
@@ -69,13 +66,11 @@ def fetch_health(base_url: str, timeout_seconds: float = 5.0) -> HealthPayload
 def run_health_check(base_url: str) -> str
 ```
 
-
 ## Application Workflow Shell
 
 ```python
 def get_ingestion_run(repository: IngestionRunRepository, run_id: str) -> IngestionRunLookupResult
 ```
-
 
 ## Streaming Shell
 
@@ -83,7 +78,6 @@ def get_ingestion_run(repository: IngestionRunRepository, run_id: str) -> Ingest
 @dataclass(frozen=True)
 class StreamingEnvelope
 ```
-
 
 ## Runtime Store + Data Quality Shell
 
@@ -94,7 +88,6 @@ class RuntimeStore(Protocol):
 class QualityCheck(Protocol):
     def evaluate(self, dataset_id: str) -> QualityCheckResult
 ```
-
 
 ## Ingestion Shell
 

@@ -17,8 +17,6 @@ No runtime store implementation is present.
 - Store interfaces must be declared before adapters are introduced.
 - Runtime state must never be treated as the system of record.
 
-
-
 ## Milestone 13 Additions
 
 - Added import-safe `RuntimeStore` protocol and `HeartbeatRecord` shell types.

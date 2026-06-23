@@ -2,22 +2,23 @@
 
 ## Purpose
 
-This document is the release-level build order for Claude Code. It converts the
+This document is the release-level build order for Codex. It converts the
 whole-project documentation into precise executable milestones.
 
-Claude Code must execute one milestone at a time. After each milestone, it must
+Codex must execute one milestone at a time. After each milestone, it must
 update the relevant report and recommend the next prompt.
 
 ## Required Reading Before Any Milestone
 
 1. `AGENTS.md`
 2. `PROJECT_DIRECTORY.md`
-3. `docs/architecture/CLAUDE_CODE_MASTER_EXECUTION_INDEX.md`
-4. `docs/release/V1_FULL_PROJECT_RELEASE_SCOPE.md`
-5. `docs/release/V1_FULL_PROJECT_RELEASE_EXECUTION_PLAN.md`
-6. `docs/release/V1_RELEASE_ACCEPTANCE_MATRIX.md`
-7. `docs/release/V1_RELEASE_MILESTONE_BACKLOG.md`
-8. the selected milestone ExecPlan
+3. `docs/architecture/CURRENT_PAUSE_POINT.md`
+4. `docs/architecture/NEXT_DEVELOPMENT_QUEUE.md`
+5. `docs/release/V1_FULL_PROJECT_RELEASE_SCOPE.md`
+6. `docs/release/V1_FULL_PROJECT_RELEASE_EXECUTION_PLAN.md`
+7. `docs/release/V1_RELEASE_ACCEPTANCE_MATRIX.md`
+8. `docs/release/V1_RELEASE_MILESTONE_BACKLOG.md`
+9. the selected milestone ExecPlan
 
 If the selected milestone ExecPlan does not exist, create it from
 `docs/release/V1_RELEASE_EXECPLAN_TEMPLATE.md` and execute the milestone in the
@@ -426,6 +427,6 @@ cargo tauri build
 
 ## Stop Rule
 
-If a milestone cannot satisfy acceptance, Claude Code must write a gap report,
+If a milestone cannot satisfy acceptance, Codex must write a gap report,
 mark the milestone `PARTIAL` or `BLOCKED`, and stop before starting the next
 milestone.

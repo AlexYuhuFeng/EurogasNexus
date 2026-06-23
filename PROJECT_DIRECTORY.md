@@ -84,19 +84,14 @@ Internal/operator market-positioning imports use
 
 ## Development Direction
 
-Claude Code should use:
+Codex should use:
 
-- `CLAUDE_CODE_START_HERE.md` as the local CLI launch and full V1 prompt file;
-- `docs/architecture/CLAUDE_CODE_IMPLEMENTATION_DIRECTIVES.md` as the
-  no-ambiguity implementation authority;
-- `docs/architecture/CLAUDE_CODE_GOAL_MODE.md` as the goal-mode entrypoint;
+- `docs/architecture/CURRENT_PAUSE_POINT.md` as the current status marker;
 - `docs/architecture/NEXT_DEVELOPMENT_QUEUE.md` as the ordered queue;
-- `docs/architecture/PRODUCT_DELIVERY_MASTER_PLAN.md` as the full
-  backend/SDK/CLI/web/Windows delivery plan;
+- `docs/architecture/PRODUCT_DELIVERY_MASTER_PLAN.md` as the full backend,
+  SDK, CLI, Web, and Windows delivery plan;
 - `docs/architecture/WHOLE_PROJECT_CAPABILITY_BLUEPRINT.md` as the full
   capability map;
-- `docs/architecture/CLAUDE_CODE_MASTER_EXECUTION_INDEX.md` as the phase
-  execution map;
 - `docs/architecture/REFERENCE_EVIDENCE_LOG.md` as the historical-reference
   evidence log;
 - `docs/product/REAL_TIME_MARKET_INTELLIGENCE_BLUEPRINT.md` as the map-first
@@ -106,9 +101,13 @@ Claude Code should use:
   `docs/architecture/MARKET_PRACTICE_AUDIT-CN.md` as the latest
   market-practice audit for route cost, market marks, FX, physical signals,
   contract/capacity, strategy, and glossary;
+- `docs/clients/README.md` as the client design index;
+- `docs/clients/UI_UX_STYLE_GUIDE-EN.md` and
+  `docs/clients/UI_UX_STYLE_GUIDE-CN.md` as the UI/UX authority based on
+  `C:\Users\qqshu\design.md`;
 - `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-EN.md` and
-  `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-CN.md` as the no-ambiguity
-  home-screen UX contract;
+  `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-CN.md` as the home-screen UX
+  contract;
 - `docs/clients/MARKET_POSITIONING_COCKPIT_SPEC-EN.md` and
   `docs/clients/MARKET_POSITIONING_COCKPIT_SPEC-CN.md` as the read-only
   imported order/PnL cockpit contract;
@@ -118,16 +117,12 @@ Claude Code should use:
 - `docs/operations/MARKET_POSITIONING_IMPORTS-EN.md` and
   `docs/operations/MARKET_POSITIONING_IMPORTS-CN.md` as the internal
   entitlement/audit import runbook;
-- `docs/clients/README.md` as the client design index;
 - `docs/clients/CLIENT_TECH_STACK.md` as the fixed Web/Windows library
   authority;
 - `docs/clients/CLIENT_I18N_THEME_SPEC.md` as the English/Mandarin and
   light/dark/system implementation authority;
-- `docs/operations/WORKTREE_HANDOFF.md` to decide whether Claude should run in
-  this Codex worktree or `C:\Users\qqshu\Documents\Eurogasnexus`;
-- `docs/architecture/CLAUDE_CODE_START_PROMPTS.md` for copy-paste goal-mode
-  prompts;
 - `.agent/plans/` for milestone execution plans.
+
 
 ## Directory Rule
 

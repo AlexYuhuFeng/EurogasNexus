@@ -2,8 +2,8 @@
 
 ## Purpose
 
-This is the ordered execution queue for Claude Code goal mode. It is the file
-Claude Code should use to decide what to build next.
+This is the ordered execution queue for local goal mode. It is the file
+Codex should use to decide what to build next.
 
 Archived Desktop projects are reference evidence only. They are not design
 authority. Optimize the architecture and tooling from first principles when the

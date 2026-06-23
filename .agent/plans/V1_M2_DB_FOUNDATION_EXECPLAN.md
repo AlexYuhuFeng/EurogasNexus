@@ -76,7 +76,6 @@ python -c "from apps.api.main import app; print('app import ok'); print(len(app.
 Remove the added DB scaffold modules and Alembic files; restore prior placeholders.
 No data migration rollback needed because no runtime migrations are executed.
 
-
 ## Post-implementation Hardening
 
 - Normalize DB configuration around `DatabaseSettings` as the canonical runtime type.

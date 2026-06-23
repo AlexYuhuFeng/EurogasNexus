@@ -33,13 +33,11 @@ The SDK and CLI expose a read-only health shell. Future expansion is governed by
 - Adding command frameworks.
 - Implementing mutating operational commands.
 
-
 ## Milestone 5 Additions
 
 - SDK exposes read-only `fetch_health(base_url)` API client.
 - CLI exposes read-only `run_health_check(base_url)` helper.
 - Both SDK and CLI call backend HTTP API surfaces only.
-
 
 ## Milestone 6 Additions
 
