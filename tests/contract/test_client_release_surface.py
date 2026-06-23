@@ -306,3 +306,27 @@ def test_web_client_matches_design_reference_cockpit() -> None:
     assert en["result.route_alpha"] == "Route alpha ladder"
 
     assert zh["result.route_alpha"] == "\u8def\u5f84\u6536\u76ca\u9636\u68af"
+
+def test_release_workflow_publishes_web_windows_and_linux_assets() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+    ps1 = (ROOT / "scripts" / "release" / "build_v1_release.ps1").read_text(encoding="utf-8")
+    sh = (ROOT / "scripts" / "release" / "build_v1_release.sh").read_text(encoding="utf-8")
+
+    assert "on:" in workflow
+    assert "branches:" in workflow
+    assert "- main" in workflow
+    assert "contents: write" in workflow
+    assert "gh release create" in workflow
+    assert "eurogas-nexus-web-${GITHUB_SHA::7}.tar.gz" in workflow
+    assert "bundle: nsis" in workflow
+    assert "bundle: deb" in workflow
+    assert "*.exe" in workflow
+    assert "*.deb" in workflow
+    assert (
+        "pytest -q tests/api tests/contract tests/integration tests/sdk "
+        "tests/cli tests/release tests/security"
+    ) in workflow
+    assert "npm --prefix $WebDir run build" in ps1
+    assert "npm --prefix $DesktopDir run build -- --bundles $Bundle" in ps1
+    assert 'npm --prefix "${WEB_DIR}" run build' in sh
+    assert 'npm --prefix "${DESKTOP_DIR}" run build -- --bundles "${BUNDLE}"' in sh

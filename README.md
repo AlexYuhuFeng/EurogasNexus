@@ -54,6 +54,26 @@ Bootstrap compatibility remains for:
 
 New SDK, CLI, Web, and Windows code must target `/api/v1`.
 
+## Build And Release
+
+Every push to `main` runs `.github/workflows/release.yml`. The workflow validates
+the backend, builds the Web client, builds the Windows NSIS installer, builds the
+Linux DEB package, and publishes a GitHub Release with all release artifacts.
+
+Local release builds use the same contract:
+
+```powershell
+./scripts/release/build_v1_release.ps1 -Bundle nsis
+```
+
+```bash
+./scripts/release/build_v1_release.sh --bundle deb
+```
+
+Use `-InstallDependencies` or `--install-dependencies` only when `node_modules`
+is missing or stale. The scripts do not start Docker, run live connectors, call
+market providers, or print secrets.
+
 ## Current V1 Capabilities
 
 - UK National Gas NTS route-cost support is UK-only in this release, but it is
