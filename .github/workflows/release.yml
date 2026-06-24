@@ -10,9 +10,9 @@ on:
         description: Release channel label.
         type: choice
         required: true
-        default: auto
+        default: preview
         options:
-          - auto
+          - preview
           - rc
           - stable
       prerelease:
@@ -191,11 +191,11 @@ jobs:
         shell: bash
         run: |
           SHORT_SHA="${GITHUB_SHA::7}"
-          CHANNEL="${{ github.event.inputs.release_channel || 'auto' }}"
-          TAG="v1-${CHANNEL}-${GITHUB_RUN_NUMBER}-${SHORT_SHA}"
+          CHANNEL="${{ github.event.inputs.release_channel || 'preview' }}"
+          TAG="v0.5-${CHANNEL}-${GITHUB_RUN_NUMBER}-${SHORT_SHA}"
           echo "tag=${TAG}" >> "${GITHUB_OUTPUT}"
           {
-            echo "# Eurogas Nexus ${TAG}"
+            echo "# Eurogas Nexus v0.5 preview (${TAG})"
             echo
             echo "- Commit: ${GITHUB_SHA}"
             echo "- Branch: ${GITHUB_REF_NAME}"

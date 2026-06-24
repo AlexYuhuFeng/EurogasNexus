@@ -4,9 +4,13 @@ from eurogas_nexus.api.app import create_app
 from eurogas_nexus.core.config import Settings
 
 
+def _route_paths(app: object) -> set[str]:
+    return {path for route in app.routes if (path := getattr(route, "path", None))}
+
+
 def test_release_profile_excludes_dev_and_internal_paths() -> None:
     app = create_app(Settings(api_profile="release"))
-    paths = {route.path for route in app.routes}
+    paths = _route_paths(app)
 
     assert "/v1/health" in paths
     assert "/api/v1/health" in paths
@@ -16,7 +20,7 @@ def test_release_profile_excludes_dev_and_internal_paths() -> None:
 
 def test_development_profile_includes_api_prefixed_dev_endpoint_only() -> None:
     app = create_app(Settings(api_profile="development"))
-    paths = {route.path for route in app.routes}
+    paths = _route_paths(app)
 
     assert "/v1/health" in paths
     assert "/api/v1/health" in paths
@@ -26,7 +30,7 @@ def test_development_profile_includes_api_prefixed_dev_endpoint_only() -> None:
 
 def test_internal_profile_includes_api_prefixed_internal_endpoint_only() -> None:
     app = create_app(Settings(api_profile="internal"))
-    paths = {route.path for route in app.routes}
+    paths = _route_paths(app)
 
     assert "/api/internal/health" in paths
     assert not any(path.startswith("/api/dev") for path in paths)
