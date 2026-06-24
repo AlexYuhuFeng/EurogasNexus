@@ -67,7 +67,13 @@ def test_pyproject_excludes_deferred_heavy_dependencies() -> None:
 def test_api_import_does_not_load_database_layer() -> None:
     script = (
         "from apps.api.main import app; import sys; "
-        "paths = {getattr(route, 'path', None) for route in app.routes}; "
+        "def walk(routes):\n"
+        "    for route in routes:\n"
+        "        path = getattr(route, 'path', None)\n"
+        "        if path:\n"
+        "            yield path\n"
+        "        yield from walk(getattr(route, 'routes', ()) or ())\n"
+        "paths = set(walk(app.routes)); "
         "print('/v1/health' in paths); "
         "print('eurogas_nexus.db' in sys.modules); "
         "print('sqlalchemy' in sys.modules)"

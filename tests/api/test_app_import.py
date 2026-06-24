@@ -2,7 +2,14 @@
 
 
 def _route_paths(app: object) -> set[str]:
-    return {path for route in app.routes if (path := getattr(route, "path", None))}
+    paths: set[str] = set()
+    pending = list(getattr(app, "routes", ()))
+    while pending:
+        route = pending.pop()
+        if path := getattr(route, "path", None):
+            paths.add(path)
+        pending.extend(getattr(route, "routes", ()) or ())
+    return paths
 
 
 def test_app_import_exposes_fastapi_app() -> None:
