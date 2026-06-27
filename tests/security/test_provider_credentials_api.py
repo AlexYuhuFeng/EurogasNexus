@@ -136,3 +136,25 @@ def test_public_provider_credentials_cannot_be_rotated_or_disabled() -> None:
     assert rotate.json()["detail"]["code"] == "credential_not_required"
     assert disable.status_code == 400
     assert disable.json()["detail"]["code"] == "credential_not_required"
+
+
+def test_provider_registry_covers_v1_source_center() -> None:
+    response = TestClient(create_app()).get("/api/credentials/providers")
+    assert response.status_code == 200
+
+    providers = {item["provider_id"]: item for item in response.json()["data"]}
+    assert providers["ECB"]["credential_required"] is False
+    assert providers["ENTSOG"]["credential_required"] is False
+    for provider_id in {
+        "Argus",
+        "DEEPSEEK",
+        "EEX",
+        "GIE",
+        "ICE_OCM",
+        "ICIS",
+        "Kpler",
+        "Platts",
+        "Trayport",
+        "Weather",
+    }:
+        assert providers[provider_id]["credential_required"] is True

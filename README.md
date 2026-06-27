@@ -1,29 +1,121 @@
-﻿# Eurogas Nexus
+# Eurogas Nexus
 
-Eurogas Nexus V1.0 is a DB-first, API-first, SDK-required European gas
-decision-support platform for pipeline gas, LNG regas, beach delivery resources,
-route economics, market marks, source posture, resource-pool optimization, and
-human-reviewed strategy analysis. V1 includes the backend/API, PostgreSQL
-runtime store, Python SDK, CLI, web workspace, and Windows client shell.
+[![CI](https://github.com/AlexYuhuFeng/EurogasNexus/actions/workflows/ci.yml/badge.svg)](https://github.com/AlexYuhuFeng/EurogasNexus/actions/workflows/ci.yml)
+[![Build and Release](https://github.com/AlexYuhuFeng/EurogasNexus/actions/workflows/release.yml/badge.svg)](https://github.com/AlexYuhuFeng/EurogasNexus/actions/workflows/release.yml)
 
-PostgreSQL is the runtime source of truth. Web, Windows, CLI, and SDK clients
-must access runtime data through `/api` or SDK calls. Clients must not open
-PostgreSQL connections, read backend local data files, or store vendor
-credentials.
+Eurogas Nexus is a DB-first European gas decision-support workspace for route
+economics, source diagnostics, portfolio context, strategy shadow-run, glossary
+context, and operator-reviewed market analysis.
 
-## Start Here
+PostgreSQL is the runtime source of truth. Every client surface uses the backend
+API or SDK. Web, Windows, CLI, and SDK clients must not connect directly to
+PostgreSQL, read runtime data files, or store vendor credentials.
+
+## What It Does
+
+- Map-first European gas cockpit for hubs, interconnection points, LNG
+  terminals, flows, capacity, tariffs, and route options.
+- Source Center for price, FX, infrastructure, tariff, weather, and LLM provider
+  status, credentials, runtime record counts, and ingestion diagnostics.
+- UK National Gas NTS route-cost support for audited tariff rows in PostgreSQL.
+  The current tariff model is UK-only, but it is not restricted to Easington or
+  Bacton.
+- Contract/resource economics for beach delivery, LNG regas, route capacity,
+  early cash value, and portfolio/resource-pool optimization.
+- Strategy lab contracts for backtest, shadow-run, and live-monitor evaluation
+  using sourced prices, screen marks, time windows, scoring components, and risk
+  controls.
+- Operational glossary available through API, SDK, Web, and Windows clients in
+  English and Mandarin Chinese.
+- DeepSeek is the first V1 LLM provider slot. LLM analysis is backend-mediated,
+  credential-gated, citation-oriented, and human-review only.
+
+All strategy, PnL, route, LNG, resource-pool, market, and LLM outputs are
+decision-support candidates requiring human review. They are not executable
+orders, auto-trading actions, nomination submissions, official approvals, legal
+advice, or official trading recommendations.
+
+## Quick Start
 
 ```powershell
+python -m pip install -e ".[dev]"
 ruff check .
 pytest -q tests/api tests/contract tests/integration tests/sdk tests/cli tests/release tests/security
 python -c "from apps.api.main import app; print('app import ok'); print(len(app.routes))"
 ```
 
-GitHub Actions runs Python validation plus parallel client build jobs:
+Run the API:
 
-- Web artifact: `clients/web/dist`
-- Windows client artifact: Tauri NSIS `.exe`
-- Linux client artifact: Tauri Debian `.deb`
+```powershell
+uvicorn apps.api.main:app --host 127.0.0.1 --port 8000
+```
+
+Run the Web client:
+
+```powershell
+npm --prefix clients/web ci
+npm --prefix clients/web run dev
+```
+
+Build the Windows desktop client:
+
+```powershell
+npm --prefix clients/desktop ci
+npm --prefix clients/desktop run build -- --bundles nsis
+```
+
+## Runtime Database
+
+Database URL precedence:
+
+1. `RUNTIME_STORE_DATABASE_URL`
+2. `DATABASE_URL`
+3. `EUROGAS_NEXUS_DB_DSN` legacy fallback
+
+The app import path does not connect to the database and does not run
+migrations. Runtime DB validation is explicit:
+
+```powershell
+python scripts/ops/validate_v1_runtime_db.py --json
+```
+
+Source data should flow as:
+
+```text
+official/licensed source -> ingestion/normalization -> PostgreSQL -> API/SDK -> clients
+```
+
+Test/demo data belongs in the test PostgreSQL instance or test fixtures. The
+production runtime must not use synthetic fallback data for source availability,
+flows, capacity, tariffs, storage, LNG, FX, or provider status.
+
+## Data Sources
+
+The Source Center is backed by `/api/sources` and `/api/credentials/providers`.
+It groups sources by operational category:
+
+- Prices: Platts, ICIS, Argus, EEX, ICE OCM, Trayport, Kpler
+- FX: ECB
+- Infrastructure: ENTSOG, GIE AGSI/ALSI
+- Tariffs: National Gas NTS
+- Weather: HDD/CDD-capable weather provider slot
+- LLM: DeepSeek
+
+Credentials are write-only and backend-owned. Public feeds such as ECB and
+ENTSOG do not require API keys for the supported public use cases. Licensed
+sources require the customer to configure credentials and entitlement outside
+the client runtime.
+
+## API And SDK Boundary
+
+Stable client routes use:
+
+```text
+/api
+```
+
+New clients, SDK calls, and CLI commands must target `/api`. Clients should use
+the SDK or typed HTTP client surface, never direct database access.
 
 Core entry points:
 
@@ -33,32 +125,21 @@ Core entry points:
 - Alembic migrations: `alembic/versions`
 - Python SDK: `src/eurogas_nexus/sdk`
 - Web client: `clients/web`
-- Windows shell: `clients/desktop`
-- current handoff: `docs/architecture/CURRENT_PAUSE_POINT.md`
-- project map: `PROJECT_DIRECTORY.md`
-- ExecPlans: `.agent/plans/`
-
-## API Prefix
-
-Stable client routes use:
-
-```text
-/api
-```
-
-Bootstrap compatibility remains for:
-
-```text
-/api/health
-```
-
-New SDK, CLI, Web, and Windows code must target `/api`.
+- Windows/Linux desktop shell: `clients/desktop`
 
 ## Build And Release
 
-Every push to `main` runs `.github/workflows/release.yml`. The workflow validates
-the backend, builds the Web client, builds the Windows NSIS installer, builds the
-Linux DEB package, and publishes a GitHub Release with all release artifacts.
+Every push to `main` runs:
+
+- `.github/workflows/ci.yml`
+- `.github/workflows/release.yml`
+
+Release workflow outputs:
+
+- Web artifact: `clients/web/dist`
+- Windows artifact: Tauri NSIS `.exe`
+- Linux artifact: Tauri Debian `.deb`
+- GitHub Release with collected artifacts
 
 Local release builds use the same contract:
 
@@ -70,106 +151,44 @@ Local release builds use the same contract:
 ./scripts/release/build_v1_release.sh --bundle deb
 ```
 
-Use `-InstallDependencies` or `--install-dependencies` only when `node_modules`
-is missing or stale. The scripts do not start Docker, run live connectors, call
-market providers, or print secrets.
+The release scripts do not start Docker, call live market providers, run live
+connectors, or print secrets.
 
-## Current V1 Capabilities
+## Security And Data Policy
 
-- UK National Gas NTS route-cost support is UK-only in this release, but it is
-  not hard-coded to Easington or Bacton. Any UK NTS entry/exit point can be
-  priced when audited tariff rows exist in PostgreSQL.
-- Route economics include entry capacity, exit capacity where applicable,
-  National Gas commodity charges, contract tolerance allowance, live bid-based
-  PnL marking, early recovered cash value, and TSO-access constraints.
-- LNG regas readiness covers terminal access, slot/cargo window matching,
-  send-out capacity, cross-month allocation, delivery mode, physical entry
-  delivery requirements, pricing basis, and downstream TSO access.
-- Portfolio/resource-pool optimization supports multiple upstream resources,
-  contract-specific costs and tolerances, compatible sale options, route costs,
-  early cash value, and access constraints.
-- Imported external screen-order observations and portfolio PnL snapshots are
-  DB-first, API/SDK-readable, and surfaced in the map-first cockpit as
-  read-only decision-support context.
-- Internal/operator imports for screen-order observations and indicative PnL
-  snapshots are governed by fail-closed entitlement checks and write audit plus
-  ingestion-run evidence before `/api/portfolio/*` exposes them read-only.
-  The internal import route is additionally protected by
-  `EUROGAS_NEXUS_INTERNAL_API_TOKEN`, `X-Eurogas-Internal-Token`, and explicit
-  `X-Eurogas-Principal` headers.
-- Strategy lab supports backtest, shadow-run, and live-monitor evaluation
-  contracts for SAP/ICIS day-ahead versus ICE OCM style intraday strategies,
-  5-minute bar windows, scoring components, allocation targets, stop-loss
-  controls, and warning output.
-- DeepSeek is the first V1 live LLM provider slot. LLM analysis and report
-  endpoints use backend snapshots, encrypted backend credentials, citations, and
-  human-review guardrails. Offline/test mode returns deterministic snapshot
-  output without provider calls.
-- ECB FX, ENTSOG flows, and GIE storage/LNG are represented as PostgreSQL-backed
-  runtime observations when ingested by an operator.
-- Glossary terms are backend-served and available through API, SDK, Web, and
-  Windows surfaces in English and Mandarin Chinese.
-- Glossary context is operational and DB-derived: selecting `Easington Entry
-  Point`, `ICIS Heren`, `NBP`, `ICE OCM`, or a customer-loaded point such as
-  `St Fergus Entry Point` can show matched entities, capacity, selected-duration
-  capacity usage, utilization percentage, related prices, live marks, route
-  candidates, linked contracts, warnings, and data-quality metadata from the
-  runtime API.
+This is a public repository. Do not commit secrets, `.env` files, API keys,
+tokens, real vendor data, raw market data, internal commercial data, contracts,
+or real business strategy parameters.
 
-All strategy, PnL, route, LNG, resource-pool, and market outputs are
-decision-support candidates requiring human review. They are not executable
-orders, auto-trading actions, nomination submissions, official approvals, legal
-advice, or official trading recommendations.
-
-## Product Boundary
-
-Do not add trade execution, order entry, order routing, trade capture,
-nomination submission, official approval, legal advice, official trading
-recommendations, auto-trading, ETRM replacement behavior, or company SSO/OIDC in
-V1 unless a future approved milestone explicitly changes this boundary.
-
-Do not commit secrets, real vendor data, internal commercial data, raw market
-data, contracts, or real business strategy parameters. This is a public
-repository.
+Provider credentials must stay in the backend credential store. API responses
+may return redacted previews, local validation state, and diagnostics, but never
+credential values.
 
 ## Documentation Map
 
 ExecPlans: `.agent/plans/`
 
-- current pause point: `docs/architecture/CURRENT_PAUSE_POINT.md`
-- market-practice audit EN/CN:
-  `docs/architecture/MARKET_PRACTICE_AUDIT-EN.md` and
-  `docs/architecture/MARKET_PRACTICE_AUDIT-CN.md`
-- map-first cockpit spec EN/CN:
-  `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-EN.md` and
-  `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-CN.md`
-- market positioning cockpit spec EN/CN:
-  `docs/clients/MARKET_POSITIONING_COCKPIT_SPEC-EN.md` and
-  `docs/clients/MARKET_POSITIONING_COCKPIT_SPEC-CN.md`
-- operational glossary context spec EN/CN:
-  `docs/clients/OPERATIONAL_GLOSSARY_CONTEXT_SPEC-EN.md` and
-  `docs/clients/OPERATIONAL_GLOSSARY_CONTEXT_SPEC-CN.md`
-- market-positioning import operations EN/CN:
-  `docs/operations/MARKET_POSITIONING_IMPORTS-EN.md` and
-  `docs/operations/MARKET_POSITIONING_IMPORTS-CN.md`
-- LLM analysis and reporting spec EN/CN:
-  `docs/architecture/LLM_ANALYSIS_REPORTING_SPEC-EN.md` and
-  `docs/architecture/LLM_ANALYSIS_REPORTING_SPEC-CN.md`
-- client API contract: `docs/clients/CLIENT_API_CONTRACT.md`
-- SDK design: `docs/clients/SDK_CLIENT_DESIGN_SPEC.md`
+- Current status: `docs/architecture/CURRENT_PAUSE_POINT.md`
+- Product boundary: `docs/policies/PRODUCT_BOUNDARY_POLICY.md`
+- DB contract: `docs/contracts/04_DB_CONTRACT.md`
+- Runtime store contract: `docs/contracts/05_RUNTIME_STORE_CONTRACT.md`
+- API contract: `docs/contracts/06_API_CONTRACT.md`
+- Client API contract: `docs/clients/CLIENT_API_CONTRACT.md`
 - Web design: `docs/clients/WEB_CLIENT_DESIGN_SPEC.md`
 - Windows design: `docs/clients/WINDOWS_CLIENT_DESIGN_SPEC.md`
-- live PostgreSQL policy: `docs/operations/LIVE_POSTGRESQL_V1.md`
-- release scope and acceptance:
-  `docs/release/V1_FULL_PROJECT_RELEASE_SCOPE.md`,
-  `docs/release/V1_FULL_PROJECT_RELEASE_EXECUTION_PLAN.md`, and
-  `docs/release/V1_RELEASE_ACCEPTANCE_MATRIX.md`
+- UI style guide: `docs/clients/UI_UX_STYLE_GUIDE-EN.md` and
+  `docs/clients/UI_UX_STYLE_GUIDE-CN.md`
+- Live PostgreSQL policy: `docs/operations/LIVE_POSTGRESQL_V1.md`
+- Release scope: `docs/release/V1_FULL_PROJECT_RELEASE_SCOPE.md`
+- Release readiness: `docs/release/V1_RELEASE_READINESS.md`
 
-## 涓枃鎽樿
+## 中文摘要
 
-Eurogas Nexus V1.0 浠?PostgreSQL 浣滀负杩愯鏃朵簨瀹炴潵婧愶紝浠?API/SDK 浣滀负鎵€鏈夊鎴风
-鐨勬暟鎹闂竟鐣屻€俉eb銆乄indows銆丆LI 鍜?SDK 涓嶅緱鐩存帴杩炴帴鏁版嵁搴擄紝涔熶笉寰椾粠鏈湴鏂囦欢璇诲彇
-杩愯鏃跺競鍦烘暟鎹€?
-鍏紑鎴栧凡鎺堟潈鐨勬暟鎹簮搴旀寜鈥滃畼鏂规潵婧愭垨宸叉巿鏉冩潵婧?-> PostgreSQL -> API/SDK -> 瀹㈡埛绔€?鐨勯摼璺繍琛屻€?ECB FX銆丒NTSOG 娴侀噺/杩炴帴鐐?TSO access銆丟IE AGSI/ALSI銆佸叕寮€ TSO tariff 绛夊熀纭€璁炬柦
-鍜屽弬鑰冩暟鎹笉搴斾娇鐢ㄨ繍琛屾椂妯℃嫙 fallback銆備环鏍笺€佷氦鏄撳睆骞曘€佺粡绾晢銆並pler銆丳latts銆?ICIS銆丄rgus銆両CE銆丒EX銆乀rayport 绛夊晢涓氭暟鎹渶瑕佸鎴峰嚟璇併€佹巿鏉冨拰鎺ュ叆鍚堝悓鍚庢墠鑳借繘鍏?姝ｅ紡杩愯閾捐矾銆?
-褰撳墠璺嚎鎴愭湰鑳藉姏闄愬畾鍦ㄨ嫳鍥?National Gas NTS锛屼絾涓嶉檺鍒朵簬 Easington 鎴?Bacton銆?鍙 PostgreSQL 涓瓨鍦ㄥ凡瀹℃牳鐨勮嫳鍥?NTS entry/exit tariff 琛岋紝绯荤粺鍗冲彲鎸夌浉搴旂偣浣?璁＄畻璺嚎鎴愭湰銆傛墍鏈夌瓥鐣ャ€丳nL銆佽矾绾裤€丩NG regas銆佽祫婧愭睜浼樺寲銆佸競鍦轰俊鍙峰拰鏈涓婁笅鏂?杈撳嚭鍧囦负闇€瑕佷汉宸ュ鏍哥殑鍐崇瓥鏀寔缁撴灉锛屼笉鏄鍗曟墽琛屻€佽嚜鍔ㄤ氦鏄撱€佹彁鍚嶆彁浜ゃ€佸畼鏂瑰鎵广€?娉曞緥鎰忚鎴栧畼鏂逛氦鏄撳缓璁€?
+Eurogas Nexus 是以 PostgreSQL 为运行时事实来源、以 API/SDK 为客户端边界的欧洲天然气
+决策支持工作台。Web、Windows、CLI 和 SDK 都不得直接连接数据库，也不得在客户端保存
+供应商密钥。数据源应按照“官方或授权来源 -> 入库与标准化 -> PostgreSQL -> API/SDK ->
+客户端”的链路运行。
+
+当前版本提供数据源中心、地图工作台、英国 National Gas NTS 路线成本、资源组合经济性、
+策略影子运行、运行时数据库诊断、术语库和 DeepSeek LLM 分析入口。所有输出均为需要人工
+复核的决策支持结果，不是自动交易、订单执行、提名提交、官方审批、法律意见或官方交易建议。

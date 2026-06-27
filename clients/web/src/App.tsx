@@ -70,6 +70,8 @@ export default function App() {
   const [credentialProvider, setCredentialProvider] = useState("GIE");
   const [credentialLabel, setCredentialLabel] = useState("default");
   const [credentialValue, setCredentialValue] = useState("");
+  const [sourceCategory, setSourceCategory] = useState("all");
+  const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null);
   const [glossaryQuery, setGlossaryQuery] = useState("");
   const [glossaryDurationStart, setGlossaryDurationStart] = useState("2026-05-31T06:00");
   const [glossaryDurationEnd, setGlossaryDurationEnd] = useState("2026-06-01T06:00");
@@ -322,6 +324,42 @@ export default function App() {
     : dataStatus === "partial"
       ? "Runtime DB is partially populated. Review missing sources and lineage before using decisions."
       : "Runtime DB is unavailable or empty. Configure and populate the database.";
+  const sourceStats = useMemo(() => {
+    const issueStatuses = new Set(["failed", "needs_credential", "credential_disabled", "runtime_unconfigured"]);
+    return {
+      total: sources.length,
+      active: sources.filter((source) => source.connectivity_status === "active").length,
+      issues: sources.filter((source) => issueStatuses.has(source.connectivity_status)).length,
+      records: sources.reduce((total, source) => total + source.live_record_count, 0),
+      missingCredentials: sources.filter((source) => source.credential_state === "missing").length,
+    };
+  }, [sources]);
+  const sourceCategories = useMemo(() => {
+    const order = ["price", "fx", "infrastructure", "tariff", "weather", "ai"];
+    const present = new Set(sources.map((source) => source.category));
+    return ["all", ...order.filter((category) => present.has(category))];
+  }, [sources]);
+  const filteredSources = useMemo(
+    () => sourceCategory === "all"
+      ? sources
+      : sources.filter((source) => source.category === sourceCategory),
+    [sourceCategory, sources],
+  );
+  const selectedSource = useMemo(
+    () => sources.find((source) => source.source_id === selectedSourceId) ?? filteredSources[0] ?? sources[0] ?? null,
+    [filteredSources, selectedSourceId, sources],
+  );
+  const selectedSourceCredentialProvider = useMemo(
+    () => selectedSource?.credential_provider_id
+      ? credentialProviders.find((provider) => provider.provider_id === selectedSource.credential_provider_id)
+      : null,
+    [credentialProviders, selectedSource],
+  );
+  const sourceCategoryCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    sources.forEach((source) => counts.set(source.category, (counts.get(source.category) ?? 0) + 1));
+    return counts;
+  }, [sources]);
 
   function glossaryContextParams() {
     return {
@@ -333,6 +371,31 @@ export default function App() {
 
   function openGlossaryContext(term: string) {
     fetchGlossaryContext(term, glossaryContextParams());
+  }
+
+  function selectSource(sourceId: string) {
+    const source = sources.find((item) => item.source_id === sourceId);
+    setSelectedSourceId(sourceId);
+    if (source?.credential_provider_id) {
+      setCredentialProvider(source.credential_provider_id);
+    }
+  }
+
+  function sourceLabel(prefix: string, value: string | null | undefined) {
+    if (!value) return "n/a";
+    const key = `${prefix}.${value}`;
+    const translated = t(key);
+    return translated === key ? value.replace(/_/g, " ") : translated;
+  }
+
+  function formatSourceTimestamp(value: string | null | undefined) {
+    if (!value) return "n/a";
+    return new Intl.DateTimeFormat(i18n.language, {
+      month: "short",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date(value));
   }
 
   function formatContextValue(value: unknown) {
@@ -798,69 +861,122 @@ export default function App() {
           )}
 
           {activeWorkspace === "sources" && (
-            <div className="workspace-grid sources-page">
-              <div className="workspace-panel">
-                <h3>{t("panel.infrastructure")}</h3>
-                <div className="metric-grid">
-                  <div><span>{t("panel.flows")}</span><strong>{flows.filter((item) => item.source_system === "ENTSOG").length}</strong></div>
-                  <div><span>{t("panel.capacity")}</span><strong>{capacity.filter((item) => item.source_system === "ENTSOG").length}</strong></div>
-                  <div><span>{t("panel.tso_access")}</span><strong>{tsoAccess.length}</strong></div>
-                  <div><span>{t("panel.storage")}</span><strong>{storage.filter((item) => item.source_system === "GIE").length}</strong></div>
-                  <div><span>{t("panel.lng")}</span><strong>{lng.filter((item) => item.source_system === "GIE").length}</strong></div>
-                  <div><span>{t("panel.tariffs")}</span><strong>{ukTariffs.length}</strong></div>
+            <div className="workspace-grid sources-page source-center">
+              <div className="workspace-panel span-3 source-overview">
+                <div className="section-heading">
+                  <span className="eyebrow">{t("nav.sources")}</span>
+                  <strong>{t("sources.title")}</strong>
+                </div>
+                <p>{t("sources.subtitle")}</p>
+                <div className="metric-grid four-column source-kpi-grid">
+                  <div><span>{t("sources.total_sources")}</span><strong>{sourceStats.total}</strong></div>
+                  <div><span>{t("sources.active_sources")}</span><strong>{sourceStats.active}</strong></div>
+                  <div><span>{t("sources.issue_sources")}</span><strong>{sourceStats.issues}</strong></div>
+                  <div><span>{t("sources.runtime_records")}</span><strong>{sourceStats.records.toLocaleString()}</strong></div>
                 </div>
               </div>
-              <div className="workspace-panel span-2">
-                <h3>{t("panel.sources")}</h3>
-                <div className="data-table">
-                  <div className="data-table-row header"><span>{t("panel.source")}</span><span>{t("panel.datasets")}</span><span>{t("panel.status")}</span><span>{t("panel.records")}</span></div>
-                  {sources.map((source) => (
-                    <div key={`source-page-${source.source_id}`} className="data-table-row">
+
+              <div className="workspace-panel source-category-rail">
+                <h3>{t("sources.categories")}</h3>
+                <div className="source-category-list">
+                  {sourceCategories.map((category) => (
+                    <button
+                      key={`source-category-${category}`}
+                      type="button"
+                      className={sourceCategory === category ? "source-category active" : "source-category"}
+                      onClick={() => {
+                        setSourceCategory(category);
+                        const nextSource = category === "all"
+                          ? sources[0]
+                          : sources.find((source) => source.category === category);
+                        if (nextSource) selectSource(nextSource.source_id);
+                      }}
+                    >
+                      <span>{sourceLabel("sources.category", category)}</span>
+                      <strong>{category === "all" ? sources.length : sourceCategoryCounts.get(category) ?? 0}</strong>
+                    </button>
+                  ))}
+                </div>
+                <div className="source-category-summary">
+                  <span>{t("sources.missing_credentials")}</span>
+                  <strong>{sourceStats.missingCredentials}</strong>
+                </div>
+              </div>
+
+              <div className="workspace-panel span-2 source-catalog-panel">
+                <div className="panel-title-row">
+                  <h3>{t("sources.registered_feeds")}</h3>
+                  <span>{filteredSources.length} / {sources.length}</span>
+                </div>
+                <div className="source-health-grid">
+                  {filteredSources.map((source) => (
+                    <button
+                      key={`source-card-${source.source_id}`}
+                      type="button"
+                      className={selectedSource?.source_id === source.source_id ? "source-health-card active" : "source-health-card"}
+                      onClick={() => selectSource(source.source_id)}
+                    >
+                      <span className={`source-status source-status-${source.connectivity_status}`}>
+                        {sourceLabel("sources.status", source.connectivity_status)}
+                      </span>
                       <strong>{source.source_system}</strong>
-                      <span>{source.datasets.join(", ")}</span>
-                      <span>{source.status}</span>
-                      <span>{source.live_record_count}</span>
-                    </div>
+                      <small>{source.description}</small>
+                      <span className="source-card-meta">
+                        {sourceLabel("sources.category", source.category)} / {source.live_record_count.toLocaleString()} {t("panel.records")}
+                      </span>
+                    </button>
                   ))}
                 </div>
               </div>
-              <div className="workspace-panel span-3">
-                <h3>{t("panel.capacity")}</h3>
-                <div className="data-table">
-                  <div className="data-table-row header four"><span>{t("panel.point")}</span><span>{t("panel.direction")}</span><span>{t("panel.capacity_type")}</span><span>mcm/d</span></div>
-                  {latestCapacityRows.map((row) => (
-                    <div key={`capacity-row-${row.observation_id}`} className="data-table-row four">
-                      <strong>{row.point_name}</strong>
-                      <span>{row.direction}</span>
-                      <span>{row.capacity_type}</span>
-                      <span>{row.capacity_mcm_d.toFixed(2)}</span>
-                    </div>
-                  ))}
-                  {latestCapacityRows.length === 0 && (
-                    <div className="data-table-row four"><strong>n/a</strong><span>ENTSOG</span><span>{t("data.unavailable")}</span><span>n/a</span></div>
+
+              <div className="workspace-panel span-2 source-detail-panel">
+                <div className="panel-title-row">
+                  <h3>{selectedSource?.source_system ?? t("sources.no_source")}</h3>
+                  {selectedSource && (
+                    <span className={`source-status source-status-${selectedSource.connectivity_status}`}>
+                      {sourceLabel("sources.status", selectedSource.connectivity_status)}
+                    </span>
                   )}
                 </div>
-              </div>
-              <div className="workspace-panel span-3">
-                <h3>{t("panel.tariffs")}</h3>
-                <div className="data-table tariff-table">
-                  <div className="data-table-row header four"><span>{t("panel.point")}</span><span>{t("panel.direction")}</span><span>{t("panel.product")}</span><span>{t("panel.tariff")}</span></div>
-                  {ukTariffs.slice(0, 8).map((tariff) => (
-                    <div key={`tariff-page-${tariff.tariff_id}`} className="data-table-row four">
-                      <strong>{tariff.source_point_name}</strong>
-                      <span>{tariff.direction}</span>
-                      <span>{tariff.capacity_product}</span>
-                      <span>{tariff.tariff_value.toFixed(4)} {tariff.currency}/MWh</span>
+                {selectedSource && (
+                  <>
+                    <p>{selectedSource.description}</p>
+                    <div className="metric-grid two-column source-detail-metrics">
+                      <div><span>{t("sources.category_label")}</span><strong>{sourceLabel("sources.category", selectedSource.category)}</strong></div>
+                      <div><span>{t("sources.entitlement")}</span><strong>{selectedSource.entitlement_scope}</strong></div>
+                      <div><span>{t("sources.credential_state")}</span><strong>{sourceLabel("sources.credential", selectedSource.credential_state)}</strong></div>
+                      <div><span>{t("sources.freshness")}</span><strong>{selectedSource.freshness_expectation_minutes ? `${selectedSource.freshness_expectation_minutes}m` : "n/a"}</strong></div>
+                      <div><span>{t("sources.last_success")}</span><strong>{formatSourceTimestamp(selectedSource.last_success_at_utc)}</strong></div>
+                      <div><span>{t("sources.last_failure")}</span><strong>{formatSourceTimestamp(selectedSource.last_failure_at_utc)}</strong></div>
                     </div>
-                  ))}
-                  {ukTariffs.length === 0 && (
-                    <div className="data-table-row four"><strong>n/a</strong><span>NTS</span><span>{t("data.unavailable")}</span><span>n/a</span></div>
-                  )}
-                </div>
+                    <div className="source-datasets">
+                      <span>{t("panel.datasets")}</span>
+                      <div>{selectedSource.datasets.map((dataset) => <strong key={`${selectedSource.source_id}-${dataset}`}>{dataset}</strong>)}</div>
+                    </div>
+                    <div className="source-diagnostics">
+                      <span>{t("sources.diagnostics")}</span>
+                      <div>
+                        {selectedSource.diagnostics.map((diagnostic) => (
+                          <strong key={`${selectedSource.source_id}-${diagnostic}`}>{sourceLabel("sources.diagnostic", diagnostic)}</strong>
+                        ))}
+                      </div>
+                    </div>
+                    <p className="source-ingestion-note">
+                      {t("sources.latest_ingestion")}: {selectedSource.last_ingestion_status ?? "n/a"}
+                      {selectedSource.last_ingestion_message ? ` / ${selectedSource.last_ingestion_message}` : ""}
+                    </p>
+                  </>
+                )}
               </div>
-              <div className="workspace-panel span-3">
+
+              <div className="workspace-panel source-credential-panel">
                 <h3>{t("panel.credentials")}</h3>
-                <form className="credential-form horizontal" onSubmit={onCredentialSubmit}>
+                <p>
+                  {selectedSource?.credential_provider_id
+                    ? `${selectedSource.credential_provider_id}: ${sourceLabel("sources.credential", selectedSource.credential_state)}`
+                    : t("credentials.not_required")}
+                </p>
+                <form className="credential-form source-credential-form" onSubmit={onCredentialSubmit}>
                   <select value={credentialProvider} onChange={(event) => setCredentialProvider(event.target.value)}>
                     {credentialProviders.map((provider) => <option key={provider.provider_id} value={provider.provider_id}>{provider.display_name}</option>)}
                   </select>
@@ -868,7 +984,59 @@ export default function App() {
                   <input type="password" autoComplete="current-password" value={credentialValue} disabled={!selectedCredentialProvider?.credential_required} onChange={(event) => setCredentialValue(event.target.value)} placeholder={selectedCredentialProvider?.credential_required ? t("credentials.api_key") : t("credentials.not_required")} />
                   <button type="submit" disabled={!selectedCredentialProvider?.credential_required || !credentialValue}>{t("credentials.save")}</button>
                 </form>
+                {selectedSourceCredentialProvider && (
+                  <div className="credential-status-card">
+                    <span>{selectedSourceCredentialProvider.display_name}</span>
+                    <strong>{sourceLabel("sources.credential", selectedSourceCredentialProvider.status)}</strong>
+                    <small>{selectedSourceCredentialProvider.last_test_status ?? t("sources.not_tested")}</small>
+                  </div>
+                )}
                 {credentialMessage && <p>{credentialMessage}</p>}
+              </div>
+
+              <div className="workspace-panel span-3 source-runtime-panel">
+                <div className="section-heading">
+                  <span className="eyebrow">{t("data.runtime")}</span>
+                  <strong>{t("panel.infrastructure")}</strong>
+                </div>
+                <div className="metric-grid six-column source-kpi-grid">
+                  <div><span>{t("panel.flows")}</span><strong>{flows.filter((item) => item.source_system === "ENTSOG").length}</strong></div>
+                  <div><span>{t("panel.capacity")}</span><strong>{capacity.filter((item) => item.source_system === "ENTSOG").length}</strong></div>
+                  <div><span>{t("panel.tso_access")}</span><strong>{tsoAccess.length}</strong></div>
+                  <div><span>{t("panel.storage")}</span><strong>{storage.filter((item) => item.source_system === "GIE").length}</strong></div>
+                  <div><span>{t("panel.lng")}</span><strong>{lng.filter((item) => item.source_system === "GIE").length}</strong></div>
+                  <div><span>{t("panel.tariffs")}</span><strong>{ukTariffs.length}</strong></div>
+                </div>
+                <div className="source-table-split">
+                  <div className="data-table">
+                    <div className="data-table-row header four"><span>{t("panel.point")}</span><span>{t("panel.direction")}</span><span>{t("panel.capacity_type")}</span><span>mcm/d</span></div>
+                    {latestCapacityRows.map((row) => (
+                      <div key={`capacity-row-${row.observation_id}`} className="data-table-row four">
+                        <strong>{row.point_name}</strong>
+                        <span>{row.direction}</span>
+                        <span>{row.capacity_type}</span>
+                        <span>{row.capacity_mcm_d.toFixed(2)}</span>
+                      </div>
+                    ))}
+                    {latestCapacityRows.length === 0 && (
+                      <div className="data-table-row four"><strong>n/a</strong><span>ENTSOG</span><span>{t("data.unavailable")}</span><span>n/a</span></div>
+                    )}
+                  </div>
+                  <div className="data-table tariff-table">
+                    <div className="data-table-row header four"><span>{t("panel.point")}</span><span>{t("panel.direction")}</span><span>{t("panel.product")}</span><span>{t("panel.tariff")}</span></div>
+                    {ukTariffs.slice(0, 5).map((tariff) => (
+                      <div key={`tariff-page-${tariff.tariff_id}`} className="data-table-row four">
+                        <strong>{tariff.source_point_name}</strong>
+                        <span>{tariff.direction}</span>
+                        <span>{tariff.capacity_product}</span>
+                        <span>{tariff.tariff_value.toFixed(4)} {tariff.currency}/MWh</span>
+                      </div>
+                    ))}
+                    {ukTariffs.length === 0 && (
+                      <div className="data-table-row four"><strong>n/a</strong><span>NTS</span><span>{t("data.unavailable")}</span><span>n/a</span></div>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           )}

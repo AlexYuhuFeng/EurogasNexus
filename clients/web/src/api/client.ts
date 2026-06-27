@@ -99,6 +99,14 @@ export interface TsoAccessPointDTO {
 export interface SourceSystemDTO {
   source_id: string; source_system: string; datasets: string[];
   status: string; description: string; live_record_count: number;
+  category: string; category_label: string; connectivity_status: string;
+  entitlement_scope: string; freshness_expectation_minutes: number;
+  credential_requirements: string[]; credential_provider_id: string | null;
+  credential_state: string; credential_status: string | null;
+  credential_last_tested_at_utc: string | null; credential_last_test_status: string | null;
+  last_success_at_utc: string | null; last_failure_at_utc: string | null;
+  last_ingestion_status: string | null; last_ingestion_message: string | null;
+  diagnostics: string[]; export_restrictions: string[];
 }
 
 export interface MarketObsDTO {

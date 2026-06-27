@@ -315,6 +315,31 @@ def test_web_client_matches_design_reference_cockpit() -> None:
 
     assert zh["result.route_alpha"] == "\u8def\u5f84\u6536\u76ca\u9636\u68af"
 
+
+def test_web_client_sources_page_is_categorized_source_center() -> None:
+    app = (ROOT / "clients" / "web" / "src" / "App.tsx").read_text(encoding="utf-8")
+    css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(
+        encoding="utf-8"
+    )
+    en = json.loads(
+        (ROOT / "clients" / "web" / "src" / "i18n" / "en.json").read_text(encoding="utf-8")
+    )
+    zh = json.loads(
+        (ROOT / "clients" / "web" / "src" / "i18n" / "zh.json").read_text(encoding="utf-8")
+    )
+
+    assert "source-category-rail" in app
+    assert "source-health-grid" in app
+    assert "source-diagnostics" in app
+    assert "selectedSource" in app
+    assert "credential_state" in app
+    assert "last_success_at_utc" in app
+    assert "connectivity_status" in app
+    assert "source-center" in css
+    assert en["sources.title"] == "Data Source Center"
+    assert zh["sources.title"] == "\u6570\u636e\u6e90\u4e2d\u5fc3"
+
+
 def test_release_workflow_publishes_web_windows_and_linux_assets() -> None:
     workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
     ps1 = (ROOT / "scripts" / "release" / "build_v1_release.ps1").read_text(encoding="utf-8")
