@@ -1,4 +1,4 @@
-# R12: SDK Release Surface Report
+﻿# R12: SDK Release Surface Report
 
 **Milestone ID:** R12 | **Status:** COMPLETE | **Date:** 2026-05-29
 
@@ -6,7 +6,7 @@
 
 - 10 SDK client modules: reference_network, sources, market, physical, lng,
   storage, weather, contracts, glossary, workflows, research, health_client.
-- All clients target `/api/v1` via httpx — no backend internal imports.
+- All clients target `/api` via httpx 鈥?no backend internal imports.
 - Typed Pydantic models for all route groups.
 - Research computation clients (POST endpoints) for route-cost, netback,
   feasibility, allocation, monitoring, nowcast, backtest, shadow-run.
@@ -15,7 +15,7 @@
 
 ## Files
 
-- `src/eurogas_nexus/sdk/__init__.py` — updated
+- `src/eurogas_nexus/sdk/__init__.py` 鈥?updated
 - `src/eurogas_nexus/sdk/reference_network.py`
 - `src/eurogas_nexus/sdk/sources.py`
 - `src/eurogas_nexus/sdk/market.py`

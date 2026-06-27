@@ -1,4 +1,4 @@
-"""Read-only /api/v1/lng routes."""
+﻿"""Read-only /api/lng routes."""
 
 from fastapi import APIRouter, HTTPException, Request
 
@@ -6,8 +6,15 @@ router = APIRouter(tags=["lng"])
 
 
 def _env(data: object, _request: Request) -> dict:
-    return {"data": data, "meta": {"research_only": True, "human_review_required": True,
-            "source_references": ["synthetic-fixture"], "warnings": ["Synthetic data only."]}}
+    return {
+        "data": data,
+        "meta": {
+            "research_only": True,
+            "human_review_required": True,
+            "source_references": ["runtime-db-not-configured"],
+            "warnings": ["Runtime DB is not configured; GIE ALSI data is unavailable."],
+        },
+    }
 
 
 def _runtime_env(data: object) -> dict:
@@ -15,35 +22,34 @@ def _runtime_env(data: object) -> dict:
             "source_references": ["runtime-postgresql"], "warnings": []}}
 
 
-@router.get("/api/v1/lng/terminals")
+@router.get("/api/lng/terminals")
 def list_terminals(request: Request) -> dict:
-    return _env([
-        {"terminal_id": "lng-zeebrugge", "name": "Zeebrugge LNG", "country": "BE",
-         "lat": 51.33, "lon": 3.20, "capacity_mcm_d": 30.0, "storage_capacity_mcm": 380.0,
-         "status": "operational"},
-        {"terminal_id": "lng-gate", "name": "Gate LNG", "country": "NL",
-         "lat": 51.90, "lon": 4.30, "capacity_mcm_d": 36.0, "storage_capacity_mcm": 540.0,
-         "status": "operational"},
-        {"terminal_id": "lng-dunkerque", "name": "Dunkerque LNG", "country": "FR",
-         "lat": 51.04, "lon": 2.38, "capacity_mcm_d": 40.0, "storage_capacity_mcm": 600.0,
-         "status": "operational"},
-    ], request)
+    observations = _db_lng_observations()
+    if observations is None:
+        return _env([], request)
+    terminals = {
+        row["terminal_id"]: {
+            "terminal_id": row["terminal_id"],
+            "name": row["terminal_name"],
+            "country": row["country"],
+            "inventory_twh": row["inventory_twh"],
+            "send_out_twh_d": row["send_out_twh_d"],
+            "dtmi_pct": row["dtmi_pct"],
+            "status": "observed",
+            "source_system": row["source_system"],
+        }
+        for row in observations
+    }
+    return _runtime_env(list(terminals.values()))
 
 
-@router.get("/api/v1/lng/observations")
+@router.get("/api/lng/observations")
 def list_observations(request: Request) -> dict:
     observations = _db_lng_observations()
     if observations is not None:
         return _runtime_env(observations)
 
-    return _env([
-        {"observation_id": "lng-001", "terminal_id": "lng-gate", "terminal_name": "Gate LNG",
-         "observation_type": "send_out", "value_mcm": 28.0,
-         "period_start_utc": "2026-05-29T06:00:00Z", "period_end_utc": "2026-05-30T06:00:00Z"},
-        {"observation_id": "lng-002", "terminal_id": "lng-zeebrugge",
-         "terminal_name": "Zeebrugge LNG", "observation_type": "cargo_arrival",
-         "value_mcm": 140.0, "period_start_utc": "2026-05-30T12:00:00Z"},
-    ], request)
+    return _env([], request)
 
 
 def _db_lng_observations() -> list[dict] | None:

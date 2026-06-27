@@ -1,4 +1,4 @@
-"""Integration tests for DB-backed GIE AGSI/ALSI observation API reads."""
+﻿"""Integration tests for DB-backed GIE AGSI/ALSI observation API reads."""
 
 from datetime import UTC, datetime
 
@@ -66,8 +66,8 @@ def test_storage_and_lng_api_read_configured_runtime_db(tmp_path, monkeypatch) -
 
     client = TestClient(create_app())
 
-    storage_response = client.get("/api/v1/storage/observations")
-    lng_response = client.get("/api/v1/lng/observations")
+    storage_response = client.get("/api/storage/observations")
+    lng_response = client.get("/api/lng/observations")
 
     assert storage_response.status_code == 200
     assert lng_response.status_code == 200

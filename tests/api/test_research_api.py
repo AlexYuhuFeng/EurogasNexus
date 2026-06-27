@@ -1,4 +1,4 @@
-"""Research API endpoint tests (DB-free)."""
+﻿"""Research API endpoint tests (DB-free)."""
 
 import pytest
 from fastapi.testclient import TestClient
@@ -12,7 +12,7 @@ def _client() -> TestClient:
 
 
 def test_post_route_cost_200(client: TestClient) -> None:
-    r = client.post("/api/v1/research/route-cost", json={
+    r = client.post("/api/research/route-cost", json={
         "route_name": "TTF-NCG", "from_node_id": "node-ttf", "to_node_id": "node-ncg",
         "components": [
             {"component_type": "tariff", "amount": 1.50},
@@ -27,7 +27,7 @@ def test_post_route_cost_200(client: TestClient) -> None:
 
 
 def test_post_route_cost_empty_components_warns(client: TestClient) -> None:
-    r = client.post("/api/v1/research/route-cost", json={
+    r = client.post("/api/research/route-cost", json={
         "route_name": "Test", "from_node_id": "n1", "to_node_id": "n2",
     })
     assert r.status_code == 200
@@ -35,7 +35,7 @@ def test_post_route_cost_empty_components_warns(client: TestClient) -> None:
 
 
 def test_post_netback_200(client: TestClient) -> None:
-    r = client.post("/api/v1/research/netback", json={
+    r = client.post("/api/research/netback", json={
         "route_name": "TTF-NBP", "from_market": "TTF", "to_market": "NBP",
         "market_price_eur_mwh": 42.50, "route_cost_eur_mwh": 1.80,
     })
@@ -45,7 +45,7 @@ def test_post_netback_200(client: TestClient) -> None:
 
 
 def test_post_netback_with_fx(client: TestClient) -> None:
-    r = client.post("/api/v1/research/netback", json={
+    r = client.post("/api/research/netback", json={
         "route_name": "TTF-NBP", "from_market": "TTF", "to_market": "NBP",
         "market_price_eur_mwh": 42.50, "route_cost_eur_mwh": 1.80,
         "fx_rate": 0.851, "fx_pair": "EURGBP",
@@ -56,7 +56,7 @@ def test_post_netback_with_fx(client: TestClient) -> None:
 
 
 def test_research_metadata(client: TestClient) -> None:
-    r = client.post("/api/v1/research/route-cost", json={
+    r = client.post("/api/research/route-cost", json={
         "route_name": "T", "from_node_id": "a", "to_node_id": "b",
     })
     meta = r.json()["meta"]

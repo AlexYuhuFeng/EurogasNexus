@@ -1,4 +1,4 @@
-"""Research computation API routes — POST endpoints for all research workflows."""
+﻿"""Research computation API routes 鈥?POST endpoints for all research workflows."""
 
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
@@ -40,7 +40,7 @@ from eurogas_nexus.workflows.shadow_run import (
     evaluate_shadow_run,
 )
 
-router = APIRouter(prefix="/api/v1/research", tags=["research"])
+router = APIRouter(prefix="/api/research", tags=["research"])
 
 
 # --- Request schemas ---------------------------------------------------------

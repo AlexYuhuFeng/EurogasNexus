@@ -1,4 +1,4 @@
-# Market Positioning Cockpit Spec - EN
+﻿# Market Positioning Cockpit Spec - EN
 
 ## Purpose
 
@@ -12,7 +12,7 @@ Eurogas Nexus into an execution, order-routing, nomination, or ETRM system.
 The source of truth is PostgreSQL behind the backend API. Clients use:
 
 ```text
-Web/Windows/SDK -> /api/v1/portfolio/* -> backend repositories -> PostgreSQL
+Web/Windows/SDK -> /api/portfolio/* -> backend repositories -> PostgreSQL
 ```
 
 Clients must not connect to PostgreSQL, store order/PnL files, call exchanges,
@@ -21,9 +21,9 @@ only. They are not trade capture and cannot be amended or cancelled from V1.
 
 ## Active API Surface
 
-- `GET /api/v1/portfolio/screen-orders`
-- `GET /api/v1/portfolio/pnl-snapshots`
-- `GET /api/v1/portfolio/live-summary`
+- `GET /api/portfolio/screen-orders`
+- `GET /api/portfolio/pnl-snapshots`
+- `GET /api/portfolio/live-summary`
 
 All endpoints return `research_only=true` and `human_review_required=true`.
 
@@ -70,4 +70,4 @@ This route is internal/operator-only. It fails closed unless
 `entitlement_decisions` grants each source/dataset pair, and it writes
 `ingestion_runs` plus `audit_events` for both accepted and denied batches. Web,
 Windows, SDK, and CLI release clients must continue to use the read-only
-`/api/v1/portfolio/*` routes.
+`/api/portfolio/*` routes.

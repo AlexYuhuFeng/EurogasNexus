@@ -36,12 +36,12 @@
 - `src/eurogas_nexus/observations/storage.py`
 - `src/eurogas_nexus/observations/weather.py`
 - `src/eurogas_nexus/observations/contracts.py`
-- `src/eurogas_nexus/api/routes/v1/market.py`
-- `src/eurogas_nexus/api/routes/v1/physical.py`
-- `src/eurogas_nexus/api/routes/v1/lng.py`
-- `src/eurogas_nexus/api/routes/v1/storage.py`
-- `src/eurogas_nexus/api/routes/v1/weather.py`
-- `src/eurogas_nexus/api/routes/v1/contracts.py`
+- `src/eurogas_nexus/api/routes/public/market.py`
+- `src/eurogas_nexus/api/routes/public/physical.py`
+- `src/eurogas_nexus/api/routes/public/lng.py`
+- `src/eurogas_nexus/api/routes/public/storage.py`
+- `src/eurogas_nexus/api/routes/public/weather.py`
+- `src/eurogas_nexus/api/routes/public/contracts.py`
 - `src/eurogas_nexus/api/route_registration.py` — updated
 - `.agent/plans/V1_R5_CONTEXT_OBSERVATIONS_EXECPLAN.md`
 - `data/release_v1/r5_context_observations_report.md`

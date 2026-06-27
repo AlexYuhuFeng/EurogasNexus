@@ -1,4 +1,4 @@
-# clients
+﻿# clients
 
 Future user-facing API consumers live here.
 
@@ -12,7 +12,7 @@ Future user-facing API consumers live here.
 
 ## Rule
 
-Clients consume `/api/v1`. They must not read PostgreSQL, backend local files,
+Clients consume `/api`. They must not read PostgreSQL, backend local files,
 raw vendor data, or credentials directly.
 
 Backend implementation comes first. Start client coding only when the user

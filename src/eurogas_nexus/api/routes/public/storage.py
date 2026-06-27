@@ -1,4 +1,4 @@
-"""Read-only /api/v1/storage routes."""
+﻿"""Read-only /api/storage routes."""
 
 from fastapi import APIRouter, HTTPException, Request
 
@@ -6,8 +6,15 @@ router = APIRouter(tags=["storage"])
 
 
 def _env(data: object, _request: Request) -> dict:
-    return {"data": data, "meta": {"research_only": True, "human_review_required": True,
-            "source_references": ["synthetic-fixture"], "warnings": ["Synthetic data only."]}}
+    return {
+        "data": data,
+        "meta": {
+            "research_only": True,
+            "human_review_required": True,
+            "source_references": ["runtime-db-not-configured"],
+            "warnings": ["Runtime DB is not configured; GIE AGSI data is unavailable."],
+        },
+    }
 
 
 def _runtime_env(data: object) -> dict:
@@ -15,32 +22,33 @@ def _runtime_env(data: object) -> dict:
             "source_references": ["runtime-postgresql"], "warnings": []}}
 
 
-@router.get("/api/v1/storage/sites")
+@router.get("/api/storage/sites")
 def list_sites(request: Request) -> dict:
-    return _env([
-        {"site_id": "stor-haidach", "name": "Haidach", "country": "AT",
-         "lat": 47.95, "lon": 13.22, "working_capacity_mcm": 2800.0,
-         "injection_rate_mcm_d": 20.0, "withdrawal_rate_mcm_d": 30.0, "status": "operational"},
-        {"site_id": "stor-bergermeer", "name": "Bergermeer", "country": "NL",
-         "lat": 52.65, "lon": 4.80, "working_capacity_mcm": 4600.0,
-         "injection_rate_mcm_d": 35.0, "withdrawal_rate_mcm_d": 55.0, "status": "operational"},
-    ], request)
+    observations = _db_storage_observations()
+    if observations is None:
+        return _env([], request)
+    sites = {
+        row["facility_id"]: {
+            "site_id": row["facility_id"],
+            "name": row["facility_name"],
+            "country": row["country"],
+            "working_capacity_twh": row["working_capacity_twh"],
+            "fill_pct": row["fill_pct"],
+            "status": "observed",
+            "source_system": row["source_system"],
+        }
+        for row in observations
+    }
+    return _runtime_env(list(sites.values()))
 
 
-@router.get("/api/v1/storage/observations")
+@router.get("/api/storage/observations")
 def list_observations(request: Request) -> dict:
     observations = _db_storage_observations()
     if observations is not None:
         return _runtime_env(observations)
 
-    return _env([
-        {"observation_id": "sto-001", "site_id": "stor-haidach", "site_name": "Haidach",
-         "observation_type": "fill_level", "fill_pct": 62.5, "volume_mcm": 1750.0,
-         "period_start_utc": "2026-05-29T06:00:00Z", "period_end_utc": "2026-05-30T06:00:00Z"},
-        {"observation_id": "sto-002", "site_id": "stor-bergermeer", "site_name": "Bergermeer",
-         "observation_type": "fill_level", "fill_pct": 48.0, "volume_mcm": 2208.0,
-        "period_start_utc": "2026-05-29T06:00:00Z", "period_end_utc": "2026-05-30T06:00:00Z"},
-    ], request)
+    return _env([], request)
 
 
 def _db_storage_observations() -> list[dict] | None:

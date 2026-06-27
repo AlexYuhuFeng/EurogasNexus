@@ -1,4 +1,4 @@
-# Architecture Decision Record
+﻿# Architecture Decision Record
 
 ## Purpose
 
@@ -18,7 +18,7 @@ Implication:
 
 - Build backend API, DB, governance, ingestion, and research-output contracts
   before broad client workflows.
-- The Python SDK is a required V1 surface and must target `/api/v1`.
+- The Python SDK is a required V1 surface and must target `/api`.
 - Keep `clients/web` and `clients/desktop` free of runtime code until the
   selected release milestone activates them.
 - Maintain client design docs under `docs/clients/` so client implementation
@@ -55,16 +55,16 @@ Implication:
   default tests.
 - Secrets and full DB URLs must never appear in output.
 
-## Decision 3: Stable API Prefix Is `/api/v1`
+## Decision 3: Stable API Prefix Is `/api`
 
 Decision:
 
-New stable client-facing routes use `/api/v1`.
+New stable client-facing routes use `/api`.
 
 Implication:
 
-- SDK and CLI target `/api/v1`.
-- `/v1/health` remains compatibility only.
+- SDK and CLI target `/api`.
+- `/api/health` remains compatibility only.
 - Internal routes use `/api/internal`.
 - Development routes use `/api/dev`.
 

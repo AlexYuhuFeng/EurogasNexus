@@ -58,7 +58,7 @@ def check_feasibility(input_: FeasibilityInput) -> FeasibilityOutput:
     blockers: list[str] = []
     conditions: list[str] = []
     assumptions: list[str] = [
-        "Capacity figures are synthetic and may not reflect real-time availability.",
+        "Capacity figures are supplied operator/runtime inputs.",
         "Feasibility is a research assessment, not an operational commitment.",
     ]
 
@@ -108,7 +108,7 @@ def check_feasibility(input_: FeasibilityInput) -> FeasibilityOutput:
         assumptions=assumptions,
         missing_inputs=missing,
         warnings=warnings,
-        source_references=["synthetic-input"],
+        source_references=["operator-input"],
         lineage=["feasibility-check"],
         human_review_required=bool(blockers or conditions or missing),
     )

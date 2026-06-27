@@ -1,4 +1,4 @@
-# Market Practice Alignment Audit - EN
+﻿# Market Practice Alignment Audit - EN
 
 ## Purpose
 
@@ -17,7 +17,7 @@ say "decision support", "review", "candidate", "signal", or "option", not
 ## DB-First Rule
 
 PostgreSQL is the runtime source of truth. Web, Windows, CLI, and SDK clients
-must access data only through `/api/v1` or the Python SDK. CSV/JSON files are
+must access data only through `/api` or the Python SDK. CSV/JSON files are
 allowed only as templates, public-source archives, reports, tests, or explicit
 development fallbacks. Trial and release modes must not silently fall back to
 local files.
@@ -123,7 +123,7 @@ Glossary layer:
 - It must cover institutions, venues, concepts, prices, hubs, terminals,
   clearing, financial terms, contractual terms, capacity, storage, LNG, weather,
   route economics, and source governance.
-- `/api/v1/glossary` and `/api/v1/glossary/{term}` must support `lang=en`,
+- `/api/glossary` and `/api/glossary/{term}` must support `lang=en`,
   `lang=zh`, and `lang=zh-CN`.
 - Python SDK, CLI, Web, and Windows clients must expose glossary access.
 - Glossary terms must include category, English definition, Mandarin Chinese
@@ -136,8 +136,8 @@ Market-positioning layer:
 - `portfolio_pnl_snapshots` stores indicative portfolio/resource/strategy PnL,
   cash-value, market-value, quantity, valuation-basis, warning, and source
   context.
-- `/api/v1/portfolio/screen-orders`, `/api/v1/portfolio/pnl-snapshots`, and
-  `/api/v1/portfolio/live-summary` expose that state to SDK/Web/Windows.
+- `/api/portfolio/screen-orders`, `/api/portfolio/pnl-snapshots`, and
+  `/api/portfolio/live-summary` expose that state to SDK/Web/Windows.
 - `src/eurogas_nexus/sdk/portfolio.py` is the required programmatic access path.
 - This layer is not trade capture and must not place, route, cancel, nominate,
   approve, or officially recommend any transaction.

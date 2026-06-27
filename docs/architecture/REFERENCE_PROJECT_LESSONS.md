@@ -1,4 +1,4 @@
-# Reference Project Lessons
+﻿# Reference Project Lessons
 
 ## Scope Of Review
 
@@ -79,7 +79,7 @@ governance, citation, data permission, and review requirements are approved.
 ### API surface expansion before source-of-truth
 
 Many routes and service shells existed before the runtime store was clearly
-DB-first. The current repo should prefer a small `/api/v1` surface backed by
+DB-first. The current repo should prefer a small `/api` surface backed by
 PostgreSQL repositories and explicit contracts.
 
 ### Governance as documentation only

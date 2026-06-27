@@ -1,4 +1,4 @@
-"""Architecture alignment documentation contract tests."""
+﻿"""Architecture alignment documentation contract tests."""
 
 from pathlib import Path
 
@@ -74,7 +74,7 @@ def test_stepwise_roadmap_starts_with_backend_foundations() -> None:
     assert "Milestone 1" in text
     assert "Milestone 2" in text
     assert "DB runtime hardening" in text
-    assert "/api/v1" in text
+    assert "/api" in text
     assert "research_only" in text
     assert "human_review_required" in text
 
@@ -97,7 +97,7 @@ def test_architecture_decisions_are_explicit() -> None:
         "V1 Is Backend-First And Multi-Surface",
         "PostgreSQL Is Runtime Truth",
         "Live PostgreSQL Validation Is In V1",
-        "Stable API Prefix Is `/api/v1`",
+        "Stable API Prefix Is `/api`",
         "Domain Work Is Slice-Based",
         "Offline Work Is The Default For Local Agents",
         "Historical Projects Are Evidence, Not Source",
@@ -168,18 +168,18 @@ def test_client_design_docs_are_ready_for_future_goal_mode() -> None:
     assert "CLI_M1_OPERATOR_COMMANDS_EXECPLAN.md" in milestones
     assert "WEB_M1_WORKSPACE_SHELL_EXECPLAN.md" in milestones
     assert "WINDOWS_D1_DESKTOP_SHELL_EXECPLAN.md" in milestones
-    assert "GET /api/v1/health" in api_contract
+    assert "GET /api/health" in api_contract
     assert "Runtime Data Access Rule" in api_contract
-    assert "Python SDK -> backend `/api/v1`" in api_contract
+    assert "Python SDK -> backend `/api`" in api_contract
     assert "No client may open a PostgreSQL connection" in api_contract
     assert "research_only" in api_contract
     assert "The Python SDK is the programmatic client" in sdk
     assert "The SDK is a required V1 product surface" in sdk
     assert "The CLI is the operator and automation command surface" in cli
-    assert "CLI -> Python SDK -> backend /api/v1" in cli
+    assert "CLI -> Python SDK -> backend /api" in cli
     assert "First screen is the workspace" in design_system
     assert "Top status bar" in web
-    assert "Web UI -> web API client -> backend /api/v1" in web
+    assert "Web UI -> web API client -> backend /api" in web
     assert "First Web Implementation Prompt" in web
     assert "Tauri" in windows
     assert "Windows shell -> packaged web workspace/API client" in windows
@@ -297,15 +297,15 @@ def test_api_surface_blueprint_covers_target_route_groups() -> None:
     text = _read_doc("docs/api/API_SURFACE_BLUEPRINT.md")
 
     for phrase in [
-        "/api/v1/runtime/status",
-        "/api/v1/reference-network/nodes",
-        "/api/v1/market/observations",
-        "/api/v1/lng/observations",
-        "/api/v1/storage/observations",
-        "/api/v1/weather/observations",
-        "/api/v1/research/route-cost",
-        "/api/v1/research/netback",
-        "/api/v1/research/shadow-run",
+        "/api/runtime/status",
+        "/api/reference-network/nodes",
+        "/api/market/observations",
+        "/api/lng/observations",
+        "/api/storage/observations",
+        "/api/weather/observations",
+        "/api/research/route-cost",
+        "/api/research/netback",
+        "/api/research/shadow-run",
         "Forbidden Routes",
     ]:
         assert phrase in text

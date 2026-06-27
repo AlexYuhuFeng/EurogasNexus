@@ -1,25 +1,31 @@
-"""SDK client for /api/v1/workflows (GET fixtures)."""
+"""SDK client for /api/workflows."""
+
+from __future__ import annotations
 
 import httpx
 
 
 def _get(url: str) -> dict:
-    r = httpx.get(url, timeout=10)
-    r.raise_for_status()
-    return r.json()
+    response = httpx.get(url, timeout=10)
+    response.raise_for_status()
+    return response.json()
 
 
 def fetch_route_cost(base_url: str) -> dict:
-    return _get(f"{base_url}/api/v1/workflows/route-cost")
+    return _get(f"{base_url}/api/workflows/route-cost")
+
 
 def fetch_shadow_run(base_url: str) -> dict:
-    return _get(f"{base_url}/api/v1/workflows/shadow-run")
+    return _get(f"{base_url}/api/workflows/shadow-run")
+
 
 def fetch_brief(base_url: str) -> dict:
-    return _get(f"{base_url}/api/v1/workflows/brief")
+    return _get(f"{base_url}/api/workflows/brief")
+
 
 def fetch_workflow_list(base_url: str) -> list[dict]:
-    """Return available workflow fixture names (not a real API — metadata helper)."""
+    """Return available workflow endpoint names."""
+
     return [
         {"name": "route-cost", "method": "GET"},
         {"name": "netback", "method": "GET"},

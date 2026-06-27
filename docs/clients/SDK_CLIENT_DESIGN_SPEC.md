@@ -1,9 +1,9 @@
-# Python SDK Client Design Spec
+﻿# Python SDK Client Design Spec
 
 ## Objective
 
 The Python SDK is the programmatic client for Eurogas Nexus. It wraps stable
-`/api/v1` routes with typed Python functions and models so internal scripts,
+`/api` routes with typed Python functions and models so internal scripts,
 notebooks, automation, and future integrations can consume the backend safely.
 The SDK is a required V1 product surface.
 
@@ -14,7 +14,7 @@ The SDK is an API client only.
 Data path:
 
 ```text
-Python SDK -> backend /api/v1 -> backend repositories -> PostgreSQL
+Python SDK -> backend /api -> backend repositories -> PostgreSQL
 ```
 
 It must not:
@@ -51,7 +51,7 @@ Every SDK client instance requires a backend `base_url`.
 Default stable prefix:
 
 ```text
-/api/v1
+/api
 ```
 
 The SDK must not default to historical `/v1` paths except for documented
@@ -100,7 +100,7 @@ Purpose:
 Endpoint:
 
 ```text
-GET /api/v1/health
+GET /api/health
 ```
 
 ### Runtime Status
@@ -112,7 +112,7 @@ Purpose:
 Endpoint:
 
 ```text
-GET /api/v1/runtime/status
+GET /api/runtime/status
 ```
 
 Status: planned.
@@ -126,9 +126,9 @@ Purpose:
 Endpoints:
 
 ```text
-GET /api/v1/reference-network/nodes
-GET /api/v1/reference-network/facilities
-GET /api/v1/reference-network/segments
+GET /api/reference-network/nodes
+GET /api/reference-network/facilities
+GET /api/reference-network/segments
 ```
 
 Status: planned.
@@ -142,7 +142,7 @@ Purpose:
 Endpoint:
 
 ```text
-POST /api/v1/scenarios/validate
+POST /api/scenarios/validate
 ```
 
 Status: planned.
@@ -169,13 +169,13 @@ Purpose:
 Current V1 endpoints:
 
 ```text
-GET /api/v1/route-cost/route-candidates
-GET /api/v1/route-cost/uk/tariffs
-POST /api/v1/route-cost/calculate
-POST /api/v1/route-cost/uk/easington/options
-POST /api/v1/route-cost/uk/easington/live-pnl
-POST /api/v1/route-cost/lng-regas/assess
-POST /api/v1/route-cost/resource-pool/optimize
+GET /api/route-cost/route-candidates
+GET /api/route-cost/uk/tariffs
+POST /api/route-cost/calculate
+POST /api/route-cost/uk/easington/options
+POST /api/route-cost/uk/easington/live-pnl
+POST /api/route-cost/lng-regas/assess
+POST /api/route-cost/resource-pool/optimize
 ```
 
 Current V1 route-cost scope is UK National Gas NTS only. It must not be
@@ -195,7 +195,7 @@ Purpose:
 Current V1 endpoint:
 
 ```text
-POST /api/v1/strategy-lab/evaluate
+POST /api/strategy-lab/evaluate
 ```
 
 SDK strategy methods must call the backend API only. They must not import
@@ -213,9 +213,9 @@ Purpose:
 Required endpoints:
 
 ```text
-GET /api/v1/portfolio/screen-orders
-GET /api/v1/portfolio/pnl-snapshots
-GET /api/v1/portfolio/live-summary
+GET /api/portfolio/screen-orders
+GET /api/portfolio/pnl-snapshots
+GET /api/portfolio/live-summary
 ```
 
 SDK portfolio methods must be read-only API clients. They must not connect to
@@ -234,11 +234,11 @@ Purpose:
 Current V1 endpoints:
 
 ```text
-GET /api/v1/glossary?lang=en
-GET /api/v1/glossary?lang=zh-CN
-GET /api/v1/glossary/{term}?lang=en
-GET /api/v1/glossary/{term}?lang=zh-CN
-GET /api/v1/glossary/{term}/context?lang=en&duration_start_utc=...&duration_end_utc=...
+GET /api/glossary?lang=en
+GET /api/glossary?lang=zh-CN
+GET /api/glossary/{term}?lang=en
+GET /api/glossary/{term}?lang=zh-CN
+GET /api/glossary/{term}/context?lang=en&duration_start_utc=...&duration_end_utc=...
 ```
 
 SDK models must include term ID, term, category, localized definition, English
@@ -270,7 +270,7 @@ tests/sdk/
 
 Required tests:
 
-- SDK targets `/api/v1`;
+- SDK targets `/api`;
 - SDK does not import internal backend modules;
 - HTTP errors map to safe SDK exceptions;
 - response metadata is preserved;
@@ -281,5 +281,5 @@ Required tests:
 Use after backend runtime status and API response contracts are stable:
 
 ```text
-Read AGENTS.md, docs/clients/SDK_CLIENT_DESIGN_SPEC.md, docs/clients/CLIENT_API_CONTRACT.md, docs/contracts/15_SDK_CLI_CONTRACT.md, and .agent/plans/SDK_M1_API_CLIENT_EXECPLAN.md. Implement SDK M1 only. Keep the SDK as an API client for /api/v1. Do not import backend internals, read DB/files directly, call vendor APIs, or add packaging until a packaging milestone is selected.
+Read AGENTS.md, docs/clients/SDK_CLIENT_DESIGN_SPEC.md, docs/clients/CLIENT_API_CONTRACT.md, docs/contracts/15_SDK_CLI_CONTRACT.md, and .agent/plans/SDK_M1_API_CLIENT_EXECPLAN.md. Implement SDK M1 only. Keep the SDK as an API client for /api. Do not import backend internals, read DB/files directly, call vendor APIs, or add packaging until a packaging milestone is selected.
 ```

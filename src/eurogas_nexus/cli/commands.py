@@ -154,10 +154,11 @@ def cmd_term(base_url: str, term: str, *, lang: str = "en") -> str:
 
 # --- Workflows ---
 
-def cmd_route_cost_fixture(base_url: str) -> str:
+def cmd_route_cost(base_url: str) -> str:
     return _to_json(fetch_route_cost(base_url))
 
-def cmd_shadow_run_fixture(base_url: str) -> str:
+
+def cmd_shadow_run(base_url: str) -> str:
     return _to_json(fetch_shadow_run(base_url))
 
 def cmd_brief(base_url: str) -> str:

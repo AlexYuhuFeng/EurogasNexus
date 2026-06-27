@@ -86,7 +86,7 @@ def evaluate_shadow_run(input_: ShadowRunInput) -> ShadowRunOutput:
         ],
         missing_inputs=missing,
         warnings=warnings,
-        source_references=["synthetic-input"],
+        source_references=["operator-input"],
         lineage=["shadow-run-evaluation"],
         human_review_required=bool(missing or input_.signals),
     )

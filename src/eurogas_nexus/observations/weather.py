@@ -15,7 +15,7 @@ class WeatherStation:
     country: str
     lat: float
     lon: float
-    source_system: str = "synthetic-fixture"
+    source_system: str = "operator-input"
 
 
 @dataclass(frozen=True)
@@ -29,7 +29,7 @@ class WeatherObservation:
     period_start_utc: str
     period_end_utc: str
     observed_at_utc: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
-    source_system: str = "synthetic-fixture"
+    source_system: str = "operator-input"
     source_reference: str = ""
     freshness: ObservationFreshness = ObservationFreshness.UNKNOWN
     research_only: bool = True
@@ -48,7 +48,7 @@ class HddCddMetric:
     period_start_utc: str
     period_end_utc: str
     observed_at_utc: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
-    source_system: str = "synthetic-fixture"
+    source_system: str = "operator-input"
     source_reference: str = ""
     freshness: ObservationFreshness = ObservationFreshness.UNKNOWN
     research_only: bool = True

@@ -27,8 +27,8 @@
 
 - `src/eurogas_nexus/workflows/__init__.py`
 - `src/eurogas_nexus/workflows/models.py` — 11 dataclass models + enums
-- `src/eurogas_nexus/api/routes/v1/workflows.py` — 10 workflow routes
-- `src/eurogas_nexus/api/routes/v1/glossary.py` — 2 glossary routes (en/zh)
+- `src/eurogas_nexus/api/routes/public/workflows.py` — 10 workflow routes
+- `src/eurogas_nexus/api/routes/public/glossary.py` — 2 glossary routes (en/zh)
 - `src/eurogas_nexus/api/route_registration.py` — +2 routers
 - `.agent/plans/V1_R6_RESEARCH_WORKFLOW_MODELS_EXECPLAN.md`
 - `data/release_v1/r6_research_workflow_models_report.md`

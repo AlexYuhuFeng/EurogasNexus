@@ -1,7 +1,10 @@
-"""Seed public/demo route-cost and glossary data into the configured runtime DB.
+"""Seed operator-owned test prices/contracts and public tariff references.
 
-This script is for local demonstrations only. It does not call external APIs,
-does not run migrations, and does not print database secrets.
+This script is for the local PostgreSQL test server only. Public tariff rows are
+manually transcribed source references. Price marks and contracts are
+operator-owned test records because exchange/vendor prices require entitlement.
+The script does not call external APIs, run migrations, or print database
+secrets.
 """
 
 from __future__ import annotations
@@ -11,12 +14,21 @@ from datetime import UTC, datetime
 from eurogas_nexus.db.models import (
     GlossaryTermRecord,
     LiveMarketMarkRecord,
-    RouteCandidateRecord,
     TsoTariffRecord,
+    UpstreamResourceContractRecord,
 )
-from eurogas_nexus.db.session import get_session_factory, redact_database_url, resolve_database_url
+from eurogas_nexus.db.session import (
+    get_session_factory,
+    redact_database_url,
+    resolve_database_url,
+)
 from eurogas_nexus.domain.glossary import baseline_glossary_terms
-from eurogas_nexus.domain.route_cost.uk_demo_data import demo_uk_capacity_tariffs
+from eurogas_nexus.domain.route_cost.uk_public_tariffs import (
+    DOCUMENT_ID as UK_NTS_DOCUMENT_ID,
+)
+from eurogas_nexus.domain.route_cost.uk_public_tariffs import (
+    published_uk_capacity_tariffs,
+)
 
 
 def main() -> int:
@@ -29,7 +41,11 @@ def main() -> int:
     now = datetime.now(UTC)
     session_factory = get_session_factory(database_url=database_url)
     with session_factory() as session:
-        for tariff in demo_uk_capacity_tariffs():
+        session.query(TsoTariffRecord).filter(
+            TsoTariffRecord.document_id == UK_NTS_DOCUMENT_ID
+        ).delete(synchronize_session=False)
+        session.flush()
+        for tariff in published_uk_capacity_tariffs():
             session.merge(
                 TsoTariffRecord(
                     tariff_id=tariff.tariff_id,
@@ -64,11 +80,9 @@ def main() -> int:
                     created_at_utc=now,
                 )
             )
-        for record in _route_candidates(now):
-            session.merge(record)
         session.merge(
             LiveMarketMarkRecord(
-                mark_id="demo-ice-ocm-nbp-within-day",
+                mark_id="operator-test-ice-ocm-nbp-within-day",
                 venue="ICE OCM",
                 hub="NBP",
                 product="Within-day",
@@ -76,9 +90,31 @@ def main() -> int:
                 ask_gbp_mwh=28.4,
                 last_gbp_mwh=28.3,
                 mark_time_utc=now,
-                source_system="demo-operator-mark",
-                source_reference="operator-entered demo mark",
+                source_system="operator-entered-test-price",
+                source_reference="local-test-price-mark",
                 created_at_utc=now,
+            )
+        )
+        session.merge(
+            UpstreamResourceContractRecord(
+                contract_id="operator-test-easington-contract",
+                contract_name="Operator test Easington annual supply",
+                resource_type="BEACH_DELIVERY",
+                delivery_point_name="Easington Beach Terminal",
+                gas_year="2025/26",
+                delivery_quantity_mwh_per_day=10000.0,
+                contract_price_gbp_mwh=25.0,
+                settlement_frequency="monthly",
+                upstream_payment_lag_days=20,
+                screen_sale_cash_lag_days=1,
+                annual_financing_rate_pct=6.0,
+                delivery_tolerance_pct=2.0,
+                nomination_tolerance_pct=1.0,
+                allowed_exit_points=["Bacton GDN (EA)"],
+                eligible_sale_modes=["VIRTUAL_HUB_SALE", "PHYSICAL_DELIVERY"],
+                notes="operator-entered-test-contract: local-test-contract",
+                created_at_utc=now,
+                updated_at_utc=now,
             )
         )
         for term in baseline_glossary_terms():
@@ -99,48 +135,11 @@ def main() -> int:
             )
         session.commit()
 
-    print("Seeded demo route-cost tariffs, route candidates, live mark, and glossary terms.")
+    print(
+        "Seeded public tariff rows, operator test price mark, "
+        "operator test contract, and glossary terms."
+    )
     return 0
-
-
-def _route_candidates(now: datetime) -> list[RouteCandidateRecord]:
-    return [
-        RouteCandidateRecord(
-            route_id="uk-easington-nbp",
-            route_name="Easington beach delivery -> NBP virtual sale",
-            start_point_name="Easington Beach Terminal",
-            target_point_name="NBP",
-            business_model="VIRTUAL_HUB_SALE",
-            route_legs=[
-                {"step": "entry_capacity", "point": "Easington Beach Terminal"},
-                {"step": "virtual_hub_sale", "point": "NBP"},
-            ],
-            required_entry_point_name="Easington Beach Terminal",
-            required_exit_point_name=None,
-            required_tso_access=["National Gas NTS"],
-            source_systems=["National Gas NTS", "ICE OCM", "EEX"],
-            active=True,
-            created_at_utc=now,
-        ),
-        RouteCandidateRecord(
-            route_id="uk-easington-bacton-physical",
-            route_name="Easington beach delivery -> Bacton physical exit",
-            start_point_name="Easington Beach Terminal",
-            target_point_name="Bacton GDN (EA)",
-            business_model="PHYSICAL_DELIVERY",
-            route_legs=[
-                {"step": "entry_capacity", "point": "Easington Beach Terminal"},
-                {"step": "exit_capacity", "point": "Bacton GDN (EA)"},
-                {"step": "physical_delivery", "point": "Bacton GDN (EA)"},
-            ],
-            required_entry_point_name="Easington Beach Terminal",
-            required_exit_point_name="Bacton GDN (EA)",
-            required_tso_access=["National Gas NTS"],
-            source_systems=["National Gas NTS", "ENTSOG"],
-            active=True,
-            created_at_utc=now,
-        ),
-    ]
 
 
 if __name__ == "__main__":

@@ -1,9 +1,10 @@
-import { create } from "zustand";
+﻿import { create } from "zustand";
 import {
   api,
   AnalysisRequestDTO,
   AnalysisResultDTO,
   ApiMeta,
+  CapacityObsDTO,
   CredentialProviderDTO,
   EdgeDTO,
   EasingtonContractRequest,
@@ -27,6 +28,9 @@ import {
   StrategyLabRequestDTO,
   StrategyLabResultDTO,
   StorageObsDTO,
+  TsoAccessPointDTO,
+  UkTariffDTO,
+  UpstreamContractDTO,
 } from "@/api/client";
 
 interface ApiState {
@@ -39,10 +43,14 @@ interface ApiState {
   portfolioSummary: PortfolioLiveSummaryDTO | null;
   fxRates: FxRateDTO[];
   flows: FlowObsDTO[];
+  capacity: CapacityObsDTO[];
   storage: StorageObsDTO[];
   lng: LngObsDTO[];
+  tsoAccess: TsoAccessPointDTO[];
   routes: RouteEligibilityDTO[];
   routeCandidates: RouteCandidateDTO[];
+  ukTariffs: UkTariffDTO[];
+  upstreamContracts: UpstreamContractDTO[];
   routeOptions: EasingtonOptionsResultDTO | null;
   livePnl: LivePnlResultDTO | null;
   strategyResult: StrategyLabResultDTO | null;
@@ -51,11 +59,12 @@ interface ApiState {
   analysisResult: AnalysisResultDTO | null;
   credentialProviders: CredentialProviderDTO[];
   runtimeDb: RuntimeDbStatusDTO | null;
+  endpointMeta: Record<string, ApiMeta>;
   meta: ApiMeta | null;
   loading: boolean;
   error: string | null;
   credentialMessage: string | null;
-  dataStatus: "runtime" | "delayed" | "mocked" | "partial" | "unavailable";
+  dataStatus: "runtime" | "delayed" | "partial" | "unavailable";
   fetchWorkspace: () => Promise<void>;
   saveProviderCredential: (providerId: string, apiKey: string, label: string) => Promise<void>;
   compareEasingtonOptions: (contract: EasingtonContractRequest) => Promise<void>;
@@ -79,10 +88,14 @@ export const useApiStore = create<ApiState>((set) => ({
   portfolioSummary: null,
   fxRates: [],
   flows: [],
+  capacity: [],
   storage: [],
   lng: [],
+  tsoAccess: [],
   routes: [],
   routeCandidates: [],
+  ukTariffs: [],
+  upstreamContracts: [],
   routeOptions: null,
   livePnl: null,
   strategyResult: null,
@@ -91,11 +104,12 @@ export const useApiStore = create<ApiState>((set) => ({
   analysisResult: null,
   credentialProviders: [],
   runtimeDb: null,
+  endpointMeta: {},
   meta: null,
   loading: false,
   error: null,
   credentialMessage: null,
-  dataStatus: "mocked",
+  dataStatus: "unavailable",
 
   fetchWorkspace: async () => {
     set({ loading: true, error: null });
@@ -110,10 +124,14 @@ export const useApiStore = create<ApiState>((set) => ({
         portfolioSummary,
         fxRates,
         flows,
+        capacity,
         storage,
         lng,
+        tsoAccess,
         routes,
         routeCandidates,
+        ukTariffs,
+        upstreamContracts,
         glossaryTerms,
         runtimeDb,
         credentialProviders,
@@ -127,14 +145,51 @@ export const useApiStore = create<ApiState>((set) => ({
         api.portfolioLiveSummary(),
         api.fxRates(),
         api.flowObservations(),
+        api.capacityObservations(),
         api.storageObservations(),
         api.lngObservations(),
+        api.tsoAccess(),
         api.routeEligibility(),
         api.routeCandidates(),
+        api.ukTariffs(),
+        api.upstreamContracts(),
         api.glossary("en"),
         api.runtimeDb(),
         api.credentialProviders(),
       ]);
+      const endpointMeta = {
+        referenceNodes: nodes.meta,
+        referenceEdges: edges.meta,
+        sources: sources.meta,
+        markets: markets.meta,
+        screenOrders: screenOrders.meta,
+        pnlSnapshots: pnlSnapshots.meta,
+        portfolioSummary: portfolioSummary.meta,
+        fxRates: fxRates.meta,
+        flows: flows.meta,
+        capacity: capacity.meta,
+        storage: storage.meta,
+        lng: lng.meta,
+        tsoAccess: tsoAccess.meta,
+        routes: routes.meta,
+        routeCandidates: routeCandidates.meta,
+        ukTariffs: ukTariffs.meta,
+        upstreamContracts: upstreamContracts.meta,
+        glossaryTerms: glossaryTerms.meta,
+        runtimeDb: runtimeDb.meta,
+        credentialProviders: credentialProviders.meta,
+      };
+      const sourceRefs = Object.values(endpointMeta).flatMap((item) => item.source_references ?? []);
+      const hasRuntime = sourceRefs.some((source) => source === "runtime-postgresql");
+      const hasDbMissing = sourceRefs.some((source) => source === "runtime-db-not-configured");
+      const resolvedStatus = !runtimeDb.data.database_url_present || !runtimeDb.data.connectivity.ok
+        ? "unavailable"
+        : hasRuntime && hasDbMissing
+          ? "partial"
+          : hasRuntime
+            ? "runtime"
+            : "partial";
+
       set({
         nodes: nodes.data,
         edges: edges.data,
@@ -145,15 +200,20 @@ export const useApiStore = create<ApiState>((set) => ({
         portfolioSummary: portfolioSummary.data,
         fxRates: fxRates.data,
         flows: flows.data,
+        capacity: capacity.data,
         storage: storage.data,
         lng: lng.data,
+        tsoAccess: tsoAccess.data,
         routes: routes.data,
         routeCandidates: routeCandidates.data.route_candidates,
+        ukTariffs: ukTariffs.data.tariffs,
+        upstreamContracts: upstreamContracts.data,
         glossaryTerms: glossaryTerms.data,
         runtimeDb: runtimeDb.data,
         credentialProviders: credentialProviders.data,
+        endpointMeta,
         meta: nodes.meta,
-        dataStatus: nodes.meta.source_references.includes("runtime-postgresql") ? "runtime" : "mocked",
+        dataStatus: resolvedStatus,
         loading: false,
       });
     } catch (e) {
@@ -235,3 +295,4 @@ export const useApiStore = create<ApiState>((set) => ({
     }
   },
 }));
+

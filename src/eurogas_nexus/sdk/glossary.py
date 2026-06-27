@@ -1,4 +1,4 @@
-"""SDK client for /api/v1/glossary."""
+"""SDK client for /api/glossary."""
 
 import httpx
 from pydantic import BaseModel, Field
@@ -52,13 +52,13 @@ def fetch_glossary(
         params["category"] = category
     if q:
         params["q"] = q
-    r = httpx.get(f"{base_url}/api/v1/glossary", params=params, timeout=10)
+    r = httpx.get(f"{base_url}/api/glossary", params=params, timeout=10)
     r.raise_for_status()
     return [GlossaryTerm(**t) for t in r.json()["data"]]
 
 
 def fetch_term(base_url: str, term: str, *, lang: str = "en") -> GlossaryTerm:
-    r = httpx.get(f"{base_url}/api/v1/glossary/{term}", params={"lang": lang}, timeout=10)
+    r = httpx.get(f"{base_url}/api/glossary/{term}", params={"lang": lang}, timeout=10)
     r.raise_for_status()
     return GlossaryTerm(**r.json()["data"])
 
@@ -77,7 +77,7 @@ def fetch_glossary_context(
         "duration_end_utc": duration_end_utc,
     }
     r = httpx.get(
-        f"{base_url}/api/v1/glossary/{term}/context",
+        f"{base_url}/api/glossary/{term}/context",
         params={key: value for key, value in params.items() if value},
         timeout=10,
     )

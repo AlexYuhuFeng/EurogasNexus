@@ -19,7 +19,7 @@ class ApiRouteProfile(BaseModel):
     name: ApiProfileName
     expose_docs: bool
     expose_openapi: bool
-    include_v1: bool = True
+    include_public: bool = True
     include_internal: bool = False
     include_dev: bool = False
 

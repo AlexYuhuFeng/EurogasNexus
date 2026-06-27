@@ -23,9 +23,9 @@ async def require_entitlement(request: Request, source_system: str = "") -> None
     try:
         from eurogas_nexus.governance.entitlement import entitlement_check
 
-        # Known entitled sources for V1 research context
+        # Known entitled sources for V1 decision-support context
         known = frozenset({
-            "synthetic-fixture", "ENTSOG", "GIE", "ECB",
+            "operator-input", "ENTSOG", "GIE", "ECB",
             "EEX", "Trayport", "ICE_OCM", "Weather",
         })
         decision = entitlement_check(source_system, known_entitled_systems=known)

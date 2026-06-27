@@ -1,4 +1,4 @@
-# V1 Stepwise Delivery Roadmap
+﻿# V1 Stepwise Delivery Roadmap
 
 ## Purpose
 
@@ -15,7 +15,7 @@ Goal:
 - Establish repository governance and public-repo safety rules.
 - Make DB URL resolution, redaction, lazy engine/session creation, and runtime
   DB validation explicit.
-- Normalize stable API clients toward `/api/v1` while preserving `/v1/health`.
+- Normalize stable API clients toward `/api` while preserving `/api/health`.
 
 Exit evidence:
 
@@ -73,7 +73,7 @@ Key deliverables:
 
 - Canonical identifier policy.
 - Network node/facility/segment schema plan.
-- Read-only `/api/v1` reference-network contract.
+- Read-only `/api` reference-network contract.
 - Synthetic fixture import template only.
 
 ## Milestone 5: Ingestion And Data Quality Control Plane
@@ -138,9 +138,9 @@ Candidate:
 ## Required Client Milestones
 
 SDK, CLI, web, and Windows desktop client work must consume SDK/API-backed
-`/api/v1` contracts. The Python SDK is required for V1. CLI should call the SDK
+`/api` contracts. The Python SDK is required for V1. CLI should call the SDK
 first when available. Web and Windows reach PostgreSQL-backed runtime data only
-through backend `/api/v1` routes. The Desktop `eurogas nexus.exe` demo may
+through backend `/api` routes. The Desktop `eurogas nexus.exe` demo may
 inform workflow intent for visual clients, but UI/UX requires redesign. Client
 design docs now live under `docs/clients/` and `docs/design/`. Runtime client
 implementation starts only when a client milestone is explicitly selected.

@@ -1,4 +1,4 @@
-# Web Client Design Spec
+﻿# Web Client Design Spec
 
 ## Objective
 
@@ -6,7 +6,7 @@ The web client is the primary Eurogas Nexus research workspace. It is
 map-first: the European gas network map is the main work surface, with market,
 capacity, contract, weather, scenario, strategy, and research review context
 attached to map objects and route candidates. It accesses runtime data through
-the backend `/api/v1` API.
+the backend `/api` API.
 
 ## Product Boundary
 
@@ -17,7 +17,7 @@ data, or handle connector credentials directly.
 The browser-side data path is:
 
 ```text
-Web UI -> web API client -> backend /api/v1 -> backend repositories -> PostgreSQL
+Web UI -> web API client -> backend /api -> backend repositories -> PostgreSQL
 ```
 
 The web client must not implement trade execution, order entry, nomination
@@ -118,7 +118,7 @@ Purpose:
 
 Content:
 
-- `/api/v1/health` state;
+- `/api/health` state;
 - runtime status if endpoint exists;
 - API base URL;
 - active route profile;
@@ -301,7 +301,7 @@ official recommendations.
 Current endpoint:
 
 ```text
-POST /api/v1/strategy-lab/evaluate
+POST /api/strategy-lab/evaluate
 ```
 
 ## Screen: Review
@@ -365,9 +365,9 @@ Content:
 
 Current V1 contract:
 
-- use `GET /api/v1/glossary?lang=en`;
-- use `GET /api/v1/glossary?lang=zh-CN`;
-- use `GET /api/v1/glossary/{term}/context?lang=...&duration_start_utc=...&duration_end_utc=...`;
+- use `GET /api/glossary?lang=en`;
+- use `GET /api/glossary?lang=zh-CN`;
+- use `GET /api/glossary/{term}/context?lang=...&duration_start_utc=...&duration_end_utc=...`;
 - show term, category, localized definition, aliases when useful, and related
   terms;
 - show quick operational context buttons for `Easington Entry Point`,
@@ -386,8 +386,8 @@ Purpose:
 
 Rules:
 
-- use only backend-provided `/api/v1/analysis/*`, `/api/v1/reports/*`, and
-  `/api/v1/glossary/{term}/context` outputs;
+- use only backend-provided `/api/analysis/*`, `/api/reports/*`, and
+  `/api/glossary/{term}/context` outputs;
 - DeepSeek is the first supported V1 live provider, invoked only by backend when
   the operator enables provider invocation and a credential is configured;
 - show citations/source references next to claims;
@@ -399,10 +399,10 @@ Rules:
 Current endpoints:
 
 ```text
-GET /api/v1/analysis/ontology
-POST /api/v1/analysis/query
-POST /api/v1/reports/portfolio
-GET /api/v1/glossary/{term}/context
+GET /api/analysis/ontology
+POST /api/analysis/query
+POST /api/reports/portfolio
+GET /api/glossary/{term}/context
 ```
 
 ## Screen: Settings

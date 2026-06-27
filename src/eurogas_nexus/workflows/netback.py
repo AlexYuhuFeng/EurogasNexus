@@ -59,7 +59,7 @@ def compute_netback(input_: NetbackInput) -> NetbackOutput:
     assumptions: list[str] = [
         "Netback = market_price - route_cost (linear subtraction).",
         "No volume or capacity constraints applied.",
-        "Market price is taken as given (synthetic input).",
+        "Market price is taken from the supplied operator/runtime input.",
     ]
 
     if not input_.route_name:
@@ -91,7 +91,7 @@ def compute_netback(input_: NetbackInput) -> NetbackOutput:
         assumptions=assumptions,
         missing_inputs=missing,
         warnings=warnings,
-        source_references=["synthetic-input"],
+        source_references=["operator-input"],
         lineage=["netback-computation"],
         research_only=True,
         human_review_required=bool(missing or warnings),

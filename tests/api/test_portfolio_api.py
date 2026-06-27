@@ -1,4 +1,4 @@
-"""Portfolio, screen order, and PnL observation API tests."""
+﻿"""Portfolio, screen order, and PnL observation API tests."""
 
 from datetime import UTC, datetime
 
@@ -11,20 +11,20 @@ from eurogas_nexus.db.base import Base
 from eurogas_nexus.db.models import PortfolioPnlSnapshotRecord, ScreenOrderObservationRecord
 
 
-def test_portfolio_screen_orders_fallback_is_read_only_decision_support(monkeypatch) -> None:
+def test_portfolio_screen_orders_without_db_reports_missing_runtime_data(monkeypatch) -> None:
     monkeypatch.delenv("RUNTIME_STORE_DATABASE_URL", raising=False)
     monkeypatch.delenv("DATABASE_URL", raising=False)
     monkeypatch.delenv("EUROGAS_NEXUS_DB_DSN", raising=False)
 
-    response = TestClient(create_app()).get("/api/v1/portfolio/screen-orders")
+    response = TestClient(create_app()).get("/api/portfolio/screen-orders")
 
     assert response.status_code == 200
     body = response.json()
     assert body["meta"]["research_only"] is True
     assert body["meta"]["human_review_required"] is True
-    assert body["meta"]["source_references"] == ["synthetic-fixture"]
-    assert body["data"][0]["venue"] == "ICE OCM"
-    assert body["data"][0]["research_only"] is True
+    assert body["meta"]["source_references"] == ["runtime-db-not-configured"]
+    assert "RUNTIME_DB_NOT_CONFIGURED" in body["meta"]["warnings"]
+    assert body["data"] == []
 
 
 def test_portfolio_live_summary_uses_runtime_db_when_configured(tmp_path, monkeypatch) -> None:
@@ -89,7 +89,7 @@ def test_portfolio_live_summary_uses_runtime_db_when_configured(tmp_path, monkey
     monkeypatch.delenv("DATABASE_URL", raising=False)
     monkeypatch.delenv("EUROGAS_NEXUS_DB_DSN", raising=False)
 
-    response = TestClient(create_app()).get("/api/v1/portfolio/live-summary")
+    response = TestClient(create_app()).get("/api/portfolio/live-summary")
 
     assert response.status_code == 200
     body = response.json()

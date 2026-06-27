@@ -1,8 +1,8 @@
-# V1 Backend Architecture
+﻿# V1 Backend Architecture
 
 Eurogas Nexus V1 is a research-only backend service. It is designed as a
 server-deployed Python service with worker, scheduler, Web, Windows/Tauri,
-Python SDK, and CLI surfaces using a shared `/api/v1` API boundary.
+Python SDK, and CLI surfaces using a shared `/api` API boundary.
 
 For the product north star and historical-reference interpretation, see
 `PROJECT_NORTH_STAR.md` and `REFERENCE_PROJECT_LESSONS.md`.
@@ -54,8 +54,8 @@ made once and reflected across both client surfaces.
 - `src/eurogas_nexus/api/app.py` creates the FastAPI app.
 - `src/eurogas_nexus/api/route_profiles.py` defines development, internal, and
   release profiles.
-- `GET /v1/health` remains as compatibility.
-- `GET /api/v1/health` is the preferred stable health path.
+- `GET /api/health` remains as compatibility.
+- `GET /api/health` is the preferred stable health path.
 - PostgreSQL is available for local development via `docker compose up -d`.
 - DB foundation layer is import-safe: lazy engine/session factories, Alembic
   scaffolding, neutral persistence metadata.

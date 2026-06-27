@@ -1,4 +1,4 @@
-"""SDK client for /api/v1/contracts."""
+"""SDK client for /api/contracts."""
 
 import httpx
 from pydantic import BaseModel
@@ -32,7 +32,7 @@ def _get(url: str) -> dict:
 
 
 def fetch_capacity_contracts(base_url: str) -> list[CapacityContract]:
-    return [CapacityContract(**c) for c in _get(f"{base_url}/api/v1/contracts/capacity")["data"]]
+    return [CapacityContract(**c) for c in _get(f"{base_url}/api/contracts/capacity")["data"]]
 
 def fetch_route_eligibility(base_url: str) -> list[RouteEligibility]:
-    return [RouteEligibility(**r) for r in _get(f"{base_url}/api/v1/contracts/routes")["data"]]
+    return [RouteEligibility(**r) for r in _get(f"{base_url}/api/contracts/routes")["data"]]

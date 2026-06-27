@@ -1,4 +1,4 @@
-# API Contract
+﻿# API Contract
 
 ## Purpose
 
@@ -7,8 +7,8 @@ profiles, route modules, API services, and dependency providers.
 
 ## Current Routes
 
-- `GET /v1/health`
-- `GET /api/v1/health`
+- `GET /api/health`
+- `GET /api/health`
 - `GET /api/internal/health` in the internal profile only.
 - `GET /api/dev/health` in the development profile only.
 
@@ -50,7 +50,7 @@ profiles, route modules, API services, and dependency providers.
 
 ## Milestone 1 Path Normalization
 
-- Preferred stable API prefix is `/api/v1`.
+- Preferred stable API prefix is `/api`.
 - `/v1` remains a bootstrap compatibility prefix.
 - Internal routes use `/api/internal`.
 - Development routes use `/api/dev`.

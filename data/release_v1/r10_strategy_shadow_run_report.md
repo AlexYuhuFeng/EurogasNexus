@@ -9,13 +9,13 @@
 - Shadow run: evaluates paper-trading signals with paper PnL. All signals use
   research-only action semantics (research_candidate, candidate_ranking,
   research_signal, candidate_action_for_review). No execute/order/trade actions.
-- 2 POST endpoints: /api/v1/research/backtest, /api/v1/research/shadow-run.
+- 2 POST endpoints: /api/research/backtest, /api/research/shadow-run.
 
 ## Files
 
 - `src/eurogas_nexus/workflows/backtest.py`
 - `src/eurogas_nexus/workflows/shadow_run.py`
-- `src/eurogas_nexus/api/routes/v1/research.py` — +2 endpoints
+- `src/eurogas_nexus/api/routes/public/research.py` 鈥?+2 endpoints
 - `tests/workflows/test_backtest.py` (3)
 - `tests/workflows/test_shadow_run.py` (3)
 

@@ -1,4 +1,4 @@
-# Milestone 1 Remaining Gaps
+﻿# Milestone 1 Remaining Gaps
 
 ## Runtime DB
 
@@ -15,9 +15,9 @@
 
 ## API
 
-- `/v1/health` compatibility remains in place. Future removal needs a release
+- `/api/health` compatibility remains in place. Future removal needs a release
   milestone and client migration notice.
-- Other future SDK and CLI routes must continue to use `/api/v1` for stable
+- Other future SDK and CLI routes must continue to use `/api` for stable
   APIs.
 
 ## Auth, Audit, and Entitlement

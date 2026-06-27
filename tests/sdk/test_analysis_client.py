@@ -1,4 +1,4 @@
-"""SDK analysis client tests."""
+﻿"""SDK analysis client tests."""
 
 import httpx
 
@@ -27,7 +27,7 @@ def test_analysis_sdk_targets_backend_api(monkeypatch) -> None:
 
     result = ask_analysis("http://testserver", question="What is Easington?")
 
-    assert captured["url"] == "http://testserver/api/v1/analysis/query"
+    assert captured["url"] == "http://testserver/api/analysis/query"
     assert captured["json"]["question"] == "What is Easington?"
     assert isinstance(result, AnalysisResult)
 
@@ -47,7 +47,7 @@ def test_report_sdk_targets_backend_api(monkeypatch) -> None:
 
     result = generate_portfolio_report("http://testserver", title="Portfolio")
 
-    assert captured["url"] == "http://testserver/api/v1/reports/portfolio"
+    assert captured["url"] == "http://testserver/api/reports/portfolio"
     assert result.research_only is True
 
 
@@ -66,7 +66,7 @@ def test_ontology_sdk_targets_backend_api(monkeypatch) -> None:
 
     result = fetch_business_ontology("http://testserver")
 
-    assert captured["url"] == "http://testserver/api/v1/analysis/ontology"
+    assert captured["url"] == "http://testserver/api/analysis/ontology"
     assert result["entities"] == ["StrategyRun"]
 
 
@@ -77,7 +77,7 @@ def _analysis_payload() -> dict:
         "provider_id": "DEEPSEEK",
         "provider_status": "not_invoked",
         "answer_en": "answer",
-        "answer_zh_cn": "回答",
+        "answer_zh_cn": "鍥炵瓟",
         "citations": ["snapshot"],
         "sections": [],
         "missing_inputs": [],

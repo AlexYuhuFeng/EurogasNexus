@@ -1,4 +1,4 @@
-# Milestone 1 Report
+﻿# Milestone 1 Report
 
 ## Status
 
@@ -21,9 +21,9 @@ foundation without adding business features.
 - Added required-table registry.
 - Added non-destructive runtime DB validation script with `--json`.
 - Hardened Alembic metadata import safety.
-- Added `/api/v1/health` alias while preserving `/v1/health`.
+- Added `/api/health` alias while preserving `/api/health`.
 - Normalized internal/dev route prefixes to `/api/internal` and `/api/dev`.
-- Updated the SDK health client to target `/api/v1/health`.
+- Updated the SDK health client to target `/api/health`.
 - Added API path policy and normalization plan.
 - Added integration, security, API, and contract tests.
 
@@ -43,14 +43,14 @@ foundation without adding business features.
 - Existing `ingestion_runs` model and migration are accepted as already-present
   repository state.
 - Required runtime tables currently include `ingestion_runs`.
-- `/v1/health` remains a compatibility endpoint through the bootstrap phase.
+- `/api/health` remains a compatibility endpoint through the bootstrap phase.
 
 ## Warnings
 
 - No live DB was used.
 - No migrations were executed.
 - Runtime DB validation exits non-zero when no DB URL is configured, by design.
-- Development OpenAPI may show both `/v1/health` and `/api/v1/health` during
+- Development OpenAPI may show both `/api/health` and `/api/health` during
   the compatibility period.
 
 ## Source References

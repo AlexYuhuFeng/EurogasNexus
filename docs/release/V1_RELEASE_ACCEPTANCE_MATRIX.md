@@ -1,4 +1,4 @@
-# V1 Release Acceptance Matrix
+﻿# V1 Release Acceptance Matrix
 
 ## Purpose
 
@@ -19,7 +19,7 @@ called a full project release.
 | Repository governance | CI, contributing, security, issue/PR templates |
 | Public repo data safety | docs warn against secrets, real vendor data, raw market data, contracts, strategy parameters |
 | Import safety | app imports without DB URL or network |
-| API prefix policy | `/api/v1`, `/api/internal`, `/api/dev`, `/v1/health` compatibility documented and tested |
+| API prefix policy | `/api`, `/api/internal`, `/api/dev`, `/api/health` compatibility documented and tested |
 | DB URL policy | `RUNTIME_STORE_DATABASE_URL`, `DATABASE_URL`, legacy `EUROGAS_NEXUS_DB_DSN`, redaction tested |
 | Live PostgreSQL validation | read-only validation script, no secret output, explicit operator command |
 
@@ -38,7 +38,7 @@ called a full project release.
 
 | Slice | Required Evidence |
 | --- | --- |
-| Reference network | nodes, facilities, segments, mappings, synthetic fixtures, `/api/v1/reference-network/*` |
+| Reference network | nodes, facilities, segments, mappings, synthetic fixtures, `/api/reference-network/*` |
 | Source/ingestion | source registry, ingestion job/run, normalization status, mocked connectors |
 | Market context | price/spread/FX observation metadata |
 | Physical flow context | flow/capacity/outage observation metadata |
@@ -75,7 +75,7 @@ called a full project release.
 | --- | --- |
 | Required V1 surface | SDK release milestone complete and covered by tests |
 | API-only boundary | no imports from domain/application/runtime_store/db |
-| Route prefix | SDK targets `/api/v1` |
+| Route prefix | SDK targets `/api` |
 | Typed clients | clients for released route groups |
 | Errors | safe exception model with redaction |
 | Metadata | preserves warnings, assumptions, missing inputs, source refs, lineage |
@@ -84,7 +84,7 @@ called a full project release.
 
 | Area | Required Evidence |
 | --- | --- |
-| SDK/API-only boundary | no business-internal imports; CLI calls SDK first or `/api/v1` for documented SDK gaps |
+| SDK/API-only boundary | no business-internal imports; CLI calls SDK first or `/api` for documented SDK gaps |
 | Health/runtime | commands or helpers for health/runtime validation |
 | Source/scenario/research | inspection commands for released workflows |
 | Output | human and JSON output where useful |
@@ -94,7 +94,7 @@ called a full project release.
 
 | Area | Required Evidence |
 | --- | --- |
-| SDK/API data boundary | web reaches PostgreSQL data only through backend `/api/v1`; no direct DB/vendor/secret access |
+| SDK/API data boundary | web reaches PostgreSQL data only through backend `/api`; no direct DB/vendor/secret access |
 | Runtime visibility | backend, DB, source, warning posture visible |
 | Network workspace | map-ready reference network view |
 | Scenario workspace | inputs, missing inputs, assumptions |
@@ -111,7 +111,7 @@ called a full project release.
 | Backend config | backend base URL configurable |
 | Storage | only non-sensitive UI preferences stored |
 | Runtime visibility | health/runtime/source posture visible |
-| Safety | runtime data reached only through packaged web/API client and backend `/api/v1`; no direct DB/vendor/secret access, no copied historical Desktop code |
+| Safety | runtime data reached only through packaged web/API client and backend `/api`; no direct DB/vendor/secret access, no copied historical Desktop code |
 
 ## Release Pack
 

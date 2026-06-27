@@ -1,4 +1,4 @@
-"""Integration tests for DB-backed reference-network API reads."""
+﻿"""Integration tests for DB-backed reference-network API reads."""
 
 from datetime import UTC, datetime
 
@@ -27,6 +27,11 @@ def test_reference_network_api_reads_configured_runtime_db(tmp_path, monkeypatch
                 lat=52.0,
                 lon=5.0,
                 capacity_boe_d=None,
+                source_system="TEST",
+                source_dataset="reference-network-fixture",
+                source_reference="test-reference-network-db-api",
+                source_record_id="node-db-test",
+                data_quality="fixture",
                 metadata_json={"fixture": True},
                 created_at_utc=datetime(2026, 1, 1, tzinfo=UTC),
             )
@@ -39,7 +44,7 @@ def test_reference_network_api_reads_configured_runtime_db(tmp_path, monkeypatch
 
     client = TestClient(create_app())
 
-    response = client.get("/api/v1/reference-network/nodes")
+    response = client.get("/api/reference-network/nodes")
 
     assert response.status_code == 200
     body = response.json()
@@ -52,10 +57,15 @@ def test_reference_network_api_reads_configured_runtime_db(tmp_path, monkeypatch
             "lat": 52.0,
             "lon": 5.0,
             "capacity_boe_d": None,
+            "source_system": "TEST",
+            "source_dataset": "reference-network-fixture",
+            "source_reference": "test-reference-network-db-api",
+            "source_record_id": "node-db-test",
+            "data_quality": "fixture",
             "metadata_json": {"fixture": True},
         }
     ]
     assert body["meta"]["source_references"] == ["runtime-postgresql"]
 
-    missing_response = client.get("/api/v1/reference-network/nodes/node-ttf")
+    missing_response = client.get("/api/reference-network/nodes/node-ttf")
     assert missing_response.status_code == 404

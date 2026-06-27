@@ -1,4 +1,4 @@
-"""Strategy-lab decision-support endpoints."""
+﻿"""Strategy-lab decision-support endpoints."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from eurogas_nexus.domain.strategy_lab.evaluation import (
 router = APIRouter(tags=["strategy-lab"])
 
 
-@router.post("/api/v1/strategy-lab/evaluate")
+@router.post("/api/strategy-lab/evaluate")
 def post_strategy_lab_evaluation(body: StrategyLabScenario, request: Request) -> dict:
     """Evaluate backtest, shadow-run, or live-monitor strategy inputs."""
 

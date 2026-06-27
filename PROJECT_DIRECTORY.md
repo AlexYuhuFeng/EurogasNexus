@@ -1,4 +1,4 @@
-# Project Directory
+﻿# Project Directory
 
 ## Purpose
 
@@ -56,7 +56,7 @@ and Windows shell surfaces for the tested local scope:
   `src/eurogas_nexus/domain/market_positioning_import.py`
 - glossary domain: `src/eurogas_nexus/domain/glossary.py`
 - operational glossary context: `src/eurogas_nexus/domain/analysis.py` and
-  `/api/v1/glossary/{term}/context`
+  `/api/glossary/{term}/context`
 - strategy-lab domain: `src/eurogas_nexus/domain/strategy_lab`
 - SDK clients: `src/eurogas_nexus/sdk`
 - CLI client: `src/eurogas_nexus/cli`
@@ -69,7 +69,7 @@ point may be priced when audited tariff rows exist in PostgreSQL. Route cost,
 LNG regas readiness, resource-pool optimization, strategy lab, FX, market
 marks, credentials, and glossary surfaces are exposed through API/SDK/Web
 contracts. Imported external screen-order observations and indicative portfolio
-PnL snapshots are exposed through `/api/v1/portfolio/*` and
+PnL snapshots are exposed through `/api/portfolio/*` and
 `src/eurogas_nexus/sdk/portfolio.py`. Clients must not read PostgreSQL directly.
 Operational glossary context is also API-only and combines runtime matched
 entities, capacity, selected-duration usage, prices, live marks, routes, and
@@ -80,7 +80,7 @@ Internal/operator market-positioning imports use
 `/api/internal/portfolio/import-observations` with
 `EUROGAS_NEXUS_INTERNAL_API_TOKEN`, `X-Eurogas-Internal-Token`, and
 `X-Eurogas-Principal`; release clients continue to use read-only
-`/api/v1/portfolio/*` endpoints.
+`/api/portfolio/*` endpoints.
 
 ## Development Direction
 

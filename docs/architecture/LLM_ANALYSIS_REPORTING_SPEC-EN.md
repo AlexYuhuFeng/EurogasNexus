@@ -1,4 +1,4 @@
-# LLM Analysis And Reporting Spec - EN
+﻿# LLM Analysis And Reporting Spec - EN
 
 ## V1 Decision
 
@@ -10,7 +10,7 @@ LLM calls are never made at import time, during tests, or directly from Web,
 Windows, SDK, or CLI clients. The only allowed live path is:
 
 ```text
-Client -> /api/v1 -> backend analysis route -> backend credential store -> DeepSeek
+Client -> /api -> backend analysis route -> backend credential store -> DeepSeek
 ```
 
 ## Credential Rule
@@ -60,7 +60,7 @@ Reports must include source references, missing inputs, warnings,
 Glossary terms may expose operational context through:
 
 ```text
-GET /api/v1/glossary/{term}/context
+GET /api/glossary/{term}/context
 ```
 
 Examples:
@@ -77,10 +77,10 @@ clear warnings rather than inventing customer data.
 ## Current Endpoints
 
 ```text
-GET  /api/v1/analysis/ontology
-POST /api/v1/analysis/query
-POST /api/v1/reports/portfolio
-GET  /api/v1/glossary/{term}/context
+GET  /api/analysis/ontology
+POST /api/analysis/query
+POST /api/reports/portfolio
+GET  /api/glossary/{term}/context
 ```
 
 ## Internet Requirement

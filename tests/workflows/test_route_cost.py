@@ -44,4 +44,4 @@ def test_route_cost_output_has_lineage() -> None:
         route_name="TTF-NCG", from_node_id="n1", to_node_id="n2",
     ))
     assert "route-cost-computation" in result.lineage
-    assert "synthetic-input" in result.source_references
+    assert "operator-input" in result.source_references

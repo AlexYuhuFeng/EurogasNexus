@@ -4,18 +4,18 @@ Eurogas Nexus separates API routes by profile and package.
 
 ## Stable V1
 
-Package: `src/eurogas_nexus/api/routes/v1`
+Package: `src/eurogas_nexus/api/routes/public`
 
 Purpose: stable public API routes intended for clients.
 
 Current routes:
 
 ```text
-GET /v1/health
-GET /api/v1/health
+GET /api/health
+GET /api/health
 ```
 
-Stable clients and SDKs should target `/api/v1`. `/v1` remains available for
+Stable clients and SDKs should target `/api`. `/v1` remains available for
 bootstrap compatibility.
 
 ## Internal
@@ -50,7 +50,7 @@ the app.
 
 ## Milestone 1 Path Normalization
 
-- Preferred stable prefix: `/api/v1`.
+- Preferred stable prefix: `/api`.
 - Bootstrap compatibility prefix: `/v1`.
 - Internal prefix: `/api/internal`.
 - Development prefix: `/api/dev`.

@@ -1,4 +1,4 @@
-"""Read-only portfolio, screen-order, and PnL observation routes."""
+﻿"""Read-only portfolio, screen-order, and PnL observation routes."""
 
 from __future__ import annotations
 
@@ -7,15 +7,13 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from eurogas_nexus.domain.market_positioning import (
     PortfolioPnlSnapshot,
     ScreenOrderObservation,
-    demo_pnl_snapshots,
-    demo_screen_order_observations,
     summarize_portfolio,
 )
 
 router = APIRouter(tags=["portfolio"])
 
 
-@router.get("/api/v1/portfolio/screen-orders")
+@router.get("/api/portfolio/screen-orders")
 def list_screen_orders(
     request: Request,
     provider_id: str | None = Query(None),
@@ -36,7 +34,7 @@ def list_screen_orders(
     return _env([order.model_dump(mode="json") for order in orders], request, source, warnings)
 
 
-@router.get("/api/v1/portfolio/pnl-snapshots")
+@router.get("/api/portfolio/pnl-snapshots")
 def list_pnl_snapshots(
     request: Request,
     portfolio_id: str | None = Query(None),
@@ -60,7 +58,7 @@ def list_pnl_snapshots(
     )
 
 
-@router.get("/api/v1/portfolio/live-summary")
+@router.get("/api/portfolio/live-summary")
 def get_live_summary(
     request: Request,
     portfolio_id: str | None = Query(None),
@@ -72,14 +70,15 @@ def get_live_summary(
     if portfolio_id:
         snapshots = [snapshot for snapshot in snapshots if snapshot.portfolio_id == portfolio_id]
     summary = summarize_portfolio(orders, snapshots)
+    source = (
+        "runtime-postgresql"
+        if {order_source, pnl_source} == {"runtime-postgresql"}
+        else "runtime-db-not-configured"
+    )
     return _env(
         summary.model_dump(mode="json"),
         request,
-        source=(
-            "runtime-postgresql"
-            if {order_source, pnl_source} == {"runtime-postgresql"}
-            else "synthetic-fixture"
-        ),
+        source=source,
         warnings=[*order_warnings, *pnl_warnings],
     )
 
@@ -87,9 +86,9 @@ def get_live_summary(
 def _load_screen_orders() -> tuple[list[ScreenOrderObservation], str, list[str]]:
     if not _db_is_configured():
         return (
-            demo_screen_order_observations(),
-            "synthetic-fixture",
-            ["Synthetic screen order observations only. Do not use for execution."],
+            [],
+            "runtime-db-not-configured",
+            ["RUNTIME_DB_NOT_CONFIGURED"],
         )
 
     sqlalchemy_error = _sqlalchemy_error_type()
@@ -110,9 +109,9 @@ def _load_screen_orders() -> tuple[list[ScreenOrderObservation], str, list[str]]
 def _load_pnl_snapshots() -> tuple[list[PortfolioPnlSnapshot], str, list[str]]:
     if not _db_is_configured():
         return (
-            demo_pnl_snapshots(),
-            "synthetic-fixture",
-            ["Synthetic PnL snapshots only. Replace with runtime imports."],
+            [],
+            "runtime-db-not-configured",
+            ["RUNTIME_DB_NOT_CONFIGURED"],
         )
 
     sqlalchemy_error = _sqlalchemy_error_type()

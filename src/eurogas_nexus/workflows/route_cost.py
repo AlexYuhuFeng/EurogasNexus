@@ -92,7 +92,7 @@ def compute_route_cost(input_: RouteCostInput) -> RouteCostOutput:
         assumptions=assumptions,
         missing_inputs=missing,
         warnings=warnings,
-        source_references=["synthetic-input"],
+        source_references=["operator-input"],
         lineage=["route-cost-computation"],
         research_only=True,
         human_review_required=bool(missing or warnings),

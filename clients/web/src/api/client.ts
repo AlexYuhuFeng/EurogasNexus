@@ -1,7 +1,7 @@
-/** Typed API client for /api/v1. All data flows through backend API only. */
+﻿/** Typed API client for /api. All data flows through backend API only. */
 
-const DEFAULT_BROWSER_BASE = "/api/v1";
-const DEFAULT_DESKTOP_BASE = "http://127.0.0.1:8000/api/v1";
+const DEFAULT_BROWSER_BASE = "/api";
+const DEFAULT_DESKTOP_BASE = "http://127.0.0.1:8000/api";
 const envBase = import.meta.env.VITE_EUROGAS_API_BASE_URL as string | undefined;
 const isDesktopShell =
   "__TAURI_INTERNALS__" in window ||
@@ -50,21 +50,50 @@ async function post<T>(path: string, body: unknown): Promise<ApiResponse<T>> {
 export interface NodeDTO {
   id: string; name: string; node_type: string; country: string;
   lat: number; lon: number; capacity_boe_d: number | null;
+  source_system?: string | null; source_dataset?: string | null;
+  source_reference?: string | null; source_record_id?: string | null;
+  data_quality?: string | null;
+  metadata_json?: Record<string, unknown> | null;
 }
 
 export interface EdgeDTO {
   id: string; from_node_id: string; to_node_id: string;
   edge_type: string; length_km: number | null;
+  source_system?: string | null; source_dataset?: string | null;
+  source_reference?: string | null; source_record_id?: string | null;
+  data_quality?: string | null;
+  metadata_json?: Record<string, unknown> | null;
 }
 
 export interface FacilityDTO {
   id: string; name: string; facility_type: string; country: string;
   lat: number; lon: number; capacity_boe_d: number | null;
+  source_system?: string | null; source_dataset?: string | null;
+  source_reference?: string | null; source_record_id?: string | null;
+  data_quality?: string | null;
+  metadata_json?: Record<string, unknown> | null;
 }
 
 export interface MarketHubDTO {
   id: string; name: string; hub_code: string; country: string;
   description: string | null;
+  source_system?: string | null; source_dataset?: string | null;
+  source_reference?: string | null; source_record_id?: string | null;
+  data_quality?: string | null;
+  metadata_json?: Record<string, unknown> | null;
+}
+
+export interface TsoAccessPointDTO {
+  access_id: string; point_id: string | null; point_key: string; point_name: string;
+  country: string; operator_key: string; operator_name: string; tso_eic_code: string | null;
+  direction: string; adjacent_country: string | null; adjacent_operator_key: string | null;
+  connected_operators: string | null; booking_platform: string | null;
+  booking_platform_url: string | null; annual_contracts_available: boolean;
+  monthly_contracts_available: boolean; daily_contracts_available: boolean;
+  day_ahead_contracts_available: boolean; is_cam_relevant: boolean; is_cmp_relevant: boolean;
+  last_update_utc: string | null; source_system: string; source_dataset: string;
+  source_reference: string; source_record_id: string; data_quality: string;
+  metadata_json?: Record<string, unknown> | null;
 }
 
 export interface SourceSystemDTO {
@@ -117,17 +146,29 @@ export interface FxRateDTO {
 export interface FlowObsDTO {
   observation_id: string; point_id: string; point_name: string; direction: string;
   flow_mcm_d: number; period_start_utc: string; period_end_utc: string;
-  source_system?: string; freshness?: string;
+  observed_at_utc?: string; source_system?: string; source_reference?: string; freshness?: string;
+}
+
+export interface CapacityObsDTO {
+  observation_id: string; point_id: string; point_name: string; direction: string;
+  capacity_type: string; capacity_mcm_d: number; original_value?: number | null;
+  original_unit?: string | null; period_start_utc: string; period_end_utc: string;
+  observed_at_utc?: string; source_system?: string; source_reference?: string; freshness?: string;
 }
 
 export interface StorageObsDTO {
   observation_id: string; facility_id: string; facility_name: string;
-  inventory_twh: number | null; fill_pct: number | null; source_system?: string; freshness?: string;
+  country?: string; inventory_twh: number | null; working_capacity_twh?: number | null;
+  fill_pct: number | null; injection_twh_d?: number | null; withdrawal_twh_d?: number | null;
+  period_start_utc?: string; period_end_utc?: string; observed_at_utc?: string;
+  source_system?: string; source_reference?: string; freshness?: string;
 }
 
 export interface LngObsDTO {
   observation_id: string; terminal_id: string; terminal_name: string;
-  inventory_twh: number | null; send_out_twh_d: number | null; source_system?: string; freshness?: string;
+  country?: string; inventory_twh: number | null; send_out_twh_d: number | null;
+  dtmi_pct?: number | null; period_start_utc?: string; period_end_utc?: string; observed_at_utc?: string;
+  source_system?: string; source_reference?: string; freshness?: string;
 }
 
 export interface CredentialProviderDTO {
@@ -148,6 +189,28 @@ export interface RouteCandidateDTO {
   required_tso_access: string[]; source_systems: string[];
 }
 
+
+export interface UkTariffDTO {
+  tariff_id: string; document_id: string; country: string; tso: string; market_area: string;
+  gas_year: string; point_id: string; source_point_name: string; direction: string;
+  capacity_product: string; firmness: string; tariff_value: number; currency: string; unit: string;
+  effective_from: string; effective_to?: string | null; tariff_status: string;
+  source_table: string; source_page?: number | null; source_refs: string[]; manual_review_required: boolean;
+}
+
+export interface UkTariffsResultDTO {
+  scope: string; data_source: string; tariffs: UkTariffDTO[];
+}
+
+export interface UpstreamContractDTO {
+  contract_id: string; contract_name: string; resource_type: string; delivery_point_name: string;
+  gas_year: string; delivery_quantity_mwh_per_day: number; contract_price_gbp_mwh: number;
+  settlement_frequency: string; upstream_payment_lag_days: number; screen_sale_cash_lag_days: number;
+  delivery_tolerance_pct: number; nomination_tolerance_pct: number;
+  tolerance_risk_allowance_gbp_mwh?: number | null; annual_financing_rate_pct: number;
+  owned_entry_capacity_mwh_per_day?: number | null; owned_exit_capacity_mwh_per_day?: number | null;
+  allowed_exit_points: string[]; eligible_sale_modes: string[]; updated_at_utc?: string;
+}
 export interface EasingtonContractRequest {
   contract_id: string; gas_year: string; delivery_quantity_mwh_per_day: number;
   contract_price_gbp_mwh: number; nbp_sale_price_gbp_mwh: number;
@@ -313,6 +376,10 @@ export const api = {
 
   marketHubs: () => get<MarketHubDTO[]>("/reference-network/market-hubs"),
 
+  tsoAccess: (params?: {
+    point_id?: string; country?: string; operator_key?: string; direction?: string;
+  }) => get<TsoAccessPointDTO[]>("/reference-network/tso-access", params),
+
   sources: () => get<SourceSystemDTO[]>("/sources"),
 
   marketObservations: () => get<MarketObsDTO[]>("/market/observations"),
@@ -324,6 +391,8 @@ export const api = {
   portfolioLiveSummary: () => get<PortfolioLiveSummaryDTO>("/portfolio/live-summary"),
 
   flowObservations: () => get<FlowObsDTO[]>("/physical/flows"),
+
+  capacityObservations: () => get<CapacityObsDTO[]>("/physical/capacity"),
 
   storageObservations: () => get<StorageObsDTO[]>("/storage/observations"),
 
@@ -346,6 +415,10 @@ export const api = {
   routeEligibility: () => get<RouteEligibilityDTO[]>("/contracts/routes"),
 
   routeCandidates: () => get<{ route_candidates: RouteCandidateDTO[] }>("/route-cost/route-candidates"),
+
+  ukTariffs: () => get<UkTariffsResultDTO>("/route-cost/uk/tariffs"),
+
+  upstreamContracts: () => get<UpstreamContractDTO[]>("/route-cost/upstream-contracts"),
 
   compareEasingtonOptions: (body: EasingtonContractRequest) =>
     post<EasingtonOptionsResultDTO>("/route-cost/uk/easington/options", body),
@@ -376,3 +449,4 @@ export const api = {
   routeCost: (body: unknown) => post<unknown>("/research/route-cost", body),
   netback: (body: unknown) => post<unknown>("/research/netback", body),
 };
+

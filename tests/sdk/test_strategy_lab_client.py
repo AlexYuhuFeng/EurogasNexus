@@ -1,4 +1,4 @@
-"""SDK strategy-lab client tests."""
+﻿"""SDK strategy-lab client tests."""
 
 from __future__ import annotations
 
@@ -59,7 +59,7 @@ def test_strategy_lab_sdk_posts_to_backend_api(monkeypatch) -> None:
         components=[],
     )
 
-    assert captured["url"] == "http://testserver/api/v1/strategy-lab/evaluate"
+    assert captured["url"] == "http://testserver/api/strategy-lab/evaluate"
     assert captured["json"]["strategy_id"] == "sap-icis-ocm"
     assert captured["timeout"] == 15
     assert isinstance(result, StrategyLabResult)

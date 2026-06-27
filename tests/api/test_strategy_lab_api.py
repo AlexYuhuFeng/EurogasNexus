@@ -1,4 +1,4 @@
-"""Strategy-lab API tests."""
+﻿"""Strategy-lab API tests."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ def test_strategy_lab_evaluate_endpoint_returns_paper_allocation_targets() -> No
     client = TestClient(create_app())
 
     response = client.post(
-        "/api/v1/strategy-lab/evaluate",
+        "/api/strategy-lab/evaluate",
         json={
             "strategy_id": "sap-icis-ocm",
             "strategy_name": "SAP ICIS vs OCM",

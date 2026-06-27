@@ -118,7 +118,7 @@ export function GasNetworkMap({
             type: "raster",
             tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
             tileSize: 256,
-            attribution: "© OpenStreetMap contributors",
+            attribution: "OpenStreetMap contributors",
           },
         },
         layers: [
@@ -150,11 +150,13 @@ export function GasNetworkMap({
       map.remove();
       mapRef.current = null;
     };
-  }, [mapColors.background]);
+  }, []);
 
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
+
+    if (!map.isStyleLoaded()) return;
 
     if (map.getLayer("background")) {
       map.setPaintProperty("background", "background-color", mapColors.background);
@@ -187,7 +189,7 @@ export function GasNetworkMap({
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !mapReady) return;
+    if (!map || !mapReady || !map.isStyleLoaded()) return;
 
     const visibleNodeIds = new Set(filteredNodes.map((node) => node.id));
     const nodeFeatures = filteredNodes.map((node) => ({
@@ -205,12 +207,21 @@ export function GasNetworkMap({
       .map((edge) => {
         const from = edge.from;
         const to = edge.to;
+        const metadata = edge.metadata_json ?? {};
+        const capacity = Number(metadata.capacity_mwh_d ?? metadata.firm_capacity_mwh_d ?? 0);
+        const flow = Number(metadata.live_physical_flow_mwh_d ?? 0);
+        const utilization = Number(metadata.utilization_pct ?? (capacity > 0 ? flow / capacity : 0));
         return {
           type: "Feature" as const,
           properties: {
             id: edge.id,
             from_node_id: edge.from_node_id,
             to_node_id: edge.to_node_id,
+            operator: String(metadata.operator ?? ""),
+            tariff_gbp_mwh: Number(metadata.tariff_gbp_mwh ?? 0),
+            capacity_mwh_d: capacity,
+            live_flow_mwh_d: flow,
+            utilization_pct: utilization,
             route_candidate: routeIds.has(`${edge.from_node_id}:${edge.to_node_id}`),
           },
           geometry: {
@@ -234,8 +245,8 @@ export function GasNetworkMap({
         source: "edges",
         paint: {
           "line-color": ["case", ["get", "route_candidate"], mapColors.route, mapColors.edge],
-          "line-width": ["case", ["get", "route_candidate"], 3.5, 1.8],
-          "line-opacity": 0.84,
+          "line-width": ["case", ["get", "route_candidate"], 4.2, ["interpolate", ["linear"], ["get", "utilization_pct"], 0, 1.2, 0.65, 2.4, 0.9, 3.4]],
+          "line-opacity": 0.9,
         },
       });
     } else {
@@ -304,7 +315,7 @@ export function GasNetworkMap({
   return (
     <div className="gas-map" aria-label="Gas network map">
       <div ref={containerRef} className="maplibre-canvas" />
-      <svg className="fallback-network-map" viewBox="0 0 1000 620" role="presentation">
+      <svg className={mapReady ? "fallback-network-map map-ready" : "fallback-network-map"} viewBox="0 0 1000 620" role="presentation">
         <path
           className="fallback-landmass"
           d="M100 180 C150 120 235 100 320 120 C390 80 505 90 610 135 C750 135 865 210 900 330 C850 455 720 520 560 500 C440 570 300 540 220 465 C105 445 60 340 100 180 Z"
@@ -321,10 +332,15 @@ export function GasNetworkMap({
           const [x1, y1] = project(edge.from.lon, edge.from.lat);
           const [x2, y2] = project(edge.to.lon, edge.to.lat);
           const routeCandidate = routeIds.has(`${edge.from_node_id}:${edge.to_node_id}`);
+          const metadata = edge.metadata_json ?? {};
+          const capacity = Number(metadata.capacity_mwh_d ?? metadata.firm_capacity_mwh_d ?? 0);
+          const flow = Number(metadata.live_physical_flow_mwh_d ?? 0);
+          const utilization = Number(metadata.utilization_pct ?? (capacity > 0 ? flow / capacity : 0));
+          const pressureClass = utilization >= 0.75 ? " hot" : utilization >= 0.5 ? " warm" : "";
           return (
             <line
               key={edge.id}
-              className={routeCandidate ? "fallback-edge route" : "fallback-edge"}
+              className={routeCandidate ? `fallback-edge route${pressureClass}` : `fallback-edge${pressureClass}`}
               x1={x1}
               y1={y1}
               x2={x2}
@@ -361,10 +377,12 @@ export function GasNetworkMap({
         })()}
         {filteredNodes.map((node) => {
           const [x, y] = project(node.lon, node.lat);
+          const metadata = node.metadata_json ?? {};
+          const label = String(metadata.market_code ?? node.name);
           return (
             <g key={node.id} className={`fallback-node ${node.node_type}`}>
-              <circle cx={x} cy={y} r={node.node_type === "hub" ? 7 : 5} />
-              <text x={x + 9} y={y - 8}>{node.name}</text>
+              <circle cx={x} cy={y} r={node.node_type === "hub" ? 7 : node.node_type === "lng" ? 6 : 4.8} />
+              <text x={x + 9} y={y - 8}>{label}</text>
             </g>
           );
         })}

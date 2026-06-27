@@ -1,4 +1,4 @@
-"""SDK route-cost client surface tests."""
+﻿"""SDK route-cost client surface tests."""
 
 import httpx
 
@@ -73,5 +73,5 @@ def test_route_cost_sdk_uses_backend_api_only(monkeypatch) -> None:
         tolerance_risk_allowance_gbp_mwh=0.1,
     )
 
-    assert captured["url"] == "http://testserver/api/v1/route-cost/uk/easington/options"
+    assert captured["url"] == "http://testserver/api/route-cost/uk/easington/options"
     assert result.contract_id == "sdk-contract"

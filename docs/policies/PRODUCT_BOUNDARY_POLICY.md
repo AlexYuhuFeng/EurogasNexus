@@ -1,4 +1,4 @@
-# Product Boundary Policy
+﻿# Product Boundary Policy
 
 Eurogas Nexus V1 is research-only decision support for European gas resource
 analysis. It is not an execution, trading, legal, approval, nomination, or ETRM
@@ -39,7 +39,7 @@ Tauri runtime dependencies.
 
 Web and Windows runtime implementation is allowed only when the selected
 milestone is a web or Windows client milestone. Those clients must consume
-`/api/v1` and must not read PostgreSQL, backend local files, raw vendor data, or
+`/api` and must not read PostgreSQL, backend local files, raw vendor data, or
 credentials directly.
 
 ## Required Language For Future Analysis Outputs

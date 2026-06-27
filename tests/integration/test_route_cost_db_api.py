@@ -1,4 +1,4 @@
-"""DB-backed route-cost API tests."""
+﻿"""DB-backed route-cost API tests."""
 
 from datetime import UTC, datetime
 
@@ -51,7 +51,7 @@ def test_route_cost_api_reads_tariffs_from_runtime_db(tmp_path, monkeypatch) -> 
     monkeypatch.delenv("DATABASE_URL", raising=False)
     monkeypatch.delenv("EUROGAS_NEXUS_DB_DSN", raising=False)
 
-    response = TestClient(create_app()).get("/api/v1/route-cost/uk/tariffs/easington")
+    response = TestClient(create_app()).get("/api/route-cost/uk/tariffs/easington")
 
     assert response.status_code == 200
     assert response.json()["meta"]["source_references"] == ["runtime-postgresql"]
@@ -84,7 +84,7 @@ def test_easington_contract_api_persists_contract_when_db_configured(
     }
 
     response = TestClient(create_app()).post(
-        "/api/v1/route-cost/upstream-contracts/easington",
+        "/api/route-cost/upstream-contracts/easington",
         json=payload,
     )
 

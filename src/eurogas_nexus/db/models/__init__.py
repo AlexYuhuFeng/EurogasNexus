@@ -19,6 +19,7 @@ from eurogas_nexus.db.models.market_positioning import (
 )
 from eurogas_nexus.db.models.observation import (
     AuditEventRecord,
+    CapacityObservationRecord,
     EntitlementDecisionRecord,
     FlowObservationRecord,
     FxObservationRecord,
@@ -33,6 +34,7 @@ from eurogas_nexus.db.models.reference_network import (
     ReferenceFacility,
     ReferenceMarketHub,
     ReferenceNode,
+    ReferenceTsoAccessPoint,
     TopologyMarketMapping,
 )
 from eurogas_nexus.db.models.route_cost import (
@@ -69,6 +71,7 @@ __all__ = [
     "AuditEventRecord",
     "AnalysisRunRecord",
     "BusinessOntologyRecord",
+    "CapacityObservationRecord",
     "EntitlementDecisionRecord",
     "FlowObservationRecord",
     "FxObservationRecord",
@@ -87,6 +90,7 @@ __all__ = [
     "ReferenceFacility",
     "ReferenceMarketHub",
     "ReferenceNode",
+    "ReferenceTsoAccessPoint",
     "RouteCandidateRecord",
     "ScreenOrderObservationRecord",
     "StorageObservationRecord",

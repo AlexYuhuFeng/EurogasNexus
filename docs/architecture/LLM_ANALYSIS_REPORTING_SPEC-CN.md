@@ -1,83 +1,83 @@
-# LLM 分析与报告规格 - CN
+﻿# LLM 鍒嗘瀽涓庢姤鍛婅鏍?- CN
 
-## V1 决策
+## V1 鍐崇瓥
 
-DeepSeek 是 V1 第一个支持的实时 LLM Provider。OpenAI、other 和其他 provider
-保留为凭证/适配器槽位，后续里程碑再添加并测试。
+DeepSeek 鏄?V1 绗竴涓敮鎸佺殑瀹炴椂 LLM Provider銆侽penAI銆乷ther 鍜屽叾浠?provider
+淇濈暀涓哄嚟璇?閫傞厤鍣ㄦЫ浣嶏紝鍚庣画閲岀▼纰戝啀娣诲姞骞舵祴璇曘€?
 
-导入代码、测试、Web、Windows、SDK 和 CLI 都不得直接调用 LLM。唯一允许的实时
-路径是：
-
-```text
-Client -> /api/v1 -> backend analysis route -> backend credential store -> DeepSeek
-```
-
-## 凭证规则
-
-用户可以通过供应商凭证 UI/API 输入 DeepSeek API Key。后端将其加密存储在
-PostgreSQL 中。明文 key 只写不读，不得返回给客户端、日志、报告或测试。
-
-Provider ID：
-
-- `DEEPSEEK`：V1 首选 LLM provider；
-- `LLM`：旧版/通用 fallback 凭证槽。
-
-## 分析能力
-
-V1 分析支持：
-
-- 基于后端快照的 DB inquiry；
-- business logic ontology 解释；
-- glossary Q&A；
-- PnL tracking readiness 和预警；
-- TSO operation status report；
-- portfolio/resource/contract report；
-- market movement synthesis；
-- strategy run 和 shadow-run context summary。
-
-LLM provider 不是事实来源。事实来源仍然是 PostgreSQL。Provider 只能接收结构化
-快照，不得直接访问数据库。
-
-## 报告生成
-
-报告必须包含：
-
-- 当前 portfolio 或选定 resources/contracts；
-- 正在运行的 strategy 和 strategy run 状态；
-- 若已持久化 PnL series，则展示自 strategy/portfolio 生效以来的历史 PnL；
-- 选定时间段内相关市场价格、数量、FX、路线成本、flow、storage、LNG 和 warning；
-- 带引用的候选市场决策支持 commentary。
-
-报告必须包含 source references、missing inputs、warnings、`research_only` 和
-`human_review_required`。
-
-## 术语表集成
-
-术语表 term 可通过以下端点暴露运营上下文：
+瀵煎叆浠ｇ爜銆佹祴璇曘€乄eb銆乄indows銆丼DK 鍜?CLI 閮戒笉寰楃洿鎺ヨ皟鐢?LLM銆傚敮涓€鍏佽鐨勫疄鏃?
+璺緞鏄細
 
 ```text
-GET /api/v1/glossary/{term}/context
+Client -> /api -> backend analysis route -> backend credential store -> DeepSeek
 ```
 
-示例：
+## 鍑瘉瑙勫垯
 
-- Easington Entry Point：描述、容量、选定快照/时间段的容量使用率、相关
-  NBP/ICE OCM/ICIS 价格、路线选项和来源状态。
-- ICIS Heren：价格评估描述、license warning、相关价格和市场来源上下文。
+鐢ㄦ埛鍙互閫氳繃渚涘簲鍟嗗嚟璇?UI/API 杈撳叆 DeepSeek API Key銆傚悗绔皢鍏跺姞瀵嗗瓨鍌ㄥ湪
+PostgreSQL 涓€傛槑鏂?key 鍙啓涓嶈锛屼笉寰楄繑鍥炵粰瀹㈡埛绔€佹棩蹇椼€佹姤鍛婃垨娴嬭瘯銆?
 
-如果运行时 DB 数据不可用，端点必须返回带明确 warning 的 partial context，不得
-编造客户数据。
+Provider ID锛?
 
-## 当前端点
+- `DEEPSEEK`锛歏1 棣栭€?LLM provider锛?
+- `LLM`锛氭棫鐗?閫氱敤 fallback 鍑瘉妲姐€?
+
+## 鍒嗘瀽鑳藉姏
+
+V1 鍒嗘瀽鏀寔锛?
+
+- 鍩轰簬鍚庣蹇収鐨?DB inquiry锛?
+- business logic ontology 瑙ｉ噴锛?
+- glossary Q&A锛?
+- PnL tracking readiness 鍜岄璀︼紱
+- TSO operation status report锛?
+- portfolio/resource/contract report锛?
+- market movement synthesis锛?
+- strategy run 鍜?shadow-run context summary銆?
+
+LLM provider 涓嶆槸浜嬪疄鏉ユ簮銆備簨瀹炴潵婧愪粛鐒舵槸 PostgreSQL銆侾rovider 鍙兘鎺ユ敹缁撴瀯鍖?
+蹇収锛屼笉寰楃洿鎺ヨ闂暟鎹簱銆?
+
+## 鎶ュ憡鐢熸垚
+
+鎶ュ憡蹇呴』鍖呭惈锛?
+
+- 褰撳墠 portfolio 鎴栭€夊畾 resources/contracts锛?
+- 姝ｅ湪杩愯鐨?strategy 鍜?strategy run 鐘舵€侊紱
+- 鑻ュ凡鎸佷箙鍖?PnL series锛屽垯灞曠ず鑷?strategy/portfolio 鐢熸晥浠ユ潵鐨勫巻鍙?PnL锛?
+- 閫夊畾鏃堕棿娈靛唴鐩稿叧甯傚満浠锋牸銆佹暟閲忋€丗X銆佽矾绾挎垚鏈€乫low銆乻torage銆丩NG 鍜?warning锛?
+- 甯﹀紩鐢ㄧ殑鍊欓€夊競鍦哄喅绛栨敮鎸?commentary銆?
+
+鎶ュ憡蹇呴』鍖呭惈 source references銆乵issing inputs銆亀arnings銆乣research_only` 鍜?
+`human_review_required`銆?
+
+## 鏈琛ㄩ泦鎴?
+
+鏈琛?term 鍙€氳繃浠ヤ笅绔偣鏆撮湶杩愯惀涓婁笅鏂囷細
 
 ```text
-GET  /api/v1/analysis/ontology
-POST /api/v1/analysis/query
-POST /api/v1/reports/portfolio
-GET  /api/v1/glossary/{term}/context
+GET /api/glossary/{term}/context
 ```
 
-## 互联网要求
+绀轰緥锛?
 
-只有在 `invoke_provider=true` 且已配置 DeepSeek credential 时才需要互联网。
-离线开发和测试使用确定性的 snapshot output，不得调用任何 LLM provider。
+- Easington Entry Point锛氭弿杩般€佸閲忋€侀€夊畾蹇収/鏃堕棿娈电殑瀹归噺浣跨敤鐜囥€佺浉鍏?
+  NBP/ICE OCM/ICIS 浠锋牸銆佽矾绾块€夐」鍜屾潵婧愮姸鎬併€?
+- ICIS Heren锛氫环鏍艰瘎浼版弿杩般€乴icense warning銆佺浉鍏充环鏍煎拰甯傚満鏉ユ簮涓婁笅鏂囥€?
+
+濡傛灉杩愯鏃?DB 鏁版嵁涓嶅彲鐢紝绔偣蹇呴』杩斿洖甯︽槑纭?warning 鐨?partial context锛屼笉寰?
+缂栭€犲鎴锋暟鎹€?
+
+## 褰撳墠绔偣
+
+```text
+GET  /api/analysis/ontology
+POST /api/analysis/query
+POST /api/reports/portfolio
+GET  /api/glossary/{term}/context
+```
+
+## 浜掕仈缃戣姹?
+
+鍙湁鍦?`invoke_provider=true` 涓斿凡閰嶇疆 DeepSeek credential 鏃舵墠闇€瑕佷簰鑱旂綉銆?
+绂荤嚎寮€鍙戝拰娴嬭瘯浣跨敤纭畾鎬х殑 snapshot output锛屼笉寰楄皟鐢ㄤ换浣?LLM provider銆?

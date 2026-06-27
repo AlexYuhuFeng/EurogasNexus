@@ -30,7 +30,7 @@ class CapacityContract:
     status: str = "active"  # "active", "expiring", "expired"
     counterparty: str = ""
     notes: str = ""
-    source_system: str = "synthetic-fixture"
+    source_system: str = "operator-input"
     research_only: bool = True
     human_review_required: bool = True
 
@@ -50,5 +50,5 @@ class RouteEligibility:
     required_physical_signals: list[str] = field(default_factory=list)
     constraints: list[str] = field(default_factory=list)
     notes: str = ""
-    source_system: str = "synthetic-fixture"
+    source_system: str = "operator-input"
     research_only: bool = True

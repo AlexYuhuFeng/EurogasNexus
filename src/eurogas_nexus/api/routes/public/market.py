@@ -1,78 +1,42 @@
-"""Read-only /api/v1/market routes."""
+﻿"""Read-only /api/market routes."""
 
 from fastapi import APIRouter, HTTPException, Request
 
 router = APIRouter(tags=["market"])
 
 
-@router.get("/api/v1/market/observations")
+@router.get("/api/market/observations")
 def list_observations(request: Request) -> dict:
     observations = _db_market_observations()
     if observations is not None:
         return _env(observations, source="runtime-postgresql")
 
-    return _env(_fixture_market_observations(), source="synthetic-fixture")
-
-
-@router.get("/api/v1/market/fx")
-def list_fx(request: Request) -> dict:
-    fx_rows = _db_fx_observations()
-    if fx_rows is not None:
-        return _env(fx_rows, source="runtime-postgresql", synthetic=False)
-
     return _env(
-        [
-            {
-                "pair": "EURUSD",
-                "base_currency": "EUR",
-                "quote_currency": "USD",
-                "rate": 1.0850,
-                "rate_type": "reference",
-                "value_date": "2026-05-29",
-                "observed_at_utc": "2026-05-29T12:00:00Z",
-                "source_system": "ECB",
-                "source_reference": "synthetic-ecb-fallback",
-                "freshness": "synthetic",
-            },
-            {
-                "pair": "EURGBP",
-                "base_currency": "EUR",
-                "quote_currency": "GBP",
-                "rate": 0.8510,
-                "rate_type": "reference",
-                "value_date": "2026-05-29",
-                "observed_at_utc": "2026-05-29T12:00:00Z",
-                "source_system": "ECB",
-                "source_reference": "synthetic-ecb-fallback",
-                "freshness": "synthetic",
-            },
-        ],
-        source="synthetic-fixture",
+        [],
+        source="runtime-db-not-configured",
+        warnings=["Runtime DB is not configured; market observations are unavailable."],
     )
 
 
-@router.get("/api/v1/market/spreads")
+@router.get("/api/market/fx")
+def list_fx(request: Request) -> dict:
+    fx_rows = _db_fx_observations()
+    if fx_rows is not None:
+        return _env(fx_rows, source="runtime-postgresql")
+
+    return _env(
+        [],
+        source="runtime-db-not-configured",
+        warnings=["Runtime DB is not configured; ECB FX observations are unavailable."],
+    )
+
+
+@router.get("/api/market/spreads")
 def list_spreads(request: Request) -> dict:
     return _env(
-        [
-            {
-                "spread_id": "spd-001",
-                "name": "TTF-NBP",
-                "from_venue": "TTF",
-                "to_venue": "NBP",
-                "spread_eur_mwh": 1.50,
-                "period": "2026-06",
-            },
-            {
-                "spread_id": "spd-002",
-                "name": "TTF-PEG",
-                "from_venue": "TTF",
-                "to_venue": "PEG",
-                "spread_eur_mwh": 0.80,
-                "period": "2026-06",
-            },
-        ],
-        source="synthetic-fixture",
+        [],
+        source="runtime-db-not-configured",
+        warnings=["Spread calculation requires sourced prices in runtime DB."],
     )
 
 
@@ -174,41 +138,6 @@ def _fx_row_from_market_observation(row) -> dict:
     }
 
 
-def _fixture_market_observations() -> list[dict]:
-    return [
-        {
-            "observation_id": "mkt-001",
-            "market_venue": "TTF",
-            "product": "month-ahead",
-            "price": 42.50,
-            "unit": "EUR/MWh",
-            "currency": "EUR",
-            "period_start_utc": "2026-06-01T00:00:00Z",
-            "period_end_utc": "2026-07-01T00:00:00Z",
-        },
-        {
-            "observation_id": "mkt-002",
-            "market_venue": "NBP",
-            "product": "day-ahead",
-            "price": 105.20,
-            "unit": "p/th",
-            "currency": "GBP",
-            "period_start_utc": "2026-05-30T06:00:00Z",
-            "period_end_utc": "2026-05-31T06:00:00Z",
-        },
-        {
-            "observation_id": "mkt-003",
-            "market_venue": "PEG",
-            "product": "month-ahead",
-            "price": 41.00,
-            "unit": "EUR/MWh",
-            "currency": "EUR",
-            "period_start_utc": "2026-06-01T00:00:00Z",
-            "period_end_utc": "2026-07-01T00:00:00Z",
-        },
-    ]
-
-
 def _db_is_configured() -> bool:
     from eurogas_nexus.db.session import resolve_database_url
 
@@ -232,16 +161,13 @@ def _db_unavailable(exc: Exception) -> HTTPException:
     )
 
 
-def _env(data: object, *, source: str, synthetic: bool | None = None) -> dict:
-    warnings = []
-    if synthetic is not False:
-        warnings.append("Synthetic data only. Do not use for commercial decisions.")
+def _env(data: object, *, source: str, warnings: list[str] | None = None) -> dict:
     return {
         "data": data,
         "meta": {
             "research_only": True,
             "human_review_required": True,
             "source_references": [source],
-            "warnings": warnings,
+            "warnings": warnings or [],
         },
     }

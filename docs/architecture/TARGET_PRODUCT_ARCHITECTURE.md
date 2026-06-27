@@ -1,4 +1,4 @@
-# Target Product Architecture
+﻿# Target Product Architecture
 
 ## Product Vision
 
@@ -53,7 +53,7 @@ Backend support:
 - canonical reference-network entities;
 - source references and lineage;
 - geometry/topology storage in PostgreSQL/PostGIS when approved;
-- `/api/v1` read APIs for future map clients.
+- `/api` read APIs for future map clients.
 
 ### 2. Understand Market Context
 
@@ -108,7 +108,7 @@ Backend support:
 ### Backend API
 
 The backend API is the central product contract. It should expose stable
-`/api/v1` routes for clients, internal routes for operators, and development
+`/api` routes for clients, internal routes for operators, and development
 routes for local diagnostics.
 
 Responsibilities:
@@ -207,7 +207,7 @@ Responsibilities:
 ### Python SDK
 
 The SDK is the required typed programmatic API client for V1. It should use
-`/api/v1` and never
+`/api` and never
 reach into internal domain, DB, or local runtime files.
 
 Design authority:

@@ -1,4 +1,4 @@
-"""SDK client for /api/v1/sources and /api/v1/ingestion-runs."""
+"""SDK client for /api/sources and /api/ingestion-runs."""
 
 import httpx
 from pydantic import BaseModel
@@ -29,13 +29,13 @@ def _get(url: str, **params) -> dict:
 
 
 def fetch_sources(base_url: str) -> list[SourceSystem]:
-    data = _get(f"{base_url}/api/v1/sources")
+    data = _get(f"{base_url}/api/sources")
     return [SourceSystem(**s) for s in data["data"]]
 
 def fetch_source(base_url: str, source_id: str) -> SourceSystem:
-    data = _get(f"{base_url}/api/v1/sources/{source_id}")
+    data = _get(f"{base_url}/api/sources/{source_id}")
     return SourceSystem(**data["data"])
 
 def fetch_ingestion_runs(base_url: str, *, source_id: str | None = None) -> list[IngestionRun]:
-    data = _get(f"{base_url}/api/v1/ingestion-runs", source_id=source_id)
+    data = _get(f"{base_url}/api/ingestion-runs", source_id=source_id)
     return [IngestionRun(**r) for r in data["data"]]

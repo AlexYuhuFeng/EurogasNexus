@@ -10,6 +10,7 @@ from eurogas_nexus.db.models.reference_network import (
     ReferenceFacility,
     ReferenceMarketHub,
     ReferenceNode,
+    ReferenceTsoAccessPoint,
 )
 
 # --- Domain-safe dataclasses -------------------------------------------------
@@ -26,6 +27,11 @@ class NodeDTO:
     lat: float
     lon: float
     capacity_boe_d: float | None = None
+    source_system: str | None = None
+    source_dataset: str | None = None
+    source_reference: str | None = None
+    source_record_id: str | None = None
+    data_quality: str | None = None
     metadata_json: dict | None = None
 
 
@@ -38,6 +44,11 @@ class EdgeDTO:
     to_node_id: str
     edge_type: str
     length_km: float | None = None
+    source_system: str | None = None
+    source_dataset: str | None = None
+    source_reference: str | None = None
+    source_record_id: str | None = None
+    data_quality: str | None = None
     metadata_json: dict | None = None
 
 
@@ -52,6 +63,11 @@ class FacilityDTO:
     lat: float
     lon: float
     capacity_boe_d: float | None = None
+    source_system: str | None = None
+    source_dataset: str | None = None
+    source_reference: str | None = None
+    source_record_id: str | None = None
+    data_quality: str | None = None
     metadata_json: dict | None = None
 
 
@@ -64,6 +80,44 @@ class MarketHubDTO:
     hub_code: str
     country: str
     description: str | None = None
+    source_system: str | None = None
+    source_dataset: str | None = None
+    source_reference: str | None = None
+    source_record_id: str | None = None
+    data_quality: str | None = None
+    metadata_json: dict | None = None
+
+
+@dataclass(frozen=True)
+class TsoAccessPointDTO:
+    """Domain-safe TSO access point payload."""
+
+    access_id: str
+    point_id: str | None
+    point_key: str
+    point_name: str
+    country: str
+    operator_key: str
+    operator_name: str
+    tso_eic_code: str | None
+    direction: str
+    adjacent_country: str | None
+    adjacent_operator_key: str | None
+    connected_operators: str | None
+    booking_platform: str | None
+    booking_platform_url: str | None
+    annual_contracts_available: bool
+    monthly_contracts_available: bool
+    daily_contracts_available: bool
+    day_ahead_contracts_available: bool
+    is_cam_relevant: bool
+    is_cmp_relevant: bool
+    last_update_utc: str | None
+    source_system: str
+    source_dataset: str
+    source_reference: str
+    source_record_id: str
+    data_quality: str
     metadata_json: dict | None = None
 
 
@@ -111,6 +165,19 @@ class MarketHubRepository(Protocol):
 
     def list_all(self) -> list[MarketHubDTO]: ...
     def get_by_id(self, hub_id: str) -> MarketHubDTO | None: ...
+
+
+class TsoAccessPointRepository(Protocol):
+    """Read-only repository for source-owned TSO access metadata."""
+
+    def list_all(
+        self,
+        *,
+        point_id: str | None = None,
+        country: str | None = None,
+        operator_key: str | None = None,
+        direction: str | None = None,
+    ) -> list[TsoAccessPointDTO]: ...
 
 
 # --- SQLAlchemy adapters -----------------------------------------------------
@@ -203,6 +270,32 @@ class SqlAlchemyMarketHubRepository:
         return _hub_to_dto(row) if row else None
 
 
+class SqlAlchemyTsoAccessPointRepository:
+    """SQLAlchemy adapter for TSO access metadata reads."""
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def list_all(
+        self,
+        *,
+        point_id: str | None = None,
+        country: str | None = None,
+        operator_key: str | None = None,
+        direction: str | None = None,
+    ) -> list[TsoAccessPointDTO]:
+        q = self._session.query(ReferenceTsoAccessPoint)
+        if point_id is not None:
+            q = q.filter(ReferenceTsoAccessPoint.point_id == point_id)
+        if country is not None:
+            q = q.filter(ReferenceTsoAccessPoint.country == country)
+        if operator_key is not None:
+            q = q.filter(ReferenceTsoAccessPoint.operator_key == operator_key)
+        if direction is not None:
+            q = q.filter(ReferenceTsoAccessPoint.direction == direction)
+        return [_tso_access_to_dto(row) for row in q.all()]
+
+
 # --- Row-to-DTO helpers ------------------------------------------------------
 
 
@@ -215,6 +308,11 @@ def _node_to_dto(row: ReferenceNode) -> NodeDTO:
         lat=row.lat,
         lon=row.lon,
         capacity_boe_d=row.capacity_boe_d,
+        source_system=row.source_system,
+        source_dataset=row.source_dataset,
+        source_reference=row.source_reference,
+        source_record_id=row.source_record_id,
+        data_quality=row.data_quality,
         metadata_json=row.metadata_json,
     )
 
@@ -226,6 +324,11 @@ def _edge_to_dto(row: ReferenceEdge) -> EdgeDTO:
         to_node_id=row.to_node_id,
         edge_type=row.edge_type,
         length_km=row.length_km,
+        source_system=row.source_system,
+        source_dataset=row.source_dataset,
+        source_reference=row.source_reference,
+        source_record_id=row.source_record_id,
+        data_quality=row.data_quality,
         metadata_json=row.metadata_json,
     )
 
@@ -239,6 +342,11 @@ def _facility_to_dto(row: ReferenceFacility) -> FacilityDTO:
         lat=row.lat,
         lon=row.lon,
         capacity_boe_d=row.capacity_boe_d,
+        source_system=row.source_system,
+        source_dataset=row.source_dataset,
+        source_reference=row.source_reference,
+        source_record_id=row.source_record_id,
+        data_quality=row.data_quality,
         metadata_json=row.metadata_json,
     )
 
@@ -250,5 +358,42 @@ def _hub_to_dto(row: ReferenceMarketHub) -> MarketHubDTO:
         hub_code=row.hub_code,
         country=row.country,
         description=row.description,
+        source_system=row.source_system,
+        source_dataset=row.source_dataset,
+        source_reference=row.source_reference,
+        source_record_id=row.source_record_id,
+        data_quality=row.data_quality,
+        metadata_json=row.metadata_json,
+    )
+
+
+def _tso_access_to_dto(row: ReferenceTsoAccessPoint) -> TsoAccessPointDTO:
+    return TsoAccessPointDTO(
+        access_id=row.access_id,
+        point_id=row.point_id,
+        point_key=row.point_key,
+        point_name=row.point_name,
+        country=row.country,
+        operator_key=row.operator_key,
+        operator_name=row.operator_name,
+        tso_eic_code=row.tso_eic_code,
+        direction=row.direction,
+        adjacent_country=row.adjacent_country,
+        adjacent_operator_key=row.adjacent_operator_key,
+        connected_operators=row.connected_operators,
+        booking_platform=row.booking_platform,
+        booking_platform_url=row.booking_platform_url,
+        annual_contracts_available=row.annual_contracts_available,
+        monthly_contracts_available=row.monthly_contracts_available,
+        daily_contracts_available=row.daily_contracts_available,
+        day_ahead_contracts_available=row.day_ahead_contracts_available,
+        is_cam_relevant=row.is_cam_relevant,
+        is_cmp_relevant=row.is_cmp_relevant,
+        last_update_utc=row.last_update_utc.isoformat() if row.last_update_utc else None,
+        source_system=row.source_system,
+        source_dataset=row.source_dataset,
+        source_reference=row.source_reference,
+        source_record_id=row.source_record_id,
+        data_quality=row.data_quality,
         metadata_json=row.metadata_json,
     )

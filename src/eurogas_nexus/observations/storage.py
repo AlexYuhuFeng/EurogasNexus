@@ -19,7 +19,7 @@ class StorageSite:
     injection_rate_mcm_d: float | None = None
     withdrawal_rate_mcm_d: float | None = None
     status: str = "operational"
-    source_system: str = "synthetic-fixture"
+    source_system: str = "operator-input"
 
 
 @dataclass(frozen=True)
@@ -35,7 +35,7 @@ class StorageObservation:
     period_start_utc: str = ""
     period_end_utc: str = ""
     observed_at_utc: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
-    source_system: str = "synthetic-fixture"
+    source_system: str = "operator-input"
     source_reference: str = ""
     freshness: ObservationFreshness = ObservationFreshness.UNKNOWN
     research_only: bool = True

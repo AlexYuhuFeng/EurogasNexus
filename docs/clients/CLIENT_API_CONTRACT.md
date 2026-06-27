@@ -1,4 +1,4 @@
-# Client API Contract
+﻿# Client API Contract
 
 ## Scope
 
@@ -12,11 +12,11 @@ only through SDK/API boundaries.
 
 Allowed data paths:
 
-- Python SDK -> backend `/api/v1` -> backend repositories -> PostgreSQL.
-- CLI -> Python SDK first, or backend `/api/v1` directly only when the SDK does
+- Python SDK -> backend `/api` -> backend repositories -> PostgreSQL.
+- CLI -> Python SDK first, or backend `/api` directly only when the SDK does
   not yet expose the selected route.
-- Web client -> browser API client for backend `/api/v1`.
-- Windows client -> packaged web workspace/API client for backend `/api/v1`.
+- Web client -> browser API client for backend `/api`.
+- Windows client -> packaged web workspace/API client for backend `/api`.
 
 No client may open a PostgreSQL connection, import backend DB/runtime-store
 modules, or read backend local data files to retrieve runtime data.
@@ -28,16 +28,16 @@ Clients must target the backend API base URL configured by the operator.
 Stable routes use:
 
 ```text
-/api/v1
+/api
 ```
 
 Compatibility route:
 
 ```text
-/v1/health
+/api/health
 ```
 
-New client code must use `/api/v1/health`, not `/v1/health`.
+New client code must use `/api/health`, not `/api/health`.
 
 ## Forbidden Access
 
@@ -68,7 +68,7 @@ Clients must:
 
 ## Standard Envelope
 
-Future `/api/v1` responses should converge on this shape:
+Future `/api` responses should converge on this shape:
 
 ```json
 {
@@ -96,36 +96,36 @@ both bootstrap and full-envelope responses during transition.
 
 | Endpoint | Client Use | Status |
 | --- | --- | --- |
-| `GET /api/v1/health` | backend availability | active |
-| `GET /api/v1/runtime/status` | DB/runtime/operator status | planned |
-| `GET /api/v1/reference-network/nodes` | map nodes | active |
-| `GET /api/v1/reference-network/edges` | map corridors/routes | active |
-| `GET /api/v1/reference-network/facilities` | LNG, storage, terminals | active |
-| `POST /api/v1/scenarios/validate` | scenario missing-input check | planned |
-| `POST /api/v1/research/route-cost` | future research-only workflow | planned |
-| `GET /api/v1/sources/live-status` | ECB, ENTSOG, GIE, EEX, Trayport, ICE OCM, weather, LLM posture | planned |
-| `GET /api/v1/capacity/contracts` | capacity/contract context | planned |
-| `GET /api/v1/market/signals` | market movement signals | planned |
-| `GET /api/v1/weather/signals` | HDD/CDD and demand-pressure signals | planned |
-| `POST /api/v1/research/shadow-run` | legacy workflow shell | active |
-| `POST /api/v1/strategy-lab/evaluate` | strategy backtest/shadow/live-monitor paper evaluation | active |
-| `GET /api/v1/analysis/ontology` | business ontology for analysis and glossary QA | active |
-| `POST /api/v1/analysis/query` | DeepSeek-ready cited LLM/data analysis over backend snapshots | active |
-| `POST /api/v1/reports/portfolio` | portfolio/resource/strategy/PnL report generation | active |
-| `GET /api/v1/portfolio/screen-orders` | read-only imported screen/broker order observations | active |
-| `GET /api/v1/portfolio/pnl-snapshots` | indicative portfolio/resource/strategy PnL snapshots | active |
-| `GET /api/v1/portfolio/live-summary` | cockpit order/PnL/cash summary | active |
-| `GET /api/v1/glossary/{term}/context` | glossary term operational context | active |
-| `POST /api/v1/analysis/market-movement` | legacy market movement placeholder | planned |
-| `GET /api/v1/glossary` | backend-served bilingual glossary | active |
-| `GET /api/v1/glossary/{term}` | backend-served bilingual glossary detail | active |
-| `GET /api/v1/route-cost/route-candidates` | DB-backed route candidates | active |
-| `GET /api/v1/route-cost/uk/tariffs` | UK NTS tariff rows available in DB/fallback | active |
-| `POST /api/v1/route-cost/calculate` | UK NTS route-cost calculation from tariff rows | active |
-| `POST /api/v1/route-cost/uk/easington/options` | UK Easington option PnL | active |
-| `POST /api/v1/route-cost/uk/easington/live-pnl` | UK Easington live bid-based PnL | active |
-| `POST /api/v1/route-cost/lng-regas/assess` | LNG regas readiness assessment | active |
-| `POST /api/v1/route-cost/resource-pool/optimize` | upstream portfolio/resource-pool allocation | active |
+| `GET /api/health` | backend availability | active |
+| `GET /api/runtime/status` | DB/runtime/operator status | planned |
+| `GET /api/reference-network/nodes` | map nodes | active |
+| `GET /api/reference-network/edges` | map corridors/routes | active |
+| `GET /api/reference-network/facilities` | LNG, storage, terminals | active |
+| `POST /api/scenarios/validate` | scenario missing-input check | planned |
+| `POST /api/research/route-cost` | future research-only workflow | planned |
+| `GET /api/sources/live-status` | ECB, ENTSOG, GIE, EEX, Trayport, ICE OCM, weather, LLM posture | planned |
+| `GET /api/capacity/contracts` | capacity/contract context | planned |
+| `GET /api/market/signals` | market movement signals | planned |
+| `GET /api/weather/signals` | HDD/CDD and demand-pressure signals | planned |
+| `POST /api/research/shadow-run` | legacy workflow shell | active |
+| `POST /api/strategy-lab/evaluate` | strategy backtest/shadow/live-monitor paper evaluation | active |
+| `GET /api/analysis/ontology` | business ontology for analysis and glossary QA | active |
+| `POST /api/analysis/query` | DeepSeek-ready cited LLM/data analysis over backend snapshots | active |
+| `POST /api/reports/portfolio` | portfolio/resource/strategy/PnL report generation | active |
+| `GET /api/portfolio/screen-orders` | read-only imported screen/broker order observations | active |
+| `GET /api/portfolio/pnl-snapshots` | indicative portfolio/resource/strategy PnL snapshots | active |
+| `GET /api/portfolio/live-summary` | cockpit order/PnL/cash summary | active |
+| `GET /api/glossary/{term}/context` | glossary term operational context | active |
+| `POST /api/analysis/market-movement` | legacy market movement placeholder | planned |
+| `GET /api/glossary` | backend-served bilingual glossary | active |
+| `GET /api/glossary/{term}` | backend-served bilingual glossary detail | active |
+| `GET /api/route-cost/route-candidates` | DB-backed route candidates | active |
+| `GET /api/route-cost/uk/tariffs` | UK NTS tariff rows available in DB/fallback | active |
+| `POST /api/route-cost/calculate` | UK NTS route-cost calculation from tariff rows | active |
+| `POST /api/route-cost/uk/easington/options` | UK Easington option PnL | active |
+| `POST /api/route-cost/uk/easington/live-pnl` | UK Easington live bid-based PnL | active |
+| `POST /api/route-cost/lng-regas/assess` | LNG regas readiness assessment | active |
+| `POST /api/route-cost/resource-pool/optimize` | upstream portfolio/resource-pool allocation | active |
 
 Planned endpoints must be mocked locally until backend contracts exist.
 
@@ -152,13 +152,13 @@ observation rows.
 
 Read-only client surfaces remain:
 
-- `GET /api/v1/portfolio/screen-orders`;
-- `GET /api/v1/portfolio/pnl-snapshots`;
-- `GET /api/v1/portfolio/live-summary`.
+- `GET /api/portfolio/screen-orders`;
+- `GET /api/portfolio/pnl-snapshots`;
+- `GET /api/portfolio/live-summary`.
 
 ## Operational Glossary Context
 
-`GET /api/v1/glossary/{term}/context` accepts:
+`GET /api/glossary/{term}/context` accepts:
 
 - `lang=en|zh|zh-CN`;
 - `duration_start_utc`;
@@ -232,7 +232,7 @@ plaintext provider credentials.
 
 ## Portfolio Positioning Boundary
 
-`/api/v1/portfolio/*` endpoints expose imported observation state only:
+`/api/portfolio/*` endpoints expose imported observation state only:
 
 - screen and broker order records are read-only external observations;
 - PnL snapshots are indicative valuation records for cockpit, SDK, and report

@@ -1,4 +1,4 @@
-# Live PostgreSQL Policy For V1
+﻿# Live PostgreSQL Policy For V1
 
 ## Decision
 
@@ -22,6 +22,10 @@ an explicit command.
 - Database URLs must never be printed in full.
 - `.env`, credentials, tokens, raw vendor data, and internal business data must
   not be committed.
+- Public or entitled infrastructure/reference data must be persisted to
+  PostgreSQL before API/SDK/client use.
+- Price, screen, broker, and proprietary vendor feeds require customer
+  credentials/entitlement or explicit operator-owned input.
 
 ## Database URL Precedence
 
@@ -42,6 +46,8 @@ Codex may:
 - inspect Alembic version table through read-only queries;
 - report missing required tables;
 - write migration files when a milestone requires schema creation;
+- add explicit operator-invoked ingestion scripts for public or credentialed
+  sources;
 - run tests that do not require a live DB by default;
 - add opt-in live DB tests guarded by an environment marker.
 
@@ -53,6 +59,27 @@ Codex may not:
 - print the database URL or any password;
 - use historical `.env` files from Desktop reference projects;
 - treat SQLite or local files as trial/release runtime truth.
+
+## Official Source Runtime Policy
+
+The V1 runtime path is DB-first. Data available from public or operator-keyed
+official sources should be ingested into PostgreSQL and then exposed through
+`/api` and the SDK.
+
+Current public/keyed runtime sources:
+
+- ECB daily euro FX reference rates;
+- ENTSOG operational flow observations;
+- ENTSOG connection points and TSO access metadata;
+- GIE AGSI storage observations;
+- GIE ALSI LNG observations;
+- audited public TSO tariff rows.
+
+Price and screen data are different. EEX, ICE OCM, Trayport, ICIS, Argus,
+Kpler, Platts, broker, and customer screen/order feeds require customer
+credentials, entitlement, and source-specific contracts before live ingestion.
+Until then, only operator-owned test marks may be inserted into local test
+PostgreSQL, and they must be clearly labeled as operator-entered test records.
 
 ## Standard Live Validation Command
 

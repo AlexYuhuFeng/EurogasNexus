@@ -1,4 +1,4 @@
-# R14: Web Research Workspace Report
+﻿# R14: Web Research Workspace Report
 
 **Milestone ID:** R14 | **Status:** PARTIAL | **Date:** 2026-05-29
 
@@ -13,7 +13,7 @@ be verified without `npm install` and `npm run build`.
   MapLibre GL 5, deck.gl 9, Zustand 5, i18next 24, lucide-react, date-fns, zod
 - `vite.config.ts` with `/api` proxy to backend
 - `tsconfig.json` with strict mode and path aliases
-- Typed API client (`src/api/client.ts`) calling `/api/v1` with fetch
+- Typed API client (`src/api/client.ts`) calling `/api` with fetch
 - i18n resources: English (en.json) and Mandarin Chinese (zh.json)
 - Light/dark/system theme store (Zustand + CSS variables + localStorage)
 - API data store (Zustand) with loading/error/dataStatus states
@@ -28,7 +28,7 @@ be verified without `npm install` and `npm run build`.
   Glossary, Runtime, Settings)
 - E2E tests
 
-**Internet required:** yes — npm packages must be downloaded.
+**Internet required:** yes 鈥?npm packages must be downloaded.
 
 **Fallback applied:** Created file structure, TypeScript interfaces, i18n/theme
 resources, mocked API client, Zustand stores, and CSS theme system. All source
@@ -52,4 +52,4 @@ code is ready for `npm install && npm run dev`.
 
 ## Next
 
-R15: Windows Client Package Shell (also PARTIAL — requires Tauri/Rust toolchain)
+R15: Windows Client Package Shell (also PARTIAL 鈥?requires Tauri/Rust toolchain)

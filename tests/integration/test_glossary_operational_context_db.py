@@ -1,4 +1,4 @@
-"""DB-backed operational glossary context tests."""
+﻿"""DB-backed operational glossary context tests."""
 
 from datetime import UTC, datetime
 
@@ -144,7 +144,7 @@ def test_glossary_context_reads_capacity_flow_prices_and_contracts_from_db(
 
     client = TestClient(create_app())
     response = client.get(
-        "/api/v1/glossary/Easington%20Entry%20Point/context",
+        "/api/glossary/Easington%20Entry%20Point/context",
         params={
             "duration_start_utc": "2026-06-01T00:00:00Z",
             "duration_end_utc": "2026-06-03T00:00:00Z",
@@ -322,7 +322,7 @@ def test_glossary_context_derives_non_profile_entry_point_from_runtime_records(
 
     client = TestClient(create_app())
     response = client.get(
-        "/api/v1/glossary/St%20Fergus%20Entry%20Point/context",
+        "/api/glossary/St%20Fergus%20Entry%20Point/context",
         params={
             "duration_start_utc": "2026-06-01T00:00:00Z",
             "duration_end_utc": "2026-06-04T00:00:00Z",

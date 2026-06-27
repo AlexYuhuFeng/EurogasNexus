@@ -1,4 +1,4 @@
-# Client Documentation Index
+﻿# Client Documentation Index
 
 ## Purpose
 
@@ -39,10 +39,10 @@ When Codex is asked to implement clients, read these files in order:
 Clients are SDK/API consumers. Runtime data lives in PostgreSQL, but clients
 reach it through the backend API boundary:
 
-- SDK calls `/api/v1`.
-- CLI calls the SDK first, or `/api/v1` directly only for a documented SDK gap.
-- Web calls `/api/v1` through its browser API client.
-- Windows packages or launches the web workspace and calls `/api/v1`.
+- SDK calls `/api`.
+- CLI calls the SDK first, or `/api` directly only for a documented SDK gap.
+- Web calls `/api` through its browser API client.
+- Windows packages or launches the web workspace and calls `/api`.
 
 They must not read PostgreSQL, backend local files, raw vendor data, `.env`
 files, historical Desktop project files, or connector credentials directly. The
@@ -50,12 +50,12 @@ only exception is a documented operations script that performs explicit
 read-only runtime DB validation.
 
 Imported screen orders and PnL snapshots are also API-only. They are exposed by
-`/api/v1/portfolio/*` and the Python SDK portfolio client as read-only
+`/api/portfolio/*` and the Python SDK portfolio client as read-only
 decision-support observations, not order-entry, order-routing, trade-capture,
 or accounting records.
 
 Operational glossary context is API-only as well. Clients must use
-`/api/v1/glossary/{term}/context` with optional language and duration
+`/api/glossary/{term}/context` with optional language and duration
 parameters to display matched entities, capacity, selected-duration capacity
 usage, prices, live marks, route candidates, linked contracts, warnings, and
 data quality. The context resolver is DB-derived and is not limited to

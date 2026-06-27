@@ -54,11 +54,11 @@ def test_source_reference_freshness_defaults_to_unknown() -> None:
     assert ref.freshness == FreshnessState.UNKNOWN
 
 
-def test_source_reference_is_synthetic_flag() -> None:
+def test_source_reference_marks_test_fixture_lineage() -> None:
     from eurogas_nexus.runtime_store.contracts import SourceReference
 
-    ref = SourceReference(reference_id="r1", source_system="test", is_synthetic=True)
-    assert ref.is_synthetic is True
+    ref = SourceReference(reference_id="r1", source_system="test", is_test_fixture=True)
+    assert ref.is_test_fixture is True
 
 
 # --- LineageRecord -----------------------------------------------------------

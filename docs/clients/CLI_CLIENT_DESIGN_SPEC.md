@@ -1,4 +1,4 @@
-# CLI Client Design Spec
+﻿# CLI Client Design Spec
 
 ## Objective
 
@@ -14,10 +14,10 @@ The CLI is an API/operations client only.
 Preferred data path:
 
 ```text
-CLI -> Python SDK -> backend /api/v1 -> backend repositories -> PostgreSQL
+CLI -> Python SDK -> backend /api -> backend repositories -> PostgreSQL
 ```
 
-Direct CLI calls to `/api/v1` are allowed only when the SDK does not yet expose
+Direct CLI calls to `/api` are allowed only when the SDK does not yet expose
 the selected route and the gap is documented.
 
 It must not:
@@ -144,7 +144,7 @@ tests/cli/
 Required tests:
 
 - CLI calls SDK/API, not domain internals;
-- health command targets `/api/v1`;
+- health command targets `/api`;
 - write-like commands require `--execute`;
 - secret redaction is applied;
 - JSON output is valid when `--json` is requested.

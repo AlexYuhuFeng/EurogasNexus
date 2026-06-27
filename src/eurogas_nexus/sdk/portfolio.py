@@ -1,4 +1,4 @@
-"""SDK client for read-only /api/v1/portfolio endpoints."""
+"""SDK client for read-only /api/portfolio endpoints."""
 
 from __future__ import annotations
 
@@ -78,19 +78,19 @@ def _get(url: str) -> dict:
 def fetch_screen_orders(base_url: str) -> list[ScreenOrderObservation]:
     """Fetch read-only imported screen order observations."""
 
-    data = _get(f"{base_url.rstrip('/')}/api/v1/portfolio/screen-orders")["data"]
+    data = _get(f"{base_url.rstrip('/')}/api/portfolio/screen-orders")["data"]
     return [ScreenOrderObservation(**item) for item in data]
 
 
 def fetch_pnl_snapshots(base_url: str) -> list[PortfolioPnlSnapshot]:
     """Fetch indicative portfolio PnL snapshots."""
 
-    data = _get(f"{base_url.rstrip('/')}/api/v1/portfolio/pnl-snapshots")["data"]
+    data = _get(f"{base_url.rstrip('/')}/api/portfolio/pnl-snapshots")["data"]
     return [PortfolioPnlSnapshot(**item) for item in data]
 
 
 def fetch_live_summary(base_url: str) -> PortfolioLiveSummary:
     """Fetch cockpit portfolio summary from backend API."""
 
-    data = _get(f"{base_url.rstrip('/')}/api/v1/portfolio/live-summary")["data"]
+    data = _get(f"{base_url.rstrip('/')}/api/portfolio/live-summary")["data"]
     return PortfolioLiveSummary(**data)

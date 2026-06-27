@@ -1,4 +1,4 @@
-"""Integration tests for DB-backed context observation API reads."""
+﻿"""Integration tests for DB-backed context observation API reads."""
 
 from datetime import UTC, datetime
 
@@ -60,8 +60,8 @@ def test_market_and_flow_api_read_configured_runtime_db(tmp_path, monkeypatch) -
 
     client = TestClient(create_app())
 
-    market_response = client.get("/api/v1/market/observations")
-    flow_response = client.get("/api/v1/physical/flows")
+    market_response = client.get("/api/market/observations")
+    flow_response = client.get("/api/physical/flows")
 
     assert market_response.status_code == 200
     assert flow_response.status_code == 200

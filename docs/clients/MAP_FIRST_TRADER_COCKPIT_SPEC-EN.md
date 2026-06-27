@@ -1,4 +1,4 @@
-# Map-First Trader Cockpit Spec - EN
+﻿# Map-First Trader Cockpit Spec - EN
 
 ## Purpose
 
@@ -113,5 +113,5 @@ Commercial delivery quality means:
 
 ## Data Boundary
 
-The cockpit must consume only backend `/api/v1` or SDK surfaces. It must not
+The cockpit must consume only backend `/api` or SDK surfaces. It must not
 read PostgreSQL, backend files, vendor files, `.env`, or credentials directly.

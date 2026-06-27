@@ -1,4 +1,4 @@
-# Operational Glossary Context Spec
+﻿# Operational Glossary Context Spec
 
 ## Purpose
 
@@ -9,7 +9,7 @@ options, contracts, sources, warnings, and data quality.
 
 ## Canonical API
 
-`GET /api/v1/glossary/{term}/context` is the only source for operational
+`GET /api/glossary/{term}/context` is the only source for operational
 glossary context. Web, Windows, CLI, and SDK callers must use the API or SDK.
 No client may open PostgreSQL directly or read backend local data files.
 

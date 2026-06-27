@@ -24,7 +24,7 @@ class MarketObservation:
     period_start_utc: str
     period_end_utc: str
     observed_at_utc: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
-    source_system: str = "synthetic-fixture"
+    source_system: str = "operator-input"
     source_reference: str = ""
     freshness: ObservationFreshness = ObservationFreshness.UNKNOWN
     quality_score: float = 1.0
@@ -56,7 +56,7 @@ class MarketPriceMark:
     settlement: float | None = None
     traded_volume_mwh: float | None = None
     open_interest_mwh: float | None = None
-    source_system: str = "synthetic-fixture"
+    source_system: str = "operator-input"
     source_reference: str = ""
     observed_at_utc: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     freshness: ObservationFreshness = ObservationFreshness.UNKNOWN
@@ -76,7 +76,7 @@ class FxObservation:
     rate_type: str = "reference"  # "reference", "spot", "fixing"
     value_date: str = ""
     observed_at_utc: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
-    source_system: str = "synthetic-fixture"
+    source_system: str = "operator-input"
     source_reference: str = ""
     freshness: ObservationFreshness = ObservationFreshness.UNKNOWN
     research_only: bool = True
@@ -91,4 +91,4 @@ class UnitConversionRule:
     to_unit: str
     factor: float
     description: str = ""
-    source_system: str = "synthetic-fixture"
+    source_system: str = "operator-input"

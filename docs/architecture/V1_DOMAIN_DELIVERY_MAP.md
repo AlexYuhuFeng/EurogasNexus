@@ -1,4 +1,4 @@
-# V1 Domain Delivery Map
+﻿# V1 Domain Delivery Map
 
 ## Purpose
 
@@ -35,7 +35,7 @@ Must exist before domain behavior:
 - DB URL resolution and redaction;
 - lazy SQLAlchemy engine/session helpers;
 - Alembic migration lifecycle;
-- `/api/v1` route policy;
+- `/api` route policy;
 - app import without DB;
 - SDK/CLI API-only boundary;
 - validation commands.
@@ -89,10 +89,10 @@ Entities:
 
 API:
 
-- `/api/v1/reference-network/health`
-- `/api/v1/reference-network/nodes`
-- `/api/v1/reference-network/facilities`
-- `/api/v1/reference-network/segments`
+- `/api/reference-network/health`
+- `/api/reference-network/nodes`
+- `/api/reference-network/facilities`
+- `/api/reference-network/segments`
 
 Data policy:
 
@@ -117,9 +117,9 @@ Entities:
 
 API:
 
-- `/api/v1/ingestion/health`
-- `/api/v1/ingestion/runs`
-- `/api/v1/ingestion/sources`
+- `/api/ingestion/health`
+- `/api/ingestion/runs`
+- `/api/ingestion/sources`
 
 Data policy:
 
@@ -143,9 +143,9 @@ Entities:
 
 API:
 
-- `/api/v1/market-data/health`
-- `/api/v1/market-data/datasets`
-- `/api/v1/market-data/observations`
+- `/api/market-data/health`
+- `/api/market-data/datasets`
+- `/api/market-data/observations`
 
 Data policy:
 
@@ -167,8 +167,8 @@ Entities:
 
 API:
 
-- `/api/v1/route-cost/inputs`
-- `/api/v1/route-cost/assumptions`
+- `/api/route-cost/inputs`
+- `/api/route-cost/assumptions`
 
 Output policy:
 

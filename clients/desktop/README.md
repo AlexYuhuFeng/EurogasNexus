@@ -1,4 +1,4 @@
-# clients/desktop
+﻿# clients/desktop
 
 Eurogas Nexus Windows client shell.
 
@@ -18,7 +18,7 @@ Also read:
 ## Target
 
 Windows-packaged client that reuses the Web workspace and consumes backend
-`/api/v1` contracts. The Web client is the single UI/UX source. Any future
+`/api` contracts. The Web client is the single UI/UX source. Any future
 layout, theme, i18n, map, or workflow redesign must be implemented in
 `clients/web` first so browser and Windows clients stay coherent.
 

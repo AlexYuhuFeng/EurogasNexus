@@ -10,6 +10,8 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import subprocess
+import time
 import uuid
 from datetime import UTC, datetime
 from typing import Any
@@ -18,11 +20,18 @@ import httpx
 from sqlalchemy.exc import SQLAlchemyError
 
 from eurogas_nexus.db.models import (
+    CapacityObservationRecord,
     FlowObservationRecord,
+    FxObservationRecord,
     IngestionRunRecord,
     LngObservationRecord,
     MarketObservationRecord,
     ProviderCredentialRecord,
+    ReferenceEdge,
+    ReferenceFacility,
+    ReferenceMarketHub,
+    ReferenceNode,
+    ReferenceTsoAccessPoint,
     StorageObservationRecord,
 )
 from eurogas_nexus.db.session import (
@@ -32,23 +41,47 @@ from eurogas_nexus.db.session import (
     resolve_database_url,
 )
 from eurogas_nexus.ingestion.public_sources import (
+    ecb_fx_observations_from_xml,
     ecb_market_observations_from_xml,
+    entsog_capacity_observations_from_json,
     entsog_flow_observations_from_json,
+    entsog_market_hubs_from_connectionpoints,
+    entsog_reference_facilities_from_connectionpoints,
+    entsog_reference_nodes_from_connectionpoints,
+    entsog_tso_access_points_from_json,
     gie_lng_observations_from_json,
     gie_storage_observations_from_json,
 )
 
 ECB_DAILY_URL = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml"
 ENTSOG_OPERATIONAL_URL = "https://transparency.entsog.eu/api/v1/operationaldatas"
+ENTSOG_CONNECTION_POINTS_URL = "https://transparency.entsog.eu/api/v1/connectionpoints"
+ENTSOG_OPERATOR_POINT_DIRECTIONS_URL = (
+    "https://transparency.entsog.eu/api/v1/operatorpointdirections"
+)
 GIE_AGSI_EU_URL = "https://agsi.gie.eu/api/data/EU"
 GIE_ALSI_EU_URL = "https://alsi.gie.eu/api/data/EU"
+ENTSOG_CAPACITY_INDICATORS = (
+    "Firm Technical",
+    "Firm Booked",
+    "Interruptible Booked",
+    "Nomination",
+)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--source",
-        choices=("all", "ecb", "entsog", "gie-agsi", "gie-alsi"),
+        choices=(
+            "all",
+            "ecb",
+            "entsog",
+            "entsog-capacity",
+            "entsog-reference",
+            "gie-agsi",
+            "gie-alsi",
+        ),
         action="append",
         default=[],
         help="Source to ingest. May be repeated. Default: all.",
@@ -63,7 +96,14 @@ def main() -> int:
 
     selected = set(args.source or ["all"])
     if "all" in selected:
-        selected = {"ecb", "entsog", "gie-agsi", "gie-alsi"}
+        selected = {
+            "ecb",
+            "entsog",
+            "entsog-capacity",
+            "entsog-reference",
+            "gie-agsi",
+            "gie-alsi",
+        }
 
     engine = None
     started = datetime.now(UTC)
@@ -81,26 +121,85 @@ def main() -> int:
             report["warnings"].append("GIE key missing; skipped GIE AGSI/ALSI ingestion.")
             selected -= {"gie-agsi", "gie-alsi"}
 
-        with httpx.Client(timeout=30.0, follow_redirects=True) as client:
+        with httpx.Client(
+            timeout=30.0,
+            follow_redirects=True,
+            headers={"User-Agent": "EurogasNexus/0.5 preview public-source-ingestion"},
+        ) as client:
             with session_factory() as session:
                 if "ecb" in selected:
+                    xml_text = _fetch_text(client, ECB_DAILY_URL)
                     rows = ecb_market_observations_from_xml(
-                        _fetch_text(client, ECB_DAILY_URL),
+                        xml_text,
+                        currencies={"USD", "GBP", "CHF", "NOK", "DKK", "PLN"},
+                    )
+                    fx_rows = ecb_fx_observations_from_xml(
+                        xml_text,
                         currencies={"USD", "GBP", "CHF", "NOK", "DKK", "PLN"},
                     )
                     for row in rows:
                         session.merge(MarketObservationRecord(**row))
+                    for row in fx_rows:
+                        session.merge(FxObservationRecord(**row))
                     _record_run(
                         session,
                         "ECB",
                         "succeeded",
                         started,
-                        len(rows),
+                        len(rows) + len(fx_rows),
                         "ecb-eurofxref-daily",
                     )
                     report["sources"]["ECB"] = {
-                        "records": len(rows),
+                        "records": len(rows) + len(fx_rows),
                         "dataset": "fx-reference-rates",
+                    }
+
+                if "entsog-reference" in selected:
+                    connection_payload = _fetch_json(
+                        client,
+                        ENTSOG_CONNECTION_POINTS_URL,
+                        params={"limit": str(max(args.limit, 1000)), "extended": "1"},
+                    )
+                    direction_payload = _fetch_json(
+                        client,
+                        ENTSOG_OPERATOR_POINT_DIRECTIONS_URL,
+                        params={"limit": str(max(args.limit, 1000)), "hasData": "1"},
+                    )
+                    node_rows = entsog_reference_nodes_from_connectionpoints(
+                        connection_payload
+                    )
+                    facility_rows = entsog_reference_facilities_from_connectionpoints(
+                        connection_payload
+                    )
+                    hub_rows = entsog_market_hubs_from_connectionpoints(connection_payload)
+                    tso_access_rows = entsog_tso_access_points_from_json(direction_payload)
+                    _replace_reference_network(
+                        session,
+                        nodes=node_rows,
+                        facilities=facility_rows,
+                        hubs=hub_rows,
+                        tso_access_points=tso_access_rows,
+                    )
+                    _record_run(
+                        session,
+                        "ENTSOG",
+                        "succeeded",
+                        started,
+                        len(node_rows)
+                        + len(facility_rows)
+                        + len(hub_rows)
+                        + len(tso_access_rows),
+                        "entsog-reference-network",
+                    )
+                    reference_record_count = (
+                        len(node_rows)
+                        + len(facility_rows)
+                        + len(hub_rows)
+                        + len(tso_access_rows)
+                    )
+                    report["sources"]["ENTSOG-reference"] = {
+                        "records": reference_record_count,
+                        "dataset": "connectionpoints/operatorpointdirections",
                     }
 
                 if "entsog" in selected:
@@ -122,6 +221,33 @@ def main() -> int:
                         "entsog-operationaldatas",
                     )
                     report["sources"]["ENTSOG"] = {"records": len(rows), "dataset": "flows"}
+
+                if "entsog-capacity" in selected:
+                    capacity_rows: list[dict[str, Any]] = []
+                    for indicator in ENTSOG_CAPACITY_INDICATORS:
+                        capacity_rows.extend(
+                            entsog_capacity_observations_from_json(
+                                _fetch_json(
+                                    client,
+                                    ENTSOG_OPERATIONAL_URL,
+                                    params={"limit": str(args.limit), "indicator": indicator},
+                                )
+                            )
+                        )
+                    for row in capacity_rows:
+                        session.merge(CapacityObservationRecord(**row))
+                    _record_run(
+                        session,
+                        "ENTSOG",
+                        "succeeded",
+                        started,
+                        len(capacity_rows),
+                        "entsog-operationaldatas-capacity",
+                    )
+                    report["sources"]["ENTSOG-capacity"] = {
+                        "records": len(capacity_rows),
+                        "dataset": "capacity",
+                    }
 
                 if "gie-agsi" in selected:
                     rows = gie_storage_observations_from_json(
@@ -178,9 +304,33 @@ def main() -> int:
 
 
 def _fetch_text(client: httpx.Client, url: str) -> str:
-    response = client.get(url)
-    response.raise_for_status()
-    return response.text
+    try:
+        response = _get_with_retry(client, url)
+        response.raise_for_status()
+        return response.text
+    except httpx.HTTPError:
+        if url != ECB_DAILY_URL or os.name != "nt":
+            raise
+        return _fetch_text_with_powershell(url)
+
+
+def _fetch_text_with_powershell(url: str) -> str:
+    completed = subprocess.run(
+        [
+            "powershell",
+            "-NoProfile",
+            "-Command",
+            (
+                "$ProgressPreference='SilentlyContinue'; "
+                f"(Invoke-WebRequest -Uri '{url}' -UseBasicParsing -TimeoutSec 30).Content"
+            ),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    return completed.stdout
 
 
 def _fetch_json(
@@ -190,12 +340,33 @@ def _fetch_json(
     params: dict[str, str] | None = None,
     headers: dict[str, str] | None = None,
 ) -> dict[str, Any]:
-    response = client.get(url, params=params, headers=headers)
+    response = _get_with_retry(client, url, params=params, headers=headers)
     response.raise_for_status()
     payload = response.json()
     if not isinstance(payload, dict):
         raise ValueError("Provider response was not a JSON object.")
     return payload
+
+
+def _get_with_retry(
+    client: httpx.Client,
+    url: str,
+    *,
+    params: dict[str, str] | None = None,
+    headers: dict[str, str] | None = None,
+    attempts: int = 3,
+) -> httpx.Response:
+    last_error: httpx.HTTPError | None = None
+    for attempt in range(attempts):
+        try:
+            return client.get(url, params=params, headers=headers)
+        except httpx.HTTPError as exc:
+            last_error = exc
+            if attempt == attempts - 1:
+                break
+            time.sleep(1.5 * (attempt + 1))
+    assert last_error is not None
+    raise last_error
 
 
 def _resolve_gie_key(session_factory) -> str | None:
@@ -240,6 +411,49 @@ def _record_run(
             notes=f"{records} normalized records from {reference}.",
         )
     )
+
+
+def _replace_reference_network(
+    session,
+    *,
+    nodes: list[dict[str, Any]],
+    facilities: list[dict[str, Any]],
+    hubs: list[dict[str, Any]],
+    tso_access_points: list[dict[str, Any]],
+) -> None:
+    from eurogas_nexus.db.models.reference_network import (
+        NodeFacilityMapping,
+        TopologyMarketMapping,
+    )
+
+    for model in (
+        TopologyMarketMapping,
+        NodeFacilityMapping,
+        ReferenceTsoAccessPoint,
+        ReferenceEdge,
+        ReferenceFacility,
+        ReferenceMarketHub,
+        ReferenceNode,
+    ):
+        session.query(model).delete()
+    session.flush()
+
+    now = datetime.now(UTC)
+    node_ids = {row["id"] for row in nodes}
+    for row in nodes:
+        session.merge(ReferenceNode(**{**row, "created_at_utc": now}))
+    session.flush()
+    for row in facilities:
+        session.merge(ReferenceFacility(**{**row, "created_at_utc": now}))
+    session.flush()
+    for row in hubs:
+        session.merge(ReferenceMarketHub(**{**row, "created_at_utc": now}))
+    session.flush()
+    for row in tso_access_points:
+        if row["point_id"] not in node_ids:
+            row = {**row, "point_id": None}
+        session.merge(ReferenceTsoAccessPoint(**{**row, "created_at_utc": now}))
+    session.flush()
 
 
 def _emit(payload: dict[str, Any], *, as_json: bool) -> int:

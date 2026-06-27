@@ -1,4 +1,4 @@
-"""SDK client for /api/v1/reference-network."""
+"""SDK client for /api/reference-network."""
 
 import httpx
 from pydantic import BaseModel
@@ -52,11 +52,11 @@ def fetch_nodes(
     country: str | None = None,
     node_type: str | None = None,
 ) -> list[NodeDTO]:
-    data = _get(f"{base_url}/api/v1/reference-network/nodes", country=country, node_type=node_type)
+    data = _get(f"{base_url}/api/reference-network/nodes", country=country, node_type=node_type)
     return [NodeDTO(**n) for n in data["data"]]
 
 def fetch_node(base_url: str, node_id: str) -> NodeDTO:
-    data = _get(f"{base_url}/api/v1/reference-network/nodes/{node_id}")
+    data = _get(f"{base_url}/api/reference-network/nodes/{node_id}")
     return NodeDTO(**data["data"])
 
 def fetch_edges(
@@ -65,7 +65,7 @@ def fetch_edges(
     from_node_id: str | None = None,
     to_node_id: str | None = None,
 ) -> list[EdgeDTO]:
-    url = f"{base_url}/api/v1/reference-network/edges"
+    url = f"{base_url}/api/reference-network/edges"
     data = _get(url, from_node_id=from_node_id, to_node_id=to_node_id)
     return [EdgeDTO(**e) for e in data["data"]]
 
@@ -75,10 +75,10 @@ def fetch_facilities(
     facility_type: str | None = None,
     country: str | None = None,
 ) -> list[FacilityDTO]:
-    url = f"{base_url}/api/v1/reference-network/facilities"
+    url = f"{base_url}/api/reference-network/facilities"
     data = _get(url, facility_type=facility_type, country=country)
     return [FacilityDTO(**f) for f in data["data"]]
 
 def fetch_market_hubs(base_url: str) -> list[MarketHubDTO]:
-    data = _get(f"{base_url}/api/v1/reference-network/market-hubs")
+    data = _get(f"{base_url}/api/reference-network/market-hubs")
     return [MarketHubDTO(**h) for h in data["data"]]

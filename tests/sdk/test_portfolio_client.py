@@ -1,4 +1,4 @@
-"""SDK portfolio client tests."""
+﻿"""SDK portfolio client tests."""
 
 import httpx
 
@@ -26,7 +26,7 @@ def test_portfolio_sdk_targets_screen_order_endpoint(monkeypatch) -> None:
 
     result = fetch_screen_orders("http://testserver")
 
-    assert captured["url"] == "http://testserver/api/v1/portfolio/screen-orders"
+    assert captured["url"] == "http://testserver/api/portfolio/screen-orders"
     assert captured["timeout"] == 10
     assert result[0].venue == "ICE OCM"
     assert result[0].research_only is True
@@ -47,7 +47,7 @@ def test_portfolio_sdk_targets_pnl_snapshot_endpoint(monkeypatch) -> None:
 
     result = fetch_pnl_snapshots("http://testserver")
 
-    assert captured["url"] == "http://testserver/api/v1/portfolio/pnl-snapshots"
+    assert captured["url"] == "http://testserver/api/portfolio/pnl-snapshots"
     assert result[0].indicative_pnl_gbp == 5400
 
 
@@ -80,7 +80,7 @@ def test_portfolio_sdk_targets_live_summary_endpoint(monkeypatch) -> None:
 
     result = fetch_live_summary("http://testserver")
 
-    assert captured["url"] == "http://testserver/api/v1/portfolio/live-summary"
+    assert captured["url"] == "http://testserver/api/portfolio/live-summary"
     assert isinstance(result, PortfolioLiveSummary)
     assert result.total_cash_value_gbp == 1800
 

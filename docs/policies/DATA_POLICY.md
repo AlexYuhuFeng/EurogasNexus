@@ -1,4 +1,4 @@
-# Data Policy
+﻿# Data Policy
 
 ## Source Of Truth
 
@@ -13,16 +13,43 @@ Local files may be used only as:
 - canonical archives;
 - generated reports;
 - snapshots;
-- fixtures;
-- development fallback.
+- test fixtures.
 
-Trial and release modes must not silently fall back to local files.
+Trial and release modes must not silently fall back to local files or generated
+runtime data.
+
+## Runtime Source Policy
+
+Official or licensed reference and infrastructure data must flow through:
+
+```text
+official/source API or published source -> PostgreSQL -> /api or SDK -> clients
+```
+
+V1 treats the following as source-ingested runtime data when available:
+
+- ECB FX reference rates;
+- ENTSOG operational flows, connection points, and TSO access metadata;
+- GIE AGSI storage and ALSI LNG observations;
+- public TSO tariff rows loaded from audited published statements.
+
+The following categories require customer credentials, entitlement, or operator
+entry before use:
+
+- EEX, ICE OCM, Trayport, Kpler, Platts, ICIS, Argus, broker, and other
+  commercial price or screen feeds;
+- customer contracts, resource pools, capacity ownership, TSO access rights,
+  and strategy parameters;
+- LLM provider execution keys.
 
 ## Test Data
 
-Tests must not use real vendor data. Use fixtures, synthetic examples, and
+Tests must not use real vendor data. Use fixtures, source-shaped examples, and
 dry-run mode. Tests must not call live external APIs, live connectors, or LLM
-providers.
+providers unless the test is explicitly marked as a live-source/operator test.
+
+Synthetic fixtures are allowed only under test or documentation contexts. They
+must not be imported by production runtime modules or used as a client fallback.
 
 ## Commercial Data
 

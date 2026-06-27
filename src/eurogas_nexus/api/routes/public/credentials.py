@@ -1,4 +1,4 @@
-"""Backend-owned provider credential management routes."""
+﻿"""Backend-owned provider credential management routes."""
 
 from __future__ import annotations
 
@@ -50,7 +50,7 @@ class CredentialStatusUpdate(BaseModel):
     reason: str = Field(default="operator-requested", max_length=256)
 
 
-@router.get("/api/v1/credentials/providers")
+@router.get("/api/credentials/providers")
 def list_credential_providers() -> dict:
     rows = _credential_rows()
     data = []
@@ -61,17 +61,17 @@ def list_credential_providers() -> dict:
     return _env(data)
 
 
-@router.put("/api/v1/credentials/{provider_id}")
+@router.put("/api/credentials/{provider_id}")
 def upsert_provider_credential(provider_id: ProviderId, payload: CredentialUpdate) -> dict:
     return _write_provider_credential(provider_id, payload)
 
 
-@router.post("/api/v1/credentials/{provider_id}/rotate")
+@router.post("/api/credentials/{provider_id}/rotate")
 def rotate_provider_credential(provider_id: ProviderId, payload: CredentialUpdate) -> dict:
     return _write_provider_credential(provider_id, payload)
 
 
-@router.patch("/api/v1/credentials/{provider_id}/status")
+@router.patch("/api/credentials/{provider_id}/status")
 def update_provider_credential_status(
     provider_id: ProviderId,
     payload: CredentialStatusUpdate,
@@ -105,7 +105,7 @@ def update_provider_credential_status(
         raise _credential_store_unavailable(exc.__class__.__name__) from exc
 
 
-@router.post("/api/v1/credentials/{provider_id}/local-validation")
+@router.post("/api/credentials/{provider_id}/local-validation")
 def validate_provider_credential_locally(provider_id: ProviderId) -> dict:
     _ensure_private_provider(provider_id)
     if not _db_is_configured():
@@ -221,7 +221,7 @@ def _ensure_private_provider(provider_id: ProviderId) -> None:
         )
 
 
-@router.delete("/api/v1/credentials/{provider_id}")
+@router.delete("/api/credentials/{provider_id}")
 def delete_provider_credential(provider_id: ProviderId) -> dict:
     if not _db_is_configured():
         raise _credential_store_unavailable("Runtime database is not configured.")

@@ -1,4 +1,4 @@
-"""Read-only /api/v1/glossary routes for English and Mandarin terms."""
+﻿"""Read-only /api/glossary routes for English and Mandarin terms."""
 
 from datetime import datetime
 from typing import Annotated
@@ -11,7 +11,7 @@ from eurogas_nexus.domain.glossary import GlossaryTerm, baseline_glossary_terms
 router = APIRouter(tags=["glossary"])
 
 
-@router.get("/api/v1/glossary")
+@router.get("/api/glossary")
 def list_terms(
     request: Request,
     lang: str = Query("en", pattern="^(en|zh|zh-CN)$"),
@@ -27,7 +27,7 @@ def list_terms(
     )
 
 
-@router.get("/api/v1/glossary/{term}")
+@router.get("/api/glossary/{term}")
 def get_term(
     term: str,
     request: Request,
@@ -46,7 +46,7 @@ def get_term(
     raise HTTPException(404, f"Term '{term}' not found.")
 
 
-@router.get("/api/v1/glossary/{term}/context")
+@router.get("/api/glossary/{term}/context")
 def get_term_context(
     term: str,
     request: Request,
@@ -56,7 +56,7 @@ def get_term_context(
 ) -> dict:
     """Return operational context for a glossary term when known."""
 
-    from eurogas_nexus.api.routes.v1.analysis import _load_snapshot
+    from eurogas_nexus.api.routes.public.analysis import _load_snapshot
 
     snapshot = _load_snapshot(
         duration_start_utc=duration_start_utc,

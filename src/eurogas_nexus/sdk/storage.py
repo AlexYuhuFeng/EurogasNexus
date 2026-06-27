@@ -1,4 +1,4 @@
-"""SDK client for /api/v1/storage."""
+"""SDK client for /api/storage."""
 
 import httpx
 from pydantic import BaseModel
@@ -32,8 +32,8 @@ def _get(url: str) -> dict:
 
 
 def fetch_storage_sites(base_url: str) -> list[StorageSite]:
-    return [StorageSite(**s) for s in _get(f"{base_url}/api/v1/storage/sites")["data"]]
+    return [StorageSite(**s) for s in _get(f"{base_url}/api/storage/sites")["data"]]
 
 def fetch_storage_observations(base_url: str) -> list[StorageObservation]:
-    url = f"{base_url}/api/v1/storage/observations"
+    url = f"{base_url}/api/storage/observations"
     return [StorageObservation(**o) for o in _get(url)["data"]]

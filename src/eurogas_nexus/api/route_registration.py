@@ -5,24 +5,24 @@ from fastapi import FastAPI
 from eurogas_nexus.api.route_profiles import ApiRouteProfile, get_route_profile
 from eurogas_nexus.api.routes.dev.router import router as dev_router
 from eurogas_nexus.api.routes.internal.router import router as internal_router
-from eurogas_nexus.api.routes.v1.analysis import router as analysis_router
-from eurogas_nexus.api.routes.v1.contracts import router as contracts_router
-from eurogas_nexus.api.routes.v1.credentials import router as credentials_router
-from eurogas_nexus.api.routes.v1.glossary import router as glossary_router
-from eurogas_nexus.api.routes.v1.health import router as health_router
-from eurogas_nexus.api.routes.v1.lng import router as lng_router
-from eurogas_nexus.api.routes.v1.market import router as market_router
-from eurogas_nexus.api.routes.v1.physical import router as physical_router
-from eurogas_nexus.api.routes.v1.portfolio import router as portfolio_router
-from eurogas_nexus.api.routes.v1.reference_network import router as reference_network_router
-from eurogas_nexus.api.routes.v1.research import router as research_router
-from eurogas_nexus.api.routes.v1.route_cost import router as route_cost_router
-from eurogas_nexus.api.routes.v1.runtime import router as runtime_router
-from eurogas_nexus.api.routes.v1.sources import router as sources_router
-from eurogas_nexus.api.routes.v1.storage import router as storage_router
-from eurogas_nexus.api.routes.v1.strategy_lab import router as strategy_lab_router
-from eurogas_nexus.api.routes.v1.weather import router as weather_router
-from eurogas_nexus.api.routes.v1.workflows import router as workflows_router
+from eurogas_nexus.api.routes.public.analysis import router as analysis_router
+from eurogas_nexus.api.routes.public.contracts import router as contracts_router
+from eurogas_nexus.api.routes.public.credentials import router as credentials_router
+from eurogas_nexus.api.routes.public.glossary import router as glossary_router
+from eurogas_nexus.api.routes.public.health import router as health_router
+from eurogas_nexus.api.routes.public.lng import router as lng_router
+from eurogas_nexus.api.routes.public.market import router as market_router
+from eurogas_nexus.api.routes.public.physical import router as physical_router
+from eurogas_nexus.api.routes.public.portfolio import router as portfolio_router
+from eurogas_nexus.api.routes.public.reference_network import router as reference_network_router
+from eurogas_nexus.api.routes.public.research import router as research_router
+from eurogas_nexus.api.routes.public.route_cost import router as route_cost_router
+from eurogas_nexus.api.routes.public.runtime import router as runtime_router
+from eurogas_nexus.api.routes.public.sources import router as sources_router
+from eurogas_nexus.api.routes.public.storage import router as storage_router
+from eurogas_nexus.api.routes.public.strategy_lab import router as strategy_lab_router
+from eurogas_nexus.api.routes.public.weather import router as weather_router
+from eurogas_nexus.api.routes.public.workflows import router as workflows_router
 
 
 def register_routes(
@@ -33,7 +33,7 @@ def register_routes(
 
     route_profile = profile if isinstance(profile, ApiRouteProfile) else get_route_profile(profile)
 
-    if route_profile.include_v1:
+    if route_profile.include_public:
         app.include_router(health_router)
         app.include_router(analysis_router)
         app.include_router(reference_network_router)

@@ -1,4 +1,4 @@
-"""SDK health client tests."""
+﻿"""SDK health client tests."""
 
 import httpx
 import pytest
@@ -27,5 +27,5 @@ def test_fetch_health_calls_backend_health_endpoint(monkeypatch: pytest.MonkeyPa
 
     payload = fetch_health("http://localhost:8000")
 
-    assert captured["url"] == "http://localhost:8000/api/v1/health"
+    assert captured["url"] == "http://localhost:8000/api/health"
     assert payload.status == "ok"

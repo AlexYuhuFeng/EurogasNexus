@@ -1,4 +1,4 @@
-# SDK CLI Contract
+﻿# SDK CLI Contract
 
 ## Purpose
 
@@ -21,7 +21,7 @@ The SDK and CLI expose a read-only health shell. Future expansion is governed by
   mutating operations.
 - SDK and CLI tests belong under `tests/sdk` and `tests/cli`.
 - SDK and CLI code must call the backend API, not internal domain modules.
-- CLI should call the SDK first for runtime data, and may call `/api/v1`
+- CLI should call the SDK first for runtime data, and may call `/api`
   directly only for a documented SDK gap.
 - SDK and CLI must preserve research metadata, warnings, missing inputs, source
   references, lineage, `research_only`, and `human_review_required` when the

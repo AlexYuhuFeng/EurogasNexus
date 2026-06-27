@@ -1,4 +1,4 @@
-# Next Development Queue
+﻿# Next Development Queue
 
 ## Purpose
 
@@ -32,8 +32,8 @@ Delivered:
 - lazy DB engine/session helpers;
 - read-only runtime DB validation script;
 - Alembic import safety;
-- `/api/v1/health` stable alias;
-- `/v1/health` compatibility;
+- `/api/health` stable alias;
+- `/api/health` compatibility;
 - internal/dev API prefixes;
 - milestone reports.
 
@@ -137,7 +137,7 @@ Build:
 - canonical ID policy;
 - synthetic node/facility/segment fixture;
 - DB schema plan, not broad production data load;
-- read-only `/api/v1/reference-network/*` route contracts;
+- read-only `/api/reference-network/*` route contracts;
 - source reference and lineage fields.
 
 Acceptance:
@@ -210,7 +210,8 @@ ExecPlan:
 
 - create `.agent/plans/V1_M7_FIRST_RESEARCH_WORKFLOW_EXECPLAN.md`
 
-Internet required: no if synthetic data only.
+Internet required: yes for public-source ingestion validation; no for DB-free
+unit and contract tests.
 
 Goal:
 
@@ -250,7 +251,7 @@ Reference:
 
 Required before starting:
 
-- stable `/api/v1` reference-network API;
+- stable `/api` reference-network API;
 - runtime status API;
 - research output envelope;
 - selected SDK, CLI, web, or Windows milestone ExecPlan;

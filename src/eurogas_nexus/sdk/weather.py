@@ -1,4 +1,4 @@
-"""SDK client for /api/v1/weather."""
+"""SDK client for /api/weather."""
 
 import httpx
 from pydantic import BaseModel
@@ -39,11 +39,11 @@ def _get(url: str) -> dict:
 
 
 def fetch_weather_stations(base_url: str) -> list[WeatherStation]:
-    return [WeatherStation(**s) for s in _get(f"{base_url}/api/v1/weather/stations")["data"]]
+    return [WeatherStation(**s) for s in _get(f"{base_url}/api/weather/stations")["data"]]
 
 def fetch_weather_observations(base_url: str) -> list[WeatherObservation]:
-    url = f"{base_url}/api/v1/weather/observations"
+    url = f"{base_url}/api/weather/observations"
     return [WeatherObservation(**o) for o in _get(url)["data"]]
 
 def fetch_hdd_cdd(base_url: str) -> list[HddCddMetric]:
-    return [HddCddMetric(**m) for m in _get(f"{base_url}/api/v1/weather/hdd-cdd")["data"]]
+    return [HddCddMetric(**m) for m in _get(f"{base_url}/api/weather/hdd-cdd")["data"]]

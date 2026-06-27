@@ -1,4 +1,4 @@
-"""Governed LLM-ready analysis and report endpoints."""
+﻿"""Governed LLM-ready analysis and report endpoints."""
 
 from __future__ import annotations
 
@@ -23,12 +23,12 @@ from eurogas_nexus.domain.glossary import baseline_glossary_terms
 router = APIRouter(tags=["analysis"])
 
 
-@router.get("/api/v1/analysis/ontology")
+@router.get("/api/analysis/ontology")
 def get_business_ontology(request: Request) -> dict:
     return _env(business_logic_ontology(), request, source="domain-contract")
 
 
-@router.post("/api/v1/analysis/query")
+@router.post("/api/analysis/query")
 def post_analysis_query(body: AnalysisRequest, request: Request) -> dict:
     snapshot = _load_snapshot()
     provider_text, provider_status = _maybe_invoke_provider(body, snapshot)
@@ -47,7 +47,7 @@ def post_analysis_query(body: AnalysisRequest, request: Request) -> dict:
     )
 
 
-@router.post("/api/v1/reports/portfolio")
+@router.post("/api/reports/portfolio")
 def post_portfolio_report(body: PortfolioReportRequest, request: Request) -> dict:
     snapshot = _load_snapshot()
     analysis_request = AnalysisRequest(
@@ -83,113 +83,26 @@ def _load_snapshot(
     duration_start_utc: datetime | None = None,
     duration_end_utc: datetime | None = None,
 ) -> AnalysisSnapshot:
-    if _db_is_configured():
-        return _db_snapshot(
-            duration_start_utc=duration_start_utc,
-            duration_end_utc=duration_end_utc,
+    if not _db_is_configured():
+        return _empty_snapshot(
+            source="runtime-db-not-configured",
+            warnings=["RUNTIME_DB_NOT_CONFIGURED"],
         )
-    return _fallback_snapshot()
+    return _db_snapshot(
+        duration_start_utc=duration_start_utc,
+        duration_end_utc=duration_end_utc,
+    )
 
 
-def _fallback_snapshot() -> AnalysisSnapshot:
+def _empty_snapshot(*, source: str, warnings: list[str]) -> AnalysisSnapshot:
     now = datetime.now(UTC)
     return AnalysisSnapshot(
         snapshot_id=f"snapshot-{uuid4().hex[:12]}",
-        source="synthetic-fixture",
+        source=source,
         created_at_utc=now,
         ontology=business_logic_ontology(),
         glossary_terms=[term.localized("en") for term in baseline_glossary_terms()[:20]],
-        market_observations=[
-            {
-                "market_venue": "NBP",
-                "product": "day-ahead",
-                "price": 28.0,
-                "unit": "GBP/MWh",
-                "source_system": "synthetic-fixture",
-                "source_reference": "synthetic-nbp-day-ahead",
-            },
-            {
-                "market_venue": "ICE OCM",
-                "product": "within-day",
-                "price": 28.3,
-                "unit": "GBP/MWh",
-                "source_system": "synthetic-fixture",
-                "source_reference": "synthetic-ice-ocm",
-            },
-            {
-                "market_venue": "ICIS Heren",
-                "product": "NBP day-ahead assessment",
-                "price": 27.9,
-                "unit": "GBP/MWh",
-                "source_system": "synthetic-fixture",
-                "source_reference": "synthetic-icis-heren",
-            },
-        ],
-        live_market_marks=[
-            {
-                "venue": "ICE OCM",
-                "hub": "NBP",
-                "product": "within-day",
-                "bid_gbp_mwh": 28.2,
-                "ask_gbp_mwh": 28.4,
-                "last_gbp_mwh": 28.3,
-                "mark_time_utc": "2026-06-01T12:00:00Z",
-                "source_system": "synthetic-fixture",
-                "source_reference": "synthetic-ice-ocm-live-mark",
-            }
-        ],
-        fx_rates=[
-            {
-                "pair": "EURGBP",
-                "rate": 0.851,
-                "source_system": "ECB",
-                "source_reference": "synthetic-ecb-fx",
-            }
-        ],
-        flow_observations=[
-            {
-                "point_name": "Easington Beach Terminal",
-                "direction": "entry",
-                "flow_mcm_d": 42.0,
-                "period_start_utc": "2026-05-31T06:00:00Z",
-                "period_end_utc": "2026-06-01T06:00:00Z",
-                "source_system": "synthetic-fixture",
-                "source_reference": "synthetic-easington-flow",
-            }
-        ],
-        capacity_context=[
-            {
-                "point_name": "Easington Beach Terminal",
-                "capacity_mcm_d": 100.0,
-                "capacity_mwh_per_day": 1055000.0,
-                "capacity_type": "technical",
-                "direction": "entry",
-                "valid_from_utc": "2026-01-01T00:00:00Z",
-                "valid_to_utc": "2026-12-31T23:59:59Z",
-                "source_system": "synthetic-fixture",
-                "source_reference": "synthetic-easington-capacity",
-            }
-        ],
-        route_candidates=[
-            {
-                "route_name": "Easington beach delivery -> NBP virtual sale",
-                "required_tso_access": ["National Gas NTS"],
-                "source_system": "synthetic-fixture",
-            }
-        ],
-        portfolio_context=[
-            {
-                "contract_id": "demo-easington-contract",
-                "contract_name": "Easington gas year contract",
-                "resource_type": "BEACH_DELIVERY",
-                "delivery_point_name": "Easington Entry Point",
-                "delivery_quantity_mwh_per_day": 10000.0,
-                "settlement_frequency": "monthly",
-                "eligible_sale_modes": ["VIRTUAL_HUB_SALE", "PHYSICAL_DELIVERY"],
-                "source_reference": "synthetic-easington-contract",
-            }
-        ],
-        warnings=["Synthetic fallback context; connect PostgreSQL for customer use."],
+        warnings=warnings,
     )
 
 
@@ -311,7 +224,10 @@ def _db_snapshot(
                 portfolio_context=[_contract_row(row) for row in contracts],
             )
     except sqlalchemy_error:
-        return _fallback_snapshot()
+        return _empty_snapshot(
+            source="runtime-postgresql-unavailable",
+            warnings=["RUNTIME_POSTGRESQL_UNAVAILABLE"],
+        )
 
 
 def _maybe_invoke_provider(

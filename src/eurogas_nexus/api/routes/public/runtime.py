@@ -1,11 +1,11 @@
-"""Runtime DB and service status route — /api/v1/runtime/db."""
+﻿"""Runtime DB and service status route 鈥?/api/runtime/db."""
 
 from fastapi import APIRouter, Request
 
 router = APIRouter(tags=["runtime"])
 
 
-@router.get("/api/v1/runtime/db")
+@router.get("/api/runtime/db")
 def runtime_db_status(request: Request) -> dict:
     """Read-only runtime DB status with research metadata."""
     from eurogas_nexus.db.registry import list_required_tables

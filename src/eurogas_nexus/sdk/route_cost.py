@@ -172,7 +172,7 @@ def _post(url: str, json_body: dict) -> dict:
 
 
 def fetch_uk_easington_tariffs(base_url: str) -> list[RouteCostTariff]:
-    data = _get(f"{base_url}/api/v1/route-cost/uk/tariffs/easington")
+    data = _get(f"{base_url}/api/route-cost/uk/tariffs/easington")
     return [RouteCostTariff(**row) for row in data["tariffs"]]
 
 
@@ -191,35 +191,35 @@ def fetch_uk_nts_tariffs(
     if gas_year:
         params.append(("gas_year", gas_year))
     query = f"?{urlencode(params)}" if params else ""
-    data = _get(f"{base_url}/api/v1/route-cost/uk/tariffs{query}")
+    data = _get(f"{base_url}/api/route-cost/uk/tariffs{query}")
     return [RouteCostTariff(**row) for row in data["tariffs"]]
 
 
 def fetch_route_candidates(base_url: str) -> list[dict]:
-    data = _get(f"{base_url}/api/v1/route-cost/route-candidates")
+    data = _get(f"{base_url}/api/route-cost/route-candidates")
     return data["route_candidates"]
 
 
 def calculate_uk_nts_route_cost(base_url: str, **kwargs) -> RouteCostResult:
-    data = _post(f"{base_url}/api/v1/route-cost/calculate", kwargs)
+    data = _post(f"{base_url}/api/route-cost/calculate", kwargs)
     return RouteCostResult(**data)
 
 
 def assess_lng_regas(base_url: str, **kwargs) -> LngRegasReadinessResult:
-    data = _post(f"{base_url}/api/v1/route-cost/lng-regas/assess", kwargs)
+    data = _post(f"{base_url}/api/route-cost/lng-regas/assess", kwargs)
     return LngRegasReadinessResult(**data)
 
 
 def optimize_resource_pool(base_url: str, **kwargs) -> PortfolioOptimizationResult:
-    data = _post(f"{base_url}/api/v1/route-cost/resource-pool/optimize", kwargs)
+    data = _post(f"{base_url}/api/route-cost/resource-pool/optimize", kwargs)
     return PortfolioOptimizationResult(**data)
 
 
 def compare_easington_contract_options(base_url: str, **kwargs) -> EasingtonContractOptionsResult:
-    data = _post(f"{base_url}/api/v1/route-cost/uk/easington/options", kwargs)
+    data = _post(f"{base_url}/api/route-cost/uk/easington/options", kwargs)
     return EasingtonContractOptionsResult(**data)
 
 
 def mark_easington_live_pnl(base_url: str, **kwargs) -> EasingtonLivePnlResult:
-    data = _post(f"{base_url}/api/v1/route-cost/uk/easington/live-pnl", kwargs)
+    data = _post(f"{base_url}/api/route-cost/uk/easington/live-pnl", kwargs)
     return EasingtonLivePnlResult(**data)

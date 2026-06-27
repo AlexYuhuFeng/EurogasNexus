@@ -1,4 +1,4 @@
-"""Governed LLM-ready analysis API tests."""
+﻿"""Governed LLM-ready analysis API tests."""
 
 from fastapi.testclient import TestClient
 
@@ -8,7 +8,7 @@ from eurogas_nexus.api.app import create_app
 def test_business_ontology_endpoint_exposes_guardrails() -> None:
     client = TestClient(create_app())
 
-    response = client.get("/api/v1/analysis/ontology")
+    response = client.get("/api/analysis/ontology")
 
     assert response.status_code == 200
     data = response.json()["data"]
@@ -20,7 +20,7 @@ def test_analysis_query_uses_snapshot_without_invoking_provider() -> None:
     client = TestClient(create_app())
 
     response = client.post(
-        "/api/v1/analysis/query",
+        "/api/analysis/query",
         json={
             "question": "Summarize current Easington context",
             "task": "DB_INQUIRY",
@@ -31,27 +31,30 @@ def test_analysis_query_uses_snapshot_without_invoking_provider() -> None:
 
     assert response.status_code == 200
     body = response.json()
+    assert body["meta"]["source_references"] == ["runtime-db-not-configured"]
     assert body["data"]["provider_id"] == "DEEPSEEK"
     assert body["data"]["provider_status"] == "not_invoked"
     assert body["data"]["research_only"] is True
     assert body["data"]["human_review_required"] is True
     assert "LLM_PROVIDER_NOT_INVOKED" in body["data"]["warnings"]
+    assert "RUNTIME_DB_NOT_CONFIGURED" in body["data"]["warnings"]
 
 
 def test_portfolio_report_returns_required_sections() -> None:
     client = TestClient(create_app())
 
     response = client.post(
-        "/api/v1/reports/portfolio",
+        "/api/reports/portfolio",
         json={
             "title": "Current portfolio report",
-            "selected_resources": ["demo-easington-contract"],
+            "selected_resources": ["operator-easington-contract"],
             "invoke_provider": False,
         },
     )
 
     assert response.status_code == 200
     data = response.json()["data"]
+    assert response.json()["meta"]["source_references"] == ["runtime-db-not-configured"]
     assert data["task"] == "PORTFOLIO_REPORT"
     assert {section["section_id"] for section in data["sections"]} >= {
         "portfolio",
@@ -64,7 +67,7 @@ def test_glossary_context_returns_easington_operational_context() -> None:
     client = TestClient(create_app())
 
     response = client.get(
-        "/api/v1/glossary/Easington%20Entry%20Point/context",
+        "/api/glossary/Easington%20Entry%20Point/context",
         params={
             "lang": "en",
             "duration_start_utc": "2026-05-31T00:00:00Z",
@@ -77,14 +80,14 @@ def test_glossary_context_returns_easington_operational_context() -> None:
     assert data["context_type"] == "entry_point"
     assert "National Gas NTS" in data["description"]
     assert data["requested_duration"]["duration_start_utc"].startswith("2026-05-31")
-    assert data["capacity"] is not None
-    assert data["capacity_usage"] is not None
-    assert data["capacity_usage"]["usage_pct"] == 42.0
-    assert data["related_prices"]
-    assert data["live_market_marks"]
-    assert data["related_contracts"]
-    assert any(metric["metric_id"] == "capacity_usage_pct" for metric in data["metrics"])
-    assert any(entity["entity_type"] == "capacity_point" for entity in data["matched_entities"])
+    assert data["capacity"] is None
+    assert data["capacity_usage"] is None
+    assert data["related_prices"] == []
+    assert data["live_market_marks"] == []
+    assert data["related_contracts"] == []
+    assert "RUNTIME_DB_CONTEXT_NOT_AVAILABLE" in data["warnings"]
+    assert "CAPACITY_CONTEXT_MISSING" in data["warnings"]
+    assert "CAPACITY_USAGE_CONTEXT_MISSING" in data["warnings"]
     assert {section["section_id"] for section in data["context_sections"]} >= {
         "overview",
         "capacity",
@@ -98,12 +101,13 @@ def test_glossary_context_returns_easington_operational_context() -> None:
 def test_glossary_context_returns_licensed_price_context_warning() -> None:
     client = TestClient(create_app())
 
-    response = client.get("/api/v1/glossary/ICIS%20Heren/context", params={"lang": "zh-CN"})
+    response = client.get("/api/glossary/ICIS%20Heren/context", params={"lang": "zh-CN"})
 
     assert response.status_code == 200
     data = response.json()["data"]
     assert data["context_type"] == "price_assessment"
     assert "授权" in data["description"]
     assert "ICIS_HEREN_REQUIRES_CUSTOMER_LICENSED_DATA" in data["warnings"]
-    assert any(price["market_venue"] == "ICIS Heren" for price in data["related_prices"])
+    assert data["related_prices"] == []
+    assert "PRICE_CONTEXT_MISSING" in data["warnings"]
     assert any(section["section_id"] == "prices" for section in data["context_sections"])

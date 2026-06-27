@@ -56,19 +56,19 @@ class GlossaryContext(BaseModel):
 
 
 def fetch_business_ontology(base_url: str) -> dict:
-    response = httpx.get(f"{base_url}/api/v1/analysis/ontology", timeout=10)
+    response = httpx.get(f"{base_url}/api/analysis/ontology", timeout=10)
     response.raise_for_status()
     return response.json()["data"]
 
 
 def ask_analysis(base_url: str, **kwargs) -> AnalysisResult:
-    response = httpx.post(f"{base_url}/api/v1/analysis/query", json=kwargs, timeout=30)
+    response = httpx.post(f"{base_url}/api/analysis/query", json=kwargs, timeout=30)
     response.raise_for_status()
     return AnalysisResult(**response.json()["data"])
 
 
 def generate_portfolio_report(base_url: str, **kwargs) -> AnalysisResult:
-    response = httpx.post(f"{base_url}/api/v1/reports/portfolio", json=kwargs, timeout=30)
+    response = httpx.post(f"{base_url}/api/reports/portfolio", json=kwargs, timeout=30)
     response.raise_for_status()
     return AnalysisResult(**response.json()["data"])
 
@@ -87,7 +87,7 @@ def fetch_glossary_context(
         "duration_end_utc": duration_end_utc,
     }
     response = httpx.get(
-        f"{base_url}/api/v1/glossary/{term}/context",
+        f"{base_url}/api/glossary/{term}/context",
         params={key: value for key, value in params.items() if value},
         timeout=10,
     )

@@ -1,4 +1,4 @@
-"""UK Easington contract option API tests."""
+﻿"""UK Easington contract option API tests."""
 
 from fastapi.testclient import TestClient
 
@@ -8,7 +8,7 @@ from eurogas_nexus.api.app import create_app
 def test_easington_contract_options_api_returns_option_pnl() -> None:
     client = TestClient(create_app())
 
-    response = client.post("/api/v1/route-cost/uk/easington/options", json={
+    response = client.post("/api/route-cost/uk/easington/options", json={
         "contract_id": "api-easington-demo",
         "gas_year": "2025/26",
         "delivery_quantity_mwh_per_day": 10000,
@@ -29,13 +29,15 @@ def test_easington_contract_options_api_returns_option_pnl() -> None:
         "nbp_virtual_sale",
         "physical_exit_delivery",
     }
-    assert data["options"][0]["source_refs"]
+    assert data["missing_inputs"] == ["UK_NTS_TARIFFS_NOT_PROVIDED"]
+    assert data["warnings"] == ["UK_NTS_TARIFFS_NOT_PROVIDED"]
+    assert data["options"][0]["source_refs"] == []
 
 
 def test_easington_live_pnl_api_returns_decision_support_signal() -> None:
     client = TestClient(create_app())
 
-    response = client.post("/api/v1/route-cost/uk/easington/live-pnl", json={
+    response = client.post("/api/route-cost/uk/easington/live-pnl", json={
         "contract": {
             "contract_id": "api-live-easington",
             "gas_year": "2025/26",
@@ -66,13 +68,14 @@ def test_easington_live_pnl_api_returns_decision_support_signal() -> None:
     data = response.json()["data"]
     live_by_option = {item["option_id"]: item for item in data["live_marks"]}
     assert live_by_option["nbp_virtual_sale"]["signal"]["suggestion_type"] == "DECISION_SUPPORT"
-    assert live_by_option["nbp_virtual_sale"]["live_net_pnl_gbp_per_day"] == 18861.0
+    assert data["missing_inputs"] == ["UK_NTS_TARIFFS_NOT_PROVIDED"]
+    assert live_by_option["nbp_virtual_sale"]["live_net_pnl_gbp_per_day"] is not None
 
 
 def test_lng_regas_assessment_api_supports_delivery_mode() -> None:
     client = TestClient(create_app())
 
-    response = client.post("/api/v1/route-cost/lng-regas/assess", json={
+    response = client.post("/api/route-cost/lng-regas/assess", json={
         "contract_id": "lng-api",
         "cargo_id": "cargo-api",
         "terminal_id": "gb-grain",
@@ -100,7 +103,7 @@ def test_lng_regas_assessment_api_supports_delivery_mode() -> None:
 def test_resource_pool_optimization_api_returns_allocations() -> None:
     client = TestClient(create_app())
 
-    response = client.post("/api/v1/route-cost/resource-pool/optimize", json={
+    response = client.post("/api/route-cost/resource-pool/optimize", json={
         "portfolio_id": "api-pool",
         "resources": [
             {

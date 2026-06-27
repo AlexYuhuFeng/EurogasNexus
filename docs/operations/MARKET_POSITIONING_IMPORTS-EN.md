@@ -1,4 +1,4 @@
-# Market Positioning Imports
+﻿# Market Positioning Imports
 
 ## Purpose
 
@@ -35,9 +35,9 @@ in Web, Windows, SDK, or CLI clients.
 Release clients must continue to read:
 
 ```text
-GET /api/v1/portfolio/screen-orders
-GET /api/v1/portfolio/pnl-snapshots
-GET /api/v1/portfolio/live-summary
+GET /api/portfolio/screen-orders
+GET /api/portfolio/pnl-snapshots
+GET /api/portfolio/live-summary
 ```
 
 ## Entitlement Requirement

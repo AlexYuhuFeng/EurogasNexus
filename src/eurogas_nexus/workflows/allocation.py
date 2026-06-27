@@ -118,11 +118,11 @@ def compute_allocation(input_: AllocationInput) -> AllocationOutput:
         assumptions=[
             "Candidates are allocated by rank order (ascending).",
             "No price optimization — first-fit by rank and capacity.",
-            "Capacity figures are synthetic research estimates.",
+            "Capacity figures are supplied operator/runtime inputs.",
         ],
         missing_inputs=missing,
         warnings=warnings,
-        source_references=["synthetic-input"],
+        source_references=["operator-input"],
         lineage=["allocation-computation"],
         human_review_required=bool(missing or warnings or unallocated > 0),
     )

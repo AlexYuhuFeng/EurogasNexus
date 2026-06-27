@@ -1,4 +1,4 @@
-# Client Delivery Milestones
+﻿# Client Delivery Milestones
 
 ## Decision
 
@@ -10,7 +10,7 @@ only when the user selects a client milestone.
 
 Before Web Milestone W1:
 
-- `/api/v1/health` exists;
+- `/api/health` exists;
 - API path policy is stable;
 - backend runtime status API is implemented or explicitly mocked for W1;
 - reference-network API contract exists or is mocked with a documented gap;
@@ -20,14 +20,14 @@ Before Web Milestone W1:
 Before live-source, LLM, capacity/contract, or strategy client screens are
 marked complete:
 
-- matching `/api/v1` contracts exist or are explicitly mocked with a gap report;
+- matching `/api` contracts exist or are explicitly mocked with a gap report;
 - source entitlement and credential requirements are documented;
 - no browser or desktop client stores vendor/LLM credentials;
 - backend distinguishes live, delayed, mocked, partial, and unavailable states.
 
 Before SDK Milestone S1:
 
-- `/api/v1/health` exists;
+- `/api/health` exists;
 - API response/error model is documented;
 - SDK/CLI boundary contract exists;
 - user explicitly asks to expand SDK beyond the health shell.
@@ -82,7 +82,7 @@ Build:
 - React + TypeScript + Vite shell in `clients/web`;
 - app frame with left navigation, top status bar, main workspace, right
   inspector, bottom results panel;
-- `/api/v1/health` client;
+- `/api/health` client;
 - runtime status view using real API if present, otherwise documented mock;
 - map-first placeholders for Network, Capacity, Market, Scenario, Strategy,
   Review, Sources, Glossary, Runtime, and Settings;
@@ -110,7 +110,7 @@ Internet required: no
 Build:
 
 - typed API client shell;
-- `/api/v1` path normalization;
+- `/api` path normalization;
 - health and runtime status client methods where backend routes exist;
 - safe exception model;
 - metadata preservation;
@@ -151,7 +151,7 @@ Build:
 
 - map-centric network view;
 - reference-network API client;
-- synthetic fixture fallback only for development mode;
+- no runtime fallback data; tests may use source-shaped fixtures under `tests/`;
 - layer controls for hubs, facilities, corridors, LNG, storage, and beach
   delivery points;
 - source, freshness, warning, and lineage display.
@@ -203,7 +203,7 @@ Do not build:
 
 Build:
 
-- capacity/contract management views backed by `/api/v1`;
+- capacity/contract management views backed by `/api`;
 - route option review with cost, contract, and capacity constraints;
 - strategy shadow-run review;
 - glossary drawer;

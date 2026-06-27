@@ -1,4 +1,4 @@
-# Project North Star
+﻿# Project North Star
 
 ## Ultimate Goal
 
@@ -55,10 +55,10 @@ The target system is built in this order:
 3. Runtime store and repository contracts for DB-first reads and writes.
 4. Canonical reference network, topology, asset, and market/fundamental models.
 5. Governed ingestion, normalization, data quality, freshness, and lineage.
-6. Research-only domain workflows exposed through stable `/api/v1` routes.
+6. Research-only domain workflows exposed through stable `/api` routes.
 7. Auth, audit, governance, entitlement, release, and operations.
 8. Required Python SDK expansion and CLI expansion.
-9. Web and Windows clients that consume SDK/API-backed `/api/v1` contracts.
+9. Web and Windows clients that consume SDK/API-backed `/api` contracts.
 
 This sequence intentionally delays business features until source-of-truth,
 lineage, entitlement, and route boundaries are testable.

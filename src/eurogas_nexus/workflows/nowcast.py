@@ -82,6 +82,6 @@ def compute_nowcast(input_: NowcastInput) -> NowcastOutput:
         ],
         missing_inputs=missing,
         warnings=warnings,
-        source_references=["synthetic-input"],
+        source_references=["operator-input"],
         lineage=["nowcast-computation"],
     )

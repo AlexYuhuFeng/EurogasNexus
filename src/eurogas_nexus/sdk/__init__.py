@@ -1,4 +1,4 @@
-"""Eurogas Nexus Python SDK: typed API clients for /api/v1.
+"""Eurogas Nexus Python SDK: typed API clients for /api.
 
 Import typed clients from submodules, for example:
 

@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime
 
-from sqlalchemy import Boolean, DateTime, Float, String, Text
+from sqlalchemy import JSON, Boolean, DateTime, Float, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from eurogas_nexus.db.base import Base
@@ -24,9 +24,11 @@ class MarketObservationRecord(Base):
     )
     source_system: Mapped[str] = mapped_column(String(64), nullable=False)
     source_reference: Mapped[str] = mapped_column(String(128), nullable=False)
+    source_record_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     freshness: Mapped[str] = mapped_column(String(16), nullable=False)
     quality_score: Mapped[float] = mapped_column(Float, nullable=False)
     research_only: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    metadata_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
 
 class FxObservationRecord(Base):
@@ -42,8 +44,10 @@ class FxObservationRecord(Base):
     observed_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     source_system: Mapped[str] = mapped_column(String(64), nullable=False)
     source_reference: Mapped[str] = mapped_column(String(128), nullable=False)
+    source_record_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     freshness: Mapped[str] = mapped_column(String(16), nullable=False)
     research_only: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    metadata_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
 
 class FlowObservationRecord(Base):
@@ -54,6 +58,8 @@ class FlowObservationRecord(Base):
     point_name: Mapped[str] = mapped_column(String(128), nullable=False)
     direction: Mapped[str] = mapped_column(String(8), nullable=False)
     flow_mcm_d: Mapped[float] = mapped_column(Float, nullable=False)
+    original_value: Mapped[float | None] = mapped_column(Float, nullable=True)
+    original_unit: Mapped[str | None] = mapped_column(String(32), nullable=True)
     period_start_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     period_end_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     observed_at_utc: Mapped[datetime] = mapped_column(
@@ -61,8 +67,34 @@ class FlowObservationRecord(Base):
     )
     source_system: Mapped[str] = mapped_column(String(64), nullable=False)
     source_reference: Mapped[str] = mapped_column(String(128), nullable=False)
+    source_record_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     freshness: Mapped[str] = mapped_column(String(16), nullable=False)
     research_only: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    metadata_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+
+class CapacityObservationRecord(Base):
+    __tablename__ = "capacity_observations"
+
+    observation_id: Mapped[str] = mapped_column(String(96), primary_key=True)
+    point_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    point_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    direction: Mapped[str] = mapped_column(String(8), nullable=False)
+    capacity_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    capacity_mcm_d: Mapped[float] = mapped_column(Float, nullable=False)
+    original_value: Mapped[float | None] = mapped_column(Float, nullable=True)
+    original_unit: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    period_start_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    period_end_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    observed_at_utc: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )
+    source_system: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_reference: Mapped[str] = mapped_column(String(128), nullable=False)
+    source_record_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    freshness: Mapped[str] = mapped_column(String(16), nullable=False)
+    research_only: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    metadata_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
 
 class StorageObservationRecord(Base):
@@ -85,8 +117,10 @@ class StorageObservationRecord(Base):
     )
     source_system: Mapped[str] = mapped_column(String(64), nullable=False)
     source_reference: Mapped[str] = mapped_column(String(128), nullable=False)
+    source_record_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     freshness: Mapped[str] = mapped_column(String(16), nullable=False)
     research_only: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    metadata_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
 
 class LngObservationRecord(Base):
@@ -107,8 +141,10 @@ class LngObservationRecord(Base):
     )
     source_system: Mapped[str] = mapped_column(String(64), nullable=False)
     source_reference: Mapped[str] = mapped_column(String(128), nullable=False)
+    source_record_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     freshness: Mapped[str] = mapped_column(String(16), nullable=False)
     research_only: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    metadata_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
 
 class AuditEventRecord(Base):

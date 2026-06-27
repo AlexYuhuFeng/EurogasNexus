@@ -1,10 +1,10 @@
-# Windows Client Design Spec
+﻿# Windows Client Design Spec
 
 ## Objective
 
 The Windows client packages the Eurogas Nexus workspace for desktop use. It
 reuses the web workspace and accesses runtime data through the same backend
-`/api/v1` API.
+`/api` API.
 
 The packaged experience must preserve the map-first workflow: route options,
 capacity/contract context, live source posture, market/weather signals,
@@ -19,7 +19,7 @@ local files, raw vendor data, or connector credentials directly.
 The desktop data path is:
 
 ```text
-Windows shell -> packaged web workspace/API client -> backend /api/v1 -> backend repositories -> PostgreSQL
+Windows shell -> packaged web workspace/API client -> backend /api -> backend repositories -> PostgreSQL
 ```
 
 It must not implement trade execution, order entry, nomination submission,
@@ -27,7 +27,7 @@ official recommendation, auto-trading, company SSO/OIDC, or ETRM replacement
 behavior.
 
 It must not call ECB, ENTSOG, GIE, EEX, Trayport, ICE OCM, weather, or LLM
-providers directly. All such access is mediated by backend `/api/v1`.
+providers directly. All such access is mediated by backend `/api`.
 
 ## Recommended Stack
 
@@ -58,7 +58,7 @@ Launch
   -> load packaged Web workspace in hidden main window
   -> show borderless fullscreen main window
   -> close loading/splash window
-  -> Web workspace calls /api/v1/health and runtime status routes
+  -> Web workspace calls /api/health and runtime status routes
   -> show connection/runtime/source warnings inside the workspace
 ```
 
@@ -200,5 +200,5 @@ Release artifacts must exclude:
 Use this prompt only after the web workspace shell exists:
 
 ```text
-Read AGENTS.md, docs/clients/README.md, docs/clients/CLIENT_DELIVERY_MILESTONES.md, docs/clients/CLIENT_API_CONTRACT.md, docs/clients/CLIENT_DESIGN_SYSTEM.md, and docs/clients/WINDOWS_CLIENT_DESIGN_SPEC.md. Implement Windows Milestone D1 only. Use Tauri only if dependencies are available or internet access is explicitly allowed. If unavailable, create config templates and a gap report. The Windows client must consume /api/v1, package the web workspace, and store only non-sensitive UI preferences.
+Read AGENTS.md, docs/clients/README.md, docs/clients/CLIENT_DELIVERY_MILESTONES.md, docs/clients/CLIENT_API_CONTRACT.md, docs/clients/CLIENT_DESIGN_SYSTEM.md, and docs/clients/WINDOWS_CLIENT_DESIGN_SPEC.md. Implement Windows Milestone D1 only. Use Tauri only if dependencies are available or internet access is explicitly allowed. If unavailable, create config templates and a gap report. The Windows client must consume /api, package the web workspace, and store only non-sensitive UI preferences.
 ```

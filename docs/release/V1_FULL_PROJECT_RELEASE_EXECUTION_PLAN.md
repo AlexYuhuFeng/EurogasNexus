@@ -1,4 +1,4 @@
-# V1 Full Project Release Execution Plan
+﻿# V1 Full Project Release Execution Plan
 
 ## Purpose
 
@@ -96,7 +96,7 @@ Build:
 
 - physical geometry, topology, and market abstraction tables/models;
 - explicit mapping records with confidence and eligibility;
-- `/api/v1/reference-network/*` routes;
+- `/api/reference-network/*` routes;
 - synthetic fixture set.
 
 Acceptance:
@@ -151,7 +151,9 @@ Acceptance:
 
 - all observations carry source, timestamp, unit/currency where applicable,
   freshness, quality, and entitlement state;
-- synthetic/manual fixtures only unless entitlement is approved.
+- no runtime fallback payloads; tests may use source-shaped fixtures, while
+  runtime data must come from PostgreSQL-backed public, entitled, or
+  operator-owned inputs.
 
 ## Milestone R6: Research Workflow Models
 
@@ -182,8 +184,8 @@ Build:
 - cost component matching;
 - route cost result;
 - indicative netback result;
-- `/api/v1/research/route-cost`;
-- `/api/v1/research/netback`.
+- `/api/research/route-cost`;
+- `/api/research/netback`.
 
 Acceptance:
 
@@ -201,8 +203,8 @@ Build:
 
 - feasibility validation workflow;
 - allocation scenario workflow;
-- `/api/v1/research/feasibility`;
-- `/api/v1/research/allocation`.
+- `/api/research/feasibility`;
+- `/api/research/allocation`.
 
 Acceptance:
 
@@ -221,8 +223,8 @@ Build:
 - research alert model;
 - anomaly candidate model;
 - weather-adjusted nowcast model;
-- `/api/v1/monitoring/*`;
-- `/api/v1/research/nowcast`.
+- `/api/monitoring/*`;
+- `/api/research/nowcast`.
 
 Acceptance:
 
@@ -240,8 +242,8 @@ Build:
 - strategy hypothesis model;
 - backtest run/result;
 - shadow run paper-evaluation state;
-- `/api/v1/research/backtest`;
-- `/api/v1/research/shadow-run`.
+- `/api/research/backtest`;
+- `/api/research/shadow-run`.
 
 Acceptance:
 
@@ -259,10 +261,10 @@ Build:
 - research brief model;
 - report generation endpoint;
 - export policy evaluation;
-- glossary model and `/api/v1/glossary/*` routes;
+- glossary model and `/api/glossary/*` routes;
 - LLM-assisted market movement and route explanation interface with mocked
   provider tests and cited output envelope;
-- `/api/v1/research/briefs`.
+- `/api/research/briefs`.
 
 Acceptance:
 
@@ -288,7 +290,7 @@ Build:
 
 Acceptance:
 
-- SDK calls `/api/v1`;
+- SDK calls `/api`;
 - SDK does not import backend internals;
 - SDK tests cover released clients.
 
@@ -328,7 +330,7 @@ Build:
 
 - Network, Capacity, Market, Scenario, Strategy, Review, Sources, Glossary,
   Runtime, Settings workspaces;
-- API client for released `/api/v1` routes;
+- API client for released `/api` routes;
 - fixed React/Vite/MapLibre/deck.gl/Zustand/i18next stack;
 - English/Mandarin language switch;
 - light/dark/system theme switch;

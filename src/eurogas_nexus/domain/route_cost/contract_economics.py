@@ -88,11 +88,12 @@ def compare_easington_contract_options(
 ) -> EasingtonContractOptionsResult:
     """Compare NBP virtual sale and physical exit delivery for an Easington contract."""
 
-    from eurogas_nexus.domain.route_cost.uk_demo_data import demo_uk_capacity_tariffs
-
-    available_tariffs = list(tariffs or demo_uk_capacity_tariffs())
+    available_tariffs = list(tariffs or [])
     missing_inputs: list[str] = []
     warnings: list[str] = []
+    if not available_tariffs:
+        missing_inputs.append("UK_NTS_TARIFFS_NOT_PROVIDED")
+        warnings.append("UK_NTS_TARIFFS_NOT_PROVIDED")
     if scenario.tolerance_risk_allowance_gbp_mwh is None:
         missing_inputs.append("TOLERANCE_RISK_ALLOWANCE_NOT_PROVIDED")
     tolerance_allowance = scenario.tolerance_risk_allowance_gbp_mwh or 0.0

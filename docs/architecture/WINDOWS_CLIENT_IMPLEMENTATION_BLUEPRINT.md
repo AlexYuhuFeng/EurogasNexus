@@ -1,4 +1,4 @@
-# Windows Client Implementation Blueprint
+﻿# Windows Client Implementation Blueprint
 
 ## Objective
 
@@ -10,7 +10,7 @@ separate business runtime and is not a source of truth.
 
 Start Windows client coding only after:
 
-- backend `/api/v1` contracts are stable for the target workflow;
+- backend `/api` contracts are stable for the target workflow;
 - the web client has a working workspace shell;
 - the user explicitly asks to start the Windows phase.
 

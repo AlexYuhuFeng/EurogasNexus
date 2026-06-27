@@ -114,7 +114,7 @@ def generate_alerts(input_: MonitoringInput) -> MonitoringOutput:
         assumptions=["Threshold values are research benchmarks only."],
         missing_inputs=missing,
         warnings=warnings,
-        source_references=["synthetic-input"],
+        source_references=["operator-input"],
         lineage=["monitoring-alert-generation"],
         human_review_required=bool(alerts),
     )

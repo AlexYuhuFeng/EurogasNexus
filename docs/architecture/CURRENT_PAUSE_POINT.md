@@ -1,4 +1,4 @@
-# Current Pause Point
+﻿# Current Pause Point
 
 ## Status
 
@@ -39,7 +39,7 @@ Rendered Web client smoke tested on Microsoft Edge through Playwright CLI:
 
 ```text
 URL: http://127.0.0.1:3000/
-API: http://127.0.0.1:8000/api/v1/health
+API: http://127.0.0.1:8000/api/health
 Console after interactions: 0 errors, 0 warnings
 Screenshot: C:\Users\qqshu\.codex\memories\eurogas-r17-cockpit.png
 ```
@@ -56,7 +56,7 @@ analysis without page errors.
 - ECB public FX, ENTSOG public operational flow, and GIE AGSI/ALSI keyed feeds
   were explicitly fetched and normalized into local PostgreSQL.
 - Provider credentials are backend-owned. Clients can submit keys through
-  `/api/v1`, but plaintext keys are not returned and are not stored in client
+  `/api`, but plaintext keys are not returned and are not stored in client
   state, browser storage, Tauri config, reports, or repo files.
 - Web is the single UI source. Windows wraps the built Web bundle through
   Tauri, so future UI/UX work should update Web first and then rebuild Windows.
@@ -88,7 +88,7 @@ analysis without page errors.
   `capacity_profiles`, `flow_observations`, `market_observations`,
   `live_market_marks`, `route_candidates`, and
   `upstream_resource_contracts`.
-- Extended `/api/v1/glossary/{term}/context` with `lang`,
+- Extended `/api/glossary/{term}/context` with `lang`,
   `duration_start_utc`, `duration_end_utc`, `metrics`, `live_market_marks`,
   `related_contracts`, and `data_quality`.
 - Added Web glossary quick-context buttons and duration selectors for
@@ -97,7 +97,7 @@ analysis without page errors.
   `docs/clients/OPERATIONAL_GLOSSARY_CONTEXT_SPEC-EN.md` and
   `docs/clients/OPERATIONAL_GLOSSARY_CONTEXT_SPEC-CN.md`.
 - Added R20 intuitive glossary context generalization:
-  `GET /api/v1/glossary/{term}/context` now returns `matched_entities` and
+  `GET /api/glossary/{term}/context` now returns `matched_entities` and
   `context_sections`, aggregates selected-duration capacity usage, derives
   non-profile entry points from runtime glossary/capacity/flow/price/route/
   contract records, and exposes the same context through the glossary SDK and
@@ -116,9 +116,9 @@ analysis without page errors.
   `docs/operations/MARKET_POSITIONING_IMPORTS-CN.md`.
 - Added `screen_order_observations` and `portfolio_pnl_snapshots` runtime tables
   for read-only imported screen-order state and portfolio PnL marks.
-- Added `/api/v1/portfolio/screen-orders`,
-  `/api/v1/portfolio/pnl-snapshots`, and
-  `/api/v1/portfolio/live-summary`.
+- Added `/api/portfolio/screen-orders`,
+  `/api/portfolio/pnl-snapshots`, and
+  `/api/portfolio/live-summary`.
 - Added SDK helpers in `eurogas_nexus.sdk.portfolio`.
 - Added Web Orders & Live PnL cockpit panel, animated route/PnL overlay, and
   map-first market-positioning documents in English and Mandarin.
@@ -128,7 +128,7 @@ analysis without page errors.
 - Added storage, LNG, and provider credential tables.
 - Added public-source normalization for ECB, ENTSOG, GIE AGSI, and GIE ALSI.
 - Added explicit operator script `scripts/ops/ingest_public_sources.py`.
-- Added credential API under `/api/v1/credentials/*`.
+- Added credential API under `/api/credentials/*`.
 - Added Web Provider Credentials panel for GIE, EEX, ICE OCM, Trayport, Kpler,
   Platts, Weather, and LLM providers.
 - Added DB-backed storage and LNG observation routes.
@@ -153,8 +153,8 @@ analysis without page errors.
    broader European TSO tariff expansion, but non-UK audited tariff ingestion is
    not in this checkpoint.
 7. Operational glossary context is only as complete as the runtime DB records
-   supplied by customer imports. Synthetic fallback context is for development
-   demonstration only.
+   supplied by public ingestion, customer imports, and operator-owned test
+   records. Runtime fallback context is not part of the V1 contract.
 8. Market-positioning imports are internal/operator-only and now require a
    static internal API token plus entitlement rows. Production multi-user role
    enforcement, rotation workflow, and external secret-manager integration still
@@ -169,15 +169,15 @@ Current in-progress route-cost and market-practice hardening adds:
 - DB tables for TSO tariffs, upstream resource contracts, capacity profiles,
   route candidates, live market marks, glossary terms, strategy definitions,
   strategy runs, strategy allocation targets, and strategy alerts;
-- `/api/v1/route-cost/*` endpoints and SDK helpers for route candidates,
+- `/api/route-cost/*` endpoints and SDK helpers for route candidates,
   generic UK NTS tariff rows, route-cost calculation, Easington option
   comparison, live bid-based PnL marking, LNG regas readiness, and resource-pool
   optimization;
-- `/api/v1/strategy-lab/evaluate` and SDK helpers for backtest, shadow-run, and
+- `/api/strategy-lab/evaluate` and SDK helpers for backtest, shadow-run, and
   live-monitor paper strategy evaluation;
-- `/api/v1/glossary` and `/api/v1/glossary/{term}` bilingual glossary routes
+- `/api/glossary` and `/api/glossary/{term}` bilingual glossary routes
   with English, `zh`, and `zh-CN` support;
-- `/api/v1/glossary/{term}/context` operational context with optional language
+- `/api/glossary/{term}/context` operational context with optional language
   and duration filters for Easington, ICIS Heren, NBP, ICE OCM, and
   customer-loaded non-profile terms whose context can be derived from runtime
   records;

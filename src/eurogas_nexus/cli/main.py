@@ -67,11 +67,11 @@ def _brief(base_url: str, _args: argparse.Namespace) -> object:
 
 
 def _route_cost(base_url: str, _args: argparse.Namespace) -> object:
-    return commands.cmd_route_cost_fixture(base_url)
+    return commands.cmd_route_cost(base_url)
 
 
 def _shadow_run(base_url: str, _args: argparse.Namespace) -> object:
-    return commands.cmd_shadow_run_fixture(base_url)
+    return commands.cmd_shadow_run(base_url)
 
 
 def _serialize(result: object) -> str:

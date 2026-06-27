@@ -1,4 +1,4 @@
-"""Feasibility and allocation API tests (DB-free)."""
+﻿"""Feasibility and allocation API tests (DB-free)."""
 
 import pytest
 from fastapi.testclient import TestClient
@@ -12,7 +12,7 @@ def _client() -> TestClient:
 
 
 def test_post_feasibility_200(client: TestClient) -> None:
-    r = client.post("/api/v1/research/feasibility", json={
+    r = client.post("/api/research/feasibility", json={
         "route_name": "TTF-NCG", "from_node_id": "n1", "to_node_id": "n2",
         "capacity_available_mcm_d": 100.0, "required_capacity_mcm_d": 50.0,
     })
@@ -22,7 +22,7 @@ def test_post_feasibility_200(client: TestClient) -> None:
 
 
 def test_post_feasibility_infeasible(client: TestClient) -> None:
-    r = client.post("/api/v1/research/feasibility", json={
+    r = client.post("/api/research/feasibility", json={
         "route_name": "Test", "from_node_id": "n1", "to_node_id": "n2",
         "capacity_available_mcm_d": 10.0, "required_capacity_mcm_d": 100.0,
     })
@@ -31,7 +31,7 @@ def test_post_feasibility_infeasible(client: TestClient) -> None:
 
 
 def test_post_allocation_200(client: TestClient) -> None:
-    r = client.post("/api/v1/research/allocation", json={
+    r = client.post("/api/research/allocation", json={
         "scenario_name": "Winter Base", "total_demand_boe_d": 5000000.0,
         "candidates": [
             {"candidate_id": "c1", "route_name": "TTF-NCG",
@@ -46,7 +46,7 @@ def test_post_allocation_200(client: TestClient) -> None:
 
 
 def test_post_allocation_with_unallocated(client: TestClient) -> None:
-    r = client.post("/api/v1/research/allocation", json={
+    r = client.post("/api/research/allocation", json={
         "scenario_name": "Test", "total_demand_boe_d": 5000000.0,
         "candidates": [
             {"candidate_id": "c1", "route_name": "R1",
@@ -59,7 +59,7 @@ def test_post_allocation_with_unallocated(client: TestClient) -> None:
 
 
 def test_feasibility_metadata(client: TestClient) -> None:
-    r = client.post("/api/v1/research/feasibility", json={
+    r = client.post("/api/research/feasibility", json={
         "route_name": "T", "from_node_id": "a", "to_node_id": "b",
     })
     assert r.json()["meta"]["research_only"] is True

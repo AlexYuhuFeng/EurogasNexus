@@ -1,9 +1,9 @@
-# V1 Full Project Release Scope
+﻿# V1 Full Project Release Scope
 
 ## Release Definition
 
 Eurogas Nexus V1 is an internal European gas research and decision-support
-release. It must provide a PostgreSQL-backed backend, stable `/api/v1` routes,
+release. It must provide a PostgreSQL-backed backend, stable `/api` routes,
 Python SDK, CLI, web workspace, and Windows client shell for research workflows.
 
 V1 may produce research trading ideas, candidate rankings, explanations, data
@@ -28,18 +28,22 @@ V1 release includes:
 
 Backend/API V1 must include:
 
-- `/api/v1/health`;
+- `/api/health`;
 - runtime status/readiness;
 - source registry and ingestion run metadata;
 - live-source connector contracts and gated runtime status for ECB, ENTSOG,
   GIE, EEX, Trayport, ICE OCM, and weather providers;
 - canonical reference network;
 - geometry-topology-market mapping;
-- synthetic/manual market observation support;
-- synthetic/manual flow/capacity/outage support;
-- synthetic/manual LNG/regas support;
-- synthetic/manual storage support;
-- synthetic/manual weather/demand metric support;
+- PostgreSQL-backed market observation support from entitled or operator-owned
+  inputs;
+- PostgreSQL-backed flow, capacity, and outage support from public/operator
+  source ingestion;
+- PostgreSQL-backed LNG/regas support from GIE ALSI or entitled customer
+  sources;
+- PostgreSQL-backed storage support from GIE AGSI or entitled customer sources;
+- weather/demand metric support only after a configured weather source or
+  operator-owned input is ingested into PostgreSQL;
 - capacity contract and route eligibility context;
 - route cost research workflow;
 - indicative netback research workflow;
@@ -64,7 +68,7 @@ backend local data files directly.
 
 The SDK must:
 
-- target `/api/v1`;
+- target `/api`;
 - expose typed clients for released backend routes;
 - preserve metadata, warnings, missing inputs, source references, lineage,
   `research_only`, and `human_review_required`;
@@ -87,7 +91,7 @@ The CLI must:
 
 The web client must:
 
-- consume `/api/v1`;
+- consume `/api`;
 - show backend, DB, source, and warning posture;
 - be map-first;
 - provide Network, Capacity, Market, Scenario, Strategy, Review, Sources,

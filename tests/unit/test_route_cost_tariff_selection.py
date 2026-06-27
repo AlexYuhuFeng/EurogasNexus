@@ -7,11 +7,11 @@ from eurogas_nexus.domain.route_cost.enums import (
     TariffStatus,
 )
 from eurogas_nexus.domain.route_cost.tariff_selection import select_latest_tariff
-from eurogas_nexus.domain.route_cost.uk_demo_data import demo_uk_capacity_tariffs
+from eurogas_nexus.domain.route_cost.uk_public_tariffs import published_uk_capacity_tariffs
 
 
 def test_selects_final_2025_26_easington_entry_tariff() -> None:
-    tariffs = demo_uk_capacity_tariffs()
+    tariffs = published_uk_capacity_tariffs()
 
     selection = select_latest_tariff(
         tariffs,
@@ -32,7 +32,7 @@ def test_selects_final_2025_26_easington_entry_tariff() -> None:
 
 
 def test_selects_indicative_2026_27_and_requires_human_review() -> None:
-    tariffs = demo_uk_capacity_tariffs()
+    tariffs = published_uk_capacity_tariffs()
 
     selection = select_latest_tariff(
         tariffs,
@@ -53,7 +53,7 @@ def test_selects_indicative_2026_27_and_requires_human_review() -> None:
 
 
 def test_selection_never_substitutes_another_gas_year() -> None:
-    tariffs = demo_uk_capacity_tariffs()
+    tariffs = published_uk_capacity_tariffs()
 
     selection = select_latest_tariff(
         tariffs,

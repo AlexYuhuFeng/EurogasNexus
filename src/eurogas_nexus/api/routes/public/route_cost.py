@@ -1,4 +1,4 @@
-"""DB-first route-cost and contract decision-support endpoints."""
+﻿"""DB-first route-cost and contract decision-support endpoints."""
 
 from __future__ import annotations
 
@@ -24,7 +24,6 @@ from eurogas_nexus.domain.route_cost.resource_pool import (
 )
 from eurogas_nexus.domain.route_cost.route_cost_service import calculate_route_cost
 from eurogas_nexus.domain.route_cost.schemas import RouteCostScenario
-from eurogas_nexus.domain.route_cost.uk_demo_data import demo_uk_capacity_tariffs
 from eurogas_nexus.domain.route_cost.uk_rules import (
     UK_ROUTE_COST_SCOPE,
     is_supported_uk_scenario,
@@ -38,9 +37,9 @@ class EasingtonLivePnlRequest(BaseModel):
     marks: list[LiveMarketMark] = Field(default_factory=list)
 
 
-@router.get("/api/v1/route-cost/uk/tariffs/easington")
+@router.get("/api/route-cost/uk/tariffs/easington")
 def list_uk_easington_tariffs(request: Request) -> dict:
-    """Return the seeded Easington demo tariff subset for backwards compatibility."""
+    """Return the runtime DB Easington tariff subset when tariff rows are loaded."""
 
     tariffs, source, warnings = _load_tariffs()
     easington_tariffs = [
@@ -58,7 +57,7 @@ def list_uk_easington_tariffs(request: Request) -> dict:
     )
 
 
-@router.get("/api/v1/route-cost/uk/tariffs")
+@router.get("/api/route-cost/uk/tariffs")
 def list_uk_nts_tariffs(
     request: Request,
     point_name: str | None = None,
@@ -95,9 +94,9 @@ def list_uk_nts_tariffs(
     )
 
 
-@router.get("/api/v1/route-cost/route-candidates")
+@router.get("/api/route-cost/route-candidates")
 def list_route_candidates(request: Request) -> dict:
-    """List available route candidates from DB, or demo candidates when no DB is configured."""
+    """List available route candidates from the runtime DB."""
 
     candidates, source, warnings = _load_route_candidates()
     return _env(
@@ -108,7 +107,7 @@ def list_route_candidates(request: Request) -> dict:
     )
 
 
-@router.get("/api/v1/route-cost/upstream-contracts")
+@router.get("/api/route-cost/upstream-contracts")
 def list_upstream_contracts(request: Request) -> dict:
     """List DB-backed upstream resource contracts."""
 
@@ -116,8 +115,8 @@ def list_upstream_contracts(request: Request) -> dict:
         return _env(
             [],
             request,
-            source="demo-code-fallback",
-            warnings=["No runtime DB configured."],
+            source="runtime-db-not-configured",
+            warnings=["No runtime DB configured; upstream contracts are unavailable."],
         )
 
     sqlalchemy_error = _sqlalchemy_error_type()
@@ -131,16 +130,17 @@ def list_upstream_contracts(request: Request) -> dict:
         raise _db_unavailable(exc) from exc
 
 
-@router.post("/api/v1/route-cost/upstream-contracts/easington")
+@router.post("/api/route-cost/upstream-contracts/easington")
 def save_easington_contract(body: EasingtonContractScenario, request: Request) -> dict:
     """Create or update an Easington upstream resource contract profile."""
 
     if not _db_is_configured():
-        return _env(
-            body.model_dump(mode="json"),
-            request,
-            source="demo-code-fallback",
-            warnings=["No runtime DB configured; contract was not persisted."],
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "code": "runtime_db_not_configured",
+                "message": "Runtime DB is required to persist upstream contracts.",
+            },
         )
 
     sqlalchemy_error = _sqlalchemy_error_type()
@@ -156,7 +156,7 @@ def save_easington_contract(body: EasingtonContractScenario, request: Request) -
         raise _db_unavailable(exc) from exc
 
 
-@router.post("/api/v1/route-cost/calculate")
+@router.post("/api/route-cost/calculate")
 def post_route_cost_calculation(body: RouteCostScenario, request: Request) -> dict:
     """Calculate a UK National Gas NTS route-cost scenario."""
 
@@ -176,7 +176,7 @@ def post_route_cost_calculation(body: RouteCostScenario, request: Request) -> di
     )
 
 
-@router.post("/api/v1/route-cost/uk/easington/options")
+@router.post("/api/route-cost/uk/easington/options")
 def post_easington_contract_options(
     body: EasingtonContractScenario,
     request: Request,
@@ -194,7 +194,7 @@ def post_easington_contract_options(
     )
 
 
-@router.post("/api/v1/route-cost/uk/easington/live-pnl")
+@router.post("/api/route-cost/uk/easington/live-pnl")
 def post_easington_live_pnl(body: EasingtonLivePnlRequest, request: Request) -> dict:
     """Mark Easington contract options to live ICE OCM/EEX style bid/ask marks."""
 
@@ -226,7 +226,7 @@ def post_easington_live_pnl(body: EasingtonLivePnlRequest, request: Request) -> 
     )
 
 
-@router.post("/api/v1/route-cost/lng-regas/assess")
+@router.post("/api/route-cost/lng-regas/assess")
 def post_lng_regas_assessment(body: LngRegasScenario, request: Request) -> dict:
     """Assess LNG regas terminal access, slot, delivery mode, and pricing readiness."""
 
@@ -239,7 +239,7 @@ def post_lng_regas_assessment(body: LngRegasScenario, request: Request) -> dict:
     )
 
 
-@router.post("/api/v1/route-cost/resource-pool/optimize")
+@router.post("/api/route-cost/resource-pool/optimize")
 def post_resource_pool_optimization(
     body: PortfolioOptimizationScenario,
     request: Request,
@@ -258,9 +258,9 @@ def post_resource_pool_optimization(
 def _load_tariffs():
     if not _db_is_configured():
         return (
-            demo_uk_capacity_tariffs(),
-            "demo-code-fallback",
-            ["No runtime DB configured; using in-code demo tariff examples."],
+            [],
+            "runtime-db-not-configured",
+            ["No runtime DB configured; UK tariff rows are unavailable."],
         )
 
     sqlalchemy_error = _sqlalchemy_error_type()
@@ -277,20 +277,9 @@ def _load_tariffs():
 def _load_live_marks() -> tuple[list[LiveMarketMark], str, list[str]]:
     if not _db_is_configured():
         return (
-            [
-                LiveMarketMark(
-                    venue="ICE OCM",
-                    hub="NBP",
-                    product="Within-day",
-                    bid_gbp_mwh=28.2,
-                    ask_gbp_mwh=28.4,
-                    last_gbp_mwh=28.3,
-                    mark_time_utc="2026-05-31T08:30:00Z",
-                    source_system="demo-live-mark",
-                )
-            ],
-            "demo-code-fallback",
-            ["No runtime DB configured; using in-code demo live mark."],
+            [],
+            "runtime-db-not-configured",
+            ["No runtime DB configured; live market marks are unavailable."],
         )
 
     sqlalchemy_error = _sqlalchemy_error_type()
@@ -307,40 +296,9 @@ def _load_live_marks() -> tuple[list[LiveMarketMark], str, list[str]]:
 def _load_route_candidates() -> tuple[list[dict], str, list[str]]:
     if not _db_is_configured():
         return (
-            [
-                {
-                    "route_id": "uk-easington-nbp",
-                    "route_name": "Easington beach delivery -> NBP virtual sale",
-                    "start_point_name": "Easington Beach Terminal",
-                    "target_point_name": "NBP",
-                    "business_model": "VIRTUAL_HUB_SALE",
-                    "route_legs": [
-                        {"step": "entry_capacity", "point": "Easington Beach Terminal"},
-                        {"step": "virtual_hub_sale", "point": "NBP"},
-                    ],
-                    "required_entry_point_name": "Easington Beach Terminal",
-                    "required_exit_point_name": None,
-                    "required_tso_access": ["National Gas NTS"],
-                    "source_systems": ["National Gas NTS", "ICE OCM", "EEX"],
-                },
-                {
-                    "route_id": "uk-easington-bacton-physical",
-                    "route_name": "Easington beach delivery -> Bacton physical exit",
-                    "start_point_name": "Easington Beach Terminal",
-                    "target_point_name": "Bacton GDN (EA)",
-                    "business_model": "PHYSICAL_DELIVERY",
-                    "route_legs": [
-                        {"step": "entry_capacity", "point": "Easington Beach Terminal"},
-                        {"step": "exit_capacity", "point": "Bacton GDN (EA)"},
-                    ],
-                    "required_entry_point_name": "Easington Beach Terminal",
-                    "required_exit_point_name": "Bacton GDN (EA)",
-                    "required_tso_access": ["National Gas NTS"],
-                    "source_systems": ["National Gas NTS", "ENTSOG"],
-                },
-            ],
-            "demo-code-fallback",
-            ["No runtime DB configured; using in-code demo route candidates."],
+            [],
+            "runtime-db-not-configured",
+            ["No runtime DB configured; route candidates are unavailable."],
         )
 
     sqlalchemy_error = _sqlalchemy_error_type()

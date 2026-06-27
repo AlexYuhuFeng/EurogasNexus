@@ -1,4 +1,4 @@
-"""Provider credential API tests."""
+﻿"""Provider credential API tests."""
 
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -18,7 +18,7 @@ def test_credential_write_requires_secret_key(tmp_path, monkeypatch) -> None:
     monkeypatch.delenv("EUROGAS_NEXUS_SECRET_KEY", raising=False)
 
     response = TestClient(create_app()).put(
-        "/api/v1/credentials/GIE",
+        "/api/credentials/GIE",
         json={"api_key": "secret-value", "label": "local-gie"},
     )
 
@@ -36,7 +36,7 @@ def test_credentials_are_encrypted_and_redacted(tmp_path, monkeypatch) -> None:
 
     client = TestClient(create_app())
     response = client.put(
-        "/api/v1/credentials/GIE",
+        "/api/credentials/GIE",
         json={"api_key": "secret-value", "label": "local-gie"},
     )
 
@@ -53,7 +53,7 @@ def test_credentials_are_encrypted_and_redacted(tmp_path, monkeypatch) -> None:
         assert "secret-value" not in row.encrypted_payload
         assert row.redacted_preview != "secret-value"
 
-    list_response = client.get("/api/v1/credentials/providers")
+    list_response = client.get("/api/credentials/providers")
     assert list_response.status_code == 200
     assert "secret-value" not in list_response.text
 
@@ -71,7 +71,7 @@ def test_credential_rotation_disable_and_local_validation_are_write_only(
 
     client = TestClient(create_app())
     first = client.put(
-        "/api/v1/credentials/GIE",
+        "/api/credentials/GIE",
         json={"api_key": "first-secret-value", "label": "local-gie"},
     )
     assert first.status_code == 200
@@ -81,7 +81,7 @@ def test_credential_rotation_disable_and_local_validation_are_write_only(
         first_fingerprint = first_row.credential_fingerprint
 
     rotated = client.post(
-        "/api/v1/credentials/GIE/rotate",
+        "/api/credentials/GIE/rotate",
         json={"api_key": "second-secret-value", "label": "rotated-gie"},
     )
     assert rotated.status_code == 200
@@ -93,13 +93,13 @@ def test_credential_rotation_disable_and_local_validation_are_write_only(
         assert rotated_row.credential_fingerprint != first_fingerprint
         assert rotated_row.label == "rotated-gie"
 
-    local_test = client.post("/api/v1/credentials/GIE/local-validation")
+    local_test = client.post("/api/credentials/GIE/local-validation")
     assert local_test.status_code == 200
     assert local_test.json()["data"]["last_test_status"] == "local_validation_passed"
     assert "second-secret-value" not in local_test.text
 
     disabled = client.patch(
-        "/api/v1/credentials/GIE/status",
+        "/api/credentials/GIE/status",
         json={"status": "disabled", "reason": "operator rotation window"},
     )
     assert disabled.status_code == 200
@@ -112,7 +112,7 @@ def test_credential_rotation_disable_and_local_validation_are_write_only(
         assert disabled_row.status == "disabled"
         assert "second-secret-value" not in disabled_row.encrypted_payload
 
-    listed = client.get("/api/v1/credentials/providers")
+    listed = client.get("/api/credentials/providers")
     assert listed.status_code == 200
     gie = next(item for item in listed.json()["data"] if item["provider_id"] == "GIE")
     assert gie["configured"] is False
@@ -124,11 +124,11 @@ def test_public_provider_credentials_cannot_be_rotated_or_disabled() -> None:
     client = TestClient(create_app())
 
     rotate = client.post(
-        "/api/v1/credentials/ECB/rotate",
+        "/api/credentials/ECB/rotate",
         json={"api_key": "not-needed", "label": "ecb"},
     )
     disable = client.patch(
-        "/api/v1/credentials/ECB/status",
+        "/api/credentials/ECB/status",
         json={"status": "disabled", "reason": "not applicable"},
     )
 

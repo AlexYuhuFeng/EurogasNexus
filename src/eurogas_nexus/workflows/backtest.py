@@ -99,13 +99,13 @@ def compute_backtest(input_: BacktestInput) -> BacktestOutput:
         sharpe_ratio=round(sharpe, 4) if sharpe is not None else None,
         max_drawdown_pct=max_dd,
         assumptions=[
-            "Backtest uses historical synthetic data only.",
+            "Backtest uses the supplied historical operator/runtime input.",
             "Sharpe ratio is a simple approximation (no risk-free rate).",
             "Max drawdown is computed from cumulative PnL.",
         ],
         missing_inputs=missing,
         warnings=warnings,
-        source_references=["synthetic-input"],
+        source_references=["operator-input"],
         lineage=["backtest-computation"],
         human_review_required=bool(missing),
     )

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { GasNetworkMap } from "@/components/GasNetworkMap";
@@ -19,6 +19,7 @@ type ContractNumberKey =
   | "annual_financing_rate_pct";
 
 type LiveMarkNumberKey = "bid_gbp_mwh" | "ask_gbp_mwh" | "last_gbp_mwh";
+type WorkspacePageId = "network" | "market" | "scenario" | "strategy" | "sources" | "glossary" | "runtime" | "settings";
 
 export default function App() {
   const { t, i18n } = useTranslation();
@@ -33,10 +34,15 @@ export default function App() {
     portfolioSummary,
     fxRates,
     flows,
+    capacity,
     storage,
     lng,
+    tsoAccess,
     routes,
     routeCandidates,
+    ukTariffs,
+    upstreamContracts,
+    endpointMeta,
     routeOptions,
     livePnl,
     glossaryTerms,
@@ -69,12 +75,13 @@ export default function App() {
   const [glossaryDurationEnd, setGlossaryDurationEnd] = useState("2026-06-01T06:00");
   const [analysisQuestion, setAnalysisQuestion] = useState("Summarize current portfolio PnL, route, market, and strategy status.");
   const [invokeDeepSeek, setInvokeDeepSeek] = useState(false);
+  const [activeWorkspace, setActiveWorkspace] = useState<WorkspacePageId>("network");
   const selectedCredentialProvider = useMemo(
     () => credentialProviders.find((provider) => provider.provider_id === credentialProvider),
     [credentialProvider, credentialProviders],
   );
   const [contract, setContract] = useState({
-    contract_id: "demo-easington-contract",
+    contract_id: "operator-test-easington-contract",
     gas_year: "2025/26",
     delivery_quantity_mwh_per_day: 10000,
     contract_price_gbp_mwh: 25,
@@ -127,7 +134,7 @@ export default function App() {
       ],
       price_observations: [
         {
-          observation_id: "operator-sap-demo",
+          observation_id: "operator-sap-reference",
           source_system: "operator-entered",
           venue: "SAP",
           hub: "NBP",
@@ -141,7 +148,7 @@ export default function App() {
           source_reference: "operator:SAP",
         },
         {
-          observation_id: "operator-icis-demo",
+          observation_id: "operator-icis-reference",
           source_system: "operator-entered",
           venue: "ICIS Heren",
           hub: "NBP",
@@ -155,7 +162,7 @@ export default function App() {
           source_reference: "operator:ICIS_HEREN_DAY_AHEAD",
         },
         {
-          observation_id: "operator-ocm-demo",
+          observation_id: "operator-ocm-reference",
           source_system: liveMark.source_system,
           venue: liveMark.venue,
           hub: liveMark.hub,
@@ -236,8 +243,6 @@ export default function App() {
   }
 
   const primaryLiveMark = livePnl?.live_marks[0];
-  const latestPnlSnapshot = pnlSnapshots[0];
-  const activeOrder = screenOrders.find((order) => order.status !== "FILLED") ?? screenOrders[0];
   const firstStrategyTarget = strategyResult?.allocation_targets[0];
   const glossaryLang = i18n.language.startsWith("zh") ? "zh-CN" : "en";
   const glossaryShortcutTerms = ["Easington Entry Point", "ICIS Heren", "NBP", "ICE OCM"];
@@ -253,6 +258,7 @@ export default function App() {
     language: i18n.language.startsWith("zh") ? "zh-CN" : "en",
   };
   const workflowSteps = ["discover", "compose", "price", "evaluate", "review"];
+  const workspacePages: WorkspacePageId[] = ["network", "market", "scenario", "strategy", "sources", "glossary", "runtime", "settings"];
   const destinationHubs = ["NBP", "TTF", "ZTP", "PEG", "THE"];
   const selectedOption = (livePnl ?? routeOptions)?.options[0] ?? null;
   const decisionPnl =
@@ -265,6 +271,57 @@ export default function App() {
   const salePrice = liveMark.bid_gbp_mwh ?? liveMark.last_gbp_mwh ?? contract.nbp_sale_price_gbp_mwh;
   const routeCharge = selectedOption?.total_charges_gbp_mwh ?? null;
   const activeWarning = [...(strategyResult?.warnings ?? []), ...(meta?.warnings ?? [])][0] ?? null;
+  const tsoAccessByCountry = useMemo(() => {
+    const buckets = new Map<string, {
+      country: string;
+      accessCount: number;
+      dayAheadCount: number;
+      dailyCount: number;
+      monthlyCount: number;
+    }>();
+    tsoAccess.forEach((item) => {
+      const country = item.country || "--";
+      const bucket = buckets.get(country) ?? {
+        country,
+        accessCount: 0,
+        dayAheadCount: 0,
+        dailyCount: 0,
+        monthlyCount: 0,
+      };
+      bucket.accessCount += 1;
+      bucket.dayAheadCount += item.day_ahead_contracts_available ? 1 : 0;
+      bucket.dailyCount += item.daily_contracts_available ? 1 : 0;
+      bucket.monthlyCount += item.monthly_contracts_available ? 1 : 0;
+      buckets.set(country, bucket);
+    });
+    return [...buckets.values()]
+      .sort((a, b) => b.accessCount - a.accessCount)
+      .slice(0, 6);
+  }, [tsoAccess]);
+  const latestOfficialFlows = useMemo(() => flows
+    .filter((item) => item.source_system === "ENTSOG")
+    .slice(0, 5), [flows]);
+  const capacityByType = useMemo(() => {
+    const buckets = new Map<string, { capacityType: string; rows: number; totalMcmD: number }>();
+    capacity.forEach((item) => {
+      const bucket = buckets.get(item.capacity_type) ?? {
+        capacityType: item.capacity_type,
+        rows: 0,
+        totalMcmD: 0,
+      };
+      bucket.rows += 1;
+      bucket.totalMcmD += item.capacity_mcm_d;
+      buckets.set(item.capacity_type, bucket);
+    });
+    return [...buckets.values()].sort((a, b) => b.rows - a.rows).slice(0, 5);
+  }, [capacity]);
+  const latestCapacityRows = useMemo(() => capacity.slice(0, 5), [capacity]);
+  const runtimeSourceSummary = Object.entries(endpointMeta).slice(0, 6);
+  const dataIssueText = dataStatus === "runtime"
+    ? null
+    : dataStatus === "partial"
+      ? "Runtime DB is partially populated. Review missing sources and lineage before using decisions."
+      : "Runtime DB is unavailable or empty. Configure and populate the database.";
 
   function glossaryContextParams() {
     return {
@@ -290,12 +347,12 @@ export default function App() {
   }
 
   return (
-    <div className="app cockpit-app">
+    <div className={`app cockpit-app workspace-${activeWorkspace}`}>
       <header className="app-header cockpit-topbar">
         <button className="topbar-icon-button" type="button" aria-label={t("topbar.menu")}><span className="topbar-menu-glyph" aria-hidden="true" /></button>
         <div className="workspace-pill" aria-label={t("topbar.workspace_label")}>
           <span>{t("topbar.workspace_label")}</span>
-          <strong>{t("topbar.workspace_tools")}</strong>
+          <strong>{t(`nav.${activeWorkspace}`)}</strong>
         </div>
         <input
           className="topbar-search"
@@ -317,6 +374,18 @@ export default function App() {
         </div>
       </header>
 
+      <nav className="workspace-nav" aria-label={t("topbar.workspace_label")}>
+        {workspacePages.map((page) => (
+          <button
+            key={page}
+            type="button"
+            className={activeWorkspace === page ? "workspace-nav-item active" : "workspace-nav-item"}
+            onClick={() => setActiveWorkspace(page)}
+          >
+            {t(`nav.${page}`)}
+          </button>
+        ))}
+      </nav>
       <nav className="workflow-strip" aria-label={t("workflow.label")}>
         {workflowSteps.map((step, index) => (
           <button key={step} className={index === 2 ? "workflow-step active" : "workflow-step"} type="button">
@@ -378,14 +447,6 @@ export default function App() {
             themeMode={mode}
             activeLayers={activeLayers}
             searchTerm={searchTerm}
-            highlightedRoute={{
-              fromNodeId: "node-bacton",
-              toNodeId: "node-nbp",
-              label: activeOrder
-                ? `${activeOrder.venue} ${activeOrder.side} ${activeOrder.remaining_quantity_mwh.toLocaleString()} MWh`
-                : "Portfolio PnL route",
-              pnlGbp: primaryLiveMark?.live_net_pnl_gbp_per_day ?? latestPnlSnapshot?.indicative_pnl_gbp ?? null,
-            }}
           />
           <div className="map-overlay">
             <span>{t("map.nodes")}: {nodes.length}</span>
@@ -439,48 +500,37 @@ export default function App() {
             </div>
           </div>
 
-          <div className="panel route-economics">
+          <div className="panel home-portfolio-panel">
             <div className="section-heading">
-              <span className="eyebrow">{t("scenario.commercial_posture")}</span>
-              <strong>{t("panel.easington")}</strong>
+              <span className="eyebrow">{t("home.portfolio")}</span>
+              <strong>{upstreamContracts.length || 1} resource</strong>
             </div>
-            <div className="economics-grid">
-              <label>{t("economics.volume")}<input type="number" value={contract.delivery_quantity_mwh_per_day} onChange={(event) => updateContractNumber("delivery_quantity_mwh_per_day", event.target.value)} /></label>
-              <label>{t("economics.contract_price")}<input type="number" value={contract.contract_price_gbp_mwh} onChange={(event) => updateContractNumber("contract_price_gbp_mwh", event.target.value)} /></label>
-              <label>{t("economics.nbp_price")}<input type="number" value={contract.nbp_sale_price_gbp_mwh} onChange={(event) => updateContractNumber("nbp_sale_price_gbp_mwh", event.target.value)} /></label>
-              <label>{t("economics.physical_price")}<input type="number" value={contract.physical_exit_sale_price_gbp_mwh} onChange={(event) => updateContractNumber("physical_exit_sale_price_gbp_mwh", event.target.value)} /></label>
-              <label>{t("economics.delivery_tolerance")}<input type="number" value={contract.delivery_tolerance_pct} onChange={(event) => updateContractNumber("delivery_tolerance_pct", event.target.value)} /></label>
-              <label>{t("economics.nomination_tolerance")}<input type="number" value={contract.nomination_tolerance_pct} onChange={(event) => updateContractNumber("nomination_tolerance_pct", event.target.value)} /></label>
-              <label>{t("economics.cash_lag")}<input type="number" value={contract.screen_sale_cash_lag_days} onChange={(event) => updateContractNumber("screen_sale_cash_lag_days", event.target.value)} /></label>
-              <label>{t("economics.finance_rate")}<input type="number" value={contract.annual_financing_rate_pct} onChange={(event) => updateContractNumber("annual_financing_rate_pct", event.target.value)} /></label>
-            </div>
-            <div className="action-row">
-              <button type="button" onClick={() => compareEasingtonOptions(contract)}>{t("economics.compare")}</button>
-              <button type="button" onClick={() => markEasingtonLivePnl(contract, [liveMark])}>{t("economics.live_pnl")}</button>
-            </div>
-            <div className="live-mark-row">
-              <span>{liveMark.venue}</span>
-              <label>{t("economics.bid")}<input type="number" value={liveMark.bid_gbp_mwh ?? ""} onChange={(event) => updateLiveMarkNumber("bid_gbp_mwh", event.target.value)} /></label>
-              <label>{t("economics.ask")}<input type="number" value={liveMark.ask_gbp_mwh ?? ""} onChange={(event) => updateLiveMarkNumber("ask_gbp_mwh", event.target.value)} /></label>
-            </div>
-            {(livePnl ?? routeOptions)?.options.map((option) => (
-              <div key={option.option_id} className="option-row">
-                <div>
-                  <strong>{option.label}</strong>
-                  <span>{option.business_model}</span>
-                </div>
-                <div>
-                  <strong>GBP {Math.round(option.net_pnl_gbp_per_day).toLocaleString()}/d</strong>
-                  <span>{option.net_margin_gbp_mwh.toFixed(4)} GBP/MWh</span>
-                </div>
+            <div className="metric-grid two-column compact-metrics">
+              <div>
+                <span>{t("economics.volume")}</span>
+                <strong>{contract.delivery_quantity_mwh_per_day.toLocaleString()} MWh/d</strong>
               </div>
-            ))}
-            {livePnl?.live_marks.map((mark) => (
-              <div key={`${mark.option_id}-${mark.venue}`} className="option-row live">
-                <span>{mark.venue} {mark.product}: {mark.signal.suggested_action}</span>
-                <strong>GBP {Math.round(mark.live_net_pnl_gbp_per_day ?? 0).toLocaleString()}/d</strong>
+              <div>
+                <span>{t("portfolio.open_orders")}</span>
+                <strong>{portfolioSummary?.open_order_count ?? screenOrders.length}</strong>
               </div>
-            ))}
+            </div>
+            <div className="route-list compact-route-list">
+              {latestOfficialFlows.slice(0, 4).map((flow) => (
+                <div key={`home-flow-${flow.observation_id}`} className="route-row route-candidate">
+                  <span>{flow.point_name}</span>
+                  <strong>{flow.flow_mcm_d.toFixed(2)} mcm/d</strong>
+                  <small>{flow.direction.toUpperCase()} / {flow.source_system}</small>
+                </div>
+              ))}
+              {latestOfficialFlows.length === 0 && (
+                <div className="route-row route-candidate">
+                  <span>{t("status.source")}</span>
+                  <strong>{t("data.unavailable")}</strong>
+                  <small>Run ENTSOG flow ingestion into PostgreSQL.</small>
+                </div>
+              )}
+            </div>
           </div>
 
         </aside>
@@ -556,438 +606,296 @@ export default function App() {
             </div>
           </div>
 
-          <div className="panel">
-            <h3>{t("panel.market")}</h3>
-            <div className="metric-grid">
-              {fxRates.slice(0, 2).map((fx) => (
-                <div key={fx.pair}>
-                  <span>ECB {fx.pair}</span>
-                  <strong>{fx.rate}</strong>
-                </div>
-              ))}
-              {markets.slice(0, 3).map((market) => (
-                <div key={market.observation_id}>
-                  <span>{market.market_venue} {market.product}</span>
-                  <strong>{market.price} {market.currency}</strong>
-                </div>
-              ))}
+          <div className="panel network-operations-panel">
+            <div className="panel-title-row">
+              <h3>{t("panel.infrastructure")}</h3>
+              <span>{t("data.runtime")}</span>
             </div>
-          </div>
-
-          <div className="panel positioning-panel">
-            <h3>{t("panel.positioning")}</h3>
-            {portfolioSummary && (
-              <div className="metric-grid">
-                <div>
-                  <span>{t("portfolio.indicative_pnl")}</span>
-                  <strong>GBP {Math.round(portfolioSummary.total_indicative_pnl_gbp).toLocaleString()}</strong>
+            <div className="data-table compact-table country-ops-table">
+              <div className="data-table-row header four"><span>{t("panel.country")}</span><span>{t("panel.access")}</span><span>{t("panel.day_ahead")}</span><span>{t("panel.daily")}</span></div>
+              {tsoAccessByCountry.length > 0 ? tsoAccessByCountry.map((country) => (
+                <div key={`country-op-${country.country}`} className="data-table-row four">
+                  <strong>{country.country}</strong>
+                  <span>{country.accessCount.toLocaleString()}</span>
+                  <span>{country.dayAheadCount.toLocaleString()}</span>
+                  <span>{country.dailyCount.toLocaleString()}</span>
                 </div>
-                <div>
-                  <span>{t("portfolio.cash_value")}</span>
-                  <strong>GBP {Math.round(portfolioSummary.total_cash_value_gbp).toLocaleString()}</strong>
-                </div>
-                <div>
-                  <span>{t("portfolio.open_orders")}</span>
-                  <strong>{portfolioSummary.open_order_count}</strong>
-                </div>
-              </div>
-            )}
-            {screenOrders.slice(0, 3).map((order) => (
-              <div key={order.order_observation_id} className="option-row live">
-                <div>
-                  <strong>{order.venue} {order.side} {order.product}</strong>
-                  <span>
-                    {order.hub} {order.status} · {order.filled_quantity_mwh.toLocaleString()} / {order.quantity_mwh.toLocaleString()} MWh
-                  </span>
-                </div>
-                <div>
-                  <strong>{order.price.toFixed(2)} {order.unit}</strong>
-                  <span>{order.contract_code}</span>
-                </div>
-              </div>
-            ))}
-            {pnlSnapshots.slice(0, 2).map((snapshot) => (
-              <div key={snapshot.pnl_snapshot_id} className="option-row">
-                <div>
-                  <strong>{snapshot.portfolio_id}</strong>
-                  <span>{snapshot.valuation_basis}</span>
-                </div>
-                <div>
-                  <strong>GBP {Math.round(snapshot.indicative_pnl_gbp).toLocaleString()}</strong>
-                  <span>{snapshot.quantity_mwh.toLocaleString()} MWh</span>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="panel strategy-panel">
-            <h3>{t("panel.strategy_lab")}</h3>
-            <p>{t("strategy.description")}</p>
-            <div className="strategy-summary">
-              <span>{t("strategy.window")}: 15:00-17:00</span>
-              <span>{t("strategy.bar")}: 5m</span>
-              <span>{t("strategy.mode")}: {strategyScenario.run_mode}</span>
+              )) : (
+                <div className="data-table-row four"><strong>n/a</strong><span>No DB rows</span><span>n/a</span><span>n/a</span></div>
+              )}
             </div>
-            <button type="button" onClick={() => evaluateStrategyLab(strategyScenario)}>
-              {t("strategy.evaluate")}
-            </button>
-            {strategyResult && (
-              <div className="strategy-result">
-                <div className="option-row">
-                  <span>{strategyResult.status}</span>
-                  <strong>{strategyResult.candidate_action_for_review}</strong>
-                </div>
-                <div className="metric-grid">
-                  <div>
-                    <span>{t("strategy.day_ahead")}</span>
-                    <strong>{strategyResult.day_ahead_average_gbp_mwh?.toFixed(2) ?? "n/a"}</strong>
-                  </div>
-                  <div>
-                    <span>{t("strategy.intraday")}</span>
-                    <strong>{strategyResult.intraday_average_gbp_mwh?.toFixed(2) ?? "n/a"}</strong>
-                  </div>
-                  <div>
-                    <span>{t("strategy.spread")}</span>
-                    <strong>{strategyResult.intraday_vs_day_ahead_spread_gbp_mwh?.toFixed(2) ?? "n/a"}</strong>
-                  </div>
-                </div>
-                {strategyResult.allocation_targets.map((target) => (
-                  <div key={target.market_bucket} className="option-row live">
-                    <span>{target.market_bucket}: {target.target_allocation_pct.toFixed(1)}%</span>
-                    <strong>{Math.round(target.target_quantity_mwh_per_day).toLocaleString()} MWh/d</strong>
+            <div className="metric-grid four-column compact-metrics">
+              <div><span>{t("panel.flows")}</span><strong>{flows.length}</strong></div>
+              <div><span>{t("panel.capacity")}</span><strong>{capacity.length}</strong></div>
+              <div><span>{t("panel.storage")}</span><strong>{storage.length}</strong></div>
+              <div><span>{t("panel.lng")}</span><strong>{lng.length}</strong></div>
+            </div>
+            {capacityByType.length > 0 && (
+              <div className="data-table compact-table capacity-summary-table">
+                <div className="data-table-row header three"><span>{t("panel.capacity_type")}</span><span>{t("panel.rows")}</span><span>mcm/d</span></div>
+                {capacityByType.map((bucket) => (
+                  <div key={`capacity-bucket-${bucket.capacityType}`} className="data-table-row three">
+                    <strong>{bucket.capacityType}</strong>
+                    <span>{bucket.rows.toLocaleString()}</span>
+                    <span>{bucket.totalMcmD.toFixed(1)}</span>
                   </div>
                 ))}
               </div>
             )}
-          </div>
-
-          <div className="panel">
-            <h3>{t("panel.sources")}</h3>
-            <p>{sources.length} {t("panel.sources_registered")}</p>
-            <ul className="source-list">
-              {sources.slice(0, 5).map((source) => (
-                <li key={source.source_id}>
-                  {source.source_system}: {source.status}
-                  {source.live_record_count > 0 ? ` (${source.live_record_count})` : ""}
-                </li>
+            <div className="route-list compact-route-list">
+              {tsoAccess.slice(0, 3).map((item) => (
+                <div key={`tso-access-${item.access_id}`} className="route-row route-candidate">
+                  <span>{item.point_name}</span>
+                  <strong>{item.direction.toUpperCase()}</strong>
+                  <small>{item.operator_name} / {item.booking_platform ?? "booking platform n/a"}</small>
+                </div>
               ))}
-            </ul>
-          </div>
-
-          <div className="panel">
-            <h3>{t("panel.infrastructure")}</h3>
-            <div className="metric-grid">
-              <div>
-                <span>{t("panel.flows")}</span>
-                <strong>{flows.filter((item) => item.source_system === "ENTSOG").length}</strong>
-              </div>
-              <div>
-                <span>{t("panel.storage")}</span>
-                <strong>{storage.filter((item) => item.source_system === "GIE").length}</strong>
-              </div>
-              <div>
-                <span>{t("panel.lng")}</span>
-                <strong>{lng.filter((item) => item.source_system === "GIE").length}</strong>
-              </div>
+              {tsoAccess.length === 0 && (
+                <div className="route-row route-candidate">
+                  <span>No TSO access rows</span>
+                  <strong>n/a</strong>
+                  <small>Run ENTSOG reference ingestion</small>
+                </div>
+              )}
             </div>
           </div>
 
-          <div className="panel glossary-panel">
-            <h3>{t("panel.glossary")}</h3>
-            <div className="glossary-controls">
-              <label>
-                {t("glossary.duration_start")}
-                <input
-                  type="datetime-local"
-                  value={glossaryDurationStart}
-                  onChange={(event) => setGlossaryDurationStart(event.target.value)}
-                />
-              </label>
-              <label>
-                {t("glossary.duration_end")}
-                <input
-                  type="datetime-local"
-                  value={glossaryDurationEnd}
-                  onChange={(event) => setGlossaryDurationEnd(event.target.value)}
-                />
-              </label>
+          <div className="panel data-health-panel">
+            <div className="panel-title-row">
+              <h3>Data health</h3>
+              <span>{t(`data.${dataStatus}`)}</span>
             </div>
-            <div className="context-shortcuts">
-              {glossaryShortcutTerms.map((term) => (
-                <button key={term} type="button" onClick={() => openGlossaryContext(term)}>
-                  {term}
-                </button>
+            {dataIssueText && <p className="data-warning">{dataIssueText}</p>}
+            <div className="metric-grid two-column compact-metrics">
+              <div><span>Resources</span><strong>{upstreamContracts.length}</strong></div>
+              <div><span>Sources</span><strong>{sources.length}</strong></div>
+              <div><span>Runtime DB</span><strong>{runtimeDb?.connectivity.ok ? "ok" : "check"}</strong></div>
+              <div><span>Missing tables</span><strong>{runtimeDb?.missing_tables.length ?? "n/a"}</strong></div>
+            </div>
+            <div className="source-list compact-source-list">
+              {runtimeSourceSummary.map(([name, sourceMeta]) => (
+                <span key={`source-meta-${name}`}>{name}: {sourceMeta.source_references.join(", ") || "none"}</span>
               ))}
             </div>
-            <input
-              value={glossaryQuery}
-              onChange={(event) => setGlossaryQuery(event.target.value)}
-              placeholder={t("glossary.search")}
-            />
-            <div className="glossary-list">
-              {visibleGlossaryTerms.map((term) => (
-                <div key={term.term_id} className="glossary-row">
-                  <div>
-                    <strong>{term.term}</strong>
-                    <span>{t("glossary.category")}: {term.category}</span>
+          </div>
+
+        </aside>
+        <section className="workspace-page" aria-label={t(`nav.${activeWorkspace}`)}>
+          <div className="workspace-page-header">
+            <div>
+              <span className="eyebrow">{t("app.title")}</span>
+              <h1>{t(`nav.${activeWorkspace}`)}</h1>
+            </div>
+            <span className={`status-badge status-${dataStatus}`}>{t(`data.${dataStatus}`)}</span>
+          </div>
+
+          {activeWorkspace === "market" && (
+            <div className="workspace-grid market-page">
+              <div className="workspace-panel span-2">
+                <div className="section-heading">
+                  <span className="eyebrow">{t("panel.market")}</span>
+                  <strong>{t("home.live_pnl")}</strong>
+                </div>
+                <div className="metric-grid four-column">
+                  {markets.slice(0, 4).map((market) => (
+                    <div key={market.observation_id}>
+                      <span>{market.market_venue} {market.product}</span>
+                      <strong>{market.price} {market.currency}</strong>
+                    </div>
+                  ))}
+                </div>
+                <div className="data-table">
+                  <div className="data-table-row header"><span>Venue</span><span>Hub/Product</span><span>Price</span><span>Freshness</span></div>
+                  {markets.slice(0, 8).map((market) => (
+                    <div key={`market-row-${market.observation_id}`} className="data-table-row">
+                      <span>{market.market_venue}</span><span>{market.product}</span><strong>{market.price} {market.unit}</strong><span>{market.freshness ?? "n/a"}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="workspace-panel">
+                <h3>{t("panel.positioning")}</h3>
+                {portfolioSummary && (
+                  <div className="metric-grid">
+                    <div><span>{t("portfolio.indicative_pnl")}</span><strong>GBP {Math.round(portfolioSummary.total_indicative_pnl_gbp).toLocaleString()}</strong></div>
+                    <div><span>{t("portfolio.cash_value")}</span><strong>GBP {Math.round(portfolioSummary.total_cash_value_gbp).toLocaleString()}</strong></div>
+                    <div><span>{t("portfolio.open_orders")}</span><strong>{portfolioSummary.open_order_count}</strong></div>
                   </div>
-                  <p>{i18n.language.startsWith("zh") ? term.definition_zh_cn : term.definition_en}</p>
-                  <button type="button" onClick={() => openGlossaryContext(term.term)}>
-                    {t("glossary.context")}
-                  </button>
-                  {term.related_terms.length > 0 && (
-                    <span>{t("glossary.related")}: {term.related_terms.slice(0, 4).join(", ")}</span>
+                )}
+              </div>
+              <div className="workspace-panel span-3">
+                <h3>{t("panel.positioning")}</h3>
+                <div className="data-table orders-table">
+                  <div className="data-table-row header six"><span>Venue</span><span>Side</span><span>Hub</span><span>Qty</span><span>Price</span><span>Status</span></div>
+                  {screenOrders.map((order) => (
+                    <div key={`orders-${order.order_observation_id}`} className="data-table-row six">
+                      <span>{order.venue}</span><span>{order.side}</span><span>{order.hub}</span><strong>{order.remaining_quantity_mwh.toLocaleString()} MWh</strong><span>{order.price.toFixed(2)} {order.unit}</span><span>{order.status}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeWorkspace === "scenario" && (
+            <div className="workspace-grid scenario-page">
+              <div className="workspace-panel span-2">
+                <div className="section-heading"><span className="eyebrow">{t("scenario.active_route")}</span><strong>{t("panel.routes")}</strong></div>
+                <div className="route-list">
+                  {routeCandidates.map((route) => (
+                    <div key={`scenario-route-${route.route_id}`} className="route-row route-candidate"><span>{route.route_name}</span><strong>{route.required_tso_access.join(", ")}</strong></div>
+                  ))}
+                </div>
+              </div>
+              <div className="workspace-panel">
+                <h3>{t("result.economics_snapshot")}</h3>
+                <div className="metric-grid two-column">
+                  <div><span>{t("result.purchase")}</span><strong>GBP {contract.contract_price_gbp_mwh.toFixed(2)}/MWh</strong></div>
+                  <div><span>{t("result.sale")}</span><strong>GBP {salePrice.toFixed(2)}/MWh</strong></div>
+                  <div><span>{t("result.route_cost")}</span><strong>{routeCharge === null ? "n/a" : `GBP ${routeCharge.toFixed(2)}/MWh`}</strong></div>
+                  <div><span>{t("result.cash_value")}</span><strong>{selectedOption?.early_cash_value_gbp_mwh === undefined ? "n/a" : `GBP ${selectedOption.early_cash_value_gbp_mwh.toFixed(3)}/MWh`}</strong></div>
+                </div>
+              </div>
+              <div className="workspace-panel span-3">
+                <div className="section-heading"><span className="eyebrow">{t("scenario.commercial_posture")}</span><strong>{t("panel.easington")}</strong></div>
+                <div className="economics-grid wide">
+                  <label>{t("economics.volume")}<input type="number" value={contract.delivery_quantity_mwh_per_day} onChange={(event) => updateContractNumber("delivery_quantity_mwh_per_day", event.target.value)} /></label>
+                  <label>{t("economics.contract_price")}<input type="number" value={contract.contract_price_gbp_mwh} onChange={(event) => updateContractNumber("contract_price_gbp_mwh", event.target.value)} /></label>
+                  <label>{t("economics.nbp_price")}<input type="number" value={contract.nbp_sale_price_gbp_mwh} onChange={(event) => updateContractNumber("nbp_sale_price_gbp_mwh", event.target.value)} /></label>
+                  <label>{t("economics.physical_price")}<input type="number" value={contract.physical_exit_sale_price_gbp_mwh} onChange={(event) => updateContractNumber("physical_exit_sale_price_gbp_mwh", event.target.value)} /></label>
+                  <label>{t("economics.delivery_tolerance")}<input type="number" value={contract.delivery_tolerance_pct} onChange={(event) => updateContractNumber("delivery_tolerance_pct", event.target.value)} /></label>
+                  <label>{t("economics.nomination_tolerance")}<input type="number" value={contract.nomination_tolerance_pct} onChange={(event) => updateContractNumber("nomination_tolerance_pct", event.target.value)} /></label>
+                  <label>{t("economics.cash_lag")}<input type="number" value={contract.screen_sale_cash_lag_days} onChange={(event) => updateContractNumber("screen_sale_cash_lag_days", event.target.value)} /></label>
+                  <label>{t("economics.finance_rate")}<input type="number" value={contract.annual_financing_rate_pct} onChange={(event) => updateContractNumber("annual_financing_rate_pct", event.target.value)} /></label>
+                </div>
+                <div className="action-row"><button type="button" onClick={() => compareEasingtonOptions(contract)}>{t("economics.compare")}</button><button type="button" onClick={() => markEasingtonLivePnl(contract, [liveMark])}>{t("economics.live_pnl")}</button></div>
+              </div>
+            </div>
+          )}
+
+          {activeWorkspace === "strategy" && (
+            <div className="workspace-grid strategy-page">
+              <div className="workspace-panel span-2 strategy-panel">
+                <h3>{t("panel.strategy_lab")}</h3>
+                <div className="strategy-summary"><span>{t("strategy.window")}: 15:00-17:00</span><span>{t("strategy.bar")}: 5m</span><span>{t("strategy.mode")}: {strategyScenario.run_mode}</span></div>
+                <button type="button" onClick={() => evaluateStrategyLab(strategyScenario)}>{t("strategy.evaluate")}</button>
+                {strategyResult && (
+                  <div className="strategy-result">
+                    <div className="option-row"><span>{strategyResult.status}</span><strong>{strategyResult.candidate_action_for_review}</strong></div>
+                    <div className="metric-grid three-column"><div><span>{t("strategy.day_ahead")}</span><strong>{strategyResult.day_ahead_average_gbp_mwh?.toFixed(2) ?? "n/a"}</strong></div><div><span>{t("strategy.intraday")}</span><strong>{strategyResult.intraday_average_gbp_mwh?.toFixed(2) ?? "n/a"}</strong></div><div><span>{t("strategy.spread")}</span><strong>{strategyResult.intraday_vs_day_ahead_spread_gbp_mwh?.toFixed(2) ?? "n/a"}</strong></div></div>
+                  </div>
+                )}
+              </div>
+              <div className="workspace-panel"><h3>{t("home.signal")}</h3><div className="net-pnl-card"><span>{t("home.strategy_process")}</span><strong>{firstStrategyTarget ? `${firstStrategyTarget.market_bucket} ${firstStrategyTarget.target_allocation_pct.toFixed(1)}%` : t("home.not_running")}</strong><small>{strategyResult?.candidate_action_for_review ?? t("home.signal_idle")}</small></div></div>
+              <div className="workspace-panel span-3 analysis-panel">
+                <h3>{t("panel.analysis")}</h3>
+                <textarea value={analysisQuestion} onChange={(event) => setAnalysisQuestion(event.target.value)} rows={4} />
+                <label className="checkbox-row"><input type="checkbox" checked={invokeDeepSeek} onChange={(event) => setInvokeDeepSeek(event.target.checked)} />{t("analysis.invoke_deepseek")}</label>
+                <div className="action-row"><button type="button" onClick={() => askAnalysis(analysisPayload)}>{t("analysis.ask")}</button><button type="button" onClick={() => generatePortfolioReport(analysisPayload)}>{t("analysis.report")}</button></div>
+                {analysisResult && <div className="analysis-result"><strong>{analysisResult.provider_id}: {analysisResult.provider_status}</strong><p>{i18n.language.startsWith("zh") ? analysisResult.answer_zh_cn : analysisResult.answer_en}</p></div>}
+              </div>
+            </div>
+          )}
+
+          {activeWorkspace === "sources" && (
+            <div className="workspace-grid sources-page">
+              <div className="workspace-panel">
+                <h3>{t("panel.infrastructure")}</h3>
+                <div className="metric-grid">
+                  <div><span>{t("panel.flows")}</span><strong>{flows.filter((item) => item.source_system === "ENTSOG").length}</strong></div>
+                  <div><span>{t("panel.capacity")}</span><strong>{capacity.filter((item) => item.source_system === "ENTSOG").length}</strong></div>
+                  <div><span>{t("panel.tso_access")}</span><strong>{tsoAccess.length}</strong></div>
+                  <div><span>{t("panel.storage")}</span><strong>{storage.filter((item) => item.source_system === "GIE").length}</strong></div>
+                  <div><span>{t("panel.lng")}</span><strong>{lng.filter((item) => item.source_system === "GIE").length}</strong></div>
+                  <div><span>{t("panel.tariffs")}</span><strong>{ukTariffs.length}</strong></div>
+                </div>
+              </div>
+              <div className="workspace-panel span-2">
+                <h3>{t("panel.sources")}</h3>
+                <div className="data-table">
+                  <div className="data-table-row header"><span>{t("panel.source")}</span><span>{t("panel.datasets")}</span><span>{t("panel.status")}</span><span>{t("panel.records")}</span></div>
+                  {sources.map((source) => (
+                    <div key={`source-page-${source.source_id}`} className="data-table-row">
+                      <strong>{source.source_system}</strong>
+                      <span>{source.datasets.join(", ")}</span>
+                      <span>{source.status}</span>
+                      <span>{source.live_record_count}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="workspace-panel span-3">
+                <h3>{t("panel.capacity")}</h3>
+                <div className="data-table">
+                  <div className="data-table-row header four"><span>{t("panel.point")}</span><span>{t("panel.direction")}</span><span>{t("panel.capacity_type")}</span><span>mcm/d</span></div>
+                  {latestCapacityRows.map((row) => (
+                    <div key={`capacity-row-${row.observation_id}`} className="data-table-row four">
+                      <strong>{row.point_name}</strong>
+                      <span>{row.direction}</span>
+                      <span>{row.capacity_type}</span>
+                      <span>{row.capacity_mcm_d.toFixed(2)}</span>
+                    </div>
+                  ))}
+                  {latestCapacityRows.length === 0 && (
+                    <div className="data-table-row four"><strong>n/a</strong><span>ENTSOG</span><span>{t("data.unavailable")}</span><span>n/a</span></div>
                   )}
                 </div>
-              ))}
-            </div>
-            {glossaryContext && (
-              <div className="glossary-context">
-                <div className="context-heading">
-                  <div>
-                    <strong>{glossaryContext.term}</strong>
-                    <span>{glossaryContext.context_type}</span>
-                  </div>
-                  <span>{glossaryContext.data_quality.runtime_db ? t("data.runtime") : t("status.synthetic")}</span>
-                </div>
-                <p>{glossaryContext.description}</p>
-                {glossaryContext.requested_duration && (
-                  <span>
-                    {t("glossary.duration")}: {formatContextValue(glossaryContext.requested_duration.duration_start_utc)} {"->"} {formatContextValue(glossaryContext.requested_duration.duration_end_utc)}
-                  </span>
-                )}
-                {glossaryContext.matched_entities.length > 0 && (
-                  <div className="context-section">
-                    <strong>{t("glossary.matched_entities")}</strong>
-                    <div className="context-chip-row">
-                      {glossaryContext.matched_entities.slice(0, 10).map((entity, index) => (
-                        <span key={`${glossaryContext.term}-entity-${index}`}>
-                          {formatContextValue(entity.entity_type)}: {formatContextValue(entity.label)}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {glossaryContext.metrics.length > 0 && (
-                  <div className="metric-grid glossary-metrics">
-                    {glossaryContext.metrics.slice(0, 10).map((metric, index) => (
-                      <div key={`${glossaryContext.term}-metric-${index}`}>
-                        <span>{formatContextValue(metric.label)}</span>
-                        <strong>{formatContextValue(metric.value)} {formatContextValue(metric.unit)}</strong>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {(glossaryContext.capacity || glossaryContext.capacity_usage) && (
-                  <div className="context-section context-section-capacity">
-                    <strong>{t("glossary.capacity")}</strong>
-                    <div className="context-facts">
-                      {glossaryContext.capacity && (
-                        <span>
-                          {formatContextValue(glossaryContext.capacity.point_name)}: {formatContextValue(glossaryContext.capacity.capacity_mwh_per_day ?? glossaryContext.capacity.capacity_mcm_d)} {formatContextValue(glossaryContext.capacity.capacity_mwh_per_day ? "MWh/d" : "mcm/d")}
-                        </span>
-                      )}
-                      {glossaryContext.capacity_usage && (
-                        <>
-                          <span>
-                            {t("glossary.average_used")}: {formatContextValue(glossaryContext.capacity_usage.used)} {formatContextValue(glossaryContext.capacity_usage.unit)}
-                          </span>
-                          <span>
-                            {t("glossary.capacity_usage")}: {formatContextValue(glossaryContext.capacity_usage.usage_pct)}%
-                          </span>
-                          <span>
-                            {t("glossary.peak_used")}: {formatContextValue(glossaryContext.capacity_usage.peak_used_mwh_per_day ?? glossaryContext.capacity_usage.peak_used_mcm_d)} {formatContextValue(glossaryContext.capacity_usage.unit)}
-                          </span>
-                          <span>
-                            {t("glossary.observations")}: {formatContextValue(glossaryContext.capacity_usage.observations_count)}
-                          </span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                )}
-                {(glossaryContext.related_prices.length > 0 || glossaryContext.live_market_marks.length > 0) && (
-                  <div className="context-section">
-                    <strong>{t("glossary.prices")}</strong>
-                    <div className="context-record-list">
-                      {glossaryContext.related_prices.slice(0, 5).map((price, index) => (
-                        <div key={`${glossaryContext.term}-price-${index}`}>
-                          <span>{formatContextValue(price.market_venue ?? price.source_system ?? "price")}</span>
-                          <strong>{formatContextValue(price.price)} {formatContextValue(price.unit ?? price.currency)}</strong>
-                          <small>{formatContextValue(price.product)} · {contextSource(price)}</small>
-                        </div>
-                      ))}
-                      {glossaryContext.live_market_marks.slice(0, 4).map((mark, index) => (
-                        <div key={`${glossaryContext.term}-mark-${index}`}>
-                          <span>{formatContextValue(mark.venue)} {formatContextValue(mark.product)}</span>
-                          <strong>
-                            {t("economics.bid")} {formatContextValue(mark.bid_gbp_mwh)} / {t("economics.ask")} {formatContextValue(mark.ask_gbp_mwh)}
-                          </strong>
-                          <small>{formatContextValue(mark.hub)} · {contextSource(mark)}</small>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {glossaryContext.related_routes.length > 0 && (
-                  <div className="context-section">
-                    <strong>{t("glossary.routes")}</strong>
-                    <div className="context-record-list">
-                      {glossaryContext.related_routes.slice(0, 4).map((route, index) => (
-                        <div key={`${glossaryContext.term}-route-${index}`}>
-                          <span>{formatContextValue(route.route_name)}</span>
-                          <strong>{formatContextValue(route.business_model)}</strong>
-                          <small>{formatContextValue(route.required_tso_access)}</small>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {glossaryContext.related_contracts.length > 0 && (
-                  <div className="context-section">
-                    <strong>{t("glossary.contracts")}</strong>
-                    <div className="context-record-list">
-                      {glossaryContext.related_contracts.slice(0, 4).map((contractItem, index) => (
-                        <div key={`${glossaryContext.term}-contract-${index}`}>
-                          <span>{formatContextValue(contractItem.contract_name)}</span>
-                          <strong>{formatContextValue(contractItem.delivery_quantity_mwh_per_day)} MWh/d</strong>
-                          <small>{formatContextValue(contractItem.resource_type)} · {formatContextValue(contractItem.settlement_frequency)}</small>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                <div className="context-section">
-                  <strong>{t("glossary.data_quality")}</strong>
-                  <div className="context-chip-row">
-                    <span>{t("glossary.matched_entities")}: {formatContextValue(glossaryContext.data_quality.matched_entity_count)}</span>
-                    <span>{t("glossary.prices")}: {formatContextValue(glossaryContext.data_quality.market_observation_count)}</span>
-                    <span>{t("glossary.live_marks")}: {formatContextValue(glossaryContext.data_quality.live_mark_count)}</span>
-                  </div>
-                </div>
-                {glossaryContext.warnings.length > 0 && (
-                  <span>{t("glossary.warnings")}: {glossaryContext.warnings.slice(0, 3).join(", ")}</span>
-                )}
               </div>
-            )}
-          </div>
-
-          <div className="panel analysis-panel">
-            <h3>{t("panel.analysis")}</h3>
-            <textarea
-              value={analysisQuestion}
-              onChange={(event) => setAnalysisQuestion(event.target.value)}
-              rows={4}
-            />
-            <label className="checkbox-row">
-              <input
-                type="checkbox"
-                checked={invokeDeepSeek}
-                onChange={(event) => setInvokeDeepSeek(event.target.checked)}
-              />
-              {t("analysis.invoke_deepseek")}
-            </label>
-            <div className="action-row">
-              <button type="button" onClick={() => askAnalysis(analysisPayload)}>
-                {t("analysis.ask")}
-              </button>
-              <button type="button" onClick={() => generatePortfolioReport(analysisPayload)}>
-                {t("analysis.report")}
-              </button>
-            </div>
-            {analysisResult && (
-              <div className="analysis-result">
-                <strong>{analysisResult.provider_id}: {analysisResult.provider_status}</strong>
-                <p>{i18n.language.startsWith("zh") ? analysisResult.answer_zh_cn : analysisResult.answer_en}</p>
-                {analysisResult.sections.map((section) => (
-                  <div key={section.section_id} className="analysis-section">
-                    <strong>{section.title}</strong>
-                    <span>{section.content}</span>
-                  </div>
-                ))}
+              <div className="workspace-panel span-3">
+                <h3>{t("panel.tariffs")}</h3>
+                <div className="data-table tariff-table">
+                  <div className="data-table-row header four"><span>{t("panel.point")}</span><span>{t("panel.direction")}</span><span>{t("panel.product")}</span><span>{t("panel.tariff")}</span></div>
+                  {ukTariffs.slice(0, 8).map((tariff) => (
+                    <div key={`tariff-page-${tariff.tariff_id}`} className="data-table-row four">
+                      <strong>{tariff.source_point_name}</strong>
+                      <span>{tariff.direction}</span>
+                      <span>{tariff.capacity_product}</span>
+                      <span>{tariff.tariff_value.toFixed(4)} {tariff.currency}/MWh</span>
+                    </div>
+                  ))}
+                  {ukTariffs.length === 0 && (
+                    <div className="data-table-row four"><strong>n/a</strong><span>NTS</span><span>{t("data.unavailable")}</span><span>n/a</span></div>
+                  )}
+                </div>
               </div>
-            )}
-          </div>
+              <div className="workspace-panel span-3">
+                <h3>{t("panel.credentials")}</h3>
+                <form className="credential-form horizontal" onSubmit={onCredentialSubmit}>
+                  <select value={credentialProvider} onChange={(event) => setCredentialProvider(event.target.value)}>
+                    {credentialProviders.map((provider) => <option key={provider.provider_id} value={provider.provider_id}>{provider.display_name}</option>)}
+                  </select>
+                  <input value={credentialLabel} onChange={(event) => setCredentialLabel(event.target.value)} placeholder={t("credentials.label")} />
+                  <input type="password" autoComplete="current-password" value={credentialValue} disabled={!selectedCredentialProvider?.credential_required} onChange={(event) => setCredentialValue(event.target.value)} placeholder={selectedCredentialProvider?.credential_required ? t("credentials.api_key") : t("credentials.not_required")} />
+                  <button type="submit" disabled={!selectedCredentialProvider?.credential_required || !credentialValue}>{t("credentials.save")}</button>
+                </form>
+                {credentialMessage && <p>{credentialMessage}</p>}
+              </div>
+            </div>
+          )}
 
-          <div className="panel">
-            <h3>{t("panel.credentials")}</h3>
-            <form className="credential-form" onSubmit={onCredentialSubmit}>
-              <select value={credentialProvider} onChange={(event) => setCredentialProvider(event.target.value)}>
-                {credentialProviders.map((provider) => (
-                  <option key={provider.provider_id} value={provider.provider_id}>
-                    {provider.display_name}
-                  </option>
-                ))}
-              </select>
-              <input
-                value={credentialLabel}
-                onChange={(event) => setCredentialLabel(event.target.value)}
-                placeholder={t("credentials.label")}
-              />
-              <input
-                type="password"
-                autoComplete="current-password"
-                value={credentialValue}
-                disabled={!selectedCredentialProvider?.credential_required}
-                onChange={(event) => setCredentialValue(event.target.value)}
-                placeholder={
-                  selectedCredentialProvider?.credential_required
-                    ? t("credentials.api_key")
-                    : t("credentials.not_required")
-                }
-              />
-              <button type="submit" disabled={!selectedCredentialProvider?.credential_required || !credentialValue}>
-                {t("credentials.save")}
-              </button>
-            </form>
-            {credentialMessage && <p>{credentialMessage}</p>}
-            <ul className="source-list">
-              {credentialProviders.map((provider) => (
-                <li key={provider.provider_id}>
-                  {provider.display_name}: {provider.configured ? provider.redacted_preview : provider.status}
-                </li>
-              ))}
-            </ul>
-          </div>
+          {activeWorkspace === "glossary" && (
+            <div className="workspace-grid glossary-page">
+              <div className="workspace-panel glossary-index"><h3>{t("panel.glossary")}</h3><input value={glossaryQuery} onChange={(event) => setGlossaryQuery(event.target.value)} placeholder={t("glossary.search")} /><div className="glossary-list compact">{visibleGlossaryTerms.map((term) => <button key={`glossary-nav-${term.term_id}`} type="button" onClick={() => openGlossaryContext(term.term)}><strong>{term.term}</strong><span>{term.category}</span></button>)}</div></div>
+              <div className="workspace-panel span-2 glossary-detail"><div className="glossary-controls"><label>{t("glossary.duration_start")}<input type="datetime-local" value={glossaryDurationStart} onChange={(event) => setGlossaryDurationStart(event.target.value)} /></label><label>{t("glossary.duration_end")}<input type="datetime-local" value={glossaryDurationEnd} onChange={(event) => setGlossaryDurationEnd(event.target.value)} /></label></div><div className="context-shortcuts">{glossaryShortcutTerms.map((term) => <button key={`page-shortcut-${term}`} type="button" onClick={() => openGlossaryContext(term)}>{term}</button>)}</div>{glossaryContext ? <div className="glossary-context"><div className="context-heading"><div><strong>{glossaryContext.term}</strong><span>{glossaryContext.context_type}</span></div><span>{glossaryContext.data_quality.runtime_db ? t("data.runtime") : t("data.partial")}</span></div><p>{glossaryContext.description}</p>{glossaryContext.metrics.length > 0 && <div className="metric-grid glossary-metrics">{glossaryContext.metrics.slice(0, 8).map((metric, index) => <div key={`page-glossary-metric-${index}`}><span>{formatContextValue(metric.label)}</span><strong>{formatContextValue(metric.value)} {formatContextValue(metric.unit)}</strong></div>)}</div>}</div> : <div className="glossary-context"><strong>{visibleGlossaryTerms[0]?.term ?? t("panel.glossary")}</strong><p>{visibleGlossaryTerms[0] ? (i18n.language.startsWith("zh") ? visibleGlossaryTerms[0].definition_zh_cn : visibleGlossaryTerms[0].definition_en) : t("status.loading")}</p></div>}</div>
+            </div>
+          )}
 
-          <div className="panel settings-panel">
-            <h3>{t("panel.settings")}</h3>
-            <label>
-              {t("settings.language")}
-              <select value={i18n.language} onChange={(event) => i18n.changeLanguage(event.target.value)}>
-                <option value="en">English</option>
-                <option value="zh-CN">{t("settings.chinese")}</option>
-              </select>
-            </label>
-            <label>
-              {t("settings.appearance")}
-              <select value={mode} onChange={(event) => setMode(event.target.value as typeof mode)}>
-                <option value="light">{t("theme.light")}</option>
-                <option value="dark">{t("theme.dark")}</option>
-                <option value="system">{t("theme.system")}</option>
-              </select>
-            </label>
-          </div>
+          {activeWorkspace === "runtime" && (
+            <div className="workspace-grid runtime-page">
+              <div className="workspace-panel"><h3>{t("panel.governance")}</h3>{meta && <div className="metric-grid"><div><span>{t("status.research_only")}</span><strong>{String(meta.research_only)}</strong></div><div><span>{t("status.human_review_required")}</span><strong>{String(meta.human_review_required)}</strong></div><div><span>{t("status.source")}</span><strong>{meta.source_references.join(", ")}</strong></div></div>}</div>
+              <div className="workspace-panel span-2"><h3>{t("status.db")}</h3>{runtimeDb && <div className="metric-grid three-column"><div><span>{t("status.db")}</span><strong>{runtimeDb.connectivity.ok ? "ok" : "failed"}</strong></div><div><span>{t("status.alembic")}</span><strong>{runtimeDb.alembic_revision ?? "unavailable"}</strong></div><div><span>{t("status.missing_tables")}</span><strong>{runtimeDb.missing_tables.length}</strong></div></div>}</div>
+            </div>
+          )}
 
-          <div className="panel">
-            <h3>{t("panel.governance")}</h3>
-            {meta && (
-              <>
-                <p>{t("status.research_only")}: {String(meta.research_only)}</p>
-                <p>{t("status.human_review_required")}: {String(meta.human_review_required)}</p>
-                <p>{t("status.source")}: {meta.source_references.join(", ")}</p>
-              </>
-            )}
-            {runtimeDb && (
-              <>
-                <p>{t("status.db")}: {runtimeDb.connectivity.ok ? "ok" : "failed"}</p>
-                <p>{t("status.alembic")}: {runtimeDb.alembic_revision ?? "unavailable"}</p>
-                <p>{t("status.missing_tables")}: {runtimeDb.missing_tables.length}</p>
-              </>
-            )}
-          </div>
-        </aside>
+          {activeWorkspace === "settings" && (
+            <div className="workspace-grid settings-page">
+              <div className="workspace-panel settings-panel"><h3>{t("panel.settings")}</h3><label>{t("settings.language")}<select value={i18n.language} onChange={(event) => i18n.changeLanguage(event.target.value)}><option value="en">English</option><option value="zh-CN">{t("settings.chinese")}</option></select></label><label>{t("settings.appearance")}<select value={mode} onChange={(event) => setMode(event.target.value as typeof mode)}><option value="light">{t("theme.light")}</option><option value="dark">{t("theme.dark")}</option><option value="system">{t("theme.system")}</option></select></label></div>
+              <div className="workspace-panel"><h3>{t("app.title")}</h3><div className="metric-grid"><div><span>{t("map.nodes")}</span><strong>{nodes.length}</strong></div><div><span>{t("map.edges")}</span><strong>{edges.length}</strong></div><div><span>{t("map.routes")}</span><strong>{routes.length}</strong></div></div></div>
+            </div>
+          )}
+        </section>
       </main>
     </div>
   );
 }
+

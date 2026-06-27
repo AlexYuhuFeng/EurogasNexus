@@ -1,4 +1,4 @@
-# clients/web
+﻿# clients/web
 
 Future Eurogas Nexus web client.
 
@@ -17,13 +17,13 @@ Also read:
 
 ## Target
 
-Browser-based, map-centric research workspace that consumes backend `/api/v1`
+Browser-based, map-centric research workspace that consumes backend `/api`
 contracts.
 
 ## First Web Milestone
 
 - React + TypeScript + Vite shell.
-- `/api/v1/health` client.
+- `/api/health` client.
 - Runtime status view.
 - Reference-network map layout with mocked data until backend contracts are
   ready.

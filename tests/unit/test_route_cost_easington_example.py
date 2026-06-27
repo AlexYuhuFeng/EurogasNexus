@@ -10,7 +10,7 @@ from eurogas_nexus.domain.route_cost.enums import (
 )
 from eurogas_nexus.domain.route_cost.route_cost_service import calculate_route_cost
 from eurogas_nexus.domain.route_cost.schemas import RouteCostScenario
-from eurogas_nexus.domain.route_cost.uk_demo_data import demo_uk_capacity_tariffs
+from eurogas_nexus.domain.route_cost.uk_public_tariffs import published_uk_capacity_tariffs
 
 FORBIDDEN_WORDS = ("BUY", "SELL", "HOLD", "execute", "order", "nominate", "recommendation")
 
@@ -30,7 +30,7 @@ def _scenario(business_model: BusinessModel, gas_year: str = "2025/26") -> Route
 
 
 def test_easington_virtual_nbp_sale_cost_uses_entry_tariff_only() -> None:
-    tariffs = demo_uk_capacity_tariffs()
+    tariffs = published_uk_capacity_tariffs()
 
     result = calculate_route_cost(
         _scenario(BusinessModel.VIRTUAL_HUB_SALE),
@@ -48,7 +48,7 @@ def test_easington_virtual_nbp_sale_cost_uses_entry_tariff_only() -> None:
 
 
 def test_easington_2026_27_indicative_result_requires_review() -> None:
-    tariffs = demo_uk_capacity_tariffs()
+    tariffs = published_uk_capacity_tariffs()
 
     result = calculate_route_cost(
         _scenario(BusinessModel.VIRTUAL_HUB_SALE, "2026/27"),
@@ -62,7 +62,7 @@ def test_easington_2026_27_indicative_result_requires_review() -> None:
 
 
 def test_physical_delivery_with_bacton_exit_tariff_sums_entry_and_exit() -> None:
-    tariffs = demo_uk_capacity_tariffs()
+    tariffs = published_uk_capacity_tariffs()
     scenario = _scenario(BusinessModel.PHYSICAL_DELIVERY)
     scenario.target_hub_or_point_id = "Bacton GDN (EA)"
 
@@ -74,7 +74,7 @@ def test_physical_delivery_with_bacton_exit_tariff_sums_entry_and_exit() -> None
 
 
 def test_physical_delivery_without_known_exit_tariff_is_partial() -> None:
-    tariffs = demo_uk_capacity_tariffs()
+    tariffs = published_uk_capacity_tariffs()
     scenario = _scenario(BusinessModel.PHYSICAL_DELIVERY)
     scenario.target_hub_or_point_id = "Unknown Physical Exit"
 
@@ -86,7 +86,7 @@ def test_physical_delivery_without_known_exit_tariff_is_partial() -> None:
 
 
 def test_route_cost_output_has_no_execution_or_recommendation_language() -> None:
-    tariffs = demo_uk_capacity_tariffs()
+    tariffs = published_uk_capacity_tariffs()
     result = calculate_route_cost(_scenario(BusinessModel.VIRTUAL_HUB_SALE), tariffs)
     payload = result.model_dump_json()
 
@@ -95,7 +95,7 @@ def test_route_cost_output_has_no_execution_or_recommendation_language() -> None
 
 
 def test_any_uk_nts_entry_and_exit_can_calculate_when_tariffs_exist() -> None:
-    tariffs = demo_uk_capacity_tariffs()
+    tariffs = published_uk_capacity_tariffs()
     scenario = RouteCostScenario(
         scenario_id="uk-any-nts-entry-exit",
         source_resource_type=SourceResourceType.PIPELINE_IMPORT,
@@ -118,7 +118,7 @@ def test_route_cost_blocks_when_company_lacks_required_tso_access() -> None:
     scenario = _scenario(BusinessModel.VIRTUAL_HUB_SALE)
     scenario.company_accessible_tsos = ["Fluxys Belgium"]
 
-    result = calculate_route_cost(scenario, demo_uk_capacity_tariffs())
+    result = calculate_route_cost(scenario, published_uk_capacity_tariffs())
 
     assert result.status == "BLOCKED"
     assert result.inaccessible_tsos == ["National Gas NTS"]

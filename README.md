@@ -1,4 +1,4 @@
-# Eurogas Nexus
+﻿# Eurogas Nexus
 
 Eurogas Nexus V1.0 is a DB-first, API-first, SDK-required European gas
 decision-support platform for pipeline gas, LNG regas, beach delivery resources,
@@ -7,7 +7,7 @@ human-reviewed strategy analysis. V1 includes the backend/API, PostgreSQL
 runtime store, Python SDK, CLI, web workspace, and Windows client shell.
 
 PostgreSQL is the runtime source of truth. Web, Windows, CLI, and SDK clients
-must access runtime data through `/api/v1` or SDK calls. Clients must not open
+must access runtime data through `/api` or SDK calls. Clients must not open
 PostgreSQL connections, read backend local data files, or store vendor
 credentials.
 
@@ -43,16 +43,16 @@ Core entry points:
 Stable client routes use:
 
 ```text
-/api/v1
+/api
 ```
 
 Bootstrap compatibility remains for:
 
 ```text
-/v1/health
+/api/health
 ```
 
-New SDK, CLI, Web, and Windows code must target `/api/v1`.
+New SDK, CLI, Web, and Windows code must target `/api`.
 
 ## Build And Release
 
@@ -93,7 +93,7 @@ market providers, or print secrets.
   read-only decision-support context.
 - Internal/operator imports for screen-order observations and indicative PnL
   snapshots are governed by fail-closed entitlement checks and write audit plus
-  ingestion-run evidence before `/api/v1/portfolio/*` exposes them read-only.
+  ingestion-run evidence before `/api/portfolio/*` exposes them read-only.
   The internal import route is additionally protected by
   `EUROGAS_NEXUS_INTERNAL_API_TOKEN`, `X-Eurogas-Internal-Token`, and explicit
   `X-Eurogas-Principal` headers.
@@ -165,18 +165,11 @@ ExecPlans: `.agent/plans/`
   `docs/release/V1_FULL_PROJECT_RELEASE_EXECUTION_PLAN.md`, and
   `docs/release/V1_RELEASE_ACCEPTANCE_MATRIX.md`
 
-## 中文摘要
+## 涓枃鎽樿
 
-Eurogas Nexus V1.0 以 PostgreSQL 作为运行时事实来源，以 API/SDK 作为访问边界。
-当前路线成本能力限定在英国 National Gas NTS，但不再限定为 Easington/Bacton
-示例；只要 PostgreSQL 中存在已审核的英国 NTS 费率行，系统即可计算相应
-entry/exit 点的路线成本。
-
-Web 和 Windows 客户端必须通过 API/SDK 访问数据，不得直接连接数据库。供应商
-API Key 只能通过后端凭证接口保存。策略、PnL、路线、LNG regas、资源池优化、
-市场信号和术语表输出均为需要人工复核的决策支持结果，不是订单执行、自动交易、
-提名提交、官方审批、法律意见或官方交易建议。
-
-术语表上下文也是数据库优先能力。选择 `Easington Entry Point`、`ICIS Heren`
-或客户加载的其他点位时，系统会通过 API 展示匹配实体、容量、所选时间段的容量
-使用量、价格、实时标记、路线、合同、预警和数据质量信息。
+Eurogas Nexus V1.0 浠?PostgreSQL 浣滀负杩愯鏃朵簨瀹炴潵婧愶紝浠?API/SDK 浣滀负鎵€鏈夊鎴风
+鐨勬暟鎹闂竟鐣屻€俉eb銆乄indows銆丆LI 鍜?SDK 涓嶅緱鐩存帴杩炴帴鏁版嵁搴擄紝涔熶笉寰椾粠鏈湴鏂囦欢璇诲彇
+杩愯鏃跺競鍦烘暟鎹€?
+鍏紑鎴栧凡鎺堟潈鐨勬暟鎹簮搴旀寜鈥滃畼鏂规潵婧愭垨宸叉巿鏉冩潵婧?-> PostgreSQL -> API/SDK -> 瀹㈡埛绔€?鐨勯摼璺繍琛屻€?ECB FX銆丒NTSOG 娴侀噺/杩炴帴鐐?TSO access銆丟IE AGSI/ALSI銆佸叕寮€ TSO tariff 绛夊熀纭€璁炬柦
+鍜屽弬鑰冩暟鎹笉搴斾娇鐢ㄨ繍琛屾椂妯℃嫙 fallback銆備环鏍笺€佷氦鏄撳睆骞曘€佺粡绾晢銆並pler銆丳latts銆?ICIS銆丄rgus銆両CE銆丒EX銆乀rayport 绛夊晢涓氭暟鎹渶瑕佸鎴峰嚟璇併€佹巿鏉冨拰鎺ュ叆鍚堝悓鍚庢墠鑳借繘鍏?姝ｅ紡杩愯閾捐矾銆?
+褰撳墠璺嚎鎴愭湰鑳藉姏闄愬畾鍦ㄨ嫳鍥?National Gas NTS锛屼絾涓嶉檺鍒朵簬 Easington 鎴?Bacton銆?鍙 PostgreSQL 涓瓨鍦ㄥ凡瀹℃牳鐨勮嫳鍥?NTS entry/exit tariff 琛岋紝绯荤粺鍗冲彲鎸夌浉搴旂偣浣?璁＄畻璺嚎鎴愭湰銆傛墍鏈夌瓥鐣ャ€丳nL銆佽矾绾裤€丩NG regas銆佽祫婧愭睜浼樺寲銆佸競鍦轰俊鍙峰拰鏈涓婁笅鏂?杈撳嚭鍧囦负闇€瑕佷汉宸ュ鏍哥殑鍐崇瓥鏀寔缁撴灉锛屼笉鏄鍗曟墽琛屻€佽嚜鍔ㄤ氦鏄撱€佹彁鍚嶆彁浜ゃ€佸畼鏂瑰鎵广€?娉曞緥鎰忚鎴栧畼鏂逛氦鏄撳缓璁€?

@@ -1,4 +1,4 @@
-"""SDK client for /api/v1/physical."""
+"""SDK client for /api/physical."""
 
 import httpx
 from pydantic import BaseModel
@@ -43,10 +43,10 @@ def _get(url: str) -> dict:
 
 
 def fetch_flows(base_url: str) -> list[FlowObservation]:
-    return [FlowObservation(**f) for f in _get(f"{base_url}/api/v1/physical/flows")["data"]]
+    return [FlowObservation(**f) for f in _get(f"{base_url}/api/physical/flows")["data"]]
 
 def fetch_capacity(base_url: str) -> list[CapacityObservation]:
-    return [CapacityObservation(**c) for c in _get(f"{base_url}/api/v1/physical/capacity")["data"]]
+    return [CapacityObservation(**c) for c in _get(f"{base_url}/api/physical/capacity")["data"]]
 
 def fetch_outages(base_url: str) -> list[OutageEvent]:
-    return [OutageEvent(**o) for o in _get(f"{base_url}/api/v1/physical/outages")["data"]]
+    return [OutageEvent(**o) for o in _get(f"{base_url}/api/physical/outages")["data"]]

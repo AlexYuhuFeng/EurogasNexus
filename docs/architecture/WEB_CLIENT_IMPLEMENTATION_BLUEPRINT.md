@@ -1,9 +1,9 @@
-# Web Client Implementation Blueprint
+﻿# Web Client Implementation Blueprint
 
 ## Objective
 
 Build the Eurogas Nexus web client as the primary research workspace after the
-backend exposes stable `/api/v1` contracts. The web client is a browser UI, not
+backend exposes stable `/api` contracts. The web client is a browser UI, not
 a source of truth.
 
 ## Activation Condition
@@ -13,7 +13,7 @@ phase or Codex selects a web milestone from a future queue.
 
 Required backend readiness before coding:
 
-- `/api/v1/health` works;
+- `/api/health` works;
 - backend runtime status API exists or is planned in the selected milestone;
 - reference-network API contract exists;
 - research output envelope is documented;
@@ -33,7 +33,7 @@ Use `docs/clients/CLIENT_TECH_STACK.md` as the authoritative library list:
 - i18next/react-i18next;
 - lucide-react;
 - plain CSS/CSS modules;
-- HTTP client that targets `/api/v1`.
+- HTTP client that targets `/api`.
 
 Internet required:
 
@@ -108,7 +108,7 @@ Purpose:
 
 Data:
 
-- consume `/api/v1/reference-network/*`;
+- consume `/api/reference-network/*`;
 - display source/freshness/warning state;
 - do not load raw vendor data directly.
 
@@ -187,7 +187,7 @@ for clarity:
 
 ## API Client Rules
 
-- all backend calls target `/api/v1`;
+- all backend calls target `/api`;
 - no direct DB access;
 - no local backend file reads;
 - no vendor API calls from the browser;
@@ -212,7 +212,7 @@ Recommended first web milestone:
 
 - create the React/Vite shell;
 - implement runtime status page;
-- implement `/api/v1/health` client;
+- implement `/api/health` client;
 - render a placeholder network map layout with mocked reference-network data;
 - implement required loading, empty, degraded, missing-input, and research-only
   states from the design spec;

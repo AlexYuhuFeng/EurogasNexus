@@ -1,4 +1,4 @@
-# Backend Implementation Blueprint
+﻿# Backend Implementation Blueprint
 
 ## Objective
 
@@ -106,7 +106,7 @@ Build:
 - canonical ID policy;
 - synthetic reference-network fixtures;
 - schema plan for nodes/facilities/segments;
-- read-only `/api/v1/reference-network/*` contracts;
+- read-only `/api/reference-network/*` contracts;
 - source-reference and lineage fields.
 
 Acceptance:
@@ -162,10 +162,10 @@ Acceptance:
 
 ## Backend API Rules
 
-- Stable routes use `/api/v1`.
+- Stable routes use `/api`.
 - Internal routes use `/api/internal`.
 - Development routes use `/api/dev`.
-- SDK and CLI call `/api/v1`.
+- SDK and CLI call `/api`.
 - Route handlers validate and delegate.
 - Application services orchestrate.
 - Runtime store reads/writes DB.

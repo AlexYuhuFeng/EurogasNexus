@@ -1,4 +1,4 @@
-"""SDK client for /api/v1/runtime status routes."""
+"""SDK client for /api/runtime status routes."""
 
 import httpx
 from pydantic import BaseModel
@@ -20,6 +20,6 @@ class RuntimeDbStatus(BaseModel):
 
 
 def fetch_runtime_db_status(base_url: str) -> RuntimeDbStatus:
-    response = httpx.get(f"{base_url}/api/v1/runtime/db", timeout=10)
+    response = httpx.get(f"{base_url}/api/runtime/db", timeout=10)
     response.raise_for_status()
     return RuntimeDbStatus(**response.json()["data"])

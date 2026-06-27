@@ -1,4 +1,4 @@
-# V1 Release Readiness
+﻿# V1 Release Readiness
 
 ## Current Status
 
@@ -10,10 +10,10 @@ local release-candidate scope is complete.
 
 `Runtime DB` in the client means the UI is reading the local runtime
 PostgreSQL-backed API. In the latest local validation, ECB public FX, ENTSOG
-public operational flow, and GIE AGSI/ALSI keyed feeds were called explicitly
-and normalized into PostgreSQL. It does **not** mean EEX, Trayport, ICE OCM,
-Kpler, Platts, weather, broker, or LLM provider feeds have been called or
-validated.
+public operational flow, ENTSOG connection point / TSO access metadata, and GIE
+AGSI/ALSI keyed feeds were called explicitly and normalized into PostgreSQL. It
+does **not** mean EEX, Trayport, ICE OCM, Kpler, Platts, ICIS, Argus, weather,
+broker, or LLM provider feeds have been called or validated.
 
 Authoritative current evidence:
 
@@ -26,16 +26,17 @@ Authoritative current evidence:
 - Release API profile disables docs/openapi endpoints.
 - No development-only routes enabled in release profile.
 - No silent local file fallback in trial or release mode.
-- `/v1/health` compatibility remains available.
-- `/api/v1` is the released client prefix.
+- `/api/health` compatibility remains available.
+- `/api` is the released client prefix.
 - PostgreSQL runtime validation passes against local Docker PostgreSQL.
-- Alembic revision is `0005_public_source_credentials`.
+- Alembic revision is `0011_reference_source_lineage`.
 - Required runtime tables are present.
 - Reference-network API reads runtime PostgreSQL when configured.
-- ECB FX, ENTSOG flow, and GIE AGSI/ALSI rows can be explicitly live-ingested
-  into PostgreSQL through `scripts/ops/ingest_public_sources.py`.
-- Python SDK and CLI use `/api/v1`.
-- Web client builds and uses `/api/v1` through the backend only.
+- ECB FX, ENTSOG flow, ENTSOG reference-network / TSO access, and GIE
+  AGSI/ALSI rows can be explicitly live-ingested into PostgreSQL through
+  `scripts/ops/ingest_public_sources.py`.
+- Python SDK and CLI use `/api`.
+- Web client builds and uses `/api` through the backend only.
 - Windows client builds as a Tauri shell around the shared Web bundle.
 - No client connects directly to PostgreSQL.
 - Source posture panels show active ECB, ENTSOG, and GIE row counts after live
@@ -49,14 +50,13 @@ Authoritative current evidence:
 
 ```text
 ruff check .        -> passed
-pytest -q           -> 346 passed
-npm run build       -> passed for Web and Windows/Tauri
-app import          -> app import ok, 56 routes
-runtime DB          -> revision 0005_public_source_credentials, missing_tables=0
-API live sources    -> ECB=6, ENTSOG=10, GIE AGSI=10, GIE ALSI=10
-SDK/CLI walkthrough -> passed against local localhost API
-Web browser QA      -> Runtime DB label, map render, live counts, credentials passed
-Windows build       -> Tauri cargo check and NSIS package passed
+pytest target set   -> 326 passed plus 47 focused route/workflow tests
+npm web build       -> passed
+app import          -> app import ok, 78 routes
+runtime DB          -> revision 0011_reference_source_lineage, missing_tables=0
+API live sources    -> ECB=12, ENTSOG flows=1000, ENTSOG reference=2448, GIE AGSI=300, GIE ALSI=300
+UK NTS tariffs      -> 1315 rows in PostgreSQL, Easington -> Bacton GDN calculation passed
+Web build           -> passed
 ```
 
 ## Required Before Production Deployment
@@ -80,5 +80,6 @@ limitations are completed or explicitly accepted.
 ## Rollback
 
 No destructive runtime migration was added. The local Docker PostgreSQL database
-was migrated to repository head, seeded with synthetic baseline data, and then
-updated with live ECB, ENTSOG, and GIE AGSI/ALSI normalized observations.
+was migrated to repository head and updated with normalized ECB, ENTSOG, and GIE
+observations plus audited public tariff rows and operator-owned local test
+price/contract records.

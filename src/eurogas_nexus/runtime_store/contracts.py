@@ -84,7 +84,7 @@ class SourceReference:
     schema_version: str = "1.0.0"
     freshness: FreshnessState = FreshnessState.UNKNOWN
     quality_results: tuple[DataQualityRecord, ...] = field(default_factory=tuple)
-    is_synthetic: bool = False
+    is_test_fixture: bool = False
     raw_retention_path: str = ""
     entitlement_scope: str = "internal-research"
 

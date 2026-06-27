@@ -1,4 +1,4 @@
-"""Client release-surface contracts for Web and Windows shells."""
+﻿"""Client release-surface contracts for Web and Windows shells."""
 
 
 
@@ -225,9 +225,9 @@ def test_web_client_uses_api_only_and_supports_mandarin_theme() -> None:
 
 
 
-    assert 'const DEFAULT_BROWSER_BASE = "/api/v1";' in api_client
+    assert 'const DEFAULT_BROWSER_BASE = "/api";' in api_client
 
-    assert 'const DEFAULT_DESKTOP_BASE = "http://127.0.0.1:8000/api/v1";' in api_client
+    assert 'const DEFAULT_DESKTOP_BASE = "http://127.0.0.1:8000/api";' in api_client
 
     assert "VITE_EUROGAS_API_BASE_URL" in api_client
 
@@ -284,12 +284,20 @@ def test_web_client_matches_design_reference_cockpit() -> None:
     assert "trade-result-panel" in app
 
     assert "topbar-search" in app
-
+    assert "workspace-nav" in app
+    assert "workspace-page" in app
+    assert 'activeWorkspace === "market"' in app
+    assert 'activeWorkspace === "glossary"' in app
     map_component = (
 
         ROOT / "clients" / "web" / "src" / "components" / "GasNetworkMap.tsx"
 
     ).read_text(encoding="utf-8")
+
+    assert "fallback-network-map map-ready" in map_component
+    assert "fallback-network-map.map-ready" in css
+    assert "cockpit-app:not(.workspace-network) .decision-rail" in css
+    assert "cockpit-app:not(.workspace-network) .scenario-rail" in css
 
     assert "tile.openstreetmap.org" in map_component
 

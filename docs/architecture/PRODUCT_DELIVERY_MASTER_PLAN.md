@@ -1,4 +1,4 @@
-# Product Delivery Master Plan
+﻿# Product Delivery Master Plan
 
 ## Purpose
 
@@ -11,9 +11,9 @@ local, offline execution unless a specific milestone says otherwise.
 Eurogas Nexus is one product with five implementation surfaces:
 
 1. Backend service: DB-first, API-first, SDK-ready Python service.
-2. Python SDK: typed programmatic API client for `/api/v1`.
+2. Python SDK: typed programmatic API client for `/api`.
 3. CLI: safe operator and automation command surface backed by SDK/API.
-4. Web client: browser workspace that consumes `/api/v1`.
+4. Web client: browser workspace that consumes `/api`.
 5. Windows client: packaged desktop experience that consumes the same backend
    API and reuses the web workspace where possible.
 
@@ -23,10 +23,10 @@ or historical Desktop artifacts directly.
 
 Runtime data access is always mediated by SDK/API boundaries:
 
-- SDK -> backend `/api/v1` -> repositories -> PostgreSQL.
-- CLI -> SDK first, or `/api/v1` directly for a documented SDK gap.
-- Web -> `/api/v1` through browser API client.
-- Windows -> packaged web workspace/API client -> `/api/v1`.
+- SDK -> backend `/api` -> repositories -> PostgreSQL.
+- CLI -> SDK first, or `/api` directly for a documented SDK gap.
+- Web -> `/api` through browser API client.
+- Windows -> packaged web workspace/API client -> `/api`.
 
 ## Delivery Order
 
@@ -57,10 +57,10 @@ Activation paths:
 
 Completion gate:
 
-- stable `/api/v1` API contracts;
+- stable `/api` API contracts;
 - DB runtime and migration lifecycle documented and tested;
 - live local PostgreSQL validation documented and safe when configured;
-- first reference-network slice delivered with synthetic data;
+- first reference-network slice delivered from PostgreSQL-backed source ingestion;
 - research output envelope defined;
 - SDK/CLI call API only.
 
@@ -84,7 +84,7 @@ Activation paths:
 
 Completion gate:
 
-- SDK targets `/api/v1`;
+- SDK targets `/api`;
 - SDK does not import backend internals;
 - SDK preserves warnings, missing inputs, source references, lineage, and
   research metadata;
@@ -139,7 +139,7 @@ Recommended stack:
 - TypeScript
 - Vite
 - MapLibre GL for base map
-- API client generated or hand-written from stable `/api/v1` contracts
+- API client generated or hand-written from stable `/api` contracts
 
 Completion gate:
 

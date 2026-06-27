@@ -1,4 +1,4 @@
-"""SDK client for /api/v1/research (POST computation endpoints)."""
+"""SDK client for /api/research (POST computation endpoints)."""
 
 import httpx
 from pydantic import BaseModel
@@ -92,25 +92,25 @@ def _post(url: str, json_body: dict) -> dict:
 
 
 def compute_route_cost(base_url: str, **kwargs) -> RouteCostResult:
-    return RouteCostResult(**_post(f"{base_url}/api/v1/research/route-cost", kwargs))
+    return RouteCostResult(**_post(f"{base_url}/api/research/route-cost", kwargs))
 
 def compute_netback(base_url: str, **kwargs) -> NetbackResult:
-    return NetbackResult(**_post(f"{base_url}/api/v1/research/netback", kwargs))
+    return NetbackResult(**_post(f"{base_url}/api/research/netback", kwargs))
 
 def compute_feasibility(base_url: str, **kwargs) -> FeasibilityResult:
-    return FeasibilityResult(**_post(f"{base_url}/api/v1/research/feasibility", kwargs))
+    return FeasibilityResult(**_post(f"{base_url}/api/research/feasibility", kwargs))
 
 def compute_allocation(base_url: str, **kwargs) -> AllocationResult:
-    return AllocationResult(**_post(f"{base_url}/api/v1/research/allocation", kwargs))
+    return AllocationResult(**_post(f"{base_url}/api/research/allocation", kwargs))
 
 def compute_monitoring(base_url: str, **kwargs) -> MonitoringResult:
-    return MonitoringResult(**_post(f"{base_url}/api/v1/research/monitoring", kwargs))
+    return MonitoringResult(**_post(f"{base_url}/api/research/monitoring", kwargs))
 
 def compute_nowcast(base_url: str, **kwargs) -> NowcastResult:
-    return NowcastResult(**_post(f"{base_url}/api/v1/research/nowcast", kwargs))
+    return NowcastResult(**_post(f"{base_url}/api/research/nowcast", kwargs))
 
 def compute_backtest(base_url: str, **kwargs) -> BacktestResult:
-    return BacktestResult(**_post(f"{base_url}/api/v1/research/backtest", kwargs))
+    return BacktestResult(**_post(f"{base_url}/api/research/backtest", kwargs))
 
 def evaluate_shadow_run(base_url: str, **kwargs) -> ShadowRunResult:
-    return ShadowRunResult(**_post(f"{base_url}/api/v1/research/shadow-run", kwargs))
+    return ShadowRunResult(**_post(f"{base_url}/api/research/shadow-run", kwargs))

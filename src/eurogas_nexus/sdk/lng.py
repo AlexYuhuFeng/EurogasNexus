@@ -1,4 +1,4 @@
-"""SDK client for /api/v1/lng."""
+"""SDK client for /api/lng."""
 
 import httpx
 from pydantic import BaseModel
@@ -32,7 +32,7 @@ def _get(url: str) -> dict:
 
 
 def fetch_lng_terminals(base_url: str) -> list[LngTerminal]:
-    return [LngTerminal(**t) for t in _get(f"{base_url}/api/v1/lng/terminals")["data"]]
+    return [LngTerminal(**t) for t in _get(f"{base_url}/api/lng/terminals")["data"]]
 
 def fetch_lng_observations(base_url: str) -> list[LngObservation]:
-    return [LngObservation(**o) for o in _get(f"{base_url}/api/v1/lng/observations")["data"]]
+    return [LngObservation(**o) for o in _get(f"{base_url}/api/lng/observations")["data"]]

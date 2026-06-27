@@ -1,4 +1,4 @@
-# Real-Time Market Intelligence Blueprint
+﻿# Real-Time Market Intelligence Blueprint
 
 ## Purpose
 
@@ -18,7 +18,7 @@ conditions are changing and which route/resource candidates deserve review.
 The primary experience is a map-first workspace:
 
 ```text
-live sources -> ingestion/governance -> PostgreSQL -> /api/v1 -> SDK/API clients -> map workspace
+live sources -> ingestion/governance -> PostgreSQL -> /api -> SDK/API clients -> map workspace
 ```
 
 The map must show infrastructure, contracts/capacity, market prices, physical

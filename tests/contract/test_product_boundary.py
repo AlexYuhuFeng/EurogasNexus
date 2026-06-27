@@ -1,4 +1,4 @@
-"""Product boundary tests for the V1.0 bootstrap shell."""
+﻿"""Product boundary tests for the V1.0 bootstrap shell."""
 
 import subprocess
 import sys
@@ -15,7 +15,7 @@ EXPECTED_DIRECTORIES = [
     "src/eurogas_nexus/core",
     "src/eurogas_nexus/db",
     "src/eurogas_nexus/runtime_store",
-    "src/eurogas_nexus/api/routes/v1",
+    "src/eurogas_nexus/api/routes/public",
     "src/eurogas_nexus/domain/market",
     "src/eurogas_nexus/application/workflows",
     "src/eurogas_nexus/infrastructure/connectors",
@@ -68,7 +68,7 @@ def test_api_import_does_not_load_database_layer() -> None:
     script = (
         "from apps.api.main import app; import sys; "
         "from fastapi.testclient import TestClient; "
-        "print(TestClient(app).get('/v1/health').status_code == 200); "
+        "print(TestClient(app).get('/api/health').status_code == 200); "
         "print('eurogas_nexus.db' in sys.modules); "
         "print('sqlalchemy' in sys.modules)"
     )

@@ -35,7 +35,7 @@ class StrategyLabResult(BaseModel):
 
 def evaluate_strategy_lab(base_url: str, **kwargs) -> StrategyLabResult:
     response = httpx.post(
-        f"{base_url}/api/v1/strategy-lab/evaluate",
+        f"{base_url}/api/strategy-lab/evaluate",
         json=kwargs,
         timeout=15,
     )
