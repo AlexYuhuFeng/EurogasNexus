@@ -24,6 +24,21 @@ function resolveEffectiveTheme(themeMode: GasNetworkMapProps["themeMode"]): "lig
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
+function propertyText(value: unknown, fallback = "n/a"): string {
+  if (value === null || value === undefined || value === "") return fallback;
+  return String(value);
+}
+
+function escapeHtml(value: unknown): string {
+  return propertyText(value).replace(/[&<>"']/g, (char) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    "\"": "&quot;",
+    "'": "&#39;",
+  }[char] ?? char));
+}
+
 export function GasNetworkMap({
   nodes,
   edges,
@@ -141,7 +156,7 @@ export function GasNetworkMap({
       },
     });
 
-    map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-left");
+    map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-right");
     map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-left");
     map.on("load", () => setMapReady(true));
     mapRef.current = map;
@@ -184,6 +199,12 @@ export function GasNetworkMap({
         mapColors.node,
       ]);
       map.setPaintProperty("nodes-circle", "circle-stroke-color", mapColors.stroke);
+      map.setPaintProperty("nodes-circle", "circle-opacity", [
+        "case",
+        ["==", ["get", "coordinate_quality"], "display_approximation"],
+        0.74,
+        0.96,
+      ]);
     }
   }, [effectiveTheme, mapColors, mapReady]);
 
@@ -200,6 +221,11 @@ export function GasNetworkMap({
         node_type: node.node_type,
         country: node.country,
         capacity_boe_d: node.capacity_boe_d,
+        source_system: node.source_system ?? "",
+        source_reference: node.source_reference ?? "",
+        data_quality: node.data_quality ?? "",
+        coordinate_quality: propertyText(node.metadata_json?.coordinate_quality, node.data_quality ?? "unknown"),
+        coordinate_source: propertyText(node.metadata_json?.coordinate_source, "unknown"),
       },
       geometry: { type: "Point" as const, coordinates: [node.lon, node.lat] },
     }));
@@ -279,16 +305,38 @@ export function GasNetworkMap({
             mapColors.node,
           ],
           "circle-stroke-color": mapColors.stroke,
-          "circle-stroke-width": 1.5,
+          "circle-stroke-width": [
+            "case",
+            ["==", ["get", "coordinate_quality"], "display_approximation"],
+            2.2,
+            1.5,
+          ],
+          "circle-opacity": [
+            "case",
+            ["==", ["get", "coordinate_quality"], "display_approximation"],
+            0.74,
+            0.96,
+          ],
         },
       });
       map.on("click", "nodes-circle", (event) => {
         const feature = event.features?.[0];
         if (!feature) return;
+        const props = feature.properties ?? {};
+        const coordinateQuality = propertyText(props.coordinate_quality, "unknown");
+        const source = propertyText(props.source_system, "unknown");
         new maplibregl.Popup({ closeButton: false })
           .setLngLat(event.lngLat)
           .setHTML(
-            `<strong>${feature.properties?.name}</strong><br/>${feature.properties?.node_type}`
+            `<div class="node-popup">
+              <strong>${escapeHtml(props.name)}</strong>
+              <span>${escapeHtml(props.node_type)} / ${escapeHtml(props.country)}</span>
+              <small>Source ${escapeHtml(source)}</small>
+              <small>Coordinate quality ${escapeHtml(coordinateQuality)}</small>
+              ${coordinateQuality === "display_approximation"
+                ? "<em>Approximate display coordinate, not surveyed WGS84 geometry.</em>"
+                : ""}
+            </div>`
           )
           .addTo(map);
       });
@@ -379,8 +427,9 @@ export function GasNetworkMap({
           const [x, y] = project(node.lon, node.lat);
           const metadata = node.metadata_json ?? {};
           const label = String(metadata.market_code ?? node.name);
+          const coordinateQuality = propertyText(metadata.coordinate_quality, node.data_quality ?? "unknown");
           return (
-            <g key={node.id} className={`fallback-node ${node.node_type}`}>
+            <g key={node.id} className={`fallback-node ${node.node_type} ${coordinateQuality === "display_approximation" ? "approximate" : "official"}`}>
               <circle cx={x} cy={y} r={node.node_type === "hub" ? 7 : node.node_type === "lng" ? 6 : 4.8} />
               <text x={x + 9} y={y - 8}>{label}</text>
             </g>

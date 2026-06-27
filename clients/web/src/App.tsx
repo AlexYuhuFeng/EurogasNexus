@@ -78,6 +78,7 @@ export default function App() {
   const [analysisQuestion, setAnalysisQuestion] = useState("Summarize current portfolio PnL, route, market, and strategy status.");
   const [invokeDeepSeek, setInvokeDeepSeek] = useState(false);
   const [activeWorkspace, setActiveWorkspace] = useState<WorkspacePageId>("network");
+  const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
   const selectedCredentialProvider = useMemo(
     () => credentialProviders.find((provider) => provider.provider_id === credentialProvider),
     [credentialProvider, credentialProviders],
@@ -244,6 +245,11 @@ export default function App() {
     );
   }
 
+  function openWorkspace(page: WorkspacePageId) {
+    setActiveWorkspace(page);
+    setWorkspaceMenuOpen(false);
+  }
+
   const primaryLiveMark = livePnl?.live_marks[0];
   const firstStrategyTarget = strategyResult?.allocation_targets[0];
   const glossaryLang = i18n.language.startsWith("zh") ? "zh-CN" : "en";
@@ -259,7 +265,6 @@ export default function App() {
     selected_contracts: [contract.contract_id],
     language: i18n.language.startsWith("zh") ? "zh-CN" : "en",
   };
-  const workflowSteps = ["discover", "compose", "price", "evaluate", "review"];
   const workspacePages: WorkspacePageId[] = ["network", "market", "scenario", "strategy", "sources", "glossary", "runtime", "settings"];
   const destinationHubs = ["NBP", "TTF", "ZTP", "PEG", "THE"];
   const selectedOption = (livePnl ?? routeOptions)?.options[0] ?? null;
@@ -334,11 +339,8 @@ export default function App() {
       missingCredentials: sources.filter((source) => source.credential_state === "missing").length,
     };
   }, [sources]);
-  const sourceCategories = useMemo(() => {
-    const order = ["price", "fx", "infrastructure", "tariff", "weather", "ai"];
-    const present = new Set(sources.map((source) => source.category));
-    return ["all", ...order.filter((category) => present.has(category))];
-  }, [sources]);
+  const sourceCategoryOrder = ["price", "fx", "infrastructure", "tariff", "weather", "ai"];
+  const sourceCategories = ["all", ...sourceCategoryOrder];
   const filteredSources = useMemo(
     () => sourceCategory === "all"
       ? sources
@@ -360,6 +362,41 @@ export default function App() {
     sources.forEach((source) => counts.set(source.category, (counts.get(source.category) ?? 0) + 1));
     return counts;
   }, [sources]);
+  const sourcesByCategory = useMemo(() => {
+    const grouped = new Map<string, string[]>();
+    sources.forEach((source) => {
+      const systems = grouped.get(source.category) ?? [];
+      grouped.set(source.category, [...systems, source.source_system]);
+    });
+    return grouped;
+  }, [sources]);
+  const approximateNodeCount = useMemo(() => nodes.filter((node) => {
+    const metadata = node.metadata_json ?? {};
+    return node.data_quality === "display_approximation" ||
+      metadata.coordinate_quality === "display_approximation";
+  }).length, [nodes]);
+  const networkGeometryMissing = activeLayers.includes("network") && edges.length === 0;
+  const nodeTypeCounts = useMemo(() => {
+    const counts = {
+      hub: 0,
+      lng: 0,
+      interconnection: 0,
+      network: 0,
+    };
+    nodes.forEach((node) => {
+      if (node.node_type === "hub") counts.hub += 1;
+      else if (node.node_type === "lng") counts.lng += 1;
+      else if (node.node_type === "interconnection") counts.interconnection += 1;
+      else counts.network += 1;
+    });
+    return counts;
+  }, [nodes]);
+  const mapNodeLegend = [
+    { id: "network", label: t("map.layer.network"), count: nodeTypeCounts.network },
+    { id: "lng", label: t("map.layer.lng"), count: nodeTypeCounts.lng },
+    { id: "ips", label: t("map.layer.ips"), count: nodeTypeCounts.interconnection },
+    { id: "hubs", label: t("map.layer.hubs"), count: nodeTypeCounts.hub },
+  ];
 
   function glossaryContextParams() {
     return {
@@ -388,6 +425,12 @@ export default function App() {
     return translated === key ? value.replace(/_/g, " ") : translated;
   }
 
+  function categoryProviderSummary(category: string) {
+    if (category === "all") return t("sources.all_categories");
+    const systems = sourcesByCategory.get(category) ?? [];
+    return systems.length > 0 ? systems.join(", ") : t("sources.no_registered_feeds");
+  }
+
   function formatSourceTimestamp(value: string | null | undefined) {
     if (!value) return "n/a";
     return new Intl.DateTimeFormat(i18n.language, {
@@ -412,11 +455,19 @@ export default function App() {
   return (
     <div className={`app cockpit-app workspace-${activeWorkspace}`}>
       <header className="app-header cockpit-topbar">
-        <button className="topbar-icon-button" type="button" aria-label={t("topbar.menu")}><span className="topbar-menu-glyph" aria-hidden="true" /></button>
-        <div className="workspace-pill" aria-label={t("topbar.workspace_label")}>
-          <span>{t("topbar.workspace_label")}</span>
-          <strong>{t(`nav.${activeWorkspace}`)}</strong>
-        </div>
+        <button
+          className="workspace-pill workspace-trigger"
+          type="button"
+          aria-label={t("topbar.workspace_menu")}
+          aria-expanded={workspaceMenuOpen}
+          onClick={() => setWorkspaceMenuOpen((current) => !current)}
+        >
+          <span className="topbar-menu-glyph" aria-hidden="true" />
+          <span className="workspace-pill-copy">
+            <span>{t("topbar.workspace_label")}</span>
+            <strong>{t(`nav.${activeWorkspace}`)}</strong>
+          </span>
+        </button>
         <input
           className="topbar-search"
           value={searchTerm}
@@ -437,26 +488,20 @@ export default function App() {
         </div>
       </header>
 
-      <nav className="workspace-nav" aria-label={t("topbar.workspace_label")}>
-        {workspacePages.map((page) => (
-          <button
-            key={page}
-            type="button"
-            className={activeWorkspace === page ? "workspace-nav-item active" : "workspace-nav-item"}
-            onClick={() => setActiveWorkspace(page)}
-          >
-            {t(`nav.${page}`)}
-          </button>
-        ))}
-      </nav>
-      <nav className="workflow-strip" aria-label={t("workflow.label")}>
-        {workflowSteps.map((step, index) => (
-          <button key={step} className={index === 2 ? "workflow-step active" : "workflow-step"} type="button">
-            <span>{index + 1}</span>
-            {t(`workflow.${step}`)}
-          </button>
-        ))}
-      </nav>
+      {workspaceMenuOpen && (
+        <nav className="workspace-menu" aria-label={t("topbar.workspace_menu")}>
+          {workspacePages.map((page) => (
+            <button
+              key={`menu-${page}`}
+              type="button"
+              className={activeWorkspace === page ? "workspace-menu-item active" : "workspace-menu-item"}
+              onClick={() => openWorkspace(page)}
+            >
+              {t(`nav.${page}`)}
+            </button>
+          ))}
+        </nav>
+      )}
 
       <main className="app-main">
         <section className="map-container map-stage" id="map">
@@ -468,7 +513,7 @@ export default function App() {
               <button
                 key={layer}
                 type="button"
-                className={activeLayers.includes(layer) ? "chip active" : "chip"}
+                className={activeLayers.includes(layer) ? `chip map-layer-chip layer-${layer} active` : `chip map-layer-chip layer-${layer}`}
                 onClick={() => toggleLayer(layer)}
               >
                 {t(`map.layer.${layer}`)}
@@ -511,11 +556,6 @@ export default function App() {
             activeLayers={activeLayers}
             searchTerm={searchTerm}
           />
-          <div className="map-overlay">
-            <span>{t("map.nodes")}: {nodes.length}</span>
-            <span>{t("map.edges")}: {edges.length}</span>
-            <span>{t("map.routes")}: {routes.length}</span>
-          </div>
           <div className="map-alert-stack">
             <div className="map-alert">
               <strong>{t("home.signal")}</strong>
@@ -536,6 +576,45 @@ export default function App() {
             <span className="eyebrow">{t("scenario.eyebrow")}</span>
             <h2>{t("scenario.title")}</h2>
             <p>{t("scenario.description")}</p>
+          </div>
+
+          <div className="panel topology-status-panel">
+            <div className="section-heading">
+              <span className="eyebrow">{t("map.topology_status")}</span>
+              <strong>{t("map.network_dataset")}</strong>
+            </div>
+            <div className="metric-grid three-column compact-metrics">
+              <div>
+                <span>{t("map.nodes")}</span>
+                <strong>{nodes.length.toLocaleString()}</strong>
+              </div>
+              <div>
+                <span>{t("map.edges")}</span>
+                <strong>{edges.length.toLocaleString()}</strong>
+              </div>
+              <div>
+                <span>{t("map.approximate_points")}</span>
+                <strong>{approximateNodeCount.toLocaleString()}</strong>
+              </div>
+            </div>
+            {networkGeometryMissing && (
+              <div className="map-network-warning">
+                <strong>{t("map.network_warning_title")}</strong>
+                <span>{t("map.network_warning_body")}</span>
+              </div>
+            )}
+            <div className="map-node-legend node-color-legend" aria-label={t("map.node_legend")}>
+              {mapNodeLegend.map((item) => (
+                <span key={`legend-${item.id}`}>
+                  <i className={`node-swatch ${item.id}`} />
+                  {item.label}
+                  <strong>{item.count.toLocaleString()}</strong>
+                </span>
+              ))}
+            </div>
+            {approximateNodeCount > 0 && (
+              <p className="coordinate-quality-note">{t("map.coordinate_quality_note")}</p>
+            )}
           </div>
 
           <div className="panel route-selector-panel">
@@ -892,7 +971,10 @@ export default function App() {
                         if (nextSource) selectSource(nextSource.source_id);
                       }}
                     >
-                      <span>{sourceLabel("sources.category", category)}</span>
+                      <span>
+                        <span>{sourceLabel("sources.category", category)}</span>
+                        <small>{categoryProviderSummary(category)}</small>
+                      </span>
                       <strong>{category === "all" ? sources.length : sourceCategoryCounts.get(category) ?? 0}</strong>
                     </button>
                   ))}

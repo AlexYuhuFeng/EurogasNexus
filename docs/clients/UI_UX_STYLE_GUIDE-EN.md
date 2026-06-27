@@ -28,7 +28,7 @@ Eurogas Nexus Web and Windows client UI must follow the local reference guide su
 Current Web implementation should expose these structural classes so contract tests can prevent regression:
 
 - `cockpit-topbar`
-- `workflow-strip`
+- `workspace-menu`
 - `scenario-rail`
 - `decision-rail`
 - `trade-result-panel`

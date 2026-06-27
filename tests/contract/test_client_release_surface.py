@@ -275,7 +275,7 @@ def test_web_client_matches_design_reference_cockpit() -> None:
 
     assert "cockpit-topbar" in app
 
-    assert "workflow-strip" in app
+    assert "workflow-strip" not in app
 
     assert "scenario-rail" in app
 
@@ -284,10 +284,20 @@ def test_web_client_matches_design_reference_cockpit() -> None:
     assert "trade-result-panel" in app
 
     assert "topbar-search" in app
-    assert "workspace-nav" in app
+    assert "topbar-icon-button" not in app
+    assert "workspace-nav" not in app
+    assert "workspace-menu" in app
+    assert "workspaceMenuOpen" in app
+    assert "workspace-pill-copy" in app
+    assert "topbar-menu-glyph" in app
     assert "workspace-page" in app
     assert 'activeWorkspace === "market"' in app
     assert 'activeWorkspace === "glossary"' in app
+    assert "map-overlay" not in app
+    assert "topology-status-panel" in app
+    assert "networkGeometryMissing" in app
+    assert "approximateNodeCount" in app
+    assert "map-node-legend" in app
     map_component = (
 
         ROOT / "clients" / "web" / "src" / "components" / "GasNetworkMap.tsx"
@@ -295,6 +305,12 @@ def test_web_client_matches_design_reference_cockpit() -> None:
     ).read_text(encoding="utf-8")
 
     assert "fallback-network-map map-ready" in map_component
+    assert 'NavigationControl({ visualizePitch: true }), "top-right"' in map_component
+    assert "coordinate_quality" in map_component
+    assert "data_quality" in map_component
+    assert "node-color-legend" in css
+    assert "map-network-warning" in css
+    assert "filter: grayscale" not in css
     assert "fallback-network-map.map-ready" in css
     assert "cockpit-app:not(.workspace-network) .decision-rail" in css
     assert "cockpit-app:not(.workspace-network) .scenario-rail" in css
@@ -314,10 +330,19 @@ def test_web_client_matches_design_reference_cockpit() -> None:
     assert en["result.route_alpha"] == "Route alpha ladder"
 
     assert zh["result.route_alpha"] == "\u8def\u5f84\u6536\u76ca\u9636\u68af"
+    assert en["map.network_warning_title"] == "Pipeline geometry not loaded"
+    assert zh["map.network_warning_title"] == "\u7ba1\u7ebf\u51e0\u4f55\u672a\u52a0\u8f7d"
+    assert en["map.coordinate_quality"] == "Coordinate quality"
+    assert zh["map.coordinate_quality"] == "\u5750\u6807\u8d28\u91cf"
+    assert en["map.approximate_points"] == "Approx. coords"
+    assert zh["map.approximate_points"] == "\u8fd1\u4f3c\u5750\u6807"
 
 
 def test_web_client_sources_page_is_categorized_source_center() -> None:
     app = (ROOT / "clients" / "web" / "src" / "App.tsx").read_text(encoding="utf-8")
+    api_client = (ROOT / "clients" / "web" / "src" / "api" / "client.ts").read_text(
+        encoding="utf-8"
+    )
     css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(
         encoding="utf-8"
     )
@@ -335,6 +360,17 @@ def test_web_client_sources_page_is_categorized_source_center() -> None:
     assert "credential_state" in app
     assert "last_success_at_utc" in app
     assert "connectivity_status" in app
+    assert (
+        'const sourceCategoryOrder = ["price", "fx", "infrastructure", "tariff", "weather", "ai"]'
+        in app
+    )
+    assert "categoryProviderSummary" in app
+    assert "normalizeSourceSystem" in api_client
+    assert "SOURCE_CATEGORY_BY_SYSTEM" in api_client
+    assert (
+        'sources: () => get<SourceSystemWire[]>("/sources").then(normalizeSourcesResponse)'
+        in api_client
+    )
     assert "source-center" in css
     assert en["sources.title"] == "Data Source Center"
     assert zh["sources.title"] == "\u6570\u636e\u6e90\u4e2d\u5fc3"

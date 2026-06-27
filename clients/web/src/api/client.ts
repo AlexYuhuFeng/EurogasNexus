@@ -109,6 +109,110 @@ export interface SourceSystemDTO {
   diagnostics: string[]; export_restrictions: string[];
 }
 
+type SourceSystemWire = Partial<SourceSystemDTO> & {
+  source_id?: string;
+  source_system?: string;
+  datasets?: unknown;
+  credential_requirements?: unknown;
+  diagnostics?: unknown;
+  export_restrictions?: unknown;
+};
+
+const SOURCE_CATEGORY_BY_SYSTEM: Record<string, string> = {
+  ARGUS: "price",
+  DEEPSEEK: "ai",
+  ECB: "fx",
+  EEX: "price",
+  ENTSOG: "infrastructure",
+  GIE: "infrastructure",
+  ICE_OCM: "price",
+  ICIS: "price",
+  KPLER: "price",
+  NATIONALGASNTS: "tariff",
+  NATIONAL_GAS_NTS: "tariff",
+  PLATTS: "price",
+  TRAYPORT: "price",
+  WEATHER: "weather",
+};
+
+const SOURCE_CATEGORY_LABELS: Record<string, string> = {
+  ai: "LLM",
+  fx: "FX",
+  infrastructure: "Infrastructure",
+  price: "Prices",
+  tariff: "TSO Tariffs",
+  weather: "Weather",
+};
+
+function sourceSystemKey(value: string): string {
+  return value.trim().toUpperCase().replace(/[\s-]+/g, "_");
+}
+
+function asStringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    : [];
+}
+
+function normalizeSourceSystem(raw: SourceSystemWire): SourceSystemDTO {
+  const sourceSystem = raw.source_system?.trim() || "Unknown";
+  const sourceKey = sourceSystemKey(sourceSystem);
+  const category = raw.category || SOURCE_CATEGORY_BY_SYSTEM[sourceKey] || "price";
+  const credentialRequirements = asStringArray(raw.credential_requirements);
+  const credentialRequired = credentialRequirements.length > 0;
+  const liveRecordCount = Number(raw.live_record_count ?? 0);
+  const status = raw.status || (liveRecordCount > 0 ? "active" : "registered");
+  const credentialState = raw.credential_state || (credentialRequired ? "missing" : "not_required");
+  const connectivityStatus = raw.connectivity_status ||
+    (credentialState === "missing"
+      ? "needs_credential"
+      : liveRecordCount > 0
+        ? "active"
+        : status);
+  const diagnostics = asStringArray(raw.diagnostics);
+
+  return {
+    source_id: raw.source_id || `src-${sourceKey.toLowerCase().replace(/_/g, "-")}`,
+    source_system: sourceSystem,
+    datasets: asStringArray(raw.datasets),
+    status: connectivityStatus,
+    description: raw.description || `${sourceSystem} data source.`,
+    live_record_count: liveRecordCount,
+    category,
+    category_label: raw.category_label || SOURCE_CATEGORY_LABELS[category] || category,
+    connectivity_status: connectivityStatus,
+    entitlement_scope: raw.entitlement_scope || (credentialRequired ? "licensed" : "public"),
+    freshness_expectation_minutes: Number(raw.freshness_expectation_minutes ?? 0),
+    credential_requirements: credentialRequirements,
+    credential_provider_id: raw.credential_provider_id ?? (credentialRequired ? sourceSystem : null),
+    credential_state: credentialState,
+    credential_status: raw.credential_status ?? null,
+    credential_last_tested_at_utc: raw.credential_last_tested_at_utc ?? null,
+    credential_last_test_status: raw.credential_last_test_status ?? null,
+    last_success_at_utc: raw.last_success_at_utc ?? null,
+    last_failure_at_utc: raw.last_failure_at_utc ?? null,
+    last_ingestion_status: raw.last_ingestion_status ?? null,
+    last_ingestion_message: raw.last_ingestion_message ?? null,
+    diagnostics: diagnostics.length > 0
+      ? diagnostics
+      : liveRecordCount > 0
+        ? ["live_records_available"]
+        : credentialState === "missing"
+          ? ["credential_missing"]
+          : ["no_records_in_runtime_db"],
+    export_restrictions: asStringArray(raw.export_restrictions),
+  };
+}
+
+function normalizeSourcesResponse(
+  response: ApiResponse<SourceSystemWire[]>,
+): ApiResponse<SourceSystemDTO[]> {
+  return {
+    ...response,
+    data: response.data.map(normalizeSourceSystem),
+  };
+}
+
 export interface MarketObsDTO {
   observation_id: string; market_venue: string; product: string;
   price: number; unit: string; currency: string;
@@ -388,7 +492,7 @@ export const api = {
     point_id?: string; country?: string; operator_key?: string; direction?: string;
   }) => get<TsoAccessPointDTO[]>("/reference-network/tso-access", params),
 
-  sources: () => get<SourceSystemDTO[]>("/sources"),
+  sources: () => get<SourceSystemWire[]>("/sources").then(normalizeSourcesResponse),
 
   marketObservations: () => get<MarketObsDTO[]>("/market/observations"),
 
