@@ -18,13 +18,14 @@ Archived QA reference:
 
 - `C:\Users\qqshu\Desktop\Eurogas Nexus Project\Eurogas Nexus Artifacts\qa\v0.5\ui-ux-audit\real-user-audit-2026-04-02.md`
 
-The executable was not launched during this documentation pass. UX conclusions
-come from archived QA evidence and historical docs.
+The executable has been launched and inspected as a UX reference during later
+development passes. UX conclusions combine direct interaction evidence,
+archived QA evidence, screenshots, and historical docs.
 
 ## UX Direction To Preserve
 
 - Dense terminal-style workspace.
-- First-screen visibility of recommendation/research posture, data status,
+- First-screen visibility of decision-support posture, data status,
   source readiness, active focus, and warnings.
 - Commercial-anchor-led flow from contract/context into scenario.
 - Scenario workspace that keeps candidate focus, economics snapshot, data
@@ -33,7 +34,7 @@ come from archived QA evidence and historical docs.
 - Source/database console that separates bundled reference data, credentialed
   future sources, governance-limited sources, and degraded runtime state.
 - Map-centric route/corridor/facility inspection.
-- Research output review with assumptions, missing inputs, source references,
+- Decision-support output review with assumptions, missing inputs, source references,
   warnings, and lineage.
 
 ## UX Direction To Redesign
@@ -70,12 +71,13 @@ bottom panel
 - Warnings and missing inputs must be visible near the action area.
 - Sorting/filtering in the client must not rewrite canonical backend research
   output.
-- Research idea/ranking cards must be clearly labeled as human-review
+- Idea/ranking cards must be clearly labeled as human-review
   decision-support.
 - No button or label should imply order creation, trade execution, nomination
   submission, official approval, or official trading recommendation.
-- Data source status must distinguish available, synthetic, credentialed-later,
-  governance-limited, stale, and degraded.
+- Data source status must distinguish live, delayed, demo-provenance,
+  credential-missing, governance-limited, stale, partial, unavailable, and
+  degraded.
 
 ## Implementation Use
 

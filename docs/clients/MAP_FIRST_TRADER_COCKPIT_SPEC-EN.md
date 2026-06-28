@@ -34,9 +34,24 @@ alternatives.
 
 The map must not be a decorative background. It is the main work surface.
 
-## Above-Map Price And Process Strip
+## Home Information Architecture
 
-Place a compact live strip above the map with:
+The home screen must remain clean. It has exactly three functional zones:
+
+1. Persistent top bar: workspace menu, global search, runtime status, language,
+   and theme.
+2. Left rail: resource-pool context, recommended sale-path controls, and active
+   portfolio resources.
+3. Right rail: pool PnL, route allocation ladder, economics snapshot, and
+   strategy/warning signal.
+
+Detailed data-source diagnostics, PostgreSQL health, TSO access tables,
+capacity summaries, tariff tables, and provider credentials do not belong on
+the home screen. They belong in Data Sources, Runtime, Market, Scenario, or
+Contracts.
+
+If a compact live tape is later reintroduced, it must not overlap the rails,
+MapLibre controls, or map attribution, and it may only show:
 
 - portfolio exposure volume;
 - total pool volume and unallocated volume;

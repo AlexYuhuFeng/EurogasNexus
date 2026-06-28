@@ -44,7 +44,9 @@ Redux in V1 unless a later milestone explicitly changes the tech-stack contract.
 Internet required: yes if dependencies must be installed or current package
 documentation must be verified.
 
-Offline fallback: create structure, types, mocked API client, and gap report.
+If dependencies or backend endpoints are unavailable, create only structure,
+types, interface contracts, and a gap report. Trial and release builds must not
+replace missing PostgreSQL-backed data with client-side mock runtime data.
 
 Internationalization and theme requirements:
 
@@ -70,19 +72,18 @@ Use this persistent layout:
 +--------------------------------------------------------------------------------+
 | Top bar: workspace, backend/DB status, language/theme, warnings                 |
 +--------------------------------------------------------------------------------+
-| Live strip above map: pool volume, hub prices, FX, live PnL, strategy process   |
-+------+--------------------------------------------------+----------------------+
-| Nav  | Map-first home workspace                         | Inspector            |
-|      | European gas map with resource pool, routes,       | selected asset,      |
-|      | capacity, market, strategy, alert overlays        | sources, lineage     |
-+------+--------------------------------------------------+----------------------+
-| Detail tabs/windows: prices, combinations, analysis, orders, warnings, manual   |
++----------------------+----------------------------------+----------------------+
+| Resource-pool rail   | European gas map                 | Decision rail        |
+| resources, blockers, | nodes, routes, corridors, layers | pool PnL, route      |
+| route controls       | and selected route context       | ladder, economics    |
++----------------------+----------------------------------+----------------------+
+| Dedicated pages: market, scenario, contracts, strategy, data sources, runtime   |
 +--------------------------------------------------------------------------------+
 ```
 
 Responsive behavior:
 
-- desktop: nav, main, inspector, and bottom panel visible;
+- desktop: top bar, map, left resource rail, and right decision rail visible;
 - tablet: inspector becomes a drawer;
 - mobile: map/workspace first, nav collapses, bottom panel becomes tabs.
 
@@ -100,7 +101,7 @@ Primary navigation items:
 5. Contracts
 6. Strategy
 7. Review
-8. Sources
+8. Data Sources
 9. Glossary
 10. Runtime
 11. Settings
@@ -127,7 +128,8 @@ Content:
 - API base URL;
 - active route profile;
 - DB validation status from backend when available;
-- warning if running against mocks.
+- warning if demo provenance, stale data, missing DB tables, or unavailable
+  backend capabilities are reported by the API.
 
 States:
 
@@ -148,15 +150,23 @@ Purpose:
 Initial content:
 
 - map surface;
-- above-map price/process strip;
 - layer controls;
-- portfolio exposure overlay;
-- live PnL overlay;
-- active strategy process overlay;
-- route blocking/warning overlay;
-- selected asset inspector;
-- source/freshness badges;
-- warning banner for synthetic or incomplete data.
+- left resource-pool rail with active resources, blockers, and route controls;
+- right decision rail with net PnL, allocation ladder, economics snapshot, and
+  strategy/warning signal;
+- selected route context and route blocking/warning overlay.
+
+Not allowed on the Network home:
+
+- data-source diagnostics tables;
+- runtime DB health panels;
+- TSO access/capacity/tariff summary tables;
+- credentials forms;
+- glossary detail;
+- LLM report generation panels.
+
+Those belong on Data Sources, Runtime, Market, Scenario, Contracts, Glossary,
+or Strategy pages.
 
 Layers:
 
@@ -264,7 +274,8 @@ Validation:
 - show missing required inputs inline;
 - show assumptions before submission;
 - disable workflow actions when backend capability is missing;
-- label outputs as research-only.
+- label outputs as decision support, human review required, and not an
+  execution instruction.
 
 ## Screen: Market
 
@@ -275,9 +286,10 @@ Purpose:
 
 V1 client behavior:
 
-- show backend metadata only if APIs exist;
-- otherwise show mocked panel shells and `PARTIAL: backend API not available`;
-- do not invent market data.
+- show backend-served market, FX, capacity, tariff, and source metadata;
+- if an endpoint or table is missing, show an explicit unavailable state with
+  the backend error code and required operator action;
+- do not invent market data or render client-side fake observations.
 
 Live source panels:
 
@@ -290,7 +302,8 @@ Live source panels:
 - weather/HDD/CDD provider context.
 
 Every live-source panel must show entitlement, freshness, source status,
-degraded/offline state, and whether data is live, delayed, mocked, or partial.
+degraded/offline state, and whether data is live, delayed, demo, partial, or
+unavailable.
 
 ## Screen: Strategy
 
@@ -353,22 +366,24 @@ Export:
 - disabled until governance/export policy is implemented;
 - explain restricted state without legal advice.
 
-## Screen: Sources
+## Screen: Data Sources
 
 Purpose:
 
-- let users inspect source references and lineage for displayed outputs.
+- let users inspect and maintain source references, categories, credentials,
+  health, freshness, and lineage for displayed outputs.
 
 Content:
 
-- source ID;
-- source type;
-- source family such as ECB, ENTSOG, GIE, EEX, Trayport, ICE OCM, or weather;
-- retrieval or observation timestamp;
-- transformation stage;
-- quality/freshness state;
-- entitlement/export state;
-- linked outputs.
+- category rail: prices, FX, infrastructure, TSO tariffs, weather, and LLM;
+- providers such as Platts, ICIS, Argus, EEX, ICE OCM, Trayport, Kpler, ECB,
+  ENTSOG, GIE AGSI/ALSI, weather, and DeepSeek;
+- source status, connectivity status, credential state, last success, last
+  failure, expected freshness, diagnostics, and record count;
+- backend-owned credential entry and redacted status display;
+- infrastructure record previews for ENTSOG capacity/flows, GIE storage/LNG,
+  TSO access, and tariff rows;
+- degraded, credential-missing, no-records, and runtime-DB-missing states.
 
 ## Screen: Glossary
 
@@ -417,7 +432,7 @@ Rules:
 - show citations/source references next to claims;
 - show assumptions, missing inputs, warnings, prompt/template version, and
   provider/model metadata when available;
-- label outputs as research-only and human-review-required;
+- label outputs as decision support and human-review-required;
 - never present LLM text as official trading advice.
 
 Current endpoints:
@@ -474,20 +489,26 @@ Build these components before business screens become complex:
 - `MissingInputsList`
 - `SourceReferenceTable`
 - `LineageTimeline`
-- `ResearchOnlyBadge`
 - `HumanReviewRequiredBadge`
 - `ApiErrorState`
 - `FeaturePartialState`
 
-## Mock Data Policy
+## Runtime Data Policy
 
-Mock data must be synthetic and visibly labeled in UI state. It must not be
-copied from historical projects, vendor files, market data, or internal reports.
+Trial and release clients must read runtime data through the backend API. If
+the customer has not connected a provider or loaded portfolio records, the UI
+must show explicit empty, unavailable, stale, credential-missing, or
+table-missing states.
+
+Demo or test records are allowed only when they are inserted into PostgreSQL
+with clear demo/test provenance and are visible as such in API responses and UI
+state. They must not be copied from historical projects, vendor files, licensed
+market data, or internal reports.
 
 ## First Web Implementation Prompt
 
 Use this prompt only after the backend activation gates are met:
 
 ```text
-Read AGENTS.md, docs/clients/README.md, docs/clients/CLIENT_DELIVERY_MILESTONES.md, docs/clients/CLIENT_API_CONTRACT.md, docs/clients/CLIENT_DESIGN_SYSTEM.md, and docs/clients/WEB_CLIENT_DESIGN_SPEC.md. Implement Web Milestone W1 only. If internet is unavailable or Node dependencies cannot be installed, create the planned file structure, TypeScript interfaces, mocked API client, and a gap report. Do not add trade execution, live vendor calls, direct DB access, or Windows packaging.
+Read AGENTS.md, docs/clients/README.md, docs/clients/CLIENT_DELIVERY_MILESTONES.md, docs/clients/CLIENT_API_CONTRACT.md, docs/clients/CLIENT_DESIGN_SYSTEM.md, and docs/clients/WEB_CLIENT_DESIGN_SPEC.md. Implement Web Milestone W1 only. If internet is unavailable or Node dependencies cannot be installed, create the planned file structure, TypeScript interfaces, API contracts, and a gap report. Do not add trade execution, live vendor calls from the browser, direct DB access, client-side runtime mock data, or Windows packaging.
 ```

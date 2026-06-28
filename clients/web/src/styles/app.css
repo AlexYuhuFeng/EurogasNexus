@@ -2483,3 +2483,86 @@ body {
     left: 12px;
   }
 }
+
+/* Resource-pool home cleanup: home is a map cockpit, not a data-status dashboard. */
+.workspace-network .map-price-strip,
+.workspace-network .network-quality-stack {
+  display: none;
+}
+
+.workspace-network .scenario-rail {
+  top: 126px;
+  bottom: 18px;
+}
+
+.workspace-network .decision-rail {
+  top: 110px;
+  bottom: 18px;
+}
+
+.workspace-network .maplibregl-ctrl-bottom-left {
+  bottom: 18px;
+  left: calc(16px + var(--eg-left-rail) + 12px);
+}
+
+.workspace-network .maplibregl-ctrl-top-right {
+  top: 126px;
+  right: calc(18px + var(--eg-right-rail) + 12px);
+}
+
+@media (max-width: 900px) {
+  .workspace-network .maplibregl-ctrl-bottom-left {
+    bottom: 12px;
+    left: 12px;
+  }
+
+  .workspace-network .maplibregl-ctrl-top-right {
+    top: 74px;
+    right: 12px;
+  }
+}
+
+.decision-signal-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.signal-warning {
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--eg-hairline);
+  border-radius: var(--eg-radius-sm);
+  background: var(--eg-canvas-soft);
+  padding: 10px;
+}
+
+.signal-warning span {
+  color: var(--eg-muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.signal-warning strong {
+  color: var(--eg-ink);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.cockpit-app .fallback-landmass {
+  fill: rgb(235 235 235 / 60%);
+  stroke: rgb(115 115 115 / 72%);
+}
+
+:root.dark .cockpit-app .fallback-landmass {
+  fill: rgb(23 23 23 / 72%);
+  stroke: rgb(161 161 161 / 55%);
+}
+
+.cockpit-app .fallback-grid {
+  stroke: rgb(115 115 115 / 35%);
+}
+
+.cockpit-app .fallback-edge {
+  stroke: #737373;
+}

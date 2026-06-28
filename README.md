@@ -241,9 +241,10 @@ own credentials, entitlements, and contractual permission.
 The Web client is the primary map-focused workspace. It contains separate
 surfaces for:
 
-- Network: resource-pool map, recommended sale paths, topology quality, and
-  source coverage;
-- Sources: provider categories, API-key posture, diagnostics, and refresh state;
+- Network: resource-pool map, recommended sale paths, route/capacity warnings,
+  indicative PnL, and decision support;
+- Data Sources: provider categories, API-key posture, diagnostics, and refresh
+  state;
 - Market: price, FX, capacity, tariff, and source observations;
 - Scenario: route economics, LNG readiness, and pool optimization runs;
 - Contracts: EFET-style resource, delivery, pricing, settlement, and capacity
@@ -326,8 +327,6 @@ Releases are published at
 ## Documentation
 
 Start here:
-
-ExecPlans: `.agent/plans/`
 
 - [Project directory](PROJECT_DIRECTORY.md)
 - [Current pause point](docs/architecture/CURRENT_PAUSE_POINT.md)

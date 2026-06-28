@@ -55,7 +55,7 @@ export function GasNetworkMap({
   const mapColors = useMemo(
     () => effectiveTheme === "dark"
       ? {
-          background: "#0a0a0a",
+          background: "#080808",
           edge: "#737373",
           route: "#50e3c2",
           node: "#3291ff",
@@ -65,8 +65,8 @@ export function GasNetworkMap({
           stroke: "#0a0a0a",
         }
       : {
-          background: "#f5f5f5",
-          edge: "#a1a1a1",
+          background: "#eeeeee",
+          edge: "#6b7280",
           route: "#171717",
           node: "#007cf0",
           hub: "#50e3c2",
@@ -147,9 +147,11 @@ export function GasNetworkMap({
             type: "raster",
             source: "osm",
             paint: {
-              "raster-opacity": effectiveTheme === "dark" ? 0.32 : 0.48,
-              "raster-saturation": effectiveTheme === "dark" ? -0.75 : -0.9,
-              "raster-contrast": effectiveTheme === "dark" ? -0.1 : -0.2,
+              "raster-opacity": effectiveTheme === "dark" ? 0.38 : 0.64,
+              "raster-saturation": -1,
+              "raster-contrast": effectiveTheme === "dark" ? 0.14 : 0.24,
+              "raster-brightness-min": effectiveTheme === "dark" ? 0.08 : 0.16,
+              "raster-brightness-max": effectiveTheme === "dark" ? 0.62 : 0.92,
             },
           },
         ],
@@ -177,9 +179,11 @@ export function GasNetworkMap({
       map.setPaintProperty("background", "background-color", mapColors.background);
     }
     if (map.getLayer("osm-raster")) {
-      map.setPaintProperty("osm-raster", "raster-opacity", effectiveTheme === "dark" ? 0.32 : 0.48);
-      map.setPaintProperty("osm-raster", "raster-saturation", effectiveTheme === "dark" ? -0.75 : -0.9);
-      map.setPaintProperty("osm-raster", "raster-contrast", effectiveTheme === "dark" ? -0.1 : -0.2);
+      map.setPaintProperty("osm-raster", "raster-opacity", effectiveTheme === "dark" ? 0.38 : 0.64);
+      map.setPaintProperty("osm-raster", "raster-saturation", -1);
+      map.setPaintProperty("osm-raster", "raster-contrast", effectiveTheme === "dark" ? 0.14 : 0.24);
+      map.setPaintProperty("osm-raster", "raster-brightness-min", effectiveTheme === "dark" ? 0.08 : 0.16);
+      map.setPaintProperty("osm-raster", "raster-brightness-max", effectiveTheme === "dark" ? 0.62 : 0.92);
     }
     if (!mapReady) return;
 

@@ -65,6 +65,6 @@ matching glossary and runtime rows.
 ## Implementation Rule
 
 Do not add client runtime dependencies until a client milestone is selected.
-If Codex is offline and dependencies are missing, create contracts,
-mocked API clients, file structure, and a gap report instead of pretending the
-client can build.
+If dependencies, internet access, or backend endpoints are missing, create
+contracts, file structure, typed API interfaces, and a gap report instead of
+pretending the client can build or fabricating runtime data.

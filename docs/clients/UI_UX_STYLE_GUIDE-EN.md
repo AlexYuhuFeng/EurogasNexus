@@ -18,8 +18,16 @@ Eurogas Nexus Web and Windows client UI must follow the local reference guide su
 
 - The map remains the dominant work surface.
 - The top bar is a clean product/search/control bar, not a marketing hero.
-- The left rail is the scenario builder: active resource, destination, route, execution mode, and tariff posture.
-- The right rail is the result inspector: net PnL, route alpha, economics snapshot, source posture, strategy, glossary, and AI report context.
+- The home left rail is the resource-pool intake: active portfolio resources,
+  route controls, and missing-contract blockers.
+- The home right rail is the decision inspector only: net PnL, route allocation
+  ladder, economics snapshot, and strategy/warning signal.
+- Data-source diagnostics, runtime DB health, TSO access tables, capacity
+  summaries, tariff tables, credentials, glossary, and AI reports live on their
+  own pages. Do not add them back to the home rails.
+- The workspace pill plus hamburger glyph is the single navigation trigger on
+  the map. Do not reintroduce a duplicate horizontal nav on the home screen.
+- MapLibre controls, attribution, layer chips, and rails must never overlap.
 - AI/LLM features must appear as decision-support analysis and report generation, never as autonomous execution.
 - All visible strings must be available in English and Mandarin Chinese.
 

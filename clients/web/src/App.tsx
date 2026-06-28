@@ -426,57 +426,10 @@ export default function App() {
     ? Math.max(firstPoolAllocation.total_cost_gbp_mwh - contract.contract_price_gbp_mwh, 0)
     : selectedAllocation?.route_cost ?? null;
   const activeWarning = [...(strategyResult?.warnings ?? []), ...(meta?.warnings ?? [])][0] ?? null;
-  const tsoAccessByCountry = useMemo(() => {
-    const buckets = new Map<string, {
-      country: string;
-      accessCount: number;
-      dayAheadCount: number;
-      dailyCount: number;
-      monthlyCount: number;
-    }>();
-    tsoAccess.forEach((item) => {
-      const country = item.country || "--";
-      const bucket = buckets.get(country) ?? {
-        country,
-        accessCount: 0,
-        dayAheadCount: 0,
-        dailyCount: 0,
-        monthlyCount: 0,
-      };
-      bucket.accessCount += 1;
-      bucket.dayAheadCount += item.day_ahead_contracts_available ? 1 : 0;
-      bucket.dailyCount += item.daily_contracts_available ? 1 : 0;
-      bucket.monthlyCount += item.monthly_contracts_available ? 1 : 0;
-      buckets.set(country, bucket);
-    });
-    return [...buckets.values()]
-      .sort((a, b) => b.accessCount - a.accessCount)
-      .slice(0, 6);
-  }, [tsoAccess]);
   const latestOfficialFlows = useMemo(() => flows
     .filter((item) => item.source_system === "ENTSOG")
     .slice(0, 5), [flows]);
-  const capacityByType = useMemo(() => {
-    const buckets = new Map<string, { capacityType: string; rows: number; totalMcmD: number }>();
-    capacity.forEach((item) => {
-      const bucket = buckets.get(item.capacity_type) ?? {
-        capacityType: item.capacity_type,
-        rows: 0,
-        totalMcmD: 0,
-      };
-      bucket.rows += 1;
-      bucket.totalMcmD += item.capacity_mcm_d;
-      buckets.set(item.capacity_type, bucket);
-    });
-    return [...buckets.values()].sort((a, b) => b.rows - a.rows).slice(0, 5);
-  }, [capacity]);
   const latestCapacityRows = useMemo(() => capacity.slice(0, 5), [capacity]);
-  const runtimeSourceSummary = Object.entries(endpointMeta).slice(0, 6);
-  const dataIssueText = dataStatus === "runtime"
-    ? null
-    : dataStatus === "partial"
-      ? "Runtime DB is partially populated. Review missing sources and lineage before using decisions."
-      : "Runtime DB is unavailable or empty. Configure and populate the database.";
   const sourceStats = useMemo(() => {
     const issueStatuses = new Set(["failed", "needs_credential", "credential_disabled", "runtime_unconfigured"]);
     return {
@@ -518,34 +471,6 @@ export default function App() {
     });
     return grouped;
   }, [sources]);
-  const approximateNodeCount = useMemo(() => nodes.filter((node) => {
-    const metadata = node.metadata_json ?? {};
-    return node.data_quality === "display_approximation" ||
-      metadata.coordinate_quality === "display_approximation";
-  }).length, [nodes]);
-  const networkGeometryMissing = activeLayers.includes("network") && edges.length === 0;
-  const nodeTypeCounts = useMemo(() => {
-    const counts = {
-      hub: 0,
-      lng: 0,
-      interconnection: 0,
-      network: 0,
-    };
-    nodes.forEach((node) => {
-      if (node.node_type === "hub") counts.hub += 1;
-      else if (node.node_type === "lng") counts.lng += 1;
-      else if (node.node_type === "interconnection") counts.interconnection += 1;
-      else counts.network += 1;
-    });
-    return counts;
-  }, [nodes]);
-  const mapNodeLegend = [
-    { id: "network", label: t("map.layer.network"), count: nodeTypeCounts.network },
-    { id: "lng", label: t("map.layer.lng"), count: nodeTypeCounts.lng },
-    { id: "ips", label: t("map.layer.ips"), count: nodeTypeCounts.interconnection },
-    { id: "hubs", label: t("map.layer.hubs"), count: nodeTypeCounts.hub },
-  ];
-
   function glossaryContextParams() {
     return {
       lang: glossaryLang,
@@ -668,28 +593,6 @@ export default function App() {
               </button>
             ))}
           </div>
-          <div className="map-price-strip">
-            <div>
-              <span>{t("map.nodes")}</span>
-              <strong>{nodes.length.toLocaleString()}</strong>
-            </div>
-            <div>
-              <span>{t("map.flow_rows")}</span>
-              <strong>{flows.length.toLocaleString()}</strong>
-            </div>
-            <div>
-              <span>{t("map.capacity_rows")}</span>
-              <strong>{capacity.length.toLocaleString()}</strong>
-            </div>
-            <div>
-              <span>{t("map.tso_access_points")}</span>
-              <strong>{tsoAccess.length.toLocaleString()}</strong>
-            </div>
-            <div>
-              <span>{t("map.tariff_rows")}</span>
-              <strong>{tsoTariffs.length.toLocaleString()}</strong>
-            </div>
-          </div>
           <GasNetworkMap
             nodes={nodes}
             edges={edges}
@@ -698,12 +601,6 @@ export default function App() {
             activeLayers={activeLayers}
             searchTerm={searchTerm}
           />
-          <div className="map-alert-stack network-quality-stack">
-            <div className="map-alert">
-              <strong>{networkGeometryMissing ? t("map.network_warning_title") : t("map.network_dataset")}</strong>
-              <span>{networkGeometryMissing ? t("map.network_warning_body") : t("map.network_ready_body")}</span>
-            </div>
-          </div>
         </section>
 
         <aside className="scenario-rail">
@@ -714,45 +611,6 @@ export default function App() {
             <span className="eyebrow">{t("home.resource_pool")}</span>
             <h2>{t("home.pool_cockpit")}</h2>
             <p>{t("home.pool_description")}</p>
-          </div>
-
-          <div className="panel topology-status-panel">
-            <div className="section-heading">
-              <span className="eyebrow">{t("map.topology_status")}</span>
-              <strong>{t("map.network_dataset")}</strong>
-            </div>
-            <div className="metric-grid three-column compact-metrics">
-              <div>
-                <span>{t("map.nodes")}</span>
-                <strong>{nodes.length.toLocaleString()}</strong>
-              </div>
-              <div>
-                <span>{t("map.edges")}</span>
-                <strong>{edges.length.toLocaleString()}</strong>
-              </div>
-              <div>
-                <span>{t("map.approximate_points")}</span>
-                <strong>{approximateNodeCount.toLocaleString()}</strong>
-              </div>
-            </div>
-            {networkGeometryMissing && (
-              <div className="map-network-warning">
-                <strong>{t("map.network_warning_title")}</strong>
-                <span>{t("map.network_warning_body")}</span>
-              </div>
-            )}
-            <div className="map-node-legend node-color-legend" aria-label={t("map.node_legend")}>
-              {mapNodeLegend.map((item) => (
-                <span key={`legend-${item.id}`}>
-                  <i className={`node-swatch ${item.id}`} />
-                  {item.label}
-                  <strong>{item.count.toLocaleString()}</strong>
-                </span>
-              ))}
-            </div>
-            {approximateNodeCount > 0 && (
-              <p className="coordinate-quality-note">{t("map.coordinate_quality_note")}</p>
-            )}
           </div>
 
           <div className="panel route-selector-panel">
@@ -899,76 +757,21 @@ export default function App() {
             </div>
           </div>
 
-          <div className="panel network-operations-panel">
+          <div className="panel decision-signal-panel">
             <div className="panel-title-row">
-              <h3>{t("panel.infrastructure")}</h3>
-              <span>{t("data.runtime")}</span>
+              <h3>{t("home.signal")}</h3>
+              <span>{firstStrategyTarget ? t("data.live") : t("result.snapshot")}</span>
             </div>
-            <div className="data-table compact-table country-ops-table">
-              <div className="data-table-row header four"><span>{t("panel.country")}</span><span>{t("panel.access")}</span><span>{t("panel.day_ahead")}</span><span>{t("panel.daily")}</span></div>
-              {tsoAccessByCountry.length > 0 ? tsoAccessByCountry.map((country) => (
-                <div key={`country-op-${country.country}`} className="data-table-row four">
-                  <strong>{country.country}</strong>
-                  <span>{country.accessCount.toLocaleString()}</span>
-                  <span>{country.dayAheadCount.toLocaleString()}</span>
-                  <span>{country.dailyCount.toLocaleString()}</span>
-                </div>
-              )) : (
-                <div className="data-table-row four"><strong>n/a</strong><span>No DB rows</span><span>n/a</span><span>n/a</span></div>
-              )}
+            <div className="net-pnl-card">
+              <span>{t("home.strategy_process")}</span>
+              <strong>
+                {firstStrategyTarget ? `${firstStrategyTarget.market_bucket} ${firstStrategyTarget.target_allocation_pct.toFixed(1)}%` : t("home.not_running")}
+              </strong>
+              <small>{strategyResult?.candidate_action_for_review ?? t("home.signal_idle")}</small>
             </div>
-            <div className="metric-grid four-column compact-metrics">
-              <div><span>{t("panel.flows")}</span><strong>{flows.length}</strong></div>
-              <div><span>{t("panel.capacity")}</span><strong>{capacity.length}</strong></div>
-              <div><span>{t("panel.storage")}</span><strong>{storage.length}</strong></div>
-              <div><span>{t("panel.lng")}</span><strong>{lng.length}</strong></div>
-            </div>
-            {capacityByType.length > 0 && (
-              <div className="data-table compact-table capacity-summary-table">
-                <div className="data-table-row header three"><span>{t("panel.capacity_type")}</span><span>{t("panel.rows")}</span><span>mcm/d</span></div>
-                {capacityByType.map((bucket) => (
-                  <div key={`capacity-bucket-${bucket.capacityType}`} className="data-table-row three">
-                    <strong>{bucket.capacityType}</strong>
-                    <span>{bucket.rows.toLocaleString()}</span>
-                    <span>{bucket.totalMcmD.toFixed(1)}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-            <div className="route-list compact-route-list">
-              {tsoAccess.slice(0, 3).map((item) => (
-                <div key={`tso-access-${item.access_id}`} className="route-row route-candidate">
-                  <span>{item.point_name}</span>
-                  <strong>{item.direction.toUpperCase()}</strong>
-                  <small>{item.operator_name} / {item.booking_platform ?? "booking platform n/a"}</small>
-                </div>
-              ))}
-              {tsoAccess.length === 0 && (
-                <div className="route-row route-candidate">
-                  <span>No TSO access rows</span>
-                  <strong>n/a</strong>
-                  <small>Run ENTSOG reference ingestion</small>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="panel data-health-panel">
-            <div className="panel-title-row">
-              <h3>Data health</h3>
-              <span>{t(`data.${dataStatus}`)}</span>
-            </div>
-            {dataIssueText && <p className="data-warning">{dataIssueText}</p>}
-            <div className="metric-grid two-column compact-metrics">
-              <div><span>Resources</span><strong>{upstreamContracts.length}</strong></div>
-              <div><span>Sources</span><strong>{sources.length}</strong></div>
-              <div><span>Runtime DB</span><strong>{runtimeDb?.connectivity.ok ? "ok" : "check"}</strong></div>
-              <div><span>Missing tables</span><strong>{runtimeDb?.missing_tables.length ?? "n/a"}</strong></div>
-            </div>
-            <div className="source-list compact-source-list">
-              {runtimeSourceSummary.map(([name, sourceMeta]) => (
-                <span key={`source-meta-${name}`}>{name}: {sourceMeta.source_references.join(", ") || "none"}</span>
-              ))}
+            <div className="signal-warning">
+              <span>{t("home.warning")}</span>
+              <strong>{activeWarning ?? t("home.warning_clear")}</strong>
             </div>
           </div>
 

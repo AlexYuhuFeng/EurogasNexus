@@ -43,10 +43,13 @@ Reason:
 Internet required: yes if Tauri, Rust, Node, package documentation, or installer
 tooling must be installed or verified.
 
-Offline fallback: write directory structure, config templates, and gap report.
+If dependencies or backend endpoints are unavailable, write only directory
+structure, config templates, interface contracts, and a gap report. Do not ship
+a disconnected runtime surface that fabricates live market, capacity, tariff,
+or portfolio data.
 
-Do not use Electron. Do not use SQLite or `rusqlite` in V1 unless a later
-offline-cache milestone explicitly approves it.
+Do not use Electron. Do not use SQLite, `rusqlite`, or any embedded client
+runtime database in V1.
 
 ## Desktop App Frame
 
@@ -94,8 +97,10 @@ Actions:
 
 - test connection;
 - save preference;
-- continue in disconnected mock mode only if the selected milestone permits
-  mock mode and labels it clearly.
+- open the workspace only after a backend URL is configured and `/api/health`
+  can be checked;
+- if the backend is unavailable, show a blocking connection state with retry
+  and settings actions.
 
 Forbidden:
 
@@ -114,7 +119,8 @@ The Windows client must show:
 - live source posture for ECB, ENTSOG, GIE, EEX, Trayport, ICE OCM, weather,
   and LLM analysis when exposed by backend;
 - version/build information;
-- data/mocking warnings.
+- demo provenance, stale data, missing DB tables, and unavailable capability
+  warnings when reported by the backend.
 
 ## Local Storage Policy
 
@@ -180,7 +186,7 @@ Design for:
 - local preference file unavailable;
 - package build metadata missing;
 - update/signing not configured;
-- mock mode active.
+- backend unavailable with no runtime data.
 
 ## Packaging Policy
 

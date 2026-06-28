@@ -243,7 +243,7 @@ def test_web_client_uses_api_only_and_supports_mandarin_theme() -> None:
 
     assert "RUNTIME_STORE_DATABASE_URL" not in api_client
 
-    assert zh["nav.sources"] == "\u6570\u636e\u6e90"
+    assert zh["nav.sources"] == "\u6570\u636e\u6e90\u4e2d\u5fc3"
 
     assert zh["theme.dark"] == "\u6df1\u8272"
 
@@ -298,10 +298,13 @@ def test_web_client_matches_design_reference_cockpit() -> None:
     assert "optimizeResourcePool(resourcePoolOptimizationRequest)" in app
     assert "efet-section-grid" in app
     assert "map-overlay" not in app
-    assert "topology-status-panel" in app
-    assert "networkGeometryMissing" in app
-    assert "approximateNodeCount" in app
-    assert "map-node-legend" in app
+    assert "topology-status-panel" not in app
+    assert "network-operations-panel" not in app
+    assert "data-health-panel" not in app
+    assert "networkGeometryMissing" not in app
+    assert "approximateNodeCount" not in app
+    assert "map-node-legend" not in app
+    assert "decision-signal-panel" in app
     map_component = (
 
         ROOT / "clients" / "web" / "src" / "components" / "GasNetworkMap.tsx"
@@ -318,6 +321,9 @@ def test_web_client_matches_design_reference_cockpit() -> None:
     assert "fallback-network-map.map-ready" in css
     assert "cockpit-app:not(.workspace-network) .decision-rail" in css
     assert "cockpit-app:not(.workspace-network) .scenario-rail" in css
+    assert "Resource-pool home cleanup" in css
+    assert ".workspace-network .map-price-strip" in css
+    assert "source-runtime-panel" in app
 
     assert "tile.openstreetmap.org" in map_component
 
@@ -380,6 +386,7 @@ def test_web_client_sources_page_is_categorized_source_center() -> None:
         in api_client
     )
     assert "source-center" in css
+    assert en["nav.sources"] == "Data Sources"
     assert en["sources.title"] == "Data Source Center"
     assert zh["sources.title"] == "\u6570\u636e\u6e90\u4e2d\u5fc3"
 
