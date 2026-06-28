@@ -230,6 +230,8 @@ Release artifacts include:
 
 Start here:
 
+ExecPlans: `.agent/plans/`
+
 - [Current Pause Point](docs/architecture/CURRENT_PAUSE_POINT.md)
 - [Product Boundary Policy](docs/policies/PRODUCT_BOUNDARY_POLICY.md)
 - [Architecture Decision Record](docs/architecture/ARCHITECTURE_DECISION_RECORD.md)
