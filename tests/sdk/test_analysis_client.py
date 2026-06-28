@@ -25,10 +25,10 @@ def test_analysis_sdk_targets_backend_api(monkeypatch) -> None:
 
     monkeypatch.setattr(httpx, "post", fake_post)
 
-    result = ask_analysis("http://testserver", question="What is Easington?")
+    result = ask_analysis("http://testserver", question="What is TTF?")
 
     assert captured["url"] == "http://testserver/api/analysis/query"
-    assert captured["json"]["question"] == "What is Easington?"
+    assert captured["json"]["question"] == "What is TTF?"
     assert isinstance(result, AnalysisResult)
 
 

@@ -37,7 +37,7 @@ Compatibility route:
 /api/health
 ```
 
-New client code must use `/api/health`, not `/api/health`.
+New client code must use `/api`, not legacy `/v1` paths.
 
 ## Forbidden Access
 
@@ -102,7 +102,6 @@ both bootstrap and full-envelope responses during transition.
 | `GET /api/reference-network/edges` | map corridors/routes | active |
 | `GET /api/reference-network/facilities` | LNG, storage, terminals | active |
 | `POST /api/scenarios/validate` | scenario missing-input check | planned |
-| `POST /api/research/route-cost` | future research-only workflow | planned |
 | `GET /api/sources/live-status` | ECB, ENTSOG, GIE, EEX, Trayport, ICE OCM, weather, LLM posture | planned |
 | `GET /api/capacity/contracts` | capacity/contract context | planned |
 | `GET /api/market/signals` | market movement signals | planned |
@@ -120,10 +119,9 @@ both bootstrap and full-envelope responses during transition.
 | `GET /api/glossary` | backend-served bilingual glossary | active |
 | `GET /api/glossary/{term}` | backend-served bilingual glossary detail | active |
 | `GET /api/route-cost/route-candidates` | DB-backed route candidates | active |
-| `GET /api/route-cost/uk/tariffs` | UK NTS tariff rows available in DB/fallback | active |
-| `POST /api/route-cost/calculate` | UK NTS route-cost calculation from tariff rows | active |
-| `POST /api/route-cost/uk/easington/options` | UK Easington option PnL | active |
-| `POST /api/route-cost/uk/easington/live-pnl` | UK Easington live bid-based PnL | active |
+| `GET /api/route-cost/tso-tariffs` | DB-backed TSO tariff rows, including BBL/IUK/NTS where loaded | active |
+| `POST /api/route-cost/calculate` | explicit-leg European route-cost calculation from tariff rows | active |
+| `POST /api/route-cost/recommend` | capacity-constrained route/sale allocation recommendation | active |
 | `POST /api/route-cost/lng-regas/assess` | LNG regas readiness assessment | active |
 | `POST /api/route-cost/resource-pool/optimize` | upstream portfolio/resource-pool allocation | active |
 
@@ -181,10 +179,9 @@ also read:
 
 The backend must derive context from matching glossary terms, aliases, related
 terms, capacity profiles, flow observations, price observations, live marks,
-route candidates, and linked upstream contracts. Hard-coded examples such as
-`Easington Entry Point` are allowed as hints, but the client contract is not
-limited to Easington/Bacton. Customer-loaded terms such as `St Fergus Entry
-Point` must render when PostgreSQL contains matching runtime rows.
+route candidates, and linked upstream contracts. Customer-loaded terms such as
+`Zeebrugge Entry Point`, `TTF`, `GATE LNG`, or any other properly loaded
+European gas asset must render when PostgreSQL contains matching runtime rows.
 
 For `ICIS Heren`, the response must carry licensed-data warnings unless the
 customer runtime DB supplies entitled records. Clients must display these

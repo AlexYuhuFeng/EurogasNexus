@@ -22,10 +22,10 @@ def test_analysis_query_uses_snapshot_without_invoking_provider() -> None:
     response = client.post(
         "/api/analysis/query",
         json={
-            "question": "Summarize current Easington context",
+            "question": "Summarize current TTF context",
             "task": "DB_INQUIRY",
             "invoke_provider": False,
-            "selected_terms": ["Easington Entry Point"],
+            "selected_terms": ["TTF"],
         },
     )
 
@@ -47,7 +47,7 @@ def test_portfolio_report_returns_required_sections() -> None:
         "/api/reports/portfolio",
         json={
             "title": "Current portfolio report",
-            "selected_resources": ["operator-easington-contract"],
+            "selected_resources": ["operator-ttf-bbl-portfolio"],
             "invoke_provider": False,
         },
     )
@@ -63,11 +63,11 @@ def test_portfolio_report_returns_required_sections() -> None:
     }
 
 
-def test_glossary_context_returns_easington_operational_context() -> None:
+def test_glossary_context_returns_ttf_operational_context() -> None:
     client = TestClient(create_app())
 
     response = client.get(
-        "/api/glossary/Easington%20Entry%20Point/context",
+        "/api/glossary/TTF/context",
         params={
             "lang": "en",
             "duration_start_utc": "2026-05-31T00:00:00Z",
@@ -77,8 +77,8 @@ def test_glossary_context_returns_easington_operational_context() -> None:
 
     assert response.status_code == 200
     data = response.json()["data"]
-    assert data["context_type"] == "entry_point"
-    assert "National Gas NTS" in data["description"]
+    assert data["context_type"] == "hub"
+    assert "Dutch virtual gas hub" in data["description"]
     assert data["requested_duration"]["duration_start_utc"].startswith("2026-05-31")
     assert data["capacity"] is None
     assert data["capacity_usage"] is None
@@ -86,8 +86,7 @@ def test_glossary_context_returns_easington_operational_context() -> None:
     assert data["live_market_marks"] == []
     assert data["related_contracts"] == []
     assert "RUNTIME_DB_CONTEXT_NOT_AVAILABLE" in data["warnings"]
-    assert "CAPACITY_CONTEXT_MISSING" in data["warnings"]
-    assert "CAPACITY_USAGE_CONTEXT_MISSING" in data["warnings"]
+    assert "PRICE_CONTEXT_MISSING" in data["warnings"]
     assert {section["section_id"] for section in data["context_sections"]} >= {
         "overview",
         "capacity",

@@ -44,9 +44,9 @@ Console after interactions: 0 errors, 0 warnings
 Screenshot: C:\Users\qqshu\.codex\memories\eurogas-r17-cockpit.png
 ```
 
-The smoke test loaded the cockpit, compared UK NTS route options, marked live
-PnL, evaluated the paper strategy, opened glossary context, and ran snapshot
-analysis without page errors.
+The smoke test loaded the cockpit, compared European route options, evaluated
+capacity-constrained route/sale allocation, opened glossary context, and ran
+snapshot analysis without page errors.
 
 ## Current Implementation Status
 
@@ -71,10 +71,9 @@ analysis without page errors.
   Debian `.deb`.
 - The glossary context endpoint now acts as an operational context surface:
   duration-aware terms can show matched runtime entities, capacity, capacity in
-  use, utilization percentage, NBP/ICE OCM/ICIS prices, live marks, route
+  use, utilization percentage, hub and screen prices, live marks, route
   candidates, linked contracts, warnings, and data-quality metadata. Context is
-  DB-derived and no longer limited to Easington/Bacton profile examples when
-  PostgreSQL records exist for another point.
+  DB-derived and driven by PostgreSQL records for the selected term or point.
 - Internal/operator market-positioning imports now have an entitlement-gated
   path that writes screen-order observations and indicative PnL snapshots into
   PostgreSQL while recording `ingestion_runs` and `audit_events`. The route now
@@ -92,7 +91,7 @@ analysis without page errors.
   `duration_start_utc`, `duration_end_utc`, `metrics`, `live_market_marks`,
   `related_contracts`, and `data_quality`.
 - Added Web glossary quick-context buttons and duration selectors for
-  `Easington Entry Point`, `ICIS Heren`, `NBP`, and `ICE OCM`.
+  high-value hub, terminal, interconnector, price, and venue terms.
 - Added operational glossary context specs:
   `docs/clients/OPERATIONAL_GLOSSARY_CONTEXT_SPEC-EN.md` and
   `docs/clients/OPERATIONAL_GLOSSARY_CONTEXT_SPEC-CN.md`.
@@ -149,12 +148,13 @@ analysis without page errors.
    provider credential under explicit operator control.
 5. Auth, audit persistence depth, entitlement enforcement routes, and export
    governance runtime checks need hardening before multi-user or production use.
-6. Route-cost coverage is still UK National Gas NTS only. The model supports
-   broader European TSO tariff expansion, but non-UK audited tariff ingestion is
-   not in this checkpoint.
+6. Route-cost coverage is explicit-leg European route economics. BBL and IUK
+   public corridor references are included, UK NTS rows may remain as a public
+   tariff source, and additional TSO tariff depth still depends on operator
+   loading and validation.
 7. Operational glossary context is only as complete as the runtime DB records
    supplied by public ingestion, customer imports, and operator-owned test
-   records. Runtime fallback context is not part of the V1 contract.
+   records. Invented runtime context is not part of the V1 contract.
 8. Market-positioning imports are internal/operator-only and now require a
    static internal API token plus entitlement rows. Production multi-user role
    enforcement, rotation workflow, and external secret-manager integration still
@@ -164,26 +164,25 @@ analysis without page errors.
 
 Current in-progress route-cost and market-practice hardening adds:
 
-- UK National Gas NTS route-cost calculation from audited tariff rows without
-  hard-coding to Easington/Bacton examples;
+- European explicit-leg route-cost calculation from audited tariff rows,
+  including BBL/IUK corridor references and PostgreSQL-loaded TSO rows;
 - DB tables for TSO tariffs, upstream resource contracts, capacity profiles,
   route candidates, live market marks, glossary terms, strategy definitions,
   strategy runs, strategy allocation targets, and strategy alerts;
 - `/api/route-cost/*` endpoints and SDK helpers for route candidates,
-  generic UK NTS tariff rows, route-cost calculation, Easington option
-  comparison, live bid-based PnL marking, LNG regas readiness, and resource-pool
-  optimization;
+  TSO tariff rows, route-cost calculation, route/sale allocation
+  recommendation, LNG regas readiness, and resource-pool optimization;
 - `/api/strategy-lab/evaluate` and SDK helpers for backtest, shadow-run, and
   live-monitor paper strategy evaluation;
 - `/api/glossary` and `/api/glossary/{term}` bilingual glossary routes
   with English, `zh`, and `zh-CN` support;
 - `/api/glossary/{term}/context` operational context with optional language
-  and duration filters for Easington, ICIS Heren, NBP, ICE OCM, and
-  customer-loaded non-profile terms whose context can be derived from runtime
-  records;
+  and duration filters for TTF, GATE LNG, Zeebrugge Entry Point, ICIS Heren,
+  NBP, ICE OCM, and customer-loaded terms whose context can be derived from
+  runtime records;
 - Web client panels for map layer/search, above-map portfolio/price/PnL/strategy
-  strip, UK NTS contract economics, live PnL, strategy lab, glossary, settings
-  language, and light/dark/system theme;
+  strip, European route allocation, live PnL context, strategy lab, glossary,
+  settings language, and light/dark/system theme;
 - market-practice audit documents:
   `docs/architecture/MARKET_PRACTICE_AUDIT-EN.md` and
   `docs/architecture/MARKET_PRACTICE_AUDIT-CN.md`;
@@ -198,9 +197,10 @@ Current in-progress route-cost and market-practice hardening adds:
   `docs/clients/OPERATIONAL_GLOSSARY_CONTEXT_SPEC-CN.md`.
 
 This addendum is the current pause marker for continuing the route-cost,
-glossary, strategy, cockpit UX, and market-practice work. Preserve UK National
-Gas NTS as the route-cost jurisdiction until a later milestone adds audited
-European TSO tariff coverage and route optimizer support.
+glossary, strategy, cockpit UX, and market-practice work. Preserve the
+European explicit-leg route model as the route-cost authority and extend it by
+loading audited TSO tariff rows, topology, capacity, and access data into
+PostgreSQL.
 
 ## Next Prompt
 
@@ -212,7 +212,7 @@ Continue Eurogas Nexus from the V1 release-candidate state. Preserve the
 single shared Web UI source for both Web and Windows/Tauri. Use PostgreSQL as
 the runtime source of truth. Do not store provider credentials in clients.
 Start with productionizing live ingestion scheduling, credential health tests,
-entitlement/export-governance hardening, and DB-backed import pipelines for
-screen orders, portfolio PnL marks, and audited non-UK TSO tariffs selected by
-the operator.
+entitlement/export-governance hardening, DB-backed import pipelines for screen
+orders and portfolio PnL marks, and audited European TSO tariff/topology data
+selected by the operator.
 ```

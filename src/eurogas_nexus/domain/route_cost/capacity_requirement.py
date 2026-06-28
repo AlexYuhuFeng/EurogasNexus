@@ -9,9 +9,24 @@ from eurogas_nexus.domain.route_cost.enums import (
     SourceResourceType,
 )
 from eurogas_nexus.domain.route_cost.schemas import CapacityRequirement, RouteCostScenario
-from eurogas_nexus.domain.route_cost.uk_rules import UK_NTS_ENTRY_RESOURCE_TYPES
 
-VIRTUAL_UK_HUBS = {"NBP", "UK NBP", "NATIONAL BALANCING POINT"}
+ENTRY_RESOURCE_TYPES = {
+    SourceResourceType.BEACH_DELIVERY,
+    SourceResourceType.LNG_REGAS,
+    SourceResourceType.PIPELINE_IMPORT,
+    SourceResourceType.STORAGE,
+    SourceResourceType.CONTRACT_POOL,
+}
+VIRTUAL_HUBS = {
+    "CEGH",
+    "NBP",
+    "PEG",
+    "PSV",
+    "PVB",
+    "THE",
+    "TTF",
+    "ZTP",
+}
 
 
 def build_capacity_requirement(scenario: RouteCostScenario) -> CapacityRequirement:
@@ -26,7 +41,7 @@ def build_capacity_requirement(scenario: RouteCostScenario) -> CapacityRequireme
     if _requires_entry_capacity(scenario):
         entry_point_id = scenario.start_point_id
         components.append(CostComponentType.ENTRY_CAPACITY)
-    elif scenario.source_resource_type not in UK_NTS_ENTRY_RESOURCE_TYPES:
+    elif scenario.source_resource_type not in ENTRY_RESOURCE_TYPES:
         missing.append("UNSUPPORTED_SOURCE_RESOURCE_TYPE")
 
     if _is_terminal_title_transfer(scenario):
@@ -41,12 +56,13 @@ def build_capacity_requirement(scenario: RouteCostScenario) -> CapacityRequireme
         )
 
     if scenario.business_model is BusinessModel.VIRTUAL_HUB_SALE:
-        if scenario.target_hub_or_point_id.upper() not in VIRTUAL_UK_HUBS:
+        if scenario.target_hub_or_point_id.upper() not in VIRTUAL_HUBS:
             warnings.append("VIRTUAL_HUB_TARGET_NOT_RECOGNIZED")
     elif _requires_exit_capacity(scenario):
         components.append(CostComponentType.EXIT_CAPACITY)
-        if not scenario.target_hub_or_point_id or (
-            scenario.target_hub_or_point_id.upper() in VIRTUAL_UK_HUBS
+        if (
+            not scenario.target_hub_or_point_id
+            or scenario.target_hub_or_point_id.upper() in VIRTUAL_HUBS
         ):
             missing.append("EXIT_POINT_MAPPING_MISSING")
         else:
@@ -80,7 +96,7 @@ def _requires_entry_capacity(scenario: RouteCostScenario) -> bool:
             DeliveryMode.PHYSICAL_ENTRY_DELIVERY,
             DeliveryMode.DOWNSTREAM_PHYSICAL_DELIVERY,
         }
-    return scenario.source_resource_type in UK_NTS_ENTRY_RESOURCE_TYPES
+    return scenario.source_resource_type in ENTRY_RESOURCE_TYPES
 
 
 def _requires_exit_capacity(scenario: RouteCostScenario) -> bool:

@@ -3,10 +3,10 @@
 ## Objective
 
 The web client is the primary Eurogas Nexus research workspace. It is
-map-first: the European gas network map is the main work surface, with market,
-capacity, contract, weather, scenario, strategy, and research review context
-attached to map objects and route candidates. It accesses runtime data through
-the backend `/api` API.
+map-first and resource-pool-native: the European gas network map is the main
+work surface, with market, capacity, contract, weather, scenario, strategy, and
+review context attached to map objects and route candidates. It accesses
+runtime data through the backend `/api` API.
 
 ## Product Boundary
 
@@ -60,6 +60,9 @@ Use a map-first trader cockpit layout. The home screen must be dominated by the
 European gas map and must show portfolio exposure, live prices, indicative PnL,
 strategy process state, and warnings without forcing the trader to leave the
 map. The Top status bar remains the persistent runtime and warning anchor.
+All active purchase contracts are represented as a resource pool on the home
+screen; route cards show sale allocation for the pool and contract PnL appears
+as attribution drill-down.
 
 Use this persistent layout:
 
@@ -67,10 +70,10 @@ Use this persistent layout:
 +--------------------------------------------------------------------------------+
 | Top bar: workspace, backend/DB status, language/theme, warnings                 |
 +--------------------------------------------------------------------------------+
-| Live strip above map: portfolio, hub prices, FX, live PnL, strategy process     |
+| Live strip above map: pool volume, hub prices, FX, live PnL, strategy process   |
 +------+--------------------------------------------------+----------------------+
 | Nav  | Map-first home workspace                         | Inspector            |
-|      | European gas map with portfolio, routes,          | selected asset,      |
+|      | European gas map with resource pool, routes,       | selected asset,      |
 |      | capacity, market, strategy, alert overlays        | sources, lineage     |
 +------+--------------------------------------------------+----------------------+
 | Detail tabs/windows: prices, combinations, analysis, orders, warnings, manual   |
@@ -94,14 +97,15 @@ Primary navigation items:
 2. Capacity
 3. Market
 4. Scenario
-5. Strategy
-6. Review
-7. Sources
-8. Glossary
-9. Runtime
-10. Settings
-11. Manual
-12. Order Records
+5. Contracts
+6. Strategy
+7. Review
+8. Sources
+9. Glossary
+10. Runtime
+11. Settings
+12. Manual
+13. Order Records
 
 Navigation labels are product workflow labels, not implementation names.
 
@@ -138,8 +142,8 @@ States:
 Purpose:
 
 - operate the map-first trader cockpit for European gas infrastructure,
-  upstream portfolio exposure, route context, live market movement, strategy
-  process state, and warning state.
+  resource-pool exposure, route context, live market movement, strategy process
+  state, and warning state.
 
 Initial content:
 
@@ -192,21 +196,40 @@ External order records:
 - must not become order entry, order amendment, order cancellation, trade
   capture, or execution workflow.
 
-## Screen: Capacity
+Home decision rail:
+
+- total pool PnL, allocated quantity, and unallocated quantity;
+- each recommended sale path with quantity, sale market, route cost, sale
+  price, netback, PnL contribution, capacity limit, TSO access, and blockers;
+- contract-level attribution only as drill-down below the route decision;
+- explicit empty or blocked state if PostgreSQL has no portfolio, price,
+  capacity, or tariff rows.
+
+## Screen: Contracts
 
 Purpose:
 
-- manage capacity and contract context for research scenarios without becoming
-  an ETRM, booking, nomination, or trade-capture system.
+- capture EFET-style purchase, LNG, hub, and capacity-related terms that feed
+  the portfolio resource pool without becoming an ETRM, booking, nomination, or
+  trade-capture system.
 
 Content:
 
-- capacity contract inventory;
-- booked/available capacity context;
-- tenor, expiry, direction, and route eligibility;
-- tariff, fee, fuel, loss, regas, storage, and transport cost assumptions;
-- contract exposure linked to map routes and assets;
-- source, freshness, entitlement, and warning state.
+- agreement and counterparty metadata;
+- product, term, delivery mode, delivery point, and title-transfer point;
+- quantity, tolerance, nomination, interruption, and balancing terms;
+- price formula or index basis, currency, unit, premium/discount, and source;
+- variable costs, fuel/loss, fees, regas, storage, and balancing allowances;
+- capacity rights, TSO access, terminal access, route eligibility, and expiry;
+- settlement frequency, invoice/payment lag, screen cash lag, and early cash
+  value inputs;
+- restrictions, permitted sale markets, blocked TSOs/routes, source/freshness,
+  entitlement, and warning state.
+
+Authority:
+
+- `docs/contracts/21_RESOURCE_POOL_CONTRACT-EN.md`
+- `docs/contracts/21_RESOURCE_POOL_CONTRACT-CN.md`
 
 Forbidden:
 
@@ -220,8 +243,9 @@ Forbidden:
 
 Purpose:
 
-- capture research scenario inputs and show what is missing before a backend
-  workflow runs.
+- run route-cost, LNG readiness, resource-pool, or strategy scenarios against
+  already-entered resource-pool and contract context, and show what is missing
+  before a backend workflow runs.
 
 Sections:
 
@@ -370,8 +394,8 @@ Current V1 contract:
 - use `GET /api/glossary/{term}/context?lang=...&duration_start_utc=...&duration_end_utc=...`;
 - show term, category, localized definition, aliases when useful, and related
   terms;
-- show quick operational context buttons for `Easington Entry Point`,
-  `ICIS Heren`, `NBP`, and `ICE OCM`;
+- show quick operational context buttons for high-value terms such as `TTF`,
+  `GATE LNG`, `Zeebrugge Entry Point`, `ICIS Heren`, `NBP`, and `ICE OCM`;
 - show the selected duration, capacity, capacity in use, utilization percent,
   related prices, live marks, routes, linked contracts, and warnings returned by
   the backend context endpoint;

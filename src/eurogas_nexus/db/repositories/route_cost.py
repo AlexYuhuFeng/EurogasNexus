@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
-
 from sqlalchemy.orm import Session
 
 from eurogas_nexus.db.models.route_cost import (
@@ -13,7 +11,6 @@ from eurogas_nexus.db.models.route_cost import (
     TsoTariffRecord,
     UpstreamResourceContractRecord,
 )
-from eurogas_nexus.domain.route_cost.contract_economics import EasingtonContractScenario
 from eurogas_nexus.domain.route_cost.enums import (
     CapacityProduct,
     Firmness,
@@ -32,38 +29,6 @@ def list_tso_tariffs(session: Session) -> list[CapacityTariff]:
         TsoTariffRecord.gas_year,
     )
     return [_tariff_from_record(row) for row in rows.all()]
-
-
-def upsert_upstream_contract(
-    session: Session,
-    scenario: EasingtonContractScenario,
-) -> UpstreamResourceContractRecord:
-    now = datetime.now(UTC)
-    record = UpstreamResourceContractRecord(
-        contract_id=scenario.contract_id,
-        contract_name=scenario.contract_name,
-        resource_type="BEACH_DELIVERY",
-        delivery_point_name="Easington Beach Terminal",
-        gas_year=scenario.gas_year,
-        delivery_quantity_mwh_per_day=scenario.delivery_quantity_mwh_per_day,
-        contract_price_gbp_mwh=scenario.contract_price_gbp_mwh,
-        settlement_frequency=scenario.settlement_frequency,
-        upstream_payment_lag_days=scenario.upstream_payment_lag_days,
-        screen_sale_cash_lag_days=scenario.screen_sale_cash_lag_days,
-        delivery_tolerance_pct=scenario.delivery_tolerance_pct,
-        nomination_tolerance_pct=scenario.nomination_tolerance_pct,
-        tolerance_risk_allowance_gbp_mwh=scenario.tolerance_risk_allowance_gbp_mwh,
-        annual_financing_rate_pct=scenario.annual_financing_rate_pct,
-        owned_entry_capacity_mwh_per_day=scenario.owned_entry_capacity_mwh_per_day,
-        owned_exit_capacity_mwh_per_day=scenario.owned_exit_capacity_mwh_per_day,
-        allowed_exit_points=scenario.allowed_exit_points,
-        eligible_sale_modes=scenario.eligible_sale_modes,
-        notes="operator-configured upstream resource contract",
-        created_at_utc=now,
-        updated_at_utc=now,
-    )
-    session.merge(record)
-    return record
 
 
 def list_upstream_contracts(session: Session) -> list[dict]:

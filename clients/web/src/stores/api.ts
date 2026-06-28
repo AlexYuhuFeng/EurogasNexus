@@ -7,19 +7,19 @@ import {
   CapacityObsDTO,
   CredentialProviderDTO,
   EdgeDTO,
-  EasingtonContractRequest,
-  EasingtonOptionsResultDTO,
   FlowObsDTO,
   FxRateDTO,
   GlossaryTermDTO,
   GlossaryContextDTO,
-  LiveMarketMarkDTO,
-  LivePnlResultDTO,
   LngObsDTO,
   MarketObsDTO,
   NodeDTO,
   PortfolioLiveSummaryDTO,
+  PortfolioOptimizationRequestDTO,
+  PortfolioOptimizationResultDTO,
   PortfolioPnlSnapshotDTO,
+  RouteRecommendationRequestDTO,
+  RouteRecommendationResultDTO,
   RouteCandidateDTO,
   RouteEligibilityDTO,
   RuntimeDbStatusDTO,
@@ -29,7 +29,7 @@ import {
   StrategyLabResultDTO,
   StorageObsDTO,
   TsoAccessPointDTO,
-  UkTariffDTO,
+  TsoTariffDTO,
   UpstreamContractDTO,
 } from "@/api/client";
 
@@ -49,10 +49,10 @@ interface ApiState {
   tsoAccess: TsoAccessPointDTO[];
   routes: RouteEligibilityDTO[];
   routeCandidates: RouteCandidateDTO[];
-  ukTariffs: UkTariffDTO[];
+  tsoTariffs: TsoTariffDTO[];
   upstreamContracts: UpstreamContractDTO[];
-  routeOptions: EasingtonOptionsResultDTO | null;
-  livePnl: LivePnlResultDTO | null;
+  routeRecommendation: RouteRecommendationResultDTO | null;
+  resourcePoolResult: PortfolioOptimizationResultDTO | null;
   strategyResult: StrategyLabResultDTO | null;
   glossaryTerms: GlossaryTermDTO[];
   glossaryContext: GlossaryContextDTO | null;
@@ -67,8 +67,8 @@ interface ApiState {
   dataStatus: "runtime" | "delayed" | "partial" | "unavailable";
   fetchWorkspace: () => Promise<void>;
   saveProviderCredential: (providerId: string, apiKey: string, label: string) => Promise<void>;
-  compareEasingtonOptions: (contract: EasingtonContractRequest) => Promise<void>;
-  markEasingtonLivePnl: (contract: EasingtonContractRequest, marks: LiveMarketMarkDTO[]) => Promise<void>;
+  recommendRouteAllocation: (request: RouteRecommendationRequestDTO) => Promise<void>;
+  optimizeResourcePool: (request: PortfolioOptimizationRequestDTO) => Promise<void>;
   evaluateStrategyLab: (scenario: StrategyLabRequestDTO) => Promise<void>;
   fetchGlossaryContext: (
     term: string,
@@ -94,10 +94,10 @@ export const useApiStore = create<ApiState>((set) => ({
   tsoAccess: [],
   routes: [],
   routeCandidates: [],
-  ukTariffs: [],
+  tsoTariffs: [],
   upstreamContracts: [],
-  routeOptions: null,
-  livePnl: null,
+  routeRecommendation: null,
+  resourcePoolResult: null,
   strategyResult: null,
   glossaryTerms: [],
   glossaryContext: null,
@@ -130,7 +130,7 @@ export const useApiStore = create<ApiState>((set) => ({
         tsoAccess,
         routes,
         routeCandidates,
-        ukTariffs,
+        tsoTariffs,
         upstreamContracts,
         glossaryTerms,
         runtimeDb,
@@ -151,7 +151,7 @@ export const useApiStore = create<ApiState>((set) => ({
         api.tsoAccess(),
         api.routeEligibility(),
         api.routeCandidates(),
-        api.ukTariffs(),
+        api.tsoTariffs(),
         api.upstreamContracts(),
         api.glossary("en"),
         api.runtimeDb(),
@@ -173,7 +173,7 @@ export const useApiStore = create<ApiState>((set) => ({
         tsoAccess: tsoAccess.meta,
         routes: routes.meta,
         routeCandidates: routeCandidates.meta,
-        ukTariffs: ukTariffs.meta,
+        tsoTariffs: tsoTariffs.meta,
         upstreamContracts: upstreamContracts.meta,
         glossaryTerms: glossaryTerms.meta,
         runtimeDb: runtimeDb.meta,
@@ -206,7 +206,7 @@ export const useApiStore = create<ApiState>((set) => ({
         tsoAccess: tsoAccess.data,
         routes: routes.data,
         routeCandidates: routeCandidates.data.route_candidates,
-        ukTariffs: ukTariffs.data.tariffs,
+        tsoTariffs: tsoTariffs.data.tariffs,
         upstreamContracts: upstreamContracts.data,
         glossaryTerms: glossaryTerms.data,
         runtimeDb: runtimeDb.data,
@@ -235,21 +235,21 @@ export const useApiStore = create<ApiState>((set) => ({
     }
   },
 
-  compareEasingtonOptions: async (contract) => {
+  recommendRouteAllocation: async (request) => {
     set({ loading: true, error: null });
     try {
-      const result = await api.compareEasingtonOptions(contract);
-      set({ routeOptions: result.data, meta: result.meta, loading: false });
+      const result = await api.recommendRouteAllocation(request);
+      set({ routeRecommendation: result.data, meta: result.meta, loading: false });
     } catch (e) {
       set({ error: String(e), loading: false });
     }
   },
 
-  markEasingtonLivePnl: async (contract, marks) => {
+  optimizeResourcePool: async (request) => {
     set({ loading: true, error: null });
     try {
-      const result = await api.markEasingtonLivePnl(contract, marks);
-      set({ livePnl: result.data, routeOptions: result.data, meta: result.meta, loading: false });
+      const result = await api.optimizeResourcePool(request);
+      set({ resourcePoolResult: result.data, meta: result.meta, loading: false });
     } catch (e) {
       set({ error: String(e), loading: false });
     }

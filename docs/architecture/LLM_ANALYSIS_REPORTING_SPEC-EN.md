@@ -65,9 +65,9 @@ GET /api/glossary/{term}/context
 
 Examples:
 
-- Easington Entry Point: description, capacity, capacity usage for the selected
-  snapshot/duration, related NBP/ICE OCM/ICIS prices, route options, and source
-  status.
+- Zeebrugge Entry Point, GATE LNG, or TTF: description, capacity, capacity
+  usage for the selected snapshot/duration, related hub/screen/assessment
+  prices, route options, and source status.
 - ICIS Heren: assessment description, license warning, related prices, and
   market-source context.
 

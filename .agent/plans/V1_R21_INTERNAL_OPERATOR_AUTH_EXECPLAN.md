@@ -93,7 +93,7 @@ rows can be written.
 ruff check .
 pytest -q tests/api tests/contract tests/integration tests/sdk tests/security
 python -c "from apps.api.main import app; print('app import ok'); print(len(app.routes))"
-rg "90f8185523dad1fbc69ed05bb80d3a0d" .
+rg "<real-provider-key-placeholder>" .
 ```
 
 ## Acceptance Criteria

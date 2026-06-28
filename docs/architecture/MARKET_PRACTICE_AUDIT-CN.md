@@ -1,133 +1,98 @@
-﻿# 甯傚満瀹炶返瀵归綈瀹¤ - CN
+# 市场实践对齐审计 - 中文
 
-## 鐩殑
+## 目的
 
-鏈枃妗ｇ敤浜庢寚瀵?Codex 鎴栧叾浠?CLI Agent 灏?Eurogas Nexus V1 鐨勫競鍦恒€?
-璺嚎銆丩NG銆佽祫婧愭睜銆佺瓥鐣ャ€佸悎鍚屽拰瀹㈡埛绔璁＄户缁创杩戞娲插ぉ鐒舵皵浜ゆ槗瀹炶返銆傚嵆浣?
-娌℃湁浜掕仈缃戯紝涔熷簲鑳戒緷鐓ф湰鏂囨。鎵ц褰撳墠浠ｇ爜鍜屾祴璇曡寖鍥村唴鐨勫紑鍙戙€?
+本文是 Eurogas Nexus V1 继续贴近欧洲天然气市场真实业务的执行参考。它面向本地开发代理和维护人员，即使没有互联网，也应能按照本文判断当前模型是否符合产品方向。
 
-## 浜у搧杈圭晫
+## 产品边界
 
-Eurogas Nexus 鐢ㄤ簬浜ゆ槗鍛樺喅绛栨敮鎸佸拰绛栫暐澶嶆牳銆傜郴缁熶笉寰椾笅鍗曘€佽矾鐢辫鍗曘€佹彁浜?
-鎻愬悕銆佹崟鑾蜂氦鏄撱€佸嚭鍏峰畼鏂瑰鎵广€佹浛浠?ETRM 鎴栨彁渚涙硶寰嬫剰瑙併€侫PI 鍜?UI 蹇呴』浣跨敤
-鈥滃喅绛栨敮鎸佲€濃€滃鏍糕€濃€滃€欓€夋柟妗堚€濃€滀俊鍙封€濃€滅洰鏍団€濃€滈€夐」鈥濈瓑琛ㄨ堪锛屼笉寰椾娇鐢ㄢ€滄墽琛屸€?
-鈥滈璁⑩€濃€滄彁鍚嶁€濃€滃畼鏂规帹鑽愨€濈瓑鎵ц鎬ц〃杩般€?
+Eurogas Nexus 支持交易员进行决策、复核和策略评估。系统不得下单、路由订单、提交提名、捕获正式成交、发出官方审批、替代 ETRM 或提供法律意见。UI 和 API 应使用“决策支持”“待复核”“候选方案”“信号”“选项”等词，不得使用“执行”“下单”“提名”“官方推荐”等容易造成误解的表达。
 
-## DB-First 瑙勫垯
+## DB First 规则
 
-PostgreSQL 鏄繍琛屾椂浜嬪疄鏉ユ簮銆俉eb銆乄indows銆丆LI 鍜?SDK 瀹㈡埛绔彧鑳介€氳繃
-`/api` 鎴?Python SDK 璁块棶鏁版嵁銆侰SV/JSON 鍙厑璁镐綔涓烘ā鏉裤€佸叕鍏辨潵婧愬綊妗ｃ€?
-鎶ュ憡銆佹祴璇曟垨鏄庣‘寮€鍙?fallback銆傝瘯鐢ㄥ拰鍙戝竷妯″紡涓嶅緱闈欓粯鍥為€€鍒版湰鍦版枃浠躲€?
+PostgreSQL 是运行时事实来源。Web、Windows、Linux、CLI 和 SDK 只能通过 `/api` 或 Python SDK 访问运行时数据。CSV/JSON 只能作为模板、公开数据归档、报告、测试或明确的开发工件存在；trial/release 模式不得静默回退到本地文件。
 
-## 璺嚎鎴愭湰灞?
+## 当前市场实践状态
 
-- 褰撳墠鐗堟湰鍙鐩栬嫳鍥?National Gas NTS銆?
-- 涓嶅緱灏嗚矾绾挎垚鏈紩鎿庣‖缂栫爜涓?Easington/Bacton 绀轰緥銆傚彧瑕?PostgreSQL 涓瓨鍦?
-  宸插鏍哥殑鑻卞浗 NTS tariff 琛岋紝浠讳綍鑻卞浗 NTS entry/exit 鐐归兘鍙绠椼€?
-- 鏀寔鐨勪笟鍔℃ā寮忓寘鎷櫄鎷?hub 閿€鍞€佷笅娓稿疄鐗╀氦浠樸€乥each delivery resource
-  閿€鍞€佸偍姘旀敞鍏?鎻愬彇鏀寔锛屼互鍙婅緭鍏ラ綈澶囨椂鐨?LNG regas 浜や粯妯″紡銆?
-- 鎴愭湰鏍堝繀椤诲寘鎷叆鐐瑰閲忋€佸繀瑕佹椂鐨勫嚭鐐瑰閲忋€丯TS commodity charge銆佸悎鍚屽宸?
-  鍑嗗閲戝拰鎻愬墠鍥炴敹鐜伴噾浠峰€笺€?
-- 璺嚎璇勪及蹇呴』鑰冭檻鍏徃 TSO access銆傝嫢鍏徃娌℃湁鏌愭潯璺嚎鎵€闇€ TSO 鐨勫噯鍏ワ紝缁撴灉
-  蹇呴』涓?blocked 鎴?partial锛屽苟鏄庣‘缁欏嚭棰勮銆?
-- 瀹炴椂 PnL 瀵瑰彲鍗栧嚭鏂规浣跨敤 bid mark 杩涜浼板€硷紝鍙緭鍑洪渶瑕佷汉宸ュ鏍哥殑鍐崇瓥鏀寔
-  淇″彿銆?
+### 路由成本
 
-## LNG Regas 灞?
+- 当前释放线采用欧洲 explicit-leg route economics，不再以单一国家、单一点位或 demo route 为核心。
+- 只要 PostgreSQL 中存在经审计的 tariff rows、route legs、容量和 TSO access 数据，任意欧洲路线都可以被定价。
+- 已纳入 BBL、IUK 公开 corridor tariff 参考；UK NTS 可继续作为公开 TSO tariff 数据源存在。
+- 成本栈应包括 entry capacity、exit capacity、跨境/TSO tariff leg、适用的 commodity/usage charge、合同 tolerance allowance、early recovered cash value。
+- 路由评估必须考虑公司 TSO access。如果公司没有某条路线所需的 TSO access，该路线必须被阻断或标记为 partial，并给出清晰 warning。
+- 当最便宜路线容量不足时，只能分配可用容量；剩余资源必须比较绕路销售、本地销售或其他市场销售的 netback，不能默认全部运往目标市场。
+- Live PnL 对 sellable option 应使用可执行或可参考 bid；输出必须是 human-review decision support，不得成为执行指令。
 
-- 缁堢鍑嗗叆銆佽揣鐗╁埌娓獥鍙ｃ€乺egas slot銆佽揣鐗╁ぇ灏忋€乻end-out capacity銆?
-  storage/holding 绾︽潫銆佸畾浠峰熀纭€銆佷氦浠樻ā寮忓拰涓嬫父瀹炵墿/铏氭嫙浜や粯瑕佹眰蹇呴』浣滀负鏄惧紡
-  杈撳叆銆?
-- 鏈変簺 LNG regas 鍚堝悓瑕佹眰鍦ㄥ叆鐐瑰疄鐗╀氦浠橈紝鏈変簺涓嶈姹傘€傛ā鍨嬪繀椤绘敮鎸?terminal
-  title transfer銆乿irtual hub sale銆乸hysical entry delivery 鍜?downstream
-  physical delivery锛屼笉鑳藉己鍒舵墍鏈夊悎鍚屼娇鐢ㄥ悓涓€绉嶆ā寮忋€?
-- 璺ㄦ湀 regas 绐楀彛蹇呴』鎷嗗垎涓烘湀搴?allocation锛岀敤浜?PnL 鍜岀粨绠楀鏍搞€?
-- 鏈夋暟鎹椂蹇呴』灞曠ず terminal capacity source 鍜?freshness銆?
+### LNG Regas
 
-## 缁勫悎/璧勬簮姹犲眰
+- Terminal access、cargo arrival window、regas slot、cargo size、send-out capacity、storage/holding constraints、pricing basis、delivery mode、下游物理/虚拟交付要求必须是显式输入。
+- LNG regas 合同可为 terminal title transfer、virtual hub sale、physical entry delivery 或 downstream physical delivery，不得强制套用同一模型。
+- 跨月 regas window 必须拆分到月份，用于 PnL 和结算复核。
+- Terminal capacity source 和 freshness 必须在有数据时展示。
 
-- 瀹㈡埛鍙兘浠庡涓笂娓稿悎鍚岄噰璐祫婧愶紝姣忎釜鍚堝悓鏈変笉鍚屼氦浠樻潯娆俱€佺粨绠楁粸鍚庛€佸宸€?
-  鎴愭湰銆佸閲忔墍鏈夋潈銆乀SO access 鍜屽彲鐢ㄩ攢鍞ā寮忋€?
-- 浼樺寲蹇呴』浠?portfolio/resource pool 涓哄崟浣嶏紝灏嗚祫婧愬垎閰嶅埌鍏煎閿€鍞€夐」锛屽苟璁″叆
-  route cost銆佹彁鍓嶅洖鏀剁幇閲戜环鍊煎拰鍑嗗叆绾︽潫銆?
-- 绯荤粺鍙互杈撳嚭鍊欓€?allocation target 鍜屾帓搴忎俊鍙凤紝浣嗕笉寰楁墽琛屼氦鏄撴垨鎻愪氦鎻愬悕銆?
+### Portfolio / Resource Pool
 
-## 甯傚満浠锋牸灞?
+- 客户可能拥有多个 upstream contract，具备不同交付条款、结算 lag、tolerance、成本、容量所有权、TSO access 和销售模式。
+- 优化必须在 portfolio 层进行，按兼容销售选项分配资源，并考虑 route cost、early recovered cash value、access constraints 和容量限制。
+- 系统可以给出候选 allocation target 和排序信号，但不得执行交易或提交提名。
 
-- `MarketObservation` 鐢ㄤ簬璇勪及浠枫€佹寚鏁般€佺粨绠椾环鍜屾淳鐢熶环鏍笺€?
-- `MarketPriceMark` 鎴?live mark 鐢ㄤ簬 ICE OCM銆丒EX銆乀rayport銆佺粡绾晢鎴栧叾浠栨巿鏉?
-  鏉ユ簮鐨勫疄鏃跺睆骞曟姤浠枫€?
-- 鍗栧嚭鏂规浼板€煎簲浼樺厛浣跨敤鍙垚浜ゆ垨鎸囩ず鎬?bid锛涗拱鍏ユ柟妗堜及鍊煎簲浣跨敤 ask銆?
-- 姣忎釜鎶ヤ环蹇呴』鍖呭惈浜ゆ槗鍦烘墍銆乭ub銆佷骇鍝併€佷氦浠樼獥鍙ｃ€佸崟浣嶃€佸竵绉嶃€佹潵婧愩€佹柊椴滃害銆?
-  璐ㄩ噺鍜屾巿鏉冭寖鍥淬€?
+### Market Price
 
-## FX 灞?
+- `MarketObservation` 用于 assessment、index、settlement 和 derived price。
+- `MarketPriceMark` 或 live mark 用于 ICE OCM、EEX、Trayport、broker 或其他授权来源的 screen mark。
+- 卖出估值使用 bid，买入估值使用 ask。
+- 每条 mark 必须带 venue、hub、product、delivery window、unit、currency、source、freshness、quality 和 entitlement scope。
 
-- `FxObservation` 蹇呴』鍖哄垎璐у竵瀵广€佸熀鍑嗗竵銆佹姤浠峰竵銆佹眹鐜囩被鍨嬨€佹潵婧愬拰 value date銆?
-- ECB 鍙綔涓哄叕鍏卞弬鑰冩眹鐜囨潵婧愶紝浣嗗疄鏃舵姄鍙栧繀椤荤敱鎿嶄綔鍛樻槑纭墽琛屻€?
+### FX
 
-## 鐗╃悊灞?
+- `FxObservation` 必须区分 pair、base currency、quote currency、rate type、source 和 value date。
+- ECB 可以作为公开 FX 参考源，但必须由 operator 显式 ingestion。
 
-- Flow observation 蹇呴』鍖呭惈鐐逛綅銆佹柟鍚戙€乀SO銆佸浗瀹躲€佸懆鏈熴€佹潵婧愩€佹柊椴滃害锛屼互鍙婅鍊?
-  鏄?actual銆乶omination銆乤llocation 杩樻槸 forecast銆?
-- Capacity observation 蹇呴』鍖哄垎 technical銆乥ooked銆乤vailable銆乫irm銆?
-  interruptible銆佷骇鍝佹湡闄愩€佹柟鍚戝拰棰勮骞冲彴銆?
-- Outage event 蹇呴』璇嗗埆鍙楀奖鍝嶇偣浣?璁炬柦銆乷perator銆佹柟鍚戙€佽捣姝㈡椂闂淬€佺姸鎬佸拰瀹归噺
-  褰卞搷銆?
+### Physical / Capacity
 
-## 鍚堝悓/瀹归噺灞?
+- Flow observation 必须包含 point、direction、TSO、country、period、source、freshness，以及 actual/nomination/allocation/forecast 类型。
+- Capacity observation 必须区分 technical、booked、available、firm、interruptible、product tenor、direction 和 booking platform。
+- Outage event 必须包含 affected point/facility、operator、direction、start/end、status 和 capacity impact。
 
-- 瀹归噺鍚堝悓搴斿敖閲忎娇鐢ㄨ兘閲忓崟浣?`MWh/day`锛屼笉寰楀彧渚濊禆 `boe/d`銆?
-- 璺嚎鍙鎬у繀椤诲寘鍚笟鍔℃ā寮忋€佹墍闇€瀹归噺浜у搧銆佹墍闇€甯傚満鎶ヤ环銆佹墍闇€鐗╃悊淇″彿銆佺害鏉?
-  鍜岀疆淇″害銆?
-- 缁撶畻婊炲悗銆佸宸€佸厑璁稿嚭鐐广€乷verrun 瑙勫垯鍜岃嚜鏈夊閲忕瓑鍚堝悓鐗瑰畾杈撳叆蹇呴』鍙敱鐢ㄦ埛
-  鎴栨搷浣滃憳閰嶇疆銆?
+### Contract / Capacity
 
-## 绛栫暐灞?
+- Capacity contract 应尽量以 `MWh/day` 等能源单位表示，不应只依赖 `boe/d`。
+- Route eligibility 必须包含 business model、required capacity product、required market mark、required physical signal、constraints 和 confidence。
+- 结算 lag、tolerance、allowed exit points、overrun handling、owned capacity 等合同特定输入必须由用户或 operator 配置。
 
-- V1 蹇呴』鏀寔绛栫暐鍥炴祴銆佸奖瀛愯繍琛屽拰瀹炴椂鐩戞帶璇勪及鍚堝悓銆?
-- 绛栫暐渚嬪瓙鍖呮嫭 SAP 瀵?ICIS Heren 鏃ュ墠浠峰 ICE OCM銆佸潎鍊煎洖褰掋€佽瘎鍒嗐€佹渶浣虫椂闂存《
-  鍜屽姞鏉冪粍鍚堛€?
-- 绛栫暐蹇呴』鏀寔鍙厤缃椂闂寸獥鍙ｏ紙渚嬪 15:00-17:00锛夈€乥ar 澶у皬锛堜緥濡?5 鍒嗛挓锛夈€?
-  璧勬簮/璧勬簮姹犻€夋嫨銆侀鎺с€佸崟涓€甯傚満鏈€澶ф暟閲忋€佹鎹熴€佹暟鎹繃鏈熼樆鏂€乀SO 鍑嗗叆闃绘柇鍜?
-  浜哄伐澶嶆牳棰勮銆?
-- 绛栫暐杈撳嚭鏄焊闈?allocation target 鎴栧喅绛栨敮鎸佷俊鍙凤紝涓嶅緱鎴愪负瀹樻柟寤鸿銆佽鍗曘€?
-  鎻愬悕銆佸閲忛璁€佷氦鏄撴崟鑾锋垨鎵ц鎸囦护銆?
+### Strategy
 
-## 鏈琛ㄥ眰
+- V1 必须支持 backtest、shadow-run 和 live-monitor evaluation contract。
+- 策略可以包括 SAP vs ICIS Heren day-ahead vs ICE OCM、mean reversion、scoring、best buckets、weighted combinations 等。
+- 策略必须支持时间窗口、bar size、selected resources/resource pools、risk controls、max single-market volume、stop-loss、stale-data blocking、TSO-access blocking 和 human-review warnings。
+- 输出是 paper allocation target 或 decision-support signal，不是官方推荐、订单、提名、booking、trade capture 或 execution instruction。
 
-- 鏈琛ㄦ槸鍚庣鏈嶅姟鐨勪骇鍝佽兘鍔涳紝涓嶆槸闈欐€?UI 鏂囨銆?
-- 蹇呴』瑕嗙洊鏈烘瀯銆佷氦鏄撳満鎵€銆佹蹇点€佷环鏍笺€乭ub銆佺粓绔€佹竻绠椼€侀噾铻嶃€佸悎鍚屻€佸閲忋€佸偍姘斻€?
-  LNG銆佸ぉ姘斻€佽矾绾跨粡娴庢€у拰鏁版嵁娌荤悊鏈銆?
-- `/api/glossary` 鍜?`/api/glossary/{term}` 蹇呴』鏀寔 `lang=en`銆乣lang=zh`
-  鍜?`lang=zh-CN`銆?
-- Python SDK銆丆LI銆乄eb 鍜?Windows 瀹㈡埛绔兘蹇呴』鑳借闂湳璇〃銆?
+### Glossary
 
-## 浜掕仈缃戣姹?
+- Glossary 是后端服务化产品界面，不是前端静态说明。
+- 它必须覆盖机构、venue、概念、价格、hub、terminal、clearing、financial terms、contractual terms、capacity、storage、LNG、weather、route economics 和 source governance。
+- `/api/glossary` 与 `/api/glossary/{term}` 必须支持 `lang=en`、`lang=zh`、`lang=zh-CN`。
+- Python SDK、CLI、Web、Windows 都必须可以访问 glossary。
+- Glossary term 必须包含 category、英文定义、中文定义、aliases、related terms 和 source references。
 
-瀹炵幇褰撳墠鍚堢害鍜屾祴璇曚笉闇€瑕佷簰鑱旂綉銆傚彧鏈夊湪鎿嶄綔鍛樻垨 Agent 闇€瑕侀獙璇佹渶鏂颁緵搴斿晢鏂囨。銆?
-API 鏉℃銆佸競鍦烘暟鎹鍙€佷緷璧栫増鏈垨瀹樻柟 TSO 璐圭巼 PDF 鏃讹紝鎵嶉渶瑕佷簰鑱旂綉銆?
+### Market Positioning
 
-## 涓嬩竴姝ヤ紭鍏堢骇
+- `screen_order_observations` 存储外部 ICE OCM、EEX、Trayport、broker 或其他 screen-order 状态，仅用于展示和分析。
+- `portfolio_pnl_snapshots` 存储 indicative PnL、cash value、market value、quantity、valuation basis、warnings 和 source context。
+- `/api/portfolio/screen-orders`、`/api/portfolio/pnl-snapshots`、`/api/portfolio/live-summary` 面向 SDK/Web/Windows。
+- 该层不是 trade capture，不得下单、路由、撤单、提名、审批或官方推荐任何交易。
 
-1. 鎵╁睍 PostgreSQL 杩佺Щ锛屾寔涔呭寲瀹炴椂甯傚満鎶ヤ环銆丗X 瑙傛祴銆佸閲忚娴嬨€佸仠杩愪簨浠躲€佺瓥鐣?
-   瀹氫箟銆佺瓥鐣ヨ繍琛屻€佺瓥鐣?allocation target銆佺瓥鐣?alert 鍜屾湳璇〃銆?
-2. 浠呴€氳繃鑴氭湰鍐欏叆鍏叡/婕旂ず鏁版嵁锛屼笉寰楁彁浜ょ湡瀹炲競鍦烘暟鎹垨瀹㈡埛鏁版嵁銆?
-3. 澧炲姞 API 璺敱璇诲彇 DB 涓殑甯傚満鎶ヤ环銆丗X銆佸閲忋€佸仠杩愩€佺瓥鐣ュ拰鏈琛ㄨ褰曘€?
-4. 瀹㈡埛绔娇鐢ㄤ换浣曟柊绔偣涔嬪墠锛屽厛鎵╁睍 SDK DTO銆?
-5. Web 鍜?Windows 瀹㈡埛绔繀椤婚噰鐢ㄥ湴鍥句紭鍏堜氦鏄撳憳椹鹃┒鑸憋紱璇︾粏浠锋牸鐩戞帶銆佺粍鍚堛€?
-   鍒嗘瀽銆佸閮ㄨ鍗曡褰曘€侀璀︺€佹湳璇〃銆佺敤鎴锋墜鍐屽拰璁剧疆蹇呴』鍒嗙涓烘爣绛炬垨绐楀彛銆?
-6. 璺嚎鎴愭湰淇濇寔鑻卞浗 National Gas NTS 闄愬畾锛岀洿鍒板悗缁噷绋嬬鍔犲叆缁忓璁＄殑娆ф床 TSO
-   tariff 瑕嗙洊鍜岃矾绾夸紭鍖栥€?
+## 是否需要互联网
 
-## 甯傚満鎸佷粨灞?
+实现当前 contracts 和 tests 不需要互联网。
 
-- `screen_order_observations` 瀛樺偍浠?ICE OCM銆丒EX銆乀rayport銆佺粡绾晢鎴栧叾浠栧睆骞?
-  鏉ユ簮瀵煎叆鐨勫閮ㄨ鍗曠姸鎬侊紝浠呯敤浜庡睍绀哄拰鍒嗘瀽銆?
-- `portfolio_pnl_snapshots` 瀛樺偍缁勫悎/璧勬簮/绛栫暐灞傞潰鐨勬寚绀烘€?PnL銆佹彁鍓嶅洖娆句环鍊笺€?
-  甯傚€笺€佹暟閲忋€佷及鍊煎彛寰勩€侀璀﹀拰鏉ユ簮涓婁笅鏂囥€?
-- `/api/portfolio/screen-orders`銆乣/api/portfolio/pnl-snapshots` 鍜?
-  `/api/portfolio/live-summary` 鍚?SDK銆乄eb 鍜?Windows 瀹㈡埛绔毚闇茶繖浜涚姸鎬併€?
-- `src/eurogas_nexus/sdk/portfolio.py` 鏄▼搴忓寲璁块棶鐨勫繀闇€璺緞銆?
-- 璇ュ眰涓嶆槸浜ゆ槗鎹曡幏锛屼笉寰椾笅鍗曘€佽矾鐢辫鍗曘€佹挙鍗曘€佹彁浜ゆ彁鍚嶃€佸鎵规垨缁欏嚭瀹樻柟浜ゆ槗
-  寤鸿銆?
+只有当 operator 或开发代理需要验证最新 provider 文档、vendor API 条款、市场数据授权、包版本或官方 TSO tariff PDF 时，才需要互联网。
+
+## 下一步优先级
+
+1. 扩展欧洲 TSO tariff coverage、route topology 和 route optimization，所有数据进入 PostgreSQL。
+2. 生产化 live ingestion scheduling、retry、monitoring 和 source health。
+3. 完善 market marks、FX、capacity、outage、glossary 的 DB-backed API。
+4. 先扩展 SDK DTO，再让 Web/Windows 消费新 endpoint。
+5. 强化 strategy persistence、backtest、shadow run、live monitor、allocation targets 和 alerts。

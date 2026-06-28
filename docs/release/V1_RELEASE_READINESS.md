@@ -55,7 +55,7 @@ npm web build       -> passed
 app import          -> app import ok, 78 routes
 runtime DB          -> revision 0011_reference_source_lineage, missing_tables=0
 API live sources    -> ECB=12, ENTSOG flows=1000, ENTSOG reference=2448, GIE AGSI=300, GIE ALSI=300
-UK NTS tariffs      -> 1315 rows in PostgreSQL, Easington -> Bacton GDN calculation passed
+Route tariffs       -> European explicit-leg route-cost tests passed for BBL/IUK and DB rows
 Web build           -> passed
 ```
 

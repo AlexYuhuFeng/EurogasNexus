@@ -21,8 +21,8 @@ def test_capacity_api_reads_configured_runtime_db(tmp_path, monkeypatch) -> None
         session.add(
             CapacityObservationRecord(
                 observation_id="entsog-capacity-test",
-                point_id="UK-NTS-ENTRY",
-                point_name="UK NTS Entry",
+                point_id="BE-IUK-ZEEBRUGGE-ENTRY",
+                point_name="Zeebrugge Interconnector Entry",
                 direction="entry",
                 capacity_type="firm_technical",
                 capacity_mcm_d=112.5,

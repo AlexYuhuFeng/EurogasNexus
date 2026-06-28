@@ -1,19 +1,15 @@
-"""Research-only route-cost calculation service."""
+"""Route-cost calculation service."""
 
 from __future__ import annotations
 
 from collections import Counter
 from collections.abc import Sequence
 
-from eurogas_nexus.domain.route_cost.capacity_requirement import build_capacity_requirement
-from eurogas_nexus.domain.route_cost.enums import (
-    CostComponentType,
-    TariffDirection,
-)
 from eurogas_nexus.domain.route_cost.schemas import (
     RouteCostComponent,
     RouteCostResult,
     RouteCostScenario,
+    RouteTariffLeg,
 )
 from eurogas_nexus.domain.route_cost.tariff_models import CapacityTariff
 from eurogas_nexus.domain.route_cost.tariff_selection import select_latest_tariff
@@ -25,13 +21,34 @@ def calculate_route_cost(
 ) -> RouteCostResult:
     """Calculate a traceable tariff cost without unit conversion or trading semantics."""
 
-    requirement = build_capacity_requirement(scenario)
+    if not scenario.tariff_legs:
+        return RouteCostResult(
+            scenario_id=scenario.scenario_id,
+            status="BLOCKED",
+            total_cost=None,
+            currency=None,
+            unit=None,
+            missing_inputs=["ROUTE_TARIFF_LEGS_REQUIRED"],
+            warnings=["ROUTE_COST_REQUIRES_EXPLICIT_TSO_LEGS"],
+            required_tso_access=scenario.required_tso_access,
+            company_accessible_tsos=scenario.company_accessible_tsos,
+            research_only=True,
+            human_review_required=True,
+        )
+    return _calculate_tariff_legs(scenario, tariffs, scenario.tariff_legs)
+
+
+def _calculate_tariff_legs(
+    scenario: RouteCostScenario,
+    tariffs: Sequence[CapacityTariff],
+    tariff_legs: Sequence[RouteTariffLeg],
+) -> RouteCostResult:
     components: list[RouteCostComponent] = []
-    missing_inputs = list(requirement.missing_inputs)
-    warnings = list(requirement.warnings)
+    missing_inputs: list[str] = []
+    warnings: list[str] = []
     used_documents: set[str] = set()
     tariff_statuses: Counter[str] = Counter()
-    human_review_required = requirement.human_review_required
+    human_review_required = False
     inaccessible_tsos = _inaccessible_tsos(
         scenario.required_tso_access,
         scenario.company_accessible_tsos,
@@ -41,28 +58,17 @@ def calculate_route_cost(
         warnings.append("ROUTE_BLOCKED_BY_TSO_ACCESS")
         human_review_required = True
 
-    for required_component in requirement.required_components:
-        point_name = _point_name_for_component(required_component, requirement)
-        if point_name is None:
-            continue
-        selection = select_latest_tariff(
-            tariffs,
-            country="UK",
-            tso="National Gas NTS",
-            point_name=point_name,
-            direction=_direction_for_component(required_component),
-            gas_year=scenario.gas_year,
-            capacity_product=scenario.capacity_product,
-            firmness=scenario.firmness,
-        )
+    for leg in tariff_legs:
+        selection = _select_tariff_for_leg(leg, scenario, tariffs)
         warnings.extend(selection.warnings)
         human_review_required = human_review_required or selection.human_review_required
         if selection.selected_tariff is None:
-            missing_inputs.append(_missing_code_for_component(required_component))
+            missing_code = f"TARIFF_MISSING:{leg.leg_id}"
+            missing_inputs.append(missing_code)
             components.append(
                 RouteCostComponent(
-                    component_type=required_component,
-                    missing_input=_missing_code_for_component(required_component),
+                    component_type=leg.component_type,
+                    missing_input=missing_code,
                 )
             )
             continue
@@ -72,7 +78,7 @@ def calculate_route_cost(
         tariff_statuses[tariff.tariff_status.value] += 1
         components.append(
             RouteCostComponent(
-                component_type=required_component,
+                component_type=leg.component_type,
                 amount=tariff.tariff_value,
                 currency=tariff.currency,
                 unit=tariff.unit,
@@ -111,29 +117,26 @@ def calculate_route_cost(
     )
 
 
-def _point_name_for_component(
-    component: CostComponentType,
-    requirement,
-) -> str | None:
-    if component is CostComponentType.ENTRY_CAPACITY:
-        return requirement.entry_point_id
-    if component is CostComponentType.EXIT_CAPACITY:
-        return requirement.exit_point_id
-    return None
-
-
-def _direction_for_component(component: CostComponentType) -> TariffDirection:
-    if component is CostComponentType.EXIT_CAPACITY:
-        return TariffDirection.EXIT
-    return TariffDirection.ENTRY
-
-
-def _missing_code_for_component(component: CostComponentType) -> str:
-    if component is CostComponentType.EXIT_CAPACITY:
-        return "EXIT_TARIFF_MISSING"
-    if component is CostComponentType.ENTRY_CAPACITY:
-        return "ENTRY_TARIFF_MISSING"
-    return "TARIFF_MISSING"
+def _select_tariff_for_leg(
+    leg: RouteTariffLeg,
+    scenario: RouteCostScenario,
+    tariffs: Sequence[CapacityTariff],
+):
+    eligible_tariffs = tariffs
+    if leg.market_area:
+        eligible_tariffs = [
+            tariff for tariff in eligible_tariffs if tariff.market_area == leg.market_area
+        ]
+    return select_latest_tariff(
+        eligible_tariffs,
+        country=leg.country,
+        tso=leg.tso,
+        point_name=leg.point_name,
+        direction=leg.direction,
+        gas_year=leg.gas_year or scenario.gas_year,
+        capacity_product=leg.capacity_product or scenario.capacity_product,
+        firmness=leg.firmness or scenario.firmness,
+    )
 
 
 def _sum_compatible_components(

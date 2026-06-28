@@ -73,20 +73,20 @@ The resolver must be deterministic and DB-first.
 5. Return `TERM_CONTEXT_MAPPING_PARTIAL` only when no dedicated profile and no
    runtime match exists.
 
-Hard-coded examples such as `Easington Entry Point` may remain as profile hints,
-but the feature must not be limited to Easington/Bacton. A customer-loaded point
-such as `St Fergus Entry Point` must work when glossary, capacity, flow, price,
-route, and contract records exist in PostgreSQL.
+The feature must not be limited to any hard-coded point. A customer-loaded
+point such as `Zeebrugge Entry Point`, `GATE LNG`, `TTF`, or a local TSO asset
+must work when glossary, capacity, flow, price, route, and contract records
+exist in PostgreSQL.
 
 ## Example Behavior
 
-For `Easington Entry Point`, the context should show:
+For `Zeebrugge Entry Point`, the context should show:
 
-- UK NTS/beach delivery description;
+- interconnector or TSO point description;
 - selected duration;
 - capacity profile;
 - capacity in use as MWh/d or mcm/d and percentage;
-- related NBP, ICE OCM, and ICIS Heren prices;
+- related hub, screen, and assessment prices;
 - live bid/ask/last screen marks;
 - route candidates;
 - linked upstream contracts;

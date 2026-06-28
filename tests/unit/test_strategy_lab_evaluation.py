@@ -35,13 +35,13 @@ def _obs(price_name: str, price: float, hour: int, minute: int = 0) -> StrategyP
 
 def _resource(**kwargs) -> StrategyResourceContext:
     base = {
-        "resource_id": "easington-year",
-        "resource_name": "Easington gas year contract",
+        "resource_id": "ttf-bbl-portfolio",
+        "resource_name": "TTF to NBP BBL portfolio",
         "available_quantity_mwh_per_day": 10000,
         "all_in_cost_gbp_mwh": 24.0,
         "booked_entry_capacity_mwh_per_day": 10000,
-        "required_tso_access": ["National Gas NTS"],
-        "company_accessible_tsos": ["National Gas NTS"],
+        "required_tso_access": ["BBL Company"],
+        "company_accessible_tsos": ["BBL Company"],
     }
     base.update(kwargs)
     return StrategyResourceContext(**base)
@@ -107,7 +107,7 @@ def test_strategy_lab_blocks_when_required_tso_access_is_missing() -> None:
     )
 
     assert result.status == "PARTIAL"
-    assert "TSO_ACCESS_MISSING:easington-year:National Gas NTS" in result.missing_inputs
+    assert "TSO_ACCESS_MISSING:ttf-bbl-portfolio:BBL Company" in result.missing_inputs
     assert result.candidate_action_for_review == "REVIEW_HIGHER_OCM_ALLOCATION"
 
 

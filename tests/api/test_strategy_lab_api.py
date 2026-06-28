@@ -18,12 +18,12 @@ def test_strategy_lab_evaluate_endpoint_returns_paper_allocation_targets() -> No
             "run_mode": "SHADOW_RUN",
             "resource_contexts": [
                 {
-                    "resource_id": "easington-year",
-                    "resource_name": "Easington gas year contract",
+                    "resource_id": "ttf-bbl-portfolio",
+                    "resource_name": "TTF to NBP BBL portfolio",
                     "available_quantity_mwh_per_day": 10000,
                     "all_in_cost_gbp_mwh": 24.0,
-                    "required_tso_access": ["National Gas NTS"],
-                    "company_accessible_tsos": ["National Gas NTS"],
+                    "required_tso_access": ["BBL Company"],
+                    "company_accessible_tsos": ["BBL Company"],
                 }
             ],
             "price_observations": [

@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-from eurogas_nexus.domain.route_cost.contract_economics import EasingtonOptionPnl
-
 
 class LiveMarketMark(BaseModel):
     venue: str
@@ -40,8 +38,22 @@ class LiveOptionMarkResult(BaseModel):
     human_review_required: bool = True
 
 
+class RouteOptionPnl(BaseModel):
+    option_id: str
+    label: str
+    business_model: str
+    sale_price_gbp_mwh: float
+    contract_cost_gbp_mwh: float
+    total_charges_gbp_mwh: float
+    net_margin_gbp_mwh: float
+    net_pnl_gbp_per_day: float
+    source_refs: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    human_review_required: bool = True
+
+
 def mark_option_to_live_market(
-    option: EasingtonOptionPnl,
+    option: RouteOptionPnl,
     mark: LiveMarketMark,
     *,
     delivery_quantity_mwh_per_day: float,

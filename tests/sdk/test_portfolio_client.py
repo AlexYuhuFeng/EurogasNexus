@@ -110,7 +110,7 @@ def _screen_order_payload() -> dict:
         "source_system": "fixture",
         "source_reference": "fixture:order",
         "linked_strategy_id": "sap-icis-ocm",
-        "linked_resource_id": "easington-year",
+        "linked_resource_id": "ttf-bbl-portfolio",
         "research_only": True,
         "human_review_required": True,
     }
@@ -120,7 +120,7 @@ def _pnl_payload() -> dict:
     return {
         "pnl_snapshot_id": "pnl-1",
         "portfolio_id": "portfolio-demo",
-        "resource_id": "easington-year",
+        "resource_id": "ttf-bbl-portfolio",
         "strategy_id": "sap-icis-ocm",
         "valuation_time_utc": "2026-06-01T08:30:00Z",
         "realized_pnl_gbp": 1200,

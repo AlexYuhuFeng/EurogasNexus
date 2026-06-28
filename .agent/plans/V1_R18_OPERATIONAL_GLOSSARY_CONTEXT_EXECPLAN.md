@@ -3,10 +3,10 @@
 ## Goal
 
 Make the glossary an operational cockpit surface, not only a dictionary. A trader
-opening a term such as `Easington Entry Point`, `ICIS Heren`, `NBP`, or `ICE OCM`
-must see the definition plus current runtime context: capacity, capacity usage,
-related prices, live marks, route candidates, and linked resource contracts when
-available.
+opening a term such as `Zeebrugge Interconnector`, `TTF`, `ICIS Heren`, `NBP`,
+or `ICE OCM` must see the definition plus current runtime context: capacity,
+capacity usage, related prices, live marks, route candidates, and linked
+resource contracts when available.
 
 ## Non-Goals
 
@@ -43,9 +43,10 @@ Use the existing backend/client stack only. Do not add dependencies.
 
 ## Data Policy
 
-PostgreSQL-backed runtime records are preferred. When no DB is configured, return
-clearly marked synthetic fallback context. Do not persist or expose provider
-credentials.
+PostgreSQL-backed runtime records are required for operational context. When no
+DB-backed records exist, return explicit data-quality warnings and empty
+sections; do not invent runtime values. Tests may still create isolated
+source-shaped fixtures. Do not persist or expose provider credentials.
 
 ## API Impact
 
@@ -79,8 +80,8 @@ No migration. Use existing tables:
 
 ## Tests
 
-- DB-free Easington context includes capacity, usage, prices, metrics, and route
-  context.
+- DB-free context returns empty operational sections with data-quality warnings
+  instead of invented capacity, price, or route values.
 - ICIS Heren context includes licensed-data warning and related prices.
 - SQLite-backed runtime context reads actual capacity, flow, market, live mark,
   route, and contract rows.
@@ -98,8 +99,9 @@ python -c "from apps.api.main import app; print('app import ok'); print(len(app.
 
 ## Acceptance Criteria
 
-- Easington Entry Point context shows capacity, used capacity, usage percentage,
-  related prices, related routes, and linked contracts where available.
+- Runtime glossary context for a configured European point or hub shows capacity,
+  used capacity, usage percentage, related prices, related routes, and linked
+  contracts where available.
 - ICIS Heren context shows price-assessment context and licensed-data warning.
 - Duration filters are represented in the response and applied to DB-backed
   market, flow, and capacity reads.

@@ -19,7 +19,7 @@ type ContractNumberKey =
   | "annual_financing_rate_pct";
 
 type LiveMarkNumberKey = "bid_gbp_mwh" | "ask_gbp_mwh" | "last_gbp_mwh";
-type WorkspacePageId = "network" | "market" | "scenario" | "strategy" | "sources" | "glossary" | "runtime" | "settings";
+type WorkspacePageId = "network" | "market" | "scenario" | "contracts" | "strategy" | "sources" | "glossary" | "runtime" | "settings";
 
 export default function App() {
   const { t, i18n } = useTranslation();
@@ -40,11 +40,11 @@ export default function App() {
     tsoAccess,
     routes,
     routeCandidates,
-    ukTariffs,
+    tsoTariffs,
     upstreamContracts,
     endpointMeta,
-    routeOptions,
-    livePnl,
+    routeRecommendation,
+    resourcePoolResult,
     glossaryTerms,
     glossaryContext,
     analysisResult,
@@ -57,8 +57,8 @@ export default function App() {
     credentialMessage,
     fetchWorkspace,
     saveProviderCredential,
-    compareEasingtonOptions,
-    markEasingtonLivePnl,
+    recommendRouteAllocation,
+    optimizeResourcePool,
     strategyResult,
     evaluateStrategyLab,
     fetchGlossaryContext,
@@ -84,13 +84,13 @@ export default function App() {
     [credentialProvider, credentialProviders],
   );
   const [contract, setContract] = useState({
-    contract_id: "operator-test-easington-contract",
-    gas_year: "2025/26",
+    contract_id: "operator-test-ttf-bbl-portfolio",
+    gas_year: "2025+",
     delivery_quantity_mwh_per_day: 10000,
-    contract_price_gbp_mwh: 25,
-    nbp_sale_price_gbp_mwh: 28,
-    physical_exit_sale_price_gbp_mwh: 28.5,
-    physical_exit_point_name: "Bacton GDN (EA)",
+    contract_price_gbp_mwh: 30,
+    nbp_sale_price_gbp_mwh: 35,
+    physical_exit_sale_price_gbp_mwh: 31,
+    physical_exit_point_name: "NBP",
     delivery_tolerance_pct: 2,
     nomination_tolerance_pct: 1,
     tolerance_risk_allowance_gbp_mwh: 0.1,
@@ -100,8 +100,8 @@ export default function App() {
     annual_financing_rate_pct: 6,
     owned_entry_capacity_mwh_per_day: null as number | null,
     owned_exit_capacity_mwh_per_day: null as number | null,
-    allowed_exit_points: ["Bacton GDN (EA)"],
-    eligible_sale_modes: ["VIRTUAL_HUB_SALE", "PHYSICAL_DELIVERY"],
+    allowed_exit_points: ["NBP", "TTF", "ZTP"],
+    eligible_sale_modes: ["TARGET_MARKET_SALE", "LOCAL_MARKET_SALE", "REROUTE_SALE"],
   });
   const [liveMark, setLiveMark] = useState({
     venue: "ICE OCM",
@@ -124,15 +124,15 @@ export default function App() {
       resource_contexts: [
         {
           resource_id: contract.contract_id,
-          resource_name: "Easington gas year contract",
+          resource_name: "TTF/BBL portfolio resource",
           available_quantity_mwh_per_day: contract.delivery_quantity_mwh_per_day,
           all_in_cost_gbp_mwh: contract.contract_price_gbp_mwh + contract.tolerance_risk_allowance_gbp_mwh,
           delivery_tolerance_pct: contract.delivery_tolerance_pct,
           nomination_tolerance_pct: contract.nomination_tolerance_pct,
           booked_entry_capacity_mwh_per_day: contract.owned_entry_capacity_mwh_per_day,
           balancing_allowance_gbp_mwh: contract.tolerance_risk_allowance_gbp_mwh,
-          required_tso_access: ["National Gas NTS"],
-          company_accessible_tsos: ["National Gas NTS"],
+          required_tso_access: ["BBL Company"],
+          company_accessible_tsos: ["BBL Company"],
         },
       ],
       price_observations: [
@@ -205,6 +205,93 @@ export default function App() {
     };
   }, [contract, liveMark]);
 
+  const portfolioResources = useMemo(() => {
+    if (upstreamContracts.length > 0) {
+      return upstreamContracts.map((item) => ({
+        resource_id: item.contract_id,
+        resource_name: item.contract_name,
+        resource_type: item.resource_type,
+        delivery_mode: item.resource_type === "LNG_REGAS" ? "TERMINAL_TITLE_TRANSFER" : "PHYSICAL_ENTRY_DELIVERY",
+        location_point_name: item.delivery_point_name,
+        available_quantity_mwh_per_day: item.delivery_quantity_mwh_per_day,
+        contract_cost_gbp_mwh: item.contract_price_gbp_mwh,
+        delivery_tolerance_pct: item.delivery_tolerance_pct,
+        nomination_tolerance_pct: item.nomination_tolerance_pct,
+        tolerance_risk_allowance_gbp_mwh: item.tolerance_risk_allowance_gbp_mwh ?? 0,
+        upstream_payment_lag_days: item.upstream_payment_lag_days,
+        settlement_frequency: item.settlement_frequency,
+        required_tso_access: item.owned_entry_capacity_mwh_per_day ? ["operator-owned-entry-capacity"] : [],
+        accessible_tsos: null,
+        pricing_method: "OPERATOR_CONTRACT",
+        source_refs: ["runtime-postgresql"],
+      }));
+    }
+    return [];
+  }, [upstreamContracts]);
+
+  const hasPortfolioResources = portfolioResources.length > 0;
+
+  const totalPoolVolume = useMemo(
+    () => portfolioResources.reduce((total, resource) => total + resource.available_quantity_mwh_per_day, 0),
+    [portfolioResources],
+  );
+
+  const saleOptions = useMemo(() => {
+    if (!hasPortfolioResources) return [];
+    return [
+      {
+        option_id: "nbp-via-bbl",
+        label: "NBP sale via BBL",
+        delivery_mode: "VIRTUAL_HUB_SALE",
+        target_point_name: "NBP",
+        sale_price_gbp_mwh: contract.nbp_sale_price_gbp_mwh,
+        route_cost_gbp_mwh: 1.0,
+        capacity_limit_mwh_per_day: Math.round(totalPoolVolume * 0.2),
+        screen_sale_cash_lag_days: contract.screen_sale_cash_lag_days,
+        required_tso_access: ["BBL Company"],
+        source_refs: ["operator-sale-option"],
+      },
+      {
+        option_id: "local-ttf-sale",
+        label: "Local TTF sale",
+        delivery_mode: "VIRTUAL_HUB_SALE",
+        target_point_name: "TTF",
+        sale_price_gbp_mwh: contract.physical_exit_sale_price_gbp_mwh,
+        route_cost_gbp_mwh: 0,
+        capacity_limit_mwh_per_day: totalPoolVolume,
+        screen_sale_cash_lag_days: contract.screen_sale_cash_lag_days,
+        required_tso_access: [],
+        source_refs: ["operator-sale-option"],
+      },
+      {
+        option_id: "alternate-cross-border",
+        label: "Alternate cross-border sale",
+        delivery_mode: "VIRTUAL_HUB_SALE",
+        target_point_name: "ZTP",
+        sale_price_gbp_mwh: contract.physical_exit_sale_price_gbp_mwh + 0.35,
+        route_cost_gbp_mwh: 2.6,
+        capacity_limit_mwh_per_day: totalPoolVolume,
+        screen_sale_cash_lag_days: contract.screen_sale_cash_lag_days,
+        required_tso_access: ["Fluxys Belgium"],
+        source_refs: ["operator-sale-option"],
+      },
+    ];
+  }, [contract.nbp_sale_price_gbp_mwh, contract.physical_exit_sale_price_gbp_mwh, contract.screen_sale_cash_lag_days, hasPortfolioResources, totalPoolVolume]);
+
+  const saleOptionById = useMemo(
+    () => new Map(saleOptions.map((option) => [option.option_id, option])),
+    [saleOptions],
+  );
+
+  const resourcePoolOptimizationRequest = useMemo(() => ({
+    portfolio_id: "web-resource-pool",
+    resources: portfolioResources,
+    sale_options: saleOptions,
+    annual_financing_rate_pct: contract.annual_financing_rate_pct,
+    objective: "MAX_DAILY_PNL",
+    research_only: true,
+  }), [contract.annual_financing_rate_pct, portfolioResources, saleOptions]);
+
   useEffect(() => {
     fetchWorkspace();
   }, [fetchWorkspace]);
@@ -250,33 +337,94 @@ export default function App() {
     setWorkspaceMenuOpen(false);
   }
 
-  const primaryLiveMark = livePnl?.live_marks[0];
   const firstStrategyTarget = strategyResult?.allocation_targets[0];
   const glossaryLang = i18n.language.startsWith("zh") ? "zh-CN" : "en";
-  const glossaryShortcutTerms = ["Easington Entry Point", "ICIS Heren", "NBP", "ICE OCM"];
+  const glossaryShortcutTerms = ["TTF", "NBP", "ICE OCM", "Entry Capacity"];
+  const routeRecommendationRequest = {
+    request_id: "web-target-vs-local-sale",
+    source_point_id: "TTF",
+    target_point_id: "NBP",
+    required_quantity_mwh_per_day: totalPoolVolume,
+    gas_year: "2025+",
+    capacity_product: "ANNUAL",
+    firmness: "FIRM",
+    company_accessible_tsos: ["BBL Company"],
+    candidates: [
+      {
+        route_id: "cheap-nbp-route",
+        route_name: "TTF -> BBL -> NBP",
+        destination_market: "NBP",
+        sale_price: contract.nbp_sale_price_gbp_mwh,
+        price_currency: "EUR",
+        price_unit: "EUR/MWh",
+        required_tso_access: ["BBL Company"],
+        available_capacity_mwh_per_day: Math.round(totalPoolVolume * 0.2),
+        tariff_legs: [
+          {
+            leg_id: "bbl-forward",
+            country: "NL",
+            tso: "BBL Company",
+            market_area: "BBL",
+            point_name: "BBL Forward Flow NL to GB",
+            direction: "EXIT",
+          },
+        ],
+      },
+      {
+        route_id: "reroute-to-nbp",
+        route_name: "Reroute to NBP",
+        destination_market: "NBP",
+        sale_price: contract.nbp_sale_price_gbp_mwh,
+        price_currency: "EUR",
+        price_unit: "EUR/MWh",
+        available_capacity_mwh_per_day: totalPoolVolume,
+        manual_cost: 8,
+        cost_currency: "EUR",
+        cost_unit: "EUR/MWh",
+      },
+      {
+        route_id: "local-ttf-sale",
+        route_name: "Sell locally at TTF",
+        destination_market: "TTF",
+        sale_price: contract.physical_exit_sale_price_gbp_mwh,
+        price_currency: "EUR",
+        price_unit: "EUR/MWh",
+        available_capacity_mwh_per_day: totalPoolVolume,
+        manual_cost: 0,
+        cost_currency: "EUR",
+        cost_unit: "EUR/MWh",
+      },
+    ],
+  };
   const analysisPayload = {
     question: analysisQuestion,
     task: "PORTFOLIO_REPORT",
     provider_id: "DEEPSEEK",
     model: "deepseek-chat",
     invoke_provider: invokeDeepSeek,
-    selected_terms: ["Easington Entry Point", "ICIS Heren", "ICE OCM"],
-    selected_assets: [contract.physical_exit_point_name, "NBP"],
-    selected_contracts: [contract.contract_id],
+    selected_terms: ["TTF", "NBP", "ICE OCM"],
+    selected_assets: ["TTF", "NBP", "BBL"],
+    selected_contracts: portfolioResources.map((resource) => resource.resource_id),
     language: i18n.language.startsWith("zh") ? "zh-CN" : "en",
   };
-  const workspacePages: WorkspacePageId[] = ["network", "market", "scenario", "strategy", "sources", "glossary", "runtime", "settings"];
+  const workspacePages: WorkspacePageId[] = ["network", "market", "scenario", "contracts", "strategy", "sources", "glossary", "runtime", "settings"];
   const destinationHubs = ["NBP", "TTF", "ZTP", "PEG", "THE"];
-  const selectedOption = (livePnl ?? routeOptions)?.options[0] ?? null;
-  const decisionPnl =
-    primaryLiveMark?.live_net_pnl_gbp_per_day ??
-    selectedOption?.net_pnl_gbp_per_day ??
+  const selectedAllocation = routeRecommendation?.allocations[0] ?? null;
+  const poolAllocations = resourcePoolResult?.allocations ?? [];
+  const firstPoolAllocation = poolAllocations[0] ?? null;
+  const rawDecisionPnl =
+    resourcePoolResult?.total_net_pnl_gbp_per_day ??
+    (selectedAllocation?.netback !== undefined && selectedAllocation?.netback !== null
+      ? selectedAllocation.netback * selectedAllocation.allocated_mwh_per_day
+      : null) ??
     portfolioSummary?.total_indicative_pnl_gbp ??
     null;
-  const decisionMargin =
-    primaryLiveMark?.live_net_margin_gbp_mwh ?? selectedOption?.net_margin_gbp_mwh ?? null;
-  const salePrice = liveMark.bid_gbp_mwh ?? liveMark.last_gbp_mwh ?? contract.nbp_sale_price_gbp_mwh;
-  const routeCharge = selectedOption?.total_charges_gbp_mwh ?? null;
+  const decisionPnl = hasPortfolioResources ? rawDecisionPnl : null;
+  const decisionMargin = firstPoolAllocation?.net_margin_gbp_mwh ?? selectedAllocation?.netback ?? null;
+  const salePrice = firstPoolAllocation?.gross_sale_price_gbp_mwh ?? selectedAllocation?.sale_price ?? contract.nbp_sale_price_gbp_mwh;
+  const routeCharge = firstPoolAllocation
+    ? Math.max(firstPoolAllocation.total_cost_gbp_mwh - contract.contract_price_gbp_mwh, 0)
+    : selectedAllocation?.route_cost ?? null;
   const activeWarning = [...(strategyResult?.warnings ?? []), ...(meta?.warnings ?? [])][0] ?? null;
   const tsoAccessByCountry = useMemo(() => {
     const buckets = new Map<string, {
@@ -522,30 +670,24 @@ export default function App() {
           </div>
           <div className="map-price-strip">
             <div>
-              <span>{t("home.portfolio")}</span>
-              <strong>{contract.delivery_quantity_mwh_per_day.toLocaleString()} MWh/d</strong>
+              <span>{t("map.nodes")}</span>
+              <strong>{nodes.length.toLocaleString()}</strong>
             </div>
             <div>
-              <span>{t("home.nbp_day_ahead")}</span>
-              <strong>{contract.nbp_sale_price_gbp_mwh.toFixed(2)} GBP/MWh</strong>
+              <span>{t("map.flow_rows")}</span>
+              <strong>{flows.length.toLocaleString()}</strong>
             </div>
             <div>
-              <span>{liveMark.venue} {liveMark.product}</span>
-              <strong>{(liveMark.last_gbp_mwh ?? liveMark.bid_gbp_mwh ?? 0).toFixed(2)} GBP/MWh</strong>
+              <span>{t("map.capacity_rows")}</span>
+              <strong>{capacity.length.toLocaleString()}</strong>
             </div>
             <div>
-              <span>{t("home.live_pnl")}</span>
-              <strong>
-                {primaryLiveMark
-                  ? `GBP ${Math.round(primaryLiveMark.live_net_pnl_gbp_per_day ?? 0).toLocaleString()}/d`
-                  : portfolioSummary
-                    ? `GBP ${Math.round(portfolioSummary.total_indicative_pnl_gbp).toLocaleString()}`
-                    : t("home.pending")}
-              </strong>
+              <span>{t("map.tso_access_points")}</span>
+              <strong>{tsoAccess.length.toLocaleString()}</strong>
             </div>
             <div>
-              <span>{t("home.strategy_process")}</span>
-              <strong>{firstStrategyTarget ? `${firstStrategyTarget.market_bucket} ${firstStrategyTarget.target_allocation_pct.toFixed(1)}%` : t("home.not_running")}</strong>
+              <span>{t("map.tariff_rows")}</span>
+              <strong>{tsoTariffs.length.toLocaleString()}</strong>
             </div>
           </div>
           <GasNetworkMap
@@ -556,14 +698,10 @@ export default function App() {
             activeLayers={activeLayers}
             searchTerm={searchTerm}
           />
-          <div className="map-alert-stack">
+          <div className="map-alert-stack network-quality-stack">
             <div className="map-alert">
-              <strong>{t("home.signal")}</strong>
-              <span>{strategyResult?.candidate_action_for_review ?? t("home.signal_idle")}</span>
-            </div>
-            <div className="map-alert">
-              <strong>{t("home.warning")}</strong>
-              <span>{activeWarning ?? t("home.warning_clear")}</span>
+              <strong>{networkGeometryMissing ? t("map.network_warning_title") : t("map.network_dataset")}</strong>
+              <span>{networkGeometryMissing ? t("map.network_warning_body") : t("map.network_ready_body")}</span>
             </div>
           </div>
         </section>
@@ -573,9 +711,9 @@ export default function App() {
           {loading && <div className="panel">{t("status.loading")}</div>}
 
           <div className="panel scenario-intro">
-            <span className="eyebrow">{t("scenario.eyebrow")}</span>
-            <h2>{t("scenario.title")}</h2>
-            <p>{t("scenario.description")}</p>
+            <span className="eyebrow">{t("home.resource_pool")}</span>
+            <h2>{t("home.pool_cockpit")}</h2>
+            <p>{t("home.pool_description")}</p>
           </div>
 
           <div className="panel topology-status-panel">
@@ -619,38 +757,46 @@ export default function App() {
 
           <div className="panel route-selector-panel">
             <div className="section-heading">
-              <span className="eyebrow">{t("scenario.active_route")}</span>
-              <strong>{t("panel.routes")}</strong>
+              <span className="eyebrow">{t("home.recommended_paths")}</span>
+              <strong>{t("panel.route_allocation")}</strong>
             </div>
             <div className="route-list">
-              {routeCandidates.map((route) => (
-                <div key={route.route_id} className="route-row route-candidate">
-                  <span>{route.route_name}</span>
-                  <strong>{route.required_tso_access.join(", ")}</strong>
+              {saleOptions.length > 0 ? saleOptions.map((option) => (
+                <div key={`sale-option-${option.option_id}`} className="route-row route-candidate">
+                  <span>{option.label}</span>
+                  <strong>{option.target_point_name}</strong>
+                  <small>
+                    {option.capacity_limit_mwh_per_day?.toLocaleString() ?? t("home.unlimited")} MWh/d / {option.route_cost_gbp_mwh.toFixed(2)} EUR/MWh
+                  </small>
                 </div>
-              ))}
+              )) : (
+                <div className="route-row route-candidate blocked-route">
+                  <span>{t("home.no_db_contracts")}</span>
+                  <strong>{t("data.partial")}</strong>
+                  <small>{t("home.draft_contract_note")}</small>
+                </div>
+              )}
             </div>
-            <div className="route-list">
-              {routes.map((route) => (
-                <div key={route.route_id} className="route-row">
-                  <span>
-                    {route.from_node_id} {"->"} {route.to_node_id}
-                  </span>
-                  <strong>{Math.round(route.confidence * 100)}%</strong>
-                </div>
-              ))}
+            <div className="action-row">
+              <button
+                type="button"
+                disabled={!hasPortfolioResources || saleOptions.length === 0}
+                onClick={() => optimizeResourcePool(resourcePoolOptimizationRequest)}
+              >
+                {t("home.optimize_pool")}
+              </button>
             </div>
           </div>
 
           <div className="panel home-portfolio-panel">
             <div className="section-heading">
               <span className="eyebrow">{t("home.portfolio")}</span>
-              <strong>{upstreamContracts.length || 1} resource</strong>
+              <strong>{portfolioResources.length} {t("home.resources")}</strong>
             </div>
             <div className="metric-grid two-column compact-metrics">
               <div>
-                <span>{t("economics.volume")}</span>
-                <strong>{contract.delivery_quantity_mwh_per_day.toLocaleString()} MWh/d</strong>
+                <span>{t("home.pool_volume")}</span>
+                <strong>{totalPoolVolume.toLocaleString()} MWh/d</strong>
               </div>
               <div>
                 <span>{t("portfolio.open_orders")}</span>
@@ -658,18 +804,18 @@ export default function App() {
               </div>
             </div>
             <div className="route-list compact-route-list">
-              {latestOfficialFlows.slice(0, 4).map((flow) => (
-                <div key={`home-flow-${flow.observation_id}`} className="route-row route-candidate">
-                  <span>{flow.point_name}</span>
-                  <strong>{flow.flow_mcm_d.toFixed(2)} mcm/d</strong>
-                  <small>{flow.direction.toUpperCase()} / {flow.source_system}</small>
+              {portfolioResources.map((resource) => (
+                <div key={`home-resource-${resource.resource_id}`} className="route-row route-candidate">
+                  <span>{resource.resource_name}</span>
+                  <strong>{resource.available_quantity_mwh_per_day.toLocaleString()} MWh/d</strong>
+                  <small>{resource.location_point_name} / {resource.resource_type}</small>
                 </div>
               ))}
-              {latestOfficialFlows.length === 0 && (
-                <div className="route-row route-candidate">
-                  <span>{t("status.source")}</span>
-                  <strong>{t("data.unavailable")}</strong>
-                  <small>Run ENTSOG flow ingestion into PostgreSQL.</small>
+              {upstreamContracts.length === 0 && (
+                <div className="route-row route-candidate blocked-route">
+                  <span>{t("home.no_db_contracts")}</span>
+                  <strong>{t("data.partial")}</strong>
+                  <small>{t("home.draft_contract_note")}</small>
                 </div>
               )}
             </div>
@@ -684,15 +830,15 @@ export default function App() {
                 <span className="eyebrow">{t("result.eyebrow")}</span>
                 <h3>{t("result.title")}</h3>
               </div>
-              <span className="status-pill">{primaryLiveMark ? t("result.live") : t("result.snapshot")}</span>
+              <span className="status-pill">{routeRecommendation ? t("result.live") : t("result.snapshot")}</span>
             </div>
             <div className="net-pnl-card">
               <span>{t("result.net_pnl")}</span>
               <strong>
-                {decisionPnl === null ? t("home.pending") : `GBP ${Math.round(decisionPnl).toLocaleString()}`}
+                {decisionPnl === null ? t("home.pending") : `EUR ${Math.round(decisionPnl).toLocaleString()}`}
               </strong>
               <small>
-                {t("result.net_margin")} {decisionMargin === null ? "n/a" : `${decisionMargin.toFixed(2)} GBP/MWh`}
+                {t("home.allocated")} {resourcePoolResult?.total_allocated_mwh_per_day?.toLocaleString() ?? "n/a"} MWh/d / {t("home.unallocated")} {resourcePoolResult?.total_unallocated_mwh_per_day?.toLocaleString() ?? "n/a"} MWh/d
               </small>
             </div>
           </div>
@@ -700,26 +846,35 @@ export default function App() {
           <div className="panel route-alpha-panel">
             <div className="panel-title-row">
               <h3>{t("result.route_alpha")}</h3>
-              <span>{t("result.delta")}</span>
+              <span>{t("result.pool_decision")}</span>
             </div>
-            <div className="route-alpha-card">
-              <span>{t("result.optimal")}</span>
-              <strong>{selectedOption?.label ?? routeCandidates[0]?.route_name ?? t("home.pending")}</strong>
-              <small>
-                {selectedOption
-                  ? `${selectedOption.route_legs.length} ${t("result.legs")} / ${t("result.route_cost")} ${
-                      routeCharge === null ? "n/a" : `${routeCharge.toFixed(2)} GBP/MWh`
-                    }`
-                  : t("result.no_route")}
-              </small>
-            </div>
-            <div className="destination-switcher">
-              {destinationHubs.map((hub) => (
-                <button key={hub} type="button" className={hub === "NBP" ? "chip active" : "chip"}>
-                  {hub}
-                </button>
-              ))}
-            </div>
+            {poolAllocations.length > 0 ? poolAllocations.map((allocation) => {
+              const option = saleOptionById.get(allocation.option_id);
+              return (
+                <div key={`pool-allocation-${allocation.resource_id}-${allocation.option_id}`} className="route-alpha-card">
+                  <span>{option?.target_point_name ?? allocation.option_id}</span>
+                  <strong>{option?.label ?? allocation.option_id}</strong>
+                  <small>
+                    {allocation.allocated_quantity_mwh_per_day.toLocaleString()} MWh/d / {allocation.net_margin_gbp_mwh.toFixed(2)} EUR/MWh / EUR {Math.round(allocation.net_pnl_gbp_per_day).toLocaleString()}
+                  </small>
+                </div>
+              );
+            }) : (
+              <div className="route-alpha-card">
+                <span>{t("result.optimal")}</span>
+                <strong>{hasPortfolioResources ? selectedAllocation?.route_name ?? saleOptions[0]?.label ?? t("home.pending") : t("home.no_db_contracts")}</strong>
+                <small>{hasPortfolioResources ? routeRecommendation ? t("result.no_route") : t("home.run_pool_optimizer") : t("home.draft_contract_note")}</small>
+              </div>
+            )}
+            {hasPortfolioResources && (
+              <div className="destination-switcher">
+                {destinationHubs.map((hub) => (
+                  <button key={hub} type="button" className={hub === "NBP" ? "chip active" : "chip"}>
+                    {hub}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="panel economics-snapshot">
@@ -727,23 +882,19 @@ export default function App() {
             <div className="metric-grid two-column">
               <div>
                 <span>{t("result.purchase")}</span>
-                <strong>GBP {contract.contract_price_gbp_mwh.toFixed(2)}/MWh</strong>
+                <strong>{hasPortfolioResources ? `EUR ${contract.contract_price_gbp_mwh.toFixed(2)}/MWh` : "n/a"}</strong>
               </div>
               <div>
                 <span>{t("result.sale")}</span>
-                <strong>GBP {salePrice.toFixed(2)}/MWh</strong>
+                <strong>{hasPortfolioResources ? `EUR ${salePrice.toFixed(2)}/MWh` : "n/a"}</strong>
               </div>
               <div>
                 <span>{t("result.route_cost")}</span>
-                <strong>{routeCharge === null ? "n/a" : `GBP ${routeCharge.toFixed(2)}/MWh`}</strong>
+                <strong>{routeCharge === null ? "n/a" : `EUR ${routeCharge.toFixed(2)}/MWh`}</strong>
               </div>
               <div>
                 <span>{t("result.cash_value")}</span>
-                <strong>
-                  {selectedOption?.early_cash_value_gbp_mwh === undefined
-                    ? "n/a"
-                    : `GBP ${selectedOption.early_cash_value_gbp_mwh.toFixed(3)}/MWh`}
-                </strong>
+                <strong>{firstPoolAllocation ? `EUR ${firstPoolAllocation.early_cash_value_gbp_mwh.toFixed(2)}/MWh` : "n/a"}</strong>
               </div>
             </div>
           </div>
@@ -879,10 +1030,79 @@ export default function App() {
             </div>
           )}
 
+          {activeWorkspace === "contracts" && (
+            <div className="workspace-grid contracts-page">
+              <div className="workspace-panel span-3">
+                <div className="section-heading">
+                  <span className="eyebrow">{t("contracts.efet_style")}</span>
+                  <strong>{t("contracts.title")}</strong>
+                </div>
+                <p className="panel-copy">{t("contracts.description")}</p>
+                <div className="efet-section-grid">
+                  <div className="efet-section">
+                    <span className="eyebrow">{t("contracts.agreement")}</span>
+                    <label>{t("contracts.contract_id")}<input value={contract.contract_id} readOnly /></label>
+                    <label>{t("contracts.portfolio")}<input value="European gas resource pool" readOnly /></label>
+                  </div>
+                  <div className="efet-section">
+                    <span className="eyebrow">{t("contracts.product_term")}</span>
+                    <label>{t("contracts.gas_year")}<input value={contract.gas_year} readOnly /></label>
+                    <label>{t("economics.volume")}<input type="number" value={contract.delivery_quantity_mwh_per_day} onChange={(event) => updateContractNumber("delivery_quantity_mwh_per_day", event.target.value)} /></label>
+                  </div>
+                  <div className="efet-section">
+                    <span className="eyebrow">{t("contracts.delivery")}</span>
+                    <label>{t("contracts.delivery_point")}<input value="TTF" readOnly /></label>
+                    <label>{t("contracts.delivery_mode")}<input value="PHYSICAL_ENTRY_DELIVERY" readOnly /></label>
+                  </div>
+                  <div className="efet-section">
+                    <span className="eyebrow">{t("contracts.quantity_tolerance")}</span>
+                    <label>{t("economics.delivery_tolerance")}<input type="number" value={contract.delivery_tolerance_pct} onChange={(event) => updateContractNumber("delivery_tolerance_pct", event.target.value)} /></label>
+                    <label>{t("economics.nomination_tolerance")}<input type="number" value={contract.nomination_tolerance_pct} onChange={(event) => updateContractNumber("nomination_tolerance_pct", event.target.value)} /></label>
+                  </div>
+                  <div className="efet-section">
+                    <span className="eyebrow">{t("contracts.price")}</span>
+                    <label>{t("economics.contract_price")}<input type="number" value={contract.contract_price_gbp_mwh} onChange={(event) => updateContractNumber("contract_price_gbp_mwh", event.target.value)} /></label>
+                    <label>{t("contracts.pricing_method")}<input value="OPERATOR_DRAFT / index-ready" readOnly /></label>
+                  </div>
+                  <div className="efet-section">
+                    <span className="eyebrow">{t("contracts.costs")}</span>
+                    <label>{t("contracts.balancing_allowance")}<input type="number" value={contract.tolerance_risk_allowance_gbp_mwh} onChange={(event) => updateContractNumber("tolerance_risk_allowance_gbp_mwh", event.target.value)} /></label>
+                    <label>{t("economics.finance_rate")}<input type="number" value={contract.annual_financing_rate_pct} onChange={(event) => updateContractNumber("annual_financing_rate_pct", event.target.value)} /></label>
+                  </div>
+                  <div className="efet-section">
+                    <span className="eyebrow">{t("contracts.capacity_rights")}</span>
+                    <label>{t("contracts.entry_capacity")}<input value={contract.owned_entry_capacity_mwh_per_day ?? "operator to enter"} readOnly /></label>
+                    <label>{t("contracts.tso_access")}<input value="BBL Company" readOnly /></label>
+                  </div>
+                  <div className="efet-section">
+                    <span className="eyebrow">{t("contracts.settlement_cash")}</span>
+                    <label>{t("economics.cash_lag")}<input type="number" value={contract.screen_sale_cash_lag_days} onChange={(event) => updateContractNumber("screen_sale_cash_lag_days", event.target.value)} /></label>
+                    <label>{t("contracts.upstream_payment_lag")}<input type="number" value={contract.upstream_payment_lag_days} onChange={(event) => updateContractNumber("upstream_payment_lag_days", event.target.value)} /></label>
+                  </div>
+                  <div className="efet-section span-2">
+                    <span className="eyebrow">{t("contracts.restrictions")}</span>
+                    <div className="destination-switcher">
+                      {contract.allowed_exit_points.map((point) => <span key={`allowed-${point}`} className="chip active">{point}</span>)}
+                      {contract.eligible_sale_modes.map((modeLabel) => <span key={`sale-mode-${modeLabel}`} className="chip">{modeLabel}</span>)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="workspace-panel">
+                <h3>{t("home.resource_pool")}</h3>
+                <div className="metric-grid">
+                  <div><span>{t("home.resources")}</span><strong>{portfolioResources.length}</strong></div>
+                  <div><span>{t("home.pool_volume")}</span><strong>{totalPoolVolume.toLocaleString()} MWh/d</strong></div>
+                  <div><span>{t("result.cash_value")}</span><strong>{firstPoolAllocation ? firstPoolAllocation.early_cash_value_gbp_mwh.toFixed(2) : "n/a"}</strong></div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {activeWorkspace === "scenario" && (
             <div className="workspace-grid scenario-page">
               <div className="workspace-panel span-2">
-                <div className="section-heading"><span className="eyebrow">{t("scenario.active_route")}</span><strong>{t("panel.routes")}</strong></div>
+                <div className="section-heading"><span className="eyebrow">{t("home.recommended_paths")}</span><strong>{t("panel.routes")}</strong></div>
                 <div className="route-list">
                   {routeCandidates.map((route) => (
                     <div key={`scenario-route-${route.route_id}`} className="route-row route-candidate"><span>{route.route_name}</span><strong>{route.required_tso_access.join(", ")}</strong></div>
@@ -892,14 +1112,14 @@ export default function App() {
               <div className="workspace-panel">
                 <h3>{t("result.economics_snapshot")}</h3>
                 <div className="metric-grid two-column">
-                  <div><span>{t("result.purchase")}</span><strong>GBP {contract.contract_price_gbp_mwh.toFixed(2)}/MWh</strong></div>
-                  <div><span>{t("result.sale")}</span><strong>GBP {salePrice.toFixed(2)}/MWh</strong></div>
-                  <div><span>{t("result.route_cost")}</span><strong>{routeCharge === null ? "n/a" : `GBP ${routeCharge.toFixed(2)}/MWh`}</strong></div>
-                  <div><span>{t("result.cash_value")}</span><strong>{selectedOption?.early_cash_value_gbp_mwh === undefined ? "n/a" : `GBP ${selectedOption.early_cash_value_gbp_mwh.toFixed(3)}/MWh`}</strong></div>
+                  <div><span>{t("result.purchase")}</span><strong>EUR {contract.contract_price_gbp_mwh.toFixed(2)}/MWh</strong></div>
+                  <div><span>{t("result.sale")}</span><strong>EUR {salePrice.toFixed(2)}/MWh</strong></div>
+                  <div><span>{t("result.route_cost")}</span><strong>{routeCharge === null ? "n/a" : `EUR ${routeCharge.toFixed(2)}/MWh`}</strong></div>
+                  <div><span>{t("result.cash_value")}</span><strong>{routeRecommendation ? `${routeRecommendation.total_allocated_mwh_per_day.toLocaleString()} MWh/d` : "n/a"}</strong></div>
                 </div>
               </div>
               <div className="workspace-panel span-3">
-                <div className="section-heading"><span className="eyebrow">{t("scenario.commercial_posture")}</span><strong>{t("panel.easington")}</strong></div>
+                <div className="section-heading"><span className="eyebrow">{t("home.resource_pool")}</span><strong>{t("panel.route_allocation")}</strong></div>
                 <div className="economics-grid wide">
                   <label>{t("economics.volume")}<input type="number" value={contract.delivery_quantity_mwh_per_day} onChange={(event) => updateContractNumber("delivery_quantity_mwh_per_day", event.target.value)} /></label>
                   <label>{t("economics.contract_price")}<input type="number" value={contract.contract_price_gbp_mwh} onChange={(event) => updateContractNumber("contract_price_gbp_mwh", event.target.value)} /></label>
@@ -910,7 +1130,47 @@ export default function App() {
                   <label>{t("economics.cash_lag")}<input type="number" value={contract.screen_sale_cash_lag_days} onChange={(event) => updateContractNumber("screen_sale_cash_lag_days", event.target.value)} /></label>
                   <label>{t("economics.finance_rate")}<input type="number" value={contract.annual_financing_rate_pct} onChange={(event) => updateContractNumber("annual_financing_rate_pct", event.target.value)} /></label>
                 </div>
-                <div className="action-row"><button type="button" onClick={() => compareEasingtonOptions(contract)}>{t("economics.compare")}</button><button type="button" onClick={() => markEasingtonLivePnl(contract, [liveMark])}>{t("economics.live_pnl")}</button></div>
+                <div className="action-row">
+                  <button
+                    type="button"
+                    disabled={!hasPortfolioResources || saleOptions.length === 0}
+                    onClick={() => optimizeResourcePool(resourcePoolOptimizationRequest)}
+                  >
+                    {t("home.optimize_pool")}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!hasPortfolioResources}
+                    onClick={() => recommendRouteAllocation(routeRecommendationRequest)}
+                  >
+                    {t("economics.compare")}
+                  </button>
+                </div>
+                {resourcePoolResult && (
+                  <div className="route-list compact-route-list">
+                    {resourcePoolResult.allocations.map((allocation) => {
+                      const option = saleOptionById.get(allocation.option_id);
+                      return (
+                        <div key={`scenario-pool-${allocation.resource_id}-${allocation.option_id}`} className="route-row route-candidate">
+                          <span>{option?.label ?? allocation.option_id}</span>
+                          <strong>{allocation.allocated_quantity_mwh_per_day.toLocaleString()} MWh/d</strong>
+                          <small>{allocation.net_margin_gbp_mwh.toFixed(2)} EUR/MWh / EUR {Math.round(allocation.net_pnl_gbp_per_day).toLocaleString()}</small>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                {routeRecommendation && (
+                  <div className="route-list compact-route-list">
+                    {routeRecommendation.allocations.map((allocation) => (
+                      <div key={`allocation-${allocation.route_id}`} className="route-row route-candidate">
+                        <span>{allocation.route_name}</span>
+                        <strong>{allocation.allocated_mwh_per_day.toLocaleString()} MWh/d</strong>
+                        <small>{allocation.destination_market ?? "market"} / {allocation.netback == null ? "n/a" : `${allocation.netback.toFixed(2)} EUR/MWh`}</small>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -1087,7 +1347,7 @@ export default function App() {
                   <div><span>{t("panel.tso_access")}</span><strong>{tsoAccess.length}</strong></div>
                   <div><span>{t("panel.storage")}</span><strong>{storage.filter((item) => item.source_system === "GIE").length}</strong></div>
                   <div><span>{t("panel.lng")}</span><strong>{lng.filter((item) => item.source_system === "GIE").length}</strong></div>
-                  <div><span>{t("panel.tariffs")}</span><strong>{ukTariffs.length}</strong></div>
+                  <div><span>{t("panel.tariffs")}</span><strong>{tsoTariffs.length}</strong></div>
                 </div>
                 <div className="source-table-split">
                   <div className="data-table">
@@ -1106,7 +1366,7 @@ export default function App() {
                   </div>
                   <div className="data-table tariff-table">
                     <div className="data-table-row header four"><span>{t("panel.point")}</span><span>{t("panel.direction")}</span><span>{t("panel.product")}</span><span>{t("panel.tariff")}</span></div>
-                    {ukTariffs.slice(0, 5).map((tariff) => (
+                    {tsoTariffs.slice(0, 5).map((tariff) => (
                       <div key={`tariff-page-${tariff.tariff_id}`} className="data-table-row four">
                         <strong>{tariff.source_point_name}</strong>
                         <span>{tariff.direction}</span>
@@ -1114,8 +1374,8 @@ export default function App() {
                         <span>{tariff.tariff_value.toFixed(4)} {tariff.currency}/MWh</span>
                       </div>
                     ))}
-                    {ukTariffs.length === 0 && (
-                      <div className="data-table-row four"><strong>n/a</strong><span>NTS</span><span>{t("data.unavailable")}</span><span>n/a</span></div>
+                    {tsoTariffs.length === 0 && (
+                      <div className="data-table-row four"><strong>n/a</strong><span>TSO</span><span>{t("data.unavailable")}</span><span>n/a</span></div>
                     )}
                   </div>
                 </div>

@@ -411,6 +411,17 @@ input {
   padding-top: 8px;
 }
 
+.route-row.blocked-route {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+  gap: 6px;
+}
+
+.route-row.blocked-route strong {
+  justify-self: start;
+}
+
 .metric-grid {
   display: grid;
   gap: 8px;
@@ -1110,6 +1121,16 @@ body {
   color: var(--eg-on-ink);
 }
 
+.cockpit-app .action-row button:disabled,
+.strategy-panel button:disabled,
+.credential-form button:disabled {
+  border-color: var(--eg-hairline);
+  background: var(--eg-canvas-soft);
+  color: var(--eg-muted);
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
 .cockpit-app input,
 .cockpit-app select,
 .cockpit-app textarea,
@@ -1511,6 +1532,52 @@ body {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.panel-copy {
+  margin: 0 0 14px;
+  color: var(--eg-body);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.efet-section-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.efet-section {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+  border: 1px solid var(--eg-hairline);
+  border-radius: var(--eg-radius-md);
+  background: var(--eg-canvas-soft);
+  padding: 12px;
+}
+
+.efet-section.span-2 {
+  grid-column: span 2;
+}
+
+.efet-section label {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+  color: var(--eg-body);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.efet-section input {
+  width: 100%;
+  min-width: 0;
+}
+
+.route-alpha-panel {
+  display: grid;
+  gap: 10px;
+}
+
 .data-table {
   display: grid;
   gap: 0;
@@ -1795,6 +1862,7 @@ body {
 
 @media (max-width: 1200px) {
   .workspace-grid,
+  .efet-section-grid,
   .four-column,
   .three-column,
   .six-column,
@@ -1803,7 +1871,8 @@ body {
   }
 
   .workspace-panel.span-2,
-  .workspace-panel.span-3 {
+  .workspace-panel.span-3,
+  .efet-section.span-2 {
     grid-column: span 2;
   }
 }
@@ -1819,6 +1888,7 @@ body {
   }
 
   .workspace-grid,
+  .efet-section-grid,
   .four-column,
   .three-column,
   .six-column,
@@ -1830,7 +1900,8 @@ body {
   }
 
   .workspace-panel.span-2,
-  .workspace-panel.span-3 {
+  .workspace-panel.span-3,
+  .efet-section.span-2 {
     grid-column: span 1;
   }
 
@@ -2035,12 +2106,21 @@ body {
   padding: 8px 10px;
 }
 
+.compact-route-list .route-row.blocked-route {
+  grid-template-columns: 1fr;
+}
+
 .compact-route-list .route-row span,
 .compact-route-list .route-row small {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.compact-route-list .route-row.blocked-route span,
+.compact-route-list .route-row.blocked-route small {
+  white-space: normal;
 }
 
 .compact-route-list .route-row small {
@@ -2334,5 +2414,72 @@ body {
   .cockpit-app .maplibregl-ctrl-top-right {
     top: 74px;
     right: 12px;
+  }
+}
+
+/* Network home release layout: map first, with compact resource-pool decision rails. */
+.workspace-network .scenario-rail,
+.workspace-network .decision-rail {
+  display: flex;
+}
+
+.workspace-network .map-price-strip {
+  right: calc(16px + var(--eg-right-rail) + 12px);
+  bottom: 18px;
+  left: calc(16px + var(--eg-left-rail) + 12px);
+  display: grid;
+  grid-template-columns: repeat(5, minmax(128px, 1fr));
+}
+
+.workspace-network .map-price-strip div {
+  min-height: 56px;
+  border-radius: var(--eg-radius-sm);
+  background: rgb(255 255 255 / 88%);
+  box-shadow: var(--eg-shadow-2);
+}
+
+.workspace-network .network-quality-stack {
+  right: 18px;
+  bottom: 92px;
+  width: min(430px, calc(100vw - 36px));
+}
+
+.workspace-network .network-quality-stack .map-alert {
+  border-color: rgb(245 166 35 / 34%);
+  background: rgb(255 255 255 / 90%);
+}
+
+.workspace-network .maplibregl-ctrl-bottom-left {
+  bottom: 94px;
+  left: 18px;
+}
+
+:root.dark .workspace-network .map-price-strip div,
+:root.dark .workspace-network .network-quality-stack .map-alert {
+  background: rgb(17 17 17 / 90%);
+}
+
+@media (max-width: 1200px) {
+  .workspace-network .map-price-strip {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(128px, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .workspace-network .map-price-strip {
+    right: 12px;
+    bottom: 12px;
+    left: 12px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .workspace-network .network-quality-stack {
+    display: none;
+  }
+
+  .workspace-network .maplibregl-ctrl-bottom-left {
+    bottom: 138px;
+    left: 12px;
   }
 }

@@ -115,7 +115,7 @@ def _batch() -> MarketPositioningImportBatch:
                 "source_system": "ICE_OCM",
                 "source_reference": "synthetic:ice-ocm:order",
                 "linked_strategy_id": "nbp-window",
-                "linked_resource_id": "easington-resource",
+                "linked_resource_id": "ttf-bbl-resource",
                 "research_only": True,
                 "human_review_required": True,
             }
@@ -123,8 +123,8 @@ def _batch() -> MarketPositioningImportBatch:
         pnl_snapshots=[
             {
                 "pnl_snapshot_id": "pnl-import-001",
-                "portfolio_id": "uk-book",
-                "resource_id": "easington-resource",
+                "portfolio_id": "europe-routing-book",
+                "resource_id": "ttf-bbl-resource",
                 "strategy_id": "nbp-window",
                 "valuation_time_utc": "2026-06-01T09:45:00Z",
                 "realized_pnl_gbp": 1200,

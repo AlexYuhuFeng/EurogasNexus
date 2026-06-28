@@ -13,7 +13,21 @@ from eurogas_nexus.domain.route_cost.enums import (
     DeliveryMode,
     Firmness,
     SourceResourceType,
+    TariffDirection,
 )
+
+
+class RouteTariffLeg(BaseModel):
+    leg_id: str
+    country: str
+    tso: str
+    market_area: str | None = None
+    point_name: str
+    direction: TariffDirection
+    component_type: CostComponentType = CostComponentType.ENTRY_CAPACITY
+    gas_year: str | None = None
+    capacity_product: CapacityProduct | None = None
+    firmness: Firmness | None = None
 
 
 class RouteCostScenario(BaseModel):
@@ -30,8 +44,9 @@ class RouteCostScenario(BaseModel):
     firmness: Firmness
     requires_entry_capacity: bool | None = None
     requires_exit_capacity: bool | None = None
-    required_tso_access: list[str] = Field(default_factory=lambda: ["National Gas NTS"])
+    required_tso_access: list[str] = Field(default_factory=list)
     company_accessible_tsos: list[str] | None = None
+    tariff_legs: list[RouteTariffLeg] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     research_only: bool = True
 

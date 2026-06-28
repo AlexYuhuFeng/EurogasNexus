@@ -58,7 +58,7 @@ def test_portfolio_live_summary_uses_runtime_db_when_configured(tmp_path, monkey
                 source_system="fixture-runtime",
                 source_reference="fixture:order",
                 linked_strategy_id="sap-icis-ocm",
-                linked_resource_id="easington-year",
+                linked_resource_id="ttf-bbl-portfolio",
                 research_only=True,
                 human_review_required=True,
             )
@@ -67,7 +67,7 @@ def test_portfolio_live_summary_uses_runtime_db_when_configured(tmp_path, monkey
             PortfolioPnlSnapshotRecord(
                 pnl_snapshot_id="pnl-1",
                 portfolio_id="portfolio-demo",
-                resource_id="easington-year",
+                resource_id="ttf-bbl-portfolio",
                 strategy_id="sap-icis-ocm",
                 valuation_time_utc=now,
                 realized_pnl_gbp=1200,

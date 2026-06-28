@@ -13,8 +13,8 @@ def _scenario(**overrides) -> LngRegasScenario:
     data = {
         "contract_id": "lng-contract",
         "cargo_id": "cargo-1",
-        "terminal_id": "gb-grain",
-        "terminal_name": "Isle of Grain",
+        "terminal_id": "nl-gate",
+        "terminal_name": "GATE LNG",
         "terminal_access_confirmed": True,
         "terminal_access_reference": "operator-input",
         "cargo_size_mwh": 900_000,
@@ -55,11 +55,11 @@ def test_lng_regas_blocks_when_tso_access_missing() -> None:
     result = assess_lng_regas_readiness(
         _scenario(
             delivery_mode=LngRegasDeliveryMode.DOWNSTREAM_PHYSICAL_DELIVERY,
-            physical_entry_point_name="NTS LNG Entry",
-            required_tso_access=["National Gas NTS"],
+            physical_entry_point_name="GTS LNG Entry",
+            required_tso_access=["Gasunie Transport Services"],
             company_accessible_tsos=["Fluxys Belgium"],
         )
     )
 
-    assert result.inaccessible_tsos == ["National Gas NTS"]
-    assert "TSO_ACCESS_MISSING:National Gas NTS" in result.missing_inputs
+    assert result.inaccessible_tsos == ["Gasunie Transport Services"]
+    assert "TSO_ACCESS_MISSING:Gasunie Transport Services" in result.missing_inputs

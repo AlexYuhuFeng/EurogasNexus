@@ -26,16 +26,16 @@ local files.
 
 Route-cost layer:
 
-- UK National Gas NTS only in this release.
-- Do not hard-code the route-cost engine to Easington/Bacton examples. Any UK
-  NTS entry/exit point may be priced when audited tariff rows exist in
-  PostgreSQL.
+- European explicit-leg route economics in this release.
+- Do not hard-code the route-cost engine to one country, point, or demo route.
+  Any European route may be priced when audited tariff rows, route legs,
+  capacity, and access data exist in PostgreSQL.
 - Supported business patterns include virtual hub sale, downstream physical
   delivery, beach delivery resource sale, storage injection/withdrawal support,
   and LNG regas delivery modes when the required inputs exist.
-- Cost stack includes entry capacity, exit capacity where relevant, NTS
-  commodity charge, contract tolerance allowance, and early recovered cash
-  value.
+- Cost stack includes entry capacity, exit capacity where relevant,
+  interconnector/TSO tariff legs, commodity or usage charges when applicable,
+  contract tolerance allowance, and early recovered cash value.
 - Route evaluation must consider company TSO access. If the company lacks access
   to a required TSO, the route is blocked or partial with an explicit warning.
 - Live PnL uses bid marks for sellable options. It produces human-review
@@ -161,7 +161,7 @@ package versions, or official TSO tariff PDFs.
 4. Extend SDK DTOs before clients consume any new endpoint.
 5. Update Web and Windows clients to show glossary, settings language/theme,
    source freshness, entitlement, and human-review warnings.
-6. Keep route-cost UK National Gas NTS only until a later milestone adds
-   audited European TSO tariff coverage and route optimization.
+6. Extend European TSO tariff coverage, route topology, and route optimization
+   through PostgreSQL-loaded audited tariff and capacity records.
 7. Extend strategy persistence and APIs so backtests, shadow runs, live monitor
    runs, allocation targets, and alerts are stored in PostgreSQL.

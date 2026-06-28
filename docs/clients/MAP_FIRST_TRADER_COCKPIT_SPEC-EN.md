@@ -7,6 +7,11 @@ generic dashboard. Its purpose is to let a gas trader understand upstream
 portfolio exposure, route availability, live market movement, strategy process
 state, warnings, and indicative PnL from one visual surface.
 
+The home screen is resource-pool-native. All active purchase contracts are first
+understood as available resource in a portfolio pool. The map and right-hand
+decision rail must then show where the pool should be sold, not which one
+purchase contract is currently selected.
+
 ## Home Screen Layout
 
 The first screen must be dominated by the European gas map. The map must show:
@@ -21,6 +26,12 @@ The first screen must be dominated by the European gas map. The map must show:
 - live market movement relevant to selected portfolio routes;
 - strategy status and warning overlays.
 
+Resource markers must identify where the pool is available: beach delivery
+points, LNG terminals, hubs, interconnectors, and other customer-loaded delivery
+or title-transfer points. Recommended sale paths must be drawn at the same time
+so the trader can see the whole allocation, including split routes and blocked
+alternatives.
+
 The map must not be a decorative background. It is the main work surface.
 
 ## Above-Map Price And Process Strip
@@ -28,6 +39,7 @@ The map must not be a decorative background. It is the main work surface.
 Place a compact live strip above the map with:
 
 - portfolio exposure volume;
+- total pool volume and unallocated volume;
 - relevant hub/day-ahead reference prices;
 - ICE OCM or other intraday marks when entitled;
 - ECB FX when cross-currency economics are visible;
@@ -58,6 +70,32 @@ When an active order/PnL context exists, the map must draw an animated
 highlighted corridor between relevant nodes with a concise label and PnL value.
 This animation is informational only; it is not a nomination, route dispatch,
 or executable order path. Motion must respect `prefers-reduced-motion`.
+
+## Resource-Pool Decision Rail
+
+The right rail on the home screen must summarize the portfolio decision:
+
+- total expected PnL for the pool;
+- total allocated and unallocated quantity;
+- each recommended sale route with destination market, allocated quantity,
+  route cost, sale price, marginal netback, PnL contribution, capacity limit,
+  TSO access state, and warning state;
+- blocked routes with explicit blockers;
+- contract-level PnL attribution as a drill-down, not as the primary decision.
+
+If a cheap route has limited capacity, the UI must show the partial allocation
+to that route and the next-best treatment for the remainder. If the remainder is
+uneconomic to reroute, the recommendation should show local sale, alternative
+market sale, or hold/no-sale rather than forcing a loss-making path.
+
+## Contract Entry
+
+Contract detail work belongs on a separate Contracts page. The page must follow
+the EFET-style structure in
+`docs/contracts/21_RESOURCE_POOL_CONTRACT-EN.md`: agreement, product and term,
+delivery, quantity/tolerance, price, costs, capacity rights, settlement/cash,
+and restrictions. The home screen consumes the resulting resource-pool state
+after it is persisted in PostgreSQL and exposed by `/api`.
 
 ## Separate Detail Tabs Or Windows
 

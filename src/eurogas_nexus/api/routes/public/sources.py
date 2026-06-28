@@ -34,6 +34,19 @@ SOURCE_ID_BY_NAME = {
     "NATIONALGASNTS": "src-national-gas-nts",
     "NATIONAL_GAS_NTS": "src-national-gas-nts",
     "NATIONAL GAS NTS": "src-national-gas-nts",
+    "BBL": "src-bbl",
+    "BBL COMPANY": "src-bbl",
+    "IUK": "src-iuk",
+    "INTERCONNECTOR UK": "src-iuk",
+    "GTS": "src-gts",
+    "GASUNIE TRANSPORT SERVICES": "src-gts",
+    "NATRAN": "src-natran",
+    "GRTGAZ": "src-natran",
+    "TEREGA": "src-natran",
+    "GERMAN TSO": "src-german-tso",
+    "GERMANY TSO": "src-german-tso",
+    "FLUXYS BELGIUM": "src-fluxys-belgium",
+    "CNMC ENAGAS": "src-cnmc-enagas",
     "PLATTS": "src-platts",
     "TRAYPORT": "src-trayport",
     "WEATHER": "src-weather",
@@ -127,7 +140,70 @@ def _registered_sources() -> list[dict]:
             "NationalGasNTS",
             "tariff",
             ("transportation-statement", "entry-tariffs", "exit-tariffs", "commodity-charges"),
-            "National Gas NTS transportation tariff references for UK route-cost calculation.",
+            "National Gas NTS transportation tariff references for explicit-leg route costing.",
+            False,
+            freshness_minutes=43200,
+        ),
+        _src(
+            "src-bbl",
+            "BBL",
+            "tariff",
+            ("interconnector-tariffs", "forward-flow", "reverse-flow"),
+            "BBL Company public interconnector capacity tariff references.",
+            False,
+            freshness_minutes=43200,
+        ),
+        _src(
+            "src-iuk",
+            "IUK",
+            "tariff",
+            ("interconnector-tariffs", "bacton", "zeebrugge"),
+            "Interconnector UK public charging statement and capacity tariff references.",
+            False,
+            freshness_minutes=43200,
+        ),
+        _src(
+            "src-gts",
+            "GTS",
+            "tariff",
+            ("netherlands-transmission-tariffs", "entry-exit"),
+            "Gasunie Transport Services Dutch transmission tariff references.",
+            False,
+            freshness_minutes=43200,
+        ),
+        _src(
+            "src-natran",
+            "NaTran",
+            "tariff",
+            ("france-transmission-tariffs", "entry-exit", "peg"),
+            "French transmission tariff references for NaTran/GRTgaz/Terega context.",
+            False,
+            freshness_minutes=43200,
+        ),
+        _src(
+            "src-german-tso",
+            "GermanTSO",
+            "tariff",
+            ("germany-transmission-tariffs", "the-market-area", "entry-exit"),
+            "German gas transmission tariff references for THE market-area routing.",
+            False,
+            freshness_minutes=43200,
+        ),
+        _src(
+            "src-fluxys-belgium",
+            "FluxysBelgium",
+            "tariff",
+            ("belgium-transmission-tariffs", "ztp", "interconnection"),
+            "Fluxys Belgium transmission tariff references for ZTP and border routing.",
+            False,
+            freshness_minutes=43200,
+        ),
+        _src(
+            "src-cnmc-enagas",
+            "CNMCEnagas",
+            "tariff",
+            ("spain-access-tolls", "transmission", "regasification"),
+            "Spanish CNMC/Enagas gas access toll and tariff references.",
             False,
             freshness_minutes=43200,
         ),
@@ -349,6 +425,8 @@ def _runtime_source_counts() -> dict[str, int]:
 
     sqlalchemy_error = _sqlalchemy_error_type()
     try:
+        from sqlalchemy import or_
+
         from eurogas_nexus.db.models import (
             CapacityObservationRecord,
             FlowObservationRecord,
@@ -415,14 +493,99 @@ def _runtime_source_counts() -> dict[str, int]:
                 + session.query(LngObservationRecord)
                 .filter(LngObservationRecord.source_system == "GIE")
                 .count(),
-                "NationalGasNTS": session.query(TsoTariffRecord).filter(
-                    TsoTariffRecord.country == "GB"
-                ).count(),
+                "NationalGasNTS": session.query(TsoTariffRecord)
+                .filter(_national_gas_nts_tariff_filter(TsoTariffRecord, or_))
+                .count(),
+                "BBL": session.query(TsoTariffRecord)
+                .filter(_bbl_tariff_filter(TsoTariffRecord, or_))
+                .count(),
+                "IUK": session.query(TsoTariffRecord)
+                .filter(_iuk_tariff_filter(TsoTariffRecord, or_))
+                .count(),
+                "GTS": session.query(TsoTariffRecord)
+                .filter(_gts_tariff_filter(TsoTariffRecord, or_))
+                .count(),
+                "NaTran": session.query(TsoTariffRecord)
+                .filter(_france_tariff_filter(TsoTariffRecord, or_))
+                .count(),
+                "GermanTSO": session.query(TsoTariffRecord)
+                .filter(_germany_tariff_filter(TsoTariffRecord, or_))
+                .count(),
+                "FluxysBelgium": session.query(TsoTariffRecord)
+                .filter(_belgium_tariff_filter(TsoTariffRecord, or_))
+                .count(),
+                "CNMCEnagas": session.query(TsoTariffRecord)
+                .filter(_spain_tariff_filter(TsoTariffRecord, or_))
+                .count(),
                 "Weather": weather_count,
                 "DEEPSEEK": 0,
             }
     except sqlalchemy_error:
         return {}
+
+
+def _national_gas_nts_tariff_filter(tariff_model: Any, or_: Any) -> Any:
+    """Return the UK NTS tariff predicate used for National Gas source health."""
+
+    return or_(
+        tariff_model.country.in_(("GB", "UK", "GBR")),
+        tariff_model.market_area.ilike("%NTS%"),
+        tariff_model.tso.ilike("%National Gas%"),
+    )
+
+
+def _bbl_tariff_filter(tariff_model: Any, or_: Any) -> Any:
+    return or_(
+        tariff_model.market_area.ilike("%BBL%"),
+        tariff_model.tso.ilike("%BBL%"),
+    )
+
+
+def _iuk_tariff_filter(tariff_model: Any, or_: Any) -> Any:
+    return or_(
+        tariff_model.market_area.ilike("%IUK%"),
+        tariff_model.tso.ilike("%Interconnector UK%"),
+    )
+
+
+def _gts_tariff_filter(tariff_model: Any, or_: Any) -> Any:
+    return or_(
+        tariff_model.tso.ilike("%Gasunie%"),
+        tariff_model.tso.ilike("%GTS%"),
+    )
+
+
+def _france_tariff_filter(tariff_model: Any, or_: Any) -> Any:
+    return or_(
+        tariff_model.country == "FR",
+        tariff_model.tso.ilike("%NaTran%"),
+        tariff_model.tso.ilike("%GRTgaz%"),
+        tariff_model.tso.ilike("%Terega%"),
+        tariff_model.tso.ilike("%Teréga%"),
+    )
+
+
+def _germany_tariff_filter(tariff_model: Any, or_: Any) -> Any:
+    return or_(
+        tariff_model.country == "DE",
+        tariff_model.market_area.ilike("%THE%"),
+    )
+
+
+def _belgium_tariff_filter(tariff_model: Any, or_: Any) -> Any:
+    return or_(
+        tariff_model.tso.ilike("%Fluxys%"),
+        tariff_model.market_area.ilike("%ZTP%"),
+    )
+
+
+def _spain_tariff_filter(tariff_model: Any, or_: Any) -> Any:
+    return or_(
+        tariff_model.country == "ES",
+        tariff_model.tso.ilike("%Enagas%"),
+        tariff_model.tso.ilike("%Enagás%"),
+        tariff_model.tso.ilike("%CNMC%"),
+    )
 
 
 def _credential_status_by_provider() -> dict[str, dict[str, Any]]:

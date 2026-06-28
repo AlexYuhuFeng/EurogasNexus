@@ -20,7 +20,7 @@ All new market-practice objects are decision-support observations or snapshots. 
 - Modify `clients/desktop/src-tauri/tauri.conf.json` for fullscreen borderless main window plus startup splash window.
 - Modify `clients/desktop/src-tauri/src/main.rs` to show the main window after the splash interval.
 - Modify `clients/web/src/App.tsx`, `clients/web/src/components/GasNetworkMap.tsx`, `clients/web/src/stores/api.ts`, `clients/web/src/api/client.ts`, and `clients/web/src/styles/app.css` for order/PnL panels and animated map corridor highlighting.
-- Create `src/eurogas_nexus/domain/market_positioning.py` for read-only screen order and PnL snapshot DTOs plus synthetic fallback data.
+- Create `src/eurogas_nexus/domain/market_positioning.py` for read-only screen order and PnL snapshot DTOs. Missing runtime records must return explicit empty or blocked states, not invented trading values.
 - Create `src/eurogas_nexus/db/models/market_positioning.py` and `alembic/versions/0009_market_positioning_foundation.py`.
 - Create `src/eurogas_nexus/api/routes/v1/portfolio.py` and register it in `src/eurogas_nexus/api/route_registration.py`.
 - Create `src/eurogas_nexus/sdk/portfolio.py` and expose import coverage in SDK tests.

@@ -23,8 +23,13 @@ from eurogas_nexus.db.session import (
     resolve_database_url,
 )
 from eurogas_nexus.domain.glossary import baseline_glossary_terms
+from eurogas_nexus.domain.route_cost.european_public_tariffs import (
+    BBL_DOCUMENT_ID,
+    IUK_DOCUMENT_ID,
+    published_european_corridor_tariffs,
+)
 from eurogas_nexus.domain.route_cost.uk_public_tariffs import (
-    DOCUMENT_ID as UK_NTS_DOCUMENT_ID,
+    DOCUMENT_ID as NATIONAL_GAS_DOCUMENT_ID,
 )
 from eurogas_nexus.domain.route_cost.uk_public_tariffs import (
     published_uk_capacity_tariffs,
@@ -42,10 +47,15 @@ def main() -> int:
     session_factory = get_session_factory(database_url=database_url)
     with session_factory() as session:
         session.query(TsoTariffRecord).filter(
-            TsoTariffRecord.document_id == UK_NTS_DOCUMENT_ID
+            TsoTariffRecord.document_id.in_(
+                [NATIONAL_GAS_DOCUMENT_ID, BBL_DOCUMENT_ID, IUK_DOCUMENT_ID]
+            )
         ).delete(synchronize_session=False)
         session.flush()
-        for tariff in published_uk_capacity_tariffs():
+        for tariff in [
+            *published_uk_capacity_tariffs(),
+            *published_european_corridor_tariffs(),
+        ]:
             session.merge(
                 TsoTariffRecord(
                     tariff_id=tariff.tariff_id,
@@ -97,11 +107,11 @@ def main() -> int:
         )
         session.merge(
             UpstreamResourceContractRecord(
-                contract_id="operator-test-easington-contract",
-                contract_name="Operator test Easington annual supply",
-                resource_type="BEACH_DELIVERY",
-                delivery_point_name="Easington Beach Terminal",
-                gas_year="2025/26",
+                contract_id="operator-test-ttf-bbl-portfolio",
+                contract_name="Operator test TTF to NBP BBL portfolio",
+                resource_type="PIPELINE_IMPORT",
+                delivery_point_name="TTF",
+                gas_year="2025+",
                 delivery_quantity_mwh_per_day=10000.0,
                 contract_price_gbp_mwh=25.0,
                 settlement_frequency="monthly",
@@ -110,8 +120,8 @@ def main() -> int:
                 annual_financing_rate_pct=6.0,
                 delivery_tolerance_pct=2.0,
                 nomination_tolerance_pct=1.0,
-                allowed_exit_points=["Bacton GDN (EA)"],
-                eligible_sale_modes=["VIRTUAL_HUB_SALE", "PHYSICAL_DELIVERY"],
+                allowed_exit_points=["NBP"],
+                eligible_sale_modes=["VIRTUAL_HUB_SALE"],
                 notes="operator-entered-test-contract: local-test-contract",
                 created_at_utc=now,
                 updated_at_utc=now,

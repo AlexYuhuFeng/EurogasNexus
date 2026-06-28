@@ -63,19 +63,23 @@ and Windows shell surfaces for the tested local scope:
 - Web workspace: `clients/web`
 - Windows shell: `clients/desktop`
 
-UK route-cost is active only for National Gas NTS in this release, but it must
-not be artificially limited to Easington/Bacton examples. Any UK NTS entry/exit
-point may be priced when audited tariff rows exist in PostgreSQL. Route cost,
-LNG regas readiness, resource-pool optimization, strategy lab, FX, market
-marks, credentials, and glossary surfaces are exposed through API/SDK/Web
-contracts. Imported external screen-order observations and indicative portfolio
-PnL snapshots are exposed through `/api/portfolio/*` and
-`src/eurogas_nexus/sdk/portfolio.py`. Clients must not read PostgreSQL directly.
-Operational glossary context is also API-only and combines runtime matched
-entities, capacity, selected-duration usage, prices, live marks, routes, and
-linked contracts for terms such as Easington Entry Point, ICIS Heren, NBP, ICE
-OCM, and customer-loaded points such as St Fergus Entry Point. It is no longer
-limited to Easington/Bacton examples when PostgreSQL records exist.
+Route cost is a European explicit-leg model in this release line. BBL and IUK
+public corridor tariff references are included, UK NTS rows can remain as a
+public tariff source, and additional European TSO tariffs must be loaded into
+PostgreSQL rather than represented as client-side fixtures. Route cost, LNG
+regas readiness, capacity-constrained route/sale allocation, resource-pool
+optimization, EFET-style contract entry, strategy lab, FX, market marks,
+credentials, and glossary surfaces are exposed through API/SDK/Web contracts.
+The home screen must treat all active purchase contracts as one portfolio
+resource pool, optimize sale paths for the pool, then attribute PnL back to
+contracts. Imported external
+screen-order observations and indicative portfolio PnL snapshots are exposed
+through `/api/portfolio/*` and `src/eurogas_nexus/sdk/portfolio.py`. Clients
+must not read PostgreSQL directly. Operational glossary context is also
+API-only and combines runtime matched entities, capacity, selected-duration
+usage, prices, live marks, routes, and linked contracts for terms such as TTF,
+GATE LNG, Zeebrugge Entry Point, ICIS Heren, NBP, ICE OCM, and any
+customer-loaded point with PostgreSQL records.
 Internal/operator market-positioning imports use
 `/api/internal/portfolio/import-observations` with
 `EUROGAS_NEXUS_INTERNAL_API_TOKEN`, `X-Eurogas-Internal-Token`, and
@@ -108,6 +112,9 @@ Codex should use:
 - `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-EN.md` and
   `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-CN.md` as the home-screen UX
   contract;
+- `docs/contracts/21_RESOURCE_POOL_CONTRACT-EN.md` and
+  `docs/contracts/21_RESOURCE_POOL_CONTRACT-CN.md` as the resource-pool and
+  EFET-style contract authority;
 - `docs/clients/MARKET_POSITIONING_COCKPIT_SPEC-EN.md` and
   `docs/clients/MARKET_POSITIONING_COCKPIT_SPEC-CN.md` as the read-only
   imported order/PnL cockpit contract;

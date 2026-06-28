@@ -29,7 +29,7 @@ def test_sdk_all_clients_importable() -> None:
         compute_route_cost,
     )
     from eurogas_nexus.sdk.route_cost import (
-        compare_easington_contract_options,
+        recommend_route_allocation,
     )
     from eurogas_nexus.sdk.sources import (
         SourceSystem,
@@ -39,7 +39,7 @@ def test_sdk_all_clients_importable() -> None:
     )
     assert callable(fetch_nodes)
     assert callable(compute_route_cost)
-    assert callable(compare_easington_contract_options)
+    assert callable(recommend_route_allocation)
     assert callable(ask_analysis)
     assert callable(fetch_business_ontology)
     assert callable(fetch_glossary_context)

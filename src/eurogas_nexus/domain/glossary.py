@@ -117,7 +117,7 @@ def baseline_glossary_terms() -> list[GlossaryTerm]:
             definition_en="National Balancing Point, the UK virtual gas trading hub.",
             definition_zh_cn="国家平衡点，英国虚拟天然气交易枢纽。",
             aliases=["National Balancing Point"],
-            related_terms=["ICE OCM", "Easington", "Bacton"],
+            related_terms=["ICE OCM", "IUK", "BBL"],
         ),
         GlossaryTerm(
             term_id="hub-the",
@@ -136,27 +136,6 @@ def baseline_glossary_terms() -> list[GlossaryTerm]:
             definition_zh_cn="法国天然气交换点，法国虚拟天然气交易枢纽。",
             aliases=["Point d'Echange de Gaz"],
             related_terms=["France", "Virtual Hub"],
-        ),
-        GlossaryTerm(
-            term_id="terminal-easington",
-            term="Easington",
-            category="terminal",
-            definition_en=(
-                "UK east-coast beach terminal and National Gas NTS entry point used for "
-                "North Sea and upstream beach delivery contracts."
-            ),
-            definition_zh_cn="英国东海岸海滩终端和 National Gas NTS 入口点，常用于北海及上游海滩交付合同。",
-            aliases=["Easington Beach Terminal"],
-            related_terms=["NBP", "Entry Capacity", "National Gas NTS"],
-        ),
-        GlossaryTerm(
-            term_id="terminal-bacton",
-            term="Bacton",
-            category="terminal",
-            definition_en="UK gas terminal and NTS exit/entry area connected to interconnectors and domestic network flows.",
-            definition_zh_cn="英国天然气终端及 NTS 出入口区域，连接互联管道和国内管网流量。",
-            aliases=["Bacton GDN"],
-            related_terms=["Exit Capacity", "Interconnector", "NBP"],
         ),
         GlossaryTerm(
             term_id="concept-entry-capacity",
@@ -243,20 +222,6 @@ def baseline_glossary_terms() -> list[GlossaryTerm]:
             ),
             aliases=["ICIS", "Heren", "ICIS Heren Day Ahead"],
             related_terms=["NBP", "Day-ahead", "Price Assessment", "ICE OCM"],
-        ),
-        GlossaryTerm(
-            term_id="terminal-easington-entry-point",
-            term="Easington Entry Point",
-            category="terminal",
-            definition_en=(
-                "National Gas NTS entry-point representation for Easington beach "
-                "delivery and associated upstream portfolio routes."
-            ),
-            definition_zh_cn=(
-                "Easington 海滩交付和相关上游组合路线在 National Gas NTS 中的入点表示。"
-            ),
-            aliases=["Easington Beach Entry", "Easington Beach Terminal"],
-            related_terms=["Easington", "Entry Capacity", "NBP", "ICE OCM"],
         ),
         GlossaryTerm(
             term_id="financial-pnl",

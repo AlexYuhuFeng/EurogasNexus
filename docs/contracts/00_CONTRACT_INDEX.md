@@ -27,6 +27,7 @@ are product boundaries, not business feature specifications.
 | `18_NEW_FILE_TEMPLATE.md` | Required review checklist for new files |
 | `19_FUNCTION_SIGNATURE_CATALOG.md` | Current shell signatures |
 | `20_MODULE_OWNERSHIP_MATRIX.md` | Module ownership matrix |
+| `21_RESOURCE_POOL_CONTRACT-EN.md` / `21_RESOURCE_POOL_CONTRACT-CN.md` | Resource-pool-native cockpit and EFET-style contract entry |
 
 ## Bootstrap Rule
 

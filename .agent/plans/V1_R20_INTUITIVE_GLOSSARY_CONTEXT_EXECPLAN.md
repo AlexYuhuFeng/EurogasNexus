@@ -3,11 +3,11 @@
 ## Goal
 
 Make the glossary an operational context surface instead of static help text.
-When a user selects a glossary term such as `Easington Entry Point`,
-`St Fergus Entry Point`, `ICIS Heren`, `NBP`, or `ICE OCM`, the API must return
-the term description plus DB-backed capacity, capacity-in-use, prices, live
-marks, routes, contracts, data quality, and warnings for the selected duration
-where those records exist.
+When a user selects a glossary term such as `Zeebrugge Interconnector`, `TTF`,
+`GATE LNG`, `ICIS Heren`, `NBP`, or `ICE OCM`, the API must return the term
+description plus DB-backed capacity, capacity-in-use, prices, live marks,
+routes, contracts, data quality, and warnings for the selected duration where
+those records exist.
 
 ## Non-Goals
 
@@ -112,13 +112,14 @@ No new tables are required. The resolver reads existing runtime tables:
 
 ## Tests
 
-- Add an integration test for a non-Easington NTS entry point, proving the
-  resolver derives context from runtime rows and aliases instead of a dedicated
+- Add an integration test for a non-UK European point, proving the resolver
+  derives context from runtime rows and aliases instead of a dedicated
   hard-coded profile.
 - Add/extend API tests for `ICIS Heren` price-assessment context, grouped
   sections, and licensed-data warning.
 - Add SDK tests for `fetch_glossary_context`.
-- Preserve existing Easington expectations.
+- Preserve the stable response contract while replacing hard-coded point
+  expectations with DB-backed European fixtures.
 
 ## Validation Commands
 
@@ -127,16 +128,17 @@ ruff check .
 pytest -q tests/api tests/contract tests/integration tests/sdk tests/security
 npm run build
 python -c "from apps.api.main import app; print('app import ok'); print(len(app.routes))"
-rg "90f8185523dad1fbc69ed05bb80d3a0d" .
+rg "<real-provider-key-placeholder>" .
 ```
 
 ## Acceptance Criteria
 
-- `Easington Entry Point` context still shows description, capacity,
-  capacity-in-use absolute value and percentage, related prices, live marks,
-  routes, contracts, warnings, and data-quality metadata.
-- A different runtime point such as `St Fergus Entry Point` works without a
-  dedicated hard-coded profile when matching DB records exist.
+- A runtime point such as `Zeebrugge Interconnector` shows description,
+  capacity, capacity-in-use absolute value and percentage, related prices, live
+  marks, routes, contracts, warnings, and data-quality metadata when matching DB
+  records exist.
+- Other European points work without dedicated hard-coded profiles when matching
+  DB records exist.
 - `ICIS Heren` context shows related price records and retains the licensed
   data warning.
 - Web client renders grouped context sections instead of raw unstructured spans.

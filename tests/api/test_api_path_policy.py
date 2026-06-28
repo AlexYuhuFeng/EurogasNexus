@@ -44,7 +44,7 @@ def test_local_desktop_cors_preflight_for_api_post() -> None:
     client = TestClient(create_app(Settings(api_profile="release")))
 
     response = client.options(
-        "/api/route-cost/uk/easington/live-pnl",
+        "/api/route-cost/recommend",
         headers={
             "Origin": "http://tauri.localhost",
             "Access-Control-Request-Method": "POST",

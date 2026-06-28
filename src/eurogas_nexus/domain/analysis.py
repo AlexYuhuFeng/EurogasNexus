@@ -609,31 +609,12 @@ def _context_description(
 
 
 def _glossary_context_profile(key: str) -> dict:
-    if "easington" in key:
-        return {
-            "context_type": "entry_point",
-            "point_keys": ["easington"],
-            "price_keys": ["nbp", "ice ocm", "icis", "heren"],
-            "route_keys": ["easington", "nbp", "bacton"],
-            "description_en": (
-                "UK National Gas NTS entry point and beach delivery reference. "
-                "The context combines booked/technical capacity, physical flow usage, "
-                "related NBP and screen prices, route candidates, and linked upstream "
-                "contracts when those records are present in the runtime store."
-            ),
-            "description_zh_cn": (
-                "英国 National Gas NTS 入口点和海滩交付参考。该上下文会结合运行库中的"
-                "预订/技术容量、实际流量使用率、相关 NBP 与屏幕价格、路线方案以及上游合同。"
-            ),
-            "related_sources": ["National Gas NTS", "ENTSOG", "ICE OCM", "ICIS Heren"],
-            "warnings": [],
-        }
     if "icis" in key or "heren" in key:
         return {
             "context_type": "price_assessment",
             "point_keys": ["nbp"],
             "price_keys": ["icis", "heren", "nbp", "day-ahead"],
-            "route_keys": ["nbp", "easington"],
+            "route_keys": ["nbp", "iuk", "bbl"],
             "description_en": (
                 "ICIS Heren is a licensed price-assessment reference. Eurogas Nexus "
                 "can display and compare customer-licensed or operator-entered ICIS "
@@ -652,7 +633,7 @@ def _glossary_context_profile(key: str) -> dict:
             "context_type": "hub",
             "point_keys": ["nbp"],
             "price_keys": ["nbp", "ice ocm", "icis", "eex"],
-            "route_keys": ["nbp", "easington", "bacton"],
+            "route_keys": ["nbp", "iuk", "bbl"],
             "description_en": (
                 "NBP is the UK virtual gas hub. Context links the hub to UK route "
                 "options, screen marks, day-ahead assessments, and physical entry "
@@ -688,7 +669,7 @@ def _glossary_context_profile(key: str) -> dict:
             "context_type": "venue",
             "point_keys": ["nbp"],
             "price_keys": ["ice ocm", "ocm", "nbp", "within-day"],
-            "route_keys": ["nbp", "easington"],
+            "route_keys": ["nbp", "iuk", "bbl"],
             "description_en": (
                 "ICE OCM is the UK within-day gas market. Context emphasizes bid, ask, "
                 "last marks and the resource routes whose PnL can be marked against "

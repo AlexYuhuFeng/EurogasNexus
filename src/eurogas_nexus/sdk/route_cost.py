@@ -1,4 +1,4 @@
-"""SDK client for DB-first route-cost and contract decision-support APIs."""
+"""SDK client for European route-cost and resource optimization APIs."""
 
 from __future__ import annotations
 
@@ -56,24 +56,30 @@ class RouteCostResult(BaseModel):
     human_review_required: bool
 
 
-class EasingtonOptionPnl(BaseModel):
-    option_id: str
-    label: str
-    business_model: str
-    sale_price_gbp_mwh: float
-    contract_cost_gbp_mwh: float
-    entry_capacity_charge_gbp_mwh: float
-    exit_capacity_charge_gbp_mwh: float
-    commodity_charge_gbp_mwh: float
-    tolerance_risk_allowance_gbp_mwh: float
-    early_cash_value_gbp_mwh: float
-    total_charges_gbp_mwh: float
-    net_margin_gbp_mwh: float
-    net_pnl_gbp_per_day: float
-    source_refs: list[str] = Field(default_factory=list)
-    route_legs: list[dict] = Field(default_factory=list)
-    tariff_status_summary: dict[str, int] = Field(default_factory=dict)
+class RouteAllocation(BaseModel):
+    route_id: str
+    route_name: str
+    destination_market: str | None = None
+    allocated_mwh_per_day: float
+    route_cost: float | None = None
+    currency: str | None = None
+    unit: str | None = None
+    sale_price: float | None = None
+    netback: float | None = None
+    rationale: list[str] = Field(default_factory=list)
+
+
+class RouteRecommendationResult(BaseModel):
+    request_id: str
+    status: str
+    total_requested_mwh_per_day: float
+    total_allocated_mwh_per_day: float
+    unallocated_mwh_per_day: float
+    allocations: list[RouteAllocation] = Field(default_factory=list)
+    excluded_routes: list[dict] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+    assumptions: list[str] = Field(default_factory=list)
+    research_only: bool
     human_review_required: bool
 
 
@@ -116,49 +122,6 @@ class PortfolioOptimizationResult(BaseModel):
     human_review_required: bool
 
 
-class EasingtonContractOptionsResult(BaseModel):
-    contract_id: str
-    gas_year: str
-    delivery_point_name: str
-    delivery_quantity_mwh_per_day: float
-    delivery_tolerance_pct: float
-    nomination_tolerance_pct: float
-    delivery_tolerance_mwh: float
-    nomination_tolerance_mwh: float
-    options: list[EasingtonOptionPnl] = Field(default_factory=list)
-    missing_inputs: list[str] = Field(default_factory=list)
-    warnings: list[str] = Field(default_factory=list)
-    source_refs: list[str] = Field(default_factory=list)
-    research_only: bool
-    human_review_required: bool
-
-
-class LiveStrategySignal(BaseModel):
-    suggestion_type: str
-    suggested_action: str
-    rationale: list[str] = Field(default_factory=list)
-    warnings: list[str] = Field(default_factory=list)
-    human_review_required: bool
-
-
-class LiveOptionMarkResult(BaseModel):
-    option_id: str
-    venue: str
-    hub: str
-    product: str
-    status: str
-    mark_price_gbp_mwh: float | None = None
-    live_net_margin_gbp_mwh: float | None = None
-    live_net_pnl_gbp_per_day: float | None = None
-    missing_inputs: list[str] = Field(default_factory=list)
-    signal: LiveStrategySignal
-    human_review_required: bool
-
-
-class EasingtonLivePnlResult(EasingtonContractOptionsResult):
-    live_marks: list[LiveOptionMarkResult] = Field(default_factory=list)
-
-
 def _get(url: str) -> dict:
     response = httpx.get(url, timeout=10)
     response.raise_for_status()
@@ -171,27 +134,30 @@ def _post(url: str, json_body: dict) -> dict:
     return response.json()["data"]
 
 
-def fetch_uk_easington_tariffs(base_url: str) -> list[RouteCostTariff]:
-    data = _get(f"{base_url}/api/route-cost/uk/tariffs/easington")
-    return [RouteCostTariff(**row) for row in data["tariffs"]]
-
-
-def fetch_uk_nts_tariffs(
+def fetch_tso_tariffs(
     base_url: str,
     *,
+    country: str | None = None,
+    tso: str | None = None,
+    market_area: str | None = None,
     point_name: str | None = None,
     direction: str | None = None,
     gas_year: str | None = None,
 ) -> list[RouteCostTariff]:
-    params = []
-    if point_name:
-        params.append(("point_name", point_name))
-    if direction:
-        params.append(("direction", direction))
-    if gas_year:
-        params.append(("gas_year", gas_year))
+    params = [
+        (key, value)
+        for key, value in {
+            "country": country,
+            "tso": tso,
+            "market_area": market_area,
+            "point_name": point_name,
+            "direction": direction,
+            "gas_year": gas_year,
+        }.items()
+        if value is not None
+    ]
     query = f"?{urlencode(params)}" if params else ""
-    data = _get(f"{base_url}/api/route-cost/uk/tariffs{query}")
+    data = _get(f"{base_url}/api/route-cost/tso-tariffs{query}")
     return [RouteCostTariff(**row) for row in data["tariffs"]]
 
 
@@ -200,9 +166,14 @@ def fetch_route_candidates(base_url: str) -> list[dict]:
     return data["route_candidates"]
 
 
-def calculate_uk_nts_route_cost(base_url: str, **kwargs) -> RouteCostResult:
+def calculate_route_cost(base_url: str, **kwargs) -> RouteCostResult:
     data = _post(f"{base_url}/api/route-cost/calculate", kwargs)
     return RouteCostResult(**data)
+
+
+def recommend_route_allocation(base_url: str, **kwargs) -> RouteRecommendationResult:
+    data = _post(f"{base_url}/api/route-cost/recommend", kwargs)
+    return RouteRecommendationResult(**data)
 
 
 def assess_lng_regas(base_url: str, **kwargs) -> LngRegasReadinessResult:
@@ -213,13 +184,3 @@ def assess_lng_regas(base_url: str, **kwargs) -> LngRegasReadinessResult:
 def optimize_resource_pool(base_url: str, **kwargs) -> PortfolioOptimizationResult:
     data = _post(f"{base_url}/api/route-cost/resource-pool/optimize", kwargs)
     return PortfolioOptimizationResult(**data)
-
-
-def compare_easington_contract_options(base_url: str, **kwargs) -> EasingtonContractOptionsResult:
-    data = _post(f"{base_url}/api/route-cost/uk/easington/options", kwargs)
-    return EasingtonContractOptionsResult(**data)
-
-
-def mark_easington_live_pnl(base_url: str, **kwargs) -> EasingtonLivePnlResult:
-    data = _post(f"{base_url}/api/route-cost/uk/easington/live-pnl", kwargs)
-    return EasingtonLivePnlResult(**data)

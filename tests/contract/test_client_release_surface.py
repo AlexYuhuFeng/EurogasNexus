@@ -292,7 +292,11 @@ def test_web_client_matches_design_reference_cockpit() -> None:
     assert "topbar-menu-glyph" in app
     assert "workspace-page" in app
     assert 'activeWorkspace === "market"' in app
+    assert 'activeWorkspace === "contracts"' in app
     assert 'activeWorkspace === "glossary"' in app
+    assert "resourcePoolOptimizationRequest" in app
+    assert "optimizeResourcePool(resourcePoolOptimizationRequest)" in app
+    assert "efet-section-grid" in app
     assert "map-overlay" not in app
     assert "topology-status-panel" in app
     assert "networkGeometryMissing" in app
@@ -326,6 +330,10 @@ def test_web_client_matches_design_reference_cockpit() -> None:
     assert en["scenario.title"] == "Scenario Builder"
 
     assert zh["scenario.title"] == "\u60c5\u666f\u6784\u5efa\u5668"
+    assert en["nav.contracts"] == "Contracts"
+    assert zh["nav.contracts"] == "\u5408\u540c"
+    assert en["home.resource_pool"] == "Resource pool"
+    assert zh["home.resource_pool"] == "\u8d44\u6e90\u6c60"
 
     assert en["result.route_alpha"] == "Route alpha ladder"
 

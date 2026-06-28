@@ -58,9 +58,9 @@ Operational glossary context is API-only as well. Clients must use
 `/api/glossary/{term}/context` with optional language and duration
 parameters to display matched entities, capacity, selected-duration capacity
 usage, prices, live marks, route candidates, linked contracts, warnings, and
-data quality. The context resolver is DB-derived and is not limited to
-Easington/Bacton examples; customer-loaded points render when PostgreSQL
-contains matching glossary and runtime rows.
+data quality. The context resolver is DB-derived and is not limited to any
+hard-coded point; customer-loaded points render when PostgreSQL contains
+matching glossary and runtime rows.
 
 ## Implementation Rule
 

@@ -170,18 +170,19 @@ Current V1 endpoints:
 
 ```text
 GET /api/route-cost/route-candidates
-GET /api/route-cost/uk/tariffs
+GET /api/route-cost/tso-tariffs
 POST /api/route-cost/calculate
-POST /api/route-cost/uk/easington/options
-POST /api/route-cost/uk/easington/live-pnl
+POST /api/route-cost/recommend
 POST /api/route-cost/lng-regas/assess
 POST /api/route-cost/resource-pool/optimize
 ```
 
-Current V1 route-cost scope is UK National Gas NTS only. It must not be
-hard-coded to Easington/Bacton examples; any UK NTS point may be used when
-audited tariff rows exist in PostgreSQL. SDK methods must preserve backend
-warnings and must not imply execution or official trading recommendation.
+Current V1 route-cost scope is European explicit-leg route economics. A route
+calculation must provide tariff legs or route candidates that map to tariff
+rows in PostgreSQL. The SDK must support BBL and IUK corridor examples, UK NTS
+reference rows, and additional European TSO tariff rows as they are loaded.
+SDK methods must preserve backend warnings and must not imply execution,
+nomination submission, order routing, or official trading recommendation.
 
 ### Strategy Lab
 
@@ -249,8 +250,8 @@ The analysis SDK must expose `fetch_glossary_context(base_url, term, lang=...,
 duration_start_utc=..., duration_end_utc=...)`. Its model must preserve
 `metrics`, `capacity_usage`, `related_prices`, `live_market_marks`,
 `related_routes`, `related_contracts`, and `data_quality` so scripts and clients
-can show Easington capacity usage, ICIS Heren price context, NBP hub context,
-and ICE OCM live screen marks without reading PostgreSQL directly.
+can show hub, interconnector, LNG terminal, storage, price-assessment, route,
+and live screen context without reading PostgreSQL directly.
 
 ## Authentication
 

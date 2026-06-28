@@ -120,14 +120,21 @@ type SourceSystemWire = Partial<SourceSystemDTO> & {
 
 const SOURCE_CATEGORY_BY_SYSTEM: Record<string, string> = {
   ARGUS: "price",
+  BBL: "tariff",
+  CNMCENAGAS: "tariff",
   DEEPSEEK: "ai",
   ECB: "fx",
   EEX: "price",
   ENTSOG: "infrastructure",
+  FLUXYSBELGIUM: "tariff",
+  GERMANTSO: "tariff",
   GIE: "infrastructure",
+  GTS: "tariff",
   ICE_OCM: "price",
   ICIS: "price",
+  IUK: "tariff",
   KPLER: "price",
+  NATRAN: "tariff",
   NATIONALGASNTS: "tariff",
   NATIONAL_GAS_NTS: "tariff",
   PLATTS: "price",
@@ -302,7 +309,7 @@ export interface RouteCandidateDTO {
 }
 
 
-export interface UkTariffDTO {
+export interface TsoTariffDTO {
   tariff_id: string; document_id: string; country: string; tso: string; market_area: string;
   gas_year: string; point_id: string; source_point_name: string; direction: string;
   capacity_product: string; firmness: string; tariff_value: number; currency: string; unit: string;
@@ -310,8 +317,8 @@ export interface UkTariffDTO {
   source_table: string; source_page?: number | null; source_refs: string[]; manual_review_required: boolean;
 }
 
-export interface UkTariffsResultDTO {
-  scope: string; data_source: string; tariffs: UkTariffDTO[];
+export interface TsoTariffsResultDTO {
+  scope: string; data_source: string; tariffs: TsoTariffDTO[];
 }
 
 export interface UpstreamContractDTO {
@@ -323,51 +330,60 @@ export interface UpstreamContractDTO {
   owned_entry_capacity_mwh_per_day?: number | null; owned_exit_capacity_mwh_per_day?: number | null;
   allowed_exit_points: string[]; eligible_sale_modes: string[]; updated_at_utc?: string;
 }
-export interface EasingtonContractRequest {
-  contract_id: string; gas_year: string; delivery_quantity_mwh_per_day: number;
-  contract_price_gbp_mwh: number; nbp_sale_price_gbp_mwh: number;
-  physical_exit_sale_price_gbp_mwh: number; physical_exit_point_name: string;
-  delivery_tolerance_pct: number; nomination_tolerance_pct: number;
-  tolerance_risk_allowance_gbp_mwh: number; settlement_frequency: string;
-  upstream_payment_lag_days: number; screen_sale_cash_lag_days: number;
-  annual_financing_rate_pct: number; owned_entry_capacity_mwh_per_day?: number | null;
-  owned_exit_capacity_mwh_per_day?: number | null; allowed_exit_points: string[];
-  eligible_sale_modes: string[];
+export interface RouteRecommendationRequestDTO {
+  request_id: string; source_point_id: string; target_point_id?: string | null;
+  required_quantity_mwh_per_day: number; gas_year: string;
+  capacity_product: string; firmness: string; company_accessible_tsos?: string[] | null;
+  candidates: Array<Record<string, unknown>>;
 }
 
-export interface EasingtonOptionPnlDTO {
-  option_id: string; label: string; business_model: string; sale_price_gbp_mwh: number;
-  contract_cost_gbp_mwh: number; entry_capacity_charge_gbp_mwh: number;
-  exit_capacity_charge_gbp_mwh: number; commodity_charge_gbp_mwh: number;
-  tolerance_risk_allowance_gbp_mwh: number; early_cash_value_gbp_mwh: number;
-  total_charges_gbp_mwh: number; net_margin_gbp_mwh: number; net_pnl_gbp_per_day: number;
-  source_refs: string[]; route_legs: Array<Record<string, unknown>>;
-  tariff_status_summary: Record<string, number>; warnings: string[];
-  human_review_required: boolean;
-}
-
-export interface EasingtonOptionsResultDTO {
-  contract_id: string; gas_year: string; delivery_point_name: string;
-  delivery_quantity_mwh_per_day: number; delivery_tolerance_pct: number;
-  nomination_tolerance_pct: number; delivery_tolerance_mwh: number;
-  nomination_tolerance_mwh: number; options: EasingtonOptionPnlDTO[];
-  missing_inputs: string[]; warnings: string[]; source_refs: string[];
+export interface RouteRecommendationResultDTO {
+  request_id: string; status: string; total_requested_mwh_per_day: number;
+  total_allocated_mwh_per_day: number; unallocated_mwh_per_day: number;
+  allocations: Array<{
+    route_id: string; route_name: string; destination_market?: string | null;
+    allocated_mwh_per_day: number; route_cost?: number | null;
+    currency?: string | null; unit?: string | null; sale_price?: number | null;
+    netback?: number | null; rationale: string[];
+  }>;
+  excluded_routes: Array<Record<string, unknown>>;
+  warnings: string[]; assumptions: string[];
   research_only: boolean; human_review_required: boolean;
 }
 
-export interface LiveMarketMarkDTO {
-  venue: string; hub: string; product: string; bid_gbp_mwh?: number | null;
-  ask_gbp_mwh?: number | null; last_gbp_mwh?: number | null;
-  mark_time_utc: string; source_system: string;
+export interface PortfolioResourceDTO {
+  resource_id: string; resource_name: string; resource_type: string; delivery_mode: string;
+  location_point_name: string; available_quantity_mwh_per_day: number;
+  contract_cost_gbp_mwh: number; variable_cost_gbp_mwh?: number;
+  delivery_tolerance_pct?: number | null; nomination_tolerance_pct?: number | null;
+  tolerance_risk_allowance_gbp_mwh?: number; upstream_payment_lag_days?: number;
+  settlement_frequency?: string; required_tso_access?: string[];
+  accessible_tsos?: string[] | null; pricing_method?: string; source_refs?: string[];
 }
 
-export interface LivePnlResultDTO extends EasingtonOptionsResultDTO {
-  live_marks: Array<{
-    option_id: string; venue: string; hub: string; product: string; status: string;
-    mark_price_gbp_mwh: number | null; live_net_margin_gbp_mwh: number | null;
-    live_net_pnl_gbp_per_day: number | null;
-    signal: { suggestion_type: string; suggested_action: string; rationale: string[]; warnings: string[] };
+export interface PortfolioSaleOptionDTO {
+  option_id: string; label: string; delivery_mode: string; target_point_name: string;
+  sale_price_gbp_mwh: number; route_cost_gbp_mwh?: number;
+  capacity_limit_mwh_per_day?: number | null; screen_sale_cash_lag_days?: number;
+  required_tso_access?: string[]; source_refs?: string[];
+}
+
+export interface PortfolioOptimizationRequestDTO {
+  portfolio_id: string; resources: PortfolioResourceDTO[]; sale_options: PortfolioSaleOptionDTO[];
+  annual_financing_rate_pct?: number; objective?: string; research_only?: boolean;
+}
+
+export interface PortfolioOptimizationResultDTO {
+  portfolio_id: string; status: string; total_allocated_mwh_per_day: number;
+  total_unallocated_mwh_per_day: number; total_net_pnl_gbp_per_day: number;
+  allocations: Array<{
+    resource_id: string; option_id: string; allocated_quantity_mwh_per_day: number;
+    gross_sale_price_gbp_mwh: number; total_cost_gbp_mwh: number;
+    early_cash_value_gbp_mwh: number; net_margin_gbp_mwh: number;
+    net_pnl_gbp_per_day: number; warnings: string[];
   }>;
+  missing_inputs: string[]; warnings: string[]; source_refs: string[];
+  research_only: boolean; human_review_required: boolean;
 }
 
 export interface StrategyPriceObservationDTO {
@@ -528,15 +544,15 @@ export const api = {
 
   routeCandidates: () => get<{ route_candidates: RouteCandidateDTO[] }>("/route-cost/route-candidates"),
 
-  ukTariffs: () => get<UkTariffsResultDTO>("/route-cost/uk/tariffs"),
+  tsoTariffs: () => get<TsoTariffsResultDTO>("/route-cost/tso-tariffs"),
 
   upstreamContracts: () => get<UpstreamContractDTO[]>("/route-cost/upstream-contracts"),
 
-  compareEasingtonOptions: (body: EasingtonContractRequest) =>
-    post<EasingtonOptionsResultDTO>("/route-cost/uk/easington/options", body),
+  recommendRouteAllocation: (body: RouteRecommendationRequestDTO) =>
+    post<RouteRecommendationResultDTO>("/route-cost/recommend", body),
 
-  markEasingtonLivePnl: (contract: EasingtonContractRequest, marks: LiveMarketMarkDTO[]) =>
-    post<LivePnlResultDTO>("/route-cost/uk/easington/live-pnl", { contract, marks }),
+  optimizeResourcePool: (body: PortfolioOptimizationRequestDTO) =>
+    post<PortfolioOptimizationResultDTO>("/route-cost/resource-pool/optimize", body),
 
   evaluateStrategyLab: (body: StrategyLabRequestDTO) =>
     post<StrategyLabResultDTO>("/strategy-lab/evaluate", body),

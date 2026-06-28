@@ -13,7 +13,8 @@ Validated surfaces:
 - PostgreSQL runtime validator.
 - Official/public or operator-keyed ingestion into PostgreSQL.
 - FastAPI app import and DB-backed `/api` routes.
-- UK National Gas NTS public tariff rows from the audited published statement.
+- European explicit-leg route-cost tables, including National Gas NTS public
+  tariff rows and cross-border interconnector tariffs where available.
 - Operator-owned local test price and contract records for price-dependent
   route economics.
 - Web production build.
@@ -62,7 +63,7 @@ customer credentials, entitlement, and source-specific operating rules.
 DB-backed API checks passed:
 
 - `/api/health`: `200`
-- `/api/route-cost/uk/tariffs`: `1315` tariff rows from runtime PostgreSQL
+- `/api/route-cost/tso-tariffs`: tariff rows from runtime PostgreSQL
 - `/api/market/fx`: `6` rows
 - `/api/physical/flows`: `1000` rows
 - `/api/storage/observations`: `300` rows
@@ -72,10 +73,11 @@ DB-backed API checks passed:
 
 Route-cost live check:
 
-- Scenario: `Easington Beach Terminal -> Bacton GDN (EA)`
+- Scenario: explicit-leg European route, for example `GATE LNG -> TTF` or
+  `TTF -> BBL -> NBP`
 - Source: runtime PostgreSQL
 - Status: `SUCCESS`
-- Total cost: `0.1385 p/kWh/day`
+- Total cost: returned from stored route/tariff rows in the runtime DB
 
 ## Data Policy Result
 
@@ -96,7 +98,7 @@ Tests may still use test fixtures and source-shaped examples under `tests/`.
 ```text
 ruff check .
 pytest -q tests/api tests/contract tests/integration tests/security
-pytest -q tests/unit/test_route_cost_tariff_selection.py tests/unit/test_route_cost_easington_example.py tests/api/test_route_cost_api.py tests/workflows
+pytest -q tests/unit/test_route_cost_tariff_selection.py tests/unit/test_route_cost_tariff_models.py tests/api/test_route_cost_api.py tests/workflows
 npm --prefix clients/web run build
 python -c "from apps.api.main import app; print('app import ok'); print(len(app.routes))"
 python scripts/ops/validate_v1_runtime_db.py --json
@@ -124,4 +126,3 @@ Observed results:
   and operator policy.
 - Auth, audit depth, export governance, and multi-user entitlement enforcement
   still require production hardening.
-

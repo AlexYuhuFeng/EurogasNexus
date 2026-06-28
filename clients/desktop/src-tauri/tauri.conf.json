@@ -42,11 +42,11 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
+    "targets": ["nsis", "deb"],
     "publisher": "Eurogas Nexus",
     "category": "Business",
-    "shortDescription": "European gas research workspace",
-    "longDescription": "Eurogas Nexus packages the shared Web workspace as a Windows client. Runtime data is accessed only through the configured backend /api API.",
+    "shortDescription": "European gas market intelligence workspace",
+    "longDescription": "Eurogas Nexus packages the shared Web workspace as a desktop client. Runtime data is accessed only through the configured backend /api API.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

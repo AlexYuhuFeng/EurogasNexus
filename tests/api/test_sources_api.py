@@ -33,6 +33,13 @@ def test_list_sources_includes_all_families(client: TestClient) -> None:
         "ICE_OCM",
         "ICIS",
         "Kpler",
+        "BBL",
+        "IUK",
+        "GTS",
+        "NaTran",
+        "GermanTSO",
+        "FluxysBelgium",
+        "CNMCEnagas",
         "NationalGasNTS",
         "Platts",
         "Trayport",
@@ -52,7 +59,16 @@ def test_sources_are_grouped_for_source_center(client: TestClient) -> None:
     )
     assert by_category["fx"] == {"ECB"}
     assert {"ENTSOG", "GIE"}.issubset(by_category["infrastructure"])
-    assert by_category["tariff"] == {"NationalGasNTS"}
+    assert {
+        "NationalGasNTS",
+        "BBL",
+        "IUK",
+        "GTS",
+        "NaTran",
+        "GermanTSO",
+        "FluxysBelgium",
+        "CNMCEnagas",
+    }.issubset(by_category["tariff"])
     assert "Weather" in by_category["weather"]
     assert "DEEPSEEK" in by_category["ai"]
 
@@ -84,6 +100,51 @@ def test_gie_source_declares_operator_key_requirement(client: TestClient) -> Non
     assert response.json()["data"]["source_system"] == "GIE"
     assert response.json()["data"]["credential_requirements"] == ["api_key"]
     assert response.json()["data"]["category"] == "infrastructure"
+
+
+def test_national_gas_nts_source_uses_runtime_tariff_rows(monkeypatch: pytest.MonkeyPatch) -> None:
+    from eurogas_nexus.api.routes.public import sources as sources_routes
+
+    monkeypatch.setattr(sources_routes, "_db_is_configured", lambda: True)
+    monkeypatch.setattr(
+        sources_routes,
+        "_runtime_source_counts",
+        lambda: {"NationalGasNTS": 1315},
+    )
+    monkeypatch.setattr(sources_routes, "_latest_ingestion_status_by_source", lambda: {})
+    monkeypatch.setattr(sources_routes, "_credential_status_by_provider", lambda: {})
+
+    response = TestClient(create_app()).get("/api/sources")
+    assert response.status_code == 200
+
+    source = next(
+        item for item in response.json()["data"] if item["source_system"] == "NationalGasNTS"
+    )
+    assert source["live_record_count"] == 1315
+    assert source["connectivity_status"] == "active"
+    assert source["diagnostics"] == ["live_records_available"]
+
+
+def test_interconnector_sources_use_runtime_tariff_rows(monkeypatch: pytest.MonkeyPatch) -> None:
+    from eurogas_nexus.api.routes.public import sources as sources_routes
+
+    monkeypatch.setattr(sources_routes, "_db_is_configured", lambda: True)
+    monkeypatch.setattr(
+        sources_routes,
+        "_runtime_source_counts",
+        lambda: {"BBL": 2, "IUK": 4},
+    )
+    monkeypatch.setattr(sources_routes, "_latest_ingestion_status_by_source", lambda: {})
+    monkeypatch.setattr(sources_routes, "_credential_status_by_provider", lambda: {})
+
+    response = TestClient(create_app()).get("/api/sources")
+    assert response.status_code == 200
+
+    sources = {item["source_system"]: item for item in response.json()["data"]}
+    assert sources["BBL"]["connectivity_status"] == "active"
+    assert sources["BBL"]["live_record_count"] == 2
+    assert sources["IUK"]["connectivity_status"] == "active"
+    assert sources["IUK"]["live_record_count"] == 4
 
 
 def test_get_source_unknown_returns_404(client: TestClient) -> None:

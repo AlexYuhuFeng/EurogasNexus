@@ -12,8 +12,9 @@ automated trading.
 
 ## Product Intent
 
-Eurogas Nexus should help a human gas analyst see where European gas market
-conditions are changing and which route/resource candidates deserve review.
+Eurogas Nexus should help a human gas trader see where European gas market
+conditions are changing and how a portfolio resource pool can be sold under
+real contract, capacity, tariff, access, and market constraints.
 
 The primary experience is a map-first workspace:
 
@@ -21,9 +22,9 @@ The primary experience is a map-first workspace:
 live sources -> ingestion/governance -> PostgreSQL -> /api -> SDK/API clients -> map workspace
 ```
 
-The map must show infrastructure, contracts/capacity, market prices, physical
-flows, LNG, storage, weather, route options, warnings, and research candidates
-in one coherent visual workflow.
+The map must show infrastructure, resource-pool locations, contracts/capacity,
+market prices, physical flows, LNG, storage, weather, route options, warnings,
+and decision-support candidates in one coherent visual workflow.
 
 ## Required Live Source Families
 
@@ -87,6 +88,13 @@ Allowed:
 - alerts for expiring or constrained capacity;
 - scenario use of contract/capacity assumptions.
 
+All active purchase contracts feed a portfolio resource pool. Sale optimization
+is performed on the pool first, then PnL is attributed back to each contract
+using cost basis, variable costs, settlement timing, early cash value, and
+quantity allocation. Contract entry should follow the EFET-style term-sheet
+structure in `docs/contracts/21_RESOURCE_POOL_CONTRACT-EN.md` and
+`docs/contracts/21_RESOURCE_POOL_CONTRACT-CN.md`.
+
 Forbidden:
 
 - official booking;
@@ -112,12 +120,14 @@ Map layers:
 - weather/HDD/CDD and demand-pressure overlays;
 - contract/capacity exposure overlays;
 - research route candidates and warning states.
+- resource-pool markers and recommended sale paths.
 
 Route option display:
 
 - show candidate route geometry or corridor sequence;
 - show market/source/destination pair;
 - show cost stack and indicative netback where available;
+- show allocated quantity and PnL contribution when part of a pool decision;
 - show missing inputs and stale data warnings;
 - show source references and entitlement state;
 - show `research_only` and `human_review_required`;

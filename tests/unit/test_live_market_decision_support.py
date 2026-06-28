@@ -1,29 +1,24 @@
 """Live market decision-support model tests."""
 
-from eurogas_nexus.domain.route_cost.contract_economics import EasingtonOptionPnl
 from eurogas_nexus.domain.route_cost.live_markets import (
     LiveMarketMark,
     LiveStrategySignal,
+    RouteOptionPnl,
     mark_option_to_live_market,
 )
 
 
 def test_live_mark_to_market_uses_bid_for_sellable_option() -> None:
-    option = EasingtonOptionPnl(
-        option_id="nbp_virtual_sale",
-        label="NBP virtual sale",
+    option = RouteOptionPnl(
+        option_id="ttf_to_nbp_bbl_sale",
+        label="TTF to NBP via BBL sale",
         business_model="VIRTUAL_HUB_SALE",
         sale_price_gbp_mwh=28.0,
         contract_cost_gbp_mwh=25.0,
-        entry_capacity_charge_gbp_mwh=1.086,
-        exit_capacity_charge_gbp_mwh=0.0,
-        commodity_charge_gbp_mwh=0.206,
-        tolerance_risk_allowance_gbp_mwh=0.1,
         total_charges_gbp_mwh=1.392,
         net_margin_gbp_mwh=1.608,
         net_pnl_gbp_per_day=16080.0,
-        source_refs=["National Gas Table 4"],
-        tariff_status_summary={"FINAL": 1},
+        source_refs=["BBL published tariff"],
         warnings=[],
         human_review_required=False,
     )
@@ -50,21 +45,16 @@ def test_live_mark_to_market_uses_bid_for_sellable_option() -> None:
 
 
 def test_live_market_mark_without_bid_is_partial() -> None:
-    option = EasingtonOptionPnl(
-        option_id="nbp_virtual_sale",
-        label="NBP virtual sale",
+    option = RouteOptionPnl(
+        option_id="ttf_to_nbp_bbl_sale",
+        label="TTF to NBP via BBL sale",
         business_model="VIRTUAL_HUB_SALE",
         sale_price_gbp_mwh=28.0,
         contract_cost_gbp_mwh=25.0,
-        entry_capacity_charge_gbp_mwh=1.086,
-        exit_capacity_charge_gbp_mwh=0.0,
-        commodity_charge_gbp_mwh=0.206,
-        tolerance_risk_allowance_gbp_mwh=0.1,
         total_charges_gbp_mwh=1.392,
         net_margin_gbp_mwh=1.608,
         net_pnl_gbp_per_day=16080.0,
-        source_refs=["National Gas Table 4"],
-        tariff_status_summary={"FINAL": 1},
+        source_refs=["BBL published tariff"],
         warnings=[],
         human_review_required=False,
     )
