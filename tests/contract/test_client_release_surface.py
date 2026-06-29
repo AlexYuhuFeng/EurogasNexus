@@ -303,6 +303,10 @@ def test_web_client_matches_design_reference_cockpit() -> None:
     assert 'activeWorkspace === "manual"' in app
     assert "resourcePoolOptimizationRequest" in app
     assert "optimizeResourcePool(resourcePoolOptimizationRequest)" in app
+    assert "canRunPoolOptimizer" in app
+    assert "poolInputBlockers" in app
+    assert "runtimeDbReady" in app
+    assert "blocker_runtime_db" in app
     assert "efet-section-grid" in app
     assert "map-overlay" not in app
     assert "topology-status-panel" not in app
@@ -337,6 +341,9 @@ def test_web_client_matches_design_reference_cockpit() -> None:
     assert "Resource-pool home cleanup" in css
     assert ".workspace-network .map-price-strip" in css
     assert "source-runtime-panel" in app
+    assert "map-data-panel" in app
+    assert "map-network-state" in app
+    assert "networkGeometryState" in app
 
     assert "tile.openstreetmap.org" in map_component
 
@@ -365,6 +372,8 @@ def test_web_client_matches_design_reference_cockpit() -> None:
     assert zh["result.route_alpha"] == "\u8def\u5f84\u6536\u76ca\u9636\u68af"
     assert en["map.network_warning_title"] == "Pipeline geometry not loaded"
     assert zh["map.network_warning_title"] == "\u7ba1\u7ebf\u51e0\u4f55\u672a\u52a0\u8f7d"
+    assert en["map.runtime_missing_body"].startswith("Runtime PostgreSQL")
+    assert zh["map.runtime_missing_body"].startswith("\u8fd0\u884c PostgreSQL")
     assert en["map.coordinate_quality"] == "Coordinate quality"
     assert zh["map.coordinate_quality"] == "\u5750\u6807\u8d28\u91cf"
     assert en["map.approximate_points"] == "Approx. coords"
@@ -431,6 +440,9 @@ def test_web_client_sources_page_is_categorized_source_center() -> None:
     assert "source-category-rail" in app
     assert "source-health-grid" in app
     assert "source-diagnostics" in app
+    assert "source-next-action" in app
+    assert "source-action-line" in app
+    assert "sourceNextAction" in app
     assert "selectedSource" in app
     assert "credential_state" in app
     assert "last_success_at_utc" in app
@@ -447,9 +459,13 @@ def test_web_client_sources_page_is_categorized_source_center() -> None:
         in api_client
     )
     assert "source-center" in css
+    assert "runtime-blocker-list" in css
     assert en["nav.sources"] == "Data Sources"
     assert en["sources.title"] == "Data Source Center"
+    assert en["sources.next_action"] == "Next action"
+    assert en["sources.action.run_ingestion"].startswith("Run the source ingestion")
     assert zh["sources.title"] == "\u6570\u636e\u6e90\u4e2d\u5fc3"
+    assert zh["sources.next_action"] == "\u4e0b\u4e00\u6b65\u52a8\u4f5c"
 
 
 def test_release_workflow_publishes_web_windows_and_linux_assets() -> None:

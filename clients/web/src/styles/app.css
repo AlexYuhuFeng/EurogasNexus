@@ -1645,6 +1645,31 @@ body {
   padding: 8px 10px;
 }
 
+.runtime-blocker-list {
+  display: grid;
+  gap: 7px;
+  margin-top: 12px;
+  border: 1px solid rgb(180 83 9 / 26%);
+  border-radius: var(--eg-radius-sm);
+  background: rgb(180 83 9 / 10%);
+  padding: 10px;
+}
+
+.runtime-blocker-list.compact {
+  margin-top: 14px;
+}
+
+.runtime-blocker-list strong {
+  color: var(--eg-ink);
+  font-size: 12px;
+}
+
+.runtime-blocker-list span {
+  color: var(--eg-body);
+  font-size: 12px;
+  line-height: 18px;
+}
+
 .manual-step-list {
   display: grid;
   gap: 8px;
@@ -1674,6 +1699,23 @@ body {
 
 .source-center {
   align-items: start;
+}
+
+.source-center .source-category-rail,
+.source-center .source-catalog-panel,
+.source-center .source-detail-panel {
+  align-self: stretch;
+}
+
+.source-catalog-panel .source-health-grid {
+  grid-template-columns: 1fr;
+  max-height: 620px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.source-catalog-panel .source-health-card {
+  min-height: 132px;
 }
 
 .source-overview p,
@@ -1790,6 +1832,7 @@ body {
 
 .source-health-card small,
 .source-card-meta,
+.source-action-line,
 .source-ingestion-note,
 .credential-status-card small {
   color: var(--eg-muted);
@@ -1798,7 +1841,8 @@ body {
 }
 
 .source-health-card.active small,
-.source-health-card.active .source-card-meta {
+.source-health-card.active .source-card-meta,
+.source-health-card.active .source-action-line {
   color: var(--eg-body);
 }
 
@@ -1865,6 +1909,35 @@ body {
   color: var(--eg-body);
   font-size: 11px;
   padding: 4px 8px;
+}
+
+.source-action-line {
+  margin-top: auto;
+  border-top: 1px solid var(--eg-hairline);
+  padding-top: 8px;
+}
+
+.source-next-action {
+  display: grid;
+  gap: 5px;
+  margin-top: 12px;
+  border: 1px solid var(--eg-hairline);
+  border-radius: var(--eg-radius-sm);
+  background: var(--eg-canvas-soft);
+  padding: 10px 12px;
+}
+
+.source-next-action span {
+  color: var(--eg-muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.source-next-action strong {
+  color: var(--eg-ink);
+  font-size: 13px;
+  line-height: 18px;
 }
 
 .source-detail-metrics.two-column div {
@@ -2375,12 +2448,18 @@ body {
   gap: 10px;
 }
 
+.map-data-panel {
+  display: grid;
+  gap: 10px;
+}
+
 .topology-status-panel .section-heading {
   align-items: center;
   margin-bottom: 0;
 }
 
-.map-network-warning {
+.map-network-warning,
+.map-network-state {
   display: grid;
   gap: 4px;
   border: 1px solid rgb(245 166 35 / 42%);
@@ -2390,12 +2469,24 @@ body {
   padding: 9px 10px;
 }
 
-.map-network-warning strong {
+.map-network-state.ready {
+  border-color: rgb(15 118 110 / 28%);
+  background: rgb(15 118 110 / 10%);
+}
+
+.map-network-state.blocked {
+  border-color: rgb(180 83 9 / 28%);
+  background: rgb(180 83 9 / 10%);
+}
+
+.map-network-warning strong,
+.map-network-state strong {
   color: var(--eg-ink);
   font-size: 13px;
 }
 
 .map-network-warning span,
+.map-network-state span,
 .coordinate-quality-note {
   color: var(--eg-body);
   font-size: 12px;

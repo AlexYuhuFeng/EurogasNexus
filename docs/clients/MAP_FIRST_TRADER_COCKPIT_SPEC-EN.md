@@ -50,6 +50,12 @@ capacity summaries, tariff tables, and provider credentials do not belong on
 the home screen. They belong in Data Sources, Runtime, Market, Scenario, or
 Contracts.
 
+The home screen may show a compact runtime/input blocker list when the resource
+pool cannot be optimized. That list is limited to the missing prerequisites:
+runtime PostgreSQL connectivity, persisted contracts, route candidates, TSO
+tariffs, and market price observations. It must not become a duplicate Source
+Center, Runtime page, or tariff table.
+
 If a compact live tape is later reintroduced, it must not overlap the rails,
 MapLibre controls, or map attribution, and it may only show:
 
@@ -65,6 +71,12 @@ MapLibre controls, or map attribution, and it may only show:
 - warning count.
 
 Every value must show source/freshness when the backend provides it.
+
+The optimize action must be disabled until the backend confirms all required
+PostgreSQL-backed inputs exist. The client must display the blockers, then send
+the user to the relevant workspace: Data Sources for provider and ingestion
+issues, Runtime for database readiness, Contracts for resource entry, Scenario
+for route economics, and Market for price observations.
 
 ## Map Interaction
 
@@ -168,3 +180,9 @@ Commercial delivery quality means:
 
 The cockpit must consume only backend `/api` or SDK surfaces. It must not
 read PostgreSQL, backend files, vendor files, `.env`, or credentials directly.
+
+If data is missing, the client must show the missing state. It must not create
+browser-side mock, sample, synthetic, generated, or fallback route/capacity/
+tariff/price records. Demo rows, when required for testing or sales demos, must
+be inserted into PostgreSQL with clear demo provenance and then read back
+through `/api`.

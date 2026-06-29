@@ -14,6 +14,12 @@ provider credentials.
 Missing runtime data must be shown as unavailable, degraded, entitlement, or
 diagnostic state. Do not create browser-side synthetic runtime data.
 
+The map cockpit and Scenario optimizer must stay disabled until the backend API
+confirms all required PostgreSQL-backed inputs are present: runtime database
+connectivity, persisted portfolio resources, route candidates, TSO tariff rows,
+and market price observations. The browser may show blockers and next actions,
+but it must not invent local fallback rows.
+
 ## Workspaces
 
 - Network: map-first resource-pool cockpit and recommended sale paths.
@@ -29,6 +35,10 @@ diagnostic state. Do not create browser-side synthetic runtime data.
 - Runtime: API, database, Alembic, and readiness posture.
 - Settings: language and light/dark/system theme.
 - Manual: customer-facing page map and operating boundary.
+
+The Data Sources workspace owns provider diagnostics. It must group providers
+by category, show credential posture, runtime record counts, last success or
+failure state, and the next operator action for each feed.
 
 ## Commands
 

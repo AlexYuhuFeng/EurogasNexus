@@ -481,6 +481,28 @@ export default function App() {
       missingCredentials: sources.filter((source) => source.credential_state === "missing").length,
     };
   }, [sources]);
+  const runtimeDbReady = runtimeDb?.database_url_present === true && runtimeDb.connectivity.ok;
+  const hasRouteInputRows = routeCandidates.length > 0 && tsoTariffs.length > 0;
+  const canRunPoolOptimizer =
+    runtimeDbReady &&
+    hasPortfolioResources &&
+    saleOptions.length > 0 &&
+    hasRouteInputRows;
+  const poolInputBlockers = useMemo(() => {
+    const blockers: string[] = [];
+    if (!runtimeDbReady) blockers.push(t("home.blocker_runtime_db"));
+    if (!hasPortfolioResources) blockers.push(t("home.blocker_contracts"));
+    if (routeCandidates.length === 0) blockers.push(t("home.blocker_routes"));
+    if (tsoTariffs.length === 0) blockers.push(t("home.blocker_tariffs"));
+    if (markets.length === 0) blockers.push(t("home.blocker_prices"));
+    return blockers;
+  }, [hasPortfolioResources, markets.length, routeCandidates.length, runtimeDbReady, t, tsoTariffs.length]);
+  const networkGeometryState = useMemo(() => {
+    if (!runtimeDbReady) return "runtime_missing";
+    if (nodes.length === 0) return "nodes_missing";
+    if (edges.length === 0) return "edges_missing";
+    return "loaded";
+  }, [edges.length, nodes.length, runtimeDbReady]);
   const sourceCategoryOrder = ["price", "fx", "infrastructure", "tariff", "weather", "ai"];
   const sourceCategories = ["all", ...sourceCategoryOrder];
   const filteredSources = useMemo(
@@ -543,6 +565,25 @@ export default function App() {
     if (category === "all") return t("sources.all_categories");
     const systems = sourcesByCategory.get(category) ?? [];
     return systems.length > 0 ? systems.join(", ") : t("sources.no_registered_feeds");
+  }
+
+  function sourceNextAction(source: typeof sources[number] | null) {
+    if (!source) return t("sources.action.none");
+    if (source.connectivity_status === "active") return t("sources.action.monitor");
+    if (source.connectivity_status === "failed") return t("sources.action.inspect_failure");
+    if (source.credential_state === "missing") return t("sources.action.add_credential");
+    if (source.credential_state === "disabled") return t("sources.action.enable_credential");
+    if (source.connectivity_status === "runtime_unconfigured") return t("sources.action.configure_runtime");
+    if (source.connectivity_status === "no_records") return t("sources.action.run_ingestion");
+    if (source.connectivity_status === "configured") return t("sources.action.run_ingestion");
+    return t("sources.action.review");
+  }
+
+  function mapGeometryMessage() {
+    if (networkGeometryState === "runtime_missing") return t("map.runtime_missing_body");
+    if (networkGeometryState === "nodes_missing") return t("map.nodes_missing_body");
+    if (networkGeometryState === "edges_missing") return t("map.network_warning_body");
+    return t("map.network_ready_body");
   }
 
   function formatSourceTimestamp(value: string | null | undefined) {
@@ -679,12 +720,20 @@ export default function App() {
             <div className="action-row">
               <button
                 type="button"
-                disabled={!hasPortfolioResources || saleOptions.length === 0}
+                disabled={!canRunPoolOptimizer}
                 onClick={() => optimizeResourcePool(resourcePoolOptimizationRequest)}
               >
                 {t("home.optimize_pool")}
               </button>
             </div>
+            {poolInputBlockers.length > 0 && (
+              <div className="runtime-blocker-list">
+                <strong>{t("home.optimizer_blocked")}</strong>
+                {poolInputBlockers.map((blocker) => (
+                  <span key={`home-blocker-${blocker}`}>{blocker}</span>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="panel home-portfolio-panel">
@@ -720,6 +769,28 @@ export default function App() {
             </div>
           </div>
 
+          <div className="panel map-data-panel">
+            <div className="section-heading">
+              <span className="eyebrow">{t("map.topology_status")}</span>
+              <strong>{networkGeometryState === "loaded" ? t("data.runtime") : t("data.unavailable")}</strong>
+            </div>
+            <div className={networkGeometryState === "loaded" ? "map-network-state ready" : "map-network-state blocked"}>
+              <strong>
+                {networkGeometryState === "loaded"
+                  ? t("map.network_dataset")
+                  : t("map.network_warning_title")}
+              </strong>
+              <span>{mapGeometryMessage()}</span>
+            </div>
+            <div className="node-color-legend">
+              <span><i className="node-swatch network" />{t("map.layer.network")}<strong>{nodes.filter((node) => node.node_type === "node").length}</strong></span>
+              <span><i className="node-swatch lng" />{t("map.layer.lng")}<strong>{nodes.filter((node) => node.node_type === "lng").length}</strong></span>
+              <span><i className="node-swatch ips" />{t("map.layer.ips")}<strong>{nodes.filter((node) => node.node_type === "interconnection").length}</strong></span>
+              <span><i className="node-swatch hubs" />{t("map.layer.hubs")}<strong>{nodes.filter((node) => node.node_type === "hub").length}</strong></span>
+            </div>
+            <p className="coordinate-quality-note">{t("map.coordinate_quality_note")}</p>
+          </div>
+
         </aside>
 
         <aside className="decision-rail">
@@ -745,7 +816,7 @@ export default function App() {
           <div className="panel route-alpha-panel">
             <div className="panel-title-row">
               <h3>{t("result.route_alpha")}</h3>
-              <span>{t("result.pool_decision")}</span>
+                <span>{t("result.pool_decision")}</span>
             </div>
             {poolAllocations.length > 0 ? poolAllocations.map((allocation) => {
               const option = saleOptionById.get(allocation.option_id);
@@ -753,9 +824,9 @@ export default function App() {
                 <div key={`pool-allocation-${allocation.resource_id}-${allocation.option_id}`} className="route-alpha-card">
                   <span>{option?.target_point_name ?? allocation.option_id}</span>
                   <strong>{option?.label ?? allocation.option_id}</strong>
-                  <small>
-                    {allocation.allocated_quantity_mwh_per_day.toLocaleString()} MWh/d / {allocation.net_margin_gbp_mwh.toFixed(2)} EUR/MWh / EUR {Math.round(allocation.net_pnl_gbp_per_day).toLocaleString()}
-                  </small>
+                      <small>
+                        {allocation.allocated_quantity_mwh_per_day.toLocaleString()} MWh/d / {allocation.net_margin_gbp_mwh.toFixed(2)} EUR/MWh / EUR {Math.round(allocation.net_pnl_gbp_per_day).toLocaleString()}
+                      </small>
                 </div>
               );
             }) : (
@@ -1113,7 +1184,7 @@ export default function App() {
                 <div className="action-row">
                   <button
                     type="button"
-                    disabled={!hasPortfolioResources || saleOptions.length === 0}
+                    disabled={!canRunPoolOptimizer}
                     onClick={() => optimizeResourcePool(resourcePoolOptimizationRequest)}
                   >
                     {t("home.optimize_pool")}
@@ -1126,6 +1197,14 @@ export default function App() {
                     {t("economics.compare")}
                   </button>
                 </div>
+                {poolInputBlockers.length > 0 && (
+                  <div className="runtime-blocker-list compact">
+                    <strong>{t("home.optimizer_blocked")}</strong>
+                    {poolInputBlockers.map((blocker) => (
+                      <span key={`scenario-blocker-${blocker}`}>{blocker}</span>
+                    ))}
+                  </div>
+                )}
                 {resourcePoolResult && (
                   <div className="route-list compact-route-list">
                     {resourcePoolResult.allocations.map((allocation) => {
@@ -1339,7 +1418,7 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="workspace-panel span-2 source-catalog-panel">
+              <div className="workspace-panel source-catalog-panel">
                 <div className="panel-title-row">
                   <h3>{t("sources.registered_feeds")}</h3>
                   <span>{filteredSources.length} / {sources.length}</span>
@@ -1360,12 +1439,13 @@ export default function App() {
                       <span className="source-card-meta">
                         {sourceLabel("sources.category", source.category)} / {source.live_record_count.toLocaleString()} {t("panel.records")}
                       </span>
+                      <span className="source-action-line">{sourceNextAction(source)}</span>
                     </button>
                   ))}
                 </div>
               </div>
 
-              <div className="workspace-panel span-2 source-detail-panel">
+              <div className="workspace-panel source-detail-panel">
                 <div className="panel-title-row">
                   <h3>{selectedSource?.source_system ?? t("sources.no_source")}</h3>
                   {selectedSource && (
@@ -1396,6 +1476,10 @@ export default function App() {
                           <strong key={`${selectedSource.source_id}-${diagnostic}`}>{sourceLabel("sources.diagnostic", diagnostic)}</strong>
                         ))}
                       </div>
+                    </div>
+                    <div className="source-next-action">
+                      <span>{t("sources.next_action")}</span>
+                      <strong>{sourceNextAction(selectedSource)}</strong>
                     </div>
                     <p className="source-ingestion-note">
                       {t("sources.latest_ingestion")}: {selectedSource.last_ingestion_status ?? "n/a"}
