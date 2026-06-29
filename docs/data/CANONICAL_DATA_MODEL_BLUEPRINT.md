@@ -262,11 +262,13 @@ Examples:
 
 ```text
 hub:market:ttf
-facility:synthetic:lng-terminal-a
-route:synthetic:nbp-ttf-corridor-a
+facility:gie:alsi-gate-terminal
+route:demo:ttf-bbl-nbp
 ```
 
-Synthetic IDs must be visibly synthetic.
+Demo IDs must be visibly demo-scoped. Runtime source IDs should use the real
+source family or domain, such as `gie`, `entsog`, `ecb`, `national-grid`, `bbl`,
+`iuk`, `eex`, or `ice-ocm`.
 
 ## Table Implementation Rule
 

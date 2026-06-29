@@ -26,10 +26,11 @@ Development routes:
 /api/dev
 ```
 
-Bootstrap compatibility:
+Hidden legacy compatibility:
 
 ```text
-/api/health
+/api/v1/*
+/v1/health
 ```
 
 New SDK, CLI, web, and Windows code must target `/api`.
@@ -42,8 +43,8 @@ Full research-capable responses should converge on:
 {
   "data": {},
   "meta": {
-    "request_id": "synthetic-request-id",
-    "api_version": "v1",
+    "request_id": "request-id-example",
+    "api_surface": "stable",
     "source_references": [],
     "lineage": [],
     "assumptions": [],
@@ -58,8 +59,8 @@ Full research-capable responses should converge on:
 }
 ```
 
-Bootstrap routes may return smaller payloads. Client code must tolerate both
-bootstrap and full-envelope shapes during transition.
+Small health/readiness routes may return smaller payloads. Client code must
+tolerate both compact and full-envelope shapes during transition.
 
 ## Error Model
 
@@ -142,7 +143,12 @@ Required source families are defined in
 | Method | Path | Purpose | Status |
 | --- | --- | --- | --- |
 | `POST` | `/api/scenarios/validate` | validate scenario inputs | planned |
-| `POST` | `/api/research/route-cost` | route cost research output | planned |
+| `GET` | `/api/route-cost/route-candidates` | DB-backed route templates and candidate paths | active |
+| `GET` | `/api/route-cost/tso-tariffs` | DB-backed public tariff rows | active |
+| `GET` | `/api/route-cost/resource-pool/options` | DB-backed portfolio resources and priced sale paths for the map cockpit | active |
+| `POST` | `/api/route-cost/calculate` | explicit-leg route cost calculation | active |
+| `POST` | `/api/route-cost/recommend` | capacity-constrained sale-route recommendation | active |
+| `POST` | `/api/route-cost/resource-pool/optimize` | portfolio resource-pool allocation | active |
 | `POST` | `/api/research/netback` | indicative netback output | planned |
 | `POST` | `/api/research/feasibility` | feasibility output | planned |
 | `POST` | `/api/research/allocation` | allocation scenario output | planned |

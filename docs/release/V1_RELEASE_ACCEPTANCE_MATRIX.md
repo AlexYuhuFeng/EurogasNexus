@@ -38,7 +38,7 @@ called a full project release.
 
 | Slice | Required Evidence |
 | --- | --- |
-| Reference network | nodes, facilities, segments, mappings, synthetic fixtures, `/api/reference-network/*` |
+| Reference network | nodes, facilities, segments, mappings, source-shaped tests, DB seed path, `/api/reference-network/*` |
 | Source/ingestion | source registry, ingestion job/run, normalization status, mocked connectors |
 | Market context | price/spread/FX observation metadata |
 | Physical flow context | flow/capacity/outage observation metadata |

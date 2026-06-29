@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Request
+from pydantic import ValidationError
 
 from eurogas_nexus.domain.route_cost.lng_regas import (
     LngRegasScenario,
@@ -17,7 +18,7 @@ from eurogas_nexus.domain.route_cost.route_optimizer import (
     RouteRecommendationRequest,
     recommend_route_allocation,
 )
-from eurogas_nexus.domain.route_cost.schemas import RouteCostScenario
+from eurogas_nexus.domain.route_cost.schemas import RouteCostScenario, RouteTariffLeg
 
 router = APIRouter(tags=["route-cost"])
 
@@ -106,6 +107,61 @@ def list_upstream_contracts(request: Request) -> dict:
 
         with get_session_factory()() as session:
             return _env(list_upstream_contracts(session), request, source="runtime-postgresql")
+    except sqlalchemy_error as exc:
+        raise _db_unavailable(exc) from exc
+
+
+@router.get("/api/route-cost/resource-pool/options")
+def get_resource_pool_options(request: Request) -> dict:
+    """Compose DB-backed portfolio resources and executable sale options.
+
+    This endpoint is intentionally read-only. It exists so clients do not
+    fabricate route options locally when the runtime DB is missing inputs.
+    """
+
+    if not _db_is_configured():
+        data = {
+            "scope": "RESOURCE_POOL_ROUTE_OPTIONS",
+            "data_source": "runtime-db-not-configured",
+            "portfolio_resources": [],
+            "sale_options": [],
+            "blockers": ["RUNTIME_DB_NOT_CONFIGURED"],
+            "warnings": [],
+        }
+        return _env(
+            data,
+            request,
+            source="runtime-db-not-configured",
+            warnings=["Runtime DB is not configured; resource-pool options are unavailable."],
+        )
+
+    sqlalchemy_error = _sqlalchemy_error_type()
+    try:
+        from eurogas_nexus.db.models import MarketObservationRecord
+        from eurogas_nexus.db.repositories.route_cost import (
+            list_route_candidates,
+            list_tso_tariffs,
+            list_upstream_contracts,
+        )
+        from eurogas_nexus.db.session import get_session_factory
+
+        with get_session_factory()() as session:
+            contracts = list_upstream_contracts(session)
+            candidates = list_route_candidates(session)
+            tariffs = list_tso_tariffs(session)
+            market_rows = (
+                session.query(MarketObservationRecord)
+                .order_by(MarketObservationRecord.observed_at_utc.desc())
+                .all()
+            )
+
+        data = _compose_resource_pool_options(
+            contracts=contracts,
+            candidates=candidates,
+            tariffs=tariffs,
+            market_rows=market_rows,
+        )
+        return _env(data, request, source="runtime-postgresql", warnings=data["warnings"])
     except sqlalchemy_error as exc:
         raise _db_unavailable(exc) from exc
 
@@ -203,6 +259,218 @@ def _load_route_candidates() -> tuple[list[dict], str, list[str]]:
             return list_route_candidates(session), "runtime-postgresql", []
     except sqlalchemy_error as exc:
         raise _db_unavailable(exc) from exc
+
+
+def _compose_resource_pool_options(
+    *,
+    contracts: list[dict],
+    candidates: list[dict],
+    tariffs: list,
+    market_rows: list,
+) -> dict:
+    blockers: list[str] = []
+    warnings: list[str] = []
+    if not contracts:
+        blockers.append("UPSTREAM_CONTRACTS_MISSING")
+    if not candidates:
+        blockers.append("ROUTE_CANDIDATES_MISSING")
+
+    price_by_point = _latest_market_price_by_point(market_rows)
+    resources = [_portfolio_resource_from_contract(contract) for contract in contracts]
+    sale_options = []
+    allowed_targets = {
+        point.strip().upper()
+        for contract in contracts
+        for point in [contract["delivery_point_name"], *contract.get("allowed_exit_points", [])]
+        if isinstance(point, str) and point.strip()
+    }
+    resource_points = {
+        contract["delivery_point_name"].strip().upper()
+        for contract in contracts
+        if isinstance(contract.get("delivery_point_name"), str)
+    }
+
+    for candidate in candidates:
+        target = str(candidate["target_point_name"]).strip().upper()
+        start = str(candidate["start_point_name"]).strip().upper()
+        market_price = price_by_point.get(target)
+        if market_price is None:
+            blockers.append(f"MARKET_PRICE_MISSING:{target}")
+            continue
+
+        if contracts and start not in resource_points:
+            warnings.append(f"ROUTE_START_NOT_IN_RESOURCE_POOL:{candidate['route_id']}")
+            continue
+        if contracts and allowed_targets and target not in allowed_targets:
+            warnings.append(f"ROUTE_TARGET_NOT_ALLOWED_BY_CONTRACT:{candidate['route_id']}")
+            continue
+
+        route_cost, cost_warnings, cost_blockers = _candidate_route_cost(
+            candidate,
+            tariffs,
+            price_currency=market_price["currency"],
+            price_unit=market_price["unit"],
+        )
+        warnings.extend(cost_warnings)
+        blockers.extend(cost_blockers)
+        if cost_blockers:
+            continue
+
+        sale_options.append(
+            {
+                "option_id": candidate["route_id"],
+                "label": candidate["route_name"],
+                "delivery_mode": "VIRTUAL_HUB_SALE",
+                "target_point_name": candidate["target_point_name"],
+                "sale_price_gbp_mwh": market_price["price"],
+                "sale_price_currency": market_price["currency"],
+                "sale_price_unit": market_price["unit"],
+                "route_cost_gbp_mwh": route_cost,
+                "route_cost_currency": market_price["currency"],
+                "route_cost_unit": market_price["unit"],
+                "capacity_limit_mwh_per_day": _route_capacity_limit(candidate),
+                "screen_sale_cash_lag_days": _screen_cash_lag_days(contracts),
+                "required_tso_access": candidate["required_tso_access"],
+                "source_refs": [
+                    f"route_candidate:{candidate['route_id']}",
+                    market_price["source_reference"],
+                    *candidate.get("source_systems", []),
+                ],
+            }
+        )
+
+    return {
+        "scope": "RESOURCE_POOL_ROUTE_OPTIONS",
+        "data_source": "runtime-postgresql",
+        "portfolio_resources": resources,
+        "sale_options": sale_options,
+        "blockers": _unique(blockers),
+        "warnings": _unique(warnings),
+    }
+
+
+def _latest_market_price_by_point(market_rows: list) -> dict[str, dict]:
+    prices: dict[str, dict] = {}
+    for row in market_rows:
+        keys = _market_price_keys(row)
+        for key in keys:
+            prices.setdefault(
+                key,
+                {
+                    "price": row.price,
+                    "currency": row.currency,
+                    "unit": row.unit,
+                    "source_reference": f"market_observation:{row.observation_id}",
+                },
+            )
+    return prices
+
+
+def _market_price_keys(row) -> list[str]:
+    keys = [row.market_venue, row.product]
+    metadata = row.metadata_json or {}
+    for field in ("hub", "point_name", "market_area"):
+        value = metadata.get(field)
+        if isinstance(value, str):
+            keys.append(value)
+    return [value.strip().upper() for value in keys if isinstance(value, str) and value.strip()]
+
+
+def _portfolio_resource_from_contract(contract: dict) -> dict:
+    resource_type = contract["resource_type"]
+    return {
+        "resource_id": contract["contract_id"],
+        "resource_name": contract["contract_name"],
+        "resource_type": resource_type,
+        "delivery_mode": (
+            "TERMINAL_TITLE_TRANSFER"
+            if resource_type == "LNG_REGAS"
+            else "PHYSICAL_ENTRY_DELIVERY"
+        ),
+        "location_point_name": contract["delivery_point_name"],
+        "available_quantity_mwh_per_day": contract["delivery_quantity_mwh_per_day"],
+        "contract_cost_gbp_mwh": contract["contract_price_gbp_mwh"],
+        "variable_cost_gbp_mwh": 0.0,
+        "delivery_tolerance_pct": contract["delivery_tolerance_pct"],
+        "nomination_tolerance_pct": contract["nomination_tolerance_pct"],
+        "tolerance_risk_allowance_gbp_mwh": contract.get("tolerance_risk_allowance_gbp_mwh") or 0.0,
+        "upstream_payment_lag_days": contract["upstream_payment_lag_days"],
+        "settlement_frequency": contract["settlement_frequency"],
+        "required_tso_access": [],
+        "accessible_tsos": None,
+        "pricing_method": "OPERATOR_CONTRACT",
+        "source_refs": [f"upstream_resource_contract:{contract['contract_id']}"],
+    }
+
+
+def _candidate_route_cost(
+    candidate: dict,
+    tariffs: list,
+    *,
+    price_currency: str,
+    price_unit: str,
+) -> tuple[float, list[str], list[str]]:
+    if not candidate["route_legs"]:
+        return 0.0, [], []
+
+    try:
+        legs = [RouteTariffLeg.model_validate(leg) for leg in candidate["route_legs"]]
+    except ValidationError:
+        return 0.0, [], [f"ROUTE_LEG_INVALID:{candidate['route_id']}"]
+
+    scenario = RouteCostScenario(
+        scenario_id=f"resource-pool-options:{candidate['route_id']}",
+        source_resource_type="PIPELINE_IMPORT",
+        start_point_id=candidate["start_point_name"],
+        target_hub_or_point_id=candidate["target_point_name"],
+        business_model="CROSS_BORDER_TRANSFER",
+        delivery_mode="BORDER_TRANSFER",
+        gas_year=legs[0].gas_year or "2025+",
+        capacity_product=legs[0].capacity_product or "ANNUAL",
+        firmness=legs[0].firmness or "FIRM",
+        required_tso_access=candidate["required_tso_access"],
+        tariff_legs=legs,
+    )
+    result = calculate_route_cost(scenario, tariffs)
+    blockers = [
+        *[f"ROUTE_COST_MISSING:{candidate['route_id']}:{item}" for item in result.missing_inputs],
+        *[
+            f"ROUTE_COST_MISSING:{candidate['route_id']}:{warning}"
+            for warning in result.warnings
+            if warning == "UNIT_CONVERSION_NOT_IMPLEMENTED"
+        ],
+    ]
+    if result.total_cost is None:
+        blockers.append(f"ROUTE_COST_MISSING:{candidate['route_id']}")
+        return 0.0, result.warnings, blockers
+    if result.currency and result.currency != price_currency:
+        blockers.append(f"ROUTE_COST_MISSING:{candidate['route_id']}:PRICE_COST_CURRENCY_MISMATCH")
+    if result.unit and result.unit != price_unit:
+        blockers.append(f"ROUTE_COST_MISSING:{candidate['route_id']}:PRICE_COST_UNIT_MISMATCH")
+    return result.total_cost, result.warnings, blockers
+
+
+def _route_capacity_limit(candidate: dict) -> float | None:
+    capacities = [
+        float(leg["available_capacity_mwh_per_day"])
+        for leg in candidate.get("route_legs", [])
+        if isinstance(leg, dict)
+        and isinstance(leg.get("available_capacity_mwh_per_day"), int | float)
+    ]
+    return min(capacities) if capacities else None
+
+
+def _screen_cash_lag_days(contracts: list[dict]) -> int:
+    lags = [
+        int(contract["screen_sale_cash_lag_days"])
+        for contract in contracts
+        if isinstance(contract.get("screen_sale_cash_lag_days"), int)
+    ]
+    return min(lags) if lags else 1
+
+
+def _unique(values: list[str]) -> list[str]:
+    return list(dict.fromkeys(values))
 
 
 def _db_is_configured() -> bool:

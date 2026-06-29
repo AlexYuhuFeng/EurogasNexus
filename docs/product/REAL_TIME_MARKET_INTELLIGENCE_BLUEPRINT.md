@@ -48,8 +48,9 @@ entitlement review, live endpoint verification, package/license checks, and live
 connector smoke tests.
 
 Fallback if offline: implement connector interfaces, source registry records,
-schemas, mocked transports, synthetic fixtures, entitlement gap reports, and
-client states. Do not call live sources or claim live readiness.
+schemas, test transports, source-shaped test fixtures, entitlement gap reports,
+and explicit client unavailable states. Do not create runtime fallback business
+data, call live sources, or claim live readiness.
 
 ## Connector Rules
 
@@ -294,7 +295,7 @@ CLI:
 The capability is release-ready only when:
 
 - live connector behavior is gated by entitlement and credentials;
-- offline tests use mocks/synthetic fixtures;
+- offline tests use mocks and source-shaped fixtures only;
 - API routes expose source/freshness/quality metadata;
 - clients reach data through SDK/API only;
 - map shows route options and warnings clearly;

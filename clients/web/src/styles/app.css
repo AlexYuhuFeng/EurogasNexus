@@ -2712,3 +2712,183 @@ body {
 .cockpit-app .fallback-edge {
   stroke: #737373;
 }
+
+/* release-cockpit-override
+   Final chrome pass for the map-first trader cockpit. This block intentionally
+   sits at the end of the stylesheet so older bootstrap/layout rules cannot
+   reintroduce overlapping rails or uncolored map controls. */
+.cockpit-app {
+  --eg-map-pipeline: #4b5563;
+  --eg-map-route: #111827;
+  --eg-map-hub: #0f766e;
+  --eg-map-lng: #7c3aed;
+  --eg-map-interconnector: #f97316;
+  --eg-map-standard: #0ea5e9;
+}
+
+:root.dark .cockpit-app {
+  --eg-map-pipeline: #9ca3af;
+  --eg-map-route: #f8fafc;
+  --eg-map-hub: #2dd4bf;
+  --eg-map-lng: #a78bfa;
+  --eg-map-interconnector: #fb923c;
+  --eg-map-standard: #38bdf8;
+}
+
+.workspace-topbar-only {
+  isolation: isolate;
+}
+
+.cockpit-app .workspace-topbar-only {
+  grid-template-columns: 260px minmax(360px, 1fr) auto;
+}
+
+.workspace-network .scenario-rail {
+  top: 146px;
+  left: 18px;
+  width: var(--eg-left-rail);
+}
+
+.workspace-network .decision-rail {
+  top: 106px;
+  right: 18px;
+  width: var(--eg-right-rail);
+}
+
+.cockpit-app .map-toolbar {
+  top: 84px;
+  right: calc(18px + var(--eg-right-rail) + 12px);
+  left: calc(18px + var(--eg-left-rail) + 12px);
+  max-width: none;
+  flex-wrap: nowrap;
+}
+
+.cockpit-app .map-toolbar .reset-chip {
+  min-width: 74px;
+}
+
+.map-layer-chip.compact {
+  position: relative;
+  width: 38px;
+  min-width: 38px;
+  padding: 0;
+}
+
+.map-layer-chip.compact::before {
+  width: 12px;
+  height: 12px;
+  margin: 0;
+}
+
+.map-layer-chip.compact .layer-label {
+  position: absolute;
+  overflow: hidden;
+  width: 1px;
+  height: 1px;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.map-layer-chip.layer-network::before,
+.node-swatch.network,
+.cockpit-app .fallback-node.node circle {
+  background: var(--eg-map-standard);
+  fill: var(--eg-map-standard);
+}
+
+.map-layer-chip.layer-lng::before,
+.node-swatch.lng,
+.cockpit-app .fallback-node.lng circle {
+  background: var(--eg-map-lng);
+  fill: var(--eg-map-lng);
+}
+
+.map-layer-chip.layer-ips::before,
+.node-swatch.ips,
+.cockpit-app .fallback-node.interconnection circle {
+  background: var(--eg-map-interconnector);
+  fill: var(--eg-map-interconnector);
+}
+
+.map-layer-chip.layer-hubs::before,
+.node-swatch.hubs,
+.cockpit-app .fallback-node.hub circle {
+  background: var(--eg-map-hub);
+  fill: var(--eg-map-hub);
+}
+
+.cockpit-app .fallback-edge {
+  stroke: var(--eg-map-pipeline);
+  stroke-width: 2.1;
+  stroke-opacity: 0.86;
+}
+
+.cockpit-app .fallback-edge.route {
+  stroke: var(--eg-map-route);
+  stroke-width: 4.2;
+  stroke-opacity: 0.96;
+}
+
+.cockpit-app .fallback-edge.warm {
+  stroke: var(--eg-map-interconnector);
+}
+
+.cockpit-app .fallback-edge.hot {
+  stroke: var(--eg-danger);
+}
+
+.cockpit-app .fallback-node text {
+  paint-order: stroke;
+  stroke-width: 3px;
+}
+
+/* MapLibre controls sit outside both decision rails. */
+.workspace-network .maplibregl-ctrl-top-right {
+  top: 128px;
+  right: calc(18px + var(--eg-right-rail) + 14px);
+}
+
+.workspace-network .maplibregl-ctrl-bottom-left {
+  bottom: 18px;
+  left: calc(18px + var(--eg-left-rail) + 14px);
+}
+
+@media (max-width: 1200px) {
+  .cockpit-app .workspace-topbar-only {
+    grid-template-columns: 220px minmax(220px, 1fr) auto;
+  }
+
+  .cockpit-app .map-toolbar {
+    right: calc(18px + min(360px, 38vw) + 12px);
+    left: calc(18px + min(360px, 38vw) + 12px);
+  }
+}
+
+@media (max-width: 900px) {
+  .cockpit-app .workspace-topbar-only {
+    grid-template-columns: 1fr;
+  }
+
+  .cockpit-app .map-toolbar {
+    top: 12px;
+    right: 12px;
+    left: 12px;
+    flex-wrap: wrap;
+  }
+
+  .workspace-network .scenario-rail,
+  .workspace-network .decision-rail {
+    width: auto;
+  }
+
+  .workspace-network .maplibregl-ctrl-top-right {
+    top: 74px;
+    right: 12px;
+  }
+
+  .workspace-network .maplibregl-ctrl-bottom-left {
+    bottom: 12px;
+    left: 12px;
+  }
+}

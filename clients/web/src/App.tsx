@@ -55,6 +55,7 @@ export default function App() {
     routeCandidates,
     tsoTariffs,
     upstreamContracts,
+    resourcePoolOptions,
     endpointMeta,
     routeRecommendation,
     resourcePoolResult,
@@ -97,12 +98,12 @@ export default function App() {
     [credentialProvider, credentialProviders],
   );
   const [contract, setContract] = useState({
-    contract_id: "operator-test-ttf-bbl-portfolio",
+    contract_id: "draft-contract-not-persisted",
     gas_year: "2025+",
-    delivery_quantity_mwh_per_day: 10000,
-    contract_price_gbp_mwh: 30,
-    nbp_sale_price_gbp_mwh: 35,
-    physical_exit_sale_price_gbp_mwh: 31,
+    delivery_quantity_mwh_per_day: 0,
+    contract_price_gbp_mwh: 0,
+    nbp_sale_price_gbp_mwh: 0,
+    physical_exit_sale_price_gbp_mwh: 0,
     physical_exit_point_name: "NBP",
     delivery_tolerance_pct: 2,
     nomination_tolerance_pct: 1,
@@ -113,39 +114,69 @@ export default function App() {
     annual_financing_rate_pct: 6,
     owned_entry_capacity_mwh_per_day: null as number | null,
     owned_exit_capacity_mwh_per_day: null as number | null,
-    allowed_exit_points: ["NBP", "TTF", "ZTP"],
+    allowed_exit_points: [] as string[],
     eligible_sale_modes: ["TARGET_MARKET_SALE", "LOCAL_MARKET_SALE", "REROUTE_SALE"],
   });
   const [liveMark, setLiveMark] = useState({
     venue: "ICE OCM",
     hub: "NBP",
     product: "Within-day",
-    bid_gbp_mwh: 28.2,
-    ask_gbp_mwh: 28.4,
-    last_gbp_mwh: 28.3,
+    bid_gbp_mwh: null as number | null,
+    ask_gbp_mwh: null as number | null,
+    last_gbp_mwh: null as number | null,
     mark_time_utc: new Date().toISOString(),
-    source_system: "operator-entered-live-mark",
+    source_system: "operator-draft-live-mark",
   });
+  const portfolioResources = useMemo(() => {
+    return resourcePoolOptions?.portfolio_resources ?? [];
+  }, [resourcePoolOptions]);
+
+  const hasPortfolioResources = portfolioResources.length > 0;
+
+  const totalPoolVolume = useMemo(
+    () => portfolioResources.reduce((total, resource) => total + resource.available_quantity_mwh_per_day, 0),
+    [portfolioResources],
+  );
+
+  const saleOptions = useMemo(() => {
+    return resourcePoolOptions?.sale_options ?? [];
+  }, [resourcePoolOptions]);
+
+  const saleOptionById = useMemo(
+    () => new Map(saleOptions.map((option) => [option.option_id, option])),
+    [saleOptions],
+  );
+
+  const resourcePoolOptimizationRequest = useMemo(() => ({
+    portfolio_id: "web-resource-pool",
+    resources: portfolioResources,
+    sale_options: saleOptions,
+    annual_financing_rate_pct: upstreamContracts[0]?.annual_financing_rate_pct ?? contract.annual_financing_rate_pct,
+    objective: "MAX_DAILY_PNL",
+    research_only: true,
+  }), [contract.annual_financing_rate_pct, portfolioResources, saleOptions, upstreamContracts]);
+
   const strategyScenario = useMemo(() => {
     const deliveryStart = "2026-01-16T00:00:00Z";
     const deliveryEnd = "2026-01-17T00:00:00Z";
     const ocmMid = liveMark.last_gbp_mwh ?? liveMark.bid_gbp_mwh ?? liveMark.ask_gbp_mwh ?? 0;
+    const resource = portfolioResources[0];
     return {
       strategy_id: "nbp-sap-icis-ocm-window",
       strategy_name: "NBP SAP/ICIS day-ahead versus ICE OCM window",
       run_mode: "SHADOW_RUN",
       resource_contexts: [
         {
-          resource_id: contract.contract_id,
-          resource_name: "TTF/BBL portfolio resource",
-          available_quantity_mwh_per_day: contract.delivery_quantity_mwh_per_day,
-          all_in_cost_gbp_mwh: contract.contract_price_gbp_mwh + contract.tolerance_risk_allowance_gbp_mwh,
-          delivery_tolerance_pct: contract.delivery_tolerance_pct,
-          nomination_tolerance_pct: contract.nomination_tolerance_pct,
+          resource_id: resource?.resource_id ?? "resource-pool-unavailable",
+          resource_name: resource?.resource_name ?? "Resource pool unavailable",
+          available_quantity_mwh_per_day: resource?.available_quantity_mwh_per_day ?? 0,
+          all_in_cost_gbp_mwh: (resource?.contract_cost_gbp_mwh ?? 0) + (resource?.tolerance_risk_allowance_gbp_mwh ?? 0),
+          delivery_tolerance_pct: resource?.delivery_tolerance_pct ?? null,
+          nomination_tolerance_pct: resource?.nomination_tolerance_pct ?? null,
           booked_entry_capacity_mwh_per_day: contract.owned_entry_capacity_mwh_per_day,
-          balancing_allowance_gbp_mwh: contract.tolerance_risk_allowance_gbp_mwh,
-          required_tso_access: ["BBL Company"],
-          company_accessible_tsos: ["BBL Company"],
+          balancing_allowance_gbp_mwh: resource?.tolerance_risk_allowance_gbp_mwh ?? 0,
+          required_tso_access: resource?.required_tso_access ?? [],
+          company_accessible_tsos: resource?.accessible_tsos ?? null,
         },
       ],
       price_observations: [
@@ -156,7 +187,7 @@ export default function App() {
           hub: "NBP",
           product: "day-ahead",
           price_name: "SAP",
-          price_gbp_mwh: contract.nbp_sale_price_gbp_mwh - 0.4,
+          price_gbp_mwh: Math.max((markets.find((market) => market.market_venue === "NBP")?.price ?? 0) - 0.4, 0),
           observed_at_utc: "2026-01-15T16:00:00Z",
           delivery_start_utc: deliveryStart,
           delivery_end_utc: deliveryEnd,
@@ -170,7 +201,7 @@ export default function App() {
           hub: "NBP",
           product: "day-ahead",
           price_name: "ICIS_HEREN_DAY_AHEAD",
-          price_gbp_mwh: contract.nbp_sale_price_gbp_mwh,
+          price_gbp_mwh: markets.find((market) => market.market_venue === "NBP")?.price ?? 0,
           observed_at_utc: "2026-01-15T16:30:00Z",
           delivery_start_utc: deliveryStart,
           delivery_end_utc: deliveryEnd,
@@ -209,101 +240,14 @@ export default function App() {
       risk_control: {
         max_ocm_allocation_pct: 70,
         min_day_ahead_allocation_pct: 20,
-        max_single_market_volume_mwh_per_day: contract.delivery_quantity_mwh_per_day * 0.6,
+        max_single_market_volume_mwh_per_day: (portfolioResources[0]?.available_quantity_mwh_per_day ?? 0) * 0.6,
         min_expected_margin_gbp_mwh: 0,
         require_tso_access: true,
       },
       existing_shadow_pnl_gbp: 0,
       research_only: true,
     };
-  }, [contract, liveMark]);
-
-  const portfolioResources = useMemo(() => {
-    if (upstreamContracts.length > 0) {
-      return upstreamContracts.map((item) => ({
-        resource_id: item.contract_id,
-        resource_name: item.contract_name,
-        resource_type: item.resource_type,
-        delivery_mode: item.resource_type === "LNG_REGAS" ? "TERMINAL_TITLE_TRANSFER" : "PHYSICAL_ENTRY_DELIVERY",
-        location_point_name: item.delivery_point_name,
-        available_quantity_mwh_per_day: item.delivery_quantity_mwh_per_day,
-        contract_cost_gbp_mwh: item.contract_price_gbp_mwh,
-        delivery_tolerance_pct: item.delivery_tolerance_pct,
-        nomination_tolerance_pct: item.nomination_tolerance_pct,
-        tolerance_risk_allowance_gbp_mwh: item.tolerance_risk_allowance_gbp_mwh ?? 0,
-        upstream_payment_lag_days: item.upstream_payment_lag_days,
-        settlement_frequency: item.settlement_frequency,
-        required_tso_access: item.owned_entry_capacity_mwh_per_day ? ["operator-owned-entry-capacity"] : [],
-        accessible_tsos: null,
-        pricing_method: "OPERATOR_CONTRACT",
-        source_refs: ["runtime-postgresql"],
-      }));
-    }
-    return [];
-  }, [upstreamContracts]);
-
-  const hasPortfolioResources = portfolioResources.length > 0;
-
-  const totalPoolVolume = useMemo(
-    () => portfolioResources.reduce((total, resource) => total + resource.available_quantity_mwh_per_day, 0),
-    [portfolioResources],
-  );
-
-  const saleOptions = useMemo(() => {
-    if (!hasPortfolioResources) return [];
-    return [
-      {
-        option_id: "nbp-via-bbl",
-        label: "NBP sale via BBL",
-        delivery_mode: "VIRTUAL_HUB_SALE",
-        target_point_name: "NBP",
-        sale_price_gbp_mwh: contract.nbp_sale_price_gbp_mwh,
-        route_cost_gbp_mwh: 1.0,
-        capacity_limit_mwh_per_day: Math.round(totalPoolVolume * 0.2),
-        screen_sale_cash_lag_days: contract.screen_sale_cash_lag_days,
-        required_tso_access: ["BBL Company"],
-        source_refs: ["operator-sale-option"],
-      },
-      {
-        option_id: "local-ttf-sale",
-        label: "Local TTF sale",
-        delivery_mode: "VIRTUAL_HUB_SALE",
-        target_point_name: "TTF",
-        sale_price_gbp_mwh: contract.physical_exit_sale_price_gbp_mwh,
-        route_cost_gbp_mwh: 0,
-        capacity_limit_mwh_per_day: totalPoolVolume,
-        screen_sale_cash_lag_days: contract.screen_sale_cash_lag_days,
-        required_tso_access: [],
-        source_refs: ["operator-sale-option"],
-      },
-      {
-        option_id: "alternate-cross-border",
-        label: "Alternate cross-border sale",
-        delivery_mode: "VIRTUAL_HUB_SALE",
-        target_point_name: "ZTP",
-        sale_price_gbp_mwh: contract.physical_exit_sale_price_gbp_mwh + 0.35,
-        route_cost_gbp_mwh: 2.6,
-        capacity_limit_mwh_per_day: totalPoolVolume,
-        screen_sale_cash_lag_days: contract.screen_sale_cash_lag_days,
-        required_tso_access: ["Fluxys Belgium"],
-        source_refs: ["operator-sale-option"],
-      },
-    ];
-  }, [contract.nbp_sale_price_gbp_mwh, contract.physical_exit_sale_price_gbp_mwh, contract.screen_sale_cash_lag_days, hasPortfolioResources, totalPoolVolume]);
-
-  const saleOptionById = useMemo(
-    () => new Map(saleOptions.map((option) => [option.option_id, option])),
-    [saleOptions],
-  );
-
-  const resourcePoolOptimizationRequest = useMemo(() => ({
-    portfolio_id: "web-resource-pool",
-    resources: portfolioResources,
-    sale_options: saleOptions,
-    annual_financing_rate_pct: contract.annual_financing_rate_pct,
-    objective: "MAX_DAILY_PNL",
-    research_only: true,
-  }), [contract.annual_financing_rate_pct, portfolioResources, saleOptions]);
+  }, [contract, liveMark, markets, portfolioResources]);
 
   useEffect(() => {
     fetchWorkspace();
@@ -353,62 +297,29 @@ export default function App() {
   const firstStrategyTarget = strategyResult?.allocation_targets[0];
   const glossaryLang = i18n.language.startsWith("zh") ? "zh-CN" : "en";
   const glossaryShortcutTerms = ["TTF", "NBP", "ICE OCM", "Entry Capacity"];
-  const routeRecommendationRequest = {
-    request_id: "web-target-vs-local-sale",
-    source_point_id: "TTF",
-    target_point_id: "NBP",
+  const routeRecommendationRequest = useMemo(() => ({
+    request_id: "web-db-backed-route-allocation",
+    source_point_id: portfolioResources[0]?.location_point_name ?? "RESOURCE_POOL",
+    target_point_id: saleOptions[0]?.target_point_name ?? null,
     required_quantity_mwh_per_day: totalPoolVolume,
-    gas_year: "2025+",
+    gas_year: upstreamContracts[0]?.gas_year ?? "2025+",
     capacity_product: "ANNUAL",
     firmness: "FIRM",
-    company_accessible_tsos: ["BBL Company"],
-    candidates: [
-      {
-        route_id: "cheap-nbp-route",
-        route_name: "TTF -> BBL -> NBP",
-        destination_market: "NBP",
-        sale_price: contract.nbp_sale_price_gbp_mwh,
-        price_currency: "EUR",
-        price_unit: "EUR/MWh",
-        required_tso_access: ["BBL Company"],
-        available_capacity_mwh_per_day: Math.round(totalPoolVolume * 0.2),
-        tariff_legs: [
-          {
-            leg_id: "bbl-forward",
-            country: "NL",
-            tso: "BBL Company",
-            market_area: "BBL",
-            point_name: "BBL Forward Flow NL to GB",
-            direction: "EXIT",
-          },
-        ],
-      },
-      {
-        route_id: "reroute-to-nbp",
-        route_name: "Reroute to NBP",
-        destination_market: "NBP",
-        sale_price: contract.nbp_sale_price_gbp_mwh,
-        price_currency: "EUR",
-        price_unit: "EUR/MWh",
-        available_capacity_mwh_per_day: totalPoolVolume,
-        manual_cost: 8,
-        cost_currency: "EUR",
-        cost_unit: "EUR/MWh",
-      },
-      {
-        route_id: "local-ttf-sale",
-        route_name: "Sell locally at TTF",
-        destination_market: "TTF",
-        sale_price: contract.physical_exit_sale_price_gbp_mwh,
-        price_currency: "EUR",
-        price_unit: "EUR/MWh",
-        available_capacity_mwh_per_day: totalPoolVolume,
-        manual_cost: 0,
-        cost_currency: "EUR",
-        cost_unit: "EUR/MWh",
-      },
-    ],
-  };
+    company_accessible_tsos: portfolioResources[0]?.accessible_tsos ?? null,
+    candidates: saleOptions.map((option) => ({
+      route_id: option.option_id,
+      route_name: option.label,
+      destination_market: option.target_point_name,
+      sale_price: option.sale_price_gbp_mwh,
+      price_currency: option.sale_price_currency ?? "EUR",
+      price_unit: option.sale_price_unit ?? "EUR/MWh",
+      required_tso_access: option.required_tso_access,
+      available_capacity_mwh_per_day: option.capacity_limit_mwh_per_day ?? null,
+      manual_cost: option.route_cost_gbp_mwh ?? 0,
+      cost_currency: option.route_cost_currency ?? "EUR",
+      cost_unit: option.route_cost_unit ?? "EUR/MWh",
+    })),
+  }), [portfolioResources, saleOptions, totalPoolVolume, upstreamContracts]);
   const analysisPayload = {
     question: analysisQuestion,
     task: "PORTFOLIO_REPORT",
@@ -439,6 +350,8 @@ export default function App() {
   const selectedAllocation = routeRecommendation?.allocations[0] ?? null;
   const poolAllocations = resourcePoolResult?.allocations ?? [];
   const firstPoolAllocation = poolAllocations[0] ?? null;
+  const firstPortfolioResource = portfolioResources[0] ?? null;
+  const firstAllocationOption = firstPoolAllocation ? saleOptionById.get(firstPoolAllocation.option_id) : null;
   const rawDecisionPnl =
     resourcePoolResult?.total_net_pnl_gbp_per_day ??
     (selectedAllocation?.netback !== undefined && selectedAllocation?.netback !== null
@@ -448,10 +361,9 @@ export default function App() {
     null;
   const decisionPnl = hasPortfolioResources ? rawDecisionPnl : null;
   const decisionMargin = firstPoolAllocation?.net_margin_gbp_mwh ?? selectedAllocation?.netback ?? null;
-  const salePrice = firstPoolAllocation?.gross_sale_price_gbp_mwh ?? selectedAllocation?.sale_price ?? contract.nbp_sale_price_gbp_mwh;
-  const routeCharge = firstPoolAllocation
-    ? Math.max(firstPoolAllocation.total_cost_gbp_mwh - contract.contract_price_gbp_mwh, 0)
-    : selectedAllocation?.route_cost ?? null;
+  const salePrice = firstPoolAllocation?.gross_sale_price_gbp_mwh ?? selectedAllocation?.sale_price ?? saleOptions[0]?.sale_price_gbp_mwh ?? null;
+  const purchasePrice = firstPortfolioResource?.contract_cost_gbp_mwh ?? null;
+  const routeCharge = firstAllocationOption?.route_cost_gbp_mwh ?? selectedAllocation?.route_cost ?? null;
   const activeWarning = [...(strategyResult?.warnings ?? []), ...(meta?.warnings ?? [])][0] ?? null;
   const latestOfficialFlows = useMemo(() => flows
     .filter((item) => item.source_system === "ENTSOG")
@@ -482,21 +394,18 @@ export default function App() {
     };
   }, [sources]);
   const runtimeDbReady = runtimeDb?.database_url_present === true && runtimeDb.connectivity.ok;
-  const hasRouteInputRows = routeCandidates.length > 0 && tsoTariffs.length > 0;
+  const optionBlockers = resourcePoolOptions?.blockers ?? [];
   const canRunPoolOptimizer =
     runtimeDbReady &&
     hasPortfolioResources &&
     saleOptions.length > 0 &&
-    hasRouteInputRows;
+    optionBlockers.length === 0;
   const poolInputBlockers = useMemo(() => {
     const blockers: string[] = [];
     if (!runtimeDbReady) blockers.push(t("home.blocker_runtime_db"));
-    if (!hasPortfolioResources) blockers.push(t("home.blocker_contracts"));
-    if (routeCandidates.length === 0) blockers.push(t("home.blocker_routes"));
-    if (tsoTariffs.length === 0) blockers.push(t("home.blocker_tariffs"));
-    if (markets.length === 0) blockers.push(t("home.blocker_prices"));
+    blockers.push(...(resourcePoolOptions?.blockers ?? []));
     return blockers;
-  }, [hasPortfolioResources, markets.length, routeCandidates.length, runtimeDbReady, t, tsoTariffs.length]);
+  }, [resourcePoolOptions, runtimeDbReady, t]);
   const networkGeometryState = useMemo(() => {
     if (!runtimeDbReady) return "runtime_missing";
     if (nodes.length === 0) return "nodes_missing";
@@ -609,7 +518,7 @@ export default function App() {
 
   return (
     <div className={`app cockpit-app workspace-${activeWorkspace}`}>
-      <header className="app-header cockpit-topbar">
+      <header className="app-header cockpit-topbar workspace-topbar-only">
         <button
           className="workspace-pill workspace-trigger"
           type="button"
@@ -668,10 +577,16 @@ export default function App() {
               <button
                 key={layer}
                 type="button"
-                className={activeLayers.includes(layer) ? `chip map-layer-chip layer-${layer} active` : `chip map-layer-chip layer-${layer}`}
+                className={
+                  activeLayers.includes(layer)
+                    ? `chip map-layer-chip compact layer-${layer} active`
+                    : `chip map-layer-chip compact layer-${layer}`
+                }
+                aria-pressed={activeLayers.includes(layer)}
+                title={t(`map.layer.${layer}`)}
                 onClick={() => toggleLayer(layer)}
               >
-                {t(`map.layer.${layer}`)}
+                <span className="layer-label">{t(`map.layer.${layer}`)}</span>
               </button>
             ))}
           </div>
@@ -706,7 +621,7 @@ export default function App() {
                   <span>{option.label}</span>
                   <strong>{option.target_point_name}</strong>
                   <small>
-                    {option.capacity_limit_mwh_per_day?.toLocaleString() ?? t("home.unlimited")} MWh/d / {option.route_cost_gbp_mwh.toFixed(2)} EUR/MWh
+                    {option.capacity_limit_mwh_per_day?.toLocaleString() ?? t("home.unlimited")} MWh/d / {(option.route_cost_gbp_mwh ?? 0).toFixed(2)} EUR/MWh
                   </small>
                 </div>
               )) : (
@@ -783,7 +698,7 @@ export default function App() {
               <span>{mapGeometryMessage()}</span>
             </div>
             <div className="node-color-legend">
-              <span><i className="node-swatch network" />{t("map.layer.network")}<strong>{nodes.filter((node) => node.node_type === "node").length}</strong></span>
+              <span><i className="node-swatch network" />{t("map.layer.network")}<strong>{edges.length}</strong></span>
               <span><i className="node-swatch lng" />{t("map.layer.lng")}<strong>{nodes.filter((node) => node.node_type === "lng").length}</strong></span>
               <span><i className="node-swatch ips" />{t("map.layer.ips")}<strong>{nodes.filter((node) => node.node_type === "interconnection").length}</strong></span>
               <span><i className="node-swatch hubs" />{t("map.layer.hubs")}<strong>{nodes.filter((node) => node.node_type === "hub").length}</strong></span>
@@ -852,11 +767,11 @@ export default function App() {
             <div className="metric-grid two-column">
               <div>
                 <span>{t("result.purchase")}</span>
-                <strong>{hasPortfolioResources ? `EUR ${contract.contract_price_gbp_mwh.toFixed(2)}/MWh` : "n/a"}</strong>
+                <strong>{purchasePrice === null ? "n/a" : `EUR ${purchasePrice.toFixed(2)}/MWh`}</strong>
               </div>
               <div>
                 <span>{t("result.sale")}</span>
-                <strong>{hasPortfolioResources ? `EUR ${salePrice.toFixed(2)}/MWh` : "n/a"}</strong>
+                <strong>{salePrice === null ? "n/a" : `EUR ${salePrice.toFixed(2)}/MWh`}</strong>
               </div>
               <div>
                 <span>{t("result.route_cost")}</span>
@@ -1163,8 +1078,8 @@ export default function App() {
               <div className="workspace-panel">
                 <h3>{t("result.economics_snapshot")}</h3>
                 <div className="metric-grid two-column">
-                  <div><span>{t("result.purchase")}</span><strong>EUR {contract.contract_price_gbp_mwh.toFixed(2)}/MWh</strong></div>
-                  <div><span>{t("result.sale")}</span><strong>EUR {salePrice.toFixed(2)}/MWh</strong></div>
+                  <div><span>{t("result.purchase")}</span><strong>{purchasePrice === null ? "n/a" : `EUR ${purchasePrice.toFixed(2)}/MWh`}</strong></div>
+                  <div><span>{t("result.sale")}</span><strong>{salePrice === null ? "n/a" : `EUR ${salePrice.toFixed(2)}/MWh`}</strong></div>
                   <div><span>{t("result.route_cost")}</span><strong>{routeCharge === null ? "n/a" : `EUR ${routeCharge.toFixed(2)}/MWh`}</strong></div>
                   <div><span>{t("result.cash_value")}</span><strong>{routeRecommendation ? `${routeRecommendation.total_allocated_mwh_per_day.toLocaleString()} MWh/d` : "n/a"}</strong></div>
                 </div>
@@ -1191,7 +1106,7 @@ export default function App() {
                   </button>
                   <button
                     type="button"
-                    disabled={!hasPortfolioResources}
+                    disabled={!hasPortfolioResources || saleOptions.length === 0}
                     onClick={() => recommendRouteAllocation(routeRecommendationRequest)}
                   >
                     {t("economics.compare")}
@@ -1500,7 +1415,7 @@ export default function App() {
                   <select value={credentialProvider} onChange={(event) => setCredentialProvider(event.target.value)}>
                     {credentialProviders.map((provider) => <option key={provider.provider_id} value={provider.provider_id}>{provider.display_name}</option>)}
                   </select>
-                  <input value={credentialLabel} onChange={(event) => setCredentialLabel(event.target.value)} placeholder={t("credentials.label")} />
+                  <input autoComplete="username" value={credentialLabel} onChange={(event) => setCredentialLabel(event.target.value)} placeholder={t("credentials.label")} />
                   <input type="password" autoComplete="current-password" value={credentialValue} disabled={!selectedCredentialProvider?.credential_required} onChange={(event) => setCredentialValue(event.target.value)} placeholder={selectedCredentialProvider?.credential_required ? t("credentials.api_key") : t("credentials.not_required")} />
                   <button type="submit" disabled={!selectedCredentialProvider?.credential_required || !credentialValue}>{t("credentials.save")}</button>
                 </form>

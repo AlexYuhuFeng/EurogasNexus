@@ -96,7 +96,8 @@ API:
 
 Data policy:
 
-- synthetic fixtures only until source entitlement is approved;
+- source-shaped tests only until source entitlement or public ingestion is
+  approved;
 - no raw ENTSOG/GIE/vendor data committed.
 
 ### Slice B: Ingestion Control Plane

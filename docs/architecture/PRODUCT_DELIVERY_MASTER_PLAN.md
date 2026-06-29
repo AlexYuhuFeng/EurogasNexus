@@ -201,7 +201,7 @@ Default:
 
 For backend milestones:
 
-- use local docs, source, tests, and synthetic fixtures.
+- use local docs, source, tests, and source-shaped fixtures.
 
 For web/Windows milestones:
 
@@ -210,7 +210,7 @@ For web/Windows milestones:
 
 Offline fallback:
 
-- create the client blueprint, file structure, component contracts, mocked API
+- create the client blueprint, file structure, component contracts, typed API
   clients, and gap report;
 - do not pretend dependencies are installed if they are missing.
 

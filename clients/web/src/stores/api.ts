@@ -18,6 +18,7 @@ import {
   PortfolioOptimizationRequestDTO,
   PortfolioOptimizationResultDTO,
   PortfolioPnlSnapshotDTO,
+  ResourcePoolOptionsDTO,
   RouteRecommendationRequestDTO,
   RouteRecommendationResultDTO,
   RouteCandidateDTO,
@@ -51,6 +52,7 @@ interface ApiState {
   routeCandidates: RouteCandidateDTO[];
   tsoTariffs: TsoTariffDTO[];
   upstreamContracts: UpstreamContractDTO[];
+  resourcePoolOptions: ResourcePoolOptionsDTO | null;
   routeRecommendation: RouteRecommendationResultDTO | null;
   resourcePoolResult: PortfolioOptimizationResultDTO | null;
   strategyResult: StrategyLabResultDTO | null;
@@ -96,6 +98,7 @@ export const useApiStore = create<ApiState>((set) => ({
   routeCandidates: [],
   tsoTariffs: [],
   upstreamContracts: [],
+  resourcePoolOptions: null,
   routeRecommendation: null,
   resourcePoolResult: null,
   strategyResult: null,
@@ -132,6 +135,7 @@ export const useApiStore = create<ApiState>((set) => ({
         routeCandidates,
         tsoTariffs,
         upstreamContracts,
+        resourcePoolOptions,
         glossaryTerms,
         runtimeDb,
         credentialProviders,
@@ -153,6 +157,7 @@ export const useApiStore = create<ApiState>((set) => ({
         api.routeCandidates(),
         api.tsoTariffs(),
         api.upstreamContracts(),
+        api.resourcePoolOptions(),
         api.glossary("en"),
         api.runtimeDb(),
         api.credentialProviders(),
@@ -175,6 +180,7 @@ export const useApiStore = create<ApiState>((set) => ({
         routeCandidates: routeCandidates.meta,
         tsoTariffs: tsoTariffs.meta,
         upstreamContracts: upstreamContracts.meta,
+        resourcePoolOptions: resourcePoolOptions.meta,
         glossaryTerms: glossaryTerms.meta,
         runtimeDb: runtimeDb.meta,
         credentialProviders: credentialProviders.meta,
@@ -208,6 +214,7 @@ export const useApiStore = create<ApiState>((set) => ({
         routeCandidates: routeCandidates.data.route_candidates,
         tsoTariffs: tsoTariffs.data.tariffs,
         upstreamContracts: upstreamContracts.data,
+        resourcePoolOptions: resourcePoolOptions.data,
         glossaryTerms: glossaryTerms.data,
         runtimeDb: runtimeDb.data,
         credentialProviders: credentialProviders.data,

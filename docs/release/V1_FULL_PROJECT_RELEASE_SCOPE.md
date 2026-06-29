@@ -124,8 +124,11 @@ The Windows client must:
 V1 implementation must use:
 
 - live local PostgreSQL for runtime validation and release-like operation;
-- synthetic fixtures and manual sample templates where real source entitlement
-  is not approved;
+- explicit source ingestion into PostgreSQL for public sources such as ECB,
+  ENTSOG, GIE/AGSI/ALSI, and audited public TSO tariff references;
+- DB-seeded demo rows only for data categories that require customer
+  entitlement or operator entry, such as commercial price marks, customer
+  contracts, resource pools, capacity ownership, and strategy parameters;
 - explicit source references for all data;
 - fail-closed behavior for unknown commercial/vendor data.
 

@@ -5,6 +5,9 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -358,6 +361,37 @@ def test_web_client_matches_design_reference_cockpit() -> None:
     assert zh["scenario.title"] == "\u60c5\u666f\u6784\u5efa\u5668"
     assert en["nav.capacity"] == "Capacity"
     assert zh["nav.capacity"] == "\u7ba1\u5bb9"
+
+
+def test_web_client_release_cockpit_chrome_is_clean_and_color_coded() -> None:
+    app = (ROOT / "clients" / "web" / "src" / "App.tsx").read_text(encoding="utf-8")
+    css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(
+        encoding="utf-8"
+    )
+    map_component = (
+        ROOT / "clients" / "web" / "src" / "components" / "GasNetworkMap.tsx"
+    ).read_text(encoding="utf-8")
+    en = json.loads(
+        (ROOT / "clients" / "web" / "src" / "i18n" / "en.json").read_text(encoding="utf-8")
+    )
+    zh = json.loads(
+        (ROOT / "clients" / "web" / "src" / "i18n" / "zh.json").read_text(encoding="utf-8")
+    )
+
+    assert "release-cockpit-override" in css
+    assert "workspace-topbar-only" in css
+    assert "map-layer-chip compact" in app
+    assert "aria-pressed={activeLayers.includes(layer)}" in app
+    assert "MapLibre controls sit outside both decision rails" in css
+    assert "route_candidate" in map_component
+    assert 'edge.source_system === "route_candidate"' in map_component
+    assert 'metadata.materialization === "route_candidate_edge"' in map_component
+    assert "line-opacity" in map_component
+    assert "--eg-map-pipeline" in css
+    assert "--eg-map-lng" in css
+    assert "--eg-map-interconnector" in css
+    assert "--eg-map-hub" in css
+    assert "Network, Market, Scenario" not in app
     assert en["nav.contracts"] == "Contracts"
     assert zh["nav.contracts"] == "\u5408\u540c"
     assert en["nav.orders"] == "Order Records"
@@ -466,6 +500,72 @@ def test_web_client_sources_page_is_categorized_source_center() -> None:
     assert en["sources.action.run_ingestion"].startswith("Run the source ingestion")
     assert zh["sources.title"] == "\u6570\u636e\u6e90\u4e2d\u5fc3"
     assert zh["sources.next_action"] == "\u4e0b\u4e00\u6b65\u52a8\u4f5c"
+
+
+def test_web_client_resource_pool_options_are_backend_owned() -> None:
+    app = (ROOT / "clients" / "web" / "src" / "App.tsx").read_text(encoding="utf-8")
+    api_client = (ROOT / "clients" / "web" / "src" / "api" / "client.ts").read_text(
+        encoding="utf-8"
+    )
+    store = (ROOT / "clients" / "web" / "src" / "stores" / "api.ts").read_text(
+        encoding="utf-8"
+    )
+
+    assert (
+        'resourcePoolOptions: () => get<ResourcePoolOptionsDTO>'
+        '("/route-cost/resource-pool/options")'
+    ) in api_client
+    assert "resourcePoolOptions: ResourcePoolOptionsDTO | null" in store
+    assert "resourcePoolOptions?.sale_options ?? []" in app
+    assert "resourcePoolOptions?.portfolio_resources ?? []" in app
+    assert "resourcePoolOptions?.blockers ?? []" in app
+    assert "nbp-via-bbl" not in app
+    assert "cheap-nbp-route" not in app
+    assert "alternate-cross-border" not in app
+    assert "operator-test" not in app
+    assert "operator-sale-option" not in app
+
+
+def test_local_seed_uses_demo_provenance_not_operator_test_names() -> None:
+    legacy_seed_script = ROOT / "scripts" / "ops" / "seed_operator_test_data.py"
+    seed_script_path = ROOT / "scripts" / "ops" / "seed_demo_runtime_data.py"
+
+    assert not legacy_seed_script.exists()
+    seed_script = seed_script_path.read_text(
+        encoding="utf-8"
+    )
+
+    assert "demo_market_price" in seed_script
+    assert "demo-portfolio-contract-ttf-pool-2025" in seed_script
+    assert "operator-test-easington-contract" in seed_script
+    assert "public-route-ttf-bbl-nbp" in seed_script
+    assert "public_route_template" in seed_script
+    assert "materialize_route_candidate_edges" in seed_script
+    assert "demo-route" not in seed_script
+    assert "demo_route_template" not in seed_script
+    assert "operator-owned test" not in seed_script
+    assert "operator-entered-test" not in seed_script
+    assert "operator test contract" not in seed_script
+
+
+def test_seed_demo_runtime_script_runs_directly_without_db_url() -> None:
+    env = os.environ.copy()
+    env.pop("RUNTIME_STORE_DATABASE_URL", None)
+    env.pop("DATABASE_URL", None)
+    env.pop("EUROGAS_NEXUS_DB_DSN", None)
+
+    result = subprocess.run(
+        [sys.executable, "scripts/ops/seed_demo_runtime_data.py"],
+        cwd=ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 2
+    assert "Runtime DB URL missing" in result.stdout
+    assert "ModuleNotFoundError" not in result.stderr
 
 
 def test_release_workflow_publishes_web_windows_and_linux_assets() -> None:

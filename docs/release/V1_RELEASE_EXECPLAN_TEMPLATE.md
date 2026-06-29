@@ -35,7 +35,7 @@
 
 Internet required: no
 
-Reason: Use repository-local docs, source, tests, and synthetic fixtures.
+Reason: Use repository-local docs, source, tests, and source-shaped fixtures.
 
 Fallback if offline: Not needed.
 
@@ -109,7 +109,8 @@ No API route impact.
 
 State:
 
-- synthetic fixtures only, or approved live data requirements;
+- source-shaped test fixtures only, or explicitly approved live-source/operator
+  data requirements;
 - source references;
 - lineage;
 - entitlement/export behavior;

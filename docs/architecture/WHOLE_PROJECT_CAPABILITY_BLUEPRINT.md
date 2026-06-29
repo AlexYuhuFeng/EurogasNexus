@@ -130,8 +130,9 @@ Future datasets:
 - capacity contracts, route eligibility, and contract exposure context;
 - asset topology and route/corridor metadata.
 
-No real vendor/operator data should be committed. Synthetic fixtures are allowed
-for tests and UI mocks.
+No real vendor/operator data should be committed. Source-shaped fixtures are
+allowed for tests. Local demos must seed explicit demo rows into PostgreSQL
+rather than generating client-side fallback business data.
 
 ### Path Cost And Indicative Netback
 

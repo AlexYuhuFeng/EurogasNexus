@@ -44,12 +44,17 @@ entry before use:
 
 ## Test Data
 
-Tests must not use real vendor data. Use fixtures, source-shaped examples, and
-dry-run mode. Tests must not call live external APIs, live connectors, or LLM
-providers unless the test is explicitly marked as a live-source/operator test.
+Tests must not use real vendor data. Use source-shaped fixtures and dry-run
+mode. Tests must not call live external APIs, live connectors, or LLM providers
+unless the test is explicitly marked as a live-source/operator test.
 
-Synthetic fixtures are allowed only under test or documentation contexts. They
-must not be imported by production runtime modules or used as a client fallback.
+Demo runtime rows are allowed only when an operator explicitly runs a seed
+script against a local test PostgreSQL database. Demo rows must be marked with
+`demo_*` provenance and must not be shipped as customer data.
+
+Production runtime modules and clients must not generate fallback business data.
+If source data, contracts, market prices, tariffs, or capacity are missing, the
+API must return a degraded/unavailable state with blockers.
 
 ## Commercial Data
 

@@ -97,7 +97,7 @@ Define CSS custom properties for:
 - map base;
 - route/corridor overlays;
 - capacity/contract overlays;
-- live/delayed/mocked/partial/unavailable states;
+- live/delayed/demo/partial/unavailable states;
 - warnings;
 - critical/restricted states;
 - source badges;

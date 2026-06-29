@@ -74,8 +74,8 @@ Future `/api` responses should converge on this shape:
 {
   "data": {},
   "meta": {
-    "request_id": "synthetic-request-id",
-    "api_version": "v1",
+    "request_id": "request-id-example",
+    "api_surface": "stable",
     "source_references": [],
     "lineage": [],
     "assumptions": [],
@@ -120,12 +120,15 @@ both bootstrap and full-envelope responses during transition.
 | `GET /api/glossary/{term}` | backend-served bilingual glossary detail | active |
 | `GET /api/route-cost/route-candidates` | DB-backed route candidates | active |
 | `GET /api/route-cost/tso-tariffs` | DB-backed TSO tariff rows, including BBL/IUK/NTS where loaded | active |
+| `GET /api/route-cost/resource-pool/options` | DB-backed portfolio resources and priced sale options for the map cockpit | active |
 | `POST /api/route-cost/calculate` | explicit-leg European route-cost calculation from tariff rows | active |
 | `POST /api/route-cost/recommend` | capacity-constrained route/sale allocation recommendation | active |
 | `POST /api/route-cost/lng-regas/assess` | LNG regas readiness assessment | active |
 | `POST /api/route-cost/resource-pool/optimize` | upstream portfolio/resource-pool allocation | active |
 
-Planned endpoints must be mocked locally until backend contracts exist.
+Planned endpoints must return explicit unavailable/degraded states from the
+backend until their contracts exist. Clients must not invent local runtime data
+for planned endpoints.
 
 ## Internal Import Route
 

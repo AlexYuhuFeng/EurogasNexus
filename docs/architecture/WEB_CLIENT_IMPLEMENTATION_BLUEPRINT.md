@@ -42,7 +42,7 @@ Internet required:
 
 Offline fallback:
 
-- create file structure, UI contracts, mocked API clients, and implementation
+- create file structure, UI contracts, typed API clients, and implementation
   plan only.
 
 ## Directory
@@ -98,7 +98,7 @@ Required global UI:
 
 - English/Mandarin language switch;
 - light/dark/system theme switch;
-- visible live/delayed/mocked/partial/unavailable source states.
+- visible live/delayed/demo/partial/unavailable source states.
 
 ## Network Map
 
@@ -213,7 +213,8 @@ Recommended first web milestone:
 - create the React/Vite shell;
 - implement runtime status page;
 - implement `/api/health` client;
-- render a placeholder network map layout with mocked reference-network data;
+- render a DB/API-driven network map layout with explicit unavailable states
+  when reference-network data is missing;
 - implement required loading, empty, degraded, missing-input, and research-only
   states from the design spec;
 - no business calculations.

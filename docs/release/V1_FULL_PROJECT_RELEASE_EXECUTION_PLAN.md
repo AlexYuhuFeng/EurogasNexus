@@ -97,7 +97,7 @@ Build:
 - physical geometry, topology, and market abstraction tables/models;
 - explicit mapping records with confidence and eligibility;
 - `/api/reference-network/*` routes;
-- synthetic fixture set.
+- source-shaped test fixture set and DB seed path for local demo rows.
 
 Acceptance:
 

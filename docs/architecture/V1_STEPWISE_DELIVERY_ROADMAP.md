@@ -65,7 +65,7 @@ Key deliverables:
 Goal:
 
 - Add the first narrow canonical data slice for reference network metadata,
-  using synthetic fixtures and DB-backed models only.
+  using source-shaped fixtures and DB-backed models only.
 - Keep topology and map-readiness as backend API contracts; no frontend client
   implementation.
 
@@ -74,7 +74,7 @@ Key deliverables:
 - Canonical identifier policy.
 - Network node/facility/segment schema plan.
 - Read-only `/api` reference-network contract.
-- Synthetic fixture import template only.
+- Source-shaped fixture import template only.
 
 ## Milestone 5: Ingestion And Data Quality Control Plane
 

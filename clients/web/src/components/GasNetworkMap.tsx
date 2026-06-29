@@ -67,7 +67,7 @@ export function GasNetworkMap({
       : {
           background: "#eeeeee",
           edge: "#6b7280",
-          route: "#171717",
+          route: "#00b871",
           node: "#007cf0",
           hub: "#50e3c2",
           lng: "#7928ca",
@@ -238,6 +238,10 @@ export function GasNetworkMap({
         const from = edge.from;
         const to = edge.to;
         const metadata = edge.metadata_json ?? {};
+        const routeCandidate =
+          routeIds.has(`${edge.from_node_id}:${edge.to_node_id}`) ||
+          edge.source_system === "route_candidate" ||
+          metadata.materialization === "route_candidate_edge";
         const capacity = Number(metadata.capacity_mwh_d ?? metadata.firm_capacity_mwh_d ?? 0);
         const flow = Number(metadata.live_physical_flow_mwh_d ?? 0);
         const utilization = Number(metadata.utilization_pct ?? (capacity > 0 ? flow / capacity : 0));
@@ -252,7 +256,7 @@ export function GasNetworkMap({
             capacity_mwh_d: capacity,
             live_flow_mwh_d: flow,
             utilization_pct: utilization,
-            route_candidate: routeIds.has(`${edge.from_node_id}:${edge.to_node_id}`),
+            route_candidate: routeCandidate,
           },
           geometry: {
             type: "LineString" as const,
@@ -383,12 +387,15 @@ export function GasNetworkMap({
         {visibleEdges.map((edge) => {
           const [x1, y1] = project(edge.from.lon, edge.from.lat);
           const [x2, y2] = project(edge.to.lon, edge.to.lat);
-          const routeCandidate = routeIds.has(`${edge.from_node_id}:${edge.to_node_id}`);
           const metadata = edge.metadata_json ?? {};
           const capacity = Number(metadata.capacity_mwh_d ?? metadata.firm_capacity_mwh_d ?? 0);
           const flow = Number(metadata.live_physical_flow_mwh_d ?? 0);
           const utilization = Number(metadata.utilization_pct ?? (capacity > 0 ? flow / capacity : 0));
           const pressureClass = utilization >= 0.75 ? " hot" : utilization >= 0.5 ? " warm" : "";
+          const routeCandidate =
+            routeIds.has(`${edge.from_node_id}:${edge.to_node_id}`) ||
+            edge.source_system === "route_candidate" ||
+            metadata.materialization === "route_candidate_edge";
           return (
             <line
               key={edge.id}

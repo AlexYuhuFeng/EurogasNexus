@@ -125,7 +125,7 @@ If Codex cannot install or verify packages because internet is
 unavailable, it must:
 
 1. create the planned file structure;
-2. write interfaces, mocked API clients, i18n resources, theme tokens, and gap
+2. write typed API client interfaces, i18n resources, theme tokens, and gap
    reports;
 3. write the gap report required by the selected milestone;
 4. not claim `npm run build`, `cargo tauri build`, or browser smoke tests pass;

@@ -74,7 +74,7 @@ Offline fallback:
 
 - create planned file structure;
 - write API client interfaces;
-- write mocked response fixtures;
+- write source-shaped contract test fixtures under `tests/` only;
 - write gap report for missing dependencies.
 
 Build:
@@ -171,7 +171,7 @@ Build:
 - scenario input form;
 - missing-input validation;
 - assumptions panel;
-- no calculation beyond backend-provided mocked or approved responses;
+- no calculation beyond backend-provided approved responses;
 - research-only language.
 
 ## Milestone W4: Research Output Review

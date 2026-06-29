@@ -130,12 +130,12 @@ Internet required: no
 Goal:
 
 Add the first product-shaped but narrow domain slice: canonical reference
-network contracts using synthetic fixtures only.
+network contracts using source-shaped test fixtures only.
 
 Build:
 
 - canonical ID policy;
-- synthetic node/facility/segment fixture;
+- source-shaped node/facility/segment fixture;
 - DB schema plan, not broad production data load;
 - read-only `/api/reference-network/*` route contracts;
 - source reference and lineage fields.
@@ -171,7 +171,7 @@ and quality results without live source calls.
 Acceptance:
 
 - connectors perform no analytics;
-- tests use mocks and synthetic fixtures;
+- tests use mocks and source-shaped fixtures;
 - no import-time network calls.
 
 ## Milestone 6: Governance, Entitlement, Audit

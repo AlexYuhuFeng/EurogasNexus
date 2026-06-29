@@ -386,6 +386,16 @@ export interface PortfolioOptimizationResultDTO {
   research_only: boolean; human_review_required: boolean;
 }
 
+export interface ResourcePoolOptionsDTO {
+  scope: string; data_source: string;
+  portfolio_resources: PortfolioResourceDTO[];
+  sale_options: Array<PortfolioSaleOptionDTO & {
+    sale_price_currency?: string; sale_price_unit?: string;
+    route_cost_currency?: string; route_cost_unit?: string;
+  }>;
+  blockers: string[]; warnings: string[];
+}
+
 export interface StrategyPriceObservationDTO {
   observation_id: string; source_system: string; venue: string; hub: string; product: string;
   price_name: string; price_gbp_mwh: number; observed_at_utc: string;
@@ -547,6 +557,8 @@ export const api = {
   tsoTariffs: () => get<TsoTariffsResultDTO>("/route-cost/tso-tariffs"),
 
   upstreamContracts: () => get<UpstreamContractDTO[]>("/route-cost/upstream-contracts"),
+
+  resourcePoolOptions: () => get<ResourcePoolOptionsDTO>("/route-cost/resource-pool/options"),
 
   recommendRouteAllocation: (body: RouteRecommendationRequestDTO) =>
     post<RouteRecommendationResultDTO>("/route-cost/recommend", body),
