@@ -291,9 +291,16 @@ def test_web_client_matches_design_reference_cockpit() -> None:
     assert "workspace-pill-copy" in app
     assert "topbar-menu-glyph" in app
     assert "workspace-page" in app
+    assert '"capacity"' in app
+    assert '"orders"' in app
+    assert '"manual"' in app
+    assert 'activeWorkspace === "capacity"' in app
     assert 'activeWorkspace === "market"' in app
     assert 'activeWorkspace === "contracts"' in app
+    assert 'activeWorkspace === "review"' in app
+    assert 'activeWorkspace === "orders"' in app
     assert 'activeWorkspace === "glossary"' in app
+    assert 'activeWorkspace === "manual"' in app
     assert "resourcePoolOptimizationRequest" in app
     assert "optimizeResourcePool(resourcePoolOptimizationRequest)" in app
     assert "efet-section-grid" in app
@@ -305,6 +312,12 @@ def test_web_client_matches_design_reference_cockpit() -> None:
     assert "approximateNodeCount" not in app
     assert "map-node-legend" not in app
     assert "decision-signal-panel" in app
+    assert "capacity-page" in app
+    assert "review-page" in app
+    assert "orders-page" in app
+    assert "manual-page" in app
+    assert "review-report-panel" in app
+    assert "manual-step-list" in css
     map_component = (
 
         ROOT / "clients" / "web" / "src" / "components" / "GasNetworkMap.tsx"
@@ -336,8 +349,14 @@ def test_web_client_matches_design_reference_cockpit() -> None:
     assert en["scenario.title"] == "Scenario Builder"
 
     assert zh["scenario.title"] == "\u60c5\u666f\u6784\u5efa\u5668"
+    assert en["nav.capacity"] == "Capacity"
+    assert zh["nav.capacity"] == "\u7ba1\u5bb9"
     assert en["nav.contracts"] == "Contracts"
     assert zh["nav.contracts"] == "\u5408\u540c"
+    assert en["nav.orders"] == "Order Records"
+    assert zh["nav.orders"] == "\u8ba2\u5355\u8bb0\u5f55"
+    assert en["nav.manual"] == "Manual"
+    assert zh["nav.manual"] == "\u7528\u6237\u624b\u518c"
     assert en["home.resource_pool"] == "Resource pool"
     assert zh["home.resource_pool"] == "\u8d44\u6e90\u6c60"
 
@@ -350,6 +369,48 @@ def test_web_client_matches_design_reference_cockpit() -> None:
     assert zh["map.coordinate_quality"] == "\u5750\u6807\u8d28\u91cf"
     assert en["map.approximate_points"] == "Approx. coords"
     assert zh["map.approximate_points"] == "\u8fd1\u4f3c\u5750\u6807"
+
+
+def test_web_client_separates_market_capacity_orders_and_review_pages() -> None:
+    app = (ROOT / "clients" / "web" / "src" / "App.tsx").read_text(encoding="utf-8")
+    en = json.loads(
+        (ROOT / "clients" / "web" / "src" / "i18n" / "en.json").read_text(encoding="utf-8")
+    )
+    zh = json.loads(
+        (ROOT / "clients" / "web" / "src" / "i18n" / "zh.json").read_text(encoding="utf-8")
+    )
+
+    assert (
+        'const workspacePages: WorkspacePageId[] = [\n'
+        '    "network",\n'
+        '    "capacity",\n'
+        '    "market",\n'
+        '    "scenario",\n'
+        '    "contracts",\n'
+        '    "strategy",\n'
+        '    "review",\n'
+        '    "orders",\n'
+        '    "sources",\n'
+        '    "glossary",\n'
+        '    "runtime",\n'
+        '    "settings",\n'
+        '    "manual",\n'
+        "  ];"
+    ) in app
+    assert app.index('activeWorkspace === "capacity"') < app.index('activeWorkspace === "market"')
+    assert app.index('activeWorkspace === "review"') < app.index('activeWorkspace === "orders"')
+    assert app.index('className="data-table orders-table"') > app.index(
+        'activeWorkspace === "orders"'
+    )
+    assert "capacity.tso_access" in app
+    assert "capacity.tariffs" in app
+    assert "reviewWarnings" in app
+    assert "review-report-panel" in app
+    assert "manual.no_client_db" in app
+    assert en["market.subtitle"].startswith("Market observations")
+    assert zh["market.subtitle"].startswith("\u4ec5\u5c55\u793a")
+    assert en["orders.subtitle"].startswith("Read-only")
+    assert zh["orders.subtitle"].startswith("\u53ea\u8bfb")
 
 
 def test_web_client_sources_page_is_categorized_source_center() -> None:

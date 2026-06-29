@@ -97,11 +97,15 @@ called a full project release.
 | SDK/API data boundary | web reaches PostgreSQL data only through backend `/api`; no direct DB/vendor/secret access |
 | Runtime visibility | backend, DB, source, warning posture visible |
 | Network workspace | map-ready reference network view |
+| Capacity workspace | ENTSOG flow/capacity, TSO access, tariff, GIE storage/LNG context visible through backend API |
 | Scenario workspace | inputs, missing inputs, assumptions |
-| Market workspace | context panels for released observations |
+| Market workspace | price, FX, and market-source observations only |
+| Contracts workspace | EFET-style resource, delivery, pricing, settlement, and capacity terms |
 | Review workspace | candidates, warnings, source refs, lineage, human-review state |
-| Source workspace | source and lineage inspection |
+| Order Records workspace | read-only screen-order observations and portfolio PnL snapshots |
+| Data Sources workspace | provider categories, credentials posture, diagnostics, and source lineage inspection |
 | Settings | client preferences only, no secrets |
+| Manual workspace | customer-facing page map and operating boundary |
 
 ## Windows Client
 

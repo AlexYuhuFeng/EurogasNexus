@@ -19,7 +19,20 @@ type ContractNumberKey =
   | "annual_financing_rate_pct";
 
 type LiveMarkNumberKey = "bid_gbp_mwh" | "ask_gbp_mwh" | "last_gbp_mwh";
-type WorkspacePageId = "network" | "market" | "scenario" | "contracts" | "strategy" | "sources" | "glossary" | "runtime" | "settings";
+type WorkspacePageId =
+  | "network"
+  | "capacity"
+  | "market"
+  | "scenario"
+  | "contracts"
+  | "strategy"
+  | "review"
+  | "orders"
+  | "sources"
+  | "glossary"
+  | "runtime"
+  | "settings"
+  | "manual";
 
 export default function App() {
   const { t, i18n } = useTranslation();
@@ -407,7 +420,21 @@ export default function App() {
     selected_contracts: portfolioResources.map((resource) => resource.resource_id),
     language: i18n.language.startsWith("zh") ? "zh-CN" : "en",
   };
-  const workspacePages: WorkspacePageId[] = ["network", "market", "scenario", "contracts", "strategy", "sources", "glossary", "runtime", "settings"];
+  const workspacePages: WorkspacePageId[] = [
+    "network",
+    "capacity",
+    "market",
+    "scenario",
+    "contracts",
+    "strategy",
+    "review",
+    "orders",
+    "sources",
+    "glossary",
+    "runtime",
+    "settings",
+    "manual",
+  ];
   const destinationHubs = ["NBP", "TTF", "ZTP", "PEG", "THE"];
   const selectedAllocation = routeRecommendation?.allocations[0] ?? null;
   const poolAllocations = resourcePoolResult?.allocations ?? [];
@@ -430,6 +457,20 @@ export default function App() {
     .filter((item) => item.source_system === "ENTSOG")
     .slice(0, 5), [flows]);
   const latestCapacityRows = useMemo(() => capacity.slice(0, 5), [capacity]);
+  const latestTsoAccessRows = useMemo(() => tsoAccess.slice(0, 6), [tsoAccess]);
+  const latestTariffRows = useMemo(() => tsoTariffs.slice(0, 6), [tsoTariffs]);
+  const latestStorageRows = useMemo(() => storage.slice(0, 4), [storage]);
+  const latestLngRows = useMemo(() => lng.slice(0, 4), [lng]);
+  const reviewWarnings = useMemo(
+    () => [
+      ...(resourcePoolResult?.warnings ?? []),
+      ...(routeRecommendation?.warnings ?? []),
+      ...(strategyResult?.warnings ?? []),
+      ...(analysisResult?.warnings ?? []),
+      ...(meta?.warnings ?? []),
+    ],
+    [analysisResult, meta, resourcePoolResult, routeRecommendation, strategyResult],
+  );
   const sourceStats = useMemo(() => {
     const issueStatuses = new Set(["failed", "needs_credential", "credential_disabled", "runtime_unconfigured"]);
     return {
@@ -785,13 +826,142 @@ export default function App() {
             <span className={`status-badge status-${dataStatus}`}>{t(`data.${dataStatus}`)}</span>
           </div>
 
+          {activeWorkspace === "capacity" && (
+            <div className="workspace-grid capacity-page">
+              <div className="workspace-panel span-3">
+                <div className="section-heading">
+                  <span className="eyebrow">{t("nav.capacity")}</span>
+                  <strong>{t("capacity.title")}</strong>
+                </div>
+                <p className="panel-copy">{t("capacity.subtitle")}</p>
+                <div className="metric-grid six-column source-kpi-grid">
+                  <div><span>{t("panel.flows")}</span><strong>{flows.filter((item) => item.source_system === "ENTSOG").length}</strong></div>
+                  <div><span>{t("panel.capacity")}</span><strong>{capacity.filter((item) => item.source_system === "ENTSOG").length}</strong></div>
+                  <div><span>{t("panel.tso_access")}</span><strong>{tsoAccess.length}</strong></div>
+                  <div><span>{t("panel.tariffs")}</span><strong>{tsoTariffs.length}</strong></div>
+                  <div><span>{t("panel.storage")}</span><strong>{storage.filter((item) => item.source_system === "GIE").length}</strong></div>
+                  <div><span>{t("panel.lng")}</span><strong>{lng.filter((item) => item.source_system === "GIE").length}</strong></div>
+                </div>
+              </div>
+
+              <div className="workspace-panel span-2">
+                <h3>{t("capacity.flows")}</h3>
+                <div className="data-table">
+                  <div className="data-table-row header four"><span>{t("panel.point")}</span><span>{t("panel.direction")}</span><span>mcm/d</span><span>{t("panel.status")}</span></div>
+                  {latestOfficialFlows.map((row) => (
+                    <div key={`capacity-flow-${row.observation_id}`} className="data-table-row four">
+                      <strong>{row.point_name}</strong>
+                      <span>{row.direction}</span>
+                      <span>{row.flow_mcm_d.toFixed(2)}</span>
+                      <span>{row.freshness ?? row.source_system ?? "ENTSOG"}</span>
+                    </div>
+                  ))}
+                  {latestOfficialFlows.length === 0 && (
+                    <div className="data-table-row four"><strong>n/a</strong><span>ENTSOG</span><span>n/a</span><span>{t("data.unavailable")}</span></div>
+                  )}
+                </div>
+              </div>
+
+              <div className="workspace-panel">
+                <h3>{t("capacity.capacity")}</h3>
+                <div className="data-table">
+                  <div className="data-table-row header four"><span>{t("panel.point")}</span><span>{t("panel.direction")}</span><span>{t("panel.capacity_type")}</span><span>mcm/d</span></div>
+                  {latestCapacityRows.map((row) => (
+                    <div key={`capacity-row-page-${row.observation_id}`} className="data-table-row four">
+                      <strong>{row.point_name}</strong>
+                      <span>{row.direction}</span>
+                      <span>{row.capacity_type}</span>
+                      <span>{row.capacity_mcm_d.toFixed(2)}</span>
+                    </div>
+                  ))}
+                  {latestCapacityRows.length === 0 && (
+                    <div className="data-table-row four"><strong>n/a</strong><span>ENTSOG</span><span>{t("data.unavailable")}</span><span>n/a</span></div>
+                  )}
+                </div>
+              </div>
+
+              <div className="workspace-panel span-2">
+                <h3>{t("capacity.tso_access")}</h3>
+                <div className="data-table">
+                  <div className="data-table-row header six"><span>{t("panel.point")}</span><span>{t("panel.country")}</span><span>TSO</span><span>{t("panel.direction")}</span><span>{t("panel.day_ahead")}</span><span>{t("panel.daily")}</span></div>
+                  {latestTsoAccessRows.map((row) => (
+                    <div key={`tso-access-page-${row.access_id}`} className="data-table-row six">
+                      <strong>{row.point_name}</strong>
+                      <span>{row.country}</span>
+                      <span>{row.operator_name}</span>
+                      <span>{row.direction}</span>
+                      <span>{row.day_ahead_contracts_available ? t("data.live") : "n/a"}</span>
+                      <span>{row.daily_contracts_available ? t("data.live") : "n/a"}</span>
+                    </div>
+                  ))}
+                  {latestTsoAccessRows.length === 0 && (
+                    <div className="data-table-row six"><strong>n/a</strong><span>TSO</span><span>{t("data.unavailable")}</span><span>n/a</span><span>n/a</span><span>n/a</span></div>
+                  )}
+                </div>
+              </div>
+
+              <div className="workspace-panel">
+                <h3>{t("capacity.tariffs")}</h3>
+                <div className="data-table tariff-table">
+                  <div className="data-table-row header four"><span>{t("panel.point")}</span><span>{t("panel.direction")}</span><span>{t("panel.product")}</span><span>{t("panel.tariff")}</span></div>
+                  {latestTariffRows.map((tariff) => (
+                    <div key={`tariff-page-${tariff.tariff_id}`} className="data-table-row four">
+                      <strong>{tariff.source_point_name}</strong>
+                      <span>{tariff.direction}</span>
+                      <span>{tariff.capacity_product}</span>
+                      <span>{tariff.tariff_value.toFixed(4)} {tariff.currency}/MWh</span>
+                    </div>
+                  ))}
+                  {latestTariffRows.length === 0 && (
+                    <div className="data-table-row four"><strong>n/a</strong><span>TSO</span><span>{t("data.unavailable")}</span><span>n/a</span></div>
+                  )}
+                </div>
+              </div>
+
+              <div className="workspace-panel span-3">
+                <h3>{t("capacity.storage_lng")}</h3>
+                <div className="source-table-split">
+                  <div className="data-table">
+                    <div className="data-table-row header four"><span>{t("panel.storage")}</span><span>{t("panel.country")}</span><span>fill %</span><span>TWh</span></div>
+                    {latestStorageRows.map((row) => (
+                      <div key={`storage-page-${row.observation_id}`} className="data-table-row four">
+                        <strong>{row.facility_name}</strong>
+                        <span>{row.country ?? "n/a"}</span>
+                        <span>{row.fill_pct == null ? "n/a" : row.fill_pct.toFixed(1)}</span>
+                        <span>{row.inventory_twh == null ? "n/a" : row.inventory_twh.toFixed(2)}</span>
+                      </div>
+                    ))}
+                    {latestStorageRows.length === 0 && (
+                      <div className="data-table-row four"><strong>n/a</strong><span>GIE AGSI</span><span>{t("data.unavailable")}</span><span>n/a</span></div>
+                    )}
+                  </div>
+                  <div className="data-table">
+                    <div className="data-table-row header four"><span>{t("panel.lng")}</span><span>{t("panel.country")}</span><span>send-out</span><span>DTMI</span></div>
+                    {latestLngRows.map((row) => (
+                      <div key={`lng-page-${row.observation_id}`} className="data-table-row four">
+                        <strong>{row.terminal_name}</strong>
+                        <span>{row.country ?? "n/a"}</span>
+                        <span>{row.send_out_twh_d == null ? "n/a" : `${row.send_out_twh_d.toFixed(2)} TWh/d`}</span>
+                        <span>{row.dtmi_pct == null ? "n/a" : `${row.dtmi_pct.toFixed(1)}%`}</span>
+                      </div>
+                    ))}
+                    {latestLngRows.length === 0 && (
+                      <div className="data-table-row four"><strong>n/a</strong><span>GIE ALSI</span><span>{t("data.unavailable")}</span><span>n/a</span></div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {activeWorkspace === "market" && (
             <div className="workspace-grid market-page">
               <div className="workspace-panel span-2">
                 <div className="section-heading">
                   <span className="eyebrow">{t("panel.market")}</span>
-                  <strong>{t("home.live_pnl")}</strong>
+                  <strong>{t("market.title")}</strong>
                 </div>
+                <p className="panel-copy">{t("market.subtitle")}</p>
                 <div className="metric-grid four-column">
                   {markets.slice(0, 4).map((market) => (
                     <div key={market.observation_id}>
@@ -807,27 +977,34 @@ export default function App() {
                       <span>{market.market_venue}</span><span>{market.product}</span><strong>{market.price} {market.unit}</strong><span>{market.freshness ?? "n/a"}</span>
                     </div>
                   ))}
+                  {markets.length === 0 && (
+                    <div className="data-table-row"><span>n/a</span><span>{t("sources.category.price")}</span><strong>n/a</strong><span>{t("data.unavailable")}</span></div>
+                  )}
                 </div>
               </div>
               <div className="workspace-panel">
-                <h3>{t("panel.positioning")}</h3>
-                {portfolioSummary && (
-                  <div className="metric-grid">
-                    <div><span>{t("portfolio.indicative_pnl")}</span><strong>GBP {Math.round(portfolioSummary.total_indicative_pnl_gbp).toLocaleString()}</strong></div>
-                    <div><span>{t("portfolio.cash_value")}</span><strong>GBP {Math.round(portfolioSummary.total_cash_value_gbp).toLocaleString()}</strong></div>
-                    <div><span>{t("portfolio.open_orders")}</span><strong>{portfolioSummary.open_order_count}</strong></div>
-                  </div>
-                )}
-              </div>
-              <div className="workspace-panel span-3">
-                <h3>{t("panel.positioning")}</h3>
-                <div className="data-table orders-table">
-                  <div className="data-table-row header six"><span>Venue</span><span>Side</span><span>Hub</span><span>Qty</span><span>Price</span><span>Status</span></div>
-                  {screenOrders.map((order) => (
-                    <div key={`orders-${order.order_observation_id}`} className="data-table-row six">
-                      <span>{order.venue}</span><span>{order.side}</span><span>{order.hub}</span><strong>{order.remaining_quantity_mwh.toLocaleString()} MWh</strong><span>{order.price.toFixed(2)} {order.unit}</span><span>{order.status}</span>
+                <h3>{t("market.fx")}</h3>
+                <div className="data-table">
+                  <div className="data-table-row header three"><span>Pair</span><span>Rate</span><span>{t("panel.source")}</span></div>
+                  {fxRates.slice(0, 6).map((rate) => (
+                    <div key={`fx-row-${rate.pair}-${rate.observed_at_utc}`} className="data-table-row three">
+                      <strong>{rate.pair}</strong>
+                      <span>{rate.rate.toFixed(4)}</span>
+                      <span>{rate.source_system ?? "ECB"}</span>
                     </div>
                   ))}
+                  {fxRates.length === 0 && (
+                    <div className="data-table-row three"><strong>n/a</strong><span>n/a</span><span>{t("data.unavailable")}</span></div>
+                  )}
+                </div>
+              </div>
+              <div className="workspace-panel span-3">
+                <h3>{t("market.source_posture")}</h3>
+                <div className="metric-grid four-column">
+                  <div><span>{t("sources.category.price")}</span><strong>{sources.filter((source) => source.category === "price").length}</strong></div>
+                  <div><span>{t("sources.category.fx")}</span><strong>{sources.filter((source) => source.category === "fx").length}</strong></div>
+                  <div><span>{t("sources.active_sources")}</span><strong>{sourceStats.active}</strong></div>
+                  <div><span>{t("sources.issue_sources")}</span><strong>{sourceStats.issues}</strong></div>
                 </div>
               </div>
             </div>
@@ -982,6 +1159,7 @@ export default function App() {
             <div className="workspace-grid strategy-page">
               <div className="workspace-panel span-2 strategy-panel">
                 <h3>{t("panel.strategy_lab")}</h3>
+                <p className="panel-copy">{t("strategy.description")}</p>
                 <div className="strategy-summary"><span>{t("strategy.window")}: 15:00-17:00</span><span>{t("strategy.bar")}: 5m</span><span>{t("strategy.mode")}: {strategyScenario.run_mode}</span></div>
                 <button type="button" onClick={() => evaluateStrategyLab(strategyScenario)}>{t("strategy.evaluate")}</button>
                 {strategyResult && (
@@ -992,12 +1170,125 @@ export default function App() {
                 )}
               </div>
               <div className="workspace-panel"><h3>{t("home.signal")}</h3><div className="net-pnl-card"><span>{t("home.strategy_process")}</span><strong>{firstStrategyTarget ? `${firstStrategyTarget.market_bucket} ${firstStrategyTarget.target_allocation_pct.toFixed(1)}%` : t("home.not_running")}</strong><small>{strategyResult?.candidate_action_for_review ?? t("home.signal_idle")}</small></div></div>
-              <div className="workspace-panel span-3 analysis-panel">
+              <div className="workspace-panel">
+                <h3>{t("strategy.risk_controls")}</h3>
+                <div className="metric-grid">
+                  <div><span>Max OCM</span><strong>{strategyScenario.risk_control.max_ocm_allocation_pct}%</strong></div>
+                  <div><span>Min day-ahead</span><strong>{strategyScenario.risk_control.min_day_ahead_allocation_pct}%</strong></div>
+                  <div><span>Bar</span><strong>5m</strong></div>
+                </div>
+              </div>
+              <div className="workspace-panel span-3">
+                <h3>{t("strategy.allocation_targets")}</h3>
+                <div className="data-table">
+                  <div className="data-table-row header four"><span>Bucket</span><span>Target</span><span>Quantity</span><span>Reference</span></div>
+                  {strategyResult?.allocation_targets.map((target) => (
+                    <div key={`strategy-target-${target.market_bucket}`} className="data-table-row four">
+                      <strong>{target.market_bucket}</strong>
+                      <span>{target.target_allocation_pct.toFixed(1)}%</span>
+                      <span>{target.target_quantity_mwh_per_day.toLocaleString()} MWh/d</span>
+                      <span>{target.reference_price_gbp_mwh == null ? "n/a" : target.reference_price_gbp_mwh.toFixed(2)}</span>
+                    </div>
+                  ))}
+                  {!strategyResult && (
+                    <div className="data-table-row four"><strong>{t("home.not_running")}</strong><span>n/a</span><span>n/a</span><span>{t("home.signal_idle")}</span></div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeWorkspace === "review" && (
+            <div className="workspace-grid review-page">
+              <div className="workspace-panel span-2">
+                <div className="section-heading">
+                  <span className="eyebrow">{t("nav.review")}</span>
+                  <strong>{t("review.title")}</strong>
+                </div>
+                <p className="panel-copy">{t("review.subtitle")}</p>
+                <div className="data-table">
+                  <div className="data-table-row header four"><span>{t("result.optimal")}</span><span>{t("home.allocated")}</span><span>{t("result.route_cost")}</span><span>PnL</span></div>
+                  {poolAllocations.map((allocation) => {
+                    const option = saleOptionById.get(allocation.option_id);
+                    return (
+                      <div key={`review-pool-${allocation.resource_id}-${allocation.option_id}`} className="data-table-row four">
+                        <strong>{option?.label ?? allocation.option_id}</strong>
+                        <span>{allocation.allocated_quantity_mwh_per_day.toLocaleString()} MWh/d</span>
+                        <span>{allocation.total_cost_gbp_mwh.toFixed(2)} EUR/MWh</span>
+                        <span>EUR {Math.round(allocation.net_pnl_gbp_per_day).toLocaleString()}</span>
+                      </div>
+                    );
+                  })}
+                  {poolAllocations.length === 0 && (
+                    <div className="data-table-row four"><strong>{t("home.pending")}</strong><span>n/a</span><span>n/a</span><span>{t("home.run_pool_optimizer")}</span></div>
+                  )}
+                </div>
+              </div>
+              <div className="workspace-panel">
+                <h3>{t("review.warning_register")}</h3>
+                <div className="review-warning-list">
+                  {reviewWarnings.length > 0
+                    ? reviewWarnings.slice(0, 6).map((warning) => <span key={`review-warning-${warning}`}>{warning}</span>)
+                    : <span>{t("review.no_warnings")}</span>}
+                </div>
+              </div>
+              <div className="workspace-panel span-3 analysis-panel review-report-panel">
                 <h3>{t("panel.analysis")}</h3>
                 <textarea value={analysisQuestion} onChange={(event) => setAnalysisQuestion(event.target.value)} rows={4} />
                 <label className="checkbox-row"><input type="checkbox" checked={invokeDeepSeek} onChange={(event) => setInvokeDeepSeek(event.target.checked)} />{t("analysis.invoke_deepseek")}</label>
                 <div className="action-row"><button type="button" onClick={() => askAnalysis(analysisPayload)}>{t("analysis.ask")}</button><button type="button" onClick={() => generatePortfolioReport(analysisPayload)}>{t("analysis.report")}</button></div>
                 {analysisResult && <div className="analysis-result"><strong>{analysisResult.provider_id}: {analysisResult.provider_status}</strong><p>{i18n.language.startsWith("zh") ? analysisResult.answer_zh_cn : analysisResult.answer_en}</p></div>}
+              </div>
+            </div>
+          )}
+
+          {activeWorkspace === "orders" && (
+            <div className="workspace-grid orders-page">
+              <div className="workspace-panel span-3">
+                <div className="section-heading">
+                  <span className="eyebrow">{t("nav.orders")}</span>
+                  <strong>{t("orders.title")}</strong>
+                </div>
+                <p className="panel-copy">{t("orders.subtitle")}</p>
+                <div className="metric-grid four-column">
+                  <div><span>{t("portfolio.indicative_pnl")}</span><strong>{portfolioSummary ? `GBP ${Math.round(portfolioSummary.total_indicative_pnl_gbp).toLocaleString()}` : "n/a"}</strong></div>
+                  <div><span>{t("portfolio.cash_value")}</span><strong>{portfolioSummary ? `GBP ${Math.round(portfolioSummary.total_cash_value_gbp).toLocaleString()}` : "n/a"}</strong></div>
+                  <div><span>{t("portfolio.open_orders")}</span><strong>{portfolioSummary?.open_order_count ?? screenOrders.length}</strong></div>
+                  <div><span>{t("orders.filled_orders")}</span><strong>{portfolioSummary?.filled_order_count ?? "n/a"}</strong></div>
+                </div>
+              </div>
+              <div className="workspace-panel span-3">
+                <h3>{t("orders.screen_orders")}</h3>
+                <div className="data-table orders-table">
+                  <div className="data-table-row header six"><span>Venue</span><span>Side</span><span>Hub</span><span>Qty</span><span>Price</span><span>Status</span></div>
+                  {screenOrders.map((order) => (
+                    <div key={`orders-${order.order_observation_id}`} className="data-table-row six">
+                      <span>{order.venue}</span><span>{order.side}</span><span>{order.hub}</span><strong>{order.remaining_quantity_mwh.toLocaleString()} MWh</strong><span>{order.price.toFixed(2)} {order.unit}</span><span>{order.status}</span>
+                    </div>
+                  ))}
+                  {screenOrders.length === 0 && (
+                    <div className="data-table-row six"><span>n/a</span><span>n/a</span><span>n/a</span><strong>0 MWh</strong><span>n/a</span><span>{t("data.unavailable")}</span></div>
+                  )}
+                </div>
+              </div>
+              <div className="workspace-panel span-3">
+                <h3>{t("orders.pnl_snapshots")}</h3>
+                <div className="data-table">
+                  <div className="data-table-row header six"><span>Portfolio</span><span>Valuation</span><span>Quantity</span><span>Indicative</span><span>Cash</span><span>Basis</span></div>
+                  {pnlSnapshots.slice(0, 8).map((snapshot) => (
+                    <div key={`pnl-${snapshot.pnl_snapshot_id}`} className="data-table-row six">
+                      <strong>{snapshot.portfolio_id}</strong>
+                      <span>{formatSourceTimestamp(snapshot.valuation_time_utc)}</span>
+                      <span>{snapshot.quantity_mwh.toLocaleString()} MWh</span>
+                      <span>GBP {Math.round(snapshot.indicative_pnl_gbp).toLocaleString()}</span>
+                      <span>GBP {Math.round(snapshot.cash_value_gbp).toLocaleString()}</span>
+                      <span>{snapshot.valuation_basis}</span>
+                    </div>
+                  ))}
+                  {pnlSnapshots.length === 0 && (
+                    <div className="data-table-row six"><strong>n/a</strong><span>n/a</span><span>0 MWh</span><span>n/a</span><span>n/a</span><span>{t("data.unavailable")}</span></div>
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -1204,6 +1495,49 @@ export default function App() {
             <div className="workspace-grid settings-page">
               <div className="workspace-panel settings-panel"><h3>{t("panel.settings")}</h3><label>{t("settings.language")}<select value={i18n.language} onChange={(event) => i18n.changeLanguage(event.target.value)}><option value="en">English</option><option value="zh-CN">{t("settings.chinese")}</option></select></label><label>{t("settings.appearance")}<select value={mode} onChange={(event) => setMode(event.target.value as typeof mode)}><option value="light">{t("theme.light")}</option><option value="dark">{t("theme.dark")}</option><option value="system">{t("theme.system")}</option></select></label></div>
               <div className="workspace-panel"><h3>{t("app.title")}</h3><div className="metric-grid"><div><span>{t("map.nodes")}</span><strong>{nodes.length}</strong></div><div><span>{t("map.edges")}</span><strong>{edges.length}</strong></div><div><span>{t("map.routes")}</span><strong>{routes.length}</strong></div></div></div>
+            </div>
+          )}
+
+          {activeWorkspace === "manual" && (
+            <div className="workspace-grid manual-page">
+              <div className="workspace-panel span-3">
+                <div className="section-heading">
+                  <span className="eyebrow">{t("nav.manual")}</span>
+                  <strong>{t("manual.title")}</strong>
+                </div>
+                <p className="panel-copy">{t("manual.subtitle")}</p>
+              </div>
+              <div className="workspace-panel span-2">
+                <h3>{t("manual.workspace_map")}</h3>
+                <div className="manual-step-list">
+                  <div><strong>{t("nav.network")}</strong><span>{t("manual.network")}</span></div>
+                  <div><strong>{t("nav.capacity")}</strong><span>{t("manual.capacity")}</span></div>
+                  <div><strong>{t("nav.market")}</strong><span>{t("manual.market")}</span></div>
+                  <div><strong>{t("nav.contracts")}</strong><span>{t("manual.contracts")}</span></div>
+                  <div><strong>{t("nav.strategy")}</strong><span>{t("manual.strategy")}</span></div>
+                  <div><strong>{t("nav.review")}</strong><span>{t("manual.review")}</span></div>
+                  <div><strong>{t("nav.orders")}</strong><span>{t("manual.orders")}</span></div>
+                  <div><strong>{t("nav.sources")}</strong><span>{t("manual.sources")}</span></div>
+                </div>
+              </div>
+              <div className="workspace-panel">
+                <h3>{t("manual.operating_boundary")}</h3>
+                <p className="panel-copy">{t("manual.boundary_copy")}</p>
+                <div className="review-warning-list">
+                  <span>{t("manual.api_only")}</span>
+                  <span>{t("manual.no_execution")}</span>
+                  <span>{t("manual.no_client_db")}</span>
+                </div>
+              </div>
+              <div className="workspace-panel span-3">
+                <h3>{t("manual.release_readiness")}</h3>
+                <div className="metric-grid four-column">
+                  <div><span>{t("status.db")}</span><strong>{runtimeDb?.connectivity.ok ? "ok" : "check"}</strong></div>
+                  <div><span>{t("sources.active_sources")}</span><strong>{sourceStats.active}</strong></div>
+                  <div><span>{t("panel.tariffs")}</span><strong>{tsoTariffs.length}</strong></div>
+                  <div><span>{t("portfolio.open_orders")}</span><strong>{portfolioSummary?.open_order_count ?? screenOrders.length}</strong></div>
+                </div>
+              </div>
             </div>
           )}
         </section>

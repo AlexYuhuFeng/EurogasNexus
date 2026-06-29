@@ -1616,8 +1616,60 @@ body {
   grid-template-columns: 1fr 0.7fr 0.7fr 1fr 1fr 0.8fr;
 }
 
+.data-table-row.six > * {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .six-column {
   grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.review-warning-list {
+  display: grid;
+  gap: 8px;
+}
+
+.review-warning-list span {
+  min-width: 0;
+  border: 1px solid var(--eg-hairline);
+  border-radius: var(--eg-radius-sm);
+  background: var(--eg-canvas-soft);
+  color: var(--eg-body);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 18px;
+  overflow-wrap: anywhere;
+  padding: 8px 10px;
+}
+
+.manual-step-list {
+  display: grid;
+  gap: 8px;
+}
+
+.manual-step-list div {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.45fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  border: 1px solid var(--eg-hairline);
+  border-radius: var(--eg-radius-sm);
+  background: var(--eg-canvas-soft);
+  padding: 10px 12px;
+}
+
+.manual-step-list strong,
+.manual-step-list span {
+  min-width: 0;
+}
+
+.manual-step-list span {
+  color: var(--eg-body);
+  font-size: 13px;
+  line-height: 20px;
 }
 
 .source-center {
@@ -1863,6 +1915,7 @@ body {
 @media (max-width: 1200px) {
   .workspace-grid,
   .efet-section-grid,
+  .manual-step-list div,
   .four-column,
   .three-column,
   .six-column,
@@ -2198,7 +2251,9 @@ body {
   left: 16px;
   display: grid;
   width: min(280px, calc(100vw - 32px));
+  max-height: calc(100vh - 96px);
   gap: 6px;
+  overflow-y: auto;
   border: 1px solid var(--eg-hairline);
   border-radius: var(--eg-radius-md);
   background: rgb(255 255 255 / 94%);

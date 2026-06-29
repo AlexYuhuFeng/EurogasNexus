@@ -243,17 +243,21 @@ surfaces for:
 
 - Network: resource-pool map, recommended sale paths, route/capacity warnings,
   indicative PnL, and decision support;
-- Data Sources: provider categories, API-key posture, diagnostics, and refresh
-  state;
-- Market: price, FX, capacity, tariff, and source observations;
+- Capacity: ENTSOG flow/capacity, TSO access, published tariffs, GIE storage,
+  and GIE LNG operating context;
+- Market: price, FX, and market-source observations only;
 - Scenario: route economics, LNG readiness, and pool optimization runs;
 - Contracts: EFET-style resource, delivery, pricing, settlement, and capacity
   term entry;
 - Strategy: backtest, shadow-run, monitoring, and risk controls;
 - Review: trader-readable decision support and report output;
+- Order Records: read-only screen-order observations and live PnL snapshots;
+- Data Sources: provider categories, API-key posture, diagnostics, and refresh
+  state;
 - Glossary: bilingual operational definitions and linked context;
 - Runtime: API, database, and ingestion readiness;
-- Settings: language, units, display preferences, and light/dark/system theme.
+- Settings: language, units, display preferences, and light/dark/system theme;
+- Manual: customer-facing page map and operating boundary.
 
 ### Desktop
 

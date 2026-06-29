@@ -94,8 +94,9 @@ The web client must:
 - consume `/api`;
 - show backend, DB, source, and warning posture;
 - be map-first;
-- provide Network, Capacity, Market, Scenario, Strategy, Review, Sources,
-  Glossary, Runtime, and Settings workspaces;
+- provide Network, Capacity, Market, Scenario, Contracts, Strategy, Review,
+  Order Records, Data Sources, Glossary, Runtime, Settings, and Manual
+  workspaces;
 - show live-source posture for ECB, ENTSOG, GIE, EEX, Trayport, ICE OCM,
   weather, and LLM analysis;
 - show route options, capacity/contract constraints, market/weather signals,

@@ -1,38 +1,52 @@
-﻿# clients/web
+# clients/web
 
-Future Eurogas Nexus web client.
+React/Vite/MapLibre Web workspace for Eurogas Nexus.
 
-## Blueprint
+The Web client is the single UI source for browser, Windows, and Linux desktop
+surfaces. The Tauri desktop package wraps the built Web bundle.
 
-Read `docs/architecture/WEB_CLIENT_IMPLEMENTATION_BLUEPRINT.md` before adding
-code here.
+## Runtime Boundary
 
-Also read:
+The client consumes backend `/api` contracts only. It does not connect to
+PostgreSQL, read backend local files, call vendor APIs directly, or store
+provider credentials.
 
-- `docs/clients/CLIENT_DELIVERY_MILESTONES.md`
+Missing runtime data must be shown as unavailable, degraded, entitlement, or
+diagnostic state. Do not create browser-side synthetic runtime data.
+
+## Workspaces
+
+- Network: map-first resource-pool cockpit and recommended sale paths.
+- Capacity: ENTSOG flow/capacity, TSO access, tariffs, GIE storage/LNG.
+- Market: price, FX, and market-source observations.
+- Scenario: route economics and resource-pool optimization controls.
+- Contracts: EFET-style resource contract term capture.
+- Strategy: backtest, shadow-run, monitoring, and risk controls.
+- Review: decision review, warnings, LLM analysis, and report output.
+- Order Records: read-only screen-order observations and portfolio PnL.
+- Data Sources: provider categories, credentials posture, and diagnostics.
+- Glossary: bilingual operational definitions and context.
+- Runtime: API, database, Alembic, and readiness posture.
+- Settings: language and light/dark/system theme.
+- Manual: customer-facing page map and operating boundary.
+
+## Commands
+
+```powershell
+npm ci
+npm run dev
+npm run build
+```
+
+## Design Docs
+
+Read before changing UI/UX:
+
 - `docs/clients/CLIENT_API_CONTRACT.md`
-- `docs/clients/CLIENT_DESIGN_SYSTEM.md`
+- `docs/clients/CLIENT_TECH_STACK.md`
 - `docs/clients/WEB_CLIENT_DESIGN_SPEC.md`
-- `docs/design/UX_LAYOUT_BLUEPRINTS.md`
-
-## Target
-
-Browser-based, map-centric research workspace that consumes backend `/api`
-contracts.
-
-## First Web Milestone
-
-- React + TypeScript + Vite shell.
-- `/api/health` client.
-- Runtime status view.
-- Reference-network map layout with mocked data until backend contracts are
-  ready.
-- Source, warning, missing-input, lineage, `research_only`, and
-  `human_review_required` states.
-
-## Rules
-
-- No direct DB access.
-- No vendor API calls from the browser.
-- No browser-side secrets.
-- No historical UI copy-paste; redesign the workflow.
+- `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-EN.md`
+- `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-CN.md`
+- `docs/clients/UI_UX_STYLE_GUIDE-EN.md`
+- `docs/clients/UI_UX_STYLE_GUIDE-CN.md`
+- `docs/clients/WINDOWS_DEMO_UX_REFERENCE.md`

@@ -36,7 +36,7 @@ same goal-mode run unless the user explicitly asks for planning only.
 | R11 | complete | Research brief and reporting | `.agent/plans/V1_R11_RESEARCH_BRIEF_REPORTING_EXECPLAN.md` | `data/release_v1/r11_research_brief_reporting_report.md` |
 | R12 | complete | SDK release surface | `.agent/plans/V1_R12_SDK_RELEASE_SURFACE_EXECPLAN.md` | `data/release_v1/r12_sdk_release_surface_report.md` |
 | R13 | complete | CLI release surface | `.agent/plans/V1_R13_CLI_RELEASE_SURFACE_EXECPLAN.md` | `data/release_v1/r13_cli_release_surface_report.md` |
-| R14 | partial | Web research workspace | `.agent/plans/V1_R14_WEB_RELEASE_WORKSPACE_EXECPLAN.md` | `data/release_v1/r14_web_release_workspace_report.md` |
+| R14 | partial | Web decision-support workspace | `.agent/plans/V1_R14_WEB_RELEASE_WORKSPACE_EXECPLAN.md` | `data/release_v1/r14_web_release_workspace_report.md` |
 | R15 | partial | Windows client package shell | `.agent/plans/V1_R15_WINDOWS_RELEASE_SHELL_EXECPLAN.md` | `data/release_v1/r15_windows_release_shell_report.md` |
 | R16 | complete | Release pack and final validation | `.agent/plans/V1_R16_RELEASE_PACK_EXECPLAN.md` | `data/release_v1/r16_release_pack_report.md` |
 

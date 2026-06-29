@@ -80,12 +80,14 @@ Offline fallback:
 Build:
 
 - React + TypeScript + Vite shell in `clients/web`;
-- app frame with left navigation, top status bar, main workspace, right
-  inspector, bottom results panel;
+- app frame with a single workspace menu, top status bar, main map/workspace,
+  and page-specific panels;
 - `/api/health` client;
-- runtime status view using real API if present, otherwise documented mock;
-- map-first placeholders for Network, Capacity, Market, Scenario, Strategy,
-  Review, Sources, Glossary, Runtime, and Settings;
+- runtime status view using real API, with explicit unavailable state when the
+  backend route is absent;
+- map-first workspaces for Network, Capacity, Market, Scenario, Contracts,
+  Strategy, Review, Order Records, Data Sources, Glossary, Runtime, Settings,
+  and Manual;
 - no live vendor calls from the browser.
 
 Validation:

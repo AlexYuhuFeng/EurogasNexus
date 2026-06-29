@@ -328,8 +328,8 @@ Extend if needed:
 
 Build:
 
-- Network, Capacity, Market, Scenario, Strategy, Review, Sources, Glossary,
-  Runtime, Settings workspaces;
+- Network, Capacity, Market, Scenario, Contracts, Strategy, Review, Order
+  Records, Data Sources, Glossary, Runtime, Settings, and Manual workspaces;
 - API client for released `/api` routes;
 - fixed React/Vite/MapLibre/deck.gl/Zustand/i18next stack;
 - English/Mandarin language switch;

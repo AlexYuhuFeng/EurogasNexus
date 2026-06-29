@@ -2,7 +2,7 @@
 
 ## Objective
 
-The web client is the primary Eurogas Nexus research workspace. It is
+The web client is the primary Eurogas Nexus decision-support workspace. It is
 map-first and resource-pool-native: the European gas network map is the main
 work surface, with market, capacity, contract, weather, scenario, strategy, and
 review context attached to map objects and route candidates. It accesses
@@ -101,12 +101,12 @@ Primary navigation items:
 5. Contracts
 6. Strategy
 7. Review
-8. Data Sources
-9. Glossary
-10. Runtime
-11. Settings
-12. Manual
-13. Order Records
+8. Order Records
+9. Data Sources
+10. Glossary
+11. Runtime
+12. Settings
+13. Manual
 
 Navigation labels are product workflow labels, not implementation names.
 
@@ -277,16 +277,36 @@ Validation:
 - label outputs as decision support, human review required, and not an
   execution instruction.
 
+## Screen: Capacity
+
+Purpose:
+
+- inspect physical network operating context that affects route feasibility,
+  route cost, capacity allocation, and TSO access.
+
+V1 client behavior:
+
+- show ENTSOG flow observations;
+- show ENTSOG capacity observations;
+- show TSO access points and available product flags;
+- show published tariff references by point, direction, product, and TSO;
+- show GIE AGSI storage and GIE ALSI LNG records;
+- show unavailable or entitlement states when backend data is missing.
+
+Capacity page data must be read from backend `/api` responses backed by
+PostgreSQL. The client must not synthesize capacity, flow, tariff, storage, LNG,
+or TSO-access rows locally.
+
 ## Screen: Market
 
 Purpose:
 
-- provide context panels for price, flow, capacity, storage, LNG, weather,
-  demand, outages, and freshness.
+- provide market price, FX, weather, demand, outage, and freshness context
+  without mixing in order records or PnL tables.
 
 V1 client behavior:
 
-- show backend-served market, FX, capacity, tariff, and source metadata;
+- show backend-served market observations, ECB FX, and source metadata;
 - if an endpoint or table is missing, show an explicit unavailable state with
   the backend error code and required operator action;
 - do not invent market data or render client-side fake observations.
@@ -294,8 +314,6 @@ V1 client behavior:
 Live source panels:
 
 - ECB FX;
-- ENTSOG flow/capacity/outage context;
-- GIE AGSI/ALSI storage and LNG context;
 - EEX exchange market context;
 - Trayport market context;
 - ICE OCM within-day/OCM context;
@@ -365,6 +383,24 @@ Export:
 
 - disabled until governance/export policy is implemented;
 - explain restricted state without legal advice.
+
+## Screen: Order Records
+
+Purpose:
+
+- inspect imported screen-order observations and portfolio PnL snapshots without
+  presenting any order-entry or execution workflow.
+
+Required panels:
+
+- live portfolio summary;
+- read-only order observation table;
+- read-only portfolio PnL snapshot table;
+- source, timestamp, account label, venue, hub, quantity, price, and status;
+- clear unavailable state when the backend has no imported records.
+
+Order Records must consume `/api/portfolio/*`. It must not write orders, route
+orders, approve trades, submit nominations, or store credentials in the client.
 
 ## Screen: Data Sources
 
