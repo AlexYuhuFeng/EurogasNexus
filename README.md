@@ -119,7 +119,7 @@ tests/                  API, contract, integration, SDK, CLI, release tests
 Requirements:
 
 - Python 3.11+
-- Node.js 20+
+- Node.js 24+
 - Rust stable for desktop builds
 - PostgreSQL for runtime workflows
 
