@@ -32,6 +32,7 @@ import {
   TsoAccessPointDTO,
   TsoTariffDTO,
   UpstreamContractDTO,
+  UpstreamContractInputDTO,
 } from "@/api/client";
 
 interface ApiState {
@@ -66,9 +67,11 @@ interface ApiState {
   loading: boolean;
   error: string | null;
   credentialMessage: string | null;
+  contractSaveMessage: string | null;
   dataStatus: "runtime" | "delayed" | "partial" | "unavailable";
   fetchWorkspace: () => Promise<void>;
   saveProviderCredential: (providerId: string, apiKey: string, label: string) => Promise<void>;
+  saveDraftContract: (contract: UpstreamContractInputDTO) => Promise<void>;
   recommendRouteAllocation: (request: RouteRecommendationRequestDTO) => Promise<void>;
   optimizeResourcePool: (request: PortfolioOptimizationRequestDTO) => Promise<void>;
   evaluateStrategyLab: (scenario: StrategyLabRequestDTO) => Promise<void>;
@@ -112,6 +115,7 @@ export const useApiStore = create<ApiState>((set) => ({
   loading: false,
   error: null,
   credentialMessage: null,
+  contractSaveMessage: null,
   dataStatus: "unavailable",
 
   fetchWorkspace: async () => {
@@ -239,6 +243,26 @@ export const useApiStore = create<ApiState>((set) => ({
       });
     } catch (e) {
       set({ credentialMessage: String(e) });
+    }
+  },
+
+  saveDraftContract: async (contract) => {
+    set({ contractSaveMessage: null, loading: true, error: null });
+    try {
+      const saved = await api.saveUpstreamContract(contract);
+      const [upstreamContracts, resourcePoolOptions] = await Promise.all([
+        api.upstreamContracts(),
+        api.resourcePoolOptions(),
+      ]);
+      set({
+        upstreamContracts: upstreamContracts.data,
+        resourcePoolOptions: resourcePoolOptions.data,
+        meta: saved.meta,
+        contractSaveMessage: `${saved.data.contract_id} persisted for decision support.`,
+        loading: false,
+      });
+    } catch (e) {
+      set({ error: String(e), contractSaveMessage: String(e), loading: false });
     }
   },
 

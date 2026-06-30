@@ -1,11 +1,11 @@
-﻿# Live PostgreSQL Policy For V1
+# Live PostgreSQL Policy For V1
 
 ## Decision
 
 Live PostgreSQL is part of V1 runtime readiness.
 
-V1 must support connecting to a real PostgreSQL database for local developer
-and operator validation. This does not mean the API connects during import, CI
+V1 supports connecting to a real PostgreSQL database for local developer and
+operator validation. This does not mean the API connects during import, CI
 requires PostgreSQL, Docker is started automatically, or migrations run without
 an explicit command.
 
@@ -13,8 +13,8 @@ an explicit command.
 
 - PostgreSQL is the runtime source of truth.
 - App import must not connect to PostgreSQL.
-- Default unit, API, contract, integration, and security tests must pass without
-  a live database unless a test is explicitly marked as live DB.
+- Default unit, API, contract, integration, and security tests must pass
+  without a live database unless a test is explicitly marked as live DB.
 - Live DB checks are operator-invoked through documented commands.
 - Migrations are explicit operator actions.
 - Runtime validation is read-only unless the operator runs an Alembic migration
@@ -45,11 +45,12 @@ Codex may:
 - implement read-only validation against a configured live PostgreSQL URL;
 - inspect Alembic version table through read-only queries;
 - report missing required tables;
-- write migration files when a milestone requires schema creation;
+- write migration files when a selected milestone requires schema creation;
 - add explicit operator-invoked ingestion scripts for public or credentialed
   sources;
 - run tests that do not require a live DB by default;
-- add opt-in live DB tests guarded by an environment marker.
+- add opt-in live DB tests guarded by an environment marker;
+- improve Web/Windows client diagnostics that read DB posture through `/api`.
 
 Codex may not:
 
@@ -58,7 +59,8 @@ Codex may not:
 - run `alembic upgrade` automatically during API import, app startup, or tests;
 - print the database URL or any password;
 - use historical `.env` files from Desktop reference projects;
-- treat SQLite or local files as trial/release runtime truth.
+- treat SQLite or local files as trial/release runtime truth;
+- let clients connect directly to PostgreSQL.
 
 ## Official Source Runtime Policy
 
@@ -80,6 +82,24 @@ Kpler, Platts, broker, and customer screen/order feeds require customer
 credentials, entitlement, and source-specific contracts before live ingestion.
 Until then, only operator-owned test marks may be inserted into local test
 PostgreSQL, and they must be clearly labeled as operator-entered test records.
+
+## Current Runtime Evidence
+
+Latest checked local API posture:
+
+```text
+GET /api/runtime/db
+database_url_present=true
+connectivity.ok=true
+alembic_revision=0012_entsog_capacity
+required_tables=33
+missing_tables=0
+source=runtime-postgresql
+```
+
+This evidence means the running backend process can reach the configured
+PostgreSQL runtime database and sees the required schema. It does not mean each
+licensed commercial provider has been live-called.
 
 ## Standard Live Validation Command
 
@@ -131,17 +151,22 @@ tests/live_db/
 Those tests must skip unless a safe live DB URL is present and the operator has
 explicitly selected live DB validation.
 
-## Milestone 2 Requirement
+## DB Runtime Hardening Status
 
-Milestone 2 must make the live PostgreSQL path unambiguous:
+The DB runtime hardening milestone is complete in the current worktree for the
+tested local scope:
 
-- document runtime validation commands;
-- document migration commands;
-- document what missing tables mean;
-- document how Alembic revision is reported;
-- keep import safety tested;
-- keep default tests DB-free;
-- make live DB validation safe for a local real PostgreSQL instance.
+- runtime validation commands are documented;
+- migration commands are documented;
+- required-table inspection is implemented;
+- Alembic revision reporting is implemented;
+- import safety is tested;
+- default tests remain DB-free;
+- live DB validation is safe for an operator-controlled PostgreSQL instance.
+
+Remaining production work is operational hardening, not a restart of the DB
+foundation: scheduling, monitoring, backups, multi-user auth, entitlement,
+export governance, incident response, and deployment-specific runbooks.
 
 ## Failure Reporting
 

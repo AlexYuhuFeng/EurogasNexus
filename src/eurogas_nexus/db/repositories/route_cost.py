@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+from datetime import UTC, datetime
+
 from sqlalchemy.orm import Session
 
 from eurogas_nexus.db.models.route_cost import (
@@ -36,6 +39,72 @@ def list_upstream_contracts(session: Session) -> list[dict]:
         UpstreamResourceContractRecord.updated_at_utc.desc()
     )
     return [_contract_payload(row) for row in rows.all()]
+
+
+def upsert_upstream_contract(session: Session, data: Mapping[str, object]) -> dict:
+    now = datetime.now(UTC)
+    contract_id = str(data["contract_id"])
+    row = session.get(UpstreamResourceContractRecord, contract_id)
+    if row is None:
+        row = UpstreamResourceContractRecord(
+            contract_id=contract_id,
+            contract_name=str(data["contract_name"]),
+            resource_type=str(data["resource_type"]),
+            delivery_point_name=str(data["delivery_point_name"]),
+            gas_year=str(data["gas_year"]),
+            delivery_quantity_mwh_per_day=float(data["delivery_quantity_mwh_per_day"]),
+            contract_price_gbp_mwh=float(data["contract_price_gbp_mwh"]),
+            settlement_frequency=str(data["settlement_frequency"]),
+            upstream_payment_lag_days=int(data["upstream_payment_lag_days"]),
+            screen_sale_cash_lag_days=int(data["screen_sale_cash_lag_days"]),
+            delivery_tolerance_pct=float(data["delivery_tolerance_pct"]),
+            nomination_tolerance_pct=float(data["nomination_tolerance_pct"]),
+            tolerance_risk_allowance_gbp_mwh=_optional_float(
+                data.get("tolerance_risk_allowance_gbp_mwh")
+            ),
+            annual_financing_rate_pct=float(data["annual_financing_rate_pct"]),
+            owned_entry_capacity_mwh_per_day=_optional_float(
+                data.get("owned_entry_capacity_mwh_per_day")
+            ),
+            owned_exit_capacity_mwh_per_day=_optional_float(
+                data.get("owned_exit_capacity_mwh_per_day")
+            ),
+            allowed_exit_points=_string_list(data.get("allowed_exit_points")),
+            eligible_sale_modes=_string_list(data.get("eligible_sale_modes")),
+            notes=_optional_string(data.get("notes")),
+            created_at_utc=now,
+            updated_at_utc=now,
+        )
+        session.add(row)
+    else:
+        row.contract_name = str(data["contract_name"])
+        row.resource_type = str(data["resource_type"])
+        row.delivery_point_name = str(data["delivery_point_name"])
+        row.gas_year = str(data["gas_year"])
+        row.delivery_quantity_mwh_per_day = float(data["delivery_quantity_mwh_per_day"])
+        row.contract_price_gbp_mwh = float(data["contract_price_gbp_mwh"])
+        row.settlement_frequency = str(data["settlement_frequency"])
+        row.upstream_payment_lag_days = int(data["upstream_payment_lag_days"])
+        row.screen_sale_cash_lag_days = int(data["screen_sale_cash_lag_days"])
+        row.delivery_tolerance_pct = float(data["delivery_tolerance_pct"])
+        row.nomination_tolerance_pct = float(data["nomination_tolerance_pct"])
+        row.tolerance_risk_allowance_gbp_mwh = _optional_float(
+            data.get("tolerance_risk_allowance_gbp_mwh")
+        )
+        row.annual_financing_rate_pct = float(data["annual_financing_rate_pct"])
+        row.owned_entry_capacity_mwh_per_day = _optional_float(
+            data.get("owned_entry_capacity_mwh_per_day")
+        )
+        row.owned_exit_capacity_mwh_per_day = _optional_float(
+            data.get("owned_exit_capacity_mwh_per_day")
+        )
+        row.allowed_exit_points = _string_list(data.get("allowed_exit_points"))
+        row.eligible_sale_modes = _string_list(data.get("eligible_sale_modes"))
+        row.notes = _optional_string(data.get("notes"))
+        row.updated_at_utc = now
+
+    session.flush()
+    return _contract_payload(row)
 
 
 def latest_market_marks(session: Session) -> list[LiveMarketMark]:
@@ -133,6 +202,25 @@ def _contract_payload(row: UpstreamResourceContractRecord) -> dict:
         "eligible_sale_modes": row.eligible_sale_modes,
         "updated_at_utc": row.updated_at_utc.isoformat(),
     }
+
+
+def _optional_float(value: object) -> float | None:
+    if value is None:
+        return None
+    return float(value)
+
+
+def _optional_string(value: object) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _string_list(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item).strip() for item in value if str(item).strip()]
 
 
 def _route_candidate_payload(row: RouteCandidateRecord) -> dict:

@@ -1,258 +1,212 @@
-﻿# Next Development Queue
+# Next Development Queue
 
 ## Purpose
 
-This is the ordered execution queue for local goal mode. It is the file
-Codex should use to decide what to build next.
-
-Archived Desktop projects are reference evidence only. They are not design
-authority. Optimize the architecture and tooling from first principles when the
-archived design is unclear, overbuilt, desktop-first, file-first, or hard to
-operate.
+This file is the current ordered queue for Eurogas Nexus work. It reflects the
+active V1 release-candidate state: backend/API/SDK/CLI/Web/Windows exist and
+the next work should improve the live trader-intelligence product rather than
+replay early foundation milestones.
 
 ## Current Queue Rule
 
-Execute the first milestone below whose status is not `complete`.
+Execute the first item below whose status is not `complete-in-current-worktree`.
+Do not skip product-boundary, data-policy, entitlement, or documentation work
+to add visible UI features.
 
-Do not skip ahead. Later domain and client work depends on earlier backend
-foundation milestones.
-
-## Milestone 1: Governance, DB Foundation, API Path Policy
+## Current Baseline
 
 Status: `complete-in-current-worktree`
 
-ExecPlan:
+The worktree contains:
 
-- `.agent/plans/V1_M1_GOVERNANCE_DB_API_PATH_EXECPLAN.md`
+- FastAPI backend with stable `/api` routes.
+- PostgreSQL runtime store and Alembic migrations through
+  `0012_entsog_capacity`.
+- Python SDK and CLI.
+- React/Vite Web workspace.
+- Tauri desktop shell around the Web workspace.
+- Runtime data posture for reference network, capacity/flow, storage, LNG,
+  FX, source posture, route-cost/resource-pool, strategy, glossary, portfolio
+  observation, credentials, audit, and entitlement foundations.
 
-Delivered:
+## V1 R22: Documentation And Client Cockpit Alignment
 
-- repository governance files;
-- DB URL precedence and redaction;
-- lazy DB engine/session helpers;
-- read-only runtime DB validation script;
-- Alembic import safety;
-- `/api/health` stable alias;
-- `/api/health` compatibility;
-- internal/dev API prefixes;
-- milestone reports.
-
-Validation:
-
-- `ruff check .`
-- `pytest -q tests/api tests/contract tests/integration tests/security`
-- `python -c "from apps.api.main import app; print('app import ok'); print(len(app.routes))"`
-
-## Milestone 2: DB Runtime Hardening
-
-Status: `next`
+Status: `in-progress`
 
 ExecPlan:
 
-- `.agent/plans/V1_M2_DB_RUNTIME_HARDENING_EXECPLAN.md`
-
-Internet required: no
+- `.agent/plans/V1_R22_DOCS_CLIENT_COCKPIT_ALIGNMENT_EXECPLAN.md`
 
 Goal:
 
-Make the DB runtime boundary operator-ready without adding business domains.
+Make documentation and Web structure match the active product:
+
+- update architecture, client, and release docs so they describe Web and
+  Windows as active runtime clients;
+- repair corrupted Mandarin docs;
+- align release evidence with current Alembic and route counts;
+- keep the home cockpit map-first and resource-pool-native;
+- extract focused Web components where the top-level app file is doing too
+  much.
+
+Acceptance:
+
+- docs contract tests pass;
+- selected Mandarin docs are readable UTF-8 Chinese;
+- Web build passes;
+- browser smoke test shows Network and Data Sources without console errors.
+
+Latest delivered slice:
+
+- executable walkthrough confirmed the active Web/Windows page model;
+- Market now uses a dedicated terminal component for major European gas hubs,
+  regional TTF spreads, observed-row sparklines, ECB FX, and price-source
+  posture without fabricating missing licensed prices.
+- Contracts now shows an API-backed upstream resource-contract library, can
+  load saved rows for edit/upsert, imports operator-owned JSON drafts into the
+  EFET-style form, and keeps backend save as the authority for resource-pool
+  inputs.
+- Settings now uses a dedicated trader preference center for local unit,
+  currency, price-basis, timezone, map-density, refresh-profile, service-access
+  posture, and backend-boundary guardrails without storing secrets client-side.
+- Network now renders a backend-derived resource-path overlay on the map,
+  connecting persisted resource delivery points to candidate sale targets with
+  quantity, capacity, route cost, sale price, margin, route state, and blockers.
+- Network fallback map labels are now budgeted to trader-priority objects:
+  active route endpoints, hubs, search matches, and named market points, so the
+  backup map remains readable when hundreds of assets are visible.
+- Glossary now uses a dedicated wiki surface with category navigation,
+  backend-served term definitions, aliases, related terms, source references,
+  and operational context from `/api/glossary/{term}/context`.
+
+## R23: Ingestion Scheduling And Source Health
+
+Status: `pending`
+
+Goal:
+
+Productionize live ingestion operation without changing the client data
+boundary.
 
 Build:
 
-- required-table registry tied to migration revisions;
-- DB runtime readiness report;
-- explicit live local PostgreSQL validation path;
-- explicit migration lifecycle runbook;
-- repository factory contract;
-- runtime DB status model;
-- tests for missing DB, redaction, import safety, and no automatic migrations;
-- docs that explain how to validate a real DB only when explicitly configured.
-
-Do not build:
-
-- market data schemas;
-- topology schemas;
-- route cost/netback schemas;
-- live DB migration execution by default;
-- live external connector behavior.
+- scheduler/retry design for operator-controlled ingestion;
+- source freshness and failure diagnostics;
+- per-source run history and last-success/last-failure visibility;
+- no import-time network calls;
+- no browser-side provider calls.
 
 Acceptance:
 
-- app import works without DB;
-- runtime validation remains read-only;
-- missing DB URL fails closed;
-- live PostgreSQL validation is safe and read-only when a DB URL is configured;
-- default tests do not require PostgreSQL;
-- DB URL redaction is tested;
-- Alembic revision reporting is documented and tested;
-- all listed validation commands pass locally.
+- public/keyed ingestion remains explicit and auditable;
+- failures surface in Source Center;
+- credentials remain backend-owned and write-only from clients.
 
-## Milestone 3: Runtime Store Contracts
+## R24: Entitlement, Audit, And Export Governance Hardening
 
 Status: `pending`
 
-ExecPlan:
-
-- create `.agent/plans/V1_M3_RUNTIME_STORE_CONTRACTS_EXECPLAN.md`
-
-Internet required: no
-
 Goal:
 
-Define the repository/runtime-store layer that future domains use for DB-first
-reads and writes.
+Make entitlement and export restrictions enforceable for commercial data,
+portfolio observations, analysis outputs, and reports.
 
 Build:
 
-- runtime store result envelope;
-- repository interface pattern;
-- no-file-fallback policy tests for trial/release;
-- dev fallback metadata shape if development fallback is explicitly allowed;
-- docs/contracts for runtime store ownership.
+- fail-closed entitlement checks for unknown commercial datasets;
+- audit event coverage for operator imports and analysis/report generation;
+- export-disabled or restricted states in Review;
+- tests proving restricted data cannot be silently exposed.
 
 Acceptance:
 
-- API routes do not access DB directly;
-- domain modules do not import FastAPI;
-- SDK/CLI call API only;
-- trial/release file fallback policy is enforceable by tests.
+- unknown entitlement fails closed;
+- analysis/report outputs carry warnings, lineage, source references,
+  `research_only`, and `human_review_required`;
+- clients display restricted state without legal-advice language.
 
-## Milestone 4: Reference Network Contract Slice
+## R25: Persisted Contract And Resource Pool Workflow
 
-Status: `pending`
-
-ExecPlan:
-
-- create `.agent/plans/V1_M4_REFERENCE_NETWORK_CONTRACT_EXECPLAN.md`
-
-Internet required: no
+Status: `in-progress`
 
 Goal:
 
-Add the first product-shaped but narrow domain slice: canonical reference
-network contracts using source-shaped test fixtures only.
+Move EFET-style contract capture from a UI draft shell toward persisted
+backend/API workflows while preserving the no-ETRM boundary.
 
 Build:
 
-- canonical ID policy;
-- source-shaped node/facility/segment fixture;
-- DB schema plan, not broad production data load;
-- read-only `/api/reference-network/*` route contracts;
-- source reference and lineage fields.
+- broaden backend contract/resource validation beyond the first save path;
+- explicit missing-input and assumptions model;
+- resource-pool persistence or import path beyond upstream resource terms;
+- contract-level PnL attribution drill-down;
+- UI workflow that stores through `/api`, never direct DB access.
+
+First slice delivered:
+
+- `POST /api/route-cost/upstream-contracts` persists EFET-style upstream
+  resource terms into `upstream_resource_contracts`;
+- Web Contracts page can save the draft through `/api` and refresh
+  `upstreamContracts` plus `resourcePoolOptions`.
 
 Acceptance:
 
-- no real ENTSOG/GIE/vendor data committed;
-- API responses are research-safe;
-- route contracts are stable enough for future map clients.
+- no order entry or trade capture semantics;
+- contracts feed the resource pool;
+- home cockpit consumes persisted resources and sale options only.
 
-## Milestone 5: Ingestion Control Plane
+## R26: Cockpit Review And Warning Evidence
 
 Status: `pending`
 
-ExecPlan:
-
-- create `.agent/plans/V1_M5_INGESTION_CONTROL_EXECPLAN.md`
-
-Internet required: no for mocked control-plane work.
-
-Internet required: yes only if a live vendor/API connector is proposed.
-
-Offline fallback:
-
-- implement connector interfaces, mocks, credentials documentation, and
-  entitlement gap reports only.
-
 Goal:
 
-Model ingestion jobs, runs, normalization status, source references, freshness,
-and quality results without live source calls.
+Improve trader review ergonomics: warning stack, blockers, source evidence,
+lineage, and route allocation drill-downs.
+
+Build:
+
+- compact evidence stack on Network;
+- full warning/assumption/source review on Review;
+- route blocker explanations with source/freshness;
+- browser QA across desktop and mobile.
 
 Acceptance:
 
-- connectors perform no analytics;
-- tests use mocks and source-shaped fixtures;
-- no import-time network calls.
+- warnings are visible before workflow execution;
+- route allocation and resource-pool recommendations remain human-review
+  decision support;
+- no execution language.
 
-## Milestone 6: Governance, Entitlement, Audit
+## R27: Market Terminal Live Feed Hardening
 
 Status: `pending`
 
-ExecPlan:
-
-- create `.agent/plans/V1_M6_GOVERNANCE_AUDIT_EXECPLAN.md`
-
-Internet required: no for local model/policy work.
-
-Internet required: yes if validating current vendor/legal terms.
-
-Offline fallback:
-
-- fail closed for unknown commercial data and record a gap report.
-
 Goal:
 
-Make entitlement, export policy, audit events, and research-output metadata
-enforceable before richer data surfaces exist.
+Move the Market terminal from source-aware display into a live-market operations
+surface after commercial feed credentials and entitlement are approved.
+
+Build:
+
+- provider-specific hub/product normalization for EEX, ICE OCM, Trayport,
+  Platts, ICIS, Argus, and Kpler;
+- backend spread calculations for TTF-relative and cross-region comparisons;
+- stale-data blocking and entitlement warnings in the Market terminal;
+- browser and desktop QA against real licensed feed rows.
 
 Acceptance:
 
-- unknown commercial data fails closed;
-- audit model exists;
-- research result envelope exists;
-- report/export rules are documented.
+- no client-side provider calls or fabricated prices;
+- live or delayed state is sourced from backend diagnostics;
+- Market remains separated from order entry, order routing, and PnL records.
 
-## Milestone 7: First Research Workflow
+## Deferred Production Work
 
-Status: `pending`
+These areas remain deferred until explicitly selected:
 
-ExecPlan:
-
-- create `.agent/plans/V1_M7_FIRST_RESEARCH_WORKFLOW_EXECPLAN.md`
-
-Internet required: yes for public-source ingestion validation; no for DB-free
-unit and contract tests.
-
-Goal:
-
-Implement one narrow research-only workflow after DB/runtime/governance
-foundations are ready.
-
-Approved first workflow:
-
-- route-cost input validation and assumptions report, or
-- reference topology read model.
-
-Acceptance:
-
-- every result includes assumptions, missing inputs, warnings, source
-  references, lineage, `research_only`, and `human_review_required`;
-- no official recommendation or execution semantics.
-
-## Future Client Milestone
-
-Status: `design-ready-runtime-pending`
-
-Goal:
-
-Implement future SDK, CLI, web, and Windows clients after backend API contracts
-are stable.
-
-Reference:
-
-- historical Windows demo may inform workflow shape only.
-- `docs/clients/README.md`
-- `docs/clients/CLIENT_DELIVERY_MILESTONES.md`
-- `docs/clients/SDK_CLIENT_DESIGN_SPEC.md`
-- `docs/clients/CLI_CLIENT_DESIGN_SPEC.md`
-- `docs/clients/WEB_CLIENT_DESIGN_SPEC.md`
-- `docs/clients/WINDOWS_CLIENT_DESIGN_SPEC.md`
-- `docs/design/UX_LAYOUT_BLUEPRINTS.md`
-
-Required before starting:
-
-- stable `/api` reference-network API;
-- runtime status API;
-- research output envelope;
-- selected SDK, CLI, web, or Windows milestone ExecPlan;
-- explicit user approval to add or expand that client surface.
+- company SSO/OIDC;
+- enterprise signing and deployment hardening;
+- broker/exchange live commercial connector validation;
+- LLM provider execution beyond gated backend operator control;
+- export/report governance beyond current restricted states.

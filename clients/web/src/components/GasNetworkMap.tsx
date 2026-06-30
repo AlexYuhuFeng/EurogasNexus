@@ -13,8 +13,11 @@ interface GasNetworkMapProps {
   highlightedRoute?: {
     fromNodeId: string;
     toNodeId: string;
+    routeId: string;
     label: string;
     pnlGbp: number | null;
+    routeGeometryState: "source_derived_leg_sequence" | "source_derived_corridor" | "directLineFallback";
+    routeLegSummary: string[];
   };
 }
 
@@ -29,6 +32,21 @@ function propertyText(value: unknown, fallback = "n/a"): string {
   return String(value);
 }
 
+function metadataString(metadata: Record<string, unknown> | null | undefined, key: string, fallback = ""): string {
+  const value = metadata?.[key];
+  return typeof value === "string" && value.trim() ? value.trim() : fallback;
+}
+
+function metadataNumber(metadata: Record<string, unknown> | null | undefined, key: string, fallback = 0): number {
+  const value = metadata?.[key];
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return fallback;
+}
+
 function escapeHtml(value: unknown): string {
   return propertyText(value).replace(/[&<>"']/g, (char) => ({
     "&": "&amp;",
@@ -37,6 +55,24 @@ function escapeHtml(value: unknown): string {
     "\"": "&quot;",
     "'": "&#39;",
   }[char] ?? char));
+}
+
+const MAX_FALLBACK_LABELS = 28;
+
+function fallbackNodeLabel(node: NodeDTO): string {
+  const metadata = node.metadata_json ?? {};
+  return String(metadata.market_code ?? node.name);
+}
+
+function isSearchLabelMatch(node: NodeDTO, searchTerm: string): boolean {
+  if (!searchTerm) return false;
+  return [
+    node.name,
+    node.country,
+    node.node_type,
+    fallbackNodeLabel(node),
+    node.source_system ?? "",
+  ].some((value) => value.toLowerCase().includes(searchTerm));
 }
 
 export function GasNetworkMap({
@@ -115,6 +151,84 @@ export function GasNetworkMap({
     if (!from || !to) return null;
     return { ...highlightedRoute, from, to };
   }, [highlightedRoute, nodeLookup]);
+  const routeSegmentsForHighlight = useMemo(() => {
+    if (!highlightedRoutePoints?.routeId) return [];
+    return visibleEdges
+      .filter((edge) => {
+        const metadata = edge.metadata_json ?? {};
+        return (
+          edge.source_record_id === highlightedRoutePoints.routeId ||
+          metadataString(metadata, "route_id") === highlightedRoutePoints.routeId
+        );
+      })
+      .sort(
+        (left, right) =>
+          metadataNumber(left.metadata_json, "route_leg_sequence") -
+          metadataNumber(right.metadata_json, "route_leg_sequence"),
+      );
+  }, [highlightedRoutePoints?.routeId, visibleEdges]);
+  const directLineFallback = Boolean(highlightedRoutePoints && routeSegmentsForHighlight.length === 0);
+  const geometryWarning = directLineFallback
+    ? "Route geometry unavailable; showing direct source-derived corridor, not surveyed pipeline geometry."
+    : highlightedRoutePoints?.routeGeometryState === "source_derived_leg_sequence"
+      ? "Using source_derived_leg_sequence route geometry from leg-level route-candidate edges."
+      : "Using source-derived route geometry.";
+  const highlightedRouteSegmentFeatures = useMemo(
+    () =>
+      routeSegmentsForHighlight.map((edge) => {
+        const metadata = edge.metadata_json ?? {};
+        return {
+          type: "Feature" as const,
+          properties: {
+            id: edge.id,
+            route_id: metadataString(metadata, "route_id", highlightedRoutePoints?.routeId ?? ""),
+            route_leg_sequence: metadataNumber(metadata, "route_leg_sequence"),
+            route_geometry_state: metadataString(
+              metadata,
+              "route_geometry_state",
+              highlightedRoutePoints?.routeGeometryState ?? "source_derived_leg_sequence",
+            ),
+          },
+          geometry: {
+            type: "LineString" as const,
+            coordinates: [
+              [edge.from.lon, edge.from.lat],
+              [edge.to.lon, edge.to.lat],
+            ],
+          },
+        };
+      }),
+    [highlightedRoutePoints?.routeGeometryState, highlightedRoutePoints?.routeId, routeSegmentsForHighlight],
+  );
+  const normalizedSearchTerm = searchTerm.trim().toLowerCase();
+  const fallbackLabelPriorityIds = useMemo(() => {
+    const priorityIds = new Set<string>();
+    if (highlightedRoutePoints) {
+      priorityIds.add(highlightedRoutePoints.from.id);
+      priorityIds.add(highlightedRoutePoints.to.id);
+    }
+
+    const addWithinBudget = (node: NodeDTO) => {
+      if (priorityIds.has(node.id) || priorityIds.size >= MAX_FALLBACK_LABELS) return;
+      priorityIds.add(node.id);
+    };
+
+    filteredNodes
+      .filter((node) => isSearchLabelMatch(node, normalizedSearchTerm))
+      .forEach(addWithinBudget);
+    filteredNodes
+      .filter((node) => node.node_type === "hub")
+      .forEach(addWithinBudget);
+    filteredNodes
+      .filter((node) => node.node_type !== "hub" && Boolean(node.metadata_json?.market_code))
+      .forEach(addWithinBudget);
+
+    return priorityIds;
+  }, [filteredNodes, highlightedRoutePoints, normalizedSearchTerm]);
+
+  function shouldShowFallbackNodeLabel(node: NodeDTO, index: number): boolean {
+    return index >= 0 && fallbackLabelPriorityIds.has(node.id);
+  }
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -290,6 +404,29 @@ export function GasNetworkMap({
       });
     }
 
+    if (!map.getSource("highlighted-route-segments")) {
+      map.addSource("highlighted-route-segments", {
+        type: "geojson",
+        data: { type: "FeatureCollection", features: highlightedRouteSegmentFeatures },
+      });
+      map.addLayer({
+        id: "highlighted-route-segments",
+        type: "line",
+        source: "highlighted-route-segments",
+        paint: {
+          "line-color": mapColors.route,
+          "line-width": 6,
+          "line-opacity": 0.96,
+          "line-dasharray": [1.4, 1.2],
+        },
+      });
+    } else {
+      (map.getSource("highlighted-route-segments") as GeoJSONSource).setData({
+        type: "FeatureCollection",
+        features: highlightedRouteSegmentFeatures,
+      });
+    }
+
     if (!map.getSource("nodes")) {
       map.addSource("nodes", {
         type: "geojson",
@@ -360,7 +497,7 @@ export function GasNetworkMap({
         features: nodeFeatures,
       });
     }
-  }, [filteredNodes, mapColors, mapReady, routeIds, visibleEdges]);
+  }, [filteredNodes, highlightedRouteSegmentFeatures, mapColors, mapReady, routeIds, visibleEdges]);
 
   function project(lon: number, lat: number): [number, number] {
     const x = ((lon + 12) / 47) * 1000;
@@ -410,16 +547,59 @@ export function GasNetworkMap({
         {highlightedRoutePoints && (() => {
           const [x1, y1] = project(highlightedRoutePoints.from.lon, highlightedRoutePoints.from.lat);
           const [x2, y2] = project(highlightedRoutePoints.to.lon, highlightedRoutePoints.to.lat);
-          const controlX = (x1 + x2) / 2;
-          const controlY = Math.min(y1, y2) - 90;
-          const path = `M ${x1} ${y1} Q ${controlX} ${controlY} ${x2} ${y2}`;
           const pnlText = highlightedRoutePoints.pnlGbp === null
             ? ""
             : `GBP ${Math.round(highlightedRoutePoints.pnlGbp).toLocaleString()}`;
+          if (routeSegmentsForHighlight.length > 0) {
+            const segmentPoints = routeSegmentsForHighlight.map((edge) => {
+              const [fromX, fromY] = project(edge.from.lon, edge.from.lat);
+              const [toX, toY] = project(edge.to.lon, edge.to.lat);
+              return { edge, fromX, fromY, toX, toY };
+            });
+            const labelSegment = segmentPoints[Math.floor(segmentPoints.length / 2)];
+            const labelX = (labelSegment.fromX + labelSegment.toX) / 2 + 12;
+            const labelY = (labelSegment.fromY + labelSegment.toY) / 2 - 12;
+            return (
+              <g className="fallback-flow segmented" aria-hidden="true">
+                <desc>{geometryWarning}</desc>
+                {segmentPoints.map(({ edge, fromX, fromY, toX, toY }) => (
+                  <g key={`highlighted-fallback-segment-${edge.id}`}>
+                    <line
+                      className="fallback-flow-shadow"
+                      x1={fromX}
+                      y1={fromY}
+                      x2={toX}
+                      y2={toY}
+                    />
+                    <line
+                      className="fallback-flow-segment"
+                      x1={fromX}
+                      y1={fromY}
+                      x2={toX}
+                      y2={toY}
+                    />
+                  </g>
+                ))}
+                <text className="fallback-flow-label" x={labelX} y={labelY}>
+                  {highlightedRoutePoints.label}
+                </text>
+                {pnlText && (
+                  <text className="fallback-flow-value" x={labelX} y={labelY + 18}>
+                    {pnlText}
+                  </text>
+                )}
+              </g>
+            );
+          }
+
+          const controlX = (x1 + x2) / 2;
+          const controlY = Math.min(y1, y2) - 90;
+          const path = `M ${x1} ${y1} Q ${controlX} ${controlY} ${x2} ${y2}`;
           return (
             <g className="fallback-flow" aria-hidden="true">
+              <desc>{geometryWarning}</desc>
               <path className="fallback-flow-shadow" d={path} />
-              <path className="fallback-flow-path" d={path} />
+              <path className="fallback-flow-path direct-corridor" d={path} />
               <circle className="fallback-flow-pulse" r="7">
                 <animateMotion dur="3.8s" repeatCount="indefinite" path={path} />
               </circle>
@@ -434,15 +614,17 @@ export function GasNetworkMap({
             </g>
           );
         })()}
-        {filteredNodes.map((node) => {
+        {filteredNodes.map((node, index) => {
           const [x, y] = project(node.lon, node.lat);
           const metadata = node.metadata_json ?? {};
-          const label = String(metadata.market_code ?? node.name);
+          const label = fallbackNodeLabel(node);
           const coordinateQuality = propertyText(metadata.coordinate_quality, node.data_quality ?? "unknown");
           return (
             <g key={node.id} className={`fallback-node ${node.node_type} ${coordinateQuality === "display_approximation" ? "approximate" : "official"}`}>
               <circle cx={x} cy={y} r={node.node_type === "hub" ? 7 : node.node_type === "lng" ? 6 : 4.8} />
-              <text x={x + 9} y={y - 8}>{label}</text>
+              {shouldShowFallbackNodeLabel(node, index) && (
+                <text className="fallback-node-label priority" x={x + 9} y={y - 8}>{label}</text>
+              )}
             </g>
           );
         })}

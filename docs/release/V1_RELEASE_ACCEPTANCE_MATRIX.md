@@ -96,15 +96,16 @@ called a full project release.
 | --- | --- |
 | SDK/API data boundary | web reaches PostgreSQL data only through backend `/api`; no direct DB/vendor/secret access |
 | Runtime visibility | backend, DB, source, warning posture visible |
-| Network workspace | map-ready reference network view |
+| Network workspace | map-ready reference network view with backend-derived resource-path overlay, route/pool decision context, and priority-budgeted labels for readable fallback rendering |
 | Capacity workspace | ENTSOG flow/capacity, TSO access, tariff, GIE storage/LNG context visible through backend API |
 | Scenario workspace | inputs, missing inputs, assumptions |
-| Market workspace | price, FX, and market-source observations only |
-| Contracts workspace | EFET-style resource, delivery, pricing, settlement, and capacity terms |
+| Market workspace | terminal-style European gas hub board, regional TTF spreads, ECB FX, and exchange/broker source posture without fabricated prices |
+| Contracts workspace | EFET-style resource, delivery, pricing, settlement, capacity terms, JSON draft import, persisted contract library, and API-backed resource-pool save |
 | Review workspace | candidates, warnings, source refs, lineage, human-review state |
 | Order Records workspace | read-only screen-order observations and portfolio PnL snapshots |
 | Data Sources workspace | provider categories, credentials posture, diagnostics, and source lineage inspection |
-| Settings | client preferences only, no secrets |
+| Glossary workspace | backend-served term wiki with category navigation, selected-term article, aliases, related terms, source references, operational context, matched entities, data quality, and warnings |
+| Settings | client display/unit/currency/session preferences, service-access posture, and backend-boundary guardrails; no secrets |
 | Manual workspace | customer-facing page map and operating boundary |
 
 ## Windows Client

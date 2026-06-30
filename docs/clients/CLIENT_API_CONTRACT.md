@@ -104,6 +104,9 @@ both bootstrap and full-envelope responses during transition.
 | `POST /api/scenarios/validate` | scenario missing-input check | planned |
 | `GET /api/sources/live-status` | ECB, ENTSOG, GIE, EEX, Trayport, ICE OCM, weather, LLM posture | planned |
 | `GET /api/capacity/contracts` | capacity/contract context | planned |
+| `GET /api/market/observations` | DB-backed gas price, assessment, index, FX-like observation rows | active |
+| `GET /api/market/fx` | DB-backed ECB FX reference rows | active |
+| `GET /api/market/spreads` | sourced market spread calculations | active-empty |
 | `GET /api/market/signals` | market movement signals | planned |
 | `GET /api/weather/signals` | HDD/CDD and demand-pressure signals | planned |
 | `POST /api/research/shadow-run` | legacy workflow shell | active |
@@ -120,6 +123,8 @@ both bootstrap and full-envelope responses during transition.
 | `GET /api/glossary/{term}` | backend-served bilingual glossary detail | active |
 | `GET /api/route-cost/route-candidates` | DB-backed route candidates | active |
 | `GET /api/route-cost/tso-tariffs` | DB-backed TSO tariff rows, including BBL/IUK/NTS where loaded | active |
+| `GET /api/route-cost/upstream-contracts` | persisted upstream resource contracts for resource-pool construction | active |
+| `POST /api/route-cost/upstream-contracts` | persist EFET-style upstream resource terms as decision-support inputs | active |
 | `GET /api/route-cost/resource-pool/options` | DB-backed portfolio resources and priced sale options for the map cockpit | active |
 | `POST /api/route-cost/calculate` | explicit-leg European route-cost calculation from tariff rows | active |
 | `POST /api/route-cost/recommend` | capacity-constrained route/sale allocation recommendation | active |
@@ -129,6 +134,21 @@ both bootstrap and full-envelope responses during transition.
 Planned endpoints must return explicit unavailable/degraded states from the
 backend until their contracts exist. Clients must not invent local runtime data
 for planned endpoints.
+
+## Contract Resource Boundary
+
+`POST /api/route-cost/upstream-contracts` is a decision-support persistence
+route for upstream resource terms. It stores the EFET-style resource attributes
+needed by the resource-pool optimizer and returns `research_only=true` and
+`human_review_required=true`.
+
+Clients may use this route to save resource inputs, then refresh:
+
+- `GET /api/route-cost/upstream-contracts`;
+- `GET /api/route-cost/resource-pool/options`.
+
+This route must not be described as trade capture, order entry, nomination,
+approval, settlement, or an ETRM contract master.
 
 ## Internal Import Route
 

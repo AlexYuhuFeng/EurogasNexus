@@ -1,253 +1,249 @@
-﻿# Client Delivery Milestones
+# Client Delivery Milestones
 
-## Decision
+## Current Status
 
-Client implementation is separated by surface after backend API contracts are
-ready. Client design documentation may exist now. Runtime client code starts
-only when the user selects a client milestone.
+Client delivery is active in this worktree. The repository already contains:
 
-## Activation Gates
+- SDK API client surface;
+- CLI operator surface;
+- React/Vite Web workspace;
+- Tauri Windows/Linux desktop shell.
 
-Before Web Milestone W1:
+The remaining client milestones are improvement and hardening tracks, not
+permission gates to begin client work.
 
-- `/api/health` exists;
-- API path policy is stable;
-- backend runtime status API is implemented or explicitly mocked for W1;
-- reference-network API contract exists or is mocked with a documented gap;
-- research output envelope is documented;
-- user explicitly asks to start web client work.
+Client implementation is separated by surface: SDK, CLI, Web, and Windows each
+have distinct responsibilities, but all consume backend API contracts.
 
-Before live-source, LLM, capacity/contract, or strategy client screens are
-marked complete:
+Historical and current client execution plans:
 
-- matching `/api` contracts exist or are explicitly mocked with a gap report;
-- source entitlement and credential requirements are documented;
-- no browser or desktop client stores vendor/LLM credentials;
-- backend distinguishes live, delayed, mocked, partial, and unavailable states.
+- `SDK_M1_API_CLIENT_EXECPLAN.md`
+- `CLI_M1_OPERATOR_COMMANDS_EXECPLAN.md`
+- `WEB_M1_WORKSPACE_SHELL_EXECPLAN.md`
+- `WINDOWS_D1_DESKTOP_SHELL_EXECPLAN.md`
+- `V1_R22_DOCS_CLIENT_COCKPIT_ALIGNMENT_EXECPLAN.md`
 
-Before SDK Milestone S1:
+## Standing Client Rules
 
-- `/api/health` exists;
-- API response/error model is documented;
-- SDK/CLI boundary contract exists;
-- user explicitly asks to expand SDK beyond the health shell.
+- All clients use backend `/api` or SDK boundaries.
+- No client reads PostgreSQL directly.
+- No client stores provider credentials, service tokens, DB URLs, or raw vendor
+  data.
+- Missing data is displayed as unavailable, partial, blocked, stale, or
+  credential-missing.
+- Client code must not create browser-side runtime fixture data for routes,
+  capacity, tariffs, market prices, contracts, orders, or PnL.
+- UI language remains decision-support and human-review oriented.
 
-Before CLI Milestone C1:
+## Completed Milestones
 
-- SDK M1 exists or the current SDK health helper is sufficient for the selected
-  CLI work;
-- CLI command safety policy is documented;
-- user explicitly asks to expand CLI commands.
+### W0: Client Design Package
 
-Before Windows Milestone D1:
+Status: `complete-in-current-worktree`
 
-- web workspace shell exists;
-- backend URL configuration behavior is stable;
-- Windows packaging stack is approved;
-- user explicitly asks to start Windows client work.
-
-## Milestone W0: Client Design Package
-
-Status: documentation-only
-
-Deliver:
+Delivered:
 
 - client API contract;
-- design system;
-- web design spec;
-- Windows design spec;
-- delivery milestones;
-- implementation blueprints.
+- tech-stack contract;
+- Web and Windows design specs;
+- cockpit and resource-pool specs;
+- i18n/theme specs.
 
-No runtime code.
+### W1: Web Workspace Shell
 
-## Milestone W1: Web Workspace Shell
+Status: `complete-in-current-worktree`
 
-ExecPlan:
+Delivered:
 
-- `.agent/plans/WEB_M1_WORKSPACE_SHELL_EXECPLAN.md`
+- React + TypeScript + Vite workspace;
+- top bar and workspace menu;
+- Network, Capacity, Market, Scenario, Contracts, Strategy, Review, Order
+  Records, Data Sources, Glossary, Runtime, Settings, and Manual pages;
+- backend `/api` client and Zustand state store;
+- explicit unavailable/partial/runtime states.
 
-Internet required: yes if React, TypeScript, Vite, or package documentation must
-be installed or verified.
+### D1: Windows Desktop Shell
 
-Offline fallback:
+Status: `complete-in-current-worktree`
 
-- create planned file structure;
-- write API client interfaces;
-- write source-shaped contract test fixtures under `tests/` only;
-- write gap report for missing dependencies.
+Delivered:
+
+- Tauri shell wrapping the Web workspace;
+- desktop package configuration;
+- no direct DB access and no bundled provider credentials.
+
+## Active Improvement Milestones
+
+### W7: Client Structure And Cockpit Evidence
+
+Status: `in-progress`
+
+Goal:
+
+Reduce top-level Web app complexity and improve trader review evidence without
+changing the backend API surface.
 
 Build:
 
-- React + TypeScript + Vite shell in `clients/web`;
-- app frame with a single workspace menu, top status bar, main map/workspace,
-  and page-specific panels;
-- `/api/health` client;
-- runtime status view using real API, with explicit unavailable state when the
-  backend route is absent;
-- map-first workspaces for Network, Capacity, Market, Scenario, Contracts,
-  Strategy, Review, Order Records, Data Sources, Glossary, Runtime, Settings,
-  and Manual;
-- no live vendor calls from the browser.
+- extract focused cockpit/source/topbar components;
+- expose compact warning and source-evidence stack on Network;
+- show map-level resource paths from active portfolio resources to recommended
+  sale targets using backend resource-pool options and optimization outputs;
+- preserve Data Sources, Runtime, and Review as deeper investigation surfaces.
+
+Delivered latest slice:
+
+- added `ResourcePoolPathOverlay` on the Network map;
+- derives source delivery point, target point, quantity, route cost, sale price,
+  net margin, capacity limit, route state, and blockers from backend-loaded
+  resource-pool state;
+- wires the existing map highlighted-route animation to the first matchable
+  resource path when source/target nodes can be resolved;
+- limits fallback map labels to trader-priority objects: active resource-path
+  endpoints, hubs, search matches, and named market points.
 
 Validation:
 
 ```powershell
-npm run lint
-npm run test
-npm run build
+npm --prefix clients/web run build
+pytest -q tests/contract/test_web_client_structure.py
 ```
 
-If Node dependencies are unavailable offline, report `PARTIAL` and run only
-available static checks.
+### W8: Persisted Contract Workflow
 
-## Milestone S1: Python SDK API Client
+Status: `in-progress`
 
-ExecPlan:
+Goal:
 
-- `.agent/plans/SDK_M1_API_CLIENT_EXECPLAN.md`
+Move contract capture from draft UI state toward persisted backend/API
+workflows while preserving the no-ETRM boundary.
 
-Internet required: no
+Requires:
 
-Build:
+- broader validation model for missing inputs and assumptions;
+- contract-level attribution drill-down.
 
-- typed API client shell;
-- `/api` path normalization;
-- health and runtime status client methods where backend routes exist;
-- safe exception model;
-- metadata preservation;
-- boundary tests proving the SDK does not import backend internals.
+Delivered first slice:
 
-Do not build:
+- Web contract form builds an upstream resource payload;
+- `POST /api/route-cost/upstream-contracts` persists the resource terms through
+  the backend;
+- Web reloads upstream contracts and resource-pool options after save;
+- Web shows a persisted contract library from
+  `GET /api/route-cost/upstream-contracts`;
+- saved contracts can be loaded back into the EFET-style form for an explicit
+  edit/upsert;
+- JSON contract drafts can be imported into the form, but only backend save
+  makes them resource-pool inputs;
+- no client-side DB access, trade capture, or execution semantics.
 
-- package publishing;
-- direct DB access;
-- vendor API calls;
-- execution/order/trade/nomination methods.
+### W9: Market Intelligence Terminal
 
-## Milestone C1: CLI Operator Commands
+Status: `in-progress`
 
-ExecPlan:
+Goal:
 
-- `.agent/plans/CLI_M1_OPERATOR_COMMANDS_EXECPLAN.md`
+Move the Market page from a plain observation table toward a gas-trader market
+terminal for major European hubs and licensed price-source posture.
 
-Internet required: no
+Delivered first slice:
 
-Build:
+- extracted `MarketTerminal` as the Market page owner;
+- renders TTF, NBP, THE, PEG, ZTP, and PSV rows without fabricating missing
+  prices;
+- shows regional comparison against TTF where sourced rows share currency/unit;
+- adds compact sparklines from actual observed price rows only;
+- shows EEX, ICE OCM, Trayport, Platts, ICIS, Argus, and Kpler source posture
+  from backend `/api/sources`;
+- keeps ECB FX references separated from gas price marks.
 
-- health command/helper;
-- runtime status or DB validation helper;
-- human and JSON output helpers;
-- secret redaction;
-- read-only-by-default command posture.
+Requires:
 
-Do not build:
+- live commercial connector validation after credentials and entitlement are
+  approved;
+- richer hub/product normalization once provider-specific schemas are loaded;
+- browser and desktop QA against real licensed price feeds.
 
-- mutating commands without explicit `--execute`;
-- command groups that imply trade execution or nomination submission;
-- live connector execution.
+### W10: Trader Settings Center
 
-## Milestone W2: Reference Network Explorer
+Status: `in-progress`
 
-Build:
+Goal:
 
-- map-centric network view;
-- reference-network API client;
-- no runtime fallback data; tests may use source-shaped fixtures under `tests/`;
-- layer controls for hubs, facilities, corridors, LNG, storage, and beach
-  delivery points;
-- source, freshness, warning, and lineage display.
+Move Settings from language/theme only to a trader preference center for
+display units, currency, session defaults, source-service posture, and
+decision-support guardrails.
 
-Do not build:
+Delivered first slice:
 
-- live connector calls from browser;
-- route optimization;
-- trade or nomination workflows.
+- extracted `SettingsCenter` as the Settings page owner;
+- stores non-sensitive default currency, energy unit, volume unit, price basis,
+  timezone, map-density, and refresh-profile preferences in local browser
+  storage;
+- shows backend source/API credential posture without returning plaintext keys;
+- links API-key management back to Data Sources, where credential entry remains
+  backend-owned;
+- repeats no-client-DB-url, no-client-secret-storage, human-review, and
+  decision-support-only guardrails.
 
-## Milestone W3: Scenario Workspace Shell
+Requires:
 
-Build:
+- applying display preferences consistently across all Market, Contract,
+  Scenario, PnL, and map labels;
+- operator validation for which defaults should be desk-wide versus local-only.
 
-- scenario input form;
-- missing-input validation;
-- assumptions panel;
-- no calculation beyond backend-provided approved responses;
-- research-only language.
+### W11: Glossary Operational Wiki
 
-## Milestone W4: Research Output Review
+Status: `in-progress`
 
-Build:
+Goal:
 
-- candidate comparison table;
-- warning stack;
-- source references;
-- lineage panel;
-- `research_only` and `human_review_required` display;
-- export disabled until governance/export policy is implemented.
+Move Glossary from a compact term list to an operational wiki surface for gas
+trading language, institutions, venues, entities, business models, contract
+terms, infrastructure, market marks, and source/data-quality context.
 
-## Milestone W5: Live Market Intelligence Panels
+Delivered first slice:
 
-Build:
+- extracted `GlossaryWiki` as the Glossary page owner;
+- adds category navigation, term search, active term selection, aliases,
+  related-term chips, source references, and localized definitions from
+  backend-served glossary records;
+- renders `/api/glossary/{term}/context` output as operational context with
+  metrics, matched entities, grouped sections, related sources, data quality,
+  and warnings;
+- keeps glossary content backend/API-owned and read-only in the Web client.
 
-- live-source posture panels for ECB, ENTSOG, GIE, EEX, Trayport, ICE OCM, and
-  weather;
-- map overlays for price/spread/FX, flow/capacity/outage, storage/LNG, and
-  HDD/CDD signals when backend routes exist;
-- clear `LIVE`, `DELAYED`, `MOCKED`, `PARTIAL`, and `UNAVAILABLE` states.
+Requires:
 
-Do not build:
+- richer backend glossary records for business models, named institutions,
+  TSOs, exchanges, brokers, LNG/storage entities, and operator-specific assets;
+- desktop QA after rebuilding the Tauri package.
 
-- browser-side connector calls;
-- browser-side vendor credentials;
-- official recommendation or execution language.
+### W12: Review, Entitlement, And Export UX
 
-## Milestone W6: Capacity, Contract, Strategy, LLM, And Glossary
+Status: `pending`
 
-Build:
+Goal:
 
-- capacity/contract management views backed by `/api`;
-- route option review with cost, contract, and capacity constraints;
-- strategy shadow-run review;
-- glossary drawer;
-- LLM-assisted analysis panel with citations/source references.
+Make warnings, restricted data, assumptions, source references, lineage, and
+human-review status easier for traders to inspect before acting outside the
+system.
 
-Do not build:
+### D2: Desktop Packaging And Operations
 
-- trade capture;
-- order entry;
-- nomination submission;
-- uncited LLM market claims;
-- direct LLM provider calls from client code.
+Status: `pending`
 
-## Milestone D1: Windows Desktop Shell
+Goal:
 
-ExecPlan:
+Harden desktop release notes, artifact exclusion, enterprise deployment notes,
+and smoke-test process. No auto-update, SSO/OIDC, local database, or credential
+store unless separately approved.
 
-- `.agent/plans/WINDOWS_D1_DESKTOP_SHELL_EXECPLAN.md`
+## Deferred Client Work
 
-Internet required: yes if Tauri, Rust, Node, or package documentation must be
-installed or verified.
-
-Offline fallback:
-
-- create desktop plan, config templates, and gap report only.
-
-Build:
-
-- Tauri package shell in `clients/desktop`;
-- backend URL configuration;
-- health/runtime status screen;
-- packaged web workspace;
-- no bundled secrets or local data source.
-
-## Milestone D2: Windows Packaging And Release Notes
-
-Build:
-
-- installer notes;
-- signing requirements;
-- artifact exclusion checklist;
-- enterprise deployment notes;
-- smoke test checklist.
-
-No auto-update or enterprise SSO unless separately approved.
+- Browser-side provider connectors.
+- Direct vendor/LLM calls from Web or Windows.
+- Order entry, order amendment, order cancellation, trade capture, nomination,
+  official approval, settlement, or auto-trading.
+- Client-side DB configuration beyond backend base URL and non-sensitive UI
+  preferences.

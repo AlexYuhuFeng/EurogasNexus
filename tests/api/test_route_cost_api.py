@@ -21,6 +21,38 @@ def test_get_tso_tariffs_returns_empty_when_runtime_db_is_not_configured() -> No
     assert payload["meta"]["source_references"] == ["runtime-db-not-configured"]
 
 
+def test_upsert_upstream_contract_requires_runtime_db() -> None:
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/api/route-cost/upstream-contracts",
+        json={
+            "contract_id": "draft-contract",
+            "contract_name": "Draft TTF supply",
+            "resource_type": "PIPELINE_IMPORT",
+            "delivery_point_name": "TTF",
+            "gas_year": "2025+",
+            "delivery_quantity_mwh_per_day": 100,
+            "contract_price_gbp_mwh": 30,
+            "settlement_frequency": "monthly",
+            "upstream_payment_lag_days": 20,
+            "screen_sale_cash_lag_days": 1,
+            "delivery_tolerance_pct": 2,
+            "nomination_tolerance_pct": 1,
+            "tolerance_risk_allowance_gbp_mwh": 0.1,
+            "annual_financing_rate_pct": 6,
+            "owned_entry_capacity_mwh_per_day": None,
+            "owned_exit_capacity_mwh_per_day": None,
+            "allowed_exit_points": ["NBP", "TTF"],
+            "eligible_sale_modes": ["TARGET_MARKET_SALE", "LOCAL_MARKET_SALE"],
+            "notes": "operator draft decision support",
+        },
+    )
+
+    assert response.status_code == 503
+    assert response.json()["detail"]["code"] == "runtime_db_not_configured"
+
+
 def test_get_tso_tariffs_can_filter_bbl_rows(monkeypatch) -> None:
     monkeypatch.setattr(
         route_cost_routes,

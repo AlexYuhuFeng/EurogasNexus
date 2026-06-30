@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import ValidationError
+from pydantic import BaseModel, Field, ValidationError
 
 from eurogas_nexus.domain.route_cost.lng_regas import (
     LngRegasScenario,
@@ -21,6 +21,28 @@ from eurogas_nexus.domain.route_cost.route_optimizer import (
 from eurogas_nexus.domain.route_cost.schemas import RouteCostScenario, RouteTariffLeg
 
 router = APIRouter(tags=["route-cost"])
+
+
+class UpstreamContractUpsertRequest(BaseModel):
+    contract_id: str = Field(min_length=1, max_length=128)
+    contract_name: str = Field(min_length=1, max_length=256)
+    resource_type: str = Field(min_length=1, max_length=64)
+    delivery_point_name: str = Field(min_length=1, max_length=256)
+    gas_year: str = Field(min_length=1, max_length=16)
+    delivery_quantity_mwh_per_day: float = Field(gt=0)
+    contract_price_gbp_mwh: float = Field(ge=0)
+    settlement_frequency: str = Field(min_length=1, max_length=32)
+    upstream_payment_lag_days: int = Field(ge=0)
+    screen_sale_cash_lag_days: int = Field(ge=0)
+    delivery_tolerance_pct: float = Field(ge=0)
+    nomination_tolerance_pct: float = Field(ge=0)
+    tolerance_risk_allowance_gbp_mwh: float | None = Field(default=None, ge=0)
+    annual_financing_rate_pct: float = Field(ge=0)
+    owned_entry_capacity_mwh_per_day: float | None = Field(default=None, ge=0)
+    owned_exit_capacity_mwh_per_day: float | None = Field(default=None, ge=0)
+    allowed_exit_points: list[str] = Field(default_factory=list)
+    eligible_sale_modes: list[str] = Field(default_factory=list)
+    notes: str | None = None
 
 
 @router.get("/api/route-cost/tso-tariffs")
@@ -107,6 +129,37 @@ def list_upstream_contracts(request: Request) -> dict:
 
         with get_session_factory()() as session:
             return _env(list_upstream_contracts(session), request, source="runtime-postgresql")
+    except sqlalchemy_error as exc:
+        raise _db_unavailable(exc) from exc
+
+
+@router.post("/api/route-cost/upstream-contracts")
+def upsert_upstream_contract(body: UpstreamContractUpsertRequest, request: Request) -> dict:
+    """Persist an upstream resource contract for decision-support workflows."""
+
+    if not _db_is_configured():
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "code": "runtime_db_not_configured",
+                "message": "Runtime DB is required to persist upstream resource contracts.",
+            },
+        )
+
+    sqlalchemy_error = _sqlalchemy_error_type()
+    try:
+        from eurogas_nexus.db.repositories.route_cost import upsert_upstream_contract
+        from eurogas_nexus.db.session import get_session_factory
+
+        with get_session_factory()() as session:
+            contract = upsert_upstream_contract(session, body.model_dump(mode="json"))
+            session.commit()
+            data = {
+                **contract,
+                "research_only": True,
+                "human_review_required": True,
+            }
+            return _env(data, request, source="runtime-postgresql")
     except sqlalchemy_error as exc:
         raise _db_unavailable(exc) from exc
 

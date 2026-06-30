@@ -59,38 +59,58 @@ def materialize_route_candidate_edges(
                 skipped += 1
                 continue
 
-            from_node = node_lookup.get(start_key)
-            to_node = node_lookup.get(target_key)
-            if from_node is None or to_node is None:
+            start_node = node_lookup.get(start_key)
+            target_node = node_lookup.get(target_key)
+            if start_node is None or target_node is None:
                 skipped += 1
                 warnings.append(f"NODE_MATCH_MISSING:{route.route_id}")
                 continue
 
-            session.merge(
-                ReferenceEdge(
-                    id=_edge_id(route.route_id),
-                    from_node_id=from_node.id,
-                    to_node_id=to_node.id,
-                    edge_type="corridor",
-                    length_km=None,
-                    source_system="route_candidate",
-                    source_dataset="route_candidates",
-                    source_reference=f"route_candidate:{route.route_id}",
-                    source_record_id=route.route_id,
-                    data_quality="source_derived_candidate",
-                    metadata_json={
-                        "materialization": "route_candidate_edge",
-                        "route_id": route.route_id,
-                        "route_name": route.route_name,
-                        "business_model": route.business_model,
-                        "route_legs": route.route_legs,
-                        "required_tso_access": route.required_tso_access,
-                        "source_systems": route.source_systems,
-                    },
-                    created_at_utc=now,
-                )
+            route_nodes = _route_node_sequence(
+                start_node=start_node,
+                target_node=target_node,
+                route_legs=route.route_legs or [],
+                node_lookup=node_lookup,
             )
-            created += 1
+            segment_count = len(route_nodes) - 1
+            geometry_state = (
+                "source_derived_leg_sequence"
+                if segment_count > 1
+                else "source_derived_corridor"
+            )
+
+            for sequence, (from_node, to_node) in enumerate(
+                zip(route_nodes, route_nodes[1:], strict=False),
+                start=1,
+            ):
+                session.merge(
+                    ReferenceEdge(
+                        id=_edge_id(route.route_id, sequence, segment_count),
+                        from_node_id=from_node.id,
+                        to_node_id=to_node.id,
+                        edge_type="corridor",
+                        length_km=None,
+                        source_system="route_candidate",
+                        source_dataset="route_candidates",
+                        source_reference=f"route_candidate:{route.route_id}",
+                        source_record_id=route.route_id,
+                        data_quality="source_derived_candidate",
+                        metadata_json={
+                            "materialization": "route_candidate_edge",
+                            "route_id": route.route_id,
+                            "route_name": route.route_name,
+                            "business_model": route.business_model,
+                            "route_legs": route.route_legs,
+                            "route_geometry_state": geometry_state,
+                            "route_leg_sequence": sequence,
+                            "route_segment_count": segment_count,
+                            "required_tso_access": route.required_tso_access,
+                            "source_systems": route.source_systems,
+                        },
+                        created_at_utc=now,
+                    )
+                )
+                created += 1
 
         session.commit()
 
@@ -119,12 +139,52 @@ def _build_node_lookup(nodes: list[ReferenceNode]) -> dict[str, ReferenceNode]:
     return lookup
 
 
-def _edge_id(route_id: str) -> str:
-    slug = re.sub(r"[^a-z0-9-]+", "-", route_id.lower()).strip("-")
+def _route_node_sequence(
+    *,
+    start_node: ReferenceNode,
+    target_node: ReferenceNode,
+    route_legs: list[dict[str, Any]],
+    node_lookup: dict[str, ReferenceNode],
+) -> list[ReferenceNode]:
+    nodes = [start_node]
+    seen_ids = {start_node.id, target_node.id}
+    for leg in route_legs:
+        leg_node = _resolve_leg_node(leg, node_lookup)
+        if leg_node is None or leg_node.id in seen_ids:
+            continue
+        nodes.append(leg_node)
+        seen_ids.add(leg_node.id)
+    nodes.append(target_node)
+    return nodes
+
+
+def _resolve_leg_node(
+    leg: dict[str, Any],
+    node_lookup: dict[str, ReferenceNode],
+) -> ReferenceNode | None:
+    for key in [
+        "point_name",
+        "point_id",
+        "point_key",
+        "market_area",
+        "hub_binding",
+        "required_entry_point_name",
+        "required_exit_point_name",
+        "leg_id",
+    ]:
+        node = node_lookup.get(_normalise_key(leg.get(key)))
+        if node:
+            return node
+    return None
+
+
+def _edge_id(route_id: str, sequence: int, segment_count: int) -> str:
+    route_segment_id = route_id if segment_count == 1 else f"{route_id}-s{sequence:02d}"
+    slug = re.sub(r"[^a-z0-9-]+", "-", route_segment_id.lower()).strip("-")
     prefix = "route-edge-"
     if len(prefix + slug) <= 64:
         return prefix + slug
-    digest = hashlib.sha1(route_id.encode("utf-8")).hexdigest()[:12]
+    digest = hashlib.sha1(route_segment_id.encode("utf-8")).hexdigest()[:12]
     return f"{prefix}{slug[: 63 - len(prefix) - len(digest)]}-{digest}"
 
 
@@ -142,6 +202,11 @@ def _name_aliases(name: str) -> list[str]:
     first_token = name.split(maxsplit=1)[0]
     if 2 <= len(first_token) <= 8:
         aliases.append(first_token)
+    aliases.extend(
+        token
+        for token in re.split(r"[^A-Za-z0-9]+", name)
+        if 2 <= len(token) <= 8
+    )
     return aliases
 
 

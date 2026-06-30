@@ -224,7 +224,8 @@ export interface MarketObsDTO {
   observation_id: string; market_venue: string; product: string;
   price: number; unit: string; currency: string;
   period_start_utc: string; period_end_utc: string;
-  source_system?: string; freshness?: string;
+  observed_at_utc?: string; source_system?: string; source_reference?: string;
+  freshness?: string; quality_score?: number; research_only?: boolean;
 }
 
 export interface ScreenOrderObservationDTO {
@@ -329,7 +330,11 @@ export interface UpstreamContractDTO {
   tolerance_risk_allowance_gbp_mwh?: number | null; annual_financing_rate_pct: number;
   owned_entry_capacity_mwh_per_day?: number | null; owned_exit_capacity_mwh_per_day?: number | null;
   allowed_exit_points: string[]; eligible_sale_modes: string[]; updated_at_utc?: string;
+  research_only?: boolean; human_review_required?: boolean;
 }
+export type UpstreamContractInputDTO = Omit<UpstreamContractDTO, "updated_at_utc" | "research_only" | "human_review_required"> & {
+  notes?: string | null;
+};
 export interface RouteRecommendationRequestDTO {
   request_id: string; source_point_id: string; target_point_id?: string | null;
   required_quantity_mwh_per_day: number; gas_year: string;
@@ -557,6 +562,9 @@ export const api = {
   tsoTariffs: () => get<TsoTariffsResultDTO>("/route-cost/tso-tariffs"),
 
   upstreamContracts: () => get<UpstreamContractDTO[]>("/route-cost/upstream-contracts"),
+
+  saveUpstreamContract: (body: UpstreamContractInputDTO) =>
+    post<UpstreamContractDTO>("/route-cost/upstream-contracts", body),
 
   resourcePoolOptions: () => get<ResourcePoolOptionsDTO>("/route-cost/resource-pool/options"),
 

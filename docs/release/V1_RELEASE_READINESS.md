@@ -1,24 +1,53 @@
-﻿# V1 Release Readiness
+# V1 Release Readiness
 
 ## Current Status
 
-Status: `RELEASE CANDIDATE`
+Status: `RELEASE CANDIDATE FOR TESTED LOCAL SCOPE`
 
-Eurogas Nexus passes a local Docker PostgreSQL runtime test for the
-backend/API/SDK/CLI, Web workspace, and Windows/Tauri shell. The official V1
-local release-candidate scope is complete.
+Release marker: `RELEASE CANDIDATE`
 
-`Runtime DB` in the client means the UI is reading the local runtime
-PostgreSQL-backed API. In the latest local validation, ECB public FX, ENTSOG
-public operational flow, ENTSOG connection point / TSO access metadata, and GIE
-AGSI/ALSI keyed feeds were called explicitly and normalized into PostgreSQL. It
-does **not** mean EEX, Trayport, ICE OCM, Kpler, Platts, ICIS, Argus, weather,
-broker, or LLM provider feeds have been called or validated.
+Date checked: 2026-06-30
 
-Authoritative current evidence:
+Eurogas Nexus passes the current local release-candidate shape for
+backend/API/SDK/CLI, PostgreSQL runtime schema, Web workspace, and Tauri
+desktop shell. This status does not mean production multi-user deployment is
+complete.
 
-- `data/release_v1/holistic_real_test_report.md`
-- `docs/architecture/CURRENT_PAUSE_POINT.md`
+## Latest Local Evidence
+
+Runtime API evidence from the operator's local API:
+
+```text
+GET /api/runtime/db
+database_url_present=true
+connectivity.ok=true
+alembic_revision=0012_entsog_capacity
+required_tables=33
+missing_tables=0
+source=runtime-postgresql
+```
+
+Source/runtime evidence from the running workspace:
+
+```text
+reference nodes=788
+registered sources=20
+active feeds=6
+runtime records=7487
+resource-pool resources=1
+sale options=2
+```
+
+Local source validation:
+
+```text
+python -c "from apps.api.main import app; print('app import ok'); print(len(app.routes))"
+app import ok
+76
+
+npm --prefix clients/web run build
+passed
+```
 
 ## Validated Gates
 
@@ -26,60 +55,63 @@ Authoritative current evidence:
 - Release API profile disables docs/openapi endpoints.
 - No development-only routes enabled in release profile.
 - No silent local file fallback in trial or release mode.
-- `/api/health` compatibility remains available.
-- `/api` is the released client prefix.
-- PostgreSQL runtime validation passes against local Docker PostgreSQL.
-- Alembic revision is `0011_reference_source_lineage`.
-- Required runtime tables are present.
-- Reference-network API reads runtime PostgreSQL when configured.
-- ECB FX, ENTSOG flow, ENTSOG reference-network / TSO access, and GIE
-  AGSI/ALSI rows can be explicitly live-ingested into PostgreSQL through
-  `scripts/ops/ingest_public_sources.py`.
-- Python SDK and CLI use `/api`.
-- Web client builds and uses `/api` through the backend only.
-- Windows client builds as a Tauri shell around the shared Web bundle.
-- No client connects directly to PostgreSQL.
-- Source posture panels show active ECB, ENTSOG, and GIE row counts after live
-  ingestion.
-- Provider credentials are backend-owned: clients can submit keys, but plaintext
-  credentials are never returned by the API or persisted in client storage.
-- No raw provider data, provider credentials, full DB URLs, `.env` files, or
-  real commercial strategy parameters were added to the repository.
+- Stable client prefix is `/api`.
+- PostgreSQL runtime validation can report connected, missing-table, and
+  unavailable states without printing secrets.
+- Web client builds and uses `/api` through the backend boundary.
+- Windows desktop packages the same Web workspace through Tauri.
+- SDK and CLI remain API consumers.
+- Clients do not connect directly to PostgreSQL.
+- Provider credentials are backend-owned: clients can submit keys to the
+  backend, but plaintext keys are not returned or stored in client state.
+- Source posture panels show runtime row counts and credential/freshness state
+  from backend API diagnostics.
+- Market workspace renders a terminal-style major-hub board, regional TTF
+  spreads, observed-row sparklines, ECB FX, and price-source posture without
+  fabricating missing licensed prices.
+- Order/PnL records are read-only imported observations exposed through
+  `/api/portfolio/*`.
+- No raw provider data, provider credentials, full DB URLs, `.env`, or real
+  commercial strategy parameters are committed.
 
-## Latest Validation Results
+## What Runtime DB Means In The Client
 
-```text
-ruff check .        -> passed
-pytest target set   -> 326 passed plus 47 focused route/workflow tests
-npm web build       -> passed
-app import          -> app import ok, 78 routes
-runtime DB          -> revision 0011_reference_source_lineage, missing_tables=0
-API live sources    -> ECB=12, ENTSOG flows=1000, ENTSOG reference=2448, GIE AGSI=300, GIE ALSI=300
-Route tariffs       -> European explicit-leg route-cost tests passed for BBL/IUK and DB rows
-Web build           -> passed
-```
+`Runtime DB` means the UI is reading a backend API process that can reach the
+configured PostgreSQL runtime store. It does not mean every commercial provider
+has been live-called or validated.
+
+Currently validated public/keyed source classes include local runtime evidence
+for ECB, ENTSOG, GIE storage/LNG, reference network, TSO access, tariffs, and
+operator-owned test portfolio/price records. Commercial feeds remain gated.
 
 ## Required Before Production Deployment
 
-- Production scheduling/retry/monitoring for live ingestion should be added.
-- Commercial live connector execution for EEX, ICE OCM, Trayport, Kpler,
-  Platts, weather, broker, and other keyed providers must remain gated until
-  credentials, entitlement, internet policy, and operator validation are
-  complete.
-- LLM provider execution must remain gated until API keys, prompt/citation
-  policy, and audit posture are complete.
-- Auth, audit persistence, entitlement routes, and export-governance runtime
-  enforcement must be completed or explicitly accepted as release limitations.
+- Production scheduling/retry/monitoring for ingestion.
+- Provider-specific live tests for EEX, ICE OCM, Trayport, Kpler, Platts,
+  ICIS, Argus, brokers, weather, and LLM providers after credential and
+  entitlement approval.
+- Stronger auth, audit, entitlement, and export-governance enforcement.
+- Multi-user role model and secret-manager integration.
+- Persisted EFET-style customer contract/resource workflow through backend
+  APIs.
+- Operational runbooks for backups, migrations, incident response, and release
+  rollback.
 
-## Commit Policy
+## Product Boundary
 
-The current work may be committed and pushed as a V1 release-candidate sync.
-It should not be tagged as production-ready until the remaining production
-limitations are completed or explicitly accepted.
+V1 release-candidate status does not authorize:
 
-## Rollback
+- order entry;
+- order routing;
+- order amendment or cancellation;
+- trade capture;
+- nomination submission;
+- official approvals;
+- settlement/accounting;
+- legal advice;
+- official trading recommendations;
+- auto-trading;
+- ETRM replacement behavior.
 
-No destructive runtime migration was added. The local Docker PostgreSQL database
-was migrated to repository head and updated with normalized ECB, ENTSOG, and GIE
-observations plus audited public tariff rows and operator-owned local test
-price/contract records.
+All route, strategy, resource-pool, analysis, order/PnL, and report outputs are
+decision support and require human review.

@@ -1,35 +1,41 @@
-﻿# 甯傚満鎸佷粨瑙傚療瀵煎叆
+# 市场定位导入运行手册 - 中文
 
-## 鐩殑
+## 目的
 
-Eurogas Nexus V1 鍙互鍦ㄤ氦鏄撳憳椹鹃┒鑸变腑灞曠ず澶栭儴灞忓箷璁㈠崟瑙傚療鍜屾寚绀烘€х粍鍚?
-PnL 蹇収銆俁19 澧炲姞浜嗗彈娌荤悊鐨勫唴閮ㄥ鍏ヨ矾寰勶紝鐢ㄤ簬鎶婅繖浜涜瀵熻褰曞啓鍏?
-PostgreSQL銆俁21 鍦ㄨ璺緞鍓嶅鍔犲唴閮ㄦ搷浣滃憳 token 鍜屾樉寮?principal 鏍￠獙銆?
+Eurogas Nexus V1 可以在交易员驾驶舱中展示导入后的屏幕订单观察和指示性组合 PnL
+快照。导入的目标是把外部系统状态写入 PostgreSQL，供 `/api/portfolio/*` 只读
+端点展示。
 
-杩欎笉鏄笅鍗曘€佽鍗曡矾鐢便€佷氦鏄撴崟鑾枫€佺粨绠椼€佷細璁°€佹彁鍚嶆垨鑷姩浜ゆ槗銆傚鍏ヨ褰曞彧鏄?
-澶栭儴绯荤粺鐘舵€佺殑鍙鍐崇瓥鏀寔瑙傚療銆?
+这不是订单录入、订单路由、交易捕获、结算、会计、提名或自动交易。导入记录只是
+外部系统状态的只读决策支持观察。
 
-## 璺敱
+## 内部路线
 
-浠呭唴閮?profile 鏆撮湶锛?
+仅 internal profile 暴露：
 
 ```text
 POST /api/internal/portfolio/import-observations
 ```
 
-蹇呴渶璇锋眰澶达細
+必需请求头：
 
 ```text
-X-Eurogas-Internal-Token: <鐢辨搷浣滃憳绠＄悊鐨?token>
-X-Eurogas-Principal: <鎿嶄綔鍛樻垨鍚庣浠诲姟鏍囪瘑>
+X-Eurogas-Internal-Token: <operator-managed-token>
+X-Eurogas-Principal: <operator-or-job-id>
 ```
 
-鍚庣杩愯鐜蹇呴』閰嶇疆 `EUROGAS_NEXUS_INTERNAL_API_TOKEN`銆傚鏋滅幆澧冨彉閲忔湭閰嶇疆銆?
-璇锋眰鏈甫 token銆乼oken 涓嶅尮閰嶏紝鎴?`X-Eurogas-Principal` 涓虹┖锛岃矾鐢变細鍦ㄨ闂?
-鏁版嵁搴撳墠澶辫触鍏抽棴銆傝繖鏄?V1 鍐呴儴鎿嶄綔鍛?token 闂ㄧ锛屼笉鏄叕鍙?SSO/OIDC銆倀oken
-涓嶅緱琚棩蹇楁墦鍗般€丄PI 杩斿洖銆佹彁浜ゅ埌浠撳簱锛屾垨淇濆瓨鍦?Web銆乄indows銆丼DK銆丆LI 瀹㈡埛绔€?
+后端运行环境必须配置：
 
-姝ｅ紡瀹㈡埛绔户缁鍙栵細
+```text
+EUROGAS_NEXUS_INTERNAL_API_TOKEN
+```
+
+如果环境变量缺失、请求 token 缺失、token 不匹配，或者
+`X-Eurogas-Principal` 为空，路线会在访问数据库之前失败关闭。这是 V1 内部操作员
+token 门禁，不是公司 SSO/OIDC。token 不得写入日志、API 返回、仓库文件、Web、
+Windows、SDK 或 CLI 客户端。
+
+正式客户端继续读取：
 
 ```text
 GET /api/portfolio/screen-orders
@@ -37,54 +43,56 @@ GET /api/portfolio/pnl-snapshots
 GET /api/portfolio/live-summary
 ```
 
-## 鏉冮檺瑕佹眰
+## 授权要求
 
-瀵煎叆璺敱榛樿澶辫触鍏抽棴銆傚鍏ュ墠锛孭ostgreSQL 蹇呴』瀛樺湪宸叉巿鏉冪殑
-`entitlement_decisions` 璁板綍锛岃鐩栨瘡涓€涓潵婧愬拰鏁版嵁闆嗙粍鍚堬細
+导入路线默认失败关闭。导入前，PostgreSQL 必须存在已授权的
+`entitlement_decisions` 记录，覆盖每一个 source/dataset 组合。
 
-| 瑙傚療绫诲瀷 | 鏁版嵁闆?|
+| 观察类型 | Dataset |
 | --- | --- |
-| 灞忓箷璁㈠崟 | `screen-orders` |
-| 缁勫悎 PnL 蹇収 | `portfolio-pnl` |
+| 屏幕订单 | `screen-orders` |
+| 组合 PnL 快照 | `portfolio-pnl` |
 
-绀轰緥鎺堟潈缁勫悎锛?
+示例授权组合：
 
 ```text
 ICE_OCM / screen-orders
 INTERNAL_PNL / portfolio-pnl
 ```
 
-濡傛灉鎺堟潈缂哄け锛屾暣涓壒娆′細琚嫆缁濓紝涓嶅啓鍏ヤ换浣曡瀵熻褰曘€?
+如果授权缺失，整个批次会被拒绝，不写入任何观察记录。
 
-## 瀹¤鍜岃繍琛岃褰?
+## 审计和运行证据
 
-姣忎竴涓垚鍔熸垨鎷掔粷鐨勬壒娆￠兘浼氬啓鍏ワ細
+每一个成功或拒绝的批次都必须写入：
 
-- 涓€鏉?`ingestion_runs`锛?
-- 涓€鏉?`audit_events`銆?
+- 一条 `ingestion_runs` 记录；
+- 一条 `audit_events` 记录。
 
-鎷掔粷鎵规璁板綍 `status=failed` 鍜?`outcome=denied`銆傛垚鍔熸壒娆¤褰?
-`status=succeeded` 鍜?`outcome=succeeded`銆?
+拒绝批次记录 `status=failed` 和 `outcome=denied`。成功批次记录
+`status=succeeded` 和 `outcome=succeeded`。
 
-## Payload 瑙勫垯
+## Payload 规则
 
-姣忎釜鎵规蹇呴』鍖呭惈锛?
+每个批次必须包含：
 
-- `batch_id`
-- `source_reference`
-- `screen_orders`
-- `pnl_snapshots`
-- `research_only=true`
-- `human_review_required=true`
+- `batch_id`;
+- `source_reference`;
+- `screen_orders`;
+- `pnl_snapshots`;
+- `research_only=true`;
+- `human_review_required=true`。
 
-灞忓箷璁㈠崟瑙傚療蹇呴』鍖呭惈鏉ユ簮銆佷氦鏄撳満鎵€銆佷拱鍗栨柟鍚戙€佷骇鍝併€佷氦浠樼獥鍙ｃ€佷环鏍笺€佹暟閲忋€?
-宸叉垚浜ら噺銆佸墿浣欓噺銆佺姸鎬併€佽瀵熸椂闂淬€佹潵婧愬紩鐢ㄥ拰娌荤悊鏍囪銆?
+屏幕订单观察必须包含来源、交易场所、买卖方向、产品、交付窗口、价格、数量、
+已成交数量、剩余数量、状态、观察时间、来源引用和治理标记。
 
-PnL 蹇収蹇呴』鍖呭惈缁勫悎銆佷及鍊兼椂闂淬€佸凡瀹炵幇/鏈疄鐜?鎸囩ず鎬?PnL銆佹彁鍓嶅洖鏀剁幇閲戜环鍊笺€?
-甯傚満浠峰€笺€佹暟閲忋€佷及鍊煎熀纭€銆佹潵婧愬紩鐢ㄣ€侀璀﹀垪琛ㄥ拰娌荤悊鏍囪銆?
+PnL 快照必须包含组合、估值时间、已实现 PnL、未实现 PnL、指示性 PnL、提前回款
+价值、市场价值、数量、估值基础、来源引用、警告列表和治理标记。
 
-## 瀹㈡埛閮ㄧ讲瑙勫垯
+## 客户部署规则
 
-瀹㈡埛鐗瑰畾鐨?EEX銆両CE OCM銆乀rayport銆佺粡绾晢銆並pler銆丳latts 鎴栧唴閮?PnL 閫傞厤鍣?
-搴斿厛鏍囧噯鍖栦负璇?payload锛屽啀鐢卞彈娌荤悊鐨勫悗绔换鍔¤皟鐢ㄥ唴閮ㄨ矾鐢辨垨浠撳偍鍑芥暟銆俉eb銆?
-Windows銆丼DK 鍜?CLI 姝ｅ紡瀹㈡埛绔笉寰楃洿鎺ュ啓杩欎簺琛ㄣ€?
+客户特定的 EEX、ICE OCM、Trayport、经纪商、Kpler、Platts 或内部 PnL 适配器应先
+标准化为该 payload 形状，再由受治理的后端任务调用内部路线或仓储函数。
+
+Web、Windows、SDK 和 CLI 正式客户端不得直接写这些表，也不得保存外部订单或 PnL
+文件作为运行时事实来源。

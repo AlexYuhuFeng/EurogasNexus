@@ -225,6 +225,13 @@ def test_web_client_uses_api_only_and_supports_mandarin_theme() -> None:
     )
 
     app = (ROOT / "clients" / "web" / "src" / "App.tsx").read_text(encoding="utf-8")
+    topbar = (
+        ROOT / "clients" / "web" / "src" / "components" / "WorkspaceTopBar.tsx"
+    ).read_text(encoding="utf-8")
+    settings_center = (
+        ROOT / "clients" / "web" / "src" / "components" / "SettingsCenter.tsx"
+    ).read_text(encoding="utf-8")
+    app_and_settings = app + topbar + settings_center
 
 
 
@@ -250,7 +257,7 @@ def test_web_client_uses_api_only_and_supports_mandarin_theme() -> None:
 
     assert zh["theme.dark"] == "\u6df1\u8272"
 
-    assert '<option value="zh-CN">{t("settings.chinese")}</option>' in app
+    assert '<option value="zh-CN">{t("settings.chinese")}</option>' in app_and_settings
 
 
 
@@ -259,6 +266,14 @@ def test_web_client_uses_api_only_and_supports_mandarin_theme() -> None:
 def test_web_client_matches_design_reference_cockpit() -> None:
 
     app = (ROOT / "clients" / "web" / "src" / "App.tsx").read_text(encoding="utf-8")
+    topbar = (
+        ROOT / "clients" / "web" / "src" / "components" / "WorkspaceTopBar.tsx"
+    ).read_text(encoding="utf-8")
+    source_center = (
+        ROOT / "clients" / "web" / "src" / "components" / "SourceCenter.tsx"
+    ).read_text(encoding="utf-8")
+    app_and_topbar = app + topbar
+    app_and_components = app + topbar + source_center
 
     css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(encoding="utf-8")
 
@@ -276,7 +291,7 @@ def test_web_client_matches_design_reference_cockpit() -> None:
 
 
 
-    assert "cockpit-topbar" in app
+    assert "cockpit-topbar" in app_and_topbar
 
     assert "workflow-strip" not in app
 
@@ -286,13 +301,13 @@ def test_web_client_matches_design_reference_cockpit() -> None:
 
     assert "trade-result-panel" in app
 
-    assert "topbar-search" in app
+    assert "topbar-search" in app_and_topbar
     assert "topbar-icon-button" not in app
     assert "workspace-nav" not in app
     assert "workspace-menu" in app
     assert "workspaceMenuOpen" in app
-    assert "workspace-pill-copy" in app
-    assert "topbar-menu-glyph" in app
+    assert "workspace-pill-copy" in app_and_topbar
+    assert "topbar-menu-glyph" in app_and_topbar
     assert "workspace-page" in app
     assert '"capacity"' in app
     assert '"orders"' in app
@@ -343,7 +358,7 @@ def test_web_client_matches_design_reference_cockpit() -> None:
     assert "cockpit-app:not(.workspace-network) .scenario-rail" in css
     assert "Resource-pool home cleanup" in css
     assert ".workspace-network .map-price-strip" in css
-    assert "source-runtime-panel" in app
+    assert "source-runtime-panel" in app_and_components
     assert "map-data-panel" in app
     assert "map-network-state" in app
     assert "networkGeometryState" in app
@@ -450,14 +465,291 @@ def test_web_client_separates_market_capacity_orders_and_review_pages() -> None:
     assert "reviewWarnings" in app
     assert "review-report-panel" in app
     assert "manual.no_client_db" in app
-    assert en["market.subtitle"].startswith("Market observations")
-    assert zh["market.subtitle"].startswith("\u4ec5\u5c55\u793a")
+    assert en["market.subtitle"].startswith("Terminal view")
+    assert zh["market.subtitle"].startswith("\u9762\u5411\u6b27\u6d32\u4e3b\u8981")
     assert en["orders.subtitle"].startswith("Read-only")
     assert zh["orders.subtitle"].startswith("\u53ea\u8bfb")
 
 
+def test_web_client_market_page_is_trader_terminal_surface() -> None:
+    app = (ROOT / "clients" / "web" / "src" / "App.tsx").read_text(encoding="utf-8")
+    market_terminal_path = ROOT / "clients" / "web" / "src" / "components" / "MarketTerminal.tsx"
+    market_terminal = market_terminal_path.read_text(encoding="utf-8")
+    css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(
+        encoding="utf-8"
+    )
+    en = json.loads(
+        (ROOT / "clients" / "web" / "src" / "i18n" / "en.json").read_text(encoding="utf-8")
+    )
+    zh = json.loads(
+        (ROOT / "clients" / "web" / "src" / "i18n" / "zh.json").read_text(encoding="utf-8")
+    )
+
+    assert 'import { MarketTerminal } from "@/components/MarketTerminal";' in app
+    assert (
+        '<MarketTerminal markets={markets} fxRates={fxRates} sources={sources} t={t} />'
+        in app
+    )
+    assert "market-terminal-board" in market_terminal
+    assert "market-price-ticker" in market_terminal
+    assert "market-region-comparison" in market_terminal
+    assert "market-sparkline" in market_terminal
+    assert "market-source-quality" in market_terminal
+    assert "marketMajorHubs" in market_terminal
+    assert "TTF" in market_terminal
+    assert "NBP" in market_terminal
+    assert "THE" in market_terminal
+    assert "PEG" in market_terminal
+    assert "ZTP" in market_terminal
+    assert "PSV" in market_terminal
+    assert "priceSourceSummary" in market_terminal
+    assert "marketUnavailableRows" in market_terminal
+    assert "market-terminal-board" in css
+    assert "market-price-ticker" in css
+    assert "market-region-comparison" in css
+    assert "market-sparkline" in css
+    assert "market-source-quality" in css
+    assert en["market.title"] == "Gas Market Terminal"
+    assert en["market.terminal"] == "Major European gas markets"
+    assert en["market.region_comparison"] == "Regional comparison"
+    assert en["market.live_exchange_prices"].startswith("Exchange and broker")
+    assert zh["market.terminal"] == "\u6b27\u6d32\u4e3b\u8981\u5929\u7136\u6c14\u5e02\u573a"
+
+def test_web_client_settings_page_is_trader_preference_center() -> None:
+    app = (ROOT / "clients" / "web" / "src" / "App.tsx").read_text(encoding="utf-8")
+    settings_center_path = ROOT / "clients" / "web" / "src" / "components" / "SettingsCenter.tsx"
+    settings_center = settings_center_path.read_text(encoding="utf-8")
+    css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(
+        encoding="utf-8"
+    )
+    en = json.loads(
+        (ROOT / "clients" / "web" / "src" / "i18n" / "en.json").read_text(encoding="utf-8")
+    )
+    zh = json.loads(
+        (ROOT / "clients" / "web" / "src" / "i18n" / "zh.json").read_text(encoding="utf-8")
+    )
+
+    assert 'import { SettingsCenter } from "@/components/SettingsCenter";' in app
+    assert "<SettingsCenter" in app
+    assert "settings-preference-center" in settings_center
+    assert "settings-unit-panel" in settings_center
+    assert "settings-service-panel" in settings_center
+    assert "settings-boundary-panel" in settings_center
+    assert "default_currency" in settings_center
+    assert "energy_unit" in settings_center
+    assert "session_timezone" in settings_center
+    assert "price_basis" in settings_center
+    assert "eurogas.settings.preferences" in settings_center
+    assert "credentialProviders" in settings_center
+    assert "onOpenSources" in settings_center
+    assert "settings-preference-center" in css
+    assert "settings-service-row" in css
+    assert en["settings.default_currency"] == "Default currency"
+    assert en["settings.energy_unit"] == "Energy unit"
+    assert en["settings.service_access"] == "Service access"
+    assert zh["settings.default_currency"] == "\u9ed8\u8ba4\u8d27\u5e01"
+    assert zh["settings.energy_unit"] == "\u80fd\u91cf\u5355\u4f4d"
+
+
+def test_web_client_network_page_shows_resource_pool_paths_on_map() -> None:
+    app = (ROOT / "clients" / "web" / "src" / "App.tsx").read_text(encoding="utf-8")
+    overlay_path = ROOT / "clients" / "web" / "src" / "components" / "ResourcePoolPathOverlay.tsx"
+    overlay = overlay_path.read_text(encoding="utf-8")
+    map_component = (
+        ROOT / "clients" / "web" / "src" / "components" / "GasNetworkMap.tsx"
+    ).read_text(encoding="utf-8")
+    css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(
+        encoding="utf-8"
+    )
+    en = json.loads(
+        (ROOT / "clients" / "web" / "src" / "i18n" / "en.json").read_text(encoding="utf-8")
+    )
+    zh = json.loads(
+        (ROOT / "clients" / "web" / "src" / "i18n" / "zh.json").read_text(encoding="utf-8")
+    )
+
+    assert 'import { ResourcePoolPathOverlay } from "@/components/ResourcePoolPathOverlay";' in app
+    assert "<ResourcePoolPathOverlay" in app
+    assert "resourcePoolMapPaths" in app
+    assert "highlightedRoute={resourcePoolHighlightedRoute" in app
+    assert "resource-pool-map-overlay" in overlay
+    assert "resource-path-card" in overlay
+    assert "resource-path-flow" in overlay
+    assert "sourcePointName" in overlay
+    assert "targetPointName" in overlay
+    assert "availableQuantityMwhPerDay" in overlay
+    assert "routeCostGbpMwh" in overlay
+    assert "capacityLimitMwhPerDay" in overlay
+    assert "resource-pool-map-overlay" in css
+    assert "resource-path-card" in css
+    assert "fallback-flow-path" in map_component
+    assert en["home.resource_paths"] == "Resource paths"
+    assert en["home.path_unavailable"].startswith("No persisted resource")
+    assert zh["home.resource_paths"] == "\u8d44\u6e90\u8def\u5f84"
+
+
+def test_web_client_map_fallback_prioritizes_labels_for_trader_readability() -> None:
+    map_component = (
+        ROOT / "clients" / "web" / "src" / "components" / "GasNetworkMap.tsx"
+    ).read_text(encoding="utf-8")
+    css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(
+        encoding="utf-8"
+    )
+
+    assert "MAX_FALLBACK_LABELS" in map_component
+    assert "fallbackLabelPriorityIds" in map_component
+    assert "shouldShowFallbackNodeLabel" in map_component
+    assert "isSearchLabelMatch" in map_component
+    assert "highlightedRoutePoints.from.id" in map_component
+    assert "highlightedRoutePoints.to.id" in map_component
+    assert "node.node_type === \"hub\"" in map_component
+    assert "fallback-node-label priority" in map_component
+    assert "{shouldShowFallbackNodeLabel(node, index) && (" in map_component
+    assert ".fallback-node-label" in css
+    assert ".fallback-node-label.priority" in css
+    assert ".fallback-node.approximate .fallback-node-label" in css
+
+
+def test_web_client_map_renders_resource_paths_as_route_segments_not_direct_lines() -> None:
+    app = (ROOT / "clients" / "web" / "src" / "App.tsx").read_text(encoding="utf-8")
+    map_component = (
+        ROOT / "clients" / "web" / "src" / "components" / "GasNetworkMap.tsx"
+    ).read_text(encoding="utf-8")
+    overlay = (
+        ROOT / "clients" / "web" / "src" / "components" / "ResourcePoolPathOverlay.tsx"
+    ).read_text(encoding="utf-8")
+    css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(
+        encoding="utf-8"
+    )
+    web_spec = (ROOT / "docs" / "clients" / "MAP_FIRST_TRADER_COCKPIT_SPEC-EN.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "routeId: option.option_id" in app
+    assert "routeId" in overlay
+    assert "routeGeometryState" in overlay
+    assert "routeLegSummary" in overlay
+    assert "routeSegmentsForHighlight" in map_component
+    assert "highlightedRouteSegmentFeatures" in map_component
+    assert "route_leg_sequence" in map_component
+    assert "route_geometry_state" in map_component
+    assert "highlighted-route-segments" in map_component
+    assert "fallback-flow-segment" in map_component
+    assert "fallback-flow-path direct-corridor" in map_component
+    assert "geometryWarning" in map_component
+    assert "source_derived_leg_sequence" in map_component
+    assert "directLineFallback" in map_component
+    assert ".fallback-flow-segment" in css
+    assert ".fallback-flow-path.direct-corridor" in css
+    assert "route geometry" in css
+    assert "leg-level route-candidate segments" in web_spec
+    assert "must not imply a surveyed direct pipeline" in web_spec
+
+
+def test_web_client_glossary_page_is_term_wiki_surface() -> None:
+    app = (ROOT / "clients" / "web" / "src" / "App.tsx").read_text(encoding="utf-8")
+    glossary_wiki_path = ROOT / "clients" / "web" / "src" / "components" / "GlossaryWiki.tsx"
+    glossary_wiki = glossary_wiki_path.read_text(encoding="utf-8")
+    css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(
+        encoding="utf-8"
+    )
+    en = json.loads(
+        (ROOT / "clients" / "web" / "src" / "i18n" / "en.json").read_text(encoding="utf-8")
+    )
+    zh = json.loads(
+        (ROOT / "clients" / "web" / "src" / "i18n" / "zh.json").read_text(encoding="utf-8")
+    )
+    web_spec = (ROOT / "docs" / "clients" / "WEB_CLIENT_DESIGN_SPEC.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert 'import { GlossaryWiki } from "@/components/GlossaryWiki";' in app
+    assert "<GlossaryWiki" in app
+    assert "selectedGlossaryTerm" in app
+    assert "setSelectedGlossaryTerm" in app
+    assert "onSelectGlossaryTerm" in app
+    assert "visibleGlossaryCategories" in app
+    assert "glossary-codex-shell" in glossary_wiki
+    assert "glossary-left-rail" in glossary_wiki
+    assert "glossary-wiki-shell" in glossary_wiki
+    assert 't("glossary.all")' in glossary_wiki
+    assert "glossary-category-tabs" in glossary_wiki
+    assert "glossary-term-list" in glossary_wiki
+    assert "glossary-term-card" in glossary_wiki
+    assert "glossary-wiki-article" in glossary_wiki
+    assert "glossary-wiki-context" in glossary_wiki
+    assert "glossary-related-chip" in glossary_wiki
+    assert "glossary-source-list" in glossary_wiki
+    assert "context_sections" in glossary_wiki
+    assert "matched_entities" in glossary_wiki
+    assert "related_sources" in glossary_wiki
+    assert "data_quality" in glossary_wiki
+    assert "onSelectTerm(term)" in glossary_wiki
+    assert "selectedTerm?.term_id === term.term_id" in glossary_wiki
+    assert "Codex-style" in web_spec
+    assert "glossary-wiki-shell" in css
+    assert "glossary-codex-shell" in css
+    assert "glossary-left-rail" in css
+    assert "glossary-wiki-article" in css
+    assert "glossary-term-card.active" in css
+    assert en["glossary.term_wiki"] == "Term wiki"
+    assert en["glossary.all"] == "All"
+    assert en["glossary.operational_context"] == "Operational context"
+    assert en["glossary.source_refs"] == "Source references"
+    assert zh["glossary.term_wiki"] == "\u672f\u8bed\u7ef4\u57fa"
+    assert zh["glossary.all"] == "\u5168\u90e8"
+    assert zh["glossary.operational_context"] == "\u8fd0\u884c\u4e0a\u4e0b\u6587"
+    assert "wiki-style article" in web_spec
+    assert "institutions, entities, venues, business models" in web_spec
+
+
+def test_web_client_glossary_context_values_do_not_render_raw_objects() -> None:
+    glossary_wiki = (
+        ROOT / "clients" / "web" / "src" / "components" / "GlossaryWiki.tsx"
+    ).read_text(encoding="utf-8")
+
+    assert "function displayContextObject" in glossary_wiki
+    assert "function objectRecord" in glossary_wiki
+    assert '"entity_name"' in glossary_wiki
+    assert '"point_name"' in glossary_wiki
+    assert '"route_name"' in glossary_wiki
+    assert '"contract_name"' in glossary_wiki
+    assert '"source_reference"' in glossary_wiki
+    assert '"source_system"' in glossary_wiki
+    assert "entity.name ?? entity.term ?? entity.id ?? entity" not in glossary_wiki
+    assert "item.label ?? item.name ?? item.source_reference ?? item" not in glossary_wiki
+
+
+def test_web_client_glossary_keeps_article_visible_while_browsing_terms() -> None:
+    css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(
+        encoding="utf-8"
+    )
+
+    assert ".glossary-codex-shell" in css
+    assert ".glossary-wiki-shell" in css
+    assert (
+        "grid-template-columns: minmax(320px, 0.82fr) minmax(620px, 1.58fr)"
+    ) in css
+    assert "max-height: calc(100vh - 150px)" in css
+    assert "overflow-y: auto" in css
+    assert "position: sticky" in css
+    assert "top: calc(var(--eg-topbar-height) + 32px)" in css
+    assert "@media (max-width: 1200px)" in css
+    assert ".glossary-wiki-shell {" in css
+    assert (
+        "grid-template-columns: minmax(300px, 0.78fr) minmax(520px, 1.42fr)"
+    ) in css
+    assert "@media (max-width: 900px)" in css
+    assert "max-height: none" in css
+    assert "position: static" in css
+
+
 def test_web_client_sources_page_is_categorized_source_center() -> None:
     app = (ROOT / "clients" / "web" / "src" / "App.tsx").read_text(encoding="utf-8")
+    source_center = (
+        ROOT / "clients" / "web" / "src" / "components" / "SourceCenter.tsx"
+    ).read_text(encoding="utf-8")
+    app_and_source_center = app + source_center
     api_client = (ROOT / "clients" / "web" / "src" / "api" / "client.ts").read_text(
         encoding="utf-8"
     )
@@ -471,16 +763,16 @@ def test_web_client_sources_page_is_categorized_source_center() -> None:
         (ROOT / "clients" / "web" / "src" / "i18n" / "zh.json").read_text(encoding="utf-8")
     )
 
-    assert "source-category-rail" in app
-    assert "source-health-grid" in app
-    assert "source-diagnostics" in app
-    assert "source-next-action" in app
-    assert "source-action-line" in app
-    assert "sourceNextAction" in app
-    assert "selectedSource" in app
-    assert "credential_state" in app
-    assert "last_success_at_utc" in app
-    assert "connectivity_status" in app
+    assert "source-category-rail" in app_and_source_center
+    assert "source-health-grid" in app_and_source_center
+    assert "source-diagnostics" in app_and_source_center
+    assert "source-next-action" in app_and_source_center
+    assert "source-action-line" in app_and_source_center
+    assert "sourceNextAction" in app_and_source_center
+    assert "selectedSource" in app_and_source_center
+    assert "credential_state" in app_and_source_center
+    assert "last_success_at_utc" in app_and_source_center
+    assert "connectivity_status" in app_and_source_center
     assert (
         'const sourceCategoryOrder = ["price", "fx", "infrastructure", "tariff", "weather", "ai"]'
         in app
@@ -510,6 +802,12 @@ def test_web_client_resource_pool_options_are_backend_owned() -> None:
     store = (ROOT / "clients" / "web" / "src" / "stores" / "api.ts").read_text(
         encoding="utf-8"
     )
+    en = json.loads(
+        (ROOT / "clients" / "web" / "src" / "i18n" / "en.json").read_text(encoding="utf-8")
+    )
+    zh = json.loads(
+        (ROOT / "clients" / "web" / "src" / "i18n" / "zh.json").read_text(encoding="utf-8")
+    )
 
     assert (
         'resourcePoolOptions: () => get<ResourcePoolOptionsDTO>'
@@ -519,6 +817,20 @@ def test_web_client_resource_pool_options_are_backend_owned() -> None:
     assert "resourcePoolOptions?.sale_options ?? []" in app
     assert "resourcePoolOptions?.portfolio_resources ?? []" in app
     assert "resourcePoolOptions?.blockers ?? []" in app
+    assert "saveUpstreamContract" in api_client
+    assert "saveDraftContract" in store
+    assert "saveDraftContract(contractPayload)" in app
+    assert "contractSaveMessage" in app
+    assert "contract-library-panel" in app
+    assert "contract-library-row" in app
+    assert "contract-import-input" in app
+    assert "importContractDraftFile" in app
+    assert "loadPersistedContract" in app
+    assert "contractDraftFromRecord" in app
+    assert en["contracts.library"] == "Contract library"
+    assert en["contracts.import_json"] == "Import JSON"
+    assert zh["contracts.library"] == "\u5408\u540c\u5e93"
+    assert zh["contracts.import_json"] == "\u5bfc\u5165 JSON"
     assert "nbp-via-bbl" not in app
     assert "cheap-nbp-route" not in app
     assert "alternate-cross-border" not in app

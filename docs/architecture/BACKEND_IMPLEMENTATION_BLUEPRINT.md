@@ -1,10 +1,14 @@
-﻿# Backend Implementation Blueprint
+# Backend Implementation Blueprint
 
 ## Objective
 
-Build the Eurogas Nexus backend as the authoritative product core. The backend
+Eurogas Nexus uses the backend as the authoritative product core. The backend
 owns runtime truth, API contracts, ingestion control, governance, audit,
 research output semantics, SDK/CLI access, and release validation.
+
+The current worktree already includes active Web and Windows clients, but those
+clients remain API consumers. They do not bypass the backend or read
+PostgreSQL directly.
 
 ## Architecture
 
@@ -16,6 +20,12 @@ apps/api
   -> src/eurogas_nexus/runtime_store
   -> src/eurogas_nexus/db
   -> PostgreSQL
+```
+
+Client boundary:
+
+```text
+SDK / CLI / Web / Windows -> /api -> backend services -> runtime store -> PostgreSQL
 ```
 
 ## Required Backend Stack
@@ -30,8 +40,9 @@ apps/api
 - pytest
 - Ruff
 
-Do not add frontend, desktop, Kafka, Redis, Celery, Node, Tauri, Electron, or
-live connector dependencies in backend foundation milestones.
+Backend foundation work must stay import-safe, DB-lazy, and testable without a
+live database. Client tooling belongs under `clients/` and must not leak into
+backend import paths.
 
 ## Purpose Of SQLAlchemy
 
@@ -46,11 +57,11 @@ SQLAlchemy is the Python database access layer. In Eurogas Nexus it should:
 SQLAlchemy is not the database and must not connect during import. PostgreSQL
 remains the runtime source of truth. Alembic remains the migration tool.
 
-## Backend Milestone Sequence
+## Backend Milestone State
 
 ### B1: Foundation And Governance
 
-Status: complete in current worktree.
+Status: `complete-in-current-worktree`
 
 Owns:
 
@@ -62,9 +73,9 @@ Owns:
 
 ### B2: DB Runtime Hardening
 
-Status: next.
+Status: `complete-in-current-worktree`
 
-Build:
+Owns:
 
 - operator-ready DB runtime validation;
 - explicit live local PostgreSQL validation path;
@@ -73,102 +84,86 @@ Build:
 - migration lifecycle documentation;
 - readiness reports.
 
-Acceptance:
-
-- app import requires no DB;
-- runtime DB validation is read-only;
-- live PostgreSQL validation works when a safe DB URL is configured;
-- default tests do not require PostgreSQL;
-- missing DB URL fails closed;
-- no secrets printed;
-- targeted tests pass.
-
 ### B3: Runtime Store Contracts
 
-Build:
+Status: `complete-in-current-worktree`
+
+Owns:
 
 - repository interface pattern;
 - DB-backed result envelope;
 - no trial/release file fallback tests;
-- dev fallback metadata shape if needed;
-- runtime-store docs and contract tests.
-
-Acceptance:
-
-- API routes do not access DB directly;
-- SDK/CLI do not import internal modules;
-- domain modules remain FastAPI-free.
+- metadata shape for assumptions, warnings, lineage, and source references.
 
 ### B4: Reference Network Slice
 
-Build:
+Status: `complete-in-current-worktree`
+
+Owns:
 
 - canonical ID policy;
-- synthetic reference-network fixtures;
-- schema plan for nodes/facilities/segments;
+- schema and repositories for nodes/facilities/segments;
 - read-only `/api/reference-network/*` contracts;
 - source-reference and lineage fields.
 
-Acceptance:
-
-- no real vendor/operator data;
-- future map clients can consume stable reference-network API shape;
-- all outputs identify missing inputs and source assumptions.
-
 ### B5: Ingestion Control Plane
 
-Build:
+Status: `complete-in-current-worktree`
+
+Owns:
 
 - connector definition model;
 - ingestion job/run model;
 - normalization result model;
 - data-quality/freshness model;
-- mocked connector interface.
-
-Acceptance:
-
-- no live external API calls;
-- connectors do not analyze;
-- ingestion records include source refs and lineage.
+- no import-time external calls.
 
 ### B6: Governance, Entitlement, Audit
 
-Build:
+Status: `partial-current-worktree`
+
+Owns:
 
 - entitlement decision model;
 - audit event model;
-- export policy model;
-- fail-closed unknown commercial data behavior;
-- research output metadata contract.
+- credential route boundary;
+- fail-closed posture for unknown commercial data.
 
-Acceptance:
+Remaining production work:
 
-- unknown commercial data cannot be exported by default;
-- audit model is available for future write operations;
-- research result envelope is tested.
+- stronger auth and role model;
+- export policy enforcement;
+- secret-manager integration;
+- entitlement-driven filtering for commercial provider data.
 
-### B7: First Research Workflow
+### B7: Research And Decision-Support Workflows
 
-Build one narrow workflow:
+Status: `active-current-worktree`
 
-- route-cost input validation and assumptions report, or
-- reference topology read model.
+Owns:
 
-Acceptance:
+- route-cost and resource-pool workflows;
+- strategy-lab evaluation;
+- LLM/report analysis boundary;
+- read-only market-positioning portfolio observations.
+
+Acceptance for all new workflows:
 
 - output includes assumptions, missing inputs, warnings, source references,
   lineage, `research_only`, and `human_review_required`;
-- no official recommendation or execution semantics.
+- no official recommendation or execution semantics;
+- no order entry, routing, amendment, cancellation, trade capture, nomination,
+  or ETRM replacement behavior.
 
 ## Backend API Rules
 
 - Stable routes use `/api`.
 - Internal routes use `/api/internal`.
 - Development routes use `/api/dev`.
-- SDK and CLI call `/api`.
+- SDK, CLI, Web, and Windows call `/api`.
 - Route handlers validate and delegate.
 - Application services orchestrate.
-- Runtime store reads/writes DB.
+- Runtime store reads/writes PostgreSQL.
 - Connectors fetch only through approved ingestion workflows.
 
 ## Backend Data Rules
@@ -183,7 +178,7 @@ Every durable runtime record must define:
 - schema version;
 - timestamps;
 - data scope;
-- migration revision.
+- migration revision where applicable.
 
 ## Backend Validation
 
@@ -201,6 +196,12 @@ CI-targeted:
 pytest -q tests/api tests/contract tests/integration tests/sdk tests/cli tests/release tests/security
 ```
 
+Client build verification is separate but required before release:
+
+```powershell
+npm --prefix clients/web run build
+```
+
 ## Backend Handoff
 
 Every backend milestone final report should include:
@@ -211,4 +212,4 @@ Every backend milestone final report should include:
 - tests run;
 - route count;
 - remaining gaps;
-- recommended next milestone.
+- recommended next work from `docs/architecture/NEXT_DEVELOPMENT_QUEUE.md`.

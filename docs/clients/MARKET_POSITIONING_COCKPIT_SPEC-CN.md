@@ -1,50 +1,91 @@
-﻿# 甯傚満鎸佷粨椹鹃┒鑸辫鑼?- CN
+# 市场定位驾驶舱规范 - 中文
 
-## 鐩殑
+## 目的
 
-鏈鑼冨畾涔?V1 鐨勫彧璇昏鍗?PnL 椹鹃┒鑸辨墿灞曘€傚畠鐢ㄤ簬甯姪澶╃劧姘斾氦鏄撲汉鍛樺湪鍦板浘浼樺厛
-宸ヤ綔鍙颁腑鏌ョ湅澶栭儴灞忓箷娲诲姩銆佺粍鍚堜及鍊笺€佽矾绾跨粡娴庢€у拰绛栫暐杈撳嚭锛屼絾涓嶄細鎶?Eurogas
-Nexus 鍙樻垚璁㈠崟鎵ц銆佽鍗曡矾鐢便€佹彁鍚嶆彁浜ゆ垨 ETRM 绯荤粺銆?
-## 缁濆鏁版嵁杈圭晫
+本规范定义 V1 的只读订单与 PnL 驾驶舱扩展。它帮助天然气交易员在地图优先的
+Eurogas Nexus 工作台中查看外部屏幕活动、组合估值、路线经济性和策略输出，但
+不会把 Eurogas Nexus 变成执行系统、订单路由系统、提名系统或 ETRM。所有输出
+都属于决策支持，必须由交易员人工复核。
 
-杩愯鏃朵簨瀹炴潵婧愭槸鍚庣 API 鑳屽悗鐨?PostgreSQL銆傚鎴风鍙兘浣跨敤锛?
+## 绝对数据边界
+
+运行时事实来源是后端 API 背后的 PostgreSQL。正式客户端只能使用：
+
 ```text
-Web/Windows/SDK -> /api/portfolio/* -> 鍚庣浠撳偍 -> PostgreSQL
+Web / Windows / SDK -> /api/portfolio/* -> backend repositories -> PostgreSQL
 ```
 
-瀹㈡埛绔笉寰楃洿鎺ヨ繛鎺?PostgreSQL锛屼笉寰椾繚瀛樿鍗?PnL 鏂囦欢锛屼笉寰楃洿鎺ヨ皟鐢ㄤ氦鏄撴墍锛?涔熶笉寰楄鍙栧悗绔師濮嬫暟鎹枃浠躲€傚閮ㄨ鍗曡褰曞彧鏄鍏ョ殑瑙傚療鏁版嵁锛屼笉鏄氦鏄撴崟鑾疯褰曪紝
-V1 涓嶅厑璁镐粠瀹㈡埛绔慨鏀规垨鎾ら攢杩欎簺璁㈠崟銆?
-## 宸插惎鐢?API
+客户端不得直接连接 PostgreSQL，不得保存订单或 PnL 文件，不得调用交易所或经纪商
+接口，不得读取后端原始数据文件。外部订单记录只是导入后的观察数据，不是交易捕获
+记录，也不能在 V1 中从客户端修改、撤销或确认。
 
-- `GET /api/portfolio/screen-orders`
-- `GET /api/portfolio/pnl-snapshots`
-- `GET /api/portfolio/live-summary`
+## 已启用 API
 
-鎵€鏈夌鐐归兘杩斿洖 `research_only=true` 鍜?`human_review_required=true`銆?
-## 宸插惎鐢ㄦ暟鎹簱琛?
+```text
+GET /api/portfolio/screen-orders
+GET /api/portfolio/pnl-snapshots
+GET /api/portfolio/live-summary
+```
+
+这些端点必须保持只读，并且返回的业务含义必须是 `research_only=true` 与
+`human_review_required=true`。
+
+## 已启用数据库表
+
 - `screen_order_observations`
 - `portfolio_pnl_snapshots`
 
-杩欎簺琛ㄧ敱 Alembic 鐗堟湰 `0009_market_positioning` 寮曞叆銆?
-## Web/Windows UX 瑙勫垯
+这些表由 Alembic 版本 `0009_market_positioning` 引入，并通过后续导入、授权和
+审计工作流继续使用。
 
-- 棣栭〉蹇呴』淇濇寔鍦板浘浼樺厛銆?- 濡傛灉鑺傜偣涓婁笅鏂囪冻澶燂紝鍦板浘蹇呴』鐢ㄥ姩鐢婚珮浜睍绀哄綋鍓嶈鍗?PnL 鐩稿叧璺嚎銆?- 褰撳疄鏃剁洴甯傜粨鏋滃皻鏈骇鐢熸椂锛屽湴鍥句笂鏂规寚鏍囨潯蹇呴』浣跨敤杩愯鏃惰瀵熸暟鎹睍绀烘寚绀烘€?  PnL銆?- 渚ф爮蹇呴』灞曠ず璁㈠崟鐘舵€併€佸凡鎴愪氦鏁伴噺銆佸墿浣欐暟閲忋€佸悎绾︿唬鐮併€佹寚绀烘€?PnL銆佹彁鍓嶅洖娆?  浠峰€煎拰鏈畬鎴愬睆骞曡鍗曟暟閲忋€?- 鐣岄潰鏂囨涓嶅緱浣跨敤 鈥滀笅鍗曗€濄€佲€滆矾鐢辫鍗曗€濄€佲€滄壒鍑嗏€濄€佲€滄彁鍚嶁€?鎴?鈥滅珛鍗充氦鏄撯€?绛夋墽琛岀被
-  琛ㄨ堪銆?
-## 楠屾敹娴嬭瘯
+## Web 和 Windows 体验规则
+
+- 首页必须保持地图优先。
+- 当节点和路线上下文足够时，地图可以用动画高亮当前订单或 PnL 相关走廊。
+- 动画只用于信息展示，不代表提名、调度、订单路由或执行路径。
+- 侧栏应展示订单状态、已成交数量、剩余数量、合约代码、指示性 PnL、提前回款价值
+  和未完成屏幕订单数量。
+- 文案必须避免使用“下单”“路由订单”“批准”“提名”“立即交易”等执行类表达。
+- 缺少导入记录时，界面应显示明确的空状态或不可用状态，不得在浏览器侧生成样例订单
+  或样例 PnL。
+
+## 内部导入路线
+
+R19/R21 已经实现内部操作员导入路线：
+
+```text
+POST /api/internal/portfolio/import-observations
+```
+
+该路线只在 internal profile 下暴露，并且需要：
+
+```text
+EUROGAS_NEXUS_INTERNAL_API_TOKEN
+X-Eurogas-Internal-Token
+X-Eurogas-Principal
+```
+
+如果后端没有配置 token、请求没有提供 token、token 不匹配，或者 principal 为空，
+路线会在访问数据库之前失败关闭。这是 V1 内部操作员 token 门禁，不是公司
+SSO/OIDC。
+
+正式 Web、Windows、SDK 和 CLI 客户端必须继续使用只读 `/api/portfolio/*` 路线，
+不得调用内部导入路线。
+
+## 授权和审计
+
+内部导入必须在写入观察表之前检查 `entitlement_decisions`。如果任意
+source/dataset 组合没有授权，整个批次应被拒绝，并记录失败的 `ingestion_runs`
+和 `audit_events`。成功批次也必须写入运行记录和审计记录。
+
+## 接受测试
 
 - `tests/api/test_portfolio_api.py`
 - `tests/contract/test_market_positioning_models.py`
 - `tests/sdk/test_portfolio_client.py`
 - `tests/contract/test_client_release_surface.py`
 
-## 涓嬩竴姝ユ墿灞?
-Milestone 2 搴斿鍔犵敱瀵煎叆鍣ㄦ帶鍒剁殑瀹㈡埛璁㈠崟/PnL upsert 璺緞銆佸甫鎺堟潈杩囨护鐨勬煡璇€?浠ュ強鍙璁?lineage銆傞櫎闈炰骇鍝佽竟鐣屾寮忓彉鏇达紝瀹㈡埛绔〃闈粛蹇呴』淇濇寔鍙銆?## R19 鍐呴儴瀵煎叆璺緞
+## 下一步扩展
 
-R19 宸插疄鐜伴涓唴閮ㄥ鍏ヨ矾寰勶細
-
-```text
-POST /api/internal/portfolio/import-observations
-```
-
-璇ヨ矾鐢变粎渚涘唴閮?鎿嶄綔鍛樹娇鐢ㄣ€傞櫎闈?`entitlement_decisions` 瀵规瘡涓€涓潵婧愬拰鏁版嵁闆嗙粍鍚堟巿鏉冿紝
-鍚﹀垯鎵规榛樿澶辫触鍏抽棴銆傛垚鍔熷拰鎷掔粷鐨勬壒娆￠兘浼氬啓鍏?`ingestion_runs` 涓?`audit_events`銆?Web銆乄indows銆丼DK 鍜?CLI 姝ｅ紡瀹㈡埛绔繀椤荤户缁娇鐢ㄥ彧璇?`/api/portfolio/*` 璺敱銆?
+后续工作应加强导入器控制的客户订单/PnL upsert、授权过滤、审计 lineage、Review 页
+中的警告和来源证据展示。除非产品边界被正式修改，客户端表面仍然必须保持只读。

@@ -207,13 +207,14 @@ own credentials, entitlements, and contractual permission.
 The Web client is the primary map-focused workspace. It has separate surfaces
 for:
 
-- Network: resource-pool map, recommended sale paths, route/capacity warnings,
-  indicative PnL, and decision support;
+- Network: resource-pool map, active resource-path overlay, recommended sale
+  paths, route/capacity warnings, indicative PnL, and decision support;
 - Capacity: ENTSOG flow/capacity, TSO access, tariffs, GIE storage, and GIE LNG;
-- Market: price, FX, and market-source observations;
+- Market: terminal-style European gas hub board, regional TTF spreads, ECB FX,
+  and exchange/broker source posture;
 - Scenario: route economics, LNG readiness, and pool optimization runs;
-- Contracts: EFET-style resource, delivery, pricing, settlement, and capacity
-  terms;
+- Contracts: EFET-style resource, delivery, pricing, settlement, capacity
+  terms, JSON draft import, and persisted resource-contract library;
 - Strategy: backtest, shadow-run, monitoring, and risk controls;
 - Review: warnings, route allocation evidence, and reports;
 - Order Records: read-only screen-order observations and live PnL snapshots;
@@ -221,7 +222,8 @@ for:
   state;
 - Glossary: bilingual operational definitions and linked context;
 - Runtime: API, database, and ingestion readiness;
-- Settings: language and light/dark/system theme;
+- Settings: language, theme, unit, currency, session defaults, service-access
+  posture, and backend-boundary guardrails;
 - Manual: customer-facing page map and operating boundary.
 
 The desktop client packages the same Web workspace through Tauri and targets:

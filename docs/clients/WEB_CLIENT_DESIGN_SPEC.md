@@ -151,6 +151,12 @@ Initial content:
 
 - map surface;
 - layer controls;
+- label-budgeted fallback map rendering: route endpoints, hubs, search
+  matches, and named market points may be labeled, while lower-priority assets
+  remain colored dots until inspected;
+- resource-path overlay showing persisted resource delivery point, target sale
+  point, quantity, capacity limit, route cost, sale price, net margin, route
+  state, and blockers from backend resource-pool data;
 - left resource-pool rail with active resources, blockers, and route controls;
 - right decision rail with net PnL, allocation ladder, economics snapshot, and
   strategy/warning signal;
@@ -209,6 +215,9 @@ External order records:
 Home decision rail:
 
 - total pool PnL, allocated quantity, and unallocated quantity;
+- map-level resource paths from active contract delivery points to recommended
+  sale/delivery targets, including empty/blocked state when PostgreSQL-backed
+  resource-pool inputs are missing;
 - each recommended sale path with quantity, sale market, route cost, sale
   price, netback, PnL contribution, capacity limit, TSO access, and blockers;
 - contract-level attribution only as drill-down below the route decision;
@@ -235,6 +244,13 @@ Content:
   value inputs;
 - restrictions, permitted sale markets, blocked TSOs/routes, source/freshness,
   entitlement, and warning state.
+- persisted upstream-contract library loaded from
+  `GET /api/route-cost/upstream-contracts`;
+- edit-from-library action that loads a saved resource contract back into the
+  EFET-style form before an explicit save/upsert;
+- JSON draft import into the form for operator-owned terms, with no browser
+  direct database access and no file becoming authoritative until the backend
+  save succeeds.
 
 Authority:
 
@@ -307,6 +323,13 @@ Purpose:
 V1 client behavior:
 
 - show backend-served market observations, ECB FX, and source metadata;
+- render a terminal-style gas market board for TTF, NBP, THE, PEG, ZTP, and
+  PSV when the backend supplies sourced observations;
+- show regional comparison as spread to TTF only when both sides have
+  comparable currency/unit rows;
+- show trend sparklines only from actual observed price history;
+- show exchange/broker source posture for EEX, ICE OCM, Trayport, Platts,
+  ICIS, Argus, and Kpler from backend diagnostics;
 - if an endpoint or table is missing, show an explicit unavailable state with
   the backend error code and required operator action;
 - do not invent market data or render client-side fake observations.
@@ -433,8 +456,14 @@ Content:
 
 - searchable term list;
 - category filters;
-- concise and detailed definition;
+- Codex-style split surface with the term list on the left and the selected
+  wiki article on the right, so clicking a term changes the article without
+  leaving the glossary page;
+- wiki-style article for the selected term with concise and detailed
+  definition;
 - related terms;
+- aliases, institutions, entities, venues, business models, market areas,
+  contract concepts, and infrastructure terms as first-class glossary records;
 - source/reference note;
 - reviewed timestamp.
 
@@ -450,6 +479,8 @@ Current V1 contract:
 - show the selected duration, capacity, capacity in use, utilization percent,
   related prices, live marks, routes, linked contracts, and warnings returned by
   the backend context endpoint;
+- show matched entities, grouped context sections, related sources, data
+  quality, and warnings when `/api/glossary/{term}/context` returns them;
 - do not hard-code glossary definitions in the client beyond test fixtures.
 
 ## LLM Analysis Panel
@@ -484,7 +515,8 @@ GET /api/glossary/{term}/context
 
 Purpose:
 
-- configure client-only preferences.
+- configure client-only trader preferences for display units, currency, session
+  defaults, source-access posture, and operating guardrails.
 
 Allowed:
 
@@ -494,6 +526,11 @@ Allowed:
 - local UI preferences.
 - language switch with English and Mandarin Chinese;
 - light, dark, and system theme switch.
+- default display currency, energy unit, flow/volume unit, and price basis;
+- session timezone and refresh-profile preference;
+- service/API-key posture summary read from backend `/api/credentials/*` and
+  `/api/sources`;
+- navigation shortcut to Data Sources for backend-owned credential entry.
 
 Forbidden:
 

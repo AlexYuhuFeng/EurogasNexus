@@ -1,218 +1,149 @@
-﻿# Current Pause Point
+# Current Pause Point
 
 ## Status
 
-Holistic local runtime testing has been performed against the current worktree.
-The project is now a **V1 release candidate for the tested local scope**:
-backend/API/SDK/CLI, PostgreSQL runtime schema, Web client, and Windows/Tauri
-client shell.
+Date checked: 2026-06-30
 
-Read the full evidence report:
+Eurogas Nexus is a V1 release-candidate worktree for the tested local scope:
+backend/API/SDK/CLI, PostgreSQL runtime schema, React/Vite Web workspace, and
+Tauri desktop shell.
+
+This is a gas trader intelligence and decision-support product. It is not an
+execution, order-entry, order-routing, nomination, settlement, legal-advice, or
+ETRM product.
+
+## Current Runtime Evidence
+
+Observed against the operator's running local API on `127.0.0.1:8000`:
 
 ```text
-data/release_v1/holistic_real_test_report.md
+GET /api/runtime/db
+database_url_present: true
+connectivity.ok: true
+alembic_revision: 0012_entsog_capacity
+required_tables: 33
+missing_tables: 0
+source: runtime-postgresql
 ```
 
-## Runtime Evidence
-
-Validated on 2026-06-01:
+Observed from local import/build checks:
 
 ```text
-ruff check .
-pytest -q tests/api tests/contract tests/integration tests/sdk tests/security
-npm run build  # clients/web
-cargo check --manifest-path clients/desktop/src-tauri/Cargo.toml --locked
 python -c "from apps.api.main import app; print('app import ok'); print(len(app.routes))"
+app import ok
+76
+
+npm --prefix clients/web run build
+passed
 ```
 
-Results:
+The Vite Web workspace currently proxies `/api` to the running backend and can
+render PostgreSQL-backed runtime data.
 
-```text
-Ruff: passed
-Python targeted tests: 332 passed
-Web build: passed
-Desktop cargo check: passed
-App import: app import ok, 74 routes
-```
+## Current Product Shape
 
-Rendered Web client smoke tested on Microsoft Edge through Playwright CLI:
+- PostgreSQL is the runtime source of truth.
+- FastAPI exposes stable public `/api` routes, profile-gated internal routes,
+  and development-only routes.
+- SDK and CLI are API consumers.
+- Web is the primary trader workspace.
+- Windows/Tauri wraps the Web workspace.
+- Clients do not read PostgreSQL, raw vendor files, `.env`, or backend local
+  runtime files.
+- Provider credentials are backend-owned and never returned in plaintext.
 
-```text
-URL: http://127.0.0.1:3000/
-API: http://127.0.0.1:8000/api/health
-Console after interactions: 0 errors, 0 warnings
-Screenshot: C:\Users\qqshu\.codex\memories\eurogas-r17-cockpit.png
-```
+## Current Web/Windows Workspace
 
-The smoke test loaded the cockpit, compared European route options, evaluated
-capacity-constrained route/sale allocation, opened glossary context, and ran
-snapshot analysis without page errors.
+The active shared workspace includes:
 
-## Current Implementation Status
+- Network: map-first resource-pool cockpit with active resource-path overlay,
+  route options, blockers, topology state, PnL summary, and strategy/warning
+  signal.
+- Capacity: ENTSOG flows/capacity, TSO access, tariffs, storage, and LNG.
+- Market: gas-market terminal for major European hubs, regional TTF spreads,
+  ECB FX references, and exchange/broker price-source posture. Missing licensed
+  prices remain unavailable rather than fabricated.
+- Scenario: route-cost/resource-pool controls and result review.
+- Contracts: EFET-style term capture, JSON draft import, persisted-contract
+  list/edit, and an API-backed save path into `upstream_resource_contracts` for
+  decision-support resource-pool inputs.
+- Strategy: paper strategy evaluation.
+- Review: warning stack and LLM/report review surface.
+- Order Records: read-only external screen-order observations and indicative
+  PnL snapshots.
+- Data Sources: provider categories, credentials, diagnostics, freshness, and
+  runtime row counts.
+- Glossary: bilingual terms and DB-derived operational context.
+- Runtime: database/API readiness and governance metadata.
+- Settings: display unit/currency/session preferences, service-access posture,
+  and backend-boundary guardrails. Manual: workspace map and operating
+  boundary.
 
-- PostgreSQL is the runtime source of truth for reference network, market
-  observations, flow observations, storage observations, LNG observations,
-  ingestion run metadata, and provider credential metadata.
-- ECB public FX, ENTSOG public operational flow, and GIE AGSI/ALSI keyed feeds
-  were explicitly fetched and normalized into local PostgreSQL.
-- Provider credentials are backend-owned. Clients can submit keys through
-  `/api`, but plaintext keys are not returned and are not stored in client
-  state, browser storage, Tauri config, reports, or repo files.
-- Web is the single UI source. Windows wraps the built Web bundle through
-  Tauri, so future UI/UX work should update Web first and then rebuild Windows.
-- Browser QA shows Runtime DB status, active source counts, infrastructure
-  signal counts, credential management panel, rendered gas network map,
-  animated route/PnL highlighting, route-cost comparison, strategy-lab output,
-  glossary context, and report-analysis output.
-- The Windows/Tauri shell now starts with a borderless splash window and then
-  shows the shared Web client in a borderless fullscreen main window.
-- GitHub Actions now validates the backend and builds all client delivery
-  surfaces in parallel: Web bundle, Windows Tauri NSIS `.exe`, and Linux Tauri
-  Debian `.deb`.
-- The glossary context endpoint now acts as an operational context surface:
-  duration-aware terms can show matched runtime entities, capacity, capacity in
-  use, utilization percentage, hub and screen prices, live marks, route
-  candidates, linked contracts, warnings, and data-quality metadata. Context is
-  DB-derived and driven by PostgreSQL records for the selected term or point.
-- Internal/operator market-positioning imports now have an entitlement-gated
-  path that writes screen-order observations and indicative PnL snapshots into
-  PostgreSQL while recording `ingestion_runs` and `audit_events`. The route now
-  requires a configured internal API token plus explicit token/principal request
-  headers before any DB access.
+## Current API Surface
 
-## Work Completed Since Previous Pause
+Representative active public routes:
 
-- Added Alembic revision `0009_market_positioning`.
-- Added R18 operational glossary context using existing runtime tables:
-  `capacity_profiles`, `flow_observations`, `market_observations`,
-  `live_market_marks`, `route_candidates`, and
-  `upstream_resource_contracts`.
-- Extended `/api/glossary/{term}/context` with `lang`,
-  `duration_start_utc`, `duration_end_utc`, `metrics`, `live_market_marks`,
-  `related_contracts`, and `data_quality`.
-- Added Web glossary quick-context buttons and duration selectors for
-  high-value hub, terminal, interconnector, price, and venue terms.
-- Added operational glossary context specs:
-  `docs/clients/OPERATIONAL_GLOSSARY_CONTEXT_SPEC-EN.md` and
-  `docs/clients/OPERATIONAL_GLOSSARY_CONTEXT_SPEC-CN.md`.
-- Added R20 intuitive glossary context generalization:
-  `GET /api/glossary/{term}/context` now returns `matched_entities` and
-  `context_sections`, aggregates selected-duration capacity usage, derives
-  non-profile entry points from runtime glossary/capacity/flow/price/route/
-  contract records, and exposes the same context through the glossary SDK and
-  grouped Web/Windows UI.
-- Added R21 internal operator auth gate:
-  `/api/internal/portfolio/import-observations` requires
-  `EUROGAS_NEXUS_INTERNAL_API_TOKEN`, `X-Eurogas-Internal-Token`, and
-  `X-Eurogas-Principal`; missing config, missing token, invalid token, or blank
-  principal fail closed before DB access.
-- Added R19 market-positioning import control:
-  `/api/internal/portfolio/import-observations`, fail-closed
-  `entitlement_decisions` checks, repository upserts, and audit/ingestion-run
-  persistence.
-- Added market-positioning import runbooks:
-  `docs/operations/MARKET_POSITIONING_IMPORTS-EN.md` and
-  `docs/operations/MARKET_POSITIONING_IMPORTS-CN.md`.
-- Added `screen_order_observations` and `portfolio_pnl_snapshots` runtime tables
-  for read-only imported screen-order state and portfolio PnL marks.
-- Added `/api/portfolio/screen-orders`,
-  `/api/portfolio/pnl-snapshots`, and
-  `/api/portfolio/live-summary`.
-- Added SDK helpers in `eurogas_nexus.sdk.portfolio`.
-- Added Web Orders & Live PnL cockpit panel, animated route/PnL overlay, and
-  map-first market-positioning documents in English and Mandarin.
-- Hardened the Windows client startup contract for splashscreen-to-fullscreen
-  transition.
-- Added Alembic revision `0005_public_source_credentials`.
-- Added storage, LNG, and provider credential tables.
-- Added public-source normalization for ECB, ENTSOG, GIE AGSI, and GIE ALSI.
-- Added explicit operator script `scripts/ops/ingest_public_sources.py`.
-- Added credential API under `/api/credentials/*`.
-- Added Web Provider Credentials panel for GIE, EEX, ICE OCM, Trayport, Kpler,
-  Platts, Weather, and LLM providers.
-- Added DB-backed storage and LNG observation routes.
-- Corrected ENTSOG metadata to public/no-key for supported Transparency
-  Platform access.
-- Built and packaged the Tauri Windows client.
-- Verified the shared Web/Windows UI path.
+- `/api/health`
+- `/api/runtime/db`
+- `/api/reference-network/*`
+- `/api/sources`
+- `/api/ingestion-runs`
+- `/api/market/*`
+- `/api/physical/*`
+- `/api/storage/*`
+- `/api/lng/*`
+- `/api/contracts/*`
+- `/api/credentials/*`
+- `/api/route-cost/*`
+- `/api/strategy-lab/evaluate`
+- `/api/glossary/*`
+- `/api/analysis/query`
+- `/api/reports/portfolio`
+- `/api/portfolio/*`
+
+Portfolio observation tables currently include `screen_order_observations` and
+`portfolio_pnl_snapshots`. They are read-only external observations, not trade
+capture records.
+
+Internal/operator-only:
+
+- `/api/internal/portfolio/import-observations`
+
+The internal import route requires the backend internal token and explicit
+principal header, and remains unavailable to release clients.
+
+## Current Documentation Work
+
+The repository previously contained stale docs that described Web/Windows as
+not-yet-active client work and pointed agents back to backend Milestone 2.
+Those docs are being aligned under V1 R22 to match the active product.
+
+Mandarin docs must be kept as real UTF-8 Chinese. Mojibake or private-use
+replacement characters are treated as documentation defects.
 
 ## Remaining Release Limitations
 
-1. Live ingestion is manual/operator-invoked; scheduler/retry/monitoring is not
-   productionized.
-2. EEX, ICE OCM, Trayport, Kpler, Platts, weather, broker, and LLM provider
-   live calls remain untested until credentials and entitlement approval exist.
-3. Screen-order and portfolio PnL endpoints are read-only import surfaces. V1
-   does not perform order entry, order routing, trade capture, or auto-trading.
-4. LLM analysis remains optional and must only invoke a configured backend
-   provider credential under explicit operator control.
-5. Auth, audit persistence depth, entitlement enforcement routes, and export
-   governance runtime checks need hardening before multi-user or production use.
-6. Route-cost coverage is explicit-leg European route economics. BBL and IUK
-   public corridor references are included, UK NTS rows may remain as a public
-   tariff source, and additional TSO tariff depth still depends on operator
-   loading and validation.
-7. Operational glossary context is only as complete as the runtime DB records
-   supplied by public ingestion, customer imports, and operator-owned test
-   records. Invented runtime context is not part of the V1 contract.
-8. Market-positioning imports are internal/operator-only and now require a
-   static internal API token plus entitlement rows. Production multi-user role
-   enforcement, rotation workflow, and external secret-manager integration still
-   need hardening before multi-user deployment.
+1. Production scheduling, retry, monitoring, and alerting for live ingestion
+   are not yet productionized.
+2. Commercial providers such as EEX, ICE OCM, Trayport, Kpler, Platts, ICIS,
+   Argus, brokers, weather, and LLM providers remain gated by credentials,
+   entitlement, and operator validation.
+3. Order/PnL records are imported read-only observations. V1 does not perform
+   order entry, amendment, routing, cancellation, trade capture, or auto-trading.
+4. Auth, audit depth, entitlement, and export-governance enforcement need
+   hardening before multi-user production use.
+5. EFET-style upstream resource contracts now support API save, list/edit, and
+   JSON draft import, but customer contract lifecycle validation, versioning,
+   approval, and export controls still need production hardening.
+6. Route-cost and resource-pool recommendations remain decision support and
+   human-review required.
+7. The Market terminal currently depends on loaded runtime price observations;
+   commercial exchange/broker connectors still require credentials,
+   entitlement, and operator validation before live prices appear.
 
-## Route-Cost And Glossary Addendum
+## Next Work
 
-Current in-progress route-cost and market-practice hardening adds:
-
-- European explicit-leg route-cost calculation from audited tariff rows,
-  including BBL/IUK corridor references and PostgreSQL-loaded TSO rows;
-- DB tables for TSO tariffs, upstream resource contracts, capacity profiles,
-  route candidates, live market marks, glossary terms, strategy definitions,
-  strategy runs, strategy allocation targets, and strategy alerts;
-- `/api/route-cost/*` endpoints and SDK helpers for route candidates,
-  TSO tariff rows, route-cost calculation, route/sale allocation
-  recommendation, LNG regas readiness, and resource-pool optimization;
-- `/api/strategy-lab/evaluate` and SDK helpers for backtest, shadow-run, and
-  live-monitor paper strategy evaluation;
-- `/api/glossary` and `/api/glossary/{term}` bilingual glossary routes
-  with English, `zh`, and `zh-CN` support;
-- `/api/glossary/{term}/context` operational context with optional language
-  and duration filters for TTF, GATE LNG, Zeebrugge Entry Point, ICIS Heren,
-  NBP, ICE OCM, and customer-loaded terms whose context can be derived from
-  runtime records;
-- Web client panels for map layer/search, above-map portfolio/price/PnL/strategy
-  strip, European route allocation, live PnL context, strategy lab, glossary,
-  settings language, and light/dark/system theme;
-- market-practice audit documents:
-  `docs/architecture/MARKET_PRACTICE_AUDIT-EN.md` and
-  `docs/architecture/MARKET_PRACTICE_AUDIT-CN.md`;
-- map-first trader cockpit UX documents:
-  `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-EN.md` and
-  `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-CN.md`.
-- market-positioning cockpit documents:
-  `docs/clients/MARKET_POSITIONING_COCKPIT_SPEC-EN.md` and
-  `docs/clients/MARKET_POSITIONING_COCKPIT_SPEC-CN.md`.
-- operational glossary context documents:
-  `docs/clients/OPERATIONAL_GLOSSARY_CONTEXT_SPEC-EN.md` and
-  `docs/clients/OPERATIONAL_GLOSSARY_CONTEXT_SPEC-CN.md`.
-
-This addendum is the current pause marker for continuing the route-cost,
-glossary, strategy, cockpit UX, and market-practice work. Preserve the
-European explicit-leg route model as the route-cost authority and extend it by
-loading audited TSO tariff rows, topology, capacity, and access data into
-PostgreSQL.
-
-## Next Prompt
-
-```text
-Read AGENTS.md, docs/architecture/CURRENT_PAUSE_POINT.md, and
-data/release_v1/holistic_real_test_report.md.
-
-Continue Eurogas Nexus from the V1 release-candidate state. Preserve the
-single shared Web UI source for both Web and Windows/Tauri. Use PostgreSQL as
-the runtime source of truth. Do not store provider credentials in clients.
-Start with productionizing live ingestion scheduling, credential health tests,
-entitlement/export-governance hardening, DB-backed import pipelines for screen
-orders and portfolio PnL marks, and audited European TSO tariff/topology data
-selected by the operator.
-```
+Use `docs/architecture/NEXT_DEVELOPMENT_QUEUE.md`. The current priority is
+V1 R22: documentation and client cockpit alignment. Then proceed to
+source-health scheduling, entitlement/audit/export hardening, persisted
+contract workflows, and cockpit review/evidence UX.

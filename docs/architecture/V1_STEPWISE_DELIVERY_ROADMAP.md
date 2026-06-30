@@ -1,149 +1,144 @@
-﻿# V1 Stepwise Delivery Roadmap
+# V1 Stepwise Delivery Roadmap
 
 ## Purpose
 
-This roadmap turns the project north star into a controlled backend delivery
-sequence. It keeps the historical ambition visible while preventing the current
-repo from repeating failed implementation patterns.
+This roadmap records how Eurogas Nexus reached the current V1
+release-candidate shape and how future work should continue without replaying
+early foundation milestones.
 
-## Milestone 1: Governance, DB Foundation, API Path Policy
+The active product is a PostgreSQL-backed gas trader intelligence workspace:
+backend/API, SDK, CLI, React/Vite Web, and Tauri desktop shell are all present.
+The product remains decision support only.
+
+## Completed Foundation Milestones
+
+### Milestone 1: Governance, DB Foundation, API Path Policy
 
 Status: `complete-in-current-worktree`
 
-Goal:
+Delivered:
 
-- Establish repository governance and public-repo safety rules.
-- Make DB URL resolution, redaction, lazy engine/session creation, and runtime
-  DB validation explicit.
-- Normalize stable API clients toward `/api` while preserving `/api/health`.
+- repository governance and public-repo safety rules;
+- DB URL precedence, redaction, lazy engine/session creation, and runtime DB
+  validation policy;
+- stable client API prefix `/api`;
+- import-safe FastAPI entry point.
 
-Exit evidence:
+### Milestone 2: DB Runtime Hardening
 
-- Governance files exist.
-- App import works without a DB URL.
-- Ruff and targeted API/contract/integration/security tests pass.
-- Runtime DB validation script is read-only and fail-closed.
+Status: `complete-in-current-worktree`
 
-## Milestone 2: DB Runtime Hardening
+Historical implementation phrase: DB runtime hardening.
 
-Phrase for implementation agents: DB runtime hardening.
+Delivered:
 
-Goal:
+- read-only PostgreSQL runtime validation;
+- Alembic-backed required-table inspection;
+- migration lifecycle documentation;
+- secret-safe DB readiness reports;
+- runtime DB failure modes for unavailable, missing-table, and connected
+  states.
 
-- Convert the current DB foundation into an operator-ready PostgreSQL runtime
-  boundary.
-- Add live local PostgreSQL validation that can run against explicit operator
-  configuration without requiring a live DB for default tests.
-- Add migration lifecycle checks and runbooks.
-- Keep trial/release modes fail-closed when DB is unavailable.
+### Milestone 3: Runtime Store And Repository Contracts
 
-Key deliverables:
+Status: `complete-in-current-worktree`
 
-- DB runtime readiness report.
-- Required table catalog tied to Alembic revisions.
-- Repository factory contract.
-- Operator runbook for local/test PostgreSQL validation.
-- Secret-safe read-only runtime DB validation.
+Delivered:
 
-## Milestone 3: Runtime Store And Repository Contracts
+- DB-first repository boundaries;
+- source references, assumptions, missing inputs, warnings, lineage,
+  `research_only`, and `human_review_required` metadata patterns;
+- tests preventing trial/release local-file fallback.
 
-Goal:
+### Milestone 4: Canonical Reference Network Slice
 
-- Define DB-first runtime store interfaces before adding business domains.
-- Ensure API routes and SDK/CLI surfaces do not call internal domain modules or
-  local files.
+Status: `complete-in-current-worktree`
 
-Key deliverables:
+Delivered:
 
-- `runtime_store` contract modules.
-- Repository result metadata: assumptions, missing inputs, warnings, source
-  references, lineage, `research_only`, `human_review_required`.
-- Tests proving file fallback is unavailable in trial/release modes.
+- canonical reference nodes and route-candidate map edges;
+- read-only `/api/reference-network/*` contracts;
+- map-consumable topology and source metadata.
 
-## Milestone 4: Canonical Reference Network Slice
+### Milestone 5: Ingestion And Data Quality Control Plane
 
-Goal:
+Status: `complete-in-current-worktree`
 
-- Add the first narrow canonical data slice for reference network metadata,
-  using source-shaped fixtures and DB-backed models only.
-- Keep topology and map-readiness as backend API contracts; no frontend client
-  implementation.
+Delivered:
 
-Key deliverables:
+- ingestion-run and source-reference model;
+- source diagnostics and freshness surfaces;
+- public/keyed source slots for ECB, ENTSOG, GIE storage/LNG, tariffs, and
+  licensed commercial providers.
 
-- Canonical identifier policy.
-- Network node/facility/segment schema plan.
-- Read-only `/api` reference-network contract.
-- Source-shaped fixture import template only.
+### Milestone 6: Governance, Entitlement, Audit, And Auth Runtime
 
-## Milestone 5: Ingestion And Data Quality Control Plane
+Status: `partial-current-worktree`
 
-Goal:
+Delivered:
 
-- Add ingestion-run, source-reference, lineage, freshness, and data-quality
-  metadata boundaries.
-- Keep connectors mocked and disabled by default.
+- entitlement and audit foundations;
+- credential submission through backend routes;
+- restricted commercial-provider posture in Source Center.
 
-Key deliverables:
+Remaining:
 
-- Connector contract interfaces that perform no analytics.
-- Ingestion run repository.
-- Data-quality result model.
-- No live connector calls in tests or import-time code.
+- production-grade multi-user auth;
+- stronger entitlement/export enforcement;
+- secret-manager integration.
 
-## Milestone 6: Governance, Entitlement, Audit, And Auth Runtime
+### Milestone 7: Research Output Contract
 
-Goal:
+Status: `complete-in-current-worktree`
 
-- Add fail-closed governance and audit foundations before exposing richer data.
-- Keep company SSO/OIDC deferred unless explicitly approved by a future scope
-  change.
+Delivered:
 
-Key deliverables:
+- route-cost, resource-pool, strategy, LLM/report, and review outputs that
+  remain research/decision-support artifacts;
+- mandatory human-review and warning metadata.
 
-- Entitlement decision model.
-- Audit event model.
-- Auth runtime contract with local/test-only behavior.
-- Export policy checks for unknown commercial data.
+### Milestone 8: First Research Domain Slices
 
-## Milestone 7: Research Output Contract
+Status: `complete-in-current-worktree`
 
-Goal:
+Delivered:
 
-- Define how analysis outputs are represented before adding analytics or domain
-  calculations.
+- route-cost comparison;
+- resource-pool sale-option optimization;
+- capacity, tariff, storage, LNG, market, glossary, and read-only portfolio
+  observation surfaces.
 
-Required output metadata:
+## Active Client Milestones
 
-- assumptions;
-- missing inputs;
-- warnings;
-- source references;
-- lineage;
-- `research_only`;
-- `human_review_required`.
+SDK, CLI, Web, and Windows are active V1 client surfaces.
 
-## Milestone 8: First Research Domain Slice
+Rules:
 
-Goal:
+- SDK and CLI consume released `/api` contracts.
+- Web is the primary trader workspace.
+- Windows/Tauri packages the same Web workspace.
+- Clients must not connect directly to PostgreSQL.
+- Clients must not read raw provider files, backend local files, `.env`, or
+  plaintext credentials.
+- Provider credentials are backend-owned and write-only from client forms.
 
-- Add one narrow research-only domain workflow after DB, API, runtime store,
-  governance, and output contracts are in place.
+Current client work should improve structure, diagnostics, persisted
+contract/resource workflows, review evidence, and browser/desktop quality.
 
-Candidate:
+## Current Development Queue
 
-- Reference topology read model or route-cost input contract, not a trading
-  recommendation or execution workflow.
+Use `docs/architecture/NEXT_DEVELOPMENT_QUEUE.md` for the ordered queue.
 
-## Required Client Milestones
+Current priority:
 
-SDK, CLI, web, and Windows desktop client work must consume SDK/API-backed
-`/api` contracts. The Python SDK is required for V1. CLI should call the SDK
-first when available. Web and Windows reach PostgreSQL-backed runtime data only
-through backend `/api` routes. The Desktop `eurogas nexus.exe` demo may
-inform workflow intent for visual clients, but UI/UX requires redesign. Client
-design docs now live under `docs/clients/` and `docs/design/`. Runtime client
-implementation starts only when a client milestone is explicitly selected.
+- V1 R22: documentation and client cockpit alignment.
+
+Upcoming priorities:
+
+- ingestion scheduling and source health;
+- entitlement, audit, and export-governance hardening;
+- persisted EFET-style contract/resource-pool workflow;
+- cockpit warning/evidence drill-down.
 
 ## Always Forbidden In V1
 
@@ -157,6 +152,8 @@ implementation starts only when a client milestone is explicitly selected.
 - official trading recommendation;
 - auto-trading;
 - ETRM replacement behavior;
-- frontend or desktop runtime implementation during backend milestones;
-- live connectors without entitlement approval;
+- browser-side provider calls;
+- direct client-to-PostgreSQL access;
+- plaintext credential return to clients;
+- live connectors without entitlement and credential approval;
 - external API or LLM provider calls from tests or import-time code.

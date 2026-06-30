@@ -1,29 +1,29 @@
-﻿# Architecture Decision Record
+# Architecture Decision Record
 
 ## Purpose
 
-This document records the firm architecture decisions for Eurogas Nexus V1. It
-exists to remove ambiguity for future implementation agents.
+This document records firm architecture decisions for Eurogas Nexus V1. It
+exists to remove ambiguity for future implementation agents and to keep the
+worktree aligned with the current gas-trader decision-support goal.
 
 ## Decision 1: V1 Is Backend-First And Multi-Surface
 
 Decision:
 
 Eurogas Nexus V1 includes a Python backend/API service, PostgreSQL runtime
-store, Python SDK, CLI, web workspace, and Windows client shell. Delivery is
-phased: backend and API contracts come first, then SDK/CLI, then web, then
-Windows packaging.
+store, Python SDK, CLI, React/Vite Web workspace, and Tauri desktop shell. It
+is backend-first because all runtime truth and integration boundaries remain
+behind `/api`, not because clients are absent.
 
 Implication:
 
-- Build backend API, DB, governance, ingestion, and research-output contracts
-  before broad client workflows.
-- The Python SDK is a required V1 surface and must target `/api`.
-- Keep `clients/web` and `clients/desktop` free of runtime code until the
-  selected release milestone activates them.
-- Maintain client design docs under `docs/clients/` so client implementation
-  has a clear target.
-- Use the Windows demo only as UX reference for future client milestones.
+- Backend/API remains the authoritative runtime boundary.
+- The Python SDK is a required V1 surface and targets `/api`.
+- CLI, Web, and Windows clients consume `/api` contracts.
+- Web is the primary trader workspace.
+- Windows/Tauri packages the same Web workspace.
+- Client work may continue under `clients/`, but clients must not connect
+  directly to PostgreSQL or read backend local files.
 
 ## Decision 2: PostgreSQL Is Runtime Truth
 
@@ -38,12 +38,13 @@ Implication:
 - Alembic owns migrations.
 - Local files are templates, archives, reports, fixtures, or explicit
   development fallback only.
+- Demo data must be inserted into PostgreSQL with clear demo provenance.
 
 ## Decision 2A: Live PostgreSQL Validation Is In V1
 
 Decision:
 
-V1 must support explicit live local PostgreSQL validation when the operator
+V1 supports explicit live local PostgreSQL validation when the operator
 configures a safe DB URL.
 
 Implication:
@@ -63,41 +64,41 @@ New stable client-facing routes use `/api`.
 
 Implication:
 
-- SDK and CLI target `/api`.
+- SDK, CLI, Web, and Windows target `/api`.
 - `/api/health` remains compatibility only.
 - Internal routes use `/api/internal`.
 - Development routes use `/api/dev`.
 
-## Decision 4: Python Stack Remains Minimal
+## Decision 4: Stack Boundaries Are Explicit
 
 Decision:
 
-Use the approved Python stack for V1: FastAPI, Pydantic, SQLAlchemy, Alembic,
-HTTPX, pandas/NumPy/PyArrow where explicitly needed later, PyYAML, pytest, and
-Ruff.
+Use Python/FastAPI/SQLAlchemy/Alembic for backend runtime, React/Vite/TypeScript
+for Web, and Tauri/Rust only for the desktop shell.
 
 Implication:
 
-- Do not add Node, React, Tauri, Rust, Kafka, Redis, Celery, or live connector
-  dependencies in backend foundation milestones.
-- React/Vite/TypeScript are allowed only in selected web milestones.
-- Tauri/Rust are allowed only in selected Windows milestones.
+- Backend import paths must not depend on Node, React, Vite, Tauri, Rust,
+  browser APIs, or desktop runtime APIs.
+- Client code must not import backend internals.
 - Electron is not approved for V1.
-- Do not copy the historical Rust/React/Tauri implementations.
+- Historical Rust/React/Tauri demos are product evidence, not source code to
+  copy into this repository.
 
 ## Decision 5: Domain Work Is Slice-Based
 
 Decision:
 
-Only one domain slice should be implemented at a time after foundation layers
-are ready.
+New product capability should be added as narrow slices with clear data,
+contract, API, client, test, and documentation impact.
 
 Implication:
 
-- The first domain slice should be reference network, not route-cost/netback or
-  strategy.
-- Each slice needs a contract doc, DB impact, API impact, data policy, tests,
-  validation commands, and rollback notes.
+- Each slice needs a contract doc or documented update.
+- Each slice must state DB impact, API impact, data policy, tests, validation
+  commands, and rollback notes when relevant.
+- UI improvements should expose real backend capability or explicit missing
+  inputs, not fabricated client-side data.
 
 ## Decision 6: Connectors Fetch, They Do Not Analyze
 
@@ -110,13 +111,14 @@ Implication:
 - Connector output goes to ingestion/normalization.
 - Analytics belong in domain/application layers after canonical data is stored.
 - Live connectors require explicit entitlement and credential approval.
+- Tests and imports must not make live external provider or LLM calls.
 
 ## Decision 7: SDK And CLI Are API Consumers
 
 Decision:
 
-SDK and CLI must call the backend API. They must not import domain, application,
-runtime store, or DB internals.
+SDK and CLI must call the backend API. They must not import domain,
+application, runtime store, or DB internals.
 
 Implication:
 
@@ -124,18 +126,17 @@ Implication:
 - CLI tests mock SDK/API clients, not domain functions.
 - SDK implementation follows `docs/clients/SDK_CLIENT_DESIGN_SPEC.md`.
 - CLI implementation follows `docs/clients/CLI_CLIENT_DESIGN_SPEC.md`.
-- SDK/CLI expansion has dedicated ExecPlans and should not be bundled into web
-  or Windows work.
+- SDK/CLI expansion should not be bundled into unrelated Web or Windows work.
 
-## Decision 8: Output Metadata Is Mandatory For Research Results
+## Decision 8: Output Metadata Is Mandatory For Decision Support
 
 Decision:
 
-Research outputs must carry enough context for human review.
+Decision-support outputs must carry enough context for human review.
 
 Implication:
 
-Research result models include:
+Research and intelligence result models include:
 
 - assumptions;
 - missing inputs;
@@ -169,14 +170,37 @@ patterns. They are not source code for the current repo.
 Implication:
 
 - Extract workflow and architecture lessons.
-- Do not copy old code, assets, data, `.env`, credentials, generated reports, or
-  vendor artifacts.
+- Do not copy old code, assets, data, `.env`, credentials, generated reports,
+  or vendor artifacts.
+
+## Decision 11: Product Boundary Is Decision Support Only
+
+Decision:
+
+Eurogas Nexus supports gas-trader intelligence and review. It does not execute
+or officially recommend trades.
+
+Implication:
+
+V1 must not implement:
+
+- order entry;
+- order routing;
+- order amendment or cancellation;
+- trade capture;
+- nomination submission;
+- official approvals;
+- settlement/accounting;
+- legal advice;
+- official trading recommendations;
+- auto-trading;
+- ETRM replacement behavior.
 
 ## Current Recommended Next Step
 
-Finish documentation-first alignment, then run Milestone 2: DB runtime
-hardening.
+Follow `docs/architecture/NEXT_DEVELOPMENT_QUEUE.md`.
 
-Milestone 2 must produce operator-ready DB validation, migration lifecycle docs,
-required-table registry alignment, and repository/runtime-store contracts before
-any broad business feature work.
+The current work item is V1 R22: documentation and client cockpit alignment.
+Next work should improve documentation accuracy, client structure, Source
+Center diagnostics, review evidence, and persisted contract/resource workflows
+without weakening the backend/API boundary.

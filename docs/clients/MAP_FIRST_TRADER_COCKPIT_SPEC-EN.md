@@ -32,6 +32,21 @@ or title-transfer points. Recommended sale paths must be drawn at the same time
 so the trader can see the whole allocation, including split routes and blocked
 alternatives.
 
+The Network map also carries a compact resource-path overlay. Each path row is
+derived from backend resource-pool options or optimization output and shows the
+resource delivery point, recommended sale/delivery target, quantity, capacity
+limit, route cost, sale price, net margin, route state, and blocker/warning
+state. If source or target nodes can be matched in the reference network, the
+map may animate a highlighted corridor. If no persisted contracts or sale
+options exist, the overlay must show the blocked/empty state instead of
+inventing a route.
+
+Map labels are budgeted, not exhaustive. The default map should keep low-
+priority assets as colored points and reserve visible labels for active
+resource-path endpoints, hubs, search matches, and named market points. Full
+asset identity belongs in search results, hover/click inspectors, and detail
+pages, not as hundreds of always-on map labels.
+
 The map must not be a decorative background. It is the main work surface.
 
 ## Home Information Architecture
@@ -97,6 +112,12 @@ When an active order/PnL context exists, the map must draw an animated
 highlighted corridor between relevant nodes with a concise label and PnL value.
 This animation is informational only; it is not a nomination, route dispatch,
 or executable order path. Motion must respect `prefers-reduced-motion`.
+
+When route-candidate reference edges are available, highlighted paths must use
+leg-level route-candidate segments rather than a single source-to-target visual
+shortcut. If the backend can only provide source-derived corridor geometry, the
+UI must label that state clearly and must not imply a surveyed direct pipeline
+or a trader-executable physical nomination route.
 
 ## Resource-Pool Decision Rail
 

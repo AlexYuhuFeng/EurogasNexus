@@ -46,11 +46,12 @@ def test_repository_has_no_legacy_handoff_surface() -> None:
 def test_project_north_star_preserves_v1_boundaries() -> None:
     text = _read_doc("docs/architecture/PROJECT_NORTH_STAR.md")
 
-    assert "research-only" in text.lower()
+    assert "decision-support, market-intelligence, and" in text.lower()
+    assert "strategy shadow-run workspace" in text.lower()
     assert "PostgreSQL" in text
     assert "API-first" in text
     assert "SDK-ready" in text
-    assert "No frontend runtime implementation belongs" in text
+    assert "Web and Windows client surfaces are active" in text
     assert "docs/clients/" in text
     assert "trade execution" in text.lower()
 
@@ -104,30 +105,30 @@ def test_architecture_decisions_are_explicit() -> None:
     ]:
         assert phrase in text
 
-def test_next_development_queue_selects_milestone_2() -> None:
+def test_next_development_queue_selects_current_v1_r22_work() -> None:
     text = _read_doc("docs/architecture/NEXT_DEVELOPMENT_QUEUE.md")
 
-    assert "Milestone 2: DB Runtime Hardening" in text
-    assert "Status: `next`" in text
-    assert ".agent/plans/V1_M2_DB_RUNTIME_HARDENING_EXECPLAN.md" in text
-    assert "Archived Desktop projects are reference evidence only" in text
-    assert "live PostgreSQL validation" in text
+    assert "V1 R22: Documentation And Client Cockpit Alignment" in text
+    assert "Status: `in-progress`" in text
+    assert ".agent/plans/V1_R22_DOCS_CLIENT_COCKPIT_ALIGNMENT_EXECPLAN.md" in text
+    assert "Web and" in text
+    assert "Windows as active runtime clients" in text
+    assert "Ingestion Scheduling And Source Health" in text
 
 
 def test_current_pause_point_records_holistic_runtime_pause_state() -> None:
     text = _read_doc("docs/architecture/CURRENT_PAUSE_POINT.md")
 
-    assert "Holistic local runtime testing" in text
-    assert "V1 release candidate" in text
-    assert "332 passed" in text
-    assert "74 routes" in text
+    assert "V1 release-candidate worktree" in text
+    assert "0012_entsog_capacity" in text
+    assert "33" in text
+    assert "76" in text
     assert "Windows/Tauri" in text
-    assert "Console after interactions: 0 errors, 0 warnings" in text
+    assert "npm --prefix clients/web run build" in text
     assert "screen_order_observations" in text
-    assert "operational glossary context" in text
     assert "/api/internal/portfolio/import-observations" in text
     assert "Provider credentials are backend-owned" in text
-    assert "data/release_v1/holistic_real_test_report.md" in text
+    assert "V1 R22: documentation and client cockpit alignment" in text
 
 
 def test_live_postgresql_policy_is_explicit_and_safe() -> None:

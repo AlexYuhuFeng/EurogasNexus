@@ -162,6 +162,63 @@ def test_route_recommendation_uses_runtime_db_tariffs(tmp_path, monkeypatch) -> 
     ]
 
 
+def test_upsert_upstream_contract_persists_and_reads_back_from_runtime_db(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    db_path = tmp_path / "upstream-contract-upsert.sqlite"
+    database_url = f"sqlite+pysqlite:///{db_path.as_posix()}"
+    engine = create_engine(database_url, future=True)
+    Base.metadata.create_all(engine)
+
+    monkeypatch.setenv("RUNTIME_STORE_DATABASE_URL", database_url)
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("EUROGAS_NEXUS_DB_DSN", raising=False)
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/api/route-cost/upstream-contracts",
+        json={
+            "contract_id": "persisted-ttf-supply-2025",
+            "contract_name": "Persisted TTF supply 2025",
+            "resource_type": "PIPELINE_IMPORT",
+            "delivery_point_name": "TTF",
+            "gas_year": "2025+",
+            "delivery_quantity_mwh_per_day": 125.5,
+            "contract_price_gbp_mwh": 29.75,
+            "settlement_frequency": "monthly",
+            "upstream_payment_lag_days": 20,
+            "screen_sale_cash_lag_days": 1,
+            "delivery_tolerance_pct": 2,
+            "nomination_tolerance_pct": 1,
+            "tolerance_risk_allowance_gbp_mwh": 0.1,
+            "annual_financing_rate_pct": 6,
+            "owned_entry_capacity_mwh_per_day": None,
+            "owned_exit_capacity_mwh_per_day": None,
+            "allowed_exit_points": ["NBP", "TTF"],
+            "eligible_sale_modes": ["TARGET_MARKET_SALE", "LOCAL_MARKET_SALE"],
+            "notes": "operator draft decision support",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["meta"]["source_references"] == ["runtime-postgresql"]
+    assert payload["data"]["contract_id"] == "persisted-ttf-supply-2025"
+    assert payload["data"]["contract_name"] == "Persisted TTF supply 2025"
+    assert payload["data"]["delivery_quantity_mwh_per_day"] == 125.5
+    assert payload["data"]["allowed_exit_points"] == ["NBP", "TTF"]
+    assert payload["data"]["research_only"] is True
+    assert payload["data"]["human_review_required"] is True
+
+    readback = client.get("/api/route-cost/upstream-contracts")
+
+    assert readback.status_code == 200
+    contracts = readback.json()["data"]
+    assert len(contracts) == 1
+    assert contracts[0]["contract_id"] == "persisted-ttf-supply-2025"
+
+
 def test_resource_pool_options_are_built_from_runtime_db(tmp_path, monkeypatch) -> None:
     db_path = tmp_path / "resource-pool-options.sqlite"
     database_url = f"sqlite+pysqlite:///{db_path.as_posix()}"

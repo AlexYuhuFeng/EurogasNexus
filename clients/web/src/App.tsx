@@ -1,7 +1,15 @@
-﻿import { useEffect, useMemo, useState } from "react";
-import type { FormEvent } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
+import type { ChangeEvent, FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { GasNetworkMap } from "@/components/GasNetworkMap";
+import { GlossaryWiki } from "@/components/GlossaryWiki";
+import { MarketTerminal } from "@/components/MarketTerminal";
+import { ResourcePoolPathOverlay } from "@/components/ResourcePoolPathOverlay";
+import type { ResourcePoolMapPath } from "@/components/ResourcePoolPathOverlay";
+import { SettingsCenter } from "@/components/SettingsCenter";
+import { SourceCenter } from "@/components/SourceCenter";
+import { WorkspaceTopBar, type WorkspacePageId } from "@/components/WorkspaceTopBar";
+import type { UpstreamContractDTO } from "@/api/client";
 import { useApiStore } from "@/stores/api";
 import { useThemeStore } from "@/stores/theme";
 import "./styles/app.css";
@@ -19,20 +27,82 @@ type ContractNumberKey =
   | "annual_financing_rate_pct";
 
 type LiveMarkNumberKey = "bid_gbp_mwh" | "ask_gbp_mwh" | "last_gbp_mwh";
-type WorkspacePageId =
-  | "network"
-  | "capacity"
-  | "market"
-  | "scenario"
-  | "contracts"
-  | "strategy"
-  | "review"
-  | "orders"
-  | "sources"
-  | "glossary"
-  | "runtime"
-  | "settings"
-  | "manual";
+type ContractTextKey =
+  | "contract_id"
+  | "contract_name"
+  | "delivery_point_name"
+  | "gas_year"
+  | "settlement_frequency";
+
+interface ContractDraft {
+  contract_id: string;
+  contract_name: string;
+  delivery_point_name: string;
+  gas_year: string;
+  delivery_quantity_mwh_per_day: number;
+  contract_price_gbp_mwh: number;
+  nbp_sale_price_gbp_mwh: number;
+  physical_exit_sale_price_gbp_mwh: number;
+  physical_exit_point_name: string;
+  delivery_tolerance_pct: number;
+  nomination_tolerance_pct: number;
+  tolerance_risk_allowance_gbp_mwh: number;
+  settlement_frequency: string;
+  upstream_payment_lag_days: number;
+  screen_sale_cash_lag_days: number;
+  annual_financing_rate_pct: number;
+  owned_entry_capacity_mwh_per_day: number | null;
+  owned_exit_capacity_mwh_per_day: number | null;
+  allowed_exit_points: string[];
+  eligible_sale_modes: string[];
+}
+
+const defaultContractDraft: ContractDraft = {
+  contract_id: "operator-ttf-supply-2025",
+  contract_name: "Operator TTF supply 2025",
+  delivery_point_name: "TTF",
+  gas_year: "2025+",
+  delivery_quantity_mwh_per_day: 0,
+  contract_price_gbp_mwh: 0,
+  nbp_sale_price_gbp_mwh: 0,
+  physical_exit_sale_price_gbp_mwh: 0,
+  physical_exit_point_name: "NBP",
+  delivery_tolerance_pct: 2,
+  nomination_tolerance_pct: 1,
+  tolerance_risk_allowance_gbp_mwh: 0.1,
+  settlement_frequency: "monthly",
+  upstream_payment_lag_days: 20,
+  screen_sale_cash_lag_days: 1,
+  annual_financing_rate_pct: 6,
+  owned_entry_capacity_mwh_per_day: null,
+  owned_exit_capacity_mwh_per_day: null,
+  allowed_exit_points: ["NBP", "TTF"],
+  eligible_sale_modes: ["TARGET_MARKET_SALE", "LOCAL_MARKET_SALE", "REROUTE_SALE"],
+};
+
+function cloneDefaultContractDraft(): ContractDraft {
+  return {
+    ...defaultContractDraft,
+    allowed_exit_points: [...defaultContractDraft.allowed_exit_points],
+    eligible_sale_modes: [...defaultContractDraft.eligible_sale_modes],
+  };
+}
+
+function normalizePointName(value: string | null | undefined): string {
+  return (value ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function metadataText(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function routeLegLabel(leg: Record<string, unknown>, index: number): string {
+  for (const key of ["point_name", "market_area", "hub_binding", "tso", "leg_id"]) {
+    const value = metadataText(leg[key]);
+    if (value) return value;
+  }
+  return `leg ${index + 1}`;
+}
 
 export default function App() {
   const { t, i18n } = useTranslation();
@@ -69,8 +139,10 @@ export default function App() {
     loading,
     error,
     credentialMessage,
+    contractSaveMessage,
     fetchWorkspace,
     saveProviderCredential,
+    saveDraftContract,
     recommendRouteAllocation,
     optimizeResourcePool,
     strategyResult,
@@ -87,36 +159,21 @@ export default function App() {
   const [sourceCategory, setSourceCategory] = useState("all");
   const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null);
   const [glossaryQuery, setGlossaryQuery] = useState("");
+  const [glossaryCategory, setGlossaryCategory] = useState("all");
+  const [selectedGlossaryTerm, setSelectedGlossaryTerm] = useState<string | null>(null);
   const [glossaryDurationStart, setGlossaryDurationStart] = useState("2026-05-31T06:00");
   const [glossaryDurationEnd, setGlossaryDurationEnd] = useState("2026-06-01T06:00");
   const [analysisQuestion, setAnalysisQuestion] = useState("Summarize current portfolio PnL, route, market, and strategy status.");
   const [invokeDeepSeek, setInvokeDeepSeek] = useState(false);
   const [activeWorkspace, setActiveWorkspace] = useState<WorkspacePageId>("network");
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
+  const contractImportRef = useRef<HTMLInputElement>(null);
+  const [contractImportMessage, setContractImportMessage] = useState<string | null>(null);
   const selectedCredentialProvider = useMemo(
     () => credentialProviders.find((provider) => provider.provider_id === credentialProvider),
     [credentialProvider, credentialProviders],
   );
-  const [contract, setContract] = useState({
-    contract_id: "draft-contract-not-persisted",
-    gas_year: "2025+",
-    delivery_quantity_mwh_per_day: 0,
-    contract_price_gbp_mwh: 0,
-    nbp_sale_price_gbp_mwh: 0,
-    physical_exit_sale_price_gbp_mwh: 0,
-    physical_exit_point_name: "NBP",
-    delivery_tolerance_pct: 2,
-    nomination_tolerance_pct: 1,
-    tolerance_risk_allowance_gbp_mwh: 0.1,
-    settlement_frequency: "monthly",
-    upstream_payment_lag_days: 20,
-    screen_sale_cash_lag_days: 1,
-    annual_financing_rate_pct: 6,
-    owned_entry_capacity_mwh_per_day: null as number | null,
-    owned_exit_capacity_mwh_per_day: null as number | null,
-    allowed_exit_points: [] as string[],
-    eligible_sale_modes: ["TARGET_MARKET_SALE", "LOCAL_MARKET_SALE", "REROUTE_SALE"],
-  });
+  const [contract, setContract] = useState<ContractDraft>(() => cloneDefaultContractDraft());
   const [liveMark, setLiveMark] = useState({
     venue: "ICE OCM",
     hub: "NBP",
@@ -155,6 +212,27 @@ export default function App() {
     objective: "MAX_DAILY_PNL",
     research_only: true,
   }), [contract.annual_financing_rate_pct, portfolioResources, saleOptions, upstreamContracts]);
+  const contractPayload = useMemo(() => ({
+    contract_id: contract.contract_id.trim() || "operator-ttf-supply-2025",
+    contract_name: contract.contract_name.trim() || contract.contract_id.trim() || "Operator supply contract",
+    resource_type: "PIPELINE_IMPORT",
+    delivery_point_name: contract.delivery_point_name.trim() || "TTF",
+    gas_year: contract.gas_year.trim() || "2025+",
+    delivery_quantity_mwh_per_day: contract.delivery_quantity_mwh_per_day,
+    contract_price_gbp_mwh: contract.contract_price_gbp_mwh,
+    settlement_frequency: contract.settlement_frequency,
+    upstream_payment_lag_days: contract.upstream_payment_lag_days,
+    screen_sale_cash_lag_days: contract.screen_sale_cash_lag_days,
+    delivery_tolerance_pct: contract.delivery_tolerance_pct,
+    nomination_tolerance_pct: contract.nomination_tolerance_pct,
+    tolerance_risk_allowance_gbp_mwh: contract.tolerance_risk_allowance_gbp_mwh,
+    annual_financing_rate_pct: contract.annual_financing_rate_pct,
+    owned_entry_capacity_mwh_per_day: contract.owned_entry_capacity_mwh_per_day,
+    owned_exit_capacity_mwh_per_day: contract.owned_exit_capacity_mwh_per_day,
+    allowed_exit_points: contract.allowed_exit_points,
+    eligible_sale_modes: contract.eligible_sale_modes,
+    notes: "Web contract capture; decision support only; human review required.",
+  }), [contract]);
 
   const strategyScenario = useMemo(() => {
     const deliveryStart = "2026-01-16T00:00:00Z";
@@ -260,23 +338,173 @@ export default function App() {
     setCredentialValue("");
   }
 
+  const visibleGlossaryCategories = useMemo(
+    () => Array.from(new Set(glossaryTerms.map((term) => term.category))).sort(),
+    [glossaryTerms],
+  );
+
   const visibleGlossaryTerms = useMemo(() => {
     const trimmed = glossaryQuery.trim();
     const query = trimmed.toLowerCase();
-    if (!query) return glossaryTerms.slice(0, 10);
     return glossaryTerms
-      .filter((term) =>
-        term.term.toLowerCase().includes(query) ||
-        term.category.toLowerCase().includes(query) ||
-        term.definition_en.toLowerCase().includes(query) ||
-        term.definition_zh_cn.includes(trimmed) ||
-        term.aliases.some((alias) => alias.toLowerCase().includes(query)),
-      )
-      .slice(0, 10);
-  }, [glossaryQuery, glossaryTerms]);
+      .filter((term) => glossaryCategory === "all" || term.category === glossaryCategory)
+      .filter((term) => {
+        if (!query) return true;
+        return (
+          term.term.toLowerCase().includes(query) ||
+          term.category.toLowerCase().includes(query) ||
+          term.definition_en.toLowerCase().includes(query) ||
+          term.definition_zh_cn.includes(trimmed) ||
+          term.aliases.some((alias) => alias.toLowerCase().includes(query))
+        );
+      })
+      .slice(0, 40);
+  }, [glossaryCategory, glossaryQuery, glossaryTerms]);
+
+  const selectedGlossaryTermRecord = useMemo(
+    () =>
+      visibleGlossaryTerms.find((term) => term.term === selectedGlossaryTerm) ??
+      glossaryTerms.find((term) => term.term === selectedGlossaryTerm) ??
+      visibleGlossaryTerms[0] ??
+      glossaryTerms[0] ??
+      null,
+    [glossaryTerms, selectedGlossaryTerm, visibleGlossaryTerms],
+  );
 
   function updateContractNumber(key: ContractNumberKey, value: string) {
     setContract((current) => ({ ...current, [key]: value === "" ? 0 : Number(value) }));
+  }
+
+  function updateContractText(key: ContractTextKey, value: string) {
+    setContract((current) => ({ ...current, [key]: value }));
+  }
+
+  function stringFromRecord(record: Record<string, unknown>, key: string, fallback: string): string {
+    const value = record[key];
+    return typeof value === "string" && value.trim() ? value.trim() : fallback;
+  }
+
+  function numberFromRecord(record: Record<string, unknown>, key: string, fallback: number): number {
+    const value = record[key];
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    if (typeof value === "string" && value.trim() && Number.isFinite(Number(value))) return Number(value);
+    return fallback;
+  }
+
+  function nullableNumberFromRecord(
+    record: Record<string, unknown>,
+    key: string,
+    fallback: number | null,
+  ): number | null {
+    const value = record[key];
+    if (value == null || value === "") return fallback;
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    if (typeof value === "string" && Number.isFinite(Number(value))) return Number(value);
+    return fallback;
+  }
+
+  function stringArrayFromRecord(record: Record<string, unknown>, key: string, fallback: string[]): string[] {
+    const value = record[key];
+    if (Array.isArray(value)) {
+      const items = value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+      return items.length > 0 ? items : fallback;
+    }
+    if (typeof value === "string" && value.trim()) {
+      return value.split(",").map((item) => item.trim()).filter(Boolean);
+    }
+    return fallback;
+  }
+
+  function contractDraftFromRecord(record: Record<string, unknown>, current: ContractDraft): ContractDraft {
+    return {
+      ...current,
+      contract_id: stringFromRecord(record, "contract_id", current.contract_id),
+      contract_name: stringFromRecord(record, "contract_name", current.contract_name),
+      delivery_point_name: stringFromRecord(record, "delivery_point_name", current.delivery_point_name),
+      gas_year: stringFromRecord(record, "gas_year", current.gas_year),
+      delivery_quantity_mwh_per_day: numberFromRecord(
+        record,
+        "delivery_quantity_mwh_per_day",
+        current.delivery_quantity_mwh_per_day,
+      ),
+      contract_price_gbp_mwh: numberFromRecord(record, "contract_price_gbp_mwh", current.contract_price_gbp_mwh),
+      delivery_tolerance_pct: numberFromRecord(record, "delivery_tolerance_pct", current.delivery_tolerance_pct),
+      nomination_tolerance_pct: numberFromRecord(record, "nomination_tolerance_pct", current.nomination_tolerance_pct),
+      tolerance_risk_allowance_gbp_mwh: numberFromRecord(
+        record,
+        "tolerance_risk_allowance_gbp_mwh",
+        current.tolerance_risk_allowance_gbp_mwh,
+      ),
+      settlement_frequency: stringFromRecord(record, "settlement_frequency", current.settlement_frequency),
+      upstream_payment_lag_days: numberFromRecord(
+        record,
+        "upstream_payment_lag_days",
+        current.upstream_payment_lag_days,
+      ),
+      screen_sale_cash_lag_days: numberFromRecord(
+        record,
+        "screen_sale_cash_lag_days",
+        current.screen_sale_cash_lag_days,
+      ),
+      annual_financing_rate_pct: numberFromRecord(
+        record,
+        "annual_financing_rate_pct",
+        current.annual_financing_rate_pct,
+      ),
+      owned_entry_capacity_mwh_per_day: nullableNumberFromRecord(
+        record,
+        "owned_entry_capacity_mwh_per_day",
+        current.owned_entry_capacity_mwh_per_day,
+      ),
+      owned_exit_capacity_mwh_per_day: nullableNumberFromRecord(
+        record,
+        "owned_exit_capacity_mwh_per_day",
+        current.owned_exit_capacity_mwh_per_day,
+      ),
+      allowed_exit_points: stringArrayFromRecord(record, "allowed_exit_points", current.allowed_exit_points),
+      eligible_sale_modes: stringArrayFromRecord(record, "eligible_sale_modes", current.eligible_sale_modes),
+    };
+  }
+
+  function contractRecordFromParsedJson(parsed: unknown): Record<string, unknown> | null {
+    if (Array.isArray(parsed)) {
+      return parsed.find((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object") ?? null;
+    }
+    if (parsed && typeof parsed === "object") {
+      const record = parsed as Record<string, unknown>;
+      const wrapped = record.contract;
+      if (wrapped && typeof wrapped === "object" && !Array.isArray(wrapped)) {
+        return wrapped as Record<string, unknown>;
+      }
+      return record;
+    }
+    return null;
+  }
+
+  function loadPersistedContract(saved: UpstreamContractDTO) {
+    setContract((current) => contractDraftFromRecord(saved as unknown as Record<string, unknown>, current));
+    setContractImportMessage(`${saved.contract_id} ${t("contracts.loaded_for_edit")}`);
+  }
+
+  function resetContractDraft() {
+    setContract(cloneDefaultContractDraft());
+    setContractImportMessage(t("contracts.new_draft_loaded"));
+  }
+
+  async function importContractDraftFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      const parsed = JSON.parse(await file.text()) as unknown;
+      const record = contractRecordFromParsedJson(parsed);
+      if (!record) throw new Error(t("contracts.import_invalid"));
+      setContract((current) => contractDraftFromRecord(record, current));
+      setContractImportMessage(`${file.name} ${t("contracts.import_loaded")}`);
+    } catch (e) {
+      setContractImportMessage(`${t("contracts.import_failed")}: ${String(e)}`);
+    } finally {
+      event.target.value = "";
+    }
   }
 
   function updateLiveMarkNumber(key: LiveMarkNumberKey, value: string) {
@@ -406,6 +634,117 @@ export default function App() {
     blockers.push(...(resourcePoolOptions?.blockers ?? []));
     return blockers;
   }, [resourcePoolOptions, runtimeDbReady, t]);
+  const resourcePoolMapPaths = useMemo<ResourcePoolMapPath[]>(() => {
+    if (portfolioResources.length === 0 || saleOptions.length === 0) return [];
+    const allocationByResourceAndOption = new Map(
+      poolAllocations.map((allocation) => [`${allocation.resource_id}:${allocation.option_id}`, allocation]),
+    );
+    const fallbackWarnings = poolInputBlockers.length > 0 ? poolInputBlockers : [];
+    return portfolioResources.flatMap((resource) =>
+      saleOptions.slice(0, 3).map((option) => {
+        const allocation = allocationByResourceAndOption.get(`${resource.resource_id}:${option.option_id}`) ?? null;
+        const routeCandidate = routeCandidates.find((candidate) => candidate.route_id === option.option_id);
+        const routeLegSummary = routeCandidate?.route_legs.map(routeLegLabel) ?? [];
+        const routeGeometryState: ResourcePoolMapPath["routeGeometryState"] =
+          routeLegSummary.length > 0 ? "source_derived_leg_sequence" : "directLineFallback";
+        const routeWarnings = [
+          ...(allocation?.warnings ?? []),
+          ...(option.required_tso_access ?? []).filter(
+            (tso) => Array.isArray(resource.accessible_tsos) && !resource.accessible_tsos.includes(tso),
+          ).map((tso) => `${t("home.missing_tso_access")}: ${tso}`),
+          ...fallbackWarnings,
+        ];
+        const routeState: ResourcePoolMapPath["routeState"] = allocation
+          ? "allocated"
+          : routeWarnings.length > 0
+            ? "blocked"
+            : "candidate";
+        return {
+          pathId: `${resource.resource_id}-${option.option_id}`,
+          routeId: option.option_id,
+          resourceName: resource.resource_name,
+          sourcePointName: resource.location_point_name,
+          targetPointName: option.target_point_name,
+          availableQuantityMwhPerDay: resource.available_quantity_mwh_per_day,
+          allocatedQuantityMwhPerDay: allocation?.allocated_quantity_mwh_per_day ?? null,
+          capacityLimitMwhPerDay: option.capacity_limit_mwh_per_day ?? null,
+          routeCostGbpMwh: option.route_cost_gbp_mwh ?? null,
+          salePriceGbpMwh: option.sale_price_gbp_mwh,
+          netMarginGbpMwh: allocation?.net_margin_gbp_mwh ?? null,
+          routeState,
+          routeGeometryState,
+          routeLegSummary,
+          warnings: routeWarnings,
+        };
+      }),
+    ).slice(0, 6);
+  }, [poolAllocations, poolInputBlockers, portfolioResources, routeCandidates, saleOptions, t]);
+  const nodeIdByPointName = useMemo(() => {
+    const lookup = new Map<string, string>();
+    nodes.forEach((node) => {
+      [
+        node.id,
+        node.name,
+        metadataText(node.metadata_json?.market_code),
+        metadataText(node.metadata_json?.eic_code),
+        metadataText(node.metadata_json?.balancing_zone),
+      ].forEach((value) => {
+        const key = normalizePointName(value);
+        if (key && !lookup.has(key)) lookup.set(key, node.id);
+      });
+    });
+    return lookup;
+  }, [nodes]);
+  const resourcePoolHighlightedRoute = useMemo(() => {
+    const resolvePathNodes = (path: ResourcePoolMapPath) => {
+      const fromNodeId = nodeIdByPointName.get(normalizePointName(path.sourcePointName));
+      const toNodeId = nodeIdByPointName.get(normalizePointName(path.targetPointName));
+      return { fromNodeId, toNodeId };
+    };
+    const firstPath =
+      resourcePoolMapPaths.find((path) => {
+        const { fromNodeId, toNodeId } = resolvePathNodes(path);
+        return path.routeState !== "blocked" && Boolean(fromNodeId && toNodeId && fromNodeId !== toNodeId);
+      }) ??
+      resourcePoolMapPaths.find((path) => {
+        const { fromNodeId, toNodeId } = resolvePathNodes(path);
+        return Boolean(fromNodeId && toNodeId && fromNodeId !== toNodeId);
+      }) ??
+      resourcePoolMapPaths[0];
+    if (!firstPath) return undefined;
+    const { fromNodeId, toNodeId } = resolvePathNodes(firstPath);
+    if (!fromNodeId || !toNodeId || fromNodeId === toNodeId) return undefined;
+    return {
+      fromNodeId,
+      toNodeId,
+      routeId: firstPath.routeId,
+      label: `${firstPath.sourcePointName} -> ${firstPath.targetPointName}`,
+      pnlGbp: firstPath.netMarginGbpMwh !== null
+        ? firstPath.netMarginGbpMwh * (firstPath.allocatedQuantityMwhPerDay ?? firstPath.availableQuantityMwhPerDay)
+        : null,
+      routeGeometryState: firstPath.routeGeometryState,
+      routeLegSummary: firstPath.routeLegSummary,
+    };
+  }, [nodeIdByPointName, resourcePoolMapPaths]);
+  const reviewEvidenceItems = useMemo(() => {
+    const items: Array<{ kind: string; text: string }> = [];
+    const add = (kind: string, text: string | null | undefined) => {
+      if (!text || items.some((item) => item.kind === kind && item.text === text)) return;
+      items.push({ kind, text });
+    };
+
+    reviewWarnings.forEach((warning) => add(t("home.evidence_warning"), warning));
+    poolInputBlockers.forEach((blocker) => add(t("home.evidence_blocker"), blocker));
+    (resourcePoolResult?.missing_inputs ?? []).forEach((input) => add(t("home.evidence_missing_input"), input));
+    (routeRecommendation?.assumptions ?? []).forEach((assumption) => add(t("home.evidence_assumption"), assumption));
+    [
+      ...(resourcePoolResult?.source_refs ?? []),
+      ...(meta?.source_references ?? []),
+      ...Object.values(endpointMeta).flatMap((item) => item.source_references ?? []),
+    ].forEach((sourceRef) => add(t("home.evidence_source"), sourceRef));
+
+    return items.slice(0, 6);
+  }, [endpointMeta, meta, poolInputBlockers, resourcePoolResult, reviewWarnings, routeRecommendation, t]);
   const networkGeometryState = useMemo(() => {
     if (!runtimeDbReady) return "runtime_missing";
     if (nodes.length === 0) return "nodes_missing";
@@ -452,7 +791,12 @@ export default function App() {
   }
 
   function openGlossaryContext(term: string) {
+    setSelectedGlossaryTerm(term);
     fetchGlossaryContext(term, glossaryContextParams());
+  }
+
+  function onSelectGlossaryTerm(term: { term: string }) {
+    openGlossaryContext(term.term);
   }
 
   function selectSource(sourceId: string) {
@@ -461,6 +805,11 @@ export default function App() {
     if (source?.credential_provider_id) {
       setCredentialProvider(source.credential_provider_id);
     }
+  }
+
+  function selectSourceCategory(category: string, nextSourceId: string | null) {
+    setSourceCategory(category);
+    if (nextSourceId) selectSource(nextSourceId);
   }
 
   function sourceLabel(prefix: string, value: string | null | undefined) {
@@ -518,39 +867,19 @@ export default function App() {
 
   return (
     <div className={`app cockpit-app workspace-${activeWorkspace}`}>
-      <header className="app-header cockpit-topbar workspace-topbar-only">
-        <button
-          className="workspace-pill workspace-trigger"
-          type="button"
-          aria-label={t("topbar.workspace_menu")}
-          aria-expanded={workspaceMenuOpen}
-          onClick={() => setWorkspaceMenuOpen((current) => !current)}
-        >
-          <span className="topbar-menu-glyph" aria-hidden="true" />
-          <span className="workspace-pill-copy">
-            <span>{t("topbar.workspace_label")}</span>
-            <strong>{t(`nav.${activeWorkspace}`)}</strong>
-          </span>
-        </button>
-        <input
-          className="topbar-search"
-          value={searchTerm}
-          onChange={(event) => setSearchTerm(event.target.value)}
-          placeholder={t("map.search")}
-        />
-        <div className="header-controls">
-          <span className={`status-badge status-${dataStatus}`}>{t(`data.${dataStatus}`)}</span>
-          <select value={i18n.language} onChange={(event) => i18n.changeLanguage(event.target.value)}>
-            <option value="en">EN</option>
-            <option value="zh-CN">{t("settings.chinese")}</option>
-          </select>
-          <select value={mode} onChange={(event) => setMode(event.target.value as typeof mode)}>
-            <option value="light">{t("theme.light")}</option>
-            <option value="dark">{t("theme.dark")}</option>
-            <option value="system">{t("theme.system")}</option>
-          </select>
-        </div>
-      </header>
+      <WorkspaceTopBar
+        activeWorkspace={activeWorkspace}
+        workspaceMenuOpen={workspaceMenuOpen}
+        searchTerm={searchTerm}
+        dataStatus={dataStatus}
+        language={i18n.language}
+        mode={mode}
+        t={t}
+        onWorkspaceMenuToggle={() => setWorkspaceMenuOpen((current) => !current)}
+        onSearchTermChange={setSearchTerm}
+        onLanguageChange={(language) => i18n.changeLanguage(language)}
+        onModeChange={setMode}
+      />
 
       {workspaceMenuOpen && (
         <nav className="workspace-menu" aria-label={t("topbar.workspace_menu")}>
@@ -597,6 +926,12 @@ export default function App() {
             themeMode={mode}
             activeLayers={activeLayers}
             searchTerm={searchTerm}
+            highlightedRoute={resourcePoolHighlightedRoute}
+          />
+          <ResourcePoolPathOverlay
+            paths={resourcePoolMapPaths}
+            blockers={poolInputBlockers}
+            t={t}
           />
         </section>
 
@@ -802,6 +1137,24 @@ export default function App() {
             </div>
           </div>
 
+          <div className="panel evidence-stack-panel">
+            <div className="panel-title-row">
+              <h3>{t("home.evidence_stack")}</h3>
+              <button type="button" className="text-action" onClick={() => openWorkspace("review")}>
+                {t("home.review_warnings")}
+              </button>
+            </div>
+            <div className="review-warning-list compact">
+              {reviewEvidenceItems.length > 0
+                ? reviewEvidenceItems.map((item) => (
+                    <span key={`evidence-${item.kind}-${item.text}`}>
+                      <strong>{item.kind}</strong> {item.text}
+                    </span>
+                  ))
+                : <span>{t("home.no_evidence_warnings")}</span>}
+            </div>
+          </div>
+
         </aside>
         <section className="workspace-page" aria-label={t(`nav.${activeWorkspace}`)}>
           <div className="workspace-page-header">
@@ -941,59 +1294,7 @@ export default function App() {
           )}
 
           {activeWorkspace === "market" && (
-            <div className="workspace-grid market-page">
-              <div className="workspace-panel span-2">
-                <div className="section-heading">
-                  <span className="eyebrow">{t("panel.market")}</span>
-                  <strong>{t("market.title")}</strong>
-                </div>
-                <p className="panel-copy">{t("market.subtitle")}</p>
-                <div className="metric-grid four-column">
-                  {markets.slice(0, 4).map((market) => (
-                    <div key={market.observation_id}>
-                      <span>{market.market_venue} {market.product}</span>
-                      <strong>{market.price} {market.currency}</strong>
-                    </div>
-                  ))}
-                </div>
-                <div className="data-table">
-                  <div className="data-table-row header"><span>Venue</span><span>Hub/Product</span><span>Price</span><span>Freshness</span></div>
-                  {markets.slice(0, 8).map((market) => (
-                    <div key={`market-row-${market.observation_id}`} className="data-table-row">
-                      <span>{market.market_venue}</span><span>{market.product}</span><strong>{market.price} {market.unit}</strong><span>{market.freshness ?? "n/a"}</span>
-                    </div>
-                  ))}
-                  {markets.length === 0 && (
-                    <div className="data-table-row"><span>n/a</span><span>{t("sources.category.price")}</span><strong>n/a</strong><span>{t("data.unavailable")}</span></div>
-                  )}
-                </div>
-              </div>
-              <div className="workspace-panel">
-                <h3>{t("market.fx")}</h3>
-                <div className="data-table">
-                  <div className="data-table-row header three"><span>Pair</span><span>Rate</span><span>{t("panel.source")}</span></div>
-                  {fxRates.slice(0, 6).map((rate) => (
-                    <div key={`fx-row-${rate.pair}-${rate.observed_at_utc}`} className="data-table-row three">
-                      <strong>{rate.pair}</strong>
-                      <span>{rate.rate.toFixed(4)}</span>
-                      <span>{rate.source_system ?? "ECB"}</span>
-                    </div>
-                  ))}
-                  {fxRates.length === 0 && (
-                    <div className="data-table-row three"><strong>n/a</strong><span>n/a</span><span>{t("data.unavailable")}</span></div>
-                  )}
-                </div>
-              </div>
-              <div className="workspace-panel span-3">
-                <h3>{t("market.source_posture")}</h3>
-                <div className="metric-grid four-column">
-                  <div><span>{t("sources.category.price")}</span><strong>{sources.filter((source) => source.category === "price").length}</strong></div>
-                  <div><span>{t("sources.category.fx")}</span><strong>{sources.filter((source) => source.category === "fx").length}</strong></div>
-                  <div><span>{t("sources.active_sources")}</span><strong>{sourceStats.active}</strong></div>
-                  <div><span>{t("sources.issue_sources")}</span><strong>{sourceStats.issues}</strong></div>
-                </div>
-              </div>
-            </div>
+            <MarketTerminal markets={markets} fxRates={fxRates} sources={sources} t={t} />
           )}
 
           {activeWorkspace === "contracts" && (
@@ -1007,17 +1308,18 @@ export default function App() {
                 <div className="efet-section-grid">
                   <div className="efet-section">
                     <span className="eyebrow">{t("contracts.agreement")}</span>
-                    <label>{t("contracts.contract_id")}<input value={contract.contract_id} readOnly /></label>
+                    <label>{t("contracts.contract_id")}<input value={contract.contract_id} onChange={(event) => updateContractText("contract_id", event.target.value)} /></label>
+                    <label>{t("contracts.contract_name")}<input value={contract.contract_name} onChange={(event) => updateContractText("contract_name", event.target.value)} /></label>
                     <label>{t("contracts.portfolio")}<input value="European gas resource pool" readOnly /></label>
                   </div>
                   <div className="efet-section">
                     <span className="eyebrow">{t("contracts.product_term")}</span>
-                    <label>{t("contracts.gas_year")}<input value={contract.gas_year} readOnly /></label>
+                    <label>{t("contracts.gas_year")}<input value={contract.gas_year} onChange={(event) => updateContractText("gas_year", event.target.value)} /></label>
                     <label>{t("economics.volume")}<input type="number" value={contract.delivery_quantity_mwh_per_day} onChange={(event) => updateContractNumber("delivery_quantity_mwh_per_day", event.target.value)} /></label>
                   </div>
                   <div className="efet-section">
                     <span className="eyebrow">{t("contracts.delivery")}</span>
-                    <label>{t("contracts.delivery_point")}<input value="TTF" readOnly /></label>
+                    <label>{t("contracts.delivery_point")}<input value={contract.delivery_point_name} onChange={(event) => updateContractText("delivery_point_name", event.target.value)} /></label>
                     <label>{t("contracts.delivery_mode")}<input value="PHYSICAL_ENTRY_DELIVERY" readOnly /></label>
                   </div>
                   <div className="efet-section">
@@ -1053,8 +1355,61 @@ export default function App() {
                     </div>
                   </div>
                 </div>
+                <div className="action-row contract-action-row">
+                  <button type="button" disabled={!runtimeDbReady || loading} onClick={() => saveDraftContract(contractPayload)}>
+                    {t("contracts.save_to_resource_pool")}
+                  </button>
+                  <button type="button" className="secondary-button" onClick={resetContractDraft}>
+                    {t("contracts.new_draft")}
+                  </button>
+                  <button type="button" className="secondary-button" onClick={() => contractImportRef.current?.click()}>
+                    {t("contracts.import_json")}
+                  </button>
+                  <input
+                    ref={contractImportRef}
+                    className="contract-import-input"
+                    type="file"
+                    accept="application/json,.json"
+                    hidden
+                    onChange={importContractDraftFile}
+                  />
+                  <span>{contractImportMessage ?? contractSaveMessage ?? t("contracts.save_hint")}</span>
+                </div>
               </div>
-              <div className="workspace-panel">
+              <div className="workspace-panel span-2 contract-library-panel">
+                <div className="panel-title-row">
+                  <h3>{t("contracts.library")}</h3>
+                  <span>{upstreamContracts.length} {t("panel.records")}</span>
+                </div>
+                <div className="contract-library-list">
+                  {upstreamContracts.map((saved) => (
+                    <button
+                      key={`saved-contract-${saved.contract_id}`}
+                      type="button"
+                      className="contract-library-row"
+                      onClick={() => loadPersistedContract(saved)}
+                    >
+                      <span>
+                        <strong>{saved.contract_name}</strong>
+                        <small>{saved.contract_id} · {saved.delivery_point_name} · {saved.gas_year}</small>
+                      </span>
+                      <span>
+                        <strong>{saved.delivery_quantity_mwh_per_day.toLocaleString()}</strong>
+                        <small>MWh/d</small>
+                      </span>
+                      <span>
+                        <strong>{saved.contract_price_gbp_mwh.toFixed(2)}</strong>
+                        <small>GBP/MWh</small>
+                      </span>
+                      <em>{t("contracts.edit")}</em>
+                    </button>
+                  ))}
+                  {upstreamContracts.length === 0 && (
+                    <p className="panel-copy">{t("contracts.no_saved_contracts")}</p>
+                  )}
+                </div>
+              </div>
+              <div className="workspace-panel contract-resource-panel">
                 <h3>{t("home.resource_pool")}</h3>
                 <div className="metric-grid">
                   <div><span>{t("home.resources")}</span><strong>{portfolioResources.length}</strong></div>
@@ -1288,199 +1643,64 @@ export default function App() {
           )}
 
           {activeWorkspace === "sources" && (
-            <div className="workspace-grid sources-page source-center">
-              <div className="workspace-panel span-3 source-overview">
-                <div className="section-heading">
-                  <span className="eyebrow">{t("nav.sources")}</span>
-                  <strong>{t("sources.title")}</strong>
-                </div>
-                <p>{t("sources.subtitle")}</p>
-                <div className="metric-grid four-column source-kpi-grid">
-                  <div><span>{t("sources.total_sources")}</span><strong>{sourceStats.total}</strong></div>
-                  <div><span>{t("sources.active_sources")}</span><strong>{sourceStats.active}</strong></div>
-                  <div><span>{t("sources.issue_sources")}</span><strong>{sourceStats.issues}</strong></div>
-                  <div><span>{t("sources.runtime_records")}</span><strong>{sourceStats.records.toLocaleString()}</strong></div>
-                </div>
-              </div>
-
-              <div className="workspace-panel source-category-rail">
-                <h3>{t("sources.categories")}</h3>
-                <div className="source-category-list">
-                  {sourceCategories.map((category) => (
-                    <button
-                      key={`source-category-${category}`}
-                      type="button"
-                      className={sourceCategory === category ? "source-category active" : "source-category"}
-                      onClick={() => {
-                        setSourceCategory(category);
-                        const nextSource = category === "all"
-                          ? sources[0]
-                          : sources.find((source) => source.category === category);
-                        if (nextSource) selectSource(nextSource.source_id);
-                      }}
-                    >
-                      <span>
-                        <span>{sourceLabel("sources.category", category)}</span>
-                        <small>{categoryProviderSummary(category)}</small>
-                      </span>
-                      <strong>{category === "all" ? sources.length : sourceCategoryCounts.get(category) ?? 0}</strong>
-                    </button>
-                  ))}
-                </div>
-                <div className="source-category-summary">
-                  <span>{t("sources.missing_credentials")}</span>
-                  <strong>{sourceStats.missingCredentials}</strong>
-                </div>
-              </div>
-
-              <div className="workspace-panel source-catalog-panel">
-                <div className="panel-title-row">
-                  <h3>{t("sources.registered_feeds")}</h3>
-                  <span>{filteredSources.length} / {sources.length}</span>
-                </div>
-                <div className="source-health-grid">
-                  {filteredSources.map((source) => (
-                    <button
-                      key={`source-card-${source.source_id}`}
-                      type="button"
-                      className={selectedSource?.source_id === source.source_id ? "source-health-card active" : "source-health-card"}
-                      onClick={() => selectSource(source.source_id)}
-                    >
-                      <span className={`source-status source-status-${source.connectivity_status}`}>
-                        {sourceLabel("sources.status", source.connectivity_status)}
-                      </span>
-                      <strong>{source.source_system}</strong>
-                      <small>{source.description}</small>
-                      <span className="source-card-meta">
-                        {sourceLabel("sources.category", source.category)} / {source.live_record_count.toLocaleString()} {t("panel.records")}
-                      </span>
-                      <span className="source-action-line">{sourceNextAction(source)}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="workspace-panel source-detail-panel">
-                <div className="panel-title-row">
-                  <h3>{selectedSource?.source_system ?? t("sources.no_source")}</h3>
-                  {selectedSource && (
-                    <span className={`source-status source-status-${selectedSource.connectivity_status}`}>
-                      {sourceLabel("sources.status", selectedSource.connectivity_status)}
-                    </span>
-                  )}
-                </div>
-                {selectedSource && (
-                  <>
-                    <p>{selectedSource.description}</p>
-                    <div className="metric-grid two-column source-detail-metrics">
-                      <div><span>{t("sources.category_label")}</span><strong>{sourceLabel("sources.category", selectedSource.category)}</strong></div>
-                      <div><span>{t("sources.entitlement")}</span><strong>{selectedSource.entitlement_scope}</strong></div>
-                      <div><span>{t("sources.credential_state")}</span><strong>{sourceLabel("sources.credential", selectedSource.credential_state)}</strong></div>
-                      <div><span>{t("sources.freshness")}</span><strong>{selectedSource.freshness_expectation_minutes ? `${selectedSource.freshness_expectation_minutes}m` : "n/a"}</strong></div>
-                      <div><span>{t("sources.last_success")}</span><strong>{formatSourceTimestamp(selectedSource.last_success_at_utc)}</strong></div>
-                      <div><span>{t("sources.last_failure")}</span><strong>{formatSourceTimestamp(selectedSource.last_failure_at_utc)}</strong></div>
-                    </div>
-                    <div className="source-datasets">
-                      <span>{t("panel.datasets")}</span>
-                      <div>{selectedSource.datasets.map((dataset) => <strong key={`${selectedSource.source_id}-${dataset}`}>{dataset}</strong>)}</div>
-                    </div>
-                    <div className="source-diagnostics">
-                      <span>{t("sources.diagnostics")}</span>
-                      <div>
-                        {selectedSource.diagnostics.map((diagnostic) => (
-                          <strong key={`${selectedSource.source_id}-${diagnostic}`}>{sourceLabel("sources.diagnostic", diagnostic)}</strong>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="source-next-action">
-                      <span>{t("sources.next_action")}</span>
-                      <strong>{sourceNextAction(selectedSource)}</strong>
-                    </div>
-                    <p className="source-ingestion-note">
-                      {t("sources.latest_ingestion")}: {selectedSource.last_ingestion_status ?? "n/a"}
-                      {selectedSource.last_ingestion_message ? ` / ${selectedSource.last_ingestion_message}` : ""}
-                    </p>
-                  </>
-                )}
-              </div>
-
-              <div className="workspace-panel source-credential-panel">
-                <h3>{t("panel.credentials")}</h3>
-                <p>
-                  {selectedSource?.credential_provider_id
-                    ? `${selectedSource.credential_provider_id}: ${sourceLabel("sources.credential", selectedSource.credential_state)}`
-                    : t("credentials.not_required")}
-                </p>
-                <form className="credential-form source-credential-form" onSubmit={onCredentialSubmit}>
-                  <select value={credentialProvider} onChange={(event) => setCredentialProvider(event.target.value)}>
-                    {credentialProviders.map((provider) => <option key={provider.provider_id} value={provider.provider_id}>{provider.display_name}</option>)}
-                  </select>
-                  <input autoComplete="username" value={credentialLabel} onChange={(event) => setCredentialLabel(event.target.value)} placeholder={t("credentials.label")} />
-                  <input type="password" autoComplete="current-password" value={credentialValue} disabled={!selectedCredentialProvider?.credential_required} onChange={(event) => setCredentialValue(event.target.value)} placeholder={selectedCredentialProvider?.credential_required ? t("credentials.api_key") : t("credentials.not_required")} />
-                  <button type="submit" disabled={!selectedCredentialProvider?.credential_required || !credentialValue}>{t("credentials.save")}</button>
-                </form>
-                {selectedSourceCredentialProvider && (
-                  <div className="credential-status-card">
-                    <span>{selectedSourceCredentialProvider.display_name}</span>
-                    <strong>{sourceLabel("sources.credential", selectedSourceCredentialProvider.status)}</strong>
-                    <small>{selectedSourceCredentialProvider.last_test_status ?? t("sources.not_tested")}</small>
-                  </div>
-                )}
-                {credentialMessage && <p>{credentialMessage}</p>}
-              </div>
-
-              <div className="workspace-panel span-3 source-runtime-panel">
-                <div className="section-heading">
-                  <span className="eyebrow">{t("data.runtime")}</span>
-                  <strong>{t("panel.infrastructure")}</strong>
-                </div>
-                <div className="metric-grid six-column source-kpi-grid">
-                  <div><span>{t("panel.flows")}</span><strong>{flows.filter((item) => item.source_system === "ENTSOG").length}</strong></div>
-                  <div><span>{t("panel.capacity")}</span><strong>{capacity.filter((item) => item.source_system === "ENTSOG").length}</strong></div>
-                  <div><span>{t("panel.tso_access")}</span><strong>{tsoAccess.length}</strong></div>
-                  <div><span>{t("panel.storage")}</span><strong>{storage.filter((item) => item.source_system === "GIE").length}</strong></div>
-                  <div><span>{t("panel.lng")}</span><strong>{lng.filter((item) => item.source_system === "GIE").length}</strong></div>
-                  <div><span>{t("panel.tariffs")}</span><strong>{tsoTariffs.length}</strong></div>
-                </div>
-                <div className="source-table-split">
-                  <div className="data-table">
-                    <div className="data-table-row header four"><span>{t("panel.point")}</span><span>{t("panel.direction")}</span><span>{t("panel.capacity_type")}</span><span>mcm/d</span></div>
-                    {latestCapacityRows.map((row) => (
-                      <div key={`capacity-row-${row.observation_id}`} className="data-table-row four">
-                        <strong>{row.point_name}</strong>
-                        <span>{row.direction}</span>
-                        <span>{row.capacity_type}</span>
-                        <span>{row.capacity_mcm_d.toFixed(2)}</span>
-                      </div>
-                    ))}
-                    {latestCapacityRows.length === 0 && (
-                      <div className="data-table-row four"><strong>n/a</strong><span>ENTSOG</span><span>{t("data.unavailable")}</span><span>n/a</span></div>
-                    )}
-                  </div>
-                  <div className="data-table tariff-table">
-                    <div className="data-table-row header four"><span>{t("panel.point")}</span><span>{t("panel.direction")}</span><span>{t("panel.product")}</span><span>{t("panel.tariff")}</span></div>
-                    {tsoTariffs.slice(0, 5).map((tariff) => (
-                      <div key={`tariff-page-${tariff.tariff_id}`} className="data-table-row four">
-                        <strong>{tariff.source_point_name}</strong>
-                        <span>{tariff.direction}</span>
-                        <span>{tariff.capacity_product}</span>
-                        <span>{tariff.tariff_value.toFixed(4)} {tariff.currency}/MWh</span>
-                      </div>
-                    ))}
-                    {tsoTariffs.length === 0 && (
-                      <div className="data-table-row four"><strong>n/a</strong><span>TSO</span><span>{t("data.unavailable")}</span><span>n/a</span></div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
+            <SourceCenter
+              t={t}
+              sources={sources}
+              sourceCategories={sourceCategories}
+              sourceCategory={sourceCategory}
+              sourceCategoryCounts={sourceCategoryCounts}
+              sourceStats={sourceStats}
+              filteredSources={filteredSources}
+              selectedSource={selectedSource}
+              selectedCredentialProvider={selectedCredentialProvider}
+              selectedSourceCredentialProvider={selectedSourceCredentialProvider ?? null}
+              credentialProviders={credentialProviders}
+              credentialProvider={credentialProvider}
+              credentialLabel={credentialLabel}
+              credentialValue={credentialValue}
+              credentialMessage={credentialMessage}
+              flows={flows}
+              capacity={capacity}
+              storage={storage}
+              lng={lng}
+              tsoAccessCount={tsoAccess.length}
+              tsoTariffs={tsoTariffs}
+              latestCapacityRows={latestCapacityRows}
+              onSourceCategoryChange={selectSourceCategory}
+              onSourceSelect={selectSource}
+              onCredentialProviderChange={setCredentialProvider}
+              onCredentialLabelChange={setCredentialLabel}
+              onCredentialValueChange={setCredentialValue}
+              onCredentialSubmit={onCredentialSubmit}
+              sourceLabel={sourceLabel}
+              categoryProviderSummary={categoryProviderSummary}
+              sourceNextAction={sourceNextAction}
+              formatSourceTimestamp={formatSourceTimestamp}
+            />
           )}
 
           {activeWorkspace === "glossary" && (
-            <div className="workspace-grid glossary-page">
-              <div className="workspace-panel glossary-index"><h3>{t("panel.glossary")}</h3><input value={glossaryQuery} onChange={(event) => setGlossaryQuery(event.target.value)} placeholder={t("glossary.search")} /><div className="glossary-list compact">{visibleGlossaryTerms.map((term) => <button key={`glossary-nav-${term.term_id}`} type="button" onClick={() => openGlossaryContext(term.term)}><strong>{term.term}</strong><span>{term.category}</span></button>)}</div></div>
-              <div className="workspace-panel span-2 glossary-detail"><div className="glossary-controls"><label>{t("glossary.duration_start")}<input type="datetime-local" value={glossaryDurationStart} onChange={(event) => setGlossaryDurationStart(event.target.value)} /></label><label>{t("glossary.duration_end")}<input type="datetime-local" value={glossaryDurationEnd} onChange={(event) => setGlossaryDurationEnd(event.target.value)} /></label></div><div className="context-shortcuts">{glossaryShortcutTerms.map((term) => <button key={`page-shortcut-${term}`} type="button" onClick={() => openGlossaryContext(term)}>{term}</button>)}</div>{glossaryContext ? <div className="glossary-context"><div className="context-heading"><div><strong>{glossaryContext.term}</strong><span>{glossaryContext.context_type}</span></div><span>{glossaryContext.data_quality.runtime_db ? t("data.runtime") : t("data.partial")}</span></div><p>{glossaryContext.description}</p>{glossaryContext.metrics.length > 0 && <div className="metric-grid glossary-metrics">{glossaryContext.metrics.slice(0, 8).map((metric, index) => <div key={`page-glossary-metric-${index}`}><span>{formatContextValue(metric.label)}</span><strong>{formatContextValue(metric.value)} {formatContextValue(metric.unit)}</strong></div>)}</div>}</div> : <div className="glossary-context"><strong>{visibleGlossaryTerms[0]?.term ?? t("panel.glossary")}</strong><p>{visibleGlossaryTerms[0] ? (i18n.language.startsWith("zh") ? visibleGlossaryTerms[0].definition_zh_cn : visibleGlossaryTerms[0].definition_en) : t("status.loading")}</p></div>}</div>
-            </div>
+            <GlossaryWiki
+              terms={visibleGlossaryTerms}
+              context={glossaryContext}
+              selectedTerm={selectedGlossaryTermRecord}
+              categories={visibleGlossaryCategories}
+              activeCategory={glossaryCategory}
+              query={glossaryQuery}
+              language={i18n.language}
+              durationStart={glossaryDurationStart}
+              durationEnd={glossaryDurationEnd}
+              shortcutTerms={glossaryShortcutTerms}
+              loading={loading}
+              t={t}
+              onCategoryChange={setGlossaryCategory}
+              onQueryChange={setGlossaryQuery}
+              onDurationStartChange={setGlossaryDurationStart}
+              onDurationEndChange={setGlossaryDurationEnd}
+              onSelectTerm={onSelectGlossaryTerm}
+              onOpenContext={openGlossaryContext}
+              formatContextValue={formatContextValue}
+            />
           )}
 
           {activeWorkspace === "runtime" && (
@@ -1491,10 +1711,19 @@ export default function App() {
           )}
 
           {activeWorkspace === "settings" && (
-            <div className="workspace-grid settings-page">
-              <div className="workspace-panel settings-panel"><h3>{t("panel.settings")}</h3><label>{t("settings.language")}<select value={i18n.language} onChange={(event) => i18n.changeLanguage(event.target.value)}><option value="en">English</option><option value="zh-CN">{t("settings.chinese")}</option></select></label><label>{t("settings.appearance")}<select value={mode} onChange={(event) => setMode(event.target.value as typeof mode)}><option value="light">{t("theme.light")}</option><option value="dark">{t("theme.dark")}</option><option value="system">{t("theme.system")}</option></select></label></div>
-              <div className="workspace-panel"><h3>{t("app.title")}</h3><div className="metric-grid"><div><span>{t("map.nodes")}</span><strong>{nodes.length}</strong></div><div><span>{t("map.edges")}</span><strong>{edges.length}</strong></div><div><span>{t("map.routes")}</span><strong>{routes.length}</strong></div></div></div>
-            </div>
+            <SettingsCenter
+              t={t}
+              language={i18n.language}
+              mode={mode}
+              dataStatus={dataStatus}
+              runtimeDb={runtimeDb}
+              sources={sources}
+              credentialProviders={credentialProviders}
+              counts={{ nodes: nodes.length, edges: edges.length, routes: routes.length }}
+              onLanguageChange={(language) => i18n.changeLanguage(language)}
+              onModeChange={setMode}
+              onOpenSources={() => openWorkspace("sources")}
+            />
           )}
 
           {activeWorkspace === "manual" && (
