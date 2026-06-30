@@ -234,8 +234,12 @@ Purpose:
 
 Content:
 
+- upload zone for JSON drafts and staged contract text/PDF/DOC evidence; the
+  upload only pre-fills a draft and must show document status plus source
+  evidence before any backend save;
 - agreement and counterparty metadata;
-- product, term, delivery mode, delivery point, and title-transfer point;
+- product, term, delivery mode, delivery point, title-transfer point, and
+  beach delivery point for physical/LNG contracts;
 - quantity, tolerance, nomination, interruption, and balancing terms;
 - price formula or index basis, currency, unit, premium/discount, and source;
 - variable costs, fuel/loss, fees, regas, storage, and balancing allowances;
@@ -248,9 +252,9 @@ Content:
   `GET /api/route-cost/upstream-contracts`;
 - edit-from-library action that loads a saved resource contract back into the
   EFET-style form before an explicit save/upsert;
-- JSON draft import into the form for operator-owned terms, with no browser
-  direct database access and no file becoming authoritative until the backend
-  save succeeds.
+- JSON/plain-text draft import into the manual editor for operator-owned terms,
+  with no browser direct database access and no file becoming authoritative
+  until the backend save succeeds.
 
 Authority:
 

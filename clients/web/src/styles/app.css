@@ -1803,6 +1803,72 @@ body {
   min-width: 0;
 }
 
+.contract-intake-workbench {
+  align-items: start;
+}
+
+.contract-upload-zone,
+.contract-manual-editor,
+.contract-detail-preview {
+  min-width: 0;
+}
+
+.contract-upload-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.contract-upload-actions > span {
+  min-width: min(320px, 100%);
+  color: var(--eg-muted);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.contract-source-evidence,
+.contract-warning-stack {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.contract-source-evidence strong,
+.contract-warning-stack span {
+  border: 1px solid var(--eg-hairline);
+  border-radius: var(--eg-pill);
+  background: var(--eg-canvas-soft);
+  color: var(--eg-body);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
+  padding: 4px 8px;
+  text-transform: uppercase;
+}
+
+.contract-warning-stack span {
+  border-color: rgb(180 83 9 / 24%);
+  background: rgb(180 83 9 / 10%);
+  color: var(--warning);
+}
+
+.contract-detail-preview .metric-grid {
+  margin-top: 0;
+}
+
+.efet-clause-map {
+  align-items: start;
+}
+
+.beach-delivery-strip {
+  border-color: rgb(0 112 243 / 22%);
+  background:
+    linear-gradient(180deg, rgb(0 112 243 / 7%), transparent 70%),
+    var(--eg-canvas-soft);
+}
+
 .cockpit-app .action-row button.secondary-button {
   border-color: var(--eg-hairline);
   background: var(--eg-canvas);

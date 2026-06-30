@@ -1,6 +1,12 @@
 ﻿import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { useTranslation } from "react-i18next";
+import { ContractWorkbench } from "@/components/ContractWorkbench";
+import type {
+  ContractDraft as ContractDraftModel,
+  ContractNumberKey,
+  ContractTextKey,
+} from "@/components/ContractWorkbench";
 import { GasNetworkMap } from "@/components/GasNetworkMap";
 import { GlossaryWiki } from "@/components/GlossaryWiki";
 import { MarketTerminal } from "@/components/MarketTerminal";
@@ -15,52 +21,14 @@ import { useApiStore } from "@/stores/api";
 import { useThemeStore } from "@/stores/theme";
 import "./styles/app.css";
 
-type ContractNumberKey =
-  | "delivery_quantity_mwh_per_day"
-  | "contract_price_gbp_mwh"
-  | "nbp_sale_price_gbp_mwh"
-  | "physical_exit_sale_price_gbp_mwh"
-  | "delivery_tolerance_pct"
-  | "nomination_tolerance_pct"
-  | "tolerance_risk_allowance_gbp_mwh"
-  | "upstream_payment_lag_days"
-  | "screen_sale_cash_lag_days"
-  | "annual_financing_rate_pct";
-
+type ContractDraft = ContractDraftModel;
 type LiveMarkNumberKey = "bid_gbp_mwh" | "ask_gbp_mwh" | "last_gbp_mwh";
-type ContractTextKey =
-  | "contract_id"
-  | "contract_name"
-  | "delivery_point_name"
-  | "gas_year"
-  | "settlement_frequency";
-
-interface ContractDraft {
-  contract_id: string;
-  contract_name: string;
-  delivery_point_name: string;
-  gas_year: string;
-  delivery_quantity_mwh_per_day: number;
-  contract_price_gbp_mwh: number;
-  nbp_sale_price_gbp_mwh: number;
-  physical_exit_sale_price_gbp_mwh: number;
-  physical_exit_point_name: string;
-  delivery_tolerance_pct: number;
-  nomination_tolerance_pct: number;
-  tolerance_risk_allowance_gbp_mwh: number;
-  settlement_frequency: string;
-  upstream_payment_lag_days: number;
-  screen_sale_cash_lag_days: number;
-  annual_financing_rate_pct: number;
-  owned_entry_capacity_mwh_per_day: number | null;
-  owned_exit_capacity_mwh_per_day: number | null;
-  allowed_exit_points: string[];
-  eligible_sale_modes: string[];
-}
 
 const defaultContractDraft: ContractDraft = {
   contract_id: "operator-ttf-supply-2025",
   contract_name: "Operator TTF supply 2025",
+  counterparty: "Operator draft counterparty",
+  contract_type: "EFET physical supply",
   delivery_point_name: "TTF",
   gas_year: "2025+",
   delivery_quantity_mwh_per_day: 0,
@@ -68,9 +36,21 @@ const defaultContractDraft: ContractDraft = {
   nbp_sale_price_gbp_mwh: 0,
   physical_exit_sale_price_gbp_mwh: 0,
   physical_exit_point_name: "NBP",
+  title_transfer_point: "TTF virtual trading point",
+  beach_delivery_point: "Bacton Beach",
+  index_basis: "TTF day-ahead index",
+  terminal_access: "BBL / Bacton terminal access to confirm",
+  capacity_expiry: "operator to enter",
+  document_name: "manual draft",
+  document_status: "MANUAL_DRAFT",
+  source_reference: "operator manual entry",
+  governing_law: "English law / EFET master confirmation to review",
   delivery_tolerance_pct: 2,
   nomination_tolerance_pct: 1,
   tolerance_risk_allowance_gbp_mwh: 0.1,
+  variable_cost_gbp_mwh: 0,
+  regas_fee_gbp_mwh: 0,
+  fuel_loss_allowance_pct: 0,
   settlement_frequency: "monthly",
   upstream_payment_lag_days: 20,
   screen_sale_cash_lag_days: 1,
@@ -232,7 +212,26 @@ export default function App() {
     owned_exit_capacity_mwh_per_day: contract.owned_exit_capacity_mwh_per_day,
     allowed_exit_points: contract.allowed_exit_points,
     eligible_sale_modes: contract.eligible_sale_modes,
-    notes: "Web contract capture; decision support only; human review required.",
+    notes: JSON.stringify({
+      source: "web_contract_capture",
+      decision_support_only: true,
+      human_review_required: true,
+      counterparty: contract.counterparty,
+      contract_type: contract.contract_type,
+      title_transfer_point: contract.title_transfer_point,
+      beach_delivery_point: contract.beach_delivery_point,
+      index_basis: contract.index_basis,
+      terminal_access: contract.terminal_access,
+      capacity_expiry: contract.capacity_expiry,
+      document_name: contract.document_name,
+      document_status: contract.document_status,
+      source_reference: contract.source_reference,
+      governing_law: contract.governing_law,
+      physical_exit_point_name: contract.physical_exit_point_name,
+      variable_cost_gbp_mwh: contract.variable_cost_gbp_mwh,
+      regas_fee_gbp_mwh: contract.regas_fee_gbp_mwh,
+      fuel_loss_allowance_pct: contract.fuel_loss_allowance_pct,
+    }),
   }), [contract]);
 
   const strategyScenario = useMemo(() => {
@@ -416,54 +415,86 @@ export default function App() {
     return fallback;
   }
 
+  function notesRecordFromRecord(record: Record<string, unknown>): Record<string, unknown> {
+    const notes = record.notes;
+    if (notes && typeof notes === "object" && !Array.isArray(notes)) return notes as Record<string, unknown>;
+    if (typeof notes !== "string" || !notes.trim()) return {};
+    try {
+      const parsed = JSON.parse(notes) as unknown;
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
+    } catch {
+      return {};
+    }
+  }
+
   function contractDraftFromRecord(record: Record<string, unknown>, current: ContractDraft): ContractDraft {
+    const mergedRecord = { ...notesRecordFromRecord(record), ...record };
     return {
       ...current,
-      contract_id: stringFromRecord(record, "contract_id", current.contract_id),
-      contract_name: stringFromRecord(record, "contract_name", current.contract_name),
-      delivery_point_name: stringFromRecord(record, "delivery_point_name", current.delivery_point_name),
-      gas_year: stringFromRecord(record, "gas_year", current.gas_year),
+      contract_id: stringFromRecord(mergedRecord, "contract_id", current.contract_id),
+      contract_name: stringFromRecord(mergedRecord, "contract_name", current.contract_name),
+      counterparty: stringFromRecord(mergedRecord, "counterparty", current.counterparty),
+      contract_type: stringFromRecord(mergedRecord, "contract_type", current.contract_type),
+      delivery_point_name: stringFromRecord(mergedRecord, "delivery_point_name", current.delivery_point_name),
+      physical_exit_point_name: stringFromRecord(mergedRecord, "physical_exit_point_name", current.physical_exit_point_name),
+      title_transfer_point: stringFromRecord(mergedRecord, "title_transfer_point", current.title_transfer_point),
+      beach_delivery_point: stringFromRecord(mergedRecord, "beach_delivery_point", current.beach_delivery_point),
+      index_basis: stringFromRecord(mergedRecord, "index_basis", current.index_basis),
+      terminal_access: stringFromRecord(mergedRecord, "terminal_access", current.terminal_access),
+      capacity_expiry: stringFromRecord(mergedRecord, "capacity_expiry", current.capacity_expiry),
+      document_name: stringFromRecord(mergedRecord, "document_name", current.document_name),
+      document_status: stringFromRecord(mergedRecord, "document_status", current.document_status),
+      source_reference: stringFromRecord(mergedRecord, "source_reference", current.source_reference),
+      governing_law: stringFromRecord(mergedRecord, "governing_law", current.governing_law),
+      gas_year: stringFromRecord(mergedRecord, "gas_year", current.gas_year),
       delivery_quantity_mwh_per_day: numberFromRecord(
-        record,
+        mergedRecord,
         "delivery_quantity_mwh_per_day",
         current.delivery_quantity_mwh_per_day,
       ),
-      contract_price_gbp_mwh: numberFromRecord(record, "contract_price_gbp_mwh", current.contract_price_gbp_mwh),
-      delivery_tolerance_pct: numberFromRecord(record, "delivery_tolerance_pct", current.delivery_tolerance_pct),
-      nomination_tolerance_pct: numberFromRecord(record, "nomination_tolerance_pct", current.nomination_tolerance_pct),
+      contract_price_gbp_mwh: numberFromRecord(mergedRecord, "contract_price_gbp_mwh", current.contract_price_gbp_mwh),
+      delivery_tolerance_pct: numberFromRecord(mergedRecord, "delivery_tolerance_pct", current.delivery_tolerance_pct),
+      nomination_tolerance_pct: numberFromRecord(mergedRecord, "nomination_tolerance_pct", current.nomination_tolerance_pct),
       tolerance_risk_allowance_gbp_mwh: numberFromRecord(
-        record,
+        mergedRecord,
         "tolerance_risk_allowance_gbp_mwh",
         current.tolerance_risk_allowance_gbp_mwh,
       ),
-      settlement_frequency: stringFromRecord(record, "settlement_frequency", current.settlement_frequency),
+      variable_cost_gbp_mwh: numberFromRecord(mergedRecord, "variable_cost_gbp_mwh", current.variable_cost_gbp_mwh),
+      regas_fee_gbp_mwh: numberFromRecord(mergedRecord, "regas_fee_gbp_mwh", current.regas_fee_gbp_mwh),
+      fuel_loss_allowance_pct: numberFromRecord(
+        mergedRecord,
+        "fuel_loss_allowance_pct",
+        current.fuel_loss_allowance_pct,
+      ),
+      settlement_frequency: stringFromRecord(mergedRecord, "settlement_frequency", current.settlement_frequency),
       upstream_payment_lag_days: numberFromRecord(
-        record,
+        mergedRecord,
         "upstream_payment_lag_days",
         current.upstream_payment_lag_days,
       ),
       screen_sale_cash_lag_days: numberFromRecord(
-        record,
+        mergedRecord,
         "screen_sale_cash_lag_days",
         current.screen_sale_cash_lag_days,
       ),
       annual_financing_rate_pct: numberFromRecord(
-        record,
+        mergedRecord,
         "annual_financing_rate_pct",
         current.annual_financing_rate_pct,
       ),
       owned_entry_capacity_mwh_per_day: nullableNumberFromRecord(
-        record,
+        mergedRecord,
         "owned_entry_capacity_mwh_per_day",
         current.owned_entry_capacity_mwh_per_day,
       ),
       owned_exit_capacity_mwh_per_day: nullableNumberFromRecord(
-        record,
+        mergedRecord,
         "owned_exit_capacity_mwh_per_day",
         current.owned_exit_capacity_mwh_per_day,
       ),
-      allowed_exit_points: stringArrayFromRecord(record, "allowed_exit_points", current.allowed_exit_points),
-      eligible_sale_modes: stringArrayFromRecord(record, "eligible_sale_modes", current.eligible_sale_modes),
+      allowed_exit_points: stringArrayFromRecord(mergedRecord, "allowed_exit_points", current.allowed_exit_points),
+      eligible_sale_modes: stringArrayFromRecord(mergedRecord, "eligible_sale_modes", current.eligible_sale_modes),
     };
   }
 
@@ -482,6 +513,56 @@ export default function App() {
     return null;
   }
 
+  function parseContractTextDraft(fileName: string, text: string): Record<string, unknown> {
+    const record: Record<string, unknown> = {
+      document_name: fileName,
+      document_status: "STAGED_REVIEW_REQUIRED",
+      source_reference: fileName,
+    };
+    const captureText = (key: string, labels: string[]) => {
+      const pattern = new RegExp(`(?:^|\\n)\\s*(?:${labels.join("|")})\\s*[:\\-]\\s*([^\\r\\n]+)`, "i");
+      const value = text.match(pattern)?.[1]?.trim();
+      if (value) record[key] = value;
+    };
+    const captureNumber = (key: string, labels: string[]) => {
+      const pattern = new RegExp(`(?:^|\\n)\\s*(?:${labels.join("|")})\\s*[:\\-]\\s*([0-9]+(?:\\.[0-9]+)?)`, "i");
+      const value = text.match(pattern)?.[1];
+      if (value !== undefined && Number.isFinite(Number(value))) record[key] = Number(value);
+    };
+
+    captureText("contract_id", ["contract id", "agreement id", "confirmation id"]);
+    captureText("contract_name", ["contract name", "agreement", "confirmation"]);
+    captureText("counterparty", ["counterparty", "seller", "buyer"]);
+    captureText("contract_type", ["contract type", "agreement type"]);
+    captureText("gas_year", ["gas year", "term"]);
+    captureText("delivery_point_name", ["delivery point", "delivery hub"]);
+    captureText("title_transfer_point", ["title transfer point", "title-transfer point", "transfer point"]);
+    captureText("beach_delivery_point", ["beach delivery point", "beach", "landing point"]);
+    captureText("index_basis", ["index basis", "price index", "pricing basis"]);
+    captureText("terminal_access", ["terminal access", "terminal", "tso access"]);
+    captureText("capacity_expiry", ["capacity expiry", "capacity end", "expiry"]);
+    captureText("governing_law", ["governing law", "law"]);
+    captureNumber("delivery_quantity_mwh_per_day", ["quantity", "daily quantity", "mwh per day", "mwh/d"]);
+    captureNumber("contract_price_gbp_mwh", ["contract price", "price", "gbp/mwh"]);
+    captureNumber("delivery_tolerance_pct", ["delivery tolerance", "tolerance"]);
+    captureNumber("nomination_tolerance_pct", ["nomination tolerance"]);
+    captureNumber("variable_cost_gbp_mwh", ["variable cost"]);
+    captureNumber("regas_fee_gbp_mwh", ["regas fee", "regasification fee"]);
+    captureNumber("fuel_loss_allowance_pct", ["fuel loss", "shrinkage"]);
+
+    return record;
+  }
+
+  function contractRecordFromImportedFile(fileName: string, text: string): Record<string, unknown> | null {
+    try {
+      const parsed = JSON.parse(text) as unknown;
+      const record = contractRecordFromParsedJson(parsed);
+      return record ? { document_name: fileName, document_status: "IMPORTED_JSON_DRAFT", ...record } : null;
+    } catch {
+      return parseContractTextDraft(fileName, text);
+    }
+  }
+
   function loadPersistedContract(saved: UpstreamContractDTO) {
     setContract((current) => contractDraftFromRecord(saved as unknown as Record<string, unknown>, current));
     setContractImportMessage(`${saved.contract_id} ${t("contracts.loaded_for_edit")}`);
@@ -496,8 +577,7 @@ export default function App() {
     const file = event.target.files?.[0];
     if (!file) return;
     try {
-      const parsed = JSON.parse(await file.text()) as unknown;
-      const record = contractRecordFromParsedJson(parsed);
+      const record = contractRecordFromImportedFile(file.name, await file.text());
       if (!record) throw new Error(t("contracts.import_invalid"));
       setContract((current) => contractDraftFromRecord(record, current));
       setContractImportMessage(`${file.name} ${t("contracts.import_loaded")}`);
@@ -1299,126 +1379,26 @@ export default function App() {
           )}
 
           {activeWorkspace === "contracts" && (
-            <div className="workspace-grid contracts-page">
-              <div className="workspace-panel span-3">
-                <div className="section-heading">
-                  <span className="eyebrow">{t("contracts.efet_style")}</span>
-                  <strong>{t("contracts.title")}</strong>
-                </div>
-                <p className="panel-copy">{t("contracts.description")}</p>
-                <div className="efet-section-grid">
-                  <div className="efet-section">
-                    <span className="eyebrow">{t("contracts.agreement")}</span>
-                    <label>{t("contracts.contract_id")}<input value={contract.contract_id} onChange={(event) => updateContractText("contract_id", event.target.value)} /></label>
-                    <label>{t("contracts.contract_name")}<input value={contract.contract_name} onChange={(event) => updateContractText("contract_name", event.target.value)} /></label>
-                    <label>{t("contracts.portfolio")}<input value="European gas resource pool" readOnly /></label>
-                  </div>
-                  <div className="efet-section">
-                    <span className="eyebrow">{t("contracts.product_term")}</span>
-                    <label>{t("contracts.gas_year")}<input value={contract.gas_year} onChange={(event) => updateContractText("gas_year", event.target.value)} /></label>
-                    <label>{t("economics.volume")}<input type="number" value={contract.delivery_quantity_mwh_per_day} onChange={(event) => updateContractNumber("delivery_quantity_mwh_per_day", event.target.value)} /></label>
-                  </div>
-                  <div className="efet-section">
-                    <span className="eyebrow">{t("contracts.delivery")}</span>
-                    <label>{t("contracts.delivery_point")}<input value={contract.delivery_point_name} onChange={(event) => updateContractText("delivery_point_name", event.target.value)} /></label>
-                    <label>{t("contracts.delivery_mode")}<input value="PHYSICAL_ENTRY_DELIVERY" readOnly /></label>
-                  </div>
-                  <div className="efet-section">
-                    <span className="eyebrow">{t("contracts.quantity_tolerance")}</span>
-                    <label>{t("economics.delivery_tolerance")}<input type="number" value={contract.delivery_tolerance_pct} onChange={(event) => updateContractNumber("delivery_tolerance_pct", event.target.value)} /></label>
-                    <label>{t("economics.nomination_tolerance")}<input type="number" value={contract.nomination_tolerance_pct} onChange={(event) => updateContractNumber("nomination_tolerance_pct", event.target.value)} /></label>
-                  </div>
-                  <div className="efet-section">
-                    <span className="eyebrow">{t("contracts.price")}</span>
-                    <label>{t("economics.contract_price")}<input type="number" value={contract.contract_price_gbp_mwh} onChange={(event) => updateContractNumber("contract_price_gbp_mwh", event.target.value)} /></label>
-                    <label>{t("contracts.pricing_method")}<input value="OPERATOR_DRAFT / index-ready" readOnly /></label>
-                  </div>
-                  <div className="efet-section">
-                    <span className="eyebrow">{t("contracts.costs")}</span>
-                    <label>{t("contracts.balancing_allowance")}<input type="number" value={contract.tolerance_risk_allowance_gbp_mwh} onChange={(event) => updateContractNumber("tolerance_risk_allowance_gbp_mwh", event.target.value)} /></label>
-                    <label>{t("economics.finance_rate")}<input type="number" value={contract.annual_financing_rate_pct} onChange={(event) => updateContractNumber("annual_financing_rate_pct", event.target.value)} /></label>
-                  </div>
-                  <div className="efet-section">
-                    <span className="eyebrow">{t("contracts.capacity_rights")}</span>
-                    <label>{t("contracts.entry_capacity")}<input value={contract.owned_entry_capacity_mwh_per_day ?? "operator to enter"} readOnly /></label>
-                    <label>{t("contracts.tso_access")}<input value="BBL Company" readOnly /></label>
-                  </div>
-                  <div className="efet-section">
-                    <span className="eyebrow">{t("contracts.settlement_cash")}</span>
-                    <label>{t("economics.cash_lag")}<input type="number" value={contract.screen_sale_cash_lag_days} onChange={(event) => updateContractNumber("screen_sale_cash_lag_days", event.target.value)} /></label>
-                    <label>{t("contracts.upstream_payment_lag")}<input type="number" value={contract.upstream_payment_lag_days} onChange={(event) => updateContractNumber("upstream_payment_lag_days", event.target.value)} /></label>
-                  </div>
-                  <div className="efet-section span-2">
-                    <span className="eyebrow">{t("contracts.restrictions")}</span>
-                    <div className="destination-switcher">
-                      {contract.allowed_exit_points.map((point) => <span key={`allowed-${point}`} className="chip active">{point}</span>)}
-                      {contract.eligible_sale_modes.map((modeLabel) => <span key={`sale-mode-${modeLabel}`} className="chip">{modeLabel}</span>)}
-                    </div>
-                  </div>
-                </div>
-                <div className="action-row contract-action-row">
-                  <button type="button" disabled={!runtimeDbReady || loading} onClick={() => saveDraftContract(contractPayload)}>
-                    {t("contracts.save_to_resource_pool")}
-                  </button>
-                  <button type="button" className="secondary-button" onClick={resetContractDraft}>
-                    {t("contracts.new_draft")}
-                  </button>
-                  <button type="button" className="secondary-button" onClick={() => contractImportRef.current?.click()}>
-                    {t("contracts.import_json")}
-                  </button>
-                  <input
-                    ref={contractImportRef}
-                    className="contract-import-input"
-                    type="file"
-                    accept="application/json,.json"
-                    hidden
-                    onChange={importContractDraftFile}
-                  />
-                  <span>{contractImportMessage ?? contractSaveMessage ?? t("contracts.save_hint")}</span>
-                </div>
-              </div>
-              <div className="workspace-panel span-2 contract-library-panel">
-                <div className="panel-title-row">
-                  <h3>{t("contracts.library")}</h3>
-                  <span>{upstreamContracts.length} {t("panel.records")}</span>
-                </div>
-                <div className="contract-library-list">
-                  {upstreamContracts.map((saved) => (
-                    <button
-                      key={`saved-contract-${saved.contract_id}`}
-                      type="button"
-                      className="contract-library-row"
-                      onClick={() => loadPersistedContract(saved)}
-                    >
-                      <span>
-                        <strong>{saved.contract_name}</strong>
-                        <small>{saved.contract_id} · {saved.delivery_point_name} · {saved.gas_year}</small>
-                      </span>
-                      <span>
-                        <strong>{saved.delivery_quantity_mwh_per_day.toLocaleString()}</strong>
-                        <small>MWh/d</small>
-                      </span>
-                      <span>
-                        <strong>{saved.contract_price_gbp_mwh.toFixed(2)}</strong>
-                        <small>GBP/MWh</small>
-                      </span>
-                      <em>{t("contracts.edit")}</em>
-                    </button>
-                  ))}
-                  {upstreamContracts.length === 0 && (
-                    <p className="panel-copy">{t("contracts.no_saved_contracts")}</p>
-                  )}
-                </div>
-              </div>
-              <div className="workspace-panel contract-resource-panel">
-                <h3>{t("home.resource_pool")}</h3>
-                <div className="metric-grid">
-                  <div><span>{t("home.resources")}</span><strong>{portfolioResources.length}</strong></div>
-                  <div><span>{t("home.pool_volume")}</span><strong>{totalPoolVolume.toLocaleString()} MWh/d</strong></div>
-                  <div><span>{t("result.cash_value")}</span><strong>{firstPoolAllocation ? firstPoolAllocation.early_cash_value_gbp_mwh.toFixed(2) : "n/a"}</strong></div>
-                </div>
-              </div>
-            </div>
+            <ContractWorkbench
+              contract={contract}
+              contractPayload={contractPayload}
+              upstreamContracts={upstreamContracts}
+              portfolioResources={portfolioResources}
+              totalPoolVolume={totalPoolVolume}
+              firstPoolAllocation={firstPoolAllocation}
+              runtimeDbReady={runtimeDbReady}
+              loading={loading}
+              contractImportRef={contractImportRef}
+              contractImportMessage={contractImportMessage}
+              contractSaveMessage={contractSaveMessage}
+              t={t}
+              updateContractText={updateContractText}
+              updateContractNumber={updateContractNumber}
+              saveDraftContract={saveDraftContract}
+              resetContractDraft={resetContractDraft}
+              importContractDraftFile={importContractDraftFile}
+              loadPersistedContract={loadPersistedContract}
+            />
           )}
 
           {activeWorkspace === "scenario" && (
