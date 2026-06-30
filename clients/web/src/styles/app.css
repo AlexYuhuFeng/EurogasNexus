@@ -836,6 +836,92 @@ input {
   gap: 8px;
 }
 
+.strategy-shadow-run-terminal {
+  align-items: stretch;
+}
+
+.strategy-command-deck,
+.strategy-paper-state,
+.strategy-risk-stack,
+.strategy-market-tape,
+.strategy-resource-stack,
+.strategy-allocation-ladder,
+.strategy-source-evidence,
+.strategy-warning-stack {
+  align-content: start;
+}
+
+.strategy-command-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.strategy-command-deck button {
+  min-height: 34px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #ffffff;
+  cursor: pointer;
+  font-weight: 700;
+  padding: 0 12px;
+}
+
+.strategy-candidate-action {
+  display: grid;
+  gap: 5px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  padding: 12px;
+}
+
+.strategy-candidate-action span,
+.strategy-candidate-action small,
+.strategy-tape-card span,
+.strategy-tape-card small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.strategy-candidate-action strong,
+.strategy-tape-card strong {
+  color: var(--text);
+}
+
+.strategy-tape-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.strategy-tape-card {
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  min-height: 86px;
+  padding: 10px;
+}
+
+.source-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.source-chip-list span {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 5px 8px;
+}
+
 .credential-form select,
 .credential-form input {
   min-height: 34px;
@@ -1238,6 +1324,7 @@ body {
 .analysis-panel button,
 .cockpit-app .action-row button,
 .strategy-panel button,
+.strategy-command-deck button,
 .credential-form button {
   min-height: 34px;
   border: 1px solid var(--eg-hairline);
@@ -1254,6 +1341,7 @@ body {
 .cockpit-app .chip.active,
 .cockpit-app .action-row button,
 .strategy-panel button,
+.strategy-command-deck button,
 .credential-form button {
   border-color: var(--eg-ink);
   background: var(--eg-ink);
@@ -1262,6 +1350,7 @@ body {
 
 .cockpit-app .action-row button:disabled,
 .strategy-panel button:disabled,
+.strategy-command-deck button:disabled,
 .credential-form button:disabled {
   border-color: var(--eg-hairline);
   background: var(--eg-canvas-soft);
@@ -2640,6 +2729,7 @@ button.glossary-related-chip {
   .six-column,
   .source-health-grid,
   .source-table-split,
+  .strategy-tape-grid,
   .economics-grid.wide,
   .credential-form.horizontal {
     grid-template-columns: 1fr;

@@ -8,6 +8,7 @@ import { ResourcePoolPathOverlay } from "@/components/ResourcePoolPathOverlay";
 import type { ResourcePoolMapPath } from "@/components/ResourcePoolPathOverlay";
 import { SettingsCenter } from "@/components/SettingsCenter";
 import { SourceCenter } from "@/components/SourceCenter";
+import { StrategyShadowRunTerminal } from "@/components/StrategyShadowRunTerminal";
 import { WorkspaceTopBar, type WorkspacePageId } from "@/components/WorkspaceTopBar";
 import type { UpstreamContractDTO } from "@/api/client";
 import { useApiStore } from "@/stores/api";
@@ -1505,46 +1506,15 @@ export default function App() {
           )}
 
           {activeWorkspace === "strategy" && (
-            <div className="workspace-grid strategy-page">
-              <div className="workspace-panel span-2 strategy-panel">
-                <h3>{t("panel.strategy_lab")}</h3>
-                <p className="panel-copy">{t("strategy.description")}</p>
-                <div className="strategy-summary"><span>{t("strategy.window")}: 15:00-17:00</span><span>{t("strategy.bar")}: 5m</span><span>{t("strategy.mode")}: {strategyScenario.run_mode}</span></div>
-                <button type="button" onClick={() => evaluateStrategyLab(strategyScenario)}>{t("strategy.evaluate")}</button>
-                {strategyResult && (
-                  <div className="strategy-result">
-                    <div className="option-row"><span>{strategyResult.status}</span><strong>{strategyResult.candidate_action_for_review}</strong></div>
-                    <div className="metric-grid three-column"><div><span>{t("strategy.day_ahead")}</span><strong>{strategyResult.day_ahead_average_gbp_mwh?.toFixed(2) ?? "n/a"}</strong></div><div><span>{t("strategy.intraday")}</span><strong>{strategyResult.intraday_average_gbp_mwh?.toFixed(2) ?? "n/a"}</strong></div><div><span>{t("strategy.spread")}</span><strong>{strategyResult.intraday_vs_day_ahead_spread_gbp_mwh?.toFixed(2) ?? "n/a"}</strong></div></div>
-                  </div>
-                )}
-              </div>
-              <div className="workspace-panel"><h3>{t("home.signal")}</h3><div className="net-pnl-card"><span>{t("home.strategy_process")}</span><strong>{firstStrategyTarget ? `${firstStrategyTarget.market_bucket} ${firstStrategyTarget.target_allocation_pct.toFixed(1)}%` : t("home.not_running")}</strong><small>{strategyResult?.candidate_action_for_review ?? t("home.signal_idle")}</small></div></div>
-              <div className="workspace-panel">
-                <h3>{t("strategy.risk_controls")}</h3>
-                <div className="metric-grid">
-                  <div><span>Max OCM</span><strong>{strategyScenario.risk_control.max_ocm_allocation_pct}%</strong></div>
-                  <div><span>Min day-ahead</span><strong>{strategyScenario.risk_control.min_day_ahead_allocation_pct}%</strong></div>
-                  <div><span>Bar</span><strong>5m</strong></div>
-                </div>
-              </div>
-              <div className="workspace-panel span-3">
-                <h3>{t("strategy.allocation_targets")}</h3>
-                <div className="data-table">
-                  <div className="data-table-row header four"><span>Bucket</span><span>Target</span><span>Quantity</span><span>Reference</span></div>
-                  {strategyResult?.allocation_targets.map((target) => (
-                    <div key={`strategy-target-${target.market_bucket}`} className="data-table-row four">
-                      <strong>{target.market_bucket}</strong>
-                      <span>{target.target_allocation_pct.toFixed(1)}%</span>
-                      <span>{target.target_quantity_mwh_per_day.toLocaleString()} MWh/d</span>
-                      <span>{target.reference_price_gbp_mwh == null ? "n/a" : target.reference_price_gbp_mwh.toFixed(2)}</span>
-                    </div>
-                  ))}
-                  {!strategyResult && (
-                    <div className="data-table-row four"><strong>{t("home.not_running")}</strong><span>n/a</span><span>n/a</span><span>{t("home.signal_idle")}</span></div>
-                  )}
-                </div>
-              </div>
-            </div>
+            <StrategyShadowRunTerminal
+              strategyScenario={strategyScenario}
+              strategyResult={strategyResult}
+              portfolioResources={portfolioResources}
+              marketObservations={markets}
+              loading={loading}
+              t={t}
+              onEvaluate={() => evaluateStrategyLab(strategyScenario)}
+            />
           )}
 
           {activeWorkspace === "review" && (

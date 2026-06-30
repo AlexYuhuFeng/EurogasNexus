@@ -357,6 +357,8 @@ Purpose:
 
 Content:
 
+- shadow-run terminal with market tape, paper state, allocation ladder, source
+  evidence, risk stack, candidate action, and warning stack visible together;
 - strategy hypothesis;
 - observation window;
 - paper state;

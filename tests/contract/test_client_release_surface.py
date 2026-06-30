@@ -515,6 +515,63 @@ def test_web_client_market_page_is_trader_terminal_surface() -> None:
     assert en["market.live_exchange_prices"].startswith("Exchange and broker")
     assert zh["market.terminal"] == "\u6b27\u6d32\u4e3b\u8981\u5929\u7136\u6c14\u5e02\u573a"
 
+
+def test_web_client_strategy_page_is_shadow_run_terminal() -> None:
+    app = (ROOT / "clients" / "web" / "src" / "App.tsx").read_text(encoding="utf-8")
+    strategy_terminal_path = (
+        ROOT / "clients" / "web" / "src" / "components" / "StrategyShadowRunTerminal.tsx"
+    )
+    strategy_terminal = strategy_terminal_path.read_text(encoding="utf-8")
+    css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(
+        encoding="utf-8"
+    )
+    en = json.loads(
+        (ROOT / "clients" / "web" / "src" / "i18n" / "en.json").read_text(encoding="utf-8")
+    )
+    zh = json.loads(
+        (ROOT / "clients" / "web" / "src" / "i18n" / "zh.json").read_text(encoding="utf-8")
+    )
+    web_spec = (ROOT / "docs" / "clients" / "WEB_CLIENT_DESIGN_SPEC.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert (
+        'import { StrategyShadowRunTerminal } from "@/components/StrategyShadowRunTerminal";'
+        in app
+    )
+    assert "<StrategyShadowRunTerminal" in app
+    assert "strategyScenario={strategyScenario}" in app
+    assert "strategyResult={strategyResult}" in app
+    assert "portfolioResources={portfolioResources}" in app
+    assert "marketObservations={markets}" in app
+    assert "onEvaluate={() => evaluateStrategyLab(strategyScenario)}" in app
+    assert "strategy-shadow-run-terminal" in strategy_terminal
+    assert "strategy-command-deck" in strategy_terminal
+    assert "strategy-market-tape" in strategy_terminal
+    assert "strategy-paper-state" in strategy_terminal
+    assert "strategy-allocation-ladder" in strategy_terminal
+    assert "strategy-risk-stack" in strategy_terminal
+    assert "strategy-source-evidence" in strategy_terminal
+    assert "strategy-warning-stack" in strategy_terminal
+    assert "strategy-candidate-action" in strategy_terminal
+    assert "source_refs" in strategy_terminal
+    assert "candidate_action_for_review" in strategy_terminal
+    assert "portfolioResources" in strategy_terminal
+    assert "marketObservations" in strategy_terminal
+    assert "human_review_required" in strategy_terminal
+    assert "strategy-shadow-run-terminal" in css
+    assert "strategy-market-tape" in css
+    assert "strategy-allocation-ladder" in css
+    assert "strategy-candidate-action" in css
+    assert en["strategy.shadow_terminal"] == "Strategy shadow-run terminal"
+    assert en["strategy.market_tape"] == "Market tape"
+    assert en["strategy.paper_state"] == "Paper state"
+    assert en["strategy.no_execution"] == "No execution"
+    assert zh["strategy.shadow_terminal"] == "\u7b56\u7565\u5f71\u5b50\u8fd0\u884c\u7ec8\u7aef"
+    assert "shadow-run terminal" in web_spec
+    assert "market tape, paper state, allocation ladder" in web_spec
+
+
 def test_web_client_settings_page_is_trader_preference_center() -> None:
     app = (ROOT / "clients" / "web" / "src" / "App.tsx").read_text(encoding="utf-8")
     settings_center_path = ROOT / "clients" / "web" / "src" / "components" / "SettingsCenter.tsx"
