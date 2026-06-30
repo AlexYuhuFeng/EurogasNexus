@@ -20,6 +20,9 @@ interface HubTerminalRow extends HubDefinition {
   latest: MarketObsDTO | null;
   history: MarketObsDTO[];
   spreadToTtf: number | null;
+  tenor: string;
+  sourceLabel: string;
+  simulated: boolean;
 }
 
 const marketMajorHubs: HubDefinition[] = [
@@ -31,7 +34,19 @@ const marketMajorHubs: HubDefinition[] = [
   { hub: "PSV", region: "Italy", label: "PSV" },
 ];
 
-const gasPriceSources = new Set(["EEX", "ICE_OCM", "TRAYPORT", "PLATTS", "ICIS", "ARGUS", "KPLER"]);
+const marketTenorOrder = ["within-day", "day-ahead", "month-ahead"];
+const simulatedPriceSourceSystems = ["EEX_Sim", "ICE_OCM_Sim", "ICIS_Sim"];
+
+const gasPriceSources = new Set([
+  "EEX",
+  "ICE_OCM",
+  "TRAYPORT",
+  "PLATTS",
+  "ICIS",
+  "ARGUS",
+  "KPLER",
+  ...simulatedPriceSourceSystems.map((source) => source.toUpperCase()),
+]);
 
 const formatPrice = (row: MarketObsDTO | null): string => {
   if (!row) return "n/a";
@@ -49,6 +64,31 @@ const formatSpread = (value: number | null, unit?: string): string => {
 
 const getObservedTime = (row: MarketObsDTO): string =>
   row.observed_at_utc ?? row.period_end_utc ?? row.period_start_utc;
+
+const metadataValue = (row: MarketObsDTO, key: string): string | null => {
+  const value = row.metadata_json?.[key];
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+};
+
+const marketTenor = (row: MarketObsDTO): string => {
+  const metadataTenor = metadataValue(row, "tenor");
+  if (metadataTenor) return metadataTenor;
+  const product = row.product.toLowerCase();
+  if (product.includes("within")) return "within-day";
+  if (product.includes("month")) return "month-ahead";
+  if (product.includes("weekend")) return "weekend";
+  return "day-ahead";
+};
+
+const sourceLabel = (row: MarketObsDTO | null): string => {
+  if (!row) return "n/a";
+  return row.source_system ?? row.market_venue;
+};
+
+const isSimulatedSource = (row: MarketObsDTO | null): boolean => {
+  if (!row) return false;
+  return row.source_system?.toLowerCase().includes("_sim") === true || row.metadata_json?.simulated === true;
+};
 
 const isGasMarketObservation = (row: MarketObsDTO): boolean => {
   const source = row.source_system?.toUpperCase();
@@ -94,25 +134,64 @@ function MarketSparkline({ rows }: { rows: MarketObsDTO[] }) {
 }
 
 export function MarketTerminal({ markets, fxRates, sources, t }: MarketTerminalProps) {
-  const marketRows = useMemo(() => {
+  const groupedByTenor = useMemo(() => {
     const grouped = new Map<string, MarketObsDTO[]>();
     markets.filter(isGasMarketObservation).forEach((row) => {
       const hub = hubForObservation(row);
       if (!hub) return;
-      grouped.set(hub, [...(grouped.get(hub) ?? []), row]);
+      const key = `${hub}:${marketTenor(row)}`;
+      grouped.set(key, [...(grouped.get(key) ?? []), row]);
     });
-
-    const ttfLatest = grouped.get("TTF")?.slice().sort(sortNewestFirst)[0] ?? null;
-    return marketMajorHubs.map((definition): HubTerminalRow => {
-      const history = (grouped.get(definition.hub) ?? []).slice().sort(sortNewestFirst);
-      const latest = history[0] ?? null;
-      const spreadToTtf =
-        latest && ttfLatest && latest.currency === ttfLatest.currency && latest.unit === ttfLatest.unit
-          ? latest.price - ttfLatest.price
-          : null;
-      return { ...definition, latest, history, spreadToTtf };
-    });
+    return grouped;
   }, [markets]);
+
+  const marketRowsByTenor = useMemo(() => {
+    const result = new Map<string, HubTerminalRow[]>();
+    marketTenorOrder.forEach((tenor) => {
+      const ttfLatest = groupedByTenor.get(`TTF:${tenor}`)?.slice().sort(sortNewestFirst)[0] ?? null;
+      result.set(tenor, marketMajorHubs.map((definition): HubTerminalRow => {
+        const history = (groupedByTenor.get(`${definition.hub}:${tenor}`) ?? []).slice().sort(sortNewestFirst);
+        const latest = history[0] ?? null;
+        const spreadToTtf =
+          latest && ttfLatest && latest.currency === ttfLatest.currency && latest.unit === ttfLatest.unit
+            ? latest.price - ttfLatest.price
+            : null;
+        return {
+          ...definition,
+          latest,
+          history,
+          spreadToTtf,
+          tenor,
+          sourceLabel: sourceLabel(latest),
+          simulated: isSimulatedSource(latest),
+        };
+      }));
+    });
+    return result;
+  }, [groupedByTenor]);
+
+  const marketRows = marketRowsByTenor.get("day-ahead") ?? [];
+  const curveLanes = marketMajorHubs.map((definition) => {
+    const tenorRows = marketTenorOrder.map((tenor) => marketRowsByTenor.get(tenor)?.find((row) => row.hub === definition.hub));
+    return {
+      ...definition,
+      tenorRows,
+    };
+  });
+
+  const allTenorRows = Array.from(marketRowsByTenor.values()).flat();
+  const terminalRows = marketRows.length > 0 ? marketRows : allTenorRows;
+  const priceRowsForStrip = terminalRows.length > 0
+    ? terminalRows
+    : marketMajorHubs.map((definition): HubTerminalRow => ({
+        ...definition,
+        latest: null,
+        history: [],
+        spreadToTtf: null,
+        tenor: "day-ahead",
+        sourceLabel: "n/a",
+        simulated: false,
+      }));
 
   const priceSourceSummary = useMemo(() => {
     const priceSources = sources.filter((source) => source.category === "price");
@@ -125,7 +204,7 @@ export function MarketTerminal({ markets, fxRates, sources, t }: MarketTerminalP
     };
   }, [sources]);
 
-  const marketUnavailableRows = marketRows.filter((row) => row.latest === null);
+  const marketUnavailableRows = priceRowsForStrip.filter((row) => row.latest === null);
   const activeFeedLabels = priceSourceSummary.feeds
     .filter((source) => source.connectivity_status === "active")
     .map((source) => source.source_system);
@@ -141,15 +220,43 @@ export function MarketTerminal({ markets, fxRates, sources, t }: MarketTerminalP
           <strong>{t("market.terminal")}</strong>
         </div>
         <p className="panel-copy">{t("market.live_exchange_prices")}</p>
+        <div className="market-tenor-tabs" aria-label="Price tenor">
+          {marketTenorOrder.map((tenor) => (
+            <span key={`market-tenor-${tenor}`}>
+              {tenor === "within-day"
+                ? t("market.tenor_within_day")
+                : tenor === "month-ahead"
+                  ? t("market.tenor_month_ahead")
+                  : t("market.tenor_day_ahead")}
+            </span>
+          ))}
+        </div>
         <div className="market-terminal-strip" aria-label={t("market.terminal")}>
-          {marketRows.map((row) => (
+          {priceRowsForStrip.map((row) => (
             <div
-              key={`ticker-${row.hub}`}
+              key={`ticker-${row.hub}-${row.tenor}`}
               className={`market-price-ticker ${row.latest ? "is-live" : "is-waiting"}`}
             >
               <span>{row.hub}</span>
               <strong>{formatPrice(row.latest)}</strong>
-              <small>{row.latest?.freshness ?? t("market.awaiting_feed")}</small>
+              <small>
+                {row.tenor} / {row.latest?.freshness ?? t("market.awaiting_feed")}
+              </small>
+              <em className={`market-source-pill ${row.simulated ? "simulated" : ""}`}>
+                {row.simulated ? t("market.simulated_source") : row.sourceLabel}
+              </em>
+            </div>
+          ))}
+        </div>
+        <div className="market-curve-lanes">
+          {curveLanes.map((lane) => (
+            <div key={`curve-lane-${lane.hub}`}>
+              <strong>{lane.hub}</strong>
+              {lane.tenorRows.map((row, index) => (
+                <span key={`curve-lane-${lane.hub}-${marketTenorOrder[index]}`}>
+                  {marketTenorOrder[index]} {row?.latest ? row.latest.price.toFixed(2) : "n/a"}
+                </span>
+              ))}
             </div>
           ))}
         </div>
@@ -168,14 +275,17 @@ export function MarketTerminal({ markets, fxRates, sources, t }: MarketTerminalP
             <span>{t("market.freshness")}</span>
             <span>Trend</span>
           </div>
-          {marketRows.map((row) => (
+          {priceRowsForStrip.map((row) => (
             <div key={`market-terminal-${row.hub}`} className="market-terminal-row">
               <strong data-label="Hub">{row.hub}</strong>
               <span data-label="Venue/Product">
                 {row.latest ? `${row.latest.market_venue} ${row.latest.product}` : row.region}
               </span>
               <span data-label={t("market.price")}>{formatPrice(row.latest)}</span>
-              <span data-label={t("market.freshness")}>{row.latest?.freshness ?? t("market.awaiting_feed")}</span>
+              <span data-label={t("market.freshness")}>
+                {row.latest?.freshness ?? t("market.awaiting_feed")}
+                {row.latest ? ` / ${metadataValue(row.latest, "price_timing") ?? row.tenor}` : ""}
+              </span>
               <span className="market-sparkline-cell" data-label="Trend">
                 <MarketSparkline rows={row.history} />
               </span>
@@ -192,7 +302,7 @@ export function MarketTerminal({ markets, fxRates, sources, t }: MarketTerminalP
       <div className="workspace-panel market-region-comparison">
         <h3>{t("market.region_comparison")}</h3>
         <div className="market-region-list">
-          {marketRows.map((row) => (
+          {priceRowsForStrip.map((row) => (
             <div key={`region-${row.hub}`}>
               <span>{row.label}</span>
               <strong>{formatSpread(row.spreadToTtf, row.latest?.unit)}</strong>

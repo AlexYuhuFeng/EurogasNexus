@@ -170,6 +170,21 @@ DB-resident demo prices, a demo portfolio contract, glossary rows, and
 route-candidate map edges. It does not call external APIs, run migrations, or
 print secrets.
 
+Run the live-shaped simulated EEX, ICE OCM, and ICIS price worker against the
+same runtime market tables used by real connectors:
+
+```powershell
+$env:RUNTIME_STORE_DATABASE_URL = "postgresql+psycopg://eurogas:eurogas_dev@127.0.0.1:5432/eurogas_nexus"
+python scripts/ops/ingest_simulated_market_prices.py --loop
+```
+
+These rows are marked `EEX_Sim`, `ICE_OCM_Sim`, and `ICIS_Sim` and include
+tenor metadata for within-day, day-ahead, and month-ahead views. The default
+simulation cadence is ICE OCM every 15 seconds, EEX every 60 seconds, and ICIS
+daily. Use the same script without `--loop` for a one-batch smoke test, or
+`--loop --max-iterations 3` for bounded validation. See
+`docs/operations/SIMULATED_MARKET_PRICE_SOURCES.md`.
+
 Rebuild route-candidate map edges after route candidates change:
 
 ```powershell
@@ -193,6 +208,7 @@ diagnostics, last-update status, record counts, and failure reasons.
 | Category | Providers and scope |
 | --- | --- |
 | Prices | Platts, ICIS, Argus, EEX, ICE OCM, Trayport, Kpler |
+| Price simulation | EEX_Sim, ICE_OCM_Sim, ICIS_Sim for source-shaped runtime testing |
 | FX | ECB reference rates |
 | Infrastructure | ENTSOG, GIE AGSI, GIE ALSI |
 | Tariffs | BBL, IUK, National Gas NTS, GTS, NaTran, German TSOs, Fluxys Belgium, CNMC/Enagas |

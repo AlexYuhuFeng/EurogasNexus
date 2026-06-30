@@ -125,13 +125,16 @@ const SOURCE_CATEGORY_BY_SYSTEM: Record<string, string> = {
   DEEPSEEK: "ai",
   ECB: "fx",
   EEX: "price",
+  EEX_SIM: "price",
   ENTSOG: "infrastructure",
   FLUXYSBELGIUM: "tariff",
   GERMANTSO: "tariff",
   GIE: "infrastructure",
   GTS: "tariff",
   ICE_OCM: "price",
+  ICE_OCM_SIM: "price",
   ICIS: "price",
+  ICIS_SIM: "price",
   IUK: "tariff",
   KPLER: "price",
   NATRAN: "tariff",
@@ -150,6 +153,8 @@ const SOURCE_CATEGORY_LABELS: Record<string, string> = {
   tariff: "TSO Tariffs",
   weather: "Weather",
 };
+
+const SIMULATED_PRICE_SOURCE_SYSTEMS = ["EEX_Sim", "ICE_OCM_Sim", "ICIS_Sim"];
 
 function sourceSystemKey(value: string): string {
   return value.trim().toUpperCase().replace(/[\s-]+/g, "_");
@@ -225,6 +230,7 @@ export interface MarketObsDTO {
   price: number; unit: string; currency: string;
   period_start_utc: string; period_end_utc: string;
   observed_at_utc?: string; source_system?: string; source_reference?: string;
+  source_record_id?: string | null; metadata_json?: Record<string, unknown>;
   freshness?: string; quality_score?: number; research_only?: boolean;
 }
 

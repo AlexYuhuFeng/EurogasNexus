@@ -407,15 +407,21 @@ def _latest_market_price_by_point(market_rows: list) -> dict[str, dict]:
     for row in market_rows:
         keys = _market_price_keys(row)
         for key in keys:
-            prices.setdefault(
-                key,
-                {
-                    "price": row.price,
-                    "currency": row.currency,
-                    "unit": row.unit,
-                    "source_reference": f"market_observation:{row.observation_id}",
-                },
-            )
+            candidate = {
+                "price": row.price,
+                "currency": row.currency,
+                "unit": row.unit,
+                "source_reference": f"market_observation:{row.observation_id}",
+                "price_basis_priority": _market_price_basis_priority(row),
+            }
+            current = prices.get(key)
+            if (
+                current is None
+                or candidate["price_basis_priority"] < current["price_basis_priority"]
+            ):
+                prices[key] = candidate
+    for price in prices.values():
+        price.pop("price_basis_priority", None)
     return prices
 
 
@@ -427,6 +433,29 @@ def _market_price_keys(row) -> list[str]:
         if isinstance(value, str):
             keys.append(value)
     return [value.strip().upper() for value in keys if isinstance(value, str) and value.strip()]
+
+
+def _market_price_basis_priority(row) -> int:
+    metadata = row.metadata_json or {}
+    tenor = metadata.get("tenor")
+    if not isinstance(tenor, str):
+        product = row.product.lower()
+        if "within" in product:
+            tenor = "within-day"
+        elif "day" in product:
+            tenor = "day-ahead"
+        elif "month" in product:
+            tenor = "month-ahead"
+        else:
+            tenor = ""
+    normalized = tenor.strip().lower()
+    if normalized in {"day-ahead", "within-day"}:
+        return 0
+    if normalized in {"weekend", "balance-of-week"}:
+        return 1
+    if normalized in {"month-ahead", "front-month"}:
+        return 2
+    return 3
 
 
 def _portfolio_resource_from_contract(contract: dict) -> dict:

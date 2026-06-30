@@ -96,9 +96,11 @@ def _market_row(row) -> dict:
         "observed_at_utc": row.observed_at_utc.isoformat(),
         "source_system": row.source_system,
         "source_reference": row.source_reference,
+        "source_record_id": row.source_record_id,
         "freshness": row.freshness,
         "quality_score": row.quality_score,
         "research_only": row.research_only,
+        "metadata_json": row.metadata_json or {},
     }
 
 

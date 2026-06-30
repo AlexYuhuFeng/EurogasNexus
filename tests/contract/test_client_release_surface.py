@@ -936,6 +936,60 @@ def test_web_client_sources_page_is_categorized_source_center() -> None:
     assert zh["sources.next_action"] == "\u4e0b\u4e00\u6b65\u52a8\u4f5c"
 
 
+def test_web_client_market_terminal_surfaces_simulated_source_and_tenor_context() -> None:
+    market_terminal = (
+        ROOT / "clients" / "web" / "src" / "components" / "MarketTerminal.tsx"
+    ).read_text(encoding="utf-8")
+    api_client = (ROOT / "clients" / "web" / "src" / "api" / "client.ts").read_text(
+        encoding="utf-8"
+    )
+    css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(
+        encoding="utf-8"
+    )
+    en = json.loads(
+        (ROOT / "clients" / "web" / "src" / "i18n" / "en.json").read_text(encoding="utf-8")
+    )
+    zh = json.loads(
+        (ROOT / "clients" / "web" / "src" / "i18n" / "zh.json").read_text(encoding="utf-8")
+    )
+
+    assert "metadata_json?: Record<string, unknown>" in api_client
+    assert "source_record_id?: string | null" in api_client
+    assert "EEX_Sim" in api_client
+    assert "ICE_OCM_Sim" in api_client
+    assert "ICIS_Sim" in api_client
+    assert "market-tenor-tabs" in market_terminal
+    assert "market-source-pill" in market_terminal
+    assert "market-curve-lanes" in market_terminal
+    assert "marketTenorOrder" in market_terminal
+    assert "price_timing" in market_terminal
+    assert "metadata_json" in market_terminal
+    assert ".market-tenor-tabs" in css
+    assert ".market-source-pill.simulated" in css
+    assert ".market-curve-lanes" in css
+    assert en["market.tenor_within_day"] == "Within-day"
+    assert en["market.tenor_day_ahead"] == "Day-ahead"
+    assert en["market.tenor_month_ahead"] == "Month-ahead"
+    assert en["market.simulated_source"] == "Simulated source"
+    assert zh["market.tenor_within_day"] == "\u65e5\u5185"
+    assert zh["market.tenor_day_ahead"] == "\u65e5\u524d"
+    assert zh["market.tenor_month_ahead"] == "\u6708\u524d"
+    assert zh["market.simulated_source"] == "\u4eff\u771f\u6570\u636e\u6e90"
+
+
+def test_web_client_mobile_topbar_constrains_controls_to_viewport() -> None:
+    css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(
+        encoding="utf-8"
+    )
+
+    assert "@media (max-width: 900px)" in css
+    assert ".cockpit-app .cockpit-topbar > *" in css
+    assert "max-width: 100%" in css
+    assert "min-width: 0" in css
+    assert "flex-wrap: wrap" in css
+    assert "minmax(0, 1fr)" in css
+
+
 def test_web_client_resource_pool_options_are_backend_owned() -> None:
     app = (ROOT / "clients" / "web" / "src" / "App.tsx").read_text(encoding="utf-8")
     contract_workbench = (

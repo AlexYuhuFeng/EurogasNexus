@@ -1991,10 +1991,73 @@ body {
   gap: 8px;
 }
 
+.market-tenor-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 12px;
+}
+
+.market-tenor-tabs span,
+.market-source-pill {
+  width: fit-content;
+  border: 1px solid var(--eg-hairline);
+  border-radius: var(--eg-pill);
+  background: var(--eg-canvas-soft);
+  color: var(--eg-body);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 700;
+  line-height: 16px;
+  padding: 4px 8px;
+  text-transform: uppercase;
+}
+
+.market-source-pill.simulated {
+  border-color: rgb(0 112 243 / 28%);
+  background: rgb(0 112 243 / 10%);
+  color: var(--eg-link);
+}
+
+.market-curve-lanes {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.market-curve-lanes > div {
+  display: grid;
+  gap: 5px;
+  border: 1px solid var(--eg-hairline);
+  border-radius: var(--eg-radius-sm);
+  background: var(--eg-canvas-soft);
+  padding: 8px;
+}
+
+.market-curve-lanes strong,
+.market-curve-lanes span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.market-curve-lanes strong {
+  color: var(--eg-ink);
+  font-size: 12px;
+}
+
+.market-curve-lanes span {
+  color: var(--eg-muted);
+  font-size: 11px;
+  line-height: 15px;
+}
+
 .market-price-ticker {
   display: grid;
   min-width: 0;
-  min-height: 86px;
+  min-height: 116px;
   align-content: space-between;
   border: 1px solid var(--eg-hairline);
   border-radius: var(--eg-radius-sm);
@@ -2771,6 +2834,11 @@ button.glossary-related-chip {
     grid-template-columns: minmax(300px, 0.78fr) minmax(520px, 1.42fr);
   }
 
+  .market-terminal-strip,
+  .market-curve-lanes {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
   .workspace-panel.span-2,
   .workspace-panel.span-3,
   .efet-section.span-2 {
@@ -2835,7 +2903,8 @@ button.glossary-related-chip {
     min-width: 720px;
   }
 
-  .market-terminal-strip {
+  .market-terminal-strip,
+  .market-curve-lanes {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -3970,5 +4039,35 @@ button.glossary-related-chip {
   .workspace-network .maplibregl-ctrl-bottom-left {
     bottom: 12px;
     left: 12px;
+  }
+}
+
+@media (max-width: 900px) {
+  .cockpit-app .cockpit-topbar {
+    grid-template-columns: minmax(0, 1fr);
+    max-width: 100%;
+  }
+
+  .cockpit-app .cockpit-topbar > * {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .workspace-pill,
+  .topbar-search,
+  .cockpit-app .header-controls {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .cockpit-app .header-controls {
+    flex-wrap: wrap;
+  }
+
+  .cockpit-app .header-controls select,
+  .cockpit-app .status-badge {
+    min-width: 0;
+    max-width: 100%;
   }
 }

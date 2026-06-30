@@ -139,7 +139,10 @@ replacement characters are treated as documentation defects.
    human-review required.
 7. The Market terminal currently depends on loaded runtime price observations;
    commercial exchange/broker connectors still require credentials,
-   entitlement, and operator validation before live prices appear.
+   entitlement, and operator validation before live prices appear. For
+   development and operator rehearsal, `EEX_Sim`, `ICE_OCM_Sim`, and `ICIS_Sim`
+   can run as a continuous source-shaped PostgreSQL worker through
+   `scripts/ops/ingest_simulated_market_prices.py --loop`.
 
 ## Next Work
 

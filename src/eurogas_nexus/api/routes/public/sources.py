@@ -23,13 +23,19 @@ SOURCE_ID_BY_NAME = {
     "DEEPSEEK": "src-deepseek",
     "ECB": "src-ecb",
     "EEX": "src-eex",
+    "EEX_SIM": "src-eex-sim",
+    "EEX SIM": "src-eex-sim",
     "ENTSOG": "src-entsog",
     "GIE": "src-gie",
     "GIE-AGSI": "src-gie",
     "GIE-ALSI": "src-gie",
     "ICE_OCM": "src-ice-ocm",
     "ICE OCM": "src-ice-ocm",
+    "ICE_OCM_SIM": "src-ice-ocm-sim",
+    "ICE OCM SIM": "src-ice-ocm-sim",
     "ICIS": "src-icis",
+    "ICIS_SIM": "src-icis-sim",
+    "ICIS SIM": "src-icis-sim",
     "KPLER": "src-kpler",
     "NATIONALGASNTS": "src-national-gas-nts",
     "NATIONAL_GAS_NTS": "src-national-gas-nts",
@@ -217,6 +223,18 @@ def _registered_sources() -> list[dict]:
             freshness_minutes=5,
         ),
         _src(
+            "src-eex-sim",
+            "EEX_Sim",
+            "price",
+            ("gas-spot", "day-ahead", "weekend", "month-ahead", "simulated"),
+            (
+                "EEX-shaped simulated gas market prices injected into the runtime DB "
+                "at a continuous worker cadence for decision-support testing."
+            ),
+            False,
+            freshness_minutes=1,
+        ),
+        _src(
             "src-ice-ocm",
             "ICE_OCM",
             "price",
@@ -224,6 +242,18 @@ def _registered_sources() -> list[dict]:
             "ICE OCM live within-day and day-ahead market observations.",
             True,
             freshness_minutes=5,
+        ),
+        _src(
+            "src-ice-ocm-sim",
+            "ICE_OCM_Sim",
+            "price",
+            ("within-day", "day-ahead", "screen-marks", "simulated"),
+            (
+                "ICE OCM-shaped simulated within-day and day-ahead marks injected "
+                "through the runtime DB path at a high-frequency worker cadence."
+            ),
+            False,
+            freshness_minutes=1,
         ),
         _src(
             "src-trayport",
@@ -250,6 +280,15 @@ def _registered_sources() -> list[dict]:
             ("heren-assessments", "day-ahead", "indices", "curves"),
             "ICIS Heren licensed gas assessments and reference prices.",
             True,
+            freshness_minutes=1440,
+        ),
+        _src(
+            "src-icis-sim",
+            "ICIS_Sim",
+            "price",
+            ("heren-assessments", "day-ahead", "daily-assessment", "simulated"),
+            "ICIS Heren-shaped simulated daily assessment rows injected into market observations.",
+            False,
             freshness_minutes=1440,
         ),
         _src(
@@ -445,8 +484,11 @@ def _runtime_source_counts() -> dict[str, int]:
             price_systems = [
                 "Argus",
                 "EEX",
+                "EEX_Sim",
                 "ICE_OCM",
+                "ICE_OCM_Sim",
                 "ICIS",
+                "ICIS_Sim",
                 "Kpler",
                 "Platts",
                 "Trayport",
@@ -457,7 +499,7 @@ def _runtime_source_counts() -> dict[str, int]:
                 .count()
                 for system in price_systems
             }
-            for system in ("ICE_OCM", "Trayport"):
+            for system in ("ICE_OCM", "ICE_OCM_Sim", "Trayport"):
                 counts[system] = counts.get(system, 0) + session.query(
                     ScreenOrderObservationRecord
                 ).filter(
@@ -673,7 +715,7 @@ def _source_id_for_source_name(source_name: str) -> str:
 def _records_from_notes(notes: str | None) -> int:
     if not notes:
         return 0
-    match = re.match(r"(\d+)", notes)
+    match = re.search(r"(?:^|[;\s])records=(\d+)", notes) or re.match(r"(\d+)", notes)
     return int(match.group(1)) if match else 0
 
 
