@@ -303,6 +303,19 @@ input {
   stroke-width: 6;
 }
 
+.fallback-flow.segmented.corridor .fallback-flow-segment {
+  opacity: 0.72;
+  stroke-dasharray: 7 11;
+}
+
+.fallback-flow.segmented.leg-sequence .fallback-flow-segment {
+  stroke-dasharray: 12 8;
+}
+
+.fallback-flow.segmented.surveyed .fallback-flow-segment {
+  stroke-dasharray: none;
+}
+
 .fallback-flow-path.direct-corridor {
   opacity: 0.72;
   stroke-dasharray: 8 10;
@@ -3740,6 +3753,14 @@ button.glossary-related-chip {
   gap: 2px;
   border-top: 1px solid var(--eg-hairline);
   padding-top: 7px;
+}
+
+.resource-path-geometry.warning {
+  border-top-color: rgb(180 83 9 / 28%);
+}
+
+.resource-path-geometry.warning small {
+  color: var(--warning);
 }
 
 .resource-path-metrics span,

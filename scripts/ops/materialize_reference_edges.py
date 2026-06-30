@@ -66,7 +66,7 @@ def materialize_route_candidate_edges(
                 warnings.append(f"NODE_MATCH_MISSING:{route.route_id}")
                 continue
 
-            route_nodes = _route_node_sequence(
+            route_nodes, unmatched_route_leg_count = _route_node_sequence(
                 start_node=start_node,
                 target_node=target_node,
                 route_legs=route.route_legs or [],
@@ -77,6 +77,16 @@ def materialize_route_candidate_edges(
                 "source_derived_leg_sequence"
                 if segment_count > 1
                 else "source_derived_corridor"
+            )
+            geometry_quality = (
+                "route_node_sequence"
+                if geometry_state == "source_derived_leg_sequence"
+                else "endpoint_corridor"
+            )
+            geometry_warning = (
+                "Route follows matched route-candidate nodes, not surveyed pipeline coordinates."
+                if geometry_state == "source_derived_leg_sequence"
+                else "Route leg nodes were not matched; showing source and target corridor only."
             )
 
             for sequence, (from_node, to_node) in enumerate(
@@ -102,8 +112,11 @@ def materialize_route_candidate_edges(
                             "business_model": route.business_model,
                             "route_legs": route.route_legs,
                             "route_geometry_state": geometry_state,
+                            "geometry_quality": geometry_quality,
+                            "geometry_warning": geometry_warning,
                             "route_leg_sequence": sequence,
                             "route_segment_count": segment_count,
+                            "unmatched_route_leg_count": unmatched_route_leg_count,
                             "required_tso_access": route.required_tso_access,
                             "source_systems": route.source_systems,
                         },
@@ -145,17 +158,21 @@ def _route_node_sequence(
     target_node: ReferenceNode,
     route_legs: list[dict[str, Any]],
     node_lookup: dict[str, ReferenceNode],
-) -> list[ReferenceNode]:
+) -> tuple[list[ReferenceNode], int]:
     nodes = [start_node]
     seen_ids = {start_node.id, target_node.id}
+    unmatched_route_leg_count = 0
     for leg in route_legs:
         leg_node = _resolve_leg_node(leg, node_lookup)
-        if leg_node is None or leg_node.id in seen_ids:
+        if leg_node is None:
+            unmatched_route_leg_count += 1
+            continue
+        if leg_node.id in seen_ids:
             continue
         nodes.append(leg_node)
         seen_ids.add(leg_node.id)
     nodes.append(target_node)
-    return nodes
+    return nodes, unmatched_route_leg_count
 
 
 def _resolve_leg_node(

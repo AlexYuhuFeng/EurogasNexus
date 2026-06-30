@@ -1,4 +1,9 @@
 type Translate = (key: string) => string;
+export type RouteGeometryState =
+  | "surveyed_pipeline_route"
+  | "source_derived_leg_sequence"
+  | "source_derived_corridor"
+  | "directLineFallback";
 
 export interface ResourcePoolMapPath {
   pathId: string;
@@ -13,7 +18,8 @@ export interface ResourcePoolMapPath {
   salePriceGbpMwh: number | null;
   netMarginGbpMwh: number | null;
   routeState: "allocated" | "candidate" | "blocked";
-  routeGeometryState: "source_derived_leg_sequence" | "source_derived_corridor" | "directLineFallback";
+  routeGeometryState: RouteGeometryState;
+  routeGeometryWarning: string | null;
   routeLegSummary: string[];
   warnings: string[];
 }
@@ -32,6 +38,25 @@ function formatQuantity(value: number | null): string {
 function formatMoney(value: number | null): string {
   if (value === null || Number.isNaN(value)) return "n/a";
   return `${value.toFixed(2)} GBP/MWh`;
+}
+
+function routeGeometryLabel(state: RouteGeometryState): string {
+  if (state === "surveyed_pipeline_route") return "Surveyed pipeline route";
+  if (state === "source_derived_leg_sequence") return "Source-derived leg sequence";
+  if (state === "source_derived_corridor") return "Source-derived corridor";
+  return "Direct display fallback";
+}
+
+function routeGeometryWarning(path: ResourcePoolMapPath): string | null {
+  if (path.routeGeometryWarning) return path.routeGeometryWarning;
+  if (path.routeGeometryState === "surveyed_pipeline_route") return null;
+  if (path.routeGeometryState === "source_derived_leg_sequence") {
+    return "Matched route legs are shown as a corridor, not surveyed pipeline geometry.";
+  }
+  if (path.routeGeometryState === "source_derived_corridor") {
+    return "Only source and target corridor geometry is available.";
+  }
+  return "No materialized route geometry is available; map uses direct display fallback.";
 }
 
 export function ResourcePoolPathOverlay({ paths, blockers, t }: ResourcePoolPathOverlayProps) {
@@ -62,8 +87,9 @@ export function ResourcePoolPathOverlay({ paths, blockers, t }: ResourcePoolPath
                 <span>{t("home.sale_price")}: {formatMoney(path.salePriceGbpMwh)}</span>
                 <span>{t("home.net_margin")}: {formatMoney(path.netMarginGbpMwh)}</span>
               </div>
-              <div className="resource-path-geometry">
-                <span>{t("home.route_geometry")}: {path.routeGeometryState}</span>
+              <div className={`resource-path-geometry ${path.routeGeometryState === "surveyed_pipeline_route" ? "" : "warning"}`}>
+                <span>{t("home.route_geometry")}: {routeGeometryLabel(path.routeGeometryState)}</span>
+                {routeGeometryWarning(path) && <small>{routeGeometryWarning(path)}</small>}
                 {path.routeLegSummary.length > 0 && (
                   <small>{t("home.route_legs")}: {path.routeLegSummary.slice(0, 4).join(" -> ")}</small>
                 )}

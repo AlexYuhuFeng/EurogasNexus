@@ -119,6 +119,19 @@ shortcut. If the backend can only provide source-derived corridor geometry, the
 UI must label that state clearly and must not imply a surveyed direct pipeline
 or a trader-executable physical nomination route.
 
+The route geometry quality ladder is explicit:
+
+- `surveyed_pipeline_route`: reserved for approved surveyed polyline geometry;
+- `source_derived_leg_sequence`: matched route-candidate nodes displayed as a
+  corridor sequence, not surveyed pipe coordinates;
+- `source_derived_corridor`: source and target corridor only;
+- `directLineFallback`: temporary client display fallback when no materialized
+  route edge exists.
+
+The home map and resource-path overlay must show the quality label and warning
+so a trader can distinguish physical topology evidence from display-only
+corridors.
+
 ## Resource-Pool Decision Rail
 
 The right rail on the home screen must summarize the portfolio decision:

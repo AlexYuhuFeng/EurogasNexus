@@ -16,7 +16,7 @@ import { SettingsCenter } from "@/components/SettingsCenter";
 import { SourceCenter } from "@/components/SourceCenter";
 import { StrategyShadowRunTerminal } from "@/components/StrategyShadowRunTerminal";
 import { WorkspaceTopBar, type WorkspacePageId } from "@/components/WorkspaceTopBar";
-import type { UpstreamContractDTO } from "@/api/client";
+import type { EdgeDTO, UpstreamContractDTO } from "@/api/client";
 import { useApiStore } from "@/stores/api";
 import { useThemeStore } from "@/stores/theme";
 import "./styles/app.css";
@@ -83,6 +83,14 @@ function routeLegLabel(leg: Record<string, unknown>, index: number): string {
     if (value) return value;
   }
   return `leg ${index + 1}`;
+}
+
+function routeEdgeRouteId(edge: EdgeDTO): string | null {
+  return metadataText(edge.metadata_json?.route_id) ?? edge.source_record_id ?? null;
+}
+
+function routeEdgeMetadataText(edge: EdgeDTO, key: string): string | null {
+  return metadataText(edge.metadata_json?.[key]);
 }
 
 export default function App() {
@@ -715,6 +723,80 @@ export default function App() {
     blockers.push(...(resourcePoolOptions?.blockers ?? []));
     return blockers;
   }, [resourcePoolOptions, runtimeDbReady, t]);
+  const routeGeometryEdgesByRouteId = useMemo(() => {
+    const grouped = new Map<string, EdgeDTO[]>();
+    edges
+      .filter((edge) => {
+        const materialization = routeEdgeMetadataText(edge, "materialization");
+        return edge.source_system === "route_candidate" || materialization === "route_candidate_edge";
+      })
+      .forEach((edge) => {
+        const routeId = routeEdgeRouteId(edge);
+        if (!routeId) return;
+        grouped.set(routeId, [...(grouped.get(routeId) ?? []), edge]);
+      });
+    return grouped;
+  }, [edges]);
+  const routeGeometryStateForRoute = useMemo(
+    () =>
+      (
+        routeId: string,
+        _routeLegSummary: string[],
+      ): ResourcePoolMapPath["routeGeometryState"] => {
+        const routeEdges = routeGeometryEdgesByRouteId.get(routeId) ?? [];
+        if (routeEdges.length === 0) return "directLineFallback";
+        const states = new Set(
+          routeEdges
+            .map((edge) => routeEdgeMetadataText(edge, "route_geometry_state"))
+            .filter((value): value is ResourcePoolMapPath["routeGeometryState"] =>
+              value === "surveyed_pipeline_route" ||
+              value === "source_derived_leg_sequence" ||
+              value === "source_derived_corridor",
+            ),
+        );
+        if (states.has("surveyed_pipeline_route")) return "surveyed_pipeline_route";
+        if (states.has("source_derived_leg_sequence")) return "source_derived_leg_sequence";
+        if (states.has("source_derived_corridor")) return "source_derived_corridor";
+        return routeEdges.length > 1 ? "source_derived_leg_sequence" : "source_derived_corridor";
+      },
+    [routeGeometryEdgesByRouteId],
+  );
+  const routeGeometryWarningForRoute = useMemo(
+    () =>
+      (
+        routeId: string,
+        routeGeometryState: ResourcePoolMapPath["routeGeometryState"],
+      ): string | null => {
+        const routeEdges = routeGeometryEdgesByRouteId.get(routeId) ?? [];
+        const explicitWarning = routeEdges
+          .map((edge) => routeEdgeMetadataText(edge, "geometry_warning"))
+          .find((warning): warning is string => Boolean(warning));
+        if (explicitWarning) return explicitWarning;
+        const geometryQuality = routeEdges
+          .map((edge) => routeEdgeMetadataText(edge, "geometry_quality"))
+          .find((quality): quality is string => Boolean(quality));
+        const unmatchedRouteLegCount = routeEdges.reduce((total, edge) => {
+          const metadata = edge.metadata_json ?? {};
+          return total + numberFromRecord(metadata, "unmatched_route_leg_count", 0);
+        }, 0);
+        if (unmatchedRouteLegCount > 0) {
+          return `${unmatchedRouteLegCount} route leg node(s) were not matched; map shows source-derived corridor geometry.`;
+        }
+        if (routeGeometryState === "source_derived_leg_sequence") {
+          return "Matched route legs are displayed as source-derived corridor geometry, not surveyed pipeline geometry.";
+        }
+        if (routeGeometryState === "source_derived_corridor") {
+          return geometryQuality === "endpoint_corridor"
+            ? "Only endpoint corridor geometry is available for this route."
+            : "Only source-derived corridor geometry is available for this route.";
+        }
+        if (routeGeometryState === "directLineFallback") {
+          return "No materialized reference edge exists for this route; direct display fallback is shown.";
+        }
+        return null;
+      },
+    [routeGeometryEdgesByRouteId],
+  );
   const resourcePoolMapPaths = useMemo<ResourcePoolMapPath[]>(() => {
     if (portfolioResources.length === 0 || saleOptions.length === 0) return [];
     const allocationByResourceAndOption = new Map(
@@ -727,7 +809,8 @@ export default function App() {
         const routeCandidate = routeCandidates.find((candidate) => candidate.route_id === option.option_id);
         const routeLegSummary = routeCandidate?.route_legs.map(routeLegLabel) ?? [];
         const routeGeometryState: ResourcePoolMapPath["routeGeometryState"] =
-          routeLegSummary.length > 0 ? "source_derived_leg_sequence" : "directLineFallback";
+          routeGeometryStateForRoute(option.option_id, routeLegSummary);
+        const routeGeometryWarning = routeGeometryWarningForRoute(option.option_id, routeGeometryState);
         const routeWarnings = [
           ...(allocation?.warnings ?? []),
           ...(option.required_tso_access ?? []).filter(
@@ -754,12 +837,22 @@ export default function App() {
           netMarginGbpMwh: allocation?.net_margin_gbp_mwh ?? null,
           routeState,
           routeGeometryState,
+          routeGeometryWarning,
           routeLegSummary,
           warnings: routeWarnings,
         };
       }),
     ).slice(0, 6);
-  }, [poolAllocations, poolInputBlockers, portfolioResources, routeCandidates, saleOptions, t]);
+  }, [
+    poolAllocations,
+    poolInputBlockers,
+    portfolioResources,
+    routeCandidates,
+    routeGeometryStateForRoute,
+    routeGeometryWarningForRoute,
+    saleOptions,
+    t,
+  ]);
   const nodeIdByPointName = useMemo(() => {
     const lookup = new Map<string, string>();
     nodes.forEach((node) => {

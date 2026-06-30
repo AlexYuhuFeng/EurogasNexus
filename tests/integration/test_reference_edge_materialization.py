@@ -143,10 +143,20 @@ def test_materialize_route_candidate_edges_writes_reference_edges(tmp_path) -> N
         assert edge.metadata_json["materialization"] == "route_candidate_edge"
         assert edge.metadata_json["route_id"] == "public-route-ttf-bbl-nbp"
         assert edge.metadata_json["route_geometry_state"] == "source_derived_leg_sequence"
+        assert edge.metadata_json["geometry_quality"] == "route_node_sequence"
+        assert edge.metadata_json["geometry_warning"] == (
+            "Route follows matched route-candidate nodes, not surveyed pipeline coordinates."
+        )
         assert edge.metadata_json["route_leg_sequence"] == sequence
         assert edge.metadata_json["required_tso_access"] == ["BBL Company"]
 
     ztp_edge = next(item for item in edges if item.source_record_id == "public-route-nbp-iuk-ztp")
     assert ztp_edge.from_node_id == "entsog-vtp-00006"
     assert ztp_edge.to_node_id == "entsog-vtp-00016"
+    assert ztp_edge.metadata_json["route_geometry_state"] == "source_derived_corridor"
+    assert ztp_edge.metadata_json["geometry_quality"] == "endpoint_corridor"
+    assert ztp_edge.metadata_json["geometry_warning"] == (
+        "Route leg nodes were not matched; showing source and target corridor only."
+    )
+    assert ztp_edge.metadata_json["unmatched_route_leg_count"] == 1
     assert ztp_edge.metadata_json["required_tso_access"] == ["Interconnector UK"]

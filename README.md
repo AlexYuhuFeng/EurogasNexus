@@ -191,6 +191,11 @@ Rebuild route-candidate map edges after route candidates change:
 python scripts/ops/materialize_reference_edges.py
 ```
 
+The materializer writes route-candidate corridors into `reference_edges` with
+`route_geometry_state`, `geometry_quality`, and `geometry_warning` metadata.
+Current generated edges are source-derived corridors or leg sequences, not
+surveyed physical pipeline polylines.
+
 Run migrations explicitly:
 
 ```powershell

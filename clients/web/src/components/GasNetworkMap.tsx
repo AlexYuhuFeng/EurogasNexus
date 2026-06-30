@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import maplibregl, { GeoJSONSource, Map as MapLibreMap } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { EdgeDTO, NodeDTO, RouteEligibilityDTO } from "@/api/client";
+import type { RouteGeometryState } from "@/components/ResourcePoolPathOverlay";
 
 interface GasNetworkMapProps {
   nodes: NodeDTO[];
@@ -16,7 +17,7 @@ interface GasNetworkMapProps {
     routeId: string;
     label: string;
     pnlGbp: number | null;
-    routeGeometryState: "source_derived_leg_sequence" | "source_derived_corridor" | "directLineFallback";
+    routeGeometryState: RouteGeometryState;
     routeLegSummary: string[];
   };
 }
@@ -55,6 +56,20 @@ function escapeHtml(value: unknown): string {
     "\"": "&quot;",
     "'": "&#39;",
   }[char] ?? char));
+}
+
+function routeGeometryStateLabel(state: RouteGeometryState): string {
+  if (state === "surveyed_pipeline_route") return "Surveyed pipeline route";
+  if (state === "source_derived_leg_sequence") return "Source-derived leg sequence";
+  if (state === "source_derived_corridor") return "Source-derived corridor";
+  return "Direct display fallback";
+}
+
+function routeGeometryStateClass(state: RouteGeometryState): string {
+  if (state === "surveyed_pipeline_route") return "surveyed";
+  if (state === "source_derived_leg_sequence") return "leg-sequence";
+  if (state === "source_derived_corridor") return "corridor";
+  return "direct-corridor";
 }
 
 const MAX_FALLBACK_LABELS = 28;
@@ -169,10 +184,10 @@ export function GasNetworkMap({
   }, [highlightedRoutePoints?.routeId, visibleEdges]);
   const directLineFallback = Boolean(highlightedRoutePoints && routeSegmentsForHighlight.length === 0);
   const geometryWarning = directLineFallback
-    ? "Route geometry unavailable; showing direct source-derived corridor, not surveyed pipeline geometry."
-    : highlightedRoutePoints?.routeGeometryState === "source_derived_leg_sequence"
-      ? "Using source_derived_leg_sequence route geometry from leg-level route-candidate edges."
-      : "Using source-derived route geometry.";
+    ? "Direct display fallback: route geometry unavailable; not surveyed pipeline geometry."
+    : highlightedRoutePoints?.routeGeometryState === "surveyed_pipeline_route"
+      ? `${routeGeometryStateLabel(highlightedRoutePoints.routeGeometryState)} from reference edge metadata.`
+      : `${routeGeometryStateLabel(highlightedRoutePoints?.routeGeometryState ?? "source_derived_corridor")}: source-derived corridor, not surveyed pipeline geometry.`;
   const highlightedRouteSegmentFeatures = useMemo(
     () =>
       routeSegmentsForHighlight.map((edge) => {
@@ -188,6 +203,8 @@ export function GasNetworkMap({
               "route_geometry_state",
               highlightedRoutePoints?.routeGeometryState ?? "source_derived_leg_sequence",
             ),
+            geometry_quality: metadataString(metadata, "geometry_quality", "unknown"),
+            geometry_warning: metadataString(metadata, "geometry_warning", geometryWarning),
           },
           geometry: {
             type: "LineString" as const,
@@ -560,7 +577,7 @@ export function GasNetworkMap({
             const labelX = (labelSegment.fromX + labelSegment.toX) / 2 + 12;
             const labelY = (labelSegment.fromY + labelSegment.toY) / 2 - 12;
             return (
-              <g className="fallback-flow segmented" aria-hidden="true">
+              <g className={`fallback-flow segmented ${routeGeometryStateClass(highlightedRoutePoints.routeGeometryState)}`} aria-hidden="true">
                 <desc>{geometryWarning}</desc>
                 {segmentPoints.map(({ edge, fromX, fromY, toX, toY }) => (
                   <g key={`highlighted-fallback-segment-${edge.id}`}>

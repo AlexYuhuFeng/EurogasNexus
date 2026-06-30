@@ -686,13 +686,22 @@ def test_web_client_map_renders_resource_paths_as_route_segments_not_direct_line
     )
 
     assert "routeId: option.option_id" in app
+    assert "routeGeometryStateForRoute" in app
+    assert "routeGeometryEdgesByRouteId" in app
+    assert "geometry_quality" in app
+    assert "unmatched_route_leg_count" in app
     assert "routeId" in overlay
     assert "routeGeometryState" in overlay
+    assert "routeGeometryLabel" in overlay
+    assert "routeGeometryWarning" in overlay
     assert "routeLegSummary" in overlay
     assert "routeSegmentsForHighlight" in map_component
     assert "highlightedRouteSegmentFeatures" in map_component
     assert "route_leg_sequence" in map_component
     assert "route_geometry_state" in map_component
+    assert "geometry_quality" in map_component
+    assert "routeGeometryStateLabel" in map_component
+    assert "not surveyed pipeline geometry" in map_component
     assert "highlighted-route-segments" in map_component
     assert "fallback-flow-segment" in map_component
     assert "fallback-flow-path direct-corridor" in map_component
@@ -701,6 +710,8 @@ def test_web_client_map_renders_resource_paths_as_route_segments_not_direct_line
     assert "directLineFallback" in map_component
     assert ".fallback-flow-segment" in css
     assert ".fallback-flow-path.direct-corridor" in css
+    assert ".fallback-flow.segmented.corridor" in css
+    assert ".resource-path-geometry.warning" in css
     assert "route geometry" in css
     assert "leg-level route-candidate segments" in web_spec
     assert "must not imply a surveyed direct pipeline" in web_spec
