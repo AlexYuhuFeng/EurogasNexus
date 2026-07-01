@@ -402,6 +402,8 @@
   "sources.no_source": "No source selected",
   "sources.not_tested": "Not locally validated",
   "sources.next_action": "Next action",
+  "sources.preview_substitute": "Preview substitute",
+  "sources.preview_substitute_active": "Preview feed active while subscription is missing",
   "sources.action.none": "Select a source.",
   "sources.action.monitor": "Monitor freshness and row count.",
   "sources.action.add_credential": "Enter and save the provider API key.",
@@ -436,5 +438,6 @@
   "sources.diagnostic.live_records_available": "Runtime records available",
   "sources.diagnostic.runtime_db_not_configured": "Runtime DB not configured",
   "sources.diagnostic.no_records_in_runtime_db": "No runtime records",
-  "sources.diagnostic.ready": "Ready"
+  "sources.diagnostic.ready": "Ready",
+  "sources.diagnostic.preview_substitute_active": "Preview substitute active"
 }

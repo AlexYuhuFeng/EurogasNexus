@@ -114,6 +114,36 @@ def test_sources_include_simulated_market_price_feeds_when_runtime_rows_exist(
     assert sources["ICIS_Sim"]["live_record_count"] == 6
 
 
+def test_licensed_price_sources_show_active_preview_substitute_when_subscription_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from eurogas_nexus.api.routes.public import sources as sources_routes
+
+    monkeypatch.setattr(sources_routes, "_db_is_configured", lambda: True)
+    monkeypatch.setattr(
+        sources_routes,
+        "_runtime_source_counts",
+        lambda: {"EEX_Sim": 18, "ICE_OCM_Sim": 2, "ICIS_Sim": 6},
+    )
+    monkeypatch.setattr(sources_routes, "_latest_ingestion_status_by_source", lambda: {})
+    monkeypatch.setattr(sources_routes, "_credential_status_by_provider", lambda: {})
+
+    response = TestClient(create_app()).get("/api/sources")
+
+    assert response.status_code == 200
+    sources = {item["source_system"]: item for item in response.json()["data"]}
+    assert sources["EEX"]["connectivity_status"] == "needs_credential"
+    assert sources["EEX"]["preview_substitute_source_system"] == "EEX_Sim"
+    assert sources["EEX"]["preview_substitute_status"] == "active"
+    assert sources["EEX"]["preview_substitute_record_count"] == 18
+    assert "preview_substitute_active" in sources["EEX"]["diagnostics"]
+    assert sources["ICE_OCM"]["preview_substitute_source_system"] == "ICE_OCM_Sim"
+    assert sources["ICE_OCM"]["preview_substitute_status"] == "active"
+    assert sources["ICIS"]["preview_substitute_source_system"] == "ICIS_Sim"
+    assert sources["ICIS"]["preview_substitute_status"] == "active"
+    assert sources["Platts"]["preview_substitute_source_system"] is None
+
+
 def test_source_records_include_diagnostics_and_credential_state(client: TestClient) -> None:
     response = client.get("/api/sources")
     source = next(item for item in response.json()["data"] if item["source_system"] == "ICIS")

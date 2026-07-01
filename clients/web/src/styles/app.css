@@ -2576,6 +2576,7 @@ body {
 .source-health-card small,
 .source-card-meta,
 .source-action-line,
+.source-preview-line,
 .source-ingestion-note,
 .credential-status-card small {
   color: var(--eg-muted);
@@ -2585,8 +2586,14 @@ body {
 
 .source-health-card.active small,
 .source-health-card.active .source-card-meta,
+.source-health-card.active .source-preview-line,
 .source-health-card.active .source-action-line {
   color: var(--eg-body);
+}
+
+.source-preview-line {
+  color: var(--accent);
+  font-weight: 700;
 }
 
 .source-status {
@@ -2681,6 +2688,11 @@ body {
   color: var(--eg-ink);
   font-size: 13px;
   line-height: 18px;
+}
+
+.source-preview-substitute small {
+  color: var(--eg-muted);
+  font-size: 12px;
 }
 
 .source-detail-metrics.two-column div {

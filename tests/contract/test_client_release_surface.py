@@ -1011,6 +1011,31 @@ def test_web_client_market_terminal_surfaces_simulated_source_and_tenor_context(
     assert zh["market.simulated_source"] == "\u4eff\u771f\u6570\u636e\u6e90"
 
 
+def test_source_center_surfaces_preview_substitute_feeds() -> None:
+    api_client = (ROOT / "clients" / "web" / "src" / "api" / "client.ts").read_text(
+        encoding="utf-8"
+    )
+    source_center = (
+        ROOT / "clients" / "web" / "src" / "components" / "SourceCenter.tsx"
+    ).read_text(encoding="utf-8")
+    en = json.loads(
+        (ROOT / "clients" / "web" / "src" / "i18n" / "en.json").read_text(encoding="utf-8")
+    )
+    zh = json.loads(
+        (ROOT / "clients" / "web" / "src" / "i18n" / "zh.json").read_text(encoding="utf-8")
+    )
+
+    assert "preview_substitute_source_system: string | null" in api_client
+    assert "preview_substitute_status: string | null" in api_client
+    assert "preview_substitute_record_count: number" in api_client
+    assert "selectedSource.preview_substitute_source_system" in source_center
+    assert "sources.preview_substitute" in source_center
+    assert "sources.preview_substitute_active" in source_center
+    assert "sources.diagnostic.preview_substitute_active" in en
+    assert en["sources.preview_substitute"] == "Preview substitute"
+    assert zh["sources.preview_substitute"] == "\u9884\u89c8\u66ff\u4ee3\u6e90"
+
+
 def test_web_client_mobile_topbar_constrains_controls_to_viewport() -> None:
     css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(
         encoding="utf-8"

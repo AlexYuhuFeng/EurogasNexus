@@ -18,6 +18,12 @@ CATEGORY_LABELS = {
     "ai": "LLM",
 }
 
+PREVIEW_SUBSTITUTE_SOURCE_SYSTEM_BY_LICENSED_SOURCE = {
+    "EEX": "EEX_Sim",
+    "ICE_OCM": "ICE_OCM_Sim",
+    "ICIS": "ICIS_Sim",
+}
+
 SOURCE_ID_BY_NAME = {
     "ARGUS": "src-argus",
     "DEEPSEEK": "src-deepseek",
@@ -359,6 +365,9 @@ def _src(
         "credential_last_tested_at_utc": None,
         "credential_last_test_status": None,
         "export_restrictions": ["license-controlled"] if entitled else [],
+        "preview_substitute_source_system": None,
+        "preview_substitute_status": None,
+        "preview_substitute_record_count": 0,
         "last_success_at_utc": None,
         "last_failure_at_utc": None,
         "last_ingestion_status": None,
@@ -400,7 +409,28 @@ def _sources_with_runtime_status() -> list[dict]:
         source["connectivity_status"] = connectivity_status
         source["status"] = connectivity_status
         source["diagnostics"] = _diagnostics(source, count, credential_state, latest_run)
+    _attach_preview_substitute_status(sources)
     return sources
+
+
+def _attach_preview_substitute_status(sources: list[dict]) -> None:
+    by_system = {source["source_system"]: source for source in sources}
+    for source in sources:
+        substitute_system = PREVIEW_SUBSTITUTE_SOURCE_SYSTEM_BY_LICENSED_SOURCE.get(
+            source["source_system"]
+        )
+        if substitute_system is None:
+            continue
+        substitute = by_system.get(substitute_system)
+        substitute_status = substitute["connectivity_status"] if substitute else "not_registered"
+        substitute_record_count = substitute["live_record_count"] if substitute else 0
+        source["preview_substitute_source_system"] = substitute_system
+        source["preview_substitute_status"] = substitute_status
+        source["preview_substitute_record_count"] = substitute_record_count
+        if substitute_status == "active" and "preview_substitute_active" not in source[
+            "diagnostics"
+        ]:
+            source["diagnostics"].append("preview_substitute_active")
 
 
 def _credential_state(source: dict, credential: dict[str, Any] | None) -> str:

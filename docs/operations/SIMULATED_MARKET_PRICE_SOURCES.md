@@ -85,6 +85,23 @@ Each due tick writes:
 Each tick also writes succeeded `ingestion_runs` records so the Source Center can
 show live-record counts, latest run status, and worker freshness.
 
+## Source Center Semantics
+
+Licensed price sources such as `EEX`, `ICE_OCM`, and `ICIS` must still show
+`needs_credential` until the operator configures the real subscription
+credential. When the corresponding simulated rows exist, `/api/sources` also
+adds a preview-substitute posture:
+
+- `EEX` -> `EEX_Sim`
+- `ICE_OCM` -> `ICE_OCM_Sim`
+- `ICIS` -> `ICIS_Sim`
+
+The Source Center must display both facts at the same time: the licensed source
+is not connected, and the preview substitute is active. This keeps entitlement
+status honest while allowing route costing, resource-pool optimization, strategy
+shadow runs, and market terminal screens to operate against DB-backed,
+source-shaped prices before subscriptions are available.
+
 ## Price Basis Rules
 
 The default resource-pool sale-price path prefers day-ahead or within-day rows

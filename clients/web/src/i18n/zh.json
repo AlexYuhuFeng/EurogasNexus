@@ -402,6 +402,8 @@
   "sources.no_source": "未选择数据源",
   "sources.not_tested": "尚未本地验证",
   "sources.next_action": "下一步动作",
+  "sources.preview_substitute": "预览替代源",
+  "sources.preview_substitute_active": "订阅缺失期间预览源已启用",
   "sources.action.none": "请选择一个数据源。",
   "sources.action.monitor": "监控新鲜度和记录数量。",
   "sources.action.add_credential": "录入并保存该供应商 API Key。",
@@ -436,5 +438,6 @@
   "sources.diagnostic.live_records_available": "已有运行记录",
   "sources.diagnostic.runtime_db_not_configured": "未配置运行数据库",
   "sources.diagnostic.no_records_in_runtime_db": "运行数据库暂无记录",
-  "sources.diagnostic.ready": "就绪"
+  "sources.diagnostic.ready": "就绪",
+  "sources.diagnostic.preview_substitute_active": "预览替代源已启用"
 }

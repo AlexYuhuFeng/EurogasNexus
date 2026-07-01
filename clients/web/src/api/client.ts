@@ -104,6 +104,9 @@ export interface SourceSystemDTO {
   credential_requirements: string[]; credential_provider_id: string | null;
   credential_state: string; credential_status: string | null;
   credential_last_tested_at_utc: string | null; credential_last_test_status: string | null;
+  preview_substitute_source_system: string | null;
+  preview_substitute_status: string | null;
+  preview_substitute_record_count: number;
   last_success_at_utc: string | null; last_failure_at_utc: string | null;
   last_ingestion_status: string | null; last_ingestion_message: string | null;
   diagnostics: string[]; export_restrictions: string[];
@@ -201,6 +204,9 @@ function normalizeSourceSystem(raw: SourceSystemWire): SourceSystemDTO {
     credential_status: raw.credential_status ?? null,
     credential_last_tested_at_utc: raw.credential_last_tested_at_utc ?? null,
     credential_last_test_status: raw.credential_last_test_status ?? null,
+    preview_substitute_source_system: raw.preview_substitute_source_system ?? null,
+    preview_substitute_status: raw.preview_substitute_status ?? null,
+    preview_substitute_record_count: Number(raw.preview_substitute_record_count ?? 0),
     last_success_at_utc: raw.last_success_at_utc ?? null,
     last_failure_at_utc: raw.last_failure_at_utc ?? null,
     last_ingestion_status: raw.last_ingestion_status ?? null,

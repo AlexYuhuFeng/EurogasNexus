@@ -152,6 +152,11 @@ export function SourceCenter({
               <span className="source-card-meta">
                 {sourceLabel("sources.category", source.category)} / {source.live_record_count.toLocaleString()} {t("panel.records")}
               </span>
+              {source.preview_substitute_source_system && source.preview_substitute_status === "active" && (
+                <span className="source-preview-line">
+                  {t("sources.preview_substitute")}: {source.preview_substitute_source_system} / {source.preview_substitute_record_count.toLocaleString()} {t("panel.records")}
+                </span>
+              )}
               <span className="source-action-line">{sourceNextAction(source)}</span>
             </button>
           ))}
@@ -194,6 +199,17 @@ export function SourceCenter({
               <span>{t("sources.next_action")}</span>
               <strong>{sourceNextAction(selectedSource)}</strong>
             </div>
+            {selectedSource.preview_substitute_source_system && (
+              <div className="source-next-action source-preview-substitute">
+                <span>{t("sources.preview_substitute")}</span>
+                <strong>
+                  {selectedSource.preview_substitute_source_system} / {sourceLabel("sources.status", selectedSource.preview_substitute_status)}
+                </strong>
+                <small>
+                  {selectedSource.preview_substitute_record_count.toLocaleString()} {t("panel.records")} / {t("sources.preview_substitute_active")}
+                </small>
+              </div>
+            )}
             <p className="source-ingestion-note">
               {t("sources.latest_ingestion")}: {selectedSource.last_ingestion_status ?? "n/a"}
               {selectedSource.last_ingestion_message ? ` / ${selectedSource.last_ingestion_message}` : ""}
