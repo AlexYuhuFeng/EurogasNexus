@@ -2004,6 +2004,41 @@ body {
   gap: 8px;
 }
 
+.market-live-status {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px;
+  align-items: center;
+  margin: 10px 0 8px;
+  border: 1px solid var(--eg-hairline);
+  border-radius: var(--eg-radius-sm);
+  background: var(--eg-canvas-soft);
+  padding: 8px 10px;
+}
+
+.market-live-status span {
+  color: var(--eg-muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.market-live-status strong {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+}
+
+.market-live-status button {
+  width: fit-content;
+  min-height: 28px;
+  justify-self: end;
+  border: 1px solid var(--eg-ink);
+  border-radius: var(--eg-pill);
+  background: var(--eg-ink);
+  color: var(--eg-on-ink);
+  padding: 4px 10px;
+}
+
 .market-tenor-tabs {
   display: flex;
   flex-wrap: wrap;
@@ -2011,7 +2046,7 @@ body {
   margin: 8px 0 12px;
 }
 
-.market-tenor-tabs span,
+.market-tenor-tab,
 .market-source-pill {
   width: fit-content;
   border: 1px solid var(--eg-hairline);
@@ -2024,6 +2059,12 @@ body {
   line-height: 16px;
   padding: 4px 8px;
   text-transform: uppercase;
+}
+
+.market-tenor-tab.active {
+  border-color: rgb(15 118 110 / 44%);
+  background: rgb(15 118 110 / 12%);
+  color: var(--eg-accent);
 }
 
 .market-source-pill.simulated {
@@ -2065,6 +2106,69 @@ body {
   color: var(--eg-muted);
   font-size: 11px;
   line-height: 15px;
+}
+
+.market-source-matrix {
+  display: grid;
+  overflow: hidden;
+  margin-top: 10px;
+  border: 1px solid var(--eg-hairline);
+  border-radius: var(--eg-radius-md);
+}
+
+.market-source-matrix-title {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-top: 12px;
+}
+
+.market-source-matrix-title strong {
+  color: var(--eg-ink);
+  font-size: 13px;
+}
+
+.market-source-matrix-title span {
+  color: var(--eg-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.market-source-matrix-row {
+  display: grid;
+  grid-template-columns: 0.9fr 1fr 1fr 1fr;
+  gap: 10px;
+  align-items: center;
+  min-height: 36px;
+  border-top: 1px solid var(--eg-hairline);
+  color: var(--eg-body);
+  font-size: 12px;
+  padding: 0 10px;
+}
+
+.market-source-matrix-row:first-child {
+  border-top: 0;
+}
+
+.market-source-matrix-row > * {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.market-source-matrix-row.header {
+  min-height: 32px;
+  background: var(--eg-canvas-soft-2);
+  color: var(--eg-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
 }
 
 .market-price-ticker {
@@ -2852,6 +2956,10 @@ button.glossary-related-chip {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
+  .market-source-matrix-row {
+    grid-template-columns: 0.75fr 1fr 1fr 0.9fr;
+  }
+
   .workspace-panel.span-2,
   .workspace-panel.span-3,
   .efet-section.span-2 {
@@ -2921,6 +3029,10 @@ button.glossary-related-chip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .market-live-status {
+    grid-template-columns: 1fr;
+  }
+
   .market-price-ticker {
     min-height: 78px;
   }
@@ -2987,6 +3099,21 @@ button.glossary-related-chip {
     white-space: normal;
   }
 
+  .market-source-matrix {
+    border-radius: var(--eg-radius-sm);
+  }
+
+  .market-source-matrix-row,
+  .market-source-matrix-row.header {
+    grid-template-columns: 1fr 1fr;
+    min-height: 0;
+    padding: 8px 10px;
+  }
+
+  .market-source-matrix-row > * {
+    white-space: normal;
+  }
+
   .market-terminal-row > [data-label]::before {
     color: var(--eg-muted);
     content: attr(data-label);
@@ -3019,6 +3146,22 @@ button.glossary-related-chip {
 
   .market-page .data-table-row.three > * {
     white-space: normal;
+  }
+}
+
+@media (max-width: 520px) {
+  .market-terminal-strip,
+  .market-curve-lanes {
+    grid-template-columns: 1fr;
+  }
+
+  .market-price-ticker {
+    min-height: 92px;
+  }
+
+  .market-source-matrix-row,
+  .market-source-matrix-row.header {
+    grid-template-columns: 1fr;
   }
 }
 

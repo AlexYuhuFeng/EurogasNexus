@@ -120,7 +120,7 @@ Map layers:
 - price, spread, FX, and venue/product overlays;
 - weather/HDD/CDD and demand-pressure overlays;
 - contract/capacity exposure overlays;
-- research route candidates and warning states.
+- decision-support route candidates and warning states.
 - resource-pool markers and recommended sale paths.
 
 Route option display:
@@ -134,11 +134,11 @@ Route option display:
 - show `research_only` and `human_review_required`;
 - never show an order, nomination, or execution instruction.
 
-## Research Trading Ideas
+## Decision-Support Candidate Ideas
 
 The product may surface:
 
-- research trading ideas;
+- decision-support trading ideas for human review;
 - candidate route rankings;
 - spread movement explanations;
 - route economics;
@@ -147,11 +147,15 @@ The product may surface:
 
 Use this language in UI and API:
 
-- `research_candidate`;
+- `decision_support_candidate`;
 - `candidate_ranking`;
-- `research_signal`;
+- `decision_support_signal`;
 - `candidate_action_for_review`;
 - `human_review_required`.
+
+Historical `research_only` metadata should be interpreted as a guardrail that
+prevents execution and official recommendation behavior. It is not the product
+goal and should not make the user experience feel like a research-only tool.
 
 Do not use this language for released outputs:
 

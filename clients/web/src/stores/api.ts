@@ -64,12 +64,14 @@ interface ApiState {
   runtimeDb: RuntimeDbStatusDTO | null;
   endpointMeta: Record<string, ApiMeta>;
   meta: ApiMeta | null;
+  marketLastUpdatedAtUtc: string | null;
   loading: boolean;
   error: string | null;
   credentialMessage: string | null;
   contractSaveMessage: string | null;
   dataStatus: "runtime" | "delayed" | "partial" | "unavailable";
   fetchWorkspace: () => Promise<void>;
+  refreshMarketData: () => Promise<void>;
   saveProviderCredential: (providerId: string, apiKey: string, label: string) => Promise<void>;
   saveDraftContract: (contract: UpstreamContractInputDTO) => Promise<void>;
   recommendRouteAllocation: (request: RouteRecommendationRequestDTO) => Promise<void>;
@@ -112,6 +114,7 @@ export const useApiStore = create<ApiState>((set) => ({
   runtimeDb: null,
   endpointMeta: {},
   meta: null,
+  marketLastUpdatedAtUtc: null,
   loading: false,
   error: null,
   credentialMessage: null,
@@ -224,11 +227,38 @@ export const useApiStore = create<ApiState>((set) => ({
         credentialProviders: credentialProviders.data,
         endpointMeta,
         meta: nodes.meta,
+        marketLastUpdatedAtUtc: new Date().toISOString(),
         dataStatus: resolvedStatus,
         loading: false,
       });
     } catch (e) {
       set({ error: String(e), dataStatus: "unavailable", loading: false });
+    }
+  },
+
+  refreshMarketData: async () => {
+    try {
+      const [markets, fxRates, sources] = await Promise.all([
+        api.marketObservations(),
+        api.fxRates(),
+        api.sources(),
+      ]);
+      set((state) => ({
+        markets: markets.data,
+        fxRates: fxRates.data,
+        sources: sources.data,
+        endpointMeta: {
+          ...state.endpointMeta,
+          markets: markets.meta,
+          fxRates: fxRates.meta,
+          sources: sources.meta,
+        },
+        meta: markets.meta,
+        marketLastUpdatedAtUtc: new Date().toISOString(),
+        error: null,
+      }));
+    } catch (e) {
+      set({ error: String(e) });
     }
   },
 

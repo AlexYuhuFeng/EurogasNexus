@@ -56,8 +56,10 @@ Latest local runtime posture observed in this worktree:
 
 ## Product Boundary
 
-Eurogas Nexus helps users research and evaluate European gas context. It must
-not become any of the following:
+Eurogas Nexus helps users analyze European gas context, compare options, and
+prepare human-reviewed commercial decisions. It is a decision-support and
+market-intelligence product, not a research-only notebook. It must not become
+any of the following:
 
 - trade execution;
 - order entry;

@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { FxRateDTO, MarketObsDTO, SourceSystemDTO } from "@/api/client";
 
 type Translate = (key: string) => string;
@@ -7,6 +7,8 @@ interface MarketTerminalProps {
   markets: MarketObsDTO[];
   fxRates: FxRateDTO[];
   sources: SourceSystemDTO[];
+  lastUpdatedAtUtc: string | null;
+  onRefresh: () => Promise<void>;
   t: Translate;
 }
 
@@ -25,6 +27,15 @@ interface HubTerminalRow extends HubDefinition {
   simulated: boolean;
 }
 
+interface SourceMatrixRow {
+  sourceSystem: string;
+  latest: MarketObsDTO | null;
+  hubs: string[];
+  priceTiming: string;
+  updateIntervalSeconds: number | null;
+  simulated: boolean;
+}
+
 const marketMajorHubs: HubDefinition[] = [
   { hub: "TTF", region: "Netherlands", label: "TTF" },
   { hub: "NBP", region: "Great Britain", label: "NBP" },
@@ -36,6 +47,15 @@ const marketMajorHubs: HubDefinition[] = [
 
 const marketTenorOrder = ["within-day", "day-ahead", "month-ahead"];
 const simulatedPriceSourceSystems = ["EEX_Sim", "ICE_OCM_Sim", "ICIS_Sim"];
+const marketSourceOrder = [
+  "ICE_OCM_Sim",
+  "EEX_Sim",
+  "ICIS_Sim",
+  "ICE_OCM",
+  "EEX",
+  "ICIS",
+  "TRAYPORT",
+];
 
 const gasPriceSources = new Set([
   "EEX",
@@ -70,6 +90,33 @@ const metadataValue = (row: MarketObsDTO, key: string): string | null => {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 };
 
+const metadataNumber = (row: MarketObsDTO, key: string): number | null => {
+  const value = row.metadata_json?.[key];
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && Number.isFinite(Number(value))) return Number(value);
+  return null;
+};
+
+const tenorLabel = (tenor: string, t: Translate): string => {
+  if (tenor === "within-day") return t("market.tenor_within_day");
+  if (tenor === "month-ahead") return t("market.tenor_month_ahead");
+  return t("market.tenor_day_ahead");
+};
+
+const formatTimestamp = (value: string | null | undefined): string => {
+  if (!value) return "n/a";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+};
+
+const formatCadence = (seconds: number | null): string => {
+  if (seconds == null) return "n/a";
+  if (seconds < 60) return `${seconds.toFixed(0)}s`;
+  if (seconds < 3600) return `${Math.round(seconds / 60)}m`;
+  return `${Math.round(seconds / 3600)}h`;
+};
+
 const marketTenor = (row: MarketObsDTO): string => {
   const metadataTenor = metadataValue(row, "tenor");
   if (metadataTenor) return metadataTenor;
@@ -83,6 +130,11 @@ const marketTenor = (row: MarketObsDTO): string => {
 const sourceLabel = (row: MarketObsDTO | null): string => {
   if (!row) return "n/a";
   return row.source_system ?? row.market_venue;
+};
+
+const sourceSystemRank = (sourceSystem: string): number => {
+  const index = marketSourceOrder.indexOf(sourceSystem);
+  return index === -1 ? marketSourceOrder.length : index;
 };
 
 const isSimulatedSource = (row: MarketObsDTO | null): boolean => {
@@ -133,7 +185,16 @@ function MarketSparkline({ rows }: { rows: MarketObsDTO[] }) {
   );
 }
 
-export function MarketTerminal({ markets, fxRates, sources, t }: MarketTerminalProps) {
+export function MarketTerminal({
+  markets,
+  fxRates,
+  sources,
+  lastUpdatedAtUtc,
+  onRefresh,
+  t,
+}: MarketTerminalProps) {
+  const [activeTenor, setActiveTenor] = useState("day-ahead");
+
   const groupedByTenor = useMemo(() => {
     const grouped = new Map<string, MarketObsDTO[]>();
     markets.filter(isGasMarketObservation).forEach((row) => {
@@ -170,7 +231,7 @@ export function MarketTerminal({ markets, fxRates, sources, t }: MarketTerminalP
     return result;
   }, [groupedByTenor]);
 
-  const marketRows = marketRowsByTenor.get("day-ahead") ?? [];
+  const marketRows = marketRowsByTenor.get(activeTenor) ?? [];
   const curveLanes = marketMajorHubs.map((definition) => {
     const tenorRows = marketTenorOrder.map((tenor) => marketRowsByTenor.get(tenor)?.find((row) => row.hub === definition.hub));
     return {
@@ -192,6 +253,36 @@ export function MarketTerminal({ markets, fxRates, sources, t }: MarketTerminalP
         sourceLabel: "n/a",
         simulated: false,
       }));
+
+  const sourceMatrixRows = useMemo<SourceMatrixRow[]>(() => {
+    const grouped = new Map<string, MarketObsDTO[]>();
+    markets.filter(isGasMarketObservation).forEach((row) => {
+      if (marketTenor(row) !== activeTenor) return;
+      const sourceSystem = row.source_system ?? row.market_venue;
+      grouped.set(sourceSystem, [...(grouped.get(sourceSystem) ?? []), row]);
+    });
+    return Array.from(grouped.entries())
+      .map(([sourceSystem, rows]) => {
+        const sortedRows = rows.slice().sort(sortNewestFirst);
+        const latest = sortedRows[0] ?? null;
+        const hubs = Array.from(
+          new Set(sortedRows.map(hubForObservation).filter((hub): hub is string => Boolean(hub))),
+        ).sort();
+        return {
+          sourceSystem,
+          latest,
+          hubs,
+          priceTiming: latest ? metadataValue(latest, "price_timing") ?? marketTenor(latest) : "n/a",
+          updateIntervalSeconds: latest ? metadataNumber(latest, "update_interval_seconds") : null,
+          simulated: isSimulatedSource(latest),
+        };
+      })
+      .sort((left, right) => {
+        const rankDelta = sourceSystemRank(left.sourceSystem) - sourceSystemRank(right.sourceSystem);
+        if (rankDelta !== 0) return rankDelta;
+        return left.sourceSystem.localeCompare(right.sourceSystem);
+      });
+  }, [activeTenor, markets]);
 
   const priceSourceSummary = useMemo(() => {
     const priceSources = sources.filter((source) => source.category === "price");
@@ -220,15 +311,29 @@ export function MarketTerminal({ markets, fxRates, sources, t }: MarketTerminalP
           <strong>{t("market.terminal")}</strong>
         </div>
         <p className="panel-copy">{t("market.live_exchange_prices")}</p>
+        <div className="market-live-status">
+          <span>{t("market.live_polling")}</span>
+          <strong>{formatTimestamp(lastUpdatedAtUtc)}</strong>
+          <button
+            type="button"
+            onClick={() => {
+              void onRefresh();
+            }}
+          >
+            {t("market.refresh")}
+          </button>
+        </div>
         <div className="market-tenor-tabs" aria-label="Price tenor">
           {marketTenorOrder.map((tenor) => (
-            <span key={`market-tenor-${tenor}`}>
-              {tenor === "within-day"
-                ? t("market.tenor_within_day")
-                : tenor === "month-ahead"
-                  ? t("market.tenor_month_ahead")
-                  : t("market.tenor_day_ahead")}
-            </span>
+            <button
+              key={`market-tenor-${tenor}`}
+              type="button"
+              className={activeTenor === tenor ? "market-tenor-tab active" : "market-tenor-tab"}
+              aria-pressed={activeTenor === tenor}
+              onClick={() => setActiveTenor(tenor)}
+            >
+              {tenorLabel(tenor, t)}
+            </button>
           ))}
         </div>
         <div className="market-terminal-strip" aria-label={t("market.terminal")}>
@@ -254,11 +359,42 @@ export function MarketTerminal({ markets, fxRates, sources, t }: MarketTerminalP
               <strong>{lane.hub}</strong>
               {lane.tenorRows.map((row, index) => (
                 <span key={`curve-lane-${lane.hub}-${marketTenorOrder[index]}`}>
-                  {marketTenorOrder[index]} {row?.latest ? row.latest.price.toFixed(2) : "n/a"}
+                  {tenorLabel(marketTenorOrder[index], t)} {row?.latest ? row.latest.price.toFixed(2) : "n/a"}
                 </span>
               ))}
             </div>
           ))}
+        </div>
+        <div className="market-source-matrix-title">
+          <strong>{t("market.source_matrix")}</strong>
+          <span>{tenorLabel(activeTenor, t)}</span>
+        </div>
+        <div className="market-source-matrix" aria-label={t("market.source_matrix")}>
+          <div className="market-source-matrix-row header">
+            <span>{t("panel.source")}</span>
+            <span>{t("market.timing")}</span>
+            <span>{t("market.hubs")}</span>
+            <span>{t("market.cadence")}</span>
+          </div>
+          {sourceMatrixRows.map((row) => (
+            <div key={`source-matrix-${row.sourceSystem}`} className="market-source-matrix-row">
+              <strong>{row.sourceSystem}</strong>
+              <span>{row.priceTiming}</span>
+              <span>{row.hubs.length > 0 ? row.hubs.join(" / ") : "n/a"}</span>
+              <span>
+                {formatCadence(row.updateIntervalSeconds)}
+                {row.simulated ? ` / ${t("market.simulated_source")}` : ""}
+              </span>
+            </div>
+          ))}
+          {sourceMatrixRows.length === 0 && (
+            <div className="market-source-matrix-row">
+              <strong>{t("data.unavailable")}</strong>
+              <span>{activeTenor}</span>
+              <span>n/a</span>
+              <span>{t("market.awaiting_feed")}</span>
+            </div>
+          )}
         </div>
       </div>
 

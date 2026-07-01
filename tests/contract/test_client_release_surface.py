@@ -476,6 +476,9 @@ def test_web_client_separates_market_capacity_orders_and_review_pages() -> None:
 
 def test_web_client_market_page_is_trader_terminal_surface() -> None:
     app = (ROOT / "clients" / "web" / "src" / "App.tsx").read_text(encoding="utf-8")
+    store = (ROOT / "clients" / "web" / "src" / "stores" / "api.ts").read_text(
+        encoding="utf-8"
+    )
     market_terminal_path = ROOT / "clients" / "web" / "src" / "components" / "MarketTerminal.tsx"
     market_terminal = market_terminal_path.read_text(encoding="utf-8")
     css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(
@@ -490,14 +493,29 @@ def test_web_client_market_page_is_trader_terminal_surface() -> None:
 
     assert 'import { MarketTerminal } from "@/components/MarketTerminal";' in app
     assert (
-        '<MarketTerminal markets={markets} fxRates={fxRates} sources={sources} t={t} />'
+        "<MarketTerminal\n"
         in app
     )
+    assert "marketLastUpdatedAtUtc" in app
+    assert "refreshMarketData" in app
+    assert "MARKET_REFRESH_INTERVAL_MS" in app
+    assert "marketLastUpdatedAtUtc: string | null" in store
+    assert "refreshMarketData: () => Promise<void>" in store
+    assert "api.marketObservations()" in store
+    assert "api.fxRates()" in store
     assert "market-terminal-board" in market_terminal
     assert "market-price-ticker" in market_terminal
     assert "market-region-comparison" in market_terminal
     assert "market-sparkline" in market_terminal
     assert "market-source-quality" in market_terminal
+    assert "activeTenor" in market_terminal
+    assert "setActiveTenor" in market_terminal
+    assert "market-tenor-tab active" in market_terminal
+    assert "market-source-matrix" in market_terminal
+    assert "sourceMatrixRows" in market_terminal
+    assert "update_interval_seconds" in market_terminal
+    assert "market-live-status" in market_terminal
+    assert "lastUpdatedAtUtc" in market_terminal
     assert "marketMajorHubs" in market_terminal
     assert "TTF" in market_terminal
     assert "NBP" in market_terminal
@@ -512,9 +530,14 @@ def test_web_client_market_page_is_trader_terminal_surface() -> None:
     assert "market-region-comparison" in css
     assert "market-sparkline" in css
     assert "market-source-quality" in css
+    assert ".market-tenor-tab.active" in css
+    assert ".market-source-matrix" in css
+    assert ".market-live-status" in css
     assert en["market.title"] == "Gas Market Terminal"
     assert en["market.terminal"] == "Major European gas markets"
     assert en["market.region_comparison"] == "Regional comparison"
+    assert en["market.source_matrix"] == "Source matrix"
+    assert en["market.live_polling"] == "Live polling"
     assert en["market.live_exchange_prices"].startswith("Exchange and broker")
     assert zh["market.terminal"] == "\u6b27\u6d32\u4e3b\u8981\u5929\u7136\u6c14\u5e02\u573a"
 

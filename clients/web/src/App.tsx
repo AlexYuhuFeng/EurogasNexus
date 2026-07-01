@@ -23,6 +23,7 @@ import "./styles/app.css";
 
 type ContractDraft = ContractDraftModel;
 type LiveMarkNumberKey = "bid_gbp_mwh" | "ask_gbp_mwh" | "last_gbp_mwh";
+const MARKET_REFRESH_INTERVAL_MS = 15_000;
 
 const defaultContractDraft: ContractDraft = {
   contract_id: "operator-ttf-supply-2025",
@@ -125,11 +126,13 @@ export default function App() {
     runtimeDb,
     dataStatus,
     meta,
+    marketLastUpdatedAtUtc,
     loading,
     error,
     credentialMessage,
     contractSaveMessage,
     fetchWorkspace,
+    refreshMarketData,
     saveProviderCredential,
     saveDraftContract,
     recommendRouteAllocation,
@@ -338,6 +341,15 @@ export default function App() {
   useEffect(() => {
     fetchWorkspace();
   }, [fetchWorkspace]);
+
+  useEffect(() => {
+    if (activeWorkspace !== "market") return;
+    void refreshMarketData();
+    const intervalId = window.setInterval(() => {
+      void refreshMarketData();
+    }, MARKET_REFRESH_INTERVAL_MS);
+    return () => window.clearInterval(intervalId);
+  }, [activeWorkspace, refreshMarketData]);
 
   async function onCredentialSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1468,7 +1480,14 @@ export default function App() {
           )}
 
           {activeWorkspace === "market" && (
-            <MarketTerminal markets={markets} fxRates={fxRates} sources={sources} t={t} />
+            <MarketTerminal
+              markets={markets}
+              fxRates={fxRates}
+              sources={sources}
+              lastUpdatedAtUtc={marketLastUpdatedAtUtc}
+              onRefresh={refreshMarketData}
+              t={t}
+            />
           )}
 
           {activeWorkspace === "contracts" && (

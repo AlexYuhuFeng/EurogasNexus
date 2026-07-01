@@ -329,6 +329,15 @@ V1 client behavior:
 - show backend-served market observations, ECB FX, and source metadata;
 - render a terminal-style gas market board for TTF, NBP, THE, PEG, ZTP, and
   PSV when the backend supplies sourced observations;
+- poll the market observation, FX, and price-source posture endpoints while
+  the Market workspace is open, with a visible last-refresh timestamp and a
+  manual refresh action;
+- make within-day, day-ahead, and month-ahead tenors explicit controls, so
+  tickers, latest marks, and regional spreads switch by price basis instead of
+  blending incompatible time horizons;
+- show a source matrix for EEX/ICE OCM/ICIS/Trayport-style feeds, including
+  price timing, covered hubs, cadence, and simulated-source labeling when rows
+  come from `EEX_Sim`, `ICE_OCM_Sim`, or `ICIS_Sim`;
 - show regional comparison as spread to TTF only when both sides have
   comparable currency/unit rows;
 - show trend sparklines only from actual observed price history;

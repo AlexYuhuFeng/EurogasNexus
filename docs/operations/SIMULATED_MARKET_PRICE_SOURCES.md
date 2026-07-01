@@ -44,6 +44,20 @@ The cadence is a configurable simulation of market-data behavior. It preserves
 real connector shape and operational pressure without claiming to reproduce an
 entitled vendor feed byte-for-byte.
 
+When the Web or Windows Market workspace is open, the client polls the backend
+market observation, FX, and source-posture endpoints. It does not connect to
+PostgreSQL directly. This lets the simulated worker exercise the same runtime
+loop expected from licensed EEX, ICE OCM, ICIS, broker, or Trayport connectors:
+
+```text
+simulated source worker -> PostgreSQL -> /api/market + /api/sources -> Market terminal
+```
+
+The Market terminal must keep simulated rows visibly labeled and must show
+tenor, timing, and cadence metadata so traders can distinguish instant OCM
+marks, day-ahead assessments, and curve marks before using them in strategy
+shadow runs or resource-pool decisions.
+
 Override cadences when a faster local test is useful:
 
 ```powershell
