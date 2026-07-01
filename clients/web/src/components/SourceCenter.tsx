@@ -4,6 +4,7 @@ import type {
   CredentialProviderDTO,
   FlowObsDTO,
   LngObsDTO,
+  SourceCategoryPostureDTO,
   SourceSystemDTO,
   StorageObsDTO,
   TsoTariffDTO,
@@ -24,6 +25,7 @@ interface SourceCenterProps {
   sourceCategory: string;
   sourceCategoryCounts: Map<string, number>;
   sourceStats: SourceStats;
+  sourcePostureRows: SourceCategoryPostureDTO[];
   filteredSources: SourceSystemDTO[];
   selectedSource: SourceSystemDTO | null;
   selectedCredentialProvider: CredentialProviderDTO | undefined;
@@ -59,6 +61,7 @@ export function SourceCenter({
   sourceCategory,
   sourceCategoryCounts,
   sourceStats,
+  sourcePostureRows,
   filteredSources,
   selectedSource,
   selectedCredentialProvider,
@@ -99,6 +102,33 @@ export function SourceCenter({
           <div><span>{t("sources.active_sources")}</span><strong>{sourceStats.active}</strong></div>
           <div><span>{t("sources.issue_sources")}</span><strong>{sourceStats.issues}</strong></div>
           <div><span>{t("sources.runtime_records")}</span><strong>{sourceStats.records.toLocaleString()}</strong></div>
+        </div>
+      </div>
+
+      <div className="workspace-panel span-3 source-posture-board">
+        <div className="panel-title-row">
+          <h3>{t("sources.posture_board")}</h3>
+          <span>{t("sources.next_action")}</span>
+        </div>
+        <div className="source-posture-grid">
+          {sourcePostureRows.map((row) => (
+            <button
+              key={`source-posture-row-${row.category}`}
+              type="button"
+              className={sourceCategory === row.category ? "source-posture-row active" : "source-posture-row"}
+              onClick={() => {
+                const nextSource = sources.find((source) => source.category === row.category);
+                onSourceCategoryChange(row.category, nextSource?.source_id ?? null);
+              }}
+            >
+              <strong>{sourceLabel("sources.category", row.category)}</strong>
+              <span>{row.active_sources} / {row.registered_sources} {t("sources.active_sources")}</span>
+              <span>{row.runtime_records.toLocaleString()} {t("panel.records")}</span>
+              <span>{row.missing_credentials} {t("sources.missing_credentials")}</span>
+              <span>{row.preview_substitutes_active} {t("sources.preview_substitutes_active")}</span>
+              <small>{t(`sources.action.${row.next_action}`)}</small>
+            </button>
+          ))}
         </div>
       </div>
 

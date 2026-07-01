@@ -16,7 +16,7 @@ import { SettingsCenter } from "@/components/SettingsCenter";
 import { SourceCenter } from "@/components/SourceCenter";
 import { StrategyShadowRunTerminal } from "@/components/StrategyShadowRunTerminal";
 import { WorkspaceTopBar, type WorkspacePageId } from "@/components/WorkspaceTopBar";
-import type { EdgeDTO, UpstreamContractDTO } from "@/api/client";
+import type { EdgeDTO, SourceCategoryPostureDTO, UpstreamContractDTO } from "@/api/client";
 import { useApiStore } from "@/stores/api";
 import { useThemeStore } from "@/stores/theme";
 import "./styles/app.css";
@@ -939,6 +939,36 @@ export default function App() {
   }, [edges.length, nodes.length, runtimeDbReady]);
   const sourceCategoryOrder = ["price", "fx", "infrastructure", "tariff", "weather", "ai"];
   const sourceCategories = ["all", ...sourceCategoryOrder];
+  const sourcePostureRows = useMemo<SourceCategoryPostureDTO[]>(() => {
+    const apiRows = endpointMeta.sources?.source_posture_summary?.categories;
+    if (apiRows && apiRows.length > 0) {
+      return apiRows
+        .filter((row) => sourceCategoryOrder.includes(row.category))
+        .sort((left, right) => sourceCategoryOrder.indexOf(left.category) - sourceCategoryOrder.indexOf(right.category));
+    }
+
+    const issueStatuses = new Set(["failed", "needs_credential", "credential_disabled", "runtime_unconfigured", "no_records"]);
+    return sourceCategoryOrder.map((category) => {
+      const categorySources = sources.filter((source) => source.category === category);
+      return {
+        category,
+        category_label: category,
+        registered_sources: categorySources.length,
+        active_sources: categorySources.filter((source) => source.connectivity_status === "active").length,
+        sources_needing_attention: categorySources.filter((source) => issueStatuses.has(source.connectivity_status)).length,
+        missing_credentials: categorySources.filter((source) => source.credential_state === "missing").length,
+        preview_substitutes_active: categorySources.filter((source) => source.preview_substitute_status === "active").length,
+        runtime_records: categorySources.reduce((total, source) => total + source.live_record_count, 0),
+        next_action: categorySources.some((source) => source.credential_state === "missing")
+          ? "add_credentials"
+          : categorySources.some((source) => source.connectivity_status === "failed")
+            ? "inspect_failure"
+            : categorySources.some((source) => source.connectivity_status === "active")
+              ? "monitor"
+              : "run_ingestion",
+      };
+    }).filter((row) => row.registered_sources > 0);
+  }, [endpointMeta.sources?.source_posture_summary?.categories, sourceCategoryOrder, sources]);
   const filteredSources = useMemo(
     () => sourceCategory === "all"
       ? sources
@@ -1712,6 +1742,7 @@ export default function App() {
               sourceCategory={sourceCategory}
               sourceCategoryCounts={sourceCategoryCounts}
               sourceStats={sourceStats}
+              sourcePostureRows={sourcePostureRows}
               filteredSources={filteredSources}
               selectedSource={selectedSource}
               selectedCredentialProvider={selectedCredentialProvider}

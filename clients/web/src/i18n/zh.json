@@ -404,6 +404,8 @@
   "sources.next_action": "下一步动作",
   "sources.preview_substitute": "预览替代源",
   "sources.preview_substitute_active": "订阅缺失期间预览源已启用",
+  "sources.posture_board": "运行数据源态势",
+  "sources.preview_substitutes_active": "预览替代源",
   "sources.action.none": "请选择一个数据源。",
   "sources.action.monitor": "监控新鲜度和记录数量。",
   "sources.action.add_credential": "录入并保存该供应商 API Key。",

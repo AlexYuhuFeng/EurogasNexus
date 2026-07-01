@@ -1036,6 +1036,41 @@ def test_source_center_surfaces_preview_substitute_feeds() -> None:
     assert zh["sources.preview_substitute"] == "\u9884\u89c8\u66ff\u4ee3\u6e90"
 
 
+def test_source_center_shows_category_operational_posture_board() -> None:
+    app = (ROOT / "clients" / "web" / "src" / "App.tsx").read_text(encoding="utf-8")
+    source_center = (
+        ROOT / "clients" / "web" / "src" / "components" / "SourceCenter.tsx"
+    ).read_text(encoding="utf-8")
+    api_client = (ROOT / "clients" / "web" / "src" / "api" / "client.ts").read_text(
+        encoding="utf-8"
+    )
+    css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(
+        encoding="utf-8"
+    )
+    en = json.loads(
+        (ROOT / "clients" / "web" / "src" / "i18n" / "en.json").read_text(encoding="utf-8")
+    )
+    zh = json.loads(
+        (ROOT / "clients" / "web" / "src" / "i18n" / "zh.json").read_text(encoding="utf-8")
+    )
+
+    assert "source_posture_summary" in api_client
+    assert "SourceCategoryPostureDTO" in api_client
+    assert "sourcePostureRows" in app
+    assert "sourcePostureRows={sourcePostureRows}" in app
+    assert "source-posture-board" in source_center
+    assert "source-posture-row" in source_center
+    assert "preview_substitutes_active" in source_center
+    assert "sources.posture_board" in source_center
+    assert "sources.preview_substitutes_active" in source_center
+    assert "source-posture-board" in css
+    assert "source-posture-row" in css
+    assert en["sources.posture_board"] == "Operational source posture"
+    assert en["sources.preview_substitutes_active"] == "Preview substitutes"
+    assert zh["sources.posture_board"] == "\u8fd0\u884c\u6570\u636e\u6e90\u6001\u52bf"
+    assert zh["sources.preview_substitutes_active"] == "\u9884\u89c8\u66ff\u4ee3\u6e90"
+
+
 def test_web_client_mobile_topbar_constrains_controls_to_viewport() -> None:
     css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(
         encoding="utf-8"

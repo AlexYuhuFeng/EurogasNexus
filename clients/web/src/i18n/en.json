@@ -404,6 +404,8 @@
   "sources.next_action": "Next action",
   "sources.preview_substitute": "Preview substitute",
   "sources.preview_substitute_active": "Preview feed active while subscription is missing",
+  "sources.posture_board": "Operational source posture",
+  "sources.preview_substitutes_active": "Preview substitutes",
   "sources.action.none": "Select a source.",
   "sources.action.monitor": "Monitor freshness and row count.",
   "sources.action.add_credential": "Enter and save the provider API key.",

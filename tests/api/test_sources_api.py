@@ -144,6 +144,46 @@ def test_licensed_price_sources_show_active_preview_substitute_when_subscription
     assert sources["Platts"]["preview_substitute_source_system"] is None
 
 
+def test_sources_response_meta_includes_category_posture_summary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from eurogas_nexus.api.routes.public import sources as sources_routes
+
+    monkeypatch.setattr(sources_routes, "_db_is_configured", lambda: True)
+    monkeypatch.setattr(
+        sources_routes,
+        "_runtime_source_counts",
+        lambda: {
+            "EEX_Sim": 18,
+            "ICE_OCM_Sim": 2,
+            "ICIS_Sim": 6,
+            "ENTSOG": 140,
+            "GIE": 12,
+            "NationalGasNTS": 1315,
+        },
+    )
+    monkeypatch.setattr(sources_routes, "_latest_ingestion_status_by_source", lambda: {})
+    monkeypatch.setattr(sources_routes, "_credential_status_by_provider", lambda: {})
+
+    response = TestClient(create_app()).get("/api/sources")
+
+    assert response.status_code == 200
+    summary = response.json()["meta"]["source_posture_summary"]
+    assert summary["totals"]["registered_sources"] >= 20
+    assert summary["totals"]["active_sources"] >= 5
+    assert summary["totals"]["preview_substitutes_active"] == 3
+    assert summary["totals"]["runtime_records"] == 1493
+
+    categories = {item["category"]: item for item in summary["categories"]}
+    assert categories["price"]["preview_substitutes_active"] == 3
+    assert categories["price"]["missing_credentials"] >= 5
+    assert categories["price"]["next_action"] == "add_credentials"
+    assert categories["infrastructure"]["active_sources"] == 1
+    assert categories["infrastructure"]["missing_credentials"] == 1
+    assert categories["infrastructure"]["runtime_records"] == 152
+    assert categories["tariff"]["runtime_records"] == 1315
+
+
 def test_source_records_include_diagnostics_and_credential_state(client: TestClient) -> None:
     response = client.get("/api/sources")
     source = next(item for item in response.json()["data"] if item["source_system"] == "ICIS")

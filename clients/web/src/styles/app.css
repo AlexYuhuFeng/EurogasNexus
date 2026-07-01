@@ -2474,6 +2474,10 @@ body {
   min-height: 74px;
 }
 
+.source-posture-board {
+  align-self: stretch;
+}
+
 .source-category-list,
 .source-health-grid,
 .source-credential-form,
@@ -2481,6 +2485,52 @@ body {
 .source-diagnostics {
   display: grid;
   gap: 8px;
+}
+
+.source-posture-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.source-posture-row {
+  display: grid;
+  min-height: 142px;
+  align-content: start;
+  gap: 6px;
+  border: 1px solid var(--eg-hairline);
+  border-radius: var(--eg-radius-sm);
+  background: var(--eg-canvas-soft);
+  color: var(--eg-body);
+  cursor: pointer;
+  padding: 10px;
+  text-align: left;
+}
+
+.source-posture-row strong {
+  color: var(--eg-ink);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.source-posture-row span,
+.source-posture-row small {
+  min-width: 0;
+  color: var(--eg-muted);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.source-posture-row small {
+  margin-top: auto;
+  border-top: 1px solid var(--eg-hairline);
+  padding-top: 6px;
+}
+
+.source-posture-row.active {
+  border-color: var(--accent);
+  background: rgb(15 118 110 / 12%);
+  box-shadow: inset 0 0 0 1px rgb(15 118 110 / 18%);
 }
 
 .source-category {
@@ -2995,6 +3045,7 @@ button.glossary-related-chip {
   .three-column,
   .six-column,
   .source-health-grid,
+  .source-posture-grid,
   .source-table-split,
   .strategy-tape-grid,
   .economics-grid.wide,

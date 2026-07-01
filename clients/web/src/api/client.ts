@@ -18,6 +18,7 @@ export interface ApiMeta {
   human_review_required: boolean;
   source_references: string[];
   warnings: string[];
+  source_posture_summary?: SourcePostureSummaryDTO;
 }
 
 export interface ApiResponse<T> {
@@ -110,6 +111,30 @@ export interface SourceSystemDTO {
   last_success_at_utc: string | null; last_failure_at_utc: string | null;
   last_ingestion_status: string | null; last_ingestion_message: string | null;
   diagnostics: string[]; export_restrictions: string[];
+}
+
+export interface SourceCategoryPostureDTO {
+  category: string;
+  category_label: string;
+  registered_sources: number;
+  active_sources: number;
+  sources_needing_attention: number;
+  missing_credentials: number;
+  preview_substitutes_active: number;
+  runtime_records: number;
+  next_action: string;
+}
+
+export interface SourcePostureSummaryDTO {
+  totals: {
+    registered_sources: number;
+    active_sources: number;
+    sources_needing_attention: number;
+    missing_credentials: number;
+    preview_substitutes_active: number;
+    runtime_records: number;
+  };
+  categories: SourceCategoryPostureDTO[];
 }
 
 type SourceSystemWire = Partial<SourceSystemDTO> & {

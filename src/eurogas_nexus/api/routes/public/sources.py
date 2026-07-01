@@ -69,7 +69,13 @@ SOURCE_ID_BY_NAME = {
 def list_sources(request: Request) -> dict:
     """List registered source systems with runtime DB counts when configured."""
 
-    return _envelope(_sources_with_runtime_status(), request, source=_source_label())
+    sources = _sources_with_runtime_status()
+    return _envelope(
+        sources,
+        request,
+        source=_source_label(),
+        source_posture_summary=_source_posture_summary(sources),
+    )
 
 
 @router.get("/api/sources/{source_id}")
@@ -95,26 +101,35 @@ def list_ingestion_runs(
     return _envelope(runs, request, source=_source_label())
 
 
-def _envelope(data: object, request: Request, *, source: str) -> dict:
+def _envelope(
+    data: object,
+    request: Request,
+    *,
+    source: str,
+    source_posture_summary: dict[str, Any] | None = None,
+) -> dict:
     _ = request
     warnings: list[str] = []
     if source != "runtime-postgresql":
         warnings.append("Runtime database is not configured; live source counts are unavailable.")
+    meta: dict[str, Any] = {
+        "research_only": True,
+        "human_review_required": True,
+        "source_references": [source],
+        "lineage": [source],
+        "assumptions": [
+            "Source registry is static; counts and ingestion runs are read from runtime DB."
+        ],
+        "missing_inputs": (
+            [] if source == "runtime-postgresql" else ["RUNTIME_STORE_DATABASE_URL"]
+        ),
+        "warnings": warnings,
+    }
+    if source_posture_summary is not None:
+        meta["source_posture_summary"] = source_posture_summary
     return {
         "data": data,
-        "meta": {
-            "research_only": True,
-            "human_review_required": True,
-            "source_references": [source],
-            "lineage": [source],
-            "assumptions": [
-                "Source registry is static; counts and ingestion runs are read from runtime DB."
-            ],
-            "missing_inputs": (
-                [] if source == "runtime-postgresql" else ["RUNTIME_STORE_DATABASE_URL"]
-            ),
-            "warnings": warnings,
-        },
+        "meta": meta,
     }
 
 
@@ -411,6 +426,91 @@ def _sources_with_runtime_status() -> list[dict]:
         source["diagnostics"] = _diagnostics(source, count, credential_state, latest_run)
     _attach_preview_substitute_status(sources)
     return sources
+
+
+def _source_posture_summary(sources: list[dict]) -> dict[str, Any]:
+    categories = []
+    for category, label in CATEGORY_LABELS.items():
+        category_sources = [source for source in sources if source["category"] == category]
+        if not category_sources:
+            continue
+        categories.append(_category_posture(category, label, category_sources))
+
+    return {
+        "totals": {
+            "registered_sources": len(sources),
+            "active_sources": sum(
+                1 for source in sources if source["connectivity_status"] == "active"
+            ),
+            "sources_needing_attention": sum(
+                1 for source in sources if _source_needs_attention(source)
+            ),
+            "missing_credentials": sum(
+                1 for source in sources if source["credential_state"] == "missing"
+            ),
+            "preview_substitutes_active": sum(
+                1
+                for source in sources
+                if source["preview_substitute_status"] == "active"
+            ),
+            "runtime_records": sum(int(source["live_record_count"]) for source in sources),
+        },
+        "categories": categories,
+    }
+
+
+def _category_posture(category: str, label: str, sources: list[dict]) -> dict[str, Any]:
+    missing_credentials = sum(1 for source in sources if source["credential_state"] == "missing")
+    failed_sources = sum(1 for source in sources if source["connectivity_status"] == "failed")
+    active_sources = sum(1 for source in sources if source["connectivity_status"] == "active")
+    runtime_records = sum(int(source["live_record_count"]) for source in sources)
+    preview_substitutes_active = sum(
+        1 for source in sources if source["preview_substitute_status"] == "active"
+    )
+    return {
+        "category": category,
+        "category_label": label,
+        "registered_sources": len(sources),
+        "active_sources": active_sources,
+        "sources_needing_attention": sum(
+            1 for source in sources if _source_needs_attention(source)
+        ),
+        "missing_credentials": missing_credentials,
+        "preview_substitutes_active": preview_substitutes_active,
+        "runtime_records": runtime_records,
+        "next_action": _category_next_action(
+            missing_credentials=missing_credentials,
+            failed_sources=failed_sources,
+            active_sources=active_sources,
+            runtime_records=runtime_records,
+        ),
+    }
+
+
+def _source_needs_attention(source: dict) -> bool:
+    return source["connectivity_status"] in {
+        "failed",
+        "needs_credential",
+        "credential_disabled",
+        "runtime_unconfigured",
+        "no_records",
+    }
+
+
+def _category_next_action(
+    *,
+    missing_credentials: int,
+    failed_sources: int,
+    active_sources: int,
+    runtime_records: int,
+) -> str:
+    if missing_credentials > 0:
+        return "add_credentials"
+    if failed_sources > 0:
+        return "inspect_failure"
+    if active_sources == 0 or runtime_records == 0:
+        return "run_ingestion"
+    return "monitor"
 
 
 def _attach_preview_substitute_status(sources: list[dict]) -> None:
