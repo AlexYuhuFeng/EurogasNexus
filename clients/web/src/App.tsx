@@ -1261,7 +1261,7 @@ export default function App() {
                   <span>{option?.target_point_name ?? allocation.option_id}</span>
                   <strong>{option?.label ?? allocation.option_id}</strong>
                       <small>
-                        {allocation.allocated_quantity_mwh_per_day.toLocaleString()} MWh/d / {allocation.net_margin_gbp_mwh.toFixed(2)} EUR/MWh / EUR {Math.round(allocation.net_pnl_gbp_per_day).toLocaleString()}
+                        {allocation.allocated_quantity_mwh_per_day.toLocaleString()} MWh/d / {allocation.net_margin_gbp_mwh.toFixed(2)} EUR/MWh / EUR {Math.round(allocation.net_pnl_gbp_per_day).toLocaleString()} / {option?.sale_price_simulated ? t("market.simulated_source") : option?.sale_price_source_system ?? "n/a"}
                       </small>
                 </div>
               );

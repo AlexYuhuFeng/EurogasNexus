@@ -48,9 +48,12 @@ Tests must not use real vendor data. Use source-shaped fixtures and dry-run
 mode. Tests must not call live external APIs, live connectors, or LLM providers
 unless the test is explicitly marked as a live-source/operator test.
 
-Demo runtime rows are allowed only when an operator explicitly runs a seed
-script against a local test PostgreSQL database. Demo rows must be marked with
-`demo_*` provenance and must not be shipped as customer data.
+Preview runtime rows are allowed only when an operator explicitly runs a seed
+script against a local test PostgreSQL database. Preview rows must be marked
+with explicit source provenance and must not be shipped as customer data. Price
+preview rows must use the simulated source systems `EEX_Sim`, `ICE_OCM_Sim`,
+and `ICIS_Sim` in `market_observations`; they must not use ad hoc demo price
+source names.
 
 Production runtime modules and clients must not generate fallback business data.
 If source data, contracts, market prices, tariffs, or capacity are missing, the

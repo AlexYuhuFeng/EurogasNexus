@@ -9,11 +9,11 @@ from sqlalchemy.orm import Session
 from eurogas_nexus.api.app import create_app
 from eurogas_nexus.db.base import Base
 from eurogas_nexus.db.models import (
-    MarketObservationRecord,
     RouteCandidateRecord,
     TsoTariffRecord,
     UpstreamResourceContractRecord,
 )
+from eurogas_nexus.ingestion.simulated_market_prices import upsert_simulated_market_observations
 
 
 def test_route_cost_api_reads_tso_tariffs_from_runtime_db(tmp_path, monkeypatch) -> None:
@@ -219,7 +219,10 @@ def test_upsert_upstream_contract_persists_and_reads_back_from_runtime_db(
     assert contracts[0]["contract_id"] == "persisted-ttf-supply-2025"
 
 
-def test_resource_pool_options_are_built_from_runtime_db(tmp_path, monkeypatch) -> None:
+def test_resource_pool_options_are_built_from_runtime_db_and_simulated_prices(
+    tmp_path,
+    monkeypatch,
+) -> None:
     db_path = tmp_path / "resource-pool-options.sqlite"
     database_url = f"sqlite+pysqlite:///{db_path.as_posix()}"
     engine = create_engine(database_url, future=True)
@@ -313,44 +316,9 @@ def test_resource_pool_options_are_built_from_runtime_db(tmp_path, monkeypatch) 
                     active=True,
                     created_at_utc=now,
                 ),
-                MarketObservationRecord(
-                    observation_id="demo-market-nbp-day-ahead",
-                    market_venue="NBP",
-                    product="day-ahead",
-                    price=35.0,
-                    unit="EUR/MWh",
-                    currency="EUR",
-                    period_start_utc=now,
-                    period_end_utc=now,
-                    observed_at_utc=now,
-                    source_system="demo_market_price",
-                    source_reference="demo:market-price:nbp-day-ahead",
-                    source_record_id=None,
-                    freshness="demo",
-                    quality_score=0.8,
-                    research_only=True,
-                    metadata_json={"hub": "NBP"},
-                ),
-                MarketObservationRecord(
-                    observation_id="demo-market-ttf-day-ahead",
-                    market_venue="TTF",
-                    product="day-ahead",
-                    price=31.0,
-                    unit="EUR/MWh",
-                    currency="EUR",
-                    period_start_utc=now,
-                    period_end_utc=now,
-                    observed_at_utc=now,
-                    source_system="demo_market_price",
-                    source_reference="demo:market-price:ttf-day-ahead",
-                    source_record_id=None,
-                    freshness="demo",
-                    quality_score=0.8,
-                    research_only=True,
-                    metadata_json={"hub": "TTF"},
-                ),
             ]
         )
+        upsert_simulated_market_observations(session, observed_at_utc=now)
         session.commit()
 
     monkeypatch.setenv("RUNTIME_STORE_DATABASE_URL", database_url)
@@ -375,7 +343,12 @@ def test_resource_pool_options_are_built_from_runtime_db(tmp_path, monkeypatch) 
         if option["option_id"] == "public-route-ttf-bbl-nbp"
     )
     assert bbl_option["target_point_name"] == "NBP"
-    assert bbl_option["sale_price_gbp_mwh"] == 35.0
+    assert bbl_option["sale_price_source_system"] in {"EEX_Sim", "ICIS_Sim"}
+    assert bbl_option["sale_price_simulated"] is True
+    assert bbl_option["sale_price_source_family"] in {"EEX", "ICIS"}
+    assert bbl_option["sale_price_freshness"].startswith("simulated")
+    assert bbl_option["sale_price_source_reference"].startswith("market_observation:sim-")
+    assert bbl_option["sale_price_gbp_mwh"] > 0
     assert bbl_option["route_cost_gbp_mwh"] == 1.0
     assert bbl_option["required_tso_access"] == ["BBL Company"]
 

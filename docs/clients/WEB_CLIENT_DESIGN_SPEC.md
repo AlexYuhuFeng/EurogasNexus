@@ -128,7 +128,7 @@ Content:
 - API base URL;
 - active route profile;
 - DB validation status from backend when available;
-- warning if demo provenance, stale data, missing DB tables, or unavailable
+- warning if simulated/preview provenance, stale data, missing DB tables, or unavailable
   backend capabilities are reported by the API.
 
 States:

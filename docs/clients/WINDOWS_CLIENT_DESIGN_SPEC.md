@@ -119,7 +119,7 @@ The Windows client must show:
 - live source posture for ECB, ENTSOG, GIE, EEX, Trayport, ICE OCM, weather,
   and LLM analysis when exposed by backend;
 - version/build information;
-- demo provenance, stale data, missing DB tables, and unavailable capability
+- simulated/preview provenance, stale data, missing DB tables, and unavailable capability
   warnings when reported by the backend.
 
 ## Local Storage Policy

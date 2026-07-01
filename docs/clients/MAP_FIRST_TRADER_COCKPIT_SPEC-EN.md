@@ -217,6 +217,8 @@ read PostgreSQL, backend files, vendor files, `.env`, or credentials directly.
 
 If data is missing, the client must show the missing state. It must not create
 browser-side mock, sample, synthetic, generated, or fallback route/capacity/
-tariff/price records. Demo rows, when required for testing or sales demos, must
-be inserted into PostgreSQL with clear demo provenance and then read back
-through `/api`.
+tariff/price records. Preview/test rows, when required, must be inserted into
+PostgreSQL with explicit source provenance and then read back through `/api`.
+Price previews must use `EEX_Sim`, `ICE_OCM_Sim`, and `ICIS_Sim` rows in the
+runtime `market_observations` table so the product behaves as if licensed feed
+rows are present while still labeling the source as simulated.

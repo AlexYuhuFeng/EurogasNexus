@@ -378,6 +378,13 @@ def _compose_resource_pool_options(
                 "sale_price_gbp_mwh": market_price["price"],
                 "sale_price_currency": market_price["currency"],
                 "sale_price_unit": market_price["unit"],
+                "sale_price_source_system": market_price["source_system"],
+                "sale_price_source_reference": market_price["source_reference"],
+                "sale_price_observed_at_utc": market_price["observed_at_utc"],
+                "sale_price_freshness": market_price["freshness"],
+                "sale_price_quality_score": market_price["quality_score"],
+                "sale_price_simulated": market_price["simulated"],
+                "sale_price_source_family": market_price["source_family"],
                 "route_cost_gbp_mwh": route_cost,
                 "route_cost_currency": market_price["currency"],
                 "route_cost_unit": market_price["unit"],
@@ -407,21 +414,30 @@ def _latest_market_price_by_point(market_rows: list) -> dict[str, dict]:
     for row in market_rows:
         keys = _market_price_keys(row)
         for key in keys:
+            source_system = getattr(row, "source_system", None)
+            metadata = row.metadata_json or {}
+            simulated = _is_simulated_market_price(row)
             candidate = {
                 "price": row.price,
                 "currency": row.currency,
                 "unit": row.unit,
                 "source_reference": f"market_observation:{row.observation_id}",
-                "price_basis_priority": _market_price_basis_priority(row),
+                "source_system": source_system,
+                "observed_at_utc": _iso_or_none(getattr(row, "observed_at_utc", None)),
+                "freshness": getattr(row, "freshness", None),
+                "quality_score": getattr(row, "quality_score", None),
+                "simulated": simulated,
+                "source_family": _market_price_source_family(source_system, metadata),
+                "selection_priority": _market_price_selection_priority(row),
             }
             current = prices.get(key)
             if (
                 current is None
-                or candidate["price_basis_priority"] < current["price_basis_priority"]
+                or candidate["selection_priority"] < current["selection_priority"]
             ):
                 prices[key] = candidate
     for price in prices.values():
-        price.pop("price_basis_priority", None)
+        price.pop("selection_priority", None)
     return prices
 
 
@@ -456,6 +472,42 @@ def _market_price_basis_priority(row) -> int:
     if normalized in {"month-ahead", "front-month"}:
         return 2
     return 3
+
+
+def _market_price_selection_priority(row) -> tuple[int, int]:
+    """Rank rows for spot-like resource-pool pricing.
+
+    The query already orders newest rows first. This priority keeps that order
+    for equal candidates while making the two business rules explicit:
+    preferred tenors first, and licensed/source-provided rows before simulated
+    rows when both are present for the same price basis.
+    """
+
+    return (_market_price_basis_priority(row), 1 if _is_simulated_market_price(row) else 0)
+
+
+def _is_simulated_market_price(row) -> bool:
+    metadata = row.metadata_json or {}
+    if metadata.get("simulated") is True:
+        return True
+    source_system = getattr(row, "source_system", None)
+    return isinstance(source_system, str) and source_system.endswith("_Sim")
+
+
+def _market_price_source_family(
+    source_system: str | None,
+    metadata: dict,
+) -> str | None:
+    source_family = metadata.get("source_family")
+    if isinstance(source_family, str) and source_family.strip():
+        return source_family.strip()
+    if isinstance(source_system, str) and source_system.endswith("_Sim"):
+        return source_system.removesuffix("_Sim")
+    return source_system
+
+
+def _iso_or_none(value) -> str | None:
+    return value.isoformat() if hasattr(value, "isoformat") else value
 
 
 def _portfolio_resource_from_contract(contract: dict) -> dict:

@@ -1051,6 +1051,10 @@ def test_web_client_resource_pool_options_are_backend_owned() -> None:
     assert "resourcePoolOptions?.sale_options ?? []" in app
     assert "resourcePoolOptions?.portfolio_resources ?? []" in app
     assert "resourcePoolOptions?.blockers ?? []" in app
+    assert "sale_price_source_system?: string | null" in api_client
+    assert "sale_price_simulated?: boolean" in api_client
+    assert "sale_price_source_family?: string | null" in api_client
+    assert "sale_price_simulated ? t(\"market.simulated_source\")" in app
     assert "saveUpstreamContract" in api_client
     assert "saveDraftContract" in store
     assert "saveDraftContract(contractPayload)" in app_and_contracts
@@ -1072,17 +1076,23 @@ def test_web_client_resource_pool_options_are_backend_owned() -> None:
     assert "operator-sale-option" not in app
 
 
-def test_local_seed_uses_demo_provenance_not_operator_test_names() -> None:
+def test_local_seed_uses_preview_provenance_not_operator_test_names() -> None:
     legacy_seed_script = ROOT / "scripts" / "ops" / "seed_operator_test_data.py"
-    seed_script_path = ROOT / "scripts" / "ops" / "seed_demo_runtime_data.py"
+    legacy_demo_seed_script = ROOT / "scripts" / "ops" / "seed_demo_runtime_data.py"
+    seed_script_path = ROOT / "scripts" / "ops" / "seed_preview_runtime_data.py"
 
     assert not legacy_seed_script.exists()
+    assert not legacy_demo_seed_script.exists()
     seed_script = seed_script_path.read_text(
         encoding="utf-8"
     )
 
-    assert "demo_market_price" in seed_script
-    assert "demo-portfolio-contract-ttf-pool-2025" in seed_script
+    assert "demo_market_price" not in seed_script
+    assert "upsert_simulated_market_observations" in seed_script
+    assert "EEX_Sim" in seed_script
+    assert "ICE_OCM_Sim" in seed_script
+    assert "ICIS_Sim" in seed_script
+    assert "preview-portfolio-contract-ttf-pool-2025" in seed_script
     assert "operator-test-easington-contract" in seed_script
     assert "public-route-ttf-bbl-nbp" in seed_script
     assert "public_route_template" in seed_script
@@ -1094,14 +1104,14 @@ def test_local_seed_uses_demo_provenance_not_operator_test_names() -> None:
     assert "operator test contract" not in seed_script
 
 
-def test_seed_demo_runtime_script_runs_directly_without_db_url() -> None:
+def test_seed_preview_runtime_script_runs_directly_without_db_url() -> None:
     env = os.environ.copy()
     env.pop("RUNTIME_STORE_DATABASE_URL", None)
     env.pop("DATABASE_URL", None)
     env.pop("EUROGAS_NEXUS_DB_DSN", None)
 
     result = subprocess.run(
-        [sys.executable, "scripts/ops/seed_demo_runtime_data.py"],
+        [sys.executable, "scripts/ops/seed_preview_runtime_data.py"],
         cwd=ROOT,
         env=env,
         capture_output=True,

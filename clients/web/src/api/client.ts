@@ -375,6 +375,10 @@ export interface PortfolioResourceDTO {
 export interface PortfolioSaleOptionDTO {
   option_id: string; label: string; delivery_mode: string; target_point_name: string;
   sale_price_gbp_mwh: number; route_cost_gbp_mwh?: number;
+  sale_price_source_system?: string | null; sale_price_source_reference?: string | null;
+  sale_price_observed_at_utc?: string | null; sale_price_freshness?: string | null;
+  sale_price_quality_score?: number | null; sale_price_simulated?: boolean;
+  sale_price_source_family?: string | null;
   capacity_limit_mwh_per_day?: number | null; screen_sale_cash_lag_days?: number;
   required_tso_access?: string[]; source_refs?: string[];
 }

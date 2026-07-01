@@ -64,8 +64,10 @@ available.
 
 Production gaps must be shown as source-health, entitlement, readiness, or data
 quality issues. The application must not hide missing live data behind
-fabricated client values. Demo records, when needed, are inserted into
-PostgreSQL with demo provenance.
+fabricated client values. Preview/test rows, when needed, are inserted into
+PostgreSQL with explicit source provenance. Price previews use the simulated
+EEX_Sim, ICE_OCM_Sim, and ICIS_Sim source systems so calculations exercise the
+same DB/API path as licensed feeds.
 
 ## Architecture
 
@@ -159,15 +161,17 @@ Validate a runtime database without writes:
 python scripts/ops/validate_v1_runtime_db.py --json
 ```
 
-Seed local demo rows into the configured test database:
+Seed local preview rows into the configured test database:
 
 ```powershell
-python scripts/ops/seed_demo_runtime_data.py
+python scripts/ops/seed_preview_runtime_data.py
 ```
 
-The seed script writes public tariff references, public route templates,
-DB-resident demo prices, a demo portfolio contract, glossary rows, and
-route-candidate map edges. It does not call external APIs, run migrations, or
+The seed script writes public tariff references, public route templates, one
+preview portfolio contract, glossary rows, route-candidate map edges, and a
+one-batch simulated price tick. Price rows are marked `EEX_Sim`,
+`ICE_OCM_Sim`, or `ICIS_Sim`, and are read back through `/api` like licensed
+market-data rows. The script does not call external APIs, run migrations, or
 print secrets.
 
 Run the live-shaped simulated EEX, ICE OCM, and ICIS price worker against the
@@ -359,7 +363,7 @@ Eurogas Nexus 是面向欧洲天然气交易与运营团队的 PostgreSQL 优先
 - 客户端不得保存供应商 API Key 或客户凭据。
 - 数据源故障、权限缺失、表缺失、刷新失败必须明确展示。
 - 不得用伪造实时数据掩盖真实数据缺口。
-- 如需演示数据，应写入 PostgreSQL，并标注 demo provenance。
+- 如需预览或测试数据，应写入 PostgreSQL，并标注明确的数据源 provenance；价格预览使用 `EEX_Sim`、`ICE_OCM_Sim`、`ICIS_Sim`。
 
 当前 `v0.5-preview` 版本提供决策支持和市场分析能力，但不执行交易、不下单、不路由订单、不提交提名、不替代 ETRM、不提供法律意见，也不构成官方交易建议。
 

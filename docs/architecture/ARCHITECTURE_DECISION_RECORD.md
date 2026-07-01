@@ -38,7 +38,9 @@ Implication:
 - Alembic owns migrations.
 - Local files are templates, archives, reports, fixtures, or explicit
   development fallback only.
-- Demo data must be inserted into PostgreSQL with clear demo provenance.
+- Preview/test data must be inserted into PostgreSQL with explicit source
+  provenance. Price previews use simulated source systems such as `EEX_Sim`,
+  `ICE_OCM_Sim`, and `ICIS_Sim` in `market_observations`.
 
 ## Decision 2A: Live PostgreSQL Validation Is In V1
 

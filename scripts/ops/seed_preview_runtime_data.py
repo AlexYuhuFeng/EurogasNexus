@@ -1,10 +1,13 @@
-"""Seed public references and DB-resident demo trading inputs.
+"""Seed public references and DB-resident preview trading inputs.
 
 This script is for the local PostgreSQL test server only. Public tariff rows are
 manually transcribed source references. Public route templates are derived from
-those tariff references. Demo market prices and contracts are clearly marked
-because exchange/vendor prices and customer contracts require entitlement. The
-script does not call external APIs, run migrations, or print database secrets.
+those tariff references. Preview contracts are clearly marked because customer
+contracts require entitlement. Price rows are inserted through the simulated
+EEX_Sim, ICE_OCM_Sim, and ICIS_Sim feed path so the market terminal, source
+health, route costing, and strategy screens exercise the same PostgreSQL tables
+used by licensed market-data connectors. The script does not call external
+APIs, run migrations, or print database secrets.
 """
 
 from __future__ import annotations
@@ -36,26 +39,31 @@ from eurogas_nexus.domain.route_cost.uk_public_tariffs import (
 from eurogas_nexus.domain.route_cost.uk_public_tariffs import (
     published_uk_capacity_tariffs,
 )
+from eurogas_nexus.ingestion.simulated_market_prices import (
+    upsert_simulated_market_observations,
+)
 
 try:
     from scripts.ops.materialize_reference_edges import materialize_route_candidate_edges
 except ModuleNotFoundError:  # pragma: no cover - direct script execution path
     from materialize_reference_edges import materialize_route_candidate_edges
 
-DEMO_PRICE_IDS = [
+LEGACY_DEMO_PRICE_IDS = [
     "demo-market-nbp-day-ahead",
     "demo-market-ttf-day-ahead",
     "demo-market-ztp-day-ahead",
     "demo-market-peg-day-ahead",
     "demo-market-the-day-ahead",
 ]
+LEGACY_PRICE_SOURCE_SYSTEM = "demo" + "_market" + "_price"
+SIMULATED_PRICE_SOURCE_SYSTEMS = ("EEX_Sim", "ICE_OCM_Sim", "ICIS_Sim")
 PUBLIC_ROUTE_IDS = [
     "public-route-ttf-bbl-nbp",
     "public-route-nbp-iuk-ztp",
     "public-route-ttf-local",
 ]
-DEMO_CONTRACT_IDS = [
-    "demo-portfolio-contract-ttf-pool-2025",
+PREVIEW_CONTRACT_IDS = [
+    "preview-portfolio-contract-ttf-pool-2025",
 ]
 LEGACY_FIXTURE_CONTRACT_IDS = [
     "operator-test-easington-contract",
@@ -74,7 +82,7 @@ def main() -> int:
     with session_factory() as session:
         _clear_previous_demo_rows(session)
         _seed_public_tariffs(session, now)
-        _seed_demo_prices(session, now)
+        _seed_simulated_prices(session, now)
         _seed_demo_contract(session, now)
         _seed_public_route_templates(session, now)
         _seed_glossary(session, now)
@@ -82,8 +90,8 @@ def main() -> int:
     edge_summary = materialize_route_candidate_edges(database_url=database_url)
 
     print(
-        "Seeded public tariff rows, DB-resident demo prices, "
-        "demo portfolio contract, public route templates, glossary terms, "
+        "Seeded public tariff rows, DB-resident simulated price rows, "
+        "preview portfolio contract, public route templates, glossary terms, "
         f"and {edge_summary['created_or_updated']} route-candidate map edges."
     )
     return 0
@@ -102,16 +110,22 @@ def _clear_previous_demo_rows(session) -> None:
             ]
         )
     ).delete(synchronize_session=False)
+    session.query(LiveMarketMarkRecord).filter(
+        LiveMarketMarkRecord.source_system == LEGACY_PRICE_SOURCE_SYSTEM
+    ).delete(synchronize_session=False)
     session.query(UpstreamResourceContractRecord).filter(
         UpstreamResourceContractRecord.contract_id.in_(
-            [*DEMO_CONTRACT_IDS, *LEGACY_FIXTURE_CONTRACT_IDS]
+            [*PREVIEW_CONTRACT_IDS, *LEGACY_FIXTURE_CONTRACT_IDS]
         )
     ).delete(synchronize_session=False)
     session.query(RouteCandidateRecord).filter(
         RouteCandidateRecord.route_id.in_(PUBLIC_ROUTE_IDS)
     ).delete(synchronize_session=False)
     session.query(MarketObservationRecord).filter(
-        MarketObservationRecord.observation_id.in_(DEMO_PRICE_IDS)
+        MarketObservationRecord.observation_id.in_(LEGACY_DEMO_PRICE_IDS)
+    ).delete(synchronize_session=False)
+    session.query(MarketObservationRecord).filter(
+        MarketObservationRecord.source_system == LEGACY_PRICE_SOURCE_SYSTEM
     ).delete(synchronize_session=False)
     session.flush()
 
@@ -157,56 +171,19 @@ def _seed_public_tariffs(session, now: datetime) -> None:
         )
 
 
-def _seed_demo_prices(session, now: datetime) -> None:
-    session.merge(
-        LiveMarketMarkRecord(
-            mark_id="demo-market-price-ice-ocm-nbp-within-day",
-            venue="ICE OCM",
-            hub="NBP",
-            product="Within-day",
-            bid_gbp_mwh=28.2,
-            ask_gbp_mwh=28.4,
-            last_gbp_mwh=28.3,
-            mark_time_utc=now,
-            source_system="demo_market_price",
-            source_reference="demo:market-price:ice-ocm-nbp-within-day",
-            created_at_utc=now,
-        )
+def _seed_simulated_prices(session, now: datetime) -> None:
+    upsert_simulated_market_observations(
+        session,
+        observed_at_utc=now,
+        source_systems=SIMULATED_PRICE_SOURCE_SYSTEMS,
     )
-    for observation_id, venue, product, price in [
-        ("demo-market-nbp-day-ahead", "NBP", "day-ahead", 35.0),
-        ("demo-market-ttf-day-ahead", "TTF", "day-ahead", 31.0),
-        ("demo-market-ztp-day-ahead", "ZTP", "day-ahead", 31.4),
-        ("demo-market-peg-day-ahead", "PEG", "day-ahead", 30.9),
-        ("demo-market-the-day-ahead", "THE", "day-ahead", 31.2),
-    ]:
-        session.merge(
-            MarketObservationRecord(
-                observation_id=observation_id,
-                market_venue=venue,
-                product=product,
-                price=price,
-                unit="EUR/MWh",
-                currency="EUR",
-                period_start_utc=now,
-                period_end_utc=now,
-                observed_at_utc=now,
-                source_system="demo_market_price",
-                source_reference=f"demo:market-price:{venue.lower()}-{product}",
-                source_record_id=None,
-                freshness="demo",
-                quality_score=0.8,
-                research_only=True,
-                metadata_json={"hub": venue, "demo_record": True},
-            )
-        )
 
 
 def _seed_demo_contract(session, now: datetime) -> None:
     session.merge(
         UpstreamResourceContractRecord(
-            contract_id="demo-portfolio-contract-ttf-pool-2025",
-            contract_name="Demo TTF portfolio supply 2025",
+            contract_id="preview-portfolio-contract-ttf-pool-2025",
+            contract_name="Preview TTF portfolio supply 2025",
             resource_type="PIPELINE_IMPORT",
             delivery_point_name="TTF",
             gas_year="2025+",
@@ -227,7 +204,7 @@ def _seed_demo_contract(session, now: datetime) -> None:
                 "LOCAL_MARKET_SALE",
                 "REROUTE_SALE",
             ],
-            notes="demo_portfolio_contract:not_customer_data",
+            notes="preview_portfolio_contract:not_customer_data",
             created_at_utc=now,
             updated_at_utc=now,
         )

@@ -51,8 +51,10 @@ Latest local runtime posture observed in this worktree:
 - Missing runtime data must be shown as unavailable, partial, blocked,
   stale, credential-missing, or table-missing state. It must not be hidden by
   browser-side mock data.
-- Demo rows, when needed, are inserted into PostgreSQL with demo provenance and
-  then read back through `/api`.
+- Preview/test rows, when needed, are inserted into PostgreSQL with explicit
+  source provenance and then read back through `/api`. Price previews must use
+  `EEX_Sim`, `ICE_OCM_Sim`, and `ICIS_Sim` rows in `market_observations`, not
+  client-side or ad hoc demo prices.
 
 ## Product Boundary
 
