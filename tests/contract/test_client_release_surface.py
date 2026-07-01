@@ -249,6 +249,14 @@ def test_web_client_uses_api_only_and_supports_mandarin_theme() -> None:
 
     assert "__TAURI_INTERNALS__" in vite_env
 
+    vite_config = (ROOT / "clients" / "web" / "vite.config.ts").read_text(
+        encoding="utf-8"
+    )
+
+    assert '"/api": "http://127.0.0.1:8000"' in vite_config
+
+    assert "http://localhost:8000" not in vite_config
+
     assert "postgres" not in api_client.lower()
 
     assert "RUNTIME_STORE_DATABASE_URL" not in api_client
@@ -359,6 +367,10 @@ def test_web_client_matches_design_reference_cockpit() -> None:
     assert "fallback-network-map.map-ready" in css
     assert "cockpit-app:not(.workspace-network) .decision-rail" in css
     assert "cockpit-app:not(.workspace-network) .scenario-rail" in css
+    assert "mobile-cockpit-qa" in css
+    assert "grid-template-areas" in css
+    assert "topbar-controls" in css
+    assert "max-height: min(44vh, 360px)" in css
     assert "Resource-pool home cleanup" in css
     assert ".workspace-network .map-price-strip" in css
     assert "source-runtime-panel" in app_and_components
@@ -570,9 +582,31 @@ def test_web_client_strategy_page_is_shadow_run_terminal() -> None:
     assert "strategyResult={strategyResult}" in app
     assert "portfolioResources={portfolioResources}" in app
     assert "marketObservations={markets}" in app
+    assert "fxRates={fxRates}" in app
+    assert "language={i18n.language}" in app
     assert "onEvaluate={() => evaluateStrategyLab(strategyScenario)}" in app
     assert "strategy-shadow-run-terminal" in strategy_terminal
     assert "strategy-command-deck" in strategy_terminal
+    assert "strategy-price-basis-board" in strategy_terminal
+    assert "strategy-price-basis-card" in strategy_terminal
+    assert "strategy-pnl-curve" in strategy_terminal
+    assert "strategy-pnl-curve-row" in strategy_terminal
+    assert "strategy-data-quality-flags" in strategy_terminal
+    assert "priceBasisRows" in strategy_terminal
+    assert "pnlCurveRows" in strategy_terminal
+    assert "classifyPriceBasis" in strategy_terminal
+    assert "isSimulatedSource" in strategy_terminal
+    assert "isStaleObservation" in strategy_terminal
+    assert "language: string" in strategy_terminal
+    assert "Intl.DateTimeFormat(language.startsWith" in strategy_terminal
+    assert "fxRates" in strategy_terminal
+    assert "WITHIN_DAY" in strategy_terminal
+    assert "DAY_AHEAD" in strategy_terminal
+    assert "MONTHLY" in strategy_terminal
+    assert "ICIS_ASSESSMENT" in strategy_terminal
+    assert "ICE_OCM_MARK" in strategy_terminal
+    assert "EEX_CURVE" in strategy_terminal
+    assert "FX" in strategy_terminal
     assert "strategy-market-tape" in strategy_terminal
     assert "strategy-paper-state" in strategy_terminal
     assert "strategy-allocation-ladder" in strategy_terminal
@@ -586,16 +620,31 @@ def test_web_client_strategy_page_is_shadow_run_terminal() -> None:
     assert "marketObservations" in strategy_terminal
     assert "human_review_required" in strategy_terminal
     assert "strategy-shadow-run-terminal" in css
+    assert "strategy-price-basis-board" in css
+    assert "strategy-pnl-curve" in css
+    assert "strategy-data-quality-flags" in css
     assert "strategy-market-tape" in css
     assert "strategy-allocation-ladder" in css
     assert "strategy-candidate-action" in css
     assert en["strategy.shadow_terminal"] == "Strategy shadow-run terminal"
+    assert en["strategy.price_basis_board"] == "Price-basis comparison"
+    assert en["strategy.pnl_curve"] == "Resource-pool PnL curve"
+    assert en["strategy.simulated_data"] == "Simulated data"
+    assert en["strategy.stale_data"] == "Stale data"
     assert en["strategy.market_tape"] == "Market tape"
     assert en["strategy.paper_state"] == "Paper state"
     assert en["strategy.no_execution"] == "No execution"
     assert zh["strategy.shadow_terminal"] == "\u7b56\u7565\u5f71\u5b50\u8fd0\u884c\u7ec8\u7aef"
+    assert zh["strategy.price_basis_board"] == "\u4ef7\u683c\u57fa\u51c6\u5bf9\u6bd4"
+    assert zh["strategy.pnl_curve"] == "\u8d44\u6e90\u6c60 PnL \u66f2\u7ebf"
     assert "shadow-run terminal" in web_spec
     assert "market tape, paper state, allocation ladder" in web_spec
+    assert "price-basis comparison board" in web_spec
+    assert "resource-pool PnL curve" in web_spec
+    assert (
+        "within-day, day-ahead, monthly, ICIS assessments, ICE OCM marks, "
+        "EEX curves, and ECB FX"
+    ) in web_spec
 
 
 def test_web_client_settings_page_is_trader_preference_center() -> None:

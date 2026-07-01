@@ -856,6 +856,9 @@ input {
 .strategy-command-deck,
 .strategy-paper-state,
 .strategy-risk-stack,
+.strategy-price-basis-board,
+.strategy-pnl-curve,
+.strategy-data-quality-flags,
 .strategy-market-tape,
 .strategy-resource-stack,
 .strategy-allocation-ladder,
@@ -918,6 +921,117 @@ input {
   background: var(--surface-strong);
   min-height: 86px;
   padding: 10px;
+}
+
+.strategy-price-basis-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.strategy-price-basis-card,
+.strategy-pnl-curve-row {
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  min-height: 116px;
+  padding: 10px;
+}
+
+.strategy-price-basis-card > span,
+.strategy-basis-meta small,
+.strategy-pnl-curve-row small,
+.strategy-pool-baseline span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.strategy-price-basis-card > strong {
+  color: var(--text);
+  font-size: 18px;
+}
+
+.strategy-basis-meta,
+.strategy-pnl-curve-list {
+  display: grid;
+  gap: 6px;
+}
+
+.strategy-data-quality-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.strategy-data-quality-chip {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0;
+  padding: 4px 7px;
+  text-transform: uppercase;
+}
+
+.strategy-data-quality-chip.simulated {
+  border-color: rgba(180, 126, 20, 0.28);
+  background: rgba(180, 126, 20, 0.1);
+  color: #8a5a00;
+}
+
+.strategy-data-quality-chip.stale,
+.strategy-data-quality-chip.unavailable {
+  border-color: rgba(197, 70, 70, 0.28);
+  background: rgba(197, 70, 70, 0.1);
+  color: #a13b3b;
+}
+
+.strategy-pool-baseline {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.strategy-pool-baseline div {
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  padding: 10px;
+}
+
+.strategy-pnl-row-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.strategy-pnl-row-header strong,
+.strategy-pnl-row-header span,
+.strategy-pool-baseline strong {
+  color: var(--text);
+}
+
+.strategy-pnl-track {
+  overflow: hidden;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--surface);
+}
+
+.strategy-pnl-bar {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--success);
+}
+
+.strategy-pnl-bar.negative {
+  background: var(--danger);
 }
 
 .source-chip-list {
@@ -3047,6 +3161,8 @@ button.glossary-related-chip {
   .source-health-grid,
   .source-posture-grid,
   .source-table-split,
+  .strategy-price-basis-grid,
+  .strategy-pool-baseline,
   .strategy-tape-grid,
   .economics-grid.wide,
   .credential-form.horizontal {
@@ -4296,5 +4412,115 @@ button.glossary-related-chip {
   .cockpit-app .status-badge {
     min-width: 0;
     max-width: 100%;
+  }
+}
+
+/* mobile-cockpit-qa
+   Compact mobile chrome for map-first QA. The topbar uses named grid areas so
+   search and controls do not stack into the map or clip resource-path cards. */
+@media (max-width: 640px) {
+  .cockpit-app .cockpit-topbar {
+    top: 8px;
+    right: 8px;
+    left: 8px;
+    grid-template-areas:
+      "workspace"
+      "search"
+      "topbar-controls";
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+
+  .workspace-pill {
+    grid-area: workspace;
+    min-height: 38px;
+  }
+
+  .topbar-search {
+    grid-area: search;
+    min-height: 36px;
+    padding: 0 12px;
+  }
+
+  .cockpit-app .header-controls {
+    grid-area: topbar-controls;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .cockpit-app .header-controls .status-badge {
+    grid-column: 1 / -1;
+  }
+
+  .cockpit-app .header-controls select,
+  .cockpit-app .status-badge {
+    width: 100%;
+    min-height: 34px;
+    padding-right: 6px;
+    padding-left: 6px;
+  }
+
+  .cockpit-app .map-toolbar {
+    top: 174px;
+    right: 8px;
+    left: 8px;
+    gap: 6px;
+  }
+
+  .cockpit-app .map-toolbar .reset-chip {
+    min-width: 76px;
+  }
+
+  .map-layer-chip.compact {
+    width: 34px;
+    min-width: 34px;
+  }
+
+  .resource-pool-map-overlay {
+    top: 224px;
+    right: 8px;
+    left: 8px;
+  }
+
+  .resource-path-list {
+    max-height: min(44vh, 360px);
+    overflow-y: auto;
+  }
+
+  .resource-path-card,
+  .resource-path-empty {
+    max-width: calc(100vw - 16px);
+  }
+
+  .resource-path-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .workspace-network .scenario-rail,
+  .workspace-network .decision-rail {
+    right: 8px;
+    left: 8px;
+    width: auto;
+    max-height: min(42vh, 360px);
+  }
+
+  .workspace-network .scenario-rail {
+    top: 224px;
+  }
+
+  .workspace-network .decision-rail {
+    top: auto;
+    bottom: 8px;
+  }
+
+  .workspace-network .maplibregl-ctrl-top-right {
+    top: 174px;
+    right: 8px;
+  }
+
+  .workspace-network .maplibregl-ctrl-bottom-left {
+    bottom: 8px;
+    left: 8px;
   }
 }

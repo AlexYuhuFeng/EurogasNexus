@@ -1633,6 +1633,8 @@ export default function App() {
               strategyResult={strategyResult}
               portfolioResources={portfolioResources}
               marketObservations={markets}
+              fxRates={fxRates}
+              language={i18n.language}
               loading={loading}
               t={t}
               onEvaluate={() => evaluateStrategyLab(strategyScenario)}

@@ -372,6 +372,10 @@ Content:
 
 - shadow-run terminal with market tape, paper state, allocation ladder, source
   evidence, risk stack, candidate action, and warning stack visible together;
+- price-basis comparison board covering within-day, day-ahead, monthly, ICIS assessments, ICE OCM marks, EEX curves, and ECB FX;
+- resource-pool PnL curve that ties each price basis back to weighted
+  contract/resource cost, available MWh/d, source provenance, and stale or
+  simulated-data warnings;
 - strategy hypothesis;
 - observation window;
 - paper state;
