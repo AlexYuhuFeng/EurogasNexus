@@ -24,6 +24,29 @@ import "./styles/app.css";
 type ContractDraft = ContractDraftModel;
 type LiveMarkNumberKey = "bid_gbp_mwh" | "ask_gbp_mwh" | "last_gbp_mwh";
 const MARKET_REFRESH_INTERVAL_MS = 15_000;
+const WORKSPACE_PAGES: WorkspacePageId[] = [
+  "network",
+  "capacity",
+  "market",
+  "scenario",
+  "contracts",
+  "strategy",
+  "review",
+  "orders",
+  "sources",
+  "glossary",
+  "runtime",
+  "settings",
+  "manual",
+];
+
+function workspaceFromLocation(): WorkspacePageId {
+  if (typeof window === "undefined") return "network";
+  const requestedWorkspace = new URLSearchParams(window.location.search).get("workspace");
+  return WORKSPACE_PAGES.includes(requestedWorkspace as WorkspacePageId)
+    ? requestedWorkspace as WorkspacePageId
+    : "network";
+}
 
 const defaultContractDraft: ContractDraft = {
   contract_id: "operator-ttf-supply-2025",
@@ -157,9 +180,10 @@ export default function App() {
   const [glossaryDurationEnd, setGlossaryDurationEnd] = useState("2026-06-01T06:00");
   const [analysisQuestion, setAnalysisQuestion] = useState("Summarize current portfolio PnL, route, market, and strategy status.");
   const [invokeDeepSeek, setInvokeDeepSeek] = useState(false);
-  const [activeWorkspace, setActiveWorkspace] = useState<WorkspacePageId>("network");
+  const [activeWorkspace, setActiveWorkspace] = useState<WorkspacePageId>(() => workspaceFromLocation());
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
   const contractImportRef = useRef<HTMLInputElement>(null);
+  const lastAutoOptimizerSignatureRef = useRef<string | null>(null);
   const [contractImportMessage, setContractImportMessage] = useState<string | null>(null);
   const selectedCredentialProvider = useMemo(
     () => credentialProviders.find((provider) => provider.provider_id === credentialProvider),
@@ -350,6 +374,15 @@ export default function App() {
     }, MARKET_REFRESH_INTERVAL_MS);
     return () => window.clearInterval(intervalId);
   }, [activeWorkspace, refreshMarketData]);
+
+  useEffect(() => {
+    function syncWorkspaceFromUrl() {
+      setActiveWorkspace(workspaceFromLocation());
+      setWorkspaceMenuOpen(false);
+    }
+    window.addEventListener("popstate", syncWorkspaceFromUrl);
+    return () => window.removeEventListener("popstate", syncWorkspaceFromUrl);
+  }, []);
 
   async function onCredentialSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -621,6 +654,9 @@ export default function App() {
   function openWorkspace(page: WorkspacePageId) {
     setActiveWorkspace(page);
     setWorkspaceMenuOpen(false);
+    const nextUrl = new URL(window.location.href);
+    nextUrl.searchParams.set("workspace", page);
+    window.history.pushState({ workspace: page }, "", nextUrl);
   }
 
   const firstStrategyTarget = strategyResult?.allocation_targets[0];
@@ -660,21 +696,7 @@ export default function App() {
     selected_contracts: portfolioResources.map((resource) => resource.resource_id),
     language: i18n.language.startsWith("zh") ? "zh-CN" : "en",
   };
-  const workspacePages: WorkspacePageId[] = [
-    "network",
-    "capacity",
-    "market",
-    "scenario",
-    "contracts",
-    "strategy",
-    "review",
-    "orders",
-    "sources",
-    "glossary",
-    "runtime",
-    "settings",
-    "manual",
-  ];
+  const workspacePages = WORKSPACE_PAGES;
   const destinationHubs = ["NBP", "TTF", "ZTP", "PEG", "THE"];
   const selectedAllocation = routeRecommendation?.allocations[0] ?? null;
   const poolAllocations = resourcePoolResult?.allocations ?? [];
@@ -729,12 +751,44 @@ export default function App() {
     hasPortfolioResources &&
     saleOptions.length > 0 &&
     optionBlockers.length === 0;
+  const autoOptimizerSignature = useMemo(
+    () => JSON.stringify({
+      resources: portfolioResources.map((resource) => [
+        resource.resource_id,
+        resource.available_quantity_mwh_per_day,
+        resource.contract_cost_gbp_mwh,
+        resource.location_point_name,
+      ]),
+      saleOptions: saleOptions.map((option) => [
+        option.option_id,
+        option.target_point_name,
+        option.sale_price_gbp_mwh,
+        option.route_cost_gbp_mwh,
+        option.capacity_limit_mwh_per_day,
+      ]),
+      financingRate: resourcePoolOptimizationRequest.annual_financing_rate_pct,
+    }),
+    [portfolioResources, resourcePoolOptimizationRequest.annual_financing_rate_pct, saleOptions],
+  );
   const poolInputBlockers = useMemo(() => {
     const blockers: string[] = [];
     if (!runtimeDbReady) blockers.push(t("home.blocker_runtime_db"));
     blockers.push(...(resourcePoolOptions?.blockers ?? []));
     return blockers;
   }, [resourcePoolOptions, runtimeDbReady, t]);
+
+  useEffect(() => {
+    if (!canRunPoolOptimizer || loading) return;
+    if (lastAutoOptimizerSignatureRef.current === autoOptimizerSignature) return;
+    lastAutoOptimizerSignatureRef.current = autoOptimizerSignature;
+    void optimizeResourcePool(resourcePoolOptimizationRequest);
+  }, [
+    autoOptimizerSignature,
+    canRunPoolOptimizer,
+    loading,
+    optimizeResourcePool,
+    resourcePoolOptimizationRequest,
+  ]);
   const routeGeometryEdgesByRouteId = useMemo(() => {
     const grouped = new Map<string, EdgeDTO[]>();
     edges

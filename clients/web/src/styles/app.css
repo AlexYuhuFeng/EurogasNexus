@@ -3939,8 +3939,8 @@ button.glossary-related-chip {
   position: absolute;
   z-index: 4;
   top: 126px;
-  right: calc(18px + var(--eg-right-rail) + 12px);
   left: calc(16px + var(--eg-left-rail) + 12px);
+  width: min(560px, calc(100vw - var(--eg-left-rail) - var(--eg-right-rail) - 74px));
   display: grid;
   gap: 8px;
   pointer-events: none;
@@ -3971,22 +3971,107 @@ button.glossary-related-chip {
   font-size: 13px;
 }
 
+.resource-pool-allocation-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  max-width: 100%;
+  pointer-events: auto;
+}
+
+.resource-pool-allocation-summary div {
+  display: grid;
+  gap: 2px;
+  border: 1px solid var(--eg-hairline);
+  border-radius: var(--eg-radius-sm);
+  background: rgb(255 255 255 / 90%);
+  box-shadow: var(--eg-shadow-2);
+  padding: 7px 8px;
+}
+
+.resource-pool-allocation-summary span,
+.resource-route-status-legend span {
+  color: var(--eg-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.resource-pool-allocation-summary strong {
+  color: var(--eg-ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.resource-route-status-legend {
+  display: flex;
+  width: fit-content;
+  max-width: 100%;
+  flex-wrap: wrap;
+  gap: 6px;
+  pointer-events: auto;
+}
+
+.route-state-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--eg-hairline);
+  border-radius: var(--eg-pill);
+  background: rgb(255 255 255 / 90%);
+  box-shadow: var(--eg-shadow-2);
+  padding: 5px 8px;
+}
+
+.route-state-item i {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: var(--eg-muted);
+}
+
+.route-state-item.allocated i,
+.resource-route-state-pill.allocated {
+  background: var(--eg-map-hub);
+}
+
+.route-state-item.candidate i,
+.resource-route-state-pill.candidate {
+  background: var(--eg-map-standard);
+}
+
+.route-state-item.blocked i,
+.resource-route-state-pill.blocked {
+  background: var(--warning);
+}
+
+.route-state-item strong {
+  color: var(--eg-ink);
+  font-size: 11px;
+}
+
 .resource-path-list {
   display: grid;
-  grid-template-columns: repeat(2, minmax(210px, 1fr));
+  grid-template-columns: 1fr;
   gap: 8px;
+  max-height: min(42vh, 380px);
+  overflow-y: auto;
+  padding-right: 2px;
 }
 
 .resource-path-card,
 .resource-path-empty {
   display: grid;
-  gap: 8px;
+  gap: 7px;
   border: 1px solid var(--eg-hairline);
   border-radius: var(--eg-radius-md);
   background: rgb(255 255 255 / 90%);
   box-shadow: var(--eg-shadow-2);
   color: var(--eg-body);
-  padding: 10px 12px;
+  padding: 9px 10px;
   pointer-events: auto;
 }
 
@@ -4064,17 +4149,50 @@ button.glossary-related-chip {
   white-space: nowrap;
 }
 
+.resource-route-state-pill {
+  border-radius: var(--eg-pill);
+  color: #ffffff;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 800;
+  letter-spacing: 0;
+  padding: 3px 7px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
 .resource-path-metrics {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 4px 8px;
+}
+
+.resource-path-allocation-evidence {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px 8px;
+  border: 1px solid rgb(0 112 243 / 16%);
+  border-radius: var(--eg-radius-sm);
+  background: rgb(0 112 243 / 5%);
+  padding: 7px 8px;
+}
+
+.resource-path-capacity-warning {
+  border: 1px solid rgb(180 83 9 / 24%);
+  border-radius: var(--eg-radius-sm);
+  background: rgb(180 83 9 / 9%);
+  color: var(--warning);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
+  padding: 6px 8px;
 }
 
 .resource-path-geometry {
   display: grid;
-  gap: 2px;
+  gap: 1px;
   border-top: 1px solid var(--eg-hairline);
-  padding-top: 7px;
+  padding-top: 6px;
 }
 
 .resource-path-geometry.warning {
@@ -4086,6 +4204,7 @@ button.glossary-related-chip {
 }
 
 .resource-path-metrics span,
+.resource-path-allocation-evidence span,
 .resource-path-geometry span,
 .resource-path-card small,
 .resource-path-empty span {
@@ -4094,15 +4213,45 @@ button.glossary-related-chip {
   line-height: 1.35;
 }
 
+.resource-path-metrics span,
+.resource-path-allocation-evidence span,
+.resource-path-geometry span,
+.resource-path-geometry small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resource-path-more {
+  width: fit-content;
+  border: 1px solid var(--eg-hairline);
+  border-radius: var(--eg-pill);
+  background: rgb(255 255 255 / 90%);
+  box-shadow: var(--eg-shadow-2);
+  color: var(--eg-muted);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 6px 10px;
+  pointer-events: auto;
+}
+
 .resource-path-empty strong {
   color: var(--eg-ink);
   font-size: 13px;
 }
 
 :root.dark .resource-path-heading,
+:root.dark .resource-pool-allocation-summary div,
+:root.dark .route-state-item,
 :root.dark .resource-path-card,
-:root.dark .resource-path-empty {
+:root.dark .resource-path-empty,
+:root.dark .resource-path-more {
   background: rgb(17 17 17 / 90%);
+}
+
+:root.dark .resource-path-allocation-evidence {
+  background: rgb(0 112 243 / 10%);
 }
 
 .workspace-network .scenario-rail {
@@ -4134,6 +4283,7 @@ button.glossary-related-chip {
     top: 58px;
     right: 12px;
     left: 12px;
+    width: auto;
   }
 
   .resource-path-list {
@@ -4147,6 +4297,10 @@ button.glossary-related-chip {
 
   .resource-path-card {
     min-width: 0;
+  }
+
+  .resource-pool-allocation-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .workspace-network .maplibregl-ctrl-bottom-left {

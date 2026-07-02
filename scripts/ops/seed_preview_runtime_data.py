@@ -66,6 +66,7 @@ PREVIEW_CONTRACT_IDS = [
     "preview-portfolio-contract-ttf-pool-2025",
 ]
 LEGACY_FIXTURE_CONTRACT_IDS = [
+    "demo-portfolio-contract-ttf-pool-2025",
     "operator-test-easington-contract",
 ]
 
@@ -80,10 +81,10 @@ def main() -> int:
     now = datetime.now(UTC)
     session_factory = get_session_factory(database_url=database_url)
     with session_factory() as session:
-        _clear_previous_demo_rows(session)
+        _clear_previous_preview_rows(session)
         _seed_public_tariffs(session, now)
         _seed_simulated_prices(session, now)
-        _seed_demo_contract(session, now)
+        _seed_preview_contract(session, now)
         _seed_public_route_templates(session, now)
         _seed_glossary(session, now)
         session.commit()
@@ -97,7 +98,7 @@ def main() -> int:
     return 0
 
 
-def _clear_previous_demo_rows(session) -> None:
+def _clear_previous_preview_rows(session) -> None:
     session.query(TsoTariffRecord).filter(
         TsoTariffRecord.document_id.in_(
             [NATIONAL_GAS_DOCUMENT_ID, BBL_DOCUMENT_ID, IUK_DOCUMENT_ID]
@@ -179,7 +180,7 @@ def _seed_simulated_prices(session, now: datetime) -> None:
     )
 
 
-def _seed_demo_contract(session, now: datetime) -> None:
+def _seed_preview_contract(session, now: datetime) -> None:
     session.merge(
         UpstreamResourceContractRecord(
             contract_id="preview-portfolio-contract-ttf-pool-2025",

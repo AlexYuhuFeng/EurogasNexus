@@ -332,6 +332,9 @@ def test_web_client_matches_design_reference_cockpit() -> None:
     assert 'activeWorkspace === "manual"' in app
     assert "resourcePoolOptimizationRequest" in app
     assert "optimizeResourcePool(resourcePoolOptimizationRequest)" in app
+    assert "lastAutoOptimizerSignatureRef" in app
+    assert "autoOptimizerSignature" in app
+    assert "void optimizeResourcePool(resourcePoolOptimizationRequest)" in app
     assert "canRunPoolOptimizer" in app
     assert "poolInputBlockers" in app
     assert "runtimeDbReady" in app
@@ -407,7 +410,6 @@ def test_web_client_release_cockpit_chrome_is_clean_and_color_coded() -> None:
     zh = json.loads(
         (ROOT / "clients" / "web" / "src" / "i18n" / "zh.json").read_text(encoding="utf-8")
     )
-
     assert "release-cockpit-override" in css
     assert "workspace-topbar-only" in css
     assert "map-layer-chip compact" in app
@@ -454,22 +456,29 @@ def test_web_client_separates_market_capacity_orders_and_review_pages() -> None:
     )
 
     assert (
-        'const workspacePages: WorkspacePageId[] = [\n'
-        '    "network",\n'
-        '    "capacity",\n'
-        '    "market",\n'
-        '    "scenario",\n'
-        '    "contracts",\n'
-        '    "strategy",\n'
-        '    "review",\n'
-        '    "orders",\n'
-        '    "sources",\n'
-        '    "glossary",\n'
-        '    "runtime",\n'
-        '    "settings",\n'
-        '    "manual",\n'
-        "  ];"
+        'const WORKSPACE_PAGES: WorkspacePageId[] = [\n'
+        '  "network",\n'
+        '  "capacity",\n'
+        '  "market",\n'
+        '  "scenario",\n'
+        '  "contracts",\n'
+        '  "strategy",\n'
+        '  "review",\n'
+        '  "orders",\n'
+        '  "sources",\n'
+        '  "glossary",\n'
+        '  "runtime",\n'
+        '  "settings",\n'
+        '  "manual",\n'
+        "];"
     ) in app
+    assert "function workspaceFromLocation(): WorkspacePageId" in app
+    assert 'new URLSearchParams(window.location.search).get("workspace")' in app
+    assert "WORKSPACE_PAGES.includes(requestedWorkspace as WorkspacePageId)" in app
+    assert "const workspacePages = WORKSPACE_PAGES" in app
+    assert 'nextUrl.searchParams.set("workspace", page)' in app
+    assert "window.history.pushState({ workspace: page }, \"\", nextUrl)" in app
+    assert 'window.addEventListener("popstate", syncWorkspaceFromUrl)' in app
     assert app.index('activeWorkspace === "capacity"') < app.index('activeWorkspace === "market"')
     assert app.index('activeWorkspace === "review"') < app.index('activeWorkspace === "orders"')
     assert app.index('className="data-table orders-table"') > app.index(
@@ -699,6 +708,9 @@ def test_web_client_network_page_shows_resource_pool_paths_on_map() -> None:
     zh = json.loads(
         (ROOT / "clients" / "web" / "src" / "i18n" / "zh.json").read_text(encoding="utf-8")
     )
+    web_spec = (ROOT / "docs" / "clients" / "WEB_CLIENT_DESIGN_SPEC.md").read_text(
+        encoding="utf-8"
+    )
 
     assert 'import { ResourcePoolPathOverlay } from "@/components/ResourcePoolPathOverlay";' in app
     assert "<ResourcePoolPathOverlay" in app
@@ -712,12 +724,49 @@ def test_web_client_network_page_shows_resource_pool_paths_on_map() -> None:
     assert "availableQuantityMwhPerDay" in overlay
     assert "routeCostGbpMwh" in overlay
     assert "capacityLimitMwhPerDay" in overlay
+    assert "resource-pool-allocation-summary" in overlay
+    assert "resource-route-status-legend" in overlay
+    assert "resource-path-allocation-evidence" in overlay
+    assert "resource-path-capacity-warning" in overlay
+    assert "resource-route-state-pill" in overlay
+    assert "paths.slice(0, 3)" in overlay
+    assert "hiddenPathCount" in overlay
+    assert "home.more_route_paths" in overlay
+    assert "weightedNetMargin" in overlay
+    assert "capacityHeadroomMwhPerDay" in overlay
+    assert "poolSharePct" in overlay
+    assert "pnlGbpPerDay" in overlay
     assert "resource-pool-map-overlay" in css
     assert "resource-path-card" in css
+    assert ".resource-pool-allocation-summary" in css
+    assert ".resource-route-status-legend" in css
+    assert ".resource-path-allocation-evidence" in css
+    assert ".resource-path-capacity-warning" in css
+    assert ".resource-route-state-pill" in css
+    assert ".resource-path-more" in css
+    assert "max-height: min(42vh, 380px)" in css
     assert "fallback-flow-path" in map_component
     assert en["home.resource_paths"] == "Resource paths"
+    assert en["home.pool_allocation"] == "Pool allocation"
+    assert en["home.route_status_legend"] == "Route status"
+    assert en["home.capacity_bottleneck"] == "Capacity bottleneck"
+    assert en["home.more_route_paths"] == "more route candidates in decision rail"
+    assert en["home.pnl_per_day"] == "PnL/day"
+    assert en["home.route_state.allocated"] == "Allocated"
+    assert en["home.route_state.candidate"] == "Candidate"
+    assert en["home.route_state.blocked"] == "Blocked"
     assert en["home.path_unavailable"].startswith("No persisted resource")
     assert zh["home.resource_paths"] == "\u8d44\u6e90\u8def\u5f84"
+    assert zh["home.pool_allocation"] == "\u8d44\u6e90\u6c60\u5206\u914d"
+    assert zh["home.route_status_legend"] == "\u8def\u5f84\u72b6\u6001"
+    assert zh["home.capacity_bottleneck"] == "\u5bb9\u91cf\u74f6\u9888"
+    assert zh["home.more_route_paths"] == (
+        "\u6761\u66f4\u591a\u5019\u9009\u8def\u5f84\u5728\u53f3\u4fa7\u51b3\u7b56\u680f"
+    )
+    assert "pool allocation summary" in web_spec
+    assert "route status legend" in web_spec
+    assert "capacity bottleneck" in web_spec
+    assert "path-level PnL/day" in web_spec
 
 
 def test_web_client_map_fallback_prioritizes_labels_for_trader_readability() -> None:
@@ -1202,10 +1251,15 @@ def test_local_seed_uses_preview_provenance_not_operator_test_names() -> None:
     assert "ICE_OCM_Sim" in seed_script
     assert "ICIS_Sim" in seed_script
     assert "preview-portfolio-contract-ttf-pool-2025" in seed_script
-    assert "operator-test-easington-contract" in seed_script
+    assert "LEGACY_FIXTURE_CONTRACT_IDS" in seed_script
+    assert "demo-portfolio-contract-ttf-pool-2025" in seed_script
+    assert "_clear_previous_preview_rows" in seed_script
+    assert "_seed_preview_contract" in seed_script
     assert "public-route-ttf-bbl-nbp" in seed_script
     assert "public_route_template" in seed_script
     assert "materialize_route_candidate_edges" in seed_script
+    assert "_clear_previous_demo_rows" not in seed_script
+    assert "_seed_demo_contract" not in seed_script
     assert "demo-route" not in seed_script
     assert "demo_route_template" not in seed_script
     assert "operator-owned test" not in seed_script

@@ -110,6 +110,15 @@ Primary navigation items:
 
 Navigation labels are product workflow labels, not implementation names.
 
+Every primary workspace must support a direct URL query entry for release QA,
+customer support, and customer training. The canonical format is
+`?workspace=<workspace-id>`, where `<workspace-id>` is one of `network`,
+`capacity`, `market`, `scenario`, `contracts`, `strategy`, `review`, `orders`,
+`sources`, `glossary`, `runtime`, `settings`, or `manual`. Switching pages from
+the workspace menu must update the query parameter, and browser back/forward
+must restore the selected workspace. Unknown workspace values must fall back to
+`network`.
+
 Home-screen authority:
 
 - `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-EN.md`
@@ -157,10 +166,24 @@ Initial content:
 - resource-path overlay showing persisted resource delivery point, target sale
   point, quantity, capacity limit, route cost, sale price, net margin, route
   state, and blockers from backend resource-pool data;
+- pool allocation summary showing total pool volume, allocated quantity,
+  unallocated quantity, and weighted net margin before individual path cards;
+- route status legend for allocated, candidate, and blocked paths so the map
+  can be read without inspecting every card;
+- path cards must expose allocation evidence: allocated quantity, pool share,
+  capacity headroom, path-level PnL/day, and capacity bottleneck warnings;
+- the map overlay must stay compact: show no more than three route candidates
+  on the map at once, place additional route candidates in the decision rail,
+  and keep the central map readable for route/capacity visualization;
 - left resource-pool rail with active resources, blockers, and route controls;
 - right decision rail with net PnL, allocation ladder, economics snapshot, and
   strategy/warning signal;
 - selected route context and route blocking/warning overlay.
+- when PostgreSQL runtime status, portfolio resources, route candidates,
+  tariff/capacity inputs, and price observations are available, the Network
+  cockpit must automatically request the backend resource-pool optimization
+  once for the current input signature. Manual buttons are refresh controls,
+  not the only way to generate a decision view.
 
 Not allowed on the Network home:
 
