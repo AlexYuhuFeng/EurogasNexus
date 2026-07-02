@@ -597,12 +597,29 @@ def test_web_client_strategy_page_is_shadow_run_terminal() -> None:
     assert "strategy-shadow-run-terminal" in strategy_terminal
     assert "strategy-command-deck" in strategy_terminal
     assert "strategy-price-basis-board" in strategy_terminal
+    assert "strategy-price-basis-selector" in strategy_terminal
+    assert "strategy-basis-option" in strategy_terminal
     assert "strategy-price-basis-card" in strategy_terminal
     assert "strategy-pnl-curve" in strategy_terminal
+    assert "strategy-pnl-scenario-comparison" in strategy_terminal
     assert "strategy-pnl-curve-row" in strategy_terminal
+    assert "strategy-contract-pnl-attribution" in strategy_terminal
+    assert "strategy-contract-pnl-row" in strategy_terminal
+    assert "strategy-data-quality-banner" in strategy_terminal
     assert "strategy-data-quality-flags" in strategy_terminal
+    assert 'useState<PriceBasisId>("WITHIN_DAY")' in strategy_terminal
+    assert "setActiveBasis(row.basis)" in strategy_terminal
+    assert "aria-pressed={activeBasis === row.basis}" in strategy_terminal
     assert "priceBasisRows" in strategy_terminal
     assert "pnlCurveRows" in strategy_terminal
+    assert "activeBasisRow" in strategy_terminal
+    assert 'activeBasis === "FX" ? null' in strategy_terminal
+    assert "activePnlRow" in strategy_terminal
+    assert "contractPnlRows" in strategy_terminal
+    assert "hasSelectedContractPnl" in strategy_terminal
+    assert "simulatedBasisCount" in strategy_terminal
+    assert "staleBasisCount" in strategy_terminal
+    assert "unavailableBasisCount" in strategy_terminal
     assert "classifyPriceBasis" in strategy_terminal
     assert "isSimulatedSource" in strategy_terminal
     assert "isStaleObservation" in strategy_terminal
@@ -630,7 +647,13 @@ def test_web_client_strategy_page_is_shadow_run_terminal() -> None:
     assert "human_review_required" in strategy_terminal
     assert "strategy-shadow-run-terminal" in css
     assert "strategy-price-basis-board" in css
+    assert "strategy-price-basis-selector" in css
+    assert "strategy-basis-option" in css
     assert "strategy-pnl-curve" in css
+    assert "strategy-pnl-scenario-comparison" in css
+    assert "strategy-contract-pnl-attribution" in css
+    assert "strategy-contract-pnl-row" in css
+    assert "strategy-data-quality-banner" in css
     assert "strategy-data-quality-flags" in css
     assert "strategy-market-tape" in css
     assert "strategy-allocation-ladder" in css
@@ -638,6 +661,9 @@ def test_web_client_strategy_page_is_shadow_run_terminal() -> None:
     assert en["strategy.shadow_terminal"] == "Strategy shadow-run terminal"
     assert en["strategy.price_basis_board"] == "Price-basis comparison"
     assert en["strategy.pnl_curve"] == "Resource-pool PnL curve"
+    assert en["strategy.selected_price_basis"] == "Selected price basis"
+    assert en["strategy.contract_pnl_attribution"] == "Contract PnL attribution"
+    assert en["strategy.unavailable_basis_count"] == "Unavailable bases"
     assert en["strategy.simulated_data"] == "Simulated data"
     assert en["strategy.stale_data"] == "Stale data"
     assert en["strategy.market_tape"] == "Market tape"
@@ -646,9 +672,14 @@ def test_web_client_strategy_page_is_shadow_run_terminal() -> None:
     assert zh["strategy.shadow_terminal"] == "\u7b56\u7565\u5f71\u5b50\u8fd0\u884c\u7ec8\u7aef"
     assert zh["strategy.price_basis_board"] == "\u4ef7\u683c\u57fa\u51c6\u5bf9\u6bd4"
     assert zh["strategy.pnl_curve"] == "\u8d44\u6e90\u6c60 PnL \u66f2\u7ebf"
+    assert zh["strategy.selected_price_basis"] == "\u9009\u5b9a\u4ef7\u683c\u57fa\u51c6"
+    assert zh["strategy.contract_pnl_attribution"] == "\u5408\u7ea6 PnL \u5f52\u56e0"
     assert "shadow-run terminal" in web_spec
     assert "market tape, paper state, allocation ladder" in web_spec
     assert "price-basis comparison board" in web_spec
+    assert "selected price-basis control" in web_spec
+    assert "contract-level PnL attribution" in web_spec
+    assert "stale/simulated/unavailable data banner" in web_spec
     assert "resource-pool PnL curve" in web_spec
     assert (
         "within-day, day-ahead, monthly, ICIS assessments, ICE OCM marks, "

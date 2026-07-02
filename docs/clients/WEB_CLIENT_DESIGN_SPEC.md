@@ -212,7 +212,7 @@ Layers:
 - ENTSOG and GIE source posture overlays when licensed/exposed by backend;
 - weather/HDD/CDD and demand-pressure overlays;
 - contract/capacity exposure overlays;
-- research route candidate and warning overlays.
+- decision-support route candidate and warning overlays.
 - upstream resource contracts, resource pools, and external order records when
   imported through backend API.
 
@@ -396,9 +396,15 @@ Content:
 - shadow-run terminal with market tape, paper state, allocation ladder, source
   evidence, risk stack, candidate action, and warning stack visible together;
 - price-basis comparison board covering within-day, day-ahead, monthly, ICIS assessments, ICE OCM marks, EEX curves, and ECB FX;
+- selected price-basis control that lets a trader switch the active decision
+  lens without leaving the Strategy page;
 - resource-pool PnL curve that ties each price basis back to weighted
   contract/resource cost, available MWh/d, source provenance, and stale or
   simulated-data warnings;
+- contract-level PnL attribution for the selected price basis, showing each
+  resource/contract quantity, cost, margin, and GBP/day contribution;
+- stale/simulated/unavailable data banner above the basis cards so data-quality
+  risk is visible before interpreting the shadow-run result;
 - strategy hypothesis;
 - observation window;
 - paper state;

@@ -857,6 +857,7 @@ input {
 .strategy-paper-state,
 .strategy-risk-stack,
 .strategy-price-basis-board,
+.strategy-pnl-scenario-comparison,
 .strategy-pnl-curve,
 .strategy-data-quality-flags,
 .strategy-market-tape,
@@ -927,6 +928,58 @@ input {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
+}
+
+.strategy-data-quality-banner {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.strategy-data-quality-banner div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  padding: 9px 10px;
+}
+
+.strategy-data-quality-banner span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.strategy-data-quality-banner strong {
+  color: var(--text);
+  font-size: 17px;
+}
+
+.strategy-price-basis-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-bottom: 10px;
+}
+
+.strategy-basis-option {
+  min-height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-strong);
+  color: var(--muted);
+  cursor: pointer;
+  font-weight: 800;
+  padding: 0 11px;
+}
+
+.strategy-basis-option.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--text);
 }
 
 .strategy-price-basis-card,
@@ -1032,6 +1085,45 @@ input {
 
 .strategy-pnl-bar.negative {
   background: var(--danger);
+}
+
+.strategy-contract-pnl-attribution {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.strategy-contract-pnl-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(120px, 0.65fr);
+  gap: 12px;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  padding: 10px;
+}
+
+.strategy-contract-pnl-row div {
+  display: grid;
+  gap: 4px;
+}
+
+.strategy-contract-pnl-row div:last-child {
+  text-align: right;
+}
+
+.strategy-contract-pnl-row strong {
+  color: var(--text);
+}
+
+.strategy-contract-pnl-row span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.strategy-contract-pnl-row.negative div:last-child strong {
+  color: var(--danger);
 }
 
 .source-chip-list {
@@ -3162,11 +3254,20 @@ button.glossary-related-chip {
   .source-posture-grid,
   .source-table-split,
   .strategy-price-basis-grid,
+  .strategy-data-quality-banner,
   .strategy-pool-baseline,
   .strategy-tape-grid,
   .economics-grid.wide,
   .credential-form.horizontal {
     grid-template-columns: 1fr;
+  }
+
+  .strategy-contract-pnl-row {
+    grid-template-columns: 1fr;
+  }
+
+  .strategy-contract-pnl-row div:last-child {
+    text-align: left;
   }
 
   .glossary-wiki-shell {

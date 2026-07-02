@@ -6,7 +6,7 @@ import type {
   StrategyLabResultDTO,
   StrategyPriceObservationDTO,
 } from "@/api/client";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 type Translate = (key: string) => string;
 
@@ -212,6 +212,7 @@ export function StrategyShadowRunTerminal({
   t,
   onEvaluate,
 }: StrategyShadowRunTerminalProps) {
+  const [activeBasis, setActiveBasis] = useState<PriceBasisId>("WITHIN_DAY");
   const combinedPriceTape = useMemo(() => {
     const observed = [
       ...strategyScenario.price_observations,
@@ -319,6 +320,32 @@ export function StrategyShadowRunTerminal({
         };
       })
   ), [priceBasisRows, totalPoolQuantityMwhPerDay, weightedPoolCostGbpMwh]);
+  const activeBasisRow =
+    priceBasisRows.find((row) => row.basis === activeBasis) ?? priceBasisRows[0];
+  const activePnlRow =
+    activeBasis === "FX" ? null : pnlCurveRows.find((row) => row.basis === activeBasis) ?? null;
+  const contractPnlRows = useMemo(() => {
+    const activeSalePrice = activePnlRow?.latestPrice ?? null;
+    return resourcePoolRows.map((resource) => {
+      const marginGbpMwh =
+        activeSalePrice !== null ? activeSalePrice - resource.costGbpMwh : null;
+      return {
+        ...resource,
+        marginGbpMwh,
+        dailyPnlGbp:
+          marginGbpMwh !== null
+            ? marginGbpMwh * resource.quantityMwhPerDay
+            : null,
+      };
+    });
+  }, [activePnlRow, resourcePoolRows]);
+  const hasSelectedContractPnl = contractPnlRows.some((row) => row.dailyPnlGbp !== null);
+  const selectedContractPnlGbpPerDay = hasSelectedContractPnl
+    ? contractPnlRows.reduce((total, row) => total + (row.dailyPnlGbp ?? 0), 0)
+    : null;
+  const simulatedBasisCount = priceBasisRows.filter((row) => row.simulatedCount > 0).length;
+  const staleBasisCount = priceBasisRows.filter((row) => row.staleCount > 0).length;
+  const unavailableBasisCount = priceBasisRows.filter((row) => row.observationCount === 0).length;
   const maxAbsPnl = Math.max(
     ...pnlCurveRows
       .map((row) => Math.abs(row.pnlGbpPerDay ?? 0))
@@ -398,6 +425,33 @@ export function StrategyShadowRunTerminal({
           <h3>{t("strategy.price_basis_board")}</h3>
           <span>{priceBasisRows.reduce((total, row) => total + row.observationCount, 0)} {t("panel.records")}</span>
         </div>
+        <div className="strategy-data-quality-banner">
+          <div>
+            <span>{t("strategy.simulated_basis_count")}</span>
+            <strong>{simulatedBasisCount}</strong>
+          </div>
+          <div>
+            <span>{t("strategy.stale_basis_count")}</span>
+            <strong>{staleBasisCount}</strong>
+          </div>
+          <div>
+            <span>{t("strategy.unavailable_basis_count")}</span>
+            <strong>{unavailableBasisCount}</strong>
+          </div>
+        </div>
+        <div className="strategy-price-basis-selector" aria-label={t("strategy.selected_price_basis")}>
+          {priceBasisRows.map((row) => (
+            <button
+              key={`strategy-basis-option-${row.basis}`}
+              type="button"
+              className={`strategy-basis-option${activeBasis === row.basis ? " active" : ""}`}
+              aria-pressed={activeBasis === row.basis}
+              onClick={() => setActiveBasis(row.basis)}
+            >
+              {t(basisLabelKey(row.basis))}
+            </button>
+          ))}
+        </div>
         <div className="strategy-price-basis-grid">
           {priceBasisRows.map((row) => (
             <div key={`strategy-basis-${row.basis}`} className="strategy-price-basis-card">
@@ -425,6 +479,60 @@ export function StrategyShadowRunTerminal({
               </div>
             </div>
           ))}
+        </div>
+      </section>
+
+      <section className="workspace-panel span-2 strategy-pnl-scenario-comparison">
+        <div className="panel-title-row">
+          <h3>{t("strategy.selected_price_basis")}</h3>
+          <span>{activeBasisRow ? t(basisLabelKey(activeBasisRow.basis)) : t("data.unavailable")}</span>
+        </div>
+        <div className="metric-grid">
+          <div>
+            <span>{t("strategy.latest_price")}</span>
+            <strong>{formatMoney(activeBasisRow?.latestPrice)} {activeBasis === "FX" ? "" : "GBP/MWh"}</strong>
+          </div>
+          <div>
+            <span>{t("strategy.weighted_pool_cost")}</span>
+            <strong>{formatMoney(weightedPoolCostGbpMwh)} GBP/MWh</strong>
+          </div>
+          <div>
+            <span>{t("strategy.spread")}</span>
+            <strong>{formatMoney(activePnlRow?.marginGbpMwh)} GBP/MWh</strong>
+          </div>
+          <div>
+            <span>{t("strategy.pool_volume")}</span>
+            <strong>{formatQuantity(totalPoolQuantityMwhPerDay)}</strong>
+          </div>
+          <div>
+            <span>{t("strategy.contract_pnl_attribution")}</span>
+            <strong>{formatSignedMoney(selectedContractPnlGbpPerDay)} GBP/d</strong>
+          </div>
+          <div>
+            <span>{t("strategy.observations")}</span>
+            <strong>{activeBasisRow?.observationCount ?? 0}</strong>
+          </div>
+        </div>
+        <div className="strategy-contract-pnl-attribution">
+          {contractPnlRows.slice(0, 6).map((resource) => {
+            const isNegative = (resource.dailyPnlGbp ?? 0) < 0;
+            return (
+              <div
+                key={`strategy-contract-pnl-${resource.resourceId}`}
+                className={`strategy-contract-pnl-row${isNegative ? " negative" : ""}`}
+              >
+                <div>
+                  <strong>{resource.resourceName}</strong>
+                  <span>{formatQuantity(resource.quantityMwhPerDay)} / {formatMoney(resource.costGbpMwh)} GBP/MWh</span>
+                </div>
+                <div>
+                  <strong>{formatSignedMoney(resource.dailyPnlGbp)} GBP/d</strong>
+                  <span>{formatMoney(resource.marginGbpMwh)} GBP/MWh</span>
+                </div>
+              </div>
+            );
+          })}
+          {contractPnlRows.length === 0 && <p className="panel-copy">{t("data.unavailable")}</p>}
         </div>
       </section>
 
