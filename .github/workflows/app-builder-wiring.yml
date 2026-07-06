@@ -1,5 +1,6 @@
 name: App Builder Wiring
 
+# Temporary automation to wire extracted App builders into App.tsx.
 on:
   push:
     branches:
