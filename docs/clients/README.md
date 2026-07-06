@@ -66,25 +66,40 @@ Clients must not:
 
 ## Active Client Responsibilities
 
-The Web/Windows workspace currently owns:
+The Web/Windows workspace uses grouped product navigation rather than a flat
+list of pages. Technical workspace ids remain stable for compatibility.
+
+### Decision Workspace
 
 - Network: map-first resource-pool cockpit, resource-path overlay, route
   options, warnings, and PnL summary.
-- Capacity: ENTSOG flow/capacity, TSO access, tariffs, storage, and LNG.
+- Scenario: route-cost, resource-pool, and economics review controls.
+- Review: route allocation, warning, and analysis/report review.
+
+### Commercial Inputs
+
+- Resource Terms: EFET-style resource term capture, JSON draft import, persisted
+  resource-term library, and backend-owned resource-pool refresh. Technical id:
+  `contracts`.
 - Market: terminal-style European gas hub board, regional TTF spreads, ECB FX,
   and exchange/broker source posture without fabricated prices.
-- Scenario: route-cost, resource-pool, and economics review controls.
-- Contracts: EFET-style resource term capture, JSON draft import, persisted
-  contract library, and backend-owned resource-pool refresh.
+- Capacity: ENTSOG flow/capacity, TSO access, tariffs, storage, and LNG.
+- Market Positioning: read-only screen observations and PnL snapshots. Technical
+  id: `orders`.
+
+### Analytics
+
 - Strategy: paper strategy evaluation.
-- Review: route allocation, warning, and analysis/report review.
-- Market Positioning: read-only screen observations and PnL snapshots.
+- Glossary: bilingual operational terms and DB-derived context.
+
+### Operations
+
 - Data Sources: source categories, credentials, freshness, diagnostics, and
   record counts.
-- Glossary: bilingual operational terms and DB-derived context.
 - Runtime: database/API readiness and governance metadata.
 - Settings: non-sensitive language, theme, unit, currency, session, and
   service-access posture preferences; credential entry remains backend-owned.
+- Manual: customer-facing operating guide.
 
 ## Implementation Rule
 
