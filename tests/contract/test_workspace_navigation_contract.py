@@ -19,6 +19,22 @@ EXPECTED_GROUPS = {
     "operations": ["sources", "runtime", "settings", "manual"],
 }
 
+EXPECTED_PAGE_IDS = [
+    "network",
+    "scenario",
+    "review",
+    "contracts",
+    "market",
+    "capacity",
+    "orders",
+    "strategy",
+    "glossary",
+    "sources",
+    "runtime",
+    "settings",
+    "manual",
+]
+
 
 def _read(path: Path) -> str:
     return path.read_text(encoding="utf-8-sig")
@@ -26,6 +42,21 @@ def _read(path: Path) -> str:
 
 def _quoted_values(text: str) -> list[str]:
     return re.findall(r'"([a-z][a-z-]*)"', text)
+
+
+def _navigation_pages(navigation_text: str) -> list[str]:
+    grouped_pages: list[str] = []
+    for group_id, expected_pages in EXPECTED_GROUPS.items():
+        group_match = re.search(
+            rf'id:\s*"{group_id}".*?pages:\s*\[(.*?)\]',
+            navigation_text,
+            flags=re.DOTALL,
+        )
+        assert group_match, f"Missing workspace group: {group_id}"
+        actual_pages = _quoted_values(group_match.group(1))
+        assert actual_pages == expected_pages
+        grouped_pages.extend(actual_pages)
+    return grouped_pages
 
 
 def test_workspace_groups_cover_all_workspace_pages_once() -> None:
@@ -41,36 +72,21 @@ def test_workspace_groups_cover_all_workspace_pages_once() -> None:
     )
     assert pages_match, "App.tsx must expose WORKSPACE_PAGES for direct URL validation."
     app_pages = _quoted_values(pages_match.group(1))
+    grouped_pages = _navigation_pages(navigation_text)
 
-    grouped_pages: list[str] = []
-    for group_id, expected_pages in EXPECTED_GROUPS.items():
-        group_match = re.search(
-            rf'id:\s*"{group_id}".*?pages:\s*\[(.*?)\]',
-            navigation_text,
-            flags=re.DOTALL,
-        )
-        assert group_match, f"Missing workspace group: {group_id}"
-        actual_pages = _quoted_values(group_match.group(1))
-        assert actual_pages == expected_pages
-        grouped_pages.extend(actual_pages)
-
-    assert grouped_pages == [
-        "network",
-        "scenario",
-        "review",
-        "contracts",
-        "market",
-        "capacity",
-        "orders",
-        "strategy",
-        "glossary",
-        "sources",
-        "runtime",
-        "settings",
-        "manual",
-    ]
+    assert grouped_pages == EXPECTED_PAGE_IDS
     assert set(grouped_pages) == set(app_pages)
     assert len(grouped_pages) == len(set(grouped_pages))
+
+
+def test_workspace_page_ids_are_exported_from_navigation_model() -> None:
+    """URL validation should be able to share the same page ids used by menu groups."""
+
+    navigation_text = _read(WORKSPACE_NAVIGATION_TS)
+    grouped_pages = _navigation_pages(navigation_text)
+    assert "export const workspacePageIds" in navigation_text
+    assert "workspaceGroups.flatMap" in navigation_text
+    assert grouped_pages == EXPECTED_PAGE_IDS
 
 
 def test_workspace_group_labels_are_i18n_backed() -> None:
@@ -125,5 +141,6 @@ def test_workspace_navigation_model_is_shared() -> None:
     navigation_text = _read(WORKSPACE_NAVIGATION_TS)
     assert "export const workspaceGroups" in navigation_text
     assert "export type WorkspacePageId" in navigation_text
+    assert "export const workspacePageIds" in navigation_text
     assert 'from "../workspaceNavigation"' in topbar_text
     assert "export const workspaceGroups" not in topbar_text
