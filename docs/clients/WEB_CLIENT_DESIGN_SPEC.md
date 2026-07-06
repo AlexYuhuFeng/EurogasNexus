@@ -99,16 +99,16 @@ Primary navigation items:
 5. Contracts
 6. Strategy
 7. Review
-8. Order Records
+8. Market Positioning
 9. Data Sources
 10. Glossary
 11. Runtime
 12. Settings
 13. Manual
 
-Navigation labels are product workflow labels, not implementation names. Future
-UX cleanup should consider renaming `Order Records` to `Imported Observations` or
-`Market Positioning` if the page remains read-only imported context.
+Navigation labels are product workflow labels, not implementation names. The
+visible label for the imported positioning surface is `Market Positioning`; the
+technical URL id remains `orders` during the compatibility period.
 
 Every primary workspace must support a direct URL query entry for release QA,
 customer support, and customer training. The canonical format is
@@ -210,8 +210,8 @@ Layers:
 - weather/HDD/CDD and demand-pressure overlays;
 - contract/capacity exposure overlays;
 - decision-support route candidate and warning overlays;
-- upstream resource contracts, resource pools, and external order records when
-  imported through backend API.
+- upstream resource contracts, resource pools, and imported market-positioning
+  observations when imported through backend API.
 
 Interactions:
 
@@ -226,7 +226,7 @@ Interactions:
 
 Do not load live vendor data from the browser.
 
-External order records:
+External screen observations:
 
 - may be imported and displayed as reference context only;
 - must not become order entry, order amendment, order cancellation, trade
@@ -342,7 +342,7 @@ or TSO-access rows locally.
 Purpose:
 
 - provide market price, FX, weather, demand, outage, and freshness context
-  without mixing in order records or PnL tables.
+  without mixing in imported market-positioning or PnL tables.
 
 Current client behavior:
 
@@ -448,24 +448,24 @@ Export:
 - disabled until governance/export policy is implemented;
 - explain restricted state without legal advice.
 
-## Screen: Order Records
+## Screen: Market Positioning
 
 Purpose:
 
-- inspect imported screen-order observations and portfolio PnL snapshots without
-  presenting any order-entry or execution workflow.
+- inspect imported screen observations and portfolio PnL snapshots without
+  presenting any order-entry, trade-capture, or execution workflow.
 
 Required panels:
 
 - live portfolio summary;
-- read-only order observation table;
+- read-only screen observation table;
 - read-only portfolio PnL snapshot table;
 - source, timestamp, account label, venue, hub, quantity, price, and status;
 - clear unavailable state when the backend has no imported records.
 
-Order Records must consume `/api/portfolio/*`. It must not write orders, route
-orders, approve trades, submit nominations, or store provider access material in
-the client.
+Market Positioning must consume `/api/portfolio/*`. It must not write orders,
+route orders, approve trades, submit nominations, or store provider access
+material in the client.
 
 ## Screen: Data Sources
 
