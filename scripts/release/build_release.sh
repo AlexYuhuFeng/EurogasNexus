@@ -30,6 +30,8 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 WEB_DIR="${REPO_ROOT}/clients/web"
 DESKTOP_DIR="${REPO_ROOT}/clients/desktop"
 
+cd "${REPO_ROOT}"
+
 step() {
   echo "==> $1"
 }
