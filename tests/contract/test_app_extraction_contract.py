@@ -8,6 +8,7 @@ ROOT = Path(__file__).resolve().parents[2]
 APP_TSX = ROOT / "clients" / "web" / "src" / "App.tsx"
 DEFAULT_CONTRACT_DRAFT_TS = ROOT / "clients" / "web" / "src" / "app" / "defaultContractDraft.ts"
 ROUTE_METADATA_TS = ROOT / "clients" / "web" / "src" / "app" / "routeMetadata.ts"
+CONTRACT_IMPORT_TS = ROOT / "clients" / "web" / "src" / "app" / "contractImport.ts"
 
 
 def _read(path: Path) -> str:
@@ -40,3 +41,25 @@ def test_route_metadata_module_exists_before_app_wiring() -> None:
     ]:
         assert f"function {helper}" in app_text
         assert f"export function {helper}" in module_text
+
+
+def test_contract_import_module_exists_before_app_wiring() -> None:
+    """Contract import parsing should be ready as extracted pure helpers before App imports it."""
+
+    app_text = _read(APP_TSX)
+    module_text = _read(CONTRACT_IMPORT_TS)
+    for helper in [
+        "stringFromRecord",
+        "numberFromRecord",
+        "nullableNumberFromRecord",
+        "stringArrayFromRecord",
+        "notesRecordFromRecord",
+        "contractDraftFromRecord",
+        "contractRecordFromParsedJson",
+        "parseContractTextDraft",
+        "contractRecordFromImportedFile",
+    ]:
+        assert f"function {helper}" in app_text
+        assert f"export function {helper}" in module_text
+    assert 'document_status: "STAGED_REVIEW_REQUIRED"' in module_text
+    assert 'document_status: "IMPORTED_JSON_DRAFT"' in module_text
