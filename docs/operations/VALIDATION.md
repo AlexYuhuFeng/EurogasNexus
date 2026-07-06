@@ -5,7 +5,7 @@ Run validation from the repository root.
 ## Prerequisites
 
 ```powershell
-docker compose up -d        # start PostgreSQL
+docker compose up -d        # start PostgreSQL when runtime DB checks are needed
 pip install -e ".[dev]"     # install project + dev dependencies
 ```
 
@@ -56,6 +56,14 @@ Report validation as `PARTIAL` if only a subset of checks can run.
 
 ## Runtime DB Validation
 
+Preferred command:
+
+```powershell
+python scripts/ops/validate_runtime_db.py --json
+```
+
+Compatibility command:
+
 ```powershell
 python scripts/ops/validate_v1_runtime_db.py --json
 ```
@@ -64,4 +72,4 @@ This script is read-only. It does not write data or run migrations. It is the
 standard live local PostgreSQL validation path when a safe DB URL is configured.
 Default tests remain DB-free.
 
-See `docs/operations/LIVE_POSTGRESQL_V1.md` for the live PostgreSQL policy.
+See `docs/operations/LIVE_POSTGRESQL.md` for the live PostgreSQL policy.
