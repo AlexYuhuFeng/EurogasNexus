@@ -8,6 +8,10 @@ const resources = {
     translation: {
       ...en,
       "app.subtitle": "European gas intelligence and decision-support workspace",
+      "nav.group.decision": "Decision Workspace",
+      "nav.group.commercial": "Commercial Inputs",
+      "nav.group.analytics": "Analytics",
+      "nav.group.operations": "Operations",
       "nav.contracts": "Resource Terms",
       "nav.orders": "Market Positioning",
       "home.no_db_contracts": "No PostgreSQL resource terms loaded",
@@ -39,6 +43,10 @@ const resources = {
     translation: {
       ...zh,
       "app.subtitle": "欧洲天然气智能与决策支持工作台",
+      "nav.group.decision": "决策工作区",
+      "nav.group.commercial": "商业输入",
+      "nav.group.analytics": "分析工具",
+      "nav.group.operations": "运行与设置",
       "nav.contracts": "资源条款",
       "nav.orders": "市场定位",
       "home.no_db_contracts": "PostgreSQL 暂无资源条款",
