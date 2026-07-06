@@ -3,7 +3,7 @@
 ## Purpose
 
 This file is the quick directory map for Eurogas Nexus. It reflects the intended
-architecture for the current V1 phased multi-surface repository.
+architecture for the current phased multi-surface repository.
 
 ## Root Layout
 
@@ -18,7 +18,7 @@ docs/                   Architecture, contracts, policies, operations, release d
 docs/clients/           Web and Windows client specs, stack, i18n, theme
 docs/data/              Canonical data model blueprints
 docs/design/            Text wireframes and UX layout blueprints
-docs/product/           Research workflow and product semantics
+docs/product/           Commercial workflow and product semantics
 infra/                  Deployment templates and operator notes
 packages/               Future distributable packages
 release/                Source-controlled release blueprint
@@ -37,15 +37,15 @@ Eurogas Nexus is delivered through five surfaces, in this order:
 4. Web client
 5. Windows client
 
-The backend service is the active foundation. The Python SDK is required for
-V1. SDK and CLI shells exist as API-backed helpers. Web and Windows client docs
-are explicit implementation targets. Runtime client code is expanded only after
-the relevant milestone is selected.
+The backend service is the active foundation. The Python SDK is required for the
+current release line. SDK and CLI shells exist as API-backed helpers. Web and
+Windows client docs are explicit implementation targets. Runtime client code is
+expanded only after the relevant milestone is selected.
 
 ## Current Implementation Shape
 
-The current V1 release-candidate worktree implements backend, SDK, CLI, Web,
-and Windows shell surfaces for the tested local scope:
+The current release-candidate worktree implements backend, SDK, CLI, Web, and
+Windows shell surfaces for the tested local scope:
 
 - API entrypoint: `apps/api/main.py`
 - API package: `src/eurogas_nexus/api`
@@ -68,23 +68,18 @@ public corridor tariff references are included, UK NTS rows can remain as a
 public tariff source, and additional European TSO tariffs must be loaded into
 PostgreSQL rather than represented as client-side fixtures. Route cost, LNG
 regas readiness, capacity-constrained route/sale allocation, resource-pool
-optimization, EFET-style contract entry, strategy lab, FX, market marks,
-credentials, and glossary surfaces are exposed through API/SDK/Web contracts.
+optimization, EFET-style contract entry, strategy lab, FX, market marks, and
+glossary surfaces are exposed through API/SDK/Web contracts.
+
 The home screen must treat all active purchase contracts as one portfolio
 resource pool, optimize sale paths for the pool, then attribute PnL back to
-contracts. Imported external
-screen-order observations and indicative portfolio PnL snapshots are exposed
-through `/api/portfolio/*` and `src/eurogas_nexus/sdk/portfolio.py`. Clients
-must not read PostgreSQL directly. Operational glossary context is also
-API-only and combines runtime matched entities, capacity, selected-duration
-usage, prices, live marks, routes, and linked contracts for terms such as TTF,
-GATE LNG, Zeebrugge Entry Point, ICIS Heren, NBP, ICE OCM, and any
-customer-loaded point with PostgreSQL records.
-Internal/operator market-positioning imports use
-`/api/internal/portfolio/import-observations` with
-`EUROGAS_NEXUS_INTERNAL_API_TOKEN`, `X-Eurogas-Internal-Token`, and
-`X-Eurogas-Principal`; release clients continue to use read-only
-`/api/portfolio/*` endpoints.
+contracts. Imported external screen-order observations and indicative portfolio
+PnL snapshots are exposed through `/api/portfolio/*` and
+`src/eurogas_nexus/sdk/portfolio.py`. Clients must not read PostgreSQL directly.
+Operational glossary context is also API-only and combines runtime matched
+entities, capacity, selected-duration usage, prices, live marks, routes, and
+linked contracts for terms such as TTF, GATE LNG, Zeebrugge Entry Point, ICIS
+Heren, NBP, ICE OCM, and any customer-loaded point with PostgreSQL records.
 
 ## Development Direction
 
@@ -129,7 +124,6 @@ Codex should use:
   light/dark/system implementation authority;
 - `.agent/plans/` for milestone execution plans.
 
-
 ## Directory Rule
 
 If a directory does not have an active milestone, keep it as documentation or
@@ -143,5 +137,5 @@ placeholder only. Do not add runtime behavior just because a folder exists.
   `tests/sdk`.
 - CLI work activates `src/eurogas_nexus/cli` and `tests/cli`.
 - Web client work activates `clients/web` only after a web milestone is selected.
-- Windows client work activates `clients/desktop` only after backend and web
-  API contracts are stable enough for packaging.
+- Windows client work activates `clients/desktop` only after backend and web API
+  contracts are stable enough for packaging.
