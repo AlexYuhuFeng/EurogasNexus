@@ -10,6 +10,7 @@ DEFAULT_CONTRACT_DRAFT_TS = ROOT / "clients" / "web" / "src" / "app" / "defaultC
 ROUTE_METADATA_TS = ROOT / "clients" / "web" / "src" / "app" / "routeMetadata.ts"
 CONTRACT_IMPORT_TS = ROOT / "clients" / "web" / "src" / "app" / "contractImport.ts"
 CONTRACT_PAYLOAD_TS = ROOT / "clients" / "web" / "src" / "app" / "contractPayload.ts"
+RESOURCE_POOL_REQUEST_TS = ROOT / "clients" / "web" / "src" / "app" / "resourcePoolRequest.ts"
 
 
 def _read(path: Path) -> str:
@@ -79,5 +80,21 @@ def test_contract_payload_builder_exists_before_app_wiring() -> None:
         "decision_support_only: true",
         "human_review_required: true",
         "notes: JSON.stringify",
+    ]:
+        assert phrase in module_text
+
+
+def test_resource_pool_request_builder_exists_before_app_wiring() -> None:
+    """Resource-pool optimization request construction should be ready before App imports it."""
+
+    app_text = _read(APP_TSX)
+    module_text = _read(RESOURCE_POOL_REQUEST_TS)
+    assert "const resourcePoolOptimizationRequest = useMemo" in app_text
+    assert "export function buildResourcePoolOptimizationRequest" in module_text
+    for phrase in [
+        'portfolio_id: "web-resource-pool"',
+        'objective: "MAX_DAILY_PNL"',
+        "research_only: true",
+        "annual_financing_rate_pct",
     ]:
         assert phrase in module_text
