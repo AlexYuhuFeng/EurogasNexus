@@ -13,6 +13,9 @@ backend/API/SDK/CLI, PostgreSQL runtime schema, Web workspace, and Tauri
 desktop shell. This status does not mean production multi-user deployment is
 complete.
 
+Actionable production work is tracked in
+`docs/release/PRODUCTION_READINESS_BACKLOG.md`.
+
 ## Latest Local Evidence
 
 Runtime API evidence from the operator's local API:
@@ -85,6 +88,9 @@ for ECB, ENTSOG, GIE storage/LNG, reference network, TSO access, tariffs, and
 operator-owned test portfolio/price records. Commercial feeds remain gated.
 
 ## Required Before Production Deployment
+
+The following items are summarized here and expanded in
+`docs/release/PRODUCTION_READINESS_BACKLOG.md`:
 
 - Production scheduling/retry/monitoring for ingestion.
 - Provider-specific live tests for EEX, ICE OCM, Trayport, Kpler, Platts,
