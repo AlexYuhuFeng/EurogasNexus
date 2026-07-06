@@ -22,6 +22,5 @@ export function buildResourcePoolOptimizationRequest(
     sale_options: saleOptions,
     annual_financing_rate_pct: upstreamContracts[0]?.annual_financing_rate_pct ?? contract.annual_financing_rate_pct,
     objective: "MAX_DAILY_PNL",
-    research_only: true,
   };
 }
