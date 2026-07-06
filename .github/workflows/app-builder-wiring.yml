@@ -14,9 +14,12 @@ on:
       - tests/contract/test_app_builder_barrel_contract.py
       - tests/contract/test_no_research_only_contract.py
   workflow_dispatch:
+  issues:
+    types: [opened]
 
 permissions:
   contents: write
+  issues: write
 
 concurrency:
   group: app-builder-wiring-${{ github.ref }}
@@ -25,7 +28,7 @@ concurrency:
 jobs:
   wire-app:
     runs-on: ubuntu-latest
-    if: github.actor != 'github-actions[bot]'
+    if: github.actor != 'github-actions[bot]' && (github.event_name != 'issues' || github.event.issue.title == 'Run App Builder Wiring')
 
     steps:
       - name: Check out repository
@@ -59,3 +62,16 @@ jobs:
           git add clients/web/src/App.tsx
           git commit -m "Wire App to extracted builders"
           git push
+
+      - name: Close trigger issue
+        if: github.event_name == 'issues'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              state: 'closed',
+              state_reason: 'completed'
+            });
