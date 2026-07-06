@@ -17,6 +17,7 @@ This patch must stay limited to the top navigation parsing logic. Do not rewrite
 ```ts
 workspaceGroups
 workspacePageIds
+DEFAULT_WORKSPACE_PAGE_ID
 isWorkspacePageId
 coerceWorkspacePageId
 WorkspacePageId
@@ -36,7 +37,7 @@ Target pattern:
 
 ```ts
 import { WorkspaceTopBar } from "@/components/WorkspaceTopBar";
-import { coerceWorkspacePageId, type WorkspacePageId } from "@/workspaceNavigation";
+import { coerceWorkspacePageId, DEFAULT_WORKSPACE_PAGE_ID, type WorkspacePageId } from "@/workspaceNavigation";
 ```
 
 ### 2. Remove the local `WORKSPACE_PAGES` constant
@@ -66,10 +67,14 @@ return WORKSPACE_PAGES.includes(requestedWorkspace as WorkspacePageId)
 Target logic:
 
 ```ts
-return coerceWorkspacePageId(requestedWorkspace, "network");
+return coerceWorkspacePageId(requestedWorkspace, DEFAULT_WORKSPACE_PAGE_ID);
 ```
 
-Keep the `typeof window === "undefined"` guard.
+Keep the `typeof window === "undefined"` guard, but use `DEFAULT_WORKSPACE_PAGE_ID` there too:
+
+```ts
+if (typeof window === "undefined") return DEFAULT_WORKSPACE_PAGE_ID;
+```
 
 ## Acceptance checks
 
