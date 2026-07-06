@@ -1,8 +1,8 @@
 # Contributing
 
-Eurogas Nexus is a public, source-visible repository for a proprietary,
-research-only European gas decision-support platform. Contributions must preserve
-the product boundary, API boundary, and data-governance rules in this document.
+Eurogas Nexus is a public, source-visible repository for a proprietary European
+gas decision-support platform. Contributions must preserve the product boundary,
+API boundary, and data-governance rules in this document.
 
 This guide is for human contributors and repository maintainers. Agent-specific
 execution plans and milestone instructions belong in `AGENTS.md` and `.agent/`.
@@ -86,7 +86,7 @@ jobs, keep this section and CI in sync.
 - PostgreSQL is the runtime source of truth.
 - Public SDK, CLI, Web, Windows, Linux, and customer integrations target `/api`.
 - Hidden compatibility routes such as `/api/v1` and `/v1/health` must not become
-  the documented public V1 surface.
+  the documented public release surface.
 - SDK, CLI, Web, and Windows code call the backend API or SDK, not internal
   domain modules.
 - Clients do not connect directly to PostgreSQL.
