@@ -62,6 +62,8 @@ passed
   unavailable states without printing secrets.
 - Web client builds and uses `/api` through the backend boundary.
 - Windows desktop packages the same Web workspace through Tauri.
+- Linux desktop release packaging is architecture-specific: x64 and ARM64 DEB
+  packages are separate artifacts, not one ambiguous Linux package.
 - SDK and CLI remain API consumers.
 - Clients do not connect directly to PostgreSQL.
 - Provider credentials are backend-owned: clients can submit keys to the
@@ -75,6 +77,18 @@ passed
   `/api/portfolio/*`.
 - No raw provider data, provider credentials, full DB URLs, `.env`, or real
   commercial strategy parameters are committed.
+
+## Release Packaging
+
+When the manual `Build and Release` workflow is run with `build_desktop=true`,
+the desktop release matrix is expected to publish the following desktop assets:
+
+- `release-desktop-windows-x64`: Windows NSIS installer.
+- `release-desktop-linux-x64`: Linux DEB package for x64 Linux users.
+- `release-desktop-linux-arm64`: Linux DEB package for ARM64 Linux users.
+
+The Linux artifacts must remain explicitly architecture-labelled so ARM Linux
+users do not receive the x64 DEB by mistake.
 
 ## What Runtime DB Means In The Client
 
