@@ -2,16 +2,15 @@
 
 Date checked: 2026-07-06
 
-This audit reviews whether the repository documentation matches the current
-product reality. Eurogas Nexus should be described as a commercial European gas
+This audit reviews whether repository documentation matches the current product
+reality. Eurogas Nexus should be described as a commercial European gas
 intelligence and decision-support workspace. It is not merely a research-only
 sandbox, and it is also not an execution venue, nomination system, settlement
 system, legal-advice tool, or ETRM replacement.
 
 ## Executive Summary
 
-The repository is technically well structured, but several docs still carry older
-milestone language and overly restrictive wording. The cleanup standard is:
+The cleanup standard is:
 
 1. **Product identity**: use "European gas intelligence workspace" or
    "decision-support workspace" instead of "research-only".
@@ -22,6 +21,9 @@ milestone language and overly restrictive wording. The cleanup standard is:
    economics, portfolio/resource-pool optimization, market positioning, strategy
    evaluation, LLM-assisted explanation, and reporting. The boundary is
    non-execution and human-reviewed, not research-only.
+4. **Resource terminology**: use `Resource Terms` for the user-facing workspace
+   that captures EFET-style resource assumptions. Keep `contracts` and
+   `upstream-contracts` only as technical/API compatibility identifiers.
 
 ## Completed Cleanup
 
@@ -34,21 +36,19 @@ milestone language and overly restrictive wording. The cleanup standard is:
 - Renamed `docs/release/V1_RELEASE_READINESS.md` to
   `docs/release/RELEASE_READINESS.md`.
 - Added `docs/release/PRODUCTION_READINESS_BACKLOG.md`.
-- Updated README positioning, visuals guidance, documentation links, and
-  release-line language.
-- Added neutral runtime validation and release-build entrypoints:
-  - `scripts/ops/validate_runtime_db.py`
-  - `scripts/release/build_release.sh`
-  - `scripts/release/build_release.ps1`
-- Kept old `v1` script names as compatibility wrappers, not preferred entrypoints.
+- Added neutral runtime validation and release-build entrypoints.
 - Added `docs/operations/LIVE_POSTGRESQL.md` and reduced the old
   `LIVE_POSTGRESQL_V1.md` file to a compatibility pointer.
-- Updated CI/release workflow action versions to currently valid major versions.
-- Renamed the user-facing `Order Records` surface to `Market Positioning` in
-  README, Web client spec, client docs index, and Web i18n strings while keeping
-  the technical `orders` workspace id for compatibility.
+- Stabilized CI/release workflow action versions and default release behavior.
+- Renamed the user-facing `Order Records` surface to `Market Positioning` while
+  keeping the technical `orders` workspace id for compatibility.
+- Introduced grouped workspace navigation and added
+  `docs/clients/WORKSPACE_NAVIGATION_SPEC.md`.
+- Productized `Contracts` as the user-facing `Resource Terms` workspace in
+  README, Web client spec, client docs, and Web i18n overrides while keeping the
+  technical `contracts` workspace id and API field names for compatibility.
 
-## High-Priority Remaining Inconsistencies
+## Remaining High-Priority Items
 
 ### DOC-001 Compatibility wrappers still contain `v1` in filenames
 
@@ -70,29 +70,10 @@ Preferred replacements are:
 These compatibility files can be removed later after CI, docs, release notes, and
 user habits have moved to the neutral names.
 
-### DOC-002 "Research-only" wording is too narrow
-
-The project is not only for research. It supports commercial desk workflows such
-as route economics, resource-pool optimization, market positioning, strategy
-shadow runs, imported screen observations, and reporting. Docs should say
-"decision support" or "commercial decision-support" instead.
-
-Recommended wording:
-
-> Eurogas Nexus is a European gas intelligence and decision-support workspace.
-> Outputs require human review and are not execution instructions, official
-> approvals, legal advice, settlement records, or ETRM records.
-
-Avoid:
-
-> research-only platform
-
-unless describing a specific demo, test, or historical milestone.
-
-### DOC-003 Product boundary should be durable, not milestone-specific
+### DOC-002 Product boundary should be durable
 
 The non-execution boundary should not be written as if it only applies to one
-release. The better product-level boundary is:
+release. The durable product-level boundary is:
 
 - no order entry;
 - no order routing;
@@ -105,10 +86,7 @@ release. The better product-level boundary is:
 - no auto-trading;
 - no ETRM replacement behavior.
 
-This should be the durable product boundary unless a future formal product
-decision changes it.
-
-### DOC-004 "Trading cockpit" can sound executable
+### DOC-003 "Trading cockpit" can sound executable
 
 The map-first cockpit is useful, but the phrase "trader cockpit" may imply an
 execution terminal. Prefer:
@@ -121,7 +99,7 @@ execution terminal. Prefer:
 When "trader" is retained, pair it with "decision support" and "human review
 required".
 
-### DOC-005 "Live monitor" and "live strategy" need careful wording
+### DOC-004 "Live monitor" and "live strategy" need careful wording
 
 Strategy pages may monitor live or near-live observations, but should not imply
 automated action or official recommendations. Recommended wording:
@@ -132,27 +110,10 @@ automated action or official recommendations. Recommended wording:
 - candidate action for human review;
 - source freshness and warning state.
 
-Avoid wording that implies live trading, automated allocation, or immediate
-execution.
+### DOC-005 README still needs actual visuals
 
-### DOC-006 Contracts page can imply an ETRM
-
-The Contracts surface is valuable but should be framed as contract assumptions,
-resource terms, and portfolio-resource context for decision support. It should
-not suggest official contract capture, contract lifecycle management, settlement,
-or ETRM replacement.
-
-Recommended labels:
-
-- Resource Terms;
-- Contract Assumptions;
-- EFET-style Resource Terms;
-- Resource Contract Library for decision support.
-
-### DOC-007 README still needs actual visuals
-
-The README now contains a Product Visuals section, but screenshot files are not
-yet committed. Add synthetic/sanitized visuals for:
+The README contains a Product Visuals section, but screenshot files are not yet
+committed. Add synthetic/sanitized visuals for:
 
 1. Network map cockpit;
 2. Scenario and route economics;
@@ -161,19 +122,19 @@ yet committed. Add synthetic/sanitized visuals for:
 These should use preview or synthetic PostgreSQL-backed data and must not contain
 restricted vendor, customer, or strategy material.
 
-### DOC-008 API path policy must remain single-source-of-truth
+### DOC-006 API path policy must remain single-source-of-truth
 
-The repository now states `/api` as the public path and `/api/v1` as hidden
+The repository states `/api` as the public path and `/api/v1` as hidden
 compatibility. Future docs, SDK snippets, UI mocks, tests, and README examples
 should follow `docs/api/API_PATH_POLICY.md`.
 
 Add a doc-hygiene CI check later to flag public prose that contradicts this
 policy.
 
-### DOC-009 Production readiness should become managed work, not static prose
+### DOC-007 Production readiness should become managed work
 
-`docs/release/PRODUCTION_READINESS_BACKLOG.md` is now the tracked backlog, but it
-is still a markdown file. Convert each item into GitHub issues or milestones when
+`docs/release/PRODUCTION_READINESS_BACKLOG.md` is the tracked backlog, but it is
+still a markdown file. Convert each item into GitHub issues or milestones when
 issue automation is available.
 
 Recommended first issue set:
@@ -196,56 +157,39 @@ Recommended first issue set:
 - Use "Market Positioning" for the read-only imported observation and PnL
   workspace. Keep `orders` only as a technical compatibility id until route
   migration is explicitly planned.
-- Prefer "Resource Terms" or "Contract Assumptions" if the Contracts page is not
-  an ETRM.
+- Use "Resource Terms" for the EFET-style resource-assumption workspace. Keep
+  `contracts` only as a technical compatibility id until route migration is
+  explicitly planned.
 - Use "candidate", "option", "signal", "warning", "human review" consistently.
 
 ### Data-state language
 
-Every UI and report surface should distinguish:
-
-- live;
-- delayed;
-- preview;
-- simulated;
-- stale;
-- unavailable;
-- partial;
-- access not configured;
-- unsupported.
-
-The application should never silently replace missing runtime data with invented
+Every UI and report surface should distinguish live, delayed, preview, simulated,
+stale, unavailable, partial, access-not-configured, and unsupported states. The
+application should never silently replace missing runtime data with invented
 client-side values.
 
 ### LLM language
 
 LLM output should be described as structured-data explanation and report support,
-not as trading advice. Standard badges:
-
-- decision support;
-- human review required;
-- source references available;
-- missing inputs;
-- warning state;
-- provider/model metadata.
+not as trading advice. Standard badges: decision support, human review required,
+source references available, missing inputs, warning state, and provider/model
+metadata.
 
 ## Suggested Follow-Up Commits
 
-1. `Rename contract assumptions workspace`
-   - decide whether `Contracts` should become `Resource Terms` or
-     `Contract Assumptions` in UI and docs.
-
-2. `Add README product visuals`
+1. `Add README product visuals`
    - commit synthetic/sanitized screenshots under `docs/assets/readme/`.
 
-3. `Add doc-hygiene checks`
+2. `Add doc-hygiene checks`
    - detect local machine authority paths;
    - detect public-doc API path drift;
    - detect product-boundary language drift.
 
-4. `Migrate market-positioning route id`
-   - optional later migration from technical workspace id `orders` to
-     `market-positioning`, with backward-compatible query handling.
+3. `Migrate compatibility route ids`
+   - optional later migration from technical workspace ids `contracts` and
+     `orders` to `resource-terms` and `market-positioning`, with backward
+     compatibility.
 
 ## Current Product Statement
 
