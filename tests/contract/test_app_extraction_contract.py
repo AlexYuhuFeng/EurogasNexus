@@ -13,6 +13,7 @@ CONTRACT_IMPORT_TS = ROOT / "clients" / "web" / "src" / "app" / "contractImport.
 CONTRACT_PAYLOAD_TS = ROOT / "clients" / "web" / "src" / "app" / "contractPayload.ts"
 RESOURCE_POOL_REQUEST_TS = ROOT / "clients" / "web" / "src" / "app" / "resourcePoolRequest.ts"
 STRATEGY_SCENARIO_TS = ROOT / "clients" / "web" / "src" / "app" / "strategyScenario.ts"
+ROUTE_RECOMMENDATION_REQUEST_TS = ROOT / "clients" / "web" / "src" / "app" / "routeRecommendationRequest.ts"
 
 
 def _read(path: Path) -> str:
@@ -114,6 +115,23 @@ def test_strategy_scenario_builder_exists_before_app_wiring() -> None:
         'strategy_id: "nbp-sap-icis-ocm-window"',
         'price_name: "ICE_OCM"',
         "require_tso_access: true",
+    ]:
+        assert phrase in module_text
+    assert "research_only" not in module_text
+
+
+def test_route_recommendation_request_builder_exists_before_app_wiring() -> None:
+    """Route recommendation request construction should be ready before App imports it."""
+
+    app_text = _read(APP_TSX)
+    module_text = _read(ROUTE_RECOMMENDATION_REQUEST_TS)
+    assert "const routeRecommendationRequest = useMemo" in app_text
+    assert "export function buildRouteRecommendationRequest" in module_text
+    for phrase in [
+        'request_id: "web-db-backed-route-allocation"',
+        'capacity_product: "ANNUAL"',
+        'firmness: "FIRM"',
+        'price_unit: option.sale_price_unit ?? "EUR/MWh"',
     ]:
         assert phrase in module_text
     assert "research_only" not in module_text
