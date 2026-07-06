@@ -94,7 +94,7 @@ def test_resource_pool_request_builder_exists_before_app_wiring() -> None:
     for phrase in [
         'portfolio_id: "web-resource-pool"',
         'objective: "MAX_DAILY_PNL"',
-        "research_only: true",
         "annual_financing_rate_pct",
     ]:
         assert phrase in module_text
+    assert "research_only" not in module_text
