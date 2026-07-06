@@ -51,16 +51,15 @@ export const workspaceGroups: WorkspaceGroup[] = [
 
 interface WorkspaceTopBarProps {
   activeWorkspace: WorkspacePageId;
-  workspaceMenuOpen: boolean;
   searchTerm: string;
   dataStatus: string;
   language: string;
   mode: ThemeMode;
   t: (key: string) => string;
-  onWorkspaceMenuToggle: () => void;
   onSearchTermChange: Dispatch<SetStateAction<string>>;
   onLanguageChange: (language: string) => void;
   onModeChange: (mode: ThemeMode) => void;
+  [legacyProp: string]: unknown;
 }
 
 const groupedWorkspaceMenuCss = `
