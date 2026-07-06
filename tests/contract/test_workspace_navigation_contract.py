@@ -97,7 +97,15 @@ def test_workspace_route_guard_helpers_exist() -> None:
     assert "value is WorkspacePageId" in navigation_text
     assert "workspacePageIds.includes" in navigation_text
     assert "export function coerceWorkspacePageId" in navigation_text
-    assert 'fallback: WorkspacePageId = "network"' in navigation_text
+    assert "fallback: WorkspacePageId = DEFAULT_WORKSPACE_PAGE_ID" in navigation_text
+
+
+def test_default_workspace_page_id_is_centralized() -> None:
+    """The fallback workspace should be declared once in the shared navigation model."""
+
+    navigation_text = _read(WORKSPACE_NAVIGATION_TS)
+    assert 'export const DEFAULT_WORKSPACE_PAGE_ID: WorkspacePageId = "network"' in navigation_text
+    assert 'fallback: WorkspacePageId = DEFAULT_WORKSPACE_PAGE_ID' in navigation_text
 
 
 def test_workspace_group_labels_are_i18n_backed() -> None:
@@ -153,6 +161,7 @@ def test_workspace_navigation_model_is_shared() -> None:
     assert "export const workspaceGroups" in navigation_text
     assert "export type WorkspacePageId" in navigation_text
     assert "export const workspacePageIds" in navigation_text
+    assert "export const DEFAULT_WORKSPACE_PAGE_ID" in navigation_text
     assert "export function isWorkspacePageId" in navigation_text
     assert "export function coerceWorkspacePageId" in navigation_text
     assert 'from "../workspaceNavigation"' in topbar_text
