@@ -201,8 +201,8 @@ own rights and contractual permission.
 ## Clients
 
 The Web client is the primary map-focused workspace. It has separate surfaces
-for Network, Capacity, Market, Scenario, Contracts, Strategy, Review, Order
-Records, Data Sources, Glossary, Runtime, Settings, and Manual.
+for Network, Capacity, Market, Scenario, Contracts, Strategy, Review, Market
+Positioning, Data Sources, Glossary, Runtime, Settings, and Manual.
 
 The desktop client packages the same Web workspace through Tauri and targets
 Windows NSIS and Linux Debian packages. Desktop clients must use the backend API;
