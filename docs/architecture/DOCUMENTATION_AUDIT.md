@@ -10,21 +10,20 @@ system, legal-advice tool, or ETRM replacement.
 
 ## Executive Summary
 
-The repository is technically well structured, but several docs still carry
-older milestone language and overly restrictive wording. The most important
-cleanup is to standardize three concepts:
+The repository is technically well structured, but several docs still carry older
+milestone language and overly restrictive wording. The cleanup standard is:
 
 1. **Product identity**: use "European gas intelligence workspace" or
    "decision-support workspace" instead of "research-only".
 2. **Release language**: use normal release-line language such as
-   `v0.5-preview`, "current release line", "current release-candidate scope",
-   or "current product boundary". Avoid treating "V1" as the product identity.
+   `v0.5-preview`, "current release line", "current release-candidate scope", or
+   "current product boundary". Avoid treating "V1" as the product identity.
 3. **Boundary language**: the product supports commercial analysis, route
-   economics, portfolio/resource-pool optimization, market positioning,
-   strategy evaluation, LLM-assisted explanation, and reporting. The boundary is
+   economics, portfolio/resource-pool optimization, market positioning, strategy
+   evaluation, LLM-assisted explanation, and reporting. The boundary is
    non-execution and human-reviewed, not research-only.
 
-## Completed In This Cleanup
+## Completed Cleanup
 
 - Added a root `LICENSE` file with proprietary source-visible terms.
 - Rewrote `CONTRIBUTING.md` as a human contributor guide and removed
@@ -37,28 +36,36 @@ cleanup is to standardize three concepts:
 - Added `docs/release/PRODUCTION_READINESS_BACKLOG.md`.
 - Updated README positioning, visuals guidance, documentation links, and
   release-line language.
+- Added neutral runtime validation and release-build entrypoints:
+  - `scripts/ops/validate_runtime_db.py`
+  - `scripts/release/build_release.sh`
+  - `scripts/release/build_release.ps1`
+- Kept old `v1` script names as compatibility wrappers, not preferred entrypoints.
+- Added `docs/operations/LIVE_POSTGRESQL.md` and reduced the old
+  `LIVE_POSTGRESQL_V1.md` file to a compatibility pointer.
+- Updated CI/release workflow action versions to currently valid major versions.
 
 ## High-Priority Remaining Inconsistencies
 
-### DOC-001 Remaining milestone-style "V1" wording
+### DOC-001 Compatibility wrappers still contain `v1` in filenames
 
-Some internal docs, file names, scripts, and release helper commands still use
-`V1` or `v1` language. This is acceptable temporarily when it is a literal file
-or command name, but product prose should be normalized.
+The following files remain intentionally as compatibility wrappers or link
+pointers:
 
-Recommended rule:
+- `scripts/ops/validate_v1_runtime_db.py`
+- `scripts/release/build_v1_release.sh`
+- `scripts/release/build_v1_release.ps1`
+- `docs/operations/LIVE_POSTGRESQL_V1.md`
 
-- Use `v0.5-preview`, `v0.6-preview`, `v1.0.0`, etc. for actual versions.
-- Use "current release line" or "current release-candidate scope" in prose.
-- Keep literal filenames temporarily, then rename them under a dedicated
-  migration commit with tests updated.
+Preferred replacements are:
 
-Likely follow-up targets:
+- `scripts/ops/validate_runtime_db.py`
+- `scripts/release/build_release.sh`
+- `scripts/release/build_release.ps1`
+- `docs/operations/LIVE_POSTGRESQL.md`
 
-- release helper script names containing `v1`;
-- runtime validation script names containing `v1`;
-- operation docs with `V1` in filenames;
-- historical milestone plans under `.agent/`.
+These compatibility files can be removed later after CI, docs, release notes, and
+user habits have moved to the neutral names.
 
 ### DOC-002 "Research-only" wording is too narrow
 
@@ -108,8 +115,8 @@ execution terminal. Prefer:
 - commercial decision-support cockpit;
 - route and portfolio decision cockpit.
 
-When "trader" is retained, pair it with "decision support" and
-"human review required".
+When "trader" is retained, pair it with "decision support" and "human review
+required".
 
 ### DOC-005 "Live monitor" and "live strategy" need careful wording
 
@@ -231,14 +238,13 @@ not as trading advice. Standard badges:
 
 ## Suggested Follow-Up Commits
 
-1. `Normalize client spec product language`
-   - remove remaining prose-level `V1` wording from `docs/clients/*`;
-   - replace "trader cockpit" where it overstates execution intent;
-   - replace "research output" with "decision-support output".
+1. `Rename read-only market-positioning workspace`
+   - decide whether `Order Records` should become `Imported Observations` or
+     `Market Positioning` in UI and docs.
 
-2. `Rename readiness and operations files away from V1`
-   - rename operation docs and scripts only when tests and references are updated
-     together.
+2. `Rename contract assumptions workspace`
+   - decide whether `Contracts` should become `Resource Terms` or
+     `Contract Assumptions` in UI and docs.
 
 3. `Add README product visuals`
    - commit synthetic/sanitized screenshots under `docs/assets/readme/`.
