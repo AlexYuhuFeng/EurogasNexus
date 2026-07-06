@@ -12,6 +12,7 @@ ROUTE_METADATA_TS = ROOT / "clients" / "web" / "src" / "app" / "routeMetadata.ts
 CONTRACT_IMPORT_TS = ROOT / "clients" / "web" / "src" / "app" / "contractImport.ts"
 CONTRACT_PAYLOAD_TS = ROOT / "clients" / "web" / "src" / "app" / "contractPayload.ts"
 RESOURCE_POOL_REQUEST_TS = ROOT / "clients" / "web" / "src" / "app" / "resourcePoolRequest.ts"
+STRATEGY_SCENARIO_TS = ROOT / "clients" / "web" / "src" / "app" / "strategyScenario.ts"
 
 
 def _read(path: Path) -> str:
@@ -96,6 +97,23 @@ def test_resource_pool_request_builder_exists_before_app_wiring() -> None:
         'portfolio_id: "web-resource-pool"',
         'objective: "MAX_DAILY_PNL"',
         "annual_financing_rate_pct",
+    ]:
+        assert phrase in module_text
+    assert "research_only" not in module_text
+
+
+def test_strategy_scenario_builder_exists_before_app_wiring() -> None:
+    """Strategy scenario construction should be ready before App imports it."""
+
+    app_text = _read(APP_TSX)
+    module_text = _read(STRATEGY_SCENARIO_TS)
+    assert "const strategyScenario = useMemo" in app_text
+    assert "export function buildStrategyScenario" in module_text
+    for phrase in [
+        'run_mode: "SHADOW_RUN"',
+        'strategy_id: "nbp-sap-icis-ocm-window"',
+        'price_name: "ICE_OCM"',
+        "require_tso_access: true",
     ]:
         assert phrase in module_text
     assert "research_only" not in module_text
