@@ -1,54 +1,12 @@
 import { useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
+import { workspaceGroups } from "../workspaceNavigation";
+import type { WorkspaceGroup, WorkspacePageId } from "../workspaceNavigation";
 import "./WorkspaceTopBar.css";
 
+export type { WorkspaceGroup, WorkspacePageId } from "../workspaceNavigation";
+
 type ThemeMode = "light" | "dark" | "system";
-
-export type WorkspacePageId =
-  | "network"
-  | "capacity"
-  | "market"
-  | "scenario"
-  | "contracts"
-  | "strategy"
-  | "review"
-  | "orders"
-  | "sources"
-  | "glossary"
-  | "runtime"
-  | "settings"
-  | "manual";
-
-type WorkspaceGroupId = "decision" | "commercial" | "analytics" | "operations";
-
-export interface WorkspaceGroup {
-  id: WorkspaceGroupId;
-  labelKey: string;
-  pages: WorkspacePageId[];
-}
-
-export const workspaceGroups: WorkspaceGroup[] = [
-  {
-    id: "decision",
-    labelKey: "nav.group.decision",
-    pages: ["network", "scenario", "review"],
-  },
-  {
-    id: "commercial",
-    labelKey: "nav.group.commercial",
-    pages: ["contracts", "market", "capacity", "orders"],
-  },
-  {
-    id: "analytics",
-    labelKey: "nav.group.analytics",
-    pages: ["strategy", "glossary"],
-  },
-  {
-    id: "operations",
-    labelKey: "nav.group.operations",
-    pages: ["sources", "runtime", "settings", "manual"],
-  },
-];
 
 interface WorkspaceTopBarProps {
   activeWorkspace: WorkspacePageId;
@@ -124,7 +82,7 @@ export function WorkspaceTopBar({
 
       {groupedMenuOpen && (
         <nav className="workspace-menu grouped-workspace-menu" aria-label={t("topbar.workspace_menu")}>
-          {workspaceGroups.map((group) => (
+          {workspaceGroups.map((group: WorkspaceGroup) => (
             <section
               key={`workspace-group-${group.id}`}
               className={group.pages.includes(activeWorkspace) ? "workspace-menu-group active" : "workspace-menu-group"}
