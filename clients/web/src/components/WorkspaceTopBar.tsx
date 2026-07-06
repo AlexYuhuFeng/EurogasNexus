@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 
 type ThemeMode = "light" | "dark" | "system";
@@ -63,10 +64,6 @@ interface WorkspaceTopBarProps {
 }
 
 const groupedWorkspaceMenuCss = `
-.cockpit-app > .workspace-menu:not(.grouped-workspace-menu) {
-  display: none;
-}
-
 .workspace-menu {
   position: fixed;
   z-index: 60;
@@ -153,17 +150,17 @@ const groupedWorkspaceMenuCss = `
 
 export function WorkspaceTopBar({
   activeWorkspace,
-  workspaceMenuOpen,
   searchTerm,
   dataStatus,
   language,
   mode,
   t,
-  onWorkspaceMenuToggle,
   onSearchTermChange,
   onLanguageChange,
   onModeChange,
 }: WorkspaceTopBarProps) {
+  const [groupedMenuOpen, setGroupedMenuOpen] = useState(false);
+
   function openWorkspace(page: WorkspacePageId) {
     if (typeof window !== "undefined") {
       const nextUrl = new URL(window.location.href);
@@ -171,7 +168,7 @@ export function WorkspaceTopBar({
       window.history.pushState({ workspace: page }, "", nextUrl);
       window.dispatchEvent(new Event("popstate"));
     }
-    onWorkspaceMenuToggle();
+    setGroupedMenuOpen(false);
   }
 
   return (
@@ -182,8 +179,8 @@ export function WorkspaceTopBar({
           className="workspace-pill workspace-trigger"
           type="button"
           aria-label={t("topbar.workspace_menu")}
-          aria-expanded={workspaceMenuOpen}
-          onClick={onWorkspaceMenuToggle}
+          aria-expanded={groupedMenuOpen}
+          onClick={() => setGroupedMenuOpen((current) => !current)}
         >
           <span className="topbar-menu-glyph" aria-hidden="true" />
           <span className="workspace-pill-copy">
@@ -211,8 +208,8 @@ export function WorkspaceTopBar({
         </div>
       </header>
 
-      {workspaceMenuOpen && (
-        <nav className="workspace-menu grouped-workspace-menu" aria-label={t("topbar.workspace_menu")}> 
+      {groupedMenuOpen && (
+        <nav className="workspace-menu grouped-workspace-menu" aria-label={t("topbar.workspace_menu")}>
           {workspaceGroups.map((group) => (
             <section
               key={`workspace-group-${group.id}`}
