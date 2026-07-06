@@ -78,7 +78,7 @@ The Web/Windows workspace currently owns:
   contract library, and backend-owned resource-pool refresh.
 - Strategy: paper strategy evaluation.
 - Review: route allocation, warning, and analysis/report review.
-- Order Records: read-only screen-order observations and PnL snapshots.
+- Market Positioning: read-only screen observations and PnL snapshots.
 - Data Sources: source categories, credentials, freshness, diagnostics, and
   record counts.
 - Glossary: bilingual operational terms and DB-derived context.
