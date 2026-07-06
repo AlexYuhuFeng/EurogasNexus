@@ -17,6 +17,11 @@ on:
         type: boolean
         required: true
         default: true
+      build_desktop:
+        description: Also build Windows and Linux desktop packages.
+        type: boolean
+        required: true
+        default: false
 
 permissions:
   contents: write
@@ -49,8 +54,8 @@ jobs:
       - name: Ruff
         run: ruff check .
 
-      - name: Targeted release tests
-        run: pytest -q tests/api tests/contract tests/integration tests/sdk tests/cli tests/release tests/security
+      - name: Tests
+        run: pytest -q tests
 
       - name: Import API
         run: python -c "from apps.api.main import app; print('app import ok'); print(len(app.routes))"
@@ -94,6 +99,7 @@ jobs:
 
   desktop:
     name: Build desktop client (${{ matrix.artifact_label }})
+    if: ${{ github.event.inputs.build_desktop == 'true' }}
     runs-on: ${{ matrix.os }}
     needs: validate
     strategy:
@@ -171,6 +177,7 @@ jobs:
     needs:
       - web
       - desktop
+    if: ${{ always() && needs.web.result == 'success' && (needs.desktop.result == 'success' || needs.desktop.result == 'skipped') }}
 
     steps:
       - name: Check out repository
@@ -189,6 +196,7 @@ jobs:
         run: |
           SHORT_SHA="${GITHUB_SHA::7}"
           CHANNEL="${{ github.event.inputs.release_channel || 'preview' }}"
+          DESKTOP_INCLUDED="${{ github.event.inputs.build_desktop || 'false' }}"
           TAG="v0.5-${CHANNEL}-${GITHUB_RUN_NUMBER}-${SHORT_SHA}"
           echo "tag=${TAG}" >> "${GITHUB_OUTPUT}"
           {
@@ -197,7 +205,11 @@ jobs:
             echo "- Commit: ${GITHUB_SHA}"
             echo "- Branch: ${GITHUB_REF_NAME}"
             echo "- Channel: ${CHANNEL}"
-            echo "- Includes: Web build, Windows NSIS installer, Linux DEB package."
+            if [[ "${DESKTOP_INCLUDED}" == "true" ]]; then
+              echo "- Includes: Web build, Windows NSIS installer, Linux DEB package."
+            else
+              echo "- Includes: Web build. Desktop packaging was not requested for this run."
+            fi
             echo
             echo "Runtime data remains DB-first through the backend API. Clients do not connect directly to PostgreSQL."
           } > release-notes.md
