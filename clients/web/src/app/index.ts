@@ -7,6 +7,14 @@ export { buildResourcePoolOptimizationRequest } from "./resourcePoolRequest";
 export { buildRouteRecommendationRequest } from "./routeRecommendationRequest";
 export { buildStrategyScenario } from "./strategyScenario";
 export {
+  buildReviewWarnings,
+  buildSourceStats,
+  buildWorkspaceLatestRows,
+  latestOfficialFlows,
+  latestRows,
+  SOURCE_ISSUE_STATUSES,
+} from "./workspaceDerivedData";
+export {
   metadataText,
   normalizePointName,
   routeEdgeMetadataText,
