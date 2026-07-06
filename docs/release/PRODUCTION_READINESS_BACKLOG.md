@@ -1,6 +1,6 @@
 # Production Readiness Backlog
 
-This backlog turns the production gaps listed in `docs/release/V1_RELEASE_READINESS.md` into actionable work items. It does not expand the V1 product boundary: Eurogas Nexus remains a decision-support platform requiring human review.
+This backlog turns the production gaps listed in `docs/release/RELEASE_READINESS.md` into actionable work items. It does not expand the current product boundary: Eurogas Nexus remains a decision-support platform requiring human review.
 
 ## Milestone A: Repository Governance and Public Presentation
 
@@ -108,7 +108,7 @@ This backlog turns the production gaps listed in `docs/release/V1_RELEASE_READIN
 - Acceptance:
   - contracts, resources, pricing basis, settlement terms, capacity terms, and provenance are persisted through API boundaries.
   - clients do not store contract truth locally.
-  - outputs remain research-only and human-review-required.
+  - outputs remain decision-support and human-review-required.
 
 ## Milestone E: Operational Runbooks
 
