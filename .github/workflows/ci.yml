@@ -28,8 +28,8 @@ jobs:
       - name: Ruff
         run: ruff check .
 
-      - name: Targeted tests
-        run: pytest -q tests/api tests/contract tests/integration tests/sdk tests/cli tests/release tests/security
+      - name: Tests
+        run: pytest -q tests
 
       - name: Import API
         run: python -c "from apps.api.main import app; print('app import ok'); print(len(app.routes))"
