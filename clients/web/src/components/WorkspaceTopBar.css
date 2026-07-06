@@ -1,0 +1,82 @@
+.workspace-menu {
+  position: fixed;
+  z-index: 60;
+  top: 72px;
+  left: 16px;
+  display: flex;
+  width: min(360px, calc(100vw - 32px));
+  max-height: calc(100vh - 96px);
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  border: 1px solid var(--eg-hairline, var(--border));
+  border-radius: 18px;
+  background: rgb(255 255 255 / 96%);
+  box-shadow: var(--eg-shadow-3, 0 12px 28px rgb(24 32 38 / 12%));
+  padding: 10px;
+  backdrop-filter: blur(14px);
+}
+
+:root.dark .workspace-menu {
+  background: rgb(17 17 17 / 96%);
+}
+
+.workspace-menu-group {
+  display: grid;
+  gap: 5px;
+}
+
+.workspace-menu-group-title {
+  color: var(--eg-muted, var(--muted));
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 14px;
+  padding: 2px 11px 0;
+  text-transform: uppercase;
+}
+
+.workspace-menu-group-items {
+  display: grid;
+  gap: 4px;
+}
+
+.workspace-menu-group.active .workspace-menu-group-title {
+  color: var(--eg-ink, var(--accent));
+}
+
+.workspace-menu-item {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--eg-ink, var(--text));
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 18px;
+  padding: 9px 11px;
+  text-align: left;
+}
+
+.workspace-menu-item:hover,
+.workspace-menu-item.active {
+  border-color: var(--eg-hairline, var(--border));
+  background: var(--eg-canvas-soft, var(--surface-strong));
+}
+
+.workspace-menu-item.active {
+  box-shadow: inset 3px 0 0 var(--eg-ink, var(--accent));
+}
+
+@media (max-width: 900px) {
+  .workspace-menu {
+    top: 68px;
+    left: 12px;
+    width: calc(100vw - 24px);
+  }
+}
