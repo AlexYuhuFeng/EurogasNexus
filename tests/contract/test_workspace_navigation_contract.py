@@ -8,6 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 APP_TSX = ROOT / "clients" / "web" / "src" / "App.tsx"
 TOPBAR_TSX = ROOT / "clients" / "web" / "src" / "components" / "WorkspaceTopBar.tsx"
+TOPBAR_CSS = ROOT / "clients" / "web" / "src" / "components" / "WorkspaceTopBar.css"
 I18N_INDEX = ROOT / "clients" / "web" / "src" / "i18n" / "index.ts"
 
 EXPECTED_GROUPS = {
@@ -102,3 +103,15 @@ def test_topbar_owns_menu_state_contract() -> None:
     assert "onWorkspaceMenuToggle" not in props_body
     assert "useState(false)" in topbar_text
     assert "groupedMenuOpen" in topbar_text
+
+
+def test_topbar_styles_are_externalized() -> None:
+    """Workspace menu styles should live in a CSS file, not an injected style tag."""
+
+    topbar_text = _read(TOPBAR_TSX)
+    css_text = _read(TOPBAR_CSS)
+    assert 'import "./WorkspaceTopBar.css";' in topbar_text
+    assert "groupedWorkspaceMenuCss" not in topbar_text
+    assert "<style>" not in topbar_text
+    assert ".workspace-menu" in css_text
+    assert ".workspace-menu-group-title" in css_text
