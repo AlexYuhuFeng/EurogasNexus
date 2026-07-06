@@ -164,12 +164,18 @@ Database URL precedence:
 Useful operator commands:
 
 ```bash
-python scripts/ops/validate_v1_runtime_db.py --json
+python scripts/ops/validate_runtime_db.py --json
 python scripts/ops/seed_preview_runtime_data.py
 python scripts/ops/ingest_simulated_market_prices.py --loop
 python scripts/ops/materialize_reference_edges.py
 alembic current
 alembic upgrade head
+```
+
+Compatibility command:
+
+```bash
+python scripts/ops/validate_v1_runtime_db.py --json
 ```
 
 Only run migrations against the intended runtime database.
@@ -246,6 +252,16 @@ GitHub Actions publishes preview releases from `main`:
 Local release scripts mirror the workflow:
 
 ```powershell
+./scripts/release/build_release.ps1 -Bundle nsis
+```
+
+```bash
+./scripts/release/build_release.sh --bundle deb
+```
+
+Compatibility scripts are retained temporarily:
+
+```powershell
 ./scripts/release/build_v1_release.ps1 -Bundle nsis
 ```
 
@@ -273,7 +289,7 @@ Start here:
 - [Map-first trader cockpit spec CN](docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-CN.md)
 - [UI/UX style guide EN](docs/clients/UI_UX_STYLE_GUIDE-EN.md)
 - [UI/UX style guide CN](docs/clients/UI_UX_STYLE_GUIDE-CN.md)
-- [Live PostgreSQL operations](docs/operations/LIVE_POSTGRESQL_V1.md)
+- [Live PostgreSQL operations](docs/operations/LIVE_POSTGRESQL.md)
 - [Validation guide](docs/operations/VALIDATION.md)
 - [Release readiness](docs/release/RELEASE_READINESS.md)
 - [Production readiness backlog](docs/release/PRODUCTION_READINESS_BACKLOG.md)
