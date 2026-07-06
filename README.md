@@ -242,11 +242,12 @@ and doc-hygiene checks to CI. Track that work in
 
 ## Build and Release
 
-GitHub Actions publishes preview releases from `main`:
+GitHub Actions publishes preview releases from the manual `Build and Release`
+workflow.
 
 - CI: Python linting and targeted backend/client contract tests;
 - Web build: Vite production build and packaged Web artifact;
-- Desktop build: Windows NSIS installer and Linux DEB package;
+- Desktop release build: Windows NSIS installer and Linux DEB package;
 - Release: GitHub pre-release with generated artifacts.
 
 Local release scripts mirror the workflow:
@@ -256,7 +257,7 @@ Local release scripts mirror the workflow:
 ```
 
 ```bash
-./scripts/release/build_release.sh --bundle deb
+bash scripts/release/build_release.sh --bundle deb
 ```
 
 Compatibility scripts are retained temporarily:
@@ -266,7 +267,7 @@ Compatibility scripts are retained temporarily:
 ```
 
 ```bash
-./scripts/release/build_v1_release.sh --bundle deb
+bash scripts/release/build_v1_release.sh --bundle deb
 ```
 
 Releases are published at
