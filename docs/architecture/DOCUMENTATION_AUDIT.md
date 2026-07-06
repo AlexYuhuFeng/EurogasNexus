@@ -44,6 +44,9 @@ milestone language and overly restrictive wording. The cleanup standard is:
 - Added `docs/operations/LIVE_POSTGRESQL.md` and reduced the old
   `LIVE_POSTGRESQL_V1.md` file to a compatibility pointer.
 - Updated CI/release workflow action versions to currently valid major versions.
+- Renamed the user-facing `Order Records` surface to `Market Positioning` in
+  README, Web client spec, client docs index, and Web i18n strings while keeping
+  the technical `orders` workspace id for compatibility.
 
 ## High-Priority Remaining Inconsistencies
 
@@ -132,20 +135,7 @@ automated action or official recommendations. Recommended wording:
 Avoid wording that implies live trading, automated allocation, or immediate
 execution.
 
-### DOC-006 Order Records naming can imply trade capture
-
-The current "Order Records" surface is read-only imported observation context.
-To reduce ETRM confusion, consider renaming the page to one of:
-
-- Screen Observations;
-- Imported Observations;
-- Market Positioning;
-- Imported Order/PnL Context.
-
-If "Order Records" is retained, every page and component must clearly say it is
-read-only imported context and not trade capture.
-
-### DOC-007 Contracts page can imply an ETRM
+### DOC-006 Contracts page can imply an ETRM
 
 The Contracts surface is valuable but should be framed as contract assumptions,
 resource terms, and portfolio-resource context for decision support. It should
@@ -159,7 +149,7 @@ Recommended labels:
 - EFET-style Resource Terms;
 - Resource Contract Library for decision support.
 
-### DOC-008 README still needs actual visuals
+### DOC-007 README still needs actual visuals
 
 The README now contains a Product Visuals section, but screenshot files are not
 yet committed. Add synthetic/sanitized visuals for:
@@ -171,7 +161,7 @@ yet committed. Add synthetic/sanitized visuals for:
 These should use preview or synthetic PostgreSQL-backed data and must not contain
 restricted vendor, customer, or strategy material.
 
-### DOC-009 API path policy must remain single-source-of-truth
+### DOC-008 API path policy must remain single-source-of-truth
 
 The repository now states `/api` as the public path and `/api/v1` as hidden
 compatibility. Future docs, SDK snippets, UI mocks, tests, and README examples
@@ -180,7 +170,7 @@ should follow `docs/api/API_PATH_POLICY.md`.
 Add a doc-hygiene CI check later to flag public prose that contradicts this
 policy.
 
-### DOC-010 Production readiness should become managed work, not static prose
+### DOC-009 Production readiness should become managed work, not static prose
 
 `docs/release/PRODUCTION_READINESS_BACKLOG.md` is now the tracked backlog, but it
 is still a markdown file. Convert each item into GitHub issues or milestones when
@@ -203,8 +193,11 @@ Recommended first issue set:
 
 - Prefer "Network" or "Decision Cockpit" over "Trader Cockpit" in user-facing
   titles.
-- Prefer "Market Positioning" over "Order Records" if the page is read-only.
-- Prefer "Resource Terms" or "Contract Assumptions" if the page is not an ETRM.
+- Use "Market Positioning" for the read-only imported observation and PnL
+  workspace. Keep `orders` only as a technical compatibility id until route
+  migration is explicitly planned.
+- Prefer "Resource Terms" or "Contract Assumptions" if the Contracts page is not
+  an ETRM.
 - Use "candidate", "option", "signal", "warning", "human review" consistently.
 
 ### Data-state language
@@ -238,21 +231,21 @@ not as trading advice. Standard badges:
 
 ## Suggested Follow-Up Commits
 
-1. `Rename read-only market-positioning workspace`
-   - decide whether `Order Records` should become `Imported Observations` or
-     `Market Positioning` in UI and docs.
-
-2. `Rename contract assumptions workspace`
+1. `Rename contract assumptions workspace`
    - decide whether `Contracts` should become `Resource Terms` or
      `Contract Assumptions` in UI and docs.
 
-3. `Add README product visuals`
+2. `Add README product visuals`
    - commit synthetic/sanitized screenshots under `docs/assets/readme/`.
 
-4. `Add doc-hygiene checks`
+3. `Add doc-hygiene checks`
    - detect local machine authority paths;
    - detect public-doc API path drift;
    - detect product-boundary language drift.
+
+4. `Migrate market-positioning route id`
+   - optional later migration from technical workspace id `orders` to
+     `market-positioning`, with backward-compatible query handling.
 
 ## Current Product Statement
 
