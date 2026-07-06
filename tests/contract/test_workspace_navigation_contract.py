@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[2]
 APP_TSX = ROOT / "clients" / "web" / "src" / "App.tsx"
 TOPBAR_TSX = ROOT / "clients" / "web" / "src" / "components" / "WorkspaceTopBar.tsx"
 TOPBAR_CSS = ROOT / "clients" / "web" / "src" / "components" / "WorkspaceTopBar.css"
+WORKSPACE_NAVIGATION_TS = ROOT / "clients" / "web" / "src" / "workspaceNavigation.ts"
 I18N_INDEX = ROOT / "clients" / "web" / "src" / "i18n" / "index.ts"
 
 EXPECTED_GROUPS = {
@@ -31,7 +32,7 @@ def test_workspace_groups_cover_all_workspace_pages_once() -> None:
     """Grouped navigation must cover the same route ids accepted by App.tsx."""
 
     app_text = _read(APP_TSX)
-    topbar_text = _read(TOPBAR_TSX)
+    navigation_text = _read(WORKSPACE_NAVIGATION_TS)
 
     pages_match = re.search(
         r"const\s+WORKSPACE_PAGES:\s*WorkspacePageId\[\]\s*=\s*\[(.*?)\];",
@@ -45,7 +46,7 @@ def test_workspace_groups_cover_all_workspace_pages_once() -> None:
     for group_id, expected_pages in EXPECTED_GROUPS.items():
         group_match = re.search(
             rf'id:\s*"{group_id}".*?pages:\s*\[(.*?)\]',
-            topbar_text,
+            navigation_text,
             flags=re.DOTALL,
         )
         assert group_match, f"Missing workspace group: {group_id}"
@@ -115,3 +116,14 @@ def test_topbar_styles_are_externalized() -> None:
     assert "<style>" not in topbar_text
     assert ".workspace-menu" in css_text
     assert ".workspace-menu-group-title" in css_text
+
+
+def test_workspace_navigation_model_is_shared() -> None:
+    """Navigation structure should live outside the rendering component."""
+
+    topbar_text = _read(TOPBAR_TSX)
+    navigation_text = _read(WORKSPACE_NAVIGATION_TS)
+    assert "export const workspaceGroups" in navigation_text
+    assert "export type WorkspacePageId" in navigation_text
+    assert 'from "../workspaceNavigation"' in topbar_text
+    assert "export const workspaceGroups" not in topbar_text
