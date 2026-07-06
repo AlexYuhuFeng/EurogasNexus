@@ -1,0 +1,33 @@
+Proprietary License
+
+Copyright (c) 2026 Alex Yuhu Feng. All rights reserved.
+
+This repository is source-visible for review, demonstration, internal evaluation,
+and controlled collaboration only. No license is granted to use, copy, modify,
+merge, publish, distribute, sublicense, sell, host, deploy, commercialize, or
+create derivative works from this software except under a separate written
+agreement signed by the copyright holder.
+
+Authorized contributors may submit contributions only for the purpose of review
+and potential inclusion in this repository. Unless a separate written agreement
+states otherwise, by submitting a contribution the contributor represents that
+it is their original work or that they have the right to submit it, and grants
+the repository owner the right to use, modify, and incorporate the contribution
+into Eurogas Nexus under this proprietary license.
+
+This repository must not contain secrets, provider credentials, raw licensed
+market data, internal commercial data, confidential contracts, counterparty
+terms, real customer deployment details, or real business strategy parameters.
+
+THE SOFTWARE AND DOCUMENTATION ARE PROVIDED "AS IS" FOR REVIEW AND EVALUATION
+PURPOSES ONLY. TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE COPYRIGHT HOLDER
+DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED, INCLUDING MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE, NON-INFRINGEMENT, ACCURACY, AVAILABILITY, AND
+SUITABILITY FOR TRADING, LEGAL, ACCOUNTING, REGULATORY, OPERATIONAL, OR
+COMMERCIAL DECISIONS.
+
+Eurogas Nexus outputs are decision-support candidates requiring human review.
+They are not executable orders, order-routing instructions, nomination
+submissions, official approvals, settlement/accounting records, legal advice,
+official trading recommendations, auto-trading instructions, or an ETRM
+replacement.
