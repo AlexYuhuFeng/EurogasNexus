@@ -2,15 +2,15 @@
 
 ## Objective
 
-The web client is the primary Eurogas Nexus decision-support workspace. It is
+The Web client is the primary Eurogas Nexus decision-support workspace. It is
 map-first and resource-pool-native: the European gas network map is the main work
-surface, with market, capacity, contract, weather, scenario, strategy, and review
-context attached to map objects and route candidates. It accesses runtime data
-through the backend `/api` API.
+surface, with market, capacity, resource terms, weather, scenario, strategy, and
+review context attached to map objects and route candidates. It accesses runtime
+data through the backend `/api` API.
 
 ## Product Boundary
 
-The web client does not own business truth. It must not read PostgreSQL, import
+The Web client does not own business truth. It must not read PostgreSQL, import
 backend DB/runtime-store modules, read local backend files, load raw vendor data,
 or handle provider access material directly.
 
@@ -20,7 +20,7 @@ The browser-side data path is:
 Web UI -> web API client -> backend /api -> backend repositories -> PostgreSQL
 ```
 
-The web client must not implement trade execution, order entry, nomination
+The Web client must not implement trade execution, order entry, nomination
 submission, official recommendation, settlement/accounting, ETRM replacement, or
 auto-trading workflows.
 
@@ -42,17 +42,45 @@ Use the exact library contract in `docs/clients/CLIENT_TECH_STACK.md`:
 Do not use Next.js, Electron, Tailwind, Material UI, Ant Design, Bootstrap, or
 Redux unless a later approved milestone changes the tech-stack contract.
 
-If dependencies or backend endpoints are unavailable, create only structure,
-types, interface contracts, and a gap report. Trial and release builds must not
-replace missing PostgreSQL-backed data with client-side mock runtime data.
+## Navigation
 
-Internationalization and theme requirements:
+Eurogas Nexus uses grouped workspace navigation, not a flat list of equal pages.
+Technical workspace ids remain stable for compatibility.
 
-- support `en-US` and `zh-CN`;
-- all visible strings go through i18n resources;
-- support light, dark, and system theme modes;
-- use CSS custom properties for themes;
-- store only non-sensitive locale/theme preferences.
+### Decision Workspace
+
+1. Network
+2. Scenario
+3. Review
+
+### Commercial Inputs
+
+1. Resource Terms, technical id `contracts`
+2. Market
+3. Capacity
+4. Market Positioning, technical id `orders`
+
+### Analytics
+
+1. Strategy
+2. Glossary
+
+### Operations
+
+1. Data Sources
+2. Runtime
+3. Settings
+4. Manual
+
+Every workspace must support a direct URL query entry for release QA, customer
+support, and customer training. The canonical format is `?workspace=<id>`, where
+`<id>` is one of `network`, `scenario`, `review`, `contracts`, `market`,
+`capacity`, `orders`, `strategy`, `glossary`, `sources`, `runtime`, `settings`,
+or `manual`. Unknown workspace values must fall back to `network`.
+
+Authoritative navigation spec:
+
+- `docs/clients/WORKSPACE_NAVIGATION_SPEC.md`
 
 ## App Frame
 
@@ -60,22 +88,21 @@ Use a map-first decision cockpit layout. The home screen must be dominated by th
 European gas map and must show portfolio exposure, live prices where available,
 indicative PnL, strategy process state, and warnings without forcing the user to
 leave the map. The Top status bar remains the persistent runtime and warning
-anchor. All active purchase contracts are represented as a resource pool on the
-home screen; route cards show sale allocation for the pool and contract PnL
-appears as attribution drill-down.
+anchor. Active resource terms feed a portfolio resource pool; route cards show
+sale allocation for the pool and PnL attribution as drill-down.
 
 Persistent layout:
 
 ```text
 +--------------------------------------------------------------------------------+
-| Top bar: workspace, backend/DB status, language/theme, warnings                 |
+| Top bar: grouped workspace menu, backend/DB status, language/theme, warnings    |
 +--------------------------------------------------------------------------------+
 +----------------------+----------------------------------+----------------------+
 | Resource-pool rail   | European gas map                 | Decision rail        |
 | resources, blockers, | nodes, routes, corridors, layers | pool PnL, route      |
 | route controls       | and selected route context       | ladder, economics    |
 +----------------------+----------------------------------+----------------------+
-| Dedicated pages: market, scenario, contracts, strategy, data sources, runtime   |
+| Workspace pages: scenario, resource terms, market, capacity, strategy, review   |
 +--------------------------------------------------------------------------------+
 ```
 
@@ -85,44 +112,222 @@ Responsive behavior:
 - tablet: inspector becomes a drawer;
 - mobile: map/workspace first, nav collapses, bottom panel becomes tabs.
 
-For terminal-density lessons from the historical Windows demo QA evidence, read
-`docs/clients/WINDOWS_DEMO_UX_REFERENCE.md`.
+## Screen: Network
 
-## Navigation
+Purpose:
 
-Primary navigation items:
+- operate the map-first decision cockpit for European gas infrastructure,
+  resource-pool exposure, route context, market movement, strategy process state,
+  and warning state.
 
-1. Network
-2. Capacity
-3. Market
-4. Scenario
-5. Contracts
-6. Strategy
-7. Review
-8. Market Positioning
-9. Data Sources
-10. Glossary
-11. Runtime
-12. Settings
-13. Manual
+Initial content:
 
-Navigation labels are product workflow labels, not implementation names. The
-visible label for the imported positioning surface is `Market Positioning`; the
-technical URL id remains `orders` during the compatibility period.
+- map surface;
+- layer controls;
+- resource-path overlay showing persisted resource delivery point, target sale
+  point, quantity, capacity limit, route cost, sale price, net margin, route
+  state, and blockers from backend resource-pool data;
+- pool allocation summary showing total pool volume, allocated quantity,
+  unallocated quantity, and weighted net margin;
+- route status legend for allocated, candidate, and blocked paths;
+- path cards exposing allocation evidence, capacity headroom, path-level PnL/day,
+  and capacity bottleneck warnings;
+- source/freshness and warning evidence.
 
-Every primary workspace must support a direct URL query entry for release QA,
-customer support, and customer training. The canonical format is
-`?workspace=<workspace-id>`, where `<workspace-id>` is one of `network`,
-`capacity`, `market`, `scenario`, `contracts`, `strategy`, `review`, `orders`,
-`sources`, `glossary`, `runtime`, `settings`, or `manual`. Switching pages from
-the workspace menu must update the query parameter, and browser back/forward must
-restore the selected workspace. Unknown workspace values must fall back to
-`network`.
+The Network home must not contain data-source forms, runtime DB administration,
+or LLM report generation panels. Those belong on Data Sources, Runtime, or
+Review.
 
-Home-screen authority:
+## Screen: Scenario
 
-- `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-EN.md`
-- `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-CN.md`
+Purpose:
+
+- run route-cost, LNG readiness, resource-pool, or strategy scenarios against
+  already-entered resource-pool and resource-term context, and show what is
+  missing before a backend workflow runs.
+
+Sections:
+
+- resource/source;
+- destination or market area;
+- route preference;
+- volume;
+- timing;
+- price assumptions;
+- cost assumptions;
+- constraints;
+- notes.
+
+Outputs must be labelled as decision support, human review required, and not an
+execution instruction.
+
+## Screen: Resource Terms
+
+Technical workspace id: `contracts`.
+
+Purpose:
+
+- capture EFET-style purchase, LNG, hub, and capacity-related resource terms that
+  feed the portfolio resource pool without becoming an ETRM, official contract
+  master, booking workflow, settlement system, nomination workflow, or
+  trade-capture system.
+
+Content:
+
+- import zone for JSON drafts and staged text evidence;
+- agreement and counterparty assumptions;
+- product, term, delivery mode, delivery point, title-transfer point, and beach
+  delivery point;
+- quantity, tolerance, nomination, interruption, and balancing assumptions;
+- price formula or index basis, currency, unit, premium/discount, and source;
+- variable costs, fuel/loss, fees, regas, storage, and balancing allowances;
+- capacity rights, TSO access, terminal access, route eligibility, and expiry;
+- settlement timing, invoice/payment lag, screen cash lag, and early-cash-value
+  inputs;
+- restrictions, permitted sale markets, blocked TSOs/routes, source/freshness,
+  entitlement, and warning state;
+- persisted resource-term library loaded through backend API.
+
+The page may use API field names such as `contract_id` and
+`upstream-contracts` internally for compatibility, but user-facing copy should
+say Resource Terms or Resource-Term Assumptions.
+
+Forbidden:
+
+- official contract booking;
+- contract lifecycle management;
+- nomination submission;
+- order entry;
+- trade capture;
+- settlement/accounting;
+- official approval workflow;
+- ETRM replacement behavior.
+
+Authority:
+
+- `docs/contracts/21_RESOURCE_POOL_CONTRACT-EN.md`
+- `docs/contracts/21_RESOURCE_POOL_CONTRACT-CN.md`
+
+## Screen: Market
+
+Purpose:
+
+- provide market price, FX, weather, demand, outage, and freshness context
+  without mixing in imported market-positioning or PnL tables.
+
+Rules:
+
+- show backend-served market observations, ECB FX, and source metadata;
+- render a terminal-style gas market board when sourced observations are present;
+- show within-day, day-ahead, and month-ahead tenor controls;
+- show regional comparison only when both sides have comparable currency/unit
+  rows;
+- do not invent market data or render client-side fake observations.
+
+## Screen: Capacity
+
+Purpose:
+
+- inspect physical network operating context that affects route feasibility,
+  route cost, capacity allocation, and TSO access.
+
+Content:
+
+- ENTSOG flow observations;
+- ENTSOG capacity observations;
+- TSO access points and available product flags;
+- published tariff references by point, direction, product, and TSO;
+- GIE AGSI storage and GIE ALSI LNG records;
+- unavailable or entitlement states when backend data is missing.
+
+Capacity page data must be read from backend `/api` responses backed by
+PostgreSQL. The client must not synthesize capacity, flow, tariff, storage, LNG,
+or TSO-access rows locally.
+
+## Screen: Market Positioning
+
+Technical workspace id: `orders`.
+
+Purpose:
+
+- inspect imported screen observations and portfolio PnL snapshots without
+  presenting any order-entry, trade-capture, or execution workflow.
+
+Content:
+
+- live portfolio summary;
+- read-only screen observation table;
+- read-only portfolio PnL snapshot table;
+- source, timestamp, account label, venue, hub, quantity, price, and status;
+- clear unavailable state when the backend has no imported records.
+
+Market Positioning must consume `/api/portfolio/*`. It must not write orders,
+route orders, approve trades, submit nominations, or store provider access
+material in the client.
+
+## Screen: Strategy
+
+Purpose:
+
+- inspect strategy backtests and paper shadow runs over approved market,
+  physical, capacity, resource-term, and weather context;
+- monitor live signal processes when the backend has authorized data and
+  operator-configured inputs.
+
+Shadow run creates no orders, trades, nominations, execution records, or official
+recommendations.
+
+Current endpoint:
+
+```text
+POST /api/strategy-lab/evaluate
+```
+
+## Screen: Review
+
+Purpose:
+
+- compare candidates and inspect decision-support output metadata before any
+  human commercial decision.
+
+Required panels:
+
+- candidate comparison table;
+- route option map/table with cost stack, capacity/resource-term constraints,
+  and market/weather signal state;
+- warning stack;
+- assumptions;
+- missing inputs;
+- source references;
+- lineage;
+- freshness/data quality;
+- export status;
+- LLM-assisted explanation with citations when backend analysis exists.
+
+Export remains disabled until governance/export policy is implemented.
+
+## Screen: Data Sources
+
+Purpose:
+
+- inspect and maintain source references, categories, access posture, health,
+  freshness, and lineage for displayed outputs.
+
+Provider categories include prices, FX, infrastructure, TSO tariffs, weather, and
+LLM. Every live-source panel must show entitlement, freshness, source status,
+degraded/offline state, and whether data is live, delayed, demo, partial, or
+unavailable.
+
+## Screen: Glossary
+
+Purpose:
+
+- explain gas, LNG, storage, trading venue, capacity, route economics, weather,
+  and data-governance terms in a consistent backend-served vocabulary;
+- support English and Mandarin Chinese from the same backend term contract;
+- show operational context for high-value terms such as TTF, NBP, ICE OCM, ICIS
+  Heren, GATE LNG, and Zeebrugge Entry Point when PostgreSQL contains matching
+  runtime rows.
 
 ## Screen: Runtime
 
@@ -140,419 +345,11 @@ Content:
 - warning if simulated/preview provenance, stale data, missing DB tables, or
   unavailable backend capabilities are reported by the API.
 
-States:
-
-- healthy;
-- degraded;
-- backend unavailable;
-- DB unavailable;
-- route not implemented.
-
-## Screen: Network
-
-Purpose:
-
-- operate the map-first decision cockpit for European gas infrastructure,
-  resource-pool exposure, route context, live market movement, strategy process
-  state, and warning state.
-
-Initial content:
-
-- map surface;
-- layer controls;
-- label-budgeted fallback map rendering;
-- resource-path overlay showing persisted resource delivery point, target sale
-  point, quantity, capacity limit, route cost, sale price, net margin, route
-  state, and blockers from backend resource-pool data;
-- pool allocation summary showing total pool volume, allocated quantity,
-  unallocated quantity, and weighted net margin before individual path cards;
-- route status legend for allocated, candidate, and blocked paths;
-- path cards exposing allocation evidence, capacity headroom, path-level PnL/day,
-  and capacity bottleneck warnings;
-- map overlay capped to a readable number of route candidates, with additional
-  candidates in the decision rail;
-- left resource-pool rail with active resources, blockers, and route controls;
-- right decision rail with net PnL, allocation ladder, economics snapshot, and
-  strategy/warning signal;
-- selected route context and route blocking/warning overlay.
-
-When PostgreSQL runtime status, portfolio resources, route candidates,
-tariff/capacity inputs, and price observations are available, the Network
-cockpit should automatically request the backend resource-pool optimization once
-for the current input signature. Manual buttons are refresh controls, not the
-only way to generate a decision view.
-
-Not allowed on the Network home:
-
-- data-source diagnostics tables;
-- runtime DB health panels;
-- TSO access/capacity/tariff summary tables;
-- provider access forms;
-- glossary detail;
-- LLM report generation panels.
-
-Those belong on Data Sources, Runtime, Market, Scenario, Contracts, Glossary, or
-Strategy pages.
-
-Layers:
-
-- hubs and market areas;
-- pipelines and corridors;
-- LNG terminals;
-- storage sites;
-- beach delivery points;
-- interconnectors;
-- zones and countries;
-- flow, capacity, outage, and constraint overlays;
-- ECB FX, EEX, Trayport, ICE OCM market overlays when licensed and exposed by
-  backend;
-- ENTSOG and GIE source posture overlays when licensed/exposed by backend;
-- weather/HDD/CDD and demand-pressure overlays;
-- contract/capacity exposure overlays;
-- decision-support route candidate and warning overlays;
-- upstream resource contracts, resource pools, and imported market-positioning
-  observations when imported through backend API.
-
-Interactions:
-
-- select asset;
-- search asset;
-- toggle layer;
-- filter by asset type;
-- inspect source and lineage;
-- open related scenario draft;
-- run backend route-cost, LNG regas, resource-pool, or strategy evaluation for
-  the selected route/resource context.
-
-Do not load live vendor data from the browser.
-
-External screen observations:
-
-- may be imported and displayed as reference context only;
-- must not become order entry, order amendment, order cancellation, trade
-  capture, or execution workflow.
-
-Home decision rail:
-
-- total pool PnL, allocated quantity, and unallocated quantity;
-- map-level resource paths from active contract delivery points to recommended
-  sale/delivery targets, including empty/blocked state when PostgreSQL-backed
-  resource-pool inputs are missing;
-- each recommended sale path with quantity, sale market, route cost, sale price,
-  netback, PnL contribution, capacity limit, TSO access, and blockers;
-- contract-level attribution only as drill-down below the route decision;
-- explicit empty or blocked state if PostgreSQL has no portfolio, price,
-  capacity, or tariff rows.
-
-## Screen: Contracts
-
-Purpose:
-
-- capture EFET-style purchase, LNG, hub, and capacity-related resource terms that
-  feed the portfolio resource pool without becoming an ETRM, booking,
-  nomination, or trade-capture system.
-
-Content:
-
-- upload zone for JSON drafts and staged contract text/PDF/DOC evidence; upload
-  only pre-fills a draft and must show document status plus source evidence
-  before any backend save;
-- agreement and counterparty metadata;
-- product, term, delivery mode, delivery point, title-transfer point, and beach
-  delivery point for physical/LNG contracts;
-- quantity, tolerance, nomination, interruption, and balancing terms;
-- price formula or index basis, currency, unit, premium/discount, and source;
-- variable costs, fuel/loss, fees, regas, storage, and balancing allowances;
-- capacity rights, TSO access, terminal access, route eligibility, and expiry;
-- settlement frequency, invoice/payment lag, screen cash lag, and early cash
-  value inputs;
-- restrictions, permitted sale markets, blocked TSOs/routes, source/freshness,
-  entitlement, and warning state;
-- persisted upstream-contract library loaded from
-  `GET /api/route-cost/upstream-contracts`;
-- edit-from-library action that loads a saved resource contract back into the
-  EFET-style form before an explicit save/upsert;
-- JSON/plain-text draft import into the manual editor for operator-owned terms,
-  with no browser direct database access and no file becoming authoritative
-  until the backend save succeeds.
-
-Authority:
-
-- `docs/contracts/21_RESOURCE_POOL_CONTRACT-EN.md`
-- `docs/contracts/21_RESOURCE_POOL_CONTRACT-CN.md`
-
-Forbidden:
-
-- official booking;
-- nomination submission;
-- order entry;
-- trade capture;
-- official approval workflow.
-
-## Screen: Scenario
-
-Purpose:
-
-- run route-cost, LNG readiness, resource-pool, or strategy scenarios against
-  already-entered resource-pool and contract context, and show what is missing
-  before a backend workflow runs.
-
-Sections:
-
-- resource/source;
-- destination or market area;
-- route preference;
-- volume;
-- timing;
-- price assumptions;
-- cost assumptions;
-- constraints;
-- notes.
-
-Validation:
-
-- show missing required inputs inline;
-- show assumptions before submission;
-- disable workflow actions when backend capability is missing;
-- label outputs as decision support, human review required, and not an execution
-  instruction.
-
-## Screen: Capacity
-
-Purpose:
-
-- inspect physical network operating context that affects route feasibility,
-  route cost, capacity allocation, and TSO access.
-
-Current client behavior:
-
-- show ENTSOG flow observations;
-- show ENTSOG capacity observations;
-- show TSO access points and available product flags;
-- show published tariff references by point, direction, product, and TSO;
-- show GIE AGSI storage and GIE ALSI LNG records;
-- show unavailable or entitlement states when backend data is missing.
-
-Capacity page data must be read from backend `/api` responses backed by
-PostgreSQL. The client must not synthesize capacity, flow, tariff, storage, LNG,
-or TSO-access rows locally.
-
-## Screen: Market
-
-Purpose:
-
-- provide market price, FX, weather, demand, outage, and freshness context
-  without mixing in imported market-positioning or PnL tables.
-
-Current client behavior:
-
-- show backend-served market observations, ECB FX, and source metadata;
-- render a terminal-style gas market board for TTF, NBP, THE, PEG, ZTP, and PSV
-  when the backend supplies sourced observations;
-- poll the market observation, FX, and price-source posture endpoints while the
-  Market workspace is open, with a visible last-refresh timestamp and a manual
-  refresh action;
-- make within-day, day-ahead, and month-ahead tenors explicit controls;
-- show a source matrix for EEX/ICE OCM/ICIS/Trayport-style feeds, including
-  price timing, covered hubs, cadence, and simulated-source labeling when rows
-  come from `EEX_Sim`, `ICE_OCM_Sim`, or `ICIS_Sim`;
-- show regional comparison as spread to TTF only when both sides have comparable
-  currency/unit rows;
-- show trend sparklines only from actual observed price history;
-- show exchange/broker source posture from backend diagnostics;
-- if an endpoint or table is missing, show an explicit unavailable state with
-  the backend error code and required operator action;
-- do not invent market data or render client-side fake observations.
-
-Live source panels:
-
-- ECB FX;
-- EEX exchange market context;
-- Trayport market context;
-- ICE OCM within-day/OCM context;
-- weather/HDD/CDD provider context.
-
-Every live-source panel must show entitlement, freshness, source status,
-degraded/offline state, and whether data is live, delayed, demo, partial, or
-unavailable.
-
-## Screen: Strategy
-
-Purpose:
-
-- inspect strategy backtests and paper shadow runs over approved market,
-  physical, capacity, contract, and weather context;
-- monitor live signal processes when the backend has authorized data and
-  operator-configured inputs.
-
-Content:
-
-- shadow-run terminal with market tape, paper state, allocation ladder, source
-  evidence, risk stack, candidate action, and warning stack visible together;
-- price-basis comparison board covering within-day, day-ahead, monthly, ICIS
-  assessments, ICE OCM marks, EEX curves, and ECB FX;
-- selected price-basis control that lets a trader switch the active decision
-  lens without leaving the Strategy page;
-- resource-pool PnL curve that ties each price basis back to weighted
-  contract/resource cost, available MWh/d, source provenance, and stale or
-  simulated-data warnings;
-- contract-level PnL attribution for the selected price basis;
-- stale/simulated/unavailable data banner above the basis cards;
-- strategy hypothesis;
-- observation window;
-- paper state;
-- candidate actions for human review;
-- hypothetical metrics where supported by licensed data;
-- missed/blocked route reasons;
-- source snapshots;
-- warning stack;
-- time window such as 15:00-17:00;
-- bar size such as 5 minutes;
-- components such as SAP/ICIS day-ahead versus ICE OCM, mean reversion, scoring,
-  best buckets, and weighted combinations;
-- risk controls such as max OCM allocation, minimum day-ahead allocation,
-  maximum single-market volume, minimum expected margin, stop-loss,
-  stale-data blocking, and TSO-access blocking.
-
-Shadow run creates no orders, trades, nominations, execution records, or official
-recommendations.
-
-Current endpoint:
-
-```text
-POST /api/strategy-lab/evaluate
-```
-
-## Screen: Review
-
-Purpose:
-
-- compare candidates and inspect decision-support output metadata.
-
-Required panels:
-
-- candidate comparison table;
-- route option map/table with cost stack, capacity/contract constraints, and
-  market/weather signal state;
-- warning stack;
-- assumptions;
-- missing inputs;
-- source references;
-- lineage;
-- freshness/data quality;
-- export status;
-- LLM-assisted explanation with citations when backend analysis exists.
-
-Export:
-
-- disabled until governance/export policy is implemented;
-- explain restricted state without legal advice.
-
-## Screen: Market Positioning
-
-Purpose:
-
-- inspect imported screen observations and portfolio PnL snapshots without
-  presenting any order-entry, trade-capture, or execution workflow.
-
-Required panels:
-
-- live portfolio summary;
-- read-only screen observation table;
-- read-only portfolio PnL snapshot table;
-- source, timestamp, account label, venue, hub, quantity, price, and status;
-- clear unavailable state when the backend has no imported records.
-
-Market Positioning must consume `/api/portfolio/*`. It must not write orders,
-route orders, approve trades, submit nominations, or store provider access
-material in the client.
-
-## Screen: Data Sources
-
-Purpose:
-
-- let users inspect and maintain source references, categories, access posture,
-  health, freshness, and lineage for displayed outputs.
-
-Content:
-
-- category rail: prices, FX, infrastructure, TSO tariffs, weather, and LLM;
-- providers such as Platts, ICIS, Argus, EEX, ICE OCM, Trayport, Kpler, ECB,
-  ENTSOG, GIE AGSI/ALSI, weather, and DeepSeek;
-- source status, connectivity status, access state, last success, last failure,
-  expected freshness, diagnostics, and record count;
-- backend-owned access entry and redacted status display;
-- infrastructure record previews for ENTSOG capacity/flows, GIE storage/LNG, TSO
-  access, and tariff rows;
-- degraded, access-missing, no-records, and runtime-DB-missing states.
-
-## Screen: Glossary
-
-Purpose:
-
-- explain gas, LNG, storage, trading venue, capacity, route economics, weather,
-  and data-governance terms in a consistent backend-served vocabulary;
-- support English and Mandarin Chinese from the same backend term contract.
-
-Content:
-
-- searchable term list;
-- category filters;
-- Codex-style split surface with the term list on the left and the selected wiki
-  article on the right;
-- wiki-style article for the selected term with concise and detailed definition;
-- related terms;
-- aliases, institutions, entities, venues, business models, market areas,
-  contract concepts, and infrastructure terms as first-class glossary records;
-- source/reference note;
-- reviewed timestamp.
-
-Current glossary contract:
-
-- use `GET /api/glossary?lang=en`;
-- use `GET /api/glossary?lang=zh-CN`;
-- use `GET /api/glossary/{term}/context?lang=...&duration_start_utc=...&duration_end_utc=...`;
-- show term, category, localized definition, aliases when useful, and related
-  terms;
-- show quick operational context buttons for high-value terms such as `TTF`,
-  `GATE LNG`, `Zeebrugge Entry Point`, `ICIS Heren`, `NBP`, and `ICE OCM`;
-- show matched entities, grouped context sections, related sources, data quality,
-  and warnings when `/api/glossary/{term}/context` returns them;
-- do not hard-code glossary definitions in the client beyond test fixtures.
-
-## LLM Analysis Panel
-
-Purpose:
-
-- help analysts interpret structured backend data, market movement, route
-  changes, missing inputs, and conflicting signals.
-
-Rules:
-
-- use only backend-provided `/api/analysis/*`, `/api/reports/*`, and
-  `/api/glossary/{term}/context` outputs;
-- DeepSeek is the first supported live LLM provider, invoked only by backend when
-  the operator enables provider invocation and provider configuration exists;
-- show citations/source references next to claims;
-- show assumptions, missing inputs, warnings, prompt/template version, and
-  provider/model metadata when available;
-- label outputs as decision support and human-review-required;
-- never present LLM text as official trading advice.
-
-Current endpoints:
-
-```text
-GET /api/analysis/ontology
-POST /api/analysis/query
-POST /api/reports/portfolio
-GET /api/glossary/{term}/context
-```
-
 ## Screen: Settings
 
 Purpose:
 
-- configure client-only trader preferences for display units, currency, session
+- configure client-only display preferences, default units, currency, session
   defaults, source-access posture, and operating guardrails.
 
 Allowed:
@@ -564,10 +361,7 @@ Allowed:
 - language switch with English and Mandarin Chinese;
 - light, dark, and system theme switch;
 - default display currency, energy unit, flow/volume unit, and price basis;
-- session timezone and refresh-profile preference;
-- service-access posture summary read from backend `/api/credentials/*` and
-  `/api/sources`;
-- navigation shortcut to Data Sources for backend-owned access entry.
+- service-access posture summary read from backend API.
 
 Forbidden:
 
@@ -575,32 +369,13 @@ Forbidden:
 - provider access material;
 - raw file paths to backend data.
 
-## Component Inventory
+## LLM Analysis Panel
 
-Build these components before business screens become complex:
-
-- `AppShell`
-- `TopStatusBar`
-- `PrimaryNavigation`
-- `WorkspaceTabs`
-- `MapWorkspace`
-- `LayerControlPanel`
-- `CapacityContractPanel`
-- `InspectorRail`
-- `BottomResultsPanel`
-- `RouteCandidateMapOverlay`
-- `StrategyShadowRunPanel`
-- `WeatherSignalPanel`
-- `MarketMovementAnalysisPanel`
-- `GlossaryDrawer`
-- `RuntimeStatusPanel`
-- `WarningStack`
-- `MissingInputsList`
-- `SourceReferenceTable`
-- `LineageTimeline`
-- `HumanReviewRequiredBadge`
-- `ApiErrorState`
-- `FeaturePartialState`
+LLM output should help analysts interpret structured backend data, market
+movement, route changes, missing inputs, and conflicting signals. It must show
+source references, assumptions, missing inputs, warnings, prompt/template version,
+and provider/model metadata when available. It must never present LLM text as
+official trading advice.
 
 ## Runtime Data Policy
 
@@ -612,11 +387,3 @@ Demo or test records are allowed only when they are inserted into PostgreSQL wit
 clear demo/test provenance and are visible as such in API responses and UI state.
 They must not be copied from historical projects, vendor files, licensed market
 data, or internal reports.
-
-## First Web Implementation Prompt
-
-Use this prompt only after the backend activation gates are met:
-
-```text
-Read AGENTS.md, docs/clients/README.md, docs/clients/CLIENT_DELIVERY_MILESTONES.md, docs/clients/CLIENT_API_CONTRACT.md, docs/clients/CLIENT_DESIGN_SYSTEM.md, and docs/clients/WEB_CLIENT_DESIGN_SPEC.md. Implement the next approved Web milestone only. If internet is unavailable or Node dependencies cannot be installed, create the planned file structure, TypeScript interfaces, API contracts, and a gap report. Do not add trade execution, live vendor calls from the browser, direct DB access, client-side runtime mock data, or Windows packaging.
-```
