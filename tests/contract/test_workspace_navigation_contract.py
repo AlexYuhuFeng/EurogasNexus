@@ -85,3 +85,20 @@ def test_workspace_menu_does_not_use_nth_of_type_grouping() -> None:
     topbar_text = _read(TOPBAR_TSX)
     assert "nth-of-type" not in topbar_text
     assert "html[lang=\"zh-CN\"]" not in topbar_text
+
+
+def test_topbar_owns_menu_state_contract() -> None:
+    """WorkspaceTopBar should not depend on legacy App-owned menu state props."""
+
+    topbar_text = _read(TOPBAR_TSX)
+    props_match = re.search(
+        r"interface\s+WorkspaceTopBarProps\s*\{(.*?)\n\}",
+        topbar_text,
+        flags=re.DOTALL,
+    )
+    assert props_match, "WorkspaceTopBarProps interface must be explicit."
+    props_body = props_match.group(1)
+    assert "workspaceMenuOpen" not in props_body
+    assert "onWorkspaceMenuToggle" not in props_body
+    assert "useState(false)" in topbar_text
+    assert "groupedMenuOpen" in topbar_text
