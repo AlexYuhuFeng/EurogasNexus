@@ -5,7 +5,7 @@
 The preferred stable API prefix is `/api`.
 
 SDKs, CLIs, Web, Windows, Linux, and customer integrations must target `/api`.
-Version numbers are not part of the public URL surface for V1 release.
+Version numbers are not part of the current public URL surface.
 
 ## Route Families
 
