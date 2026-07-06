@@ -43,3 +43,5 @@ export const workspaceGroups: WorkspaceGroup[] = [
     pages: ["sources", "runtime", "settings", "manual"],
   },
 ];
+
+export const workspacePageIds: WorkspacePageId[] = workspaceGroups.flatMap((group) => group.pages);
