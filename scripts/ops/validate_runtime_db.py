@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -19,27 +18,6 @@ from typing import Any
 _SRC_PATH = Path(__file__).resolve().parents[2] / "src"
 if str(_SRC_PATH) not in sys.path:
     sys.path.insert(0, str(_SRC_PATH))
-
-
-def _resolve_db_dsn() -> str | None:
-    """Resolve DB DSN using the current precedence chain."""
-    for var in ("RUNTIME_STORE_DATABASE_URL", "DATABASE_URL", "EUROGAS_NEXUS_DB_DSN"):
-        raw = os.getenv(var)
-        if raw and raw.strip():
-            return raw.strip()
-    return None
-
-
-def _redact(dsn: str) -> str:
-    """Return a safe-for-logging DSN with password replaced."""
-    if "@" not in dsn:
-        return dsn
-    if "://" in dsn:
-        scheme, _, rest = dsn.partition("://")
-        _, _, host_db = rest.partition("@")
-        return f"{scheme}://****@{host_db}"
-    prefix, _, rest = dsn.partition("@")
-    return f"{prefix.split(':')[0]}:****@{rest}"
 
 
 def _build_report() -> tuple[dict[str, Any], int]:
