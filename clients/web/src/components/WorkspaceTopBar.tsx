@@ -63,6 +63,10 @@ interface WorkspaceTopBarProps {
 }
 
 const groupedWorkspaceMenuCss = `
+.cockpit-app > .workspace-menu:not(.grouped-workspace-menu) {
+  display: none;
+}
+
 .workspace-menu {
   position: fixed;
   z-index: 60;
@@ -160,6 +164,16 @@ export function WorkspaceTopBar({
   onLanguageChange,
   onModeChange,
 }: WorkspaceTopBarProps) {
+  function openWorkspace(page: WorkspacePageId) {
+    if (typeof window !== "undefined") {
+      const nextUrl = new URL(window.location.href);
+      nextUrl.searchParams.set("workspace", page);
+      window.history.pushState({ workspace: page }, "", nextUrl);
+      window.dispatchEvent(new Event("popstate"));
+    }
+    onWorkspaceMenuToggle();
+  }
+
   return (
     <>
       <style>{groupedWorkspaceMenuCss}</style>
@@ -196,6 +210,31 @@ export function WorkspaceTopBar({
           </select>
         </div>
       </header>
+
+      {workspaceMenuOpen && (
+        <nav className="workspace-menu grouped-workspace-menu" aria-label={t("topbar.workspace_menu")}> 
+          {workspaceGroups.map((group) => (
+            <section
+              key={`workspace-group-${group.id}`}
+              className={group.pages.includes(activeWorkspace) ? "workspace-menu-group active" : "workspace-menu-group"}
+            >
+              <span className="workspace-menu-group-title">{t(group.labelKey)}</span>
+              <div className="workspace-menu-group-items">
+                {group.pages.map((page) => (
+                  <button
+                    key={`grouped-menu-${page}`}
+                    type="button"
+                    className={activeWorkspace === page ? "workspace-menu-item active" : "workspace-menu-item"}
+                    onClick={() => openWorkspace(page)}
+                  >
+                    {t(`nav.${page}`)}
+                  </button>
+                ))}
+              </div>
+            </section>
+          ))}
+        </nav>
+      )}
     </>
   );
 }
