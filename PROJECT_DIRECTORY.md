@@ -107,8 +107,7 @@ Codex should use:
   contract/capacity, strategy, and glossary;
 - `docs/clients/README.md` as the client design index;
 - `docs/clients/UI_UX_STYLE_GUIDE-EN.md` and
-  `docs/clients/UI_UX_STYLE_GUIDE-CN.md` as the UI/UX authority based on
-  `C:\Users\qqshu\design.md`;
+  `docs/clients/UI_UX_STYLE_GUIDE-CN.md` as the tracked UI/UX authority;
 - `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-EN.md` and
   `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-CN.md` as the home-screen UX
   contract;
