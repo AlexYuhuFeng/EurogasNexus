@@ -17,6 +17,37 @@ export type WorkspacePageId =
   | "settings"
   | "manual";
 
+type WorkspaceGroupId = "decision" | "commercial" | "analytics" | "operations";
+
+export interface WorkspaceGroup {
+  id: WorkspaceGroupId;
+  labelKey: string;
+  pages: WorkspacePageId[];
+}
+
+export const workspaceGroups: WorkspaceGroup[] = [
+  {
+    id: "decision",
+    labelKey: "nav.group.decision",
+    pages: ["network", "scenario", "review"],
+  },
+  {
+    id: "commercial",
+    labelKey: "nav.group.commercial",
+    pages: ["contracts", "market", "capacity", "orders"],
+  },
+  {
+    id: "analytics",
+    labelKey: "nav.group.analytics",
+    pages: ["strategy", "glossary"],
+  },
+  {
+    id: "operations",
+    labelKey: "nav.group.operations",
+    pages: ["sources", "runtime", "settings", "manual"],
+  },
+];
+
 interface WorkspaceTopBarProps {
   activeWorkspace: WorkspacePageId;
   workspaceMenuOpen: boolean;
@@ -41,7 +72,7 @@ const groupedWorkspaceMenuCss = `
   width: min(360px, calc(100vw - 32px));
   max-height: calc(100vh - 96px);
   flex-direction: column;
-  gap: 6px;
+  gap: 10px;
   overflow-y: auto;
   border: 1px solid var(--eg-hairline, var(--border));
   border-radius: 18px;
@@ -53,6 +84,31 @@ const groupedWorkspaceMenuCss = `
 
 :root.dark .workspace-menu {
   background: rgb(17 17 17 / 96%);
+}
+
+.workspace-menu-group {
+  display: grid;
+  gap: 5px;
+}
+
+.workspace-menu-group-title {
+  color: var(--eg-muted, var(--muted));
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 14px;
+  padding: 2px 11px 0;
+  text-transform: uppercase;
+}
+
+.workspace-menu-group-items {
+  display: grid;
+  gap: 4px;
+}
+
+.workspace-menu-group.active .workspace-menu-group-title {
+  color: var(--eg-ink, var(--accent));
 }
 
 .workspace-menu-item {
@@ -81,49 +137,6 @@ const groupedWorkspaceMenuCss = `
 .workspace-menu-item.active {
   box-shadow: inset 3px 0 0 var(--eg-ink, var(--accent));
 }
-
-.workspace-menu-item::before {
-  display: none;
-  color: var(--eg-muted, var(--muted));
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  line-height: 14px;
-  text-transform: uppercase;
-}
-
-.workspace-menu-item:nth-of-type(1) { order: 110; }
-.workspace-menu-item:nth-of-type(4) { order: 120; }
-.workspace-menu-item:nth-of-type(7) { order: 130; }
-.workspace-menu-item:nth-of-type(5) { order: 210; }
-.workspace-menu-item:nth-of-type(3) { order: 220; }
-.workspace-menu-item:nth-of-type(2) { order: 230; }
-.workspace-menu-item:nth-of-type(8) { order: 240; }
-.workspace-menu-item:nth-of-type(6) { order: 310; }
-.workspace-menu-item:nth-of-type(10) { order: 320; }
-.workspace-menu-item:nth-of-type(9) { order: 410; }
-.workspace-menu-item:nth-of-type(11) { order: 420; }
-.workspace-menu-item:nth-of-type(12) { order: 430; }
-.workspace-menu-item:nth-of-type(13) { order: 440; }
-
-.workspace-menu-item:nth-of-type(1)::before,
-.workspace-menu-item:nth-of-type(5)::before,
-.workspace-menu-item:nth-of-type(6)::before,
-.workspace-menu-item:nth-of-type(9)::before {
-  display: block;
-  margin-bottom: 3px;
-}
-
-.workspace-menu-item:nth-of-type(1)::before { content: "Decision Workspace"; }
-.workspace-menu-item:nth-of-type(5)::before { content: "Commercial Inputs"; }
-.workspace-menu-item:nth-of-type(6)::before { content: "Analytics"; }
-.workspace-menu-item:nth-of-type(9)::before { content: "Operations"; }
-
-html[lang="zh-CN"] .workspace-menu-item:nth-of-type(1)::before { content: "决策工作区"; }
-html[lang="zh-CN"] .workspace-menu-item:nth-of-type(5)::before { content: "商业输入"; }
-html[lang="zh-CN"] .workspace-menu-item:nth-of-type(6)::before { content: "分析工具"; }
-html[lang="zh-CN"] .workspace-menu-item:nth-of-type(9)::before { content: "运行与设置"; }
 
 @media (max-width: 900px) {
   .workspace-menu {
