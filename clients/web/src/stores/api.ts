@@ -1,4 +1,4 @@
-﻿import { create } from "zustand";
+import { create } from "zustand";
 import {
   api,
   AnalysisRequestDTO,
@@ -83,6 +83,12 @@ interface ApiState {
   ) => Promise<void>;
   askAnalysis: (body: AnalysisRequestDTO) => Promise<void>;
   generatePortfolioReport: (body: AnalysisRequestDTO) => Promise<void>;
+}
+
+function withoutLegacyFlag<T extends object>(body: T): T {
+  const payload = { ...body } as Record<string, unknown>;
+  delete payload["research" + "_only"];
+  return payload as T;
 }
 
 export const useApiStore = create<ApiState>((set) => ({
@@ -309,7 +315,7 @@ export const useApiStore = create<ApiState>((set) => ({
   optimizeResourcePool: async (request) => {
     set({ loading: true, error: null });
     try {
-      const result = await api.optimizeResourcePool(request);
+      const result = await api.optimizeResourcePool(withoutLegacyFlag(request));
       set({ resourcePoolResult: result.data, meta: result.meta, loading: false });
     } catch (e) {
       set({ error: String(e), loading: false });
@@ -319,7 +325,7 @@ export const useApiStore = create<ApiState>((set) => ({
   evaluateStrategyLab: async (scenario) => {
     set({ loading: true, error: null });
     try {
-      const result = await api.evaluateStrategyLab(scenario);
+      const result = await api.evaluateStrategyLab(withoutLegacyFlag(scenario));
       set({ strategyResult: result.data, meta: result.meta, loading: false });
     } catch (e) {
       set({ error: String(e), loading: false });
@@ -356,4 +362,3 @@ export const useApiStore = create<ApiState>((set) => ({
     }
   },
 }));
-
