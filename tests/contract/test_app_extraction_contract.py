@@ -1,0 +1,42 @@
+"""Contract tests for gradual App.tsx extraction work."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+APP_TSX = ROOT / "clients" / "web" / "src" / "App.tsx"
+DEFAULT_CONTRACT_DRAFT_TS = ROOT / "clients" / "web" / "src" / "app" / "defaultContractDraft.ts"
+ROUTE_METADATA_TS = ROOT / "clients" / "web" / "src" / "app" / "routeMetadata.ts"
+
+
+def _read(path: Path) -> str:
+    return path.read_text(encoding="utf-8-sig")
+
+
+def test_default_contract_draft_module_exists_before_app_wiring() -> None:
+    """The default contract draft should be ready as an extracted module before App imports it."""
+
+    app_text = _read(APP_TSX)
+    module_text = _read(DEFAULT_CONTRACT_DRAFT_TS)
+    assert "const defaultContractDraft" in app_text
+    assert "export const defaultContractDraft" in module_text
+    assert "export function cloneDefaultContractDraft" in module_text
+    assert "allowed_exit_points: [...defaultContractDraft.allowed_exit_points]" in module_text
+    assert "eligible_sale_modes: [...defaultContractDraft.eligible_sale_modes]" in module_text
+
+
+def test_route_metadata_module_exists_before_app_wiring() -> None:
+    """Route metadata helpers should be ready as extracted pure helpers before App imports them."""
+
+    app_text = _read(APP_TSX)
+    module_text = _read(ROUTE_METADATA_TS)
+    for helper in [
+        "normalizePointName",
+        "metadataText",
+        "routeLegLabel",
+        "routeEdgeRouteId",
+        "routeEdgeMetadataText",
+    ]:
+        assert f"function {helper}" in app_text
+        assert f"export function {helper}" in module_text
