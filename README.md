@@ -12,10 +12,14 @@ Eurogas Nexus is a PostgreSQL-first European gas intelligence workspace for
 portfolio monitoring, infrastructure visibility, route economics, data-source
 operations, strategy evaluation, and trader-reviewed decision support.
 
-Runtime truth lives in PostgreSQL. Web, Windows, Linux, SDK, and CLI clients
-read it through the backend API or SDK.
+Runtime truth lives in PostgreSQL. Web, Windows, Linux, SDK, and CLI clients read
+runtime data through the backend API or SDK. Public client integrations target
+`/api`; hidden compatibility routes such as `/api/v1` are not the documented V1
+customer surface.
 
 Current line: `v0.5-preview`
+
+License: proprietary, all rights reserved. See [`LICENSE`](LICENSE).
 
 Eurogas Nexus is not an ETRM replacement, execution venue, order router,
 nomination-submission system, auto-trading system, legal-advice tool, or
@@ -24,6 +28,7 @@ official trading recommendation system.
 ## Contents
 
 - [Product Scope](#product-scope)
+- [Product Visuals](#product-visuals)
 - [Architecture](#architecture)
 - [Quick Start](#quick-start)
 - [Database](#database)
@@ -32,8 +37,10 @@ official trading recommendation system.
 - [Testing](#testing)
 - [Build and Release](#build-and-release)
 - [Documentation](#documentation)
+- [Governance and Production Readiness](#governance-and-production-readiness)
 - [Security](#security)
 - [中文说明](#中文说明)
+- [License](#license)
 
 ## Product Scope
 
@@ -63,11 +70,32 @@ rows must be imported into PostgreSQL before the client presents them as
 available.
 
 Production gaps must be shown as source-health, entitlement, readiness, or data
-quality issues. The application must not hide missing live data behind
-fabricated client values. Preview/test rows, when needed, are inserted into
-PostgreSQL with explicit source provenance. Price previews use the simulated
-EEX_Sim, ICE_OCM_Sim, and ICIS_Sim source systems so calculations exercise the
-same DB/API path as licensed feeds.
+quality issues. The application must not hide missing live data behind fabricated
+client values. Preview/test rows, when needed, are inserted into PostgreSQL with
+explicit source provenance. Price previews use the simulated `EEX_Sim`,
+`ICE_OCM_Sim`, and `ICIS_Sim` source systems so calculations exercise the same
+DB/API path as licensed feeds.
+
+## Product Visuals
+
+Eurogas Nexus is a visual, map-first decision-support product. README screenshots
+should be synthetic or sanitized and must not contain licensed vendor data,
+customer data, or real strategy parameters.
+
+Recommended README visual set:
+
+| Surface | Purpose | Suggested file |
+| --- | --- | --- |
+| Network map cockpit | Show the European map-first workspace, resource-pool overlay, route candidates, warnings, and indicative PnL. | `docs/assets/readme/network-map-cockpit.png` |
+| Scenario and route economics | Show resource, destination, route, tariff, LNG readiness, and missing-input validation. | `docs/assets/readme/scenario-route-economics.png` |
+| Review and report | Show candidate comparison, warning stack, source references, lineage, and LLM-assisted commentary with human-review badges. | `docs/assets/readme/review-report.png` |
+
+Until screenshots are committed, the authoritative UI contracts are:
+
+- [`docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-EN.md`](docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-EN.md)
+- [`docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-CN.md`](docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-CN.md)
+- [`docs/clients/UI_UX_STYLE_GUIDE-EN.md`](docs/clients/UI_UX_STYLE_GUIDE-EN.md)
+- [`docs/clients/UI_UX_STYLE_GUIDE-CN.md`](docs/clients/UI_UX_STYLE_GUIDE-CN.md)
 
 ## Architecture
 
@@ -75,7 +103,7 @@ same DB/API path as licensed feeds.
 flowchart LR
     Sources["Public and licensed data sources"] --> Ingestion["Ingestion and normalization"]
     Ingestion --> DB[("PostgreSQL runtime store")]
-    DB --> API["FastAPI backend"]
+    DB --> API["FastAPI backend /api"]
     API --> SDK["Python SDK"]
     API --> CLI["CLI"]
     API --> Web["Web client"]
@@ -88,8 +116,8 @@ Core rules:
 - Public client paths use `/api`.
 - Clients use backend API or SDK only.
 - Clients do not connect directly to PostgreSQL.
-- Provider credentials are backend-owned, write-only from client forms, and
-  never printed.
+- Provider credentials are backend-owned, write-only from client forms, and never
+  printed.
 - Backend import must not connect to PostgreSQL or run migrations.
 - Migrations are explicit operator actions.
 - Source failures must be visible and diagnosable.
@@ -127,19 +155,19 @@ Requirements:
 
 Install Python dependencies:
 
-```powershell
+```bash
 python -m pip install -e ".[dev]"
 ```
 
 Start the API:
 
-```powershell
+```bash
 uvicorn apps.api.main:app --host 127.0.0.1 --port 8000
 ```
 
 Start the Web client:
 
-```powershell
+```bash
 npm --prefix clients/web ci
 npm --prefix clients/web run dev
 ```
@@ -157,52 +185,42 @@ Database URL precedence:
 
 Validate a runtime database without writes:
 
-```powershell
+```bash
 python scripts/ops/validate_v1_runtime_db.py --json
 ```
 
 Seed local preview rows into the configured test database:
 
-```powershell
+```bash
 python scripts/ops/seed_preview_runtime_data.py
 ```
 
 The seed script writes public tariff references, public route templates, one
 preview portfolio contract, glossary rows, route-candidate map edges, and a
-one-batch simulated price tick. Price rows are marked `EEX_Sim`,
-`ICE_OCM_Sim`, or `ICIS_Sim`, and are read back through `/api` like licensed
-market-data rows. The script does not call external APIs, run migrations, or
-print secrets.
+one-batch simulated price tick. Price rows are marked `EEX_Sim`, `ICE_OCM_Sim`,
+or `ICIS_Sim`, and are read back through `/api` like licensed market-data rows.
+The script does not call external APIs, run migrations, or print secrets.
 
 Run the live-shaped simulated EEX, ICE OCM, and ICIS price worker against the
 same runtime market tables used by real connectors:
 
-```powershell
-$env:RUNTIME_STORE_DATABASE_URL = "postgresql+psycopg://eurogas:eurogas_dev@127.0.0.1:5432/eurogas_nexus"
+```bash
 python scripts/ops/ingest_simulated_market_prices.py --loop
 ```
 
-These rows are marked `EEX_Sim`, `ICE_OCM_Sim`, and `ICIS_Sim` and include
-tenor metadata for within-day, day-ahead, and month-ahead views. The default
-simulation cadence is ICE OCM every 15 seconds, EEX every 60 seconds, and ICIS
-daily. Use the same script without `--loop` for a one-batch smoke test, or
+Use the same script without `--loop` for a one-batch smoke test, or
 `--loop --max-iterations 3` for bounded validation. See
-`docs/operations/SIMULATED_MARKET_PRICE_SOURCES.md`.
+[`docs/operations/SIMULATED_MARKET_PRICE_SOURCES.md`](docs/operations/SIMULATED_MARKET_PRICE_SOURCES.md).
 
 Rebuild route-candidate map edges after route candidates change:
 
-```powershell
+```bash
 python scripts/ops/materialize_reference_edges.py
 ```
 
-The materializer writes route-candidate corridors into `reference_edges` with
-`route_geometry_state`, `geometry_quality`, and `geometry_warning` metadata.
-Current generated edges are source-derived corridors or leg sequences, not
-surveyed physical pipeline polylines.
-
 Run migrations explicitly:
 
-```powershell
+```bash
 alembic current
 alembic upgrade head
 ```
@@ -224,7 +242,7 @@ diagnostics, last-update status, record counts, and failure reasons.
 | Weather | HDD/CDD modelling provider slot |
 | LLM | DeepSeek first, with later provider expansion |
 
-Public feeds may not require API keys. Licensed feeds require the customer's
+Public feeds may not require credentials. Licensed feeds require the customer's
 own credentials, entitlements, and contractual permission.
 
 ## Clients
@@ -238,12 +256,12 @@ for:
 - Market: terminal-style European gas hub board, regional TTF spreads, ECB FX,
   and exchange/broker source posture;
 - Scenario: route economics, LNG readiness, and pool optimization runs;
-- Contracts: EFET-style resource, delivery, pricing, settlement, capacity
-  terms, JSON draft import, and persisted resource-contract library;
+- Contracts: EFET-style resource, delivery, pricing, settlement, capacity terms,
+  JSON draft import, and persisted resource-contract library;
 - Strategy: backtest, shadow-run, monitoring, and risk controls;
 - Review: warnings, route allocation evidence, and reports;
 - Order Records: read-only screen-order observations and live PnL snapshots;
-- Data Sources: provider categories, API-key posture, diagnostics, and refresh
+- Data Sources: provider categories, credential posture, diagnostics, and refresh
   state;
 - Glossary: bilingual operational definitions and linked context;
 - Runtime: API, database, and ingestion readiness;
@@ -263,13 +281,13 @@ or credential store.
 
 Install the package in editable mode:
 
-```powershell
+```bash
 python -m pip install -e ".[dev]"
 ```
 
 Use the CLI:
 
-```powershell
+```bash
 eurogas-nexus --help
 ```
 
@@ -280,7 +298,7 @@ operator checks, automation, internal tooling, notebooks, and integration tests.
 
 Recommended validation before pushing:
 
-```powershell
+```bash
 ruff check .
 pytest -q tests/api tests/contract tests/integration tests/sdk tests/cli tests/release tests/security
 npm --prefix clients/web run build
@@ -289,10 +307,14 @@ python -c "from apps.api.main import app; print('app import ok'); print(len(app.
 
 Focused client and route-cost validation:
 
-```powershell
+```bash
 pytest -q tests/contract/test_client_release_surface.py
 pytest -q tests/integration/test_route_cost_db_api.py tests/api/test_route_cost_api.py
 ```
+
+Future hardening should add type-checking, secret scanning, dependency audit,
+and doc-hygiene checks to CI. Track that work in
+[`docs/release/PRODUCTION_READINESS_BACKLOG.md`](docs/release/PRODUCTION_READINESS_BACKLOG.md).
 
 ## Build and Release
 
@@ -336,20 +358,26 @@ Start here:
 - [Live PostgreSQL operations](docs/operations/LIVE_POSTGRESQL_V1.md)
 - [Validation guide](docs/operations/VALIDATION.md)
 - [Release readiness](docs/release/V1_RELEASE_READINESS.md)
+- [Production readiness backlog](docs/release/PRODUCTION_READINESS_BACKLOG.md)
+
+## Governance and Production Readiness
+
+- Repository boundary and contribution rules: [`CONTRIBUTING.md`](CONTRIBUTING.md)
+- License and ownership: [`LICENSE`](LICENSE)
+- Current release-candidate evidence: [`docs/release/V1_RELEASE_READINESS.md`](docs/release/V1_RELEASE_READINESS.md)
+- Actionable production backlog: [`docs/release/PRODUCTION_READINESS_BACKLOG.md`](docs/release/PRODUCTION_READINESS_BACKLOG.md)
+
+V1 release-candidate status means the tested local scope is coherent. It does
+not mean production multi-user deployment is complete.
 
 ## Security
 
-This is a public repository. Do not commit:
+This is a public repository. Do not commit confidential credentials, raw licensed
+market data, real vendor payloads, internal commercial data, confidential
+contracts or counterparty terms, customer deployment details, real strategy
+parameters, or secret-bearing runtime configuration.
 
-- `.env` files;
-- API keys, tokens, passwords, or provider credentials;
-- real vendor data or raw licensed market data;
-- internal commercial data;
-- confidential contracts or counterparty terms;
-- real strategy parameters;
-- customer deployment details.
-
-Report security issues through [SECURITY.md](SECURITY.md).
+Report security issues through [`SECURITY.md`](SECURITY.md).
 
 ## 中文说明
 
@@ -359,8 +387,9 @@ Eurogas Nexus 是面向欧洲天然气交易与运营团队的 PostgreSQL 优先
 
 - 运行时事实数据必须进入 PostgreSQL。
 - Web、Windows、Linux、SDK 和 CLI 都必须通过后端 API 或 SDK 访问数据。
+- 稳定公开客户端路径为 `/api`。
 - 客户端不得直接连接数据库。
-- 客户端不得保存供应商 API Key 或客户凭据。
+- 客户端不得保存供应商凭据。
 - 数据源故障、权限缺失、表缺失、刷新失败必须明确展示。
 - 不得用伪造实时数据掩盖真实数据缺口。
 - 如需预览或测试数据，应写入 PostgreSQL，并标注明确的数据源 provenance；价格预览使用 `EEX_Sim`、`ICE_OCM_Sim`、`ICIS_Sim`。
@@ -377,5 +406,5 @@ Eurogas Nexus 是面向欧洲天然气交易与运营团队的 PostgreSQL 优先
 
 ## License
 
-Proprietary. All rights reserved unless a separate written license grants
-additional rights.
+Proprietary. All rights reserved unless a separate written agreement grants
+additional rights. See [`LICENSE`](LICENSE).
