@@ -22,8 +22,8 @@ Current line: `v0.5-preview`
 License: proprietary, all rights reserved. See [`LICENSE`](LICENSE).
 
 Eurogas Nexus is not an ETRM replacement, execution venue, order router,
-nomination-submission system, auto-trading system, legal-advice tool, or
-official trading recommendation system.
+nomination-submission system, auto-trading system, legal-advice tool, settlement
+system, or official trading recommendation system.
 
 ## Product Scope
 
@@ -35,12 +35,12 @@ for:
 - DB-backed source monitoring for public and licensed providers;
 - live or near-live market observations when customer access rights allow;
 - route feasibility and route-cost comparison using capacity, tariff, access,
-  and contract constraints;
+  and resource-term constraints;
 - resource-pool-native portfolio optimization for physical gas, virtual hub
-  positions, LNG regas, upstream offtake, screen purchases, and imported trade
+  positions, LNG regas, upstream offtake, screen purchases, and imported market
   observations;
-- EFET-style contract capture so purchase contracts feed a portfolio pool before
-  sales routes are optimized and PnL is attributed back to contracts;
+- EFET-style resource-term capture so resource assumptions feed a portfolio pool
+  before sales routes are optimized and PnL is attributed back to resource terms;
 - strategy backtesting, shadow-running, monitoring, and risk-control signals;
 - bilingual glossary and operational context for European gas trading terms;
 - LLM-assisted analysis through backend-controlled provider integrations.
@@ -71,6 +71,7 @@ Recommended README visual set:
 
 Authoritative UI contracts:
 
+- [`docs/clients/WORKSPACE_NAVIGATION_SPEC.md`](docs/clients/WORKSPACE_NAVIGATION_SPEC.md)
 - [`docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-EN.md`](docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-EN.md)
 - [`docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-CN.md`](docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-CN.md)
 - [`docs/clients/UI_UX_STYLE_GUIDE-EN.md`](docs/clients/UI_UX_STYLE_GUIDE-EN.md)
@@ -100,28 +101,6 @@ Core rules:
 - Migrations are explicit operator actions.
 - Source failures must be visible and diagnosable.
 
-## Repository Layout
-
-```text
-apps/                   Process entry points
-  api/                  FastAPI runtime entry point
-clients/
-  web/                  React, Vite, MapLibre Web client
-  desktop/              Tauri desktop shell
-src/eurogas_nexus/
-  api/                  API factory, profiles, and routes
-  cli/                  Operator CLI
-  db/                   SQLAlchemy, sessions, registry, health checks
-  domain/               Business-domain models and services
-  ingestion/            Source adapters and ingestion contracts
-  runtime_store/        PostgreSQL-backed repositories
-  sdk/                  Python SDK clients
-alembic/                Migration environment
-docs/                   Architecture, contracts, operations, release docs
-scripts/                Operator and release scripts
-tests/                  API, contract, integration, SDK, CLI, release tests
-```
-
 ## Quick Start
 
 Requirements:
@@ -131,19 +110,10 @@ Requirements:
 - Rust stable for desktop builds
 - PostgreSQL for runtime workflows
 
-Install Python dependencies:
-
 ```bash
 python -m pip install -e ".[dev]"
-```
-
-Start the API:
-
-```bash
 uvicorn apps.api.main:app --host 127.0.0.1 --port 8000
 ```
-
-Start the Web client:
 
 ```bash
 npm --prefix clients/web ci
@@ -200,23 +170,21 @@ own rights and contractual permission.
 
 ## Clients
 
-The Web client is the primary map-focused workspace. It has separate surfaces
-for Network, Capacity, Market, Scenario, Contracts, Strategy, Review, Market
-Positioning, Data Sources, Glossary, Runtime, Settings, and Manual.
+The Web client is the primary map-focused workspace. It uses grouped navigation:
+
+- Decision Workspace: Network, Scenario, Review;
+- Commercial Inputs: Resource Terms, Market, Capacity, Market Positioning;
+- Analytics: Strategy, Glossary;
+- Operations: Data Sources, Runtime, Settings, Manual.
+
+`Resource Terms` is the user-facing name for EFET-style resource assumptions used
+by the resource-pool optimizer. The technical route id remains `contracts` for
+compatibility. `Market Positioning` is read-only imported screen observation and
+PnL context. The technical route id remains `orders` for compatibility.
 
 The desktop client packages the same Web workspace through Tauri and targets
 Windows NSIS and Linux Debian packages. Desktop clients must use the backend API;
 they must not become a local database or access-material store.
-
-## SDK and CLI
-
-```bash
-python -m pip install -e ".[dev]"
-eurogas-nexus --help
-```
-
-The SDK and CLI follow the released backend API contract and are intended for
-operator checks, automation, internal tooling, notebooks, and integration tests.
 
 ## Testing
 
@@ -224,16 +192,9 @@ Recommended validation before pushing:
 
 ```bash
 ruff check .
-pytest -q tests/api tests/contract tests/integration tests/sdk tests/cli tests/release tests/security
+pytest -q tests
 npm --prefix clients/web run build
 python -c "from apps.api.main import app; print('app import ok'); print(len(app.routes))"
-```
-
-Focused client and route-cost validation:
-
-```bash
-pytest -q tests/contract/test_client_release_surface.py
-pytest -q tests/integration/test_route_cost_db_api.py tests/api/test_route_cost_api.py
 ```
 
 Future hardening should add type-checking, safety scanning, dependency audit,
@@ -245,9 +206,9 @@ and doc-hygiene checks to CI. Track that work in
 GitHub Actions publishes preview releases from the manual `Build and Release`
 workflow.
 
-- CI: Python linting and targeted backend/client contract tests;
-- Web build: Vite production build and packaged Web artifact;
-- Desktop release build: Windows NSIS installer and Linux DEB package;
+- CI: Python linting, tests, API import, and Web build;
+- Web release build: Vite production build and packaged Web artifact;
+- Desktop release build: optional Windows NSIS installer and Linux DEB package;
 - Release: GitHub pre-release with generated artifacts.
 
 Local release scripts mirror the workflow:
@@ -270,9 +231,6 @@ Compatibility scripts are retained temporarily:
 bash scripts/release/build_v1_release.sh --bundle deb
 ```
 
-Releases are published at
-[github.com/AlexYuhuFeng/EurogasNexus/releases](https://github.com/AlexYuhuFeng/EurogasNexus/releases).
-
 ## Documentation
 
 Start here:
@@ -286,6 +244,7 @@ Start here:
 - [Resource pool contract CN](docs/contracts/21_RESOURCE_POOL_CONTRACT-CN.md)
 - [Client API contract](docs/clients/CLIENT_API_CONTRACT.md)
 - [Client tech stack](docs/clients/CLIENT_TECH_STACK.md)
+- [Workspace navigation spec](docs/clients/WORKSPACE_NAVIGATION_SPEC.md)
 - [Map-first trader cockpit spec EN](docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-EN.md)
 - [Map-first trader cockpit spec CN](docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-CN.md)
 - [UI/UX style guide EN](docs/clients/UI_UX_STYLE_GUIDE-EN.md)
@@ -317,28 +276,9 @@ Report security issues through [`SECURITY.md`](SECURITY.md).
 
 ## 中文说明
 
-Eurogas Nexus 是面向欧洲天然气交易与运营团队的 PostgreSQL 优先智能工作台，用于统一管理管网、枢纽、互联点、LNG 接收站、储气库、容量、费率、市场价格、汇率、合同、资源池、路线经济性、策略监控、数据源诊断和术语知识。
-
-核心原则：
-
-- 运行时事实数据必须进入 PostgreSQL。
-- Web、Windows、Linux、SDK 和 CLI 都必须通过后端 API 或 SDK 访问数据。
-- 稳定公开客户端路径为 `/api`。
-- 客户端不得直接连接数据库。
-- 客户端不得保存供应商访问材料。
-- 数据源故障、权限缺失、表缺失、刷新失败必须明确展示。
-- 不得用伪造实时数据掩盖真实数据缺口。
-- 如需预览或测试数据，应写入 PostgreSQL，并标注明确的数据源 provenance。
+Eurogas Nexus 是面向欧洲天然气交易与运营团队的 PostgreSQL 优先智能工作台，用于统一管理管网、枢纽、互联点、LNG 接收站、储气库、容量、费率、市场价格、汇率、资源条款、资源池、路线经济性、策略监控、数据源诊断和术语知识。
 
 当前 `v0.5-preview` 版本提供决策支持和市场分析能力，但不执行交易、不下单、不路由订单、不提交提名、不替代 ETRM、不提供法律意见，也不构成官方交易建议。
-
-中文文档入口：
-
-- [地图优先交易工作台规范](docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-CN.md)
-- [UI/UX 风格指南](docs/clients/UI_UX_STYLE_GUIDE-CN.md)
-- [LLM 分析与报告规范](docs/architecture/LLM_ANALYSIS_REPORTING_SPEC-CN.md)
-- [市场实践审计](docs/architecture/MARKET_PRACTICE_AUDIT-CN.md)
-- [市场定位数据导入说明](docs/operations/MARKET_POSITIONING_IMPORTS-CN.md)
 
 ## License
 
