@@ -89,6 +89,17 @@ def test_workspace_page_ids_are_exported_from_navigation_model() -> None:
     assert grouped_pages == EXPECTED_PAGE_IDS
 
 
+def test_workspace_route_guard_helpers_exist() -> None:
+    """URL parsing should use shared guard helpers rather than local route-id checks."""
+
+    navigation_text = _read(WORKSPACE_NAVIGATION_TS)
+    assert "export function isWorkspacePageId" in navigation_text
+    assert "value is WorkspacePageId" in navigation_text
+    assert "workspacePageIds.includes" in navigation_text
+    assert "export function coerceWorkspacePageId" in navigation_text
+    assert 'fallback: WorkspacePageId = "network"' in navigation_text
+
+
 def test_workspace_group_labels_are_i18n_backed() -> None:
     """Group headings must be translated through i18n, not CSS language selectors."""
 
@@ -142,5 +153,7 @@ def test_workspace_navigation_model_is_shared() -> None:
     assert "export const workspaceGroups" in navigation_text
     assert "export type WorkspacePageId" in navigation_text
     assert "export const workspacePageIds" in navigation_text
+    assert "export function isWorkspacePageId" in navigation_text
+    assert "export function coerceWorkspacePageId" in navigation_text
     assert 'from "../workspaceNavigation"' in topbar_text
     assert "export const workspaceGroups" not in topbar_text
