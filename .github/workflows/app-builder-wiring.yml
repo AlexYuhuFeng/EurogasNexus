@@ -16,7 +16,8 @@ on:
 
 permissions:
   contents: write
-\concurrency:
+
+concurrency:
   group: app-builder-wiring-${{ github.ref }}
   cancel-in-progress: true
 
