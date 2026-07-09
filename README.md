@@ -193,6 +193,7 @@ Recommended validation before pushing:
 ```bash
 ruff check .
 pytest -q tests
+pytest -q tests/api tests/contract tests/integration tests/sdk tests/cli tests/release tests/security
 npm --prefix clients/web run build
 python -c "from apps.api.main import app; print('app import ok'); print(len(app.routes))"
 ```

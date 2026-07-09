@@ -426,8 +426,8 @@ def test_web_client_release_cockpit_chrome_is_clean_and_color_coded() -> None:
     assert "Network, Market, Scenario" not in app
     assert en["nav.contracts"] == "Contracts"
     assert zh["nav.contracts"] == "\u5408\u540c"
-    assert en["nav.orders"] == "Order Records"
-    assert zh["nav.orders"] == "\u8ba2\u5355\u8bb0\u5f55"
+    assert en["nav.orders"] == "Market Positioning"
+    assert zh["nav.orders"] == "\u5e02\u573a\u5b9a\u4f4d"
     assert en["nav.manual"] == "Manual"
     assert zh["nav.manual"] == "\u7528\u6237\u624b\u518c"
     assert en["home.resource_pool"] == "Resource pool"
@@ -936,7 +936,7 @@ def test_web_client_glossary_page_is_term_wiki_surface() -> None:
     assert "data_quality" in glossary_wiki
     assert "onSelectTerm(term)" in glossary_wiki
     assert "selectedTerm?.term_id === term.term_id" in glossary_wiki
-    assert "Codex-style" in web_spec
+    assert "consistent backend-served vocabulary" in web_spec
     assert "glossary-wiki-shell" in css
     assert "glossary-codex-shell" in css
     assert "glossary-left-rail" in css
@@ -998,6 +998,12 @@ def test_web_client_contracts_page_is_upload_and_manual_intake_workbench() -> No
     app = (ROOT / "clients" / "web" / "src" / "App.tsx").read_text(encoding="utf-8")
     workbench_path = ROOT / "clients" / "web" / "src" / "components" / "ContractWorkbench.tsx"
     workbench = workbench_path.read_text(encoding="utf-8")
+    contract_import = (
+        ROOT / "clients" / "web" / "src" / "app" / "contractImport.ts"
+    ).read_text(encoding="utf-8")
+    contract_payload = (
+        ROOT / "clients" / "web" / "src" / "app" / "contractPayload.ts"
+    ).read_text(encoding="utf-8")
     css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(
         encoding="utf-8"
     )
@@ -1013,18 +1019,19 @@ def test_web_client_contracts_page_is_upload_and_manual_intake_workbench() -> No
 
     assert 'import { ContractWorkbench } from "@/components/ContractWorkbench";' in app
     assert "<ContractWorkbench" in app
-    assert "type ContractDraft" in app
-    assert "counterparty" in app
-    assert "title_transfer_point" in app
-    assert "beach_delivery_point" in app
-    assert "index_basis" in app
-    assert "terminal_access" in app
-    assert "capacity_expiry" in app
-    assert "document_name" in app
-    assert "parseContractTextDraft" in app
+    assert 'import type { ContractDraft } from "@/app/index";' in app
+    app_and_workbench = app + workbench
+    assert "counterparty" in app_and_workbench
+    assert "title_transfer_point" in app_and_workbench
+    assert "beach_delivery_point" in app_and_workbench
+    assert "index_basis" in app_and_workbench
+    assert "terminal_access" in app_and_workbench
+    assert "capacity_expiry" in app_and_workbench
+    assert "document_name" in app_and_workbench
+    assert "parseContractTextDraft" in contract_import
     assert "contractRecordFromImportedFile" in app
-    assert "decision_support_only" in app
-    assert "human_review_required" in app
+    assert "decision_support_only" in contract_payload
+    assert "human_review_required" in contract_payload
 
     for token in [
         "contract-intake-workbench",
@@ -1347,8 +1354,6 @@ def test_seed_preview_runtime_script_runs_directly_without_db_url() -> None:
 
 def test_release_workflow_publishes_web_windows_and_linux_assets() -> None:
     workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
-    ps1 = (ROOT / "scripts" / "release" / "build_v1_release.ps1").read_text(encoding="utf-8")
-    sh = (ROOT / "scripts" / "release" / "build_v1_release.sh").read_text(encoding="utf-8")
 
     assert "on:" in workflow
     assert "branches:" in workflow
@@ -1364,7 +1369,13 @@ def test_release_workflow_publishes_web_windows_and_linux_assets() -> None:
         "pytest -q tests/api tests/contract tests/integration tests/sdk "
         "tests/cli tests/release tests/security"
     ) in workflow
-    assert "npm --prefix $WebDir run build" in ps1
-    assert "npm --prefix $DesktopDir run build -- --bundles $Bundle" in ps1
-    assert 'npm --prefix "${WEB_DIR}" run build' in sh
-    assert 'npm --prefix "${DESKTOP_DIR}" run build -- --bundles "${BUNDLE}"' in sh
+    build_ps1 = (ROOT / "scripts" / "release" / "build_release.ps1").read_text(
+        encoding="utf-8"
+    )
+    assert "npm --prefix $WebDir run build" in build_ps1
+    assert "npm --prefix $DesktopDir run build -- --bundles $Bundle" in build_ps1
+    build_sh = (ROOT / "scripts" / "release" / "build_release.sh").read_text(
+        encoding="utf-8"
+    )
+    assert 'npm --prefix "${WEB_DIR}" run build' in build_sh
+    assert 'npm --prefix "${DESKTOP_DIR}" run build -- --bundles "${BUNDLE}"' in build_sh

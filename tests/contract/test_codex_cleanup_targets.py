@@ -6,7 +6,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 CLEANUP_TARGETS = ROOT / ".agent" / "patches" / "CODEX_CLEANUP_TARGETS.md"
-APP_NAVIGATION_MIGRATION = ROOT / ".agent" / "patches" / "app_workspace_navigation_source_migration.md"
+APP_NAVIGATION_MIGRATION = (
+    ROOT / ".agent" / "patches" / "app_workspace_navigation_source_migration.md"
+)
 LEGACY_MENU_REMOVAL = ROOT / ".agent" / "patches" / "remove_legacy_workspace_menu.md"
 
 REQUIRED_TARGETS = [

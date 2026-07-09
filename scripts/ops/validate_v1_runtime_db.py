@@ -19,6 +19,5 @@ if str(_SCRIPT_DIR) not in sys.path:
 
 from validate_runtime_db import main  # noqa: E402
 
-
 if __name__ == "__main__":
     raise SystemExit(main())

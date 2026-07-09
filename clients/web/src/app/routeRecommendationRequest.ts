@@ -10,7 +10,7 @@ type SaleOptionLike = {
   sale_price_gbp_mwh: number;
   sale_price_currency?: string | null;
   sale_price_unit?: string | null;
-  required_tso_access: string[];
+  required_tso_access?: string[];
   capacity_limit_mwh_per_day?: number | null;
   route_cost_gbp_mwh?: number | null;
   route_cost_currency?: string | null;
@@ -43,7 +43,7 @@ export function buildRouteRecommendationRequest(
       sale_price: option.sale_price_gbp_mwh,
       price_currency: option.sale_price_currency ?? "EUR",
       price_unit: option.sale_price_unit ?? "EUR/MWh",
-      required_tso_access: option.required_tso_access,
+      required_tso_access: option.required_tso_access ?? [],
       available_capacity_mwh_per_day: option.capacity_limit_mwh_per_day ?? null,
       manual_cost: option.route_cost_gbp_mwh ?? 0,
       cost_currency: option.route_cost_currency ?? "EUR",

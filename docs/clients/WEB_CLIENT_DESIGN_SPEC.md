@@ -178,6 +178,10 @@ Purpose:
 Content:
 
 - import zone for JSON drafts and staged text evidence;
+- upload zone for customer-owned contract files, import diagnostics, and
+  manual correction before backend persistence;
+- beach delivery point, title-transfer point, and terminal access remain visible
+  in the manual intake surface;
 - agreement and counterparty assumptions;
 - product, term, delivery mode, delivery point, title-transfer point, and beach
   delivery point;
@@ -274,6 +278,22 @@ Purpose:
 
 - inspect strategy backtests and paper shadow runs over approved market,
   physical, capacity, resource-term, and weather context;
+- present the strategy workspace as a shadow-run terminal for trader-reviewed
+  signal monitoring and scenario comparison;
+- expose market tape, paper state, allocation ladder, risk stack, source
+  evidence, warning stack, and candidate action in one terminal surface;
+- include a price-basis comparison board for within-day, day-ahead, monthly,
+  ICIS assessment, ICE OCM mark, EEX curve, and FX contexts;
+- cover within-day, day-ahead, monthly, ICIS assessments, ICE OCM marks, EEX
+  curves, and ECB FX as explicit basis families;
+- Basis families: within-day, day-ahead, monthly, ICIS assessments, ICE OCM marks, EEX curves, and ECB FX.
+- include a selected price-basis control for switching active basis context;
+- show contract-level PnL attribution so resource-pool strategy output can be
+  traced back to persisted resource terms;
+- include a stale/simulated/unavailable data banner whenever price bases or
+  market observations are not live and fully sourced;
+- show a resource-pool PnL curve for comparing shadow-run outcomes across the
+  selected portfolio resources;
 - monitor live signal processes when the backend has authorized data and
   operator-configured inputs.
 
@@ -327,6 +347,10 @@ Purpose:
 
 - explain gas, LNG, storage, trading venue, capacity, route economics, weather,
   and data-governance terms in a consistent backend-served vocabulary;
+- render the selected term as a wiki-style article with context, evidence,
+  related entities, and source references instead of a generic card;
+- cover institutions, entities, venues, business models, contracts, prices,
+  hubs, terminals, clearing, finance, and operational concepts;
 - support English and Mandarin Chinese from the same backend term contract;
 - show operational context for high-value terms such as TTF, NBP, ICE OCM, ICIS
   Heren, GATE LNG, and Zeebrugge Entry Point when PostgreSQL contains matching

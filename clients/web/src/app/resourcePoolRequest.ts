@@ -1,10 +1,9 @@
+import type {
+  PortfolioOptimizationRequestDTO,
+  PortfolioResourceDTO,
+  PortfolioSaleOptionDTO,
+} from "@/api/client";
 import type { ContractDraft } from "./defaultContractDraft";
-
-type ResourcePoolResource = {
-  available_quantity_mwh_per_day: number;
-};
-
-type ResourcePoolSaleOption = Record<string, unknown>;
 
 type UpstreamContractLike = {
   annual_financing_rate_pct?: number | null;
@@ -12,10 +11,10 @@ type UpstreamContractLike = {
 
 export function buildResourcePoolOptimizationRequest(
   contract: ContractDraft,
-  portfolioResources: ResourcePoolResource[],
-  saleOptions: ResourcePoolSaleOption[],
+  portfolioResources: PortfolioResourceDTO[],
+  saleOptions: PortfolioSaleOptionDTO[],
   upstreamContracts: UpstreamContractLike[],
-) {
+): PortfolioOptimizationRequestDTO {
   return {
     portfolio_id: "web-resource-pool",
     resources: portfolioResources,

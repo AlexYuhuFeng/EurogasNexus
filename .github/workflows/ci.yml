@@ -29,7 +29,7 @@ jobs:
         run: ruff check .
 
       - name: Tests
-        run: pytest -q tests
+        run: pytest -q tests/api tests/contract tests/integration tests/sdk tests/cli tests/release tests/security
 
       - name: Import API
         run: python -c "from apps.api.main import app; print('app import ok'); print(len(app.routes))"
@@ -61,4 +61,70 @@ jobs:
         with:
           name: eurogas-nexus-web
           path: clients/web/dist
+          if-no-files-found: error
+
+  desktop-client-build:
+    name: Build desktop client (${{ matrix.artifact_label }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            bundle: nsis
+            artifact_label: windows-x64
+            artifact_glob: clients/desktop/src-tauri/target/release/bundle/nsis/*.exe
+          - os: ubuntu-latest
+            bundle: deb
+            artifact_label: linux-x64
+            artifact_glob: clients/desktop/src-tauri/target/release/bundle/deb/*.deb
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Linux Tauri dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            curl \
+            file \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libssl-dev \
+            libwebkit2gtk-4.1-dev \
+            patchelf \
+            wget
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: |
+            clients/web/package-lock.json
+            clients/desktop/package-lock.json
+
+      - name: Set up Rust
+        run: rustup toolchain install stable --profile minimal
+
+      - name: Install Web dependencies
+        working-directory: clients/web
+        run: npm ci
+
+      - name: Install desktop dependencies
+        working-directory: clients/desktop
+        run: npm ci
+
+      - name: Build desktop bundle
+        working-directory: clients/desktop
+        run: npm run build -- --bundles ${{ matrix.bundle }}
+
+      - name: Upload desktop artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: eurogas-nexus-${{ matrix.artifact_label }}
+          path: ${{ matrix.artifact_glob }}
           if-no-files-found: error

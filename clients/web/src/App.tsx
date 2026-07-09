@@ -3,7 +3,6 @@ import type { ChangeEvent, FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { ContractWorkbench } from "@/components/ContractWorkbench";
 import type {
-  ContractDraft as ContractDraftModel,
   ContractNumberKey,
   ContractTextKey,
 } from "@/components/ContractWorkbench";
@@ -17,11 +16,26 @@ import { SourceCenter } from "@/components/SourceCenter";
 import { StrategyShadowRunTerminal } from "@/components/StrategyShadowRunTerminal";
 import { WorkspaceTopBar, type WorkspacePageId } from "@/components/WorkspaceTopBar";
 import type { EdgeDTO, SourceCategoryPostureDTO, UpstreamContractDTO } from "@/api/client";
+import {
+  buildContractPayload,
+  buildResourcePoolOptimizationRequest,
+  buildRouteRecommendationRequest,
+  buildStrategyScenario,
+  cloneDefaultContractDraft,
+  contractDraftFromRecord,
+  contractRecordFromImportedFile,
+  metadataText,
+  normalizePointName,
+  routeEdgeMetadataText,
+  routeEdgeRouteId,
+  routeLegLabel,
+  numberFromRecord,
+} from "@/app/index";
+import type { ContractDraft } from "@/app/index";
 import { useApiStore } from "@/stores/api";
 import { useThemeStore } from "@/stores/theme";
 import "./styles/app.css";
 
-type ContractDraft = ContractDraftModel;
 type LiveMarkNumberKey = "bid_gbp_mwh" | "ask_gbp_mwh" | "last_gbp_mwh";
 const MARKET_REFRESH_INTERVAL_MS = 15_000;
 const WORKSPACE_PAGES: WorkspacePageId[] = [
@@ -46,75 +60,6 @@ function workspaceFromLocation(): WorkspacePageId {
   return WORKSPACE_PAGES.includes(requestedWorkspace as WorkspacePageId)
     ? requestedWorkspace as WorkspacePageId
     : "network";
-}
-
-const defaultContractDraft: ContractDraft = {
-  contract_id: "operator-ttf-supply-2025",
-  contract_name: "Operator TTF supply 2025",
-  counterparty: "Operator draft counterparty",
-  contract_type: "EFET physical supply",
-  delivery_point_name: "TTF",
-  gas_year: "2025+",
-  delivery_quantity_mwh_per_day: 0,
-  contract_price_gbp_mwh: 0,
-  nbp_sale_price_gbp_mwh: 0,
-  physical_exit_sale_price_gbp_mwh: 0,
-  physical_exit_point_name: "NBP",
-  title_transfer_point: "TTF virtual trading point",
-  beach_delivery_point: "Bacton Beach",
-  index_basis: "TTF day-ahead index",
-  terminal_access: "BBL / Bacton terminal access to confirm",
-  capacity_expiry: "operator to enter",
-  document_name: "manual draft",
-  document_status: "MANUAL_DRAFT",
-  source_reference: "operator manual entry",
-  governing_law: "English law / EFET master confirmation to review",
-  delivery_tolerance_pct: 2,
-  nomination_tolerance_pct: 1,
-  tolerance_risk_allowance_gbp_mwh: 0.1,
-  variable_cost_gbp_mwh: 0,
-  regas_fee_gbp_mwh: 0,
-  fuel_loss_allowance_pct: 0,
-  settlement_frequency: "monthly",
-  upstream_payment_lag_days: 20,
-  screen_sale_cash_lag_days: 1,
-  annual_financing_rate_pct: 6,
-  owned_entry_capacity_mwh_per_day: null,
-  owned_exit_capacity_mwh_per_day: null,
-  allowed_exit_points: ["NBP", "TTF"],
-  eligible_sale_modes: ["TARGET_MARKET_SALE", "LOCAL_MARKET_SALE", "REROUTE_SALE"],
-};
-
-function cloneDefaultContractDraft(): ContractDraft {
-  return {
-    ...defaultContractDraft,
-    allowed_exit_points: [...defaultContractDraft.allowed_exit_points],
-    eligible_sale_modes: [...defaultContractDraft.eligible_sale_modes],
-  };
-}
-
-function normalizePointName(value: string | null | undefined): string {
-  return (value ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "");
-}
-
-function metadataText(value: unknown): string | null {
-  return typeof value === "string" && value.trim() ? value.trim() : null;
-}
-
-function routeLegLabel(leg: Record<string, unknown>, index: number): string {
-  for (const key of ["point_name", "market_area", "hub_binding", "tso", "leg_id"]) {
-    const value = metadataText(leg[key]);
-    if (value) return value;
-  }
-  return `leg ${index + 1}`;
-}
-
-function routeEdgeRouteId(edge: EdgeDTO): string | null {
-  return metadataText(edge.metadata_json?.route_id) ?? edge.source_record_id ?? null;
-}
-
-function routeEdgeMetadataText(edge: EdgeDTO, key: string): string | null {
-  return metadataText(edge.metadata_json?.[key]);
 }
 
 export default function App() {
@@ -220,147 +165,16 @@ export default function App() {
     [saleOptions],
   );
 
-  const resourcePoolOptimizationRequest = useMemo(() => ({
-    portfolio_id: "web-resource-pool",
-    resources: portfolioResources,
-    sale_options: saleOptions,
-    annual_financing_rate_pct: upstreamContracts[0]?.annual_financing_rate_pct ?? contract.annual_financing_rate_pct,
-    objective: "MAX_DAILY_PNL",
-    research_only: true,
-  }), [contract.annual_financing_rate_pct, portfolioResources, saleOptions, upstreamContracts]);
-  const contractPayload = useMemo(() => ({
-    contract_id: contract.contract_id.trim() || "operator-ttf-supply-2025",
-    contract_name: contract.contract_name.trim() || contract.contract_id.trim() || "Operator supply contract",
-    resource_type: "PIPELINE_IMPORT",
-    delivery_point_name: contract.delivery_point_name.trim() || "TTF",
-    gas_year: contract.gas_year.trim() || "2025+",
-    delivery_quantity_mwh_per_day: contract.delivery_quantity_mwh_per_day,
-    contract_price_gbp_mwh: contract.contract_price_gbp_mwh,
-    settlement_frequency: contract.settlement_frequency,
-    upstream_payment_lag_days: contract.upstream_payment_lag_days,
-    screen_sale_cash_lag_days: contract.screen_sale_cash_lag_days,
-    delivery_tolerance_pct: contract.delivery_tolerance_pct,
-    nomination_tolerance_pct: contract.nomination_tolerance_pct,
-    tolerance_risk_allowance_gbp_mwh: contract.tolerance_risk_allowance_gbp_mwh,
-    annual_financing_rate_pct: contract.annual_financing_rate_pct,
-    owned_entry_capacity_mwh_per_day: contract.owned_entry_capacity_mwh_per_day,
-    owned_exit_capacity_mwh_per_day: contract.owned_exit_capacity_mwh_per_day,
-    allowed_exit_points: contract.allowed_exit_points,
-    eligible_sale_modes: contract.eligible_sale_modes,
-    notes: JSON.stringify({
-      source: "web_contract_capture",
-      decision_support_only: true,
-      human_review_required: true,
-      counterparty: contract.counterparty,
-      contract_type: contract.contract_type,
-      title_transfer_point: contract.title_transfer_point,
-      beach_delivery_point: contract.beach_delivery_point,
-      index_basis: contract.index_basis,
-      terminal_access: contract.terminal_access,
-      capacity_expiry: contract.capacity_expiry,
-      document_name: contract.document_name,
-      document_status: contract.document_status,
-      source_reference: contract.source_reference,
-      governing_law: contract.governing_law,
-      physical_exit_point_name: contract.physical_exit_point_name,
-      variable_cost_gbp_mwh: contract.variable_cost_gbp_mwh,
-      regas_fee_gbp_mwh: contract.regas_fee_gbp_mwh,
-      fuel_loss_allowance_pct: contract.fuel_loss_allowance_pct,
-    }),
-  }), [contract]);
+  const resourcePoolOptimizationRequest = useMemo(
+    () => buildResourcePoolOptimizationRequest(contract, portfolioResources, saleOptions, upstreamContracts),
+    [contract, portfolioResources, saleOptions, upstreamContracts],
+  );
+  const contractPayload = useMemo(() => buildContractPayload(contract), [contract]);
 
-  const strategyScenario = useMemo(() => {
-    const deliveryStart = "2026-01-16T00:00:00Z";
-    const deliveryEnd = "2026-01-17T00:00:00Z";
-    const ocmMid = liveMark.last_gbp_mwh ?? liveMark.bid_gbp_mwh ?? liveMark.ask_gbp_mwh ?? 0;
-    const resource = portfolioResources[0];
-    return {
-      strategy_id: "nbp-sap-icis-ocm-window",
-      strategy_name: "NBP SAP/ICIS day-ahead versus ICE OCM window",
-      run_mode: "SHADOW_RUN",
-      resource_contexts: [
-        {
-          resource_id: resource?.resource_id ?? "resource-pool-unavailable",
-          resource_name: resource?.resource_name ?? "Resource pool unavailable",
-          available_quantity_mwh_per_day: resource?.available_quantity_mwh_per_day ?? 0,
-          all_in_cost_gbp_mwh: (resource?.contract_cost_gbp_mwh ?? 0) + (resource?.tolerance_risk_allowance_gbp_mwh ?? 0),
-          delivery_tolerance_pct: resource?.delivery_tolerance_pct ?? null,
-          nomination_tolerance_pct: resource?.nomination_tolerance_pct ?? null,
-          booked_entry_capacity_mwh_per_day: contract.owned_entry_capacity_mwh_per_day,
-          balancing_allowance_gbp_mwh: resource?.tolerance_risk_allowance_gbp_mwh ?? 0,
-          required_tso_access: resource?.required_tso_access ?? [],
-          company_accessible_tsos: resource?.accessible_tsos ?? null,
-        },
-      ],
-      price_observations: [
-        {
-          observation_id: "operator-sap-reference",
-          source_system: "operator-entered",
-          venue: "SAP",
-          hub: "NBP",
-          product: "day-ahead",
-          price_name: "SAP",
-          price_gbp_mwh: Math.max((markets.find((market) => market.market_venue === "NBP")?.price ?? 0) - 0.4, 0),
-          observed_at_utc: "2026-01-15T16:00:00Z",
-          delivery_start_utc: deliveryStart,
-          delivery_end_utc: deliveryEnd,
-          bar_minutes: 5,
-          source_reference: "operator:SAP",
-        },
-        {
-          observation_id: "operator-icis-reference",
-          source_system: "operator-entered",
-          venue: "ICIS Heren",
-          hub: "NBP",
-          product: "day-ahead",
-          price_name: "ICIS_HEREN_DAY_AHEAD",
-          price_gbp_mwh: markets.find((market) => market.market_venue === "NBP")?.price ?? 0,
-          observed_at_utc: "2026-01-15T16:30:00Z",
-          delivery_start_utc: deliveryStart,
-          delivery_end_utc: deliveryEnd,
-          bar_minutes: 5,
-          source_reference: "operator:ICIS_HEREN_DAY_AHEAD",
-        },
-        {
-          observation_id: "operator-ocm-reference",
-          source_system: liveMark.source_system,
-          venue: liveMark.venue,
-          hub: liveMark.hub,
-          product: liveMark.product,
-          price_name: "ICE_OCM",
-          price_gbp_mwh: ocmMid,
-          observed_at_utc: "2026-01-15T16:45:00Z",
-          delivery_start_utc: deliveryStart,
-          delivery_end_utc: deliveryEnd,
-          bar_minutes: 5,
-          source_reference: liveMark.source_system,
-        },
-      ],
-      components: [
-        {
-          component_id: "sap-icis-ocm-1500-1700",
-          component_type: "OCM_VS_DAY_AHEAD",
-          weight: 1,
-          day_ahead_price_names: ["SAP", "ICIS_HEREN_DAY_AHEAD"],
-          intraday_price_names: ["ICE_OCM"],
-          positive_spread_threshold_gbp_mwh: 0.2,
-          negative_spread_threshold_gbp_mwh: 0.2,
-          time_window_start: "15:00",
-          time_window_end: "17:00",
-          target_bar_minutes: 5,
-        },
-      ],
-      risk_control: {
-        max_ocm_allocation_pct: 70,
-        min_day_ahead_allocation_pct: 20,
-        max_single_market_volume_mwh_per_day: (portfolioResources[0]?.available_quantity_mwh_per_day ?? 0) * 0.6,
-        min_expected_margin_gbp_mwh: 0,
-        require_tso_access: true,
-      },
-      existing_shadow_pnl_gbp: 0,
-      research_only: true,
-    };
-  }, [contract, liveMark, markets, portfolioResources]);
+  const strategyScenario = useMemo(
+    () => buildStrategyScenario(contract, liveMark, markets, portfolioResources),
+    [contract, liveMark, markets, portfolioResources],
+  );
 
   useEffect(() => {
     fetchWorkspace();
@@ -432,190 +246,6 @@ export default function App() {
     setContract((current) => ({ ...current, [key]: value }));
   }
 
-  function stringFromRecord(record: Record<string, unknown>, key: string, fallback: string): string {
-    const value = record[key];
-    return typeof value === "string" && value.trim() ? value.trim() : fallback;
-  }
-
-  function numberFromRecord(record: Record<string, unknown>, key: string, fallback: number): number {
-    const value = record[key];
-    if (typeof value === "number" && Number.isFinite(value)) return value;
-    if (typeof value === "string" && value.trim() && Number.isFinite(Number(value))) return Number(value);
-    return fallback;
-  }
-
-  function nullableNumberFromRecord(
-    record: Record<string, unknown>,
-    key: string,
-    fallback: number | null,
-  ): number | null {
-    const value = record[key];
-    if (value == null || value === "") return fallback;
-    if (typeof value === "number" && Number.isFinite(value)) return value;
-    if (typeof value === "string" && Number.isFinite(Number(value))) return Number(value);
-    return fallback;
-  }
-
-  function stringArrayFromRecord(record: Record<string, unknown>, key: string, fallback: string[]): string[] {
-    const value = record[key];
-    if (Array.isArray(value)) {
-      const items = value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
-      return items.length > 0 ? items : fallback;
-    }
-    if (typeof value === "string" && value.trim()) {
-      return value.split(",").map((item) => item.trim()).filter(Boolean);
-    }
-    return fallback;
-  }
-
-  function notesRecordFromRecord(record: Record<string, unknown>): Record<string, unknown> {
-    const notes = record.notes;
-    if (notes && typeof notes === "object" && !Array.isArray(notes)) return notes as Record<string, unknown>;
-    if (typeof notes !== "string" || !notes.trim()) return {};
-    try {
-      const parsed = JSON.parse(notes) as unknown;
-      return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
-    } catch {
-      return {};
-    }
-  }
-
-  function contractDraftFromRecord(record: Record<string, unknown>, current: ContractDraft): ContractDraft {
-    const mergedRecord = { ...notesRecordFromRecord(record), ...record };
-    return {
-      ...current,
-      contract_id: stringFromRecord(mergedRecord, "contract_id", current.contract_id),
-      contract_name: stringFromRecord(mergedRecord, "contract_name", current.contract_name),
-      counterparty: stringFromRecord(mergedRecord, "counterparty", current.counterparty),
-      contract_type: stringFromRecord(mergedRecord, "contract_type", current.contract_type),
-      delivery_point_name: stringFromRecord(mergedRecord, "delivery_point_name", current.delivery_point_name),
-      physical_exit_point_name: stringFromRecord(mergedRecord, "physical_exit_point_name", current.physical_exit_point_name),
-      title_transfer_point: stringFromRecord(mergedRecord, "title_transfer_point", current.title_transfer_point),
-      beach_delivery_point: stringFromRecord(mergedRecord, "beach_delivery_point", current.beach_delivery_point),
-      index_basis: stringFromRecord(mergedRecord, "index_basis", current.index_basis),
-      terminal_access: stringFromRecord(mergedRecord, "terminal_access", current.terminal_access),
-      capacity_expiry: stringFromRecord(mergedRecord, "capacity_expiry", current.capacity_expiry),
-      document_name: stringFromRecord(mergedRecord, "document_name", current.document_name),
-      document_status: stringFromRecord(mergedRecord, "document_status", current.document_status),
-      source_reference: stringFromRecord(mergedRecord, "source_reference", current.source_reference),
-      governing_law: stringFromRecord(mergedRecord, "governing_law", current.governing_law),
-      gas_year: stringFromRecord(mergedRecord, "gas_year", current.gas_year),
-      delivery_quantity_mwh_per_day: numberFromRecord(
-        mergedRecord,
-        "delivery_quantity_mwh_per_day",
-        current.delivery_quantity_mwh_per_day,
-      ),
-      contract_price_gbp_mwh: numberFromRecord(mergedRecord, "contract_price_gbp_mwh", current.contract_price_gbp_mwh),
-      delivery_tolerance_pct: numberFromRecord(mergedRecord, "delivery_tolerance_pct", current.delivery_tolerance_pct),
-      nomination_tolerance_pct: numberFromRecord(mergedRecord, "nomination_tolerance_pct", current.nomination_tolerance_pct),
-      tolerance_risk_allowance_gbp_mwh: numberFromRecord(
-        mergedRecord,
-        "tolerance_risk_allowance_gbp_mwh",
-        current.tolerance_risk_allowance_gbp_mwh,
-      ),
-      variable_cost_gbp_mwh: numberFromRecord(mergedRecord, "variable_cost_gbp_mwh", current.variable_cost_gbp_mwh),
-      regas_fee_gbp_mwh: numberFromRecord(mergedRecord, "regas_fee_gbp_mwh", current.regas_fee_gbp_mwh),
-      fuel_loss_allowance_pct: numberFromRecord(
-        mergedRecord,
-        "fuel_loss_allowance_pct",
-        current.fuel_loss_allowance_pct,
-      ),
-      settlement_frequency: stringFromRecord(mergedRecord, "settlement_frequency", current.settlement_frequency),
-      upstream_payment_lag_days: numberFromRecord(
-        mergedRecord,
-        "upstream_payment_lag_days",
-        current.upstream_payment_lag_days,
-      ),
-      screen_sale_cash_lag_days: numberFromRecord(
-        mergedRecord,
-        "screen_sale_cash_lag_days",
-        current.screen_sale_cash_lag_days,
-      ),
-      annual_financing_rate_pct: numberFromRecord(
-        mergedRecord,
-        "annual_financing_rate_pct",
-        current.annual_financing_rate_pct,
-      ),
-      owned_entry_capacity_mwh_per_day: nullableNumberFromRecord(
-        mergedRecord,
-        "owned_entry_capacity_mwh_per_day",
-        current.owned_entry_capacity_mwh_per_day,
-      ),
-      owned_exit_capacity_mwh_per_day: nullableNumberFromRecord(
-        mergedRecord,
-        "owned_exit_capacity_mwh_per_day",
-        current.owned_exit_capacity_mwh_per_day,
-      ),
-      allowed_exit_points: stringArrayFromRecord(mergedRecord, "allowed_exit_points", current.allowed_exit_points),
-      eligible_sale_modes: stringArrayFromRecord(mergedRecord, "eligible_sale_modes", current.eligible_sale_modes),
-    };
-  }
-
-  function contractRecordFromParsedJson(parsed: unknown): Record<string, unknown> | null {
-    if (Array.isArray(parsed)) {
-      return parsed.find((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object") ?? null;
-    }
-    if (parsed && typeof parsed === "object") {
-      const record = parsed as Record<string, unknown>;
-      const wrapped = record.contract;
-      if (wrapped && typeof wrapped === "object" && !Array.isArray(wrapped)) {
-        return wrapped as Record<string, unknown>;
-      }
-      return record;
-    }
-    return null;
-  }
-
-  function parseContractTextDraft(fileName: string, text: string): Record<string, unknown> {
-    const record: Record<string, unknown> = {
-      document_name: fileName,
-      document_status: "STAGED_REVIEW_REQUIRED",
-      source_reference: fileName,
-    };
-    const captureText = (key: string, labels: string[]) => {
-      const pattern = new RegExp(`(?:^|\\n)\\s*(?:${labels.join("|")})\\s*[:\\-]\\s*([^\\r\\n]+)`, "i");
-      const value = text.match(pattern)?.[1]?.trim();
-      if (value) record[key] = value;
-    };
-    const captureNumber = (key: string, labels: string[]) => {
-      const pattern = new RegExp(`(?:^|\\n)\\s*(?:${labels.join("|")})\\s*[:\\-]\\s*([0-9]+(?:\\.[0-9]+)?)`, "i");
-      const value = text.match(pattern)?.[1];
-      if (value !== undefined && Number.isFinite(Number(value))) record[key] = Number(value);
-    };
-
-    captureText("contract_id", ["contract id", "agreement id", "confirmation id"]);
-    captureText("contract_name", ["contract name", "agreement", "confirmation"]);
-    captureText("counterparty", ["counterparty", "seller", "buyer"]);
-    captureText("contract_type", ["contract type", "agreement type"]);
-    captureText("gas_year", ["gas year", "term"]);
-    captureText("delivery_point_name", ["delivery point", "delivery hub"]);
-    captureText("title_transfer_point", ["title transfer point", "title-transfer point", "transfer point"]);
-    captureText("beach_delivery_point", ["beach delivery point", "beach", "landing point"]);
-    captureText("index_basis", ["index basis", "price index", "pricing basis"]);
-    captureText("terminal_access", ["terminal access", "terminal", "tso access"]);
-    captureText("capacity_expiry", ["capacity expiry", "capacity end", "expiry"]);
-    captureText("governing_law", ["governing law", "law"]);
-    captureNumber("delivery_quantity_mwh_per_day", ["quantity", "daily quantity", "mwh per day", "mwh/d"]);
-    captureNumber("contract_price_gbp_mwh", ["contract price", "price", "gbp/mwh"]);
-    captureNumber("delivery_tolerance_pct", ["delivery tolerance", "tolerance"]);
-    captureNumber("nomination_tolerance_pct", ["nomination tolerance"]);
-    captureNumber("variable_cost_gbp_mwh", ["variable cost"]);
-    captureNumber("regas_fee_gbp_mwh", ["regas fee", "regasification fee"]);
-    captureNumber("fuel_loss_allowance_pct", ["fuel loss", "shrinkage"]);
-
-    return record;
-  }
-
-  function contractRecordFromImportedFile(fileName: string, text: string): Record<string, unknown> | null {
-    try {
-      const parsed = JSON.parse(text) as unknown;
-      const record = contractRecordFromParsedJson(parsed);
-      return record ? { document_name: fileName, document_status: "IMPORTED_JSON_DRAFT", ...record } : null;
-    } catch {
-      return parseContractTextDraft(fileName, text);
-    }
-  }
-
   function loadPersistedContract(saved: UpstreamContractDTO) {
     setContract((current) => contractDraftFromRecord(saved as unknown as Record<string, unknown>, current));
     setContractImportMessage(`${saved.contract_id} ${t("contracts.loaded_for_edit")}`);
@@ -662,29 +292,10 @@ export default function App() {
   const firstStrategyTarget = strategyResult?.allocation_targets[0];
   const glossaryLang = i18n.language.startsWith("zh") ? "zh-CN" : "en";
   const glossaryShortcutTerms = ["TTF", "NBP", "ICE OCM", "Entry Capacity"];
-  const routeRecommendationRequest = useMemo(() => ({
-    request_id: "web-db-backed-route-allocation",
-    source_point_id: portfolioResources[0]?.location_point_name ?? "RESOURCE_POOL",
-    target_point_id: saleOptions[0]?.target_point_name ?? null,
-    required_quantity_mwh_per_day: totalPoolVolume,
-    gas_year: upstreamContracts[0]?.gas_year ?? "2025+",
-    capacity_product: "ANNUAL",
-    firmness: "FIRM",
-    company_accessible_tsos: portfolioResources[0]?.accessible_tsos ?? null,
-    candidates: saleOptions.map((option) => ({
-      route_id: option.option_id,
-      route_name: option.label,
-      destination_market: option.target_point_name,
-      sale_price: option.sale_price_gbp_mwh,
-      price_currency: option.sale_price_currency ?? "EUR",
-      price_unit: option.sale_price_unit ?? "EUR/MWh",
-      required_tso_access: option.required_tso_access,
-      available_capacity_mwh_per_day: option.capacity_limit_mwh_per_day ?? null,
-      manual_cost: option.route_cost_gbp_mwh ?? 0,
-      cost_currency: option.route_cost_currency ?? "EUR",
-      cost_unit: option.route_cost_unit ?? "EUR/MWh",
-    })),
-  }), [portfolioResources, saleOptions, totalPoolVolume, upstreamContracts]);
+  const routeRecommendationRequest = useMemo(
+    () => buildRouteRecommendationRequest(portfolioResources, saleOptions, totalPoolVolume, upstreamContracts),
+    [portfolioResources, saleOptions, totalPoolVolume, upstreamContracts],
+  );
   const analysisPayload = {
     question: analysisQuestion,
     task: "PORTFOLIO_REPORT",

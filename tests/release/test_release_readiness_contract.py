@@ -17,7 +17,9 @@ def test_release_profile_disables_docs_and_openapi() -> None:
 
 
 def test_release_readiness_doc_records_release_candidate_state_and_gates() -> None:
-    text = (ROOT / "docs" / "release" / "V1_RELEASE_READINESS.md").read_text(encoding="utf-8")
+    text = (ROOT / "docs" / "release" / "RELEASE_READINESS.md").read_text(
+        encoding="utf-8"
+    )
 
     assert "`RELEASE CANDIDATE`" in text
     assert "No development-only routes enabled in release profile" in text

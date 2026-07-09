@@ -27,7 +27,7 @@ def test_readme_mentions_starting_docs_and_extended_validation() -> None:
     text = (ROOT / "README.md").read_text(encoding="utf-8")
 
     assert "[Project directory](PROJECT_DIRECTORY.md)" in text
-    assert "[Release readiness](docs/release/V1_RELEASE_READINESS.md)" in text
+    assert "[Release readiness](docs/release/RELEASE_READINESS.md)" in text
     assert "## Data Sources" in text
     assert "tests/integration tests/sdk tests/cli" in text
 

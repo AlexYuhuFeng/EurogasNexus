@@ -132,9 +132,9 @@ def test_current_pause_point_records_holistic_runtime_pause_state() -> None:
 
 
 def test_live_postgresql_policy_is_explicit_and_safe() -> None:
-    text = _read_doc("docs/operations/LIVE_POSTGRESQL_V1.md")
+    text = _read_doc("docs/operations/LIVE_POSTGRESQL.md")
 
-    assert "Live PostgreSQL is part of V1 runtime readiness" in text
+    assert "Live PostgreSQL is part of runtime readiness" in text
     assert "App import must not connect to PostgreSQL" in text
     assert (
         "Default unit, API, contract, integration, and security tests must pass"
@@ -181,7 +181,7 @@ def test_client_design_docs_are_ready_for_future_goal_mode() -> None:
     assert "First screen is the workspace" in design_system
     assert "Top status bar" in web
     assert "Web UI -> web API client -> backend /api" in web
-    assert "First Web Implementation Prompt" in web
+    assert "Web UI -> web API client -> backend /api" in web
     assert "Tauri" in windows
     assert "Windows shell -> packaged web workspace/API client" in windows
     assert "First Windows Implementation Prompt" in windows

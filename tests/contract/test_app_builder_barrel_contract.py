@@ -9,14 +9,16 @@ APP_INDEX_TS = ROOT / "clients" / "web" / "src" / "app" / "index.ts"
 
 
 def test_app_builder_barrel_exports_extracted_modules() -> None:
-    """The App extraction barrel should expose every extracted builder/helper needed for App.tsx wiring."""
+    """The extraction barrel should expose builders/helpers needed by App.tsx."""
 
     barrel_text = APP_INDEX_TS.read_text(encoding="utf-8-sig")
     for export_line in [
         'export { buildContractPayload } from "./contractPayload";',
         'export { cloneDefaultContractDraft, defaultContractDraft } from "./defaultContractDraft";',
         'export type { ContractDraft } from "./defaultContractDraft";',
-        'export { contractDraftFromRecord, contractRecordFromImportedFile } from "./contractImport";',
+        "contractDraftFromRecord,",
+        "contractRecordFromImportedFile,",
+        "numberFromRecord,",
         'export { buildResourcePoolOptimizationRequest } from "./resourcePoolRequest";',
         'export { buildRouteRecommendationRequest } from "./routeRecommendationRequest";',
         'export { buildStrategyScenario } from "./strategyScenario";',

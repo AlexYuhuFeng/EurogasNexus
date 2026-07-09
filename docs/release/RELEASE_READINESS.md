@@ -88,7 +88,10 @@ the desktop release matrix is expected to publish the following desktop assets:
 - `release-desktop-linux-arm64`: Linux DEB package for ARM64 Linux users.
 
 The Linux artifacts must remain explicitly architecture-labelled so ARM Linux
-users do not receive the x64 DEB by mistake.
+users do not receive the x64 DEB by mistake. ARM Linux users do not receive the
+x64 DEB by mistake.
+
+ARM Linux users do not receive the x64 DEB by mistake.
 
 ## What Runtime DB Means In The Client
 

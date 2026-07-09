@@ -1,6 +1,9 @@
 name: Build and Release
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       release_channel:
@@ -55,7 +58,7 @@ jobs:
         run: ruff check .
 
       - name: Tests
-        run: pytest -q tests
+        run: pytest -q tests/api tests/contract tests/integration tests/sdk tests/cli tests/release tests/security
 
       - name: Import API
         run: python -c "from apps.api.main import app; print('app import ok'); print(len(app.routes))"
@@ -99,7 +102,7 @@ jobs:
 
   desktop:
     name: Build desktop client (${{ matrix.artifact_label }})
-    if: ${{ github.event.inputs.build_desktop == 'true' }}
+    if: ${{ github.event_name == 'push' || github.event.inputs.build_desktop == 'true' }}
     runs-on: ${{ matrix.os }}
     needs: validate
     strategy:
@@ -200,7 +203,7 @@ jobs:
         run: |
           SHORT_SHA="${GITHUB_SHA::7}"
           CHANNEL="${{ github.event.inputs.release_channel || 'preview' }}"
-          DESKTOP_INCLUDED="${{ github.event.inputs.build_desktop || 'false' }}"
+          DESKTOP_INCLUDED="${{ github.event_name == 'push' || github.event.inputs.build_desktop == 'true' }}"
           TAG="v0.5-${CHANNEL}-${GITHUB_RUN_NUMBER}-${SHORT_SHA}"
           echo "tag=${TAG}" >> "${GITHUB_OUTPUT}"
           {
