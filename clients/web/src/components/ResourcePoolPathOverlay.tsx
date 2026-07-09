@@ -23,6 +23,10 @@ export interface ResourcePoolMapPath {
   routeGeometryWarning: string | null;
   routeLegSummary: string[];
   warnings: string[];
+  routeRank: number;
+  recommendationReason: string;
+  capacityUtilizationPct: number | null;
+  requiredTsoAccess: string[];
 }
 
 interface ResourcePoolPathOverlayProps {
@@ -182,6 +186,16 @@ export function ResourcePoolPathOverlay({ paths, blockers, t }: ResourcePoolPath
                     <span>{t("home.route_cost")}: {formatMoney(path.routeCostGbpMwh)}</span>
                     <span>{t("home.sale_price")}: {formatMoney(path.salePriceGbpMwh)}</span>
                     <span>{t("home.net_margin")}: {formatMoney(path.netMarginGbpMwh)}</span>
+                  </div>
+                  <div className="resource-path-recommendation-evidence">
+                    <span>{t("home.route_rank")}: #{path.routeRank}</span>
+                    <span>{t("home.recommendation_reason")}: {path.recommendationReason}</span>
+                    <span>{t("home.capacity_utilization")}: {formatPct(path.capacityUtilizationPct)}</span>
+                    <span>
+                      {t("home.required_tso_access")}: {path.requiredTsoAccess.length > 0
+                        ? path.requiredTsoAccess.join(", ")
+                        : t("home.no_required_tso_access")}
+                    </span>
                   </div>
                   <div className="resource-path-allocation-evidence">
                     <span>{t("home.pool_share")}: {formatPct(evidence.poolSharePct)}</span>

@@ -869,8 +869,13 @@ export default function App() {
       poolAllocations.map((allocation) => [`${allocation.resource_id}:${allocation.option_id}`, allocation]),
     );
     const fallbackWarnings = poolInputBlockers.length > 0 ? poolInputBlockers : [];
-    return portfolioResources.flatMap((resource) =>
-      saleOptions.slice(0, 3).map((option) => {
+    const statePriority: Record<ResourcePoolMapPath["routeState"], number> = {
+      allocated: 0,
+      candidate: 1,
+      blocked: 2,
+    };
+    const unrankedResourcePoolMapPaths = portfolioResources.flatMap((resource) =>
+      saleOptions.map((option) => {
         const allocation = allocationByResourceAndOption.get(`${resource.resource_id}:${option.option_id}`) ?? null;
         const routeCandidate = routeCandidates.find((candidate) => candidate.route_id === option.option_id);
         const routeLegSummary = routeCandidate?.route_legs.map(routeLegLabel) ?? [];
@@ -889,6 +894,19 @@ export default function App() {
           : routeWarnings.length > 0
             ? "blocked"
             : "candidate";
+        const displayedQuantityMwhPerDay =
+          allocation?.allocated_quantity_mwh_per_day ?? resource.available_quantity_mwh_per_day;
+        const capacityUtilizationPct =
+          option.capacity_limit_mwh_per_day && option.capacity_limit_mwh_per_day > 0
+            ? (displayedQuantityMwhPerDay / option.capacity_limit_mwh_per_day) * 100
+            : null;
+        const indicativeNetMarginGbpMwh = option.sale_price_gbp_mwh -
+          (
+            resource.contract_cost_gbp_mwh +
+            (resource.variable_cost_gbp_mwh ?? 0) +
+            (resource.tolerance_risk_allowance_gbp_mwh ?? 0) +
+            (option.route_cost_gbp_mwh ?? 0)
+          );
         return {
           pathId: `${resource.resource_id}-${option.option_id}`,
           routeId: option.option_id,
@@ -900,15 +918,42 @@ export default function App() {
           capacityLimitMwhPerDay: option.capacity_limit_mwh_per_day ?? null,
           routeCostGbpMwh: option.route_cost_gbp_mwh ?? null,
           salePriceGbpMwh: option.sale_price_gbp_mwh,
-          netMarginGbpMwh: allocation?.net_margin_gbp_mwh ?? null,
+          netMarginGbpMwh: allocation?.net_margin_gbp_mwh ?? indicativeNetMarginGbpMwh,
           routeState,
           routeGeometryState,
           routeGeometryWarning,
           routeLegSummary,
           warnings: routeWarnings,
+          routeRank: 0,
+          recommendationReason: "",
+          capacityUtilizationPct,
+          requiredTsoAccess: option.required_tso_access ?? [],
         };
       }),
-    ).slice(0, 6);
+    );
+    const rankedResourcePoolMapPaths = [...unrankedResourcePoolMapPaths]
+      .sort((left, right) => {
+        const stateDelta = statePriority[left.routeState] - statePriority[right.routeState];
+        if (stateDelta !== 0) return stateDelta;
+        const marginDelta = (right.netMarginGbpMwh ?? Number.NEGATIVE_INFINITY) -
+          (left.netMarginGbpMwh ?? Number.NEGATIVE_INFINITY);
+        if (marginDelta !== 0) return marginDelta;
+        return (left.routeCostGbpMwh ?? Number.POSITIVE_INFINITY) -
+          (right.routeCostGbpMwh ?? Number.POSITIVE_INFINITY);
+      })
+      .map((path, index) => ({
+        ...path,
+        routeRank: index + 1,
+        recommendationReason: path.routeState === "allocated"
+          ? t("home.reason_allocated")
+          : path.routeState === "blocked"
+            ? path.warnings[0] ?? t("home.reason_blocked")
+            : path.capacityLimitMwhPerDay !== null &&
+                path.capacityLimitMwhPerDay < path.availableQuantityMwhPerDay
+              ? t("home.reason_capacity_constrained")
+              : t("home.reason_candidate"),
+      }));
+    return rankedResourcePoolMapPaths;
   }, [
     poolAllocations,
     poolInputBlockers,

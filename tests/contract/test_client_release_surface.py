@@ -759,7 +759,16 @@ def test_web_client_network_page_shows_resource_pool_paths_on_map() -> None:
     assert "resource-route-status-legend" in overlay
     assert "resource-path-allocation-evidence" in overlay
     assert "resource-path-capacity-warning" in overlay
+    assert "resource-path-recommendation-evidence" in overlay
     assert "resource-route-state-pill" in overlay
+    assert "routeRank" in overlay
+    assert "recommendationReason" in overlay
+    assert "capacityUtilizationPct" in overlay
+    assert "requiredTsoAccess" in overlay
+    assert "home.route_rank" in overlay
+    assert "home.recommendation_reason" in overlay
+    assert "home.capacity_utilization" in overlay
+    assert "home.required_tso_access" in overlay
     assert "paths.slice(0, 3)" in overlay
     assert "hiddenPathCount" in overlay
     assert "home.more_route_paths" in overlay
@@ -767,11 +776,18 @@ def test_web_client_network_page_shows_resource_pool_paths_on_map() -> None:
     assert "capacityHeadroomMwhPerDay" in overlay
     assert "poolSharePct" in overlay
     assert "pnlGbpPerDay" in overlay
+    assert "saleOptions.map((option)" in app
+    assert "rankedResourcePoolMapPaths" in app
+    assert "statePriority" in app
+    assert "indicativeNetMarginGbpMwh" in app
+    assert "resource.contract_cost_gbp_mwh" in app
+    assert "saleOptions.slice(0, 3).map" not in app
     assert "resource-pool-map-overlay" in css
     assert "resource-path-card" in css
     assert ".resource-pool-allocation-summary" in css
     assert ".resource-route-status-legend" in css
     assert ".resource-path-allocation-evidence" in css
+    assert ".resource-path-recommendation-evidence" in css
     assert ".resource-path-capacity-warning" in css
     assert ".resource-route-state-pill" in css
     assert ".resource-path-more" in css
@@ -781,6 +797,10 @@ def test_web_client_network_page_shows_resource_pool_paths_on_map() -> None:
     assert en["home.pool_allocation"] == "Pool allocation"
     assert en["home.route_status_legend"] == "Route status"
     assert en["home.capacity_bottleneck"] == "Capacity bottleneck"
+    assert en["home.route_rank"] == "Route rank"
+    assert en["home.recommendation_reason"] == "Recommendation reason"
+    assert en["home.capacity_utilization"] == "Capacity utilization"
+    assert en["home.required_tso_access"] == "Required TSO access"
     assert en["home.more_route_paths"] == "more route candidates in decision rail"
     assert en["home.pnl_per_day"] == "PnL/day"
     assert en["home.route_state.allocated"] == "Allocated"
@@ -791,11 +811,18 @@ def test_web_client_network_page_shows_resource_pool_paths_on_map() -> None:
     assert zh["home.pool_allocation"] == "\u8d44\u6e90\u6c60\u5206\u914d"
     assert zh["home.route_status_legend"] == "\u8def\u5f84\u72b6\u6001"
     assert zh["home.capacity_bottleneck"] == "\u5bb9\u91cf\u74f6\u9888"
+    assert zh["home.route_rank"] == "\u8def\u5f84\u6392\u540d"
+    assert zh["home.recommendation_reason"] == "\u63a8\u8350\u7406\u7531"
+    assert zh["home.capacity_utilization"] == "\u5bb9\u91cf\u4f7f\u7528\u7387"
+    assert zh["home.required_tso_access"] == "\u6240\u9700 TSO \u51c6\u5165"
     assert zh["home.more_route_paths"] == (
         "\u6761\u66f4\u591a\u5019\u9009\u8def\u5f84\u5728\u53f3\u4fa7\u51b3\u7b56\u680f"
     )
     assert "pool allocation summary" in web_spec
     assert "route status legend" in web_spec
+    assert "route ranking evidence" in web_spec
+    assert "capacity utilization" in web_spec
+    assert "required TSO access" in web_spec
     assert "capacity bottleneck" in web_spec
     assert "path-level PnL/day" in web_spec
 

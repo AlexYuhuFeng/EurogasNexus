@@ -132,6 +132,9 @@ Initial content:
 - route status legend for allocated, candidate, and blocked paths;
 - path cards exposing allocation evidence, capacity headroom, path-level PnL/day,
   and capacity bottleneck warnings;
+- path cards exposing route ranking evidence: rank, recommendation reason,
+  capacity utilization, and required TSO access so traders can understand why a
+  path is allocated, still only a candidate, or blocked;
 - source/freshness and warning evidence.
 
 The Network home must not contain data-source forms, runtime DB administration,

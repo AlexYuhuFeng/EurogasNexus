@@ -4278,6 +4278,16 @@ button.glossary-related-chip {
   padding: 7px 8px;
 }
 
+.resource-path-recommendation-evidence {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 8px;
+  border: 1px solid rgb(15 118 110 / 16%);
+  border-radius: var(--eg-radius-sm);
+  background: rgb(15 118 110 / 5%);
+  padding: 7px 8px;
+}
+
 .resource-path-capacity-warning {
   border: 1px solid rgb(180 83 9 / 24%);
   border-radius: var(--eg-radius-sm);
@@ -4305,6 +4315,7 @@ button.glossary-related-chip {
 }
 
 .resource-path-metrics span,
+.resource-path-recommendation-evidence span,
 .resource-path-allocation-evidence span,
 .resource-path-geometry span,
 .resource-path-card small,
@@ -4315,6 +4326,7 @@ button.glossary-related-chip {
 }
 
 .resource-path-metrics span,
+.resource-path-recommendation-evidence span,
 .resource-path-allocation-evidence span,
 .resource-path-geometry span,
 .resource-path-geometry small {
@@ -4353,6 +4365,10 @@ button.glossary-related-chip {
 
 :root.dark .resource-path-allocation-evidence {
   background: rgb(0 112 243 / 10%);
+}
+
+:root.dark .resource-path-recommendation-evidence {
+  background: rgb(15 118 110 / 12%);
 }
 
 .workspace-network .scenario-rail {
@@ -4402,6 +4418,10 @@ button.glossary-related-chip {
 
   .resource-pool-allocation-summary {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .resource-path-recommendation-evidence {
+    grid-template-columns: 1fr;
   }
 
   .workspace-network .maplibregl-ctrl-bottom-left {
