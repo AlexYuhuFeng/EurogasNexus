@@ -193,6 +193,8 @@ def test_ci_builds_web_windows_and_linux_clients() -> None:
     assert "windows-latest" in workflow
 
     assert "ubuntu-latest" in workflow
+    assert "ubuntu-24.04-arm" in workflow
+    assert "linux-arm64" in workflow
 
     assert "--bundles ${{ matrix.bundle }}" in workflow
 
@@ -568,7 +570,18 @@ def test_web_client_strategy_page_is_shadow_run_terminal() -> None:
     strategy_terminal_path = (
         ROOT / "clients" / "web" / "src" / "components" / "StrategyShadowRunTerminal.tsx"
     )
+    strategy_sections_path = (
+        ROOT
+        / "clients"
+        / "web"
+        / "src"
+        / "components"
+        / "strategy"
+        / "StrategyShadowRunSections.tsx"
+    )
     strategy_terminal = strategy_terminal_path.read_text(encoding="utf-8")
+    strategy_sections = strategy_sections_path.read_text(encoding="utf-8")
+    strategy_surface = strategy_terminal + strategy_sections
     css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(
         encoding="utf-8"
     )
@@ -595,23 +608,34 @@ def test_web_client_strategy_page_is_shadow_run_terminal() -> None:
     assert "language={i18n.language}" in app
     assert "onEvaluate={() => evaluateStrategyLab(strategyScenario)}" in app
     assert "strategy-shadow-run-terminal" in strategy_terminal
+    assert (
+        'from "@/components/strategy/StrategyShadowRunSections"'
+        in strategy_terminal
+    )
     assert "strategy-command-deck" in strategy_terminal
-    assert "strategy-price-basis-board" in strategy_terminal
-    assert "strategy-price-basis-selector" in strategy_terminal
-    assert "strategy-basis-option" in strategy_terminal
-    assert "strategy-price-basis-card" in strategy_terminal
-    assert "strategy-pnl-curve" in strategy_terminal
+    assert "strategy-price-basis-board" in strategy_surface
+    assert "strategy-price-basis-selector" in strategy_surface
+    assert "strategy-basis-option" in strategy_surface
+    assert "strategy-price-basis-card" in strategy_surface
+    assert "strategy-basis-exposure-ladder" in strategy_surface
+    assert "strategy-basis-exposure-row" in strategy_surface
+    assert "strategy-pnl-curve" in strategy_surface
     assert "strategy-pnl-scenario-comparison" in strategy_terminal
-    assert "strategy-pnl-curve-row" in strategy_terminal
-    assert "strategy-contract-pnl-attribution" in strategy_terminal
-    assert "strategy-contract-pnl-row" in strategy_terminal
-    assert "strategy-data-quality-banner" in strategy_terminal
+    assert "strategy-pnl-curve-row" in strategy_surface
+    assert "strategy-contract-pnl-attribution" in strategy_surface
+    assert "strategy-contract-pnl-row" in strategy_surface
+    assert "strategy-data-quality-banner" in strategy_surface
     assert "strategy-data-quality-flags" in strategy_terminal
     assert 'useState<PriceBasisId>("WITHIN_DAY")' in strategy_terminal
-    assert "setActiveBasis(row.basis)" in strategy_terminal
-    assert "aria-pressed={activeBasis === row.basis}" in strategy_terminal
+    assert "onSelectBasis={setActiveBasis}" in strategy_terminal
+    assert "onSelectBasis(row.basis)" in strategy_sections
+    assert "aria-pressed={activeBasis === row.basis}" in strategy_surface
     assert "priceBasisRows" in strategy_terminal
     assert "pnlCurveRows" in strategy_terminal
+    assert "basisExposureRows" in strategy_terminal
+    assert "basisMarginVsPoolCost" in strategy_terminal
+    assert "poolQuantityMwhPerDay" in strategy_terminal
+    assert "weightedPoolCostGbpMwh" in strategy_terminal
     assert "activeBasisRow" in strategy_terminal
     assert 'activeBasis === "FX" ? null' in strategy_terminal
     assert "activePnlRow" in strategy_terminal
@@ -645,10 +669,17 @@ def test_web_client_strategy_page_is_shadow_run_terminal() -> None:
     assert "portfolioResources" in strategy_terminal
     assert "marketObservations" in strategy_terminal
     assert "human_review_required" in strategy_terminal
+    assert "sourceSystems.join" in strategy_sections
+    assert "StrategyBasisExposureLadder" in strategy_sections
+    assert "StrategyPriceBasisBoard" in strategy_sections
+    assert "StrategyPnlCurvePanel" in strategy_sections
+    assert "StrategyContractPnlAttribution" in strategy_sections
     assert "strategy-shadow-run-terminal" in css
     assert "strategy-price-basis-board" in css
     assert "strategy-price-basis-selector" in css
     assert "strategy-basis-option" in css
+    assert "strategy-basis-exposure-ladder" in css
+    assert "strategy-basis-exposure-row" in css
     assert "strategy-pnl-curve" in css
     assert "strategy-pnl-scenario-comparison" in css
     assert "strategy-contract-pnl-attribution" in css
@@ -660,6 +691,9 @@ def test_web_client_strategy_page_is_shadow_run_terminal() -> None:
     assert "strategy-candidate-action" in css
     assert en["strategy.shadow_terminal"] == "Strategy shadow-run terminal"
     assert en["strategy.price_basis_board"] == "Price-basis comparison"
+    assert en["strategy.basis_exposure_ladder"] == "Basis exposure ladder"
+    assert en["strategy.pool_pnl_at_risk"] == "Pool PnL at risk"
+    assert en["strategy.margin_vs_pool_cost"] == "Margin vs pool cost"
     assert en["strategy.pnl_curve"] == "Resource-pool PnL curve"
     assert en["strategy.selected_price_basis"] == "Selected price basis"
     assert en["strategy.contract_pnl_attribution"] == "Contract PnL attribution"
@@ -671,12 +705,18 @@ def test_web_client_strategy_page_is_shadow_run_terminal() -> None:
     assert en["strategy.no_execution"] == "No execution"
     assert zh["strategy.shadow_terminal"] == "\u7b56\u7565\u5f71\u5b50\u8fd0\u884c\u7ec8\u7aef"
     assert zh["strategy.price_basis_board"] == "\u4ef7\u683c\u57fa\u51c6\u5bf9\u6bd4"
+    assert zh["strategy.basis_exposure_ladder"] == "\u57fa\u51c6\u66b4\u9732\u9636\u68af"
+    assert zh["strategy.pool_pnl_at_risk"] == "\u8d44\u6e90\u6c60\u98ce\u9669 PnL"
+    assert zh["strategy.margin_vs_pool_cost"] == (
+        "\u76f8\u5bf9\u8d44\u6e90\u6c60\u6210\u672c\u5229\u5dee"
+    )
     assert zh["strategy.pnl_curve"] == "\u8d44\u6e90\u6c60 PnL \u66f2\u7ebf"
     assert zh["strategy.selected_price_basis"] == "\u9009\u5b9a\u4ef7\u683c\u57fa\u51c6"
     assert zh["strategy.contract_pnl_attribution"] == "\u5408\u7ea6 PnL \u5f52\u56e0"
     assert "shadow-run terminal" in web_spec
     assert "market tape, paper state, allocation ladder" in web_spec
     assert "price-basis comparison board" in web_spec
+    assert "basis exposure ladder" in web_spec
     assert "selected price-basis control" in web_spec
     assert "contract-level PnL attribution" in web_spec
     assert "stale/simulated/unavailable data banner" in web_spec
@@ -725,6 +765,9 @@ def test_web_client_settings_page_is_trader_preference_center() -> None:
 
 def test_web_client_network_page_shows_resource_pool_paths_on_map() -> None:
     app = (ROOT / "clients" / "web" / "src" / "App.tsx").read_text(encoding="utf-8")
+    resource_pool_paths = (
+        ROOT / "clients" / "web" / "src" / "app" / "resourcePoolMapPaths.ts"
+    ).read_text(encoding="utf-8")
     overlay_path = ROOT / "clients" / "web" / "src" / "components" / "ResourcePoolPathOverlay.tsx"
     overlay = overlay_path.read_text(encoding="utf-8")
     map_component = (
@@ -744,6 +787,7 @@ def test_web_client_network_page_shows_resource_pool_paths_on_map() -> None:
     )
 
     assert 'import { ResourcePoolPathOverlay } from "@/components/ResourcePoolPathOverlay";' in app
+    assert "buildResourcePoolMapPaths" in app
     assert "<ResourcePoolPathOverlay" in app
     assert "resourcePoolMapPaths" in app
     assert "highlightedRoute={resourcePoolHighlightedRoute" in app
@@ -776,12 +820,17 @@ def test_web_client_network_page_shows_resource_pool_paths_on_map() -> None:
     assert "capacityHeadroomMwhPerDay" in overlay
     assert "poolSharePct" in overlay
     assert "pnlGbpPerDay" in overlay
-    assert "saleOptions.map((option)" in app
-    assert "rankedResourcePoolMapPaths" in app
-    assert "statePriority" in app
-    assert "indicativeNetMarginGbpMwh" in app
-    assert "resource.contract_cost_gbp_mwh" in app
+    assert "saleOptions.map((option)" in resource_pool_paths
+    assert "rankedResourcePoolMapPaths" in resource_pool_paths
+    assert "statePriority" in resource_pool_paths
+    assert "indicativeNetMarginGbpMwh" in resource_pool_paths
+    assert "resource.contract_cost_gbp_mwh" in resource_pool_paths
+    assert "resolveRouteGeometryState" in resource_pool_paths
+    assert "resolveRouteGeometryWarning" in resource_pool_paths
+    assert "buildNodeIdByPointName" in resource_pool_paths
+    assert "buildHighlightedResourcePoolRoute" in resource_pool_paths
     assert "saleOptions.slice(0, 3).map" not in app
+    assert "rankedResourcePoolMapPaths" not in app
     assert "resource-pool-map-overlay" in css
     assert "resource-path-card" in css
     assert ".resource-pool-allocation-summary" in css
@@ -851,6 +900,10 @@ def test_web_client_map_fallback_prioritizes_labels_for_trader_readability() -> 
 
 def test_web_client_map_renders_resource_paths_as_route_segments_not_direct_lines() -> None:
     app = (ROOT / "clients" / "web" / "src" / "App.tsx").read_text(encoding="utf-8")
+    resource_pool_paths = (
+        ROOT / "clients" / "web" / "src" / "app" / "resourcePoolMapPaths.ts"
+    ).read_text(encoding="utf-8")
+    map_path_surface = app + resource_pool_paths
     map_component = (
         ROOT / "clients" / "web" / "src" / "components" / "GasNetworkMap.tsx"
     ).read_text(encoding="utf-8")
@@ -864,11 +917,12 @@ def test_web_client_map_renders_resource_paths_as_route_segments_not_direct_line
         encoding="utf-8"
     )
 
-    assert "routeId: option.option_id" in app
-    assert "routeGeometryStateForRoute" in app
-    assert "routeGeometryEdgesByRouteId" in app
-    assert "geometry_quality" in app
-    assert "unmatched_route_leg_count" in app
+    assert "routeId: option.option_id" in resource_pool_paths
+    assert "resolveRouteGeometryState" in resource_pool_paths
+    assert "buildRouteGeometryEdgesByRouteId" in resource_pool_paths
+    assert "geometry_quality" in resource_pool_paths
+    assert "unmatched_route_leg_count" in resource_pool_paths
+    assert "buildHighlightedResourcePoolRoute" in map_path_surface
     assert "routeId" in overlay
     assert "routeGeometryState" in overlay
     assert "routeGeometryLabel" in overlay

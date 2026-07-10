@@ -8,6 +8,14 @@ export {
   numberFromRecord,
 } from "./contractImport";
 export { buildResourcePoolOptimizationRequest } from "./resourcePoolRequest";
+export {
+  buildHighlightedResourcePoolRoute,
+  buildNodeIdByPointName,
+  buildResourcePoolMapPaths,
+  buildRouteGeometryEdgesByRouteId,
+  resolveRouteGeometryState,
+  resolveRouteGeometryWarning,
+} from "./resourcePoolMapPaths";
 export { buildRouteRecommendationRequest } from "./routeRecommendationRequest";
 export { buildStrategyScenario } from "./strategyScenario";
 export {

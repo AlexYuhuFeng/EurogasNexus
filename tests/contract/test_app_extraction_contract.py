@@ -9,6 +9,9 @@ APP_TSX = ROOT / "clients" / "web" / "src" / "App.tsx"
 API_STORE_TS = ROOT / "clients" / "web" / "src" / "stores" / "api.ts"
 DEFAULT_CONTRACT_DRAFT_TS = ROOT / "clients" / "web" / "src" / "app" / "defaultContractDraft.ts"
 ROUTE_METADATA_TS = ROOT / "clients" / "web" / "src" / "app" / "routeMetadata.ts"
+RESOURCE_POOL_MAP_PATHS_TS = (
+    ROOT / "clients" / "web" / "src" / "app" / "resourcePoolMapPaths.ts"
+)
 CONTRACT_IMPORT_TS = ROOT / "clients" / "web" / "src" / "app" / "contractImport.ts"
 CONTRACT_PAYLOAD_TS = ROOT / "clients" / "web" / "src" / "app" / "contractPayload.ts"
 RESOURCE_POOL_REQUEST_TS = ROOT / "clients" / "web" / "src" / "app" / "resourcePoolRequest.ts"
@@ -40,6 +43,7 @@ def test_route_metadata_module_is_wired_into_app() -> None:
 
     app_text = _read(APP_TSX)
     module_text = _read(ROUTE_METADATA_TS)
+    resource_pool_paths_text = _read(RESOURCE_POOL_MAP_PATHS_TS)
     for helper in [
         "normalizePointName",
         "metadataText",
@@ -49,7 +53,7 @@ def test_route_metadata_module_is_wired_into_app() -> None:
     ]:
         assert f"function {helper}" not in app_text
         assert f"export function {helper}" in module_text
-        assert helper in app_text
+        assert helper in app_text or helper in resource_pool_paths_text
 
 
 def test_contract_import_module_is_wired_into_app() -> None:

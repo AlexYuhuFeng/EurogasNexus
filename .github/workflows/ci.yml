@@ -78,6 +78,10 @@ jobs:
             bundle: deb
             artifact_label: linux-x64
             artifact_glob: clients/desktop/src-tauri/target/release/bundle/deb/*.deb
+          - os: ubuntu-24.04-arm
+            bundle: deb
+            artifact_label: linux-arm64
+            artifact_glob: clients/desktop/src-tauri/target/release/bundle/deb/*.deb
 
     steps:
       - name: Check out repository

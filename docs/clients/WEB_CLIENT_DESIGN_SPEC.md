@@ -288,6 +288,9 @@ Purpose:
   curves, and ECB FX as explicit basis families;
 - Basis families: within-day, day-ahead, monthly, ICIS assessments, ICE OCM marks, EEX curves, and ECB FX.
 - include a selected price-basis control for switching active basis context;
+- show a basis exposure ladder that ranks each non-FX basis by current sale
+  price, margin versus weighted pool cost, pool PnL at risk, source systems, and
+  data-quality state;
 - show contract-level PnL attribution so resource-pool strategy output can be
   traced back to persisted resource terms;
 - include a stale/simulated/unavailable data banner whenever price bases or
