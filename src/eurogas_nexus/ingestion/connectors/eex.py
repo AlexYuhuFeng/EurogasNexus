@@ -8,14 +8,14 @@ EEX_METADATA = ConnectorMetadata(
     entitlement_required=True,
     polling_supported=False,
     request_mode_supported=True,
-    freshness_expectation_minutes=15,
+    freshness_expectation_minutes=1,
     export_restricted=True,
     research_only=True,
 )
 
 
 class EexConnector(MockConnector):
-    """Mock EEX connector — returns empty payloads by default."""
+    """Entitlement-safe EEX shell; no provider call occurs until configured."""
 
     def __init__(self) -> None:
         super().__init__("EEX", EEX_METADATA.datasets)

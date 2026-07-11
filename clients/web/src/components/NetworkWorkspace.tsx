@@ -10,7 +10,11 @@ import type {
   RouteRecommendationResultDTO,
   StrategyLabResultDTO,
 } from "@/api/client";
-import type { NetworkGeometryState } from "@/app/workspaceDerivedData";
+import {
+  hasVerifiedNodeCoordinate,
+  verifiedEdgeGeometryCoordinates,
+  type NetworkGeometryState,
+} from "@/app/workspaceDerivedData";
 import { GasNetworkMap } from "@/components/GasNetworkMap";
 import {
   ResourcePoolPathOverlay,
@@ -87,6 +91,7 @@ function geometryMessageKey(state: NetworkGeometryState): string {
   if (state === "nodes_missing") return "map.nodes_missing_body";
   if (state === "edges_missing") return "map.network_warning_body";
   if (state === "corridors_only") return "map.route_corridors_only_body";
+  if (state === "unverified_geometry") return "map.unverified_geometry_body";
   return "map.network_ready_body";
 }
 
@@ -145,6 +150,15 @@ export function NetworkWorkspace({
   onOptimizePool,
   onOpenReview,
 }: NetworkWorkspaceProps) {
+  const verifiedGeometryCount = edges.filter(
+    (edge) => verifiedEdgeGeometryCoordinates(edge) !== null,
+  ).length;
+  const verifiedLngCount = nodes.filter(
+    (node) => node.node_type === "lng" && hasVerifiedNodeCoordinate(node),
+  ).length;
+  const verifiedIpCount = nodes.filter(
+    (node) => node.node_type === "interconnection" && hasVerifiedNodeCoordinate(node),
+  ).length;
   return (
     <>
       <section className="map-container map-stage" id="map">
@@ -277,7 +291,7 @@ export function NetworkWorkspace({
             <strong>
               {networkGeometryState === "loaded"
                 ? t("data.runtime")
-                : networkGeometryState === "corridors_only"
+                : ["corridors_only", "unverified_geometry"].includes(networkGeometryState)
                   ? t("data.partial")
                   : t("data.unavailable")}
             </strong>
@@ -288,14 +302,16 @@ export function NetworkWorkspace({
                 ? t("map.network_dataset")
                 : networkGeometryState === "corridors_only"
                   ? t("map.route_corridors_only")
+                  : networkGeometryState === "unverified_geometry"
+                    ? t("map.network_warning_title")
                   : t("map.network_warning_title")}
             </strong>
             <span>{t(geometryMessageKey(networkGeometryState))}</span>
           </div>
           <div className="node-color-legend">
-            <span><i className="node-swatch network" />{t("map.layer.network")}<strong>{edges.length}</strong></span>
-            <span><i className="node-swatch lng" />{t("map.layer.lng")}<strong>{nodes.filter((node) => node.node_type === "lng").length}</strong></span>
-            <span><i className="node-swatch ips" />{t("map.layer.ips")}<strong>{nodes.filter((node) => node.node_type === "interconnection").length}</strong></span>
+            <span><i className="node-swatch network" />{t("map.layer.network")}<strong>{verifiedGeometryCount}</strong></span>
+            <span><i className="node-swatch lng" />{t("map.layer.lng")}<strong>{verifiedLngCount}</strong></span>
+            <span><i className="node-swatch ips" />{t("map.layer.ips")}<strong>{verifiedIpCount}</strong></span>
             <span><i className="node-swatch hubs" />{t("map.layer.hubs")}<strong>{nodes.filter((node) => node.node_type === "hub").length}</strong></span>
           </div>
           <p className="coordinate-quality-note">{t("map.coordinate_quality_note")}</p>

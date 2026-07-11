@@ -21,6 +21,7 @@ CATEGORY_LABELS = {
 PREVIEW_SUBSTITUTE_SOURCE_SYSTEM_BY_LICENSED_SOURCE = {
     "EEX": "EEX_Sim",
     "ICE_OCM": "ICE_OCM_Sim",
+    "Trayport": "Trayport_Sim",
     "ICIS": "ICIS_Sim",
 }
 
@@ -61,6 +62,8 @@ SOURCE_ID_BY_NAME = {
     "CNMC ENAGAS": "src-cnmc-enagas",
     "PLATTS": "src-platts",
     "TRAYPORT": "src-trayport",
+    "TRAYPORT_SIM": "src-trayport-sim",
+    "TRAYPORT SIM": "src-trayport-sim",
     "WEATHER": "src-weather",
 }
 
@@ -241,7 +244,7 @@ def _registered_sources() -> list[dict]:
             ("gas-futures", "gas-spot", "screen-trades", "settlements"),
             "European Energy Exchange gas market prices and screen observations.",
             True,
-            freshness_minutes=5,
+            freshness_minutes=1,
         ),
         _src(
             "src-eex-sim",
@@ -262,7 +265,7 @@ def _registered_sources() -> list[dict]:
             ("within-day", "day-ahead", "screen-orders", "live-marks"),
             "ICE OCM live within-day and day-ahead market observations.",
             True,
-            freshness_minutes=5,
+            freshness_minutes=1,
         ),
         _src(
             "src-ice-ocm-sim",
@@ -283,7 +286,19 @@ def _registered_sources() -> list[dict]:
             ("broker-screens", "market-data", "screen-orders"),
             "Trayport screen and broker market data.",
             True,
-            freshness_minutes=5,
+            freshness_minutes=1,
+        ),
+        _src(
+            "src-trayport-sim",
+            "Trayport_Sim",
+            "price",
+            ("broker-screens", "within-day", "day-ahead", "simulated"),
+            (
+                "Trayport-shaped simulated broker-screen marks injected through "
+                "the canonical runtime DB path at a realtime worker cadence."
+            ),
+            False,
+            freshness_minutes=1,
         ),
         _src(
             "src-platts",
@@ -369,7 +384,12 @@ def _src(
         "datasets": list(datasets),
         "status": "registered",
         "connectivity_status": "registered",
+        "operational_status": "registered",
+        "workflow_ready": False,
         "live_record_count": 0,
+        "effective_source_system": system,
+        "effective_record_count": 0,
+        "effective_last_success_at_utc": None,
         "entitlement_scope": "licensed" if entitled else "public",
         "freshness_expectation_minutes": freshness_minutes,
         "description": description,
@@ -425,6 +445,7 @@ def _sources_with_runtime_status() -> list[dict]:
         source["status"] = connectivity_status
         source["diagnostics"] = _diagnostics(source, count, credential_state, latest_run)
     _attach_preview_substitute_status(sources)
+    _attach_operational_status(sources)
     return sources
 
 
@@ -441,6 +462,9 @@ def _source_posture_summary(sources: list[dict]) -> dict[str, Any]:
             "registered_sources": len(sources),
             "active_sources": sum(
                 1 for source in sources if source["connectivity_status"] == "active"
+            ),
+            "workflow_ready_sources": sum(
+                1 for source in sources if source["workflow_ready"]
             ),
             "sources_needing_attention": sum(
                 1 for source in sources if _source_needs_attention(source)
@@ -463,6 +487,7 @@ def _category_posture(category: str, label: str, sources: list[dict]) -> dict[st
     missing_credentials = sum(1 for source in sources if source["credential_state"] == "missing")
     failed_sources = sum(1 for source in sources if source["connectivity_status"] == "failed")
     active_sources = sum(1 for source in sources if source["connectivity_status"] == "active")
+    workflow_ready_sources = sum(1 for source in sources if source["workflow_ready"])
     runtime_records = sum(int(source["live_record_count"]) for source in sources)
     preview_substitutes_active = sum(
         1 for source in sources if source["preview_substitute_status"] == "active"
@@ -472,6 +497,7 @@ def _category_posture(category: str, label: str, sources: list[dict]) -> dict[st
         "category_label": label,
         "registered_sources": len(sources),
         "active_sources": active_sources,
+        "workflow_ready_sources": workflow_ready_sources,
         "sources_needing_attention": sum(
             1 for source in sources if _source_needs_attention(source)
         ),
@@ -481,13 +507,15 @@ def _category_posture(category: str, label: str, sources: list[dict]) -> dict[st
         "next_action": _category_next_action(
             missing_credentials=missing_credentials,
             failed_sources=failed_sources,
-            active_sources=active_sources,
+            workflow_ready_sources=workflow_ready_sources,
             runtime_records=runtime_records,
         ),
     }
 
 
 def _source_needs_attention(source: dict) -> bool:
+    if source["workflow_ready"]:
+        return False
     return source["connectivity_status"] in {
         "failed",
         "needs_credential",
@@ -501,15 +529,17 @@ def _category_next_action(
     *,
     missing_credentials: int,
     failed_sources: int,
-    active_sources: int,
+    workflow_ready_sources: int,
     runtime_records: int,
 ) -> str:
-    if missing_credentials > 0:
+    if missing_credentials > 0 and workflow_ready_sources == 0:
         return "add_credentials"
     if failed_sources > 0:
         return "inspect_failure"
-    if active_sources == 0 or runtime_records == 0:
+    if workflow_ready_sources == 0 or runtime_records == 0:
         return "run_ingestion"
+    if missing_credentials > 0:
+        return "configure_live_credentials"
     return "monitor"
 
 
@@ -531,6 +561,39 @@ def _attach_preview_substitute_status(sources: list[dict]) -> None:
             "diagnostics"
         ]:
             source["diagnostics"].append("preview_substitute_active")
+
+
+def _attach_operational_status(sources: list[dict]) -> None:
+    by_system = {source["source_system"]: source for source in sources}
+    for source in sources:
+        native_active = (
+            source["connectivity_status"] == "active"
+            and int(source["live_record_count"]) > 0
+        )
+        substitute = by_system.get(source["preview_substitute_source_system"])
+        substitute_active = bool(
+            substitute
+            and substitute["connectivity_status"] == "active"
+            and int(substitute["live_record_count"]) > 0
+        )
+        if native_active:
+            source["operational_status"] = "active"
+            source["workflow_ready"] = True
+            source["effective_source_system"] = source["source_system"]
+            source["effective_record_count"] = source["live_record_count"]
+            source["effective_last_success_at_utc"] = source["last_success_at_utc"]
+        elif substitute_active and substitute is not None:
+            source["operational_status"] = "active_simulated"
+            source["workflow_ready"] = True
+            source["effective_source_system"] = substitute["source_system"]
+            source["effective_record_count"] = substitute["live_record_count"]
+            source["effective_last_success_at_utc"] = substitute["last_success_at_utc"]
+        else:
+            source["operational_status"] = source["connectivity_status"]
+            source["workflow_ready"] = False
+            source["effective_source_system"] = source["source_system"]
+            source["effective_record_count"] = source["live_record_count"]
+            source["effective_last_success_at_utc"] = source["last_success_at_utc"]
 
 
 def _credential_state(source: dict, credential: dict[str, Any] | None) -> str:
@@ -622,6 +685,7 @@ def _runtime_source_counts() -> dict[str, int]:
                 "Kpler",
                 "Platts",
                 "Trayport",
+                "Trayport_Sim",
             ]
             counts = {
                 system: session.query(MarketObservationRecord)
@@ -629,7 +693,7 @@ def _runtime_source_counts() -> dict[str, int]:
                 .count()
                 for system in price_systems
             }
-            for system in ("ICE_OCM", "ICE_OCM_Sim", "Trayport"):
+            for system in ("ICE_OCM", "ICE_OCM_Sim", "Trayport", "Trayport_Sim"):
                 counts[system] = counts.get(system, 0) + session.query(
                     ScreenOrderObservationRecord
                 ).filter(

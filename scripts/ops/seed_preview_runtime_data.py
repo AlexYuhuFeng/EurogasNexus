@@ -4,9 +4,9 @@ This script is for the local PostgreSQL test server only. Public tariff rows are
 manually transcribed source references. Public route templates are derived from
 those tariff references. Preview contracts are clearly marked because customer
 contracts require entitlement. Price rows are inserted through the simulated
-EEX_Sim, ICE_OCM_Sim, and ICIS_Sim feed path so the market terminal, source
-health, route costing, and strategy screens exercise the same PostgreSQL tables
-used by licensed market-data connectors. The script does not call external
+EEX_Sim, ICE_OCM_Sim, Trayport_Sim, and ICIS_Sim feed path so the market terminal,
+source health, route costing, and strategy screens exercise the same PostgreSQL
+tables used by licensed market-data connectors. The script does not call external
 APIs, run migrations, or print database secrets.
 """
 
@@ -56,7 +56,12 @@ LEGACY_DEMO_PRICE_IDS = [
     "demo-market-the-day-ahead",
 ]
 LEGACY_PRICE_SOURCE_SYSTEM = "demo" + "_market" + "_price"
-SIMULATED_PRICE_SOURCE_SYSTEMS = ("EEX_Sim", "ICE_OCM_Sim", "ICIS_Sim")
+SIMULATED_PRICE_SOURCE_SYSTEMS = (
+    "EEX_Sim",
+    "ICE_OCM_Sim",
+    "Trayport_Sim",
+    "ICIS_Sim",
+)
 PUBLIC_ROUTE_IDS = [
     "public-route-ttf-bbl-nbp",
     "public-route-nbp-iuk-ztp",

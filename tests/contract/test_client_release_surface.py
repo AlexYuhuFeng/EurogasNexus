@@ -288,8 +288,13 @@ def test_web_client_matches_design_reference_cockpit() -> None:
     network_workspace = (
         ROOT / "clients" / "web" / "src" / "components" / "NetworkWorkspace.tsx"
     ).read_text(encoding="utf-8")
+    capacity_workspace = (
+        ROOT / "clients" / "web" / "src" / "components" / "CapacityWorkspace.tsx"
+    ).read_text(encoding="utf-8")
     app_and_topbar = app + topbar
-    app_and_components = app + topbar + source_center + contract_workbench + network_workspace
+    app_and_components = (
+        app + topbar + source_center + contract_workbench + network_workspace + capacity_workspace
+    )
 
     css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(encoding="utf-8")
 
@@ -354,7 +359,7 @@ def test_web_client_matches_design_reference_cockpit() -> None:
     assert "approximateNodeCount" not in app
     assert "map-node-legend" not in app
     assert "decision-signal-panel" in network_workspace
-    assert "capacity-page" in app
+    assert "capacity-page" in capacity_workspace
     assert "review-page" in app
     assert "orders-page" in app
     assert "manual-page" in app
@@ -457,6 +462,9 @@ def test_web_client_release_cockpit_chrome_is_clean_and_color_coded() -> None:
 
 def test_web_client_separates_market_capacity_orders_and_review_pages() -> None:
     app = (ROOT / "clients" / "web" / "src" / "App.tsx").read_text(encoding="utf-8")
+    capacity_workspace = (
+        ROOT / "clients" / "web" / "src" / "components" / "CapacityWorkspace.tsx"
+    ).read_text(encoding="utf-8")
     navigation = (
         ROOT / "clients" / "web" / "src" / "workspaceNavigation.ts"
     ).read_text(encoding="utf-8")
@@ -485,8 +493,17 @@ def test_web_client_separates_market_capacity_orders_and_review_pages() -> None:
     assert app.index('className="data-table orders-table"') > app.index(
         'activeWorkspace === "orders"'
     )
-    assert "capacity.tso_access" in app
-    assert "capacity.tariffs" in app
+    assert "capacity.tso_coverage" in capacity_workspace
+    assert "capacity.tariffs" in capacity_workspace
+    assert "capacity-operating-table" in capacity_workspace
+    assert "capacity-point-inspector" in capacity_workspace
+    assert "const PAGE_SIZE = 100" in capacity_workspace
+    assert "capacity-pagination" in capacity_workspace
+    assert "capacity-readiness-note" in capacity_workspace
+    assert "Company TSO access and executable booking availability" in en[
+        "capacity.readiness_available"
+    ]
+    assert "\u516c\u53f8 TSO \u51c6\u5165" in zh["capacity.readiness_available"]
     assert "reviewWarnings" in app
     assert "review-report-panel" in app
     assert "manual.no_client_db" in app
@@ -844,7 +861,8 @@ def test_web_client_network_page_shows_resource_pool_paths_on_map() -> None:
     assert ".resource-route-state-pill" in css
     assert ".resource-path-more" in css
     assert "max-height: min(42vh, 380px)" in css
-    assert "fallback-flow-path" in map_component
+    assert "verifiedEdgeGeometryCoordinates" in map_component
+    assert "fallback-flow-path direct-corridor" not in map_component
     assert en["home.resource_paths"] == "Resource paths"
     assert en["home.pool_allocation"] == "Pool allocation"
     assert en["home.route_status_legend"] == "Route status"
@@ -943,7 +961,9 @@ def test_web_client_map_renders_resource_paths_as_route_segments_not_direct_line
     assert "not surveyed pipeline geometry" in map_component
     assert "highlighted-route-segments" in map_component
     assert "fallback-flow-segment" in map_component
-    assert "fallback-flow-path direct-corridor" in map_component
+    assert "fallback-flow-path direct-corridor" not in map_component
+    assert "verifiedEdgeGeometryCoordinates" in map_component
+    assert "geometryCoordinates" in map_component
     assert "geometryWarning" in map_component
     assert "source_derived_leg_sequence" in map_component
     assert "directLineFallback" in map_component
@@ -952,8 +972,8 @@ def test_web_client_map_renders_resource_paths_as_route_segments_not_direct_line
     assert ".fallback-flow.segmented.corridor" in css
     assert ".resource-path-geometry.warning" in css
     assert "route geometry" in css
-    assert "leg-level route-candidate segments" in web_spec
-    assert "must not imply a surveyed direct pipeline" in web_spec
+    assert "successful geometry" in web_spec
+    assert "does not draw a source-to-target" in web_spec
 
 
 def test_web_client_glossary_page_is_term_wiki_surface() -> None:
@@ -1217,6 +1237,7 @@ def test_web_client_market_terminal_surfaces_simulated_source_and_tenor_context(
     assert "source_record_id?: string | null" in api_client
     assert "EEX_Sim" in api_client
     assert "ICE_OCM_Sim" in api_client
+    assert "Trayport_Sim" in api_client
     assert "ICIS_Sim" in api_client
     assert "market-tenor-tabs" in market_terminal
     assert "market-source-pill" in market_terminal
@@ -1380,6 +1401,7 @@ def test_local_seed_uses_preview_provenance_not_operator_test_names() -> None:
     assert "upsert_simulated_market_observations" in seed_script
     assert "EEX_Sim" in seed_script
     assert "ICE_OCM_Sim" in seed_script
+    assert "Trayport_Sim" in seed_script
     assert "ICIS_Sim" in seed_script
     assert "preview-portfolio-contract-ttf-pool-2025" in seed_script
     assert "LEGACY_FIXTURE_CONTRACT_IDS" in seed_script

@@ -8,14 +8,14 @@ ICE_OCM_METADATA = ConnectorMetadata(
     entitlement_required=True,
     polling_supported=True,
     request_mode_supported=True,
-    freshness_expectation_minutes=5,
+    freshness_expectation_minutes=1,
     export_restricted=True,
     research_only=True,
 )
 
 
 class IceOcmConnector(MockConnector):
-    """Mock ICE OCM connector — returns empty payloads by default."""
+    """Entitlement-safe ICE OCM shell; no provider call occurs until configured."""
 
     def __init__(self) -> None:
         super().__init__("ICE_OCM", ICE_OCM_METADATA.datasets)

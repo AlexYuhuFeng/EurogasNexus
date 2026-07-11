@@ -11,6 +11,8 @@ type WarningCarrier = {
 
 type SourceLike = {
   connectivity_status: string;
+  operational_status?: string;
+  workflow_ready?: boolean;
   credential_state: string;
   live_record_count: number;
 };
@@ -65,8 +67,14 @@ export function buildSourceStats(sources: SourceLike[]) {
   const issueStatuses = new Set<string>(SOURCE_ISSUE_STATUSES);
   return {
     total: sources.length,
-    active: sources.filter((source) => source.connectivity_status === "active").length,
-    issues: sources.filter((source) => issueStatuses.has(source.connectivity_status)).length,
+    active: sources.filter(
+      (source) => source.workflow_ready ?? source.connectivity_status === "active",
+    ).length,
+    issues: sources.filter(
+      (source) =>
+        !(source.workflow_ready ?? source.connectivity_status === "active") &&
+        issueStatuses.has(source.connectivity_status),
+    ).length,
     records: sources.reduce((total, source) => total + source.live_record_count, 0),
     missingCredentials: sources.filter((source) => source.credential_state === "missing").length,
   };
@@ -97,12 +105,17 @@ export function buildSourcePostureRows(
       category_label: category,
       registered_sources: categorySources.length,
       active_sources: categorySources.filter((source) => source.connectivity_status === "active").length,
-      sources_needing_attention: categorySources.filter((source) => issueStatuses.has(source.connectivity_status)).length,
+      workflow_ready_sources: categorySources.filter((source) => source.workflow_ready).length,
+      sources_needing_attention: categorySources.filter(
+        (source) => !source.workflow_ready && issueStatuses.has(source.connectivity_status),
+      ).length,
       missing_credentials: categorySources.filter((source) => source.credential_state === "missing").length,
       preview_substitutes_active: categorySources.filter((source) => source.preview_substitute_status === "active").length,
       runtime_records: categorySources.reduce((total, source) => total + source.live_record_count, 0),
       next_action: categorySources.some((source) => source.credential_state === "missing")
-        ? "add_credentials"
+        ? categorySources.some((source) => source.workflow_ready)
+          ? "configure_live_credentials"
+          : "add_credentials"
         : categorySources.some((source) => source.connectivity_status === "failed")
           ? "inspect_failure"
           : categorySources.some((source) => source.connectivity_status === "active")
@@ -136,6 +149,9 @@ export function filterSourcesByCategory(
 
 export function sourceNextActionKey(source: SourceSystemDTO | null): string {
   if (!source) return "sources.action.none";
+  if (source.operational_status === "active_simulated") {
+    return "sources.action.configure_live_credential";
+  }
   if (source.connectivity_status === "active") return "sources.action.monitor";
   if (source.connectivity_status === "failed") return "sources.action.inspect_failure";
   if (source.credential_state === "missing") return "sources.action.add_credential";
@@ -152,7 +168,58 @@ export type NetworkGeometryState =
   | "nodes_missing"
   | "edges_missing"
   | "corridors_only"
+  | "unverified_geometry"
   | "loaded";
+
+export type VerifiedLineCoordinate = [number, number];
+
+const VERIFIED_GEOMETRY_AUTHORITIES = new Set([
+  "tso_official",
+  "commercial_licensed",
+  "public_reconciled",
+]);
+
+export function hasVerifiedNodeCoordinate(node: NodeDTO): boolean {
+  const metadata = node.metadata_json ?? {};
+  const coordinateQuality = String(metadata.coordinate_quality ?? node.data_quality ?? "");
+  const verificationStatus = String(metadata.coordinate_verification_status ?? "");
+  return (
+    verificationStatus === "verified" ||
+    ["tso_official", "gie_official", "source_verified", "surveyed"].includes(
+      coordinateQuality,
+    )
+  );
+}
+
+export function isMapEligibleNode(node: NodeDTO): boolean {
+  return node.node_type === "hub" || hasVerifiedNodeCoordinate(node);
+}
+
+export function verifiedEdgeGeometryCoordinates(
+  edge: EdgeDTO,
+): VerifiedLineCoordinate[] | null {
+  const metadata = edge.metadata_json ?? {};
+  if (edge.source_system === "route_candidate" || metadata.materialization === "route_candidate_edge") {
+    return null;
+  }
+  if (metadata.verification_status !== "verified") return null;
+  if (!VERIFIED_GEOMETRY_AUTHORITIES.has(String(metadata.geometry_authority ?? ""))) return null;
+  if (!Array.isArray(metadata.geometry_coordinates) || metadata.geometry_coordinates.length < 2) return null;
+  const coordinates = metadata.geometry_coordinates.filter(
+    (coordinate): coordinate is VerifiedLineCoordinate =>
+      Array.isArray(coordinate) &&
+      coordinate.length >= 2 &&
+      typeof coordinate[0] === "number" &&
+      Number.isFinite(coordinate[0]) &&
+      coordinate[0] >= -180 &&
+      coordinate[0] <= 180 &&
+      typeof coordinate[1] === "number" &&
+      Number.isFinite(coordinate[1]) &&
+      coordinate[1] >= -90 &&
+      coordinate[1] <= 90,
+  );
+  return coordinates.length === metadata.geometry_coordinates.length ? coordinates : null;
+}
 
 export function resolveNetworkGeometryState(
   runtimeDbReady: boolean,
@@ -162,11 +229,15 @@ export function resolveNetworkGeometryState(
   if (!runtimeDbReady) return "runtime_missing";
   if (nodes.length === 0) return "nodes_missing";
   if (edges.length === 0) return "edges_missing";
-  const hasReferenceNetworkEdge = edges.some((edge) => {
+  const hasVerifiedGeometry = edges.some(
+    (edge) => verifiedEdgeGeometryCoordinates(edge) !== null,
+  );
+  if (hasVerifiedGeometry) return "loaded";
+  const hasOnlyRouteCandidates = edges.every((edge) => {
     const materialization = edge.metadata_json?.materialization;
-    return edge.source_system !== "route_candidate" && materialization !== "route_candidate_edge";
+    return edge.source_system === "route_candidate" || materialization === "route_candidate_edge";
   });
-  return hasReferenceNetworkEdge ? "loaded" : "corridors_only";
+  return hasOnlyRouteCandidates ? "corridors_only" : "unverified_geometry";
 }
 
 export function buildWorkspaceLatestRows<TFlow extends FlowLike, TCapacity, TTsoAccess, TTariff, TStorage, TLng>(params: {

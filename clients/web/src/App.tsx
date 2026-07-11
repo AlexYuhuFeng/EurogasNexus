@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { ContractWorkbench } from "@/components/ContractWorkbench";
@@ -7,6 +7,7 @@ import type {
   ContractTextKey,
 } from "@/components/ContractWorkbench";
 import { GlossaryWiki } from "@/components/GlossaryWiki";
+import { CapacityWorkspace } from "@/components/CapacityWorkspace";
 import { MarketTerminal } from "@/components/MarketTerminal";
 import { NetworkWorkspace } from "@/components/NetworkWorkspace";
 import { SettingsCenter } from "@/components/SettingsCenter";
@@ -325,12 +326,7 @@ export default function App() {
   const routeCharge = firstAllocationOption?.route_cost_gbp_mwh ?? selectedAllocation?.route_cost ?? null;
   const activeWarning = [...(strategyResult?.warnings ?? []), ...(meta?.warnings ?? [])][0] ?? null;
   const {
-    latestOfficialFlows,
     latestCapacityRows,
-    latestTsoAccessRows,
-    latestTariffRows,
-    latestStorageRows,
-    latestLngRows,
   } = useMemo(
     () => buildWorkspaceLatestRows({ flows, capacity, tsoAccess, tsoTariffs, storage, lng }),
     [capacity, flows, lng, storage, tsoAccess, tsoTariffs],
@@ -628,131 +624,15 @@ export default function App() {
           </div>
 
           {activeWorkspace === "capacity" && (
-            <div className="workspace-grid capacity-page">
-              <div className="workspace-panel span-3">
-                <div className="section-heading">
-                  <span className="eyebrow">{t("nav.capacity")}</span>
-                  <strong>{t("capacity.title")}</strong>
-                </div>
-                <p className="panel-copy">{t("capacity.subtitle")}</p>
-                <div className="metric-grid six-column source-kpi-grid">
-                  <div><span>{t("panel.flows")}</span><strong>{flows.filter((item) => item.source_system === "ENTSOG").length}</strong></div>
-                  <div><span>{t("panel.capacity")}</span><strong>{capacity.filter((item) => item.source_system === "ENTSOG").length}</strong></div>
-                  <div><span>{t("panel.tso_access")}</span><strong>{tsoAccess.length}</strong></div>
-                  <div><span>{t("panel.tariffs")}</span><strong>{tsoTariffs.length}</strong></div>
-                  <div><span>{t("panel.storage")}</span><strong>{storage.filter((item) => item.source_system === "GIE").length}</strong></div>
-                  <div><span>{t("panel.lng")}</span><strong>{lng.filter((item) => item.source_system === "GIE").length}</strong></div>
-                </div>
-              </div>
-
-              <div className="workspace-panel span-2">
-                <h3>{t("capacity.flows")}</h3>
-                <div className="data-table">
-                  <div className="data-table-row header four"><span>{t("panel.point")}</span><span>{t("panel.direction")}</span><span>mcm/d</span><span>{t("panel.status")}</span></div>
-                  {latestOfficialFlows.map((row) => (
-                    <div key={`capacity-flow-${row.observation_id}`} className="data-table-row four">
-                      <strong>{row.point_name}</strong>
-                      <span>{row.direction}</span>
-                      <span>{row.flow_mcm_d.toFixed(2)}</span>
-                      <span>{row.freshness ?? row.source_system ?? "ENTSOG"}</span>
-                    </div>
-                  ))}
-                  {latestOfficialFlows.length === 0 && (
-                    <div className="data-table-row four"><strong>n/a</strong><span>ENTSOG</span><span>n/a</span><span>{t("data.unavailable")}</span></div>
-                  )}
-                </div>
-              </div>
-
-              <div className="workspace-panel">
-                <h3>{t("capacity.capacity")}</h3>
-                <div className="data-table">
-                  <div className="data-table-row header four"><span>{t("panel.point")}</span><span>{t("panel.direction")}</span><span>{t("panel.capacity_type")}</span><span>mcm/d</span></div>
-                  {latestCapacityRows.map((row) => (
-                    <div key={`capacity-row-page-${row.observation_id}`} className="data-table-row four">
-                      <strong>{row.point_name}</strong>
-                      <span>{row.direction}</span>
-                      <span>{row.capacity_type}</span>
-                      <span>{row.capacity_mcm_d.toFixed(2)}</span>
-                    </div>
-                  ))}
-                  {latestCapacityRows.length === 0 && (
-                    <div className="data-table-row four"><strong>n/a</strong><span>ENTSOG</span><span>{t("data.unavailable")}</span><span>n/a</span></div>
-                  )}
-                </div>
-              </div>
-
-              <div className="workspace-panel span-2">
-                <h3>{t("capacity.tso_access")}</h3>
-                <div className="data-table">
-                  <div className="data-table-row header six"><span>{t("panel.point")}</span><span>{t("panel.country")}</span><span>TSO</span><span>{t("panel.direction")}</span><span>{t("panel.day_ahead")}</span><span>{t("panel.daily")}</span></div>
-                  {latestTsoAccessRows.map((row) => (
-                    <div key={`tso-access-page-${row.access_id}`} className="data-table-row six">
-                      <strong>{row.point_name}</strong>
-                      <span>{row.country}</span>
-                      <span>{row.operator_name}</span>
-                      <span>{row.direction}</span>
-                      <span>{row.day_ahead_contracts_available ? t("data.live") : "n/a"}</span>
-                      <span>{row.daily_contracts_available ? t("data.live") : "n/a"}</span>
-                    </div>
-                  ))}
-                  {latestTsoAccessRows.length === 0 && (
-                    <div className="data-table-row six"><strong>n/a</strong><span>TSO</span><span>{t("data.unavailable")}</span><span>n/a</span><span>n/a</span><span>n/a</span></div>
-                  )}
-                </div>
-              </div>
-
-              <div className="workspace-panel">
-                <h3>{t("capacity.tariffs")}</h3>
-                <div className="data-table tariff-table">
-                  <div className="data-table-row header four"><span>{t("panel.point")}</span><span>{t("panel.direction")}</span><span>{t("panel.product")}</span><span>{t("panel.tariff")}</span></div>
-                  {latestTariffRows.map((tariff) => (
-                    <div key={`tariff-page-${tariff.tariff_id}`} className="data-table-row four">
-                      <strong>{tariff.source_point_name}</strong>
-                      <span>{tariff.direction}</span>
-                      <span>{tariff.capacity_product}</span>
-                      <span>{tariff.tariff_value.toFixed(4)} {tariff.currency}/MWh</span>
-                    </div>
-                  ))}
-                  {latestTariffRows.length === 0 && (
-                    <div className="data-table-row four"><strong>n/a</strong><span>TSO</span><span>{t("data.unavailable")}</span><span>n/a</span></div>
-                  )}
-                </div>
-              </div>
-
-              <div className="workspace-panel span-3">
-                <h3>{t("capacity.storage_lng")}</h3>
-                <div className="source-table-split">
-                  <div className="data-table">
-                    <div className="data-table-row header four"><span>{t("panel.storage")}</span><span>{t("panel.country")}</span><span>fill %</span><span>TWh</span></div>
-                    {latestStorageRows.map((row) => (
-                      <div key={`storage-page-${row.observation_id}`} className="data-table-row four">
-                        <strong>{row.facility_name}</strong>
-                        <span>{row.country ?? "n/a"}</span>
-                        <span>{row.fill_pct == null ? "n/a" : row.fill_pct.toFixed(1)}</span>
-                        <span>{row.inventory_twh == null ? "n/a" : row.inventory_twh.toFixed(2)}</span>
-                      </div>
-                    ))}
-                    {latestStorageRows.length === 0 && (
-                      <div className="data-table-row four"><strong>n/a</strong><span>GIE AGSI</span><span>{t("data.unavailable")}</span><span>n/a</span></div>
-                    )}
-                  </div>
-                  <div className="data-table">
-                    <div className="data-table-row header four"><span>{t("panel.lng")}</span><span>{t("panel.country")}</span><span>send-out</span><span>DTMI</span></div>
-                    {latestLngRows.map((row) => (
-                      <div key={`lng-page-${row.observation_id}`} className="data-table-row four">
-                        <strong>{row.terminal_name}</strong>
-                        <span>{row.country ?? "n/a"}</span>
-                        <span>{row.send_out_twh_d == null ? "n/a" : `${row.send_out_twh_d.toFixed(2)} TWh/d`}</span>
-                        <span>{row.dtmi_pct == null ? "n/a" : `${row.dtmi_pct.toFixed(1)}%`}</span>
-                      </div>
-                    ))}
-                    {latestLngRows.length === 0 && (
-                      <div className="data-table-row four"><strong>n/a</strong><span>GIE ALSI</span><span>{t("data.unavailable")}</span><span>n/a</span></div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
+            <CapacityWorkspace
+              flows={flows}
+              capacity={capacity}
+              tsoAccess={tsoAccess}
+              tsoTariffs={tsoTariffs}
+              storage={storage}
+              lng={lng}
+              t={t}
+            />
           )}
 
           {activeWorkspace === "market" && (

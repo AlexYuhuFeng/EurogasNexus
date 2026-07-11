@@ -112,8 +112,13 @@ def test_network_geometry_does_not_overstate_route_corridor_coverage() -> None:
     map_component = _read(WEB / "components" / "GasNetworkMap.tsx")
 
     assert '"corridors_only"' in derived
-    assert 'edge.source_system !== "route_candidate"' in derived
-    assert 'materialization !== "route_candidate_edge"' in derived
+    assert 'edge.source_system === "route_candidate"' in derived
+    assert 'metadata.materialization === "route_candidate_edge"' in derived
+    assert 'metadata.verification_status !== "verified"' in derived
+    assert "VERIFIED_GEOMETRY_AUTHORITIES" in derived
+    assert "geometry_coordinates" in derived
+    assert "verifiedEdgeGeometryCoordinates" in map_component
+    assert "fallback-flow-path direct-corridor" not in map_component
     assert 't("map.route_corridors_only")' in network_workspace
     assert "<NetworkWorkspace" in app
     assert "MAJOR_HUB_PRIORITY" in map_component

@@ -55,11 +55,12 @@ interface SourceCenterProps {
 }
 
 function sourcePriority(source: SourceSystemDTO): number {
-  if (source.credential_state === "missing" || source.connectivity_status === "credential_required") return 0;
-  if (["error", "failed", "unreachable", "degraded"].includes(source.connectivity_status)) return 1;
+  if (!source.workflow_ready && ["error", "failed", "unreachable", "degraded"].includes(source.connectivity_status)) return 0;
+  if (!source.workflow_ready && (source.credential_state === "missing" || source.connectivity_status === "credential_required")) return 1;
   if (source.live_record_count === 0 && source.preview_substitute_record_count === 0) return 2;
   if (source.connectivity_status === "stale") return 3;
-  return 4;
+  if (source.operational_status === "active_simulated") return 4;
+  return 5;
 }
 
 function sourceMode(source: SourceSystemDTO, t: (key: string) => string): string {
@@ -162,7 +163,7 @@ export function SourceCenter({
               }}
             >
               <strong>{sourceLabel("sources.category", row.category)}</strong>
-              <span>{row.active_sources}/{row.registered_sources} {t("context.active")}</span>
+              <span>{row.workflow_ready_sources}/{row.registered_sources} {t("sources.workflow_ready")}</span>
               <span>{row.sources_needing_attention} {t("context.issues")}</span>
               <small>{t(`sources.action.${row.next_action}`)}</small>
             </button>
@@ -194,8 +195,8 @@ export function SourceCenter({
                   className={selectedSource?.source_id === source.source_id ? "active" : undefined}
                 >
                   <td>
-                    <span className={`source-status source-status-${source.connectivity_status}`}>
-                      {sourceLabel("sources.status", source.connectivity_status)}
+                    <span className={`source-status source-status-${source.operational_status}`}>
+                      {sourceLabel("sources.status", source.operational_status)}
                     </span>
                   </td>
                   <td>
@@ -205,12 +206,10 @@ export function SourceCenter({
                     </button>
                   </td>
                   <td><span>{sourceMode(source, t)}</span></td>
-                  <td><span>{formatSourceTimestamp(source.last_success_at_utc)}</span></td>
+                  <td><span>{formatSourceTimestamp(source.effective_last_success_at_utc)}</span></td>
                   <td>
-                    <strong>{source.live_record_count.toLocaleString()}</strong>
-                    {source.preview_substitute_status === "active" && (
-                      <small>{source.preview_substitute_record_count.toLocaleString()} {t("sources.simulated_short")}</small>
-                    )}
+                    <strong>{source.effective_record_count.toLocaleString()}</strong>
+                    {source.operational_status === "active_simulated" && <small>{source.effective_source_system}</small>}
                   </td>
                   <td>
                     <button type="button" className="source-diagnostic-action" onClick={() => onSourceSelect(source.source_id)}>
@@ -228,8 +227,8 @@ export function SourceCenter({
         <div className="panel-title-row">
           <h3>{selectedSource?.source_system ?? t("sources.no_source")}</h3>
           {selectedSource && (
-            <span className={`source-status source-status-${selectedSource.connectivity_status}`}>
-              {sourceLabel("sources.status", selectedSource.connectivity_status)}
+            <span className={`source-status source-status-${selectedSource.operational_status}`}>
+              {sourceLabel("sources.status", selectedSource.operational_status)}
             </span>
           )}
         </div>
@@ -239,9 +238,11 @@ export function SourceCenter({
             <div className="metric-grid two-column source-detail-metrics">
               <div><span>{t("sources.category_label")}</span><strong>{sourceLabel("sources.category", selectedSource.category)}</strong></div>
               <div><span>{t("sources.entitlement")}</span><strong>{selectedSource.entitlement_scope}</strong></div>
+              <div><span>{t("sources.native_status")}</span><strong>{sourceLabel("sources.status", selectedSource.connectivity_status)}</strong></div>
+              <div><span>{t("sources.effective_source")}</span><strong>{selectedSource.effective_source_system}</strong></div>
               <div><span>{t("sources.credential_state")}</span><strong>{sourceLabel("sources.credential", selectedSource.credential_state)}</strong></div>
               <div><span>{t("sources.freshness")}</span><strong>{selectedSource.freshness_expectation_minutes ? `${selectedSource.freshness_expectation_minutes}m` : "n/a"}</strong></div>
-              <div><span>{t("sources.last_success")}</span><strong>{formatSourceTimestamp(selectedSource.last_success_at_utc)}</strong></div>
+              <div><span>{t("sources.last_success")}</span><strong>{formatSourceTimestamp(selectedSource.effective_last_success_at_utc)}</strong></div>
               <div><span>{t("sources.last_failure")}</span><strong>{formatSourceTimestamp(selectedSource.last_failure_at_utc)}</strong></div>
             </div>
             <div className="source-datasets">

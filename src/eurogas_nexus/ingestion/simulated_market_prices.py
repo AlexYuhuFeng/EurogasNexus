@@ -19,10 +19,16 @@ from sqlalchemy.orm import Session
 from eurogas_nexus.db.models import IngestionRunRecord, MarketObservationRecord
 
 SIMULATOR_VERSION = "sim-market-v1"
-SIMULATED_MARKET_PRICE_SOURCE_SYSTEMS = ("EEX_Sim", "ICE_OCM_Sim", "ICIS_Sim")
+SIMULATED_MARKET_PRICE_SOURCE_SYSTEMS = (
+    "EEX_Sim",
+    "ICE_OCM_Sim",
+    "Trayport_Sim",
+    "ICIS_Sim",
+)
 DEFAULT_SIMULATED_MARKET_PRICE_INTERVALS_SECONDS = {
     "ICE_OCM_Sim": 15,
-    "EEX_Sim": 60,
+    "Trayport_Sim": 15,
+    "EEX_Sim": 15,
     "ICIS_Sim": 86_400,
 }
 
@@ -57,7 +63,7 @@ def generate_simulated_market_observations(
     observed_at_utc: datetime | None = None,
     source_systems: Iterable[str] | None = None,
 ) -> list[dict[str, Any]]:
-    """Generate EEX/ICE OCM/ICIS-shaped simulated market observation rows."""
+    """Generate exchange, broker-screen, and assessment-shaped simulated rows."""
 
     observed_at = _as_utc(observed_at_utc or datetime.now(UTC))
     requested_sources = _normalise_source_systems(source_systems)
@@ -73,6 +79,13 @@ def generate_simulated_market_observations(
             )
         if "ICIS_Sim" in requested_sources:
             rows.append(_icis_daily_row(hub, observed_at))
+        if "Trayport_Sim" in requested_sources:
+            rows.extend(
+                [
+                    _trayport_row(hub, "within-day", observed_at),
+                    _trayport_row(hub, "day-ahead", observed_at),
+                ]
+            )
     if "ICE_OCM_Sim" in requested_sources:
         rows.extend(
             [
@@ -232,6 +245,26 @@ def _ice_ocm_row(hub: str, tenor: str, observed_at: datetime) -> dict[str, Any]:
         quality_score=0.58,
         price_timing="instant" if tenor == "within-day" else "exchange_reference",
         assessment_format="ICE OCM-style simulated screen mark",
+    )
+
+
+def _trayport_row(hub: str, tenor: str, observed_at: datetime) -> dict[str, Any]:
+    period_start, period_end = _period_for_tenor(tenor, observed_at)
+    price = _simulated_price(hub, tenor, observed_at, source_bias=0.12)
+    return _market_row(
+        source_system="Trayport_Sim",
+        market_venue="Trayport",
+        hub=hub,
+        product=f"{hub} {tenor}",
+        tenor=tenor,
+        price=price,
+        period_start=period_start,
+        period_end=period_end,
+        observed_at=observed_at,
+        freshness="simulated_live",
+        quality_score=0.57,
+        price_timing="broker_screen",
+        assessment_format="Trayport-style simulated broker screen mark",
     )
 
 

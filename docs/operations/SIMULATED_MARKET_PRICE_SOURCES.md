@@ -10,7 +10,7 @@ database. The simulator uses the same normalized `market_observations` table and
 This is intentionally different from static demo data:
 
 - rows are source-shaped and timestamped;
-- source labels are `EEX_Sim`, `ICE_OCM_Sim`, and `ICIS_Sim`;
+- source labels are `EEX_Sim`, `ICE_OCM_Sim`, `Trayport_Sim`, and `ICIS_Sim`;
 - rows include `metadata_json.simulated=true`;
 - rows include tenor and timing metadata such as `within-day`, `day-ahead`,
   `month-ahead`, `instant`, and `daily_assessment`;
@@ -37,7 +37,8 @@ the simulator is to exercise the same PostgreSQL ingestion path that real
 connectors will use. Default cadence:
 
 - `ICE_OCM_Sim`: every 15 seconds for within-day and day-ahead screen marks;
-- `EEX_Sim`: every 60 seconds for spot/curve marks;
+- `Trayport_Sim`: every 15 seconds for multi-hub within-day and day-ahead broker-screen marks;
+- `EEX_Sim`: every 15 seconds for spot/curve marks;
 - `ICIS_Sim`: every 86,400 seconds for daily day-ahead assessments.
 
 The cadence is a configurable simulation of market-data behavior. It preserves
@@ -50,7 +51,7 @@ PostgreSQL directly. This lets the simulated worker exercise the same runtime
 loop expected from licensed EEX, ICE OCM, ICIS, broker, or Trayport connectors:
 
 ```text
-simulated source worker -> PostgreSQL -> /api/market + /api/sources -> Market terminal
+simulated source adapter -> PostgreSQL -> /api/market + /api/sources -> SDK/clients
 ```
 
 The Market terminal must keep simulated rows visibly labeled and must show
@@ -63,6 +64,7 @@ Override cadences when a faster local test is useful:
 ```powershell
 python scripts/ops/ingest_simulated_market_prices.py --loop `
   --ice-ocm-interval-seconds 5 `
+  --trayport-interval-seconds 5 `
   --eex-interval-seconds 30 `
   --icis-interval-seconds 300
 ```
@@ -80,6 +82,7 @@ Each due tick writes:
 
 - EEX-shaped spot/curve marks for TTF, NBP, THE, PEG, ZTP, and PSV;
 - ICE OCM-shaped NBP within-day and day-ahead screen marks;
+- Trayport-shaped multi-hub within-day and day-ahead broker-screen marks;
 - ICIS Heren-shaped daily day-ahead assessments for the major hubs.
 
 Each tick also writes succeeded `ingestion_runs` records so the Source Center can
@@ -94,13 +97,37 @@ adds a preview-substitute posture:
 
 - `EEX` -> `EEX_Sim`
 - `ICE_OCM` -> `ICE_OCM_Sim`
+- `Trayport` -> `Trayport_Sim`
 - `ICIS` -> `ICIS_Sim`
 
-The Source Center must display both facts at the same time: the licensed source
-is not connected, and the preview substitute is active. This keeps entitlement
-status honest while allowing route costing, resource-pool optimization, strategy
-shadow runs, and market terminal screens to operate against DB-backed,
-source-shaped prices before subscriptions are available.
+The Source Center must display both facts at the same time: the native licensed
+connector is not connected, while the workflow is operational through a simulated
+source. Native `connectivity_status` therefore remains distinct from
+`operational_status=active_simulated`. Route costing, resource-pool optimization,
+strategy shadow runs, PnL marking, and market terminal screens all continue against
+the same DB-backed canonical records before subscriptions are available.
+
+## Provider Substitution Contract
+
+Simulation is not a reduced product mode and must not create a parallel workflow.
+Every simulated commercial provider must satisfy the same downstream contract as
+its licensed adapter:
+
+- write canonical PostgreSQL observations and ingestion-run records;
+- preserve provider, venue, product, delivery period, observation time, source
+  record id, freshness, and lineage fields;
+- update incrementally at a source-appropriate cadence;
+- flow through backend repositories and `/api`, never directly to a client;
+- remain visibly marked as simulated in every response and client;
+- support the same route, resource-pool, PnL, market, report, and strategy consumers.
+
+Replacing a simulated provider with a licensed provider is an adapter and credential
+operation. It must not require changes to database consumers, domain calculations,
+SDK methods, or client components. EEX, ICE OCM, and Trayport are realtime or
+near-realtime market feeds when licensed; their adapters must preserve event time,
+receipt time, sequence/deduplication identity, and observable ingestion latency.
+ICIS remains an assessment feed with its own publication cadence and must not be
+presented as a streaming exchange feed.
 
 ## Price Basis Rules
 

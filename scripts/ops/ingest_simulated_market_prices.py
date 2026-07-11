@@ -1,4 +1,4 @@
-"""Inject simulated EEX/ICE OCM/ICIS price rows into the runtime DB."""
+"""Inject simulated exchange, broker-screen, and assessment rows into PostgreSQL."""
 
 from __future__ import annotations
 
@@ -30,6 +30,7 @@ def main(argv: list[str] | None = None) -> int:
         intervals_seconds = {
             "EEX_Sim": args.eex_interval_seconds,
             "ICE_OCM_Sim": args.ice_ocm_interval_seconds,
+            "Trayport_Sim": args.trayport_interval_seconds,
             "ICIS_Sim": args.icis_interval_seconds,
         }
         print(
@@ -89,6 +90,12 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         type=float,
         default=DEFAULT_SIMULATED_MARKET_PRICE_INTERVALS_SECONDS["ICE_OCM_Sim"],
         help="Simulated ICE OCM tick cadence in seconds.",
+    )
+    parser.add_argument(
+        "--trayport-interval-seconds",
+        type=float,
+        default=DEFAULT_SIMULATED_MARKET_PRICE_INTERVALS_SECONDS["Trayport_Sim"],
+        help="Simulated Trayport broker-screen tick cadence in seconds.",
     )
     parser.add_argument(
         "--icis-interval-seconds",

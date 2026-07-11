@@ -24,7 +24,9 @@ def test_simulated_market_prices_generate_exchange_and_daily_assessment_rows() -
     rows = generate_simulated_market_observations(observed_at_utc=observed_at)
 
     source_systems = {row["source_system"] for row in rows}
-    assert {"EEX_Sim", "ICE_OCM_Sim", "ICIS_Sim"}.issubset(source_systems)
+    assert {"EEX_Sim", "ICE_OCM_Sim", "Trayport_Sim", "ICIS_Sim"}.issubset(
+        source_systems
+    )
     assert any(
         row["source_system"] == "EEX_Sim"
         and row["metadata_json"]["tenor"] == "month-ahead"
@@ -34,6 +36,12 @@ def test_simulated_market_prices_generate_exchange_and_daily_assessment_rows() -
     assert any(
         row["source_system"] == "ICE_OCM_Sim"
         and row["metadata_json"]["price_timing"] == "instant"
+        and row["freshness"] == "simulated_live"
+        for row in rows
+    )
+    assert any(
+        row["source_system"] == "Trayport_Sim"
+        and row["metadata_json"]["price_timing"] == "broker_screen"
         and row["freshness"] == "simulated_live"
         for row in rows
     )
@@ -64,9 +72,14 @@ def test_simulated_market_price_upsert_uses_runtime_observation_and_ingestion_ta
     assert summary["rows_upserted"] == len(rows)
     assert summary["rows_upserted"] >= 20
     assert {row.source_system for row in rows}.issuperset(
-        {"EEX_Sim", "ICE_OCM_Sim", "ICIS_Sim"}
+        {"EEX_Sim", "ICE_OCM_Sim", "Trayport_Sim", "ICIS_Sim"}
     )
-    assert {run.source_name for run in runs} == {"EEX_Sim", "ICE_OCM_Sim", "ICIS_Sim"}
+    assert {run.source_name for run in runs} == {
+        "EEX_Sim",
+        "ICE_OCM_Sim",
+        "Trayport_Sim",
+        "ICIS_Sim",
+    }
     assert all(run.status == "succeeded" for run in runs)
     assert all("records=" in (run.notes or "") for run in runs)
 
@@ -99,6 +112,7 @@ def test_simulated_market_price_cadence_marks_due_sources_independently() -> Non
     intervals = {
         "EEX_Sim": 60,
         "ICE_OCM_Sim": 15,
+        "Trayport_Sim": 15,
         "ICIS_Sim": 86_400,
     }
 
@@ -106,6 +120,7 @@ def test_simulated_market_price_cadence_marks_due_sources_independently() -> Non
         {
             "EEX_Sim": datetime(2026, 7, 1, 9, 59, tzinfo=UTC),
             "ICE_OCM_Sim": datetime(2026, 7, 1, 9, 59, 55, tzinfo=UTC),
+            "Trayport_Sim": datetime(2026, 7, 1, 9, 59, 50, tzinfo=UTC),
             "ICIS_Sim": datetime(2026, 6, 30, 9, 59, tzinfo=UTC),
         },
         observed_at_utc=now,
@@ -113,10 +128,15 @@ def test_simulated_market_price_cadence_marks_due_sources_independently() -> Non
     )
 
     assert due_sources == ("EEX_Sim", "ICIS_Sim")
-    assert DEFAULT_SIMULATED_MARKET_PRICE_INTERVALS_SECONDS["ICE_OCM_Sim"] < (
+    assert DEFAULT_SIMULATED_MARKET_PRICE_INTERVALS_SECONDS["ICE_OCM_Sim"] <= (
         DEFAULT_SIMULATED_MARKET_PRICE_INTERVALS_SECONDS["EEX_Sim"]
     )
-    assert set(SIMULATED_MARKET_PRICE_SOURCE_SYSTEMS) == {"EEX_Sim", "ICE_OCM_Sim", "ICIS_Sim"}
+    assert set(SIMULATED_MARKET_PRICE_SOURCE_SYSTEMS) == {
+        "EEX_Sim",
+        "ICE_OCM_Sim",
+        "Trayport_Sim",
+        "ICIS_Sim",
+    }
 
 
 def test_simulated_market_price_loop_runs_continuous_ticks(tmp_path) -> None:
@@ -141,23 +161,28 @@ def test_simulated_market_price_loop_runs_continuous_ticks(tmp_path) -> None:
     summaries = run_simulated_market_price_loop(
         session_factory,
         max_iterations=5,
-        intervals_seconds={"EEX_Sim": 60, "ICE_OCM_Sim": 15, "ICIS_Sim": 86_400},
+        intervals_seconds={
+            "EEX_Sim": 60,
+            "ICE_OCM_Sim": 15,
+            "Trayport_Sim": 15,
+            "ICIS_Sim": 86_400,
+        },
         now_fn=lambda: next(clock_values),
         sleep_fn=sleeps.append,
         emit=lambda _message: None,
     )
 
     assert [summary["source_counts"] for summary in summaries] == [
-        {"EEX_Sim": 18, "ICE_OCM_Sim": 2, "ICIS_Sim": 6},
-        {"ICE_OCM_Sim": 2},
-        {"ICE_OCM_Sim": 2},
-        {"ICE_OCM_Sim": 2},
-        {"EEX_Sim": 18, "ICE_OCM_Sim": 2},
+        {"EEX_Sim": 18, "ICE_OCM_Sim": 2, "ICIS_Sim": 6, "Trayport_Sim": 12},
+        {"ICE_OCM_Sim": 2, "Trayport_Sim": 12},
+        {"ICE_OCM_Sim": 2, "Trayport_Sim": 12},
+        {"ICE_OCM_Sim": 2, "Trayport_Sim": 12},
+        {"EEX_Sim": 18, "ICE_OCM_Sim": 2, "Trayport_Sim": 12},
     ]
     assert sleeps == [15.0, 15.0, 15.0, 15.0]
     with Session(engine) as session:
         runs = session.query(IngestionRunRecord).all()
-    assert len(runs) == 8
+    assert len(runs) == 13
 
 
 def test_simulated_market_price_cli_exposes_continuous_worker_controls() -> None:
@@ -166,5 +191,6 @@ def test_simulated_market_price_cli_exposes_continuous_worker_controls() -> None
     assert "--loop" in script
     assert "--eex-interval-seconds" in script
     assert "--ice-ocm-interval-seconds" in script
+    assert "--trayport-interval-seconds" in script
     assert "--icis-interval-seconds" in script
     assert "run_simulated_market_price_loop" in script

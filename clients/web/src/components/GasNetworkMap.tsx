@@ -2,6 +2,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import maplibregl, { GeoJSONSource, Map as MapLibreMap, Marker } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { EdgeDTO, NodeDTO, RouteEligibilityDTO } from "@/api/client";
+import {
+  isMapEligibleNode,
+  verifiedEdgeGeometryCoordinates,
+} from "@/app/workspaceDerivedData";
 import type { RouteGeometryState } from "@/components/ResourcePoolPathOverlay";
 
 interface GasNetworkMapProps {
@@ -160,7 +164,7 @@ export function GasNetworkMap({
   }, [edges, highlightedRoute]);
   const filteredNodes = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
-    return nodes.filter((node) => {
+    return nodes.filter(isMapEligibleNode).filter((node) => {
       const layerMatch =
         (activeLayers.includes("hubs") && node.node_type === "hub") ||
         (activeLayers.includes("lng") && node.node_type === "lng") ||
@@ -181,11 +185,17 @@ export function GasNetworkMap({
         const from = nodeLookup.get(edge.from_node_id);
         const to = nodeLookup.get(edge.to_node_id);
         if (!from || !to) return null;
-        if (!visibleNodeIds.has(from.id) && !visibleNodeIds.has(to.id)) return null;
-        return { ...edge, from, to };
+        const geometryCoordinates = verifiedEdgeGeometryCoordinates(edge);
+        if (!geometryCoordinates) return null;
+        if (
+          !activeLayers.includes("network") &&
+          !visibleNodeIds.has(from.id) &&
+          !visibleNodeIds.has(to.id)
+        ) return null;
+        return { ...edge, from, to, geometryCoordinates };
       })
       .filter((edge): edge is NonNullable<typeof edge> => edge !== null);
-  }, [edges, filteredNodes, nodeLookup]);
+  }, [activeLayers, edges, filteredNodes, nodeLookup]);
   const routeIds = useMemo(
     () => new Set(routes.map((route) => `${route.from_node_id}:${route.to_node_id}`)),
     [routes],
@@ -239,10 +249,7 @@ export function GasNetworkMap({
           },
           geometry: {
             type: "LineString" as const,
-            coordinates: [
-              [edge.from.lon, edge.from.lat],
-              [edge.to.lon, edge.to.lat],
-            ],
+            coordinates: edge.geometryCoordinates,
           },
         };
       }),
@@ -413,8 +420,6 @@ export function GasNetworkMap({
     }));
     const edgeFeatures = visibleEdges
       .map((edge) => {
-        const from = edge.from;
-        const to = edge.to;
         const metadata = edge.metadata_json ?? {};
         const routeCandidate =
           routeIds.has(`${edge.from_node_id}:${edge.to_node_id}`) ||
@@ -438,10 +443,7 @@ export function GasNetworkMap({
           },
           geometry: {
             type: "LineString" as const,
-            coordinates: [
-              [from.lon, from.lat],
-              [to.lon, to.lat],
-            ],
+            coordinates: edge.geometryCoordinates,
           },
         };
       })
@@ -673,8 +675,6 @@ export function GasNetworkMap({
           return <line key={`lat-${lat}`} className="fallback-grid" x1={35} x2={960} y1={y} y2={y} />;
         })}
         {visibleEdges.map((edge) => {
-          const [x1, y1] = project(edge.from.lon, edge.from.lat);
-          const [x2, y2] = project(edge.to.lon, edge.to.lat);
           const metadata = edge.metadata_json ?? {};
           const capacity = Number(metadata.capacity_mwh_d ?? metadata.firm_capacity_mwh_d ?? 0);
           const flow = Number(metadata.live_physical_flow_mwh_d ?? 0);
@@ -685,49 +685,41 @@ export function GasNetworkMap({
             edge.source_system === "route_candidate" ||
             metadata.materialization === "route_candidate_edge";
           return (
-            <line
+            <polyline
               key={edge.id}
               className={routeCandidate ? `fallback-edge route${pressureClass}` : `fallback-edge${pressureClass}`}
-              x1={x1}
-              y1={y1}
-              x2={x2}
-              y2={y2}
+              points={edge.geometryCoordinates.map(([lon, lat]) => project(lon, lat).join(",")).join(" ")}
+              fill="none"
             />
           );
         })}
         {highlightedRoutePoints && (() => {
-          const [x1, y1] = project(highlightedRoutePoints.from.lon, highlightedRoutePoints.from.lat);
-          const [x2, y2] = project(highlightedRoutePoints.to.lon, highlightedRoutePoints.to.lat);
           const pnlText = highlightedRoutePoints.pnlGbp === null
             ? ""
             : `GBP ${Math.round(highlightedRoutePoints.pnlGbp).toLocaleString()}`;
           if (routeSegmentsForHighlight.length > 0) {
             const segmentPoints = routeSegmentsForHighlight.map((edge) => {
-              const [fromX, fromY] = project(edge.from.lon, edge.from.lat);
-              const [toX, toY] = project(edge.to.lon, edge.to.lat);
-              return { edge, fromX, fromY, toX, toY };
+              const projected = edge.geometryCoordinates.map(([lon, lat]) => project(lon, lat));
+              return { edge, projected };
             });
             const labelSegment = segmentPoints[Math.floor(segmentPoints.length / 2)];
-            const labelX = (labelSegment.fromX + labelSegment.toX) / 2 + 12;
-            const labelY = (labelSegment.fromY + labelSegment.toY) / 2 - 12;
+            const labelPoint = labelSegment.projected[Math.floor(labelSegment.projected.length / 2)];
+            const labelX = labelPoint[0] + 12;
+            const labelY = labelPoint[1] - 12;
             return (
               <g className={`fallback-flow segmented ${routeGeometryStateClass(highlightedRoutePoints.routeGeometryState)}`} aria-hidden="true">
                 <desc>{geometryWarning}</desc>
-                {segmentPoints.map(({ edge, fromX, fromY, toX, toY }) => (
+                {segmentPoints.map(({ edge, projected }) => (
                   <g key={`highlighted-fallback-segment-${edge.id}`}>
-                    <line
+                    <polyline
                       className="fallback-flow-shadow"
-                      x1={fromX}
-                      y1={fromY}
-                      x2={toX}
-                      y2={toY}
+                      points={projected.map(([x, y]) => `${x},${y}`).join(" ")}
+                      fill="none"
                     />
-                    <line
+                    <polyline
                       className="fallback-flow-segment"
-                      x1={fromX}
-                      y1={fromY}
-                      x2={toX}
-                      y2={toY}
+                      points={projected.map(([x, y]) => `${x},${y}`).join(" ")}
+                      fill="none"
                     />
                   </g>
                 ))}
@@ -743,27 +735,7 @@ export function GasNetworkMap({
             );
           }
 
-          const controlX = (x1 + x2) / 2;
-          const controlY = Math.min(y1, y2) - 90;
-          const path = `M ${x1} ${y1} Q ${controlX} ${controlY} ${x2} ${y2}`;
-          return (
-            <g className="fallback-flow" aria-hidden="true">
-              <desc>{geometryWarning}</desc>
-              <path className="fallback-flow-shadow" d={path} />
-              <path className="fallback-flow-path direct-corridor" d={path} />
-              <circle className="fallback-flow-pulse" r="7">
-                <animateMotion dur="3.8s" repeatCount="indefinite" path={path} />
-              </circle>
-              <text className="fallback-flow-label" x={controlX + 12} y={controlY - 14}>
-                {highlightedRoutePoints.label}
-              </text>
-              {pnlText && (
-                <text className="fallback-flow-value" x={controlX + 12} y={controlY + 4}>
-                  {pnlText}
-                </text>
-              )}
-            </g>
-          );
+          return null;
         })()}
         {filteredNodes.map((node, index) => {
           const [x, y] = project(node.lon, node.lat);

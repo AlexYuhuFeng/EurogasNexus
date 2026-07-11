@@ -62,7 +62,7 @@ function routeGeometryLabel(state: RouteGeometryState): string {
   if (state === "surveyed_pipeline_route") return "Surveyed pipeline route";
   if (state === "source_derived_leg_sequence") return "Source-derived leg sequence";
   if (state === "source_derived_corridor") return "Source-derived corridor";
-  return "Direct display fallback";
+  return "Geometry unavailable";
 }
 
 function routeGeometryWarning(path: ResourcePoolMapPath): string | null {
@@ -74,7 +74,7 @@ function routeGeometryWarning(path: ResourcePoolMapPath): string | null {
   if (path.routeGeometryState === "source_derived_corridor") {
     return "Only source and target corridor geometry is available.";
   }
-  return "No materialized route geometry is available; map uses direct display fallback.";
+  return "No verified route geometry is available; the map does not draw this path.";
 }
 
 function routeStateLabelKey(state: RouteState): string {

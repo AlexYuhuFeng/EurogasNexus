@@ -82,7 +82,12 @@ def test_sources_include_simulated_market_price_feeds_when_runtime_rows_exist(
     monkeypatch.setattr(
         sources_routes,
         "_runtime_source_counts",
-        lambda: {"EEX_Sim": 18, "ICE_OCM_Sim": 2, "ICIS_Sim": 6},
+        lambda: {
+            "EEX_Sim": 18,
+            "ICE_OCM_Sim": 2,
+            "Trayport_Sim": 12,
+            "ICIS_Sim": 6,
+        },
     )
     monkeypatch.setattr(
         sources_routes,
@@ -111,6 +116,7 @@ def test_sources_include_simulated_market_price_feeds_when_runtime_rows_exist(
     assert sources["EEX_Sim"]["connectivity_status"] == "active"
     assert "live_records_available" in sources["EEX_Sim"]["diagnostics"]
     assert sources["ICE_OCM_Sim"]["live_record_count"] == 2
+    assert sources["Trayport_Sim"]["live_record_count"] == 12
     assert sources["ICIS_Sim"]["live_record_count"] == 6
 
 
@@ -123,7 +129,12 @@ def test_licensed_price_sources_show_active_preview_substitute_when_subscription
     monkeypatch.setattr(
         sources_routes,
         "_runtime_source_counts",
-        lambda: {"EEX_Sim": 18, "ICE_OCM_Sim": 2, "ICIS_Sim": 6},
+        lambda: {
+            "EEX_Sim": 18,
+            "ICE_OCM_Sim": 2,
+            "Trayport_Sim": 12,
+            "ICIS_Sim": 6,
+        },
     )
     monkeypatch.setattr(sources_routes, "_latest_ingestion_status_by_source", lambda: {})
     monkeypatch.setattr(sources_routes, "_credential_status_by_provider", lambda: {})
@@ -136,9 +147,16 @@ def test_licensed_price_sources_show_active_preview_substitute_when_subscription
     assert sources["EEX"]["preview_substitute_source_system"] == "EEX_Sim"
     assert sources["EEX"]["preview_substitute_status"] == "active"
     assert sources["EEX"]["preview_substitute_record_count"] == 18
+    assert sources["EEX"]["operational_status"] == "active_simulated"
+    assert sources["EEX"]["workflow_ready"] is True
+    assert sources["EEX"]["effective_source_system"] == "EEX_Sim"
+    assert sources["EEX"]["effective_record_count"] == 18
     assert "preview_substitute_active" in sources["EEX"]["diagnostics"]
     assert sources["ICE_OCM"]["preview_substitute_source_system"] == "ICE_OCM_Sim"
     assert sources["ICE_OCM"]["preview_substitute_status"] == "active"
+    assert sources["Trayport"]["preview_substitute_source_system"] == "Trayport_Sim"
+    assert sources["Trayport"]["operational_status"] == "active_simulated"
+    assert sources["Trayport"]["workflow_ready"] is True
     assert sources["ICIS"]["preview_substitute_source_system"] == "ICIS_Sim"
     assert sources["ICIS"]["preview_substitute_status"] == "active"
     assert sources["Platts"]["preview_substitute_source_system"] is None
@@ -171,13 +189,15 @@ def test_sources_response_meta_includes_category_posture_summary(
     summary = response.json()["meta"]["source_posture_summary"]
     assert summary["totals"]["registered_sources"] >= 20
     assert summary["totals"]["active_sources"] >= 5
+    assert summary["totals"]["workflow_ready_sources"] >= 8
     assert summary["totals"]["preview_substitutes_active"] == 3
     assert summary["totals"]["runtime_records"] == 1493
 
     categories = {item["category"]: item for item in summary["categories"]}
     assert categories["price"]["preview_substitutes_active"] == 3
+    assert categories["price"]["workflow_ready_sources"] >= 6
     assert categories["price"]["missing_credentials"] >= 5
-    assert categories["price"]["next_action"] == "add_credentials"
+    assert categories["price"]["next_action"] == "configure_live_credentials"
     assert categories["infrastructure"]["active_sources"] == 1
     assert categories["infrastructure"]["missing_credentials"] == 1
     assert categories["infrastructure"]["runtime_records"] == 152
@@ -192,6 +212,9 @@ def test_source_records_include_diagnostics_and_credential_state(client: TestCli
     assert source["category_label"] == "Prices"
     assert source["credential_state"] == "missing"
     assert source["connectivity_status"] == "needs_credential"
+    assert source["operational_status"] == "needs_credential"
+    assert source["workflow_ready"] is False
+    assert source["effective_source_system"] == "ICIS"
     assert source["status"] == source["connectivity_status"]
     assert source["last_success_at_utc"] is None
     assert source["last_failure_at_utc"] is None

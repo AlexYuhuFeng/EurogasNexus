@@ -108,29 +108,25 @@ Required interactions:
 - launch route-cost, LNG regas readiness, resource-pool, or strategy evaluation
   through backend API calls only.
 
-When an active order/PnL context exists, the map must draw an animated
-highlighted corridor between relevant nodes with a concise label and PnL value.
-This animation is informational only; it is not a nomination, route dispatch,
-or executable order path. Motion must respect `prefers-reduced-motion`.
-
-When route-candidate reference edges are available, highlighted paths must use
-leg-level route-candidate segments rather than a single source-to-target visual
-shortcut. If the backend can only provide source-derived corridor geometry, the
-UI must label that state clearly and must not imply a surveyed direct pipeline
-or a trader-executable physical nomination route.
+When an active route/PnL context exists, the map may highlight it only when every
+displayed segment has licence-approved line coordinates and a successful geometry
+verification result. A route candidate without verified geometry remains available
+in route evidence and decision cards, but the map does not draw a source-to-target
+shortcut or inferred leg sequence.
 
 The route geometry quality ladder is explicit:
 
-- `surveyed_pipeline_route`: reserved for approved surveyed polyline geometry;
-- `source_derived_leg_sequence`: matched route-candidate nodes displayed as a
-  corridor sequence, not surveyed pipe coordinates;
-- `source_derived_corridor`: source and target corridor only;
-- `directLineFallback`: temporary client display fallback when no materialized
-  route edge exists.
+- `surveyed_pipeline_route`: approved polyline geometry that may be rendered;
+- `source_derived_leg_sequence`: topology evidence only; not rendered as pipe;
+- `source_derived_corridor`: commercial corridor evidence only; not rendered;
+- `directLineFallback`: legacy state meaning geometry unavailable; no fallback
+  line is drawn.
 
-The home map and resource-path overlay must show the quality label and warning
-so a trader can distinguish physical topology evidence from display-only
-corridors.
+The resource-path overlay shows the quality label and warning. Physical map layers
+accept only `verification_status=verified`, an approved `geometry_authority`, and a
+complete `geometry_coordinates` sequence. Approximate physical LNG, IP, or pipeline
+coordinates are suppressed; virtual market hubs may use representative market-area
+positions when labelled as such.
 
 ## Resource-Pool Decision Rail
 

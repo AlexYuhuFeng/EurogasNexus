@@ -101,6 +101,9 @@ export interface SourceSystemDTO {
   source_id: string; source_system: string; datasets: string[];
   status: string; description: string; live_record_count: number;
   category: string; category_label: string; connectivity_status: string;
+  operational_status: string; workflow_ready: boolean;
+  effective_source_system: string; effective_record_count: number;
+  effective_last_success_at_utc: string | null;
   entitlement_scope: string; freshness_expectation_minutes: number;
   credential_requirements: string[]; credential_provider_id: string | null;
   credential_state: string; credential_status: string | null;
@@ -118,6 +121,7 @@ export interface SourceCategoryPostureDTO {
   category_label: string;
   registered_sources: number;
   active_sources: number;
+  workflow_ready_sources: number;
   sources_needing_attention: number;
   missing_credentials: number;
   preview_substitutes_active: number;
@@ -129,6 +133,7 @@ export interface SourcePostureSummaryDTO {
   totals: {
     registered_sources: number;
     active_sources: number;
+    workflow_ready_sources: number;
     sources_needing_attention: number;
     missing_credentials: number;
     preview_substitutes_active: number;
@@ -170,6 +175,7 @@ const SOURCE_CATEGORY_BY_SYSTEM: Record<string, string> = {
   NATIONAL_GAS_NTS: "tariff",
   PLATTS: "price",
   TRAYPORT: "price",
+  TRAYPORT_SIM: "price",
   WEATHER: "weather",
 };
 
@@ -182,7 +188,7 @@ const SOURCE_CATEGORY_LABELS: Record<string, string> = {
   weather: "Weather",
 };
 
-const SIMULATED_PRICE_SOURCE_SYSTEMS = ["EEX_Sim", "ICE_OCM_Sim", "ICIS_Sim"];
+const SIMULATED_PRICE_SOURCE_SYSTEMS = ["EEX_Sim", "ICE_OCM_Sim", "Trayport_Sim", "ICIS_Sim"];
 
 function sourceSystemKey(value: string): string {
   return value.trim().toUpperCase().replace(/[\s-]+/g, "_");
@@ -210,6 +216,15 @@ function normalizeSourceSystem(raw: SourceSystemWire): SourceSystemDTO {
         ? "active"
         : status);
   const diagnostics = asStringArray(raw.diagnostics);
+  const previewSubstituteStatus = raw.preview_substitute_status ?? null;
+  const previewSubstituteRecordCount = Number(raw.preview_substitute_record_count ?? 0);
+  const operationalStatus = raw.operational_status ||
+    (connectivityStatus === "active"
+      ? "active"
+      : previewSubstituteStatus === "active" && previewSubstituteRecordCount > 0
+        ? "active_simulated"
+        : connectivityStatus);
+  const workflowReady = raw.workflow_ready ?? ["active", "active_simulated"].includes(operationalStatus);
 
   return {
     source_id: raw.source_id || `src-${sourceKey.toLowerCase().replace(/_/g, "-")}`,
@@ -221,6 +236,15 @@ function normalizeSourceSystem(raw: SourceSystemWire): SourceSystemDTO {
     category,
     category_label: raw.category_label || SOURCE_CATEGORY_LABELS[category] || category,
     connectivity_status: connectivityStatus,
+    operational_status: operationalStatus,
+    workflow_ready: workflowReady,
+    effective_source_system: raw.effective_source_system ??
+      (operationalStatus === "active_simulated"
+        ? raw.preview_substitute_source_system ?? sourceSystem
+        : sourceSystem),
+    effective_record_count: Number(raw.effective_record_count ??
+      (operationalStatus === "active_simulated" ? previewSubstituteRecordCount : liveRecordCount)),
+    effective_last_success_at_utc: raw.effective_last_success_at_utc ?? raw.last_success_at_utc ?? null,
     entitlement_scope: raw.entitlement_scope || (credentialRequired ? "licensed" : "public"),
     freshness_expectation_minutes: Number(raw.freshness_expectation_minutes ?? 0),
     credential_requirements: credentialRequirements,
@@ -230,8 +254,8 @@ function normalizeSourceSystem(raw: SourceSystemWire): SourceSystemDTO {
     credential_last_tested_at_utc: raw.credential_last_tested_at_utc ?? null,
     credential_last_test_status: raw.credential_last_test_status ?? null,
     preview_substitute_source_system: raw.preview_substitute_source_system ?? null,
-    preview_substitute_status: raw.preview_substitute_status ?? null,
-    preview_substitute_record_count: Number(raw.preview_substitute_record_count ?? 0),
+    preview_substitute_status: previewSubstituteStatus,
+    preview_substitute_record_count: previewSubstituteRecordCount,
     last_success_at_utc: raw.last_success_at_utc ?? null,
     last_failure_at_utc: raw.last_failure_at_utc ?? null,
     last_ingestion_status: raw.last_ingestion_status ?? null,
