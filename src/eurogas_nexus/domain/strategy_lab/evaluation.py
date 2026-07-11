@@ -153,27 +153,41 @@ def evaluate_strategy_lab(scenario: StrategyLabScenario) -> StrategyLabResult:
     weight_sum = 0.0
 
     for component in scenario.components:
-        component_observations = _filter_time_window(
-            scenario.price_observations,
-            component.time_window_start,
-            component.time_window_end,
-        )
+        component_observations = list(scenario.price_observations)
         if component.target_bar_minutes is not None:
             component_observations = [
                 obs
                 for obs in component_observations
                 if obs.bar_minutes in {None, component.target_bar_minutes}
             ]
+        window_observations = _filter_time_window(
+            component_observations,
+            component.time_window_start,
+            component.time_window_end,
+        )
+        day_ahead_names = {name.upper() for name in component.day_ahead_price_names}
+        intraday_names = {name.upper() for name in component.intraday_price_names}
         day_values = [
             obs.price_gbp_mwh
             for obs in component_observations
-            if obs.price_name.upper() in {name.upper() for name in component.day_ahead_price_names}
+            if obs.price_name.upper() in day_ahead_names
         ]
         intraday_values = [
             obs.price_gbp_mwh
-            for obs in component_observations
-            if obs.price_name.upper() in {name.upper() for name in component.intraday_price_names}
+            for obs in window_observations
+            if obs.price_name.upper() in intraday_names
         ]
+        if not intraday_values and component.time_window_start and component.time_window_end:
+            latest_intraday_values = [
+                obs.price_gbp_mwh
+                for obs in component_observations
+                if obs.price_name.upper() in intraday_names
+            ]
+            if latest_intraday_values:
+                intraday_values = latest_intraday_values
+                warnings.append(
+                    f"LATEST_INTRADAY_OUTSIDE_CONFIGURED_WINDOW:{component.component_id}"
+                )
         day_ahead_prices.extend(day_values)
         intraday_prices.extend(intraday_values)
         component_score = _component_score(component, day_values, intraday_values)

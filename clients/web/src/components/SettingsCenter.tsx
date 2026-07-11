@@ -94,6 +94,11 @@ export function SettingsCenter({
   const activeSources = sources.filter((source) => source.connectivity_status === "active").length;
   const licensedServices = sources.filter((source) => source.entitlement_scope === "licensed").length;
   const serviceRows = credentialProviders.slice(0, 8);
+  const credentialStatusLabel = (provider: CredentialProviderDTO) => {
+    if (!provider.credential_required) return t("credentials.not_required");
+    if (provider.status === "disabled") return t("sources.credential.disabled");
+    return provider.configured ? t("settings.configured") : t("settings.missing");
+  };
 
   return (
     <div className="workspace-grid settings-page settings-preference-center">
@@ -225,7 +230,9 @@ export function SettingsCenter({
                 <strong>{provider.display_name}</strong>
                 <small>{provider.provider_id}</small>
               </span>
-              <em>{provider.configured ? t("settings.configured") : t("settings.missing")}</em>
+              <em className={!provider.credential_required || provider.configured ? "ready" : "attention"}>
+                {credentialStatusLabel(provider)}
+              </em>
             </div>
           ))}
           {serviceRows.length === 0 && <p className="panel-copy">{t("settings.no_api_services")}</p>}

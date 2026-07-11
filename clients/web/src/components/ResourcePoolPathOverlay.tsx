@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 type Translate = (key: string) => string;
 type RouteState = ResourcePoolMapPath["routeState"];
 export type RouteGeometryState =
@@ -137,6 +139,7 @@ function allocationEvidenceForPath(path: ResourcePoolMapPath, totalAvailableMwhP
 }
 
 export function ResourcePoolPathOverlay({ paths, blockers, t }: ResourcePoolPathOverlayProps) {
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const visiblePaths = paths.slice(0, 3);
   const poolSummary = summarizeResourcePool(paths);
   const hiddenPathCount = Math.max(paths.length - visiblePaths.length, 0);
@@ -144,8 +147,18 @@ export function ResourcePoolPathOverlay({ paths, blockers, t }: ResourcePoolPath
   return (
     <div className="resource-pool-map-overlay" aria-label={t("home.resource_paths")}>
       <div className="resource-path-heading">
-        <span>{t("home.resource_paths")}</span>
-        <strong>{visiblePaths.length}/{paths.length}</strong>
+        <span>
+          {t("home.resource_paths")} <strong>{visiblePaths.length}/{paths.length}</strong>
+        </span>
+        {visiblePaths.length > 0 && (
+          <button
+            type="button"
+            aria-expanded={detailsOpen}
+            onClick={() => setDetailsOpen((current) => !current)}
+          >
+            {detailsOpen ? t("home.hide_path_details") : t("home.show_path_details")}
+          </button>
+        )}
       </div>
       {visiblePaths.length > 0 ? (
         <>
@@ -155,16 +168,18 @@ export function ResourcePoolPathOverlay({ paths, blockers, t }: ResourcePoolPath
             <div><span>{t("home.unallocated")}</span><strong>{formatQuantity(poolSummary.totalUnallocatedMwhPerDay)}</strong></div>
             <div><span>{t("home.net_margin")}</span><strong>{formatMoney(poolSummary.weightedNetMargin)}</strong></div>
           </div>
-          <div className="resource-route-status-legend" aria-label={t("home.route_status_legend")}>
-            {(["allocated", "candidate", "blocked"] as RouteState[]).map((state) => (
-              <span key={`route-state-${state}`} className={`route-state-item ${state}`}>
-                <i aria-hidden="true" />
-                {t(routeStateLabelKey(state))}
-                <strong>{poolSummary.stateCounts[state]}</strong>
-              </span>
-            ))}
-          </div>
-          <div className="resource-path-list">
+          {detailsOpen && (
+            <div className="resource-path-detail-stack">
+              <div className="resource-route-status-legend" aria-label={t("home.route_status_legend")}>
+                {(["allocated", "candidate", "blocked"] as RouteState[]).map((state) => (
+                  <span key={`route-state-${state}`} className={`route-state-item ${state}`}>
+                    <i aria-hidden="true" />
+                    {t(routeStateLabelKey(state))}
+                    <strong>{poolSummary.stateCounts[state]}</strong>
+                  </span>
+                ))}
+              </div>
+              <div className="resource-path-list">
             {visiblePaths.map((path) => {
               const evidence = allocationEvidenceForPath(path, poolSummary.totalAvailableMwhPerDay);
               return (
@@ -221,9 +236,11 @@ export function ResourcePoolPathOverlay({ paths, blockers, t }: ResourcePoolPath
                 </div>
               );
             })}
-          </div>
-          {hiddenPathCount > 0 && (
-            <div className="resource-path-more">+{hiddenPathCount} {t("home.more_route_paths")}</div>
+              </div>
+              {hiddenPathCount > 0 && (
+                <div className="resource-path-more">+{hiddenPathCount} {t("home.more_route_paths")}</div>
+              )}
+            </div>
           )}
         </>
       ) : (

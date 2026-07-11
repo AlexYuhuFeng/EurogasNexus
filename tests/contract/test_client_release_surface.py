@@ -285,8 +285,11 @@ def test_web_client_matches_design_reference_cockpit() -> None:
     contract_workbench = (
         ROOT / "clients" / "web" / "src" / "components" / "ContractWorkbench.tsx"
     ).read_text(encoding="utf-8")
+    network_workspace = (
+        ROOT / "clients" / "web" / "src" / "components" / "NetworkWorkspace.tsx"
+    ).read_text(encoding="utf-8")
     app_and_topbar = app + topbar
-    app_and_components = app + topbar + source_center + contract_workbench
+    app_and_components = app + topbar + source_center + contract_workbench + network_workspace
 
     css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(encoding="utf-8")
 
@@ -308,17 +311,18 @@ def test_web_client_matches_design_reference_cockpit() -> None:
 
     assert "workflow-strip" not in app
 
-    assert "scenario-rail" in app
+    assert "scenario-rail" in network_workspace
 
-    assert "decision-rail" in app
+    assert "decision-rail" in network_workspace
 
-    assert "trade-result-panel" in app
+    assert "trade-result-panel" in network_workspace
 
     assert "topbar-search" in app_and_topbar
     assert "topbar-icon-button" not in app
     assert "workspace-nav" not in app
-    assert "workspace-menu" in app
-    assert "workspaceMenuOpen" in app
+    assert "workspace-menu" in topbar
+    assert "workspaceMenuOpen" not in app
+    assert "groupedMenuOpen" in topbar
     assert "workspace-pill-copy" in app_and_topbar
     assert "topbar-menu-glyph" in app_and_topbar
     assert "workspace-page" in app
@@ -349,7 +353,7 @@ def test_web_client_matches_design_reference_cockpit() -> None:
     assert "networkGeometryMissing" not in app
     assert "approximateNodeCount" not in app
     assert "map-node-legend" not in app
-    assert "decision-signal-panel" in app
+    assert "decision-signal-panel" in network_workspace
     assert "capacity-page" in app
     assert "review-page" in app
     assert "orders-page" in app
@@ -379,8 +383,8 @@ def test_web_client_matches_design_reference_cockpit() -> None:
     assert "Resource-pool home cleanup" in css
     assert ".workspace-network .map-price-strip" in css
     assert "source-runtime-panel" in app_and_components
-    assert "map-data-panel" in app
-    assert "map-network-state" in app
+    assert "map-data-panel" in network_workspace
+    assert "map-network-state" in network_workspace
     assert "networkGeometryState" in app
 
     assert "tile.openstreetmap.org" in map_component
@@ -400,6 +404,9 @@ def test_web_client_matches_design_reference_cockpit() -> None:
 
 def test_web_client_release_cockpit_chrome_is_clean_and_color_coded() -> None:
     app = (ROOT / "clients" / "web" / "src" / "App.tsx").read_text(encoding="utf-8")
+    network_workspace = (
+        ROOT / "clients" / "web" / "src" / "components" / "NetworkWorkspace.tsx"
+    ).read_text(encoding="utf-8")
     css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(
         encoding="utf-8"
     )
@@ -414,8 +421,8 @@ def test_web_client_release_cockpit_chrome_is_clean_and_color_coded() -> None:
     )
     assert "release-cockpit-override" in css
     assert "workspace-topbar-only" in css
-    assert "map-layer-chip compact" in app
-    assert "aria-pressed={activeLayers.includes(layer)}" in app
+    assert "map-layer-chip compact" in network_workspace
+    assert "aria-pressed={activeLayers.includes(layer)}" in network_workspace
     assert "MapLibre controls sit outside both decision rails" in css
     assert "route_candidate" in map_component
     assert 'edge.source_system === "route_candidate"' in map_component
@@ -450,6 +457,9 @@ def test_web_client_release_cockpit_chrome_is_clean_and_color_coded() -> None:
 
 def test_web_client_separates_market_capacity_orders_and_review_pages() -> None:
     app = (ROOT / "clients" / "web" / "src" / "App.tsx").read_text(encoding="utf-8")
+    navigation = (
+        ROOT / "clients" / "web" / "src" / "workspaceNavigation.ts"
+    ).read_text(encoding="utf-8")
     en = json.loads(
         (ROOT / "clients" / "web" / "src" / "i18n" / "en.json").read_text(encoding="utf-8")
     )
@@ -457,27 +467,16 @@ def test_web_client_separates_market_capacity_orders_and_review_pages() -> None:
         (ROOT / "clients" / "web" / "src" / "i18n" / "zh.json").read_text(encoding="utf-8")
     )
 
-    assert (
-        'const WORKSPACE_PAGES: WorkspacePageId[] = [\n'
-        '  "network",\n'
-        '  "capacity",\n'
-        '  "market",\n'
-        '  "scenario",\n'
-        '  "contracts",\n'
-        '  "strategy",\n'
-        '  "review",\n'
-        '  "orders",\n'
-        '  "sources",\n'
-        '  "glossary",\n'
-        '  "runtime",\n'
-        '  "settings",\n'
-        '  "manual",\n'
-        "];"
-    ) in app
+    assert "export const workspacePageIds" in navigation
+    for page in [
+        "network", "capacity", "market", "scenario", "contracts", "strategy",
+        "review", "orders", "sources", "glossary", "runtime", "settings", "manual",
+    ]:
+        assert f'"{page}"' in navigation
     assert "function workspaceFromLocation(): WorkspacePageId" in app
     assert 'new URLSearchParams(window.location.search).get("workspace")' in app
-    assert "WORKSPACE_PAGES.includes(requestedWorkspace as WorkspacePageId)" in app
-    assert "const workspacePages = WORKSPACE_PAGES" in app
+    assert "coerceWorkspacePageId(requestedWorkspace, DEFAULT_WORKSPACE_PAGE_ID)" in app
+    assert "const WORKSPACE_PAGES" not in app
     assert 'nextUrl.searchParams.set("workspace", page)' in app
     assert "window.history.pushState({ workspace: page }, \"\", nextUrl)" in app
     assert 'window.addEventListener("popstate", syncWorkspaceFromUrl)' in app
@@ -603,7 +602,7 @@ def test_web_client_strategy_page_is_shadow_run_terminal() -> None:
     assert "strategyScenario={strategyScenario}" in app
     assert "strategyResult={strategyResult}" in app
     assert "portfolioResources={portfolioResources}" in app
-    assert "marketObservations={markets}" in app
+    assert "marketObservations={contextMarkets}" in app
     assert "fxRates={fxRates}" in app
     assert "language={i18n.language}" in app
     assert "onEvaluate={() => evaluateStrategyLab(strategyScenario)}" in app
@@ -765,6 +764,9 @@ def test_web_client_settings_page_is_trader_preference_center() -> None:
 
 def test_web_client_network_page_shows_resource_pool_paths_on_map() -> None:
     app = (ROOT / "clients" / "web" / "src" / "App.tsx").read_text(encoding="utf-8")
+    network_workspace = (
+        ROOT / "clients" / "web" / "src" / "components" / "NetworkWorkspace.tsx"
+    ).read_text(encoding="utf-8")
     resource_pool_paths = (
         ROOT / "clients" / "web" / "src" / "app" / "resourcePoolMapPaths.ts"
     ).read_text(encoding="utf-8")
@@ -786,11 +788,12 @@ def test_web_client_network_page_shows_resource_pool_paths_on_map() -> None:
         encoding="utf-8"
     )
 
-    assert 'import { ResourcePoolPathOverlay } from "@/components/ResourcePoolPathOverlay";' in app
+    assert 'ResourcePoolPathOverlay,' in network_workspace
     assert "buildResourcePoolMapPaths" in app
-    assert "<ResourcePoolPathOverlay" in app
+    assert "<ResourcePoolPathOverlay" in network_workspace
     assert "resourcePoolMapPaths" in app
     assert "highlightedRoute={resourcePoolHighlightedRoute" in app
+    assert "highlightedRoute={highlightedRoute}" in network_workspace
     assert "resource-pool-map-overlay" in overlay
     assert "resource-path-card" in overlay
     assert "resource-path-flow" in overlay
@@ -884,7 +887,10 @@ def test_web_client_map_fallback_prioritizes_labels_for_trader_readability() -> 
         encoding="utf-8"
     )
 
-    assert "MAX_FALLBACK_LABELS" in map_component
+    assert "MAX_MAP_LABELS" in map_component
+    assert "MAJOR_HUB_PRIORITY" in map_component
+    assert "priorityLabelNodes" in map_component
+    assert "map-node-label" in map_component
     assert "fallbackLabelPriorityIds" in map_component
     assert "shouldShowFallbackNodeLabel" in map_component
     assert "isSearchLabelMatch" in map_component
@@ -1146,6 +1152,9 @@ def test_web_client_sources_page_is_categorized_source_center() -> None:
     api_client = (ROOT / "clients" / "web" / "src" / "api" / "client.ts").read_text(
         encoding="utf-8"
     )
+    derived_data = (
+        ROOT / "clients" / "web" / "src" / "app" / "workspaceDerivedData.ts"
+    ).read_text(encoding="utf-8")
     css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(
         encoding="utf-8"
     )
@@ -1156,20 +1165,20 @@ def test_web_client_sources_page_is_categorized_source_center() -> None:
         (ROOT / "clients" / "web" / "src" / "i18n" / "zh.json").read_text(encoding="utf-8")
     )
 
-    assert "source-category-rail" in app_and_source_center
-    assert "source-health-grid" in app_and_source_center
+    assert "source-category-filter" in app_and_source_center
+    assert "source-operations-table" in app_and_source_center
     assert "source-diagnostics" in app_and_source_center
     assert "source-next-action" in app_and_source_center
-    assert "source-action-line" in app_and_source_center
+    assert "source-diagnostic-action" in app_and_source_center
     assert "sourceNextAction" in app_and_source_center
     assert "selectedSource" in app_and_source_center
     assert "credential_state" in app_and_source_center
     assert "last_success_at_utc" in app_and_source_center
     assert "connectivity_status" in app_and_source_center
-    assert (
-        'const sourceCategoryOrder = ["price", "fx", "infrastructure", "tariff", "weather", "ai"]'
-        in app
-    )
+    assert "SOURCE_CATEGORY_ORDER" in derived_data
+    for category in ["price", "fx", "infrastructure", "tariff", "weather", "ai"]:
+        assert f'"{category}"' in derived_data
+    assert "buildSourcePostureRows" in app
     assert "categoryProviderSummary" in app
     assert "normalizeSourceSystem" in api_client
     assert "SOURCE_CATEGORY_BY_SYSTEM" in api_client
@@ -1277,9 +1286,9 @@ def test_source_center_shows_category_operational_posture_board() -> None:
     assert "sourcePostureRows={sourcePostureRows}" in app
     assert "source-posture-board" in source_center
     assert "source-posture-row" in source_center
-    assert "preview_substitutes_active" in source_center
+    assert "sources_needing_attention" in source_center
     assert "sources.posture_board" in source_center
-    assert "sources.preview_substitutes_active" in source_center
+    assert "source-operations-table" in source_center
     assert "source-posture-board" in css
     assert "source-posture-row" in css
     assert en["sources.posture_board"] == "Operational source posture"
@@ -1303,6 +1312,9 @@ def test_web_client_mobile_topbar_constrains_controls_to_viewport() -> None:
 
 def test_web_client_resource_pool_options_are_backend_owned() -> None:
     app = (ROOT / "clients" / "web" / "src" / "App.tsx").read_text(encoding="utf-8")
+    network_workspace = (
+        ROOT / "clients" / "web" / "src" / "components" / "NetworkWorkspace.tsx"
+    ).read_text(encoding="utf-8")
     contract_workbench = (
         ROOT / "clients" / "web" / "src" / "components" / "ContractWorkbench.tsx"
     ).read_text(encoding="utf-8")
@@ -1331,7 +1343,7 @@ def test_web_client_resource_pool_options_are_backend_owned() -> None:
     assert "sale_price_source_system?: string | null" in api_client
     assert "sale_price_simulated?: boolean" in api_client
     assert "sale_price_source_family?: string | null" in api_client
-    assert "sale_price_simulated ? t(\"market.simulated_source\")" in app
+    assert "sale_price_simulated ? t(\"market.simulated_source\")" in network_workspace
     assert "saveUpstreamContract" in api_client
     assert "saveDraftContract" in store
     assert "saveDraftContract(contractPayload)" in app_and_contracts

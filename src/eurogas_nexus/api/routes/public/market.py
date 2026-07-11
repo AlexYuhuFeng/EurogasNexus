@@ -51,6 +51,7 @@ def _db_market_observations() -> list[dict] | None:
 
         with get_session_factory()() as session:
             rows = session.query(MarketObservationRecord).order_by(
+                MarketObservationRecord.observed_at_utc.desc(),
                 MarketObservationRecord.market_venue,
                 MarketObservationRecord.product,
             )

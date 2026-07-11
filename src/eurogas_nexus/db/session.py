@@ -48,6 +48,7 @@ def get_engine(
     *,
     echo: bool = False,
     pool_pre_ping: bool = True,
+    connect_timeout_seconds: int = 5,
 ) -> Engine:
     """Create a SQLAlchemy engine lazily without opening a connection."""
 
@@ -55,12 +56,17 @@ def get_engine(
     if not resolved_url:
         raise ValueError("Database URL is required to create an engine.")
 
-    return create_engine(
-        resolved_url,
-        echo=echo,
-        pool_pre_ping=pool_pre_ping,
-        future=True,
-    )
+    engine_options: dict[str, object] = {
+        "echo": echo,
+        "pool_pre_ping": pool_pre_ping,
+        "future": True,
+    }
+    if make_url(resolved_url).get_backend_name() == "postgresql":
+        bounded_timeout = max(1, int(connect_timeout_seconds))
+        engine_options["connect_args"] = {"connect_timeout": bounded_timeout}
+        engine_options["pool_timeout"] = bounded_timeout
+
+    return create_engine(resolved_url, **engine_options)
 
 
 def create_session_factory(engine: Engine) -> sessionmaker[Session]:

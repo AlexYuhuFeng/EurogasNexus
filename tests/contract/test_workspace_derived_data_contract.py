@@ -11,26 +11,39 @@ APP_INDEX_TS = ROOT / "clients" / "web" / "src" / "app" / "index.ts"
 
 
 def test_workspace_derived_data_helpers_match_app_contract() -> None:
-    """Derived helper functions should preserve current App.tsx list slicing and warning logic."""
+    """App should consume shared derived-data helpers instead of duplicating them."""
 
     app_text = APP_TSX.read_text(encoding="utf-8-sig")
     helper_text = DERIVED_DATA_TS.read_text(encoding="utf-8-sig")
     for app_phrase in [
-        "const latestOfficialFlows = useMemo(() => flows",
-        "const latestCapacityRows = useMemo(() => capacity.slice(0, 5), [capacity]);",
-        "const latestTsoAccessRows = useMemo(() => tsoAccess.slice(0, 6), [tsoAccess]);",
-        "const latestTariffRows = useMemo(() => tsoTariffs.slice(0, 6), [tsoTariffs]);",
-        "const latestStorageRows = useMemo(() => storage.slice(0, 4), [storage]);",
-        "const latestLngRows = useMemo(() => lng.slice(0, 4), [lng]);",
-        "const reviewWarnings = useMemo(",
-        "const sourceStats = useMemo(() => {",
+        "buildWorkspaceLatestRows({ flows, capacity, tsoAccess, tsoTariffs, storage, lng })",
+        "buildReviewWarnings(",
+        "buildSourceStats(sources)",
+        "buildSourcePostureRows(",
+        "buildSourceCategoryCounts(sources)",
+        "buildSourcesByCategory(sources)",
+        "filterSourcesByCategory(sources, sourceCategory)",
+        "sourceNextActionKey(source)",
+        "resolveNetworkGeometryState(runtimeDbReady, nodes, edges)",
     ]:
         assert app_phrase in app_text
+    for removed_phrase in [
+        "const sourceCategoryOrder =",
+        "const issueStatuses = new Set([\"failed\"",
+        "const latestCapacityRows = useMemo(() => capacity.slice",
+    ]:
+        assert removed_phrase not in app_text
     for helper_phrase in [
         "export function latestRows",
         "export function latestOfficialFlows",
         "export function buildReviewWarnings",
         "export function buildSourceStats",
+        "export function buildSourcePostureRows",
+        "export function buildSourceCategoryCounts",
+        "export function buildSourcesByCategory",
+        "export function filterSourcesByCategory",
+        "export function sourceNextActionKey",
+        "export function resolveNetworkGeometryState",
         "export function buildWorkspaceLatestRows",
         '"failed"',
         '"needs_credential"',
@@ -56,5 +69,7 @@ def test_app_barrel_exports_workspace_derived_data_helpers() -> None:
         "latestOfficialFlows",
         "latestRows",
         "SOURCE_ISSUE_STATUSES",
+        "SOURCE_CATEGORIES",
+        "resolveNetworkGeometryState",
     ]:
         assert export_name in barrel_text

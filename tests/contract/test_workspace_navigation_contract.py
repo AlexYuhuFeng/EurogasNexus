@@ -60,23 +60,18 @@ def _navigation_pages(navigation_text: str) -> list[str]:
 
 
 def test_workspace_groups_cover_all_workspace_pages_once() -> None:
-    """Grouped navigation must cover the same route ids accepted by App.tsx."""
+    """Grouped navigation is the single route-id source consumed by App.tsx."""
 
     app_text = _read(APP_TSX)
     navigation_text = _read(WORKSPACE_NAVIGATION_TS)
 
-    pages_match = re.search(
-        r"const\s+WORKSPACE_PAGES:\s*WorkspacePageId\[\]\s*=\s*\[(.*?)\];",
-        app_text,
-        flags=re.DOTALL,
-    )
-    assert pages_match, "App.tsx must expose WORKSPACE_PAGES for direct URL validation."
-    app_pages = _quoted_values(pages_match.group(1))
     grouped_pages = _navigation_pages(navigation_text)
 
     assert grouped_pages == EXPECTED_PAGE_IDS
-    assert set(grouped_pages) == set(app_pages)
     assert len(grouped_pages) == len(set(grouped_pages))
+    assert 'from "@/workspaceNavigation"' in app_text
+    assert "coerceWorkspacePageId(requestedWorkspace, DEFAULT_WORKSPACE_PAGE_ID)" in app_text
+    assert "const WORKSPACE_PAGES" not in app_text
 
 
 def test_workspace_page_ids_are_exported_from_navigation_model() -> None:

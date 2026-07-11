@@ -124,12 +124,17 @@ def test_strategy_scenario_builder_is_wired_into_app() -> None:
 
     app_text = _read(APP_TSX)
     module_text = _read(STRATEGY_SCENARIO_TS)
-    assert "buildStrategyScenario(contract, liveMark, markets, portfolioResources)" in app_text
+    assert (
+        "buildStrategyScenario(contract, liveMark, contextMarkets, portfolioResources, fxRates)"
+        in app_text
+    )
     assert "export function buildStrategyScenario" in module_text
     for phrase in [
         'run_mode: "SHADOW_RUN"',
         'strategy_id: "nbp-sap-icis-ocm-window"',
         'price_name: "ICE_OCM"',
+        "marketPriceGbpMwh",
+        "latestPositiveObservation",
         "require_tso_access: true",
     ]:
         assert phrase in module_text

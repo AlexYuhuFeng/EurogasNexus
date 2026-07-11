@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import maplibregl, { GeoJSONSource, Map as MapLibreMap } from "maplibre-gl";
+import maplibregl, { GeoJSONSource, Map as MapLibreMap, Marker } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { EdgeDTO, NodeDTO, RouteEligibilityDTO } from "@/api/client";
 import type { RouteGeometryState } from "@/components/ResourcePoolPathOverlay";
@@ -72,7 +72,19 @@ function routeGeometryStateClass(state: RouteGeometryState): string {
   return "direct-corridor";
 }
 
-const MAX_FALLBACK_LABELS = 28;
+const MAX_MAP_LABELS = 12;
+const MAJOR_HUB_PRIORITY = [
+  "TTF",
+  "NBP",
+  "THE",
+  "ZTP",
+  "PEG",
+  "PSV",
+  "CEGH",
+  "PVB",
+  "VTP",
+  "IBP",
+];
 
 function fallbackNodeLabel(node: NodeDTO): string {
   const metadata = node.metadata_json ?? {};
@@ -101,6 +113,7 @@ export function GasNetworkMap({
 }: GasNetworkMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
+  const labelMarkersRef = useRef<Marker[]>([]);
   const [mapReady, setMapReady] = useState(false);
   const effectiveTheme = resolveEffectiveTheme(themeMode);
   const mapColors = useMemo(
@@ -127,6 +140,24 @@ export function GasNetworkMap({
         },
     [effectiveTheme],
   );
+  const nodeLookup = useMemo(() => new globalThis.Map(nodes.map((node) => [node.id, node])), [nodes]);
+  const highlightedRouteNodeIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (!highlightedRoute) return ids;
+    ids.add(highlightedRoute.fromNodeId);
+    ids.add(highlightedRoute.toNodeId);
+    edges.forEach((edge) => {
+      const metadata = edge.metadata_json ?? {};
+      if (
+        edge.source_record_id === highlightedRoute.routeId ||
+        metadataString(metadata, "route_id") === highlightedRoute.routeId
+      ) {
+        ids.add(edge.from_node_id);
+        ids.add(edge.to_node_id);
+      }
+    });
+    return ids;
+  }, [edges, highlightedRoute]);
   const filteredNodes = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
     return nodes.filter((node) => {
@@ -139,10 +170,10 @@ export function GasNetworkMap({
         node.name.toLowerCase().includes(term) ||
         node.country.toLowerCase().includes(term) ||
         node.node_type.toLowerCase().includes(term);
-      return layerMatch && searchMatch;
+      const routeContextMatch = highlightedRouteNodeIds.has(node.id) && !term;
+      return (layerMatch || routeContextMatch) && searchMatch;
     });
-  }, [activeLayers, nodes, searchTerm]);
-  const nodeLookup = useMemo(() => new globalThis.Map(nodes.map((node) => [node.id, node])), [nodes]);
+  }, [activeLayers, highlightedRouteNodeIds, nodes, searchTerm]);
   const visibleEdges = useMemo(() => {
     const visibleNodeIds = new Set(filteredNodes.map((node) => node.id));
     return edges
@@ -218,30 +249,39 @@ export function GasNetworkMap({
     [highlightedRoutePoints?.routeGeometryState, highlightedRoutePoints?.routeId, routeSegmentsForHighlight],
   );
   const normalizedSearchTerm = searchTerm.trim().toLowerCase();
-  const fallbackLabelPriorityIds = useMemo(() => {
+  const priorityLabelNodes = useMemo(() => {
+    const priorityNodes: NodeDTO[] = [];
     const priorityIds = new Set<string>();
-    if (highlightedRoutePoints) {
-      priorityIds.add(highlightedRoutePoints.from.id);
-      priorityIds.add(highlightedRoutePoints.to.id);
-    }
-
-    const addWithinBudget = (node: NodeDTO) => {
-      if (priorityIds.has(node.id) || priorityIds.size >= MAX_FALLBACK_LABELS) return;
+    const visibleNodeIds = new Set(filteredNodes.map((node) => node.id));
+    const addWithinBudget = (node: NodeDTO | undefined) => {
+      if (
+        !node ||
+        !visibleNodeIds.has(node.id) ||
+        priorityIds.has(node.id) ||
+        priorityNodes.length >= MAX_MAP_LABELS
+      ) return;
       priorityIds.add(node.id);
+      priorityNodes.push(node);
     };
 
+    if (highlightedRoutePoints) {
+      addWithinBudget(highlightedRoutePoints.from);
+      addWithinBudget(highlightedRoutePoints.to);
+    }
     filteredNodes
       .filter((node) => isSearchLabelMatch(node, normalizedSearchTerm))
       .forEach(addWithinBudget);
-    filteredNodes
-      .filter((node) => node.node_type === "hub")
-      .forEach(addWithinBudget);
-    filteredNodes
-      .filter((node) => node.node_type !== "hub" && Boolean(node.metadata_json?.market_code))
-      .forEach(addWithinBudget);
-
-    return priorityIds;
+    MAJOR_HUB_PRIORITY.forEach((marketCode) => addWithinBudget(
+      filteredNodes.find((node) => fallbackNodeLabel(node).toUpperCase() === marketCode),
+    ));
+    filteredNodes.filter((node) => node.node_type === "hub").forEach(addWithinBudget);
+    return priorityNodes;
   }, [filteredNodes, highlightedRoutePoints, normalizedSearchTerm]);
+
+  const fallbackLabelPriorityIds = useMemo(
+    () => new Set(priorityLabelNodes.map((node) => node.id)),
+    [priorityLabelNodes],
+  );
 
   function shouldShowFallbackNodeLabel(node: NodeDTO, index: number): boolean {
     return index >= 0 && fallbackLabelPriorityIds.has(node.id);
@@ -278,11 +318,11 @@ export function GasNetworkMap({
             type: "raster",
             source: "osm",
             paint: {
-              "raster-opacity": effectiveTheme === "dark" ? 0.38 : 0.64,
+              "raster-opacity": effectiveTheme === "dark" ? 0.56 : 0.72,
               "raster-saturation": -1,
-              "raster-contrast": effectiveTheme === "dark" ? 0.14 : 0.24,
-              "raster-brightness-min": effectiveTheme === "dark" ? 0.08 : 0.16,
-              "raster-brightness-max": effectiveTheme === "dark" ? 0.62 : 0.92,
+              "raster-contrast": effectiveTheme === "dark" ? 0.2 : 0.28,
+              "raster-brightness-min": effectiveTheme === "dark" ? 0.12 : 0.2,
+              "raster-brightness-max": effectiveTheme === "dark" ? 0.76 : 0.96,
             },
           },
         ],
@@ -310,11 +350,11 @@ export function GasNetworkMap({
       map.setPaintProperty("background", "background-color", mapColors.background);
     }
     if (map.getLayer("osm-raster")) {
-      map.setPaintProperty("osm-raster", "raster-opacity", effectiveTheme === "dark" ? 0.38 : 0.64);
+      map.setPaintProperty("osm-raster", "raster-opacity", effectiveTheme === "dark" ? 0.56 : 0.72);
       map.setPaintProperty("osm-raster", "raster-saturation", -1);
-      map.setPaintProperty("osm-raster", "raster-contrast", effectiveTheme === "dark" ? 0.14 : 0.24);
-      map.setPaintProperty("osm-raster", "raster-brightness-min", effectiveTheme === "dark" ? 0.08 : 0.16);
-      map.setPaintProperty("osm-raster", "raster-brightness-max", effectiveTheme === "dark" ? 0.62 : 0.92);
+      map.setPaintProperty("osm-raster", "raster-contrast", effectiveTheme === "dark" ? 0.2 : 0.28);
+      map.setPaintProperty("osm-raster", "raster-brightness-min", effectiveTheme === "dark" ? 0.12 : 0.2);
+      map.setPaintProperty("osm-raster", "raster-brightness-max", effectiveTheme === "dark" ? 0.76 : 0.96);
     }
     if (!mapReady) return;
 
@@ -340,6 +380,13 @@ export function GasNetworkMap({
         0.74,
         0.96,
       ]);
+    }
+    if (map.getLayer("node-clusters")) {
+      map.setPaintProperty("node-clusters", "circle-color", mapColors.node);
+      map.setPaintProperty("node-clusters", "circle-stroke-color", mapColors.stroke);
+    }
+    if (map.getLayer("node-cluster-count")) {
+      map.setPaintProperty("node-cluster-count", "text-color", mapColors.stroke);
     }
   }, [effectiveTheme, mapColors, mapReady]);
 
@@ -448,11 +495,39 @@ export function GasNetworkMap({
       map.addSource("nodes", {
         type: "geojson",
         data: { type: "FeatureCollection", features: nodeFeatures },
+        cluster: true,
+        clusterMaxZoom: 6,
+        clusterRadius: 34,
+      });
+      map.addLayer({
+        id: "node-clusters",
+        type: "circle",
+        source: "nodes",
+        filter: ["has", "point_count"],
+        paint: {
+          "circle-color": mapColors.node,
+          "circle-radius": ["step", ["get", "point_count"], 14, 25, 18, 100, 22],
+          "circle-stroke-color": mapColors.stroke,
+          "circle-stroke-width": 2,
+          "circle-opacity": 0.88,
+        },
+      });
+      map.addLayer({
+        id: "node-cluster-count",
+        type: "symbol",
+        source: "nodes",
+        filter: ["has", "point_count"],
+        layout: {
+          "text-field": ["get", "point_count_abbreviated"],
+          "text-size": 11,
+        },
+        paint: { "text-color": mapColors.stroke },
       });
       map.addLayer({
         id: "nodes-circle",
         type: "circle",
         source: "nodes",
+        filter: ["!", ["has", "point_count"]],
         paint: {
           "circle-radius": ["case", ["==", ["get", "node_type"], "hub"], 7, 5],
           "circle-color": [
@@ -480,6 +555,23 @@ export function GasNetworkMap({
             0.96,
           ],
         },
+      });
+      map.on("click", "node-clusters", (event) => {
+        const feature = event.features?.[0];
+        const clusterId = Number(feature?.properties?.cluster_id);
+        if (!feature || !Number.isFinite(clusterId)) return;
+        const coordinates = (feature.geometry as { coordinates?: [number, number] }).coordinates;
+        if (!coordinates) return;
+        const source = map.getSource("nodes") as GeoJSONSource;
+        void source.getClusterExpansionZoom(clusterId).then((zoom) => {
+          map.easeTo({ center: coordinates, zoom });
+        });
+      });
+      map.on("mouseenter", "node-clusters", () => {
+        map.getCanvas().style.cursor = "pointer";
+      });
+      map.on("mouseleave", "node-clusters", () => {
+        map.getCanvas().style.cursor = "";
       });
       map.on("click", "nodes-circle", (event) => {
         const feature = event.features?.[0];
@@ -515,6 +607,48 @@ export function GasNetworkMap({
       });
     }
   }, [filteredNodes, highlightedRouteSegmentFeatures, mapColors, mapReady, routeIds, visibleEdges]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+
+    const clearLabels = () => {
+      labelMarkersRef.current.forEach((marker) => marker.remove());
+      labelMarkersRef.current = [];
+    };
+    const renderLabels = () => {
+      clearLabels();
+      const occupied: Array<{ x: number; y: number }> = [];
+      priorityLabelNodes.forEach((node) => {
+        const projected = map.project([node.lon, node.lat]);
+        const isHighlighted = Boolean(
+          highlightedRoutePoints &&
+          [highlightedRoutePoints.from.id, highlightedRoutePoints.to.id].includes(node.id),
+        );
+        const collides = occupied.some(
+          (point) => Math.abs(point.x - projected.x) < 76 && Math.abs(point.y - projected.y) < 24,
+        );
+        if (collides && !isHighlighted) return;
+        occupied.push({ x: projected.x, y: projected.y });
+        const element = document.createElement("div");
+        element.className = `map-node-label map-node-label-${node.node_type}${isHighlighted ? " highlighted" : ""}`;
+        element.textContent = fallbackNodeLabel(node);
+        element.title = node.name;
+        labelMarkersRef.current.push(
+          new maplibregl.Marker({ element, anchor: "left", offset: [9, -7] })
+            .setLngLat([node.lon, node.lat])
+            .addTo(map),
+        );
+      });
+    };
+
+    renderLabels();
+    map.on("moveend", renderLabels);
+    return () => {
+      map.off("moveend", renderLabels);
+      clearLabels();
+    };
+  }, [highlightedRoutePoints, mapReady, priorityLabelNodes]);
 
   function project(lon: number, lat: number): [number, number] {
     const x = ((lon + 12) / 47) * 1000;

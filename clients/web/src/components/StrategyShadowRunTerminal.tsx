@@ -7,6 +7,11 @@ import type {
   StrategyPriceObservationDTO,
 } from "@/api/client";
 import {
+  isGasPriceObservation,
+  marketObservationHub,
+  marketPriceGbpMwh,
+} from "@/app/index";
+import {
   StrategyBasisExposureLadder,
   StrategyContractPnlAttribution,
   StrategyPnlCurvePanel,
@@ -91,15 +96,21 @@ function riskValue(riskControl: Record<string, unknown> | undefined, key: string
   return "n/a";
 }
 
-function tapePriceFromMarketObservation(item: MarketObsDTO): StrategyPriceObservationDTO {
+function tapePriceFromMarketObservation(
+  item: MarketObsDTO,
+  fxRates: FxRateDTO[],
+): StrategyPriceObservationDTO | null {
+  if (!isGasPriceObservation(item)) return null;
+  const normalizedPrice = marketPriceGbpMwh(item, fxRates);
+  if (normalizedPrice === null) return null;
   return {
     observation_id: item.observation_id,
     source_system: item.source_system ?? "market-observation",
     venue: item.market_venue,
-    hub: item.market_venue,
+    hub: marketObservationHub(item),
     product: item.product,
     price_name: item.product,
-    price_gbp_mwh: item.price,
+    price_gbp_mwh: normalizedPrice,
     observed_at_utc: item.observed_at_utc ?? item.period_start_utc,
     delivery_start_utc: item.period_start_utc,
     delivery_end_utc: item.period_end_utc,
@@ -186,6 +197,17 @@ function basisLabelKey(basis: PriceBasisId): string {
   return `strategy.basis.${basis.toLowerCase()}`;
 }
 
+function strategyWarningLabel(warning: string, t: Translate): string {
+  const code = warning.split(":", 1)[0].trim().toLowerCase();
+  const key = `strategy.warning.${code}`;
+  const translated = t(key);
+  if (translated !== key) {
+    const detail = warning.includes(":") ? warning.slice(warning.indexOf(":") + 1).trim() : "";
+    return detail ? `${translated}: ${detail}` : translated;
+  }
+  return warning.replaceAll("_", " ");
+}
+
 export function StrategyShadowRunTerminal({
   strategyScenario,
   strategyResult,
@@ -201,16 +223,20 @@ export function StrategyShadowRunTerminal({
   const combinedPriceTape = useMemo(() => {
     const observed = [
       ...strategyScenario.price_observations,
-      ...marketObservations.map(tapePriceFromMarketObservation),
+      ...marketObservations
+        .map((item) => tapePriceFromMarketObservation(item, fxRates))
+        .filter((item): item is StrategyPriceObservationDTO => item !== null),
     ];
     const seen = new Set<string>();
-    return observed.filter((price) => {
-      const key = `${price.observation_id}:${price.source_system}:${price.price_name}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-  }, [strategyScenario.price_observations, marketObservations]);
+    return observed
+      .filter((price) => {
+        const key = `${price.observation_id}:${price.source_system}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .sort((left, right) => observedAtMs(right.observed_at_utc) - observedAtMs(left.observed_at_utc));
+  }, [strategyScenario.price_observations, marketObservations, fxRates]);
   const priceTape = combinedPriceTape.slice(0, 12);
   const resourcePoolRows = useMemo(() => {
     if (portfolioResources.length > 0) {
@@ -260,9 +286,11 @@ export function StrategyShadowRunTerminal({
           observationCount: fxRates.length,
           sourceSystems: uniqueStrings(fxRates.map((rate) => rate.source_system)),
           simulatedCount: fxRates.filter((rate) => isSimulatedSource(rate.source_system)).length,
-          staleCount: fxRates.filter((rate) =>
-            isStaleObservation(rate.observed_at_utc, STALE_HOURS_BY_BASIS.FX, nowMs),
-          ).length,
+          staleCount: latestFx && isStaleObservation(
+            latestFx.observed_at_utc,
+            STALE_HOURS_BY_BASIS.FX,
+            nowMs,
+          ) ? 1 : 0,
           latestObservedAtUtc: latestFx?.observed_at_utc ?? null,
         };
       }
@@ -277,9 +305,11 @@ export function StrategyShadowRunTerminal({
         observationCount: observations.length,
         sourceSystems: uniqueStrings(observations.map((price) => price.source_system)),
         simulatedCount: observations.filter((price) => isSimulatedSource(price.source_system)).length,
-        staleCount: observations.filter((price) =>
-          isStaleObservation(price.observed_at_utc, STALE_HOURS_BY_BASIS[basis], nowMs),
-        ).length,
+        staleCount: latest && isStaleObservation(
+          latest.observed_at_utc,
+          STALE_HOURS_BY_BASIS[basis],
+          nowMs,
+        ) ? 1 : 0,
         latestObservedAtUtc: latest?.observed_at_utc ?? null,
       };
     })
@@ -379,7 +409,7 @@ export function StrategyShadowRunTerminal({
 
   return (
     <div className="workspace-grid strategy-page strategy-shadow-run-terminal">
-      <section className="workspace-panel span-2 strategy-command-deck">
+      <section className="workspace-panel span-3 strategy-command-deck">
         <div className="section-heading">
           <span className="eyebrow">{t("strategy.shadow_terminal")}</span>
           <strong>{strategyScenario.strategy_name}</strong>
@@ -390,6 +420,8 @@ export function StrategyShadowRunTerminal({
           <span>{t("strategy.bar")}: 5m</span>
           <span>{t("strategy.mode")}: {strategyScenario.run_mode}</span>
           <span>{t("strategy.no_execution")}</span>
+          <span>{t("strategy.observations")}: {combinedPriceTape.length}</span>
+          <span>{t("context.updated")}: {priceTape[0]?.observed_at_utc ? new Date(priceTape[0].observed_at_utc).toLocaleString(language) : t("data.unavailable")}</span>
         </div>
         <div className="strategy-command-actions">
           <button type="button" disabled={loading} onClick={onEvaluate}>
@@ -416,10 +448,10 @@ export function StrategyShadowRunTerminal({
       <section className="workspace-panel strategy-risk-stack">
         <h3>{t("strategy.risk_controls")}</h3>
         <div className="metric-grid">
-          <div><span>Max OCM</span><strong>{riskValue(strategyScenario.risk_control, "max_ocm_allocation_pct")}%</strong></div>
-          <div><span>Min day-ahead</span><strong>{riskValue(strategyScenario.risk_control, "min_day_ahead_allocation_pct")}%</strong></div>
-          <div><span>Max market</span><strong>{riskValue(strategyScenario.risk_control, "max_single_market_volume_mwh_per_day")}</strong></div>
-          <div><span>TSO access</span><strong>{riskValue(strategyScenario.risk_control, "require_tso_access")}</strong></div>
+          <div><span>{t("strategy.max_ocm")}</span><strong>{riskValue(strategyScenario.risk_control, "max_ocm_allocation_pct")}%</strong></div>
+          <div><span>{t("strategy.min_day_ahead")}</span><strong>{riskValue(strategyScenario.risk_control, "min_day_ahead_allocation_pct")}%</strong></div>
+          <div><span>{t("strategy.max_market")}</span><strong>{riskValue(strategyScenario.risk_control, "max_single_market_volume_mwh_per_day")}</strong></div>
+          <div><span>{t("strategy.tso_access")}</span><strong>{riskValue(strategyScenario.risk_control, "require_tso_access")}</strong></div>
         </div>
       </section>
 
@@ -516,7 +548,7 @@ export function StrategyShadowRunTerminal({
       <section className="workspace-panel span-2 strategy-allocation-ladder">
         <h3>{t("strategy.allocation_targets")}</h3>
         <div className="data-table">
-          <div className="data-table-row header four"><span>Bucket</span><span>Target</span><span>Quantity</span><span>Reference</span></div>
+          <div className="data-table-row header four"><span>{t("strategy.bucket")}</span><span>{t("strategy.target")}</span><span>{t("strategy.quantity")}</span><span>{t("strategy.reference")}</span></div>
           {strategyResult?.allocation_targets.map((target) => (
             <div key={`shadow-target-${target.market_bucket}`} className="data-table-row four">
               <strong>{target.market_bucket}</strong>
@@ -543,7 +575,7 @@ export function StrategyShadowRunTerminal({
         <h3>{t("strategy.warning_stack")}</h3>
         <div className="review-warning-list">
           {warningStack.length > 0
-            ? warningStack.slice(0, 8).map((warning) => <span key={`strategy-warning-${warning}`}>{warning}</span>)
+            ? warningStack.slice(0, 8).map((warning) => <span key={`strategy-warning-${warning}`}>{strategyWarningLabel(warning, t)}</span>)
             : <span>{t("review.no_warnings")}</span>}
         </div>
       </section>

@@ -6,57 +6,55 @@ import type {
   ContractNumberKey,
   ContractTextKey,
 } from "@/components/ContractWorkbench";
-import { GasNetworkMap } from "@/components/GasNetworkMap";
 import { GlossaryWiki } from "@/components/GlossaryWiki";
 import { MarketTerminal } from "@/components/MarketTerminal";
-import { ResourcePoolPathOverlay } from "@/components/ResourcePoolPathOverlay";
+import { NetworkWorkspace } from "@/components/NetworkWorkspace";
 import { SettingsCenter } from "@/components/SettingsCenter";
 import { SourceCenter } from "@/components/SourceCenter";
 import { StrategyShadowRunTerminal } from "@/components/StrategyShadowRunTerminal";
-import { WorkspaceTopBar, type WorkspacePageId } from "@/components/WorkspaceTopBar";
-import type { SourceCategoryPostureDTO, UpstreamContractDTO } from "@/api/client";
+import { WorkspaceTopBar } from "@/components/WorkspaceTopBar";
+import type { UpstreamContractDTO } from "@/api/client";
 import {
   buildHighlightedResourcePoolRoute,
   buildContractPayload,
   buildNodeIdByPointName,
+  buildReviewWarnings,
   buildResourcePoolMapPaths,
   buildResourcePoolOptimizationRequest,
   buildRouteRecommendationRequest,
   buildRouteGeometryEdgesByRouteId,
+  buildSourceCategoryCounts,
+  buildSourcePostureRows,
+  buildSourcesByCategory,
+  buildSourceStats,
   buildStrategyScenario,
+  buildWorkspaceLatestRows,
   cloneDefaultContractDraft,
   contractDraftFromRecord,
   contractRecordFromImportedFile,
+  DEFAULT_GAS_DAY,
+  filterSourcesByCategory,
+  marketMatchesTradingContext,
+  resolveNetworkGeometryState,
+  SOURCE_CATEGORIES,
+  sourceNextActionKey,
 } from "@/app/index";
 import type { ContractDraft } from "@/app/index";
 import { useApiStore } from "@/stores/api";
 import { useThemeStore } from "@/stores/theme";
+import {
+  coerceWorkspacePageId,
+  DEFAULT_WORKSPACE_PAGE_ID,
+  type WorkspacePageId,
+} from "@/workspaceNavigation";
 import "./styles/app.css";
 
 type LiveMarkNumberKey = "bid_gbp_mwh" | "ask_gbp_mwh" | "last_gbp_mwh";
 const MARKET_REFRESH_INTERVAL_MS = 15_000;
-const WORKSPACE_PAGES: WorkspacePageId[] = [
-  "network",
-  "capacity",
-  "market",
-  "scenario",
-  "contracts",
-  "strategy",
-  "review",
-  "orders",
-  "sources",
-  "glossary",
-  "runtime",
-  "settings",
-  "manual",
-];
-
 function workspaceFromLocation(): WorkspacePageId {
-  if (typeof window === "undefined") return "network";
+  if (typeof window === "undefined") return DEFAULT_WORKSPACE_PAGE_ID;
   const requestedWorkspace = new URLSearchParams(window.location.search).get("workspace");
-  return WORKSPACE_PAGES.includes(requestedWorkspace as WorkspacePageId)
-    ? requestedWorkspace as WorkspacePageId
-    : "network";
+  return coerceWorkspacePageId(requestedWorkspace, DEFAULT_WORKSPACE_PAGE_ID);
 }
 
 export default function App() {
@@ -108,9 +106,11 @@ export default function App() {
     askAnalysis,
     generatePortfolioReport,
   } = useApiStore();
-  const [activeLayers, setActiveLayers] = useState(["network", "lng", "ips", "hubs"]);
+  const [activeLayers, setActiveLayers] = useState(["hubs"]);
+  const [gasDay, setGasDay] = useState(DEFAULT_GAS_DAY);
+  const [deliveryProduct, setDeliveryProduct] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
-  const [credentialProvider, setCredentialProvider] = useState("GIE");
+  const [credentialProvider, setCredentialProvider] = useState("");
   const [credentialLabel, setCredentialLabel] = useState("default");
   const [credentialValue, setCredentialValue] = useState("");
   const [sourceCategory, setSourceCategory] = useState("all");
@@ -123,7 +123,6 @@ export default function App() {
   const [analysisQuestion, setAnalysisQuestion] = useState("Summarize current portfolio PnL, route, market, and strategy status.");
   const [invokeDeepSeek, setInvokeDeepSeek] = useState(false);
   const [activeWorkspace, setActiveWorkspace] = useState<WorkspacePageId>(() => workspaceFromLocation());
-  const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
   const contractImportRef = useRef<HTMLInputElement>(null);
   const lastAutoOptimizerSignatureRef = useRef<string | null>(null);
   const [contractImportMessage, setContractImportMessage] = useState<string | null>(null);
@@ -166,11 +165,16 @@ export default function App() {
     () => buildResourcePoolOptimizationRequest(contract, portfolioResources, saleOptions, upstreamContracts),
     [contract, portfolioResources, saleOptions, upstreamContracts],
   );
+
+  const contextMarkets = useMemo(
+    () => markets.filter((observation) => marketMatchesTradingContext(observation, gasDay, deliveryProduct)),
+    [deliveryProduct, gasDay, markets],
+  );
   const contractPayload = useMemo(() => buildContractPayload(contract), [contract]);
 
   const strategyScenario = useMemo(
-    () => buildStrategyScenario(contract, liveMark, markets, portfolioResources),
-    [contract, liveMark, markets, portfolioResources],
+    () => buildStrategyScenario(contract, liveMark, contextMarkets, portfolioResources, fxRates),
+    [contextMarkets, contract, liveMark, portfolioResources, fxRates],
   );
 
   useEffect(() => {
@@ -189,7 +193,6 @@ export default function App() {
   useEffect(() => {
     function syncWorkspaceFromUrl() {
       setActiveWorkspace(workspaceFromLocation());
-      setWorkspaceMenuOpen(false);
     }
     window.addEventListener("popstate", syncWorkspaceFromUrl);
     return () => window.removeEventListener("popstate", syncWorkspaceFromUrl);
@@ -280,7 +283,6 @@ export default function App() {
 
   function openWorkspace(page: WorkspacePageId) {
     setActiveWorkspace(page);
-    setWorkspaceMenuOpen(false);
     const nextUrl = new URL(window.location.href);
     nextUrl.searchParams.set("workspace", page);
     window.history.pushState({ workspace: page }, "", nextUrl);
@@ -304,8 +306,6 @@ export default function App() {
     selected_contracts: portfolioResources.map((resource) => resource.resource_id),
     language: i18n.language.startsWith("zh") ? "zh-CN" : "en",
   };
-  const workspacePages = WORKSPACE_PAGES;
-  const destinationHubs = ["NBP", "TTF", "ZTP", "PEG", "THE"];
   const selectedAllocation = routeRecommendation?.allocations[0] ?? null;
   const poolAllocations = resourcePoolResult?.allocations ?? [];
   const firstPoolAllocation = poolAllocations[0] ?? null;
@@ -324,34 +324,28 @@ export default function App() {
   const purchasePrice = firstPortfolioResource?.contract_cost_gbp_mwh ?? null;
   const routeCharge = firstAllocationOption?.route_cost_gbp_mwh ?? selectedAllocation?.route_cost ?? null;
   const activeWarning = [...(strategyResult?.warnings ?? []), ...(meta?.warnings ?? [])][0] ?? null;
-  const latestOfficialFlows = useMemo(() => flows
-    .filter((item) => item.source_system === "ENTSOG")
-    .slice(0, 5), [flows]);
-  const latestCapacityRows = useMemo(() => capacity.slice(0, 5), [capacity]);
-  const latestTsoAccessRows = useMemo(() => tsoAccess.slice(0, 6), [tsoAccess]);
-  const latestTariffRows = useMemo(() => tsoTariffs.slice(0, 6), [tsoTariffs]);
-  const latestStorageRows = useMemo(() => storage.slice(0, 4), [storage]);
-  const latestLngRows = useMemo(() => lng.slice(0, 4), [lng]);
+  const {
+    latestOfficialFlows,
+    latestCapacityRows,
+    latestTsoAccessRows,
+    latestTariffRows,
+    latestStorageRows,
+    latestLngRows,
+  } = useMemo(
+    () => buildWorkspaceLatestRows({ flows, capacity, tsoAccess, tsoTariffs, storage, lng }),
+    [capacity, flows, lng, storage, tsoAccess, tsoTariffs],
+  );
   const reviewWarnings = useMemo(
-    () => [
-      ...(resourcePoolResult?.warnings ?? []),
-      ...(routeRecommendation?.warnings ?? []),
-      ...(strategyResult?.warnings ?? []),
-      ...(analysisResult?.warnings ?? []),
-      ...(meta?.warnings ?? []),
-    ],
+    () => buildReviewWarnings(
+      resourcePoolResult,
+      routeRecommendation,
+      strategyResult,
+      analysisResult,
+      meta,
+    ),
     [analysisResult, meta, resourcePoolResult, routeRecommendation, strategyResult],
   );
-  const sourceStats = useMemo(() => {
-    const issueStatuses = new Set(["failed", "needs_credential", "credential_disabled", "runtime_unconfigured"]);
-    return {
-      total: sources.length,
-      active: sources.filter((source) => source.connectivity_status === "active").length,
-      issues: sources.filter((source) => issueStatuses.has(source.connectivity_status)).length,
-      records: sources.reduce((total, source) => total + source.live_record_count, 0),
-      missingCredentials: sources.filter((source) => source.credential_state === "missing").length,
-    };
-  }, [sources]);
+  const sourceStats = useMemo(() => buildSourceStats(sources), [sources]);
   const runtimeDbReady = runtimeDb?.database_url_present === true && runtimeDb.connectivity.ok;
   const optionBlockers = resourcePoolOptions?.blockers ?? [];
   const canRunPoolOptimizer =
@@ -444,48 +438,20 @@ export default function App() {
 
     return items.slice(0, 6);
   }, [endpointMeta, meta, poolInputBlockers, resourcePoolResult, reviewWarnings, routeRecommendation, t]);
-  const networkGeometryState = useMemo(() => {
-    if (!runtimeDbReady) return "runtime_missing";
-    if (nodes.length === 0) return "nodes_missing";
-    if (edges.length === 0) return "edges_missing";
-    return "loaded";
-  }, [edges.length, nodes.length, runtimeDbReady]);
-  const sourceCategoryOrder = ["price", "fx", "infrastructure", "tariff", "weather", "ai"];
-  const sourceCategories = ["all", ...sourceCategoryOrder];
-  const sourcePostureRows = useMemo<SourceCategoryPostureDTO[]>(() => {
-    const apiRows = endpointMeta.sources?.source_posture_summary?.categories;
-    if (apiRows && apiRows.length > 0) {
-      return apiRows
-        .filter((row) => sourceCategoryOrder.includes(row.category))
-        .sort((left, right) => sourceCategoryOrder.indexOf(left.category) - sourceCategoryOrder.indexOf(right.category));
-    }
-
-    const issueStatuses = new Set(["failed", "needs_credential", "credential_disabled", "runtime_unconfigured", "no_records"]);
-    return sourceCategoryOrder.map((category) => {
-      const categorySources = sources.filter((source) => source.category === category);
-      return {
-        category,
-        category_label: category,
-        registered_sources: categorySources.length,
-        active_sources: categorySources.filter((source) => source.connectivity_status === "active").length,
-        sources_needing_attention: categorySources.filter((source) => issueStatuses.has(source.connectivity_status)).length,
-        missing_credentials: categorySources.filter((source) => source.credential_state === "missing").length,
-        preview_substitutes_active: categorySources.filter((source) => source.preview_substitute_status === "active").length,
-        runtime_records: categorySources.reduce((total, source) => total + source.live_record_count, 0),
-        next_action: categorySources.some((source) => source.credential_state === "missing")
-          ? "add_credentials"
-          : categorySources.some((source) => source.connectivity_status === "failed")
-            ? "inspect_failure"
-            : categorySources.some((source) => source.connectivity_status === "active")
-              ? "monitor"
-              : "run_ingestion",
-      };
-    }).filter((row) => row.registered_sources > 0);
-  }, [endpointMeta.sources?.source_posture_summary?.categories, sourceCategoryOrder, sources]);
+  const networkGeometryState = useMemo(
+    () => resolveNetworkGeometryState(runtimeDbReady, nodes, edges),
+    [edges, nodes, runtimeDbReady],
+  );
+  const sourceCategories = SOURCE_CATEGORIES;
+  const sourcePostureRows = useMemo(
+    () => buildSourcePostureRows(
+      sources,
+      endpointMeta.sources?.source_posture_summary?.categories,
+    ),
+    [endpointMeta.sources?.source_posture_summary?.categories, sources],
+  );
   const filteredSources = useMemo(
-    () => sourceCategory === "all"
-      ? sources
-      : sources.filter((source) => source.category === sourceCategory),
+    () => filterSourcesByCategory(sources, sourceCategory),
     [sourceCategory, sources],
   );
   const selectedSource = useMemo(
@@ -493,24 +459,20 @@ export default function App() {
     [filteredSources, selectedSourceId, sources],
   );
   const selectedSourceCredentialProvider = useMemo(
-    () => selectedSource?.credential_provider_id
-      ? credentialProviders.find((provider) => provider.provider_id === selectedSource.credential_provider_id)
-      : null,
+    () => {
+      const providerId = credentialProviderIdForSource(selectedSource);
+      return providerId
+        ? credentialProviders.find((provider) => provider.provider_id === providerId) ?? null
+        : null;
+    },
     [credentialProviders, selectedSource],
   );
-  const sourceCategoryCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-    sources.forEach((source) => counts.set(source.category, (counts.get(source.category) ?? 0) + 1));
-    return counts;
-  }, [sources]);
-  const sourcesByCategory = useMemo(() => {
-    const grouped = new Map<string, string[]>();
-    sources.forEach((source) => {
-      const systems = grouped.get(source.category) ?? [];
-      grouped.set(source.category, [...systems, source.source_system]);
-    });
-    return grouped;
-  }, [sources]);
+  useEffect(() => {
+    if (!selectedSourceCredentialProvider?.provider_id) return;
+    setCredentialProvider(selectedSourceCredentialProvider.provider_id);
+  }, [selectedSourceCredentialProvider?.provider_id]);
+  const sourceCategoryCounts = useMemo(() => buildSourceCategoryCounts(sources), [sources]);
+  const sourcesByCategory = useMemo(() => buildSourcesByCategory(sources), [sources]);
   function glossaryContextParams() {
     return {
       lang: glossaryLang,
@@ -531,9 +493,19 @@ export default function App() {
   function selectSource(sourceId: string) {
     const source = sources.find((item) => item.source_id === sourceId);
     setSelectedSourceId(sourceId);
-    if (source?.credential_provider_id) {
-      setCredentialProvider(source.credential_provider_id);
+    const providerId = credentialProviderIdForSource(source);
+    if (providerId) {
+      setCredentialProvider(providerId);
     }
+  }
+
+  function credentialProviderIdForSource(source: typeof sources[number] | null | undefined) {
+    if (!source) return null;
+    if (source.credential_provider_id) return source.credential_provider_id;
+    const sourceSystem = source.source_system.toLocaleLowerCase();
+    return credentialProviders.find(
+      (provider) => provider.provider_id.toLocaleLowerCase() === sourceSystem,
+    )?.provider_id ?? null;
   }
 
   function selectSourceCategory(category: string, nextSourceId: string | null) {
@@ -555,22 +527,7 @@ export default function App() {
   }
 
   function sourceNextAction(source: typeof sources[number] | null) {
-    if (!source) return t("sources.action.none");
-    if (source.connectivity_status === "active") return t("sources.action.monitor");
-    if (source.connectivity_status === "failed") return t("sources.action.inspect_failure");
-    if (source.credential_state === "missing") return t("sources.action.add_credential");
-    if (source.credential_state === "disabled") return t("sources.action.enable_credential");
-    if (source.connectivity_status === "runtime_unconfigured") return t("sources.action.configure_runtime");
-    if (source.connectivity_status === "no_records") return t("sources.action.run_ingestion");
-    if (source.connectivity_status === "configured") return t("sources.action.run_ingestion");
-    return t("sources.action.review");
-  }
-
-  function mapGeometryMessage() {
-    if (networkGeometryState === "runtime_missing") return t("map.runtime_missing_body");
-    if (networkGeometryState === "nodes_missing") return t("map.nodes_missing_body");
-    if (networkGeometryState === "edges_missing") return t("map.network_warning_body");
-    return t("map.network_ready_body");
+    return t(sourceNextActionKey(source));
   }
 
   function formatSourceTimestamp(value: string | null | undefined) {
@@ -598,293 +555,69 @@ export default function App() {
     <div className={`app cockpit-app workspace-${activeWorkspace}`}>
       <WorkspaceTopBar
         activeWorkspace={activeWorkspace}
-        workspaceMenuOpen={workspaceMenuOpen}
         searchTerm={searchTerm}
         dataStatus={dataStatus}
+        loading={loading}
         language={i18n.language}
         mode={mode}
+        gasDay={gasDay}
+        deliveryProduct={deliveryProduct}
+        marketLastUpdatedAtUtc={marketLastUpdatedAtUtc}
+        sourceIssueCount={sourceStats.issues}
         t={t}
-        onWorkspaceMenuToggle={() => setWorkspaceMenuOpen((current) => !current)}
         onSearchTermChange={setSearchTerm}
         onLanguageChange={(language) => i18n.changeLanguage(language)}
         onModeChange={setMode}
+        onGasDayChange={setGasDay}
+        onDeliveryProductChange={setDeliveryProduct}
       />
 
-      {workspaceMenuOpen && (
-        <nav className="workspace-menu" aria-label={t("topbar.workspace_menu")}>
-          {workspacePages.map((page) => (
-            <button
-              key={`menu-${page}`}
-              type="button"
-              className={activeWorkspace === page ? "workspace-menu-item active" : "workspace-menu-item"}
-              onClick={() => openWorkspace(page)}
-            >
-              {t(`nav.${page}`)}
-            </button>
-          ))}
-        </nav>
-      )}
-
       <main className="app-main">
-        <section className="map-container map-stage" id="map">
-          <div className="map-toolbar">
-            <button className="chip reset-chip" type="button" onClick={() => setSearchTerm("")}>
-              {t("map.reset")}
-            </button>
-            {["network", "lng", "ips", "hubs"].map((layer) => (
-              <button
-                key={layer}
-                type="button"
-                className={
-                  activeLayers.includes(layer)
-                    ? `chip map-layer-chip compact layer-${layer} active`
-                    : `chip map-layer-chip compact layer-${layer}`
-                }
-                aria-pressed={activeLayers.includes(layer)}
-                title={t(`map.layer.${layer}`)}
-                onClick={() => toggleLayer(layer)}
-              >
-                <span className="layer-label">{t(`map.layer.${layer}`)}</span>
-              </button>
-            ))}
-          </div>
-          <GasNetworkMap
-            nodes={nodes}
-            edges={edges}
-            routes={routes}
-            themeMode={mode}
-            activeLayers={activeLayers}
-            searchTerm={searchTerm}
-            highlightedRoute={resourcePoolHighlightedRoute}
-          />
-          <ResourcePoolPathOverlay
-            paths={resourcePoolMapPaths}
-            blockers={poolInputBlockers}
-            t={t}
-          />
-        </section>
-
-        <aside className="scenario-rail">
-          {error && <div className="panel alert">{error}</div>}
-          {loading && <div className="panel">{t("status.loading")}</div>}
-
-          <div className="panel scenario-intro">
-            <span className="eyebrow">{t("home.resource_pool")}</span>
-            <h2>{t("home.pool_cockpit")}</h2>
-            <p>{t("home.pool_description")}</p>
-          </div>
-
-          <div className="panel route-selector-panel">
-            <div className="section-heading">
-              <span className="eyebrow">{t("home.recommended_paths")}</span>
-              <strong>{t("panel.route_allocation")}</strong>
-            </div>
-            <div className="route-list">
-              {saleOptions.length > 0 ? saleOptions.map((option) => (
-                <div key={`sale-option-${option.option_id}`} className="route-row route-candidate">
-                  <span>{option.label}</span>
-                  <strong>{option.target_point_name}</strong>
-                  <small>
-                    {option.capacity_limit_mwh_per_day?.toLocaleString() ?? t("home.unlimited")} MWh/d / {(option.route_cost_gbp_mwh ?? 0).toFixed(2)} EUR/MWh
-                  </small>
-                </div>
-              )) : (
-                <div className="route-row route-candidate blocked-route">
-                  <span>{t("home.no_db_contracts")}</span>
-                  <strong>{t("data.partial")}</strong>
-                  <small>{t("home.draft_contract_note")}</small>
-                </div>
-              )}
-            </div>
-            <div className="action-row">
-              <button
-                type="button"
-                disabled={!canRunPoolOptimizer}
-                onClick={() => optimizeResourcePool(resourcePoolOptimizationRequest)}
-              >
-                {t("home.optimize_pool")}
-              </button>
-            </div>
-            {poolInputBlockers.length > 0 && (
-              <div className="runtime-blocker-list">
-                <strong>{t("home.optimizer_blocked")}</strong>
-                {poolInputBlockers.map((blocker) => (
-                  <span key={`home-blocker-${blocker}`}>{blocker}</span>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="panel home-portfolio-panel">
-            <div className="section-heading">
-              <span className="eyebrow">{t("home.portfolio")}</span>
-              <strong>{portfolioResources.length} {t("home.resources")}</strong>
-            </div>
-            <div className="metric-grid two-column compact-metrics">
-              <div>
-                <span>{t("home.pool_volume")}</span>
-                <strong>{totalPoolVolume.toLocaleString()} MWh/d</strong>
-              </div>
-              <div>
-                <span>{t("portfolio.open_orders")}</span>
-                <strong>{portfolioSummary?.open_order_count ?? screenOrders.length}</strong>
-              </div>
-            </div>
-            <div className="route-list compact-route-list">
-              {portfolioResources.map((resource) => (
-                <div key={`home-resource-${resource.resource_id}`} className="route-row route-candidate">
-                  <span>{resource.resource_name}</span>
-                  <strong>{resource.available_quantity_mwh_per_day.toLocaleString()} MWh/d</strong>
-                  <small>{resource.location_point_name} / {resource.resource_type}</small>
-                </div>
-              ))}
-              {upstreamContracts.length === 0 && (
-                <div className="route-row route-candidate blocked-route">
-                  <span>{t("home.no_db_contracts")}</span>
-                  <strong>{t("data.partial")}</strong>
-                  <small>{t("home.draft_contract_note")}</small>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="panel map-data-panel">
-            <div className="section-heading">
-              <span className="eyebrow">{t("map.topology_status")}</span>
-              <strong>{networkGeometryState === "loaded" ? t("data.runtime") : t("data.unavailable")}</strong>
-            </div>
-            <div className={networkGeometryState === "loaded" ? "map-network-state ready" : "map-network-state blocked"}>
-              <strong>
-                {networkGeometryState === "loaded"
-                  ? t("map.network_dataset")
-                  : t("map.network_warning_title")}
-              </strong>
-              <span>{mapGeometryMessage()}</span>
-            </div>
-            <div className="node-color-legend">
-              <span><i className="node-swatch network" />{t("map.layer.network")}<strong>{edges.length}</strong></span>
-              <span><i className="node-swatch lng" />{t("map.layer.lng")}<strong>{nodes.filter((node) => node.node_type === "lng").length}</strong></span>
-              <span><i className="node-swatch ips" />{t("map.layer.ips")}<strong>{nodes.filter((node) => node.node_type === "interconnection").length}</strong></span>
-              <span><i className="node-swatch hubs" />{t("map.layer.hubs")}<strong>{nodes.filter((node) => node.node_type === "hub").length}</strong></span>
-            </div>
-            <p className="coordinate-quality-note">{t("map.coordinate_quality_note")}</p>
-          </div>
-
-        </aside>
-
-        <aside className="decision-rail">
-          <div className="panel trade-result-panel">
-            <div className="panel-title-row">
-              <div>
-                <span className="eyebrow">{t("result.eyebrow")}</span>
-                <h3>{t("result.title")}</h3>
-              </div>
-              <span className="status-pill">{routeRecommendation ? t("result.live") : t("result.snapshot")}</span>
-            </div>
-            <div className="net-pnl-card">
-              <span>{t("result.net_pnl")}</span>
-              <strong>
-                {decisionPnl === null ? t("home.pending") : `EUR ${Math.round(decisionPnl).toLocaleString()}`}
-              </strong>
-              <small>
-                {t("home.allocated")} {resourcePoolResult?.total_allocated_mwh_per_day?.toLocaleString() ?? "n/a"} MWh/d / {t("home.unallocated")} {resourcePoolResult?.total_unallocated_mwh_per_day?.toLocaleString() ?? "n/a"} MWh/d
-              </small>
-            </div>
-          </div>
-
-          <div className="panel route-alpha-panel">
-            <div className="panel-title-row">
-              <h3>{t("result.route_alpha")}</h3>
-                <span>{t("result.pool_decision")}</span>
-            </div>
-            {poolAllocations.length > 0 ? poolAllocations.map((allocation) => {
-              const option = saleOptionById.get(allocation.option_id);
-              return (
-                <div key={`pool-allocation-${allocation.resource_id}-${allocation.option_id}`} className="route-alpha-card">
-                  <span>{option?.target_point_name ?? allocation.option_id}</span>
-                  <strong>{option?.label ?? allocation.option_id}</strong>
-                      <small>
-                        {allocation.allocated_quantity_mwh_per_day.toLocaleString()} MWh/d / {allocation.net_margin_gbp_mwh.toFixed(2)} EUR/MWh / EUR {Math.round(allocation.net_pnl_gbp_per_day).toLocaleString()} / {option?.sale_price_simulated ? t("market.simulated_source") : option?.sale_price_source_system ?? "n/a"}
-                      </small>
-                </div>
-              );
-            }) : (
-              <div className="route-alpha-card">
-                <span>{t("result.optimal")}</span>
-                <strong>{hasPortfolioResources ? selectedAllocation?.route_name ?? saleOptions[0]?.label ?? t("home.pending") : t("home.no_db_contracts")}</strong>
-                <small>{hasPortfolioResources ? routeRecommendation ? t("result.no_route") : t("home.run_pool_optimizer") : t("home.draft_contract_note")}</small>
-              </div>
-            )}
-            {hasPortfolioResources && (
-              <div className="destination-switcher">
-                {destinationHubs.map((hub) => (
-                  <button key={hub} type="button" className={hub === "NBP" ? "chip active" : "chip"}>
-                    {hub}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="panel economics-snapshot">
-            <h3>{t("result.economics_snapshot")}</h3>
-            <div className="metric-grid two-column">
-              <div>
-                <span>{t("result.purchase")}</span>
-                <strong>{purchasePrice === null ? "n/a" : `EUR ${purchasePrice.toFixed(2)}/MWh`}</strong>
-              </div>
-              <div>
-                <span>{t("result.sale")}</span>
-                <strong>{salePrice === null ? "n/a" : `EUR ${salePrice.toFixed(2)}/MWh`}</strong>
-              </div>
-              <div>
-                <span>{t("result.route_cost")}</span>
-                <strong>{routeCharge === null ? "n/a" : `EUR ${routeCharge.toFixed(2)}/MWh`}</strong>
-              </div>
-              <div>
-                <span>{t("result.cash_value")}</span>
-                <strong>{firstPoolAllocation ? `EUR ${firstPoolAllocation.early_cash_value_gbp_mwh.toFixed(2)}/MWh` : "n/a"}</strong>
-              </div>
-            </div>
-          </div>
-
-          <div className="panel decision-signal-panel">
-            <div className="panel-title-row">
-              <h3>{t("home.signal")}</h3>
-              <span>{firstStrategyTarget ? t("data.live") : t("result.snapshot")}</span>
-            </div>
-            <div className="net-pnl-card">
-              <span>{t("home.strategy_process")}</span>
-              <strong>
-                {firstStrategyTarget ? `${firstStrategyTarget.market_bucket} ${firstStrategyTarget.target_allocation_pct.toFixed(1)}%` : t("home.not_running")}
-              </strong>
-              <small>{strategyResult?.candidate_action_for_review ?? t("home.signal_idle")}</small>
-            </div>
-            <div className="signal-warning">
-              <span>{t("home.warning")}</span>
-              <strong>{activeWarning ?? t("home.warning_clear")}</strong>
-            </div>
-          </div>
-
-          <div className="panel evidence-stack-panel">
-            <div className="panel-title-row">
-              <h3>{t("home.evidence_stack")}</h3>
-              <button type="button" className="text-action" onClick={() => openWorkspace("review")}>
-                {t("home.review_warnings")}
-              </button>
-            </div>
-            <div className="review-warning-list compact">
-              {reviewEvidenceItems.length > 0
-                ? reviewEvidenceItems.map((item) => (
-                    <span key={`evidence-${item.kind}-${item.text}`}>
-                      <strong>{item.kind}</strong> {item.text}
-                    </span>
-                  ))
-                : <span>{t("home.no_evidence_warnings")}</span>}
-            </div>
-          </div>
-
-        </aside>
+        <NetworkWorkspace
+          t={t}
+          nodes={nodes}
+          edges={edges}
+          routes={routes}
+          mode={mode}
+          activeLayers={activeLayers}
+          searchTerm={searchTerm}
+          highlightedRoute={resourcePoolHighlightedRoute}
+          resourcePoolMapPaths={resourcePoolMapPaths}
+          poolInputBlockers={poolInputBlockers}
+          error={error}
+          loading={loading}
+          saleOptions={saleOptions}
+          canRunPoolOptimizer={canRunPoolOptimizer}
+          portfolioResources={portfolioResources}
+          totalPoolVolume={totalPoolVolume}
+          portfolioSummary={portfolioSummary}
+          screenOrderCount={screenOrders.length}
+          upstreamContractCount={upstreamContracts.length}
+          networkGeometryState={networkGeometryState}
+          routeRecommendation={routeRecommendation}
+          decisionPnl={decisionPnl}
+          resourcePoolResult={resourcePoolResult}
+          poolAllocations={poolAllocations}
+          saleOptionById={saleOptionById}
+          hasPortfolioResources={hasPortfolioResources}
+          selectedAllocation={selectedAllocation}
+          purchasePrice={purchasePrice}
+          salePrice={salePrice}
+          routeCharge={routeCharge}
+          firstPoolAllocation={firstPoolAllocation}
+          firstStrategyTarget={firstStrategyTarget}
+          strategyResult={strategyResult}
+          activeWarning={activeWarning}
+          reviewEvidenceItems={reviewEvidenceItems}
+          gasDay={gasDay}
+          deliveryProduct={deliveryProduct}
+          marketLastUpdatedAtUtc={marketLastUpdatedAtUtc}
+          sourceStats={sourceStats}
+          onResetSearch={() => setSearchTerm("")}
+          onToggleLayer={toggleLayer}
+          onOptimizePool={() => optimizeResourcePool(resourcePoolOptimizationRequest)}
+          onOpenReview={() => openWorkspace("review")}
+        />
         <section className="workspace-page" aria-label={t(`nav.${activeWorkspace}`)}>
           <div className="workspace-page-header">
             <div>
@@ -1024,7 +757,7 @@ export default function App() {
 
           {activeWorkspace === "market" && (
             <MarketTerminal
-              markets={markets}
+              markets={contextMarkets}
               fxRates={fxRates}
               sources={sources}
               lastUpdatedAtUtc={marketLastUpdatedAtUtc}
@@ -1145,7 +878,7 @@ export default function App() {
               strategyScenario={strategyScenario}
               strategyResult={strategyResult}
               portfolioResources={portfolioResources}
-              marketObservations={markets}
+              marketObservations={contextMarkets}
               fxRates={fxRates}
               language={i18n.language}
               loading={loading}

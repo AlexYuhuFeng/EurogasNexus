@@ -1,8 +1,11 @@
 """DB runtime configuration tests."""
 
+from typing import Any
+
 import pytest
 
 from eurogas_nexus.db import get_engine, get_session_factory, resolve_database_url
+from eurogas_nexus.db import session as db_session
 
 
 def test_resolve_database_url_prefers_runtime_store(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -56,3 +59,46 @@ def test_get_session_factory_can_use_explicit_import_safe_engine() -> None:
     session_factory = get_session_factory(engine=engine)
 
     assert session_factory.kw["bind"] is engine
+
+
+def test_get_engine_bounds_postgresql_connection_and_pool_waits(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, Any] = {}
+    sentinel = object()
+
+    def fake_create_engine(url: str, **kwargs: object) -> object:
+        captured["url"] = url
+        captured.update(kwargs)
+        return sentinel
+
+    monkeypatch.setattr(db_session, "create_engine", fake_create_engine)
+
+    engine = get_engine(
+        "postgresql+psycopg://user:password@database.invalid/eurogas",
+        connect_timeout_seconds=3,
+    )
+
+    assert engine is sentinel
+    assert captured["connect_args"] == {"connect_timeout": 3}
+    assert captured["pool_timeout"] == 3
+
+
+def test_get_engine_does_not_pass_postgresql_options_to_sqlite(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, Any] = {}
+    sentinel = object()
+
+    def fake_create_engine(url: str, **kwargs: object) -> object:
+        captured["url"] = url
+        captured.update(kwargs)
+        return sentinel
+
+    monkeypatch.setattr(db_session, "create_engine", fake_create_engine)
+
+    engine = get_engine("sqlite:///:memory:")
+
+    assert engine is sentinel
+    assert "connect_args" not in captured
+    assert "pool_timeout" not in captured

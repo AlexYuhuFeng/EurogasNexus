@@ -137,3 +137,22 @@ def test_strategy_lab_blocks_without_prices_or_resources() -> None:
     assert "PRICE_OBSERVATIONS_MISSING" in result.missing_inputs
     assert "DAY_AHEAD_REFERENCE_PRICE_MISSING" in result.missing_inputs
     assert "INTRADAY_REFERENCE_PRICE_MISSING" in result.missing_inputs
+
+
+def test_strategy_lab_uses_daily_reference_outside_intraday_window() -> None:
+    result = evaluate_strategy_lab(
+        _scenario(
+            price_observations=[
+                _obs("ICIS_HEREN_DAY_AHEAD", 27.2, 7, 30),
+                _obs("ICE_OCM", 29.0, 8, 0),
+            ]
+        )
+    )
+
+    assert result.status == "SUCCESS"
+    assert result.day_ahead_average_gbp_mwh == 27.2
+    assert result.intraday_average_gbp_mwh == 29.0
+    assert (
+        "LATEST_INTRADAY_OUTSIDE_CONFIGURED_WINDOW:ocm-vs-da-1500-1700"
+        in result.warnings
+    )

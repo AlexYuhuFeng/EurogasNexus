@@ -54,6 +54,20 @@ interface SourceCenterProps {
   formatSourceTimestamp: (value: string | null | undefined) => string;
 }
 
+function sourcePriority(source: SourceSystemDTO): number {
+  if (source.credential_state === "missing" || source.connectivity_status === "credential_required") return 0;
+  if (["error", "failed", "unreachable", "degraded"].includes(source.connectivity_status)) return 1;
+  if (source.live_record_count === 0 && source.preview_substitute_record_count === 0) return 2;
+  if (source.connectivity_status === "stale") return 3;
+  return 4;
+}
+
+function sourceMode(source: SourceSystemDTO, t: (key: string) => string): string {
+  if (source.preview_substitute_status === "active") return t("sources.mode_simulated");
+  if (source.credential_provider_id) return t("sources.mode_licensed");
+  return t("sources.mode_public");
+}
+
 export function SourceCenter({
   t,
   sources,
@@ -89,6 +103,11 @@ export function SourceCenter({
   sourceNextAction,
   formatSourceTimestamp,
 }: SourceCenterProps) {
+  const sortedSources = [...filteredSources].sort((left, right) => {
+    const priorityDelta = sourcePriority(left) - sourcePriority(right);
+    return priorityDelta || left.source_system.localeCompare(right.source_system);
+  });
+
   return (
     <div className="workspace-grid sources-page source-center">
       <div className="workspace-panel span-3 source-overview">
@@ -110,7 +129,28 @@ export function SourceCenter({
           <h3>{t("sources.posture_board")}</h3>
           <span>{t("sources.next_action")}</span>
         </div>
-        <div className="source-posture-grid">
+        <div className="source-category-filter" role="tablist" aria-label={t("sources.categories")}>
+          {sourceCategories.map((category) => {
+            const nextSource = category === "all"
+              ? sources[0]
+              : sources.find((source) => source.category === category);
+            return (
+              <button
+                key={`source-category-${category}`}
+                type="button"
+                role="tab"
+                aria-selected={sourceCategory === category}
+                className={sourceCategory === category ? "source-category-chip active" : "source-category-chip"}
+                title={categoryProviderSummary(category)}
+                onClick={() => onSourceCategoryChange(category, nextSource?.source_id ?? null)}
+              >
+                <span>{sourceLabel("sources.category", category)}</span>
+                <strong>{category === "all" ? sources.length : sourceCategoryCounts.get(category) ?? 0}</strong>
+              </button>
+            );
+          })}
+        </div>
+        <div className="source-posture-grid compact">
           {sourcePostureRows.map((row) => (
             <button
               key={`source-posture-row-${row.category}`}
@@ -122,74 +162,65 @@ export function SourceCenter({
               }}
             >
               <strong>{sourceLabel("sources.category", row.category)}</strong>
-              <span>{row.active_sources} / {row.registered_sources} {t("sources.active_sources")}</span>
-              <span>{row.runtime_records.toLocaleString()} {t("panel.records")}</span>
-              <span>{row.missing_credentials} {t("sources.missing_credentials")}</span>
-              <span>{row.preview_substitutes_active} {t("sources.preview_substitutes_active")}</span>
+              <span>{row.active_sources}/{row.registered_sources} {t("context.active")}</span>
+              <span>{row.sources_needing_attention} {t("context.issues")}</span>
               <small>{t(`sources.action.${row.next_action}`)}</small>
             </button>
           ))}
         </div>
       </div>
 
-      <div className="workspace-panel source-category-rail">
-        <h3>{t("sources.categories")}</h3>
-        <div className="source-category-list">
-          {sourceCategories.map((category) => {
-            const nextSource = category === "all"
-              ? sources[0]
-              : sources.find((source) => source.category === category);
-            return (
-              <button
-                key={`source-category-${category}`}
-                type="button"
-                className={sourceCategory === category ? "source-category active" : "source-category"}
-                onClick={() => onSourceCategoryChange(category, nextSource?.source_id ?? null)}
-              >
-                <span>
-                  <span>{sourceLabel("sources.category", category)}</span>
-                  <small>{categoryProviderSummary(category)}</small>
-                </span>
-                <strong>{category === "all" ? sources.length : sourceCategoryCounts.get(category) ?? 0}</strong>
-              </button>
-            );
-          })}
-        </div>
-        <div className="source-category-summary">
-          <span>{t("sources.missing_credentials")}</span>
-          <strong>{sourceStats.missingCredentials}</strong>
-        </div>
-      </div>
-
-      <div className="workspace-panel source-catalog-panel">
+      <div className="workspace-panel span-3 source-catalog-panel">
         <div className="panel-title-row">
           <h3>{t("sources.registered_feeds")}</h3>
-          <span>{filteredSources.length} / {sources.length}</span>
+          <span>{sortedSources.length} / {sources.length} · {sourceStats.missingCredentials} {t("sources.missing_credentials")}</span>
         </div>
-        <div className="source-health-grid">
-          {filteredSources.map((source) => (
-            <button
-              key={`source-card-${source.source_id}`}
-              type="button"
-              className={selectedSource?.source_id === source.source_id ? "source-health-card active" : "source-health-card"}
-              onClick={() => onSourceSelect(source.source_id)}
-            >
-              <span className={`source-status source-status-${source.connectivity_status}`}>
-                {sourceLabel("sources.status", source.connectivity_status)}
-              </span>
-              <strong>{source.source_system}</strong>
-              <small>{source.description}</small>
-              <span className="source-card-meta">
-                {sourceLabel("sources.category", source.category)} / {source.live_record_count.toLocaleString()} {t("panel.records")}
-              </span>
-              {source.preview_substitute_source_system && source.preview_substitute_status === "active" && (
-                <span className="source-preview-line">
-                  {t("sources.preview_substitute")}: {source.preview_substitute_source_system} / {source.preview_substitute_record_count.toLocaleString()} {t("panel.records")}
-                </span>
-              )}
-              <span className="source-action-line">{sourceNextAction(source)}</span>
-            </button>
-          ))}
+        <div className="source-operations-table-wrap">
+          <table className="source-operations-table">
+            <thead>
+              <tr>
+                <th>{t("panel.status")}</th>
+                <th>{t("sources.source")}</th>
+                <th>{t("sources.mode")}</th>
+                <th>{t("sources.last_success")}</th>
+                <th>{t("panel.records")}</th>
+                <th>{t("sources.next_action")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedSources.map((source) => (
+                <tr
+                  key={`source-row-${source.source_id}`}
+                  className={selectedSource?.source_id === source.source_id ? "active" : undefined}
+                >
+                  <td>
+                    <span className={`source-status source-status-${source.connectivity_status}`}>
+                      {sourceLabel("sources.status", source.connectivity_status)}
+                    </span>
+                  </td>
+                  <td>
+                    <button type="button" className="source-row-select" onClick={() => onSourceSelect(source.source_id)}>
+                      <strong>{source.source_system}</strong>
+                      <small>{sourceLabel("sources.category", source.category)}</small>
+                    </button>
+                  </td>
+                  <td><span>{sourceMode(source, t)}</span></td>
+                  <td><span>{formatSourceTimestamp(source.last_success_at_utc)}</span></td>
+                  <td>
+                    <strong>{source.live_record_count.toLocaleString()}</strong>
+                    {source.preview_substitute_status === "active" && (
+                      <small>{source.preview_substitute_record_count.toLocaleString()} {t("sources.simulated_short")}</small>
+                    )}
+                  </td>
+                  <td>
+                    <button type="button" className="source-diagnostic-action" onClick={() => onSourceSelect(source.source_id)}>
+                      {sourceNextAction(source)}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -256,11 +287,29 @@ export function SourceCenter({
             : t("credentials.not_required")}
         </p>
         <form className="credential-form source-credential-form" onSubmit={onCredentialSubmit}>
-          <select value={credentialProvider} onChange={(event) => onCredentialProviderChange(event.target.value)}>
+          <select
+            aria-label={t("panel.credentials")}
+            value={credentialProvider}
+            onChange={(event) => onCredentialProviderChange(event.target.value)}
+          >
             {credentialProviders.map((provider) => <option key={provider.provider_id} value={provider.provider_id}>{provider.display_name}</option>)}
           </select>
-          <input autoComplete="username" value={credentialLabel} onChange={(event) => onCredentialLabelChange(event.target.value)} placeholder={t("credentials.label")} />
-          <input type="password" autoComplete="current-password" value={credentialValue} disabled={!selectedCredentialProvider?.credential_required} onChange={(event) => onCredentialValueChange(event.target.value)} placeholder={selectedCredentialProvider?.credential_required ? t("credentials.api_key") : t("credentials.not_required")} />
+          <input
+            aria-label={t("credentials.label")}
+            autoComplete="username"
+            value={credentialLabel}
+            onChange={(event) => onCredentialLabelChange(event.target.value)}
+            placeholder={t("credentials.label")}
+          />
+          <input
+            aria-label={t("credentials.api_key")}
+            type="password"
+            autoComplete="current-password"
+            value={credentialValue}
+            disabled={!selectedCredentialProvider?.credential_required}
+            onChange={(event) => onCredentialValueChange(event.target.value)}
+            placeholder={selectedCredentialProvider?.credential_required ? t("credentials.api_key") : t("credentials.not_required")}
+          />
           <button type="submit" disabled={!selectedCredentialProvider?.credential_required || !credentialValue}>{t("credentials.save")}</button>
         </form>
         {selectedSourceCredentialProvider && (

@@ -1,6 +1,6 @@
 ﻿"""Market FX API tests."""
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from eurogas_nexus.api.app import create_app
 from eurogas_nexus.db.base import Base
-from eurogas_nexus.db.models import FxObservationRecord
+from eurogas_nexus.db.models import FxObservationRecord, MarketObservationRecord
 from eurogas_nexus.ingestion.simulated_market_prices import upsert_simulated_market_observations
 
 
@@ -95,3 +95,47 @@ def test_market_observations_surface_simulated_exchange_and_assessment_metadata(
     )
     assert eex_month["metadata_json"]["simulated"] is True
     assert eex_month["source_record_id"].startswith("EEX-SIM-")
+
+
+def test_market_observations_are_newest_first(tmp_path, monkeypatch) -> None:
+    db_path = tmp_path / "market-order.sqlite"
+    database_url = f"sqlite+pysqlite:///{db_path.as_posix()}"
+    engine = create_engine(database_url, future=True)
+    Base.metadata.create_all(engine)
+    observed_at = datetime(2026, 7, 1, 10, 15, tzinfo=UTC)
+    with Session(engine) as session:
+        for suffix, timestamp in [
+            ("older", observed_at),
+            ("newer", observed_at + timedelta(minutes=5)),
+        ]:
+            session.add(
+                MarketObservationRecord(
+                    observation_id=f"market-{suffix}",
+                    market_venue="EEX",
+                    product="NBP day-ahead",
+                    price=33.0,
+                    unit="EUR/MWh",
+                    currency="EUR",
+                    period_start_utc=timestamp,
+                    period_end_utc=timestamp + timedelta(days=1),
+                    observed_at_utc=timestamp,
+                    source_system="EEX_Sim",
+                    source_reference=f"fixture:{suffix}",
+                    freshness="fresh",
+                    quality_score=1.0,
+                    research_only=True,
+                    metadata_json={"hub": "NBP", "tenor": "day-ahead", "simulated": True},
+                )
+            )
+        session.commit()
+    monkeypatch.setenv("RUNTIME_STORE_DATABASE_URL", database_url)
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("EUROGAS_NEXUS_DB_DSN", raising=False)
+
+    response = TestClient(create_app()).get("/api/market/observations")
+
+    assert response.status_code == 200
+    assert [row["observation_id"] for row in response.json()["data"]] == [
+        "market-newer",
+        "market-older",
+    ]
