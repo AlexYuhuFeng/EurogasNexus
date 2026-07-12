@@ -12,7 +12,6 @@ Version numbers are not part of the current public URL surface.
 | Route family | Prefix | Audience |
 | --- | --- | --- |
 | Stable public API | `/api` | SDK, CLI, Web, Windows, Linux, and customer integrations |
-| Hidden legacy compatibility | `/api/v1`, `/v1/health` | Existing bootstrap checks only; not documented for customer use |
 | Internal | `/api/internal` | Profile-gated service/operator routes |
 | Development | `/api/dev` | Development-only diagnostics |
 
@@ -25,8 +24,7 @@ Version numbers are not part of the current public URL surface.
 - Release profile must not expose internal or development routes.
 - SDK and CLI code should call backend API paths, not internal domain modules.
 
-## Hidden Compatibility
+## Rejected Aliases
 
-The app factory rewrites legacy `/api/v1/*` requests to `/api/*` and
-`/v1/health` to `/api/health`. This compatibility is intentionally hidden from
-OpenAPI and customer-facing documentation.
+Versioned `/api/v1/*`, bootstrap `/v1/*`, root `/internal/*`, and root `/dev/*`
+paths are not exposed and return `404`.

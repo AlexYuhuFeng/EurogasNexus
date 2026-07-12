@@ -120,7 +120,7 @@ def test_current_pause_point_records_holistic_runtime_pause_state() -> None:
     text = _read_doc("docs/architecture/CURRENT_PAUSE_POINT.md")
 
     assert "V1 release-candidate worktree" in text
-    assert "0012_entsog_capacity" in text
+    assert "0013_gie_lng_dtmi_energy" in text
     assert "33" in text
     assert "76" in text
     assert "Windows/Tauri" in text

@@ -1,6 +1,4 @@
-﻿"""Client release-surface contracts for Web and Windows shells."""
-
-
+"""Client release-surface contracts for Web and Windows shells."""
 
 from __future__ import annotations
 
@@ -8,33 +6,47 @@ import json
 import os
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 
 
+def test_release_versions_are_aligned() -> None:
+    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    cargo = tomllib.loads(
+        (ROOT / "clients" / "desktop" / "src-tauri" / "Cargo.toml").read_text(encoding="utf-8")
+    )
+    tauri = json.loads(
+        (ROOT / "clients" / "desktop" / "src-tauri" / "tauri.conf.json").read_text(encoding="utf-8")
+    )
+    web = json.loads((ROOT / "clients" / "web" / "package.json").read_text(encoding="utf-8"))
+    desktop = json.loads(
+        (ROOT / "clients" / "desktop" / "package.json").read_text(encoding="utf-8")
+    )
 
+    assert {
+        pyproject["project"]["version"],
+        cargo["package"]["version"],
+        tauri["version"],
+        web["version"],
+        desktop["version"],
+    } == {"0.5.0"}
 
 
 def test_windows_client_wraps_shared_web_workspace() -> None:
 
     config = json.loads(
-
-        (ROOT / "clients" / "desktop" / "src-tauri" / "tauri.conf.json").read_text(
-
-            encoding="utf-8"
-
-        )
-
+        (ROOT / "clients" / "desktop" / "src-tauri" / "tauri.conf.json").read_text(encoding="utf-8")
     )
-
-
 
     assert config["build"]["frontendDist"] == "../../web/dist"
 
     assert config["build"]["beforeBuildCommand"] == "npm --prefix ../web run build"
 
     assert config["build"]["devUrl"] == "http://127.0.0.1:3000"
+
+    assert "--port 3000 --strictPort" in config["build"]["beforeDevCommand"]
 
     assert config["app"]["windows"][0]["label"] == "main"
 
@@ -47,28 +59,15 @@ def test_windows_client_wraps_shared_web_workspace() -> None:
     assert config["bundle"]["active"] is True
 
 
-
-
-
 def test_windows_client_uses_startup_splash_window() -> None:
 
     config = json.loads(
-
-        (ROOT / "clients" / "desktop" / "src-tauri" / "tauri.conf.json").read_text(
-
-            encoding="utf-8"
-
-        )
-
+        (ROOT / "clients" / "desktop" / "src-tauri" / "tauri.conf.json").read_text(encoding="utf-8")
     )
 
-    main_rs = (
-
-        ROOT / "clients" / "desktop" / "src-tauri" / "src" / "main.rs"
-
-    ).read_text(encoding="utf-8")
-
-
+    main_rs = (ROOT / "clients" / "desktop" / "src-tauri" / "src" / "main.rs").read_text(
+        encoding="utf-8"
+    )
 
     windows = {window["label"]: window for window in config["app"]["windows"]}
 
@@ -87,26 +86,17 @@ def test_windows_client_uses_startup_splash_window() -> None:
     assert "splashscreen.close()" in main_rs
 
 
-
-
-
 def test_windows_client_has_minimal_safe_permissions() -> None:
 
     capability = json.loads(
-
-        (ROOT / "clients" / "desktop" / "src-tauri" / "capabilities" / "default.json")
-
-        .read_text(encoding="utf-8")
-
+        (ROOT / "clients" / "desktop" / "src-tauri" / "capabilities" / "default.json").read_text(
+            encoding="utf-8"
+        )
     )
 
-    config_text = (
-
-        ROOT / "clients" / "desktop" / "src-tauri" / "tauri.conf.json"
-
-    ).read_text(encoding="utf-8")
-
-
+    config_text = (ROOT / "clients" / "desktop" / "src-tauri" / "tauri.conf.json").read_text(
+        encoding="utf-8"
+    )
 
     assert capability["permissions"] == ["core:default"]
 
@@ -116,32 +106,19 @@ def test_windows_client_has_minimal_safe_permissions() -> None:
 
     assert ".env" not in config_text
 
-    assert (
-
-        "connect-src 'self' http://localhost:* http://127.0.0.1:* "
-
-        "https://tile.openstreetmap.org" in config_text
-
-    )
+    assert "connect-src 'self' http://localhost:* http://127.0.0.1:* https:" in config_text
 
     assert "img-src 'self' data: blob: https://tile.openstreetmap.org" in config_text
-
-
-
 
 
 def test_client_dependency_policy_excludes_disallowed_frameworks() -> None:
 
     web_package = json.loads(
-
         (ROOT / "clients" / "web" / "package.json").read_text(encoding="utf-8")
-
     )
 
     desktop_package = json.loads(
-
         (ROOT / "clients" / "desktop" / "package.json").read_text(encoding="utf-8")
-
     )
 
     names = set(web_package.get("dependencies", {}))
@@ -152,24 +129,14 @@ def test_client_dependency_policy_excludes_disallowed_frameworks() -> None:
 
     names |= set(desktop_package.get("devDependencies", {}))
 
-
-
     forbidden = {
-
         "electron",
-
         "next",
-
         "tailwindcss",
-
         "@mui/material",
-
         "antd",
-
         "bootstrap",
-
         "redux",
-
     }
 
     assert names.isdisjoint(forbidden)
@@ -177,14 +144,9 @@ def test_client_dependency_policy_excludes_disallowed_frameworks() -> None:
     assert "@tauri-apps/cli" in names
 
 
-
-
-
 def test_ci_builds_web_windows_and_linux_clients() -> None:
 
     workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
-
-
 
     assert "web-client-build" in workflow
 
@@ -203,39 +165,26 @@ def test_ci_builds_web_windows_and_linux_clients() -> None:
     assert "clients/desktop/src-tauri/target/release/bundle/deb/*.deb" in workflow
 
 
-
-
-
 def test_web_client_uses_api_only_and_supports_mandarin_theme() -> None:
 
-    api_client = (
+    api_client = (ROOT / "clients" / "web" / "src" / "api" / "client.ts").read_text(
+        encoding="utf-8"
+    )
 
-        ROOT / "clients" / "web" / "src" / "api" / "client.ts"
-
-    ).read_text(encoding="utf-8")
-
-    vite_env = (
-
-        ROOT / "clients" / "web" / "src" / "vite-env.d.ts"
-
-    ).read_text(encoding="utf-8")
+    vite_env = (ROOT / "clients" / "web" / "src" / "vite-env.d.ts").read_text(encoding="utf-8")
 
     zh = json.loads(
-
         (ROOT / "clients" / "web" / "src" / "i18n" / "zh.json").read_text(encoding="utf-8")
-
     )
 
     app = (ROOT / "clients" / "web" / "src" / "App.tsx").read_text(encoding="utf-8")
-    topbar = (
-        ROOT / "clients" / "web" / "src" / "components" / "WorkspaceTopBar.tsx"
-    ).read_text(encoding="utf-8")
+    topbar = (ROOT / "clients" / "web" / "src" / "components" / "WorkspaceTopBar.tsx").read_text(
+        encoding="utf-8"
+    )
     settings_center = (
         ROOT / "clients" / "web" / "src" / "components" / "SettingsCenter.tsx"
     ).read_text(encoding="utf-8")
     app_and_settings = app + topbar + settings_center
-
-
 
     assert 'const DEFAULT_BROWSER_BASE = "/api";' in api_client
 
@@ -251,9 +200,7 @@ def test_web_client_uses_api_only_and_supports_mandarin_theme() -> None:
 
     assert "__TAURI_INTERNALS__" in vite_env
 
-    vite_config = (ROOT / "clients" / "web" / "vite.config.ts").read_text(
-        encoding="utf-8"
-    )
+    vite_config = (ROOT / "clients" / "web" / "vite.config.ts").read_text(encoding="utf-8")
 
     assert '"/api": "http://127.0.0.1:8000"' in vite_config
 
@@ -270,15 +217,12 @@ def test_web_client_uses_api_only_and_supports_mandarin_theme() -> None:
     assert '<option value="zh-CN">{t("settings.chinese")}</option>' in app_and_settings
 
 
-
-
-
 def test_web_client_matches_design_reference_cockpit() -> None:
 
     app = (ROOT / "clients" / "web" / "src" / "App.tsx").read_text(encoding="utf-8")
-    topbar = (
-        ROOT / "clients" / "web" / "src" / "components" / "WorkspaceTopBar.tsx"
-    ).read_text(encoding="utf-8")
+    topbar = (ROOT / "clients" / "web" / "src" / "components" / "WorkspaceTopBar.tsx").read_text(
+        encoding="utf-8"
+    )
     source_center = (
         ROOT / "clients" / "web" / "src" / "components" / "SourceCenter.tsx"
     ).read_text(encoding="utf-8")
@@ -291,26 +235,36 @@ def test_web_client_matches_design_reference_cockpit() -> None:
     capacity_workspace = (
         ROOT / "clients" / "web" / "src" / "components" / "CapacityWorkspace.tsx"
     ).read_text(encoding="utf-8")
+    extracted_pages = "".join(
+        (ROOT / "clients" / "web" / "src" / "components" / filename).read_text(encoding="utf-8")
+        for filename in [
+            "ScenarioWorkspace.tsx",
+            "ReviewWorkspace.tsx",
+            "MarketPositioningWorkspace.tsx",
+            "RuntimeWorkspace.tsx",
+            "ManualWorkspace.tsx",
+        ]
+    )
     app_and_topbar = app + topbar
     app_and_components = (
-        app + topbar + source_center + contract_workbench + network_workspace + capacity_workspace
+        app
+        + topbar
+        + source_center
+        + contract_workbench
+        + network_workspace
+        + capacity_workspace
+        + extracted_pages
     )
 
     css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(encoding="utf-8")
 
     en = json.loads(
-
         (ROOT / "clients" / "web" / "src" / "i18n" / "en.json").read_text(encoding="utf-8")
-
     )
 
     zh = json.loads(
-
         (ROOT / "clients" / "web" / "src" / "i18n" / "zh.json").read_text(encoding="utf-8")
-
     )
-
-
 
     assert "cockpit-topbar" in app_and_topbar
 
@@ -360,15 +314,13 @@ def test_web_client_matches_design_reference_cockpit() -> None:
     assert "map-node-legend" not in app
     assert "decision-signal-panel" in network_workspace
     assert "capacity-page" in capacity_workspace
-    assert "review-page" in app
-    assert "orders-page" in app
-    assert "manual-page" in app
-    assert "review-report-panel" in app
+    assert "review-page" in extracted_pages
+    assert "orders-page" in extracted_pages
+    assert "manual-page" in extracted_pages
+    assert "review-report-panel" in extracted_pages
     assert "manual-step-list" in css
     map_component = (
-
         ROOT / "clients" / "web" / "src" / "components" / "GasNetworkMap.tsx"
-
     ).read_text(encoding="utf-8")
 
     assert "fallback-network-map map-ready" in map_component
@@ -412,9 +364,7 @@ def test_web_client_release_cockpit_chrome_is_clean_and_color_coded() -> None:
     network_workspace = (
         ROOT / "clients" / "web" / "src" / "components" / "NetworkWorkspace.tsx"
     ).read_text(encoding="utf-8")
-    css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(
-        encoding="utf-8"
-    )
+    css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(encoding="utf-8")
     map_component = (
         ROOT / "clients" / "web" / "src" / "components" / "GasNetworkMap.tsx"
     ).read_text(encoding="utf-8")
@@ -465,9 +415,18 @@ def test_web_client_separates_market_capacity_orders_and_review_pages() -> None:
     capacity_workspace = (
         ROOT / "clients" / "web" / "src" / "components" / "CapacityWorkspace.tsx"
     ).read_text(encoding="utf-8")
-    navigation = (
-        ROOT / "clients" / "web" / "src" / "workspaceNavigation.ts"
+    positioning_workspace = (
+        ROOT / "clients" / "web" / "src" / "components" / "MarketPositioningWorkspace.tsx"
     ).read_text(encoding="utf-8")
+    review_workspace = (
+        ROOT / "clients" / "web" / "src" / "components" / "ReviewWorkspace.tsx"
+    ).read_text(encoding="utf-8")
+    manual_workspace = (
+        ROOT / "clients" / "web" / "src" / "components" / "ManualWorkspace.tsx"
+    ).read_text(encoding="utf-8")
+    navigation = (ROOT / "clients" / "web" / "src" / "workspaceNavigation.ts").read_text(
+        encoding="utf-8"
+    )
     en = json.loads(
         (ROOT / "clients" / "web" / "src" / "i18n" / "en.json").read_text(encoding="utf-8")
     )
@@ -477,8 +436,19 @@ def test_web_client_separates_market_capacity_orders_and_review_pages() -> None:
 
     assert "export const workspacePageIds" in navigation
     for page in [
-        "network", "capacity", "market", "scenario", "contracts", "strategy",
-        "review", "orders", "sources", "glossary", "runtime", "settings", "manual",
+        "network",
+        "capacity",
+        "market",
+        "scenario",
+        "contracts",
+        "strategy",
+        "review",
+        "orders",
+        "sources",
+        "glossary",
+        "runtime",
+        "settings",
+        "manual",
     ]:
         assert f'"{page}"' in navigation
     assert "function workspaceFromLocation(): WorkspacePageId" in app
@@ -486,27 +456,36 @@ def test_web_client_separates_market_capacity_orders_and_review_pages() -> None:
     assert "coerceWorkspacePageId(requestedWorkspace, DEFAULT_WORKSPACE_PAGE_ID)" in app
     assert "const WORKSPACE_PAGES" not in app
     assert 'nextUrl.searchParams.set("workspace", page)' in app
-    assert "window.history.pushState({ workspace: page }, \"\", nextUrl)" in app
+    assert 'window.history.pushState({ workspace: page }, "", nextUrl)' in app
     assert 'window.addEventListener("popstate", syncWorkspaceFromUrl)' in app
     assert app.index('activeWorkspace === "capacity"') < app.index('activeWorkspace === "market"')
     assert app.index('activeWorkspace === "review"') < app.index('activeWorkspace === "orders"')
-    assert app.index('className="data-table orders-table"') > app.index(
-        'activeWorkspace === "orders"'
-    )
-    assert "capacity.tso_coverage" in capacity_workspace
+    assert "MarketPositioningWorkspace" in app
+    assert 'className="data-table orders-table"' in positioning_workspace
+    assert '["network", "storage", "lng"] as CapacityView[]' in capacity_workspace
+    assert "capacity.view_${view}" in capacity_workspace
     assert "capacity.tariffs" in capacity_workspace
     assert "capacity-operating-table" in capacity_workspace
     assert "capacity-point-inspector" in capacity_workspace
-    assert "const PAGE_SIZE = 100" in capacity_workspace
+    assert "const PAGE_SIZE = 50" in capacity_workspace
     assert "capacity-pagination" in capacity_workspace
     assert "capacity-readiness-note" in capacity_workspace
-    assert "Company TSO access and executable booking availability" in en[
-        "capacity.readiness_available"
-    ]
+    assert 'normalized.includes("firm") && normalized.includes("technical")' in capacity_workspace
+    assert 'normalized.includes("firm") && normalized.includes("booked")' in capacity_workspace
+    assert "Math.abs(flowMcmD) / technicalCapacityMcmD * 100" in capacity_workspace
+    assert "bookedCapacityMcmD / technicalCapacityMcmD * 100" in capacity_workspace
+    assert "STALE_AFTER_HOURS = 24" in capacity_workspace
+    assert "latestRowsByKey(storage" in capacity_workspace
+    assert "latestRowsByKey(lng" in capacity_workspace
+    assert "row.dtmi_twh" in capacity_workspace
+    assert (
+        "Company TSO access and executable booking availability"
+        in en["capacity.readiness_available"]
+    )
     assert "\u516c\u53f8 TSO \u51c6\u5165" in zh["capacity.readiness_available"]
     assert "reviewWarnings" in app
-    assert "review-report-panel" in app
-    assert "manual.no_client_db" in app
+    assert "review-report-panel" in review_workspace
+    assert "manual.no_client_db" in manual_workspace
     assert en["market.subtitle"].startswith("Terminal view")
     assert zh["market.subtitle"].startswith("\u9762\u5411\u6b27\u6d32\u4e3b\u8981")
     assert en["orders.subtitle"].startswith("Read-only")
@@ -515,14 +494,10 @@ def test_web_client_separates_market_capacity_orders_and_review_pages() -> None:
 
 def test_web_client_market_page_is_trader_terminal_surface() -> None:
     app = (ROOT / "clients" / "web" / "src" / "App.tsx").read_text(encoding="utf-8")
-    store = (ROOT / "clients" / "web" / "src" / "stores" / "api.ts").read_text(
-        encoding="utf-8"
-    )
+    store = (ROOT / "clients" / "web" / "src" / "stores" / "api.ts").read_text(encoding="utf-8")
     market_terminal_path = ROOT / "clients" / "web" / "src" / "components" / "MarketTerminal.tsx"
     market_terminal = market_terminal_path.read_text(encoding="utf-8")
-    css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(
-        encoding="utf-8"
-    )
+    css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(encoding="utf-8")
     en = json.loads(
         (ROOT / "clients" / "web" / "src" / "i18n" / "en.json").read_text(encoding="utf-8")
     )
@@ -531,10 +506,7 @@ def test_web_client_market_page_is_trader_terminal_surface() -> None:
     )
 
     assert 'import { MarketTerminal } from "@/components/MarketTerminal";' in app
-    assert (
-        "<MarketTerminal\n"
-        in app
-    )
+    assert "<MarketTerminal\n" in app
     assert "marketLastUpdatedAtUtc" in app
     assert "refreshMarketData" in app
     assert "MARKET_REFRESH_INTERVAL_MS" in app
@@ -598,22 +570,17 @@ def test_web_client_strategy_page_is_shadow_run_terminal() -> None:
     strategy_terminal = strategy_terminal_path.read_text(encoding="utf-8")
     strategy_sections = strategy_sections_path.read_text(encoding="utf-8")
     strategy_surface = strategy_terminal + strategy_sections
-    css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(
-        encoding="utf-8"
-    )
+    css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(encoding="utf-8")
     en = json.loads(
         (ROOT / "clients" / "web" / "src" / "i18n" / "en.json").read_text(encoding="utf-8")
     )
     zh = json.loads(
         (ROOT / "clients" / "web" / "src" / "i18n" / "zh.json").read_text(encoding="utf-8")
     )
-    web_spec = (ROOT / "docs" / "clients" / "WEB_CLIENT_DESIGN_SPEC.md").read_text(
-        encoding="utf-8"
-    )
+    web_spec = (ROOT / "docs" / "clients" / "WEB_CLIENT_DESIGN_SPEC.md").read_text(encoding="utf-8")
 
     assert (
-        'import { StrategyShadowRunTerminal } from "@/components/StrategyShadowRunTerminal";'
-        in app
+        'import { StrategyShadowRunTerminal } from "@/components/StrategyShadowRunTerminal";' in app
     )
     assert "<StrategyShadowRunTerminal" in app
     assert "strategyScenario={strategyScenario}" in app
@@ -624,10 +591,7 @@ def test_web_client_strategy_page_is_shadow_run_terminal() -> None:
     assert "language={i18n.language}" in app
     assert "onEvaluate={() => evaluateStrategyLab(strategyScenario)}" in app
     assert "strategy-shadow-run-terminal" in strategy_terminal
-    assert (
-        'from "@/components/strategy/StrategyShadowRunSections"'
-        in strategy_terminal
-    )
+    assert 'from "@/components/strategy/StrategyShadowRunSections"' in strategy_terminal
     assert "strategy-command-deck" in strategy_terminal
     assert "strategy-price-basis-board" in strategy_surface
     assert "strategy-price-basis-selector" in strategy_surface
@@ -738,8 +702,7 @@ def test_web_client_strategy_page_is_shadow_run_terminal() -> None:
     assert "stale/simulated/unavailable data banner" in web_spec
     assert "resource-pool PnL curve" in web_spec
     assert (
-        "within-day, day-ahead, monthly, ICIS assessments, ICE OCM marks, "
-        "EEX curves, and ECB FX"
+        "within-day, day-ahead, monthly, ICIS assessments, ICE OCM marks, EEX curves, and ECB FX"
     ) in web_spec
 
 
@@ -747,9 +710,7 @@ def test_web_client_settings_page_is_trader_preference_center() -> None:
     app = (ROOT / "clients" / "web" / "src" / "App.tsx").read_text(encoding="utf-8")
     settings_center_path = ROOT / "clients" / "web" / "src" / "components" / "SettingsCenter.tsx"
     settings_center = settings_center_path.read_text(encoding="utf-8")
-    css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(
-        encoding="utf-8"
-    )
+    css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(encoding="utf-8")
     en = json.loads(
         (ROOT / "clients" / "web" / "src" / "i18n" / "en.json").read_text(encoding="utf-8")
     )
@@ -792,20 +753,16 @@ def test_web_client_network_page_shows_resource_pool_paths_on_map() -> None:
     map_component = (
         ROOT / "clients" / "web" / "src" / "components" / "GasNetworkMap.tsx"
     ).read_text(encoding="utf-8")
-    css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(
-        encoding="utf-8"
-    )
+    css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(encoding="utf-8")
     en = json.loads(
         (ROOT / "clients" / "web" / "src" / "i18n" / "en.json").read_text(encoding="utf-8")
     )
     zh = json.loads(
         (ROOT / "clients" / "web" / "src" / "i18n" / "zh.json").read_text(encoding="utf-8")
     )
-    web_spec = (ROOT / "docs" / "clients" / "WEB_CLIENT_DESIGN_SPEC.md").read_text(
-        encoding="utf-8"
-    )
+    web_spec = (ROOT / "docs" / "clients" / "WEB_CLIENT_DESIGN_SPEC.md").read_text(encoding="utf-8")
 
-    assert 'ResourcePoolPathOverlay,' in network_workspace
+    assert "ResourcePoolPathOverlay," in network_workspace
     assert "buildResourcePoolMapPaths" in app
     assert "<ResourcePoolPathOverlay" in network_workspace
     assert "resourcePoolMapPaths" in app
@@ -901,9 +858,7 @@ def test_web_client_map_fallback_prioritizes_labels_for_trader_readability() -> 
     map_component = (
         ROOT / "clients" / "web" / "src" / "components" / "GasNetworkMap.tsx"
     ).read_text(encoding="utf-8")
-    css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(
-        encoding="utf-8"
-    )
+    css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(encoding="utf-8")
 
     assert "MAX_MAP_LABELS" in map_component
     assert "MAJOR_HUB_PRIORITY" in map_component
@@ -914,7 +869,7 @@ def test_web_client_map_fallback_prioritizes_labels_for_trader_readability() -> 
     assert "isSearchLabelMatch" in map_component
     assert "highlightedRoutePoints.from.id" in map_component
     assert "highlightedRoutePoints.to.id" in map_component
-    assert "node.node_type === \"hub\"" in map_component
+    assert 'node.node_type === "hub"' in map_component
     assert "fallback-node-label priority" in map_component
     assert "{shouldShowFallbackNodeLabel(node, index) && (" in map_component
     assert ".fallback-node-label" in css
@@ -934,9 +889,7 @@ def test_web_client_map_renders_resource_paths_as_route_segments_not_direct_line
     overlay = (
         ROOT / "clients" / "web" / "src" / "components" / "ResourcePoolPathOverlay.tsx"
     ).read_text(encoding="utf-8")
-    css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(
-        encoding="utf-8"
-    )
+    css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(encoding="utf-8")
     web_spec = (ROOT / "docs" / "clients" / "MAP_FIRST_TRADER_COCKPIT_SPEC-EN.md").read_text(
         encoding="utf-8"
     )
@@ -980,18 +933,14 @@ def test_web_client_glossary_page_is_term_wiki_surface() -> None:
     app = (ROOT / "clients" / "web" / "src" / "App.tsx").read_text(encoding="utf-8")
     glossary_wiki_path = ROOT / "clients" / "web" / "src" / "components" / "GlossaryWiki.tsx"
     glossary_wiki = glossary_wiki_path.read_text(encoding="utf-8")
-    css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(
-        encoding="utf-8"
-    )
+    css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(encoding="utf-8")
     en = json.loads(
         (ROOT / "clients" / "web" / "src" / "i18n" / "en.json").read_text(encoding="utf-8")
     )
     zh = json.loads(
         (ROOT / "clients" / "web" / "src" / "i18n" / "zh.json").read_text(encoding="utf-8")
     )
-    web_spec = (ROOT / "docs" / "clients" / "WEB_CLIENT_DESIGN_SPEC.md").read_text(
-        encoding="utf-8"
-    )
+    web_spec = (ROOT / "docs" / "clients" / "WEB_CLIENT_DESIGN_SPEC.md").read_text(encoding="utf-8")
 
     assert 'import { GlossaryWiki } from "@/components/GlossaryWiki";' in app
     assert "<GlossaryWiki" in app
@@ -1051,24 +1000,18 @@ def test_web_client_glossary_context_values_do_not_render_raw_objects() -> None:
 
 
 def test_web_client_glossary_keeps_article_visible_while_browsing_terms() -> None:
-    css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(
-        encoding="utf-8"
-    )
+    css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(encoding="utf-8")
 
     assert ".glossary-codex-shell" in css
     assert ".glossary-wiki-shell" in css
-    assert (
-        "grid-template-columns: minmax(320px, 0.82fr) minmax(620px, 1.58fr)"
-    ) in css
+    assert ("grid-template-columns: minmax(320px, 0.82fr) minmax(620px, 1.58fr)") in css
     assert "max-height: calc(100vh - 150px)" in css
     assert "overflow-y: auto" in css
     assert "position: sticky" in css
     assert "top: calc(var(--eg-topbar-height) + 32px)" in css
     assert "@media (max-width: 1200px)" in css
     assert ".glossary-wiki-shell {" in css
-    assert (
-        "grid-template-columns: minmax(300px, 0.78fr) minmax(520px, 1.42fr)"
-    ) in css
+    assert ("grid-template-columns: minmax(300px, 0.78fr) minmax(520px, 1.42fr)") in css
     assert "@media (max-width: 900px)" in css
     assert "max-height: none" in css
     assert "position: static" in css
@@ -1078,24 +1021,20 @@ def test_web_client_contracts_page_is_upload_and_manual_intake_workbench() -> No
     app = (ROOT / "clients" / "web" / "src" / "App.tsx").read_text(encoding="utf-8")
     workbench_path = ROOT / "clients" / "web" / "src" / "components" / "ContractWorkbench.tsx"
     workbench = workbench_path.read_text(encoding="utf-8")
-    contract_import = (
-        ROOT / "clients" / "web" / "src" / "app" / "contractImport.ts"
-    ).read_text(encoding="utf-8")
-    contract_payload = (
-        ROOT / "clients" / "web" / "src" / "app" / "contractPayload.ts"
-    ).read_text(encoding="utf-8")
-    css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(
+    contract_import = (ROOT / "clients" / "web" / "src" / "app" / "contractImport.ts").read_text(
         encoding="utf-8"
     )
+    contract_payload = (ROOT / "clients" / "web" / "src" / "app" / "contractPayload.ts").read_text(
+        encoding="utf-8"
+    )
+    css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(encoding="utf-8")
     en = json.loads(
         (ROOT / "clients" / "web" / "src" / "i18n" / "en.json").read_text(encoding="utf-8")
     )
     zh = json.loads(
         (ROOT / "clients" / "web" / "src" / "i18n" / "zh.json").read_text(encoding="utf-8")
     )
-    web_spec = (ROOT / "docs" / "clients" / "WEB_CLIENT_DESIGN_SPEC.md").read_text(
-        encoding="utf-8"
-    )
+    web_spec = (ROOT / "docs" / "clients" / "WEB_CLIENT_DESIGN_SPEC.md").read_text(encoding="utf-8")
 
     assert 'import { ContractWorkbench } from "@/components/ContractWorkbench";' in app
     assert "<ContractWorkbench" in app
@@ -1172,12 +1111,10 @@ def test_web_client_sources_page_is_categorized_source_center() -> None:
     api_client = (ROOT / "clients" / "web" / "src" / "api" / "client.ts").read_text(
         encoding="utf-8"
     )
-    derived_data = (
-        ROOT / "clients" / "web" / "src" / "app" / "workspaceDerivedData.ts"
-    ).read_text(encoding="utf-8")
-    css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(
+    derived_data = (ROOT / "clients" / "web" / "src" / "app" / "workspaceDerivedData.ts").read_text(
         encoding="utf-8"
     )
+    css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(encoding="utf-8")
     en = json.loads(
         (ROOT / "clients" / "web" / "src" / "i18n" / "en.json").read_text(encoding="utf-8")
     )
@@ -1223,9 +1160,7 @@ def test_web_client_market_terminal_surfaces_simulated_source_and_tenor_context(
     api_client = (ROOT / "clients" / "web" / "src" / "api" / "client.ts").read_text(
         encoding="utf-8"
     )
-    css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(
-        encoding="utf-8"
-    )
+    css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(encoding="utf-8")
     en = json.loads(
         (ROOT / "clients" / "web" / "src" / "i18n" / "en.json").read_text(encoding="utf-8")
     )
@@ -1291,9 +1226,7 @@ def test_source_center_shows_category_operational_posture_board() -> None:
     api_client = (ROOT / "clients" / "web" / "src" / "api" / "client.ts").read_text(
         encoding="utf-8"
     )
-    css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(
-        encoding="utf-8"
-    )
+    css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(encoding="utf-8")
     en = json.loads(
         (ROOT / "clients" / "web" / "src" / "i18n" / "en.json").read_text(encoding="utf-8")
     )
@@ -1319,9 +1252,7 @@ def test_source_center_shows_category_operational_posture_board() -> None:
 
 
 def test_web_client_mobile_topbar_constrains_controls_to_viewport() -> None:
-    css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(
-        encoding="utf-8"
-    )
+    css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(encoding="utf-8")
 
     assert "@media (max-width: 900px)" in css
     assert ".cockpit-app .cockpit-topbar > *" in css
@@ -1343,9 +1274,7 @@ def test_web_client_resource_pool_options_are_backend_owned() -> None:
     api_client = (ROOT / "clients" / "web" / "src" / "api" / "client.ts").read_text(
         encoding="utf-8"
     )
-    store = (ROOT / "clients" / "web" / "src" / "stores" / "api.ts").read_text(
-        encoding="utf-8"
-    )
+    store = (ROOT / "clients" / "web" / "src" / "stores" / "api.ts").read_text(encoding="utf-8")
     en = json.loads(
         (ROOT / "clients" / "web" / "src" / "i18n" / "en.json").read_text(encoding="utf-8")
     )
@@ -1354,7 +1283,7 @@ def test_web_client_resource_pool_options_are_backend_owned() -> None:
     )
 
     assert (
-        'resourcePoolOptions: () => get<ResourcePoolOptionsDTO>'
+        "resourcePoolOptions: () => get<ResourcePoolOptionsDTO>"
         '("/route-cost/resource-pool/options")'
     ) in api_client
     assert "resourcePoolOptions: ResourcePoolOptionsDTO | null" in store
@@ -1364,7 +1293,7 @@ def test_web_client_resource_pool_options_are_backend_owned() -> None:
     assert "sale_price_source_system?: string | null" in api_client
     assert "sale_price_simulated?: boolean" in api_client
     assert "sale_price_source_family?: string | null" in api_client
-    assert "sale_price_simulated ? t(\"market.simulated_source\")" in network_workspace
+    assert 'sale_price_simulated ? t("market.simulated_source")' in network_workspace
     assert "saveUpstreamContract" in api_client
     assert "saveDraftContract" in store
     assert "saveDraftContract(contractPayload)" in app_and_contracts
@@ -1393,9 +1322,7 @@ def test_local_seed_uses_preview_provenance_not_operator_test_names() -> None:
 
     assert not legacy_seed_script.exists()
     assert not legacy_demo_seed_script.exists()
-    seed_script = seed_script_path.read_text(
-        encoding="utf-8"
-    )
+    seed_script = seed_script_path.read_text(encoding="utf-8")
 
     assert "demo_market_price" not in seed_script
     assert "upsert_simulated_market_observations" in seed_script
@@ -1454,16 +1381,12 @@ def test_release_workflow_publishes_web_windows_and_linux_assets() -> None:
     assert "*.exe" in workflow
     assert "*.deb" in workflow
     assert (
-        "pytest -q tests/api tests/contract tests/integration tests/sdk "
+        "pytest -q tests/api tests/contract tests/integration tests/ingestion tests/unit tests/sdk "
         "tests/cli tests/release tests/security"
     ) in workflow
-    build_ps1 = (ROOT / "scripts" / "release" / "build_release.ps1").read_text(
-        encoding="utf-8"
-    )
+    build_ps1 = (ROOT / "scripts" / "release" / "build_release.ps1").read_text(encoding="utf-8")
     assert "npm --prefix $WebDir run build" in build_ps1
     assert "npm --prefix $DesktopDir run build -- --bundles $Bundle" in build_ps1
-    build_sh = (ROOT / "scripts" / "release" / "build_release.sh").read_text(
-        encoding="utf-8"
-    )
+    build_sh = (ROOT / "scripts" / "release" / "build_release.sh").read_text(encoding="utf-8")
     assert 'npm --prefix "${WEB_DIR}" run build' in build_sh
     assert 'npm --prefix "${DESKTOP_DIR}" run build -- --bundles "${BUNDLE}"' in build_sh

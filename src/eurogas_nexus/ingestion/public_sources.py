@@ -333,6 +333,9 @@ def entsog_flow_observations_from_json(payload: dict[str, Any]) -> list[dict[str
     records = _extract_records(payload, "operationaldatas")
     rows: list[dict[str, Any]] = []
     for record in records:
+        indicator = str(record.get("indicator") or "physical flow").strip()
+        if not _is_entsog_physical_flow_indicator(indicator):
+            continue
         record_id = str(record.get("id") or "").strip()
         value = _to_float(record.get("value"))
         if not record_id or value is None:
@@ -398,6 +401,9 @@ def entsog_capacity_observations_from_json(payload: dict[str, Any]) -> list[dict
         if period_start is None or period_end is None:
             continue
         indicator = str(record.get("indicator") or "capacity").strip()
+        capacity_type = _capacity_indicator_type(indicator)
+        if capacity_type is None:
+            continue
         unit = str(record.get("unit") or "").lower()
         capacity_mcm_d = value / KWH_PER_MCM if unit in {"kwh/d", "kwh/day"} else value
         safe_id = _safe_observation_suffix(record_id, max_length=52)
@@ -407,7 +413,7 @@ def entsog_capacity_observations_from_json(payload: dict[str, Any]) -> list[dict
                 "point_id": str(record.get("pointKey") or record.get("pointLabel") or record_id),
                 "point_name": str(record.get("pointLabel") or record.get("pointKey") or record_id),
                 "direction": str(record.get("directionKey") or "unknown").lower()[:8],
-                "capacity_type": _capacity_indicator_type(indicator),
+                "capacity_type": capacity_type,
                 "capacity_mcm_d": round(capacity_mcm_d, 6),
                 "original_value": value,
                 "original_unit": unit or None,
@@ -461,8 +467,8 @@ def gie_storage_observations_from_json(payload: dict[str, Any]) -> list[dict[str
                 "inventory_twh": _to_float(record.get("gasInStorage")),
                 "working_capacity_twh": _to_float(record.get("workingGasVolume")),
                 "fill_pct": _to_float(record.get("full")),
-                "injection_twh_d": _to_float(record.get("injection")),
-                "withdrawal_twh_d": _to_float(record.get("withdrawal")),
+                "injection_twh_d": _gwh_to_twh(record.get("injection")),
+                "withdrawal_twh_d": _gwh_to_twh(record.get("withdrawal")),
                 "period_start_utc": period_start,
                 "period_end_utc": period_end,
                 "observed_at_utc": _parse_datetime(record.get("updatedAt")) or datetime.now(UTC),
@@ -509,9 +515,9 @@ def gie_lng_observations_from_json(payload: dict[str, Any]) -> list[dict[str, An
                 "terminal_id": code,
                 "terminal_name": str(record.get("name") or code),
                 "country": code,
-                "inventory_twh": _to_float(record.get("inventory")),
-                "send_out_twh_d": _to_float(record.get("sendOut")),
-                "dtmi_pct": _to_float(record.get("dtmi")),
+                "inventory_twh": _gwh_to_twh(record.get("inventory")),
+                "send_out_twh_d": _gwh_to_twh(record.get("sendOut")),
+                "dtmi_twh": _gwh_to_twh(record.get("dtmi")),
                 "period_start_utc": period_start,
                 "period_end_utc": period_end,
                 "observed_at_utc": _parse_datetime(record.get("updatedAt")) or datetime.now(UTC),
@@ -557,6 +563,13 @@ def _to_float(value: object) -> float | None:
         return None
 
 
+def _gwh_to_twh(value: object) -> float | None:
+    if isinstance(value, dict):
+        value = value.get("gwh")
+    numeric = _to_float(value)
+    return numeric / 1000 if numeric is not None else None
+
+
 def _parse_date(value: object) -> date | None:
     if value in (None, ""):
         return None
@@ -598,17 +611,26 @@ def _entsog_node_type(record: dict[str, Any]) -> str:
     return "network_point"
 
 
-def _capacity_indicator_type(indicator: str) -> str:
+def _is_entsog_physical_flow_indicator(indicator: str) -> bool:
+    key = indicator.strip().lower().replace("-", " ")
+    return re.sub(r"\s+", " ", key) in {"physical flow", "physical flows"}
+
+
+def _capacity_indicator_type(indicator: str) -> str | None:
     key = indicator.strip().lower().replace("-", " ")
     if "technical" in key and "firm" in key:
         return "firm_technical"
+    if "technical" in key and "interruptible" in key:
+        return "interruptible_technical"
     if "booked" in key and "firm" in key:
         return "firm_booked"
     if "booked" in key and "interruptible" in key:
         return "interruptible_booked"
     if "available" in key:
-        return "available"
-    return re.sub(r"[^a-z0-9]+", "_", key).strip("_")[:32] or "capacity"
+        return "firm_available" if "firm" in key else "interruptible_available"
+    if "nomination" in key:
+        return "nomination"
+    return None
 
 
 def _infer_country(record: dict[str, Any]) -> str:

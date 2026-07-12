@@ -54,8 +54,16 @@ Default stable prefix:
 /api
 ```
 
-The SDK must not default to historical `/v1` paths except for documented
-bootstrap compatibility tests.
+Versioned and bootstrap aliases are not exposed.
+
+Observation clients provide two compatible method forms:
+
+- `fetch_*()` returns the typed data collection for concise use;
+- `fetch_*_result()` returns `SdkResult[data]` and preserves backend warnings,
+  source references, `research_only`, and `human_review_required` metadata.
+
+Production automation and decision-support workflows should use the result form
+whenever provenance or warning handling matters.
 
 ## Client Shape
 

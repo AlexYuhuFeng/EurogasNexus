@@ -33,7 +33,7 @@ PostgreSQL.
 Latest local runtime posture observed in this worktree:
 
 - API import succeeds with `76` routes in development profile.
-- Live runtime API reports Alembic `0012_entsog_capacity`.
+- Live runtime API reports Alembic `0013_gie_lng_dtmi_energy`.
 - Runtime DB reports `33` required tables and `0` missing tables.
 - Source Center reports PostgreSQL-backed provider/source posture when the
   operator's API process has `RUNTIME_STORE_DATABASE_URL` configured.

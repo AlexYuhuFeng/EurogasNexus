@@ -85,8 +85,8 @@ jobs, keep this section and CI in sync.
 
 - PostgreSQL is the runtime source of truth.
 - Public SDK, CLI, Web, Windows, Linux, and customer integrations target `/api`.
-- Hidden compatibility routes such as `/api/v1` and `/v1/health` must not become
-  the documented public release surface.
+- Do not add versioned or bootstrap aliases. Public clients use `/api`; internal
+  and development routes use `/api/internal` and `/api/dev`.
 - SDK, CLI, Web, and Windows code call the backend API or SDK, not internal
   domain modules.
 - Clients do not connect directly to PostgreSQL.

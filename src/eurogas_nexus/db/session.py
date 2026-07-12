@@ -61,9 +61,13 @@ def get_engine(
         "pool_pre_ping": pool_pre_ping,
         "future": True,
     }
-    if make_url(resolved_url).get_backend_name() == "postgresql":
+    parsed_url = make_url(resolved_url)
+    if parsed_url.get_backend_name() == "postgresql":
         bounded_timeout = max(1, int(connect_timeout_seconds))
-        engine_options["connect_args"] = {"connect_timeout": bounded_timeout}
+        timeout_parameter = (
+            "timeout" if parsed_url.drivername.endswith("+pg8000") else "connect_timeout"
+        )
+        engine_options["connect_args"] = {timeout_parameter: bounded_timeout}
         engine_options["pool_timeout"] = bounded_timeout
 
     return create_engine(resolved_url, **engine_options)

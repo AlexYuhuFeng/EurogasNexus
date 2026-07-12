@@ -26,7 +26,7 @@ Latest local runtime evidence:
 ```text
 database_url_present=true
 connectivity.ok=true
-alembic_revision=0012_entsog_capacity
+alembic_revision=0013_gie_lng_dtmi_energy
 required_tables=33
 missing_tables=0
 source=runtime-postgresql
@@ -58,7 +58,7 @@ alembic downgrade -1
 ## Required Tables
 
 The required-table registry currently covers 33 tables through Alembic
-revision `0012_entsog_capacity`, including:
+revision `0013_gie_lng_dtmi_energy`, including:
 
 - `alembic_version`;
 - `ingestion_runs`;

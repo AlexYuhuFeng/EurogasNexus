@@ -76,6 +76,16 @@ Current public/keyed runtime sources:
 - GIE ALSI LNG observations;
 - audited public TSO tariff rows.
 
+Normalization invariants:
+
+- ENTSOG flow ingestion requests only the `Physical Flow` indicator and replaces
+  the previous ENTSOG flow snapshot transactionally; capacity indicators cannot
+  be written into `flow_observations`.
+- GIE AGSI `injection` and `withdrawal` and GIE ALSI `sendOut` are published in
+  GWh/d and normalized to TWh/d.
+- GIE ALSI nested `inventory.gwh` and `dtmi.gwh` values are normalized to
+  `inventory_twh` and `dtmi_twh`; DTMI is an energy capacity, not a percentage.
+
 Price and screen data are different. EEX, ICE OCM, Trayport, ICIS, Argus, Kpler,
 Platts, broker, and customer screen/order feeds require customer rights and
 source-specific contracts before live ingestion. Until then, only
@@ -90,7 +100,7 @@ Latest checked local API posture:
 GET /api/runtime/db
 database_url_present=true
 connectivity.ok=true
-alembic_revision=0012_entsog_capacity
+alembic_revision=0013_gie_lng_dtmi_energy
 required_tables=33
 missing_tables=0
 source=runtime-postgresql

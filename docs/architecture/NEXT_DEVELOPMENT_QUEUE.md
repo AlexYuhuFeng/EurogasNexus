@@ -21,7 +21,7 @@ The worktree contains:
 
 - FastAPI backend with stable `/api` routes.
 - PostgreSQL runtime store and Alembic migrations through
-  `0012_entsog_capacity`.
+  `0013_gie_lng_dtmi_energy`.
 - Python SDK and CLI.
 - React/Vite Web workspace.
 - Tauri desktop shell around the Web workspace.

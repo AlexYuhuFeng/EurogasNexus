@@ -133,7 +133,7 @@ class LngObservationRecord(Base):
     country: Mapped[str] = mapped_column(String(8), nullable=False)
     inventory_twh: Mapped[float | None] = mapped_column(Float, nullable=True)
     send_out_twh_d: Mapped[float | None] = mapped_column(Float, nullable=True)
-    dtmi_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
+    dtmi_twh: Mapped[float | None] = mapped_column(Float, nullable=True)
     period_start_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     period_end_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     observed_at_utc: Mapped[datetime] = mapped_column(

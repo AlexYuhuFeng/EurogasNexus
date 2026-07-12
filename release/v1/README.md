@@ -22,7 +22,7 @@ A V1 release candidate must prove:
   matrix is complete or explicitly accepted as partial;
 - app import works without DB connection side effects;
 - live PostgreSQL validation is documented and operator-invoked;
-- `/api/v1` client routes are stable for the released scope;
+- `/api` client routes are stable for the released scope;
 - `/api/internal` and `/api/dev` routes are profile-gated;
 - SDK and CLI consume the API rather than internal modules;
 - no secrets, raw vendor data, internal commercial data, contracts, or strategy

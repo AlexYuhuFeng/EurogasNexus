@@ -32,7 +32,7 @@ try {
             ruff check $RepoRoot
         }
         Invoke-Step "Run targeted Python release tests" {
-            pytest -q tests/api tests/contract tests/integration tests/sdk tests/cli tests/release tests/security
+            pytest -q tests/api tests/contract tests/integration tests/ingestion tests/unit tests/sdk tests/cli tests/release tests/security
         }
         Invoke-Step "Verify API import safety" {
             python -c "from apps.api.main import app; print('app import ok'); print(len(app.routes))"
@@ -54,6 +54,10 @@ try {
 
     Invoke-Step "Build desktop bundle ($Bundle)" {
         npm --prefix $DesktopDir run build -- --bundles $Bundle
+    }
+
+    Invoke-Step "Package deployment role bundle" {
+        & (Join-Path $PSScriptRoot "package_deployment_bundle.ps1")
     }
 
     Write-Host "==> Release artifacts"

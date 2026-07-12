@@ -14,8 +14,7 @@ operations, strategy evaluation, and trader-reviewed decision support.
 
 Runtime truth lives in PostgreSQL. Web, Windows, Linux, SDK, and CLI clients read
 runtime data through the backend API or SDK. Public client integrations target
-`/api`; hidden compatibility routes such as `/api/v1` are not the documented
-customer surface.
+the single unversioned `/api` surface.
 
 Current line: `v0.5-preview`
 
@@ -121,7 +120,9 @@ npm --prefix clients/web run dev
 ```
 
 The Web client defaults to `/api` in browser mode and to
-`http://127.0.0.1:8000/api` in the Tauri desktop shell.
+`http://127.0.0.1:8000/api` in the Tauri desktop shell. Settings can store a
+non-secret backend API override; remote endpoints must use HTTPS and end in
+`/api`.
 
 ## Database and Runtime
 
@@ -158,7 +159,7 @@ diagnostics, last-update status, record counts, and failure reasons.
 | Category | Providers and scope |
 | --- | --- |
 | Prices | Platts, ICIS, Argus, EEX, ICE OCM, Trayport, Kpler |
-| Price simulation | EEX_Sim, ICE_OCM_Sim, ICIS_Sim for source-shaped runtime testing |
+| Price simulation | EEX_Sim, ICE_OCM_Sim, Trayport_Sim, ICIS_Sim for source-shaped runtime testing |
 | FX | ECB reference rates |
 | Infrastructure | ENTSOG, GIE AGSI, GIE ALSI |
 | Tariffs | BBL, IUK, National Gas NTS, GTS, NaTran, German TSOs, Fluxys Belgium, CNMC/Enagas |
@@ -192,8 +193,7 @@ Recommended validation before pushing:
 
 ```bash
 ruff check .
-pytest -q tests
-pytest -q tests/api tests/contract tests/integration tests/sdk tests/cli tests/release tests/security
+pytest -q tests/api tests/contract tests/integration tests/ingestion tests/unit tests/sdk tests/cli tests/release tests/security
 npm --prefix clients/web run build
 python -c "from apps.api.main import app; print('app import ok'); print(len(app.routes))"
 ```
@@ -204,13 +204,25 @@ and doc-hygiene checks to CI. Track that work in
 
 ## Build and Release
 
-GitHub Actions publishes preview releases from the manual `Build and Release`
-workflow.
+GitHub Actions validates and publishes a preview release after each successful
+push to `main`. The same workflow can be run manually for preview, release
+candidate, or stable channels.
 
 - CI: Python linting, tests, API import, and Web build;
 - Web release build: Vite production build and packaged Web artifact;
-- Desktop release build: optional Windows NSIS installer and Linux DEB package;
-- Release: GitHub pre-release with generated artifacts.
+- Desktop release build: Windows x64 NSIS plus Linux x64 and ARM64 DEB packages;
+- Runtime image: multi-architecture API image published to GitHub Container Registry;
+- Deployment bundle: `Server`, `Client`, and `AllInOne` Windows deployment tooling;
+- Release: GitHub release or pre-release with generated artifacts.
+
+Customer deployment roles are fixed:
+
+- `Server`: PostgreSQL, migrations, API, HTTPS gateway, ingestion workers;
+- `Client`: desktop client only, connected to an existing HTTPS `/api` URL;
+- `AllInOne`: Server and Client on one device.
+
+See [Deployment roles EN](docs/deployment/DEPLOYMENT_ROLES-EN.md) and
+[部署角色 CN](docs/deployment/DEPLOYMENT_ROLES-CN.md).
 
 Local release scripts mirror the workflow:
 

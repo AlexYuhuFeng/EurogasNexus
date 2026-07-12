@@ -1,0 +1,27 @@
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+RUN groupadd --system eurogas \
+    && useradd --system --gid eurogas --create-home eurogas
+
+WORKDIR /app
+
+COPY pyproject.toml README.md ./
+COPY src ./src
+RUN python -m pip install --no-cache-dir .
+
+COPY alembic.ini ./
+COPY alembic ./alembic
+COPY apps ./apps
+COPY scripts ./scripts
+
+RUN chown -R eurogas:eurogas /app
+USER eurogas
+
+EXPOSE 8000
+
+CMD ["python", "-m", "uvicorn", "apps.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+

@@ -1,4 +1,4 @@
-﻿"""API path normalization policy tests."""
+"""API path normalization policy tests."""
 
 from fastapi.testclient import TestClient
 
@@ -12,13 +12,12 @@ def test_public_health_path_uses_unversioned_api_prefix() -> None:
     assert client.get("/api/health").status_code == 200
 
 
-def test_hidden_legacy_api_v1_health_alias_still_works() -> None:
+def test_versioned_api_alias_is_not_exposed() -> None:
     client = TestClient(create_app(Settings(api_profile="release")))
 
     response = client.get("/api/v1/health")
 
-    assert response.status_code == 200
-    assert response.json()["status"] == "ok"
+    assert response.status_code == 404
 
 
 def test_internal_and_dev_paths_use_api_prefixes() -> None:
@@ -31,13 +30,12 @@ def test_internal_and_dev_paths_use_api_prefixes() -> None:
     assert dev_client.get("/dev/health").status_code == 404
 
 
-def test_hidden_bootstrap_health_alias_still_works() -> None:
+def test_bootstrap_health_alias_is_not_exposed() -> None:
     client = TestClient(create_app(Settings(api_profile="release")))
 
     response = client.get("/v1/health")
 
-    assert response.status_code == 200
-    assert response.json()["status"] == "ok"
+    assert response.status_code == 404
 
 
 def test_local_desktop_cors_preflight_for_api_post() -> None:

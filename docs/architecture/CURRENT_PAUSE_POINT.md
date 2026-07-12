@@ -20,7 +20,7 @@ Observed against the operator's running local API on `127.0.0.1:8000`:
 GET /api/runtime/db
 database_url_present: true
 connectivity.ok: true
-alembic_revision: 0012_entsog_capacity
+alembic_revision: 0013_gie_lng_dtmi_energy
 required_tables: 33
 missing_tables: 0
 source: runtime-postgresql

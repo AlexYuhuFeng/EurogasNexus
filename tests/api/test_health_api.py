@@ -15,7 +15,7 @@ def test_health_route_returns_shell_status() -> None:
     assert response.json() == {
         "status": "ok",
         "service": "eurogas-nexus",
-        "version": "0.1.0",
+        "version": "0.5.0",
         "profile": "development",
     }
 

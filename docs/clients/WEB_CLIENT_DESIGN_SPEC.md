@@ -240,25 +240,34 @@ Purpose:
 
 Content:
 
-- a filterable network operating board joining the latest ENTSOG flow and
-  capacity observations by point and direction;
-- utilization and headroom calculated only when comparable flow and capacity
-  observations exist;
-- issue-first filtering for constrained, available, and incomplete points;
+- a filterable network operating board joining the latest ENTSOG `Physical Flow`
+  and `Firm Technical` observations by point and direction;
+- utilization and physical headroom calculated only as physical flow divided by
+  firm technical capacity on the same standardized `mcm/d` basis;
+- firm booked capacity, nomination, and booking occupancy displayed as separate
+  commercial/operational measures, never substituted for technical capacity;
+- issue-first filtering for constrained, available, stale, and incomplete points;
 - a selected-point inspector joining TSO access, booking platform/product flags,
   and published tariff references without hiding unmatched records;
 - filters for point, TSO, country, direction, and operating posture;
-- GIE AGSI storage and GIE ALSI LNG records;
+- separate Network, Storage, and LNG views so auxiliary physical signals do not
+  crowd the operating board;
+- only the latest GIE observation per facility in summary totals and visible
+  tables; historical rows remain available through the backend rather than
+  being summed across gas days;
+- GIE AGSI inventory in TWh and injection/withdrawal in TWh/d after conversion
+  from published GWh/d; GIE ALSI inventory and DTMI in TWh and send-out in TWh/d;
 - unavailable or entitlement states when backend data is missing.
 
 Capacity page data must be read from backend `/api` responses backed by
 PostgreSQL. The client must not synthesize capacity, flow, tariff, storage, LNG,
 or TSO-access rows locally.
 
-The page must not present six unrelated summary cards as the primary workflow.
-The operating board is primary, the selected-point inspector is secondary, and
-storage/LNG context follows below. Missing joins remain `n/a`; the client must not
-manufacture utilization, headroom, access, or tariff values.
+The page must not present unrelated summary cards as the primary workflow. The
+operating board is primary, the selected-point inspector is secondary, and
+storage/LNG are focused sibling views. Missing joins remain `n/a`; the client
+must not manufacture utilization, headroom, access, or tariff values. Source
+timestamps older than 24 hours must be marked stale.
 
 ## Screen: Market Positioning
 

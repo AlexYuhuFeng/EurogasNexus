@@ -4,6 +4,13 @@ import type {
   RuntimeDbStatusDTO,
   SourceSystemDTO,
 } from "@/api/client";
+import {
+  clearApiBaseUrl,
+  configuredApiBaseUrl,
+  defaultApiBaseUrl,
+  saveApiBaseUrl,
+  testApiBaseUrl,
+} from "@/api/client";
 import type { ThemeMode } from "@/stores/theme";
 
 type Translate = (key: string) => string;
@@ -19,6 +26,10 @@ interface SettingsPreferences {
   map_density: string;
   refresh_profile: string;
 }
+
+type ApiConnectionState =
+  | { kind: "connected"; version: string; profile: string }
+  | { kind: "failed"; error: string };
 
 interface SettingsCenterProps {
   t: Translate;
@@ -36,6 +47,7 @@ interface SettingsCenterProps {
   onLanguageChange: (language: string) => void;
   onModeChange: (mode: ThemeMode) => void;
   onOpenSources: () => void;
+  onBackendBaseChanged: () => Promise<void>;
 }
 
 const defaultPreferences: SettingsPreferences = {
@@ -76,12 +88,20 @@ export function SettingsCenter({
   onLanguageChange,
   onModeChange,
   onOpenSources,
+  onBackendBaseChanged,
 }: SettingsCenterProps) {
   const [preferences, setPreferences] = useState<SettingsPreferences>(() => readStoredPreferences());
+  const [apiBaseUrl, setApiBaseUrl] = useState(() => configuredApiBaseUrl());
+  const [apiConnectionState, setApiConnectionState] = useState<ApiConnectionState | null>(null);
+  const [testingApi, setTestingApi] = useState(false);
 
   useEffect(() => {
     localStorage.setItem(PREFERENCE_STORAGE_KEY, JSON.stringify(preferences));
   }, [preferences]);
+
+  useEffect(() => {
+    setApiBaseUrl(configuredApiBaseUrl());
+  }, [dataStatus]);
 
   const updatePreference = (key: keyof SettingsPreferences, value: string) => {
     setPreferences((current) => ({ ...current, [key]: value }));
@@ -91,13 +111,35 @@ export function SettingsCenter({
   const missingCredentials = credentialProviders.filter(
     (provider) => provider.credential_required && !provider.configured,
   ).length;
-  const activeSources = sources.filter((source) => source.connectivity_status === "active").length;
+  const activeSources = sources.filter((source) => source.workflow_ready).length;
   const licensedServices = sources.filter((source) => source.entitlement_scope === "licensed").length;
   const serviceRows = credentialProviders.slice(0, 8);
   const credentialStatusLabel = (provider: CredentialProviderDTO) => {
     if (!provider.credential_required) return t("credentials.not_required");
     if (provider.status === "disabled") return t("sources.credential.disabled");
     return provider.configured ? t("settings.configured") : t("settings.missing");
+  };
+
+  const testAndApplyApiBase = async (value: string, useDefault = false) => {
+    setTestingApi(true);
+    setApiConnectionState(null);
+    try {
+      const health = await testApiBaseUrl(value);
+      const normalized = useDefault ? clearApiBaseUrl() : saveApiBaseUrl(value);
+      setApiBaseUrl(normalized);
+      setApiConnectionState({ kind: "connected", version: health.version, profile: health.profile });
+      await onBackendBaseChanged();
+    } catch (error) {
+      setApiConnectionState({ kind: "failed", error: String(error) });
+    } finally {
+      setTestingApi(false);
+    }
+  };
+
+  const restoreDefaultApiBase = async () => {
+    const fallback = defaultApiBaseUrl();
+    setApiBaseUrl(fallback);
+    await testAndApplyApiBase(fallback, true);
   };
 
   return (
@@ -114,6 +156,41 @@ export function SettingsCenter({
           <div><span>{t("settings.runtime_api")}</span><strong>{t(`data.${dataStatus}`)}</strong></div>
           <div><span>{t("settings.runtime_db")}</span><strong>{runtimeDb?.connectivity.ok ? "ok" : "n/a"}</strong></div>
         </div>
+      </div>
+
+      <div className="workspace-panel span-3 settings-backend-panel">
+        <div className="panel-title-row">
+          <div>
+            <h3>{t("settings.backend_api")}</h3>
+            <p className="panel-copy">{t("settings.backend_api_help")}</p>
+          </div>
+          <span className={`status-badge status-${dataStatus}`}>{t(`data.${dataStatus}`)}</span>
+        </div>
+        <div className="settings-backend-form">
+          <label>
+            {t("settings.backend_api_url")}
+            <input
+              type="url"
+              value={apiBaseUrl}
+              spellCheck={false}
+              onChange={(event) => setApiBaseUrl(event.target.value)}
+              placeholder="https://nexus.example.com/api"
+            />
+          </label>
+          <button type="button" disabled={testingApi} onClick={() => void testAndApplyApiBase(apiBaseUrl)}>
+            {testingApi ? t("settings.backend_testing") : t("settings.backend_save_test")}
+          </button>
+          <button type="button" className="secondary-button" disabled={testingApi} onClick={() => void restoreDefaultApiBase()}>
+            {t("settings.backend_use_default")}
+          </button>
+        </div>
+        {apiConnectionState && (
+          <p className="settings-backend-message" role="status">
+            {apiConnectionState.kind === "connected"
+              ? `${t("settings.backend_connected")} ${apiConnectionState.version} / ${apiConnectionState.profile}`
+              : `${t("settings.backend_failed")}: ${apiConnectionState.error}`}
+          </p>
+        )}
       </div>
 
       <div className="workspace-panel settings-panel settings-unit-panel">
@@ -221,7 +298,7 @@ export function SettingsCenter({
           <div><span>{t("settings.configured")}</span><strong>{configuredCredentials}</strong></div>
           <div><span>{t("settings.missing")}</span><strong>{missingCredentials}</strong></div>
           <div><span>{t("settings.licensed_services")}</span><strong>{licensedServices}</strong></div>
-          <div><span>{t("panel.records")}</span><strong>{sources.reduce((total, source) => total + source.live_record_count, 0)}</strong></div>
+          <div><span>{t("panel.records")}</span><strong>{sources.reduce((total, source) => total + source.effective_record_count, 0)}</strong></div>
         </div>
         <div className="settings-service-list">
           {serviceRows.map((provider) => (

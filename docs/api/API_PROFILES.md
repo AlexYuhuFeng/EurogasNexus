@@ -14,8 +14,8 @@ Current routes:
 GET /api/health
 ```
 
-Stable clients and SDKs target `/api`. Legacy `/api/v1/*` and `/v1/health`
-rewrites are hidden compatibility for old health checks only.
+Stable clients and SDKs target `/api`. No versioned or bootstrap aliases are
+exposed.
 
 ## Internal
 
@@ -50,6 +50,6 @@ the app.
 ## Path Policy
 
 - Preferred stable prefix: `/api`.
-- Hidden compatibility prefixes: `/api/v1`, `/v1/health`.
+- Versioned and bootstrap aliases return `404`.
 - Internal prefix: `/api/internal`.
 - Development prefix: `/api/dev`.

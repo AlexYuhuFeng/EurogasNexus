@@ -16,11 +16,17 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        manualChunks: {
-          "vendor-react": ["react", "react-dom"],
-          "vendor-map": ["maplibre-gl"],
-          "vendor-i18n": ["i18next", "react-i18next"],
-          "vendor-state": ["zustand"],
+        manualChunks(moduleId) {
+          if (!moduleId.includes("node_modules")) return undefined;
+          if (moduleId.includes("maplibre-gl")) return "vendor-map";
+          if (moduleId.includes("react-i18next") || moduleId.includes("i18next")) {
+            return "vendor-i18n";
+          }
+          if (moduleId.includes("zustand")) return "vendor-state";
+          if (moduleId.includes("react-dom") || moduleId.includes("react")) {
+            return "vendor-react";
+          }
+          return undefined;
         },
       },
     },

@@ -19,7 +19,7 @@ called a full project release.
 | Repository governance | CI, contributing, security, issue/PR templates |
 | Public repo data safety | docs warn against secrets, real vendor data, raw market data, contracts, strategy parameters |
 | Import safety | app imports without DB URL or network |
-| API prefix policy | `/api`, `/api/internal`, `/api/dev`, `/api/health` compatibility documented and tested |
+| API prefix policy | `/api`, `/api/internal`, and `/api/dev` documented and tested; versioned aliases return 404 |
 | DB URL policy | `RUNTIME_STORE_DATABASE_URL`, `DATABASE_URL`, legacy `EUROGAS_NEXUS_DB_DSN`, redaction tested |
 | Live PostgreSQL validation | read-only validation script, no secret output, explicit operator command |
 

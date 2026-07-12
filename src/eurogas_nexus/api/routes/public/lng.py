@@ -1,4 +1,4 @@
-﻿"""Read-only /api/lng routes."""
+"""Read-only /api/lng routes."""
 
 from fastapi import APIRouter, HTTPException, Request
 
@@ -18,8 +18,15 @@ def _env(data: object, _request: Request) -> dict:
 
 
 def _runtime_env(data: object) -> dict:
-    return {"data": data, "meta": {"research_only": True, "human_review_required": True,
-            "source_references": ["runtime-postgresql"], "warnings": []}}
+    return {
+        "data": data,
+        "meta": {
+            "research_only": True,
+            "human_review_required": True,
+            "source_references": ["runtime-postgresql"],
+            "warnings": [],
+        },
+    }
 
 
 @router.get("/api/lng/terminals")
@@ -27,19 +34,22 @@ def list_terminals(request: Request) -> dict:
     observations = _db_lng_observations()
     if observations is None:
         return _env([], request)
-    terminals = {
-        row["terminal_id"]: {
-            "terminal_id": row["terminal_id"],
-            "name": row["terminal_name"],
-            "country": row["country"],
-            "inventory_twh": row["inventory_twh"],
-            "send_out_twh_d": row["send_out_twh_d"],
-            "dtmi_pct": row["dtmi_pct"],
-            "status": "observed",
-            "source_system": row["source_system"],
-        }
-        for row in observations
-    }
+    terminals: dict[str, dict] = {}
+    for row in observations:
+        terminals.setdefault(
+            row["terminal_id"],
+            {
+                "terminal_id": row["terminal_id"],
+                "name": row["terminal_name"],
+                "country": row["country"],
+                "inventory_twh": row["inventory_twh"],
+                "send_out_twh_d": row["send_out_twh_d"],
+                "dtmi_twh": row["dtmi_twh"],
+                "observed_at_utc": row["observed_at_utc"],
+                "status": "observed",
+                "source_system": row["source_system"],
+            },
+        )
     return _runtime_env(list(terminals.values()))
 
 
@@ -80,7 +90,7 @@ def _lng_row(row) -> dict:
         "country": row.country,
         "inventory_twh": row.inventory_twh,
         "send_out_twh_d": row.send_out_twh_d,
-        "dtmi_pct": row.dtmi_pct,
+        "dtmi_twh": row.dtmi_twh,
         "period_start_utc": row.period_start_utc.isoformat(),
         "period_end_utc": row.period_end_utc.isoformat(),
         "observed_at_utc": row.observed_at_utc.isoformat(),

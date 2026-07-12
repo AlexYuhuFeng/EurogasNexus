@@ -725,6 +725,54 @@ input {
   margin-top: 12px;
 }
 
+.settings-backend-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.settings-backend-panel .panel-title-row > div {
+  min-width: 0;
+}
+
+.settings-backend-panel .panel-copy {
+  margin: 4px 0 0;
+}
+
+.settings-backend-form {
+  display: grid;
+  grid-template-columns: minmax(320px, 1fr) auto auto;
+  align-items: end;
+  gap: 8px;
+}
+
+.settings-backend-form label {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+  color: var(--eg-body);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.settings-backend-form input {
+  width: 100%;
+  min-width: 0;
+  height: 38px;
+}
+
+.settings-backend-form button {
+  min-height: 38px;
+  white-space: nowrap;
+}
+
+.settings-backend-message {
+  margin: 0;
+  border-left: 3px solid var(--eg-accent);
+  background: var(--eg-canvas-soft);
+  color: var(--eg-body);
+  padding: 8px 10px;
+}
+
 .settings-panel label {
   color: var(--eg-body);
 }
@@ -5363,6 +5411,8 @@ button.glossary-related-chip {
 }
 
 .capacity-operations {
+  display: grid;
+  gap: 12px;
   align-items: start;
 }
 
@@ -5371,9 +5421,45 @@ button.glossary-related-chip {
   gap: 12px;
 }
 
+.capacity-view-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.capacity-view-header > div:first-child {
+  max-width: 760px;
+}
+
+.capacity-view-header strong {
+  color: var(--eg-ink);
+  font-size: 18px;
+}
+
+.capacity-view-header p,
+.capacity-board-panel .panel-title-row p,
+.capacity-assets-panel .panel-title-row p {
+  margin: 4px 0 0;
+  color: var(--eg-body);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.capacity-view-control {
+  display: inline-grid;
+  grid-template-columns: repeat(3, minmax(88px, 1fr));
+  flex: 0 0 auto;
+}
+
+.capacity-view-control button {
+  min-height: 36px;
+  white-space: nowrap;
+}
+
 .capacity-command-bar {
   display: grid;
-  grid-template-columns: minmax(220px, 1.4fr) minmax(140px, 0.6fr) minmax(180px, 0.8fr) auto;
+  grid-template-columns: minmax(240px, 1.5fr) minmax(130px, 0.55fr) minmax(180px, 0.8fr) minmax(170px, 0.65fr);
   gap: 8px;
   align-items: center;
 }
@@ -5386,8 +5472,9 @@ button.glossary-related-chip {
 
 .capacity-posture-control {
   display: inline-grid;
-  grid-template-columns: repeat(4, minmax(76px, 1fr));
-  min-width: 0;
+  grid-template-columns: repeat(5, minmax(92px, 1fr));
+  justify-self: start;
+  min-width: min(100%, 560px);
 }
 
 .capacity-posture-control button {
@@ -5397,7 +5484,7 @@ button.glossary-related-chip {
 
 .capacity-kpi-strip {
   display: grid;
-  grid-template-columns: repeat(4, minmax(120px, 1fr)) minmax(220px, 1.6fr);
+  grid-template-columns: repeat(5, minmax(110px, 0.75fr)) minmax(210px, 1.45fr);
   border-top: 1px solid var(--eg-hairline);
   border-bottom: 1px solid var(--eg-hairline);
 }
@@ -5431,6 +5518,27 @@ button.glossary-related-chip {
   white-space: nowrap;
 }
 
+.capacity-asset-kpis {
+  grid-template-columns: repeat(3, minmax(140px, 0.8fr)) minmax(220px, 1.5fr);
+}
+
+.capacity-data-warning {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px 14px;
+  align-items: baseline;
+  border-left: 3px solid var(--warning);
+  background: rgb(180 83 9 / 7%);
+  color: var(--eg-body);
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 9px 12px;
+}
+
+.capacity-data-warning strong {
+  color: var(--warning);
+}
+
 .capacity-kpi-strip .issue strong,
 .utilization-critical {
   color: var(--danger);
@@ -5440,22 +5548,39 @@ button.glossary-related-chip {
   color: var(--warning);
 }
 
+.capacity-network-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 12px;
+  align-items: start;
+}
+
 .capacity-board-panel,
 .capacity-point-inspector {
-  min-height: 560px;
+  min-height: 610px;
+}
+
+.capacity-board-panel .panel-title-row,
+.capacity-assets-panel .panel-title-row {
+  align-items: flex-start;
+}
+
+.capacity-board-panel .panel-title-row h3,
+.capacity-assets-panel .panel-title-row h3 {
+  margin-bottom: 0;
 }
 
 .capacity-operating-table {
   overflow: auto;
-  max-height: 500px;
+  max-height: 530px;
   border-top: 1px solid var(--eg-hairline);
 }
 
 .capacity-operating-row {
   display: grid;
-  grid-template-columns: minmax(190px, 1.5fr) minmax(150px, 1.1fr) 78px repeat(4, minmax(88px, 0.7fr));
+  grid-template-columns: minmax(180px, 1.6fr) 64px repeat(2, 78px) 104px repeat(2, 78px) 94px;
   width: 100%;
-  min-width: 900px;
+  min-width: 820px;
   min-height: 48px;
   align-items: center;
   gap: 10px;
@@ -5595,6 +5720,12 @@ button.glossary-related-chip {
   color: var(--danger);
 }
 
+.capacity-readiness-stale {
+  border-color: rgb(180 83 9 / 28%);
+  background: rgb(180 83 9 / 8%);
+  color: var(--warning);
+}
+
 .capacity-readiness-incomplete {
   border-color: rgb(180 83 9 / 28%);
   background: rgb(180 83 9 / 8%);
@@ -5613,6 +5744,60 @@ button.glossary-related-chip {
   color: var(--eg-body);
 }
 
+.capacity-stack {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--eg-hairline);
+}
+
+.capacity-stack-row {
+  display: grid;
+  grid-template-columns: minmax(90px, 1fr) auto;
+  gap: 4px 10px;
+  align-items: center;
+  color: var(--eg-body);
+  font-size: 12px;
+}
+
+.capacity-stack-row strong {
+  color: var(--eg-ink);
+  font-size: 12px;
+}
+
+.capacity-stack-row i {
+  display: block;
+  grid-column: 1 / -1;
+  overflow: hidden;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--eg-hairline);
+}
+
+.capacity-stack-row b {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--eg-muted);
+}
+
+.capacity-stack-row.technical b {
+  background: var(--eg-ink);
+}
+
+.capacity-stack-row.booked b {
+  background: var(--warning);
+}
+
+.capacity-stack-row.nomination b {
+  background: var(--eg-link);
+}
+
+.capacity-stack-row.flow b {
+  background: var(--eg-accent);
+}
+
 .capacity-point-metrics {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -5620,7 +5805,8 @@ button.glossary-related-chip {
 }
 
 .capacity-point-metrics > div {
-  padding: 12px 0;
+  min-width: 0;
+  padding: 12px 8px 12px 0;
   border-bottom: 1px solid var(--eg-hairline);
 }
 
@@ -5629,6 +5815,25 @@ button.glossary-related-chip {
   color: var(--eg-ink);
   font-size: 16px;
   font-weight: 700;
+}
+
+.capacity-evidence-line {
+  display: grid;
+  gap: 4px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--eg-hairline);
+  color: var(--eg-muted);
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.capacity-evidence-line strong {
+  overflow: hidden;
+  color: var(--eg-body);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  text-transform: none;
+  white-space: nowrap;
 }
 
 .capacity-inspector-section {
@@ -5650,10 +5855,26 @@ button.glossary-related-chip {
   color: var(--eg-muted);
 }
 
-.capacity-asset-tables {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px;
+.capacity-assets-panel {
+  min-height: 560px;
+}
+
+.capacity-asset-table {
+  overflow: auto;
+  max-height: 620px;
+  margin-top: 14px;
+}
+
+.data-table-row.five {
+  grid-template-columns: minmax(220px, 1.6fr) minmax(80px, 0.5fr) repeat(3, minmax(120px, 0.8fr));
+  min-width: 760px;
+}
+
+.data-table-row.five > * {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .capacity-empty-state {
@@ -5670,27 +5891,55 @@ button.glossary-related-chip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .capacity-network-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .capacity-point-inspector {
+    min-height: 0;
+  }
+
   .capacity-kpi-strip > div {
     border-bottom: 1px solid var(--eg-hairline);
   }
 }
 
 @media (max-width: 760px) {
-  .capacity-command-bar,
-  .capacity-asset-tables {
+  .capacity-command-bar {
     grid-template-columns: 1fr;
+  }
+
+  .capacity-view-header {
+    flex-direction: column;
+  }
+
+  .capacity-view-control {
+    width: 100%;
   }
 
   .capacity-posture-control {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
   }
 
   .capacity-kpi-strip {
     grid-template-columns: 1fr;
   }
 
+  .capacity-data-warning {
+    grid-template-columns: 1fr;
+  }
+
   .capacity-pagination {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .settings-backend-form {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-backend-form button {
+    width: 100%;
   }
 }

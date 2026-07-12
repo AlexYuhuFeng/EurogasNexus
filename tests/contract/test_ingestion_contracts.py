@@ -1,5 +1,9 @@
 """Ingestion and source registry contract tests (DB-free)."""
 
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+
 
 def test_source_registry_entry_has_required_fields() -> None:
     from eurogas_nexus.ingestion.contracts import SourceRegistryEntry, SourceStatus
@@ -72,3 +76,13 @@ def test_ingestion_payload_has_source_fields() -> None:
     )
     assert payload.source_name == "entsog-test"
     assert payload.source_system == "ENTSOG"
+
+
+def test_entsog_flow_ingestion_requests_and_replaces_only_physical_flow() -> None:
+    script = (ROOT / "scripts" / "ops" / "ingest_public_sources.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert '"indicator": "Physical Flow"' in script
+    assert "delete(FlowObservationRecord)" in script
+    assert "ENTSOG returned no physical-flow observations" in script

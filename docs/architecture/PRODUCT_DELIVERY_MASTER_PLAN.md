@@ -39,7 +39,7 @@ The active V1 release-candidate scope includes:
   storage, LNG, market/FX, source posture, credentials, contracts/routes,
   route-cost, resource-pool, strategy-lab, glossary, analysis/report, and
   portfolio observation routes.
-- Alembic migrations through `0012_entsog_capacity`.
+- Alembic migrations through `0013_gie_lng_dtmi_energy`.
 - Runtime database validation and operator scripts.
 - React/Vite map-first Web workspace.
 - Tauri desktop shell wrapping the Web workspace.

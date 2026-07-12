@@ -23,7 +23,7 @@ Runtime API evidence from the operator's local API:
 GET /api/runtime/db
 database_url_present=true
 connectivity.ok=true
-alembic_revision=0012_entsog_capacity
+alembic_revision=0013_gie_lng_dtmi_energy
 required_tables=33
 missing_tables=0
 source=runtime-postgresql
@@ -84,6 +84,12 @@ When the manual `Build and Release` workflow is run with `build_desktop=true`,
 the desktop release matrix is expected to publish the following desktop assets:
 
 - `release-desktop-windows-x64`: Windows NSIS installer.
+- `release-deployment`: Server, Client, and AllInOne deployment bundle.
+- `ghcr.io/alexyuhufeng/eurogasnexus-api`: multi-architecture runtime image.
+
+Server deployment is private-network preview only. Public internet and
+multi-tenant deployment remain blocked until backend authentication and
+authorization are implemented.
 - `release-desktop-linux-x64`: Linux DEB package for x64 Linux users.
 - `release-desktop-linux-arm64`: Linux DEB package for ARM64 Linux users.
 

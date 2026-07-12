@@ -29,7 +29,8 @@ def test_readme_mentions_starting_docs_and_extended_validation() -> None:
     assert "[Project directory](PROJECT_DIRECTORY.md)" in text
     assert "[Release readiness](docs/release/RELEASE_READINESS.md)" in text
     assert "## Data Sources" in text
-    assert "tests/integration tests/sdk tests/cli" in text
+    assert "tests/integration tests/ingestion tests/unit tests/sdk tests/cli" in text
+    assert "## 中文说明" in text
 
 
 def test_resource_pool_contract_defines_home_and_efet_contract_entry() -> None:

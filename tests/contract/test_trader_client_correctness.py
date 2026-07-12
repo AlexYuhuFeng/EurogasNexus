@@ -82,14 +82,11 @@ def test_settings_distinguish_public_sources_from_missing_credentials() -> None:
 
     assert "if (!provider.credential_required)" in settings
     assert 'return t("credentials.not_required")' in settings
-    assert "provider.configured ? t(\"settings.configured\")" in settings
+    assert 'provider.configured ? t("settings.configured")' in settings
 
 
 def test_visible_literal_translation_keys_exist_in_both_locales() -> None:
-    component_text = "\n".join(
-        _read(path)
-        for path in WEB.rglob("*.tsx")
-    )
+    component_text = "\n".join(_read(path) for path in WEB.rglob("*.tsx"))
     literal_keys = {
         match
         for match in re.findall(r'\bt\(["\']([^"\']+)["\']\)', component_text)
@@ -123,7 +120,7 @@ def test_network_geometry_does_not_overstate_route_corridor_coverage() -> None:
     assert "<NetworkWorkspace" in app
     assert "MAJOR_HUB_PRIORITY" in map_component
     assert "map-node-label" in map_component
-    assert 'cluster: true' in map_component
+    assert "cluster: true" in map_component
     assert 'id: "node-clusters"' in map_component
 
 
@@ -164,4 +161,44 @@ def test_network_workspace_is_extracted_from_app_shell() -> None:
     assert "decision-rail" not in app
     assert "scenario-rail" in network_workspace
     assert "decision-rail" in network_workspace
-    assert len(app.splitlines()) < 1120
+    assert len(app.splitlines()) < 850
+
+
+def test_secondary_workspaces_are_extracted_from_app_shell() -> None:
+    app = _read(WEB / "App.tsx")
+
+    for component in [
+        "ScenarioWorkspace",
+        "ReviewWorkspace",
+        "MarketPositioningWorkspace",
+        "RuntimeWorkspace",
+        "ManualWorkspace",
+    ]:
+        assert f"<{component}" in app
+        assert (WEB / "components" / f"{component}.tsx").is_file()
+
+    for page_class in [
+        "scenario-page",
+        "review-page",
+        "orders-page",
+        "runtime-page",
+        "manual-page",
+    ]:
+        assert page_class not in app
+
+
+def test_client_backend_url_is_runtime_configurable_and_safe() -> None:
+    api_client = _read(WEB / "api" / "client.ts")
+    settings = _read(WEB / "components" / "SettingsCenter.tsx")
+
+    assert "normalizeApiBaseUrl" in api_client
+    assert 'parsed.protocol !== "https:"' in api_client
+    assert 'parsed.hostname === "127.0.0.1"' in api_client
+    assert 'parsed.hostname === "localhost"' in api_client
+    assert "expected JSON but received" in api_client
+    assert "invalid JSON response" in api_client
+    assert "testApiBaseUrl(value)" in settings
+    assert "const health = await testApiBaseUrl(value)" in settings
+    assert "saveApiBaseUrl(value)" in settings
+    assert "settings.backend_api_url" in settings
+    assert "DATABASE_URL" not in settings

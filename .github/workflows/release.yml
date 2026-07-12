@@ -28,6 +28,7 @@ on:
 
 permissions:
   contents: write
+  packages: write
 
 concurrency:
   group: eurogas-nexus-release-${{ github.ref }}
@@ -58,7 +59,7 @@ jobs:
         run: ruff check .
 
       - name: Tests
-        run: pytest -q tests/api tests/contract tests/integration tests/sdk tests/cli tests/release tests/security
+        run: pytest -q tests/api tests/contract tests/integration tests/ingestion tests/unit tests/sdk tests/cli tests/release tests/security
 
       - name: Import API
         run: python -c "from apps.api.main import app; print('app import ok'); print(len(app.routes))"
@@ -178,13 +179,73 @@ jobs:
           path: release-assets/*
           if-no-files-found: error
 
+  runtime-image:
+    name: Build and publish runtime image
+    runs-on: ubuntu-latest
+    needs: validate
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Resolve image name
+        id: image
+        shell: bash
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/eurogasnexus-api" >> "${GITHUB_OUTPUT}"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Build and publish API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/runtime/Dockerfile.api
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ steps.image.outputs.name }}:0.5-preview
+            ${{ steps.image.outputs.name }}:sha-${{ github.sha }}
+
+  deployment:
+    name: Package deployment roles
+    runs-on: ubuntu-latest
+    needs: validate
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Package Server, Client, and AllInOne deployment tooling
+        shell: bash
+        run: bash scripts/release/package_deployment_bundle.sh release-assets
+
+      - name: Upload deployment release assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-deployment
+          path: release-assets/*
+          if-no-files-found: error
+
   publish:
     name: Publish GitHub Release
     runs-on: ubuntu-latest
     needs:
       - web
       - desktop
-    if: ${{ always() && needs.web.result == 'success' && (needs.desktop.result == 'success' || needs.desktop.result == 'skipped') }}
+      - runtime-image
+      - deployment
+    if: ${{ always() && needs.web.result == 'success' && needs.runtime-image.result == 'success' && needs.deployment.result == 'success' && (needs.desktop.result == 'success' || needs.desktop.result == 'skipped') }}
 
     steps:
       - name: Check out repository
@@ -213,10 +274,11 @@ jobs:
             echo "- Branch: ${GITHUB_REF_NAME}"
             echo "- Channel: ${CHANNEL}"
             if [[ "${DESKTOP_INCLUDED}" == "true" ]]; then
-              echo "- Includes: Web build, Windows x64 NSIS installer, Linux x64 DEB package, and Linux ARM64 DEB package."
+              echo "- Includes: Web build, Windows x64 NSIS installer, Linux x64 DEB package, Linux ARM64 DEB package, deployment role bundle, and multi-architecture API image."
             else
-              echo "- Includes: Web build. Desktop packaging was not requested for this run."
+              echo "- Includes: Web build, deployment role bundle, and multi-architecture API image. Desktop packaging was not requested for this run."
             fi
+            echo "- Runtime image: ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/eurogasnexus-api:sha-${GITHUB_SHA}"
             echo
             echo "Runtime data remains DB-first through the backend API. Clients do not connect directly to PostgreSQL."
           } > release-notes.md

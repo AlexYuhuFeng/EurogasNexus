@@ -1,0 +1,162 @@
+name: eurogas-nexus-runtime
+
+x-runtime-environment: &runtime-environment
+  RUNTIME_STORE_DATABASE_URL: postgresql+pg8000://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+  EUROGAS_NEXUS_ENV: release
+  EUROGAS_NEXUS_API_PROFILE: release
+  EUROGAS_NEXUS_VERSION: ${EUROGAS_NEXUS_VERSION}
+  EUROGAS_NEXUS_ALLOW_FILE_FALLBACK: "false"
+  EUROGAS_NEXUS_SECRET_KEY: ${EUROGAS_NEXUS_SECRET_KEY}
+  EUROGAS_NEXUS_INTERNAL_API_TOKEN: ${EUROGAS_NEXUS_INTERNAL_API_TOKEN}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT}:5432"
+    volumes:
+      - runtime-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  migrate:
+    image: ${EUROGAS_NEXUS_API_IMAGE}
+    environment: *runtime-environment
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    image: ${EUROGAS_NEXUS_API_IMAGE}
+    restart: unless-stopped
+    environment: *runtime-environment
+    ports:
+      - "127.0.0.1:${API_PORT}:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import json,urllib.request; assert json.load(urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3))['status'] == 'ok'"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  gateway:
+    image: caddy:2-alpine
+    profiles: ["server"]
+    restart: unless-stopped
+    environment:
+      SERVER_NAME: ${SERVER_NAME}
+    ports:
+      - "${HTTPS_BIND_ADDRESS}:${HTTPS_PORT}:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./tls:/etc/caddy/tls:ro
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - "wget --no-check-certificate --header='Host: '$${SERVER_NAME} --spider https://127.0.0.1/api/health"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  public-ingestion:
+    image: ${EUROGAS_NEXUS_API_IMAGE}
+    profiles: ["tools"]
+    environment: *runtime-environment
+    command:
+      - python
+      - scripts/ops/ingest_public_sources.py
+      - --source
+      - ecb
+      - --source
+      - entsog
+      - --source
+      - entsog-capacity
+      - --source
+      - entsog-reference
+      - --limit
+      - "10000"
+      - --json
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+
+  public-ingestion-worker:
+    image: ${EUROGAS_NEXUS_API_IMAGE}
+    profiles: ["public-ingestion"]
+    restart: unless-stopped
+    environment: *runtime-environment
+    command:
+      - python
+      - scripts/ops/run_public_ingestion_worker.py
+      - --source
+      - ecb
+      - --source
+      - entsog
+      - --source
+      - entsog-capacity
+      - --source
+      - gie-agsi
+      - --source
+      - gie-alsi
+      - --limit
+      - "10000"
+      - --interval-seconds
+      - "1800"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  reference-ingestion-worker:
+    image: ${EUROGAS_NEXUS_API_IMAGE}
+    profiles: ["public-ingestion"]
+    restart: unless-stopped
+    environment: *runtime-environment
+    command:
+      - python
+      - scripts/ops/run_public_ingestion_worker.py
+      - --source
+      - entsog-reference
+      - --limit
+      - "10000"
+      - --interval-seconds
+      - "86400"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  simulated-prices:
+    image: ${EUROGAS_NEXUS_API_IMAGE}
+    profiles: ["simulated-prices"]
+    restart: unless-stopped
+    environment: *runtime-environment
+    command: ["python", "scripts/ops/ingest_simulated_market_prices.py", "--loop"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  runtime-postgres:
+    name: eurogas-nexus-runtime-postgres

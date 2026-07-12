@@ -53,7 +53,7 @@ class Settings(BaseModel):
     """Settings loaded from environment variables without side effects."""
 
     app_name: str = "Eurogas Nexus"
-    app_version: str = Field(default="0.1.0")
+    app_version: str = Field(default="0.5.0")
     environment: RuntimeEnvironment = "development"
     api_profile: ApiProfile = "development"
     db: DbRuntimeConfig = Field(default_factory=DbRuntimeConfig)
@@ -63,7 +63,7 @@ class Settings(BaseModel):
         """Build settings from process environment variables."""
 
         return cls(
-            app_version=os.getenv("EUROGAS_NEXUS_VERSION", "0.1.0"),
+            app_version=os.getenv("EUROGAS_NEXUS_VERSION", "0.5.0"),
             environment=os.getenv("EUROGAS_NEXUS_ENV", "development"),
             api_profile=os.getenv("EUROGAS_NEXUS_API_PROFILE", "development"),
             db=DbRuntimeConfig(

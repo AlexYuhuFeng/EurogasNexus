@@ -2,15 +2,85 @@
 
 const DEFAULT_BROWSER_BASE = "/api";
 const DEFAULT_DESKTOP_BASE = "http://127.0.0.1:8000/api";
+export const API_BASE_STORAGE_KEY = "eurogas.settings.api_base_url";
 const envBase = import.meta.env.VITE_EUROGAS_API_BASE_URL as string | undefined;
 const isDesktopShell =
   "__TAURI_INTERNALS__" in window ||
   window.location.protocol === "tauri:" ||
   window.location.hostname === "tauri.localhost";
-const BASE = (envBase?.trim() || (isDesktopShell ? DEFAULT_DESKTOP_BASE : DEFAULT_BROWSER_BASE)).replace(/\/$/, "");
+
+export function defaultApiBaseUrl(): string {
+  return (envBase?.trim() || (isDesktopShell ? DEFAULT_DESKTOP_BASE : DEFAULT_BROWSER_BASE)).replace(/\/$/, "");
+}
+
+export function normalizeApiBaseUrl(value: string): string {
+  const trimmed = value.trim().replace(/\/$/, "");
+  if (trimmed === "/api") return trimmed;
+
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    throw new Error("Backend API URL must be /api or an absolute URL ending in /api.");
+  }
+  const loopback = parsed.hostname === "127.0.0.1" || parsed.hostname === "localhost";
+  if (parsed.protocol !== "https:" && !(loopback && parsed.protocol === "http:")) {
+    throw new Error("Remote backend API URLs must use HTTPS.");
+  }
+  if (!parsed.pathname.replace(/\/$/, "").endsWith("/api")) {
+    throw new Error("Backend API URL must end in /api.");
+  }
+  parsed.search = "";
+  parsed.hash = "";
+  return parsed.toString().replace(/\/$/, "");
+}
+
+export function configuredApiBaseUrl(): string {
+  const fallback = defaultApiBaseUrl();
+  try {
+    const stored = localStorage.getItem(API_BASE_STORAGE_KEY);
+    return stored ? normalizeApiBaseUrl(stored) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+export function saveApiBaseUrl(value: string): string {
+  const normalized = normalizeApiBaseUrl(value);
+  localStorage.setItem(API_BASE_STORAGE_KEY, normalized);
+  return normalized;
+}
+
+export function clearApiBaseUrl(): string {
+  localStorage.removeItem(API_BASE_STORAGE_KEY);
+  return defaultApiBaseUrl();
+}
+
+interface DesktopDeploymentConfig {
+  schema_version: number;
+  role: "Client" | "AllInOne";
+  api_base_url: string;
+}
+
+export async function hydrateApiBaseUrlFromDesktopDeployment(): Promise<string> {
+  if (!isDesktopShell || localStorage.getItem(API_BASE_STORAGE_KEY)) {
+    return configuredApiBaseUrl();
+  }
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    const config = await invoke<DesktopDeploymentConfig | null>("read_deployment_config");
+    return config?.api_base_url ? saveApiBaseUrl(config.api_base_url) : configuredApiBaseUrl();
+  } catch {
+    return configuredApiBaseUrl();
+  }
+}
 
 function apiUrl(path: string): string {
-  return new URL(`${BASE}${path}`, window.location.origin).toString();
+  return apiUrlForBase(configuredApiBaseUrl(), path);
+}
+
+function apiUrlForBase(base: string, path: string): string {
+  return new URL(`${base}${path}`, window.location.origin).toString();
 }
 
 export interface ApiMeta {
@@ -26,14 +96,48 @@ export interface ApiResponse<T> {
   meta: ApiMeta;
 }
 
+export interface HealthDTO {
+  status: string;
+  version: string;
+  profile: string;
+}
+
+async function parseResponse<T>(res: Response): Promise<T> {
+  const body = await res.text();
+  const contentType = res.headers.get("content-type") ?? "";
+  const looksJson = contentType.includes("json") || body.trimStart().startsWith("{") || body.trimStart().startsWith("[");
+  let payload: unknown = null;
+  if (looksJson && body) {
+    try {
+      payload = JSON.parse(body);
+    } catch {
+      throw new Error(`API ${res.status}: invalid JSON response.`);
+    }
+  }
+  if (!res.ok) {
+    const detail = payload && typeof payload === "object" && "detail" in payload
+      ? String((payload as { detail: unknown }).detail)
+      : res.statusText || "request failed";
+    throw new Error(`API ${res.status}: ${detail}`);
+  }
+  if (!looksJson || payload === null) {
+    throw new Error(`API ${res.status}: expected JSON but received ${contentType || "an unknown content type"}.`);
+  }
+  return payload as T;
+}
+
+export async function testApiBaseUrl(value: string): Promise<HealthDTO> {
+  const normalized = normalizeApiBaseUrl(value);
+  return parseResponse<HealthDTO>(await fetch(apiUrlForBase(normalized, "/health")));
+}
+
 async function get<T>(path: string, params?: Record<string, string>): Promise<ApiResponse<T>> {
   const url = new URL(apiUrl(path));
   if (params) {
     Object.entries(params).forEach(([k, v]) => { if (v) url.searchParams.set(k, v); });
   }
   const res = await fetch(url.toString());
-  if (!res.ok) throw new Error(`API ${res.status}: ${res.statusText}`);
-  return res.json();
+  return parseResponse<ApiResponse<T>>(res);
 }
 
 async function post<T>(path: string, body: unknown): Promise<ApiResponse<T>> {
@@ -42,8 +146,7 @@ async function post<T>(path: string, body: unknown): Promise<ApiResponse<T>> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`API ${res.status}: ${res.statusText}`);
-  return res.json();
+  return parseResponse<ApiResponse<T>>(res);
 }
 
 // --- Types ---
@@ -348,7 +451,7 @@ export interface StorageObsDTO {
 export interface LngObsDTO {
   observation_id: string; terminal_id: string; terminal_name: string;
   country?: string; inventory_twh: number | null; send_out_twh_d: number | null;
-  dtmi_pct?: number | null; period_start_utc?: string; period_end_utc?: string; observed_at_utc?: string;
+  dtmi_twh?: number | null; period_start_utc?: string; period_end_utc?: string; observed_at_utc?: string;
   source_system?: string; source_reference?: string; freshness?: string;
 }
 
@@ -573,6 +676,8 @@ export interface AnalysisResultDTO {
 // --- API functions ---
 
 export const api = {
+  health: async () => parseResponse<HealthDTO>(await fetch(apiUrl("/health"))),
+
   nodes: (params?: { country?: string; node_type?: string }) =>
     get<NodeDTO[]>("/reference-network/nodes", params),
 
@@ -615,10 +720,7 @@ export const api = {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-    }).then(async (res) => {
-      if (!res.ok) throw new Error(`API ${res.status}: ${res.statusText}`);
-      return res.json() as Promise<ApiResponse<CredentialProviderDTO>>;
-    }),
+    }).then((res) => parseResponse<ApiResponse<CredentialProviderDTO>>(res)),
 
   routeEligibility: () => get<RouteEligibilityDTO[]>("/contracts/routes"),
 

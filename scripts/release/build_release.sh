@@ -44,7 +44,7 @@ if [[ "${SKIP_TESTS}" == "0" ]]; then
   ruff check "${REPO_ROOT}"
 
   step "Run targeted Python release tests"
-  pytest -q tests/api tests/contract tests/integration tests/sdk tests/cli tests/release tests/security
+  pytest -q tests/api tests/contract tests/integration tests/ingestion tests/unit tests/sdk tests/cli tests/release tests/security
 
   step "Verify API import safety"
   python -c "from apps.api.main import app; print('app import ok'); print(len(app.routes))"
@@ -63,6 +63,9 @@ npm --prefix "${WEB_DIR}" run build
 
 step "Build desktop bundle (${BUNDLE})"
 npm --prefix "${DESKTOP_DIR}" run build -- --bundles "${BUNDLE}"
+
+step "Package deployment role bundle"
+bash "${REPO_ROOT}/scripts/release/package_deployment_bundle.sh"
 
 step "Release artifacts"
 find "${DESKTOP_DIR}/src-tauri/target/release/bundle" -type f \

@@ -1,7 +1,10 @@
 """SDK client for /api/market."""
 
-import httpx
-from pydantic import BaseModel
+from typing import Any
+
+from pydantic import BaseModel, Field
+
+from eurogas_nexus.sdk._transport import SdkResult, api_url, get_envelope
 
 
 class MarketObservation(BaseModel):
@@ -13,6 +16,14 @@ class MarketObservation(BaseModel):
     currency: str
     period_start_utc: str
     period_end_utc: str
+    observed_at_utc: str | None = None
+    source_system: str | None = None
+    source_reference: str | None = None
+    source_record_id: str | None = None
+    freshness: str | None = None
+    quality_score: float | None = None
+    research_only: bool = True
+    metadata_json: dict[str, Any] = Field(default_factory=dict)
 
 
 class FxRate(BaseModel):
@@ -37,17 +48,28 @@ class MarketSpread(BaseModel):
     period: str
 
 
-def _get(url: str) -> dict:
-    r = httpx.get(url, timeout=10)
-    r.raise_for_status()
-    return r.json()
-
-
 def fetch_market_observations(base_url: str) -> list[MarketObservation]:
-    return [MarketObservation(**o) for o in _get(f"{base_url}/api/market/observations")["data"]]
+    return fetch_market_observations_result(base_url).data
+
+
+def fetch_market_observations_result(base_url: str) -> SdkResult[list[MarketObservation]]:
+    data, meta = get_envelope(api_url(base_url, "market/observations"))
+    return SdkResult([MarketObservation.model_validate(row) for row in data], meta)
+
 
 def fetch_fx_rates(base_url: str) -> list[FxRate]:
-    return [FxRate(**f) for f in _get(f"{base_url}/api/market/fx")["data"]]
+    return fetch_fx_rates_result(base_url).data
+
+
+def fetch_fx_rates_result(base_url: str) -> SdkResult[list[FxRate]]:
+    data, meta = get_envelope(api_url(base_url, "market/fx"))
+    return SdkResult([FxRate.model_validate(row) for row in data], meta)
+
 
 def fetch_spreads(base_url: str) -> list[MarketSpread]:
-    return [MarketSpread(**s) for s in _get(f"{base_url}/api/market/spreads")["data"]]
+    return fetch_spreads_result(base_url).data
+
+
+def fetch_spreads_result(base_url: str) -> SdkResult[list[MarketSpread]]:
+    data, meta = get_envelope(api_url(base_url, "market/spreads"))
+    return SdkResult([MarketSpread.model_validate(row) for row in data], meta)

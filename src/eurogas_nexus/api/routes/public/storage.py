@@ -1,4 +1,4 @@
-﻿"""Read-only /api/storage routes."""
+"""Read-only /api/storage routes."""
 
 from fastapi import APIRouter, HTTPException, Request
 
@@ -18,8 +18,15 @@ def _env(data: object, _request: Request) -> dict:
 
 
 def _runtime_env(data: object) -> dict:
-    return {"data": data, "meta": {"research_only": True, "human_review_required": True,
-            "source_references": ["runtime-postgresql"], "warnings": []}}
+    return {
+        "data": data,
+        "meta": {
+            "research_only": True,
+            "human_review_required": True,
+            "source_references": ["runtime-postgresql"],
+            "warnings": [],
+        },
+    }
 
 
 @router.get("/api/storage/sites")
@@ -27,18 +34,21 @@ def list_sites(request: Request) -> dict:
     observations = _db_storage_observations()
     if observations is None:
         return _env([], request)
-    sites = {
-        row["facility_id"]: {
-            "site_id": row["facility_id"],
-            "name": row["facility_name"],
-            "country": row["country"],
-            "working_capacity_twh": row["working_capacity_twh"],
-            "fill_pct": row["fill_pct"],
-            "status": "observed",
-            "source_system": row["source_system"],
-        }
-        for row in observations
-    }
+    sites: dict[str, dict] = {}
+    for row in observations:
+        sites.setdefault(
+            row["facility_id"],
+            {
+                "site_id": row["facility_id"],
+                "name": row["facility_name"],
+                "country": row["country"],
+                "working_capacity_twh": row["working_capacity_twh"],
+                "fill_pct": row["fill_pct"],
+                "observed_at_utc": row["observed_at_utc"],
+                "status": "observed",
+                "source_system": row["source_system"],
+            },
+        )
     return _runtime_env(list(sites.values()))
 
 

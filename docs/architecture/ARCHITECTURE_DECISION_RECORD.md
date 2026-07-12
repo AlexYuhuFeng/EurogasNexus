@@ -67,7 +67,7 @@ New stable client-facing routes use `/api`.
 Implication:
 
 - SDK, CLI, Web, and Windows target `/api`.
-- `/api/health` remains compatibility only.
+- `/api/health` is the canonical public health endpoint.
 - Internal routes use `/api/internal`.
 - Development routes use `/api/dev`.
 

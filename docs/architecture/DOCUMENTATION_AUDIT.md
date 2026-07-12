@@ -31,8 +31,8 @@ The cleanup standard is:
 - Rewrote `CONTRIBUTING.md` as a human contributor guide and removed
   research-only positioning.
 - Removed the local machine path from `PROJECT_DIRECTORY.md`.
-- Normalized `docs/api/API_PATH_POLICY.md` so `/api` is the documented public
-  path and `/api/v1` is hidden compatibility.
+- Normalized `docs/api/API_PATH_POLICY.md` so `/api` is the only public prefix
+  and versioned/bootstrap aliases return `404`.
 - Renamed `docs/release/V1_RELEASE_READINESS.md` to
   `docs/release/RELEASE_READINESS.md`.
 - Added `docs/release/PRODUCTION_READINESS_BACKLOG.md`.
@@ -124,9 +124,9 @@ restricted vendor, customer, or strategy material.
 
 ### DOC-006 API path policy must remain single-source-of-truth
 
-The repository states `/api` as the public path and `/api/v1` as hidden
-compatibility. Future docs, SDK snippets, UI mocks, tests, and README examples
-should follow `docs/api/API_PATH_POLICY.md`.
+The repository states `/api` as the public path and rejects versioned aliases.
+Future docs, SDK snippets, UI mocks, tests, and README examples should follow
+`docs/api/API_PATH_POLICY.md`.
 
 Add a doc-hygiene CI check later to flag public prose that contradicts this
 policy.

@@ -48,8 +48,7 @@ profiles, route modules, API services, and dependency providers.
 ## Path Policy
 
 - Public client and SDK routes use `/api`.
-- Hidden `/api/v1/*` and `/v1/health` compatibility rewrites may remain only
-  for old health/bootstrap checks and must not be documented for customer use.
+- Versioned `/api/v1/*` and bootstrap `/v1/*` aliases are not exposed.
 - Internal routes use `/api/internal`.
 - Development routes use `/api/dev`.
 - Route registration explicitly wires public/internal/dev package routers via

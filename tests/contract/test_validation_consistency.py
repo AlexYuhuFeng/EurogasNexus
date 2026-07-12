@@ -4,7 +4,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 EXPECTED_PYTEST = (
-    "pytest -q tests/api tests/contract tests/integration tests/sdk "
+    "pytest -q tests/api tests/contract tests/integration tests/ingestion tests/unit tests/sdk "
     "tests/cli tests/release tests/security"
 )
 

@@ -54,8 +54,7 @@ made once and reflected across both client surfaces.
 - `src/eurogas_nexus/api/app.py` creates the FastAPI app.
 - `src/eurogas_nexus/api/route_profiles.py` defines development, internal, and
   release profiles.
-- `GET /api/health` remains as compatibility.
-- `GET /api/health` is the preferred stable health path.
+- `GET /api/health` is the canonical public health endpoint.
 - PostgreSQL is available for local development via `docker compose up -d`.
 - DB foundation layer is import-safe: lazy engine/session factories, Alembic
   scaffolding, neutral persistence metadata.

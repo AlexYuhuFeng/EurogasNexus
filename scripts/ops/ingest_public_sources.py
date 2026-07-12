@@ -17,6 +17,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 import httpx
+from sqlalchemy import delete
 from sqlalchemy.exc import SQLAlchemyError
 
 from eurogas_nexus.db.models import (
@@ -106,6 +107,7 @@ def main() -> int:
         }
 
     engine = None
+    session_factory = None
     started = datetime.now(UTC)
     report: dict[str, Any] = {
         "ok": False,
@@ -207,7 +209,14 @@ def main() -> int:
                         _fetch_json(
                             client,
                             ENTSOG_OPERATIONAL_URL,
-                            params={"limit": str(args.limit)},
+                            params={"limit": str(args.limit), "indicator": "Physical Flow"},
+                        )
+                    )
+                    if not rows:
+                        raise RuntimeError("ENTSOG returned no physical-flow observations.")
+                    session.execute(
+                        delete(FlowObservationRecord).where(
+                            FlowObservationRecord.source_system == "ENTSOG"
                         )
                     )
                     for row in rows:
@@ -297,6 +306,29 @@ def main() -> int:
         return _emit(report, as_json=args.json)
     except (httpx.HTTPError, SQLAlchemyError, ValueError) as exc:
         report["error"] = exc.__class__.__name__
+        if session_factory is not None:
+            failed_sources = set()
+            for source in selected:
+                if source == "ecb":
+                    failed_sources.add("ECB")
+                elif source.startswith("entsog"):
+                    failed_sources.add("ENTSOG")
+                elif source.startswith("gie"):
+                    failed_sources.add("GIE")
+            try:
+                with session_factory() as session:
+                    for source_name in failed_sources:
+                        _record_run(
+                            session,
+                            source_name,
+                            "failed",
+                            started,
+                            0,
+                            f"public-source-{exc.__class__.__name__}",
+                        )
+                    session.commit()
+            except SQLAlchemyError:
+                pass
         return _emit(report, as_json=args.json)
     finally:
         if engine is not None:

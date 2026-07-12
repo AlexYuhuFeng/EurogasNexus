@@ -1,7 +1,7 @@
 {
   "name": "eurogas-nexus-desktop",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.5.0",
   "type": "module",
   "scripts": {
     "web:build": "npm --prefix ../web run build",

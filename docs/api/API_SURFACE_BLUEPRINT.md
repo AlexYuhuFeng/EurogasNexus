@@ -26,12 +26,8 @@ Development routes:
 /api/dev
 ```
 
-Hidden legacy compatibility:
-
-```text
-/api/v1/*
-/v1/health
-```
+Versioned `/api/v1/*` and bootstrap `/v1/*` aliases are not part of the API and
+return `404`.
 
 New SDK, CLI, web, and Windows code must target `/api`.
 
