@@ -45,10 +45,10 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
@@ -71,10 +71,10 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -95,7 +95,7 @@ jobs:
           tar -czf "release-assets/eurogas-nexus-web-${GITHUB_SHA::7}.tar.gz" -C clients/web/dist .
 
       - name: Upload Web release asset
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-web
           path: release-assets/*
@@ -125,7 +125,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install Linux Tauri dependencies
         if: runner.os == 'Linux'
@@ -143,7 +143,7 @@ jobs:
             wget
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -173,7 +173,7 @@ jobs:
           cp ${{ matrix.artifact_glob }} release-assets/
 
       - name: Upload desktop release asset
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-desktop-${{ matrix.artifact_label }}
           path: release-assets/*
@@ -186,7 +186,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Resolve image name
         id: image
@@ -224,14 +224,14 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Package Server, Client, and AllInOne deployment tooling
         shell: bash
         run: bash scripts/release/package_deployment_bundle.sh release-assets
 
       - name: Upload deployment release assets
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-deployment
           path: release-assets/*
@@ -249,10 +249,10 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Download release assets
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: release-*
           path: release-assets
