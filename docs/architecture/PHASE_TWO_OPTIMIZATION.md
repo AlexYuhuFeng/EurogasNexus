@@ -22,6 +22,21 @@ The stable application facade is:
 from eurogas_nexus.optimization import PhaseTwoOptimizer
 ```
 
+## Public API
+
+The optimization facade is exposed through the public API:
+
+```text
+POST /api/optimization/route
+POST /api/optimization/resource-pool
+POST /api/optimization/capacity
+POST /api/optimization/contracts
+```
+
+The existing `/api/route-cost/*` endpoints remain available for compatibility
+with the current route-cost and resource-pool workflow. The new optimization
+namespace provides a stable common DTO surface for phase-two capabilities.
+
 ## Product Boundary
 
 These engines produce decision-support outputs. They do not submit orders,
@@ -86,7 +101,7 @@ demand with positive-margin discretionary volume. It reports:
 Focused tests:
 
 ```bash
-pytest -q tests/optimization
+pytest -q tests/optimization tests/api/test_optimization_routes.py
 ```
 
 Full repository acceptance:
@@ -107,5 +122,4 @@ The next optimization increment should add:
 - stochastic price and outage scenarios;
 - CVaR or other downside-risk objectives;
 - solver adapters for HiGHS, OR-Tools, SCIP, or Gurobi;
-- API DTOs and `/api/optimization/*` endpoints;
 - Web scenario controls and explainable result panels.
