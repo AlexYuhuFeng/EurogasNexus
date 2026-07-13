@@ -16,6 +16,7 @@ from .models import (
 )
 from .resource_pool import optimize_resource_pool
 from .route import find_min_cost_route
+from .service import PhaseTwoOptimizer
 
 __all__ = [
     "CapacityBookingResult",
@@ -24,6 +25,7 @@ __all__ = [
     "NetworkEdge",
     "OptimizationResult",
     "OptimizationStatus",
+    "PhaseTwoOptimizer",
     "ResourceAllocation",
     "RouteResult",
     "SaleOption",
