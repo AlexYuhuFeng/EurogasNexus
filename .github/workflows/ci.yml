@@ -29,7 +29,18 @@ jobs:
         run: ruff check .
 
       - name: Tests
-        run: pytest -q tests/api tests/contract tests/integration tests/ingestion tests/unit tests/sdk tests/cli tests/release tests/security
+        shell: bash
+        run: |
+          set -o pipefail
+          pytest -q tests/api tests/contract tests/integration tests/ingestion tests/unit tests/sdk tests/cli tests/release tests/security 2>&1 | tee pytest-output.txt
+
+      - name: Upload pytest diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: pytest-output
+          path: pytest-output.txt
+          if-no-files-found: error
 
       - name: Import API
         run: python -c "from apps.api.main import app; print('app import ok'); print(len(app.routes))"
