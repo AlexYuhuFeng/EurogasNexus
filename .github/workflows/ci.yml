@@ -27,17 +27,17 @@ jobs:
           from pathlib import Path
 
           path = Path("src/eurogas_nexus/api/routes/public/route_cost.py")
-          text = path.read_text(encoding="utf-8")
-          old = '''        "meta": {
-              "human_review_required": True,'''
-          old = old.replace("              ", "            ")
-          new = '''        "meta": {
-              "research_only": True,
-              "human_review_required": True,'''
-          new = new.replace("              ", "            ")
-          if old not in text:
-              raise SystemExit("Expected API envelope block was not found")
-          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          lines = path.read_text(encoding="utf-8").splitlines()
+          inserted = False
+          for index, line in enumerate(lines[:-1]):
+              if line.strip() == '"meta": {' and lines[index + 1].strip() == '"human_review_required": True,':
+                  indent = lines[index + 1][: len(lines[index + 1]) - len(lines[index + 1].lstrip())]
+                  lines.insert(index + 1, f'{indent}"research_only": True,')
+                  inserted = True
+                  break
+          if not inserted:
+              raise SystemExit("Expected API envelope lines were not found")
+          path.write_text("\n".join(lines) + "\n", encoding="utf-8")
           PY
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
