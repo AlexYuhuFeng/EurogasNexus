@@ -7,7 +7,7 @@ on:
       - main
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   validate:
@@ -16,34 +16,6 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
-        with:
-          ref: ${{ github.head_ref || github.ref_name }}
-
-      - name: Restore PR 7 compatibility envelope
-        if: github.event_name == 'pull_request' && github.event.pull_request.number == 7 && github.actor != 'github-actions[bot]'
-        shell: bash
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          path = Path("src/eurogas_nexus/api/routes/public/route_cost.py")
-          lines = path.read_text(encoding="utf-8").splitlines()
-          inserted = False
-          for index, line in enumerate(lines[:-1]):
-              if line.strip() == '"meta": {' and lines[index + 1].strip() == '"human_review_required": True,':
-                  indent = lines[index + 1][: len(lines[index + 1]) - len(lines[index + 1].lstrip())]
-                  lines.insert(index + 1, f'{indent}"research_only": True,')
-                  inserted = True
-                  break
-          if not inserted:
-              raise SystemExit("Expected API envelope lines were not found")
-          path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-          PY
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/eurogas_nexus/api/routes/public/route_cost.py
-          git commit -m "Preserve route-cost envelope compatibility"
-          git push origin HEAD:refactor/terminology-cleanup
 
       - name: Set up Python
         uses: actions/setup-python@v6
