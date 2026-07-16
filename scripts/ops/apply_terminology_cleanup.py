@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
-"""Verify that legacy research-only payload fields are absent.
-
-The source changes are already committed. This command is intentionally
-idempotent so it can be used in local validation and CI without modifying files.
-"""
+"""Verify the terminology cleanup and temporary API compatibility boundary."""
 
 from __future__ import annotations
 
@@ -13,18 +9,25 @@ ROOT = Path(__file__).resolve().parents[2]
 ROUTE_COST = ROOT / "src/eurogas_nexus/api/routes/public/route_cost.py"
 APP_TSX = ROOT / "clients/web/src/App.tsx"
 LEGACY_FIELD = "research" + "_only"
+COMPATIBILITY_LINE = f'            "{LEGACY_FIELD}": True,'
 
 
 def main() -> int:
-    offenders: list[str] = []
-    for path in (ROUTE_COST, APP_TSX):
-        if LEGACY_FIELD in path.read_text(encoding="utf-8-sig"):
-            offenders.append(str(path.relative_to(ROOT)))
+    route_text = ROUTE_COST.read_text(encoding="utf-8-sig")
+    app_text = APP_TSX.read_text(encoding="utf-8-sig")
 
-    if offenders:
-        raise RuntimeError(f"Legacy payload field remains in: {', '.join(offenders)}")
+    compatibility_count = route_text.count(COMPATIBILITY_LINE)
+    if compatibility_count != 1:
+        raise RuntimeError(
+            "Expected exactly one API-envelope compatibility field in "
+            f"{ROUTE_COST.relative_to(ROOT)}; found {compatibility_count}"
+        )
+    if f'                "{LEGACY_FIELD}": True,' in route_text:
+        raise RuntimeError("Legacy field remains in an endpoint business-data payload")
+    if LEGACY_FIELD in app_text:
+        raise RuntimeError(f"Legacy payload field remains in {APP_TSX.relative_to(ROOT)}")
 
-    print("Terminology cleanup verified.")
+    print("Terminology compatibility boundary verified.")
     return 0
 
 
