@@ -22,7 +22,11 @@ def optimize_capacity_bookings(
 
     if required_capacity_mwh < 0:
         raise ValueError("required_capacity_mwh must be non-negative")
-    throughput = required_capacity_mwh if expected_throughput_mwh is None else expected_throughput_mwh
+    throughput = (
+        required_capacity_mwh
+        if expected_throughput_mwh is None
+        else expected_throughput_mwh
+    )
     if throughput < 0:
         raise ValueError("expected_throughput_mwh must be non-negative")
 

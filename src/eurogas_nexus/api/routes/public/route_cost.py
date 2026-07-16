@@ -156,7 +156,6 @@ def upsert_upstream_contract(body: UpstreamContractUpsertRequest, request: Reque
             session.commit()
             data = {
                 **contract,
-                "research_only": True,
                 "human_review_required": True,
             }
             return _env(data, request, source="runtime-postgresql")
