@@ -21,9 +21,11 @@ Use the following terms consistently in code, API descriptions, user interfaces,
 
 ## Code and API Rules
 
-- Do not add a `research_only` field to request or response payloads.
+- Do not add a `research_only` field to new request bodies, domain models, stored records, or business-data payloads.
 - Use `human_review_required` when an output must be reviewed by a trader or operator.
-- Use `decision_support_only` only where a stored record explicitly needs that governance classification.
+- Use `decision_support_only` where a stored record or future API contract explicitly needs that governance classification.
+- The shared API response envelope temporarily retains `meta.research_only` for compatibility with the existing Web `ApiMeta` contract and repository guardrails. It must not be copied into endpoint data objects.
+- Replacing the compatibility envelope field requires a dedicated migration that updates backend envelopes, Web client types and consumers, repository guardrails, contract tests, and compatibility documentation together.
 - Do not imply that optimization results execute trades, submit nominations, book capacity, or create official approvals.
 - Existing technical route paths are not renamed solely for terminology consistency when doing so would break compatibility. Deprecation and migration require a separate API change.
 
@@ -43,4 +45,4 @@ Preferred capability names include:
 
 ## Human Review Boundary
 
-All optimization, scenario, analysis, route, portfolio, and report outputs require human review. This requirement must be expressed through result metadata and product documentation, not through legacy research-only wording.
+All optimization, scenario, analysis, route, portfolio, and report outputs require human review. This requirement must be expressed through result metadata and product documentation, not through new research-only business fields.
