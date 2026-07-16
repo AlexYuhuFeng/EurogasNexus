@@ -208,7 +208,8 @@ def test_upsert_upstream_contract_persists_and_reads_back_from_runtime_db(
     assert payload["data"]["contract_name"] == "Persisted TTF supply 2025"
     assert payload["data"]["delivery_quantity_mwh_per_day"] == 125.5
     assert payload["data"]["allowed_exit_points"] == ["NBP", "TTF"]
-    assert payload["data"]["research_only"] is True
+    assert payload["meta"]["research_only"] is True
+    assert "research_only" not in payload["data"]
     assert payload["data"]["human_review_required"] is True
 
     readback = client.get("/api/route-cost/upstream-contracts")
