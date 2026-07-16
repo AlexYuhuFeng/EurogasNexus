@@ -56,7 +56,12 @@ def optimize_network_flow(
     residual = {
         edge.edge_id: edge.available_capacity_mwh
         for edge in edges
-        if edge.enabled and (accessible_tsos is None or edge.tso is None or edge.tso in accessible_tsos)
+        if edge.enabled
+        and (
+            accessible_tsos is None
+            or edge.tso is None
+            or edge.tso in accessible_tsos
+        )
     }
     edge_by_id = {edge.edge_id: edge for edge in edges}
     remaining_supply = {item.node: item.available_mwh for item in supplies}
@@ -90,7 +95,10 @@ def optimize_network_flow(
         unit_objective = -neg_objective
         if unit_objective < 0:
             break
-        bottleneck = min((residual[edge_id] for edge_id in edge_ids), default=float("inf"))
+        bottleneck = min(
+            (residual[edge_id] for edge_id in edge_ids),
+            default=float("inf"),
+        )
         quantity = min(remaining_supply[source], remaining_demand[target], bottleneck)
         if quantity <= 1e-9:
             break
@@ -105,7 +113,11 @@ def optimize_network_flow(
 
     served = sum(item.required_mwh for item in demands) - sum(remaining_demand.values())
     unserved = sum(remaining_demand.values())
-    status: OptimizationStatus = "optimal" if unserved <= 1e-9 else ("feasible" if served > 0 else "infeasible")
+    status: OptimizationStatus = (
+        "optimal"
+        if unserved <= 1e-9
+        else ("feasible" if served > 0 else "infeasible")
+    )
     warnings = () if unserved <= 1e-9 else ("UNSERVED_DEMAND_REMAINS",)
     return NetworkFlowResult(
         status=status,
@@ -113,7 +125,10 @@ def optimize_network_flow(
         unserved_demand_mwh=unserved,
         total_network_cost_gbp=total_cost,
         total_objective_gbp=total_value - total_cost,
-        edge_flows=tuple(EdgeFlow(edge_id, quantity) for edge_id, quantity in sorted(edge_totals.items())),
+        edge_flows=tuple(
+            EdgeFlow(edge_id, quantity)
+            for edge_id, quantity in sorted(edge_totals.items())
+        ),
         warnings=warnings,
     )
 
@@ -131,7 +146,11 @@ def _shortest_path(
             continue
         if not edge.enabled:
             continue
-        if accessible_tsos is not None and edge.tso is not None and edge.tso not in accessible_tsos:
+        if (
+            accessible_tsos is not None
+            and edge.tso is not None
+            and edge.tso not in accessible_tsos
+        ):
             continue
         adjacency.setdefault(edge.source, []).append(edge)
     queue: list[tuple[float, str, tuple[str, ...]]] = [(0.0, source, ())]
