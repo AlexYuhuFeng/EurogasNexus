@@ -1,5 +1,6 @@
 name: Terminology Cleanup PR
 
+# Temporary branch-only workflow; remove before merge.
 on:
   push:
     branches:
