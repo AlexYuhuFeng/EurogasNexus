@@ -639,6 +639,7 @@ def _env(
     return {
         "data": data,
         "meta": {
+            "research_only": True,
             "human_review_required": True,
             "source_references": [source],
             "warnings": list(dict.fromkeys(warnings or [])),
