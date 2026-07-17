@@ -56,6 +56,17 @@ storage/nomination input validation, standard optimization API envelopes,
 optimizer coverage in all normal validation commands, and resilient Linux ARM
 release dependency installation.
 
+### R30A: Web Application Architecture
+
+Status: `complete-in-current-worktree`
+
+ExecPlan: `.agent/plans/V1_R30A_WEB_APPLICATION_ARCHITECTURE_EXECPLAN.md`
+
+Reduced `App.tsx` to a composition root and established explicit hook, model,
+shell, and workspace-renderer ownership. Updated owner-based contract tests and
+added bilingual implementation documentation. This maintenance increment does
+not replace or alter the pending R31 DB-backed optimization scope.
+
 ## R31: DB-Backed Portfolio Network Optimization
 
 Status: `pending`

@@ -19,6 +19,10 @@ STRATEGY_SCENARIO_TS = ROOT / "clients" / "web" / "src" / "app" / "strategyScena
 ROUTE_RECOMMENDATION_REQUEST_TS = (
     ROOT / "clients" / "web" / "src" / "app" / "routeRecommendationRequest.ts"
 )
+CONTRACT_EDITOR_TS = ROOT / "clients" / "web" / "src" / "app" / "hooks" / "useContractEditor.ts"
+PORTFOLIO_MODEL_TS = (
+    ROOT / "clients" / "web" / "src" / "app" / "model" / "usePortfolioDecisionModel.ts"
+)
 
 
 def _read(path: Path) -> str:
@@ -29,9 +33,10 @@ def test_default_contract_draft_module_is_wired_into_app() -> None:
     """The default contract draft should be imported from the extracted module."""
 
     app_text = _read(APP_TSX)
+    owner_text = _read(CONTRACT_EDITOR_TS)
     module_text = _read(DEFAULT_CONTRACT_DRAFT_TS)
     assert "const defaultContractDraft" not in app_text
-    assert "cloneDefaultContractDraft" in app_text
+    assert "cloneDefaultContractDraft" in owner_text
     assert "export const defaultContractDraft" in module_text
     assert "export function cloneDefaultContractDraft" in module_text
     assert "allowed_exit_points: [...defaultContractDraft.allowed_exit_points]" in module_text
@@ -53,13 +58,14 @@ def test_route_metadata_module_is_wired_into_app() -> None:
     ]:
         assert f"function {helper}" not in app_text
         assert f"export function {helper}" in module_text
-        assert helper in app_text or helper in resource_pool_paths_text
+        assert helper in resource_pool_paths_text
 
 
 def test_contract_import_module_is_wired_into_app() -> None:
     """Contract import parsing should be imported instead of duplicated in App.tsx."""
 
     app_text = _read(APP_TSX)
+    owner_text = _read(CONTRACT_EDITOR_TS)
     module_text = _read(CONTRACT_IMPORT_TS)
     for helper in [
         "stringFromRecord",
@@ -78,7 +84,7 @@ def test_contract_import_module_is_wired_into_app() -> None:
         "contractDraftFromRecord",
         "contractRecordFromImportedFile",
     ]:
-        assert helper in app_text
+        assert helper in owner_text
     assert 'document_status: "STAGED_REVIEW_REQUIRED"' in module_text
     assert 'document_status: "IMPORTED_JSON_DRAFT"' in module_text
 
@@ -86,9 +92,9 @@ def test_contract_import_module_is_wired_into_app() -> None:
 def test_contract_payload_builder_is_wired_into_app() -> None:
     """Contract payload construction should be imported from the extracted builder."""
 
-    app_text = _read(APP_TSX)
+    owner_text = _read(CONTRACT_EDITOR_TS)
     module_text = _read(CONTRACT_PAYLOAD_TS)
-    assert "buildContractPayload(contract)" in app_text
+    assert "buildContractPayload(contract)" in owner_text
     assert "export function buildContractPayload" in module_text
     for phrase in [
         'resource_type: "PIPELINE_IMPORT"',
@@ -103,12 +109,10 @@ def test_contract_payload_builder_is_wired_into_app() -> None:
 def test_resource_pool_request_builder_is_wired_into_app() -> None:
     """Resource-pool optimization request construction should be imported from the builder."""
 
-    app_text = _read(APP_TSX)
+    owner_text = _read(PORTFOLIO_MODEL_TS)
     module_text = _read(RESOURCE_POOL_REQUEST_TS)
-    assert (
-        "buildResourcePoolOptimizationRequest("
-        "contract, portfolioResources, saleOptions, upstreamContracts)"
-    ) in app_text
+    assert "buildResourcePoolOptimizationRequest(" in owner_text
+    assert "api.upstreamContracts" in owner_text
     assert "export function buildResourcePoolOptimizationRequest" in module_text
     for phrase in [
         'portfolio_id: "web-resource-pool"',
@@ -122,12 +126,10 @@ def test_resource_pool_request_builder_is_wired_into_app() -> None:
 def test_strategy_scenario_builder_is_wired_into_app() -> None:
     """Strategy scenario construction should be imported from the extracted builder."""
 
-    app_text = _read(APP_TSX)
+    owner_text = _read(PORTFOLIO_MODEL_TS)
     module_text = _read(STRATEGY_SCENARIO_TS)
-    assert (
-        "buildStrategyScenario(contract, liveMark, contextMarkets, portfolioResources, fxRates)"
-        in app_text
-    )
+    assert "buildStrategyScenario(" in owner_text
+    assert "api.fxRates" in owner_text
     assert "export function buildStrategyScenario" in module_text
     for phrase in [
         'run_mode: "SHADOW_RUN"',
@@ -144,12 +146,10 @@ def test_strategy_scenario_builder_is_wired_into_app() -> None:
 def test_route_recommendation_request_builder_is_wired_into_app() -> None:
     """Route recommendation request construction should be imported from the builder."""
 
-    app_text = _read(APP_TSX)
+    owner_text = _read(PORTFOLIO_MODEL_TS)
     module_text = _read(ROUTE_RECOMMENDATION_REQUEST_TS)
-    assert (
-        "buildRouteRecommendationRequest("
-        "portfolioResources, saleOptions, totalPoolVolume, upstreamContracts)"
-    ) in app_text
+    assert "buildRouteRecommendationRequest(" in owner_text
+    assert "totalPoolVolume" in owner_text
     assert "export function buildRouteRecommendationRequest" in module_text
     for phrase in [
         'request_id: "web-db-backed-route-allocation"',

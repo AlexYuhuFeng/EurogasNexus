@@ -4,7 +4,7 @@
 
 ## 状态
 
-检查日期：2026-07-17
+检查日期：2026-07-18
 
 Eurogas Nexus 当前是 `0.5.0` 预览发布版本，已经包含 FastAPI 后端、PostgreSQL 运行数据库、Python SDK、CLI、React/Vite Web 客户端、Tauri Windows/Linux 客户端以及按角色部署工具。
 
@@ -52,6 +52,16 @@ POST /api/optimization/contracts
 - 普通 CI 执行 Python、优化器、API 导入和 Web 验证，并在 PR 上构建桌面包。
 - 每次 `main` 提交由 Build and Release workflow 构建 Web、Windows x64、Linux x64、Linux ARM64、部署包和 amd64/arm64 API 镜像。
 - Linux Tauri 依赖安装使用 Ubuntu 官方 HTTPS 镜像和有限重试，降低 ARM runner 的瞬时网络故障影响。
+
+## Web 应用架构
+
+React 的 `App.tsx` 现为九行组合入口，只创建应用 controller 和 shell。工作流
+状态位于 `app/hooks`，组合决策派生模型位于 `app/model`，长期存在的界面框架
+位于 `app/shell`，页面选择位于 `app/workspaces`。Contract test 会强制保持
+入口简洁，并按真实模块 owner 验证功能，不再要求所有实现都出现在
+`App.tsx` 文本中。
+
+详见 [WEB_APPLICATION_ARCHITECTURE-CN.md](../clients/WEB_APPLICATION_ARCHITECTURE-CN.md)。
 
 ## 尚未完成的正式交付条件
 

@@ -35,7 +35,7 @@ import {
   UpstreamContractInputDTO,
 } from "@/api/client";
 
-interface ApiState {
+export interface ApiState {
   nodes: NodeDTO[];
   edges: EdgeDTO[];
   sources: SourceSystemDTO[];

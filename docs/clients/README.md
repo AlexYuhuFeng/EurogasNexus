@@ -29,18 +29,20 @@ When working on clients, read these files in order:
 5. `docs/clients/CLIENT_API_CONTRACT.md`
 6. `docs/clients/CLIENT_TECH_STACK.md`
 7. `docs/clients/WORKSPACE_NAVIGATION_SPEC.md`
-8. `docs/clients/UI_UX_STYLE_GUIDE-EN.md`
-9. `docs/clients/UI_UX_STYLE_GUIDE-CN.md`
-10. `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-EN.md`
-11. `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-CN.md`
-12. `docs/contracts/21_RESOURCE_POOL_CONTRACT-EN.md`
-13. `docs/contracts/21_RESOURCE_POOL_CONTRACT-CN.md`
-14. `docs/clients/WEB_CLIENT_DESIGN_SPEC.md`
-15. `docs/clients/WINDOWS_CLIENT_DESIGN_SPEC.md`
-16. `docs/clients/MARKET_POSITIONING_COCKPIT_SPEC-EN.md`
-17. `docs/clients/MARKET_POSITIONING_COCKPIT_SPEC-CN.md`
-18. `docs/clients/OPERATIONAL_GLOSSARY_CONTEXT_SPEC-EN.md`
-19. `docs/clients/OPERATIONAL_GLOSSARY_CONTEXT_SPEC-CN.md`
+8. `docs/clients/WEB_APPLICATION_ARCHITECTURE-EN.md`
+9. `docs/clients/WEB_APPLICATION_ARCHITECTURE-CN.md`
+10. `docs/clients/UI_UX_STYLE_GUIDE-EN.md`
+11. `docs/clients/UI_UX_STYLE_GUIDE-CN.md`
+12. `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-EN.md`
+13. `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-CN.md`
+14. `docs/contracts/21_RESOURCE_POOL_CONTRACT-EN.md`
+15. `docs/contracts/21_RESOURCE_POOL_CONTRACT-CN.md`
+16. `docs/clients/WEB_CLIENT_DESIGN_SPEC.md`
+17. `docs/clients/WINDOWS_CLIENT_DESIGN_SPEC.md`
+18. `docs/clients/MARKET_POSITIONING_COCKPIT_SPEC-EN.md`
+19. `docs/clients/MARKET_POSITIONING_COCKPIT_SPEC-CN.md`
+20. `docs/clients/OPERATIONAL_GLOSSARY_CONTEXT_SPEC-EN.md`
+21. `docs/clients/OPERATIONAL_GLOSSARY_CONTEXT_SPEC-CN.md`
 
 ## Client Boundary
 
@@ -107,3 +109,8 @@ list of pages. Technical workspace ids remain stable for compatibility.
 Improve active client code incrementally. Keep components focused and preserve
 API boundaries. When a missing backend route is needed, add a backend/API
 milestone or gap report instead of fabricating browser-side runtime data.
+
+The application composition root is intentionally small. New behavior must
+follow the owner boundaries in
+`docs/clients/WEB_APPLICATION_ARCHITECTURE-EN.md` and its Mandarin companion;
+do not add workspace markup, polling, or derived business models to `App.tsx`.

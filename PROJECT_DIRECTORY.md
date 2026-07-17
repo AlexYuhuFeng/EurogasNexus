@@ -12,7 +12,7 @@ architecture for the current phased multi-surface repository.
 .github/                CI and contribution governance
 alembic/                Alembic migration boundary
 apps/                   Process entrypoints
-clients/                API-consuming Web and Windows clients when selected
+clients/                API-consuming Web and Windows/Linux desktop clients
 data/                   Local artifacts, fixtures, reports, and milestone outputs
 docs/                   Architecture, contracts, policies, operations, release docs
 docs/clients/           Web and Windows client specs, stack, i18n, theme
@@ -61,7 +61,24 @@ Windows shell surfaces for the tested local scope:
 - SDK clients: `src/eurogas_nexus/sdk`
 - CLI client: `src/eurogas_nexus/cli`
 - Web workspace: `clients/web`
-- Windows shell: `clients/desktop`
+- Windows/Linux desktop shell: `clients/desktop`
+
+The active Web application has explicit ownership boundaries:
+
+```text
+clients/web/src/App.tsx                 composition root only
+clients/web/src/app/hooks/              workflow state and lifecycle
+clients/web/src/app/model/              derived decision view models
+clients/web/src/app/shell/              persistent application/map shell
+clients/web/src/app/workspaces/         workspace-to-page wiring
+clients/web/src/app/*.ts                pure builders and normalization
+clients/web/src/components/             domain page rendering
+clients/web/src/api/                    backend transport and DTOs
+clients/web/src/stores/                 API and preference state
+```
+
+See `docs/clients/WEB_APPLICATION_ARCHITECTURE-EN.md` and
+`docs/clients/WEB_APPLICATION_ARCHITECTURE-CN.md` before adding Web behavior.
 
 Route cost is a European explicit-leg model in this release line. BBL and IUK
 public corridor tariff references are included, UK NTS rows can remain as a
@@ -85,6 +102,7 @@ Heren, NBP, ICE OCM, and any customer-loaded point with PostgreSQL records.
 
 Codex should use:
 
+- `docs/README.md` or `docs/README-CN.md` as the documentation entry point;
 - `docs/architecture/CURRENT_PAUSE_POINT.md` as the current status marker;
 - `docs/architecture/NEXT_DEVELOPMENT_QUEUE.md` as the ordered queue;
 - `docs/architecture/PRODUCT_DELIVERY_MASTER_PLAN.md` as the full backend,
@@ -101,6 +119,9 @@ Codex should use:
   market-practice audit for route cost, market marks, FX, physical signals,
   contract/capacity, strategy, and glossary;
 - `docs/clients/README.md` as the client design index;
+- `docs/clients/WEB_APPLICATION_ARCHITECTURE-EN.md` and
+  `docs/clients/WEB_APPLICATION_ARCHITECTURE-CN.md` as the active React module
+  ownership and extension rules;
 - `docs/clients/UI_UX_STYLE_GUIDE-EN.md` and
   `docs/clients/UI_UX_STYLE_GUIDE-CN.md` as the tracked UI/UX authority;
 - `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-EN.md` and

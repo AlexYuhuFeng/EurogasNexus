@@ -7,6 +7,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 APP_TSX = ROOT / "clients" / "web" / "src" / "App.tsx"
+NAVIGATION_HOOK_TS = (
+    ROOT / "clients" / "web" / "src" / "app" / "hooks" / "useWorkspaceNavigation.ts"
+)
 TOPBAR_TSX = ROOT / "clients" / "web" / "src" / "components" / "WorkspaceTopBar.tsx"
 TOPBAR_CSS = ROOT / "clients" / "web" / "src" / "components" / "WorkspaceTopBar.css"
 WORKSPACE_NAVIGATION_TS = ROOT / "clients" / "web" / "src" / "workspaceNavigation.ts"
@@ -63,14 +66,16 @@ def test_workspace_groups_cover_all_workspace_pages_once() -> None:
     """Grouped navigation is the single route-id source consumed by App.tsx."""
 
     app_text = _read(APP_TSX)
+    hook_text = _read(NAVIGATION_HOOK_TS)
     navigation_text = _read(WORKSPACE_NAVIGATION_TS)
 
     grouped_pages = _navigation_pages(navigation_text)
 
     assert grouped_pages == EXPECTED_PAGE_IDS
     assert len(grouped_pages) == len(set(grouped_pages))
-    assert 'from "@/workspaceNavigation"' in app_text
-    assert "coerceWorkspacePageId(requestedWorkspace, DEFAULT_WORKSPACE_PAGE_ID)" in app_text
+    assert "useAppController" in app_text
+    assert 'from "@/workspaceNavigation"' in hook_text
+    assert "coerceWorkspacePageId(requestedWorkspace, DEFAULT_WORKSPACE_PAGE_ID)" in hook_text
     assert "const WORKSPACE_PAGES" not in app_text
 
 

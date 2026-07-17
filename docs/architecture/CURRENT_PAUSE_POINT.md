@@ -4,7 +4,7 @@ Chinese companion: [CURRENT_PAUSE_POINT-CN.md](CURRENT_PAUSE_POINT-CN.md)
 
 ## Status
 
-Date checked: 2026-07-17
+Date checked: 2026-07-18
 
 Eurogas Nexus is a `0.5.0` preview-release worktree containing the FastAPI
 backend, PostgreSQL runtime schema, Python SDK, CLI, React/Vite Web workspace,
@@ -97,6 +97,17 @@ SDK, or API until DB-backed input and lineage contracts are complete.
 - Linux Tauri dependency installation uses the official HTTPS Ubuntu mirror and
   bounded retries to tolerate transient ARM runner mirror failures.
 - Customer production signing certificates are not stored in this repository.
+
+## Web Application Architecture
+
+The React composition root is now nine lines and only creates the application
+controller and shell. Stateful workflows live under `app/hooks`, derived
+portfolio decision state lives under `app/model`, persistent chrome lives under
+`app/shell`, and workspace selection lives under `app/workspaces`. Contract
+tests enforce the small root and inspect the real module owners instead of
+requiring all behavior to appear in `App.tsx`.
+
+See [WEB_APPLICATION_ARCHITECTURE-EN.md](../clients/WEB_APPLICATION_ARCHITECTURE-EN.md).
 
 ## Remaining Release Limitations
 

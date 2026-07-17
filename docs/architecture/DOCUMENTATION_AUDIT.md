@@ -1,6 +1,6 @@
 # Documentation Consistency Audit
 
-Date checked: 2026-07-06
+Date checked: 2026-07-18
 
 This audit reviews whether repository documentation matches the current product
 reality. Eurogas Nexus should be described as a commercial European gas
@@ -47,6 +47,11 @@ The cleanup standard is:
 - Productized `Contracts` as the user-facing `Resource Terms` workspace in
   README, Web client spec, client docs, and Web i18n overrides while keeping the
   technical `contracts` workspace id and API field names for compatibility.
+- Added `docs/README.md` and `docs/README-CN.md` as current-documentation entry
+  points that distinguish normative contracts from historical blueprints and
+  completed ExecPlans.
+- Added bilingual Web application architecture rules and reduced `App.tsx` to
+  a composition root with explicit hook, model, shell, and workspace owners.
 
 ## Remaining High-Priority Items
 

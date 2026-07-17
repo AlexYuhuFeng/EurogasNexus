@@ -10,6 +10,18 @@ import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+WEB_SRC = ROOT / "clients" / "web" / "src"
+
+
+def _read_application_source() -> str:
+    """Read the composition root and its explicit application-layer owners."""
+
+    paths = [WEB_SRC / "App.tsx"]
+    paths.extend(sorted((WEB_SRC / "app" / "hooks").glob("*.ts")))
+    paths.extend(sorted((WEB_SRC / "app" / "model").glob("*.ts")))
+    paths.extend(sorted((WEB_SRC / "app" / "shell").glob("*.tsx")))
+    paths.extend(sorted((WEB_SRC / "app" / "workspaces").glob("*.tsx")))
+    return "\n".join(path.read_text(encoding="utf-8") for path in paths)
 
 
 def test_release_versions_are_aligned() -> None:
@@ -179,7 +191,7 @@ def test_web_client_uses_api_only_and_supports_mandarin_theme() -> None:
         (ROOT / "clients" / "web" / "src" / "i18n" / "zh.json").read_text(encoding="utf-8")
     )
 
-    app = (ROOT / "clients" / "web" / "src" / "App.tsx").read_text(encoding="utf-8")
+    app = _read_application_source()
     topbar = (ROOT / "clients" / "web" / "src" / "components" / "WorkspaceTopBar.tsx").read_text(
         encoding="utf-8"
     )
@@ -221,7 +233,7 @@ def test_web_client_uses_api_only_and_supports_mandarin_theme() -> None:
 
 def test_web_client_matches_design_reference_cockpit() -> None:
 
-    app = (ROOT / "clients" / "web" / "src" / "App.tsx").read_text(encoding="utf-8")
+    app = _read_application_source()
     topbar = (ROOT / "clients" / "web" / "src" / "components" / "WorkspaceTopBar.tsx").read_text(
         encoding="utf-8"
     )
@@ -301,7 +313,7 @@ def test_web_client_matches_design_reference_cockpit() -> None:
     assert "optimizeResourcePool(resourcePoolOptimizationRequest)" in app
     assert "lastAutoOptimizerSignatureRef" in app
     assert "autoOptimizerSignature" in app
-    assert "void optimizeResourcePool(resourcePoolOptimizationRequest)" in app
+    assert "void api.optimizeResourcePool(resourcePoolOptimizationRequest)" in app
     assert "canRunPoolOptimizer" in app
     assert "poolInputBlockers" in app
     assert "runtimeDbReady" in app
@@ -362,7 +374,7 @@ def test_web_client_matches_design_reference_cockpit() -> None:
 
 
 def test_web_client_release_cockpit_chrome_is_clean_and_color_coded() -> None:
-    app = (ROOT / "clients" / "web" / "src" / "App.tsx").read_text(encoding="utf-8")
+    app = _read_application_source()
     network_workspace = (
         ROOT / "clients" / "web" / "src" / "components" / "NetworkWorkspace.tsx"
     ).read_text(encoding="utf-8")
@@ -413,7 +425,7 @@ def test_web_client_release_cockpit_chrome_is_clean_and_color_coded() -> None:
 
 
 def test_web_client_separates_market_capacity_orders_and_review_pages() -> None:
-    app = (ROOT / "clients" / "web" / "src" / "App.tsx").read_text(encoding="utf-8")
+    app = _read_application_source()
     capacity_workspace = (
         ROOT / "clients" / "web" / "src" / "components" / "CapacityWorkspace.tsx"
     ).read_text(encoding="utf-8")
@@ -495,7 +507,7 @@ def test_web_client_separates_market_capacity_orders_and_review_pages() -> None:
 
 
 def test_web_client_market_page_is_trader_terminal_surface() -> None:
-    app = (ROOT / "clients" / "web" / "src" / "App.tsx").read_text(encoding="utf-8")
+    app = _read_application_source()
     store = (ROOT / "clients" / "web" / "src" / "stores" / "api.ts").read_text(encoding="utf-8")
     market_terminal_path = ROOT / "clients" / "web" / "src" / "components" / "MarketTerminal.tsx"
     market_terminal = market_terminal_path.read_text(encoding="utf-8")
@@ -556,7 +568,7 @@ def test_web_client_market_page_is_trader_terminal_surface() -> None:
 
 
 def test_web_client_strategy_page_is_shadow_run_terminal() -> None:
-    app = (ROOT / "clients" / "web" / "src" / "App.tsx").read_text(encoding="utf-8")
+    app = _read_application_source()
     strategy_terminal_path = (
         ROOT / "clients" / "web" / "src" / "components" / "StrategyShadowRunTerminal.tsx"
     )
@@ -585,13 +597,13 @@ def test_web_client_strategy_page_is_shadow_run_terminal() -> None:
         'import { StrategyShadowRunTerminal } from "@/components/StrategyShadowRunTerminal";' in app
     )
     assert "<StrategyShadowRunTerminal" in app
-    assert "strategyScenario={strategyScenario}" in app
-    assert "strategyResult={strategyResult}" in app
-    assert "portfolioResources={portfolioResources}" in app
-    assert "marketObservations={contextMarkets}" in app
-    assert "fxRates={fxRates}" in app
+    assert "strategyScenario={portfolio.strategyScenario}" in app
+    assert "strategyResult={api.strategyResult}" in app
+    assert "portfolioResources={portfolio.portfolioResources}" in app
+    assert "marketObservations={portfolio.contextMarkets}" in app
+    assert "fxRates={api.fxRates}" in app
     assert "language={i18n.language}" in app
-    assert "onEvaluate={() => evaluateStrategyLab(strategyScenario)}" in app
+    assert "onEvaluate={() => api.evaluateStrategyLab(portfolio.strategyScenario)}" in app
     assert "strategy-shadow-run-terminal" in strategy_terminal
     assert 'from "@/components/strategy/StrategyShadowRunSections"' in strategy_terminal
     assert "strategy-command-deck" in strategy_terminal
@@ -709,7 +721,7 @@ def test_web_client_strategy_page_is_shadow_run_terminal() -> None:
 
 
 def test_web_client_settings_page_is_trader_preference_center() -> None:
-    app = (ROOT / "clients" / "web" / "src" / "App.tsx").read_text(encoding="utf-8")
+    app = _read_application_source()
     settings_center_path = ROOT / "clients" / "web" / "src" / "components" / "SettingsCenter.tsx"
     settings_center = settings_center_path.read_text(encoding="utf-8")
     css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(encoding="utf-8")
@@ -743,7 +755,7 @@ def test_web_client_settings_page_is_trader_preference_center() -> None:
 
 
 def test_web_client_network_page_shows_resource_pool_paths_on_map() -> None:
-    app = (ROOT / "clients" / "web" / "src" / "App.tsx").read_text(encoding="utf-8")
+    app = _read_application_source()
     network_workspace = (
         ROOT / "clients" / "web" / "src" / "components" / "NetworkWorkspace.tsx"
     ).read_text(encoding="utf-8")
@@ -768,7 +780,7 @@ def test_web_client_network_page_shows_resource_pool_paths_on_map() -> None:
     assert "buildResourcePoolMapPaths" in app
     assert "<ResourcePoolPathOverlay" in network_workspace
     assert "resourcePoolMapPaths" in app
-    assert "highlightedRoute={resourcePoolHighlightedRoute" in app
+    assert "highlightedRoute={portfolio.highlightedRoute}" in app
     assert "highlightedRoute={highlightedRoute}" in network_workspace
     assert "resource-pool-map-overlay" in overlay
     assert "resource-path-card" in overlay
@@ -880,7 +892,7 @@ def test_web_client_map_fallback_prioritizes_labels_for_trader_readability() -> 
 
 
 def test_web_client_map_renders_resource_paths_as_route_segments_not_direct_lines() -> None:
-    app = (ROOT / "clients" / "web" / "src" / "App.tsx").read_text(encoding="utf-8")
+    app = _read_application_source()
     resource_pool_paths = (
         ROOT / "clients" / "web" / "src" / "app" / "resourcePoolMapPaths.ts"
     ).read_text(encoding="utf-8")
@@ -932,7 +944,7 @@ def test_web_client_map_renders_resource_paths_as_route_segments_not_direct_line
 
 
 def test_web_client_glossary_page_is_term_wiki_surface() -> None:
-    app = (ROOT / "clients" / "web" / "src" / "App.tsx").read_text(encoding="utf-8")
+    app = _read_application_source()
     glossary_wiki_path = ROOT / "clients" / "web" / "src" / "components" / "GlossaryWiki.tsx"
     glossary_wiki = glossary_wiki_path.read_text(encoding="utf-8")
     css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(encoding="utf-8")
@@ -946,10 +958,10 @@ def test_web_client_glossary_page_is_term_wiki_surface() -> None:
 
     assert 'import { GlossaryWiki } from "@/components/GlossaryWiki";' in app
     assert "<GlossaryWiki" in app
-    assert "selectedGlossaryTerm" in app
-    assert "setSelectedGlossaryTerm" in app
-    assert "onSelectGlossaryTerm" in app
-    assert "visibleGlossaryCategories" in app
+    assert "selectedTermRecord" in app
+    assert "setSelectedTerm" in app
+    assert "selectTerm" in app
+    assert "const categories = useMemo" in app
     assert "glossary-codex-shell" in glossary_wiki
     assert "glossary-left-rail" in glossary_wiki
     assert "glossary-wiki-shell" in glossary_wiki
@@ -1020,7 +1032,7 @@ def test_web_client_glossary_keeps_article_visible_while_browsing_terms() -> Non
 
 
 def test_web_client_contracts_page_is_upload_and_manual_intake_workbench() -> None:
-    app = (ROOT / "clients" / "web" / "src" / "App.tsx").read_text(encoding="utf-8")
+    app = _read_application_source()
     workbench_path = ROOT / "clients" / "web" / "src" / "components" / "ContractWorkbench.tsx"
     workbench = workbench_path.read_text(encoding="utf-8")
     contract_import = (ROOT / "clients" / "web" / "src" / "app" / "contractImport.ts").read_text(
@@ -1105,7 +1117,7 @@ def test_web_client_contracts_page_is_upload_and_manual_intake_workbench() -> No
 
 
 def test_web_client_sources_page_is_categorized_source_center() -> None:
-    app = (ROOT / "clients" / "web" / "src" / "App.tsx").read_text(encoding="utf-8")
+    app = _read_application_source()
     source_center = (
         ROOT / "clients" / "web" / "src" / "components" / "SourceCenter.tsx"
     ).read_text(encoding="utf-8")
@@ -1221,7 +1233,7 @@ def test_source_center_surfaces_preview_substitute_feeds() -> None:
 
 
 def test_source_center_shows_category_operational_posture_board() -> None:
-    app = (ROOT / "clients" / "web" / "src" / "App.tsx").read_text(encoding="utf-8")
+    app = _read_application_source()
     source_center = (
         ROOT / "clients" / "web" / "src" / "components" / "SourceCenter.tsx"
     ).read_text(encoding="utf-8")
@@ -1239,7 +1251,7 @@ def test_source_center_shows_category_operational_posture_board() -> None:
     assert "source_posture_summary" in api_client
     assert "SourceCategoryPostureDTO" in api_client
     assert "sourcePostureRows" in app
-    assert "sourcePostureRows={sourcePostureRows}" in app
+    assert "sourcePostureRows={sources.sourcePostureRows}" in app
     assert "source-posture-board" in source_center
     assert "source-posture-row" in source_center
     assert "sources_needing_attention" in source_center
@@ -1265,7 +1277,7 @@ def test_web_client_mobile_topbar_constrains_controls_to_viewport() -> None:
 
 
 def test_web_client_resource_pool_options_are_backend_owned() -> None:
-    app = (ROOT / "clients" / "web" / "src" / "App.tsx").read_text(encoding="utf-8")
+    app = _read_application_source()
     network_workspace = (
         ROOT / "clients" / "web" / "src" / "components" / "NetworkWorkspace.tsx"
     ).read_text(encoding="utf-8")

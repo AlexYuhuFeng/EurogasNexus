@@ -248,6 +248,8 @@ bash scripts/release/build_v1_release.sh --bundle deb
 
 Start here:
 
+- [Documentation index EN](docs/README.md)
+- [Documentation index CN](docs/README-CN.md)
 - [Project directory](PROJECT_DIRECTORY.md)
 - [API path policy](docs/api/API_PATH_POLICY.md)
 - [API contract](docs/contracts/06_API_CONTRACT.md)
@@ -258,6 +260,8 @@ Start here:
 - [Client API contract](docs/clients/CLIENT_API_CONTRACT.md)
 - [Client tech stack](docs/clients/CLIENT_TECH_STACK.md)
 - [Workspace navigation spec](docs/clients/WORKSPACE_NAVIGATION_SPEC.md)
+- [Web application architecture EN](docs/clients/WEB_APPLICATION_ARCHITECTURE-EN.md)
+- [Web application architecture CN](docs/clients/WEB_APPLICATION_ARCHITECTURE-CN.md)
 - [Map-first trader cockpit spec EN](docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-EN.md)
 - [Map-first trader cockpit spec CN](docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-CN.md)
 - [UI/UX style guide EN](docs/clients/UI_UX_STYLE_GUIDE-EN.md)

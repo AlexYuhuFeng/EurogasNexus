@@ -8,15 +8,24 @@ ROOT = Path(__file__).resolve().parents[2]
 APP_TSX = ROOT / "clients" / "web" / "src" / "App.tsx"
 DERIVED_DATA_TS = ROOT / "clients" / "web" / "src" / "app" / "workspaceDerivedData.ts"
 APP_INDEX_TS = ROOT / "clients" / "web" / "src" / "app" / "index.ts"
+PORTFOLIO_MODEL_TS = (
+    ROOT / "clients" / "web" / "src" / "app" / "model" / "usePortfolioDecisionModel.ts"
+)
+SOURCE_CONTROLLER_TS = (
+    ROOT / "clients" / "web" / "src" / "app" / "hooks" / "useSourceCenterController.ts"
+)
 
 
 def test_workspace_derived_data_helpers_match_app_contract() -> None:
     """App should consume shared derived-data helpers instead of duplicating them."""
 
     app_text = APP_TSX.read_text(encoding="utf-8-sig")
+    owner_text = PORTFOLIO_MODEL_TS.read_text(encoding="utf-8-sig")
+    source_text = SOURCE_CONTROLLER_TS.read_text(encoding="utf-8-sig")
+    application_text = owner_text + source_text
     helper_text = DERIVED_DATA_TS.read_text(encoding="utf-8-sig")
     for app_phrase in [
-        "buildWorkspaceLatestRows({ flows, capacity, tsoAccess, tsoTariffs, storage, lng })",
+        "buildWorkspaceLatestRows({",
         "buildReviewWarnings(",
         "buildSourceStats(sources)",
         "buildSourcePostureRows(",
@@ -24,15 +33,15 @@ def test_workspace_derived_data_helpers_match_app_contract() -> None:
         "buildSourcesByCategory(sources)",
         "filterSourcesByCategory(sources, sourceCategory)",
         "sourceNextActionKey(source)",
-        "resolveNetworkGeometryState(runtimeDbReady, nodes, edges)",
+        "resolveNetworkGeometryState(runtimeDbReady, api.nodes, api.edges)",
     ]:
-        assert app_phrase in app_text
+        assert app_phrase in application_text
     for removed_phrase in [
         "const sourceCategoryOrder =",
         "const issueStatuses = new Set([\"failed\"",
         "const latestCapacityRows = useMemo(() => capacity.slice",
     ]:
-        assert removed_phrase not in app_text
+        assert removed_phrase not in app_text + application_text
     for helper_phrase in [
         "export function latestRows",
         "export function latestOfficialFlows",

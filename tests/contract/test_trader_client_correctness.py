@@ -8,17 +8,28 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 WEB = ROOT / "clients" / "web" / "src"
+APPLICATION_FILES = [
+    WEB / "App.tsx",
+    *sorted((WEB / "app" / "hooks").glob("*.ts")),
+    *sorted((WEB / "app" / "model").glob("*.ts")),
+    *sorted((WEB / "app" / "shell").glob("*.tsx")),
+    *sorted((WEB / "app" / "workspaces").glob("*.tsx")),
+]
 
 
 def _read(path: Path) -> str:
     return path.read_text(encoding="utf-8-sig")
 
 
+def _read_application() -> str:
+    return "\n".join(_read(path) for path in APPLICATION_FILES)
+
+
 def test_strategy_prices_are_currency_normalized_and_not_zero_fallbacks() -> None:
     normalization = _read(WEB / "app" / "marketPriceNormalization.ts")
     scenario = _read(WEB / "app" / "strategyScenario.ts")
     terminal = _read(WEB / "components" / "StrategyShadowRunTerminal.tsx")
-    app = _read(WEB / "App.tsx")
+    app = _read_application()
 
     assert "export function convertCurrency" in normalization
     assert "buildLatestCurrencyGraph" in normalization
@@ -30,13 +41,13 @@ def test_strategy_prices_are_currency_normalized_and_not_zero_fallbacks() -> Non
     assert "marketPriceGbpMwh(item, fxRates)" in terminal
     assert "isGasPriceObservation(item)" in terminal
     assert (
-        "buildStrategyScenario(contract, liveMark, contextMarkets, "
-        "portfolioResources, fxRates)" in app
+        "buildStrategyScenario(" in app
     )
+    assert "api.fxRates" in app
 
 
 def test_frontend_runtime_business_data_is_api_owned() -> None:
-    app = _read(WEB / "App.tsx")
+    app = _read_application()
     store = _read(WEB / "stores" / "api.ts")
     network = _read(WEB / "components" / "NetworkWorkspace.tsx")
 
@@ -44,7 +55,7 @@ def test_frontend_runtime_business_data_is_api_owned() -> None:
     assert "resourcePoolOptions?.sale_options ?? []" in app
     assert "resourcePoolOptions?.portfolio_resources ?? []" in app
     trading_context = _read(WEB / "app" / "tradingContext.ts")
-    assert "markets.filter((observation)" in app
+    assert "api.markets.filter(" in app
     assert "marketMatchesTradingContext" in trading_context
     assert "saleOptions = [" not in app
     assert "portfolioResources = [" not in app
@@ -104,7 +115,7 @@ def test_visible_literal_translation_keys_exist_in_both_locales() -> None:
 
 def test_network_geometry_does_not_overstate_route_corridor_coverage() -> None:
     derived = _read(WEB / "app" / "workspaceDerivedData.ts")
-    app = _read(WEB / "App.tsx")
+    app = _read_application()
     network_workspace = _read(WEB / "components" / "NetworkWorkspace.tsx")
     map_component = _read(WEB / "components" / "GasNetworkMap.tsx")
 
@@ -125,7 +136,7 @@ def test_network_geometry_does_not_overstate_route_corridor_coverage() -> None:
 
 
 def test_app_no_longer_owns_duplicate_workspace_menu() -> None:
-    app = _read(WEB / "App.tsx")
+    app = _read_application()
     topbar = _read(WEB / "components" / "WorkspaceTopBar.tsx")
 
     assert "workspaceMenuOpen" not in app
@@ -145,15 +156,15 @@ def test_strategy_freshness_uses_latest_observation_per_basis() -> None:
 
 
 def test_source_credentials_follow_selected_public_source() -> None:
-    app = _read(WEB / "App.tsx")
+    app = _read_application()
 
-    assert "credentialProviderIdForSource(selectedSource)" in app
+    assert "credentialProviderIdForSource(selectedSource, credentialProviders)" in app
     assert "provider.provider_id.toLocaleLowerCase() === sourceSystem" in app
     assert 'useState("")' in app
 
 
 def test_network_workspace_is_extracted_from_app_shell() -> None:
-    app = _read(WEB / "App.tsx")
+    app = _read_application()
     network_workspace = _read(WEB / "components" / "NetworkWorkspace.tsx")
 
     assert "<NetworkWorkspace" in app
@@ -161,11 +172,11 @@ def test_network_workspace_is_extracted_from_app_shell() -> None:
     assert "decision-rail" not in app
     assert "scenario-rail" in network_workspace
     assert "decision-rail" in network_workspace
-    assert len(app.splitlines()) < 850
+    assert len(_read(WEB / "App.tsx").splitlines()) <= 20
 
 
 def test_secondary_workspaces_are_extracted_from_app_shell() -> None:
-    app = _read(WEB / "App.tsx")
+    app = _read_application()
 
     for component in [
         "ScenarioWorkspace",
