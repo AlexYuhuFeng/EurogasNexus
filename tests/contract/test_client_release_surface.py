@@ -1382,6 +1382,10 @@ def test_release_workflow_publishes_web_windows_and_linux_assets() -> None:
     assert "bundle: deb" in workflow
     assert "*.exe" in workflow
     assert "*.deb" in workflow
+    assert "docker/setup-qemu-action@v4" in workflow
+    assert "docker/setup-buildx-action@v4" in workflow
+    assert "docker/login-action@v4" in workflow
+    assert "docker/build-push-action@v7" in workflow
     assert (
         "pytest -q tests/api tests/contract tests/integration tests/ingestion tests/unit "
         "tests/optimization tests/sdk tests/cli tests/release tests/security"
