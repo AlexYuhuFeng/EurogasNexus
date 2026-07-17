@@ -1,30 +1,38 @@
-# Phase-Two Optimization Layer
+# Optimization Layer
+
+Chinese companion: [PHASE_TWO_OPTIMIZATION-CN.md](PHASE_TWO_OPTIMIZATION-CN.md)
 
 ## Purpose
 
-The phase-two optimization package adds deterministic decision-support engines
-for four European gas commercial problems:
+The optimization package provides deterministic, trader-reviewed natural-gas
+decision support. It does not submit orders, nominations, capacity bookings,
+contract amendments, or approvals. Every result carries
+`human_review_required=True`.
 
-1. resource-pool allocation;
-2. capacity-feasible route selection;
-3. transport-capacity booking;
-4. upstream contract dispatch.
-
-The implementation is available under:
+Implementation:
 
 ```text
 src/eurogas_nexus/optimization/
 ```
 
-The stable application facade is:
+## Capability Status
 
-```python
-from eurogas_nexus.optimization import PhaseTwoOptimizer
-```
+| Capability | Module | Status | Public boundary |
+|---|---|---|---|
+| Capacity-feasible route | `route.py` | stable deterministic model | facade + API |
+| Resource-pool allocation | `resource_pool.py` | stable heuristic for the documented separable model | facade + API |
+| Capacity-product selection | `capacity.py` | stable exact subset model for curated product sets | facade + API |
+| Daily contract dispatch | `contract.py` | stable deterministic one-market model | facade + API |
+| Shared-capacity network flow | `network_flow.py` | validated residual-network model | direct Python module only |
+| Multi-period storage dispatch | `storage.py` | validated grid-based prototype | direct Python module only |
+| Nomination-window assessment | `nomination.py` | validated rules prototype | direct Python module only |
+
+`PhaseTwoOptimizer` is the stable facade for the first four capabilities. The
+last three modules are intentionally not exported through that facade or the
+public API yet. They need DB-backed input composition, DTO contracts, source
+lineage, and product workflow review before exposure.
 
 ## Public API
-
-The optimization facade is exposed through the public API:
 
 ```text
 POST /api/optimization/route
@@ -33,93 +41,121 @@ POST /api/optimization/capacity
 POST /api/optimization/contracts
 ```
 
-The existing `/api/route-cost/*` endpoints remain available for compatibility
-with the current route-cost and resource-pool workflow. The new optimization
-namespace provides a stable common DTO surface for phase-two capabilities.
+The existing `/api/route-cost/*` endpoints remain available for the DB-backed
+route-economics and resource-pool workflow. New optimization endpoints accept
+explicit operator-supplied inputs and return the standard envelope:
 
-## Product Boundary
+```json
+{
+  "data": {
+    "human_review_required": true
+  },
+  "meta": {
+    "research_only": true,
+    "human_review_required": true,
+    "source_references": ["operator-input"],
+    "warnings": []
+  }
+}
+```
 
-These engines produce decision-support outputs. They do not submit orders,
-nominate gas, book capacity with a TSO, amend contracts, or create official
-approvals. Every result carries `human_review_required=True`.
+`meta.research_only` is retained only for shared-envelope compatibility. It is
+not part of optimization business-data DTOs.
 
-## Current Optimization Models
+## Model Definitions
 
-### Resource-Pool Optimization
+### Capacity-Feasible Route
 
-The resource-pool engine allocates upstream resources to sale options by unit
-margin. It schedules contractual minimum-take quantities before discretionary
-positive-margin volume and respects:
+The route model selects a minimum-tariff directed path after filtering disabled
+edges, insufficient edge capacity, and inaccessible TSOs. It represents a
+single requested quantity on one path; it does not allocate several resources
+against shared edge capacities.
 
-- resource availability and configured maximum take;
-- minimum take;
-- sale-option capacity;
-- resource and destination TSO-access requirements;
-- purchase cost, sale price, and variable route/sale cost.
+### Resource-Pool Allocation
 
-The current model is a separable linear allocation model. It is exact for that
-model but does not yet represent shared pipeline-edge capacities across several
-simultaneous routes.
+The resource-pool model schedules minimum-take quantities before optional
+positive-margin quantities and respects resource limits, sale-option limits,
+and configured TSO-access requirements. It is deterministic, but the current
+greedy implementation is not claimed to be a global optimizer for arbitrary
+pair-specific eligibility graphs. Shared physical pipeline capacities belong
+in the network-flow model.
 
-### Route Optimization
+### Capacity-Product Selection
 
-The route engine uses a capacity-filtered minimum-cost path model. A network edge
-is eligible only when:
+The capacity model enumerates subsets and selects the lowest-cost combination
+covering the requested capacity. This is exact for the supplied finite product
+set. It is intended for a curated set, not a large auction universe.
 
-- the edge is enabled;
-- available capacity covers the requested quantity;
-- the company has access to the edge TSO, when a TSO access set is supplied.
+### Contract Dispatch
 
-The objective is minimum aggregate tariff in GBP/MWh. The output also reports
-the route bottleneck capacity.
+The contract model applies minimum-take quantities and then dispatches
+positive-margin flexibility against one market netback. It does not yet model
+take-or-pay accumulation, make-up gas, price optionality, multiple destinations,
+or multi-period contract constraints.
 
-### Capacity Booking Optimization
+### Shared-Capacity Network Flow
 
-The capacity engine selects the lowest-cost combination of capacity products
-that covers required capacity. It supports:
+The network-flow model is a deterministic, linear, directed,
+single-natural-gas-commodity minimum-cost flow. It uses:
 
-- fixed booking cost;
-- throughput-linked variable cost;
-- firm and interruptible products;
-- optional exclusion of interruptible capacity.
+- a super source and super sink for multiple supplies and demands;
+- supply acquisition costs, physical pipeline tariffs, and destination values;
+- forward and reverse residual arcs;
+- re-routing when an earlier augmentation blocks a better portfolio result;
+- shared physical edge capacities and TSO-access filtering;
+- final-flow conservation, capacity, cost, and objective validation.
 
-The MVP performs exact subset enumeration and is intended for a curated product
-set. A larger auction universe should later use a mixed-integer solver.
+Strictly negative-margin optional flow is not routed. Zero-margin flow is
+routed deterministically. This is not a hydraulic simulation and does not model
+pressure, linepack, compressor fuel curves, gas quality, or nominations.
 
-### Contract Dispatch Optimization
+### Storage Dispatch Prototype
 
-The contract engine schedules minimum-take quantities first, then fills remaining
-demand with positive-margin discretionary volume. It reports:
+The storage prototype uses inventory-grid dynamic programming across supplied
+market-price periods. It preserves exact initial and required terminal
+inventory levels and validates inventory, rate, efficiency, and cost bounds.
+The result is grid-dependent and is not a continuous-storage proof of optimum.
 
-- mandatory and discretionary quantities by contract;
-- unit margin and PnL;
-- unmet minimum take;
-- unserved demand and unused resource volume.
+### Nomination-Window Prototype
+
+The nomination module evaluates instructions against supplied time windows and
+change limits. It is a decision-support rules model only. It does not submit a
+nomination and currently expects the caller to normalize timestamps into the
+applicable operator time basis.
+
+## Data And DB Boundary
+
+- The optimization package performs no import-time DB or network access.
+- The four public optimization endpoints currently use explicit request data
+  and mark the source as `operator-input`.
+- Production workflows must compose contracts, tariffs, capacities, TSO
+  access, and market observations from PostgreSQL before calling a model.
+- Missing DB facts must remain blockers; models must not fabricate them.
 
 ## Validation
 
-Focused tests:
+Focused:
 
 ```bash
+ruff check src/eurogas_nexus/optimization tests/optimization
 pytest -q tests/optimization tests/api/test_optimization_routes.py
 ```
 
-Full repository acceptance:
+Repository acceptance:
 
 ```bash
 ruff check .
-pytest -q tests
+pytest -q tests/api tests/contract tests/integration tests/ingestion tests/unit tests/optimization tests/sdk tests/cli tests/release tests/security
+python -c "from apps.api.main import app; print('app import ok'); print(len(app.routes))"
 ```
 
-## Next Model Extensions
+## Next Approved Increment
 
-The next optimization increment should add:
+Before exposing network flow, storage, or nomination through the public API:
 
-- shared edge-capacity constraints across a portfolio of routes;
-- multi-period storage injection and withdrawal decisions;
-- gas-day nomination and renomination windows;
-- take-or-pay accumulation across contract periods;
-- stochastic price and outage scenarios;
-- CVaR or other downside-risk objectives;
-- solver adapters for HiGHS, OR-Tools, SCIP, or Gurobi;
-- Web scenario controls and explainable result panels.
+1. define DB-backed input composition and source-lineage contracts;
+2. define additive API DTOs and SDK methods;
+3. add bilingual client workflow specifications;
+4. add multi-period contract and route coupling where required;
+5. evaluate an optional permissive-licensed solver adapter separately;
+6. retain trader review and the no-execution boundary.

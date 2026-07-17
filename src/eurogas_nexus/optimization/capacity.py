@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import math
 from itertools import combinations
 
+from ._validation import validate_capacity_products
 from .models import CapacityBookingResult, CapacityProduct
 
 
@@ -20,6 +22,9 @@ def optimize_capacity_bookings(
     free; larger auction universes can later be delegated to a MILP solver.
     """
 
+    validate_capacity_products(products)
+    if not math.isfinite(required_capacity_mwh):
+        raise ValueError("required_capacity_mwh must be finite")
     if required_capacity_mwh < 0:
         raise ValueError("required_capacity_mwh must be non-negative")
     throughput = (
@@ -27,6 +32,8 @@ def optimize_capacity_bookings(
         if expected_throughput_mwh is None
         else expected_throughput_mwh
     )
+    if not math.isfinite(throughput):
+        raise ValueError("expected_throughput_mwh must be finite")
     if throughput < 0:
         raise ValueError("expected_throughput_mwh must be non-negative")
 

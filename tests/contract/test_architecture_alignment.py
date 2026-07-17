@@ -105,30 +105,29 @@ def test_architecture_decisions_are_explicit() -> None:
     ]:
         assert phrase in text
 
-def test_next_development_queue_selects_current_v1_r22_work() -> None:
+def test_next_development_queue_records_r30_and_selects_db_backed_optimization() -> None:
     text = _read_doc("docs/architecture/NEXT_DEVELOPMENT_QUEUE.md")
 
-    assert "V1 R22: Documentation And Client Cockpit Alignment" in text
-    assert "Status: `in-progress`" in text
-    assert ".agent/plans/V1_R22_DOCS_CLIENT_COCKPIT_ALIGNMENT_EXECPLAN.md" in text
-    assert "Web and" in text
-    assert "Windows as active runtime clients" in text
-    assert "Ingestion Scheduling And Source Health" in text
+    assert "R30: Optimization Correctness And Release Gate" in text
+    assert ".agent/plans/V1_R30_OPTIMIZATION_CORRECTNESS_EXECPLAN.md" in text
+    assert "R31: DB-Backed Portfolio Network Optimization" in text
+    assert "Status: `pending`" in text
+    assert "R32: Authentication, Entitlement, Audit, And Export Governance" in text
 
 
 def test_current_pause_point_records_holistic_runtime_pause_state() -> None:
     text = _read_doc("docs/architecture/CURRENT_PAUSE_POINT.md")
 
-    assert "V1 release-candidate worktree" in text
+    assert "`0.5.0` preview-release worktree" in text
     assert "0013_gie_lng_dtmi_energy" in text
     assert "33" in text
-    assert "76" in text
-    assert "Windows/Tauri" in text
-    assert "npm --prefix clients/web run build" in text
+    assert "80" in text
+    assert "Windows/Linux desktop clients" in text
+    assert "Linux ARM64" in text
     assert "screen_order_observations" in text
-    assert "/api/internal/portfolio/import-observations" in text
+    assert "/api/internal" in text
     assert "Provider credentials are backend-owned" in text
-    assert "V1 R22: documentation and client cockpit alignment" in text
+    assert "DB-backed portfolio network optimization" in text
 
 
 def test_live_postgresql_policy_is_explicit_and_safe() -> None:

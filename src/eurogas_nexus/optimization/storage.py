@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 from .models import OptimizationStatus
@@ -56,8 +57,15 @@ def optimize_storage_dispatch(
 
     if inventory_step_mwh <= 0:
         raise ValueError("inventory_step_mwh must be positive")
-    levels = _inventory_levels(facility, inventory_step_mwh)
-    initial = _nearest_level(facility.initial_inventory_mwh, levels)
+    if not math.isfinite(inventory_step_mwh):
+        raise ValueError("inventory_step_mwh must be finite")
+    _validate_facility(facility)
+    _validate_periods(periods)
+    required_levels = [facility.initial_inventory_mwh]
+    if facility.terminal_inventory_mwh is not None:
+        required_levels.append(facility.terminal_inventory_mwh)
+    levels = _inventory_levels(facility, inventory_step_mwh, required_levels)
+    initial = facility.initial_inventory_mwh
     states: dict[float, tuple[float, tuple[StorageDecision, ...]]] = {initial: (0.0, ())}
 
     for period in periods:
@@ -99,8 +107,7 @@ def optimize_storage_dispatch(
 
     target = facility.terminal_inventory_mwh
     if target is not None:
-        terminal = _nearest_level(target, levels)
-        if terminal not in states:
+        if target not in states:
             return StorageDispatchResult(
                 status="infeasible",
                 objective_value_gbp=0.0,
@@ -108,8 +115,8 @@ def optimize_storage_dispatch(
                 terminal_inventory_mwh=facility.initial_inventory_mwh,
                 warnings=("TERMINAL_INVENTORY_UNREACHABLE",),
             )
-        value, decisions = states[terminal]
-        chosen_inventory = terminal
+        value, decisions = states[target]
+        chosen_inventory = target
     else:
         chosen_inventory, (value, decisions) = max(states.items(), key=lambda item: item[1][0])
 
@@ -121,15 +128,71 @@ def optimize_storage_dispatch(
     )
 
 
-def _inventory_levels(facility: StorageFacility, step: float) -> tuple[float, ...]:
+def _validate_facility(facility: StorageFacility) -> None:
+    numeric_fields = {
+        "initial_inventory_mwh": facility.initial_inventory_mwh,
+        "minimum_inventory_mwh": facility.minimum_inventory_mwh,
+        "maximum_inventory_mwh": facility.maximum_inventory_mwh,
+        "maximum_injection_mwh": facility.maximum_injection_mwh,
+        "maximum_withdrawal_mwh": facility.maximum_withdrawal_mwh,
+        "injection_efficiency": facility.injection_efficiency,
+        "withdrawal_efficiency": facility.withdrawal_efficiency,
+        "injection_cost_gbp_mwh": facility.injection_cost_gbp_mwh,
+        "withdrawal_cost_gbp_mwh": facility.withdrawal_cost_gbp_mwh,
+    }
+    if facility.terminal_inventory_mwh is not None:
+        numeric_fields["terminal_inventory_mwh"] = facility.terminal_inventory_mwh
+    for name, value in numeric_fields.items():
+        if not math.isfinite(value):
+            raise ValueError(f"{name} must be finite")
+
+    if facility.minimum_inventory_mwh < 0:
+        raise ValueError("minimum_inventory_mwh must be non-negative")
+    if facility.maximum_inventory_mwh < facility.minimum_inventory_mwh:
+        raise ValueError("maximum_inventory_mwh must not be below minimum inventory")
+    if not (
+        facility.minimum_inventory_mwh
+        <= facility.initial_inventory_mwh
+        <= facility.maximum_inventory_mwh
+    ):
+        raise ValueError("initial_inventory_mwh must be within inventory bounds")
+    if facility.maximum_injection_mwh < 0 or facility.maximum_withdrawal_mwh < 0:
+        raise ValueError("injection and withdrawal limits must be non-negative")
+    if not 0 < facility.injection_efficiency <= 1:
+        raise ValueError("injection_efficiency must be in (0, 1]")
+    if not 0 < facility.withdrawal_efficiency <= 1:
+        raise ValueError("withdrawal_efficiency must be in (0, 1]")
+    if facility.injection_cost_gbp_mwh < 0 or facility.withdrawal_cost_gbp_mwh < 0:
+        raise ValueError("storage variable costs must be non-negative")
+    terminal = facility.terminal_inventory_mwh
+    if terminal is not None and not (
+        facility.minimum_inventory_mwh <= terminal <= facility.maximum_inventory_mwh
+    ):
+        raise ValueError("terminal_inventory_mwh must be within inventory bounds")
+
+
+def _validate_periods(periods: list[StoragePeriod]) -> None:
+    period_ids: set[str] = set()
+    for period in periods:
+        if not period.period_id.strip():
+            raise ValueError("period_id must not be empty")
+        if period.period_id in period_ids:
+            raise ValueError(f"duplicate period_id: {period.period_id}")
+        period_ids.add(period.period_id)
+        if not math.isfinite(period.market_price_gbp_mwh):
+            raise ValueError(f"market price must be finite: {period.period_id}")
+
+
+def _inventory_levels(
+    facility: StorageFacility,
+    step: float,
+    required_levels: list[float],
+) -> tuple[float, ...]:
     levels: list[float] = []
     current = facility.minimum_inventory_mwh
     while current < facility.maximum_inventory_mwh - 1e-9:
         levels.append(round(current, 10))
         current += step
     levels.append(facility.maximum_inventory_mwh)
+    levels.extend(required_levels)
     return tuple(sorted(set(levels)))
-
-
-def _nearest_level(value: float, levels: tuple[float, ...]) -> float:
-    return min(levels, key=lambda level: abs(level - value))

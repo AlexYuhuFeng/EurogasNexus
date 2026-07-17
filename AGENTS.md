@@ -1,10 +1,11 @@
 # Eurogas Nexus Agent Guide
 
-Eurogas Nexus is a research-only European gas decision-support platform. This
-repository is in the V1.0 release preparation phase for a DB-first, API-first,
-SDK-required internal platform covering European pipeline gas, LNG reGas, and
-beach delivery resource research. V1 includes the backend/API, PostgreSQL
-runtime store, Python SDK, CLI, web workspace, and Windows client shell.
+Eurogas Nexus is a European natural-gas market-intelligence, optimization, and
+decision-support platform. This repository is in preview-release hardening for
+a DB-first, API-first, SDK-supported product covering European pipeline gas,
+LNG regas, storage, and beach-delivery resources. The active product includes
+the backend/API, PostgreSQL runtime store, Python SDK, CLI, Web workspace, and
+Windows/Linux desktop clients.
 
 ## Guardrails
 
@@ -12,8 +13,9 @@ runtime store, Python SDK, CLI, web workspace, and Windows client shell.
 - Local files may be import templates, raw/canonical archives, reports,
   fixtures, or development fallback only.
 - Trial and release modes must not silently fall back to local files.
-- API routes must remain separated into stable `v1`, `internal`, and `dev`
-  profiles.
+- Public API routes use the stable unversioned `/api` prefix. Operator-only and
+  development-only routes use `/api/internal` and `/api/dev` respectively.
+  Do not reintroduce `/v1` or `/api/v1` aliases.
 - SDK and CLI code must call the backend API, not internal domain modules.
 - Clients access PostgreSQL-backed runtime data only through SDK/API
   boundaries. No client opens PostgreSQL connections, imports backend
@@ -23,23 +25,24 @@ runtime store, Python SDK, CLI, web workspace, and Windows client shell.
 - Streaming/Kafka is optional and must not become a source of truth.
 - Vendor entitlement and export policy must fail closed for unknown commercial
   data.
-- Analysis outputs must include assumptions, missing inputs, warnings, source
-  references, lineage, `research_only`, and `human_review_required` where
-  relevant.
-- Do not add business features until a milestone document allows them.
+- Analysis and optimization outputs must include assumptions, missing inputs,
+  warnings, source references, lineage, and `human_review_required` where
+  relevant. `meta.research_only` remains only as a temporary shared-envelope
+  compatibility field; do not add it to new business-data payloads.
+- Do not add broad capabilities without an approved ExecPlan under
+  `.agent/plans/`.
 - Do not call external APIs, market data providers, LLM providers, or live
   infrastructure from import-time code or tests.
 - Do not add frontend, desktop, Node, Rust, Tauri, or client runtime
   dependencies during backend foundation milestones. These dependencies are
   allowed only inside selected web or Windows client milestones with documented
   dependency review and offline fallback.
-- Do not add Kafka, Redis, Celery, company SSO/OIDC, or live connector
-  dependencies in V1 unless a later milestone explicitly scopes and reviews
+- Do not add Kafka, Redis, Celery, company SSO/OIDC, or privileged commercial
+  connector dependencies unless an ExecPlan explicitly scopes and reviews
   them.
 - Do not add trade execution, order entry, order routing, trade capture,
   nomination submission, official approval, legal advice, official trading
-  recommendations, auto-trading, ETRM replacement behavior, or company SSO/OIDC
-  in V1.
+  recommendations, auto-trading, ETRM replacement behavior, or company SSO/OIDC.
 - Keep DB and runtime-store modules import-safe; importing the API must not
   open network sockets or database connections.
 - Update contracts before broadening a module boundary.
@@ -51,9 +54,9 @@ PostgreSQL, HTTPX, pandas, NumPy, PyArrow, python-dateutil, PyYAML, pytest, and
 Ruff. Do not add dependencies unless they are necessary, permissive-licensed,
 and documented.
 
-Allowed client stack only when a selected client milestone requires it: React,
-TypeScript, Vite, plain CSS or CSS modules, MapLibre GL where available, Rust,
-and Tauri for the Windows shell. Electron is not approved for V1.
+Allowed client stack: React, TypeScript, Vite, plain CSS or CSS modules,
+MapLibre GL, Rust, and Tauri for Windows/Linux desktop shells. Electron is not
+approved.
 
 Do not add GPL, LGPL, AGPL, SSPL, BUSL, Elastic, Redis-RSAL, Commons-Clause, or
 PolyForm dependencies without explicit review.
@@ -88,6 +91,6 @@ Run these checks before handing over changes:
 
 ```powershell
 ruff check .
-pytest -q tests/api tests/contract
+pytest -q tests/api tests/contract tests/integration tests/ingestion tests/unit tests/optimization tests/sdk tests/cli tests/release tests/security
 python -c "from apps.api.main import app; print('app import ok'); print(len(app.routes))"
 ```

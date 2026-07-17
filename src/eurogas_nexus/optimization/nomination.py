@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from datetime import datetime, time
 
@@ -49,6 +50,7 @@ def optimize_nomination_schedule(
 ) -> NominationScheduleResult:
     """Apply nomination and renomination instructions in chronological order."""
 
+    _validate_inputs(initial_quantity_mwh, instructions, windows)
     current = initial_quantity_mwh
     decisions: list[NominationDecision] = []
     warnings: list[str] = []
@@ -109,6 +111,42 @@ def optimize_nomination_schedule(
         decisions=tuple(decisions),
         warnings=tuple(dict.fromkeys(warnings)),
     )
+
+
+def _validate_inputs(
+    initial_quantity_mwh: float,
+    instructions: list[NominationInstruction],
+    windows: list[NominationWindow],
+) -> None:
+    if not math.isfinite(initial_quantity_mwh) or initial_quantity_mwh < 0:
+        raise ValueError("initial_quantity_mwh must be finite and non-negative")
+
+    window_ids: set[str] = set()
+    for window in windows:
+        if not window.window_id.strip():
+            raise ValueError("window_id must not be empty")
+        if window.window_id in window_ids:
+            raise ValueError(f"duplicate window_id: {window.window_id}")
+        window_ids.add(window.window_id)
+        if window.maximum_change_mwh is not None and (
+            not math.isfinite(window.maximum_change_mwh)
+            or window.maximum_change_mwh < 0
+        ):
+            raise ValueError("maximum_change_mwh must be finite and non-negative")
+        if window.maximum_change_pct is not None and (
+            not math.isfinite(window.maximum_change_pct)
+            or window.maximum_change_pct < 0
+        ):
+            raise ValueError("maximum_change_pct must be finite and non-negative")
+
+    awareness = {item.submitted_at.tzinfo is not None for item in instructions}
+    if len(awareness) > 1:
+        raise ValueError("instruction timestamps must use one timezone-awareness convention")
+    for instruction in instructions:
+        if not math.isfinite(instruction.requested_quantity_mwh):
+            raise ValueError("requested_quantity_mwh must be finite")
+        if instruction.requested_quantity_mwh < 0:
+            raise ValueError("requested_quantity_mwh must be non-negative")
 
 
 def _find_window(value: time, windows: list[NominationWindow]) -> NominationWindow | None:

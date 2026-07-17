@@ -44,7 +44,7 @@ if [[ "${SKIP_TESTS}" == "0" ]]; then
   ruff check "${REPO_ROOT}"
 
   step "Run targeted Python release tests"
-  pytest -q tests/api tests/contract tests/integration tests/ingestion tests/unit tests/sdk tests/cli tests/release tests/security
+  pytest -q tests/api tests/contract tests/integration tests/ingestion tests/unit tests/optimization tests/sdk tests/cli tests/release tests/security
 
   step "Verify API import safety"
   python -c "from apps.api.main import app; print('app import ok'); print(len(app.routes))"

@@ -1,152 +1,122 @@
 # Current Pause Point
 
+Chinese companion: [CURRENT_PAUSE_POINT-CN.md](CURRENT_PAUSE_POINT-CN.md)
+
 ## Status
 
-Date checked: 2026-06-30
+Date checked: 2026-07-17
 
-Eurogas Nexus is a V1 release-candidate worktree for the tested local scope:
-backend/API/SDK/CLI, PostgreSQL runtime schema, React/Vite Web workspace, and
-Tauri desktop shell.
+Eurogas Nexus is a `0.5.0` preview-release worktree containing the FastAPI
+backend, PostgreSQL runtime schema, Python SDK, CLI, React/Vite Web workspace,
+Tauri Windows/Linux desktop clients, and role-based deployment tooling.
 
-This is a gas trader intelligence and decision-support product. It is not an
-execution, order-entry, order-routing, nomination, settlement, legal-advice, or
-ETRM product.
+It is a European natural-gas market-intelligence, optimization, and
+decision-support product. It is not an execution venue, order router,
+nomination-submission system, settlement platform, legal-advice tool, or ETRM.
 
-## Current Runtime Evidence
+## Verified Runtime Baseline
 
-Observed against the operator's running local API on `127.0.0.1:8000`:
+The most recently validated local PostgreSQL runtime has:
 
 ```text
-GET /api/runtime/db
-database_url_present: true
-connectivity.ok: true
 alembic_revision: 0013_gie_lng_dtmi_energy
 required_tables: 33
 missing_tables: 0
 source: runtime-postgresql
 ```
 
-Observed from local import/build checks:
+Current import evidence:
 
 ```text
 python -c "from apps.api.main import app; print('app import ok'); print(len(app.routes))"
 app import ok
-76
-
-npm --prefix clients/web run build
-passed
+80
 ```
 
-The Vite Web workspace currently proxies `/api` to the running backend and can
-render PostgreSQL-backed runtime data.
+Clients obtain runtime data through `/api` or the SDK. They do not connect to
+PostgreSQL, read backend files, or call market/infrastructure providers.
+Provider credentials are backend-owned and are never returned in plaintext.
 
 ## Current Product Shape
 
-- PostgreSQL is the runtime source of truth.
-- FastAPI exposes stable public `/api` routes, profile-gated internal routes,
-  and development-only routes.
-- SDK and CLI are API consumers.
-- Web is the primary trader workspace.
-- Windows/Tauri wraps the Web workspace.
-- Clients do not read PostgreSQL, raw vendor files, `.env`, or backend local
-  runtime files.
-- Provider credentials are backend-owned and never returned in plaintext.
+- Public API: stable unversioned `/api`.
+- Operator API: `/api/internal`, protected by the backend internal token and
+  principal header where implemented.
+- Development API: `/api/dev`, profile-gated.
+- Runtime truth: PostgreSQL with Alembic-managed schema.
+- Web: shared map-first trader workspace.
+- Desktop: Tauri shells for Windows x64 and Linux x64/ARM64.
+- Deployment: Server, Client, and AllInOne roles; server deployment remains
+  private-network/VPN preview-only until production authentication is added.
+- Preview market data: source-shaped simulated providers write to PostgreSQL
+  and follow the same backend/API/client path as licensed feeds.
 
-## Current Web/Windows Workspace
+## Active Workspaces
 
-The active shared workspace includes:
+- Network: resource-pool map, persisted resources, route candidates, capacity
+  blockers, route economics, PnL, and review warnings.
+- Market: PostgreSQL-backed hub prices, tenors, spreads, ECB FX, source and
+  simulation posture.
+- Capacity: ENTSOG flow/capacity, TSO access, tariffs, GIE storage, and LNG.
+- Contracts: EFET-style resource terms with backend persistence and JSON draft
+  import.
+- Scenario and Strategy: trader-reviewed calculations and shadow evaluation.
+- Review: warnings, assumptions, source evidence, and report surfaces.
+- Market Positioning: read-only external screen-order and indicative PnL
+  observations, including `screen_order_observations`.
+- Data Sources: source categories, credential maintenance, diagnostics,
+  freshness, and ingestion history.
+- Glossary, Runtime, Settings, and Manual: bilingual operating support.
 
-- Network: map-first resource-pool cockpit with active resource-path overlay,
-  route options, blockers, topology state, PnL summary, and strategy/warning
-  signal.
-- Capacity: ENTSOG flows/capacity, TSO access, tariffs, storage, and LNG.
-- Market: gas-market terminal for major European hubs, regional TTF spreads,
-  ECB FX references, and exchange/broker price-source posture. Missing licensed
-  prices remain unavailable rather than fabricated.
-- Scenario: route-cost/resource-pool controls and result review.
-- Contracts: EFET-style term capture, JSON draft import, persisted-contract
-  list/edit, and an API-backed save path into `upstream_resource_contracts` for
-  decision-support resource-pool inputs.
-- Strategy: paper strategy evaluation.
-- Review: warning stack and LLM/report review surface.
-- Order Records: read-only external screen-order observations and indicative
-  PnL snapshots.
-- Data Sources: provider categories, credentials, diagnostics, freshness, and
-  runtime row counts.
-- Glossary: bilingual terms and DB-derived operational context.
-- Runtime: database/API readiness and governance metadata.
-- Settings: display unit/currency/session preferences, service-access posture,
-  and backend-boundary guardrails. Manual: workspace map and operating
-  boundary.
+## Optimization State
 
-## Current API Surface
+The four stable operator-input endpoints are:
 
-Representative active public routes:
+```text
+POST /api/optimization/route
+POST /api/optimization/resource-pool
+POST /api/optimization/capacity
+POST /api/optimization/contracts
+```
 
-- `/api/health`
-- `/api/runtime/db`
-- `/api/reference-network/*`
-- `/api/sources`
-- `/api/ingestion-runs`
-- `/api/market/*`
-- `/api/physical/*`
-- `/api/storage/*`
-- `/api/lng/*`
-- `/api/contracts/*`
-- `/api/credentials/*`
-- `/api/route-cost/*`
-- `/api/strategy-lab/evaluate`
-- `/api/glossary/*`
-- `/api/analysis/query`
-- `/api/reports/portfolio`
-- `/api/portfolio/*`
+They return the standard `data/meta` envelope and require human review.
 
-Portfolio observation tables currently include `screen_order_observations` and
-`portfolio_pnl_snapshots`. They are read-only external observations, not trade
-capture records.
+The shared-capacity network-flow module now uses a true residual network with
+reverse arcs, final-flow accounting, capacity checks, and node-conservation
+checks. Storage dispatch and nomination-window assessment remain validated
+internal prototypes. None of these three is exposed through the stable facade,
+SDK, or API until DB-backed input and lineage contracts are complete.
 
-Internal/operator-only:
+## Deployment And Release State
 
-- `/api/internal/portfolio/import-observations`
-
-The internal import route requires the backend internal token and explicit
-principal header, and remains unavailable to release clients.
-
-## Current Documentation Work
-
-The repository previously contained stale docs that described Web/Windows as
-not-yet-active client work and pointed agents back to backend Milestone 2.
-Those docs are being aligned under V1 R22 to match the active product.
-
-Mandarin docs must be kept as real UTF-8 Chinese. Mojibake or private-use
-replacement characters are treated as documentation defects.
+- GitHub Actions validates Python, API import, Web, desktop, deployment assets,
+  and the multi-architecture API image.
+- Normal CI runs optimizer tests and builds desktop packages on pull requests.
+- Every `main` push runs the release workflow for Web, Windows x64, Linux x64,
+  Linux ARM64, deployment bundles, and the amd64/arm64 runtime image.
+- Linux Tauri dependency installation uses the official HTTPS Ubuntu mirror and
+  bounded retries to tolerate transient ARM runner mirror failures.
+- Customer production signing certificates are not stored in this repository.
 
 ## Remaining Release Limitations
 
-1. Production scheduling, retry, monitoring, and alerting for live ingestion
-   are not yet productionized.
-2. Commercial providers such as EEX, ICE OCM, Trayport, Kpler, Platts, ICIS,
-   Argus, brokers, weather, and LLM providers remain gated by credentials,
-   entitlement, and operator validation.
-3. Order/PnL records are imported read-only observations. V1 does not perform
-   order entry, amendment, routing, cancellation, trade capture, or auto-trading.
-4. Auth, audit depth, entitlement, and export-governance enforcement need
-   hardening before multi-user production use.
-5. EFET-style upstream resource contracts now support API save, list/edit, and
-   JSON draft import, but customer contract lifecycle validation, versioning,
-   approval, and export controls still need production hardening.
-6. Route-cost and resource-pool recommendations remain decision support and
-   human-review required.
-7. The Market terminal currently depends on loaded runtime price observations;
-   commercial exchange/broker connectors still require credentials,
-   entitlement, and operator validation before live prices appear. For
-   development and operator rehearsal, `EEX_Sim`, `ICE_OCM_Sim`, and `ICIS_Sim`
-   can run as a continuous source-shaped PostgreSQL worker through
-   `scripts/ops/ingest_simulated_market_prices.py --loop`.
+1. Multi-user authentication/authorization and company SSO are not implemented;
+   server roles are private-network/VPN preview deployments only.
+2. Commercial providers remain gated by customer credentials, entitlement,
+   licenses, and operator validation.
+3. Public-source scheduling, alerting, audit depth, export governance, and
+   retention need further production hardening.
+4. The optimization API currently accepts explicit operator data. Production
+   portfolio optimization must compose contracts, routes, tariffs, capacities,
+   access rights, and prices from PostgreSQL with lineage and freshness checks.
+5. Storage and nomination prototypes are not customer-facing workflows.
+6. Orders and PnL are imported observations; no order entry, amendment,
+   cancellation, routing, execution, or trade capture is performed.
 
 ## Next Work
 
-Use `docs/architecture/NEXT_DEVELOPMENT_QUEUE.md`. The current priority is
-V1 R22: documentation and client cockpit alignment. Then proceed to
-source-health scheduling, entitlement/audit/export hardening, persisted
-contract workflows, and cockpit review/evidence UX.
+Follow [NEXT_DEVELOPMENT_QUEUE.md](NEXT_DEVELOPMENT_QUEUE.md). The next selected
+increment is DB-backed portfolio network optimization: compose persisted
+resources, sale opportunities, TSO access, tariffs, and available capacity into
+the validated shared-capacity model, then expose it through API and SDK only
+after contracts and lineage are defined.

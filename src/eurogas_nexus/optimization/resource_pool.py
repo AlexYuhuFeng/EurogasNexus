@@ -2,18 +2,13 @@
 
 from __future__ import annotations
 
+from ._validation import validate_sale_options, validate_supply_resources
 from .models import OptimizationResult, ResourceAllocation, SaleOption, SupplyResource
 
 
 def _validate_inputs(resources: list[SupplyResource], sale_options: list[SaleOption]) -> None:
-    for resource in resources:
-        if resource.available_mwh < 0 or resource.minimum_take_mwh < 0:
-            raise ValueError("Resource quantities must be non-negative")
-        if resource.minimum_take_mwh > resource.effective_maximum_mwh:
-            raise ValueError(f"minimum take exceeds maximum for {resource.resource_id}")
-    for option in sale_options:
-        if option.capacity_mwh < 0:
-            raise ValueError("Sale-option capacity must be non-negative")
+    validate_supply_resources(resources)
+    validate_sale_options(sale_options)
 
 
 def optimize_resource_pool(

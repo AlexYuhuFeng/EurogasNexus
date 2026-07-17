@@ -29,7 +29,10 @@ def test_readme_mentions_starting_docs_and_extended_validation() -> None:
     assert "[Project directory](PROJECT_DIRECTORY.md)" in text
     assert "[Release readiness](docs/release/RELEASE_READINESS.md)" in text
     assert "## Data Sources" in text
-    assert "tests/integration tests/ingestion tests/unit tests/sdk tests/cli" in text
+    assert (
+        "tests/integration tests/ingestion tests/unit tests/optimization tests/sdk tests/cli"
+        in text
+    )
     assert "## 中文说明" in text
 
 
@@ -69,7 +72,8 @@ def test_current_guidance_reflects_active_web_and_windows_runtime() -> None:
 
     assert "Web and Windows client surfaces are active" in north_star
     assert "Status: `complete-in-current-worktree`" in queue
-    assert "V1 R22" in queue
+    assert "R30: Optimization Correctness And Release Gate" in queue
+    assert "R31: DB-Backed Portfolio Network Optimization" in queue
     assert "active client runtime code" in client_index
     assert "Default next milestone" not in master_plan
     assert "No frontend runtime implementation belongs" not in north_star

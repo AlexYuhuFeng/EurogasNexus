@@ -1,212 +1,114 @@
 # Next Development Queue
 
-## Purpose
+Chinese companion: [NEXT_DEVELOPMENT_QUEUE-CN.md](NEXT_DEVELOPMENT_QUEUE-CN.md)
 
-This file is the current ordered queue for Eurogas Nexus work. It reflects the
-active V1 release-candidate state: backend/API/SDK/CLI/Web/Windows exist and
-the next work should improve the live trader-intelligence product rather than
-replay early foundation milestones.
+## Queue Rule
 
-## Current Queue Rule
-
-Execute the first item below whose status is not `complete-in-current-worktree`.
-Do not skip product-boundary, data-policy, entitlement, or documentation work
-to add visible UI features.
+Execute the first pending increment. Each increment requires an ExecPlan,
+tests, bilingual operator documentation, and honest `PARTIAL`/`BLOCKED` status.
+Do not skip DB, source-lineage, entitlement, or human-review boundaries to add a
+visible client feature.
 
 ## Current Baseline
 
 Status: `complete-in-current-worktree`
 
-The worktree contains:
-
-- FastAPI backend with stable `/api` routes.
-- PostgreSQL runtime store and Alembic migrations through
-  `0013_gie_lng_dtmi_energy`.
+- PostgreSQL/Alembic runtime through `0013_gie_lng_dtmi_energy`.
+- Stable public `/api`; profile-gated `/api/internal` and `/api/dev`.
 - Python SDK and CLI.
-- React/Vite Web workspace.
-- Tauri desktop shell around the Web workspace.
-- Runtime data posture for reference network, capacity/flow, storage, LNG,
-  FX, source posture, route-cost/resource-pool, strategy, glossary, portfolio
-  observation, credentials, audit, and entitlement foundations.
+- React/Vite Web workspace and Tauri Windows/Linux desktop clients.
+- Map-first resource pool, Market, Capacity, Contracts, Strategy, Review,
+  Market Positioning, Sources, Glossary, Runtime, Settings, and Manual.
+- Server, Client, and AllInOne deployment roles.
+- Automated Web, Windows x64, Linux x64/ARM64, deployment-bundle, and
+  multi-architecture runtime-image release workflow.
 
-## V1 R22: Documentation And Client Cockpit Alignment
+## Delivered Increments
 
-Status: `in-progress`
+### R22-R28: Client And Runtime Hardening
 
-ExecPlan:
+Status: `complete-in-current-worktree`
 
-- `.agent/plans/V1_R22_DOCS_CLIENT_COCKPIT_ALIGNMENT_EXECPLAN.md`
+Delivered documentation alignment, cockpit decomposition, source-shaped
+simulated market feeds through PostgreSQL, market/capacity/source workspaces,
+backend-owned contracts, runtime data correctness, and client/release
+hardening. Historical ExecPlans remain under `.agent/plans/` as implementation
+evidence.
 
-Goal:
+### R29: Deployment Roles
 
-Make documentation and Web structure match the active product:
+Status: `complete-in-current-worktree`
 
-- update architecture, client, and release docs so they describe Web and
-  Windows as active runtime clients;
-- repair corrupted Mandarin docs;
-- align release evidence with current Alembic and route counts;
-- keep the home cockpit map-first and resource-pool-native;
-- extract focused Web components where the top-level app file is doing too
-  much.
+ExecPlan: `.agent/plans/V1_R29_DEPLOYMENT_ROLES_EXECPLAN.md`
 
-Acceptance:
+Delivered explicit Server, Client, and AllInOne roles, private-network preview
+enforcement, managed client API configuration, runtime containers, recurring
+public ingestion workers, and release packaging.
 
-- docs contract tests pass;
-- selected Mandarin docs are readable UTF-8 Chinese;
-- Web build passes;
-- browser smoke test shows Network and Data Sources without console errors.
+### R30: Optimization Correctness And Release Gate
 
-Latest delivered slice:
+Status: `complete-in-current-worktree`
 
-- executable walkthrough confirmed the active Web/Windows page model;
-- Market now uses a dedicated terminal component for major European gas hubs,
-  regional TTF spreads, observed-row sparklines, ECB FX, and price-source
-  posture without fabricating missing licensed prices.
-- Contracts now shows an API-backed upstream resource-contract library, can
-  load saved rows for edit/upsert, imports operator-owned JSON drafts into the
-  EFET-style form, and keeps backend save as the authority for resource-pool
-  inputs.
-- Settings now uses a dedicated trader preference center for local unit,
-  currency, price-basis, timezone, map-density, refresh-profile, service-access
-  posture, and backend-boundary guardrails without storing secrets client-side.
-- Network now renders a backend-derived resource-path overlay on the map,
-  connecting persisted resource delivery points to candidate sale targets with
-  quantity, capacity, route cost, sale price, margin, route state, and blockers.
-- Network fallback map labels are now budgeted to trader-priority objects:
-  active route endpoints, hubs, search matches, and named market points, so the
-  backup map remains readable when hundreds of assets are visible.
-- Glossary now uses a dedicated wiki surface with category navigation,
-  backend-served term definitions, aliases, related terms, source references,
-  and operational context from `/api/glossary/{term}/context`.
+ExecPlan: `.agent/plans/V1_R30_OPTIMIZATION_CORRECTNESS_EXECPLAN.md`
 
-## R23: Ingestion Scheduling And Source Health
+Delivered a correct residual-network natural-gas flow optimizer, explicit
+storage/nomination input validation, standard optimization API envelopes,
+optimizer coverage in all normal validation commands, and resilient Linux ARM
+release dependency installation.
+
+## R31: DB-Backed Portfolio Network Optimization
 
 Status: `pending`
 
-Goal:
+Goal: connect the validated shared-capacity model to persisted commercial and
+infrastructure facts without letting clients fabricate inputs.
 
-Productionize live ingestion operation without changing the client data
-boundary.
+Required work:
 
-Build:
-
-- scheduler/retry design for operator-controlled ingestion;
-- source freshness and failure diagnostics;
-- per-source run history and last-success/last-failure visibility;
-- no import-time network calls;
-- no browser-side provider calls.
+- compose upstream contracts/resources from PostgreSQL;
+- compose sale opportunities from PostgreSQL market observations;
+- join route topology, directional available capacity, TSO access, and tariff
+  validity by gas day/product;
+- allocate partial cheap-path capacity and re-evaluate remaining gas against
+  alternate routes and local/other-market sale options;
+- preserve source IDs, observation times, freshness, quality, assumptions,
+  blockers, and contract-level PnL attribution;
+- add API DTOs and SDK methods only after the DB composition contract is fixed;
+- keep all outputs trader-reviewed and non-executable.
 
 Acceptance:
 
-- public/keyed ingestion remains explicit and auditable;
-- failures surface in Source Center;
-- credentials remain backend-owned and write-only from clients.
+- no client-provided network geometry, tariff, or capacity is authoritative;
+- missing/stale/incompatible facts block or qualify optimization explicitly;
+- shared capacities and TSO access are enforced across the portfolio;
+- API, SDK, integration, optimization, and contract tests pass.
 
-## R24: Entitlement, Audit, And Export Governance Hardening
+## R32: Authentication, Entitlement, Audit, And Export Governance
 
 Status: `pending`
 
-Goal:
+Goal: make server deployments suitable for authenticated multi-user use.
 
-Make entitlement and export restrictions enforceable for commercial data,
-portfolio observations, analysis outputs, and reports.
+Required work:
 
-Build:
+- select and document the supported identity model;
+- enforce authorization on operator, credential, portfolio, report, and export
+  surfaces;
+- fail closed for unknown commercial-data entitlement;
+- expand audit coverage and retention controls;
+- remove the private-network-only limitation only after security acceptance.
 
-- fail-closed entitlement checks for unknown commercial datasets;
-- audit event coverage for operator imports and analysis/report generation;
-- export-disabled or restricted states in Review;
-- tests proving restricted data cannot be silently exposed.
-
-Acceptance:
-
-- unknown entitlement fails closed;
-- analysis/report outputs carry warnings, lineage, source references,
-  `research_only`, and `human_review_required`;
-- clients display restricted state without legal-advice language.
-
-## R25: Persisted Contract And Resource Pool Workflow
-
-Status: `in-progress`
-
-Goal:
-
-Move EFET-style contract capture from a UI draft shell toward persisted
-backend/API workflows while preserving the no-ETRM boundary.
-
-Build:
-
-- broaden backend contract/resource validation beyond the first save path;
-- explicit missing-input and assumptions model;
-- resource-pool persistence or import path beyond upstream resource terms;
-- contract-level PnL attribution drill-down;
-- UI workflow that stores through `/api`, never direct DB access.
-
-First slice delivered:
-
-- `POST /api/route-cost/upstream-contracts` persists EFET-style upstream
-  resource terms into `upstream_resource_contracts`;
-- Web Contracts page can save the draft through `/api` and refresh
-  `upstreamContracts` plus `resourcePoolOptions`.
-
-Acceptance:
-
-- no order entry or trade capture semantics;
-- contracts feed the resource pool;
-- home cockpit consumes persisted resources and sale options only.
-
-## R26: Cockpit Review And Warning Evidence
+## R33: Production Source Operations
 
 Status: `pending`
 
-Goal:
+Goal: productionize public and licensed ingestion scheduling, retries, alerts,
+freshness SLAs, and operator diagnostics without client-side provider calls.
 
-Improve trader review ergonomics: warning stack, blockers, source evidence,
-lineage, and route allocation drill-downs.
-
-Build:
-
-- compact evidence stack on Network;
-- full warning/assumption/source review on Review;
-- route blocker explanations with source/freshness;
-- browser QA across desktop and mobile.
-
-Acceptance:
-
-- warnings are visible before workflow execution;
-- route allocation and resource-pool recommendations remain human-review
-  decision support;
-- no execution language.
-
-## R27: Market Terminal Live Feed Hardening
+## R34: Network Flow, Storage, And Nomination Client Workflows
 
 Status: `pending`
 
-Goal:
-
-Move the Market terminal from source-aware display into a live-market operations
-surface after commercial feed credentials and entitlement are approved.
-
-Build:
-
-- provider-specific hub/product normalization for EEX, ICE OCM, Trayport,
-  Platts, ICIS, Argus, and Kpler;
-- backend spread calculations for TTF-relative and cross-region comparisons;
-- stale-data blocking and entitlement warnings in the Market terminal;
-- browser and desktop QA against real licensed feed rows.
-
-Acceptance:
-
-- no client-side provider calls or fabricated prices;
-- live or delayed state is sourced from backend diagnostics;
-- Market remains separated from order entry, order routing, and PnL records.
-
-## Deferred Production Work
-
-These areas remain deferred until explicitly selected:
-
-- company SSO/OIDC;
-- enterprise signing and deployment hardening;
-- broker/exchange live commercial connector validation;
-- LLM provider execution beyond gated backend operator control;
-- export/report governance beyond current restricted states.
+Goal: expose validated models only after R31-R33 provide DB-owned inputs,
+lineage, authorization, and operational reliability. Nomination remains
+assessment-only; no submission action is permitted.

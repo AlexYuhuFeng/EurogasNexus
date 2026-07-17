@@ -51,9 +51,15 @@ def test_route_optimization_endpoint() -> None:
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["status"] == "optimal"
-    assert payload["edge_ids"] == ["ab", "bc"]
-    assert payload["human_review_required"] is True
+    assert payload["data"]["status"] == "optimal"
+    assert payload["data"]["edge_ids"] == ["ab", "bc"]
+    assert payload["data"]["human_review_required"] is True
+    assert payload["meta"] == {
+        "research_only": True,
+        "human_review_required": True,
+        "source_references": ["operator-input"],
+        "warnings": [],
+    }
 
 
 def test_resource_pool_optimization_endpoint() -> None:
@@ -81,7 +87,7 @@ def test_resource_pool_optimization_endpoint() -> None:
     )
 
     assert response.status_code == 200
-    payload = response.json()
+    payload = response.json()["data"]
     assert payload["status"] == "optimal"
     assert payload["objective_value_gbp"] == 1040
     assert payload["unsold_volume_mwh"] == 20
@@ -107,7 +113,7 @@ def test_capacity_optimization_endpoint() -> None:
     )
 
     assert response.status_code == 200
-    payload = response.json()
+    payload = response.json()["data"]
     assert payload["selected_product_ids"] == ["medium", "monthly"]
     assert payload["total_cost_gbp"] == 240
 
@@ -130,7 +136,28 @@ def test_contract_optimization_endpoint() -> None:
     )
 
     assert response.status_code == 200
-    payload = response.json()
+    payload = response.json()["data"]
     assert payload["status"] == "optimal"
     assert payload["dispatches"][0]["quantity_mwh"] == 40
     assert payload["objective_value_gbp"] == 400
+
+
+def test_optimization_domain_validation_returns_structured_422() -> None:
+    response = _client().post(
+        "/api/optimization/resource-pool",
+        json={
+            "resources": [
+                {
+                    "resource_id": "invalid",
+                    "available_mwh": 10,
+                    "unit_cost_gbp_mwh": 20,
+                    "minimum_take_mwh": 8,
+                    "maximum_take_mwh": 5,
+                }
+            ],
+            "sale_options": [],
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "optimization_input_invalid"

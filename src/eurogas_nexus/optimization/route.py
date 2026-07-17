@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import heapq
+import math
 from collections import defaultdict
 
+from ._validation import validate_network_edges
 from .models import NetworkEdge, RouteResult
 
 
@@ -17,6 +19,11 @@ def find_min_cost_route(
 ) -> RouteResult:
     """Return the cheapest directed route satisfying capacity and TSO-access constraints."""
 
+    validate_network_edges(edges)
+    if not source.strip() or not target.strip():
+        raise ValueError("source and target must not be empty")
+    if not math.isfinite(required_capacity_mwh):
+        raise ValueError("required_capacity_mwh must be finite")
     if required_capacity_mwh < 0:
         raise ValueError("required_capacity_mwh must be non-negative")
     if source == target:

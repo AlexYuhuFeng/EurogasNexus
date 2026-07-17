@@ -1,5 +1,7 @@
 # Product Terminology Standard
 
+Chinese companion: [TERMINOLOGY-CN.md](TERMINOLOGY-CN.md)
+
 ## Canonical Product Positioning
 
 Eurogas Nexus is a European natural gas market intelligence, optimization, and decision-support platform.

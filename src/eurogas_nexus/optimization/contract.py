@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import math
+
+from ._validation import validate_supply_resources
 from .models import ContractDispatch, OptimizationResult, SupplyResource
 
 
@@ -17,11 +20,13 @@ def optimize_contract_dispatch(
     not selected.
     """
 
+    validate_supply_resources(resources)
+    if not math.isfinite(market_price_gbp_mwh):
+        raise ValueError("market_price_gbp_mwh must be finite")
+    if not math.isfinite(demand_limit_mwh):
+        raise ValueError("demand_limit_mwh must be finite")
     if demand_limit_mwh < 0:
         raise ValueError("demand_limit_mwh must be non-negative")
-    for resource in resources:
-        if resource.minimum_take_mwh > resource.effective_maximum_mwh:
-            raise ValueError(f"minimum take exceeds maximum for {resource.resource_id}")
 
     remaining_demand = demand_limit_mwh
     dispatch_quantities = {resource.resource_id: 0.0 for resource in resources}

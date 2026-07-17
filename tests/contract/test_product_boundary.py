@@ -83,10 +83,13 @@ def test_api_import_does_not_load_database_layer() -> None:
     assert result.stdout.splitlines() == ["True", "False", "False"]
 
 
-def test_agent_instructions_capture_research_only_boundary() -> None:
+def test_agent_instructions_capture_decision_support_boundary() -> None:
     instructions = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
 
-    assert "research-only" in instructions
+    assert "market-intelligence, optimization, and" in instructions
+    assert "human_review_required" in instructions
+    assert "`meta.research_only` remains only" in instructions
+    assert "Do not reintroduce `/v1` or `/api/v1` aliases" in instructions
     assert "PostgreSQL is the runtime source of truth" in instructions
     assert "SDK and CLI code must call the backend API" in instructions
     assert ".agent/plans/" in instructions

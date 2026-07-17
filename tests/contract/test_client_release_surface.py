@@ -157,6 +157,8 @@ def test_ci_builds_web_windows_and_linux_clients() -> None:
     assert "ubuntu-latest" in workflow
     assert "ubuntu-24.04-arm" in workflow
     assert "linux-arm64" in workflow
+    assert "if: github.event_name == 'pull_request'" in workflow
+    assert "bash scripts/ci/install_linux_tauri_dependencies.sh" in workflow
 
     assert "--bundles ${{ matrix.bundle }}" in workflow
 
@@ -1381,9 +1383,16 @@ def test_release_workflow_publishes_web_windows_and_linux_assets() -> None:
     assert "*.exe" in workflow
     assert "*.deb" in workflow
     assert (
-        "pytest -q tests/api tests/contract tests/integration tests/ingestion tests/unit tests/sdk "
-        "tests/cli tests/release tests/security"
+        "pytest -q tests/api tests/contract tests/integration tests/ingestion tests/unit "
+        "tests/optimization tests/sdk tests/cli tests/release tests/security"
     ) in workflow
+    linux_dependencies = (
+        ROOT / "scripts" / "ci" / "install_linux_tauri_dependencies.sh"
+    ).read_text(encoding="utf-8")
+    assert "MAX_ATTEMPTS=4" in linux_dependencies
+    assert "Acquire::Retries=3" in linux_dependencies
+    assert "https://ports.ubuntu.com" in linux_dependencies
+    assert "bash scripts/ci/install_linux_tauri_dependencies.sh" in workflow
     build_ps1 = (ROOT / "scripts" / "release" / "build_release.ps1").read_text(encoding="utf-8")
     assert "npm --prefix $WebDir run build" in build_ps1
     assert "npm --prefix $DesktopDir run build -- --bundles $Bundle" in build_ps1
