@@ -13,6 +13,11 @@ from eurogas_nexus.db.models.analysis import (
     GeneratedReportRecord,
 )
 from eurogas_nexus.db.models.glossary import GlossaryTermRecord
+from eurogas_nexus.db.models.market_intelligence import (
+    CompanyTsoAccessRecord,
+    IntradayOpportunityRecord,
+    MarketQuoteRecord,
+)
 from eurogas_nexus.db.models.market_positioning import (
     PortfolioPnlSnapshotRecord,
     ScreenOrderObservationRecord,
@@ -72,6 +77,7 @@ __all__ = [
     "AnalysisRunRecord",
     "BusinessOntologyRecord",
     "CapacityObservationRecord",
+    "CompanyTsoAccessRecord",
     "EntitlementDecisionRecord",
     "FlowObservationRecord",
     "FxObservationRecord",
@@ -79,10 +85,12 @@ __all__ = [
     "GeneratedReportRecord",
     "IngestionRunRecord",
     "IngestionRunStatus",
+    "IntradayOpportunityRecord",
     "LngObservationRecord",
     "CapacityProfileRecord",
     "LiveMarketMarkRecord",
     "MarketObservationRecord",
+    "MarketQuoteRecord",
     "NodeFacilityMapping",
     "PortfolioPnlSnapshotRecord",
     "ProviderCredentialRecord",

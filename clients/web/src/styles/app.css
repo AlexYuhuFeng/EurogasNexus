@@ -725,6 +725,243 @@ input {
   margin-top: 12px;
 }
 
+/* R31 intraday decision feed: backend-owned quote and opportunity snapshots. */
+.intraday-decision-feed {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.intraday-feed-heading h3 {
+  margin: 2px 0 0;
+  font-size: 17px;
+}
+
+.intraday-feed-counter {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-style: normal;
+  white-space: nowrap;
+}
+
+.intraday-feed-counter.active {
+  border-color: rgba(21, 149, 105, 0.55);
+  color: #087a51;
+  background: rgba(21, 149, 105, 0.08);
+}
+
+.intraday-opportunity-list {
+  display: grid;
+  gap: 8px;
+}
+
+.intraday-opportunity {
+  border: 1px solid var(--border);
+  border-left: 3px solid #7b8794;
+  border-radius: 6px;
+  background: var(--eg-canvas, var(--surface));
+  overflow: hidden;
+}
+
+.intraday-opportunity.status-actionable_review {
+  border-left-color: #159569;
+  background: rgba(21, 149, 105, 0.045);
+}
+
+.intraday-opportunity.status-blocked {
+  border-left-color: #c44949;
+  background: rgba(196, 73, 73, 0.04);
+}
+
+.intraday-opportunity.status-expired {
+  border-left-color: #7d8792;
+  background: rgba(125, 135, 146, 0.05);
+}
+
+.intraday-opportunity summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  min-height: 58px;
+  padding: 9px 11px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.intraday-opportunity summary::-webkit-details-marker {
+  display: none;
+}
+
+.intraday-route-label,
+.intraday-margin-label {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.intraday-route-label small,
+.intraday-evidence-line,
+.intraday-opportunity p,
+.intraday-empty-state span,
+.intraday-feed-footer {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.intraday-route-label strong {
+  overflow-wrap: anywhere;
+  font-size: 14px;
+}
+
+.intraday-margin-label {
+  text-align: right;
+}
+
+.intraday-margin-label em {
+  color: var(--muted);
+  font-size: 11px;
+  font-style: normal;
+  text-transform: uppercase;
+}
+
+.status-actionable_review .intraday-margin-label em,
+.status-actionable_review .intraday-margin-label strong {
+  color: #087a51;
+}
+
+.status-blocked .intraday-margin-label em {
+  color: #b23737;
+}
+
+.status-expired .intraday-margin-label em,
+.status-expired .intraday-margin-label strong {
+  color: #68737d;
+}
+
+.intraday-economics-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  margin: 0 10px;
+  border: 1px solid var(--border);
+  background: var(--border);
+}
+
+.intraday-economics-grid > span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 8px;
+  background: var(--eg-canvas, var(--surface));
+}
+
+.intraday-economics-grid small {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.intraday-economics-grid strong {
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+
+.intraday-evidence-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 12px;
+  padding: 9px 11px 3px;
+}
+
+.intraday-evidence-line strong {
+  color: #9a6200;
+}
+
+.intraday-warning-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 7px 11px;
+}
+
+.intraday-warning-list span {
+  border: 1px solid rgba(196, 73, 73, 0.3);
+  border-radius: 4px;
+  padding: 3px 5px;
+  color: #9f3333;
+  font-size: 10px;
+  overflow-wrap: anywhere;
+}
+
+.intraday-opportunity p {
+  margin: 4px 11px 10px;
+  line-height: 1.45;
+}
+
+.intraday-empty-state {
+  display: grid;
+  gap: 4px;
+  border: 1px dashed var(--border);
+  padding: 12px;
+}
+
+.intraday-feed-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.intraday-feed-footer strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.intraday-home-panel .intraday-opportunity summary {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.intraday-home-panel .intraday-margin-label {
+  grid-template-columns: 1fr auto;
+  text-align: left;
+}
+
+.intraday-home-panel .intraday-economics-grid,
+.intraday-home-panel .intraday-evidence-line,
+.intraday-home-panel .intraday-warning-list,
+.intraday-home-panel .intraday-opportunity p {
+  display: none;
+}
+
+.market-price-ticker {
+  transition: background-color 160ms ease, border-color 160ms ease;
+}
+
+.market-price-ticker.is-live {
+  animation: market-tick-update 420ms ease-out;
+}
+
+@keyframes market-tick-update {
+  0% { background: rgba(21, 149, 105, 0.16); }
+  100% { background: var(--eg-canvas, var(--surface)); }
+}
+
+@media (max-width: 900px) {
+  .intraday-economics-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .intraday-opportunity summary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .intraday-margin-label {
+    text-align: left;
+  }
+}
+
 .settings-backend-panel {
   display: grid;
   gap: 12px;

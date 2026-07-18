@@ -26,9 +26,9 @@ SIMULATED_MARKET_PRICE_SOURCE_SYSTEMS = (
     "ICIS_Sim",
 )
 DEFAULT_SIMULATED_MARKET_PRICE_INTERVALS_SECONDS = {
-    "ICE_OCM_Sim": 15,
-    "Trayport_Sim": 15,
-    "EEX_Sim": 15,
+    "ICE_OCM_Sim": 10,
+    "Trayport_Sim": 10,
+    "EEX_Sim": 10,
     "ICIS_Sim": 86_400,
 }
 
@@ -96,6 +96,37 @@ def generate_simulated_market_observations(
     return sorted(rows, key=lambda row: row["observation_id"])
 
 
+def generate_simulated_market_quotes(
+    *,
+    observed_at_utc: datetime | None = None,
+    source_systems: Iterable[str] | None = None,
+) -> list[dict[str, Any]]:
+    """Generate provider-shaped L1 bid/ask ticks for the normalized quote table."""
+
+    observed_at = _as_utc(observed_at_utc or datetime.now(UTC))
+    requested_sources = _normalise_source_systems(source_systems)
+    rows: list[dict[str, Any]] = []
+    for hub in HUB_PRICE_BASE_EUR_MWH:
+        if "EEX_Sim" in requested_sources:
+            for tenor in ("day-ahead", "weekend", "month-ahead"):
+                rows.append(_simulated_quote_row("EEX_Sim", "EEX", hub, tenor, observed_at))
+        if "Trayport_Sim" in requested_sources:
+            for tenor in ("within-day", "day-ahead"):
+                rows.append(
+                    _simulated_quote_row(
+                        "Trayport_Sim", "Trayport", hub, tenor, observed_at
+                    )
+                )
+    if "ICE_OCM_Sim" in requested_sources:
+        for tenor in ("within-day", "day-ahead"):
+            rows.append(
+                _simulated_quote_row(
+                    "ICE_OCM_Sim", "ICE OCM", "NBP", tenor, observed_at
+                )
+            )
+    return sorted(rows, key=lambda row: row["quote_id"])
+
+
 def upsert_simulated_market_observations(
     session: Session,
     *,
@@ -111,6 +142,17 @@ def upsert_simulated_market_observations(
     )
     for row in rows:
         session.merge(MarketObservationRecord(**row))
+
+    from eurogas_nexus.db.repositories.market_intelligence import (
+        scan_and_persist_intraday_opportunities,
+        upsert_market_quotes,
+    )
+
+    quote_rows = generate_simulated_market_quotes(
+        observed_at_utc=observed_at,
+        source_systems=source_systems,
+    )
+    upsert_market_quotes(session, quote_rows)
 
     counts = Counter(row["source_system"] for row in rows)
     bucket = _tick_bucket(observed_at)
@@ -129,9 +171,15 @@ def upsert_simulated_market_observations(
             )
         )
     session.flush()
+    scan_summary = scan_and_persist_intraday_opportunities(
+        session,
+        detected_at_utc=observed_at,
+    )
     return {
         "rows_upserted": len(rows),
+        "quotes_upserted": len(quote_rows),
         "source_counts": dict(sorted(counts.items())),
+        "opportunity_scan": scan_summary,
         "observed_at_utc": observed_at.isoformat(),
     }
 
@@ -351,6 +399,76 @@ def _market_row(
     }
 
 
+def _simulated_quote_row(
+    source_system: str,
+    venue: str,
+    hub: str,
+    tenor: str,
+    observed_at: datetime,
+) -> dict[str, Any]:
+    source_bias = {
+        "EEX_Sim": 0.08,
+        "ICE_OCM_Sim": 0.18,
+        "Trayport_Sim": 0.12,
+    }[source_system]
+    mid = _simulated_price(hub, tenor, observed_at, source_bias=source_bias)
+    half_spread = {
+        "EEX_Sim": 0.025,
+        "ICE_OCM_Sim": 0.04,
+        "Trayport_Sim": 0.035,
+    }[source_system]
+    period_start, period_end = _period_for_tenor(tenor, observed_at)
+    quantity_wave = 400 * (
+        1 + math.sin((observed_at.second / 60) * math.tau + len(hub))
+    )
+    bid_quantity = round(700 + quantity_wave + len(hub) * 45, 2)
+    ask_quantity = round(760 + quantity_wave + len(tenor) * 28, 2)
+    bucket = _tick_bucket(observed_at)
+    source_slug = source_system.lower().replace("_", "-")
+    instrument_id = f"{venue.upper().replace(' ', '-')}-{hub}-{tenor}"[:128]
+    quote_id = f"sim-quote-{source_slug}-{hub.lower()}-{tenor}-{bucket}"[:128]
+    source_reference = f"sim:{source_system}:{hub}:{tenor}:{bucket}"
+    return {
+        "quote_id": quote_id,
+        "source_system": source_system,
+        "source_record_id": f"{instrument_id}-{bucket}"[:128],
+        "venue": venue,
+        "instrument_id": instrument_id,
+        "hub": hub,
+        "product": tenor,
+        "delivery_start_utc": period_start,
+        "delivery_end_utc": period_end,
+        "bid_price": round(mid - half_spread, 4),
+        "ask_price": round(mid + half_spread, 4),
+        "last_price": round(mid, 4),
+        "bid_quantity_mwh": bid_quantity,
+        "ask_quantity_mwh": ask_quantity,
+        "currency": "EUR",
+        "unit": "MWh",
+        "observed_at_utc": observed_at,
+        "received_at_utc": observed_at,
+        "source_reference": source_reference,
+        "freshness": "simulated_live",
+        "quality_score": {
+            "EEX_Sim": 0.62,
+            "ICE_OCM_Sim": 0.58,
+            "Trayport_Sim": 0.57,
+        }[source_system],
+        "simulated": True,
+        "metadata_json": {
+            "source_family": source_system.removesuffix("_Sim"),
+            "simulator_version": SIMULATOR_VERSION,
+            "tick_bucket": bucket,
+            "update_interval_seconds": (
+                DEFAULT_SIMULATED_MARKET_PRICE_INTERVALS_SECONDS[source_system]
+            ),
+            "official_entitlement_required": True,
+            "data_contract_shape": "market_quotes",
+            "price_level": "L1",
+        },
+    }
+
+
 def _simulated_price(
     hub: str,
     tenor: str,
@@ -360,7 +478,8 @@ def _simulated_price(
 ) -> float:
     base = HUB_PRICE_BASE_EUR_MWH[hub] + TENOR_PRICE_OFFSETS[tenor] + source_bias
     minutes = observed_at.hour * 60 + observed_at.minute
-    intraday_wave = math.sin((minutes / 1440) * math.tau) * 0.34
+    hub_phase = (sum(ord(character) for character in hub) % 17) / 17 * math.tau
+    intraday_wave = math.sin((minutes / 1440) * math.tau + hub_phase) * 0.34
     weekly_wave = math.sin((observed_at.toordinal() % 7) / 7 * math.tau) * 0.22
     month_curve = 0.18 if tenor == "month-ahead" else 0.0
     return max(base + intraday_wave + weekly_wave + month_curve, 0.01)

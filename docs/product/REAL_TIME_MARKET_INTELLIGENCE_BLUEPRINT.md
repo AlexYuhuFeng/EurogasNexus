@@ -10,6 +10,12 @@ It is implementation guidance for backend, SDK, web, and Windows milestones.
 It does not authorize unmanaged live connector calls, credential leakage, or
 automated trading.
 
+Implemented R30B baseline: normalized L1 quotes, company TSO access, persisted
+route-adjusted intraday opportunities, API/SDK reads, explicit expiry, and a
+10-second Network/Market client refresh are defined in
+`INTRADAY_DECISION_FEED-EN.md` and `INTRADAY_DECISION_FEED-CN.md`. Portfolio-wide
+shared-capacity allocation remains R31 work.
+
 ## Product Intent
 
 Eurogas Nexus should help a human gas trader see where European gas market

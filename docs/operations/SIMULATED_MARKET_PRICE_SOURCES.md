@@ -4,8 +4,10 @@
 
 Before licensed EEX, ICE OCM, ICIS, broker, and Trayport subscriptions are
 configured, Eurogas Nexus can inject simulated market prices into the runtime
-database. The simulator uses the same normalized `market_observations` table and
-`ingestion_runs` status path as real source connectors.
+database. The simulator uses the same normalized `market_observations`,
+`market_quotes`, and `ingestion_runs` paths as real source connectors. Each
+L1 quote tick also triggers the backend opportunity scan, whose result is
+persisted in `intraday_opportunities`.
 
 This is intentionally different from static demo data:
 
@@ -36,9 +38,9 @@ separate SQLite simulator database for normal project validation; the point of
 the simulator is to exercise the same PostgreSQL ingestion path that real
 connectors will use. Default cadence:
 
-- `ICE_OCM_Sim`: every 15 seconds for within-day and day-ahead screen marks;
-- `Trayport_Sim`: every 15 seconds for multi-hub within-day and day-ahead broker-screen marks;
-- `EEX_Sim`: every 15 seconds for spot/curve marks;
+- `ICE_OCM_Sim`: every 10 seconds for within-day and day-ahead screen marks;
+- `Trayport_Sim`: every 10 seconds for multi-hub within-day and day-ahead broker-screen marks;
+- `EEX_Sim`: every 10 seconds for spot/curve marks;
 - `ICIS_Sim`: every 86,400 seconds for daily day-ahead assessments.
 
 The cadence is a configurable simulation of market-data behavior. It preserves
@@ -51,7 +53,8 @@ PostgreSQL directly. This lets the simulated worker exercise the same runtime
 loop expected from licensed EEX, ICE OCM, ICIS, broker, or Trayport connectors:
 
 ```text
-simulated source adapter -> PostgreSQL -> /api/market + /api/sources -> SDK/clients
+simulated adapter -> PostgreSQL quotes -> backend scan -> PostgreSQL opportunities
+  -> /api/market + /api/sources -> SDK/clients
 ```
 
 The Market terminal must keep simulated rows visibly labeled and must show
@@ -86,7 +89,11 @@ Each due tick writes:
 - ICIS Heren-shaped daily day-ahead assessments for the major hubs.
 
 Each tick also writes succeeded `ingestion_runs` records so the Source Center can
-show live-record counts, latest run status, and worker freshness.
+show live-record counts, latest run status, and worker freshness. The Network,
+Market, and Strategy workspaces poll quotes and persisted opportunities every 10
+seconds. When a snapshot passes its validity time without a replacement, the API
+returns it as `EXPIRED`; the client does not keep presenting a stale actionable
+candidate.
 
 ## Source Center Semantics
 

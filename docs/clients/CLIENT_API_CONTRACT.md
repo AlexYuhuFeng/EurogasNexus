@@ -106,7 +106,9 @@ both bootstrap and full-envelope responses during transition.
 | `GET /api/capacity/contracts` | capacity/contract context | planned |
 | `GET /api/market/observations` | DB-backed gas price, assessment, index, FX-like observation rows | active |
 | `GET /api/market/fx` | DB-backed ECB FX reference rows | active |
-| `GET /api/market/spreads` | sourced market spread calculations | active-empty |
+| `GET /api/market/quotes` | normalized DB-backed L1 bid/ask/depth quotes | active |
+| `GET /api/market/opportunities` | persisted route-adjusted intraday candidates, blockers, lineage, and expiry | active |
+| `GET /api/market/spreads` | compatibility summary derived from persisted opportunities | active |
 | `GET /api/market/signals` | market movement signals | planned |
 | `GET /api/weather/signals` | HDD/CDD and demand-pressure signals | planned |
 | `POST /api/research/shadow-run` | legacy workflow shell | active |

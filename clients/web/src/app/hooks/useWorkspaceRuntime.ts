@@ -2,7 +2,12 @@ import { useEffect } from "react";
 import { hydrateApiBaseUrlFromDesktopDeployment } from "@/api/client";
 import type { WorkspacePageId } from "@/workspaceNavigation";
 
-export const MARKET_REFRESH_INTERVAL_MS = 15_000;
+export const MARKET_REFRESH_INTERVAL_MS = 10_000;
+const LIVE_MARKET_WORKSPACES = new Set<WorkspacePageId>([
+  "network",
+  "market",
+  "strategy",
+]);
 
 interface WorkspaceRuntimeParams {
   activeWorkspace: WorkspacePageId;
@@ -26,7 +31,7 @@ export function useWorkspaceRuntime({
   }, [fetchWorkspace]);
 
   useEffect(() => {
-    if (activeWorkspace !== "market") return;
+    if (!LIVE_MARKET_WORKSPACES.has(activeWorkspace)) return;
     void refreshMarketData();
     const intervalId = window.setInterval(() => {
       void refreshMarketData();

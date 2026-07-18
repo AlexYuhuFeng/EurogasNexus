@@ -33,6 +33,9 @@ for:
   terminals, storage facilities, and balancing zones;
 - DB-backed source monitoring for public and licensed providers;
 - live or near-live market observations when customer access rights allow;
+- DB-backed 10-second intraday quote refresh and route-adjusted spread
+  candidates using executable bid/ask sides, visible depth, capacity, tariffs,
+  FX, and company TSO access;
 - route feasibility and route-cost comparison using capacity, tariff, access,
   and resource-term constraints;
 - resource-pool-native portfolio optimization for physical gas, virtual hub
@@ -75,6 +78,8 @@ Authoritative UI contracts:
 - [`docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-CN.md`](docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-CN.md)
 - [`docs/clients/UI_UX_STYLE_GUIDE-EN.md`](docs/clients/UI_UX_STYLE_GUIDE-EN.md)
 - [`docs/clients/UI_UX_STYLE_GUIDE-CN.md`](docs/clients/UI_UX_STYLE_GUIDE-CN.md)
+- [`docs/product/INTRADAY_DECISION_FEED-EN.md`](docs/product/INTRADAY_DECISION_FEED-EN.md)
+- [`docs/product/INTRADAY_DECISION_FEED-CN.md`](docs/product/INTRADAY_DECISION_FEED-CN.md)
 
 ## Architecture
 

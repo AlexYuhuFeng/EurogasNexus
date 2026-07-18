@@ -1,6 +1,7 @@
 import type { ComponentProps } from "react";
 import type {
   EdgeDTO,
+  IntradayOpportunityDTO,
   NodeDTO,
   PortfolioLiveSummaryDTO,
   PortfolioOptimizationResultDTO,
@@ -16,6 +17,7 @@ import {
   type NetworkGeometryState,
 } from "@/app/workspaceDerivedData";
 import { GasNetworkMap } from "@/components/GasNetworkMap";
+import { IntradayDecisionFeed } from "@/components/IntradayDecisionFeed";
 import {
   ResourcePoolPathOverlay,
   type ResourcePoolMapPath,
@@ -79,6 +81,7 @@ interface NetworkWorkspaceProps {
   gasDay: string;
   deliveryProduct: string;
   marketLastUpdatedAtUtc: string | null;
+  intradayOpportunities: IntradayOpportunityDTO[];
   sourceStats: SourceStats;
   onResetSearch: () => void;
   onToggleLayer: (layer: string) => void;
@@ -144,6 +147,7 @@ export function NetworkWorkspace({
   gasDay,
   deliveryProduct,
   marketLastUpdatedAtUtc,
+  intradayOpportunities,
   sourceStats,
   onResetSearch,
   onToggleLayer,
@@ -319,6 +323,14 @@ export function NetworkWorkspace({
       </aside>
 
       <aside className="decision-rail">
+        <div className="panel intraday-home-panel">
+          <IntradayDecisionFeed
+            opportunities={intradayOpportunities}
+            lastUpdatedAtUtc={marketLastUpdatedAtUtc}
+            t={t}
+            compact
+          />
+        </div>
         <div className="panel trade-result-panel">
           <div className="panel-title-row">
             <div>

@@ -41,6 +41,12 @@ blueprint or completed ExecPlan as an instruction to implement it again.
 - [Deployment roles CN](deployment/DEPLOYMENT_ROLES-CN.md)
 - [Release readiness](release/RELEASE_READINESS.md)
 
+## Product capabilities
+
+- [Intraday decision feed EN](product/INTRADAY_DECISION_FEED-EN.md)
+- [Intraday decision feed CN](product/INTRADAY_DECISION_FEED-CN.md)
+- [Real-time market intelligence blueprint](product/REAL_TIME_MARKET_INTELLIGENCE_BLUEPRINT.md)
+
 ## Document status rule
 
 - `contracts/`, current architecture policies, and current operations guides

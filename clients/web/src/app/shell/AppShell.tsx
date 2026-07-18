@@ -80,6 +80,7 @@ export function AppShell({ controller }: AppShellProps) {
           gasDay={controls.gasDay}
           deliveryProduct={controls.deliveryProduct}
           marketLastUpdatedAtUtc={api.marketLastUpdatedAtUtc}
+          intradayOpportunities={api.intradayOpportunities}
           sourceStats={sources.sourceStats}
           onResetSearch={() => controls.setSearchTerm("")}
           onToggleLayer={controls.toggleLayer}

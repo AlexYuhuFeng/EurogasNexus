@@ -1,10 +1,19 @@
 import { useMemo, useState } from "react";
-import type { FxRateDTO, MarketObsDTO, SourceSystemDTO } from "@/api/client";
+import type {
+  FxRateDTO,
+  IntradayOpportunityDTO,
+  MarketObsDTO,
+  MarketQuoteDTO,
+  SourceSystemDTO,
+} from "@/api/client";
+import { IntradayDecisionFeed } from "@/components/IntradayDecisionFeed";
 
 type Translate = (key: string) => string;
 
 interface MarketTerminalProps {
   markets: MarketObsDTO[];
+  marketQuotes: MarketQuoteDTO[];
+  intradayOpportunities: IntradayOpportunityDTO[];
   fxRates: FxRateDTO[];
   sources: SourceSystemDTO[];
   lastUpdatedAtUtc: string | null;
@@ -187,6 +196,8 @@ function MarketSparkline({ rows }: { rows: MarketObsDTO[] }) {
 
 export function MarketTerminal({
   markets,
+  marketQuotes,
+  intradayOpportunities,
   fxRates,
   sources,
   lastUpdatedAtUtc,
@@ -194,6 +205,17 @@ export function MarketTerminal({
   t,
 }: MarketTerminalProps) {
   const [activeTenor, setActiveTenor] = useState("day-ahead");
+
+  const latestQuoteByHubTenor = useMemo(() => {
+    const result = new Map<string, MarketQuoteDTO>();
+    [...marketQuotes]
+      .sort((left, right) => right.observed_at_utc.localeCompare(left.observed_at_utc))
+      .forEach((quote) => {
+        const key = `${quote.hub.toUpperCase()}:${quote.product.toLowerCase()}`;
+        if (!result.has(key)) result.set(key, quote);
+      });
+    return result;
+  }, [marketQuotes]);
 
   const groupedByTenor = useMemo(() => {
     const grouped = new Map<string, MarketObsDTO[]>();
@@ -337,21 +359,27 @@ export function MarketTerminal({
           ))}
         </div>
         <div className="market-terminal-strip" aria-label={t("market.terminal")}>
-          {priceRowsForStrip.map((row) => (
+          {priceRowsForStrip.map((row) => {
+            const quote = latestQuoteByHubTenor.get(`${row.hub}:${row.tenor}`);
+            return (
             <div
-              key={`ticker-${row.hub}-${row.tenor}`}
+              key={`ticker-${row.hub}-${row.tenor}-${quote?.observed_at_utc ?? "no-quote"}`}
               className={`market-price-ticker ${row.latest ? "is-live" : "is-waiting"}`}
             >
               <span>{row.hub}</span>
-              <strong>{formatPrice(row.latest)}</strong>
+              <strong>
+                {quote
+                  ? `${formatPriceValue(quote.bid_price)} / ${formatPriceValue(quote.ask_price)}`
+                  : formatPrice(row.latest)}
+              </strong>
               <small>
-                {row.tenor} / {row.latest?.freshness ?? t("market.awaiting_feed")}
+                {quote ? "Bid / Ask" : row.tenor} / {quote?.freshness ?? row.latest?.freshness ?? t("market.awaiting_feed")}
               </small>
-              <em className={`market-source-pill ${row.simulated ? "simulated" : ""}`}>
-                {row.simulated ? t("market.simulated_source") : row.sourceLabel}
+              <em className={`market-source-pill ${quote?.simulated || row.simulated ? "simulated" : ""}`}>
+                {quote?.simulated || row.simulated ? t("market.simulated_source") : quote?.source_system ?? row.sourceLabel}
               </em>
             </div>
-          ))}
+          );})}
         </div>
         <div className="market-curve-lanes">
           {curveLanes.map((lane) => (
@@ -396,6 +424,14 @@ export function MarketTerminal({
             </div>
           )}
         </div>
+      </div>
+
+      <div className="workspace-panel span-3 market-opportunity-panel">
+        <IntradayDecisionFeed
+          opportunities={intradayOpportunities}
+          lastUpdatedAtUtc={lastUpdatedAtUtc}
+          t={t}
+        />
       </div>
 
       <div className="workspace-panel span-2">
@@ -477,4 +513,8 @@ export function MarketTerminal({
       </div>
     </div>
   );
+}
+
+function formatPriceValue(value: number | null | undefined): string {
+  return value == null || !Number.isFinite(value) ? "n/a" : value.toFixed(3);
 }

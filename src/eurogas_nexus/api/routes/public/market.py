@@ -1,6 +1,6 @@
 ﻿"""Read-only /api/market routes."""
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 
 router = APIRouter(tags=["market"])
 
@@ -31,13 +31,99 @@ def list_fx(request: Request) -> dict:
     )
 
 
+@router.get("/api/market/quotes")
+def list_quotes(
+    request: Request,
+    hub: str | None = None,
+    product: str | None = None,
+    source_system: str | None = None,
+    limit: int = Query(default=500, ge=1, le=2000),
+) -> dict:
+    """Return normalized L1 quotes from the runtime DB."""
+
+    if not _db_is_configured():
+        return _env(
+            [],
+            source="runtime-db-not-configured",
+            warnings=["Runtime DB is not configured; market quotes are unavailable."],
+        )
+    sqlalchemy_error = _sqlalchemy_error_type()
+    try:
+        from eurogas_nexus.db.repositories.market_intelligence import list_market_quotes
+        from eurogas_nexus.db.session import get_session_factory
+
+        with get_session_factory()() as session:
+            rows = list_market_quotes(
+                session,
+                hub=hub,
+                product=product,
+                source_system=source_system,
+                limit=limit,
+            )
+        return _env(rows, source="runtime-postgresql")
+    except sqlalchemy_error as exc:
+        raise _db_unavailable(exc) from exc
+
+
+@router.get("/api/market/opportunities")
+def list_opportunities(
+    request: Request,
+    status: str | None = None,
+    limit: int = Query(default=100, ge=1, le=500),
+) -> dict:
+    """Return backend-calculated intraday decision snapshots."""
+
+    if not _db_is_configured():
+        return _env(
+            [],
+            source="runtime-db-not-configured",
+            warnings=["Runtime DB is not configured; intraday opportunities are unavailable."],
+        )
+    sqlalchemy_error = _sqlalchemy_error_type()
+    try:
+        from eurogas_nexus.db.repositories.market_intelligence import (
+            list_intraday_opportunities,
+        )
+        from eurogas_nexus.db.session import get_session_factory
+
+        with get_session_factory()() as session:
+            rows = list_intraday_opportunities(session, status=status, limit=limit)
+        return _env(rows, source="runtime-postgresql")
+    except sqlalchemy_error as exc:
+        raise _db_unavailable(exc) from exc
+
+
 @router.get("/api/market/spreads")
 def list_spreads(request: Request) -> dict:
-    return _env(
-        [],
-        source="runtime-db-not-configured",
-        warnings=["Spread calculation requires sourced prices in runtime DB."],
-    )
+    if not _db_is_configured():
+        return _env(
+            [],
+            source="runtime-db-not-configured",
+            warnings=["Spread calculation requires sourced prices in runtime DB."],
+        )
+    sqlalchemy_error = _sqlalchemy_error_type()
+    try:
+        from eurogas_nexus.db.repositories.market_intelligence import (
+            list_intraday_opportunities,
+        )
+        from eurogas_nexus.db.session import get_session_factory
+
+        with get_session_factory()() as session:
+            opportunities = list_intraday_opportunities(session, limit=100)
+        rows = [
+            {
+                "spread_id": row["opportunity_id"],
+                "name": f"{row['buy_hub']} -> {row['sell_hub']} {row['product']}",
+                "from_venue": row["buy_venue"],
+                "to_venue": row["sell_venue"],
+                "spread_eur_mwh": row["gross_spread"],
+                "period": row["product"],
+            }
+            for row in opportunities
+        ]
+        return _env(rows, source="runtime-postgresql")
+    except sqlalchemy_error as exc:
+        raise _db_unavailable(exc) from exc
 
 
 def _db_market_observations() -> list[dict] | None:

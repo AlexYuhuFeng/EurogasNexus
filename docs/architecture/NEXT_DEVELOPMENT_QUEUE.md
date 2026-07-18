@@ -13,7 +13,7 @@ visible client feature.
 
 Status: `complete-in-current-worktree`
 
-- PostgreSQL/Alembic runtime through `0013_gie_lng_dtmi_energy`.
+- PostgreSQL/Alembic schema through `0014_intraday_decision_feed`.
 - Stable public `/api`; profile-gated `/api/internal` and `/api/dev`.
 - Python SDK and CLI.
 - React/Vite Web workspace and Tauri Windows/Linux desktop clients.
@@ -66,6 +66,19 @@ Reduced `App.tsx` to a composition root and established explicit hook, model,
 shell, and workspace-renderer ownership. Updated owner-based contract tests and
 added bilingual implementation documentation. This maintenance increment does
 not replace or alter the pending R31 DB-backed optimization scope.
+
+### R30B: Intraday Decision Feed
+
+Status: `complete-in-current-worktree`
+
+ExecPlan: `.agent/plans/V1_R30B_INTRADAY_DECISION_FEED_EXECPLAN.md`
+
+Delivered normalized L1 quote and company TSO-access tables, backend-owned
+route-adjusted opportunity scanning, immutable decision snapshots, explicit
+expiry behavior, stable API and SDK reads, 10-second client refresh, and a
+compact Network/Market decision feed. Simulated providers use the same database
+contract as future licensed adapters. This route-level feed does not replace
+the pending R31 portfolio allocation scope.
 
 ## R31: DB-Backed Portfolio Network Optimization
 

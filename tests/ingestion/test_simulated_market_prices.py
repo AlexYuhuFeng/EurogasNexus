@@ -7,15 +7,42 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from eurogas_nexus.db.base import Base
-from eurogas_nexus.db.models import IngestionRunRecord, MarketObservationRecord
+from eurogas_nexus.db.models import (
+    IngestionRunRecord,
+    MarketObservationRecord,
+    MarketQuoteRecord,
+)
 from eurogas_nexus.ingestion.simulated_market_prices import (
     DEFAULT_SIMULATED_MARKET_PRICE_INTERVALS_SECONDS,
     SIMULATED_MARKET_PRICE_SOURCE_SYSTEMS,
     due_simulated_market_price_sources,
     generate_simulated_market_observations,
+    generate_simulated_market_quotes,
     run_simulated_market_price_loop,
     upsert_simulated_market_observations,
 )
+
+
+def test_simulated_market_quotes_match_licensed_connector_shape() -> None:
+    observed_at = datetime(2026, 7, 1, 10, 15, tzinfo=UTC)
+
+    rows = generate_simulated_market_quotes(observed_at_utc=observed_at)
+
+    eex_ttf = next(
+        row
+        for row in rows
+        if row["source_system"] == "EEX_Sim"
+        and row["hub"] == "TTF"
+        and row["product"] == "day-ahead"
+    )
+    assert eex_ttf["bid_price"] < eex_ttf["ask_price"]
+    assert eex_ttf["bid_quantity_mwh"] > 0
+    assert eex_ttf["ask_quantity_mwh"] > 0
+    assert eex_ttf["unit"] == "MWh"
+    assert eex_ttf["metadata_json"]["data_contract_shape"] == "market_quotes"
+    assert eex_ttf["metadata_json"]["price_level"] == "L1"
+    assert eex_ttf["simulated"] is True
+    assert DEFAULT_SIMULATED_MARKET_PRICE_INTERVALS_SECONDS["EEX_Sim"] == 10
 
 
 def test_simulated_market_prices_generate_exchange_and_daily_assessment_rows() -> None:
@@ -67,6 +94,7 @@ def test_simulated_market_price_upsert_uses_runtime_observation_and_ingestion_ta
 
     with Session(engine) as session:
         rows = session.query(MarketObservationRecord).all()
+        quotes = session.query(MarketQuoteRecord).all()
         runs = session.query(IngestionRunRecord).all()
 
     assert summary["rows_upserted"] == len(rows)
@@ -82,6 +110,8 @@ def test_simulated_market_price_upsert_uses_runtime_observation_and_ingestion_ta
     }
     assert all(run.status == "succeeded" for run in runs)
     assert all("records=" in (run.notes or "") for run in runs)
+    assert summary["quotes_upserted"] == len(quotes)
+    assert len(quotes) > 0
 
 
 def test_simulated_market_prices_can_upsert_only_due_sources(tmp_path) -> None:

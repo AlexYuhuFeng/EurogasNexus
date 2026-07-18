@@ -12,9 +12,10 @@ APIs, run migrations, or print database secrets.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from eurogas_nexus.db.models import (
+    CompanyTsoAccessRecord,
     GlossaryTermRecord,
     LiveMarketMarkRecord,
     MarketObservationRecord,
@@ -88,9 +89,10 @@ def main() -> int:
     with session_factory() as session:
         _clear_previous_preview_rows(session)
         _seed_public_tariffs(session, now)
-        _seed_simulated_prices(session, now)
         _seed_preview_contract(session, now)
         _seed_public_route_templates(session, now)
+        _seed_preview_tso_access(session, now)
+        _seed_simulated_prices(session, now)
         _seed_glossary(session, now)
         session.commit()
     edge_summary = materialize_route_candidate_edges(database_url=database_url)
@@ -126,6 +128,11 @@ def _clear_previous_preview_rows(session) -> None:
     ).delete(synchronize_session=False)
     session.query(RouteCandidateRecord).filter(
         RouteCandidateRecord.route_id.in_(PUBLIC_ROUTE_IDS)
+    ).delete(synchronize_session=False)
+    session.query(CompanyTsoAccessRecord).filter(
+        CompanyTsoAccessRecord.access_id.in_(
+            ["preview-access-bbl", "preview-access-iuk"]
+        )
     ).delete(synchronize_session=False)
     session.query(MarketObservationRecord).filter(
         MarketObservationRecord.observation_id.in_(LEGACY_DEMO_PRICE_IDS)
@@ -292,6 +299,34 @@ def _seed_public_route_templates(session, now: datetime) -> None:
         ),
     ]:
         session.merge(route)
+
+
+def _seed_preview_tso_access(session, now: datetime) -> None:
+    for access in (
+        CompanyTsoAccessRecord(
+            access_id="preview-access-bbl",
+            tso="BBL Company",
+            market_area="BBL",
+            status="ACTIVE",
+            valid_from_utc=now - timedelta(days=365),
+            valid_to_utc=None,
+            source_reference="preview-configuration:company-tso-access:BBL",
+            notes="Preview-only access posture; replace with customer configuration.",
+            updated_at_utc=now,
+        ),
+        CompanyTsoAccessRecord(
+            access_id="preview-access-iuk",
+            tso="Interconnector UK",
+            market_area="IUK",
+            status="ACTIVE",
+            valid_from_utc=now - timedelta(days=365),
+            valid_to_utc=None,
+            source_reference="preview-configuration:company-tso-access:IUK",
+            notes="Preview-only access posture; replace with customer configuration.",
+            updated_at_utc=now,
+        ),
+    ):
+        session.merge(access)
 
 
 def _seed_glossary(session, now: datetime) -> None:

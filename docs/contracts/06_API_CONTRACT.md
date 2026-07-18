@@ -8,6 +8,11 @@ profiles, route modules, API services, and dependency providers.
 ## Current Routes
 
 - `GET /api/health`
+- `GET /api/market/quotes` for normalized PostgreSQL L1 quotes.
+- `GET /api/market/opportunities` for backend-calculated, time-limited intraday
+  decision snapshots.
+- `GET /api/market/spreads` as a compatibility projection of persisted
+  opportunities.
 - `GET /api/internal/health` in the internal profile only.
 - `GET /api/dev/health` in the development profile only.
 
@@ -28,6 +33,9 @@ profiles, route modules, API services, and dependency providers.
 - API import must not require DB, network, or secrets access.
 - Routes must delegate business orchestration to application services once
   those services exist.
+- Market clients must display backend opportunity economics and must not
+  calculate authoritative spread, route cost, or quantity limits locally.
+- Expired opportunity snapshots must not remain actionable in API reads.
 - Development-only and internal routes must live under their route packages and
   be gated by route profiles.
 

@@ -392,6 +392,33 @@ export interface MarketObsDTO {
   freshness?: string; quality_score?: number; research_only?: boolean;
 }
 
+export interface MarketQuoteDTO {
+  quote_id: string; source_system: string; source_record_id?: string | null;
+  venue: string; instrument_id: string; hub: string; product: string;
+  delivery_start_utc: string; delivery_end_utc: string;
+  bid_price?: number | null; ask_price?: number | null; last_price?: number | null;
+  bid_quantity_mwh?: number | null; ask_quantity_mwh?: number | null;
+  currency: string; unit: string; observed_at_utc: string; received_at_utc: string;
+  source_reference: string; freshness: string; quality_score: number;
+  simulated: boolean; metadata_json?: Record<string, unknown>;
+}
+
+export interface IntradayOpportunityDTO {
+  opportunity_id: string; scan_id: string; opportunity_type: string; status: string;
+  buy_quote_id: string; sell_quote_id: string; route_id: string; route_name: string;
+  buy_venue: string; sell_venue: string; buy_hub: string; sell_hub: string;
+  product: string; delivery_start_utc: string; delivery_end_utc: string;
+  comparison_currency: string; comparison_unit: string;
+  buy_ask: number; sell_bid: number; gross_spread: number;
+  route_cost?: number | null; trading_cost: number; risk_buffer: number;
+  net_margin?: number | null; max_quantity_mwh?: number | null;
+  indicative_net_value?: number | null; quote_age_seconds: number;
+  confidence_score: number; cost_components: Array<Record<string, unknown>>;
+  source_refs: string[]; assumptions: string[]; missing_inputs: string[]; warnings: string[];
+  detected_at_utc: string; valid_until_utc: string; simulated: boolean;
+  human_review_required: boolean;
+}
+
 export interface ScreenOrderObservationDTO {
   order_observation_id: string; provider_id: string; venue: string;
   account_label: string; external_order_id: string; side: string; order_type: string;
@@ -696,6 +723,11 @@ export const api = {
   sources: () => get<SourceSystemWire[]>("/sources").then(normalizeSourcesResponse),
 
   marketObservations: () => get<MarketObsDTO[]>("/market/observations"),
+
+  marketQuotes: () => get<MarketQuoteDTO[]>("/market/quotes", { limit: "500" }),
+
+  intradayOpportunities: () =>
+    get<IntradayOpportunityDTO[]>("/market/opportunities", { limit: "100" }),
 
   screenOrders: () => get<ScreenOrderObservationDTO[]>("/portfolio/screen-orders"),
 

@@ -12,7 +12,9 @@ import {
   GlossaryTermDTO,
   GlossaryContextDTO,
   LngObsDTO,
+  IntradayOpportunityDTO,
   MarketObsDTO,
+  MarketQuoteDTO,
   NodeDTO,
   PortfolioLiveSummaryDTO,
   PortfolioOptimizationRequestDTO,
@@ -40,6 +42,8 @@ export interface ApiState {
   edges: EdgeDTO[];
   sources: SourceSystemDTO[];
   markets: MarketObsDTO[];
+  marketQuotes: MarketQuoteDTO[];
+  intradayOpportunities: IntradayOpportunityDTO[];
   screenOrders: ScreenOrderObservationDTO[];
   pnlSnapshots: PortfolioPnlSnapshotDTO[];
   portfolioSummary: PortfolioLiveSummaryDTO | null;
@@ -96,6 +100,8 @@ export const useApiStore = create<ApiState>((set) => ({
   edges: [],
   sources: [],
   markets: [],
+  marketQuotes: [],
+  intradayOpportunities: [],
   screenOrders: [],
   pnlSnapshots: [],
   portfolioSummary: null,
@@ -135,6 +141,8 @@ export const useApiStore = create<ApiState>((set) => ({
         edges,
         sources,
         markets,
+        marketQuotes,
+        intradayOpportunities,
         screenOrders,
         pnlSnapshots,
         portfolioSummary,
@@ -157,6 +165,8 @@ export const useApiStore = create<ApiState>((set) => ({
         api.edges(),
         api.sources(),
         api.marketObservations(),
+        api.marketQuotes(),
+        api.intradayOpportunities(),
         api.screenOrders(),
         api.pnlSnapshots(),
         api.portfolioLiveSummary(),
@@ -180,6 +190,8 @@ export const useApiStore = create<ApiState>((set) => ({
         referenceEdges: edges.meta,
         sources: sources.meta,
         markets: markets.meta,
+        marketQuotes: marketQuotes.meta,
+        intradayOpportunities: intradayOpportunities.meta,
         screenOrders: screenOrders.meta,
         pnlSnapshots: pnlSnapshots.meta,
         portfolioSummary: portfolioSummary.meta,
@@ -214,6 +226,8 @@ export const useApiStore = create<ApiState>((set) => ({
         edges: edges.data,
         sources: sources.data,
         markets: markets.data,
+        marketQuotes: marketQuotes.data,
+        intradayOpportunities: intradayOpportunities.data,
         screenOrders: screenOrders.data,
         pnlSnapshots: pnlSnapshots.data,
         portfolioSummary: portfolioSummary.data,
@@ -244,18 +258,24 @@ export const useApiStore = create<ApiState>((set) => ({
 
   refreshMarketData: async () => {
     try {
-      const [markets, fxRates, sources] = await Promise.all([
+      const [markets, marketQuotes, intradayOpportunities, fxRates, sources] = await Promise.all([
         api.marketObservations(),
+        api.marketQuotes(),
+        api.intradayOpportunities(),
         api.fxRates(),
         api.sources(),
       ]);
       set((state) => ({
         markets: markets.data,
+        marketQuotes: marketQuotes.data,
+        intradayOpportunities: intradayOpportunities.data,
         fxRates: fxRates.data,
         sources: sources.data,
         endpointMeta: {
           ...state.endpointMeta,
           markets: markets.meta,
+          marketQuotes: marketQuotes.meta,
+          intradayOpportunities: intradayOpportunities.meta,
           fxRates: fxRates.meta,
           sources: sources.meta,
         },
@@ -264,7 +284,11 @@ export const useApiStore = create<ApiState>((set) => ({
         error: null,
       }));
     } catch (e) {
-      set({ error: String(e) });
+      set({
+        marketQuotes: [],
+        intradayOpportunities: [],
+        error: String(e),
+      });
     }
   },
 

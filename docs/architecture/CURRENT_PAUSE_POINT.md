@@ -25,12 +25,16 @@ missing_tables: 0
 source: runtime-postgresql
 ```
 
+Repository schema head is now `0014_intraday_decision_feed` with 36 required
+tables. The local PostgreSQL baseline above remains at `0013` until an operator
+explicitly runs the migration; this implementation did not migrate a live DB.
+
 Current import evidence:
 
 ```text
 python -c "from apps.api.main import app; print('app import ok'); print(len(app.routes))"
 app import ok
-80
+82
 ```
 
 Clients obtain runtime data through `/api` or the SDK. They do not connect to
@@ -50,6 +54,10 @@ Provider credentials are backend-owned and are never returned in plaintext.
   private-network/VPN preview-only until production authentication is added.
 - Preview market data: source-shaped simulated providers write to PostgreSQL
   and follow the same backend/API/client path as licensed feeds.
+- Intraday decisions: normalized L1 quotes trigger backend route-adjusted
+  scans; persisted opportunities are exposed through API/SDK and polled by the
+  Network, Market, and Strategy workspaces every 10 seconds. Expired snapshots
+  are never left actionable.
 
 ## Active Workspaces
 
@@ -117,9 +125,10 @@ See [WEB_APPLICATION_ARCHITECTURE-EN.md](../clients/WEB_APPLICATION_ARCHITECTURE
    licenses, and operator validation.
 3. Public-source scheduling, alerting, audit depth, export governance, and
    retention need further production hardening.
-4. The optimization API currently accepts explicit operator data. Production
-   portfolio optimization must compose contracts, routes, tariffs, capacities,
-   access rights, and prices from PostgreSQL with lineage and freshness checks.
+4. Route-level intraday opportunities now compose quotes, routes, tariffs,
+   capacities, access rights, and FX from PostgreSQL. Production portfolio-wide
+   optimization must still allocate resources over shared and alternate routes
+   with contract-level PnL attribution.
 5. Storage and nomination prototypes are not customer-facing workflows.
 6. Orders and PnL are imported observations; no order entry, amendment,
    cancellation, routing, execution, or trade capture is performed.

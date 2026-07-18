@@ -33,6 +33,7 @@ REQUIRED_TABLES: tuple[RequiredTable, ...] = (
     RequiredTable(name="node_facility_mappings", introduced_in="0003_r3_reference_network"),
     RequiredTable(name="topology_market_mappings", introduced_in="0003_r3_reference_network"),
     RequiredTable(name="market_observations", introduced_in="0004_r16_observation_tables"),
+    RequiredTable(name="market_quotes", introduced_in="0014_intraday_decision_feed"),
     RequiredTable(name="fx_observations", introduced_in="0006_route_cost_decision_support"),
     RequiredTable(name="flow_observations", introduced_in="0004_r16_observation_tables"),
     RequiredTable(
@@ -52,6 +53,11 @@ REQUIRED_TABLES: tuple[RequiredTable, ...] = (
     RequiredTable(name="capacity_profiles", introduced_in="0006_route_cost_decision_support"),
     RequiredTable(name="route_candidates", introduced_in="0006_route_cost_decision_support"),
     RequiredTable(name="live_market_marks", introduced_in="0006_route_cost_decision_support"),
+    RequiredTable(name="company_tso_access", introduced_in="0014_intraday_decision_feed"),
+    RequiredTable(
+        name="intraday_opportunities",
+        introduced_in="0014_intraday_decision_feed",
+    ),
     RequiredTable(name="glossary_terms", introduced_in="0006_route_cost_decision_support"),
     RequiredTable(name="strategy_definitions", introduced_in="0007_strategy_lab_foundation"),
     RequiredTable(name="strategy_runs", introduced_in="0007_strategy_lab_foundation"),

@@ -57,6 +57,8 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
       {activeWorkspace === "market" && (
         <MarketTerminal
           markets={portfolio.contextMarkets}
+          marketQuotes={api.marketQuotes}
+          intradayOpportunities={api.intradayOpportunities}
           fxRates={api.fxRates}
           sources={api.sources}
           lastUpdatedAtUtc={api.marketLastUpdatedAtUtc}
