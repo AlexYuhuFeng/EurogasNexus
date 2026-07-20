@@ -122,6 +122,22 @@ This backlog turns the production gaps listed in `docs/release/RELEASE_READINESS
   - migration rollback limitations are clearly stated.
   - no secrets or deployment-specific confidential values are included.
 
+## Milestone F: Deployment Packaging and Discoverability
+
+### DEP-001 Make deployment roles and release assets unambiguous
+
+- Status: planned
+- Priority: P0
+- Scope: align GitHub Release asset names, release notes, deployment documentation, and installer behavior so operators can distinguish the standalone desktop Client installer from the Server and AllInOne deployment bundle before downloading or installing anything.
+- Acceptance:
+  - the standalone NSIS asset is labeled as `Client only` in its filename or adjacent release description.
+  - release notes identify the exact asset required for `Server`, `Client`, and `AllInOne` roles.
+  - the deployment bundle is published as a separate, clearly named asset containing `Deploy-EurogasNexus.ps1`, server runtime scripts, Compose configuration, gateway configuration, and operating instructions.
+  - installing the standalone desktop Client does not imply that PostgreSQL, API, migrations, or ingestion workers were installed.
+  - first launch and Settings clearly show the configured API endpoint and a diagnostic state when no reachable backend exists.
+  - automated release tests verify the expected role-specific asset set and reject ambiguous or missing asset names.
+  - English and Mandarin deployment documents contain the same role and asset guidance.
+
 ## Non-goals
 
 The backlog does not authorize:
