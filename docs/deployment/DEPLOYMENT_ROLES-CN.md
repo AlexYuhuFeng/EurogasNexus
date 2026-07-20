@@ -13,6 +13,26 @@ Eurogas Nexus 按设备角色交付，且只有以下三种模式：
 不存在隐含的第四种模式。客户端永远不会得到 PostgreSQL 地址、数据库
 密码、供应商密钥或数据库迁移权限。
 
+## Release 产物选择
+
+独立的 Windows NSIS 安装包**仅包含 Client**。安装后只会在用户本地应用目录
+创建桌面程序和卸载程序，不会安装 PostgreSQL、FastAPI 后端、Alembic 迁移、
+HTTPS 网关或数据采集任务。
+
+应按部署角色选择 Release 产物：
+
+- `Client`：下载签名桌面安装包，并连接到一个已经存在、可访问且以 `/api`
+  结尾的 HTTPS 后端地址；
+- `Server`：下载 Windows 部署包并运行
+  `Deploy-EurogasNexus.ps1 -Role Server`，不需要桌面安装包；
+- `AllInOne`：同时下载部署包和签名桌面安装包，然后运行
+  `Deploy-EurogasNexus.ps1 -Role AllInOne`。
+
+因此，安装后目录里只有桌面程序和卸载程序，属于正常的 Client 安装结果，
+不表示数据库和后端已经安装。Release 说明和产物命名必须明确标注这一边界；
+相关生产化工作记录在
+`docs/release/PRODUCTION_READINESS_BACKLOG.md` 的 `DEP-001`。
+
 ## Windows 部署入口
 
 Windows 部署包包括：
