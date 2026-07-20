@@ -14,6 +14,28 @@ which components are installed and which secrets the device may hold.
 There is no fourth hidden mode. A client never receives a PostgreSQL URL,
 database password, provider credential, or migration capability.
 
+## Release asset selection
+
+The standalone Windows NSIS installer is **Client only**. Installing it creates
+the desktop application and uninstaller under the user's local application
+directory; it does not install PostgreSQL, the FastAPI backend, Alembic
+migrations, an HTTPS gateway, or ingestion workers.
+
+Choose release assets by role:
+
+- `Client`: download the signed desktop installer and connect it to an existing
+  reachable HTTPS endpoint ending in `/api`.
+- `Server`: download the Windows deployment bundle and run
+  `Deploy-EurogasNexus.ps1 -Role Server`; the desktop installer is not required.
+- `AllInOne`: download both the deployment bundle and signed desktop installer,
+  then run `Deploy-EurogasNexus.ps1 -Role AllInOne`.
+
+A desktop installation showing only the application executable and uninstaller
+is therefore a normal Client installation, not evidence that the database or
+backend has been installed. Release notes and asset names must make this
+boundary explicit; production hardening is tracked as `DEP-001` in
+`docs/release/PRODUCTION_READINESS_BACKLOG.md`.
+
 ## Installation entry point
 
 The Windows deployment bundle contains:
