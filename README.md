@@ -217,17 +217,39 @@ candidate, or stable channels.
 - Web release build: Vite production build and packaged Web artifact;
 - Desktop release build: Windows x64 NSIS plus Linux x64 and ARM64 DEB packages;
 - Runtime image: multi-architecture API image published to GitHub Container Registry;
-- Deployment bundle: `Server`, `Client`, and `AllInOne` Windows deployment tooling;
+- Deployment assets: dedicated `Server` operator bundle plus separate
+  `Client-only` and `AllInOne` Windows installers;
 - Release: GitHub release or pre-release with generated artifacts.
+
+### Docker-only Windows evaluation
+
+On a 64-bit Windows 10/11 test computer that already has Docker Desktop and
+Docker Compose v2, download and run the single
+`Eurogas-Nexus-AllInOne-<version>-<commit>-x64-setup.exe` Release asset as
+administrator. It contains the desktop frontend and release-pinned API image,
+then provisions local PostgreSQL, runs Alembic explicitly, loads DB-resident
+preview inputs, starts `_Sim` market feeds, and validates the loopback API.
+
+The test computer does not need Python, Node.js, Rust, Git, a local PostgreSQL
+installation, source code, a domain name, or a TLS certificate. First install
+requires internet access to pull the official PostgreSQL image. Normal uninstall
+preserves the PostgreSQL Docker volume.
+
+Do not confuse it with `Eurogas-Nexus-Client-0.5.0-x64-setup.exe`, which is the
+desktop Client only and requires an existing backend.
 
 Customer deployment roles are fixed:
 
 - `Server`: PostgreSQL, migrations, API, HTTPS gateway, ingestion workers;
 - `Client`: desktop client only, connected to an existing HTTPS `/api` URL;
-- `AllInOne`: Server and Client on one device.
+- `AllInOne`: loopback-only PostgreSQL/API runtime and Client on one Windows
+  evaluation device.
 
 See [Deployment roles EN](docs/deployment/DEPLOYMENT_ROLES-EN.md) and
 [部署角色 CN](docs/deployment/DEPLOYMENT_ROLES-CN.md).
+Detailed one-click instructions are in
+[AllInOne installer EN](docs/deployment/ALL_IN_ONE_INSTALLER-EN.md) and
+[AllInOne 安装说明 CN](docs/deployment/ALL_IN_ONE_INSTALLER-CN.md).
 
 Local release scripts mirror the workflow:
 

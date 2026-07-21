@@ -4,7 +4,7 @@
 
 ## 状态
 
-检查日期：2026-07-18
+检查日期：2026-07-22
 
 Eurogas Nexus 当前是 `0.5.0` 预览发布版本，已经包含 FastAPI 后端、PostgreSQL 运行数据库、Python SDK、CLI、React/Vite Web 客户端、Tauri Windows/Linux 客户端以及按角色部署工具。
 
@@ -33,7 +33,7 @@ app import ok
 - 开发接口：`/api/dev`，受运行配置限制。
 - 数据权威来源：PostgreSQL 和 Alembic。
 - 客户端：共享的 Web 工作区，以及 Windows x64、Linux x64/ARM64 Tauri 外壳。
-- 部署角色：Server、Client、AllInOne。生产级身份认证完成前，服务器部署只允许用于私网或 VPN 预览环境。
+- 部署角色：Server、Client-only、AllInOne 三类 Release 产物相互独立。Windows AllInOne NSIS 会在已安装 Docker 的测试电脑上自动部署仅回环可见的 PostgreSQL/API 运行时和桌面 Client。生产级身份认证完成前，Server 部署只允许用于私网或 VPN 预览环境。
 - 预览价格：仿真数据源把与真实提供商同形的数据写入 PostgreSQL，并完整经过后端、API、SDK/客户端链路。
 - 日内决策：标准化 L1 报价触发后端路径净价差扫描；已持久化机会通过 API/SDK 提供，Network、Market 和 Strategy 工作区每 10 秒读取一次。过期快照不会继续显示为可审阅机会。
 
@@ -53,7 +53,7 @@ POST /api/optimization/contracts
 ## 发布状态
 
 - 普通 CI 执行 Python、优化器、API 导入和 Web 验证，并在 PR 上构建桌面包。
-- 每次 `main` 提交由 Build and Release workflow 构建 Web、Windows x64、Linux x64、Linux ARM64、部署包和 amd64/arm64 API 镜像。
+- 每次 `main` 提交由 Build and Release workflow 构建 Web、Windows Client-only、Windows AllInOne、Linux x64、Linux ARM64、Server 部署包和 amd64/arm64 API 镜像。
 - Linux Tauri 依赖安装使用 Ubuntu 官方 HTTPS 镜像和有限重试，降低 ARM runner 的瞬时网络故障影响。
 
 ## Web 应用架构

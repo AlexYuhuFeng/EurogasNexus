@@ -69,6 +69,8 @@ def test_windows_client_wraps_shared_web_workspace() -> None:
     assert config["app"]["windows"][0]["visible"] is False
 
     assert config["bundle"]["active"] is True
+    assert config["bundle"]["windows"]["webviewInstallMode"]["type"] == "downloadBootstrapper"
+    assert config["bundle"]["windows"]["nsis"]["installMode"] == "perMachine"
 
 
 def test_windows_client_uses_startup_splash_window() -> None:

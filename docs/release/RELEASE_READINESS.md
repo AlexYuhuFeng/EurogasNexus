@@ -80,11 +80,11 @@ passed
 
 ## Release Packaging
 
-When the manual `Build and Release` workflow is run with `build_desktop=true`,
-the desktop release matrix is expected to publish the following desktop assets:
+Every successful `Build and Release` workflow publishes the following assets:
 
-- `release-desktop-windows-x64`: Windows NSIS installer.
-- `release-deployment`: Server, Client, and AllInOne deployment bundle.
+- `release-desktop-windows-x64`: Windows Client-only NSIS installer.
+- `release-all-in-one-windows`: Windows one-click AllInOne NSIS installer and checksum.
+- `release-deployment`: Server and advanced deployment operator toolkits.
 - `ghcr.io/alexyuhufeng/eurogasnexus-api`: multi-architecture runtime image.
 
 Server deployment is private-network preview only. Public internet and

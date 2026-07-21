@@ -17,6 +17,8 @@ param(
     [string]$TlsCertificatePath,
     [string]$TlsPrivateKeyPath,
     [string]$ApiImage = "ghcr.io/alexyuhufeng/eurogasnexus-api:0.5-preview",
+    [string]$ApiImageArchivePath,
+    [switch]$LocalHttpOnly,
     [switch]$EnableSimulatedPrices,
     [switch]$SkipPublicData,
     [switch]$PurgeData,
@@ -32,8 +34,9 @@ $SourceCaddyFile = Join-Path $RepoRoot "deploy\runtime\Caddyfile"
 $ComposeFile = Join-Path $InstallRoot "compose.yaml"
 $EnvironmentFile = Join-Path $InstallRoot ".env"
 $DeploymentFile = Join-Path $InstallRoot "deployment.json"
-$ApiBaseUrl = "https://${ServerName}:$HttpsPort/api"
 $LocalApiBaseUrl = "http://127.0.0.1:$ApiPort/api"
+$UseLocalHttp = $DeploymentRole -eq "AllInOne" -and [bool]$LocalHttpOnly
+$ApiBaseUrl = if ($UseLocalHttp) { $LocalApiBaseUrl } else { "https://${ServerName}:$HttpsPort/api" }
 
 function Test-Administrator {
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -97,7 +100,11 @@ function Get-PreflightReport {
         api_port_available = Test-TcpPortAvailable $ApiPort
         postgres_port_available = Test-TcpPortAvailable $PostgresPort
         compose_source_present = Test-Path -LiteralPath $SourceComposeFile
-        caddy_source_present = Test-Path -LiteralPath $SourceCaddyFile
+        caddy_source_present = $UseLocalHttp -or (Test-Path -LiteralPath $SourceCaddyFile)
+        api_image_archive_present = (
+            [string]::IsNullOrWhiteSpace($ApiImageArchivePath) -or
+            (Test-Path -LiteralPath $ApiImageArchivePath)
+        )
     }
     $blocking = @(
         if (-not $checks.windows) { "Windows is required for this bootstrapper." }
@@ -109,8 +116,14 @@ function Get-PreflightReport {
         if (-not $checks.disk_supported) { "At least 10 GB of free system-drive space is required." }
         if (-not $checks.compose_source_present) { "The server-runtime Compose manifest is missing from the deployment bundle." }
         if (-not $checks.caddy_source_present) { "The HTTPS gateway configuration is missing from the deployment bundle." }
+        if (-not $checks.api_image_archive_present) { "The bundled API image archive is missing." }
     )
-    if ($DeploymentRole -in @("Server", "AllInOne")) {
+    if ($UseLocalHttp) {
+        if ($HttpsBindAddress -ne "127.0.0.1") {
+            $blocking += "Local AllInOne mode is restricted to the 127.0.0.1 loopback interface."
+        }
+    }
+    elseif ($DeploymentRole -in @("Server", "AllInOne")) {
         if (-not $PrivateNetworkOnly) {
             $blocking += "v0.5-preview Server and AllInOne roles require -PrivateNetworkOnly. Public exposure is not supported before authentication is implemented."
         }
@@ -141,6 +154,7 @@ function Get-PreflightReport {
         checks = $checks
         blocking = $blocking
         docker_install_attempted = $false
+        local_http_only = $UseLocalHttp
     }
 }
 
@@ -154,8 +168,10 @@ function Protect-EnvironmentFile {
 function Initialize-RuntimeFiles {
     New-Item -ItemType Directory -Path $InstallRoot -Force | Out-Null
     Copy-Item -LiteralPath $SourceComposeFile -Destination $ComposeFile -Force
-    Copy-Item -LiteralPath $SourceCaddyFile -Destination (Join-Path $InstallRoot "Caddyfile") -Force
-    if ($DeploymentRole -in @("Server", "AllInOne")) {
+    if (-not $UseLocalHttp) {
+        Copy-Item -LiteralPath $SourceCaddyFile -Destination (Join-Path $InstallRoot "Caddyfile") -Force
+    }
+    if (-not $UseLocalHttp -and $DeploymentRole -in @("Server", "AllInOne")) {
         $tlsRoot = Join-Path $InstallRoot "tls"
         New-Item -ItemType Directory -Path $tlsRoot -Force | Out-Null
         Copy-Item -LiteralPath $TlsCertificatePath -Destination (Join-Path $tlsRoot "server.crt") -Force
@@ -188,17 +204,19 @@ function Initialize-RuntimeFiles {
         "EUROGAS_NEXUS_SECRET_KEY=$secretKey"
         "EUROGAS_NEXUS_INTERNAL_API_TOKEN=$internalToken"
     )
-    Set-Content -LiteralPath $EnvironmentFile -Value $lines -Encoding UTF8
+    [IO.File]::WriteAllLines($EnvironmentFile, $lines, [Text.UTF8Encoding]::new($false))
     Protect-EnvironmentFile
     [ordered]@{
         deployment_mode = if ($DeploymentRole -eq "Server") { "server" } else { "all_in_one" }
         api_base_url = $ApiBaseUrl
         compose_file = $ComposeFile
         simulated_prices_enabled = [bool]$EnableSimulatedPrices
+        public_data_workers_enabled = -not [bool]$SkipPublicData
         server_name = $ServerName
         https_port = $HttpsPort
         https_bind_address = $HttpsBindAddress
-        network_exposure = "private_network_only"
+        network_exposure = if ($UseLocalHttp) { "loopback_only" } else { "private_network_only" }
+        local_http_only = $UseLocalHttp
         installed_at_utc = [DateTime]::UtcNow.ToString("o")
     } | ConvertTo-Json | Set-Content -LiteralPath $DeploymentFile -Encoding UTF8
 }
@@ -207,6 +225,15 @@ function Invoke-Compose([string[]]$Arguments) {
     & docker compose --env-file $EnvironmentFile -f $ComposeFile @Arguments | Out-Host
     if ($LASTEXITCODE -ne 0) {
         throw "Docker Compose failed while running: $($Arguments -join ' ')"
+    }
+}
+
+function Import-ApiImageArchive {
+    if ([string]::IsNullOrWhiteSpace($ApiImageArchivePath)) { return }
+    $resolvedArchive = Resolve-Path -LiteralPath $ApiImageArchivePath -ErrorAction Stop
+    & docker load --input $resolvedArchive.Path | Out-Host
+    if ($LASTEXITCODE -ne 0) {
+        throw "Docker could not load the bundled Eurogas Nexus API image."
     }
 }
 
@@ -238,15 +265,22 @@ function Wait-PublicApiReady {
 
 function Install-OrRepairRuntime {
     Initialize-RuntimeFiles
-    Invoke-Compose @("pull", "postgres", "migrate", "api")
+    Import-ApiImageArchive
+    if ([string]::IsNullOrWhiteSpace($ApiImageArchivePath)) {
+        Invoke-Compose @("pull", "postgres", "migrate", "api")
+    }
+    else {
+        Invoke-Compose @("pull", "postgres")
+    }
     Invoke-Compose @("up", "-d", "postgres")
-    Invoke-Compose @("run", "--rm", "migrate")
-    Invoke-Compose @("up", "-d", "api")
-    if ($DeploymentRole -in @("Server", "AllInOne")) {
-        Invoke-Compose @("--profile", "server", "up", "-d", "gateway")
+    Invoke-Compose @("run", "--rm", "--no-deps", "migrate")
+    Invoke-Compose @("up", "-d", "--no-deps", "api")
+    if (-not $UseLocalHttp -and $DeploymentRole -in @("Server", "AllInOne")) {
+        Invoke-Compose @("--profile", "server", "up", "-d", "--no-deps", "gateway")
     }
     if ($EnableSimulatedPrices) {
-        Invoke-Compose @("--profile", "simulated-prices", "up", "-d", "simulated-prices")
+        Invoke-Compose @("--profile", "tools", "run", "--rm", "--no-deps", "preview-seed")
+        Invoke-Compose @("--profile", "simulated-prices", "up", "-d", "--no-deps", "simulated-prices")
     }
     else {
         Invoke-Compose @("--profile", "simulated-prices", "stop", "simulated-prices")
@@ -256,7 +290,7 @@ function Install-OrRepairRuntime {
     $initialIngestionOk = $null
     if (-not $SkipPublicData) {
         try {
-            Invoke-Compose @("--profile", "tools", "run", "--rm", "public-ingestion")
+            Invoke-Compose @("--profile", "tools", "run", "--rm", "--no-deps", "public-ingestion")
             $initialIngestionOk = $true
         }
         catch {
@@ -265,6 +299,7 @@ function Install-OrRepairRuntime {
         }
         Invoke-Compose @(
             "--profile", "public-ingestion", "up", "-d",
+            "--no-deps",
             "public-ingestion-worker", "reference-ingestion-worker"
         )
     }
@@ -285,6 +320,7 @@ function Install-OrRepairRuntime {
         public_data_ingestion_requested = -not [bool]$SkipPublicData
         public_data_workers_enabled = -not [bool]$SkipPublicData
         initial_public_ingestion_ok = $initialIngestionOk
+        local_http_only = $UseLocalHttp
     }
 }
 

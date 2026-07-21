@@ -4,7 +4,7 @@ Chinese companion: [CURRENT_PAUSE_POINT-CN.md](CURRENT_PAUSE_POINT-CN.md)
 
 ## Status
 
-Date checked: 2026-07-18
+Date checked: 2026-07-22
 
 Eurogas Nexus is a `0.5.0` preview-release worktree containing the FastAPI
 backend, PostgreSQL runtime schema, Python SDK, CLI, React/Vite Web workspace,
@@ -50,8 +50,11 @@ Provider credentials are backend-owned and are never returned in plaintext.
 - Runtime truth: PostgreSQL with Alembic-managed schema.
 - Web: shared map-first trader workspace.
 - Desktop: Tauri shells for Windows x64 and Linux x64/ARM64.
-- Deployment: Server, Client, and AllInOne roles; server deployment remains
-  private-network/VPN preview-only until production authentication is added.
+- Deployment: distinct Server, Client-only, and AllInOne assets. The Windows
+  AllInOne NSIS package provisions the loopback-only Docker/PostgreSQL/API
+  runtime and desktop Client on a Docker-ready evaluation workstation. Server
+  deployment remains private-network/VPN preview-only until production
+  authentication is added.
 - Preview market data: source-shaped simulated providers write to PostgreSQL
   and follow the same backend/API/client path as licensed feeds.
 - Intraday decisions: normalized L1 quotes trigger backend route-adjusted
@@ -100,8 +103,9 @@ SDK, or API until DB-backed input and lineage contracts are complete.
 - GitHub Actions validates Python, API import, Web, desktop, deployment assets,
   and the multi-architecture API image.
 - Normal CI runs optimizer tests and builds desktop packages on pull requests.
-- Every `main` push runs the release workflow for Web, Windows x64, Linux x64,
-  Linux ARM64, deployment bundles, and the amd64/arm64 runtime image.
+- Every `main` push runs the release workflow for Web, Windows Client-only,
+  Windows AllInOne, Linux x64, Linux ARM64, the Server operator bundle, and the
+  amd64/arm64 runtime image.
 - Linux Tauri dependency installation uses the official HTTPS Ubuntu mirror and
   bounded retries to tolerate transient ARM runner mirror failures.
 - Customer production signing certificates are not stored in this repository.

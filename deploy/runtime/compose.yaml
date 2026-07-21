@@ -103,6 +103,16 @@ services:
         condition: service_completed_successfully
     restart: "no"
 
+  preview-seed:
+    image: ${EUROGAS_NEXUS_API_IMAGE}
+    profiles: ["tools"]
+    environment: *runtime-environment
+    command: ["python", "scripts/ops/seed_preview_runtime_data.py"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+
   public-ingestion-worker:
     image: ${EUROGAS_NEXUS_API_IMAGE}
     profiles: ["public-ingestion"]

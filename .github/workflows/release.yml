@@ -20,11 +20,6 @@ on:
         type: boolean
         required: true
         default: true
-      build_desktop:
-        description: Also build Windows and Linux x64/ARM64 desktop packages.
-        type: boolean
-        required: true
-        default: false
 
 permissions:
   contents: write
@@ -103,7 +98,6 @@ jobs:
 
   desktop:
     name: Build desktop client (${{ matrix.artifact_label }})
-    if: ${{ github.event_name == 'push' || github.event.inputs.build_desktop == 'true' }}
     runs-on: ${{ matrix.os }}
     needs: validate
     strategy:
@@ -155,7 +149,17 @@ jobs:
         working-directory: clients/desktop
         run: npm run build -- --bundles ${{ matrix.bundle }}
 
-      - name: Collect desktop assets
+      - name: Collect Windows Client-only asset
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path release-assets -Force | Out-Null
+          $source = Get-ChildItem "clients/desktop/src-tauri/target/release/bundle/nsis/*.exe" | Select-Object -First 1
+          if (-not $source) { throw "The Windows Client NSIS installer was not produced." }
+          Copy-Item $source.FullName "release-assets/Eurogas-Nexus-Client-0.5.0-x64-setup.exe"
+
+      - name: Collect Linux desktop asset
+        if: runner.os == 'Linux'
         shell: bash
         run: |
           mkdir -p release-assets
@@ -206,6 +210,22 @@ jobs:
             ${{ steps.image.outputs.name }}:0.5-preview
             ${{ steps.image.outputs.name }}:sha-${{ github.sha }}
 
+      - name: Build Windows AllInOne API image archive
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: deploy/runtime/Dockerfile.api
+          platforms: linux/amd64
+          tags: eurogas-nexus-api:sha-${{ github.sha }}
+          outputs: type=docker,dest=${{ runner.temp }}/eurogas-nexus-api-amd64.tar
+
+      - name: Upload Windows AllInOne API image archive
+        uses: actions/upload-artifact@v7
+        with:
+          name: all-in-one-runtime-image-amd64
+          path: ${{ runner.temp }}/eurogas-nexus-api-amd64.tar
+          if-no-files-found: error
+
   deployment:
     name: Package deployment roles
     runs-on: ubuntu-latest
@@ -215,7 +235,7 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7
 
-      - name: Package Server, Client, and AllInOne deployment tooling
+      - name: Package dedicated Server operator tooling
         shell: bash
         run: bash scripts/release/package_deployment_bundle.sh release-assets
 
@@ -223,6 +243,52 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: release-deployment
+          path: release-assets/*
+          if-no-files-found: error
+
+  all-in-one-windows:
+    name: Build Windows AllInOne installer
+    runs-on: windows-latest
+    needs:
+      - desktop
+      - runtime-image
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Download Windows Client-only installer
+        uses: actions/download-artifact@v8
+        with:
+          name: release-desktop-windows-x64
+          path: staging/client
+
+      - name: Download API image archive
+        uses: actions/download-artifact@v8
+        with:
+          name: all-in-one-runtime-image-amd64
+          path: staging/runtime
+
+      - name: Install NSIS build tooling
+        shell: pwsh
+        run: choco install nsis --no-progress -y
+
+      - name: Build self-contained AllInOne NSIS installer
+        shell: pwsh
+        run: |
+          $client = (Get-ChildItem staging/client -Filter *.exe -Recurse | Select-Object -First 1).FullName
+          $image = (Get-ChildItem staging/runtime -Filter *.tar -Recurse | Select-Object -First 1).FullName
+          if (-not $client -or -not $image) { throw "AllInOne input artifacts are incomplete." }
+          ./scripts/release/build_all_in_one_installer.ps1 `
+            -ClientInstallerPath $client `
+            -ApiImageArchivePath $image `
+            -ApiImage "eurogas-nexus-api:sha-${{ github.sha }}" `
+            -OutputDirectory release-assets
+
+      - name: Upload AllInOne release asset
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-all-in-one-windows
           path: release-assets/*
           if-no-files-found: error
 
@@ -234,7 +300,8 @@ jobs:
       - desktop
       - runtime-image
       - deployment
-    if: ${{ always() && needs.web.result == 'success' && needs.runtime-image.result == 'success' && needs.deployment.result == 'success' && (needs.desktop.result == 'success' || needs.desktop.result == 'skipped') }}
+      - all-in-one-windows
+    if: ${{ always() && needs.web.result == 'success' && needs.runtime-image.result == 'success' && needs.deployment.result == 'success' && needs.all-in-one-windows.result == 'success' && needs.desktop.result == 'success' }}
 
     steps:
       - name: Check out repository
@@ -253,7 +320,7 @@ jobs:
         run: |
           SHORT_SHA="${GITHUB_SHA::7}"
           CHANNEL="${{ github.event.inputs.release_channel || 'preview' }}"
-          DESKTOP_INCLUDED="${{ github.event_name == 'push' || github.event.inputs.build_desktop == 'true' }}"
+          DESKTOP_INCLUDED="true"
           TAG="v0.5-${CHANNEL}-${GITHUB_RUN_NUMBER}-${SHORT_SHA}"
           echo "tag=${TAG}" >> "${GITHUB_OUTPUT}"
           {
@@ -263,11 +330,17 @@ jobs:
             echo "- Branch: ${GITHUB_REF_NAME}"
             echo "- Channel: ${CHANNEL}"
             if [[ "${DESKTOP_INCLUDED}" == "true" ]]; then
-              echo "- Includes: Web build, Windows x64 NSIS installer, Linux x64 DEB package, Linux ARM64 DEB package, deployment role bundle, and multi-architecture API image."
+              echo "- Includes: Web build, Windows x64 Client-only NSIS installer, Windows x64 AllInOne NSIS installer, Linux x64 DEB package, Linux ARM64 DEB package, deployment role bundle, and multi-architecture API image."
             else
               echo "- Includes: Web build, deployment role bundle, and multi-architecture API image. Desktop packaging was not requested for this run."
             fi
             echo "- Runtime image: ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/eurogasnexus-api:sha-${GITHUB_SHA}"
+            echo
+            echo "## Windows assets"
+            echo
+            echo "- New evaluation workstation with Docker only: download **Eurogas-Nexus-AllInOne-...-x64-setup.exe**. It installs the desktop frontend and provisions the loopback-only API and PostgreSQL runtime automatically."
+            echo "- Workstation connecting to an existing server: download **Eurogas-Nexus-Client-0.5.0-x64-setup.exe**. It does not install a backend or database."
+            echo "- Dedicated server or managed deployment: use **Eurogas-Nexus-Server-Windows.zip** and follow the operator guide."
             echo
             echo "Runtime data remains DB-first through the backend API. Clients do not connect directly to PostgreSQL."
           } > release-notes.md

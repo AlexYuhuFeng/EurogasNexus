@@ -2,7 +2,9 @@ param(
     [switch]$SkipTests,
     [switch]$InstallDependencies,
     [ValidateSet("nsis", "deb", "appimage", "msi")]
-    [string]$Bundle = "nsis"
+    [string]$Bundle = "nsis",
+    [string]$ApiImageArchivePath,
+    [string]$ApiImage = "eurogas-nexus-api:0.5.0"
 )
 
 $ErrorActionPreference = "Stop"
@@ -58,6 +60,18 @@ try {
 
     Invoke-Step "Package deployment role bundle" {
         & (Join-Path $PSScriptRoot "package_deployment_bundle.ps1")
+    }
+
+    if ($Bundle -eq "nsis" -and -not [string]::IsNullOrWhiteSpace($ApiImageArchivePath)) {
+        Invoke-Step "Build Windows AllInOne installer" {
+            $clientInstaller = Get-ChildItem -Path (Join-Path $DesktopDir "src-tauri\target\release\bundle\nsis") -Filter "*.exe" |
+                Select-Object -First 1
+            if (-not $clientInstaller) { throw "The Windows Client installer was not produced." }
+            & (Join-Path $PSScriptRoot "build_all_in_one_installer.ps1") `
+                -ClientInstallerPath $clientInstaller.FullName `
+                -ApiImageArchivePath $ApiImageArchivePath `
+                -ApiImage $ApiImage
+        }
     }
 
     Write-Host "==> Release artifacts"

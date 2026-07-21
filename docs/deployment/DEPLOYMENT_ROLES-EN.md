@@ -9,7 +9,7 @@ which components are installed and which secrets the device may hold.
 | --- | --- | --- | --- | --- |
 | `Server` | Dedicated server or VM | PostgreSQL, migrations, API, HTTPS gateway, ingestion workers, optional simulated price worker | Customer DNS name over HTTPS | Backend services only |
 | `Client` | Trader workstation | Windows client or Linux client only | Existing server URL ending in `/api` | Never |
-| `AllInOne` | Demonstration, evaluation, or single-user workstation | Full Server role plus desktop client | HTTPS endpoint on the same device | Backend services only |
+| `AllInOne` | Demonstration, evaluation, or single-user workstation | Local PostgreSQL, migrations, API, ingestion workers, and desktop Client | Loopback-only `http://127.0.0.1:8765/api` | Backend services only |
 
 There is no fourth hidden mode. A client never receives a PostgreSQL URL,
 database password, provider credential, or migration capability.
@@ -17,18 +17,19 @@ database password, provider credential, or migration capability.
 ## Release asset selection
 
 The standalone Windows NSIS installer is **Client only**. Installing it creates
-the desktop application and uninstaller under the user's local application
-directory; it does not install PostgreSQL, the FastAPI backend, Alembic
+the desktop application and uninstaller; it does not install PostgreSQL, the FastAPI backend, Alembic
 migrations, an HTTPS gateway, or ingestion workers.
 
 Choose release assets by role:
 
-- `Client`: download the signed desktop installer and connect it to an existing
+- `Client`: download `Eurogas-Nexus-Client-0.5.0-x64-setup.exe` and connect it to an existing
   reachable HTTPS endpoint ending in `/api`.
-- `Server`: download the Windows deployment bundle and run
+- `Server`: download `Eurogas-Nexus-Server-Windows.zip` and run
   `Deploy-EurogasNexus.ps1 -Role Server`; the desktop installer is not required.
-- `AllInOne`: download both the deployment bundle and signed desktop installer,
-  then run `Deploy-EurogasNexus.ps1 -Role AllInOne`.
+- `AllInOne`: download the single
+  `Eurogas-Nexus-AllInOne-<version>-<commit>-x64-setup.exe` asset. The installer
+  contains the desktop Client and local API image and performs the complete
+  Docker/PostgreSQL setup itself.
 
 A desktop installation showing only the application executable and uninstaller
 is therefore a normal Client installation, not evidence that the database or
@@ -44,7 +45,7 @@ The Windows deployment bundle contains:
 - `Install-EurogasNexusServerRuntime.ps1`: internal server-runtime primitive;
 - `compose.yaml`, `Caddyfile`, and the API image reference;
 - English and Mandarin operating instructions;
-- the signed NSIS client installer as a separate release asset.
+- the Client-only NSIS installer as a separate release asset.
 
 Run PowerShell as Administrator. Start with a non-destructive preflight:
 
@@ -143,25 +144,29 @@ switch.
 
 ## AllInOne role
 
-AllInOne is Server plus Client on one device. It has the same certificate and
-Docker requirements as Server and also requires the NSIS installer:
+AllInOne is the one-click Windows evaluation package. The workstation needs
+64-bit Windows 10/11, administrator rights, 8 GB RAM, 10 GB free disk, Docker
+Desktop with Compose v2, and first-install internet access. It does **not** need
+Python, Node.js, Rust, Git, PostgreSQL, a source checkout, or a TLS certificate.
 
-```powershell
-./Deploy-EurogasNexus.ps1 -Action Install -Role AllInOne `
-  -ServerName nexus-workstation.example.com `
-  -HttpsBindAddress 127.0.0.1 `
-  -HttpsPort 8443 `
-  -TlsCertificatePath C:/secure/nexus-workstation.example.com.crt `
-  -TlsPrivateKeyPath C:/secure/nexus-workstation.example.com.key `
-  -ClientInstallerPath ./Eurogas-Nexus_0.5.0_x64-setup.exe `
-  -EnableSimulatedPrices `
-  -PrivateNetworkOnly
-```
+Run the `Eurogas-Nexus-AllInOne-...-x64-setup.exe` asset. The installer:
 
-`-EnableSimulatedPrices` is opt-in. Simulated feeds use the same ingestion,
-normalization, PostgreSQL persistence, API, SDK, and client path as licensed
-feeds, while retaining `_Sim` provenance. Replacing a simulated provider with a
-licensed connector does not change client workflow or storage boundaries.
+1. verifies Docker Compose and starts Docker Desktop when it is installed but stopped;
+2. loads the release-pinned API image embedded in the installer;
+3. pulls the official `postgres:16-alpine` image;
+4. creates cryptographically random DB/backend secrets under restricted ACLs;
+5. starts PostgreSQL and explicitly runs `alembic upgrade head`;
+6. writes preview inputs and `_Sim` market data into PostgreSQL;
+7. starts the API, recurring simulated price worker, and public-source workers;
+8. installs the desktop Client system-wide and configures its managed endpoint;
+9. validates `/api/health` before reporting success.
+
+The API and PostgreSQL host ports bind to `127.0.0.1`; no workstation API is
+exposed to the LAN. Simulated feeds use the same ingestion, normalization,
+PostgreSQL, API, SDK, and client path as licensed feeds and retain `_Sim`
+provenance. Advanced operators can inspect the same committed PowerShell and
+Compose sources in the repository, but the Release has no second, ambiguous
+AllInOne ZIP package.
 
 ## Internet requirements
 
@@ -175,7 +180,7 @@ the bootstrapper never performs an undisclosed internet search or download.
 - `Repair` reapplies Compose configuration and migrations without deleting data.
 - `Validate` checks API health, PostgreSQL connectivity, required tables, and
   Alembic revision.
-- `Uninstall` stops the server runtime but preserves the PostgreSQL volume.
+- `Uninstall` stops the server or AllInOne runtime but preserves the PostgreSQL volume.
 - `Uninstall -PurgeServerData` is the only path that deletes the runtime volume.
 - Remove the desktop client through Windows Apps after disconnecting its managed
   endpoint configuration.

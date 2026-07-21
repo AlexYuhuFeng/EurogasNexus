@@ -35,6 +35,7 @@ def test_server_runtime_is_db_first_and_has_explicit_migration() -> None:
         "public-ingestion:",
         "public-ingestion-worker:",
         "reference-ingestion-worker:",
+        "preview-seed:",
     ]:
         assert service in compose
     assert 'command: ["alembic", "upgrade", "head"]' in compose
@@ -83,6 +84,8 @@ def test_release_publishes_runtime_image_and_deployment_bundle() -> None:
         "deployment:",
         "package_deployment_bundle.sh",
         "release-deployment",
+        "all-in-one-windows:",
+        "release-all-in-one-windows",
     ]:
         assert phrase in workflow
 

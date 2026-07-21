@@ -13,7 +13,7 @@ def test_release_builds_linux_deb_for_x64_and_arm64() -> None:
 
     workflow_text = RELEASE_WORKFLOW.read_text(encoding="utf-8-sig")
     for phrase in [
-        "Also build Windows and Linux x64/ARM64 desktop packages.",
+        "name: Build desktop client (${{ matrix.artifact_label }})",
         "artifact_label: linux-x64",
         "artifact_label: linux-arm64",
         "os: ubuntu-latest",
@@ -22,6 +22,7 @@ def test_release_builds_linux_deb_for_x64_and_arm64() -> None:
         "Linux ARM64 DEB package",
     ]:
         assert phrase in workflow_text
+    assert "build_desktop:" not in workflow_text
 
 
 def test_release_does_not_use_ambiguous_linux_desktop_artifact_label() -> None:

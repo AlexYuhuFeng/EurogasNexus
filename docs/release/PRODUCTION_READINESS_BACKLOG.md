@@ -126,7 +126,7 @@ This backlog turns the production gaps listed in `docs/release/RELEASE_READINESS
 
 ### DEP-001 Make deployment roles and release assets unambiguous
 
-- Status: planned
+- Status: implemented for preview; production signing remains open
 - Priority: P0
 - Scope: align GitHub Release asset names, release notes, deployment documentation, and installer behavior so operators can distinguish the standalone desktop Client installer from the Server and AllInOne deployment bundle before downloading or installing anything.
 - Acceptance:
