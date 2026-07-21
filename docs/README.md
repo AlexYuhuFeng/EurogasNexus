@@ -37,6 +37,8 @@ blueprint or completed ExecPlan as an instruction to implement it again.
 - [Local development](operations/LOCAL_DEVELOPMENT.md)
 - [Validation](operations/VALIDATION.md)
 - [Live PostgreSQL](operations/LIVE_POSTGRESQL.md)
+- [DeepSeek live monitoring EN](operations/LLM_MONITORING-EN.md)
+- [DeepSeek live monitoring CN](operations/LLM_MONITORING-CN.md)
 - [Deployment roles EN](deployment/DEPLOYMENT_ROLES-EN.md)
 - [Deployment roles CN](deployment/DEPLOYMENT_ROLES-CN.md)
 - [Release readiness](release/RELEASE_READINESS.md)

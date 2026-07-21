@@ -581,6 +581,7 @@
   "credentials.api_key": "API key",
   "credentials.not_required": "No key required",
   "credentials.save": "Save credential",
+  "credentials.test_live": "Test live connection",
   "theme.light": "Light",
   "theme.dark": "Dark",
   "theme.system": "System",

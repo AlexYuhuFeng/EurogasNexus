@@ -16,25 +16,25 @@ nomination-submission system, settlement platform, legal-advice tool, or ETRM.
 
 ## Verified Runtime Baseline
 
-The most recently validated local PostgreSQL runtime has:
+The most recently validated local PostgreSQL test runtime has:
 
 ```text
-alembic_revision: 0013_gie_lng_dtmi_energy
-required_tables: 33
+alembic_revision: 0015_llm_monitoring_alerts
+required_tables: 37
 missing_tables: 0
 source: runtime-postgresql
 ```
 
-Repository schema head is now `0014_intraday_decision_feed` with 36 required
-tables. The local PostgreSQL baseline above remains at `0013` until an operator
-explicitly runs the migration; this implementation did not migrate a live DB.
+Repository schema head and the explicit local test migration are both
+`0015_llm_monitoring_alerts`, with 37 required tables. No production database
+was contacted.
 
 Current import evidence:
 
 ```text
 python -c "from apps.api.main import app; print('app import ok'); print(len(app.routes))"
 app import ok
-82
+87
 ```
 
 Clients obtain runtime data through `/api` or the SDK. They do not connect to
@@ -61,6 +61,12 @@ Provider credentials are backend-owned and are never returned in plaintext.
   scans; persisted opportunities are exposed through API/SDK and polled by the
   Network, Market, and Strategy workspaces every 10 seconds. Expired snapshots
   are never left actionable.
+- Monitoring and DeepSeek: a PostgreSQL-backed worker normalizes opportunity,
+  strategy, and source-failure alerts every 10 seconds. Stable fingerprints
+  prevent repeated provider charges for an unchanged event. The top-bar Alert
+  Center supports acknowledgement and explicit live DeepSeek dialogue. A real
+  provider connection, three alert enrichments, and one interactive response
+  were validated on 2026-07-22; automated tests remain offline.
 
 ## Active Workspaces
 
@@ -127,8 +133,9 @@ See [WEB_APPLICATION_ARCHITECTURE-EN.md](../clients/WEB_APPLICATION_ARCHITECTURE
    server roles are private-network/VPN preview deployments only.
 2. Commercial providers remain gated by customer credentials, entitlement,
    licenses, and operator validation.
-3. Public-source scheduling, alerting, audit depth, export governance, and
-   retention need further production hardening.
+3. Public-source scheduling, retry policy, audit depth, export governance, and
+   retention need further production hardening. Alerting now exists, but needs
+   authenticated multi-user ownership and production delivery channels.
 4. Route-level intraday opportunities now compose quotes, routes, tariffs,
    capacities, access rights, and FX from PostgreSQL. Production portfolio-wide
    optimization must still allocate resources over shared and alternate routes

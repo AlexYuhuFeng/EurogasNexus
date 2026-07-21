@@ -2,6 +2,8 @@ import { useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { workspaceGroups } from "../workspaceNavigation";
 import type { WorkspaceGroup, WorkspacePageId } from "../workspaceNavigation";
+import type { ApiState } from "@/stores/api";
+import { AlertCenter } from "./AlertCenter";
 import "./WorkspaceTopBar.css";
 
 export type { WorkspaceGroup, WorkspacePageId } from "../workspaceNavigation";
@@ -19,6 +21,15 @@ interface WorkspaceTopBarProps {
   deliveryProduct: string;
   marketLastUpdatedAtUtc: string | null;
   sourceIssueCount: number;
+  monitoring: Pick<
+    ApiState,
+    | "monitoringAlerts"
+    | "monitoringSummary"
+    | "monitoringAnalysisByAlert"
+    | "monitoringBusyAlertId"
+    | "acknowledgeMonitoringAlert"
+    | "analyzeMonitoringAlert"
+  >;
   t: (key: string) => string;
   onSearchTermChange: Dispatch<SetStateAction<string>>;
   onLanguageChange: (language: string) => void;
@@ -38,6 +49,7 @@ export function WorkspaceTopBar({
   deliveryProduct,
   marketLastUpdatedAtUtc,
   sourceIssueCount,
+  monitoring,
   t,
   onSearchTermChange,
   onLanguageChange,
@@ -110,6 +122,15 @@ export function WorkspaceTopBar({
           </span>
         </div>
         <div className="header-controls">
+          <AlertCenter
+            alerts={monitoring.monitoringAlerts}
+            summary={monitoring.monitoringSummary}
+            analysisByAlert={monitoring.monitoringAnalysisByAlert}
+            busyAlertId={monitoring.monitoringBusyAlertId}
+            language={language}
+            onAcknowledge={monitoring.acknowledgeMonitoringAlert}
+            onAnalyze={monitoring.analyzeMonitoringAlert}
+          />
           <span className={`status-badge status-${loading ? "loading" : dataStatus}`} aria-live="polite">
             {loading ? t("status.loading") : t(`data.${dataStatus}`)}
           </span>

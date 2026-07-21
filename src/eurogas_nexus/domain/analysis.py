@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from enum import StrEnum
+from typing import Literal
 from uuid import uuid4
 
 from pydantic import BaseModel, Field
@@ -22,7 +23,7 @@ class AnalysisRequest(BaseModel):
     question: str = Field(min_length=1, max_length=4096)
     task: AnalysisTask = AnalysisTask.DB_INQUIRY
     provider_id: str = "DEEPSEEK"
-    model: str = "deepseek-chat"
+    model: Literal["deepseek-v4-flash"] = "deepseek-v4-flash"
     invoke_provider: bool = False
     selected_terms: list[str] = Field(default_factory=list)
     selected_assets: list[str] = Field(default_factory=list)
@@ -36,7 +37,7 @@ class AnalysisRequest(BaseModel):
 class PortfolioReportRequest(BaseModel):
     title: str = "Portfolio decision-support report"
     provider_id: str = "DEEPSEEK"
-    model: str = "deepseek-chat"
+    model: Literal["deepseek-v4-flash"] = "deepseek-v4-flash"
     invoke_provider: bool = False
     portfolio_id: str | None = None
     selected_resources: list[str] = Field(default_factory=list)

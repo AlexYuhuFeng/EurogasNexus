@@ -167,6 +167,22 @@ services:
       migrate:
         condition: service_completed_successfully
 
+  monitoring-worker:
+    image: ${EUROGAS_NEXUS_API_IMAGE}
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    environment: *runtime-environment
+    command:
+      - python
+      - scripts/ops/run_monitoring_worker.py
+      - --interval-seconds
+      - "10"
+      - --max-llm-enrichments
+      - "3"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
 volumes:
   runtime-postgres:
     name: eurogas-nexus-runtime-postgres

@@ -13,7 +13,7 @@ visible client feature.
 
 Status: `complete-in-current-worktree`
 
-- PostgreSQL/Alembic schema through `0014_intraday_decision_feed`.
+- PostgreSQL/Alembic schema through `0015_llm_monitoring_alerts`.
 - Stable public `/api`; profile-gated `/api/internal` and `/api/dev`.
 - Python SDK and CLI.
 - React/Vite Web workspace and Tauri Windows/Linux desktop clients.
@@ -79,6 +79,19 @@ expiry behavior, stable API and SDK reads, 10-second client refresh, and a
 compact Network/Market decision feed. Simulated providers use the same database
 contract as future licensed adapters. This route-level feed does not replace
 the pending R31 portfolio allocation scope.
+
+### R30C: Visible LLM Monitoring And Interaction
+
+Status: `complete-in-current-worktree`
+
+ExecPlan: `.agent/plans/V1_R30C_LLM_MONITORING_EXECPLAN.md`
+
+Delivered a deduplicated PostgreSQL alert lifecycle, 10-second monitoring
+worker, visible top-bar Alert Center, acknowledgement, explicit per-alert
+dialogue, encrypted DeepSeek credential handling, live connection diagnostics,
+and real DeepSeek runtime calls. Deterministic engines remain responsible for
+facts and triggers; the LLM only explains persisted evidence and never executes
+business actions.
 
 ## R31: DB-Backed Portfolio Network Optimization
 

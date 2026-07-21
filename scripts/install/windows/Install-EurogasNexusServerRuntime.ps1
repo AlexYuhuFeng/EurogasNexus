@@ -275,6 +275,10 @@ function Install-OrRepairRuntime {
     Invoke-Compose @("up", "-d", "postgres")
     Invoke-Compose @("run", "--rm", "--no-deps", "migrate")
     Invoke-Compose @("up", "-d", "--no-deps", "api")
+    Invoke-Compose @(
+        "--profile", "monitoring", "up", "-d",
+        "--no-deps", "monitoring-worker"
+    )
     if (-not $UseLocalHttp -and $DeploymentRole -in @("Server", "AllInOne")) {
         Invoke-Compose @("--profile", "server", "up", "-d", "--no-deps", "gateway")
     }
@@ -319,6 +323,7 @@ function Install-OrRepairRuntime {
         simulated_prices_enabled = [bool]$EnableSimulatedPrices
         public_data_ingestion_requested = -not [bool]$SkipPublicData
         public_data_workers_enabled = -not [bool]$SkipPublicData
+        monitoring_worker_enabled = $true
         initial_public_ingestion_ok = $initialIngestionOk
         local_http_only = $UseLocalHttp
     }

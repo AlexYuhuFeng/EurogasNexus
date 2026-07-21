@@ -22,6 +22,7 @@ from eurogas_nexus.db.models.market_positioning import (
     PortfolioPnlSnapshotRecord,
     ScreenOrderObservationRecord,
 )
+from eurogas_nexus.db.models.monitoring import MonitoringAlertRecord
 from eurogas_nexus.db.models.observation import (
     AuditEventRecord,
     CapacityObservationRecord,
@@ -91,6 +92,7 @@ __all__ = [
     "LiveMarketMarkRecord",
     "MarketObservationRecord",
     "MarketQuoteRecord",
+    "MonitoringAlertRecord",
     "NodeFacilityMapping",
     "PortfolioPnlSnapshotRecord",
     "ProviderCredentialRecord",

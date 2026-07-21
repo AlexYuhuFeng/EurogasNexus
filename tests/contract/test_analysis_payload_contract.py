@@ -24,7 +24,7 @@ def test_analysis_payload_builder_matches_app_contract() -> None:
     for phrase in [
         'task: "PORTFOLIO_REPORT"',
         'provider_id: "DEEPSEEK"',
-        'model: "deepseek-chat"',
+        'model: "deepseek-v4-flash"',
         'selected_terms: ["TTF", "NBP", "ICE OCM"]',
         'selected_assets: ["TTF", "NBP", "BBL"]',
         'selected_contracts: portfolioResources.map((resource) => resource.resource_id)',

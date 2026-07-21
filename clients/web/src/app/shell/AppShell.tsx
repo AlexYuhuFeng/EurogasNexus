@@ -32,6 +32,7 @@ export function AppShell({ controller }: AppShellProps) {
         deliveryProduct={controls.deliveryProduct}
         marketLastUpdatedAtUtc={api.marketLastUpdatedAtUtc}
         sourceIssueCount={sources.sourceStats.issues}
+        monitoring={api}
         t={t}
         onSearchTermChange={controls.setSearchTerm}
         onLanguageChange={(language) => void i18n.changeLanguage(language)}

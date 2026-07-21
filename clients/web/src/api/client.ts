@@ -102,6 +102,18 @@ export interface HealthDTO {
   profile: string;
 }
 
+function errorDetail(payload: unknown, fallback: string): string {
+  if (!payload || typeof payload !== "object" || !("detail" in payload)) return fallback;
+  const detail = (payload as { detail: unknown }).detail;
+  if (typeof detail === "string") return detail;
+  if (detail && typeof detail === "object") {
+    const structured = detail as { message?: unknown; code?: unknown };
+    if (typeof structured.message === "string") return structured.message;
+    if (typeof structured.code === "string") return structured.code;
+  }
+  return fallback;
+}
+
 async function parseResponse<T>(res: Response): Promise<T> {
   const body = await res.text();
   const contentType = res.headers.get("content-type") ?? "";
@@ -115,9 +127,7 @@ async function parseResponse<T>(res: Response): Promise<T> {
     }
   }
   if (!res.ok) {
-    const detail = payload && typeof payload === "object" && "detail" in payload
-      ? String((payload as { detail: unknown }).detail)
-      : res.statusText || "request failed";
+    const detail = errorDetail(payload, res.statusText || "request failed");
     throw new Error(`API ${res.status}: ${detail}`);
   }
   if (!looksJson || payload === null) {
@@ -484,6 +494,7 @@ export interface LngObsDTO {
 
 export interface CredentialProviderDTO {
   provider_id: string; display_name: string; credential_required: boolean;
+  default_model?: string | null;
   configured: boolean; status: string; redacted_preview: string | null;
   last_tested_at_utc: string | null; last_test_status: string | null;
 }
@@ -507,6 +518,33 @@ export interface TsoTariffDTO {
   capacity_product: string; firmness: string; tariff_value: number; currency: string; unit: string;
   effective_from: string; effective_to?: string | null; tariff_status: string;
   source_table: string; source_page?: number | null; source_refs: string[]; manual_review_required: boolean;
+}
+
+export interface MonitoringAlertDTO {
+  alert_id: string; fingerprint: string; category: string; alert_type: string;
+  severity: "info" | "warning" | "critical";
+  status: "open" | "acknowledged" | "resolved";
+  title_en: string; title_zh_cn: string; message_en: string; message_zh_cn: string;
+  entity_type: string; entity_id: string; event_time_utc: string;
+  detected_at_utc: string; updated_at_utc: string;
+  acknowledged_at_utc: string | null; resolved_at_utc: string | null;
+  occurrence_count: number; evidence_snapshot: Record<string, unknown>;
+  source_refs: string[]; warnings: string[]; llm_provider_id: string;
+  llm_status: string; llm_summary_en: string | null; llm_summary_zh_cn: string | null;
+  llm_last_attempt_at_utc: string | null; simulated: boolean;
+  human_review_required: boolean;
+}
+
+export interface MonitoringSummaryDTO {
+  open_count: number; acknowledged_count: number; critical_count: number;
+  warning_count: number; info_count: number; llm_pending_count: number;
+  simulated_count: number;
+}
+
+export interface MonitoringAnalysisDTO {
+  analysis_id: string | null; alert_id: string; provider_id: string;
+  provider_status: string; answer: string | null; model: string; language: string;
+  source_refs: string[]; warnings: string[]; human_review_required: boolean;
 }
 
 export interface TsoTariffsResultDTO {
@@ -753,6 +791,28 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     }).then((res) => parseResponse<ApiResponse<CredentialProviderDTO>>(res)),
+
+  testCredentialConnection: (providerId: string) =>
+    post<CredentialProviderDTO & { connection_status: string; connection_error_code: string | null }>(
+      `/credentials/${providerId}/connection-test`,
+      {},
+    ),
+
+  monitoringAlerts: () =>
+    get<MonitoringAlertDTO[]>("/monitoring/alerts", { limit: "100" }),
+
+  monitoringSummary: () => get<MonitoringSummaryDTO>("/monitoring/summary"),
+
+  acknowledgeMonitoringAlert: (alertId: string) =>
+    post<MonitoringAlertDTO>(`/monitoring/alerts/${encodeURIComponent(alertId)}/acknowledge`, {}),
+
+  analyzeMonitoringAlert: (
+    alertId: string,
+    body: { question: string; language: "en" | "zh-CN"; model: "deepseek-v4-flash" },
+  ) => post<MonitoringAnalysisDTO>(
+    `/monitoring/alerts/${encodeURIComponent(alertId)}/analysis`,
+    body,
+  ),
 
   routeEligibility: () => get<RouteEligibilityDTO[]>("/contracts/routes"),
 

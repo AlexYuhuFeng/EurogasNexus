@@ -58,6 +58,10 @@ REQUIRED_TABLES: tuple[RequiredTable, ...] = (
         name="intraday_opportunities",
         introduced_in="0014_intraday_decision_feed",
     ),
+    RequiredTable(
+        name="monitoring_alerts",
+        introduced_in="0015_llm_monitoring_alerts",
+    ),
     RequiredTable(name="glossary_terms", introduced_in="0006_route_cost_decision_support"),
     RequiredTable(name="strategy_definitions", introduced_in="0007_strategy_lab_foundation"),
     RequiredTable(name="strategy_runs", introduced_in="0007_strategy_lab_foundation"),

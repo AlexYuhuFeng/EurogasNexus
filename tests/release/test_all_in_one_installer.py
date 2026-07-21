@@ -59,12 +59,14 @@ def test_all_in_one_bootstrap_requires_only_windows_and_docker_runtime() -> None
     assert "New-HexSecret" in runtime
     assert "icacls" in runtime
     assert "public_data_workers_enabled = -not [bool]$SkipPublicData" in runtime
+    assert '"--profile", "monitoring", "up", "-d"' in runtime
 
     manager = read("scripts/install/windows/Manage-EurogasNexusAllInOne.ps1")
     assert "Get-ConfiguredProfiles" in manager
     assert "Start-ConfiguredRuntime" in manager
     assert 'configuration.simulated_prices_enabled' in manager
     assert 'configuration.public_data_workers_enabled' in manager
+    assert '@("--profile", "monitoring")' in manager
 
 
 def test_compose_seeds_postgres_before_starting_simulated_feed() -> None:
@@ -78,6 +80,8 @@ def test_compose_seeds_postgres_before_starting_simulated_feed() -> None:
         in compose
     )
     assert 'command: ["alembic", "upgrade", "head"]' in compose
+    assert "monitoring-worker:" in compose
+    assert "scripts/ops/run_monitoring_worker.py" in compose
     assert '"127.0.0.1:${POSTGRES_PORT}:5432"' in compose
     assert '"127.0.0.1:${API_PORT}:8000"' in compose
 

@@ -12,7 +12,7 @@ export function buildAnalysisPayload(
     question: analysisQuestion,
     task: "PORTFOLIO_REPORT",
     provider_id: "DEEPSEEK",
-    model: "deepseek-chat",
+    model: "deepseek-v4-flash",
     invoke_provider: invokeDeepSeek,
     selected_terms: ["TTF", "NBP", "ICE OCM"],
     selected_assets: ["TTF", "NBP", "BBL"],

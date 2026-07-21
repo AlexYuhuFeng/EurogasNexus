@@ -22,6 +22,7 @@ interface SourceCenterControllerParams {
   credentialProviders: CredentialProviderDTO[];
   sourcePostureCategories: SourceCategoryPostureDTO[] | undefined;
   saveProviderCredential: ApiState["saveProviderCredential"];
+  testProviderConnection: ApiState["testProviderConnection"];
   language: string;
   t: TFunction;
 }
@@ -43,6 +44,7 @@ export function useSourceCenterController({
   credentialProviders,
   sourcePostureCategories,
   saveProviderCredential,
+  testProviderConnection,
   language,
   t,
 }: SourceCenterControllerParams) {
@@ -86,8 +88,12 @@ export function useSourceCenterController({
   async function submitCredential(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedCredentialProvider?.credential_required || !credentialValue.trim()) return;
-    await saveProviderCredential(credentialProvider, credentialValue, credentialLabel || "default");
-    setCredentialValue("");
+    try {
+      await saveProviderCredential(credentialProvider, credentialValue.trim(), credentialLabel || "default");
+      setCredentialValue("");
+    } catch {
+      // Keep the write-only value in the field so the operator can retry after fixing runtime configuration.
+    }
   }
 
   function selectSource(sourceId: string) {
@@ -148,6 +154,9 @@ export function useSourceCenterController({
     selectSourceCategory,
     selectSource,
     submitCredential,
+    testProviderConnection: () => {
+      if (credentialProvider) void testProviderConnection(credentialProvider);
+    },
     sourceLabel,
     categoryProviderSummary,
     sourceNextAction,

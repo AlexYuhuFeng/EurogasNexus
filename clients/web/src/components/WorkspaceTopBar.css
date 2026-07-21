@@ -80,3 +80,295 @@
     width: calc(100vw - 24px);
   }
 }
+
+.alert-center {
+  position: relative;
+}
+
+.alert-trigger {
+  display: inline-flex;
+  height: 40px;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--eg-hairline, var(--border));
+  border-radius: 8px;
+  background: var(--eg-surface, var(--surface));
+  color: var(--eg-ink, var(--text));
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 0 10px;
+}
+
+.alert-trigger:hover,
+.alert-trigger.active {
+  border-color: var(--eg-warning, #b66a19);
+}
+
+.alert-trigger-mark {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--eg-muted, var(--muted));
+}
+
+.alert-trigger.active .alert-trigger-mark {
+  background: var(--eg-warning, #b66a19);
+  box-shadow: 0 0 0 3px rgb(182 106 25 / 14%);
+}
+
+.alert-trigger strong {
+  min-width: 20px;
+  border-radius: 8px;
+  background: var(--eg-canvas-soft, var(--surface-strong));
+  padding: 2px 5px;
+  text-align: center;
+}
+
+.alert-drawer {
+  position: fixed;
+  z-index: 80;
+  top: 72px;
+  right: 16px;
+  display: grid;
+  width: min(440px, calc(100vw - 32px));
+  max-height: calc(100vh - 88px);
+  grid-template-rows: auto auto minmax(0, 1fr);
+  overflow: hidden;
+  border: 1px solid var(--eg-hairline, var(--border));
+  border-radius: 8px;
+  background: var(--eg-surface, var(--surface));
+  box-shadow: var(--eg-shadow-3, 0 12px 28px rgb(24 32 38 / 16%));
+}
+
+.alert-drawer-header {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--eg-hairline, var(--border));
+  padding: 14px 16px;
+}
+
+.alert-drawer-header > div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.alert-drawer-header span,
+.monitoring-alert-heading {
+  color: var(--eg-muted, var(--muted));
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.alert-drawer-header strong {
+  font-size: 18px;
+  line-height: 24px;
+}
+
+.alert-drawer-header button {
+  width: 32px;
+  height: 32px;
+  border: 0;
+  background: transparent;
+  color: var(--eg-muted, var(--muted));
+  cursor: pointer;
+  font-size: 22px;
+}
+
+.alert-summary-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-bottom: 1px solid var(--eg-hairline, var(--border));
+  background: var(--eg-canvas-soft, var(--surface-strong));
+}
+
+.alert-summary-strip span {
+  display: grid;
+  gap: 2px;
+  border-right: 1px solid var(--eg-hairline, var(--border));
+  color: var(--eg-muted, var(--muted));
+  font-size: 11px;
+  padding: 9px 12px;
+}
+
+.alert-summary-strip span:last-child {
+  border-right: 0;
+}
+
+.alert-summary-strip strong {
+  color: var(--eg-ink, var(--text));
+  font-size: 16px;
+}
+
+.alert-list {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  overflow-y: auto;
+  padding: 10px;
+}
+
+.monitoring-alert {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+  border: 1px solid var(--eg-hairline, var(--border));
+  border-left: 4px solid var(--eg-muted, var(--muted));
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.monitoring-alert.severity-warning {
+  border-left-color: var(--eg-warning, #b66a19);
+}
+
+.monitoring-alert.severity-critical {
+  border-left-color: var(--eg-danger, #ba3d3d);
+}
+
+.monitoring-alert-heading {
+  display: flex;
+  min-width: 0;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.monitoring-alert-heading span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.monitoring-alert h3,
+.monitoring-alert p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.monitoring-alert h3 {
+  font-size: 14px;
+  line-height: 19px;
+}
+
+.monitoring-alert > p,
+.alert-ai-summary p,
+.alert-analysis-result p {
+  color: var(--eg-muted, var(--muted));
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.monitoring-alert-flags,
+.monitoring-alert-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.monitoring-alert-flags span {
+  border: 1px solid var(--eg-hairline, var(--border));
+  border-radius: 8px;
+  color: var(--eg-muted, var(--muted));
+  font-size: 10px;
+  padding: 3px 6px;
+}
+
+.monitoring-alert-actions button,
+.alert-discussion > button {
+  min-height: 32px;
+  border: 1px solid var(--eg-hairline, var(--border));
+  border-radius: 6px;
+  background: var(--eg-surface, var(--surface));
+  color: var(--eg-ink, var(--text));
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 6px 10px;
+}
+
+.monitoring-alert-actions button:first-child,
+.alert-discussion > button {
+  border-color: var(--eg-ink, var(--text));
+  background: var(--eg-ink, var(--text));
+  color: var(--eg-surface, var(--surface));
+}
+
+.monitoring-alert-actions button:disabled,
+.alert-discussion > button:disabled {
+  cursor: wait;
+  opacity: 0.5;
+}
+
+.alert-ai-summary,
+.alert-analysis-result {
+  display: grid;
+  gap: 4px;
+  border-left: 2px solid var(--eg-positive, #158264);
+  background: var(--eg-canvas-soft, var(--surface-strong));
+  padding: 8px 10px;
+}
+
+.alert-ai-summary strong,
+.alert-analysis-result strong {
+  font-size: 11px;
+}
+
+.alert-discussion {
+  display: grid;
+  gap: 7px;
+}
+
+.alert-discussion textarea {
+  width: 100%;
+  min-height: 76px;
+  resize: vertical;
+  border: 1px solid var(--eg-hairline, var(--border));
+  border-radius: 6px;
+  background: var(--eg-canvas, var(--background));
+  color: var(--eg-ink, var(--text));
+  font: inherit;
+  font-size: 12px;
+  line-height: 18px;
+  padding: 8px;
+}
+
+.alert-discussion > button {
+  justify-self: start;
+}
+
+.alert-analysis-result.status-missing_credential,
+.alert-analysis-result.status-provider_call_failed,
+.alert-analysis-result.status-provider_http_error {
+  border-left-color: var(--eg-danger, #ba3d3d);
+}
+
+.alert-empty-state {
+  display: grid;
+  gap: 5px;
+  color: var(--eg-muted, var(--muted));
+  padding: 30px 14px;
+  text-align: center;
+}
+
+.alert-empty-state strong {
+  color: var(--eg-ink, var(--text));
+}
+
+@media (max-width: 900px) {
+  .alert-drawer {
+    top: 68px;
+    right: 12px;
+    width: calc(100vw - 24px);
+    max-height: calc(100vh - 80px);
+  }
+
+  .alert-trigger span:not(.alert-trigger-mark) {
+    display: none;
+  }
+}

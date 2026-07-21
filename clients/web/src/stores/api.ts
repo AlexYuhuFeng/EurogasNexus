@@ -15,6 +15,9 @@ import {
   IntradayOpportunityDTO,
   MarketObsDTO,
   MarketQuoteDTO,
+  MonitoringAlertDTO,
+  MonitoringAnalysisDTO,
+  MonitoringSummaryDTO,
   NodeDTO,
   PortfolioLiveSummaryDTO,
   PortfolioOptimizationRequestDTO,
@@ -65,6 +68,10 @@ export interface ApiState {
   glossaryContext: GlossaryContextDTO | null;
   analysisResult: AnalysisResultDTO | null;
   credentialProviders: CredentialProviderDTO[];
+  monitoringAlerts: MonitoringAlertDTO[];
+  monitoringSummary: MonitoringSummaryDTO;
+  monitoringAnalysisByAlert: Record<string, MonitoringAnalysisDTO>;
+  monitoringBusyAlertId: string | null;
   runtimeDb: RuntimeDbStatusDTO | null;
   endpointMeta: Record<string, ApiMeta>;
   meta: ApiMeta | null;
@@ -76,7 +83,15 @@ export interface ApiState {
   dataStatus: "runtime" | "delayed" | "partial" | "unavailable";
   fetchWorkspace: () => Promise<void>;
   refreshMarketData: () => Promise<void>;
+  refreshMonitoring: () => Promise<void>;
   saveProviderCredential: (providerId: string, apiKey: string, label: string) => Promise<void>;
+  testProviderConnection: (providerId: string) => Promise<void>;
+  acknowledgeMonitoringAlert: (alertId: string) => Promise<void>;
+  analyzeMonitoringAlert: (
+    alertId: string,
+    question: string,
+    language: "en" | "zh-CN",
+  ) => Promise<void>;
   saveDraftContract: (contract: UpstreamContractInputDTO) => Promise<void>;
   recommendRouteAllocation: (request: RouteRecommendationRequestDTO) => Promise<void>;
   optimizeResourcePool: (request: PortfolioOptimizationRequestDTO) => Promise<void>;
@@ -123,6 +138,18 @@ export const useApiStore = create<ApiState>((set) => ({
   glossaryContext: null,
   analysisResult: null,
   credentialProviders: [],
+  monitoringAlerts: [],
+  monitoringSummary: {
+    open_count: 0,
+    acknowledged_count: 0,
+    critical_count: 0,
+    warning_count: 0,
+    info_count: 0,
+    llm_pending_count: 0,
+    simulated_count: 0,
+  },
+  monitoringAnalysisByAlert: {},
+  monitoringBusyAlertId: null,
   runtimeDb: null,
   endpointMeta: {},
   meta: null,
@@ -160,6 +187,8 @@ export const useApiStore = create<ApiState>((set) => ({
         glossaryTerms,
         runtimeDb,
         credentialProviders,
+        monitoringAlerts,
+        monitoringSummary,
       ] = await Promise.all([
         api.nodes(),
         api.edges(),
@@ -184,6 +213,8 @@ export const useApiStore = create<ApiState>((set) => ({
         api.glossary("en"),
         api.runtimeDb(),
         api.credentialProviders(),
+        api.monitoringAlerts(),
+        api.monitoringSummary(),
       ]);
       const endpointMeta = {
         referenceNodes: nodes.meta,
@@ -209,6 +240,8 @@ export const useApiStore = create<ApiState>((set) => ({
         glossaryTerms: glossaryTerms.meta,
         runtimeDb: runtimeDb.meta,
         credentialProviders: credentialProviders.meta,
+        monitoringAlerts: monitoringAlerts.meta,
+        monitoringSummary: monitoringSummary.meta,
       };
       const sourceRefs = Object.values(endpointMeta).flatMap((item) => item.source_references ?? []);
       const hasRuntime = sourceRefs.some((source) => source === "runtime-postgresql");
@@ -245,6 +278,8 @@ export const useApiStore = create<ApiState>((set) => ({
         glossaryTerms: glossaryTerms.data,
         runtimeDb: runtimeDb.data,
         credentialProviders: credentialProviders.data,
+        monitoringAlerts: monitoringAlerts.data,
+        monitoringSummary: monitoringSummary.data,
         endpointMeta,
         meta: nodes.meta,
         marketLastUpdatedAtUtc: new Date().toISOString(),
@@ -292,6 +327,26 @@ export const useApiStore = create<ApiState>((set) => ({
     }
   },
 
+  refreshMonitoring: async () => {
+    try {
+      const [alerts, summary] = await Promise.all([
+        api.monitoringAlerts(),
+        api.monitoringSummary(),
+      ]);
+      set((state) => ({
+        monitoringAlerts: alerts.data,
+        monitoringSummary: summary.data,
+        endpointMeta: {
+          ...state.endpointMeta,
+          monitoringAlerts: alerts.meta,
+          monitoringSummary: summary.meta,
+        },
+      }));
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
   saveProviderCredential: async (providerId, apiKey, label) => {
     set({ credentialMessage: null });
     try {
@@ -303,6 +358,61 @@ export const useApiStore = create<ApiState>((set) => ({
       });
     } catch (e) {
       set({ credentialMessage: String(e) });
+    }
+  },
+
+  testProviderConnection: async (providerId) => {
+    set({ credentialMessage: null });
+    try {
+      const result = await api.testCredentialConnection(providerId);
+      const credentialProviders = await api.credentialProviders();
+      set({
+        credentialProviders: credentialProviders.data,
+        credentialMessage: result.data.connection_status === "success"
+          ? `${providerId} live connection passed.`
+          : `${providerId} live connection failed: ${result.data.connection_error_code ?? result.data.connection_status}`,
+      });
+    } catch (e) {
+      set({ credentialMessage: String(e) });
+      throw e;
+    }
+  },
+
+  acknowledgeMonitoringAlert: async (alertId) => {
+    set({ monitoringBusyAlertId: alertId });
+    try {
+      await api.acknowledgeMonitoringAlert(alertId);
+      const [alerts, summary] = await Promise.all([
+        api.monitoringAlerts(),
+        api.monitoringSummary(),
+      ]);
+      set({
+        monitoringAlerts: alerts.data,
+        monitoringSummary: summary.data,
+        monitoringBusyAlertId: null,
+      });
+    } catch (e) {
+      set({ error: String(e), monitoringBusyAlertId: null });
+    }
+  },
+
+  analyzeMonitoringAlert: async (alertId, question, language) => {
+    set({ monitoringBusyAlertId: alertId });
+    try {
+      const result = await api.analyzeMonitoringAlert(alertId, {
+        question,
+        language,
+        model: "deepseek-v4-flash",
+      });
+      set((state) => ({
+        monitoringAnalysisByAlert: {
+          ...state.monitoringAnalysisByAlert,
+          [alertId]: result.data,
+        },
+        monitoringBusyAlertId: null,
+      }));
+    } catch (e) {
+      set({ error: String(e), monitoringBusyAlertId: null });
     }
   },
 

@@ -13,12 +13,14 @@ interface WorkspaceRuntimeParams {
   activeWorkspace: WorkspacePageId;
   fetchWorkspace: () => Promise<void>;
   refreshMarketData: () => Promise<void>;
+  refreshMonitoring: () => Promise<void>;
 }
 
 export function useWorkspaceRuntime({
   activeWorkspace,
   fetchWorkspace,
   refreshMarketData,
+  refreshMonitoring,
 }: WorkspaceRuntimeParams) {
   useEffect(() => {
     let active = true;
@@ -38,4 +40,11 @@ export function useWorkspaceRuntime({
     }, MARKET_REFRESH_INTERVAL_MS);
     return () => window.clearInterval(intervalId);
   }, [activeWorkspace, refreshMarketData]);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      void refreshMonitoring();
+    }, MARKET_REFRESH_INTERVAL_MS);
+    return () => window.clearInterval(intervalId);
+  }, [refreshMonitoring]);
 }

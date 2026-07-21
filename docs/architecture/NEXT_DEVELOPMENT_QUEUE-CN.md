@@ -10,7 +10,7 @@
 
 状态：`complete-in-current-worktree`
 
-- PostgreSQL/Alembic 数据结构已到 `0014_intraday_decision_feed`。
+- PostgreSQL/Alembic 数据结构已到 `0015_llm_monitoring_alerts`。
 - 稳定公共 `/api`，以及受配置限制的 `/api/internal`、`/api/dev`。
 - Python SDK、CLI、React/Vite Web 和 Tauri Windows/Linux 客户端。
 - 地图资源池、市场、管容、合同、策略、复核、市场定位、数据源、术语库、运行状态、设置和手册工作区。
@@ -24,6 +24,7 @@
 - **R30**：正确的残量网络天然气流优化、储气/提名输入校验、统一优化 API 信封、优化测试门禁和 Linux ARM 发布重试。
 - **R30A**：把 `App.tsx` 缩减为组合入口，建立 hooks、model、shell 和 workspace renderer 的明确职责，更新模块 owner 测试和中英文 Web 架构规范。该维护增量不改变 R31 的数据库组合优化范围。
 - **R30B**：完成标准化 L1 报价和公司 TSO access 数据表、后端路径净价差扫描、不可变决策快照、明确过期状态、稳定 API/SDK 读取，以及 Network/Market 页面每 10 秒刷新的紧凑决策信息流。模拟供应商与未来持牌适配器使用同一数据库合同；该路径级信息流不替代 R31 的组合分配范围。
+- **R30C**：完成 PostgreSQL 告警生命周期、10 秒监控 worker、顶部可见告警中心、确认操作、逐告警 DeepSeek 对话、加密凭据、实时连接诊断和真实 DeepSeek 运行时调用。事实与触发条件仍由确定性引擎负责，大模型只解释持久化证据且不能执行任何业务动作。
 
 ## R31：PostgreSQL 驱动的组合网络优化
 

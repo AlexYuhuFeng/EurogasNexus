@@ -39,7 +39,12 @@ PROVIDERS: tuple[dict[str, object], ...] = (
     {"provider_id": "Kpler", "display_name": "Kpler", "credential_required": True},
     {"provider_id": "Platts", "display_name": "Platts", "credential_required": True},
     {"provider_id": "Weather", "display_name": "Weather", "credential_required": True},
-    {"provider_id": "DEEPSEEK", "display_name": "DeepSeek LLM", "credential_required": True},
+    {
+        "provider_id": "DEEPSEEK",
+        "display_name": "DeepSeek V4 Flash",
+        "credential_required": True,
+        "default_model": "deepseek-v4-flash",
+    },
     {"provider_id": "LLM", "display_name": "Generic LLM Provider", "credential_required": True},
 )
 
@@ -164,6 +169,64 @@ def validate_provider_credential_locally(provider_id: ProviderId) -> dict:
         raise _credential_store_unavailable(exc.__class__.__name__) from exc
 
 
+@router.post("/api/credentials/{provider_id}/connection-test")
+def test_provider_credential_connection(provider_id: ProviderId) -> dict:
+    """Perform an explicit live provider check without returning the credential."""
+
+    _ensure_private_provider(provider_id)
+    if provider_id not in {"DEEPSEEK", "LLM"}:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "connection_test_not_supported",
+                "message": (
+                    "A governed live connection test is not implemented for "
+                    f"{provider_id}."
+                ),
+            },
+        )
+    if not _db_is_configured():
+        raise _credential_store_unavailable("Runtime database is not configured.")
+
+    from eurogas_nexus.llm import test_deepseek_connection
+    from eurogas_nexus.security.credentials import utc_now
+    from eurogas_nexus.security.provider_keys import load_provider_api_key
+
+    sqlalchemy_error = _sqlalchemy_error_type()
+    try:
+        from eurogas_nexus.db.models import ProviderCredentialRecord
+        from eurogas_nexus.db.session import get_session_factory
+
+        api_key = load_provider_api_key(provider_id)
+        result = test_deepseek_connection(api_key=api_key or "")
+        with get_session_factory()() as session:
+            row = session.get(ProviderCredentialRecord, provider_id)
+            if row is None:
+                raise _credential_not_found(provider_id)
+            now = utc_now()
+            row.last_tested_at_utc = now
+            row.updated_at_utc = now
+            row.last_test_status = f"connection_test_{result.status}"
+            row.last_test_message = (
+                "Live DeepSeek connection test passed."
+                if result.status == "success"
+                else f"Live DeepSeek connection test failed: {result.error_code or result.status}"
+            )
+            session.commit()
+            session.refresh(row)
+            return _env(
+                _credential_status(row)
+                | {
+                    "connection_status": result.status,
+                    "connection_error_code": result.error_code,
+                }
+            )
+    except HTTPException:
+        raise
+    except sqlalchemy_error as exc:
+        raise _credential_store_unavailable(exc.__class__.__name__) from exc
+
+
 def _write_provider_credential(provider_id: ProviderId, payload: CredentialUpdate) -> dict:
     _ensure_private_provider(provider_id)
     if not _db_is_configured():
@@ -180,7 +243,7 @@ def _write_provider_credential(provider_id: ProviderId, payload: CredentialUpdat
 
     sqlalchemy_error = _sqlalchemy_error_type()
     try:
-        from eurogas_nexus.db.models import ProviderCredentialRecord
+        from eurogas_nexus.db.models import MonitoringAlertRecord, ProviderCredentialRecord
         from eurogas_nexus.db.session import get_session_factory
 
         encrypted = encrypt_credential_payload({"api_key": payload.api_key})
@@ -205,6 +268,17 @@ def _write_provider_credential(provider_id: ProviderId, payload: CredentialUpdat
                     human_review_required=True,
                 )
             )
+            if provider_id in {"DEEPSEEK", "LLM"}:
+                session.query(MonitoringAlertRecord).filter(
+                    MonitoringAlertRecord.status == "open",
+                    MonitoringAlertRecord.llm_status == "missing_credential",
+                ).update(
+                    {
+                        MonitoringAlertRecord.llm_status: "pending",
+                        MonitoringAlertRecord.llm_last_attempt_at_utc: None,
+                    },
+                    synchronize_session=False,
+                )
             session.commit()
             row = session.get(ProviderCredentialRecord, provider_id)
             return _env(_credential_status(row))
@@ -267,6 +341,7 @@ def _provider_status(provider: dict[str, object], row: object | None) -> dict:
         "provider_id": provider_id,
         "display_name": provider["display_name"],
         "credential_required": provider["credential_required"],
+        "default_model": provider.get("default_model"),
         "configured": False,
         "status": "public" if provider_id in PUBLIC_PROVIDERS else "missing",
         "redacted_preview": None,
@@ -281,6 +356,9 @@ def _provider_status(provider: dict[str, object], row: object | None) -> dict:
 def _credential_status(row: object) -> dict:
     return {
         "provider_id": row.provider_id,
+        "default_model": (
+            "deepseek-v4-flash" if row.provider_id == "DEEPSEEK" else None
+        ),
         "label": row.label,
         "configured": row.status != "disabled",
         "status": row.status,

@@ -29,7 +29,6 @@ interface SourceCenterProps {
   filteredSources: SourceSystemDTO[];
   selectedSource: SourceSystemDTO | null;
   selectedCredentialProvider: CredentialProviderDTO | undefined;
-  selectedSourceCredentialProvider: CredentialProviderDTO | null;
   credentialProviders: CredentialProviderDTO[];
   credentialProvider: string;
   credentialLabel: string;
@@ -48,6 +47,7 @@ interface SourceCenterProps {
   onCredentialLabelChange: (label: string) => void;
   onCredentialValueChange: (value: string) => void;
   onCredentialSubmit: FormEventHandler<HTMLFormElement>;
+  onCredentialConnectionTest: () => void;
   sourceLabel: (prefix: string, value: string | null | undefined) => string;
   categoryProviderSummary: (category: string) => string;
   sourceNextAction: (source: SourceSystemDTO | null) => string;
@@ -80,7 +80,6 @@ export function SourceCenter({
   filteredSources,
   selectedSource,
   selectedCredentialProvider,
-  selectedSourceCredentialProvider,
   credentialProviders,
   credentialProvider,
   credentialLabel,
@@ -99,6 +98,7 @@ export function SourceCenter({
   onCredentialLabelChange,
   onCredentialValueChange,
   onCredentialSubmit,
+  onCredentialConnectionTest,
   sourceLabel,
   categoryProviderSummary,
   sourceNextAction,
@@ -283,8 +283,8 @@ export function SourceCenter({
       <div className="workspace-panel source-credential-panel">
         <h3>{t("panel.credentials")}</h3>
         <p>
-          {selectedSource?.credential_provider_id
-            ? `${selectedSource.credential_provider_id}: ${sourceLabel("sources.credential", selectedSource.credential_state)}`
+          {selectedCredentialProvider?.credential_required
+            ? `${selectedCredentialProvider.display_name}: ${sourceLabel("sources.credential", selectedCredentialProvider.status)}`
             : t("credentials.not_required")}
         </p>
         <form className="credential-form source-credential-form" onSubmit={onCredentialSubmit}>
@@ -311,13 +311,24 @@ export function SourceCenter({
             onChange={(event) => onCredentialValueChange(event.target.value)}
             placeholder={selectedCredentialProvider?.credential_required ? t("credentials.api_key") : t("credentials.not_required")}
           />
-          <button type="submit" disabled={!selectedCredentialProvider?.credential_required || !credentialValue}>{t("credentials.save")}</button>
+          <button type="submit" disabled={!selectedCredentialProvider?.credential_required || !credentialValue.trim()}>{t("credentials.save")}</button>
+          <button
+            type="button"
+            disabled={
+              !selectedCredentialProvider?.configured ||
+              !["DEEPSEEK", "LLM"].includes(selectedCredentialProvider.provider_id)
+            }
+            onClick={onCredentialConnectionTest}
+          >
+            {t("credentials.test_live")}
+          </button>
         </form>
-        {selectedSourceCredentialProvider && (
+        {selectedCredentialProvider && (
           <div className="credential-status-card">
-            <span>{selectedSourceCredentialProvider.display_name}</span>
-            <strong>{sourceLabel("sources.credential", selectedSourceCredentialProvider.status)}</strong>
-            <small>{selectedSourceCredentialProvider.last_test_status ?? t("sources.not_tested")}</small>
+            <span>{selectedCredentialProvider.display_name}</span>
+            <strong>{sourceLabel("sources.credential", selectedCredentialProvider.status)}</strong>
+            {selectedCredentialProvider.default_model && <small>Model: {selectedCredentialProvider.default_model}</small>}
+            <small>{selectedCredentialProvider.last_test_status ?? t("sources.not_tested")}</small>
           </div>
         )}
         {credentialMessage && <p>{credentialMessage}</p>}

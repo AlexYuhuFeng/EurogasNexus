@@ -112,6 +112,8 @@ def test_next_development_queue_records_r30_and_selects_db_backed_optimization()
     assert ".agent/plans/V1_R30_OPTIMIZATION_CORRECTNESS_EXECPLAN.md" in text
     assert "R30B: Intraday Decision Feed" in text
     assert ".agent/plans/V1_R30B_INTRADAY_DECISION_FEED_EXECPLAN.md" in text
+    assert "R30C: Visible LLM Monitoring And Interaction" in text
+    assert ".agent/plans/V1_R30C_LLM_MONITORING_EXECPLAN.md" in text
     assert "R31: DB-Backed Portfolio Network Optimization" in text
     assert "Status: `pending`" in text
     assert "R32: Authentication, Entitlement, Audit, And Export Governance" in text
@@ -121,11 +123,9 @@ def test_current_pause_point_records_holistic_runtime_pause_state() -> None:
     text = _read_doc("docs/architecture/CURRENT_PAUSE_POINT.md")
 
     assert "`0.5.0` preview-release worktree" in text
-    assert "0013_gie_lng_dtmi_energy" in text
-    assert "0014_intraday_decision_feed" in text
-    assert "33" in text
-    assert "36" in text
-    assert "82" in text
+    assert "0015_llm_monitoring_alerts" in text
+    assert "37" in text
+    assert "87" in text
     assert "Windows/Linux desktop clients" in text
     assert "Linux ARM64" in text
     assert "screen_order_observations" in text

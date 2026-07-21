@@ -163,7 +163,6 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
           filteredSources={sources.filteredSources}
           selectedSource={sources.selectedSource}
           selectedCredentialProvider={sources.selectedCredentialProvider}
-          selectedSourceCredentialProvider={sources.selectedSourceCredentialProvider}
           credentialProviders={api.credentialProviders}
           credentialProvider={sources.credentialProvider}
           credentialLabel={sources.credentialLabel}
@@ -182,6 +181,7 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
           onCredentialLabelChange={sources.setCredentialLabel}
           onCredentialValueChange={sources.setCredentialValue}
           onCredentialSubmit={sources.submitCredential}
+          onCredentialConnectionTest={sources.testProviderConnection}
           sourceLabel={sources.sourceLabel}
           categoryProviderSummary={sources.categoryProviderSummary}
           sourceNextAction={sources.sourceNextAction}

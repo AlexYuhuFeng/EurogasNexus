@@ -46,6 +46,8 @@ for:
 - strategy backtesting, shadow-running, monitoring, and risk-control signals;
 - bilingual glossary and operational context for European gas trading terms;
 - LLM-assisted analysis through backend-controlled provider integrations.
+- visible 10-second monitoring of opportunities, strategy alerts, and source
+  failures, with deduplicated live DeepSeek explanations and per-alert dialogue;
 
 Route cost and allocation are Europe-wide explicit-leg concepts. The model
 supports UK NTS, BBL, IUK, and additional TSO tariff source slots in the runtime
@@ -173,6 +175,21 @@ diagnostics, last-update status, record counts, and failure reasons.
 
 Public feeds may not require access keys. Licensed feeds require the customer's
 own rights and contractual permission.
+
+### Live DeepSeek
+
+DeepSeek is a real backend integration, not a client-side simulation. Configure
+the customer key under **Data Sources > LLM > DeepSeek**, save it to the encrypted
+PostgreSQL credential store, and run **Test live connection**. The top-bar Alert
+Center displays DB-backed alerts and allows an explicit DeepSeek follow-up.
+V1 uses the official `deepseek-v4-flash` model ID. The model and provider base
+URL are backend-owned and cannot be overridden by clients.
+Server internet access to `https://api.deepseek.com` is required. Repeated worker
+polling is fingerprint-deduplicated so an unchanged alert does not trigger a new
+completion every 10 seconds.
+
+See [DeepSeek monitoring EN](docs/operations/LLM_MONITORING-EN.md) and
+[DeepSeek 实时监控 CN](docs/operations/LLM_MONITORING-CN.md).
 
 ## Clients
 

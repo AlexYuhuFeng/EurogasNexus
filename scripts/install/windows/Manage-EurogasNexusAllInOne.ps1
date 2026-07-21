@@ -50,7 +50,7 @@ function Find-ClientExecutable {
 }
 
 function Get-ConfiguredProfiles {
-    $profiles = @()
+    $profiles = @("--profile", "monitoring")
     $configuration = $null
     if (Test-Path -LiteralPath $DeploymentFile) {
         $configuration = Get-Content -LiteralPath $DeploymentFile -Raw | ConvertFrom-Json

@@ -16,6 +16,7 @@ env/
 .pytest-cache-*/
 .pytest-tmp-*/
 .ruff_cache/
+.playwright-cli/
 .coverage
 htmlcov/
 

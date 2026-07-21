@@ -22,6 +22,7 @@ export function useAppController() {
     activeWorkspace: navigation.activeWorkspace,
     fetchWorkspace: api.fetchWorkspace,
     refreshMarketData: api.refreshMarketData,
+    refreshMonitoring: api.refreshMonitoring,
   });
 
   const portfolio = usePortfolioDecisionModel({
@@ -42,6 +43,7 @@ export function useAppController() {
     credentialProviders: api.credentialProviders,
     sourcePostureCategories: api.endpointMeta.sources?.source_posture_summary?.categories,
     saveProviderCredential: api.saveProviderCredential,
+    testProviderConnection: api.testProviderConnection,
     language: i18n.language,
     t,
   });

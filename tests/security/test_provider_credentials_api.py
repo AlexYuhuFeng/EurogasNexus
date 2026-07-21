@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from eurogas_nexus.api.app import create_app
 from eurogas_nexus.db.base import Base
 from eurogas_nexus.db.models import ProviderCredentialRecord
+from eurogas_nexus.llm import DeepSeekCallResult
 
 
 def test_credential_write_requires_secret_key(tmp_path, monkeypatch) -> None:
@@ -44,6 +45,7 @@ def test_credentials_are_encrypted_and_redacted(tmp_path, monkeypatch) -> None:
     body = response.json()["data"]
     assert body["provider_id"] == "GIE"
     assert body["configured"] is True
+    assert body["default_model"] is None
     assert body["redacted_preview"].startswith("se")
     assert "secret-value" not in response.text
 
@@ -56,6 +58,41 @@ def test_credentials_are_encrypted_and_redacted(tmp_path, monkeypatch) -> None:
     list_response = client.get("/api/credentials/providers")
     assert list_response.status_code == 200
     assert "secret-value" not in list_response.text
+
+
+def test_deepseek_live_connection_test_is_explicit_and_write_only(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    database_url = f"sqlite+pysqlite:///{(tmp_path / 'deepseek.sqlite').as_posix()}"
+    engine = create_engine(database_url, future=True)
+    Base.metadata.create_all(engine)
+    monkeypatch.setenv("RUNTIME_STORE_DATABASE_URL", database_url)
+    monkeypatch.setenv("EUROGAS_NEXUS_SECRET_KEY", "test-local-secret-key")
+    submitted_keys: list[str] = []
+
+    def fake_connection_test(*, api_key: str, **_kwargs) -> DeepSeekCallResult:
+        submitted_keys.append(api_key)
+        return DeepSeekCallResult(status="success", content="models_available:2")
+
+    monkeypatch.setattr(
+        "eurogas_nexus.llm.test_deepseek_connection",
+        fake_connection_test,
+    )
+    client = TestClient(create_app())
+    saved = client.put(
+        "/api/credentials/DEEPSEEK",
+        json={"api_key": "deepseek-test-secret", "label": "operator-default"},
+    )
+    tested = client.post("/api/credentials/DEEPSEEK/connection-test")
+
+    assert saved.status_code == 200
+    assert saved.json()["data"]["default_model"] == "deepseek-v4-flash"
+    assert tested.status_code == 200
+    assert submitted_keys == ["deepseek-test-secret"]
+    assert tested.json()["data"]["connection_status"] == "success"
+    assert tested.json()["data"]["last_test_status"] == "connection_test_success"
+    assert "deepseek-test-secret" not in tested.text
 
 
 def test_credential_rotation_disable_and_local_validation_are_write_only(
@@ -145,6 +182,7 @@ def test_provider_registry_covers_v1_source_center() -> None:
     providers = {item["provider_id"]: item for item in response.json()["data"]}
     assert providers["ECB"]["credential_required"] is False
     assert providers["ENTSOG"]["credential_required"] is False
+    assert providers["DEEPSEEK"]["default_model"] == "deepseek-v4-flash"
     for provider_id in {
         "Argus",
         "DEEPSEEK",

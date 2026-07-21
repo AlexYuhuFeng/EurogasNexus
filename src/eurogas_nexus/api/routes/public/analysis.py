@@ -6,7 +6,6 @@ import json
 from datetime import UTC, datetime
 from uuid import uuid4
 
-import httpx
 from fastapi import APIRouter, Request
 
 from eurogas_nexus.domain.analysis import (
@@ -19,6 +18,8 @@ from eurogas_nexus.domain.analysis import (
     business_logic_ontology,
 )
 from eurogas_nexus.domain.glossary import baseline_glossary_terms
+from eurogas_nexus.llm import invoke_deepseek
+from eurogas_nexus.security.provider_keys import load_provider_api_key
 
 router = APIRouter(tags=["analysis"])
 
@@ -30,7 +31,10 @@ def get_business_ontology(request: Request) -> dict:
 
 @router.post("/api/analysis/query")
 def post_analysis_query(body: AnalysisRequest, request: Request) -> dict:
-    snapshot = _load_snapshot()
+    snapshot = _load_snapshot(
+        duration_start_utc=body.duration_start_utc,
+        duration_end_utc=body.duration_end_utc,
+    )
     provider_text, provider_status = _maybe_invoke_provider(body, snapshot)
     result = build_analysis_result(
         body,
@@ -49,7 +53,10 @@ def post_analysis_query(body: AnalysisRequest, request: Request) -> dict:
 
 @router.post("/api/reports/portfolio")
 def post_portfolio_report(body: PortfolioReportRequest, request: Request) -> dict:
-    snapshot = _load_snapshot()
+    snapshot = _load_snapshot(
+        duration_start_utc=body.duration_start_utc,
+        duration_end_utc=body.duration_end_utc,
+    )
     analysis_request = AnalysisRequest(
         question=body.title,
         task="PORTFOLIO_REPORT",
@@ -238,7 +245,7 @@ def _maybe_invoke_provider(
         return None, "not_invoked"
     if body.provider_id != "DEEPSEEK":
         return None, "LLM_PROVIDER_NOT_SUPPORTED_IN_V1"
-    credential = _load_provider_api_key("DEEPSEEK") or _load_provider_api_key("LLM")
+    credential = load_provider_api_key("DEEPSEEK") or load_provider_api_key("LLM")
     if credential is None:
         return None, "LLM_PROVIDER_CREDENTIAL_MISSING"
 
@@ -265,38 +272,16 @@ def _maybe_invoke_provider(
             ),
         },
     ]
-    try:
-        response = httpx.post(
-            "https://api.deepseek.com/chat/completions",
-            headers={"Authorization": f"Bearer {credential}", "Content-Type": "application/json"},
-            json={"model": body.model, "messages": messages, "temperature": 0.2},
-            timeout=45,
-        )
-        response.raise_for_status()
-        payload = response.json()
-        text = payload["choices"][0]["message"]["content"]
-        return str(text), "success"
-    except Exception as exc:
-        return None, f"LLM_PROVIDER_CALL_FAILED:{exc.__class__.__name__}"
-
-
-def _load_provider_api_key(provider_id: str) -> str | None:
-    if not _db_is_configured():
-        return None
-    try:
-        from eurogas_nexus.db.models import ProviderCredentialRecord
-        from eurogas_nexus.db.session import get_session_factory
-        from eurogas_nexus.security.credentials import decrypt_credential_payload
-
-        with get_session_factory()() as session:
-            row = session.get(ProviderCredentialRecord, provider_id)
-            if row is None:
-                return None
-            payload = decrypt_credential_payload(row.encrypted_payload)
-            value = payload.get("api_key")
-            return str(value) if value else None
-    except Exception:
-        return None
+    result = invoke_deepseek(
+        api_key=credential,
+        messages=messages,
+        model=body.model,
+        temperature=0.2,
+        max_tokens=1600,
+    )
+    if result.status == "success":
+        return result.content, "success"
+    return None, f"LLM_PROVIDER_CALL_FAILED:{result.error_code or result.status}"
 
 
 def _persist_analysis_if_db(

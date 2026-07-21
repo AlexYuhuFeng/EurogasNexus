@@ -13,16 +13,16 @@ Eurogas Nexus 当前是 `0.5.0` 预览发布版本，已经包含 FastAPI 后端
 ## 已验证基线
 
 ```text
-alembic_revision: 0013_gie_lng_dtmi_energy
-required_tables: 33
+alembic_revision: 0015_llm_monitoring_alerts
+required_tables: 37
 missing_tables: 0
 source: runtime-postgresql
 
 app import ok
-82 routes
+87 routes
 ```
 
-仓库数据结构 head 现为 `0014_intraday_decision_feed`，要求 36 张表。上面的本地 PostgreSQL 基线仍停留在 `0013`；本次实现没有对在线数据库执行迁移，必须由运营人员显式执行。
+仓库数据结构 head 和显式迁移的本机测试 PostgreSQL 均为 `0015_llm_monitoring_alerts`，要求 37 张表。本次没有连接任何生产数据库。
 
 客户端只通过 `/api` 或 SDK 获取 PostgreSQL 中的数据，不直连数据库、不读取后端本地文件，也不直接调用数据提供商。数据源密钥由后端管理，任何读取接口都不得返回明文。
 
@@ -36,6 +36,7 @@ app import ok
 - 部署角色：Server、Client-only、AllInOne 三类 Release 产物相互独立。Windows AllInOne NSIS 会在已安装 Docker 的测试电脑上自动部署仅回环可见的 PostgreSQL/API 运行时和桌面 Client。生产级身份认证完成前，Server 部署只允许用于私网或 VPN 预览环境。
 - 预览价格：仿真数据源把与真实提供商同形的数据写入 PostgreSQL，并完整经过后端、API、SDK/客户端链路。
 - 日内决策：标准化 L1 报价触发后端路径净价差扫描；已持久化机会通过 API/SDK 提供，Network、Market 和 Strategy 工作区每 10 秒读取一次。过期快照不会继续显示为可审阅机会。
+- 监控与 DeepSeek：PostgreSQL worker 每 10 秒归一化机会、策略和数据源失败告警；稳定指纹避免同一事件重复产生调用费用。顶部告警中心支持确认和显式 DeepSeek 对话。2026-07-22 已验证一次真实连接、三次告警解释和一次交互回答；自动化测试仍然不访问外网。
 
 ## 当前优化能力
 
