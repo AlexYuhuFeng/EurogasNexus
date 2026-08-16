@@ -3,14 +3,6 @@ export { buildContractPayload } from "./contractPayload";
 export { cloneDefaultContractDraft, defaultContractDraft } from "./defaultContractDraft";
 export type { ContractDraft } from "./defaultContractDraft";
 export {
-  convertCurrency,
-  isGasPriceObservation,
-  marketObservationHub,
-  marketObservationTenor,
-  marketPriceGbpMwh,
-  newestObservation,
-} from "./marketPriceNormalization";
-export {
   contractDraftFromRecord,
   contractRecordFromImportedFile,
   numberFromRecord,

@@ -20,6 +20,7 @@ export function useAppController() {
 
   useWorkspaceRuntime({
     activeWorkspace: navigation.activeWorkspace,
+    streamingActive: api.streamingActive,
     fetchWorkspace: api.fetchWorkspace,
     refreshMarketData: api.refreshMarketData,
     refreshMonitoring: api.refreshMonitoring,

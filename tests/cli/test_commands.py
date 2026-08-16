@@ -119,6 +119,41 @@ def test_cmd_to_json_outputs_string(monkeypatch: pytest.MonkeyPatch) -> None:
     assert '"id": "n1"' in result
 
 
+def test_cmd_strategy_runs_returns_list(monkeypatch: pytest.MonkeyPatch) -> None:
+    from eurogas_nexus.cli.commands import cmd_strategy_runs
+    from eurogas_nexus.sdk.strategy_lab import StrategyRunDTO
+
+    def fake_fetch(base_url, *, strategy_id=None):
+        return [
+            StrategyRunDTO(
+                run_id="run-1", strategy_id="s1", run_mode="SHADOW_RUN", status="SUCCESS",
+                started_at_utc="2026-01-01T00:00:00+00:00",
+                research_only=True, human_review_required=True,
+            )
+        ]
+
+    monkeypatch.setattr("eurogas_nexus.cli.commands.list_strategy_runs", fake_fetch)
+    result = cmd_strategy_runs("http://localhost:8000")
+    assert len(result) == 1
+    assert result[0].run_id == "run-1"
+
+
+def test_cmd_strategy_summary_returns_summary(monkeypatch: pytest.MonkeyPatch) -> None:
+    from eurogas_nexus.cli.commands import cmd_strategy_summary
+    from eurogas_nexus.sdk.strategy_lab import StrategySummaryDTO
+
+    def fake_fetch(base_url, *, strategy_id=None):
+        return StrategySummaryDTO(
+            run_count=2, total_paper_pnl_gbp=10.0, cumulative_pnl_gbp=10.0,
+            hit_rate=0.5, max_drawdown_gbp=1.0,
+        )
+
+    monkeypatch.setattr("eurogas_nexus.cli.commands.strategy_summary", fake_fetch)
+    result = cmd_strategy_summary("http://localhost:8000")
+    assert result.run_count == 2
+    assert result.hit_rate == 0.5
+
+
 def test_cli_uses_sdk_only(monkeypatch: pytest.MonkeyPatch) -> None:
     """CLI must not import backend internals."""
     import sys

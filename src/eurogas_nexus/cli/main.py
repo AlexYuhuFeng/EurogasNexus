@@ -25,6 +25,8 @@ def main(argv: list[str] | None = None) -> int:
     _add_simple(subparsers, "brief", _brief)
     _add_simple(subparsers, "route-cost", _route_cost)
     _add_simple(subparsers, "shadow-run", _shadow_run)
+    _add_simple(subparsers, "strategy-runs", _strategy_runs)
+    _add_simple(subparsers, "strategy-summary", _strategy_summary)
 
     args = parser.parse_args(argv)
     handler: CommandHandler = args.handler
@@ -72,6 +74,14 @@ def _route_cost(base_url: str, _args: argparse.Namespace) -> object:
 
 def _shadow_run(base_url: str, _args: argparse.Namespace) -> object:
     return commands.cmd_shadow_run(base_url)
+
+
+def _strategy_runs(base_url: str, _args: argparse.Namespace) -> object:
+    return commands.cmd_strategy_runs(base_url)
+
+
+def _strategy_summary(base_url: str, _args: argparse.Namespace) -> object:
+    return commands.cmd_strategy_summary(base_url)
 
 
 def _serialize(result: object) -> str:

@@ -75,7 +75,7 @@ def evaluate_shadow_run(input_: ShadowRunInput) -> ShadowRunOutput:
         strategy_name=input_.strategy_name,
         status=ShadowRunStatus.ACTIVE,
         started_at_utc=input_.started_at_utc,
-        elapsed_days=len(input_.signals),
+        elapsed_days=_elapsed_days(input_.started_at_utc),
         signal_count=len(input_.signals),
         paper_pnl_eur=input_.paper_pnl_eur,
         signals=input_.signals,
@@ -90,3 +90,18 @@ def evaluate_shadow_run(input_: ShadowRunInput) -> ShadowRunOutput:
         lineage=["shadow-run-evaluation"],
         human_review_required=bool(missing or input_.signals),
     )
+
+
+def _elapsed_days(started_at_utc: str) -> int:
+    """Return whole elapsed days between start and generation, or 0."""
+
+    if not started_at_utc:
+        return 0
+    try:
+        start = datetime.fromisoformat(started_at_utc.replace("Z", "+00:00"))
+    except ValueError:
+        return 0
+    generated = datetime.now(UTC)
+    if start.tzinfo is None:
+        start = start.replace(tzinfo=UTC)
+    return max(0, (generated - start.astimezone(UTC)).days)

@@ -26,6 +26,7 @@ export function AppShell({ controller }: AppShellProps) {
         searchTerm={controls.searchTerm}
         dataStatus={api.dataStatus}
         loading={api.loading}
+        streamingActive={api.streamingActive}
         language={i18n.language}
         mode={theme.mode}
         gasDay={controls.gasDay}

@@ -19,23 +19,27 @@ nomination-submission system, settlement platform, legal-advice tool, or ETRM.
 The most recently validated local PostgreSQL test runtime has:
 
 ```text
-alembic_revision: 0015_llm_monitoring_alerts
-required_tables: 37
+alembic_revision: 0018_provider_certifications
+required_tables: 38
 missing_tables: 0
 source: runtime-postgresql
 ```
 
 Repository schema head and the explicit local test migration are both
-`0015_llm_monitoring_alerts`, with 37 required tables. No production database
+`0018_provider_certifications`, with 38 required tables. No production database
 was contacted.
 
 Current import evidence:
 
 ```text
-python -c "from apps.api.main import app; print('app import ok'); print(len(app.routes))"
+python -c "from apps.api.main import app; print('app import ok'); print(len(app.openapi()['paths']))"
 app import ok
-87
+90
 ```
+
+> `len(app.openapi()['paths'])` is the version-stable endpoint count. The raw
+> `len(app.routes)` is FastAPI-version-dependent (25 with FastAPI 0.141.x's lazy
+> router inclusion) and should not be used as a stable health metric.
 
 Clients obtain runtime data through `/api` or the SDK. They do not connect to
 PostgreSQL, read backend files, or call market/infrastructure providers.
@@ -67,6 +71,67 @@ Provider credentials are backend-owned and are never returned in plaintext.
   Center supports acknowledgement and explicit live DeepSeek dialogue. A real
   provider connection, three alert enrichments, and one interactive response
   were validated on 2026-07-22; automated tests remain offline.
+- Strategy shadow-run persistence: every `POST /api/strategy-lab/evaluate`
+  result is written to `strategy_runs` and `strategy_allocation_targets`, with
+  a `run_id`, indicative `paper_pnl_gbp`, cumulative PnL, and hit flag. Read-only
+  `GET /api/strategy-lab/runs`, `/runs/{run_id}`, and `/summary` aggregate
+  cumulative paper PnL, hit rate, and max drawdown. Stop-loss now checks the
+  cumulative (existing + this run) PnL, and `PARTIAL` results report
+  `REVIEW_PARTIAL_STRATEGY` instead of a positive allocation recommendation.
+- Public-source ingestion is re-run safe: observations upsert by natural
+  primary key with first-seen `observed_at_utc`, ENTSOG reference snapshots
+  replace only the ENTSOG scope and only when the new payload is non-empty
+  (operator-maintained edges and mappings are never touched), and every run
+  (success or failure) appends `audit_events` plus an `ingestion_runs` row.
+  Expired runtime rows are pruned by retention policy (quotes 30d /
+  observations 90d / opportunities 7d) via `scripts/ops/prune_runtime_data.py`.
+- Backend-normalized market view: `GET /api/market/normalized` returns each
+  market observation with backend-owned `hub`, `tenor`, `is_gas_price`, and
+  `price_gbp_mwh` (latest-ECB-rate FX graph, max three conversion hops). The
+  Web client's TypeScript re-implementation (`marketPriceNormalization.ts`)
+  has been deleted; Strategy scenario assembly and the Market terminal
+  consume backend-normalized rows and backend-owned `/api/market/spreads`
+  (`from_hub`/`to_hub`/`spread_eur_mwh`), and contract tests forbid client-side
+  FX/rate/spread math. The client performs no local persistence of business
+  data; review actors stay in page memory only (R32 will add real identity).
+- API contract evolution policy: `docs/architecture/API_CONTRACT_EVOLUTION_POLICY.md`
+  (additive-only `/api`, explicit deprecation process, no `/v1` aliases) is
+  enforced by a pinned 90-path surface stability gate
+  (`tests/contract/test_api_surface_stability.py`) so any path change fails CI
+  until deliberately declared.
+- Provider certification gate: licensed adapters can only be marked native
+  live after operator-recorded `provider_certifications` evidence passes the
+  simulated-to-live gate (stage `live_validated` with `simulated_shape_match`
+  and `live_sample_validation` checks, written via the internal
+  `POST /api/internal/sources/certification` endpoint with audit events).
+  Uncertified licensed sources with records surface as `active_uncertified`
+  and are never workflow-ready (fail closed, including when the DB is down).
+- Minimal actor identity model: `docs/architecture/ACTOR_IDENTITY_MODEL.md`
+  defines the operator principal (validated by
+  `domain/identity/principal.normalize_principal`) recorded on review
+  decisions, audit events, internal operator writes, and certification
+  evidence; multi-user authentication and SSO remain explicit R32 scope.
+- Review workflow UI: the Review workspace now lists the persisted decision
+  history and records `accepted` / `rejected` / `needs_attention` decisions
+  with an optional note through `GET/POST /api/review/decisions`. The actor
+  is an explicit page-level input (default `operator`), held in component
+  memory only — the client persists no business data locally; a visible note
+  states the actor is not yet SSO-authenticated (R32).
+- Pipeline observability UI: the Runtime workspace renders the backend
+  pipeline-health aggregation (per-source status/consecutive failures/last
+  success, quote freshness over the last five minutes, open alerts, latest
+  opportunity) from `GET /api/runtime/pipeline-health`; the top bar shows a
+  data-mode badge driven by `streamingActive` (`Live push` on SSE,
+  `Polling fallback` otherwise). The Sources workspace renders the provider
+  certification gate (`unverified` / `simulation_matched` / `live_validated`
+  badges, `active_uncertified` attention state with a `certify` next action).
+- Typed domain ontology: `src/eurogas_nexus/domain/ontology/` is the single
+  semantic-structure contract (controlled-vocabulary enums, action taxonomy with
+  a forbidden-action boundary, typed concepts/relations, a computable-constraint
+  registry). Scattered L5 constraints (TSO access, netback, stop-loss, allocation
+  split) and route-cost/strategy enums are consolidated into it; the glossary is
+  a display layer; the orphan `business_ontology_terms` table is decommissioned
+  (migration `0016`).
 
 ## Active Workspaces
 
@@ -133,9 +198,9 @@ See [WEB_APPLICATION_ARCHITECTURE-EN.md](../clients/WEB_APPLICATION_ARCHITECTURE
    server roles are private-network/VPN preview deployments only.
 2. Commercial providers remain gated by customer credentials, entitlement,
    licenses, and operator validation.
-3. Public-source scheduling, retry policy, audit depth, export governance, and
-   retention need further production hardening. Alerting now exists, but needs
-   authenticated multi-user ownership and production delivery channels.
+3. Public-source scheduling, retry policy, and export governance need further
+   production hardening; alerting needs authenticated multi-user ownership and
+   production delivery channels.
 4. Route-level intraday opportunities now compose quotes, routes, tariffs,
    capacities, access rights, and FX from PostgreSQL. Production portfolio-wide
    optimization must still allocate resources over shared and alternate routes

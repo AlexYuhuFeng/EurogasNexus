@@ -57,6 +57,7 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
       {activeWorkspace === "market" && (
         <MarketTerminal
           markets={portfolio.contextMarkets}
+          marketSpreads={api.marketSpreads}
           marketQuotes={api.marketQuotes}
           intradayOpportunities={api.intradayOpportunities}
           fxRates={api.fxRates}
@@ -114,13 +115,30 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
         <StrategyShadowRunTerminal
           strategyScenario={portfolio.strategyScenario}
           strategyResult={api.strategyResult}
+          strategySummary={portfolio.strategySummary}
+          strategyRuns={portfolio.strategyRuns}
           portfolioResources={portfolio.portfolioResources}
           marketObservations={portfolio.contextMarkets}
           fxRates={api.fxRates}
           language={i18n.language}
           loading={api.loading}
           t={t}
-          onEvaluate={() => api.evaluateStrategyLab(portfolio.strategyScenario)}
+          onEvaluate={(overrides) =>
+            api.evaluateStrategyLab({
+              ...portfolio.strategyScenario,
+              risk_control: {
+                ...(portfolio.strategyScenario.risk_control ?? {}),
+                ...(overrides?.risk_control ?? {}),
+              },
+              existing_shadow_pnl_gbp: portfolio.strategySummary?.cumulative_pnl_gbp ?? 0,
+              components: overrides?.bar_minutes
+                ? portfolio.strategyScenario.components.map((component) => ({
+                    ...component,
+                    target_bar_minutes: overrides.bar_minutes,
+                  }))
+                : portfolio.strategyScenario.components,
+            })
+          }
         />
       )}
 
@@ -133,11 +151,15 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
           invokeDeepSeek={review.invokeDeepSeek}
           analysisResult={api.analysisResult}
           language={i18n.language}
+          reviewDecisions={api.reviewDecisions}
+          reviewMessage={api.reviewMessage}
+          latestStrategyRunId={api.strategyRuns[0]?.run_id ?? null}
           t={t}
           onAnalysisQuestionChange={review.setAnalysisQuestion}
           onInvokeDeepSeekChange={review.setInvokeDeepSeek}
           onAnalyze={() => api.askAnalysis(review.analysisPayload)}
           onGenerateReport={() => api.generatePortfolioReport(review.analysisPayload)}
+          onRecordDecision={api.recordReviewDecision}
         />
       )}
 
@@ -214,7 +236,13 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
       )}
 
       {activeWorkspace === "runtime" && (
-        <RuntimeWorkspace meta={api.meta} runtimeDb={api.runtimeDb} t={t} />
+        <RuntimeWorkspace
+          meta={api.meta}
+          runtimeDb={api.runtimeDb}
+          pipelineHealth={api.pipelineHealth}
+          t={t}
+          onRefreshHealth={api.refreshMonitoring}
+        />
       )}
 
       {activeWorkspace === "settings" && (

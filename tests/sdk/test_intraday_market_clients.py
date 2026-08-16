@@ -5,6 +5,7 @@ import httpx
 from eurogas_nexus.sdk.market import (
     fetch_intraday_opportunities_result,
     fetch_market_quotes_result,
+    fetch_normalized_market_observations_result,
 )
 
 
@@ -115,3 +116,46 @@ def test_sdk_reads_normalized_quotes_and_decision_snapshots(monkeypatch) -> None
     assert opportunities.data[0].max_quantity_mwh == 500.0
     assert opportunities.data[0].human_review_required is True
     assert opportunities.meta.source_references == ["runtime-postgresql"]
+
+
+def test_sdk_reads_backend_normalized_market_view(monkeypatch) -> None:
+    def fake_get(url: str, *, params=None, timeout: float) -> httpx.Response:
+        assert url.endswith("/market/normalized")
+        return _response(
+            url,
+            [
+                {
+                    "observation_id": "obs-1",
+                    "market_venue": "ICE OCM",
+                    "product": "NBP within-day",
+                    "price": 10.0,
+                    "unit": "GBP/MWh",
+                    "currency": "GBP",
+                    "period_start_utc": "2026-07-19T05:00:00+00:00",
+                    "period_end_utc": "2026-07-19T06:00:00+00:00",
+                    "observed_at_utc": "2026-07-19T09:30:00+00:00",
+                    "source_system": "ICE_OCM_Sim",
+                    "source_reference": "simulated://ice/obs-1",
+                    "source_record_id": "obs-1",
+                    "freshness": "simulated_live",
+                    "quality_score": 0.62,
+                    "research_only": True,
+                    "metadata_json": {"tenor": "within-day"},
+                    "hub": "NBP",
+                    "tenor": "within-day",
+                    "is_gas_price": True,
+                    "price_gbp_mwh": 10.0,
+                }
+            ],
+        )
+
+    monkeypatch.setattr(httpx, "get", fake_get)
+
+    result = fetch_normalized_market_observations_result("https://nexus.example")
+
+    row = result.data[0]
+    assert row.observation_id == "obs-1"
+    assert row.hub == "NBP"
+    assert row.tenor == "within-day"
+    assert row.is_gas_price is True
+    assert row.price_gbp_mwh == 10.0

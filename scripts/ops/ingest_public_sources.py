@@ -3,6 +3,10 @@
 This script is operator-invoked only. It performs live HTTP reads, writes
 normalized rows to PostgreSQL, never prints secrets, and never commits raw
 provider payloads.
+
+Ingestion is re-run safe (idempotent): observation rows upsert by natural
+primary key with first-seen ``observed_at_utc``, and reference snapshots
+replace only the ENTSOG scope, only when the new payload is non-empty.
 """
 
 from __future__ import annotations
@@ -17,7 +21,6 @@ from datetime import UTC, datetime
 from typing import Any
 
 import httpx
-from sqlalchemy import delete
 from sqlalchemy.exc import SQLAlchemyError
 
 from eurogas_nexus.db.models import (
@@ -28,12 +31,16 @@ from eurogas_nexus.db.models import (
     LngObservationRecord,
     MarketObservationRecord,
     ProviderCredentialRecord,
-    ReferenceEdge,
     ReferenceFacility,
     ReferenceMarketHub,
     ReferenceNode,
     ReferenceTsoAccessPoint,
     StorageObservationRecord,
+)
+from eurogas_nexus.db.repositories.audit import record_audit_event
+from eurogas_nexus.db.repositories.public_ingestion_upsert import (
+    replace_reference_snapshot,
+    upsert_observation_rows,
 )
 from eurogas_nexus.db.session import (
     create_session_factory,
@@ -139,10 +146,8 @@ def main() -> int:
                         xml_text,
                         currencies={"USD", "GBP", "CHF", "NOK", "DKK", "PLN"},
                     )
-                    for row in rows:
-                        session.merge(MarketObservationRecord(**row))
-                    for row in fx_rows:
-                        session.merge(FxObservationRecord(**row))
+                    upsert_observation_rows(session, MarketObservationRecord, rows)
+                    upsert_observation_rows(session, FxObservationRecord, fx_rows)
                     _record_run(
                         session,
                         "ECB",
@@ -175,13 +180,19 @@ def main() -> int:
                     )
                     hub_rows = entsog_market_hubs_from_connectionpoints(connection_payload)
                     tso_access_rows = entsog_tso_access_points_from_json(direction_payload)
-                    _replace_reference_network(
+                    reference_summary = _replace_reference_network(
                         session,
                         nodes=node_rows,
                         facilities=facility_rows,
                         hubs=hub_rows,
                         tso_access_points=tso_access_rows,
                     )
+                    if reference_summary["skipped_tables"]:
+                        report["warnings"].append(
+                            "ENTSOG reference payload empty for "
+                            + ", ".join(reference_summary["skipped_tables"])
+                            + "; existing rows kept."
+                        )
                     _record_run(
                         session,
                         "ENTSOG",
@@ -214,13 +225,7 @@ def main() -> int:
                     )
                     if not rows:
                         raise RuntimeError("ENTSOG returned no physical-flow observations.")
-                    session.execute(
-                        delete(FlowObservationRecord).where(
-                            FlowObservationRecord.source_system == "ENTSOG"
-                        )
-                    )
-                    for row in rows:
-                        session.merge(FlowObservationRecord(**row))
+                    upsert_observation_rows(session, FlowObservationRecord, rows)
                     _record_run(
                         session,
                         "ENTSOG",
@@ -243,8 +248,7 @@ def main() -> int:
                                 )
                             )
                         )
-                    for row in capacity_rows:
-                        session.merge(CapacityObservationRecord(**row))
+                    upsert_observation_rows(session, CapacityObservationRecord, capacity_rows)
                     _record_run(
                         session,
                         "ENTSOG",
@@ -267,8 +271,7 @@ def main() -> int:
                             headers={"x-key": gie_key},
                         )
                     )
-                    for row in rows:
-                        session.merge(StorageObservationRecord(**row))
+                    upsert_observation_rows(session, StorageObservationRecord, rows)
                     _record_run(
                         session,
                         "GIE-AGSI",
@@ -288,8 +291,7 @@ def main() -> int:
                             headers={"x-key": gie_key},
                         )
                     )
-                    for row in rows:
-                        session.merge(LngObservationRecord(**row))
+                    upsert_observation_rows(session, LngObservationRecord, rows)
                     _record_run(
                         session,
                         "GIE-ALSI",
@@ -433,15 +435,28 @@ def _record_run(
     records: int,
     reference: str,
 ) -> None:
+    finished_at = datetime.now(UTC)
     session.merge(
         IngestionRunRecord(
             run_id=f"run-{source_name.lower()}-{uuid.uuid4().hex[:12]}",
             source_name=source_name,
             status=status,
             started_at_utc=started,
-            finished_at_utc=datetime.now(UTC),
-            notes=f"{records} normalized records from {reference}.",
+            finished_at_utc=finished_at,
+            notes=f"{records} normalized records upserted from {reference}.",
         )
+    )
+    record_audit_event(
+        session,
+        event_type="ingestion",
+        principal="operator",
+        action="public_source_ingest",
+        resource=f"source:{source_name}",
+        outcome=status,
+        severity="warning" if status == "failed" else "info",
+        detail=f"{records} normalized records from {reference}.",
+        source_system="eurogas-nexus",
+        now_utc=finished_at,
     )
 
 
@@ -452,40 +467,48 @@ def _replace_reference_network(
     facilities: list[dict[str, Any]],
     hubs: list[dict[str, Any]],
     tso_access_points: list[dict[str, Any]],
-) -> None:
-    from eurogas_nexus.db.models.reference_network import (
-        NodeFacilityMapping,
-        TopologyMarketMapping,
-    )
+) -> dict[str, Any]:
+    """Replace the ENTSOG reference snapshot table by table.
 
-    for model in (
-        TopologyMarketMapping,
-        NodeFacilityMapping,
-        ReferenceTsoAccessPoint,
-        ReferenceEdge,
-        ReferenceFacility,
-        ReferenceMarketHub,
-        ReferenceNode,
-    ):
-        session.query(model).delete()
-    session.flush()
+    Each table is replaced only when its incoming payload is non-empty, so a
+    partial provider response can never wipe the existing reference network.
+    Operator-maintained tables (edges, node/facility mappings, topology/market
+    mappings) and non-ENTSOG rows are never touched. The whole step runs inside
+    the caller's transaction, so any failure (including a foreign-key conflict
+    on an operator edge that references a removed node) rolls everything back.
+    """
 
-    now = datetime.now(UTC)
+    if not any((nodes, facilities, hubs, tso_access_points)):
+        raise RuntimeError(
+            "ENTSOG returned no reference-network rows; existing topology was kept."
+        )
+
     node_ids = {row["id"] for row in nodes}
-    for row in nodes:
-        session.merge(ReferenceNode(**{**row, "created_at_utc": now}))
+    now = datetime.now(UTC)
+    summary: dict[str, Any] = {"replaced": 0, "skipped_tables": []}
+    for model, rows in (
+        (ReferenceNode, nodes),
+        (ReferenceFacility, facilities),
+        (ReferenceMarketHub, hubs),
+        (ReferenceTsoAccessPoint, tso_access_points),
+    ):
+        if not rows:
+            summary["skipped_tables"].append(model.__tablename__)
+            continue
+        prepared: list[dict[str, Any]] = []
+        for row in rows:
+            prepared_row = {**row, "created_at_utc": now}
+            if model is ReferenceTsoAccessPoint and prepared_row["point_id"] not in node_ids:
+                prepared_row["point_id"] = None
+            prepared.append(prepared_row)
+        summary["replaced"] += replace_reference_snapshot(
+            session,
+            model,
+            prepared,
+            source_system="ENTSOG",
+        )
     session.flush()
-    for row in facilities:
-        session.merge(ReferenceFacility(**{**row, "created_at_utc": now}))
-    session.flush()
-    for row in hubs:
-        session.merge(ReferenceMarketHub(**{**row, "created_at_utc": now}))
-    session.flush()
-    for row in tso_access_points:
-        if row["point_id"] not in node_ids:
-            row = {**row, "point_id": None}
-        session.merge(ReferenceTsoAccessPoint(**{**row, "created_at_utc": now}))
-    session.flush()
+    return summary
 
 
 def _emit(payload: dict[str, Any], *, as_json: bool) -> int:

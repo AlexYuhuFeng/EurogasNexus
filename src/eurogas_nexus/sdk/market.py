@@ -110,8 +110,33 @@ class MarketSpread(BaseModel):
     name: str
     from_venue: str
     to_venue: str
+    from_hub: str
+    to_hub: str
     spread_eur_mwh: float
     period: str
+
+
+class NormalizedMarketObservation(BaseModel):
+    observation_id: str
+    market_venue: str
+    product: str
+    price: float
+    unit: str
+    currency: str
+    period_start_utc: str
+    period_end_utc: str
+    observed_at_utc: str | None = None
+    source_system: str | None = None
+    source_reference: str | None = None
+    source_record_id: str | None = None
+    freshness: str | None = None
+    quality_score: float | None = None
+    research_only: bool = True
+    metadata_json: dict[str, Any] = Field(default_factory=dict)
+    hub: str
+    tenor: str
+    is_gas_price: bool
+    price_gbp_mwh: float | None = None
 
 
 def fetch_market_observations(base_url: str) -> list[MarketObservation]:
@@ -159,3 +184,18 @@ def fetch_spreads(base_url: str) -> list[MarketSpread]:
 def fetch_spreads_result(base_url: str) -> SdkResult[list[MarketSpread]]:
     data, meta = get_envelope(api_url(base_url, "market/spreads"))
     return SdkResult([MarketSpread.model_validate(row) for row in data], meta)
+
+
+def fetch_normalized_market_observations(
+    base_url: str,
+) -> list[NormalizedMarketObservation]:
+    return fetch_normalized_market_observations_result(base_url).data
+
+
+def fetch_normalized_market_observations_result(
+    base_url: str,
+) -> SdkResult[list[NormalizedMarketObservation]]:
+    data, meta = get_envelope(api_url(base_url, "market/normalized"))
+    return SdkResult(
+        [NormalizedMarketObservation.model_validate(row) for row in data], meta
+    )

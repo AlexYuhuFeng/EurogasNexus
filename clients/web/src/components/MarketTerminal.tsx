@@ -2,8 +2,9 @@ import { useMemo, useState } from "react";
 import type {
   FxRateDTO,
   IntradayOpportunityDTO,
-  MarketObsDTO,
   MarketQuoteDTO,
+  MarketSpreadDTO,
+  NormalizedMarketObsDTO,
   SourceSystemDTO,
 } from "@/api/client";
 import { IntradayDecisionFeed } from "@/components/IntradayDecisionFeed";
@@ -11,7 +12,8 @@ import { IntradayDecisionFeed } from "@/components/IntradayDecisionFeed";
 type Translate = (key: string) => string;
 
 interface MarketTerminalProps {
-  markets: MarketObsDTO[];
+  markets: NormalizedMarketObsDTO[];
+  marketSpreads: MarketSpreadDTO[];
   marketQuotes: MarketQuoteDTO[];
   intradayOpportunities: IntradayOpportunityDTO[];
   fxRates: FxRateDTO[];
@@ -28,8 +30,8 @@ interface HubDefinition {
 }
 
 interface HubTerminalRow extends HubDefinition {
-  latest: MarketObsDTO | null;
-  history: MarketObsDTO[];
+  latest: NormalizedMarketObsDTO | null;
+  history: NormalizedMarketObsDTO[];
   spreadToTtf: number | null;
   tenor: string;
   sourceLabel: string;
@@ -38,7 +40,7 @@ interface HubTerminalRow extends HubDefinition {
 
 interface SourceMatrixRow {
   sourceSystem: string;
-  latest: MarketObsDTO | null;
+  latest: NormalizedMarketObsDTO | null;
   hubs: string[];
   priceTiming: string;
   updateIntervalSeconds: number | null;
@@ -77,7 +79,7 @@ const gasPriceSources = new Set([
   ...simulatedPriceSourceSystems.map((source) => source.toUpperCase()),
 ]);
 
-const formatPrice = (row: MarketObsDTO | null): string => {
+const formatPrice = (row: NormalizedMarketObsDTO | null): string => {
   if (!row) return "n/a";
   const unit = row.unit.toUpperCase().includes(row.currency.toUpperCase())
     ? row.unit
@@ -91,15 +93,15 @@ const formatSpread = (value: number | null, unit?: string): string => {
   return `${prefix}${value.toFixed(2)} ${unit ?? "MWh"}`;
 };
 
-const getObservedTime = (row: MarketObsDTO): string =>
+const getObservedTime = (row: NormalizedMarketObsDTO): string =>
   row.observed_at_utc ?? row.period_end_utc ?? row.period_start_utc;
 
-const metadataValue = (row: MarketObsDTO, key: string): string | null => {
+const metadataValue = (row: NormalizedMarketObsDTO, key: string): string | null => {
   const value = row.metadata_json?.[key];
   return typeof value === "string" && value.trim() ? value.trim() : null;
 };
 
-const metadataNumber = (row: MarketObsDTO, key: string): number | null => {
+const metadataNumber = (row: NormalizedMarketObsDTO, key: string): number | null => {
   const value = row.metadata_json?.[key];
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string" && Number.isFinite(Number(value))) return Number(value);
@@ -126,17 +128,7 @@ const formatCadence = (seconds: number | null): string => {
   return `${Math.round(seconds / 3600)}h`;
 };
 
-const marketTenor = (row: MarketObsDTO): string => {
-  const metadataTenor = metadataValue(row, "tenor");
-  if (metadataTenor) return metadataTenor;
-  const product = row.product.toLowerCase();
-  if (product.includes("within")) return "within-day";
-  if (product.includes("month")) return "month-ahead";
-  if (product.includes("weekend")) return "weekend";
-  return "day-ahead";
-};
-
-const sourceLabel = (row: MarketObsDTO | null): string => {
+const sourceLabel = (row: NormalizedMarketObsDTO | null): string => {
   if (!row) return "n/a";
   return row.source_system ?? row.market_venue;
 };
@@ -146,28 +138,15 @@ const sourceSystemRank = (sourceSystem: string): number => {
   return index === -1 ? marketSourceOrder.length : index;
 };
 
-const isSimulatedSource = (row: MarketObsDTO | null): boolean => {
+const isSimulatedSource = (row: NormalizedMarketObsDTO | null): boolean => {
   if (!row) return false;
   return row.source_system?.toLowerCase().includes("_sim") === true || row.metadata_json?.simulated === true;
 };
 
-const isGasMarketObservation = (row: MarketObsDTO): boolean => {
-  const source = row.source_system?.toUpperCase();
-  const venue = row.market_venue.toUpperCase();
-  const product = row.product.toUpperCase();
-  if (source === "ECB" || venue === "ECB" || product.includes("/")) return false;
-  return marketMajorHubs.some(({ hub }) => product.includes(hub) || venue.includes(hub));
-};
-
-const hubForObservation = (row: MarketObsDTO): string | null => {
-  const text = `${row.market_venue} ${row.product}`.toUpperCase();
-  return marketMajorHubs.find(({ hub }) => text.includes(hub))?.hub ?? null;
-};
-
-const sortNewestFirst = (left: MarketObsDTO, right: MarketObsDTO): number =>
+const sortNewestFirst = (left: NormalizedMarketObsDTO, right: NormalizedMarketObsDTO): number =>
   getObservedTime(right).localeCompare(getObservedTime(left));
 
-function MarketSparkline({ rows }: { rows: MarketObsDTO[] }) {
+function MarketSparkline({ rows }: { rows: NormalizedMarketObsDTO[] }) {
   const values = rows
     .slice()
     .sort((left, right) => getObservedTime(left).localeCompare(getObservedTime(right)))
@@ -196,6 +175,7 @@ function MarketSparkline({ rows }: { rows: MarketObsDTO[] }) {
 
 export function MarketTerminal({
   markets,
+  marketSpreads,
   marketQuotes,
   intradayOpportunities,
   fxRates,
@@ -217,33 +197,47 @@ export function MarketTerminal({
     return result;
   }, [marketQuotes]);
 
-  const groupedByTenor = useMemo(() => {
-    const grouped = new Map<string, MarketObsDTO[]>();
-    markets.filter(isGasMarketObservation).forEach((row) => {
-      const hub = hubForObservation(row);
-      if (!hub) return;
-      const key = `${hub}:${marketTenor(row)}`;
-      grouped.set(key, [...(grouped.get(key) ?? []), row]);
+  const spreadToTtfByHubTenor = useMemo(() => {
+    const direct = new Map<string, number>();
+    const reverse = new Map<string, number>();
+    marketSpreads.forEach((row) => {
+      direct.set(`${row.from_hub}:${row.to_hub}:${row.period}`, row.spread_eur_mwh);
+      reverse.set(`${row.to_hub}:${row.from_hub}:${row.period}`, row.spread_eur_mwh);
     });
+    return { direct, reverse };
+  }, [marketSpreads]);
+
+  const groupedByTenor = useMemo(() => {
+    const grouped = new Map<string, NormalizedMarketObsDTO[]>();
+    markets
+      .filter((row) => row.is_gas_price && Boolean(row.hub))
+      .forEach((row) => {
+        const key = `${row.hub}:${row.tenor}`;
+        grouped.set(key, [...(grouped.get(key) ?? []), row]);
+      });
     return grouped;
   }, [markets]);
+
+  const spreadToTtfFor = (hub: string, tenor: string): number | null => {
+    if (hub.toUpperCase() === "TTF") return null;
+    const key = `${hub.toUpperCase()}:TTF:${tenor}`;
+    const direct = spreadToTtfByHubTenor.direct.get(key);
+    if (direct !== undefined) return direct;
+    const reverse = spreadToTtfByHubTenor.reverse.get(key);
+    return reverse !== undefined ? -reverse : null;
+  };
 
   const marketRowsByTenor = useMemo(() => {
     const result = new Map<string, HubTerminalRow[]>();
     marketTenorOrder.forEach((tenor) => {
-      const ttfLatest = groupedByTenor.get(`TTF:${tenor}`)?.slice().sort(sortNewestFirst)[0] ?? null;
       result.set(tenor, marketMajorHubs.map((definition): HubTerminalRow => {
         const history = (groupedByTenor.get(`${definition.hub}:${tenor}`) ?? []).slice().sort(sortNewestFirst);
         const latest = history[0] ?? null;
-        const spreadToTtf =
-          latest && ttfLatest && latest.currency === ttfLatest.currency && latest.unit === ttfLatest.unit
-            ? latest.price - ttfLatest.price
-            : null;
         return {
           ...definition,
           latest,
           history,
-          spreadToTtf,
+          spreadToTtf: spreadToTtfFor(definition.hub, tenor),
           tenor,
           sourceLabel: sourceLabel(latest),
           simulated: isSimulatedSource(latest),
@@ -251,7 +245,7 @@ export function MarketTerminal({
       }));
     });
     return result;
-  }, [groupedByTenor]);
+  }, [groupedByTenor, spreadToTtfByHubTenor]);
 
   const marketRows = marketRowsByTenor.get(activeTenor) ?? [];
   const curveLanes = marketMajorHubs.map((definition) => {
@@ -277,24 +271,26 @@ export function MarketTerminal({
       }));
 
   const sourceMatrixRows = useMemo<SourceMatrixRow[]>(() => {
-    const grouped = new Map<string, MarketObsDTO[]>();
-    markets.filter(isGasMarketObservation).forEach((row) => {
-      if (marketTenor(row) !== activeTenor) return;
-      const sourceSystem = row.source_system ?? row.market_venue;
-      grouped.set(sourceSystem, [...(grouped.get(sourceSystem) ?? []), row]);
-    });
+    const grouped = new Map<string, NormalizedMarketObsDTO[]>();
+    markets
+      .filter((row) => row.is_gas_price && Boolean(row.hub))
+      .forEach((row) => {
+        if (row.tenor !== activeTenor) return;
+        const sourceSystem = row.source_system ?? row.market_venue;
+        grouped.set(sourceSystem, [...(grouped.get(sourceSystem) ?? []), row]);
+      });
     return Array.from(grouped.entries())
       .map(([sourceSystem, rows]) => {
         const sortedRows = rows.slice().sort(sortNewestFirst);
         const latest = sortedRows[0] ?? null;
         const hubs = Array.from(
-          new Set(sortedRows.map(hubForObservation).filter((hub): hub is string => Boolean(hub))),
+          new Set(sortedRows.map((row) => row.hub).filter((hub): hub is string => Boolean(hub))),
         ).sort();
         return {
           sourceSystem,
           latest,
           hubs,
-          priceTiming: latest ? metadataValue(latest, "price_timing") ?? marketTenor(latest) : "n/a",
+          priceTiming: latest ? metadataValue(latest, "price_timing") ?? latest.tenor : "n/a",
           updateIntervalSeconds: latest ? metadataNumber(latest, "update_interval_seconds") : null,
           simulated: isSimulatedSource(latest),
         };

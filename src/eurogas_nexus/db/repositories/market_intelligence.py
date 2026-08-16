@@ -10,10 +10,16 @@ from eurogas_nexus.db.models import (
     CompanyTsoAccessRecord,
     FxObservationRecord,
     IntradayOpportunityRecord,
+    MarketObservationRecord,
     MarketQuoteRecord,
     RouteCandidateRecord,
 )
 from eurogas_nexus.db.repositories.route_cost import list_tso_tariffs
+from eurogas_nexus.domain.market_intelligence.normalized_view import (
+    FxRateInput,
+    MarketObservationInput,
+    build_normalized_market_view,
+)
 from eurogas_nexus.domain.market_intelligence.opportunity_engine import (
     AccessStatus,
     FxRate,
@@ -74,6 +80,108 @@ def list_intraday_opportunities(
     if requested_status:
         serialized = [row for row in serialized if row["status"] == requested_status]
     return serialized[:limit]
+
+
+def list_normalized_market_view(session: Session, *, limit: int = 500) -> dict:
+    """Compose the backend-normalized market view (FX/tenor/hub owned by backend).
+
+    Returns ``{"rows": [...], "warnings": [...]}`` where every row carries the
+    original observation fields plus ``hub``, ``tenor``, ``is_gas_price``, and
+    ``price_gbp_mwh`` computed by the domain normalization module.
+    """
+
+    observation_rows = (
+        session.query(MarketObservationRecord)
+        .order_by(
+            MarketObservationRecord.observed_at_utc.desc(),
+            MarketObservationRecord.market_venue,
+            MarketObservationRecord.product,
+        )
+        .limit(limit)
+        .all()
+    )
+    fx_rows = (
+        session.query(FxObservationRecord)
+        .order_by(FxObservationRecord.observed_at_utc.desc(), FxObservationRecord.pair)
+        .all()
+    )
+    rates = [_fx_rate_input(row) for row in fx_rows]
+    if not rates:
+        rates = _ecb_market_fx_inputs(session)
+
+    inputs = [
+        MarketObservationInput(
+            market_venue=row.market_venue,
+            product=row.product,
+            price=row.price,
+            currency=row.currency,
+            unit=row.unit,
+            observed_at_utc=_iso(row.observed_at_utc),
+            period_start_utc=_iso(row.period_start_utc),
+            metadata_json=row.metadata_json or {},
+        )
+        for row in observation_rows
+    ]
+    view = build_normalized_market_view(inputs, rates)
+    rows = [
+        {**_observation_dict(row), **normalized}
+        for row, normalized in zip(observation_rows, view["rows"], strict=True)
+    ]
+    return {"rows": rows, "warnings": view["warnings"]}
+
+
+def _fx_rate_input(row: FxObservationRecord) -> FxRateInput:
+    return FxRateInput(
+        pair=row.pair,
+        base_currency=row.base_currency,
+        quote_currency=row.quote_currency,
+        rate=row.rate,
+        observed_at_utc=_iso(row.observed_at_utc),
+    )
+
+
+def _ecb_market_fx_inputs(session: Session) -> list[FxRateInput]:
+    rows = (
+        session.query(MarketObservationRecord)
+        .filter(MarketObservationRecord.source_system == "ECB")
+        .order_by(MarketObservationRecord.observed_at_utc.desc())
+        .all()
+    )
+    return [
+        FxRateInput(
+            pair=row.product.replace("/", ""),
+            base_currency="EUR",
+            quote_currency=row.currency,
+            rate=row.price,
+            observed_at_utc=_iso(row.observed_at_utc),
+        )
+        for row in rows
+    ]
+
+
+def _observation_dict(row: MarketObservationRecord) -> dict:
+    return {
+        "observation_id": row.observation_id,
+        "market_venue": row.market_venue,
+        "product": row.product,
+        "price": row.price,
+        "unit": row.unit,
+        "currency": row.currency,
+        "period_start_utc": _iso(row.period_start_utc),
+        "period_end_utc": _iso(row.period_end_utc),
+        "observed_at_utc": _iso(row.observed_at_utc),
+        "source_system": row.source_system,
+        "source_reference": row.source_reference,
+        "source_record_id": row.source_record_id,
+        "freshness": row.freshness,
+        "quality_score": row.quality_score,
+        "research_only": row.research_only,
+        "metadata_json": row.metadata_json or {},
+    }
+
+
+def _iso(value: datetime | None) -> str | None:
+    return value.isoformat() if value is not None else None
 
 
 def scan_and_persist_intraday_opportunities(

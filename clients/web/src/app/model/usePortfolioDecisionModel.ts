@@ -64,10 +64,10 @@ export function usePortfolioDecisionModel({
     [portfolioResources],
   );
   const contextMarkets = useMemo(
-    () => api.markets.filter(
+    () => api.normalizedMarkets.filter(
       (observation) => marketMatchesTradingContext(observation, gasDay, deliveryProduct),
     ),
-    [api.markets, deliveryProduct, gasDay],
+    [api.normalizedMarkets, deliveryProduct, gasDay],
   );
   const resourcePoolOptimizationRequest = useMemo(
     () => buildResourcePoolOptimizationRequest(
@@ -93,9 +93,8 @@ export function usePortfolioDecisionModel({
       liveMark,
       contextMarkets,
       portfolioResources,
-      api.fxRates,
     ),
-    [api.fxRates, contextMarkets, contract, liveMark, portfolioResources],
+    [contextMarkets, contract, liveMark, portfolioResources],
   );
 
   const selectedAllocation = api.routeRecommendation?.allocations[0] ?? null;
@@ -275,6 +274,8 @@ export function usePortfolioDecisionModel({
     resourcePoolOptimizationRequest,
     routeRecommendationRequest,
     strategyScenario,
+    strategySummary: api.strategySummary,
+    strategyRuns: api.strategyRuns,
     selectedAllocation,
     poolAllocations,
     firstPoolAllocation,

@@ -1,4 +1,4 @@
-﻿"""Architecture alignment documentation contract tests."""
+"""Architecture alignment documentation contract tests."""
 
 from pathlib import Path
 
@@ -123,9 +123,9 @@ def test_current_pause_point_records_holistic_runtime_pause_state() -> None:
     text = _read_doc("docs/architecture/CURRENT_PAUSE_POINT.md")
 
     assert "`0.5.0` preview-release worktree" in text
-    assert "0015_llm_monitoring_alerts" in text
-    assert "37" in text
-    assert "87" in text
+    assert "0018_provider_certifications" in text
+    assert "38" in text
+    assert "90" in text
     assert "Windows/Linux desktop clients" in text
     assert "Linux ARM64" in text
     assert "screen_order_observations" in text

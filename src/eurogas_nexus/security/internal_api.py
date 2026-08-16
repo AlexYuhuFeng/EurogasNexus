@@ -6,6 +6,11 @@ import hmac
 import os
 from dataclasses import dataclass
 
+from eurogas_nexus.domain.identity.principal import (
+    PrincipalValidationError,
+    normalize_principal,
+)
+
 INTERNAL_API_TOKEN_ENV = "EUROGAS_NEXUS_INTERNAL_API_TOKEN"
 
 
@@ -60,14 +65,18 @@ def validate_internal_operator_headers(
     """Validate internal token and explicit operator principal headers."""
 
     verify_internal_api_token(token)
-    normalized_principal = (principal or "").strip()
-    if not normalized_principal:
+    try:
+        return normalize_principal(principal)
+    except PrincipalValidationError as exc:
+        missing = not (principal or "").strip()
         raise InternalApiAuthError(
-            code="internal_principal_missing",
+            code="internal_principal_missing" if missing else "internal_principal_invalid",
             status_code=401,
-            message="X-Eurogas-Principal is required for internal imports.",
-        )
-    return normalized_principal
+            message=(
+                "X-Eurogas-Principal is required and must be a valid operator "
+                "principal identifier."
+            ),
+        ) from exc
 
 
 def _expected_token() -> str:

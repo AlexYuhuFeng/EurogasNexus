@@ -528,7 +528,8 @@ def test_web_client_market_page_is_trader_terminal_surface() -> None:
     assert "MARKET_REFRESH_INTERVAL_MS" in app
     assert "marketLastUpdatedAtUtc: string | null" in store
     assert "refreshMarketData: () => Promise<void>" in store
-    assert "api.marketObservations()" in store
+    assert "api.normalizedMarketObservations()" in store
+    assert "api.marketSpreads()" in store
     assert "api.fxRates()" in store
     assert "market-terminal-board" in market_terminal
     assert "market-price-ticker" in market_terminal
@@ -605,7 +606,9 @@ def test_web_client_strategy_page_is_shadow_run_terminal() -> None:
     assert "marketObservations={portfolio.contextMarkets}" in app
     assert "fxRates={api.fxRates}" in app
     assert "language={i18n.language}" in app
-    assert "onEvaluate={() => api.evaluateStrategyLab(portfolio.strategyScenario)}" in app
+    assert "onEvaluate={(overrides)" in app
+    assert "api.evaluateStrategyLab({" in app
+    assert "existing_shadow_pnl_gbp: portfolio.strategySummary?.cumulative_pnl_gbp ?? 0" in app
     assert "strategy-shadow-run-terminal" in strategy_terminal
     assert 'from "@/components/strategy/StrategyShadowRunSections"' in strategy_terminal
     assert "strategy-command-deck" in strategy_terminal
@@ -937,7 +940,7 @@ def test_web_client_map_renders_resource_paths_as_route_segments_not_direct_line
     assert "source_derived_leg_sequence" in map_component
     assert "directLineFallback" in map_component
     assert ".fallback-flow-segment" in css
-    assert ".fallback-flow-path.direct-corridor" in css
+    assert ".fallback-flow-path.endpoint-link" in css
     assert ".fallback-flow.segmented.corridor" in css
     assert ".resource-path-geometry.warning" in css
     assert "route geometry" in css

@@ -183,6 +183,7 @@ export function SourceCenter({
                 <th>{t("panel.status")}</th>
                 <th>{t("sources.source")}</th>
                 <th>{t("sources.mode")}</th>
+                <th>{t("sources.certification")}</th>
                 <th>{t("sources.last_success")}</th>
                 <th>{t("panel.records")}</th>
                 <th>{t("sources.next_action")}</th>
@@ -206,6 +207,13 @@ export function SourceCenter({
                     </button>
                   </td>
                   <td><span>{sourceMode(source, t)}</span></td>
+                  <td>
+                    {source.credential_requirements.length > 0 && (
+                      <span className={`source-cert source-cert-${source.certification_stage}`}>
+                        {sourceLabel("sources.certification", source.certification_stage)}
+                      </span>
+                    )}
+                  </td>
                   <td><span>{formatSourceTimestamp(source.effective_last_success_at_utc)}</span></td>
                   <td>
                     <strong>{source.effective_record_count.toLocaleString()}</strong>
@@ -244,6 +252,15 @@ export function SourceCenter({
               <div><span>{t("sources.freshness")}</span><strong>{selectedSource.freshness_expectation_minutes ? `${selectedSource.freshness_expectation_minutes}m` : "n/a"}</strong></div>
               <div><span>{t("sources.last_success")}</span><strong>{formatSourceTimestamp(selectedSource.effective_last_success_at_utc)}</strong></div>
               <div><span>{t("sources.last_failure")}</span><strong>{formatSourceTimestamp(selectedSource.last_failure_at_utc)}</strong></div>
+              {selectedSource.credential_requirements.length > 0 && (
+                <div>
+                  <span>{t("sources.certification")}</span>
+                  <strong>
+                    {sourceLabel("sources.certification", selectedSource.certification_stage)}
+                    {selectedSource.certification_allows_live ? ` / ${t("sources.certified_live")}` : ""}
+                  </strong>
+                </div>
+              )}
             </div>
             <div className="source-datasets">
               <span>{t("panel.datasets")}</span>

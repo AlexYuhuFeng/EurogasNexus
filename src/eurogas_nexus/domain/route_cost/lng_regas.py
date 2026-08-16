@@ -3,16 +3,11 @@
 from __future__ import annotations
 
 from datetime import datetime
-from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
-
-class LngRegasDeliveryMode(StrEnum):
-    TERMINAL_TITLE_TRANSFER = "TERMINAL_TITLE_TRANSFER"
-    VIRTUAL_HUB_SALE = "VIRTUAL_HUB_SALE"
-    PHYSICAL_ENTRY_DELIVERY = "PHYSICAL_ENTRY_DELIVERY"
-    DOWNSTREAM_PHYSICAL_DELIVERY = "DOWNSTREAM_PHYSICAL_DELIVERY"
+from eurogas_nexus.domain.constraints.access import inaccessible_tsos as _inaccessible_tsos
+from eurogas_nexus.domain.ontology.vocabulary import DeliveryMode
 
 
 class LngRegasScenario(BaseModel):
@@ -32,7 +27,7 @@ class LngRegasScenario(BaseModel):
     terminal_sendout_capacity_mwh_per_day: float | None = None
     terminal_storage_capacity_mwh: float | None = None
     terminal_capacity_source_system: str | None = None
-    delivery_mode: LngRegasDeliveryMode = LngRegasDeliveryMode.TERMINAL_TITLE_TRANSFER
+    delivery_mode: DeliveryMode = DeliveryMode.TERMINAL_TITLE_TRANSFER
     physical_entry_point_name: str | None = None
     downstream_tso: str | None = None
     downstream_exit_point_name: str | None = None
@@ -63,7 +58,7 @@ class LngRegasReadinessResult(BaseModel):
     terminal_id: str
     terminal_name: str
     terminal_access_status: str
-    delivery_mode: LngRegasDeliveryMode
+    delivery_mode: DeliveryMode
     physical_entry_delivery_required: bool
     physical_entry_point_name: str | None = None
     required_tso_access: list[str] = Field(default_factory=list)
@@ -185,23 +180,9 @@ def _pricing_basis_status(scenario: LngRegasScenario, missing: list[str]) -> str
 
 def _physical_entry_delivery_required(scenario: LngRegasScenario) -> bool:
     return scenario.delivery_mode in {
-        LngRegasDeliveryMode.PHYSICAL_ENTRY_DELIVERY,
-        LngRegasDeliveryMode.DOWNSTREAM_PHYSICAL_DELIVERY,
+        DeliveryMode.PHYSICAL_ENTRY_DELIVERY,
+        DeliveryMode.DOWNSTREAM_PHYSICAL_DELIVERY,
     }
-
-
-def _inaccessible_tsos(
-    required_tso_access: list[str],
-    company_accessible_tsos: list[str] | None,
-) -> list[str]:
-    if company_accessible_tsos is None:
-        return []
-    allowed = {item.strip().lower() for item in company_accessible_tsos if item.strip()}
-    return [
-        tso
-        for tso in required_tso_access
-        if tso.strip() and tso.strip().lower() not in allowed
-    ]
 
 
 def _regas_duration_days(scenario: LngRegasScenario) -> float | None:

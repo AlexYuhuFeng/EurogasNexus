@@ -2,8 +2,8 @@
 
 from datetime import UTC, datetime
 
+from eurogas_nexus.domain.ontology.vocabulary import DeliveryMode
 from eurogas_nexus.domain.route_cost.lng_regas import (
-    LngRegasDeliveryMode,
     LngRegasScenario,
     assess_lng_regas_readiness,
 )
@@ -26,7 +26,7 @@ def _scenario(**overrides) -> LngRegasScenario:
         "terminal_capacity_source_system": "GIE ALSI/operator",
         "pricing_method": "TTF",
         "index_name": "TTF day-ahead",
-        "delivery_mode": LngRegasDeliveryMode.TERMINAL_TITLE_TRANSFER,
+        "delivery_mode": DeliveryMode.TERMINAL_TITLE_TRANSFER,
     }
     data.update(overrides)
     return LngRegasScenario(**data)
@@ -44,7 +44,7 @@ def test_lng_regas_terminal_title_transfer_does_not_require_physical_entry() -> 
 
 def test_lng_regas_physical_entry_delivery_requires_entry_point() -> None:
     result = assess_lng_regas_readiness(
-        _scenario(delivery_mode=LngRegasDeliveryMode.PHYSICAL_ENTRY_DELIVERY)
+        _scenario(delivery_mode=DeliveryMode.PHYSICAL_ENTRY_DELIVERY)
     )
 
     assert result.physical_entry_delivery_required is True
@@ -54,7 +54,7 @@ def test_lng_regas_physical_entry_delivery_requires_entry_point() -> None:
 def test_lng_regas_blocks_when_tso_access_missing() -> None:
     result = assess_lng_regas_readiness(
         _scenario(
-            delivery_mode=LngRegasDeliveryMode.DOWNSTREAM_PHYSICAL_DELIVERY,
+            delivery_mode=DeliveryMode.DOWNSTREAM_PHYSICAL_DELIVERY,
             physical_entry_point_name="GTS LNG Entry",
             required_tso_access=["Gasunie Transport Services"],
             company_accessible_tsos=["Fluxys Belgium"],

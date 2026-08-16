@@ -10,7 +10,7 @@
 
 状态：`complete-in-current-worktree`
 
-- PostgreSQL/Alembic 数据结构已到 `0015_llm_monitoring_alerts`。
+- PostgreSQL/Alembic 数据结构已到 `0018_provider_certifications`。
 - 稳定公共 `/api`，以及受配置限制的 `/api/internal`、`/api/dev`。
 - Python SDK、CLI、React/Vite Web 和 Tauri Windows/Linux 客户端。
 - 地图资源池、市场、管容、合同、策略、复核、市场定位、数据源、术语库、运行状态、设置和手册工作区。
@@ -25,6 +25,8 @@
 - **R30A**：把 `App.tsx` 缩减为组合入口，建立 hooks、model、shell 和 workspace renderer 的明确职责，更新模块 owner 测试和中英文 Web 架构规范。该维护增量不改变 R31 的数据库组合优化范围。
 - **R30B**：完成标准化 L1 报价和公司 TSO access 数据表、后端路径净价差扫描、不可变决策快照、明确过期状态、稳定 API/SDK 读取，以及 Network/Market 页面每 10 秒刷新的紧凑决策信息流。模拟供应商与未来持牌适配器使用同一数据库合同；该路径级信息流不替代 R31 的组合分配范围。
 - **R30C**：完成 PostgreSQL 告警生命周期、10 秒监控 worker、顶部可见告警中心、确认操作、逐告警 DeepSeek 对话、加密凭据、实时连接诊断和真实 DeepSeek 运行时调用。事实与触发条件仍由确定性引擎负责，大模型只解释持久化证据且不能执行任何业务动作。
+- **R30D**：策略影子运行持久化与正确性收尾。完成 DB 支撑的影子运行持久化（`strategy_runs`、`strategy_allocation_targets`）、只读运行历史与累计汇总端点、累计纸面盈亏/胜率/最大回撤聚合、累计止损口径、诚实的 `PARTIAL` 候选动作、legacy `elapsed_days` 语义、SDK/CLI 方法，以及 Web 风控可编辑、运行历史和累计绩效展示。
+- **ONT-M1**：类型化领域本体与约束收敛。落地严谨、类型化的领域本体（`src/eurogas_nexus/domain/ontology/`）作为唯一语义结构契约：受控词表枚举、动作分类（含禁止动作边界）、类型化概念/关系、可计算约束注册表（委托 `domain/constraints/`）。将散落的 L5 约束（TSO 准入、净回值、止损、分配拆分）与 route-cost/strategy 枚举收敛到单一 home，`business_logic_ontology()` 改为由本体派生，glossary 降级为展示层，并下线孤儿表 `business_ontology_terms`（迁移 `0016`）。
 
 ## R31：PostgreSQL 驱动的组合网络优化
 

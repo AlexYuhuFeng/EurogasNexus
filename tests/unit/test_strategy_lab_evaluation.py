@@ -4,14 +4,13 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+from eurogas_nexus.domain.ontology.vocabulary import StrategyComponentType, StrategyRunMode
 from eurogas_nexus.domain.strategy_lab.evaluation import (
     StrategyComponent,
-    StrategyComponentType,
     StrategyLabScenario,
     StrategyPriceObservation,
     StrategyResourceContext,
     StrategyRiskControl,
-    StrategyRunMode,
     evaluate_strategy_lab,
 )
 
@@ -108,10 +107,12 @@ def test_strategy_lab_blocks_when_required_tso_access_is_missing() -> None:
 
     assert result.status == "PARTIAL"
     assert "TSO_ACCESS_MISSING:ttf-bbl-portfolio:BBL Company" in result.missing_inputs
-    assert result.candidate_action_for_review == "REVIEW_HIGHER_OCM_ALLOCATION"
+    assert result.candidate_action_for_review == "REVIEW_PARTIAL_STRATEGY"
 
 
-def test_strategy_lab_blocks_shadow_run_when_stop_loss_is_triggered() -> None:
+def test_strategy_lab_stop_loss_not_triggered_when_current_run_recovers() -> None:
+    # A profitable run is added to the existing loss before the stop-loss check,
+    # so a small prior loss can recover instead of remaining blocked.
     result = evaluate_strategy_lab(
         _scenario(
             risk_control=StrategyRiskControl(stop_shadow_run_loss_gbp=1000),
@@ -119,9 +120,33 @@ def test_strategy_lab_blocks_shadow_run_when_stop_loss_is_triggered() -> None:
         )
     )
 
+    assert result.paper_pnl_gbp > 0
+    assert result.cumulative_pnl_gbp > -1000
+    assert "SHADOW_RUN_STOP_LOSS_TRIGGERED" not in result.warnings
+    assert result.status != "BLOCKED"
+
+
+def test_strategy_lab_blocks_shadow_run_on_cumulative_loss() -> None:
+    # Even after adding this run's paper PnL, the cumulative loss remains below
+    # the stop-loss threshold, so the run is blocked.
+    result = evaluate_strategy_lab(
+        _scenario(
+            risk_control=StrategyRiskControl(stop_shadow_run_loss_gbp=1000),
+            existing_shadow_pnl_gbp=-50000,
+        )
+    )
+
     assert result.status == "BLOCKED"
     assert "SHADOW_RUN_STOP_LOSS_TRIGGERED" in result.warnings
     assert result.candidate_action_for_review == "REVIEW_BLOCKED_STRATEGY"
+
+
+def test_strategy_lab_reports_paper_and_cumulative_pnl() -> None:
+    result = evaluate_strategy_lab(_scenario())
+
+    assert result.paper_pnl_gbp > 0
+    assert result.hit is True
+    assert result.cumulative_pnl_gbp == result.paper_pnl_gbp
 
 
 def test_strategy_lab_blocks_without_prices_or_resources() -> None:

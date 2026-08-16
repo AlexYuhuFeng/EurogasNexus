@@ -25,25 +25,97 @@ def _read_application() -> str:
     return "\n".join(_read(path) for path in APPLICATION_FILES)
 
 
-def test_strategy_prices_are_currency_normalized_and_not_zero_fallbacks() -> None:
-    normalization = _read(WEB / "app" / "marketPriceNormalization.ts")
+def test_strategy_prices_consume_backend_normalized_market_view() -> None:
     scenario = _read(WEB / "app" / "strategyScenario.ts")
     terminal = _read(WEB / "components" / "StrategyShadowRunTerminal.tsx")
+    market_terminal = _read(WEB / "components" / "MarketTerminal.tsx")
+    store = _read(WEB / "stores" / "api.ts")
     app = _read_application()
 
-    assert "export function convertCurrency" in normalization
-    assert "buildLatestCurrencyGraph" in normalization
-    assert 'convertCurrency(observation.price, observation.currency, "GBP", rates)' in normalization
-    assert "marketPriceGbpMwh(observation, fxRates)" in scenario
+    # the client-side re-implementation of FX/tenor/hub normalization is gone
+    assert not (WEB / "app" / "marketPriceNormalization.ts").exists()
+
+    # the store consumes the backend-normalized view and backend spreads
+    assert "api.normalizedMarketObservations()" in store
+    assert "api.marketSpreads()" in store
+
+    # scenario assembly reads backend-owned fields only (no FX math)
+    assert "observation.price_gbp_mwh" in scenario
+    assert "observation.is_gas_price" in scenario
+    assert 'observation.hub.toUpperCase() === "NBP"' in scenario
     assert "latestPositiveObservation" in scenario
-    assert "Math.max(nbpPrice - 0.4, 0)" not in scenario
     assert "const nbpPrice" not in scenario
-    assert "marketPriceGbpMwh(item, fxRates)" in terminal
-    assert "isGasPriceObservation(item)" in terminal
-    assert (
-        "buildStrategyScenario(" in app
-    )
+    assert "Math.max(nbpPrice - 0.4, 0)" not in scenario
+
+    # strategy terminal consumes backend-owned normalized prices
+    assert "item.price_gbp_mwh" in terminal
+    assert "item.is_gas_price" in terminal
+
+    # market terminal consumes backend hub/tenor and backend-owned spreads
+    assert "row.tenor" in market_terminal
+    assert "row.hub" in market_terminal
+    assert "spreadToTtfFor" in market_terminal
+    assert "latest.price - ttfLatest.price" not in market_terminal
+
+    # no client-side FX conversion graph anywhere in the web client
+    client_sources = "\n".join(_read(path) for path in sorted(WEB.rglob("*.ts*")))
+    assert "buildLatestCurrencyGraph" not in client_sources
+    assert "1 / rate" not in client_sources
+
+    assert "buildStrategyScenario(" in app
+    assert "api.normalizedMarkets.filter(" in app
     assert "api.fxRates" in app
+
+
+def test_review_workspace_records_persisted_decisions_with_page_memory_actor() -> None:
+    review_workspace = _read(WEB / "components" / "ReviewWorkspace.tsx")
+    client = _read(WEB / "api" / "client.ts")
+    store = _read(WEB / "stores" / "api.ts")
+    renderer = _read(WEB / "app" / "workspaces" / "WorkspaceRenderer.tsx")
+
+    assert "reviewDecisions: (params" in client
+    assert 'get<ReviewDecisionDTO[]>("/review/decisions"' in client
+    assert "recordReviewDecision: (body" in client
+    assert 'post<ReviewDecisionDTO>("/review/decisions"' in client
+    assert "reviewDecisions" in store
+    assert "recordReviewDecision: async" in store
+    # actor identity is page-memory only, never persisted in the browser
+    assert 'useState("operator")' in review_workspace
+    assert "localStorage" not in review_workspace
+    assert "onRecordDecision={api.recordReviewDecision}" in renderer
+    assert "latestStrategyRunId={api.strategyRuns[0]?.run_id ?? null}" in renderer
+    assert "review.decision_recorder" in review_workspace
+    assert "review.decision_history" in review_workspace
+
+
+def test_runtime_workspace_shows_pipeline_health_and_stream_mode() -> None:
+    runtime_workspace = _read(WEB / "components" / "RuntimeWorkspace.tsx")
+    topbar = _read(WEB / "components" / "WorkspaceTopBar.tsx")
+    shell = _read(WEB / "app" / "shell" / "AppShell.tsx")
+    client = _read(WEB / "api" / "client.ts")
+    store = _read(WEB / "stores" / "api.ts")
+
+    assert 'get<PipelineHealthDTO>("/runtime/pipeline-health"' in client
+    assert "api.pipelineHealth()" in store
+    assert "pipelineHealth" in runtime_workspace
+    assert "quote_freshness" in runtime_workspace
+    assert "consecutive_failures" in runtime_workspace
+    assert "streamingActive" in topbar
+    assert "stream.live" in topbar
+    assert "streamingActive={api.streamingActive}" in shell
+
+
+def test_source_center_shows_certification_gate_status() -> None:
+    client = _read(WEB / "api" / "client.ts")
+    source_center = _read(WEB / "components" / "SourceCenter.tsx")
+    derived = _read(WEB / "app" / "workspaceDerivedData.ts")
+
+    assert "certification_stage" in client
+    assert "certification_allows_live" in client
+    assert "source-cert" in source_center
+    assert "certification_stage" in source_center
+    assert 'sources.action.certify' in derived
+    assert 'operational_status === "active_uncertified"' in derived
 
 
 def test_frontend_runtime_business_data_is_api_owned() -> None:
@@ -55,7 +127,7 @@ def test_frontend_runtime_business_data_is_api_owned() -> None:
     assert "resourcePoolOptions?.sale_options ?? []" in app
     assert "resourcePoolOptions?.portfolio_resources ?? []" in app
     trading_context = _read(WEB / "app" / "tradingContext.ts")
-    assert "api.markets.filter(" in app
+    assert "api.normalizedMarkets.filter(" in app
     assert "marketMatchesTradingContext" in trading_context
     assert "saleOptions = [" not in app
     assert "portfolioResources = [" not in app

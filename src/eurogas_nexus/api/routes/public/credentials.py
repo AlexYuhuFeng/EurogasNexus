@@ -1,4 +1,4 @@
-﻿"""Backend-owned provider credential management routes."""
+"""Backend-owned provider credential management routes."""
 
 from __future__ import annotations
 
@@ -268,6 +268,19 @@ def _write_provider_credential(provider_id: ProviderId, payload: CredentialUpdat
                     human_review_required=True,
                 )
             )
+            from eurogas_nexus.db.repositories.audit import record_audit_event
+
+            record_audit_event(
+                session,
+                event_type="credential.upsert",
+                principal="operator",
+                action="upsert_credential",
+                resource=f"provider_credential:{provider_id}",
+                outcome="configured",
+                severity="warning",
+                source_system="credentials",
+                now_utc=now,
+            )
             if provider_id in {"DEEPSEEK", "LLM"}:
                 session.query(MonitoringAlertRecord).filter(
                     MonitoringAlertRecord.status == "open",
@@ -313,6 +326,18 @@ def delete_provider_credential(provider_id: ProviderId) -> dict:
             row = session.get(ProviderCredentialRecord, provider_id)
             if row is not None:
                 session.delete(row)
+                from eurogas_nexus.db.repositories.audit import record_audit_event
+
+                record_audit_event(
+                    session,
+                    event_type="credential.delete",
+                    principal="operator",
+                    action="delete_credential",
+                    resource=f"provider_credential:{provider_id}",
+                    outcome="deleted",
+                    severity="warning",
+                    source_system="credentials",
+                )
                 session.commit()
         return _env({"provider_id": provider_id, "configured": False})
     except sqlalchemy_error as exc:

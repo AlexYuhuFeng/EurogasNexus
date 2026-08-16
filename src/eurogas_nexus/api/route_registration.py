@@ -18,11 +18,13 @@ from eurogas_nexus.api.routes.public.physical import router as physical_router
 from eurogas_nexus.api.routes.public.portfolio import router as portfolio_router
 from eurogas_nexus.api.routes.public.reference_network import router as reference_network_router
 from eurogas_nexus.api.routes.public.research import router as research_router
+from eurogas_nexus.api.routes.public.review import router as review_router
 from eurogas_nexus.api.routes.public.route_cost import router as route_cost_router
 from eurogas_nexus.api.routes.public.runtime import router as runtime_router
 from eurogas_nexus.api.routes.public.sources import router as sources_router
 from eurogas_nexus.api.routes.public.storage import router as storage_router
 from eurogas_nexus.api.routes.public.strategy_lab import router as strategy_lab_router
+from eurogas_nexus.api.routes.public.streaming import router as streaming_router
 from eurogas_nexus.api.routes.public.weather import router as weather_router
 from eurogas_nexus.api.routes.public.workflows import router as workflows_router
 
@@ -52,9 +54,11 @@ def register_routes(
         app.include_router(workflows_router)
         app.include_router(glossary_router)
         app.include_router(research_router)
+        app.include_router(review_router)
         app.include_router(route_cost_router)
         app.include_router(optimization_router)
         app.include_router(strategy_lab_router)
+        app.include_router(streaming_router)
         app.include_router(runtime_router)
 
     if route_profile.include_internal:

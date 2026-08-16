@@ -13,17 +13,21 @@ import {
   GlossaryContextDTO,
   LngObsDTO,
   IntradayOpportunityDTO,
-  MarketObsDTO,
   MarketQuoteDTO,
+  MarketSpreadDTO,
   MonitoringAlertDTO,
   MonitoringAnalysisDTO,
   MonitoringSummaryDTO,
   NodeDTO,
+  NormalizedMarketObsDTO,
+  PipelineHealthDTO,
   PortfolioLiveSummaryDTO,
   PortfolioOptimizationRequestDTO,
   PortfolioOptimizationResultDTO,
   PortfolioPnlSnapshotDTO,
   ResourcePoolOptionsDTO,
+  ReviewDecisionDTO,
+  ReviewDecisionInputDTO,
   RouteRecommendationRequestDTO,
   RouteRecommendationResultDTO,
   RouteCandidateDTO,
@@ -33,18 +37,29 @@ import {
   SourceSystemDTO,
   StrategyLabRequestDTO,
   StrategyLabResultDTO,
+  StrategyRunDTO,
+  StrategySummaryDTO,
   StorageObsDTO,
   TsoAccessPointDTO,
   TsoTariffDTO,
   UpstreamContractDTO,
   UpstreamContractInputDTO,
+  openEventStream,
 } from "@/api/client";
+
+let decisionStreamClosers: Array<() => void> = [];
+
+function closeDecisionStreams() {
+  decisionStreamClosers.forEach((close) => close());
+  decisionStreamClosers = [];
+}
 
 export interface ApiState {
   nodes: NodeDTO[];
   edges: EdgeDTO[];
   sources: SourceSystemDTO[];
-  markets: MarketObsDTO[];
+  normalizedMarkets: NormalizedMarketObsDTO[];
+  marketSpreads: MarketSpreadDTO[];
   marketQuotes: MarketQuoteDTO[];
   intradayOpportunities: IntradayOpportunityDTO[];
   screenOrders: ScreenOrderObservationDTO[];
@@ -64,6 +79,10 @@ export interface ApiState {
   routeRecommendation: RouteRecommendationResultDTO | null;
   resourcePoolResult: PortfolioOptimizationResultDTO | null;
   strategyResult: StrategyLabResultDTO | null;
+  strategyRuns: StrategyRunDTO[];
+  strategySummary: StrategySummaryDTO | null;
+  reviewDecisions: ReviewDecisionDTO[];
+  reviewMessage: string | null;
   glossaryTerms: GlossaryTermDTO[];
   glossaryContext: GlossaryContextDTO | null;
   analysisResult: AnalysisResultDTO | null;
@@ -73,16 +92,19 @@ export interface ApiState {
   monitoringAnalysisByAlert: Record<string, MonitoringAnalysisDTO>;
   monitoringBusyAlertId: string | null;
   runtimeDb: RuntimeDbStatusDTO | null;
+  pipelineHealth: PipelineHealthDTO | null;
   endpointMeta: Record<string, ApiMeta>;
   meta: ApiMeta | null;
   marketLastUpdatedAtUtc: string | null;
   loading: boolean;
+  streamingActive: boolean;
   error: string | null;
   credentialMessage: string | null;
   contractSaveMessage: string | null;
   dataStatus: "runtime" | "delayed" | "partial" | "unavailable";
   fetchWorkspace: () => Promise<void>;
   refreshMarketData: () => Promise<void>;
+  subscribeDecisionStreams: () => void;
   refreshMonitoring: () => Promise<void>;
   saveProviderCredential: (providerId: string, apiKey: string, label: string) => Promise<void>;
   testProviderConnection: (providerId: string) => Promise<void>;
@@ -93,9 +115,12 @@ export interface ApiState {
     language: "en" | "zh-CN",
   ) => Promise<void>;
   saveDraftContract: (contract: UpstreamContractInputDTO) => Promise<void>;
+  recordReviewDecision: (body: ReviewDecisionInputDTO) => Promise<void>;
   recommendRouteAllocation: (request: RouteRecommendationRequestDTO) => Promise<void>;
   optimizeResourcePool: (request: PortfolioOptimizationRequestDTO) => Promise<void>;
   evaluateStrategyLab: (scenario: StrategyLabRequestDTO) => Promise<void>;
+  fetchStrategySummary: () => Promise<void>;
+  fetchStrategyRuns: () => Promise<void>;
   fetchGlossaryContext: (
     term: string,
     params?: { lang?: string; duration_start_utc?: string; duration_end_utc?: string },
@@ -104,17 +129,20 @@ export interface ApiState {
   generatePortfolioReport: (body: AnalysisRequestDTO) => Promise<void>;
 }
 
+const DEFAULT_STRATEGY_ID = "nbp-sap-icis-ocm-window";
+
 function withoutLegacyFlag<T extends object>(body: T): T {
   const payload = { ...body } as Record<string, unknown>;
   delete payload["research" + "_only"];
   return payload as T;
 }
 
-export const useApiStore = create<ApiState>((set) => ({
+export const useApiStore = create<ApiState>((set, get) => ({
   nodes: [],
   edges: [],
   sources: [],
-  markets: [],
+  normalizedMarkets: [],
+  marketSpreads: [],
   marketQuotes: [],
   intradayOpportunities: [],
   screenOrders: [],
@@ -134,6 +162,10 @@ export const useApiStore = create<ApiState>((set) => ({
   routeRecommendation: null,
   resourcePoolResult: null,
   strategyResult: null,
+  strategyRuns: [],
+  strategySummary: null,
+  reviewDecisions: [],
+  reviewMessage: null,
   glossaryTerms: [],
   glossaryContext: null,
   analysisResult: null,
@@ -151,10 +183,12 @@ export const useApiStore = create<ApiState>((set) => ({
   monitoringAnalysisByAlert: {},
   monitoringBusyAlertId: null,
   runtimeDb: null,
+  pipelineHealth: null,
   endpointMeta: {},
   meta: null,
   marketLastUpdatedAtUtc: null,
   loading: false,
+  streamingActive: false,
   error: null,
   credentialMessage: null,
   contractSaveMessage: null,
@@ -167,7 +201,8 @@ export const useApiStore = create<ApiState>((set) => ({
         nodes,
         edges,
         sources,
-        markets,
+        normalizedMarkets,
+        marketSpreads,
         marketQuotes,
         intradayOpportunities,
         screenOrders,
@@ -189,11 +224,14 @@ export const useApiStore = create<ApiState>((set) => ({
         credentialProviders,
         monitoringAlerts,
         monitoringSummary,
+        reviewDecisions,
+        pipelineHealth,
       ] = await Promise.all([
         api.nodes(),
         api.edges(),
         api.sources(),
-        api.marketObservations(),
+        api.normalizedMarketObservations(),
+        api.marketSpreads(),
         api.marketQuotes(),
         api.intradayOpportunities(),
         api.screenOrders(),
@@ -215,12 +253,15 @@ export const useApiStore = create<ApiState>((set) => ({
         api.credentialProviders(),
         api.monitoringAlerts(),
         api.monitoringSummary(),
+        api.reviewDecisions(),
+        api.pipelineHealth(),
       ]);
       const endpointMeta = {
         referenceNodes: nodes.meta,
         referenceEdges: edges.meta,
         sources: sources.meta,
-        markets: markets.meta,
+        normalizedMarkets: normalizedMarkets.meta,
+        marketSpreads: marketSpreads.meta,
         marketQuotes: marketQuotes.meta,
         intradayOpportunities: intradayOpportunities.meta,
         screenOrders: screenOrders.meta,
@@ -242,6 +283,8 @@ export const useApiStore = create<ApiState>((set) => ({
         credentialProviders: credentialProviders.meta,
         monitoringAlerts: monitoringAlerts.meta,
         monitoringSummary: monitoringSummary.meta,
+        reviewDecisions: reviewDecisions.meta,
+        pipelineHealth: pipelineHealth.meta,
       };
       const sourceRefs = Object.values(endpointMeta).flatMap((item) => item.source_references ?? []);
       const hasRuntime = sourceRefs.some((source) => source === "runtime-postgresql");
@@ -258,7 +301,8 @@ export const useApiStore = create<ApiState>((set) => ({
         nodes: nodes.data,
         edges: edges.data,
         sources: sources.data,
-        markets: markets.data,
+        normalizedMarkets: normalizedMarkets.data,
+        marketSpreads: marketSpreads.data,
         marketQuotes: marketQuotes.data,
         intradayOpportunities: intradayOpportunities.data,
         screenOrders: screenOrders.data,
@@ -280,12 +324,17 @@ export const useApiStore = create<ApiState>((set) => ({
         credentialProviders: credentialProviders.data,
         monitoringAlerts: monitoringAlerts.data,
         monitoringSummary: monitoringSummary.data,
+        reviewDecisions: reviewDecisions.data,
+        pipelineHealth: pipelineHealth.data,
         endpointMeta,
         meta: nodes.meta,
         marketLastUpdatedAtUtc: new Date().toISOString(),
         dataStatus: resolvedStatus,
         loading: false,
       });
+      void get().fetchStrategySummary();
+      void get().fetchStrategyRuns();
+      get().subscribeDecisionStreams();
     } catch (e) {
       set({ error: String(e), dataStatus: "unavailable", loading: false });
     }
@@ -293,28 +342,38 @@ export const useApiStore = create<ApiState>((set) => ({
 
   refreshMarketData: async () => {
     try {
-      const [markets, marketQuotes, intradayOpportunities, fxRates, sources] = await Promise.all([
-        api.marketObservations(),
+      const [
+        normalizedMarkets,
+        marketSpreads,
+        marketQuotes,
+        intradayOpportunities,
+        fxRates,
+        sources,
+      ] = await Promise.all([
+        api.normalizedMarketObservations(),
+        api.marketSpreads(),
         api.marketQuotes(),
         api.intradayOpportunities(),
         api.fxRates(),
         api.sources(),
       ]);
       set((state) => ({
-        markets: markets.data,
+        normalizedMarkets: normalizedMarkets.data,
+        marketSpreads: marketSpreads.data,
         marketQuotes: marketQuotes.data,
         intradayOpportunities: intradayOpportunities.data,
         fxRates: fxRates.data,
         sources: sources.data,
         endpointMeta: {
           ...state.endpointMeta,
-          markets: markets.meta,
+          normalizedMarkets: normalizedMarkets.meta,
+          marketSpreads: marketSpreads.meta,
           marketQuotes: marketQuotes.meta,
           intradayOpportunities: intradayOpportunities.meta,
           fxRates: fxRates.meta,
           sources: sources.meta,
         },
-        meta: markets.meta,
+        meta: normalizedMarkets.meta,
         marketLastUpdatedAtUtc: new Date().toISOString(),
         error: null,
       }));
@@ -327,19 +386,86 @@ export const useApiStore = create<ApiState>((set) => ({
     }
   },
 
+  subscribeDecisionStreams: () => {
+    closeDecisionStreams();
+    const onStatus = (status: "open" | "error") =>
+      set({ streamingActive: status === "open" });
+
+    decisionStreamClosers.push(
+      openEventStream(
+        "/stream/quotes",
+        {
+          quotes: (payload) => {
+            const quote = payload as MarketQuoteDTO;
+            if (!quote || typeof quote !== "object" || !("quote_id" in quote)) return;
+            set((state) => ({
+              marketQuotes: [
+                quote,
+                ...state.marketQuotes.filter((item) => item.quote_id !== quote.quote_id),
+              ].slice(0, 500),
+              marketLastUpdatedAtUtc: new Date().toISOString(),
+            }));
+          },
+        },
+        onStatus,
+      ).close,
+    );
+
+    decisionStreamClosers.push(
+      openEventStream("/stream/opportunities", {
+        opportunities: (payload) => {
+          const opportunity = payload as IntradayOpportunityDTO;
+          if (
+            !opportunity ||
+            typeof opportunity !== "object" ||
+            !("opportunity_id" in opportunity)
+          ) {
+            return;
+          }
+          set((state) => ({
+            intradayOpportunities: [
+              opportunity,
+              ...state.intradayOpportunities.filter(
+                (item) => item.opportunity_id !== opportunity.opportunity_id,
+              ),
+            ].slice(0, 100),
+          }));
+        },
+      }).close,
+    );
+
+    decisionStreamClosers.push(
+      openEventStream("/stream/alerts", {
+        alerts: (payload) => {
+          const alert = payload as MonitoringAlertDTO;
+          if (!alert || typeof alert !== "object" || !("alert_id" in alert)) return;
+          set((state) => ({
+            monitoringAlerts: [
+              alert,
+              ...state.monitoringAlerts.filter((item) => item.alert_id !== alert.alert_id),
+            ],
+          }));
+        },
+      }).close,
+    );
+  },
+
   refreshMonitoring: async () => {
     try {
-      const [alerts, summary] = await Promise.all([
+      const [alerts, summary, health] = await Promise.all([
         api.monitoringAlerts(),
         api.monitoringSummary(),
+        api.pipelineHealth(),
       ]);
       set((state) => ({
         monitoringAlerts: alerts.data,
         monitoringSummary: summary.data,
+        pipelineHealth: health.data,
         endpointMeta: {
           ...state.endpointMeta,
           monitoringAlerts: alerts.meta,
           monitoringSummary: summary.meta,
+          pipelineHealth: health.meta,
         },
       }));
     } catch (e) {
@@ -436,6 +562,20 @@ export const useApiStore = create<ApiState>((set) => ({
     }
   },
 
+  recordReviewDecision: async (body) => {
+    set({ reviewMessage: null });
+    try {
+      const saved = await api.recordReviewDecision(body);
+      const list = await api.reviewDecisions();
+      set({
+        reviewDecisions: list.data,
+        reviewMessage: `${saved.data.decision_id} recorded for ${saved.data.entity_type}:${saved.data.entity_id}.`,
+      });
+    } catch (e) {
+      set({ reviewMessage: String(e) });
+    }
+  },
+
   recommendRouteAllocation: async (request) => {
     set({ loading: true, error: null });
     try {
@@ -461,8 +601,28 @@ export const useApiStore = create<ApiState>((set) => ({
     try {
       const result = await api.evaluateStrategyLab(withoutLegacyFlag(scenario));
       set({ strategyResult: result.data, meta: result.meta, loading: false });
+      void get().fetchStrategySummary();
+      void get().fetchStrategyRuns();
     } catch (e) {
       set({ error: String(e), loading: false });
+    }
+  },
+
+  fetchStrategySummary: async () => {
+    try {
+      const result = await api.strategySummary({ strategy_id: DEFAULT_STRATEGY_ID });
+      set({ strategySummary: result.data });
+    } catch (e) {
+      set({ strategySummary: null, error: String(e) });
+    }
+  },
+
+  fetchStrategyRuns: async () => {
+    try {
+      const result = await api.strategyRuns({ strategy_id: DEFAULT_STRATEGY_ID, limit: 20 });
+      set({ strategyRuns: result.data });
+    } catch (e) {
+      set({ strategyRuns: [], error: String(e) });
     }
   },
 

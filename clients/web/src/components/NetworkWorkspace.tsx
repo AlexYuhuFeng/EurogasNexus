@@ -12,8 +12,7 @@ import type {
   StrategyLabResultDTO,
 } from "@/api/client";
 import {
-  hasVerifiedNodeCoordinate,
-  verifiedEdgeGeometryCoordinates,
+  isMapEligibleNode,
   type NetworkGeometryState,
 } from "@/app/workspaceDerivedData";
 import { GasNetworkMap } from "@/components/GasNetworkMap";
@@ -154,14 +153,16 @@ export function NetworkWorkspace({
   onOptimizePool,
   onOpenReview,
 }: NetworkWorkspaceProps) {
-  const verifiedGeometryCount = edges.filter(
-    (edge) => verifiedEdgeGeometryCoordinates(edge) !== null,
+  const displayedNetworkCount = nodes.filter(
+    (node) =>
+      !["hub", "lng", "interconnection"].includes(node.node_type) &&
+      isMapEligibleNode(node),
   ).length;
-  const verifiedLngCount = nodes.filter(
-    (node) => node.node_type === "lng" && hasVerifiedNodeCoordinate(node),
+  const displayedLngCount = nodes.filter(
+    (node) => node.node_type === "lng" && isMapEligibleNode(node),
   ).length;
-  const verifiedIpCount = nodes.filter(
-    (node) => node.node_type === "interconnection" && hasVerifiedNodeCoordinate(node),
+  const displayedIpCount = nodes.filter(
+    (node) => node.node_type === "interconnection" && isMapEligibleNode(node),
   ).length;
   return (
     <>
@@ -313,9 +314,9 @@ export function NetworkWorkspace({
             <span>{t(geometryMessageKey(networkGeometryState))}</span>
           </div>
           <div className="node-color-legend">
-            <span><i className="node-swatch network" />{t("map.layer.network")}<strong>{verifiedGeometryCount}</strong></span>
-            <span><i className="node-swatch lng" />{t("map.layer.lng")}<strong>{verifiedLngCount}</strong></span>
-            <span><i className="node-swatch ips" />{t("map.layer.ips")}<strong>{verifiedIpCount}</strong></span>
+            <span><i className="node-swatch network" />{t("map.layer.network")}<strong>{displayedNetworkCount}</strong></span>
+            <span><i className="node-swatch lng" />{t("map.layer.lng")}<strong>{displayedLngCount}</strong></span>
+            <span><i className="node-swatch ips" />{t("map.layer.ips")}<strong>{displayedIpCount}</strong></span>
             <span><i className="node-swatch hubs" />{t("map.layer.hubs")}<strong>{nodes.filter((node) => node.node_type === "hub").length}</strong></span>
           </div>
           <p className="coordinate-quality-note">{t("map.coordinate_quality_note")}</p>

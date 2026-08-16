@@ -149,6 +149,9 @@ export function filterSourcesByCategory(
 
 export function sourceNextActionKey(source: SourceSystemDTO | null): string {
   if (!source) return "sources.action.none";
+  if (source.operational_status === "active_uncertified") {
+    return "sources.action.certify";
+  }
   if (source.operational_status === "active_simulated") {
     return "sources.action.configure_live_credential";
   }
@@ -192,7 +195,19 @@ export function hasVerifiedNodeCoordinate(node: NodeDTO): boolean {
 }
 
 export function isMapEligibleNode(node: NodeDTO): boolean {
-  return node.node_type === "hub" || hasVerifiedNodeCoordinate(node);
+  if (node.node_type === "hub" || hasVerifiedNodeCoordinate(node)) return true;
+  const metadata = node.metadata_json ?? {};
+  return (
+    node.source_system === "ENTSOG" &&
+    String(metadata.coordinate_source ?? "") === "entsog-tp-map-transform" &&
+    String(metadata.coordinate_quality ?? node.data_quality ?? "") === "display_approximation" &&
+    Number.isFinite(node.lon) &&
+    node.lon >= -180 &&
+    node.lon <= 180 &&
+    Number.isFinite(node.lat) &&
+    node.lat >= -90 &&
+    node.lat <= 90
+  );
 }
 
 export function verifiedEdgeGeometryCoordinates(

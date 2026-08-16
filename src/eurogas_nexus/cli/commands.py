@@ -20,6 +20,7 @@ from eurogas_nexus.sdk.reference_network import (
 from eurogas_nexus.sdk.runtime import fetch_runtime_db_status
 from eurogas_nexus.sdk.sources import fetch_ingestion_runs, fetch_source, fetch_sources
 from eurogas_nexus.sdk.storage import fetch_storage_observations, fetch_storage_sites
+from eurogas_nexus.sdk.strategy_lab import list_strategy_runs, strategy_summary
 from eurogas_nexus.sdk.weather import (
     fetch_hdd_cdd,
     fetch_weather_observations,
@@ -163,3 +164,12 @@ def cmd_shadow_run(base_url: str) -> str:
 
 def cmd_brief(base_url: str) -> str:
     return _to_json(fetch_brief(base_url))
+
+
+# --- Strategy Lab ---
+
+def cmd_strategy_runs(base_url: str, *, strategy_id: str | None = None) -> list:
+    return list_strategy_runs(base_url, strategy_id=strategy_id)
+
+def cmd_strategy_summary(base_url: str, *, strategy_id: str | None = None) -> object:
+    return strategy_summary(base_url, strategy_id=strategy_id)

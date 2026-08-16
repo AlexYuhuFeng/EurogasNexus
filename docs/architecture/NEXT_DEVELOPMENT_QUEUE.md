@@ -13,7 +13,7 @@ visible client feature.
 
 Status: `complete-in-current-worktree`
 
-- PostgreSQL/Alembic schema through `0015_llm_monitoring_alerts`.
+- PostgreSQL/Alembic schema through `0018_provider_certifications`.
 - Stable public `/api`; profile-gated `/api/internal` and `/api/dev`.
 - Python SDK and CLI.
 - React/Vite Web workspace and Tauri Windows/Linux desktop clients.
@@ -92,6 +92,34 @@ dialogue, encrypted DeepSeek credential handling, live connection diagnostics,
 and real DeepSeek runtime calls. Deterministic engines remain responsible for
 facts and triggers; the LLM only explains persisted evidence and never executes
 business actions.
+
+### R30D: Strategy Shadow-Run Persistence And Correctness
+
+Status: `complete-in-current-worktree`
+
+ExecPlan: `.agent/plans/V1_R31_STRATEGY_SHADOW_RUN_PERSISTENCE_EXECPLAN.md`
+
+Delivered DB-backed shadow-run persistence (`strategy_runs` and
+`strategy_allocation_targets`), read-only run history and cumulative summary
+endpoints, cumulative paper PnL / hit-rate / max-drawdown aggregation, corrected
+cumulative stop-loss accounting, honest `PARTIAL` candidate action, legacy
+`elapsed_days` semantics, SDK/CLI methods, and Web risk-control editing with
+run history and cumulative performance display.
+
+### ONT-M1: Typed Domain Ontology And Constraint Consolidation
+
+Status: `complete-in-current-worktree`
+
+ExecPlan: `.agent/plans/ONT_M1_L5_CONSTRAINTS_EXECPLAN.md`
+
+Delivered a rigorous, typed domain ontology (`src/eurogas_nexus/domain/ontology/`)
+as the single semantic-structure contract: controlled-vocabulary enums, an
+action taxonomy with a forbidden-action boundary, typed concepts/relations, and
+a computable-constraint registry delegating to `domain/constraints/`. Consolidated
+the scattered L5 constraints (TSO access, netback, stop-loss, allocation split)
+and the route-cost/strategy enums into one home, rewired `business_logic_ontology()`
+to derive from the ontology, down-graded the glossary to a display layer, and
+decommissioned the orphan `business_ontology_terms` table (migration `0016`).
 
 ## R31: DB-Backed Portfolio Network Optimization
 

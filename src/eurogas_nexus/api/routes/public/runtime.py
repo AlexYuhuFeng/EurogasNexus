@@ -1,4 +1,4 @@
-﻿"""Runtime DB and service status route 鈥?/api/runtime/db."""
+"""Runtime DB and service status route 鈥?/api/runtime/db."""
 
 from fastapi import APIRouter, Request
 
@@ -58,5 +58,40 @@ def runtime_db_status(request: Request) -> dict:
                 "runtime-postgresql" if report["connectivity"]["ok"] else "runtime-unavailable"
             ],
             "warnings": report["warnings"],
+        },
+    }
+
+
+@router.get("/api/runtime/pipeline-health")
+def pipeline_health_status(request: Request) -> dict:
+    """Read-only pipeline health aggregation (freshness/errors/open alerts)."""
+
+    from sqlalchemy.exc import SQLAlchemyError
+
+    from eurogas_nexus.application.pipeline_health import (
+        empty_pipeline_health,
+        pipeline_health,
+    )
+    from eurogas_nexus.db.session import get_session_factory, resolve_database_url
+
+    warnings: list[str] = []
+    if resolve_database_url() is None:
+        data = empty_pipeline_health()
+        warnings.append("RUNTIME_DB_NOT_CONFIGURED")
+    else:
+        try:
+            with get_session_factory()() as session:
+                data = pipeline_health(session)
+        except SQLAlchemyError:
+            data = empty_pipeline_health()
+            warnings.append("RUNTIME_POSTGRESQL_UNAVAILABLE")
+
+    return {
+        "data": data,
+        "meta": {
+            "research_only": True,
+            "human_review_required": False,
+            "source_references": ["runtime-postgresql"],
+            "warnings": warnings,
         },
     }

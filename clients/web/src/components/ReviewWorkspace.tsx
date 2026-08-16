@@ -1,7 +1,10 @@
+import { useEffect, useState } from "react";
 import type {
   AnalysisResultDTO,
   PortfolioOptimizationResultDTO,
   PortfolioSaleOptionDTO,
+  ReviewDecisionDTO,
+  ReviewDecisionInputDTO,
 } from "@/api/client";
 
 type Translate = (key: string) => string;
@@ -14,11 +17,38 @@ interface ReviewWorkspaceProps {
   invokeDeepSeek: boolean;
   analysisResult: AnalysisResultDTO | null;
   language: string;
+  reviewDecisions: ReviewDecisionDTO[];
+  reviewMessage: string | null;
+  latestStrategyRunId: string | null;
   t: Translate;
   onAnalysisQuestionChange: (value: string) => void;
   onInvokeDeepSeekChange: (value: boolean) => void;
   onAnalyze: () => void;
   onGenerateReport: () => void;
+  onRecordDecision: (body: ReviewDecisionInputDTO) => Promise<void>;
+}
+
+const REVIEW_DECISIONS: ReviewDecisionInputDTO["decision"][] = [
+  "accepted",
+  "rejected",
+  "needs_attention",
+];
+
+const REVIEW_ENTITY_TYPES: ReviewDecisionInputDTO["entity_type"][] = [
+  "strategy_run",
+  "intraday_opportunity",
+  "generated_report",
+];
+
+function formatDecisionTime(value: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleString([], {
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 export function ReviewWorkspace({
@@ -29,12 +59,37 @@ export function ReviewWorkspace({
   invokeDeepSeek,
   analysisResult,
   language,
+  reviewDecisions,
+  reviewMessage,
+  latestStrategyRunId,
   t,
   onAnalysisQuestionChange,
   onInvokeDeepSeekChange,
   onAnalyze,
   onGenerateReport,
+  onRecordDecision,
 }: ReviewWorkspaceProps) {
+  const [actor, setActor] = useState("operator");
+  const [entityType, setEntityType] = useState<ReviewDecisionInputDTO["entity_type"]>("strategy_run");
+  const [entityId, setEntityId] = useState(latestStrategyRunId ?? "");
+  const [note, setNote] = useState("");
+
+  useEffect(() => {
+    if (!entityId && latestStrategyRunId) setEntityId(latestStrategyRunId);
+  }, [entityId, latestStrategyRunId]);
+
+  const submitDecision = (decision: ReviewDecisionInputDTO["decision"]) => {
+    const trimmedId = entityId.trim();
+    if (!trimmedId) return;
+    void onRecordDecision({
+      entity_type: entityType,
+      entity_id: trimmedId,
+      actor: actor.trim() || "operator",
+      decision,
+      note: note.trim() ? note.trim() : null,
+    });
+  };
+
   return (
     <div className="workspace-grid review-page">
       <div className="workspace-panel span-2">
@@ -67,6 +122,83 @@ export function ReviewWorkspace({
           {reviewWarnings.length > 0
             ? reviewWarnings.slice(0, 6).map((warning) => <span key={`review-warning-${warning}`}>{warning}</span>)
             : <span>{t("review.no_warnings")}</span>}
+        </div>
+      </div>
+      <div className="workspace-panel span-2">
+        <div className="section-heading">
+          <span className="eyebrow">{t("nav.review")}</span>
+          <strong>{t("review.decision_recorder")}</strong>
+        </div>
+        <p className="panel-copy">{t("review.actor_not_authenticated")}</p>
+        <div className="review-decision-form">
+          <label>
+            <span>{t("review.entity_type")}</span>
+            <select
+              value={entityType}
+              onChange={(event) => setEntityType(event.target.value as ReviewDecisionInputDTO["entity_type"])}
+            >
+              {REVIEW_ENTITY_TYPES.map((type) => (
+                <option key={`review-entity-type-${type}`} value={type}>{type}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>{t("review.entity_id")}</span>
+            <input
+              value={entityId}
+              placeholder={t("review.entity_id_placeholder")}
+              onChange={(event) => setEntityId(event.target.value)}
+            />
+          </label>
+          <label>
+            <span>{t("review.actor")}</span>
+            <input
+              value={actor}
+              maxLength={64}
+              onChange={(event) => setActor(event.target.value)}
+            />
+          </label>
+        </div>
+        <div className="review-decision-actions">
+          {REVIEW_DECISIONS.map((decision) => (
+            <button
+              key={`review-decision-${decision}`}
+              type="button"
+              className={`review-decision-button review-decision-${decision}`}
+              disabled={!entityId.trim()}
+              onClick={() => submitDecision(decision)}
+            >
+              {t(`review.decision_${decision}`)}
+            </button>
+          ))}
+        </div>
+        <textarea
+          value={note}
+          rows={2}
+          placeholder={t("review.note_placeholder")}
+          onChange={(event) => setNote(event.target.value)}
+        />
+        {reviewMessage && <p className="panel-copy review-decision-message">{reviewMessage}</p>}
+      </div>
+      <div className="workspace-panel">
+        <div className="section-heading">
+          <span className="eyebrow">{t("nav.review")}</span>
+          <strong>{t("review.decision_history")}</strong>
+        </div>
+        <div className="data-table">
+          <div className="data-table-row header three"><span>{t("review.entity_id")}</span><span>{t("review.decision")}</span><span>{t("review.decision_time")}</span></div>
+          {reviewDecisions.slice(0, 12).map((row) => (
+            <div key={`review-history-${row.decision_id}`} className="data-table-row three">
+              <strong>{row.entity_type}:{row.entity_id}</strong>
+              <span className={`review-decision-badge review-decision-${row.decision}`}>
+                {row.decision} / {row.actor}
+              </span>
+              <span>{formatDecisionTime(row.created_at_utc)}</span>
+            </div>
+          ))}
+          {reviewDecisions.length === 0 && (
+            <div className="data-table-row three"><strong>{t("review.no_decisions")}</strong><span>n/a</span><span>n/a</span></div>
+          )}
         </div>
       </div>
       <div className="workspace-panel span-3 analysis-panel review-report-panel">

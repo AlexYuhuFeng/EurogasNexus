@@ -1,4 +1,4 @@
-﻿"""Source registry and ingestion API contract tests (DB-free)."""
+"""Source registry and ingestion API contract tests (DB-free)."""
 
 import pytest
 from fastapi.testclient import TestClient
@@ -105,6 +105,7 @@ def test_sources_include_simulated_market_price_feeds_when_runtime_rows_exist(
         },
     )
     monkeypatch.setattr(sources_routes, "_credential_status_by_provider", lambda: {})
+    monkeypatch.setattr(sources_routes, "_certification_by_source_system", lambda: {})
 
     response = TestClient(create_app()).get("/api/sources")
 
@@ -138,6 +139,7 @@ def test_licensed_price_sources_show_active_preview_substitute_when_subscription
     )
     monkeypatch.setattr(sources_routes, "_latest_ingestion_status_by_source", lambda: {})
     monkeypatch.setattr(sources_routes, "_credential_status_by_provider", lambda: {})
+    monkeypatch.setattr(sources_routes, "_certification_by_source_system", lambda: {})
 
     response = TestClient(create_app()).get("/api/sources")
 
@@ -182,6 +184,7 @@ def test_sources_response_meta_includes_category_posture_summary(
     )
     monkeypatch.setattr(sources_routes, "_latest_ingestion_status_by_source", lambda: {})
     monkeypatch.setattr(sources_routes, "_credential_status_by_provider", lambda: {})
+    monkeypatch.setattr(sources_routes, "_certification_by_source_system", lambda: {})
 
     response = TestClient(create_app()).get("/api/sources")
 
@@ -247,6 +250,7 @@ def test_national_gas_nts_source_uses_runtime_tariff_rows(monkeypatch: pytest.Mo
     )
     monkeypatch.setattr(sources_routes, "_latest_ingestion_status_by_source", lambda: {})
     monkeypatch.setattr(sources_routes, "_credential_status_by_provider", lambda: {})
+    monkeypatch.setattr(sources_routes, "_certification_by_source_system", lambda: {})
 
     response = TestClient(create_app()).get("/api/sources")
     assert response.status_code == 200
@@ -270,6 +274,7 @@ def test_interconnector_sources_use_runtime_tariff_rows(monkeypatch: pytest.Monk
     )
     monkeypatch.setattr(sources_routes, "_latest_ingestion_status_by_source", lambda: {})
     monkeypatch.setattr(sources_routes, "_credential_status_by_provider", lambda: {})
+    monkeypatch.setattr(sources_routes, "_certification_by_source_system", lambda: {})
 
     response = TestClient(create_app()).get("/api/sources")
     assert response.status_code == 200

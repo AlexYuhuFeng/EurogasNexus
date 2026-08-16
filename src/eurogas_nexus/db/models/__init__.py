@@ -9,9 +9,9 @@ from sqlalchemy.orm import Mapped, mapped_column
 from eurogas_nexus.db.base import Base
 from eurogas_nexus.db.models.analysis import (
     AnalysisRunRecord,
-    BusinessOntologyRecord,
     GeneratedReportRecord,
 )
+from eurogas_nexus.db.models.certification import ProviderCertificationRecord
 from eurogas_nexus.db.models.glossary import GlossaryTermRecord
 from eurogas_nexus.db.models.market_intelligence import (
     CompanyTsoAccessRecord,
@@ -43,6 +43,7 @@ from eurogas_nexus.db.models.reference_network import (
     ReferenceTsoAccessPoint,
     TopologyMarketMapping,
 )
+from eurogas_nexus.db.models.review import ReviewDecisionRecord
 from eurogas_nexus.db.models.route_cost import (
     CapacityProfileRecord,
     LiveMarketMarkRecord,
@@ -76,7 +77,6 @@ class IngestionRunRecord(Base):
 __all__ = [
     "AuditEventRecord",
     "AnalysisRunRecord",
-    "BusinessOntologyRecord",
     "CapacityObservationRecord",
     "CompanyTsoAccessRecord",
     "EntitlementDecisionRecord",
@@ -95,12 +95,14 @@ __all__ = [
     "MonitoringAlertRecord",
     "NodeFacilityMapping",
     "PortfolioPnlSnapshotRecord",
+    "ProviderCertificationRecord",
     "ProviderCredentialRecord",
     "ReferenceEdge",
     "ReferenceFacility",
     "ReferenceMarketHub",
     "ReferenceNode",
     "ReferenceTsoAccessPoint",
+    "ReviewDecisionRecord",
     "RouteCandidateRecord",
     "ScreenOrderObservationRecord",
     "StorageObservationRecord",

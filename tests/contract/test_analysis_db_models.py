@@ -8,7 +8,6 @@ def test_analysis_report_tables_are_in_metadata_and_registry() -> None:
     expected = {
         "analysis_runs",
         "generated_reports",
-        "business_ontology_terms",
     }
 
     assert expected.issubset(metadata.tables)

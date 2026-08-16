@@ -1,4 +1,4 @@
-﻿"""Strategy-lab API tests."""
+"""Strategy-lab API tests."""
 
 from __future__ import annotations
 
@@ -88,6 +88,44 @@ def test_strategy_lab_evaluate_endpoint_returns_paper_allocation_targets() -> No
     body = response.json()
     assert body["meta"]["research_only"] is True
     assert body["meta"]["human_review_required"] is True
+    assert body["data"]["run_id"].startswith("run-")
+    assert body["data"]["paper_pnl_gbp"] > 0
+    assert body["data"]["hit"] is True
     assert body["data"]["candidate_action_for_review"] == "REVIEW_HIGHER_OCM_ALLOCATION"
     assert body["data"]["allocation_targets"][0]["market_bucket"] == "ICE_OCM"
     assert body["data"]["allocation_targets"][0]["target_quantity_mwh_per_day"] > 0
+    assert "STRATEGY_RUN_NOT_PERSISTED" in body["meta"]["warnings"]
+
+
+def test_strategy_lab_runs_endpoint_db_unavailable() -> None:
+    client = TestClient(create_app())
+
+    response = client.get("/api/strategy-lab/runs")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["data"] == []
+    assert "RUNTIME_DB_NOT_CONFIGURED" in body["meta"]["warnings"]
+
+
+def test_strategy_lab_run_endpoint_db_unavailable() -> None:
+    client = TestClient(create_app())
+
+    response = client.get("/api/strategy-lab/runs/run-unknown")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["data"] is None
+    assert "RUNTIME_DB_NOT_CONFIGURED" in body["meta"]["warnings"]
+
+
+def test_strategy_lab_summary_endpoint_db_unavailable() -> None:
+    client = TestClient(create_app())
+
+    response = client.get("/api/strategy-lab/summary")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["data"]["run_count"] == 0
+    assert body["data"]["cumulative_pnl_gbp"] == 0.0
+    assert "RUNTIME_DB_NOT_CONFIGURED" in body["meta"]["warnings"]

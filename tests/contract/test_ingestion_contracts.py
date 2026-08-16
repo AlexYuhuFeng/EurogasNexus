@@ -78,11 +78,13 @@ def test_ingestion_payload_has_source_fields() -> None:
     assert payload.source_system == "ENTSOG"
 
 
-def test_entsog_flow_ingestion_requests_and_replaces_only_physical_flow() -> None:
+def test_entsog_flow_ingestion_requests_and_upserts_physical_flow() -> None:
     script = (ROOT / "scripts" / "ops" / "ingest_public_sources.py").read_text(
         encoding="utf-8"
     )
 
     assert '"indicator": "Physical Flow"' in script
-    assert "delete(FlowObservationRecord)" in script
+    # re-run safe: natural-key upsert, never a destructive full replace
+    assert "delete(FlowObservationRecord)" not in script
+    assert "upsert_observation_rows(session, FlowObservationRecord, rows)" in script
     assert "ENTSOG returned no physical-flow observations" in script

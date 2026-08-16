@@ -1,4 +1,4 @@
-﻿"""Read-only /api/market routes."""
+"""Read-only /api/market routes."""
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
@@ -93,6 +93,37 @@ def list_opportunities(
         raise _db_unavailable(exc) from exc
 
 
+@router.get("/api/market/normalized")
+def list_normalized_view(
+    request: Request,
+    limit: int = Query(default=500, ge=1, le=2000),
+) -> dict:
+    """Return the backend-normalized market view (hub/tenor/FX->GBP per row)."""
+
+    if not _db_is_configured():
+        return _env(
+            [],
+            source="runtime-db-not-configured",
+            warnings=["Runtime DB is not configured; normalized market view is unavailable."],
+        )
+    sqlalchemy_error = _sqlalchemy_error_type()
+    try:
+        from eurogas_nexus.db.repositories.market_intelligence import (
+            list_normalized_market_view,
+        )
+        from eurogas_nexus.db.session import get_session_factory
+
+        with get_session_factory()() as session:
+            view = list_normalized_market_view(session, limit=limit)
+        return _env(
+            view["rows"],
+            source="runtime-postgresql",
+            warnings=view["warnings"],
+        )
+    except sqlalchemy_error as exc:
+        raise _db_unavailable(exc) from exc
+
+
 @router.get("/api/market/spreads")
 def list_spreads(request: Request) -> dict:
     if not _db_is_configured():
@@ -116,6 +147,8 @@ def list_spreads(request: Request) -> dict:
                 "name": f"{row['buy_hub']} -> {row['sell_hub']} {row['product']}",
                 "from_venue": row["buy_venue"],
                 "to_venue": row["sell_venue"],
+                "from_hub": row["buy_hub"],
+                "to_hub": row["sell_hub"],
                 "spread_eur_mwh": row["gross_spread"],
                 "period": row["product"],
             }

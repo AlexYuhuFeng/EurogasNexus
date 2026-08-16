@@ -316,9 +316,9 @@ input {
   stroke-dasharray: none;
 }
 
-.fallback-flow-path.direct-corridor {
-  opacity: 0.72;
-  stroke-dasharray: 8 10;
+.fallback-flow-path.endpoint-link {
+  opacity: 0.55;
+  stroke-dasharray: 4 7;
 }
 
 .fallback-flow-pulse {
@@ -1140,6 +1140,7 @@ input {
 
 .strategy-command-deck,
 .strategy-paper-state,
+.strategy-cumulative-state,
 .strategy-risk-stack,
 .strategy-price-basis-board,
 .strategy-pnl-scenario-comparison,
@@ -1149,6 +1150,7 @@ input {
 .strategy-market-tape,
 .strategy-resource-stack,
 .strategy-allocation-ladder,
+.strategy-run-history,
 .strategy-source-evidence,
 .strategy-warning-stack {
   align-content: start;
@@ -1170,6 +1172,47 @@ input {
   cursor: pointer;
   font-weight: 700;
   padding: 0 12px;
+}
+
+.strategy-risk-inputs {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 8px;
+}
+
+.strategy-risk-inputs label {
+  display: grid;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--eg-muted, #5f6b7a);
+}
+
+.strategy-risk-inputs input {
+  min-height: 30px;
+  border: 1px solid var(--eg-hairline, #ebebeb);
+  border-radius: 6px;
+  background: var(--eg-surface, #ffffff);
+  color: var(--eg-ink, #18202c);
+  padding: 0 8px;
+  font: inherit;
+}
+
+.strategy-bar-selector button {
+  min-height: 22px;
+  border: 1px solid var(--eg-hairline, #ebebeb);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--eg-muted, #5f6b7a);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  margin-left: 4px;
+  padding: 0 6px;
+}
+
+.strategy-bar-selector button.active {
+  background: var(--accent);
+  color: #ffffff;
 }
 
 .strategy-candidate-action {
@@ -1628,17 +1671,19 @@ input {
 
 .strategy-page .strategy-command-deck { order: 1; }
 .strategy-page .strategy-paper-state { order: 2; }
-.strategy-page .strategy-risk-stack { order: 3; }
-.strategy-page .strategy-resource-stack { order: 4; }
-.strategy-page .strategy-price-basis-board { order: 5; }
-.strategy-page .strategy-pnl-scenario-comparison { order: 6; }
-.strategy-page .strategy-allocation-ladder { order: 7; grid-column: span 1; }
-.strategy-page .strategy-basis-exposure-ladder { order: 8; }
-.strategy-page .strategy-pnl-curve { order: 9; grid-column: span 1; }
-.strategy-page .strategy-market-tape { order: 10; grid-column: 1 / -1; }
-.strategy-page .strategy-data-quality-flags { order: 11; }
-.strategy-page .strategy-source-evidence { order: 12; }
-.strategy-page .strategy-warning-stack { order: 13; }
+.strategy-page .strategy-cumulative-state { order: 3; }
+.strategy-page .strategy-risk-stack { order: 4; }
+.strategy-page .strategy-resource-stack { order: 5; }
+.strategy-page .strategy-price-basis-board { order: 6; }
+.strategy-page .strategy-pnl-scenario-comparison { order: 7; }
+.strategy-page .strategy-allocation-ladder { order: 8; grid-column: span 1; }
+.strategy-page .strategy-basis-exposure-ladder { order: 9; }
+.strategy-page .strategy-pnl-curve { order: 10; grid-column: span 1; }
+.strategy-page .strategy-market-tape { order: 11; grid-column: 1 / -1; }
+.strategy-page .strategy-data-quality-flags { order: 12; }
+.strategy-page .strategy-run-history { order: 13; }
+.strategy-page .strategy-source-evidence { order: 14; }
+.strategy-page .strategy-warning-stack { order: 15; }
 
 .strategy-command-deck {
   grid-template-columns: minmax(0, 1fr) auto;
@@ -3316,6 +3361,138 @@ body {
   letter-spacing: 0;
   margin-right: 6px;
   text-transform: uppercase;
+}
+
+.review-decision-form {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-bottom: 10px;
+}
+
+.review-decision-form label {
+  display: grid;
+  gap: 4px;
+}
+
+.review-decision-form label span {
+  color: var(--eg-ink);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.review-decision-form input,
+.review-decision-form select {
+  background: var(--eg-canvas-soft);
+  border: 1px solid var(--eg-hairline);
+  border-radius: var(--eg-radius-sm);
+  color: var(--eg-body);
+  font: inherit;
+  font-size: 13px;
+  min-width: 0;
+  padding: 7px 9px;
+}
+
+.review-decision-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.review-decision-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.review-decision-message {
+  margin-top: 8px;
+}
+
+.review-decision-badge {
+  font-weight: 600;
+}
+
+.review-decision-accepted {
+  color: var(--eg-positive, #1c8a4c);
+}
+
+.review-decision-rejected {
+  color: var(--eg-negative, #c0392b);
+}
+
+.review-decision-needs_attention {
+  color: var(--eg-warn, #b7791f);
+}
+
+.stream-status-badge {
+  align-items: center;
+  border-radius: var(--eg-radius-sm);
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  line-height: 18px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
+.stream-status-badge.stream-live {
+  background: var(--eg-positive-soft, rgba(28, 138, 76, 0.14));
+  color: var(--eg-positive, #1c8a4c);
+}
+
+.stream-status-badge.stream-fallback {
+  background: var(--eg-warn-soft, rgba(183, 121, 31, 0.14));
+  color: var(--eg-warn, #b7791f);
+}
+
+.runtime-health-refresh {
+  background: var(--eg-canvas-soft);
+  border: 1px solid var(--eg-hairline);
+  border-radius: var(--eg-radius-sm);
+  color: var(--eg-body);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  margin: 8px 0 10px;
+  padding: 6px 12px;
+}
+
+.pipeline-status {
+  font-weight: 600;
+}
+
+.pipeline-status-succeeded,
+.pipeline-status-active {
+  color: var(--eg-positive, #1c8a4c);
+}
+
+.pipeline-status-failed {
+  color: var(--eg-negative, #c0392b);
+}
+
+.source-cert {
+  border-radius: var(--eg-radius-sm);
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  padding: 1px 7px;
+  white-space: nowrap;
+}
+
+.source-cert-unverified,
+.source-cert-simulation_matched {
+  background: var(--eg-warn-soft, rgba(183, 121, 31, 0.14));
+  color: var(--eg-warn, #b7791f);
+}
+
+.source-cert-live_validated {
+  background: var(--eg-positive-soft, rgba(28, 138, 76, 0.14));
+  color: var(--eg-positive, #1c8a4c);
 }
 
 .evidence-stack-panel {

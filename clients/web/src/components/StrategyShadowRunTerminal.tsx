@@ -1,16 +1,13 @@
 import type {
   FxRateDTO,
-  MarketObsDTO,
+  NormalizedMarketObsDTO,
   PortfolioResourceDTO,
   StrategyLabRequestDTO,
   StrategyLabResultDTO,
   StrategyPriceObservationDTO,
+  StrategyRunDTO,
+  StrategySummaryDTO,
 } from "@/api/client";
-import {
-  isGasPriceObservation,
-  marketObservationHub,
-  marketPriceGbpMwh,
-} from "@/app/index";
 import {
   StrategyBasisExposureLadder,
   StrategyContractPnlAttribution,
@@ -28,16 +25,23 @@ import { useMemo, useState } from "react";
 
 type Translate = (key: string) => string;
 
+export interface StrategyEvaluateOverrides {
+  risk_control?: Record<string, unknown>;
+  bar_minutes?: number;
+}
+
 interface StrategyShadowRunTerminalProps {
   strategyScenario: StrategyLabRequestDTO;
   strategyResult: StrategyLabResultDTO | null;
+  strategySummary: StrategySummaryDTO | null;
+  strategyRuns: StrategyRunDTO[];
   portfolioResources: PortfolioResourceDTO[];
-  marketObservations: MarketObsDTO[];
+  marketObservations: NormalizedMarketObsDTO[];
   fxRates: FxRateDTO[];
   language: string;
   loading: boolean;
   t: Translate;
-  onEvaluate: () => void;
+  onEvaluate: (overrides?: StrategyEvaluateOverrides) => void;
 }
 
 const PRICE_BASIS_ORDER: PriceBasisId[] = [
@@ -97,20 +101,17 @@ function riskValue(riskControl: Record<string, unknown> | undefined, key: string
 }
 
 function tapePriceFromMarketObservation(
-  item: MarketObsDTO,
-  fxRates: FxRateDTO[],
+  item: NormalizedMarketObsDTO,
 ): StrategyPriceObservationDTO | null {
-  if (!isGasPriceObservation(item)) return null;
-  const normalizedPrice = marketPriceGbpMwh(item, fxRates);
-  if (normalizedPrice === null) return null;
+  if (!item.is_gas_price || item.price_gbp_mwh === null) return null;
   return {
     observation_id: item.observation_id,
     source_system: item.source_system ?? "market-observation",
     venue: item.market_venue,
-    hub: marketObservationHub(item),
+    hub: item.hub,
     product: item.product,
     price_name: item.product,
-    price_gbp_mwh: normalizedPrice,
+    price_gbp_mwh: item.price_gbp_mwh,
     observed_at_utc: item.observed_at_utc ?? item.period_start_utc,
     delivery_start_utc: item.period_start_utc,
     delivery_end_utc: item.period_end_utc,
@@ -211,6 +212,8 @@ function strategyWarningLabel(warning: string, t: Translate): string {
 export function StrategyShadowRunTerminal({
   strategyScenario,
   strategyResult,
+  strategySummary,
+  strategyRuns,
   portfolioResources,
   marketObservations,
   fxRates,
@@ -220,11 +223,43 @@ export function StrategyShadowRunTerminal({
   onEvaluate,
 }: StrategyShadowRunTerminalProps) {
   const [activeBasis, setActiveBasis] = useState<PriceBasisId>("WITHIN_DAY");
+  const [barMinutes, setBarMinutes] = useState("5");
+  const [riskOverrides, setRiskOverrides] = useState<Record<string, string>>(() => {
+    const control = strategyScenario.risk_control ?? {};
+    const readNumber = (key: string) =>
+      typeof control[key] === "number" ? String(control[key]) : "";
+    return {
+      max_ocm_allocation_pct: readNumber("max_ocm_allocation_pct"),
+      min_day_ahead_allocation_pct: readNumber("min_day_ahead_allocation_pct"),
+      max_single_market_volume_mwh_per_day: readNumber("max_single_market_volume_mwh_per_day"),
+      min_expected_margin_gbp_mwh: readNumber("min_expected_margin_gbp_mwh"),
+      stop_shadow_run_loss_gbp: readNumber("stop_shadow_run_loss_gbp"),
+    };
+  });
+  const updateRiskOverride = (key: string, value: string) =>
+    setRiskOverrides((prev) => ({ ...prev, [key]: value }));
+  const buildRiskOverrides = (): Record<string, unknown> => {
+    const out: Record<string, unknown> = {};
+    const numericKeys = [
+      "max_ocm_allocation_pct",
+      "min_day_ahead_allocation_pct",
+      "max_single_market_volume_mwh_per_day",
+      "min_expected_margin_gbp_mwh",
+      "stop_shadow_run_loss_gbp",
+    ];
+    for (const key of numericKeys) {
+      const raw = (riskOverrides[key] ?? "").trim();
+      if (raw === "") continue;
+      const value = Number(raw);
+      if (Number.isFinite(value)) out[key] = value;
+    }
+    return out;
+  };
   const combinedPriceTape = useMemo(() => {
     const observed = [
       ...strategyScenario.price_observations,
       ...marketObservations
-        .map((item) => tapePriceFromMarketObservation(item, fxRates))
+        .map((item) => tapePriceFromMarketObservation(item))
         .filter((item): item is StrategyPriceObservationDTO => item !== null),
     ];
     const seen = new Set<string>();
@@ -236,7 +271,7 @@ export function StrategyShadowRunTerminal({
         return true;
       })
       .sort((left, right) => observedAtMs(right.observed_at_utc) - observedAtMs(left.observed_at_utc));
-  }, [strategyScenario.price_observations, marketObservations, fxRates]);
+  }, [strategyScenario.price_observations, marketObservations]);
   const priceTape = combinedPriceTape.slice(0, 12);
   const resourcePoolRows = useMemo(() => {
     if (portfolioResources.length > 0) {
@@ -417,14 +452,35 @@ export function StrategyShadowRunTerminal({
         <p className="panel-copy">{t("strategy.description")}</p>
         <div className="strategy-summary">
           <span>{t("strategy.window")}: 15:00-17:00</span>
-          <span>{t("strategy.bar")}: 5m</span>
+          <span className="strategy-bar-selector">
+            {t("strategy.bar")}:
+            {["1", "5", "15"].map((bar) => (
+              <button
+                key={`bar-${bar}`}
+                type="button"
+                className={barMinutes === bar ? "active" : ""}
+                onClick={() => setBarMinutes(bar)}
+              >
+                {bar}m
+              </button>
+            ))}
+          </span>
           <span>{t("strategy.mode")}: {strategyScenario.run_mode}</span>
           <span>{t("strategy.no_execution")}</span>
           <span>{t("strategy.observations")}: {combinedPriceTape.length}</span>
           <span>{t("context.updated")}: {priceTape[0]?.observed_at_utc ? new Date(priceTape[0].observed_at_utc).toLocaleString(language) : t("data.unavailable")}</span>
         </div>
         <div className="strategy-command-actions">
-          <button type="button" disabled={loading} onClick={onEvaluate}>
+          <button
+            type="button"
+            disabled={loading}
+            onClick={() =>
+              onEvaluate({
+                risk_control: buildRiskOverrides(),
+                bar_minutes: Number(barMinutes) || undefined,
+              })
+            }
+          >
             {t("strategy.evaluate")}
           </button>
           <span className="status-badge">{t("strategy.paper_state")}</span>
@@ -442,15 +498,66 @@ export function StrategyShadowRunTerminal({
           <div><span>{t("strategy.day_ahead")}</span><strong>{formatMoney(strategyResult?.day_ahead_average_gbp_mwh)}</strong></div>
           <div><span>{t("strategy.intraday")}</span><strong>{formatMoney(strategyResult?.intraday_average_gbp_mwh)}</strong></div>
           <div><span>{t("strategy.spread")}</span><strong>{formatMoney(strategyResult?.intraday_vs_day_ahead_spread_gbp_mwh)}</strong></div>
+          <div><span>{t("strategy.paper_pnl")}</span><strong>{formatSignedMoney(strategyResult?.paper_pnl_gbp)} GBP</strong></div>
+          <div><span>{t("strategy.cumulative_pnl")}</span><strong>{formatSignedMoney(strategyResult?.cumulative_pnl_gbp)} GBP</strong></div>
+        </div>
+      </section>
+
+      <section className="workspace-panel strategy-cumulative-state">
+        <h3>{t("strategy.cumulative_state")}</h3>
+        <div className="metric-grid">
+          <div><span>{t("strategy.run_count")}</span><strong>{strategySummary?.run_count ?? 0}</strong></div>
+          <div><span>{t("strategy.hit_rate")}</span><strong>{((strategySummary?.hit_rate ?? 0) * 100).toFixed(1)}%</strong></div>
+          <div><span>{t("strategy.max_drawdown")}</span><strong>{formatSignedMoney(strategySummary?.max_drawdown_gbp)} GBP</strong></div>
+          <div><span>{t("strategy.cumulative_pnl")}</span><strong>{formatSignedMoney(strategySummary?.cumulative_pnl_gbp)} GBP</strong></div>
         </div>
       </section>
 
       <section className="workspace-panel strategy-risk-stack">
         <h3>{t("strategy.risk_controls")}</h3>
+        <div className="strategy-risk-inputs">
+          <label>
+            <span>{t("strategy.max_ocm")} (%)</span>
+            <input
+              type="number"
+              value={riskOverrides.max_ocm_allocation_pct}
+              onChange={(event) => updateRiskOverride("max_ocm_allocation_pct", event.target.value)}
+            />
+          </label>
+          <label>
+            <span>{t("strategy.min_day_ahead")} (%)</span>
+            <input
+              type="number"
+              value={riskOverrides.min_day_ahead_allocation_pct}
+              onChange={(event) => updateRiskOverride("min_day_ahead_allocation_pct", event.target.value)}
+            />
+          </label>
+          <label>
+            <span>{t("strategy.max_market")}</span>
+            <input
+              type="number"
+              value={riskOverrides.max_single_market_volume_mwh_per_day}
+              onChange={(event) => updateRiskOverride("max_single_market_volume_mwh_per_day", event.target.value)}
+            />
+          </label>
+          <label>
+            <span>{t("strategy.min_margin")}</span>
+            <input
+              type="number"
+              value={riskOverrides.min_expected_margin_gbp_mwh}
+              onChange={(event) => updateRiskOverride("min_expected_margin_gbp_mwh", event.target.value)}
+            />
+          </label>
+          <label>
+            <span>{t("strategy.stop_loss")}</span>
+            <input
+              type="number"
+              value={riskOverrides.stop_shadow_run_loss_gbp}
+              onChange={(event) => updateRiskOverride("stop_shadow_run_loss_gbp", event.target.value)}
+            />
+          </label>
+        </div>
         <div className="metric-grid">
-          <div><span>{t("strategy.max_ocm")}</span><strong>{riskValue(strategyScenario.risk_control, "max_ocm_allocation_pct")}%</strong></div>
-          <div><span>{t("strategy.min_day_ahead")}</span><strong>{riskValue(strategyScenario.risk_control, "min_day_ahead_allocation_pct")}%</strong></div>
-          <div><span>{t("strategy.max_market")}</span><strong>{riskValue(strategyScenario.risk_control, "max_single_market_volume_mwh_per_day")}</strong></div>
           <div><span>{t("strategy.tso_access")}</span><strong>{riskValue(strategyScenario.risk_control, "require_tso_access")}</strong></div>
         </div>
       </section>
@@ -559,6 +666,34 @@ export function StrategyShadowRunTerminal({
           ))}
           {!strategyResult && (
             <div className="data-table-row four"><strong>{t("home.not_running")}</strong><span>n/a</span><span>n/a</span><span>{t("strategy.no_execution")}</span></div>
+          )}
+        </div>
+      </section>
+
+      <section className="workspace-panel span-2 strategy-run-history">
+        <div className="panel-title-row">
+          <h3>{t("strategy.run_history")}</h3>
+          <span>{strategyRuns.length} {t("panel.records")}</span>
+        </div>
+        <div className="data-table">
+          <div className="data-table-row header five">
+            <span>{t("strategy.run_time")}</span><span>{t("strategy.status")}</span>
+            <span>{t("strategy.paper_pnl")}</span><span>{t("strategy.cumulative_pnl")}</span>
+            <span>{t("strategy.win")}</span>
+          </div>
+          {strategyRuns.map((run) => (
+            <div key={`strategy-run-${run.run_id}`} className="data-table-row five">
+              <span>{formatTimestamp(run.started_at_utc, language)}</span>
+              <strong>{run.status}</strong>
+              <span>{formatSignedMoney(run.paper_pnl_gbp)}</span>
+              <span>{formatSignedMoney(run.cumulative_pnl_gbp)}</span>
+              <span>{run.hit ? t("strategy.win") : t("strategy.loss")}</span>
+            </div>
+          ))}
+          {strategyRuns.length === 0 && (
+            <div className="data-table-row five">
+              <span>{t("home.not_running")}</span><span>n/a</span><span>n/a</span><span>n/a</span><span>n/a</span>
+            </div>
           )}
         </div>
       </section>

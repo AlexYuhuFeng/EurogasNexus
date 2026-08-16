@@ -12,7 +12,12 @@ from eurogas_nexus.db.session import get_session_factory, resolve_database_url
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--interval-seconds", type=float, default=10.0)
+    parser.add_argument(
+        "--interval-seconds",
+        type=float,
+        default=10.0,
+        help="Scan cadence in seconds (minimum 2.0 for near-real-time operation).",
+    )
     parser.add_argument("--once", action="store_true")
     parser.add_argument("--no-llm", action="store_true")
     parser.add_argument("--max-llm-enrichments", type=int, default=3)
@@ -22,7 +27,7 @@ def main() -> int:
         print(json.dumps({"status": "blocked", "reason": "database_url_missing"}))
         return 2
 
-    interval_seconds = max(5.0, args.interval_seconds)
+    interval_seconds = max(2.0, args.interval_seconds)
     session_factory = get_session_factory()
     while True:
         try:

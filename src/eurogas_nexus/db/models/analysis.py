@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, String, Text
+from sqlalchemy import JSON, Boolean, DateTime, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from eurogas_nexus.db.base import Base
@@ -53,18 +53,3 @@ class GeneratedReportRecord(Base):
     created_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     research_only: Mapped[bool] = mapped_column(Boolean, nullable=False)
     human_review_required: Mapped[bool] = mapped_column(Boolean, nullable=False)
-
-
-class BusinessOntologyRecord(Base):
-    """Optional DB-managed business ontology entry."""
-
-    __tablename__ = "business_ontology_terms"
-
-    ontology_id: Mapped[str] = mapped_column(String(128), primary_key=True)
-    term: Mapped[str] = mapped_column(String(128), nullable=False)
-    entity_type: Mapped[str] = mapped_column(String(64), nullable=False)
-    definition_en: Mapped[str] = mapped_column(Text(), nullable=False)
-    definition_zh_cn: Mapped[str] = mapped_column(Text(), nullable=False)
-    relationships: Mapped[list[str]] = mapped_column(JSON, nullable=False)
-    active: Mapped[bool] = mapped_column(Boolean, nullable=False)
-    updated_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

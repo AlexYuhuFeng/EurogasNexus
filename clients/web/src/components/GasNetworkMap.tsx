@@ -73,7 +73,7 @@ function routeGeometryStateClass(state: RouteGeometryState): string {
   if (state === "surveyed_pipeline_route") return "surveyed";
   if (state === "source_derived_leg_sequence") return "leg-sequence";
   if (state === "source_derived_corridor") return "corridor";
-  return "direct-corridor";
+  return "endpoint-link";
 }
 
 const MAX_MAP_LABELS = 12;
@@ -225,13 +225,13 @@ export function GasNetworkMap({
   }, [highlightedRoutePoints?.routeId, visibleEdges]);
   const directLineFallback = Boolean(highlightedRoutePoints && routeSegmentsForHighlight.length === 0);
   const geometryWarning = directLineFallback
-    ? "Direct display fallback: route geometry unavailable; not surveyed pipeline geometry."
+    ? "Route geometry unavailable: endpoints linked schematically, not surveyed pipeline geometry."
     : highlightedRoutePoints?.routeGeometryState === "surveyed_pipeline_route"
       ? `${routeGeometryStateLabel(highlightedRoutePoints.routeGeometryState)} from reference edge metadata.`
       : `${routeGeometryStateLabel(highlightedRoutePoints?.routeGeometryState ?? "source_derived_corridor")}: source-derived corridor, not surveyed pipeline geometry.`;
   const highlightedRouteSegmentFeatures = useMemo(
-    () =>
-      routeSegmentsForHighlight.map((edge) => {
+    () => {
+      const segmentFeatures = routeSegmentsForHighlight.map((edge) => {
         const metadata = edge.metadata_json ?? {};
         return {
           type: "Feature" as const,
@@ -252,8 +252,28 @@ export function GasNetworkMap({
             coordinates: edge.geometryCoordinates,
           },
         };
-      }),
-    [highlightedRoutePoints?.routeGeometryState, highlightedRoutePoints?.routeId, routeSegmentsForHighlight],
+      });
+      if (segmentFeatures.length > 0 || !highlightedRoutePoints) return segmentFeatures;
+      return [{
+        type: "Feature" as const,
+        properties: {
+          id: `direct-${highlightedRoutePoints.routeId}`,
+          route_id: highlightedRoutePoints.routeId,
+          route_leg_sequence: 1,
+          route_geometry_state: "directLineFallback",
+          geometry_quality: "endpoint_corridor",
+          geometry_warning: geometryWarning,
+        },
+        geometry: {
+          type: "LineString" as const,
+          coordinates: [
+            [highlightedRoutePoints.from.lon, highlightedRoutePoints.from.lat],
+            [highlightedRoutePoints.to.lon, highlightedRoutePoints.to.lat],
+          ],
+        },
+      }];
+    },
+    [geometryWarning, highlightedRoutePoints, routeSegmentsForHighlight],
   );
   const normalizedSearchTerm = searchTerm.trim().toLowerCase();
   const priorityLabelNodes = useMemo(() => {
@@ -734,8 +754,28 @@ export function GasNetworkMap({
               </g>
             );
           }
-
-          return null;
+          const [fromX, fromY] = project(highlightedRoutePoints.from.lon, highlightedRoutePoints.from.lat);
+          const [toX, toY] = project(highlightedRoutePoints.to.lon, highlightedRoutePoints.to.lat);
+          const labelX = (fromX + toX) / 2 + 12;
+          const labelY = (fromY + toY) / 2 - 12;
+          const controlX = (fromX + toX) / 2;
+          const controlY = (fromY + toY) / 2 - Math.max(14, Math.abs(toX - fromX) * 0.08);
+          const path = `M ${fromX} ${fromY} Q ${controlX} ${controlY} ${toX} ${toY}`;
+          return (
+            <g className="fallback-flow endpoint-link" aria-hidden="true">
+              <desc>{geometryWarning}</desc>
+              <path className="fallback-flow-shadow" d={path} fill="none" />
+              <path className="fallback-flow-path endpoint-link" d={path} fill="none" />
+              <text className="fallback-flow-label" x={labelX} y={labelY}>
+                {highlightedRoutePoints.label}
+              </text>
+              {pnlText && (
+                <text className="fallback-flow-value" x={labelX} y={labelY + 18}>
+                  {pnlText}
+                </text>
+              )}
+            </g>
+          );
         })()}
         {filteredNodes.map((node, index) => {
           const [x, y] = project(node.lon, node.lat);

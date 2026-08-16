@@ -6,6 +6,8 @@ from collections.abc import Sequence
 
 from pydantic import BaseModel, Field
 
+from eurogas_nexus.domain.constraints.access import inaccessible_tsos
+from eurogas_nexus.domain.constraints.route_economics import netback
 from eurogas_nexus.domain.route_cost.enums import (
     BusinessModel,
     CapacityProduct,
@@ -261,28 +263,23 @@ def _candidate_netback(
     currency: str | None,
     unit: str | None,
 ) -> float | None:
-    if candidate.sale_price is None:
-        return None
-    if route_cost is None:
-        return None
-    if candidate.price_currency and currency and candidate.price_currency != currency:
-        return None
-    if candidate.price_unit and unit and candidate.price_unit != unit:
-        return None
-    return round(candidate.sale_price - route_cost, 6)
+    return netback(
+        candidate.sale_price,
+        route_cost,
+        price_currency=candidate.price_currency,
+        cost_currency=currency,
+        price_unit=candidate.price_unit,
+        cost_unit=unit,
+    )
 
 
 def _tso_access_blockers(
     candidate: RouteOptionCandidate,
     accessible_tsos: Sequence[str] | None,
 ) -> list[str]:
-    if accessible_tsos is None:
-        return []
-    allowed = {item.strip().lower() for item in accessible_tsos if item.strip()}
     return [
         f"TSO_ACCESS_MISSING:{tso}"
-        for tso in candidate.required_tso_access
-        if tso.strip() and tso.strip().lower() not in allowed
+        for tso in inaccessible_tsos(candidate.required_tso_access, accessible_tsos)
     ]
 
 

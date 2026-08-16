@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections import Counter
 from collections.abc import Sequence
 
+from eurogas_nexus.domain.constraints.access import inaccessible_tsos as _inaccessible_tsos
 from eurogas_nexus.domain.route_cost.schemas import (
     RouteCostComponent,
     RouteCostResult,
@@ -158,17 +159,3 @@ def _sum_compatible_components(
 
 def _unique(values: Sequence[str]) -> list[str]:
     return list(dict.fromkeys(values))
-
-
-def _inaccessible_tsos(
-    required_tso_access: Sequence[str],
-    company_accessible_tsos: Sequence[str] | None,
-) -> list[str]:
-    if company_accessible_tsos is None:
-        return []
-    allowed = {item.strip().lower() for item in company_accessible_tsos if item.strip()}
-    return [
-        tso
-        for tso in required_tso_access
-        if tso.strip() and tso.strip().lower() not in allowed
-    ]

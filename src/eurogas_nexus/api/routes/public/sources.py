@@ -1,4 +1,4 @@
-﻿"""Read-only /api source registry and ingestion status routes."""
+"""Read-only /api source registry and ingestion status routes."""
 
 from __future__ import annotations
 
@@ -6,6 +6,8 @@ import re
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, Request
+
+from eurogas_nexus.domain.ingestion.certification import certification_gate
 
 router = APIRouter(tags=["sources"])
 
@@ -400,6 +402,8 @@ def _src(
         "credential_last_tested_at_utc": None,
         "credential_last_test_status": None,
         "export_restrictions": ["license-controlled"] if entitled else [],
+        "certification_stage": "unverified",
+        "certification_allows_live": False,
         "preview_substitute_source_system": None,
         "preview_substitute_status": None,
         "preview_substitute_record_count": 0,
@@ -416,6 +420,7 @@ def _sources_with_runtime_status() -> list[dict]:
     counts = _runtime_source_counts()
     ingestion_status = _latest_ingestion_status_by_source()
     credential_status = _credential_status_by_provider()
+    certifications = _certification_by_source_system()
     for source in sources:
         count = counts.get(source["source_system"], 0)
         source["live_record_count"] = count
@@ -432,6 +437,16 @@ def _sources_with_runtime_status() -> list[dict]:
         source["credential_last_test_status"] = (
             credential.get("last_test_status") if credential else None
         )
+        certification = certifications.get(source["source_system"])
+        source["certification_stage"] = (
+            certification["stage"] if certification else "unverified"
+        )
+        gate = certification_gate(
+            source["source_system"],
+            stage=source["certification_stage"],
+            checks=certification.get("checks") if certification else None,
+        )
+        source["certification_allows_live"] = gate.allows_live
         source["last_success_at_utc"] = source_ingestion.get("last_success_at_utc")
         source["last_failure_at_utc"] = source_ingestion.get("last_failure_at_utc")
         source["last_ingestion_status"] = latest_run.get("status") if latest_run else None
@@ -477,6 +492,11 @@ def _source_posture_summary(sources: list[dict]) -> dict[str, Any]:
                 for source in sources
                 if source["preview_substitute_status"] == "active"
             ),
+            "uncertified_active_sources": sum(
+                1
+                for source in sources
+                if source["operational_status"] == "active_uncertified"
+            ),
             "runtime_records": sum(int(source["live_record_count"]) for source in sources),
         },
         "categories": categories,
@@ -516,6 +536,8 @@ def _category_posture(category: str, label: str, sources: list[dict]) -> dict[st
 def _source_needs_attention(source: dict) -> bool:
     if source["workflow_ready"]:
         return False
+    if source["operational_status"] == "active_uncertified":
+        return True
     return source["connectivity_status"] in {
         "failed",
         "needs_credential",
@@ -566,9 +588,11 @@ def _attach_preview_substitute_status(sources: list[dict]) -> None:
 def _attach_operational_status(sources: list[dict]) -> None:
     by_system = {source["source_system"]: source for source in sources}
     for source in sources:
+        certification_required = bool(source["credential_requirements"])
         native_active = (
             source["connectivity_status"] == "active"
             and int(source["live_record_count"]) > 0
+            and (not certification_required or source["certification_allows_live"])
         )
         substitute = by_system.get(source["preview_substitute_source_system"])
         substitute_active = bool(
@@ -588,6 +612,16 @@ def _attach_operational_status(sources: list[dict]) -> None:
             source["effective_source_system"] = substitute["source_system"]
             source["effective_record_count"] = substitute["live_record_count"]
             source["effective_last_success_at_utc"] = substitute["last_success_at_utc"]
+        elif (
+            source["credential_requirements"]
+            and source["connectivity_status"] == "active"
+            and not source["certification_allows_live"]
+        ):
+            source["operational_status"] = "active_uncertified"
+            source["workflow_ready"] = False
+            source["effective_source_system"] = source["source_system"]
+            source["effective_record_count"] = source["live_record_count"]
+            source["effective_last_success_at_utc"] = source["last_success_at_utc"]
         else:
             source["operational_status"] = source["connectivity_status"]
             source["workflow_ready"] = False
@@ -642,6 +676,8 @@ def _diagnostics(
         diagnostics.append("last_ingestion_failed")
     if live_record_count > 0:
         diagnostics.append("live_records_available")
+        if source["credential_requirements"] and not source["certification_allows_live"]:
+            diagnostics.append("certification_required")
     elif not _db_is_configured():
         diagnostics.append("runtime_db_not_configured")
     elif source["category"] != "ai":
@@ -822,6 +858,22 @@ def _spain_tariff_filter(tariff_model: Any, or_: Any) -> Any:
         tariff_model.tso.ilike("%Enagás%"),
         tariff_model.tso.ilike("%CNMC%"),
     )
+
+
+def _certification_by_source_system() -> dict[str, dict[str, Any]]:
+    if not _db_is_configured():
+        return {}
+
+    sqlalchemy_error = _sqlalchemy_error_type()
+    try:
+        from eurogas_nexus.db.repositories.certification import list_certifications
+        from eurogas_nexus.db.session import get_session_factory
+
+        with get_session_factory()() as session:
+            rows = list_certifications(session)
+        return {row["source_system"]: row for row in rows}
+    except sqlalchemy_error:
+        return {}
 
 
 def _credential_status_by_provider() -> dict[str, dict[str, Any]]:

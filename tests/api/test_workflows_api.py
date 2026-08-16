@@ -1,4 +1,4 @@
-﻿"""Workflow API contract tests (DB-free)."""
+"""Workflow API contract tests (DB-free)."""
 
 import pytest
 from fastapi.testclient import TestClient
@@ -47,6 +47,21 @@ def test_workflow_route_has_no_static_fixture_payload(client: TestClient, path: 
     data = r.json()["data"]
     assert data["status"] == "BLOCKED"
     assert data["code"] == "RUNTIME_DATA_REQUIRED"
+
+
+@pytest.mark.parametrize("path", WORKFLOW_PATHS)
+def test_workflow_route_is_marked_deprecated(client: TestClient, path: str) -> None:
+    r = client.get(path)
+    assert r.json()["data"]["deprecated"] is True, f"{path} missing deprecated flag"
+    assert "DEPRECATED_WORKFLOW_SHELL" in r.json()["meta"]["warnings"]
+
+
+@pytest.mark.parametrize("path", WORKFLOW_PATHS)
+def test_workflow_routes_are_deprecated_in_openapi(path: str) -> None:
+    from apps.api.main import app
+
+    operation = app.openapi()["paths"][path]["get"]
+    assert operation["deprecated"] is True, f"{path} not deprecated in OpenAPI"
 
 
 def test_glossary_list_en(client: TestClient) -> None:

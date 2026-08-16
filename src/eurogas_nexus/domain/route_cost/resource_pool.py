@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
+from eurogas_nexus.domain.constraints.access import inaccessible_tsos as _inaccessible_tsos
 from eurogas_nexus.domain.route_cost.enums import DeliveryMode, SourceResourceType
 
 
@@ -257,20 +258,6 @@ def _early_cash_value_gbp_mwh(
     annual_rate = annual_financing_rate_pct / 100
     base_cost = resource.contract_cost_gbp_mwh + resource.variable_cost_gbp_mwh
     return round(base_cost * annual_rate * lag_days / 365, 4)
-
-
-def _inaccessible_tsos(
-    required_tso_access: list[str],
-    company_accessible_tsos: list[str] | None,
-) -> list[str]:
-    if company_accessible_tsos is None:
-        return []
-    allowed = {item.strip().lower() for item in company_accessible_tsos if item.strip()}
-    return [
-        tso
-        for tso in required_tso_access
-        if tso.strip() and tso.strip().lower() not in allowed
-    ]
 
 
 def _unique(values: list[str]) -> list[str]:

@@ -1,20 +1,10 @@
-import type { StrategyPriceObservationDTO } from "@/api/client";
+import type {
+  NormalizedMarketObsDTO,
+  StrategyPriceObservationDTO,
+} from "@/api/client";
 import type { ContractDraft } from "./defaultContractDraft";
-import {
-  isGasPriceObservation,
-  marketObservationHub,
-  marketObservationTenor,
-  marketPriceGbpMwh,
-  newestObservation,
-} from "./marketPriceNormalization";
-import type { FxRateLike, MarketObservationLike } from "./marketPriceNormalization";
 
-type MarketLike = MarketObservationLike & {
-  observation_id: string;
-  period_end_utc: string;
-  source_system?: string;
-  source_reference?: string;
-};
+type MarketLike = NormalizedMarketObsDTO;
 
 type LiveMarkLike = {
   venue: string;
@@ -45,41 +35,45 @@ function observationHaystack(observation: MarketLike): string {
     observation.product,
     observation.source_system ?? "",
     observation.source_reference ?? "",
-    marketObservationTenor(observation),
+    observation.tenor,
   ].join(" ").toUpperCase();
 }
 
 function latestPositiveObservation(
   markets: MarketLike[],
-  fxRates: FxRateLike[],
   predicate: (observation: MarketLike) => boolean,
 ): MarketLike | null {
-  return newestObservation(markets.filter((observation) => {
-    if (!isGasPriceObservation(observation) || !predicate(observation)) return false;
-    const converted = marketPriceGbpMwh(observation, fxRates);
-    return converted !== null && converted > 0;
-  }));
+  const newestFirst = [...markets].sort((left, right) =>
+    (right.observed_at_utc ?? right.period_start_utc ?? "").localeCompare(
+      left.observed_at_utc ?? left.period_start_utc ?? "",
+    ),
+  );
+  return (
+    newestFirst.find((observation) => {
+      if (!observation.is_gas_price || !predicate(observation)) return false;
+      return observation.price_gbp_mwh !== null && observation.price_gbp_mwh > 0;
+    }) ?? null
+  );
 }
 
 function strategyObservation(
   observation: MarketLike,
   priceName: string,
-  fxRates: FxRateLike[],
 ): StrategyPriceObservationDTO | null {
-  const convertedPrice = marketPriceGbpMwh(observation, fxRates);
+  const convertedPrice = observation.price_gbp_mwh;
   if (convertedPrice === null || convertedPrice <= 0) return null;
   return {
     observation_id: observation.observation_id,
     source_system: observation.source_system ?? "market-observation",
     venue: observation.market_venue,
-    hub: marketObservationHub(observation),
+    hub: observation.hub,
     product: observation.product,
     price_name: priceName,
     price_gbp_mwh: convertedPrice,
     observed_at_utc: observation.observed_at_utc ?? observation.period_start_utc ?? "",
     delivery_start_utc: observation.period_start_utc ?? observation.observed_at_utc ?? "",
     delivery_end_utc: observation.period_end_utc,
-    bar_minutes: marketObservationTenor(observation).includes("within") ? 5 : null,
+    bar_minutes: observation.tenor.includes("within") ? 5 : null,
     source_reference: observation.source_reference ?? observation.observation_id,
   };
 }
@@ -96,49 +90,44 @@ export function buildStrategyScenario(
   liveMark: LiveMarkLike,
   markets: MarketLike[],
   portfolioResources: PortfolioResourceLike[],
-  fxRates: FxRateLike[],
 ) {
-  const nbpMarkets = markets.filter((observation) => marketObservationHub(observation).toUpperCase() === "NBP");
+  const nbpMarkets = markets.filter((observation) => observation.hub.toUpperCase() === "NBP");
   const sapRow = latestPositiveObservation(
     nbpMarkets,
-    fxRates,
     (observation) => observationHaystack(observation).includes("SAP"),
   );
   const icisRow = latestPositiveObservation(
     nbpMarkets,
-    fxRates,
     (observation) => observationHaystack(observation).includes("ICIS"),
   );
   const fallbackDayAheadRow = latestPositiveObservation(
     nbpMarkets,
-    fxRates,
     (observation) => {
-      const tenor = marketObservationTenor(observation);
+      const tenor = observation.tenor;
       return tenor.includes("day-ahead") || tenor.includes("day ahead");
     },
   );
   const ocmRow = latestPositiveObservation(
     nbpMarkets,
-    fxRates,
     (observation) => {
-      const tenor = marketObservationTenor(observation);
+      const tenor = observation.tenor;
       const haystack = observationHaystack(observation);
       return (tenor.includes("within") || tenor.includes("intraday")) && haystack.includes("OCM");
     },
   );
 
   const dayAheadObservations = [
-    sapRow ? strategyObservation(sapRow, "SAP", fxRates) : null,
-    icisRow ? strategyObservation(icisRow, "ICIS_HEREN_DAY_AHEAD", fxRates) : null,
+    sapRow ? strategyObservation(sapRow, "SAP") : null,
+    icisRow ? strategyObservation(icisRow, "ICIS_HEREN_DAY_AHEAD") : null,
   ].filter((observation): observation is StrategyPriceObservationDTO => observation !== null);
   if (dayAheadObservations.length === 0 && fallbackDayAheadRow) {
-    const fallback = strategyObservation(fallbackDayAheadRow, "NBP_DAY_AHEAD", fxRates);
+    const fallback = strategyObservation(fallbackDayAheadRow, "NBP_DAY_AHEAD");
     if (fallback) dayAheadObservations.push(fallback);
   }
 
   const manualOcmPrice = positiveLiveMark(liveMark);
   const persistedOcmObservation = ocmRow
-    ? strategyObservation(ocmRow, "ICE_OCM", fxRates)
+    ? strategyObservation(ocmRow, "ICE_OCM")
     : null;
   const referenceDelivery = persistedOcmObservation ?? dayAheadObservations[0] ?? null;
   const manualOcmObservation: StrategyPriceObservationDTO | null = manualOcmPrice === null

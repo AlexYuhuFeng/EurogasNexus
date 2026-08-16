@@ -1,4 +1,9 @@
-"""Bilingual gas-market glossary baseline used by API, SDK, and clients."""
+"""Bilingual gas-market glossary baseline used by API, SDK, and clients.
+
+This is the human-readable **display / annotation** layer and a DB seed. It is
+*not* the correctness backbone — that lives in `eurogas_nexus.domain.ontology`
+(typed concepts, relations, actions, and constraints).
+"""
 
 # ruff: noqa: E501
 

@@ -115,43 +115,21 @@ class GlossaryContext(BaseModel):
 
 
 def business_logic_ontology() -> dict:
-    """Return the V1 business ontology used by analysis and reports."""
+    """Return the business ontology used by analysis and reports.
+
+    Derived from the typed ``domain.ontology`` contract so the analysis context
+    and the domain engines agree on the same concepts, relations, and guardrails.
+    """
+
+    from eurogas_nexus.domain.ontology import CONCEPTS, GUARDRAILS, RELATIONS
 
     return {
-        "entities": [
-            "UpstreamResourceContract",
-            "ResourcePool",
-            "CapacityProfile",
-            "RouteCandidate",
-            "TsoTariff",
-            "MarketObservation",
-            "LiveMarketMark",
-            "FxObservation",
-            "FlowObservation",
-            "LngRegasScenario",
-            "StrategyDefinition",
-            "StrategyRun",
-            "StrategyAllocationTarget",
-            "GlossaryTerm",
-            "GeneratedReport",
-        ],
+        "entities": [concept.concept_id for concept in CONCEPTS],
         "relationships": [
-            "resource_contract feeds resource_pool",
-            "resource_pool allocates_to route_candidate",
-            "route_candidate requires tso_tariff and company_tso_access",
-            "route_candidate consumes market_observation and live_market_mark",
-            "lng_regas_scenario requires terminal_access and slot_window",
-            "strategy_run evaluates resource_pool, market_observation, and risk_control",
-            "generated_report cites source snapshots and strategy runs",
-            "glossary_term links to operational context when identifiers match",
+            f"{relation.subject} {relation.predicate} {relation.object}"
+            for relation in RELATIONS
         ],
-        "guardrails": [
-            "PostgreSQL is runtime source of truth",
-            "clients access data through API/SDK only",
-            "LLM providers are not source of truth",
-            "outputs are decision support and human review required",
-            "no order entry, routing, execution, trade capture, or nomination submission",
-        ],
+        "guardrails": list(GUARDRAILS),
     }
 
 

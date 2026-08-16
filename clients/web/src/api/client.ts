@@ -1,4 +1,4 @@
-﻿/** Typed API client for /api. All data flows through backend API only. */
+/** Typed API client for /api. All data flows through backend API only. */
 
 const DEFAULT_BROWSER_BASE = "/api";
 const DEFAULT_DESKTOP_BASE = "http://127.0.0.1:8000/api";
@@ -81,6 +81,32 @@ function apiUrl(path: string): string {
 
 function apiUrlForBase(base: string, path: string): string {
   return new URL(`${base}${path}`, window.location.origin).toString();
+}
+
+export interface EventStreamHandle {
+  close: () => void;
+}
+
+export function openEventStream(
+  path: string,
+  handlers: Record<string, (data: unknown) => void>,
+  onStatus?: (status: "open" | "error") => void,
+): EventStreamHandle {
+  const source = new EventSource(apiUrl(path));
+  source.onopen = () => onStatus?.("open");
+  source.onerror = () => onStatus?.("error");
+  for (const [event, handler] of Object.entries(handlers)) {
+    source.addEventListener(event, (message: MessageEvent) => {
+      let data: unknown = message.data;
+      try {
+        data = JSON.parse(message.data as string);
+      } catch {
+        // keep raw text for non-JSON events
+      }
+      handler(data);
+    });
+  }
+  return { close: () => source.close() };
 }
 
 export interface ApiMeta {
@@ -227,6 +253,7 @@ export interface SourceSystemDTO {
   last_success_at_utc: string | null; last_failure_at_utc: string | null;
   last_ingestion_status: string | null; last_ingestion_message: string | null;
   diagnostics: string[]; export_restrictions: string[];
+  certification_stage: string; certification_allows_live: boolean;
 }
 
 export interface SourceCategoryPostureDTO {
@@ -262,6 +289,8 @@ type SourceSystemWire = Partial<SourceSystemDTO> & {
   credential_requirements?: unknown;
   diagnostics?: unknown;
   export_restrictions?: unknown;
+  certification_stage?: unknown;
+  certification_allows_live?: unknown;
 };
 
 const SOURCE_CATEGORY_BY_SYSTEM: Record<string, string> = {
@@ -373,6 +402,11 @@ function normalizeSourceSystem(raw: SourceSystemWire): SourceSystemDTO {
     last_failure_at_utc: raw.last_failure_at_utc ?? null,
     last_ingestion_status: raw.last_ingestion_status ?? null,
     last_ingestion_message: raw.last_ingestion_message ?? null,
+    certification_stage:
+      typeof raw.certification_stage === "string" && raw.certification_stage.trim()
+        ? raw.certification_stage.trim()
+        : "unverified",
+    certification_allows_live: Boolean(raw.certification_allows_live),
     diagnostics: diagnostics.length > 0
       ? diagnostics
       : liveRecordCount > 0
@@ -400,6 +434,47 @@ export interface MarketObsDTO {
   observed_at_utc?: string; source_system?: string; source_reference?: string;
   source_record_id?: string | null; metadata_json?: Record<string, unknown>;
   freshness?: string; quality_score?: number; research_only?: boolean;
+}
+
+export interface NormalizedMarketObsDTO extends MarketObsDTO {
+  hub: string;
+  tenor: string;
+  is_gas_price: boolean;
+  price_gbp_mwh: number | null;
+}
+
+export interface MarketSpreadDTO {
+  spread_id: string; name: string; from_venue: string; to_venue: string;
+  from_hub: string; to_hub: string; spread_eur_mwh: number; period: string;
+}
+
+export interface ReviewDecisionDTO {
+  decision_id: string; entity_type: string; entity_id: string;
+  actor: string; decision: string; note: string | null; created_at_utc: string;
+}
+
+export interface ReviewDecisionInputDTO {
+  entity_type: "intraday_opportunity" | "strategy_run" | "generated_report";
+  entity_id: string; actor: string;
+  decision: "accepted" | "rejected" | "needs_attention";
+  note?: string | null;
+}
+
+export interface PipelineHealthSourceDTO {
+  source_name: string; status: string;
+  started_at_utc: string; finished_at_utc: string | null;
+  consecutive_failures: number;
+}
+
+export interface PipelineHealthDTO {
+  generated_at_utc: string;
+  sources: PipelineHealthSourceDTO[];
+  quote_freshness: Record<string, {
+    count_recent_5m: number;
+    latest_observed_at_utc: string | null;
+  }>;
+  latest_opportunity_detected_at_utc: string | null;
+  open_alerts: number;
 }
 
 export interface MarketQuoteDTO {
@@ -674,13 +749,32 @@ export interface StrategyAllocationTargetDTO {
 }
 
 export interface StrategyLabResultDTO {
+  run_id: string;
   strategy_id: string; strategy_name: string; run_mode: string; status: string;
   weighted_score: number; day_ahead_average_gbp_mwh: number | null;
   intraday_average_gbp_mwh: number | null;
   intraday_vs_day_ahead_spread_gbp_mwh: number | null;
   allocation_targets: StrategyAllocationTargetDTO[];
   missing_inputs: string[]; warnings: string[]; source_refs: string[];
-  candidate_action_for_review: string; research_only: boolean; human_review_required: boolean;
+  candidate_action_for_review: string;
+  paper_pnl_gbp: number; cumulative_pnl_gbp: number; hit: boolean;
+  research_only: boolean; human_review_required: boolean;
+}
+
+export interface StrategyRunDTO {
+  run_id: string; strategy_id: string; run_mode: string; status: string;
+  started_at_utc: string; finished_at_utc: string | null;
+  paper_pnl_gbp: number | null; cumulative_pnl_gbp: number | null; hit: boolean | null;
+  weighted_score: number | null; allocation_targets: StrategyAllocationTargetDTO[];
+  missing_inputs: string[]; warnings: string[]; source_refs: string[];
+  research_only: boolean; human_review_required: boolean;
+}
+
+export interface StrategySummaryDTO {
+  strategy_id: string | null; run_mode: string | null; run_count: number;
+  total_paper_pnl_gbp: number; cumulative_pnl_gbp: number; hit_rate: number;
+  max_drawdown_gbp: number; first_started_at_utc: string | null;
+  last_started_at_utc: string | null; latest_status: string | null;
 }
 
 export interface CapacityContractDTO {
@@ -762,6 +856,19 @@ export const api = {
 
   marketObservations: () => get<MarketObsDTO[]>("/market/observations"),
 
+  normalizedMarketObservations: () =>
+    get<NormalizedMarketObsDTO[]>("/market/normalized", { limit: "500" }),
+
+  marketSpreads: () => get<MarketSpreadDTO[]>("/market/spreads"),
+
+  reviewDecisions: (params?: { entity_type?: string; entity_id?: string; limit?: string }) =>
+    get<ReviewDecisionDTO[]>("/review/decisions", params),
+
+  recordReviewDecision: (body: ReviewDecisionInputDTO) =>
+    post<ReviewDecisionDTO>("/review/decisions", body),
+
+  pipelineHealth: () => get<PipelineHealthDTO>("/runtime/pipeline-health"),
+
   marketQuotes: () => get<MarketQuoteDTO[]>("/market/quotes", { limit: "500" }),
 
   intradayOpportunities: () =>
@@ -835,6 +942,22 @@ export const api = {
 
   evaluateStrategyLab: (body: StrategyLabRequestDTO) =>
     post<StrategyLabResultDTO>("/strategy-lab/evaluate", body),
+
+  strategyRuns: (params?: { strategy_id?: string; run_mode?: string; limit?: number }) =>
+    get<StrategyRunDTO[]>("/strategy-lab/runs", {
+      ...(params?.strategy_id ? { strategy_id: params.strategy_id } : {}),
+      ...(params?.run_mode ? { run_mode: params.run_mode } : {}),
+      ...(params?.limit ? { limit: String(params.limit) } : {}),
+    }),
+
+  strategyRun: (runId: string) =>
+    get<StrategyRunDTO>(`/strategy-lab/runs/${encodeURIComponent(runId)}`),
+
+  strategySummary: (params?: { strategy_id?: string; run_mode?: string }) =>
+    get<StrategySummaryDTO>("/strategy-lab/summary", {
+      ...(params?.strategy_id ? { strategy_id: params.strategy_id } : {}),
+      ...(params?.run_mode ? { run_mode: params.run_mode } : {}),
+    }),
 
   capacityContracts: () => get<CapacityContractDTO[]>("/contracts/capacity"),
 

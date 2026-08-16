@@ -15,6 +15,7 @@ interface WorkspaceTopBarProps {
   searchTerm: string;
   dataStatus: string;
   loading: boolean;
+  streamingActive: boolean;
   language: string;
   mode: ThemeMode;
   gasDay: string;
@@ -43,6 +44,7 @@ export function WorkspaceTopBar({
   searchTerm,
   dataStatus,
   loading,
+  streamingActive,
   language,
   mode,
   gasDay,
@@ -131,6 +133,12 @@ export function WorkspaceTopBar({
             onAcknowledge={monitoring.acknowledgeMonitoringAlert}
             onAnalyze={monitoring.analyzeMonitoringAlert}
           />
+          <span
+            className={`stream-status-badge ${streamingActive ? "stream-live" : "stream-fallback"}`}
+            aria-label={streamingActive ? t("stream.live") : t("stream.polling_fallback")}
+          >
+            {streamingActive ? t("stream.live") : t("stream.polling_fallback")}
+          </span>
           <span className={`status-badge status-${loading ? "loading" : dataStatus}`} aria-live="polite">
             {loading ? t("status.loading") : t(`data.${dataStatus}`)}
           </span>

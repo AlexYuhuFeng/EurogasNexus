@@ -4,23 +4,16 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from datetime import datetime, time
-from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
-
-class StrategyRunMode(StrEnum):
-    BACKTEST = "BACKTEST"
-    SHADOW_RUN = "SHADOW_RUN"
-    LIVE_MONITOR = "LIVE_MONITOR"
-
-
-class StrategyComponentType(StrEnum):
-    OCM_VS_DAY_AHEAD = "OCM_VS_DAY_AHEAD"
-    MEAN_REVERSION = "MEAN_REVERSION"
-    BEST_BUCKETS = "BEST_BUCKETS"
-    SCORING = "SCORING"
-    WEIGHTED_COMBINATION = "WEIGHTED_COMBINATION"
+from eurogas_nexus.domain.constraints.access import inaccessible_tsos as _inaccessible_tsos
+from eurogas_nexus.domain.constraints.risk import ocm_day_split, stop_loss_triggered
+from eurogas_nexus.domain.ontology.vocabulary import (
+    CandidateAction,
+    StrategyComponentType,
+    StrategyRunMode,
+)
 
 
 class StrategyPriceObservation(BaseModel):
@@ -111,6 +104,9 @@ class StrategyLabResult(BaseModel):
     warnings: list[str] = Field(default_factory=list)
     source_refs: list[str] = Field(default_factory=list)
     candidate_action_for_review: str = "REVIEW_STRATEGY_OUTPUT"
+    paper_pnl_gbp: float = 0.0
+    cumulative_pnl_gbp: float = 0.0
+    hit: bool = False
     research_only: bool = True
     human_review_required: bool = True
 
@@ -140,12 +136,6 @@ def evaluate_strategy_lab(scenario: StrategyLabScenario) -> StrategyLabResult:
                     f"TSO_ACCESS_MISSING:{resource.resource_id}:{tso}"
                     for tso in inaccessible
                 )
-
-    if (
-        scenario.risk_control.stop_shadow_run_loss_gbp is not None
-        and scenario.existing_shadow_pnl_gbp <= -abs(scenario.risk_control.stop_shadow_run_loss_gbp)
-    ):
-        warnings.append("SHADOW_RUN_STOP_LOSS_TRIGGERED")
 
     day_ahead_prices: list[float] = []
     intraday_prices: list[float] = []
@@ -217,6 +207,22 @@ def evaluate_strategy_lab(scenario: StrategyLabScenario) -> StrategyLabResult:
     if not allocation_targets:
         warnings.append("NO_POSITIVE_STRATEGY_ALLOCATION_TARGET")
 
+    paper_pnl_gbp = round(
+        sum(
+            (target.expected_margin_gbp_mwh or 0.0) * target.target_quantity_mwh_per_day
+            for target in allocation_targets
+        ),
+        4,
+    )
+    cumulative_pnl_gbp = round(scenario.existing_shadow_pnl_gbp + paper_pnl_gbp, 4)
+    hit = paper_pnl_gbp > 0
+
+    if stop_loss_triggered(
+        cumulative_pnl_gbp,
+        scenario.risk_control.stop_shadow_run_loss_gbp,
+    ):
+        warnings.append("SHADOW_RUN_STOP_LOSS_TRIGGERED")
+
     status = "SUCCESS"
     if missing_inputs:
         status = "BLOCKED" if not allocation_targets else "PARTIAL"
@@ -237,6 +243,9 @@ def evaluate_strategy_lab(scenario: StrategyLabScenario) -> StrategyLabResult:
         warnings=_unique(warnings),
         source_refs=source_refs,
         candidate_action_for_review=_candidate_action(weighted_score, status),
+        paper_pnl_gbp=paper_pnl_gbp,
+        cumulative_pnl_gbp=cumulative_pnl_gbp,
+        hit=hit,
         research_only=True,
         human_review_required=True,
     )
@@ -277,11 +286,11 @@ def _allocation_targets(
     if intraday_average is None or day_average is None or average_cost is None:
         return []
 
-    ocm_pct = 50.0 + weighted_score * 30.0
-    ocm_pct = min(max(ocm_pct, 0.0), scenario.risk_control.max_ocm_allocation_pct)
-    day_pct = max(100.0 - ocm_pct, scenario.risk_control.min_day_ahead_allocation_pct)
-    if day_pct + ocm_pct > 100:
-        ocm_pct = 100.0 - day_pct
+    ocm_pct, day_pct = ocm_day_split(
+        weighted_score,
+        scenario.risk_control.max_ocm_allocation_pct,
+        scenario.risk_control.min_day_ahead_allocation_pct,
+    )
     targets = [
         _target("ICE_OCM", ocm_pct, total_quantity, intraday_average, average_cost),
         _target("DAY_AHEAD", day_pct, total_quantity, day_average, average_cost),
@@ -368,34 +377,22 @@ def _average(values: Sequence[float]) -> float | None:
     return round(sum(values) / len(values), 4)
 
 
-def _inaccessible_tsos(
-    required_tso_access: Sequence[str],
-    company_accessible_tsos: Sequence[str] | None,
-) -> list[str]:
-    if company_accessible_tsos is None:
-        return []
-    allowed = {item.strip().lower() for item in company_accessible_tsos if item.strip()}
-    return [
-        tso
-        for tso in required_tso_access
-        if tso.strip() and tso.strip().lower() not in allowed
-    ]
-
-
 def _source_refs(observations: Sequence[StrategyPriceObservation]) -> list[str]:
     return _unique(
         [obs.source_reference for obs in observations if obs.source_reference]
     )
 
 
-def _candidate_action(weighted_score: float, status: str) -> str:
+def _candidate_action(weighted_score: float, status: str) -> CandidateAction:
     if status == "BLOCKED":
-        return "REVIEW_BLOCKED_STRATEGY"
+        return CandidateAction.REVIEW_BLOCKED_STRATEGY
+    if status == "PARTIAL":
+        return CandidateAction.REVIEW_PARTIAL_STRATEGY
     if weighted_score > 0:
-        return "REVIEW_HIGHER_OCM_ALLOCATION"
+        return CandidateAction.REVIEW_HIGHER_OCM_ALLOCATION
     if weighted_score < 0:
-        return "REVIEW_HIGHER_DAY_AHEAD_ALLOCATION"
-    return "REVIEW_BALANCED_ALLOCATION"
+        return CandidateAction.REVIEW_HIGHER_DAY_AHEAD_ALLOCATION
+    return CandidateAction.REVIEW_BALANCED_ALLOCATION
 
 
 def _unique(values: Sequence[str]) -> list[str]:
