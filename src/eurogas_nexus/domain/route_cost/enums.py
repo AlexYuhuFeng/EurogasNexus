@@ -7,8 +7,10 @@ This module is a thin compatibility shim so existing importers keep working.
 from __future__ import annotations
 
 from eurogas_nexus.domain.ontology.vocabulary import (
+    AccessStatus,
     BusinessModel,
     CapacityProduct,
+    CapacityStatus,
     CostComponentType,
     DeliveryMode,
     Firmness,
@@ -22,10 +24,12 @@ __all__ = [
     "TariffStatus",
     "TariffDirection",
     "CapacityProduct",
+    "CapacityStatus",
     "Firmness",
     "PointType",
     "BusinessModel",
     "DeliveryMode",
     "SourceResourceType",
     "CostComponentType",
+    "AccessStatus",
 ]

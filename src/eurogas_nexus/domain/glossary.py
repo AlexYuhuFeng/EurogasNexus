@@ -13,21 +13,52 @@ from pydantic import BaseModel, Field
 
 
 class GlossaryTerm(BaseModel):
+    """One bilingual glossary term (display/annotation layer, DB seed).
+
+    术语条目是"显示/标注"层数据：双语定义、别名、相关术语与来源引用；
+    ``concept_id`` 把术语锚定到本体概念（见 TERM_CONCEPT_IDS），杜绝
+    自由文本漂移。
+
+    Attributes:
+        term_id: Stable term id (e.g. ``hub-ttf``).
+        term: Display term.
+        category: Term category (institution/venue/hub/capacity/price/
+            financial/contract/weather/infrastructure/route).
+        definition_en: English definition.
+        definition_zh_cn: Chinese definition.
+        concept_id: Ontology concept id the term annotates, or None.
+        aliases: Alternate names.
+        related_terms: Related term names (display only).
+        source_refs: Provenance references.
+    """
+
     term_id: str
     term: str
     category: str
     definition_en: str
     definition_zh_cn: str
+    concept_id: str | None = None
     aliases: list[str] = Field(default_factory=list)
     related_terms: list[str] = Field(default_factory=list)
     source_refs: list[str] = Field(default_factory=list)
 
     def localized(self, lang: str) -> dict:
+        """Return a display payload with the definition localized.
+
+        Args:
+            lang: Output language; ``zh``/``zh-CN`` selects the Chinese
+                definition, anything else the English one.
+
+        Returns:
+            Dict with all fields plus ``definition`` (localized).
+        """
+
         definition = self.definition_zh_cn if lang in {"zh", "zh-CN"} else self.definition_en
         return {
             "term_id": self.term_id,
             "term": self.term,
             "category": self.category,
+            "concept_id": self.concept_id,
             "definition": definition,
             "definition_en": self.definition_en,
             "definition_zh_cn": self.definition_zh_cn,
@@ -37,8 +68,54 @@ class GlossaryTerm(BaseModel):
         }
 
 
+# Every glossary term maps to an ontology concept id or None (explicitly).
+# Glossary terms are annotations of ontology concepts, not free text (audit:
+# "glossary 没有稳定 concept_id，相关术语仍是自由文本").
+TERM_CONCEPT_IDS: dict[str, str | None] = {
+    "institution-entsog": None,
+    "institution-gie": None,
+    "institution-ecb": None,
+    "venue-ice-ocm": None,
+    "venue-eex": None,
+    "venue-trayport": None,
+    "hub-ttf": "VirtualHub",
+    "hub-nbp": "VirtualHub",
+    "hub-the": "VirtualHub",
+    "hub-peg": "VirtualHub",
+    "concept-entry-capacity": "CapacityProfile",
+    "concept-exit-capacity": "CapacityProfile",
+    "concept-firm-capacity": "CapacityProfile",
+    "concept-interruptible-capacity": "CapacityProfile",
+    "price-bid": "MarketQuote",
+    "price-ask": "MarketQuote",
+    "price-settlement": "MarketQuote",
+    "price-mark-to-market": "LiveMarketMark",
+    "price-icis-heren": "MarketObservation",
+    "financial-pnl": None,
+    "financial-cash-value": None,
+    "contract-efet": "UpstreamResourceContract",
+    "contract-tolerance": "UpstreamResourceContract",
+    "contract-nomination": "Nomination",
+    "concept-hdd": "WeatherObservation",
+    "concept-cdd": "WeatherObservation",
+    "concept-lng": "ReferenceFacility",
+    "concept-send-out": None,
+    "concept-storage": "StorageFacility",
+    "concept-netback": None,
+    "concept-route-cost": None,
+}
+
+
 def baseline_glossary_terms() -> list[GlossaryTerm]:
-    """Return a DB-free baseline glossary for development and tests."""
+    """Return a DB-free baseline glossary for development and tests.
+
+    返回 29 条双语基线术语（无 DB 依赖）：每条按 TERM_CONCEPT_IDS 锚定
+    concept_id，并按显示名排序。生产环境以 DB 中的 glossary_terms 表为
+    真相源，本函数仅用于开发回退与种子数据。
+
+    Returns:
+        Sorted list of GlossaryTerm records.
+    """
 
     terms = [
         GlossaryTerm(
@@ -340,4 +417,6 @@ def baseline_glossary_terms() -> list[GlossaryTerm]:
             related_terms=["Entry Capacity", "Exit Capacity", "Netback"],
         ),
     ]
+    for term in terms:
+        term.concept_id = TERM_CONCEPT_IDS.get(term.term_id)
     return sorted(terms, key=lambda item: item.term.lower())

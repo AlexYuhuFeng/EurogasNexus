@@ -1,4 +1,4 @@
-﻿"""Health check route for the API shell."""
+"""Health check route for the API shell."""
 
 from fastapi import APIRouter, Request
 

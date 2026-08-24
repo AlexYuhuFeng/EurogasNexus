@@ -23,9 +23,9 @@ src/eurogas_nexus/optimization/
 | Resource-pool allocation | `resource_pool.py` | stable heuristic for the documented separable model | facade + API |
 | Capacity-product selection | `capacity.py` | stable exact subset model for curated product sets | facade + API |
 | Daily contract dispatch | `contract.py` | stable deterministic one-market model | facade + API |
-| Shared-capacity network flow | `network_flow.py` | validated residual-network model | direct Python module only |
-| Multi-period storage dispatch | `storage.py` | validated grid-based prototype | direct Python module only |
-| Nomination-window assessment | `nomination.py` | validated rules prototype | direct Python module only |
+| Shared-capacity network flow | `network_flow.py` | validated residual-network model | API via `POST /api/optimization/portfolio-network` (DB-composed only) |
+| Multi-period storage dispatch | `storage.py` | validated grid-based model | API: `POST /api/optimization/storage-dispatch` (sandbox assessment only) |
+| Nomination-window assessment | `nomination.py` | validated rules model | API: `POST /api/optimization/nomination-window` (assessment only) |
 
 `PhaseTwoOptimizer` is the stable facade for the first four capabilities. The
 last three modules are intentionally not exported through that facade or the
@@ -39,7 +39,17 @@ POST /api/optimization/route
 POST /api/optimization/resource-pool
 POST /api/optimization/capacity
 POST /api/optimization/contracts
+POST /api/optimization/portfolio-network
+POST /api/optimization/storage-dispatch
+POST /api/optimization/nomination-window
 ```
+
+The first four endpoints accept operator-supplied sandbox inputs. The fifth
+endpoint is the R31 DB-composed runtime decision: it accepts only portfolio
+id, gas day, product, firmness, and a market-price age bound. It composes
+contracts, reference nodes, route candidates, TSO access, tariffs, market
+observations, and FX from PostgreSQL before calling the shared-capacity
+network-flow model.
 
 The existing `/api/route-cost/*` endpoints remain available for the DB-backed
 route-economics and resource-pool workflow. New optimization endpoints accept
@@ -108,6 +118,15 @@ single-natural-gas-commodity minimum-cost flow. It uses:
 Strictly negative-margin optional flow is not routed. Zero-margin flow is
 routed deterministically. This is not a hydraulic simulation and does not model
 pressure, linepack, compressor fuel curves, gas quality, or nominations.
+
+The R31 composition layer in
+`src/eurogas_nexus/domain/route_cost/portfolio_network.py` is the only
+DB-composed consumer of this model. It builds supply arcs from PostgreSQL
+`upstream_resource_contracts`, sale options from PostgreSQL market observations
+joined to active `route_candidates`, route edges from DB tariff selection,
+TSO-access filtering from `company_tso_access`, and FX conversion as-of the
+requested gas day. Final flows are decomposed into source-to-sale paths so
+each contract receives explicit PnL attribution.
 
 ### Storage Dispatch Prototype
 

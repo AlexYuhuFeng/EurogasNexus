@@ -11,7 +11,19 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class Relation:
-    """A typed relationship between two concepts."""
+    """A typed relationship between two concepts.
+
+    类型化关系三元组 (subject, predicate, object) 及基数约束，供本体
+    图与校验工具机器可读地消费，而不是散落在文档散文里。
+
+    Attributes:
+        subject: Source concept id.
+        predicate: Relationship name (e.g. ``feeds``, ``requires``).
+        object: Target concept id.
+        cardinality: Cardinality expression, e.g. ``"1"``, ``"0..1"``,
+            ``"0..n"``.
+        note: Optional clarifying note (e.g. additional participants).
+    """
 
     subject: str  # concept_id
     predicate: str

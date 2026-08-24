@@ -3,11 +3,57 @@
 const DEFAULT_BROWSER_BASE = "/api";
 const DEFAULT_DESKTOP_BASE = "http://127.0.0.1:8000/api";
 export const API_BASE_STORAGE_KEY = "eurogas.settings.api_base_url";
+export const API_TOKEN_STORAGE_KEY = "eurogas.settings.api_token";
+export const PRINCIPAL_STORAGE_KEY = "eurogas.settings.operator_principal";
 const envBase = import.meta.env.VITE_EUROGAS_API_BASE_URL as string | undefined;
 const isDesktopShell =
   "__TAURI_INTERNALS__" in window ||
   window.location.protocol === "tauri:" ||
   window.location.hostname === "tauri.localhost";
+
+export function configuredApiToken(): string {
+  try {
+    return (localStorage.getItem(API_TOKEN_STORAGE_KEY) ?? "").trim();
+  } catch {
+    return "";
+  }
+}
+
+export function configuredOperatorPrincipal(): string {
+  try {
+    return (localStorage.getItem(PRINCIPAL_STORAGE_KEY) ?? "").trim();
+  } catch {
+    return "";
+  }
+}
+
+export function saveApiAuth(token: string, principal: string): void {
+  const normalizedToken = token.trim();
+  const normalizedPrincipal = principal.trim();
+  try {
+    if (normalizedToken) {
+      localStorage.setItem(API_TOKEN_STORAGE_KEY, normalizedToken);
+    } else {
+      localStorage.removeItem(API_TOKEN_STORAGE_KEY);
+    }
+    if (normalizedPrincipal) {
+      localStorage.setItem(PRINCIPAL_STORAGE_KEY, normalizedPrincipal);
+    } else {
+      localStorage.removeItem(PRINCIPAL_STORAGE_KEY);
+    }
+  } catch {
+    // storage unavailable: auth simply stays unconfigured
+  }
+}
+
+export function authHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {};
+  const token = configuredApiToken();
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const principal = configuredOperatorPrincipal();
+  if (principal) headers["X-Eurogas-Principal"] = principal;
+  return headers;
+}
 
 export function defaultApiBaseUrl(): string {
   return (envBase?.trim() || (isDesktopShell ? DEFAULT_DESKTOP_BASE : DEFAULT_BROWSER_BASE)).replace(/\/$/, "");
@@ -92,7 +138,12 @@ export function openEventStream(
   handlers: Record<string, (data: unknown) => void>,
   onStatus?: (status: "open" | "error") => void,
 ): EventStreamHandle {
-  const source = new EventSource(apiUrl(path));
+  // Native EventSource cannot set Authorization headers, so the public API
+  // token travels as the documented `api_key` query parameter on SSE only.
+  const url = new URL(apiUrl(path), window.location.origin);
+  const token = configuredApiToken();
+  if (token) url.searchParams.set("api_key", token);
+  const source = new EventSource(url.toString());
   source.onopen = () => onStatus?.("open");
   source.onerror = () => onStatus?.("error");
   for (const [event, handler] of Object.entries(handlers)) {
@@ -164,7 +215,9 @@ async function parseResponse<T>(res: Response): Promise<T> {
 
 export async function testApiBaseUrl(value: string): Promise<HealthDTO> {
   const normalized = normalizeApiBaseUrl(value);
-  return parseResponse<HealthDTO>(await fetch(apiUrlForBase(normalized, "/health")));
+  return parseResponse<HealthDTO>(
+    await fetch(apiUrlForBase(normalized, "/health"), { headers: authHeaders() }),
+  );
 }
 
 async function get<T>(path: string, params?: Record<string, string>): Promise<ApiResponse<T>> {
@@ -172,14 +225,14 @@ async function get<T>(path: string, params?: Record<string, string>): Promise<Ap
   if (params) {
     Object.entries(params).forEach(([k, v]) => { if (v) url.searchParams.set(k, v); });
   }
-  const res = await fetch(url.toString());
+  const res = await fetch(url.toString(), { headers: authHeaders() });
   return parseResponse<ApiResponse<T>>(res);
 }
 
 async function post<T>(path: string, body: unknown): Promise<ApiResponse<T>> {
   const res = await fetch(apiUrl(path), {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify(body),
   });
   return parseResponse<ApiResponse<T>>(res);
@@ -687,7 +740,8 @@ export interface PortfolioOptimizationRequestDTO {
 }
 
 export interface PortfolioOptimizationResultDTO {
-  portfolio_id: string; status: string; total_allocated_mwh_per_day: number;
+  portfolio_id: string; status: string; algorithm: string; optimality: string;
+  total_allocated_mwh_per_day: number;
   total_unallocated_mwh_per_day: number; total_net_pnl_gbp_per_day: number;
   allocations: Array<{
     resource_id: string; option_id: string; allocated_quantity_mwh_per_day: number;
@@ -695,7 +749,7 @@ export interface PortfolioOptimizationResultDTO {
     early_cash_value_gbp_mwh: number; net_margin_gbp_mwh: number;
     net_pnl_gbp_per_day: number; warnings: string[];
   }>;
-  missing_inputs: string[]; warnings: string[]; source_refs: string[];
+  missing_inputs: string[]; assumptions: string[]; warnings: string[]; source_refs: string[];
   research_only: boolean; human_review_required: boolean;
 }
 
@@ -835,7 +889,8 @@ export interface AnalysisResultDTO {
 // --- API functions ---
 
 export const api = {
-  health: async () => parseResponse<HealthDTO>(await fetch(apiUrl("/health"))),
+  health: async () =>
+    parseResponse<HealthDTO>(await fetch(apiUrl("/health"), { headers: authHeaders() })),
 
   nodes: (params?: { country?: string; node_type?: string }) =>
     get<NodeDTO[]>("/reference-network/nodes", params),
@@ -895,7 +950,7 @@ export const api = {
   saveCredential: (providerId: string, body: { api_key: string; label: string }) =>
     fetch(apiUrl(`/credentials/${providerId}`), {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify(body),
     }).then((res) => parseResponse<ApiResponse<CredentialProviderDTO>>(res)),
 

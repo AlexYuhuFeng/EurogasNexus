@@ -9,6 +9,15 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def read(relative: str) -> str:
+    """Read a repo-relative file (tolerates UTF-8 BOM).
+
+    Args:
+        relative: Path relative to the repo root.
+
+    Returns:
+        File text.
+    """
+
     return (ROOT / relative).read_text(encoding="utf-8-sig")
 
 

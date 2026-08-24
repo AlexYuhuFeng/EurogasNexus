@@ -1,4 +1,4 @@
-﻿"""Reference network API contract tests using explicit source-shaped DB rows."""
+"""Reference network API contract tests using explicit source-shaped DB rows."""
 
 import pytest
 from fastapi.testclient import TestClient

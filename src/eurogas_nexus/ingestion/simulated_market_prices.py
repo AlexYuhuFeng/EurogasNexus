@@ -10,13 +10,17 @@ from __future__ import annotations
 import math
 from collections import Counter
 from collections.abc import Callable, Iterable, Mapping
-from datetime import UTC, date, datetime, time, timedelta
+from datetime import UTC, date, datetime, timedelta
 from time import sleep
 from typing import Any
 
 from sqlalchemy.orm import Session
 
 from eurogas_nexus.db.models import IngestionRunRecord, MarketObservationRecord
+from eurogas_nexus.domain.market.gas_day import (
+    gas_day_start_for_date,
+    gas_day_start_utc,
+)
 
 SIMULATOR_VERSION = "sim-market-v1"
 SIMULATED_MARKET_PRICE_SOURCE_SYSTEMS = (
@@ -498,17 +502,20 @@ def _period_for_tenor(tenor: str, observed_at: datetime) -> tuple[datetime, date
         return start, start + timedelta(days=2)
     if tenor == "month-ahead":
         first_next_month = _first_day_next_month(observed_at.date())
-        start = datetime.combine(first_next_month, time(hour=5), UTC)
+        start = gas_day_start_for_date(first_next_month)
         first_following_month = _first_day_next_month(first_next_month)
-        return start, datetime.combine(first_following_month, time(hour=5), UTC)
+        return start, gas_day_start_for_date(first_following_month)
     raise ValueError(f"Unsupported simulated tenor: {tenor}")
 
 
 def _gas_day(value: datetime) -> datetime:
-    gas_day = datetime.combine(value.date(), time(hour=5), UTC)
-    if value < gas_day:
-        return gas_day - timedelta(days=1)
-    return gas_day
+    """Return the CAM gas-day start (UTC) containing ``value``.
+
+    Gas days follow the versioned calendar in
+    ``eurogas_nexus.domain.market.gas_day``: 05:00 CET/CEST, i.e. 04:00 UTC in
+    winter and 03:00 UTC during DST.
+    """
+    return gas_day_start_utc(value)
 
 
 def _first_day_next_month(value: date) -> date:

@@ -23,6 +23,13 @@ blueprint or completed ExecPlan as an instruction to implement it again.
 - [Resource-pool contract EN](contracts/21_RESOURCE_POOL_CONTRACT-EN.md)
 - [Resource-pool contract CN](contracts/21_RESOURCE_POOL_CONTRACT-CN.md)
 
+## Ontology
+
+- [OWL gas role model EN](ontology/OWL_GAS_ROLE_MODEL.md)
+- [OWL gas role model CN](ontology/OWL_GAS_ROLE_MODEL-CN.md)
+- [Natural gas subject architecture](ontology/europe-natural-gas.md)
+- [Ontology gap report](ontology/gap-report.md)
+
 ## Clients
 
 - [Client documentation index](clients/README.md)
@@ -39,8 +46,18 @@ blueprint or completed ExecPlan as an instruction to implement it again.
 - [Live PostgreSQL](operations/LIVE_POSTGRESQL.md)
 - [DeepSeek live monitoring EN](operations/LLM_MONITORING-EN.md)
 - [DeepSeek live monitoring CN](operations/LLM_MONITORING-CN.md)
+- [Identity, authorization, audit governance EN](operations/IDENTITY_AUDIT_GOVERNANCE.md)
+- [Identity, authorization, audit governance CN](operations/IDENTITY_AUDIT_GOVERNANCE-CN.md)
+- [OIDC access token EN](operations/OIDC_ACCESS_TOKEN.md)
+- [OIDC access token CN](operations/OIDC_ACCESS_TOKEN-CN.md)
+- [Production source operations EN](operations/PRODUCTION_SOURCE_OPERATIONS.md)
+- [Production source operations CN](operations/PRODUCTION_SOURCE_OPERATIONS-CN.md)
+- [Storage/nomination assessment EN](operations/STORAGE_NOMINATION_ASSESSMENT.md)
+- [Storage/nomination assessment CN](operations/STORAGE_NOMINATION_ASSESSMENT-CN.md)
 - [Deployment roles EN](deployment/DEPLOYMENT_ROLES-EN.md)
 - [Deployment roles CN](deployment/DEPLOYMENT_ROLES-CN.md)
+- [Security acceptance evidence EN](release/SECURITY_ACCEPTANCE_EVIDENCE.md)
+- [Security acceptance evidence CN](release/SECURITY_ACCEPTANCE_EVIDENCE-CN.md)
 - [Release readiness](release/RELEASE_READINESS.md)
 
 ## Product capabilities

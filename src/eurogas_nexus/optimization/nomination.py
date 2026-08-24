@@ -11,6 +11,16 @@ from .models import OptimizationStatus
 
 @dataclass(frozen=True, slots=True)
 class NominationWindow:
+    """One nomination/renomination window of the gas day.
+
+    Attributes:
+        window_id: Stable window id.
+        opens_at: Window open time (local gas-day clock).
+        closes_at: Window close time.
+        maximum_change_mwh: Absolute change cap, or None.
+        maximum_change_pct: Relative change cap, or None.
+    """
+
     window_id: str
     opens_at: time
     closes_at: time
@@ -20,12 +30,30 @@ class NominationWindow:
 
 @dataclass(frozen=True, slots=True)
 class NominationInstruction:
+    """One submitted nomination/renomination instruction.
+
+    Attributes:
+        submitted_at: Submission time.
+        requested_quantity_mwh: Requested quantity, MWh.
+    """
+
     submitted_at: datetime
     requested_quantity_mwh: float
 
 
 @dataclass(frozen=True, slots=True)
 class NominationDecision:
+    """Outcome of one nomination instruction.
+
+    Attributes:
+        submitted_at: Submission time.
+        requested_quantity_mwh: Requested quantity.
+        accepted_quantity_mwh: Accepted quantity.
+        window_id: Window applied, or None when outside any window.
+        accepted: Whether the instruction was accepted.
+        reason: Machine-readable reason code.
+    """
+
     submitted_at: datetime
     requested_quantity_mwh: float
     accepted_quantity_mwh: float
@@ -36,6 +64,16 @@ class NominationDecision:
 
 @dataclass(frozen=True, slots=True)
 class NominationScheduleResult:
+    """Nomination schedule evaluation result.
+
+    Attributes:
+        status: Optimization status.
+        final_quantity_mwh: Final scheduled quantity, MWh.
+        decisions: Per-instruction decisions.
+        warnings: Aggregated warnings.
+        human_review_required: Always True.
+    """
+
     status: OptimizationStatus
     final_quantity_mwh: float
     decisions: tuple[NominationDecision, ...]

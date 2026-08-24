@@ -3,6 +3,12 @@ import maplibregl, { GeoJSONSource, Map as MapLibreMap, Marker } from "maplibre-
 import "maplibre-gl/dist/maplibre-gl.css";
 import { EdgeDTO, NodeDTO, RouteEligibilityDTO } from "@/api/client";
 import {
+  buildMapStyle,
+  configuredMapTileProvider,
+  configuredMapTileToken,
+  transformCoordinate,
+} from "@/app/mapTileProviders";
+import {
   isMapEligibleNode,
   verifiedEdgeGeometryCoordinates,
 } from "@/app/workspaceDerivedData";
@@ -120,6 +126,9 @@ export function GasNetworkMap({
   const labelMarkersRef = useRef<Marker[]>([]);
   const [mapReady, setMapReady] = useState(false);
   const effectiveTheme = resolveEffectiveTheme(themeMode);
+  const mapTileProvider = useMemo(configuredMapTileProvider, []);
+  const toMapCoordinates = (lon: number, lat: number): [number, number] =>
+    transformCoordinate(mapTileProvider.id, lon, lat);
   const mapColors = useMemo(
     () => effectiveTheme === "dark"
       ? {
@@ -249,7 +258,7 @@ export function GasNetworkMap({
           },
           geometry: {
             type: "LineString" as const,
-            coordinates: edge.geometryCoordinates,
+            coordinates: edge.geometryCoordinates.map(([lon, lat]) => toMapCoordinates(lon, lat)),
           },
         };
       });
@@ -267,8 +276,8 @@ export function GasNetworkMap({
         geometry: {
           type: "LineString" as const,
           coordinates: [
-            [highlightedRoutePoints.from.lon, highlightedRoutePoints.from.lat],
-            [highlightedRoutePoints.to.lon, highlightedRoutePoints.to.lat],
+            toMapCoordinates(highlightedRoutePoints.from.lon, highlightedRoutePoints.from.lat),
+            toMapCoordinates(highlightedRoutePoints.to.lon, highlightedRoutePoints.to.lat),
           ],
         },
       }];
@@ -317,43 +326,27 @@ export function GasNetworkMap({
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
+    const mapTileProvider = configuredMapTileProvider();
+    const mapTileToken = configuredMapTileToken();
     const map = new maplibregl.Map({
       container: containerRef.current,
-      center: [7.8, 51.2],
+      center: toMapCoordinates(7.8, 51.2),
       zoom: 4.0,
       minZoom: 3,
       maxZoom: 9,
       attributionControl: false,
-      style: {
-        version: 8,
-        sources: {
-          osm: {
-            type: "raster",
-            tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
-            tileSize: 256,
-            attribution: "OpenStreetMap contributors",
-          },
+      style: buildMapStyle(
+        mapTileProvider.id,
+        mapTileToken,
+        {
+          background: mapColors.background,
+          rasterOpacity: effectiveTheme === "dark" ? 0.56 : 0.72,
+          rasterSaturation: -1,
+          rasterContrast: effectiveTheme === "dark" ? 0.2 : 0.28,
+          rasterBrightnessMin: effectiveTheme === "dark" ? 0.12 : 0.2,
+          rasterBrightnessMax: effectiveTheme === "dark" ? 0.76 : 0.96,
         },
-        layers: [
-          {
-            id: "background",
-            type: "background",
-            paint: { "background-color": mapColors.background },
-          },
-          {
-            id: "osm-raster",
-            type: "raster",
-            source: "osm",
-            paint: {
-              "raster-opacity": effectiveTheme === "dark" ? 0.56 : 0.72,
-              "raster-saturation": -1,
-              "raster-contrast": effectiveTheme === "dark" ? 0.2 : 0.28,
-              "raster-brightness-min": effectiveTheme === "dark" ? 0.12 : 0.2,
-              "raster-brightness-max": effectiveTheme === "dark" ? 0.76 : 0.96,
-            },
-          },
-        ],
-      },
+      ),
     });
 
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-right");
@@ -376,12 +369,13 @@ export function GasNetworkMap({
     if (map.getLayer("background")) {
       map.setPaintProperty("background", "background-color", mapColors.background);
     }
-    if (map.getLayer("osm-raster")) {
-      map.setPaintProperty("osm-raster", "raster-opacity", effectiveTheme === "dark" ? 0.56 : 0.72);
-      map.setPaintProperty("osm-raster", "raster-saturation", -1);
-      map.setPaintProperty("osm-raster", "raster-contrast", effectiveTheme === "dark" ? 0.2 : 0.28);
-      map.setPaintProperty("osm-raster", "raster-brightness-min", effectiveTheme === "dark" ? 0.12 : 0.2);
-      map.setPaintProperty("osm-raster", "raster-brightness-max", effectiveTheme === "dark" ? 0.76 : 0.96);
+    for (const rasterLayerId of ["basemap-raster", "tianditu-vec-raster", "tianditu-label-raster"]) {
+      if (!map.getLayer(rasterLayerId)) continue;
+      map.setPaintProperty(rasterLayerId, "raster-opacity", effectiveTheme === "dark" ? 0.56 : 0.72);
+      map.setPaintProperty(rasterLayerId, "raster-saturation", -1);
+      map.setPaintProperty(rasterLayerId, "raster-contrast", effectiveTheme === "dark" ? 0.2 : 0.28);
+      map.setPaintProperty(rasterLayerId, "raster-brightness-min", effectiveTheme === "dark" ? 0.12 : 0.2);
+      map.setPaintProperty(rasterLayerId, "raster-brightness-max", effectiveTheme === "dark" ? 0.76 : 0.96);
     }
     if (!mapReady) return;
 
@@ -436,7 +430,10 @@ export function GasNetworkMap({
         coordinate_quality: propertyText(node.metadata_json?.coordinate_quality, node.data_quality ?? "unknown"),
         coordinate_source: propertyText(node.metadata_json?.coordinate_source, "unknown"),
       },
-      geometry: { type: "Point" as const, coordinates: [node.lon, node.lat] },
+      geometry: {
+        type: "Point" as const,
+        coordinates: toMapCoordinates(node.lon, node.lat),
+      },
     }));
     const edgeFeatures = visibleEdges
       .map((edge) => {
@@ -463,7 +460,7 @@ export function GasNetworkMap({
           },
           geometry: {
             type: "LineString" as const,
-            coordinates: edge.geometryCoordinates,
+            coordinates: edge.geometryCoordinates.map(([lon, lat]) => toMapCoordinates(lon, lat)),
           },
         };
       })
@@ -642,7 +639,7 @@ export function GasNetworkMap({
       clearLabels();
       const occupied: Array<{ x: number; y: number }> = [];
       priorityLabelNodes.forEach((node) => {
-        const projected = map.project([node.lon, node.lat]);
+        const projected = map.project(toMapCoordinates(node.lon, node.lat));
         const isHighlighted = Boolean(
           highlightedRoutePoints &&
           [highlightedRoutePoints.from.id, highlightedRoutePoints.to.id].includes(node.id),
@@ -658,7 +655,7 @@ export function GasNetworkMap({
         element.title = node.name;
         labelMarkersRef.current.push(
           new maplibregl.Marker({ element, anchor: "left", offset: [9, -7] })
-            .setLngLat([node.lon, node.lat])
+            .setLngLat(toMapCoordinates(node.lon, node.lat))
             .addTo(map),
         );
       });

@@ -59,11 +59,19 @@ These tests fail CI loudly on contract drift:
    complete.
 5. Run the full validation command set from `AGENTS.md`.
 
+## Declared Additive Paths
+
+| Path | Declared in | Contract |
+|---|---|---|
+| `POST /api/optimization/portfolio-network` | R31 (`V1_R31_DB_PORTFOLIO_NETWORK_EXECPLAN.md`) | DB-only `RUNTIME_DECISION`; accepts decision metadata only, never client network/tariff/capacity/price facts |
+| `POST /api/optimization/storage-dispatch` | R34 (`V1_R34_STORAGE_NOMINATION_CLIENT_WORKFLOWS_EXECPLAN.md`) | assessment-only storage dispatch; RUNTIME_DECISION composes PostgreSQL masters/observations |
+| `POST /api/optimization/nomination-window` | R34 | assessment-only nomination windows; RUNTIME_DECISION loads DB window masters; no submission action |
+
 ## Deprecation Table
 
 | Surface | Deprecated since | Removal planned | Status |
 |---|---|---|---|
-| `/api/workflows/*` (10 legacy shells) | 0.5.x (S4.3) | after Web/SDK/CLI migrate to the domain-specific `/api` endpoints | `deprecated=True` in OpenAPI, `DEPRECATED_WORKFLOW_SHELL` warning, payloads stay `BLOCKED` |
+| `/api/workflows/*` (10 legacy shells) | 0.5.x (S4.3) | after Web/SDK/CLI migrate to the domain-specific `/api` endpoints | removed in 0.5.x after Web/SDK/CLI migration; legacy paths now return 404 |
 
 ## Non-Goals
 

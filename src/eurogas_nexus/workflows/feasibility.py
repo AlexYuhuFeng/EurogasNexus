@@ -8,6 +8,8 @@ from enum import StrEnum
 
 
 class FeasibilityStatus(StrEnum):
+    """Feasibility classification of a route scenario."""
+
     FEASIBLE = "feasible"
     INFEASIBLE = "infeasible"
     CONDITIONAL = "conditional"
@@ -16,6 +18,18 @@ class FeasibilityStatus(StrEnum):
 
 @dataclass(frozen=True)
 class FeasibilityInput:
+    """Feasibility check input.
+
+    Attributes:
+        route_name: Route display name.
+        from_node_id / to_node_id: Route endpoints.
+        capacity_available_mcm_d: Available capacity, mcm/d.
+        required_capacity_mcm_d: Required capacity, mcm/d.
+        route_eligible: Whether the route is eligible.
+        contract_active: Whether the contract is active.
+        constraints: Extra constraint tags.
+    """
+
     route_name: str
     from_node_id: str
     to_node_id: str
@@ -28,6 +42,19 @@ class FeasibilityInput:
 
 @dataclass(frozen=True)
 class FeasibilityOutput:
+    """Feasibility check output (research-only envelope).
+
+    Attributes:
+        route_name / from_node_id / to_node_id: Echoed identity.
+        status: Feasibility classification.
+        blockers: Blocking conditions.
+        conditions: Conditional requirements.
+        assumptions / missing_inputs / warnings: Transparency fields.
+        source_references / lineage: Provenance.
+        research_only / human_review_required: Always True.
+        generated_at_utc: Generation time (ISO).
+    """
+
     route_name: str
     from_node_id: str
     to_node_id: str
@@ -47,6 +74,8 @@ class FeasibilityOutput:
 
     @property
     def is_partial(self) -> bool:
+        """Whether any input is missing (partial result)."""
+
         return bool(self.missing_inputs)
 
 

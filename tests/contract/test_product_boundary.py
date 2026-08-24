@@ -1,4 +1,4 @@
-﻿"""Product boundary tests for the V1.0 bootstrap shell."""
+"""Product boundary tests for the V1.0 bootstrap shell."""
 
 import subprocess
 import sys

@@ -11,6 +11,16 @@ router = APIRouter(tags=["review"])
 
 
 class ReviewDecisionRequest(BaseModel):
+    """One trader review decision payload.
+
+    Attributes:
+        entity_type: Artifact kind under review.
+        entity_id: Artifact id (1-128 chars).
+        actor: Reviewing operator principal (1-64 chars).
+        decision: ACCEPTED / REJECTED / NEEDS_ATTENTION.
+        note: Optional review note (max 2000 chars).
+    """
+
     entity_type: ReviewEntityType
     entity_id: str = Field(min_length=1, max_length=128)
     actor: str = Field(min_length=1, max_length=64)
@@ -44,6 +54,11 @@ def post_review_decision(body: ReviewDecisionRequest, request: Request) -> dict:
         except _sqlalchemy_error_type():
             warnings.append("RUNTIME_POSTGRESQL_UNAVAILABLE")
 
+    _record_audit_decision(
+        body=body,
+        persisted=data is not None,
+        request_id=getattr(request.state, "request_id", None),
+    )
     return _env(data, request, warnings=warnings)
 
 
@@ -82,6 +97,29 @@ def _db_is_configured() -> bool:
     from eurogas_nexus.db.session import resolve_database_url
 
     return resolve_database_url() is not None
+
+
+def _record_audit_decision(
+    *,
+    body: ReviewDecisionRequest,
+    persisted: bool,
+    request_id: str | None,
+) -> None:
+    """Append a review-decision audit event (best-effort)."""
+
+    from eurogas_nexus.application.audit_service import record_audit_event
+
+    record_audit_event(
+        event_type="governance.action",
+        action="review.decision.record",
+        resource=f"{body.entity_type.value}:{body.entity_id}",
+        principal=body.actor,
+        outcome=body.decision.value,
+        severity="info",
+        detail=f"persisted={persisted}; note={bool(body.note)}",
+        source_system="review",
+        request_id=request_id,
+    )
 
 
 def _sqlalchemy_error_type():

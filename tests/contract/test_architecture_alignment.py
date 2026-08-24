@@ -115,17 +115,18 @@ def test_next_development_queue_records_r30_and_selects_db_backed_optimization()
     assert "R30C: Visible LLM Monitoring And Interaction" in text
     assert ".agent/plans/V1_R30C_LLM_MONITORING_EXECPLAN.md" in text
     assert "R31: DB-Backed Portfolio Network Optimization" in text
-    assert "Status: `pending`" in text
+    assert ".agent/plans/V1_R31_DB_PORTFOLIO_NETWORK_EXECPLAN.md" in text
     assert "R32: Authentication, Entitlement, Audit, And Export Governance" in text
+    assert ".agent/plans/V1_R32_IDENTITY_AUTH_GOVERNANCE_EXECPLAN.md" in text
 
 
 def test_current_pause_point_records_holistic_runtime_pause_state() -> None:
     text = _read_doc("docs/architecture/CURRENT_PAUSE_POINT.md")
 
     assert "`0.5.0` preview-release worktree" in text
-    assert "0018_provider_certifications" in text
-    assert "38" in text
-    assert "90" in text
+    assert "0023_storage_nomination_masters" in text
+    assert "45" in text
+    assert "84" in text
     assert "Windows/Linux desktop clients" in text
     assert "Linux ARM64" in text
     assert "screen_order_observations" in text

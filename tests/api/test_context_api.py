@@ -1,4 +1,4 @@
-﻿"""Context observation API contract tests (DB-free)."""
+"""Context observation API contract tests (DB-free)."""
 
 import pytest
 from fastapi.testclient import TestClient

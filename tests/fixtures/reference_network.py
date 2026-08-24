@@ -10,6 +10,16 @@ from typing import Any
 
 
 def source_metadata(point_key: str, *, source_reference: str = "entsog-connectionpoints") -> dict:
+    """Build source metadata shaped like normalized ENTSOG records.
+
+    Args:
+        point_key: ENTSOG point key.
+        source_reference: Source reference to embed.
+
+    Returns:
+        Source metadata dict.
+    """
+
     return {
         "source_system": "ENTSOG",
         "source_reference": source_reference,
@@ -26,6 +36,18 @@ def source_lineage(
     source_reference: str = "entsog-connectionpoints",
     data_quality: str = "display_approximation",
 ) -> dict[str, Any]:
+    """Build a source lineage record shaped like normalized ENTSOG metadata.
+
+    Args:
+        source_record_id: Source record id.
+        source_dataset: Source dataset name.
+        source_reference: Source reference to embed.
+        data_quality: Data quality tag.
+
+    Returns:
+        Lineage dict.
+    """
+
     return {
         "source_system": "ENTSOG",
         "source_dataset": source_dataset,
@@ -36,6 +58,8 @@ def source_lineage(
 
 
 def reference_nodes() -> list[dict[str, Any]]:
+    """Return fixture reference nodes (hubs, interconnections, points)."""
+
     return [
         {
             "id": "entsog-vtp-nl-ttf",
@@ -85,10 +109,14 @@ def reference_nodes() -> list[dict[str, Any]]:
 
 
 def reference_edges() -> list[dict[str, Any]]:
+    """Return fixture reference edges between fixture nodes."""
+
     return []
 
 
 def reference_tso_access_points() -> list[dict[str, Any]]:
+    """Return fixture TSO access point records."""
+
     return [
         {
             "access_id": "entsog-opd-bbl-ttf-entry",
@@ -133,6 +161,8 @@ def reference_tso_access_points() -> list[dict[str, Any]]:
 
 
 def reference_facilities() -> list[dict[str, Any]]:
+    """Return fixture reference facilities (LNG terminals, storage)."""
+
     return [
         {
             "id": "fac-entsog-lng-nl-gate",
@@ -160,6 +190,8 @@ def reference_facilities() -> list[dict[str, Any]]:
 
 
 def reference_market_hubs() -> list[dict[str, Any]]:
+    """Return fixture market hub records (effective-dated)."""
+
     return [
         {
             "id": "hub-vtp-nl-ttf",

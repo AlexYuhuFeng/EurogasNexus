@@ -93,6 +93,17 @@ def list_certifications(session: Session) -> list[dict]:
 
 
 def certification_payload(row: ProviderCertificationRecord) -> dict:
+    """Serialize a certification row to its API payload shape.
+
+    把认证记录序列化为 API 载荷（时间戳转 ISO）。
+
+    Args:
+        row: The certification record.
+
+    Returns:
+        Dict with all payload fields.
+    """
+
     return {
         "certification_id": row.certification_id,
         "source_system": row.source_system,

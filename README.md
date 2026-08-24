@@ -18,6 +18,35 @@ the single unversioned `/api` surface.
 
 Current line: `v0.5-preview`
 
+### What's New In This Preview
+
+For daily users:
+
+- **Portfolio network optimization** now composes contracts, routes, capacity,
+  TSO access, tariffs, market prices, and FX directly from PostgreSQL and
+  attributes PnL back to each contract.
+- **Multi-user identity** is available through backend-managed operator
+  accounts, role permissions, data scopes, and hashed API keys. OIDC access
+  tokens can also be verified when the customer issuer is configured.
+- **Data-source operations** include bounded retry/backoff and freshness SLAs
+  for public feeds.
+- **Storage and nomination assessment** workspaces are available for review;
+  nomination results are assessment only and are never submitted.
+- Legacy `/api/workflows/*` pages have been retired; current functionality is
+  available through the domain-specific `/api` routes.
+
+For deployment owners:
+
+- Server deployment remains **private-network/VPN-only by default**.
+- Public-network deployment requires both
+  `EUROGAS_NEXUS_DEPLOYMENT_POSTURE=security_accepted` and an operator-reviewed
+  `EUROGAS_NEXUS_SECURITY_ACCEPTANCE_EVIDENCE` file. Enabling the switch alone
+  is not sufficient.
+
+> Technical worktree baseline (migrations, table count, path count, and
+> increment evidence) is maintained in
+> [`docs/architecture/CURRENT_PAUSE_POINT.md`](docs/architecture/CURRENT_PAUSE_POINT.md).
+
 License: proprietary, all rights reserved. See [`LICENSE`](LICENSE).
 
 Eurogas Nexus is not an ETRM replacement, execution venue, order router,
@@ -44,6 +73,13 @@ for:
 - EFET-style resource-term capture so resource assumptions feed a portfolio pool
   before sales routes are optimized and PnL is attributed back to resource terms;
 - strategy backtesting, shadow-running, monitoring, and risk-control signals;
+- DB-composed portfolio network optimization with shared-capacity flow and
+  contract-level PnL attribution;
+- PostgreSQL-backed local identities, hashed API keys, role authorization,
+  commercial data scopes, and OIDC access-token verification;
+- storage-dispatch and nomination-window assessment workflows (assessment
+  only; no submission action);
+- bounded source retry/backoff and freshness SLAs for public ingestion;
 - bilingual glossary and operational context for European gas trading terms;
 - LLM-assisted analysis through backend-controlled provider integrations.
 - visible 10-second monitoring of opportunities, strategy alerts, and source
@@ -130,6 +166,40 @@ The Web client defaults to `/api` in browser mode and to
 `http://127.0.0.1:8000/api` in the Tauri desktop shell. Settings can store a
 non-secret backend API override; remote endpoints must use HTTPS and end in
 `/api`.
+
+### Docker runtime cannot connect?
+
+If you run the `.local-runtime` Docker stack and open
+`http://127.0.0.1:3000`, it now defaults to the development profile, so no
+API token is required and `/docs` plus `/openapi.json` are available. The
+local public-ingestion worker runs ECB only; ENTSOG/GIE live workers are
+disabled until provider certification/credentials are configured, so the
+preview seed data remains the local reference data. If you switch the stack
+back to the release profile, the public API token is required:
+
+1. Open **Settings** in the Web workspace.
+2. Set **Backend API URL**:
+   - `http://127.0.0.1:3000/api` when using the Docker Web container proxy, or
+   - `http://127.0.0.1:8765/api` when connecting directly to the Docker API.
+3. Set **API token** to the value of
+   `EUROGAS_NEXUS_PUBLIC_API_TOKEN` in `.local-runtime/.env`.
+4. Set **operator principal** to a valid name such as `operator`.
+5. Save and retry.
+
+Quick check from the host:
+
+```bash
+TOKEN=$(grep '^EUROGAS_NEXUS_PUBLIC_API_TOKEN=' .local-runtime/.env | cut -d= -f2)
+curl -H "X-Eurogas-Api-Key: $TOKEN" http://127.0.0.1:3000/api/health
+```
+
+A `401 public_api_token_missing` response means the browser has not saved the
+token in Settings yet.
+
+`/openapi.json` and `/docs` intentionally return 404 in the release profile.
+For local schema inspection run a development-profile API instance; the pinned
+public route list is maintained in
+[`tests/contract/test_api_surface_stability.py`](tests/contract/test_api_surface_stability.py).
 
 ## Database and Runtime
 
@@ -301,6 +371,8 @@ Start here:
 - [Runtime store contract](docs/contracts/05_RUNTIME_STORE_CONTRACT.md)
 - [Resource pool contract EN](docs/contracts/21_RESOURCE_POOL_CONTRACT-EN.md)
 - [Resource pool contract CN](docs/contracts/21_RESOURCE_POOL_CONTRACT-CN.md)
+- [OWL gas role model EN](docs/ontology/OWL_GAS_ROLE_MODEL.md)
+- [OWL 天然气角色模型 CN](docs/ontology/OWL_GAS_ROLE_MODEL-CN.md)
 - [Client API contract](docs/clients/CLIENT_API_CONTRACT.md)
 - [Client tech stack](docs/clients/CLIENT_TECH_STACK.md)
 - [Workspace navigation spec](docs/clients/WORKSPACE_NAVIGATION_SPEC.md)
@@ -311,6 +383,16 @@ Start here:
 - [UI/UX style guide EN](docs/clients/UI_UX_STYLE_GUIDE-EN.md)
 - [UI/UX style guide CN](docs/clients/UI_UX_STYLE_GUIDE-CN.md)
 - [Live PostgreSQL operations](docs/operations/LIVE_POSTGRESQL.md)
+- [Identity, authorization, and audit governance EN](docs/operations/IDENTITY_AUDIT_GOVERNANCE.md)
+- [Identity, authorization, and audit governance CN](docs/operations/IDENTITY_AUDIT_GOVERNANCE-CN.md)
+- [OIDC access token EN](docs/operations/OIDC_ACCESS_TOKEN.md)
+- [OIDC access token CN](docs/operations/OIDC_ACCESS_TOKEN-CN.md)
+- [Production source operations EN](docs/operations/PRODUCTION_SOURCE_OPERATIONS.md)
+- [Production source operations CN](docs/operations/PRODUCTION_SOURCE_OPERATIONS-CN.md)
+- [Storage and nomination assessment EN](docs/operations/STORAGE_NOMINATION_ASSESSMENT.md)
+- [Storage and nomination assessment CN](docs/operations/STORAGE_NOMINATION_ASSESSMENT-CN.md)
+- [Security acceptance evidence EN](docs/release/SECURITY_ACCEPTANCE_EVIDENCE.md)
+- [安全验收证据 CN](docs/release/SECURITY_ACCEPTANCE_EVIDENCE-CN.md)
 - [Validation guide](docs/operations/VALIDATION.md)
 - [Release readiness](docs/release/RELEASE_READINESS.md)
 - [Production readiness backlog](docs/release/PRODUCTION_READINESS_BACKLOG.md)
@@ -324,7 +406,9 @@ Start here:
 - Actionable production backlog: [`docs/release/PRODUCTION_READINESS_BACKLOG.md`](docs/release/PRODUCTION_READINESS_BACKLOG.md)
 
 Release-candidate status means the tested local scope is coherent. It does not
-mean production multi-user deployment is complete.
+mean production multi-user deployment is complete. Local identity, role, OIDC
+access-token, audit, and runtime storage/nomination features are delivered in
+code, but real external security acceptance remains open.
 
 ## Security
 
@@ -340,6 +424,50 @@ Report security issues through [`SECURITY.md`](SECURITY.md).
 Eurogas Nexus 是面向欧洲天然气交易与运营团队的 PostgreSQL 优先智能工作台，用于统一管理管网、枢纽、互联点、LNG 接收站、储气库、容量、费率、市场价格、汇率、资源条款、资源池、路线经济性、策略监控、数据源诊断和术语知识。
 
 当前 `v0.5-preview` 版本提供决策支持和市场分析能力，但不执行交易、不下单、不路由订单、不提交提名、不替代 ETRM、不提供法律意见，也不构成官方交易建议。
+
+### Docker 运行时连不上？
+
+`.local-runtime` Docker 栈现在默认使用 development profile，打开
+`http://127.0.0.1:3000` 无需 API token，且 `/docs` 与 `/openapi.json` 可用。
+本地 public-ingestion worker 只运行 ECB；在配置 provider certification/凭据前
+不运行 ENTSOG/GIE 实时 worker，因此本地参考数据以 preview seed 为准。如果
+你把栈切回 release profile，才需要配置公共 API token：
+
+1. 打开 Web 工作区的 **Settings**。
+2. **Backend API URL** 设置为：
+   - 使用 Docker Web 容器代理：`http://127.0.0.1:3000/api`，或
+   - 直连 Docker API：`http://127.0.0.1:8765/api`。
+3. **API token** 填 `.local-runtime/.env` 中
+   `EUROGAS_NEXUS_PUBLIC_API_TOKEN` 的值。
+4. **operator principal** 填合法名称，例如 `operator`。
+5. 保存后重试。
+
+宿主机快速检查：
+
+```bash
+TOKEN=$(grep '^EUROGAS_NEXUS_PUBLIC_API_TOKEN=' .local-runtime/.env | cut -d= -f2)
+curl -H "X-Eurogas-Api-Key: $TOKEN" http://127.0.0.1:3000/api/health
+```
+
+返回 `401 public_api_token_missing` 表示浏览器尚未在 Settings 保存 token。
+
+release 配置下 `/openapi.json` 和 `/docs` 会按设计返回 404。本地查看 schema 请
+运行 development profile 的 API 实例；公开路径清单由
+[`tests/contract/test_api_surface_stability.py`](tests/contract/test_api_surface_stability.py)
+维护。
+
+本预览版对用户新增：组合网络优化直接从 PostgreSQL 组装合同、路径、管容、
+TSO 权限、费率、市场价格和汇率，并回算合同级 PnL；后端管理多用户身份、角色
+权限、数据范围和哈希 API key，并可校验 OIDC access token；公共数据源摄入带
+受限重试与新鲜度 SLA；储气和提名评估工作流可供复核，提名只评估、不提交。
+旧 `/api/workflows/*` 页面已退役，改用领域化 `/api` 路由。
+
+对部署方：Server 默认仅允许私网/VPN 部署；只有同时配置
+`EUROGAS_NEXUS_DEPLOYMENT_POSTURE=security_accepted` 和经运营方评审的
+`EUROGAS_NEXUS_SECURITY_ACCEPTANCE_EVIDENCE` 文件，才会考虑公网部署。
+
+技术基线（迁移、表数、路径数和增量证据）见
+[`docs/architecture/CURRENT_PAUSE_POINT-CN.md`](docs/architecture/CURRENT_PAUSE_POINT-CN.md)。
 
 ## License
 

@@ -13,7 +13,7 @@ visible client feature.
 
 Status: `complete-in-current-worktree`
 
-- PostgreSQL/Alembic schema through `0018_provider_certifications`.
+- PostgreSQL/Alembic schema through `0023_storage_nomination_masters`.
 - Stable public `/api`; profile-gated `/api/internal` and `/api/dev`.
 - Python SDK and CLI.
 - React/Vite Web workspace and Tauri Windows/Linux desktop clients.
@@ -121,9 +121,20 @@ and the route-cost/strategy enums into one home, rewired `business_logic_ontolog
 to derive from the ontology, down-graded the glossary to a display layer, and
 decommissioned the orphan `business_ontology_terms` table (migration `0016`).
 
-## R31: DB-Backed Portfolio Network Optimization
+### R31: DB-Backed Portfolio Network Optimization
 
-Status: `pending`
+Status: `complete-in-current-worktree`
+
+ExecPlan: `.agent/plans/V1_R31_DB_PORTFOLIO_NETWORK_EXECPLAN.md`
+
+Delivered `POST /api/optimization/portfolio-network` plus SDK method
+`optimize_portfolio_network`. The endpoint composes upstream contracts,
+reference nodes, active route candidates, TSO access, effective tariffs,
+market observations, and as-of FX exclusively from PostgreSQL, then runs the
+residual shared-capacity network-flow model. Final flows are decomposed into
+source-to-sale paths with contract-level PnL attribution, and every run
+persists its assembled inputs, lineage, assumptions, blockers, and source ids
+in `optimization_runs`. Missing, stale, or incompatible facts fail closed.
 
 Goal: connect the validated shared-capacity model to persisted commercial and
 infrastructure facts without letting clients fabricate inputs.
@@ -150,9 +161,33 @@ Acceptance:
 
 ## R32: Authentication, Entitlement, Audit, And Export Governance
 
-Status: `pending`
+Status: `partial-in-current-worktree`
+
+ExecPlan: `.agent/plans/V1_R32_IDENTITY_AUTH_GOVERNANCE_EXECPLAN.md`
 
 Goal: make server deployments suitable for authenticated multi-user use.
+
+Delivered:
+
+- Local PostgreSQL identity model (`identity_principals`,
+  `identity_api_keys`, migration `0022`) with USER/SERVICE principals, hashed
+  bearer keys, and VIEWER/ANALYST/OPERATOR/ADMIN roles.
+- Release-profile role authorization: READ/PUBLIC require VIEWER+, GOVERNED
+  requires ANALYST+, OPERATOR requires OPERATOR+.
+- Per-identity commercial-data scopes with fail-closed unknown-family checks
+  and row filtering on market observation/quote surfaces.
+- Internal identity/key administration and bounded audit export with audit
+  retention pruning (default 365 days, dry-run first).
+- R32A OIDC access-token verification: lazy HTTPS discovery/JWKS, RS256
+  signature/issuer/audience/expiry checks, role and entitlement claim mapping,
+  with no new Python dependency.
+
+Remaining:
+
+- OIDC interactive login flows (redirect/PKCE/refresh/session) and SAML, if a
+  deployment requires browser SSO rather than access-token SSO.
+- Security acceptance must pass before the private-network/VPN-only server
+  posture is removed.
 
 Required work:
 
@@ -165,15 +200,37 @@ Required work:
 
 ## R33: Production Source Operations
 
-Status: `pending`
+Status: `complete-in-current-worktree`
+
+ExecPlan: `.agent/plans/V1_R33_PRODUCTION_SOURCE_OPERATIONS_EXECPLAN.md`
 
 Goal: productionize public and licensed ingestion scheduling, retries, alerts,
 freshness SLAs, and operator diagnostics without client-side provider calls.
 
+Delivered: `application/source_operations.py` owns bounded exponential retry
+policies and per-source freshness SLAs; `run_public_ingestion_worker.py`
+supports `--retry-max` / `--retry-backoff-seconds` and keeps supervision alive
+after failures. Deployment scheduler ownership remains with the operator
+(systemd/Kubernetes/Windows task); licensed providers remain gated by
+credentials, entitlement, and provider certification.
+
 ## R34: Network Flow, Storage, And Nomination Client Workflows
 
-Status: `pending`
+Status: `complete-in-current-worktree`
+
+ExecPlan: `.agent/plans/V1_R34_STORAGE_NOMINATION_CLIENT_WORKFLOWS_EXECPLAN.md`
+and `.agent/plans/V1_R34A_STORAGE_NOMINATION_RUNTIME_SECURITY_ACCEPTANCE_EXECPLAN.md`
 
 Goal: expose validated models only after R31-R33 provide DB-owned inputs,
 lineage, authorization, and operational reliability. Nomination remains
 assessment-only; no submission action is permitted.
+
+Delivered: `POST /api/optimization/storage-dispatch` and
+`POST /api/optimization/nomination-window` with SDK methods. SANDBOX_SCENARIO
+supports explicit assessment inputs; RUNTIME_DECISION composes storage
+facility/inventory/market/FX facts and nomination window masters from
+PostgreSQL (migration `0023`, three tables) and rejects client facility/window
+facts. Nomination returns accepted/adjusted quantities only; no submission
+action exists. Automated security-acceptance evidence is executable via
+`scripts/security/run_security_acceptance.py`; external deployment review
+remains required before removing the private-network/VPN-only posture.

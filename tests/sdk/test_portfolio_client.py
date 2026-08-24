@@ -1,4 +1,4 @@
-﻿"""SDK portfolio client tests."""
+"""SDK portfolio client tests."""
 
 import httpx
 

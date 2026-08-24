@@ -22,6 +22,12 @@ class SupplyResource:
 
     @property
     def effective_maximum_mwh(self) -> float:
+        """Effective take cap: configured maximum, clamped by availability.
+
+        有效最大提气量：显式 maximum_take_mwh 与可用量取小；未配置
+        上限时即可用量本身。
+        """
+
         configured = self.maximum_take_mwh
         return min(self.available_mwh, configured) if configured is not None else self.available_mwh
 

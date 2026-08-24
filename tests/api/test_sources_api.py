@@ -121,6 +121,118 @@ def test_sources_include_simulated_market_price_feeds_when_runtime_rows_exist(
     assert sources["ICIS_Sim"]["live_record_count"] == 6
 
 
+def test_source_center_marks_stale_sources_by_freshness_expectation(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Audit item 3: records alone do not make a source live."""
+
+    from datetime import UTC, datetime, timedelta
+
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+
+    from eurogas_nexus.db.base import Base
+    from eurogas_nexus.db.models import MarketObservationRecord
+
+    db_path = tmp_path / "sources-freshness.sqlite"
+    database_url = f"sqlite+pysqlite:///{db_path.as_posix()}"
+    engine = create_engine(database_url, future=True)
+    Base.metadata.create_all(engine)
+    now = datetime.now(UTC)
+
+    with Session(engine) as session:
+        session.add(
+            MarketObservationRecord(
+                observation_id="eex-stale",
+                market_venue="EEX",
+                product="TTF day-ahead",
+                price=31.0,
+                unit="EUR/MWh",
+                currency="EUR",
+                period_start_utc=now - timedelta(days=10),
+                period_end_utc=now - timedelta(days=9),
+                observed_at_utc=now - timedelta(days=10),
+                source_system="EEX_Sim",
+                source_reference="sim:EEX:TTF:day-ahead:old",
+                source_record_id="old",
+                freshness="live",
+                quality_score=0.9,
+                research_only=False,
+                metadata_json={"hub": "TTF", "simulated": True},
+            )
+        )
+        session.commit()
+
+    monkeypatch.setenv("RUNTIME_STORE_DATABASE_URL", database_url)
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("EUROGAS_NEXUS_DB_DSN", raising=False)
+
+    client = TestClient(create_app())
+    response = client.get("/api/sources")
+
+    assert response.status_code == 200
+    sources = {item["source_system"]: item for item in response.json()["data"]}
+    stale = sources["EEX_Sim"]
+    # EEX_Sim declares a 1-minute freshness expectation; the newest row is 10 days old.
+    assert stale["live_record_count"] > 0
+    assert stale["freshness_status"] == "stale"
+    assert stale["connectivity_status"] == "stale"
+    assert "data_stale" in stale["diagnostics"]
+
+
+def test_source_center_marks_fresh_sources_active(tmp_path, monkeypatch) -> None:
+    from datetime import UTC, datetime, timedelta
+
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+
+    from eurogas_nexus.db.base import Base
+    from eurogas_nexus.db.models import MarketObservationRecord
+
+    db_path = tmp_path / "sources-fresh.sqlite"
+    database_url = f"sqlite+pysqlite:///{db_path.as_posix()}"
+    engine = create_engine(database_url, future=True)
+    Base.metadata.create_all(engine)
+    now = datetime.now(UTC)
+
+    with Session(engine) as session:
+        session.add(
+            MarketObservationRecord(
+                observation_id="eex-fresh",
+                market_venue="EEX",
+                product="TTF day-ahead",
+                price=31.0,
+                unit="EUR/MWh",
+                currency="EUR",
+                period_start_utc=now - timedelta(hours=1),
+                period_end_utc=now,
+                observed_at_utc=now - timedelta(seconds=30),
+                source_system="EEX_Sim",
+                source_reference="sim:EEX:TTF:day-ahead:now",
+                source_record_id="now",
+                freshness="live",
+                quality_score=0.9,
+                research_only=False,
+                metadata_json={"hub": "TTF", "simulated": True},
+            )
+        )
+        session.commit()
+
+    monkeypatch.setenv("RUNTIME_STORE_DATABASE_URL", database_url)
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("EUROGAS_NEXUS_DB_DSN", raising=False)
+
+    client = TestClient(create_app())
+    response = client.get("/api/sources")
+
+    assert response.status_code == 200
+    sources = {item["source_system"]: item for item in response.json()["data"]}
+    fresh = sources["EEX_Sim"]
+    assert fresh["freshness_status"] == "live"
+    assert fresh["connectivity_status"] == "active"
+    assert "data_stale" not in fresh["diagnostics"]
+
+
 def test_licensed_price_sources_show_active_preview_substitute_when_subscription_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

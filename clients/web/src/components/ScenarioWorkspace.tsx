@@ -39,7 +39,7 @@ const ECONOMIC_INPUTS: Array<{ key: ContractNumberKey; label: string }> = [
 ];
 
 function moneyPerMwh(value: number | null): string {
-  return value === null ? "n/a" : `EUR ${value.toFixed(2)}/MWh`;
+  return value === null ? "n/a" : `GBP ${value.toFixed(2)}/MWh`;
 }
 
 export function ScenarioWorkspace({
@@ -103,7 +103,7 @@ export function ScenarioWorkspace({
                 <div key={`scenario-pool-${allocation.resource_id}-${allocation.option_id}`} className="route-row route-candidate">
                   <span>{option?.label ?? allocation.option_id}</span>
                   <strong>{allocation.allocated_quantity_mwh_per_day.toLocaleString()} MWh/d</strong>
-                  <small>{allocation.net_margin_gbp_mwh.toFixed(2)} EUR/MWh / EUR {Math.round(allocation.net_pnl_gbp_per_day).toLocaleString()}</small>
+                  <small>{allocation.net_margin_gbp_mwh.toFixed(2)} GBP/MWh / GBP {Math.round(allocation.net_pnl_gbp_per_day).toLocaleString()}</small>
                 </div>
               );
             })}
@@ -115,7 +115,7 @@ export function ScenarioWorkspace({
               <div key={`allocation-${allocation.route_id}`} className="route-row route-candidate">
                 <span>{allocation.route_name}</span>
                 <strong>{allocation.allocated_mwh_per_day.toLocaleString()} MWh/d</strong>
-                <small>{allocation.destination_market ?? "market"} / {allocation.netback == null ? "n/a" : `${allocation.netback.toFixed(2)} EUR/MWh`}</small>
+                <small>{allocation.destination_market ?? "market"} / {allocation.netback == null ? "n/a" : `${allocation.netback.toFixed(2)} GBP/MWh`}</small>
               </div>
             ))}
           </div>

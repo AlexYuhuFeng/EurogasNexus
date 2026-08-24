@@ -8,6 +8,18 @@ from datetime import UTC, datetime
 
 @dataclass(frozen=True)
 class AllocationCandidate:
+    """One allocation candidate.
+
+    Attributes:
+        candidate_id: Stable candidate id.
+        route_name: Route display name.
+        from_node_id / to_node_id: Route endpoints.
+        capacity_available_boe_d: Available capacity, boe/d.
+        cost_eur_mwh: Cost per MWh.
+        rank: Rank position (lower first).
+        eligible: Whether the candidate may receive volume.
+    """
+
     candidate_id: str
     route_name: str
     from_node_id: str
@@ -20,6 +32,14 @@ class AllocationCandidate:
 
 @dataclass(frozen=True)
 class AllocationInput:
+    """Allocation scenario input.
+
+    Attributes:
+        scenario_name: Scenario display name.
+        total_demand_boe_d: Total demand, boe/d.
+        candidates: Allocation candidates.
+    """
+
     scenario_name: str
     total_demand_boe_d: float = 0.0
     candidates: list[AllocationCandidate] = field(default_factory=list)
@@ -27,6 +47,17 @@ class AllocationInput:
 
 @dataclass(frozen=True)
 class AllocationResult:
+    """One allocated slice of the scenario.
+
+    Attributes:
+        candidate_id: Allocated candidate.
+        route_name: Route display name.
+        allocated_boe_d: Allocated volume, boe/d.
+        cost_eur_mwh: Cost per MWh.
+        rank: Candidate rank.
+        note: Optional note.
+    """
+
     candidate_id: str
     route_name: str
     allocated_boe_d: float = 0.0
@@ -37,6 +68,20 @@ class AllocationResult:
 
 @dataclass(frozen=True)
 class AllocationOutput:
+    """Allocation scenario output (research-only envelope).
+
+    Attributes:
+        scenario_name: Scenario display name.
+        total_demand_boe_d: Total demand, boe/d.
+        total_allocated_boe_d: Allocated volume, boe/d.
+        unallocated_boe_d: Unallocated volume, boe/d.
+        results: Per-candidate allocations.
+        assumptions / missing_inputs / warnings: Transparency fields.
+        source_references / lineage: Provenance.
+        research_only / human_review_required: Always True.
+        generated_at_utc: Generation time (ISO).
+    """
+
     scenario_name: str
     total_demand_boe_d: float
     total_allocated_boe_d: float = 0.0
@@ -55,6 +100,8 @@ class AllocationOutput:
 
     @property
     def is_partial(self) -> bool:
+        """Whether any input is missing (partial result)."""
+
         return bool(self.missing_inputs)
 
 

@@ -50,17 +50,39 @@ PROVIDERS: tuple[dict[str, object], ...] = (
 
 
 class CredentialUpdate(BaseModel):
+    """Payload for setting or rotating one provider API key.
+
+    Attributes:
+        api_key: The provider API key (1-4096 chars).
+        label: Key label (max 128 chars).
+    """
+
     api_key: str = Field(min_length=1, max_length=4096)
     label: str = Field(default="default", max_length=128)
 
 
 class CredentialStatusUpdate(BaseModel):
+    """Payload for enabling/disabling one provider credential.
+
+    Attributes:
+        status: ``enabled`` or ``disabled``.
+        reason: Operator-supplied reason (max 256 chars).
+    """
+
     status: Literal["enabled", "disabled"]
     reason: str = Field(default="operator-requested", max_length=256)
 
 
 @router.get("/api/credentials/providers")
 def list_credential_providers() -> dict:
+    """List credential providers with their current status.
+
+    列出全部凭据提供商及各自状态（是否已配置/启用的摘要）。
+
+    Returns:
+        Enveloped provider status list.
+    """
+
     rows = _credential_rows()
     data = []
     for provider in PROVIDERS:
@@ -72,11 +94,41 @@ def list_credential_providers() -> dict:
 
 @router.put("/api/credentials/{provider_id}")
 def upsert_provider_credential(provider_id: ProviderId, payload: CredentialUpdate) -> dict:
+    """Upsert (set or replace) one provider's API key.
+
+    写入/替换指定提供商的 API 密钥（加密落库，绝不回显明文）。
+
+    Args:
+        provider_id: Provider id (validated enum).
+        payload: New key and label.
+
+    Returns:
+        Enveloped stored credential status.
+
+    Raises:
+        HTTPException: 404 unknown provider; 503 credential store unavailable.
+    """
+
     return _write_provider_credential(provider_id, payload)
 
 
 @router.post("/api/credentials/{provider_id}/rotate")
 def rotate_provider_credential(provider_id: ProviderId, payload: CredentialUpdate) -> dict:
+    """Rotate one provider's API key (same write path as upsert).
+
+    轮换提供商 API 密钥（与 upsert 同一写入路径，语义上标记为轮换）。
+
+    Args:
+        provider_id: Provider id (validated enum).
+        payload: New key and label.
+
+    Returns:
+        Enveloped stored credential status.
+
+    Raises:
+        HTTPException: 404 unknown provider; 503 credential store unavailable.
+    """
+
     return _write_provider_credential(provider_id, payload)
 
 
@@ -85,6 +137,22 @@ def update_provider_credential_status(
     provider_id: ProviderId,
     payload: CredentialStatusUpdate,
 ) -> dict:
+    """Enable or disable one provider's credential.
+
+    启用/禁用指定提供商的凭据并记录操作原因。
+
+    Args:
+        provider_id: Provider id (validated enum).
+        payload: Status change and reason.
+
+    Returns:
+        Enveloped updated credential status.
+
+    Raises:
+        HTTPException: 404 unknown provider or missing credential;
+            503 credential store unavailable.
+    """
+
     _ensure_private_provider(provider_id)
     if not _db_is_configured():
         raise _credential_store_unavailable("Runtime database is not configured.")
@@ -116,6 +184,21 @@ def update_provider_credential_status(
 
 @router.post("/api/credentials/{provider_id}/local-validation")
 def validate_provider_credential_locally(provider_id: ProviderId) -> dict:
+    """Validate one provider's credential locally (syntax/shape checks).
+
+    本地校验提供商凭据（仅语法/形态检查，不发起外部连接测试）。
+
+    Args:
+        provider_id: Provider id (validated enum).
+
+    Returns:
+        Enveloped validation outcome.
+
+    Raises:
+        HTTPException: 404 unknown provider or missing credential;
+            503 credential store unavailable.
+    """
+
     _ensure_private_provider(provider_id)
     if not _db_is_configured():
         raise _credential_store_unavailable("Runtime database is not configured.")
@@ -314,6 +397,20 @@ def _ensure_private_provider(provider_id: ProviderId) -> None:
 
 @router.delete("/api/credentials/{provider_id}")
 def delete_provider_credential(provider_id: ProviderId) -> dict:
+    """Delete one provider's stored credential (audited).
+
+    删除指定提供商的凭据并写审计事件（credential.delete）。
+
+    Args:
+        provider_id: Provider id (validated enum).
+
+    Returns:
+        Enveloped confirmation with ``configured=False``.
+
+    Raises:
+        HTTPException: 503 credential store unavailable.
+    """
+
     if not _db_is_configured():
         raise _credential_store_unavailable("Runtime database is not configured.")
 

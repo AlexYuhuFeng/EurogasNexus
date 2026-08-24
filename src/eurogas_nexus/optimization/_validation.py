@@ -1,4 +1,8 @@
-"""Shared input validation for deterministic optimization models."""
+"""Shared input validation for deterministic optimization models.
+
+优化模型的确定性输入校验：有限数值、唯一 id、非负数量与合法性约束
+统一在此实施，任何求解器都不得绕过校验直接消费用户输入（fail-fast）。
+"""
 
 from __future__ import annotations
 
@@ -9,11 +13,31 @@ from .models import CapacityProduct, NetworkEdge, SaleOption, SupplyResource
 
 
 def require_finite(value: float, label: str) -> None:
+    """Require a finite numeric value.
+
+    Args:
+        value: The value to check.
+        label: Field label for the error message.
+
+    Raises:
+        ValueError: When the value is NaN or infinite.
+    """
+
     if not math.isfinite(value):
         raise ValueError(f"{label} must be finite")
 
 
 def require_unique(values: Iterable[str], label: str) -> None:
+    """Require unique identifiers within an iterable.
+
+    Args:
+        values: Identifier iterable.
+        label: Id kind label for the error message.
+
+    Raises:
+        ValueError: When a duplicate id appears.
+    """
+
     seen: set[str] = set()
     for value in values:
         if value in seen:
@@ -22,6 +46,15 @@ def require_unique(values: Iterable[str], label: str) -> None:
 
 
 def validate_network_edges(edges: list[NetworkEdge]) -> None:
+    """Validate network edges: unique ids, non-empty nodes, finite non-negative numbers.
+
+    Args:
+        edges: Edges to validate.
+
+    Raises:
+        ValueError: On any violation.
+    """
+
     require_unique((edge.edge_id for edge in edges), "edge_id")
     for edge in edges:
         if not edge.edge_id.strip():
@@ -37,6 +70,15 @@ def validate_network_edges(edges: list[NetworkEdge]) -> None:
 
 
 def validate_supply_resources(resources: list[SupplyResource]) -> None:
+    """Validate supply resources: ids, finite quantities, take bounds, TSO codes.
+
+    Args:
+        resources: Resources to validate.
+
+    Raises:
+        ValueError: On any violation (including minimum take > maximum).
+    """
+
     require_unique((resource.resource_id for resource in resources), "resource_id")
     for resource in resources:
         if not resource.resource_id.strip():
@@ -62,6 +104,15 @@ def validate_supply_resources(resources: list[SupplyResource]) -> None:
 
 
 def validate_sale_options(sale_options: list[SaleOption]) -> None:
+    """Validate sale options: ids, destination, finite non-negative numbers.
+
+    Args:
+        sale_options: Options to validate.
+
+    Raises:
+        ValueError: On any violation.
+    """
+
     require_unique((option.option_id for option in sale_options), "option_id")
     for option in sale_options:
         if not option.option_id.strip():
@@ -78,6 +129,15 @@ def validate_sale_options(sale_options: list[SaleOption]) -> None:
 
 
 def validate_capacity_products(products: list[CapacityProduct]) -> None:
+    """Validate capacity products: ids, finite non-negative numbers, firmness.
+
+    Args:
+        products: Products to validate.
+
+    Raises:
+        ValueError: On any violation (including unknown firmness).
+    """
+
     require_unique((product.product_id for product in products), "product_id")
     for product in products:
         if not product.product_id.strip():

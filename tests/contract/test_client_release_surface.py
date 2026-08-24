@@ -360,9 +360,15 @@ def test_web_client_matches_design_reference_cockpit() -> None:
     assert "map-network-state" in network_workspace
     assert "networkGeometryState" in app
 
-    assert "tile.openstreetmap.org" in map_component
-
-    assert "osm-raster" in map_component
+    map_tile_providers = (
+        ROOT / "clients" / "web" / "src" / "app" / "mapTileProviders.ts"
+    ).read_text(encoding="utf-8")
+    assert "basemap-raster" in map_component
+    assert "tile.openstreetmap.org" in map_tile_providers
+    assert "tianditu.gov.cn" in map_tile_providers
+    assert "basemaps.cartocdn.com" in map_tile_providers
+    assert "is.autonavi.com" in map_tile_providers
+    assert "wgs84ToGcj02" in map_tile_providers
 
     assert "--eg-ink: #171717" in css
 

@@ -1,5 +1,9 @@
 # Eurogas Nexus 架构改进路线图（已定稿 v1.0）
 
+> 语言规范说明：本文件为中文文档，按仓库惯例使用 `-CN` 后缀（2026 年整理时
+> 从 `IMPROVEMENT_ROADMAP.md` 更名）；暂无对应英文版，属历史定稿文档。
+> 执行状态以 `NEXT_DEVELOPMENT_QUEUE.md` 与 `CURRENT_PAUSE_POINT.md` 为准。
+
 > 状态：**已定稿，按建议执行**。决策点 D1–D9 已拍板（见 §4 批注）。
 > 执行方式：每个阶段独立 ExecPlan（12 节）、独立验收、独立回滚。
 > 目标：让架构真正支撑「trader-reviewed 决策支持 + 近实时分析」，
@@ -103,7 +107,7 @@ API / SSE 推送（EventSource，1–2s）
 |---|---|
 | S4.1 | **契约演化策略**：版本化/弃用政策文档 + 兼容测试门 | ✅ 已交付：`.agent/plans/S4_1_CONTRACT_EVOLUTION_POLICY_EXECPLAN.md`（`API_CONTRACT_EVOLUTION_POLICY.md` 双语 + `tests/contract/test_api_surface_stability.py` 钉死 90 条路径集合） |
 | S4.2 | **Provider 认证门**：真实适配器过「模拟→真实」测试门，未过门不许标 live | ✅ 已交付：`.agent/plans/S4_2_PROVIDER_CERTIFICATION_GATE_EXECPLAN.md`（`provider_certifications` 表 + 域门 + internal 写入端点 + `/api/sources` fail-closed：未认证 licensed 源标 `active_uncertified` 且永不为 workflow_ready；前端 F4：Sources 认证徽章 + `certify` 下一动作） |
-| S4.3 | **表面收敛**：`workflows/` 遗留壳层显式标记 deprecated 或移除 | ✅ 已交付：10 条 `/api/workflows/*` 全部 OpenAPI `deprecated=True` + 信封 `DEPRECATED_WORKFLOW_SHELL` 警示 + 弃用表登记（`API_CONTRACT_EVOLUTION_POLICY.md`）；移除待客户端迁移后执行 |
+| S4.3 | **表面收敛**：`workflows/` 遗留壳层显式标记 deprecated 或移除 | ✅ 已完成：Web/SDK/CLI 迁移后物理移除 10 条 `/api/workflows/*`（旧路径返回 404）；`src/eurogas_nexus/api/routes/public/workflows.py` 与 `sdk/workflows.py` 已删除 |
 | S4.4 | **身份/授权（对接 R32）**：为 S2 的 actor 提供身份模型，Server 角色可多用户 | ✅ 最小形态交付：`.agent/plans/S4_4_ACTOR_IDENTITY_MODEL_EXECPLAN.md`（`ACTOR_IDENTITY_MODEL.md` 双语 + `domain/identity/principal.py` 唯一校验器，复核/internal/认证写入统一走 `normalize_principal`）；多用户认证与 SSO 仍属 R32 待办 |
 
 ---

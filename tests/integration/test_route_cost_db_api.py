@@ -9,6 +9,8 @@ from sqlalchemy.orm import Session
 from eurogas_nexus.api.app import create_app
 from eurogas_nexus.db.base import Base
 from eurogas_nexus.db.models import (
+    CompanyTsoAccessRecord,
+    FxObservationRecord,
     RouteCandidateRecord,
     TsoTariffRecord,
     UpstreamResourceContractRecord,
@@ -280,6 +282,17 @@ def test_resource_pool_options_are_built_from_runtime_db_and_simulated_prices(
                     created_at_utc=now,
                     updated_at_utc=now,
                 ),
+                CompanyTsoAccessRecord(
+                    access_id="db-bbl-access",
+                    tso="BBL Company",
+                    market_area="BBL",
+                    status="ACTIVE",
+                    valid_from_utc=now - __import__("datetime").timedelta(days=1),
+                    valid_to_utc=None,
+                    source_reference="test_fixture:not_customer_data",
+                    notes="test fixture active access",
+                    updated_at_utc=now,
+                ),
                 RouteCandidateRecord(
                     route_id="public-route-ttf-bbl-nbp",
                     route_name="TTF -> BBL -> NBP",
@@ -294,6 +307,7 @@ def test_resource_pool_options_are_built_from_runtime_db_and_simulated_prices(
                             "market_area": "BBL",
                             "point_name": "BBL Forward Flow NL to GB",
                             "direction": "EXIT",
+                            "available_capacity_mwh_per_day": 5000,
                         }
                     ],
                     required_entry_point_name=None,
@@ -320,6 +334,24 @@ def test_resource_pool_options_are_built_from_runtime_db_and_simulated_prices(
             ]
         )
         upsert_simulated_market_observations(session, observed_at_utc=now)
+        session.add(
+            FxObservationRecord(
+                observation_id="fx-eur-gbp",
+                pair="EURGBP",
+                base_currency="EUR",
+                quote_currency="GBP",
+                rate=0.85,
+                rate_type="reference",
+                value_date="2026-01-01",
+                observed_at_utc=now,
+                source_system="ECB",
+                source_reference="ecb-eurofxref-daily",
+                source_record_id="2026-01-01-GBP",
+                freshness="live",
+                research_only=True,
+                metadata_json={"dataset": "eurofxref-daily"},
+            )
+        )
         session.commit()
 
     monkeypatch.setenv("RUNTIME_STORE_DATABASE_URL", database_url)
@@ -332,26 +364,35 @@ def test_resource_pool_options_are_built_from_runtime_db_and_simulated_prices(
     payload = response.json()
     assert payload["meta"]["source_references"] == ["runtime-postgresql"]
     data = payload["data"]
+    # Active company TSO access is now read from PostgreSQL, so the BBL route
+    # composes instead of failing closed on an absent access registry.
     assert data["blockers"] == []
     assert data["portfolio_resources"][0]["resource_id"] == "resource-pool-contract-ttf-2025"
     assert {option["option_id"] for option in data["sale_options"]} == {
-        "public-route-ttf-bbl-nbp",
         "public-route-ttf-local",
+        "public-route-ttf-bbl-nbp",
     }
-    bbl_option = next(
+    local_option = next(
         option
         for option in data["sale_options"]
-        if option["option_id"] == "public-route-ttf-bbl-nbp"
+        if option["option_id"] == "public-route-ttf-local"
     )
-    assert bbl_option["target_point_name"] == "NBP"
-    assert bbl_option["sale_price_source_system"] in {"EEX_Sim", "ICIS_Sim"}
-    assert bbl_option["sale_price_simulated"] is True
-    assert bbl_option["sale_price_source_family"] in {"EEX", "ICIS"}
-    assert bbl_option["sale_price_freshness"].startswith("simulated")
-    assert bbl_option["sale_price_source_reference"].startswith("market_observation:sim-")
-    assert bbl_option["sale_price_gbp_mwh"] > 0
-    assert bbl_option["route_cost_gbp_mwh"] == 1.0
-    assert bbl_option["required_tso_access"] == ["BBL Company"]
+    assert local_option["target_point_name"] == "TTF"
+    assert local_option["capacity_status"] == "NOT_REQUIRED"
+    assert local_option["capacity_limit_mwh_per_day"] is None
+    assert local_option["sale_price_source_system"] in {"EEX_Sim", "ICIS_Sim"}
+    assert local_option["sale_price_simulated"] is True
+    assert local_option["sale_price_source_family"] in {"EEX", "ICIS"}
+    assert local_option["sale_price_freshness"].startswith("simulated")
+    assert local_option["sale_price_source_reference"].startswith("market_observation:sim-")
+    # Simulated prices are EUR; the option must carry a converted GBP value
+    # with FX provenance (P0-3), never a raw EUR value in a GBP field.
+    assert local_option["sale_price_currency"] == "GBP"
+    assert local_option["sale_price_original_currency"] == "EUR"
+    assert local_option["fx_converted_from"] == "EUR"
+    assert local_option["fx_rate_used"] == 0.85
+    assert local_option["fx_as_of_approximated"] is False
+    assert local_option["sale_price_gbp_mwh"] > 0
 
 
 def test_resource_pool_options_report_missing_market_prices(tmp_path, monkeypatch) -> None:

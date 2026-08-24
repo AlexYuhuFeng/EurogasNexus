@@ -51,11 +51,19 @@ Windows/Linux 桌面外壳和双语运营文档。所有消费方都是同一契
 4. 先补 API、SDK、契约测试，再视为完成。
 5. 运行 `AGENTS.md` 的完整验证命令集。
 
+## 已声明的新增路径
+
+| 路径 | 声明来源 | 契约 |
+|---|---|---|
+| `POST /api/optimization/portfolio-network` | R31（`V1_R31_DB_PORTFOLIO_NETWORK_EXECPLAN.md`） | 仅 DB `RUNTIME_DECISION`；只接受决策元数据，绝不接受客户端网络/费率/管容/价格事实 |
+| `POST /api/optimization/storage-dispatch` | R34（`V1_R34_STORAGE_NOMINATION_CLIENT_WORKFLOWS_EXECPLAN.md`） | 仅评估的储气调度；RUNTIME_DECISION 组装 PostgreSQL master/观测 |
+| `POST /api/optimization/nomination-window` | R34 | 仅评估的提名窗口；RUNTIME_DECISION 读取 DB 窗口 master；无提交动作 |
+
 ## 弃用表
 
 | 表面 | 弃用起始 | 计划移除 | 状态 |
 |---|---|---|---|
-| `/api/workflows/*`（10 个遗留壳） | 0.5.x（S4.3） | Web/SDK/CLI 全部迁移到领域化 `/api` 端点后 | OpenAPI `deprecated=True`、`DEPRECATED_WORKFLOW_SHELL` 警示、载荷保持 `BLOCKED` |
+| `/api/workflows/*`（10 个遗留壳） | 0.5.x（S4.3） | Web/SDK/CLI 全部迁移到领域化 `/api` 端点后 | 0.5.x 在 Web/SDK/CLI 迁移完成后已移除；旧路径现在返回 404 |
 
 ## 非目标
 

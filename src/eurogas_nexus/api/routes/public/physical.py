@@ -1,4 +1,4 @@
-﻿"""Read-only /api/physical routes."""
+"""Read-only /api/physical routes."""
 
 from fastapi import APIRouter, HTTPException, Request
 
@@ -7,6 +7,20 @@ router = APIRouter(tags=["physical"])
 
 @router.get("/api/physical/flows")
 def list_flows(request: Request) -> dict:
+    """List physical flow observations from the runtime DB.
+
+    返回物理流量观测列表；DB 未配置时降级为空数据并告警（fail-closed）。
+
+    Args:
+        request: Incoming FastAPI request (unused except wiring).
+
+    Returns:
+        Enveloped flow rows or an empty enveloped response with a warning.
+
+    Raises:
+        HTTPException: 503 ``runtime_db_unavailable`` on DB read failure.
+    """
+
     flows = _db_flow_observations()
     if flows is not None:
         return _env(flows, source="runtime-postgresql", warnings=[])
@@ -20,6 +34,20 @@ def list_flows(request: Request) -> dict:
 
 @router.get("/api/physical/capacity")
 def list_capacity(request: Request) -> dict:
+    """List capacity observations from the runtime DB.
+
+    返回容量观测列表；DB 未配置时降级为空数据并告警（fail-closed）。
+
+    Args:
+        request: Incoming FastAPI request (unused except wiring).
+
+    Returns:
+        Enveloped capacity rows or an empty enveloped response with a warning.
+
+    Raises:
+        HTTPException: 503 ``runtime_db_unavailable`` on DB read failure.
+    """
+
     capacity = _db_capacity_observations()
     if capacity is not None:
         return _env(capacity, source="runtime-postgresql", warnings=[])
@@ -33,6 +61,11 @@ def list_capacity(request: Request) -> dict:
 
 @router.get("/api/physical/outages")
 def list_outages(request: Request) -> dict:
+    """List outage records (requires source ingestion; no fallback data).
+
+    故障（outage）端点依赖来源采集；未配置时不返回任何回退数据。
+    """
+
     return _env(
         [],
         source="runtime-db-not-configured",

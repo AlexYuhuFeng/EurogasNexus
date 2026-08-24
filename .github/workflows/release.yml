@@ -47,8 +47,10 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install Python package
-        run: python -m pip install -e ".[dev]"
+      - name: Install Python package from locked versions
+        run: |
+          python -m pip install -r requirements.lock
+          python -m pip install -e . --no-deps
 
       - name: Ruff
         run: ruff check .

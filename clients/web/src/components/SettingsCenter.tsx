@@ -7,10 +7,20 @@ import type {
 import {
   clearApiBaseUrl,
   configuredApiBaseUrl,
+  configuredApiToken,
+  configuredOperatorPrincipal,
   defaultApiBaseUrl,
+  saveApiAuth,
   saveApiBaseUrl,
   testApiBaseUrl,
 } from "@/api/client";
+import {
+  MAP_TILE_PROVIDERS,
+  configuredMapTileProviderId,
+  configuredMapTileToken,
+  saveMapTileProvider,
+  saveMapTileToken,
+} from "@/app/mapTileProviders";
 import type { ThemeMode } from "@/stores/theme";
 
 type Translate = (key: string) => string;
@@ -92,8 +102,14 @@ export function SettingsCenter({
 }: SettingsCenterProps) {
   const [preferences, setPreferences] = useState<SettingsPreferences>(() => readStoredPreferences());
   const [apiBaseUrl, setApiBaseUrl] = useState(() => configuredApiBaseUrl());
+  const [apiToken, setApiToken] = useState(() => configuredApiToken());
+  const [operatorPrincipal, setOperatorPrincipal] = useState(() => configuredOperatorPrincipal());
+  const [authMessage, setAuthMessage] = useState<string | null>(null);
   const [apiConnectionState, setApiConnectionState] = useState<ApiConnectionState | null>(null);
   const [testingApi, setTestingApi] = useState(false);
+  const [mapTileProviderId, setMapTileProviderId] = useState(() => configuredMapTileProviderId());
+  const [mapTileToken, setMapTileToken] = useState(() => configuredMapTileToken());
+  const [mapTileMessage, setMapTileMessage] = useState<string | null>(null);
 
   useEffect(() => {
     localStorage.setItem(PREFERENCE_STORAGE_KEY, JSON.stringify(preferences));
@@ -191,10 +207,83 @@ export function SettingsCenter({
               : `${t("settings.backend_failed")}: ${apiConnectionState.error}`}
           </p>
         )}
+        <div className="settings-auth-form">
+          <p className="panel-copy">{t("settings.auth_help")}</p>
+          <label>
+            {t("settings.api_token")}
+            <input
+              type="password"
+              value={apiToken}
+              spellCheck={false}
+              autoComplete="off"
+              onChange={(event) => setApiToken(event.target.value)}
+              placeholder="EUROGAS_NEXUS_PUBLIC_API_TOKEN"
+            />
+          </label>
+          <label>
+            {t("settings.operator_principal")}
+            <input
+              value={operatorPrincipal}
+              spellCheck={false}
+              autoComplete="off"
+              onChange={(event) => setOperatorPrincipal(event.target.value)}
+              placeholder="operator-name"
+            />
+          </label>
+          <button
+            type="button"
+            onClick={() => {
+              saveApiAuth(apiToken, operatorPrincipal);
+              setAuthMessage(t("settings.auth_saved"));
+            }}
+          >
+            {t("settings.auth_save")}
+          </button>
+          {authMessage && (
+            <p className="settings-backend-message" role="status">{authMessage}</p>
+          )}
+        </div>
       </div>
 
       <div className="workspace-panel settings-panel settings-unit-panel">
         <h3>{t("settings.display_preferences")}</h3>
+        <label>
+          {t("settings.map_tile_provider")}
+          <select
+            value={mapTileProviderId}
+            onChange={(event) => setMapTileProviderId(event.target.value as typeof mapTileProviderId)}
+          >
+            {MAP_TILE_PROVIDERS.map((provider) => (
+              <option key={provider.id} value={provider.id}>
+                {provider.labelZh}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          {t("settings.map_tile_token")}
+          <input
+            type="password"
+            value={mapTileToken}
+            spellCheck={false}
+            autoComplete="off"
+            onChange={(event) => setMapTileToken(event.target.value)}
+            placeholder="Tianditu tk"
+          />
+        </label>
+        <button
+          type="button"
+          onClick={() => {
+            saveMapTileProvider(mapTileProviderId);
+            saveMapTileToken(mapTileToken);
+            setMapTileMessage(t("settings.map_tile_saved"));
+          }}
+        >
+          {t("settings.map_tile_save")}
+        </button>
+        {mapTileMessage && (
+          <p className="settings-backend-message" role="status">{mapTileMessage}</p>
+        )}
         <label>
           {t("settings.language")}
           <select value={language} onChange={(event) => onLanguageChange(event.target.value)}>

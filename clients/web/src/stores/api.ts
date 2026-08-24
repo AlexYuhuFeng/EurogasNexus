@@ -94,6 +94,7 @@ export interface ApiState {
   runtimeDb: RuntimeDbStatusDTO | null;
   pipelineHealth: PipelineHealthDTO | null;
   endpointMeta: Record<string, ApiMeta>;
+  endpointErrors: Record<string, string>;
   meta: ApiMeta | null;
   marketLastUpdatedAtUtc: string | null;
   loading: boolean;
@@ -103,6 +104,7 @@ export interface ApiState {
   contractSaveMessage: string | null;
   dataStatus: "runtime" | "delayed" | "partial" | "unavailable";
   fetchWorkspace: () => Promise<void>;
+  retryFailedWorkspaceEndpoints: () => Promise<void>;
   refreshMarketData: () => Promise<void>;
   subscribeDecisionStreams: () => void;
   refreshMonitoring: () => Promise<void>;
@@ -136,6 +138,112 @@ function withoutLegacyFlag<T extends object>(body: T): T {
   delete payload["research" + "_only"];
   return payload as T;
 }
+
+// ---------------------------------------------------------------------------
+// Independent endpoint loading (audit item: "29 个请求 Promise.all，任一 503
+// 拖垮整个工作区"). Each endpoint loads with its own retry; failures are
+// recorded per endpoint and can be retried without reloading the workspace.
+// ---------------------------------------------------------------------------
+
+type LoaderOutcome<T> = { ok: true; value: T } | { ok: false; error: string };
+
+async function loadEndpointWithRetry<T>(
+  loader: () => Promise<T>,
+  retries = 1,
+): Promise<LoaderOutcome<T>> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return { ok: true, value: await loader() };
+    } catch (error) {
+      if (attempt >= retries) return { ok: false, error: String(error) };
+      await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)));
+    }
+  }
+}
+
+/** endpointMeta key -> loader. Keys keep the historical endpointMeta names. */
+const WORKSPACE_LOADERS: Array<[string, () => Promise<{ data: unknown; meta: ApiMeta }>]> = [
+  ["referenceNodes", api.nodes],
+  ["referenceEdges", api.edges],
+  ["sources", api.sources],
+  ["normalizedMarkets", api.normalizedMarketObservations],
+  ["marketSpreads", api.marketSpreads],
+  ["marketQuotes", api.marketQuotes],
+  ["intradayOpportunities", api.intradayOpportunities],
+  ["screenOrders", api.screenOrders],
+  ["pnlSnapshots", api.pnlSnapshots],
+  ["portfolioSummary", api.portfolioLiveSummary],
+  ["fxRates", api.fxRates],
+  ["flows", api.flowObservations],
+  ["capacity", api.capacityObservations],
+  ["storage", api.storageObservations],
+  ["lng", api.lngObservations],
+  ["tsoAccess", api.tsoAccess],
+  ["routes", api.routeEligibility],
+  ["routeCandidates", api.routeCandidates],
+  ["tsoTariffs", api.tsoTariffs],
+  ["upstreamContracts", api.upstreamContracts],
+  ["resourcePoolOptions", api.resourcePoolOptions],
+  ["glossaryTerms", () => api.glossary("en")],
+  ["runtimeDb", api.runtimeDb],
+  ["credentialProviders", api.credentialProviders],
+  ["monitoringAlerts", api.monitoringAlerts],
+  ["monitoringSummary", api.monitoringSummary],
+  ["reviewDecisions", api.reviewDecisions],
+  ["pipelineHealth", api.pipelineHealth],
+];
+
+/** endpointMeta key -> ApiState slice key. */
+const WORKSPACE_STATE_KEYS: Record<string, keyof ApiState> = {
+  referenceNodes: "nodes",
+  referenceEdges: "edges",
+  sources: "sources",
+  normalizedMarkets: "normalizedMarkets",
+  marketSpreads: "marketSpreads",
+  marketQuotes: "marketQuotes",
+  intradayOpportunities: "intradayOpportunities",
+  screenOrders: "screenOrders",
+  pnlSnapshots: "pnlSnapshots",
+  portfolioSummary: "portfolioSummary",
+  fxRates: "fxRates",
+  flows: "flows",
+  capacity: "capacity",
+  storage: "storage",
+  lng: "lng",
+  tsoAccess: "tsoAccess",
+  routes: "routes",
+  routeCandidates: "routeCandidates",
+  tsoTariffs: "tsoTariffs",
+  upstreamContracts: "upstreamContracts",
+  resourcePoolOptions: "resourcePoolOptions",
+  glossaryTerms: "glossaryTerms",
+  runtimeDb: "runtimeDb",
+  credentialProviders: "credentialProviders",
+  monitoringAlerts: "monitoringAlerts",
+  monitoringSummary: "monitoringSummary",
+  reviewDecisions: "reviewDecisions",
+  pipelineHealth: "pipelineHealth",
+};
+
+function deriveWorkspaceSlice(key: string, response: { data: unknown }): unknown {
+  if (key === "routeCandidates") {
+    return (response.data as { route_candidates: unknown }).route_candidates;
+  }
+  if (key === "tsoTariffs") {
+    return (response.data as { tariffs: unknown }).tariffs;
+  }
+  return response.data;
+}
+
+const DEFAULT_MONITORING_SUMMARY = {
+  open_count: 0,
+  acknowledged_count: 0,
+  critical_count: 0,
+  warning_count: 0,
+  info_count: 0,
+  llm_pending_count: 0,
+  simulated_count: 0,
+};
 
 export const useApiStore = create<ApiState>((set, get) => ({
   nodes: [],
@@ -185,6 +293,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
   runtimeDb: null,
   pipelineHealth: null,
   endpointMeta: {},
+  endpointErrors: {},
   meta: null,
   marketLastUpdatedAtUtc: null,
   loading: false,
@@ -196,100 +305,30 @@ export const useApiStore = create<ApiState>((set, get) => ({
 
   fetchWorkspace: async () => {
     set({ loading: true, error: null });
-    try {
-      const [
-        nodes,
-        edges,
-        sources,
-        normalizedMarkets,
-        marketSpreads,
-        marketQuotes,
-        intradayOpportunities,
-        screenOrders,
-        pnlSnapshots,
-        portfolioSummary,
-        fxRates,
-        flows,
-        capacity,
-        storage,
-        lng,
-        tsoAccess,
-        routes,
-        routeCandidates,
-        tsoTariffs,
-        upstreamContracts,
-        resourcePoolOptions,
-        glossaryTerms,
-        runtimeDb,
-        credentialProviders,
-        monitoringAlerts,
-        monitoringSummary,
-        reviewDecisions,
-        pipelineHealth,
-      ] = await Promise.all([
-        api.nodes(),
-        api.edges(),
-        api.sources(),
-        api.normalizedMarketObservations(),
-        api.marketSpreads(),
-        api.marketQuotes(),
-        api.intradayOpportunities(),
-        api.screenOrders(),
-        api.pnlSnapshots(),
-        api.portfolioLiveSummary(),
-        api.fxRates(),
-        api.flowObservations(),
-        api.capacityObservations(),
-        api.storageObservations(),
-        api.lngObservations(),
-        api.tsoAccess(),
-        api.routeEligibility(),
-        api.routeCandidates(),
-        api.tsoTariffs(),
-        api.upstreamContracts(),
-        api.resourcePoolOptions(),
-        api.glossary("en"),
-        api.runtimeDb(),
-        api.credentialProviders(),
-        api.monitoringAlerts(),
-        api.monitoringSummary(),
-        api.reviewDecisions(),
-        api.pipelineHealth(),
-      ]);
-      const endpointMeta = {
-        referenceNodes: nodes.meta,
-        referenceEdges: edges.meta,
-        sources: sources.meta,
-        normalizedMarkets: normalizedMarkets.meta,
-        marketSpreads: marketSpreads.meta,
-        marketQuotes: marketQuotes.meta,
-        intradayOpportunities: intradayOpportunities.meta,
-        screenOrders: screenOrders.meta,
-        pnlSnapshots: pnlSnapshots.meta,
-        portfolioSummary: portfolioSummary.meta,
-        fxRates: fxRates.meta,
-        flows: flows.meta,
-        capacity: capacity.meta,
-        storage: storage.meta,
-        lng: lng.meta,
-        tsoAccess: tsoAccess.meta,
-        routes: routes.meta,
-        routeCandidates: routeCandidates.meta,
-        tsoTariffs: tsoTariffs.meta,
-        upstreamContracts: upstreamContracts.meta,
-        resourcePoolOptions: resourcePoolOptions.meta,
-        glossaryTerms: glossaryTerms.meta,
-        runtimeDb: runtimeDb.meta,
-        credentialProviders: credentialProviders.meta,
-        monitoringAlerts: monitoringAlerts.meta,
-        monitoringSummary: monitoringSummary.meta,
-        reviewDecisions: reviewDecisions.meta,
-        pipelineHealth: pipelineHealth.meta,
-      };
-      const sourceRefs = Object.values(endpointMeta).flatMap((item) => item.source_references ?? []);
-      const hasRuntime = sourceRefs.some((source) => source === "runtime-postgresql");
-      const hasDbMissing = sourceRefs.some((source) => source === "runtime-db-not-configured");
-      const resolvedStatus = !runtimeDb.data.database_url_present || !runtimeDb.data.connectivity.ok
+    const outcomes = await Promise.all(
+      WORKSPACE_LOADERS.map(async ([key, loader]) => ({
+        key,
+        outcome: await loadEndpointWithRetry(loader),
+      })),
+    );
+    const endpointErrors: Record<string, string> = {};
+    const endpointMeta: Record<string, ApiMeta> = {};
+    const slices: Record<string, unknown> = {};
+    for (const { key, outcome } of outcomes) {
+      if (outcome.ok) {
+        endpointMeta[key] = outcome.value.meta;
+        slices[key] = deriveWorkspaceSlice(key, outcome.value);
+      } else {
+        endpointErrors[key] = outcome.error;
+      }
+    }
+    const sourceRefs = Object.values(endpointMeta).flatMap((item) => item.source_references ?? []);
+    const hasRuntime = sourceRefs.some((source) => source === "runtime-postgresql");
+    const hasDbMissing = sourceRefs.some((source) => source === "runtime-db-not-configured");
+    const runtimeDb = slices.runtimeDb as RuntimeDbStatusDTO | undefined;
+    const allFailed = Object.keys(endpointErrors).length === WORKSPACE_LOADERS.length;
+    const resolvedStatus =
+      !runtimeDb || !runtimeDb.database_url_present || !runtimeDb.connectivity.ok
         ? "unavailable"
         : hasRuntime && hasDbMissing
           ? "partial"
@@ -297,47 +336,82 @@ export const useApiStore = create<ApiState>((set, get) => ({
             ? "runtime"
             : "partial";
 
-      set({
-        nodes: nodes.data,
-        edges: edges.data,
-        sources: sources.data,
-        normalizedMarkets: normalizedMarkets.data,
-        marketSpreads: marketSpreads.data,
-        marketQuotes: marketQuotes.data,
-        intradayOpportunities: intradayOpportunities.data,
-        screenOrders: screenOrders.data,
-        pnlSnapshots: pnlSnapshots.data,
-        portfolioSummary: portfolioSummary.data,
-        fxRates: fxRates.data,
-        flows: flows.data,
-        capacity: capacity.data,
-        storage: storage.data,
-        lng: lng.data,
-        tsoAccess: tsoAccess.data,
-        routes: routes.data,
-        routeCandidates: routeCandidates.data.route_candidates,
-        tsoTariffs: tsoTariffs.data.tariffs,
-        upstreamContracts: upstreamContracts.data,
-        resourcePoolOptions: resourcePoolOptions.data,
-        glossaryTerms: glossaryTerms.data,
-        runtimeDb: runtimeDb.data,
-        credentialProviders: credentialProviders.data,
-        monitoringAlerts: monitoringAlerts.data,
-        monitoringSummary: monitoringSummary.data,
-        reviewDecisions: reviewDecisions.data,
-        pipelineHealth: pipelineHealth.data,
+    set({
+      nodes: (slices.referenceNodes ?? []) as NodeDTO[],
+      edges: (slices.referenceEdges ?? []) as EdgeDTO[],
+      sources: (slices.sources ?? []) as SourceSystemDTO[],
+      normalizedMarkets: (slices.normalizedMarkets ?? []) as NormalizedMarketObsDTO[],
+      marketSpreads: (slices.marketSpreads ?? []) as MarketSpreadDTO[],
+      marketQuotes: (slices.marketQuotes ?? []) as MarketQuoteDTO[],
+      intradayOpportunities: (slices.intradayOpportunities ?? []) as IntradayOpportunityDTO[],
+      screenOrders: (slices.screenOrders ?? []) as ScreenOrderObservationDTO[],
+      pnlSnapshots: (slices.pnlSnapshots ?? []) as PortfolioPnlSnapshotDTO[],
+      portfolioSummary: (slices.portfolioSummary ?? null) as PortfolioLiveSummaryDTO | null,
+      fxRates: (slices.fxRates ?? []) as FxRateDTO[],
+      flows: (slices.flows ?? []) as FlowObsDTO[],
+      capacity: (slices.capacity ?? []) as CapacityObsDTO[],
+      storage: (slices.storage ?? []) as StorageObsDTO[],
+      lng: (slices.lng ?? []) as LngObsDTO[],
+      tsoAccess: (slices.tsoAccess ?? []) as TsoAccessPointDTO[],
+      routes: (slices.routes ?? []) as RouteEligibilityDTO[],
+      routeCandidates: (slices.routeCandidates ?? []) as RouteCandidateDTO[],
+      tsoTariffs: (slices.tsoTariffs ?? []) as TsoTariffDTO[],
+      upstreamContracts: (slices.upstreamContracts ?? []) as UpstreamContractDTO[],
+      resourcePoolOptions: (slices.resourcePoolOptions ?? null) as ResourcePoolOptionsDTO | null,
+      glossaryTerms: (slices.glossaryTerms ?? []) as GlossaryTermDTO[],
+      runtimeDb: (slices.runtimeDb ?? null) as RuntimeDbStatusDTO | null,
+      credentialProviders: (slices.credentialProviders ?? []) as CredentialProviderDTO[],
+      monitoringAlerts: (slices.monitoringAlerts ?? []) as MonitoringAlertDTO[],
+      monitoringSummary: (slices.monitoringSummary ?? DEFAULT_MONITORING_SUMMARY) as MonitoringSummaryDTO,
+      reviewDecisions: (slices.reviewDecisions ?? []) as ReviewDecisionDTO[],
+      pipelineHealth: (slices.pipelineHealth ?? null) as PipelineHealthDTO | null,
+      endpointMeta,
+      endpointErrors,
+      meta: endpointMeta.referenceNodes ?? null,
+      marketLastUpdatedAtUtc: new Date().toISOString(),
+      dataStatus: resolvedStatus,
+      loading: false,
+      error: allFailed
+        ? `All workspace endpoints failed: ${Object.keys(endpointErrors).join(", ")}`
+        : null,
+    });
+    void get().fetchStrategySummary();
+    void get().fetchStrategyRuns();
+    get().subscribeDecisionStreams();
+  },
+
+  retryFailedWorkspaceEndpoints: async () => {
+    const failedKeys = Object.keys(get().endpointErrors);
+    if (failedKeys.length === 0) return;
+    const loaderByKey = new Map(WORKSPACE_LOADERS);
+    const outcomes = await Promise.all(
+      failedKeys.map(async (key) => ({
+        key,
+        outcome: await loadEndpointWithRetry(loaderByKey.get(key) as () => Promise<{ data: unknown; meta: ApiMeta }>),
+      })),
+    );
+    set((state) => {
+      const endpointErrors = { ...state.endpointErrors };
+      const endpointMeta = { ...state.endpointMeta };
+      const patch: Partial<ApiState> = {};
+      for (const { key, outcome } of outcomes) {
+        if (outcome.ok) {
+          delete endpointErrors[key];
+          endpointMeta[key] = outcome.value.meta;
+          const stateKey = WORKSPACE_STATE_KEYS[key];
+          if (stateKey) {
+            (patch as Record<string, unknown>)[stateKey] = deriveWorkspaceSlice(key, outcome.value);
+          }
+        }
+      }
+      return {
+        ...patch,
+        endpointErrors,
         endpointMeta,
-        meta: nodes.meta,
-        marketLastUpdatedAtUtc: new Date().toISOString(),
-        dataStatus: resolvedStatus,
+        error: Object.keys(endpointErrors).length === 0 ? null : state.error,
         loading: false,
-      });
-      void get().fetchStrategySummary();
-      void get().fetchStrategyRuns();
-      get().subscribeDecisionStreams();
-    } catch (e) {
-      set({ error: String(e), dataStatus: "unavailable", loading: false });
-    }
+      };
+    });
   },
 
   refreshMarketData: async () => {

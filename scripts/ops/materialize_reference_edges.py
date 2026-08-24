@@ -228,6 +228,7 @@ def _name_aliases(name: str) -> list[str]:
 
 
 def main() -> int:
+    """    Materialize reference edges from node topology data."""
     summary = materialize_route_candidate_edges()
     if not summary["database_url_present"]:
         print("Runtime DB URL missing. Set RUNTIME_STORE_DATABASE_URL or DATABASE_URL.")

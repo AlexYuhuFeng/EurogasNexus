@@ -1,4 +1,4 @@
-﻿"""API import contract tests."""
+"""API import contract tests."""
 
 from fastapi.testclient import TestClient
 

@@ -19,6 +19,7 @@ from eurogas_nexus.db.models import (
     GlossaryTermRecord,
     LiveMarketMarkRecord,
     MarketObservationRecord,
+    ReferenceMarketHub,
     RouteCandidateRecord,
     TsoTariffRecord,
     UpstreamResourceContractRecord,
@@ -78,6 +79,7 @@ LEGACY_FIXTURE_CONTRACT_IDS = [
 
 
 def main() -> int:
+    """    Seed preview runtime data into the DB (development only)."""
     database_url = resolve_database_url()
     if not database_url:
         print("Runtime DB URL missing. Set RUNTIME_STORE_DATABASE_URL or DATABASE_URL.")
@@ -92,6 +94,7 @@ def main() -> int:
         _seed_preview_contract(session, now)
         _seed_public_route_templates(session, now)
         _seed_preview_tso_access(session, now)
+        _seed_market_hubs(session, now)
         _seed_simulated_prices(session, now)
         _seed_glossary(session, now)
         session.commit()
@@ -329,6 +332,70 @@ def _seed_preview_tso_access(session, now: datetime) -> None:
         session.merge(access)
 
 
+def _seed_market_hubs(session, now: datetime) -> None:
+    """Upsert the effective-dated hub reference master (THE replacing NCG/GASPOOL).
+
+    Gate 2: hub validity windows and supersession live in PostgreSQL; the code
+    enum only keeps a compatibility closure.
+    """
+
+    consolidation_date = datetime(2021, 10, 1, tzinfo=UTC)
+    for hub in (
+        ReferenceMarketHub(
+            id="hub-the",
+            name="Trading Hub Europe",
+            hub_code="THE",
+            country="DE",
+            market_area="DE",
+            valid_from_utc=consolidation_date,
+            valid_to_utc=None,
+            superseded_by_hub_id=None,
+            description="German market area since the NCG/GASPOOL consolidation.",
+            source_system="preview-configuration",
+            source_dataset="market_hubs",
+            source_reference="preview-configuration:market-hubs:THE",
+            source_record_id="the",
+            data_quality="confirmed",
+            created_at_utc=now,
+        ),
+        ReferenceMarketHub(
+            id="hub-ncg",
+            name="NetConnect Germany",
+            hub_code="NCG",
+            country="DE",
+            market_area="DE-NCG",
+            valid_from_utc=datetime(2009, 1, 1, tzinfo=UTC),
+            valid_to_utc=consolidation_date - timedelta(seconds=1),
+            superseded_by_hub_id="hub-the",
+            description="Historical German market area, superseded by THE.",
+            source_system="preview-configuration",
+            source_dataset="market_hubs",
+            source_reference="preview-configuration:market-hubs:NCG",
+            source_record_id="ncg",
+            data_quality="confirmed",
+            created_at_utc=now,
+        ),
+        ReferenceMarketHub(
+            id="hub-gaspool",
+            name="GASPOOL",
+            hub_code="GASPOOL",
+            country="DE",
+            market_area="DE-GASPOOL",
+            valid_from_utc=datetime(2009, 1, 1, tzinfo=UTC),
+            valid_to_utc=consolidation_date - timedelta(seconds=1),
+            superseded_by_hub_id="hub-the",
+            description="Historical German market area, superseded by THE.",
+            source_system="preview-configuration",
+            source_dataset="market_hubs",
+            source_reference="preview-configuration:market-hubs:GASPOOL",
+            source_record_id="gaspool",
+            data_quality="confirmed",
+            created_at_utc=now,
+        ),
+    ):
+        session.merge(hub)
+
+
 def _seed_glossary(session, now: datetime) -> None:
     for term in baseline_glossary_terms():
         session.merge(
@@ -336,6 +403,7 @@ def _seed_glossary(session, now: datetime) -> None:
                 term_id=term.term_id,
                 term=term.term,
                 category=term.category,
+                concept_id=term.concept_id,
                 definition_en=term.definition_en,
                 definition_zh_cn=term.definition_zh_cn,
                 aliases=term.aliases,

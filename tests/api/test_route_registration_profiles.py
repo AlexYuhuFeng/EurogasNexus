@@ -1,16 +1,18 @@
-﻿"""Route-registration profile contract tests."""
+"""Route-registration profile contract tests."""
 
 from fastapi.testclient import TestClient
 
 from eurogas_nexus.api.app import create_app
 from eurogas_nexus.core.config import Settings
 
+AUTH_HEADERS = {"X-Eurogas-Api-Key": "test-public-api-token"}
+
 
 def test_release_profile_excludes_dev_and_internal_paths() -> None:
     client = TestClient(create_app(Settings(api_profile="release")))
 
-    assert client.get("/api/health").status_code == 200
-    assert client.get("/api/health").status_code == 200
+    assert client.get("/api/health", headers=AUTH_HEADERS).status_code == 200
+    assert client.get("/api/health", headers=AUTH_HEADERS).status_code == 200
     assert client.get("/api/dev/health").status_code == 404
     assert client.get("/api/internal/health").status_code == 404
 

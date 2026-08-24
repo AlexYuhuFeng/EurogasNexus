@@ -1,4 +1,4 @@
-﻿"""Read-only /api/reference-network routes."""
+"""Read-only /api/reference-network routes."""
 
 from dataclasses import asdict
 
@@ -17,13 +17,14 @@ def list_nodes(
     request: Request,
     country: str | None = Query(None, max_length=2),
     node_type: str | None = Query(None),
+    limit: int = Query(500, ge=1, le=2000),
 ) -> dict:
-    """List reference network nodes."""
+    """List reference network nodes (bounded by limit)."""
     nodes = _db_nodes(country=country.upper() if country else None, node_type=node_type)
     if nodes is None:
         return _runtime_not_configured_envelope([], request, table="reference_nodes")
 
-    return _envelope(nodes, request, source="postgresql")
+    return _envelope(nodes[:limit], request, source="postgresql")
 
 
 @router.get("/api/reference-network/nodes/{node_id}")
@@ -49,13 +50,14 @@ def list_edges(
     request: Request,
     from_node_id: str | None = Query(None),
     to_node_id: str | None = Query(None),
+    limit: int = Query(500, ge=1, le=2000),
 ) -> dict:
-    """List reference network edges."""
+    """List reference network edges (bounded by limit)."""
     edges = _db_edges(from_node_id=from_node_id, to_node_id=to_node_id)
     if edges is None:
         return _runtime_not_configured_envelope([], request, table="reference_edges")
 
-    return _envelope(edges, request, source="postgresql")
+    return _envelope(edges[:limit], request, source="postgresql")
 
 
 @router.get("/api/reference-network/edges/{edge_id}")
@@ -81,8 +83,9 @@ def list_facilities(
     request: Request,
     facility_type: str | None = Query(None),
     country: str | None = Query(None, max_length=2),
+    limit: int = Query(500, ge=1, le=2000),
 ) -> dict:
-    """List reference network facilities."""
+    """List reference network facilities (bounded by limit)."""
     facilities = _db_facilities(
         facility_type=facility_type,
         country=country.upper() if country else None,
@@ -90,7 +93,7 @@ def list_facilities(
     if facilities is None:
         return _runtime_not_configured_envelope([], request, table="reference_facilities")
 
-    return _envelope(facilities, request, source="postgresql")
+    return _envelope(facilities[:limit], request, source="postgresql")
 
 
 @router.get("/api/reference-network/facilities/{facility_id}")
@@ -112,13 +115,16 @@ def get_facility(facility_id: str, request: Request) -> dict:
 
 
 @router.get("/api/reference-network/market-hubs")
-def list_market_hubs(request: Request) -> dict:
-    """List reference market hubs."""
+def list_market_hubs(
+    request: Request,
+    limit: int = Query(500, ge=1, le=2000),
+) -> dict:
+    """List reference market hubs (bounded by limit)."""
     hubs = _db_market_hubs()
     if hubs is None:
         return _runtime_not_configured_envelope([], request, table="reference_market_hubs")
 
-    return _envelope(hubs, request, source="postgresql")
+    return _envelope(hubs[:limit], request, source="postgresql")
 
 
 @router.get("/api/reference-network/tso-access")
@@ -128,6 +134,7 @@ def list_tso_access(
     country: str | None = Query(None, max_length=8),
     operator_key: str | None = Query(None),
     direction: str | None = Query(None, max_length=16),
+    limit: int = Query(500, ge=1, le=2000),
 ) -> dict:
     """List source-owned TSO access metadata for routing eligibility checks."""
     rows = _db_tso_access_points(
@@ -139,7 +146,7 @@ def list_tso_access(
     if rows is None:
         return _runtime_not_configured_envelope([], request, table="reference_tso_access_points")
 
-    return _envelope(rows, request, source="postgresql")
+    return _envelope(rows[:limit], request, source="postgresql")
 
 
 # ---------------------------------------------------------------------------

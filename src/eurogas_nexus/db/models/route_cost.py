@@ -11,6 +11,12 @@ from eurogas_nexus.db.base import Base
 
 
 class TsoTariffRecord(Base):
+    """One TSO capacity tariff row (published document extraction).
+
+    对应表 ``tso_tariffs``；与 domain.tariff_models.CapacityTariff 契约
+    对齐，携带 source_table/source_page 溯源与人工复核标记。
+    """
+
     __tablename__ = "tso_tariffs"
 
     tariff_id: Mapped[str] = mapped_column(String(128), primary_key=True)
@@ -38,6 +44,12 @@ class TsoTariffRecord(Base):
 
 
 class UpstreamResourceContractRecord(Base):
+    """One operator-owned upstream resource contract (decision-support input).
+
+    对应表 ``upstream_resource_contracts``；是资源池/路由成本优化的
+    运行时输入源（operator upsert 写入）。
+    """
+
     __tablename__ = "upstream_resource_contracts"
 
     contract_id: Mapped[str] = mapped_column(String(128), primary_key=True)
@@ -64,6 +76,11 @@ class UpstreamResourceContractRecord(Base):
 
 
 class CapacityProfileRecord(Base):
+    """One capacity profile bound to an upstream contract and point.
+
+    对应表 ``capacity_profiles``；有效窗口 valid_from/valid_to（UTC）。
+    """
+
     __tablename__ = "capacity_profiles"
 
     capacity_profile_id: Mapped[str] = mapped_column(String(128), primary_key=True)
@@ -72,6 +89,8 @@ class CapacityProfileRecord(Base):
     direction: Mapped[str] = mapped_column(String(16), nullable=False)
     capacity_mwh_per_day: Mapped[float] = mapped_column(Float, nullable=False)
     firmness: Mapped[str] = mapped_column(String(32), nullable=False)
+    capacity_product: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    capacity_scope: Mapped[str | None] = mapped_column(String(32), nullable=True)
     valid_from_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     valid_to_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     source_reference: Mapped[str] = mapped_column(String(256), nullable=False)
@@ -79,6 +98,11 @@ class CapacityProfileRecord(Base):
 
 
 class RouteCandidateRecord(Base):
+    """One route candidate with legs and TSO access requirements.
+
+    对应表 ``route_candidates``；active 标记控制是否参与推荐。
+    """
+
     __tablename__ = "route_candidates"
 
     route_id: Mapped[str] = mapped_column(String(128), primary_key=True)
@@ -96,6 +120,11 @@ class RouteCandidateRecord(Base):
 
 
 class LiveMarketMarkRecord(Base):
+    """One live executable market mark (bid/ask/last).
+
+    对应表 ``live_market_marks``；盯市与日内机会扫描的可成交输入。
+    """
+
     __tablename__ = "live_market_marks"
 
     mark_id: Mapped[str] = mapped_column(String(128), primary_key=True)

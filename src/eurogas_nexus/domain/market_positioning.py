@@ -78,7 +78,19 @@ def summarize_portfolio(
     orders: list[ScreenOrderObservation],
     snapshots: list[PortfolioPnlSnapshot],
 ) -> PortfolioLiveSummary:
-    """Aggregate order and PnL observations into a cockpit summary."""
+    """Aggregate order and PnL observations into a cockpit summary.
+
+    汇总订单与 PnL 观测为驾驶舱展示摘要。
+
+    Args:
+        orders: Screen/broker order observations to count by status.
+        snapshots: PnL valuation snapshots to aggregate.
+
+    Returns:
+        A PortfolioLiveSummary with the latest valuation time, summed PnL
+        components, open/filled order counts (by status) and de-duplicated
+        warnings. Empty inputs yield a zeroed summary.
+    """
 
     latest = max((snapshot.valuation_time_utc for snapshot in snapshots), default=None)
     portfolio_id = snapshots[0].portfolio_id if snapshots else "unknown-portfolio"

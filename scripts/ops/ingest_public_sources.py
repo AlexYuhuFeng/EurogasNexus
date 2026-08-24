@@ -1,8 +1,13 @@
 """Explicit live ingestion for public/source-keyed V1 data sources.
 
 This script is operator-invoked only. It performs live HTTP reads, writes
-normalized rows to PostgreSQL, never prints secrets, and never commits raw
-provider payloads.
+normalized rows to PostgreSQL, never prints secrets, and archives the raw
+provider payload for lineage (raw -> canonical audit trail).
+
+Fail-closed gates (audit item 4): every live source passes the entitlement
+check, and export-restricted sources (ENTSOG, GIE) additionally require a
+certification record whose gate allows live; blocked sources are recorded as
+failed runs, never silently skipped.
 
 Ingestion is re-run safe (idempotent): observation rows upsert by natural
 primary key with first-seen ``observed_at_utc``, and reference snapshots
@@ -12,6 +17,7 @@ replace only the ENTSOG scope, only when the new payload is non-empty.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import subprocess
@@ -61,6 +67,12 @@ from eurogas_nexus.ingestion.public_sources import (
     gie_storage_observations_from_json,
 )
 
+# Sources that are export-restricted and therefore require certification
+# before live ingestion (ECB public reference rates are fully public).
+CERTIFICATION_REQUIRED_SOURCES = frozenset({"ENTSOG", "GIE", "GIE-AGSI", "GIE-ALSI"})
+# Raw payloads larger than this are not archived (warning only).
+MAX_ARCHIVE_BYTES = 2 * 1024 * 1024
+
 ECB_DAILY_URL = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml"
 ENTSOG_OPERATIONAL_URL = "https://transparency.entsog.eu/api/v1/operationaldatas"
 ENTSOG_CONNECTION_POINTS_URL = "https://transparency.entsog.eu/api/v1/connectionpoints"
@@ -78,6 +90,7 @@ ENTSOG_CAPACITY_INDICATORS = (
 
 
 def main() -> int:
+    """    Run public-source ingestion for registered, certified sources."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--source",
@@ -125,6 +138,30 @@ def main() -> int:
     try:
         engine = get_engine(database_url)
         session_factory = create_session_factory(engine)
+        with session_factory() as gate_session:
+            gate_families = (
+                ("ENTSOG", {"entsog", "entsog-capacity", "entsog-reference"}),
+                ("GIE", {"gie-agsi", "gie-alsi"}),
+            )
+            for family, names in gate_families:
+                if not selected & names:
+                    continue
+                blockers = _gate_blockers(gate_session, family)
+                if blockers:
+                    _record_run(
+                        gate_session,
+                        family,
+                        "failed",
+                        started,
+                        0,
+                        "gate:" + ",".join(blockers),
+                    )
+                    report["warnings"].append(
+                        f"{family} live ingestion blocked (fail-closed): "
+                        + ",".join(blockers)
+                    )
+                    selected -= names
+            gate_session.commit()
         gie_key = _resolve_gie_key(session_factory) if selected & {"gie-agsi", "gie-alsi"} else None
         if selected & {"gie-agsi", "gie-alsi"} and not gie_key:
             report["warnings"].append("GIE key missing; skipped GIE AGSI/ALSI ingestion.")
@@ -138,6 +175,15 @@ def main() -> int:
             with session_factory() as session:
                 if "ecb" in selected:
                     xml_text = _fetch_text(client, ECB_DAILY_URL)
+                    _archive_raw_payload(
+                        session,
+                        source_system="ECB",
+                        dataset="fx-reference-rates",
+                        source_reference="ecb-eurofxref-daily",
+                        payload_text=xml_text,
+                        record_count=0,
+                        received_at=started,
+                    )
                     rows = ecb_market_observations_from_xml(
                         xml_text,
                         currencies={"USD", "GBP", "CHF", "NOK", "DKK", "PLN"},
@@ -146,20 +192,24 @@ def main() -> int:
                         xml_text,
                         currencies={"USD", "GBP", "CHF", "NOK", "DKK", "PLN"},
                     )
-                    upsert_observation_rows(session, MarketObservationRecord, rows)
-                    upsert_observation_rows(session, FxObservationRecord, fx_rows)
-                    _record_run(
-                        session,
-                        "ECB",
-                        "succeeded",
-                        started,
-                        len(rows) + len(fx_rows),
-                        "ecb-eurofxref-daily",
-                    )
-                    report["sources"]["ECB"] = {
-                        "records": len(rows) + len(fx_rows),
-                        "dataset": "fx-reference-rates",
-                    }
+                    if not rows and not fx_rows:
+                        _record_run(session, "ECB", "failed", started, 0, "empty_response")
+                        report["warnings"].append("ECB returned no observations.")
+                    else:
+                        upsert_observation_rows(session, MarketObservationRecord, rows)
+                        upsert_observation_rows(session, FxObservationRecord, fx_rows)
+                        _record_run(
+                            session,
+                            "ECB",
+                            "succeeded",
+                            started,
+                            len(rows) + len(fx_rows),
+                            "ecb-eurofxref-daily",
+                        )
+                        report["sources"]["ECB"] = {
+                            "records": len(rows) + len(fx_rows),
+                            "dataset": "fx-reference-rates",
+                        }
 
                 if "entsog-reference" in selected:
                     connection_payload = _fetch_json(
@@ -171,6 +221,24 @@ def main() -> int:
                         client,
                         ENTSOG_OPERATOR_POINT_DIRECTIONS_URL,
                         params={"limit": str(max(args.limit, 1000)), "hasData": "1"},
+                    )
+                    _archive_raw_payload(
+                        session,
+                        source_system="ENTSOG",
+                        dataset="connectionpoints",
+                        source_reference="entsog-connectionpoints",
+                        payload_json=connection_payload,
+                        record_count=0,
+                        received_at=started,
+                    )
+                    _archive_raw_payload(
+                        session,
+                        source_system="ENTSOG",
+                        dataset="operatorpointdirections",
+                        source_reference="entsog-operatorpointdirections",
+                        payload_json=direction_payload,
+                        record_count=0,
+                        received_at=started,
                     )
                     node_rows = entsog_reference_nodes_from_connectionpoints(
                         connection_payload
@@ -216,13 +284,21 @@ def main() -> int:
                     }
 
                 if "entsog" in selected:
-                    rows = entsog_flow_observations_from_json(
-                        _fetch_json(
-                            client,
-                            ENTSOG_OPERATIONAL_URL,
-                            params={"limit": str(args.limit), "indicator": "Physical Flow"},
-                        )
+                    flow_payload = _fetch_json(
+                        client,
+                        ENTSOG_OPERATIONAL_URL,
+                        params={"limit": str(args.limit), "indicator": "Physical Flow"},
                     )
+                    _archive_raw_payload(
+                        session,
+                        source_system="ENTSOG",
+                        dataset="operationaldatas",
+                        source_reference="entsog-operationaldatas",
+                        payload_json=flow_payload,
+                        record_count=0,
+                        received_at=started,
+                    )
+                    rows = entsog_flow_observations_from_json(flow_payload)
                     if not rows:
                         raise RuntimeError("ENTSOG returned no physical-flow observations.")
                     upsert_observation_rows(session, FlowObservationRecord, rows)
@@ -263,50 +339,74 @@ def main() -> int:
                     }
 
                 if "gie-agsi" in selected:
-                    rows = gie_storage_observations_from_json(
-                        _fetch_json(
-                            client,
-                            GIE_AGSI_EU_URL,
-                            params={"limit": str(args.limit)},
-                            headers={"x-key": gie_key},
-                        )
+                    payload = _fetch_json(
+                        client,
+                        GIE_AGSI_EU_URL,
+                        params={"limit": str(args.limit)},
+                        headers={"x-key": gie_key},
                     )
-                    upsert_observation_rows(session, StorageObservationRecord, rows)
-                    _record_run(
+                    _archive_raw_payload(
                         session,
-                        "GIE-AGSI",
-                        "succeeded",
-                        started,
-                        len(rows),
-                        "gie-agsi-api",
+                        source_system="GIE",
+                        dataset="AGSI",
+                        source_reference="gie-agsi-api",
+                        payload_json=payload,
+                        record_count=0,
+                        received_at=started,
                     )
-                    report["sources"]["GIE-AGSI"] = {"records": len(rows), "dataset": "AGSI"}
+                    rows = gie_storage_observations_from_json(payload)
+                    if not rows:
+                        _record_run(session, "GIE-AGSI", "failed", started, 0, "empty_response")
+                        report["warnings"].append("GIE AGSI returned no observations.")
+                    else:
+                        upsert_observation_rows(session, StorageObservationRecord, rows)
+                        _record_run(
+                            session,
+                            "GIE-AGSI",
+                            "succeeded",
+                            started,
+                            len(rows),
+                            "gie-agsi-api",
+                        )
+                        report["sources"]["GIE-AGSI"] = {"records": len(rows), "dataset": "AGSI"}
 
                 if "gie-alsi" in selected:
-                    rows = gie_lng_observations_from_json(
-                        _fetch_json(
-                            client,
-                            GIE_ALSI_EU_URL,
-                            params={"limit": str(args.limit)},
-                            headers={"x-key": gie_key},
-                        )
+                    payload = _fetch_json(
+                        client,
+                        GIE_ALSI_EU_URL,
+                        params={"limit": str(args.limit)},
+                        headers={"x-key": gie_key},
                     )
-                    upsert_observation_rows(session, LngObservationRecord, rows)
-                    _record_run(
+                    _archive_raw_payload(
                         session,
-                        "GIE-ALSI",
-                        "succeeded",
-                        started,
-                        len(rows),
-                        "gie-alsi-api",
+                        source_system="GIE",
+                        dataset="ALSI",
+                        source_reference="gie-alsi-api",
+                        payload_json=payload,
+                        record_count=0,
+                        received_at=started,
                     )
-                    report["sources"]["GIE-ALSI"] = {"records": len(rows), "dataset": "ALSI"}
+                    rows = gie_lng_observations_from_json(payload)
+                    if not rows:
+                        _record_run(session, "GIE-ALSI", "failed", started, 0, "empty_response")
+                        report["warnings"].append("GIE ALSI returned no observations.")
+                    else:
+                        upsert_observation_rows(session, LngObservationRecord, rows)
+                        _record_run(
+                            session,
+                            "GIE-ALSI",
+                            "succeeded",
+                            started,
+                            len(rows),
+                            "gie-alsi-api",
+                        )
+                        report["sources"]["GIE-ALSI"] = {"records": len(rows), "dataset": "ALSI"}
 
                 session.commit()
 
         report["ok"] = True
         return _emit(report, as_json=args.json)
-    except (httpx.HTTPError, SQLAlchemyError, ValueError) as exc:
+    except (httpx.HTTPError, SQLAlchemyError, ValueError, RuntimeError) as exc:
         report["error"] = exc.__class__.__name__
         if session_factory is not None:
             failed_sources = set()
@@ -382,6 +482,93 @@ def _fetch_json(
     return payload
 
 
+def _gate_blockers(session, source_system: str) -> list[str]:
+    """Return fail-closed gate blockers for a live source (audit item 4).
+
+    Entitlement is checked for every source; export-restricted sources
+    (ENTSOG, GIE) additionally require a certification record whose gate
+    allows live ingestion. Any blocker means the source must not be fetched.
+    """
+
+    from eurogas_nexus.governance.entitlement import (
+        KNOWN_ENTITLED_SYSTEMS_V1,
+        entitlement_check,
+    )
+
+    blockers: list[str] = []
+    decision = entitlement_check(
+        source_system,
+        known_entitled_systems=KNOWN_ENTITLED_SYSTEMS_V1,
+    )
+    if not decision.granted:
+        blockers.append(f"entitlement:{decision.scope.value}")
+        return blockers
+
+    if source_system not in CERTIFICATION_REQUIRED_SOURCES:
+        return blockers
+
+    from eurogas_nexus.db.repositories.certification import latest_certification
+    from eurogas_nexus.domain.ingestion.certification import certification_gate
+
+    certification = latest_certification(session, source_system)
+    gate = certification_gate(
+        source_system,
+        stage=(certification or {}).get("stage", "unverified"),
+        checks=(certification or {}).get("checks"),
+    )
+    if not gate.allows_live:
+        blockers.append(f"certification:{gate.reason}")
+    return blockers
+
+
+def _archive_raw_payload(
+    session,
+    *,
+    source_system: str,
+    dataset: str,
+    source_reference: str,
+    payload_text: str | None = None,
+    payload_json: dict | None = None,
+    record_count: int = 0,
+    received_at: datetime,
+) -> None:
+    """Archive one raw provider payload for raw -> canonical lineage.
+
+    Oversized payloads are skipped with a printed warning (never truncated).
+    """
+
+    from eurogas_nexus.db.repositories.raw_archive import archive_raw_payload
+
+    if payload_text is not None:
+        serialized = payload_text.encode("utf-8")
+        digest = hashlib.sha256(serialized).hexdigest()
+        size = len(serialized)
+    elif payload_json is not None:
+        serialized = json.dumps(payload_json, ensure_ascii=False, sort_keys=True).encode("utf-8")
+        digest = hashlib.sha256(serialized).hexdigest()
+        size = len(serialized)
+    else:
+        return
+    if size > MAX_ARCHIVE_BYTES:
+        print(
+            f"raw payload archive skipped (>{MAX_ARCHIVE_BYTES} bytes): "
+            f"{source_system}/{dataset}"
+        )
+        return
+    archive_raw_payload(
+        session,
+        archive_id=f"raw-{uuid.uuid4().hex[:20]}",
+        source_system=source_system,
+        dataset=dataset,
+        source_reference=source_reference,
+        payload_text=payload_text,
+        payload_json=payload_json,
+        payload_sha256=digest,
+        record_count=record_count,
+        received_at_utc=received_at,
+    )
+
+
 def _get_with_retry(
     client: httpx.Client,
     url: str,
@@ -390,17 +577,49 @@ def _get_with_retry(
     headers: dict[str, str] | None = None,
     attempts: int = 3,
 ) -> httpx.Response:
+    """GET with backoff retry on transport errors AND 429/5xx responses.
+
+    ``Retry-After`` (seconds or HTTP-date) is honored when present; otherwise
+    the backoff is ``1.5 * (attempt + 1)`` seconds.
+    """
+
     last_error: httpx.HTTPError | None = None
     for attempt in range(attempts):
         try:
-            return client.get(url, params=params, headers=headers)
+            response = client.get(url, params=params, headers=headers)
         except httpx.HTTPError as exc:
             last_error = exc
             if attempt == attempts - 1:
                 break
             time.sleep(1.5 * (attempt + 1))
+            continue
+        if response.status_code not in {429, 500, 502, 503, 504}:
+            return response
+        if attempt == attempts - 1:
+            return response
+        time.sleep(_retry_delay_seconds(response, attempt))
     assert last_error is not None
     raise last_error
+
+
+def _retry_delay_seconds(response: httpx.Response, attempt: int) -> float:
+    """Return the retry delay honoring ``Retry-After`` when available."""
+
+    retry_after = response.headers.get("retry-after", "").strip()
+    if retry_after.isdigit():
+        return min(float(retry_after), 30.0)
+    if retry_after:
+        try:
+            from email.utils import parsedate_to_datetime
+
+            target = parsedate_to_datetime(retry_after)
+            if target is not None:
+                delay = (target - datetime.now(UTC)).total_seconds()
+                if delay > 0:
+                    return min(delay, 30.0)
+        except (TypeError, ValueError):
+            pass
+    return 1.5 * (attempt + 1)
 
 
 def _resolve_gie_key(session_factory) -> str | None:

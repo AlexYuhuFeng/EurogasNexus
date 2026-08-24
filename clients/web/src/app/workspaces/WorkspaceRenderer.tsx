@@ -147,6 +147,7 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
           allocations={portfolio.poolAllocations}
           saleOptionById={portfolio.saleOptionById}
           reviewWarnings={portfolio.reviewWarnings}
+          resourcePoolResult={api.resourcePoolResult}
           analysisQuestion={review.analysisQuestion}
           invokeDeepSeek={review.invokeDeepSeek}
           analysisResult={api.analysisResult}

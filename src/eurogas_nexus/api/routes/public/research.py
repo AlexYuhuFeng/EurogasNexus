@@ -1,8 +1,17 @@
-﻿"""Research computation API routes 鈥?POST endpoints for all research workflows."""
+"""Research computation API routes — POST endpoints for all research workflows.
 
-from fastapi import APIRouter, Request
+Research endpoints are explicit what-if sandboxes: client-supplied inputs are
+allowed, and responses carry ``decision_context: SANDBOX_SCENARIO``. Requests
+claiming RUNTIME_DECISION semantics are rejected (audit item 2).
+"""
+
+from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 
+from eurogas_nexus.api.dependencies.sandbox import (
+    SANDBOX_SCENARIO,
+    require_sandbox_scenario,
+)
 from eurogas_nexus.workflows.allocation import (
     AllocationCandidate,
     AllocationInput,
@@ -40,13 +49,30 @@ from eurogas_nexus.workflows.shadow_run import (
     evaluate_shadow_run,
 )
 
-router = APIRouter(prefix="/api/research", tags=["research"])
+router = APIRouter(
+    prefix="/api/research",
+    tags=["research"],
+    dependencies=[Depends(require_sandbox_scenario)],
+)
 
 
 # --- Request schemas ---------------------------------------------------------
 
+# 所有研究端点都是"假设沙箱"：请求体携带的完整假设仅用于推演，
+# 响应统一打 SANDBOX_SCENARIO 标记（见 require_sandbox_scenario 依赖）。
+
 
 class CostComponentRequest(BaseModel):
+    """One cost component of a route-cost research request.
+
+    Attributes:
+        component_type: Component kind (e.g. ``tariff``).
+        amount: Component amount.
+        unit: Unit (e.g. ``EUR/MWh``).
+        currency: ISO 4217 currency code.
+        description: Free description.
+    """
+
     component_type: str = "tariff"
     amount: float = 0.0
     unit: str = "EUR/MWh"
@@ -55,6 +81,16 @@ class CostComponentRequest(BaseModel):
 
 
 class RouteCostRequest(BaseModel):
+    """Route-cost research request.
+
+    Attributes:
+        route_name: Route display name.
+        from_node_id: Source node id.
+        to_node_id: Target node id.
+        components: Cost components.
+        route_km: Route length in km, or None.
+    """
+
     route_name: str = ""
     from_node_id: str = ""
     to_node_id: str = ""
@@ -63,6 +99,18 @@ class RouteCostRequest(BaseModel):
 
 
 class NetbackRequest(BaseModel):
+    """Netback research request.
+
+    Attributes:
+        route_name: Route display name.
+        from_market: Source market.
+        to_market: Target market.
+        market_price_eur_mwh: Destination market price.
+        route_cost_eur_mwh: Route cost.
+        fx_rate: FX multiplier applied to the result.
+        fx_pair: FX pair label.
+    """
+
     route_name: str = ""
     from_market: str = ""
     to_market: str = ""
@@ -73,6 +121,19 @@ class NetbackRequest(BaseModel):
 
 
 class FeasibilityRequest(BaseModel):
+    """Route-feasibility research request.
+
+    Attributes:
+        route_name: Route display name.
+        from_node_id: Source node id.
+        to_node_id: Target node id.
+        capacity_available_mcm_d: Available capacity, mcm/d.
+        required_capacity_mcm_d: Required capacity, mcm/d.
+        route_eligible: Whether the route is eligible.
+        contract_active: Whether the contract is active.
+        constraints: Extra constraint tags.
+    """
+
     route_name: str = ""
     from_node_id: str = ""
     to_node_id: str = ""
@@ -84,6 +145,19 @@ class FeasibilityRequest(BaseModel):
 
 
 class AllocationCandidateRequest(BaseModel):
+    """One allocation candidate in a research request.
+
+    Attributes:
+        candidate_id: Stable candidate id.
+        route_name: Route display name.
+        from_node_id: Source node id.
+        to_node_id: Target node id.
+        capacity_available_boe_d: Available capacity, boe/d.
+        cost_eur_mwh: Cost per MWh.
+        rank: Candidate rank.
+        eligible: Whether the candidate is eligible.
+    """
+
     candidate_id: str = ""
     route_name: str = ""
     from_node_id: str = ""
@@ -95,12 +169,30 @@ class AllocationCandidateRequest(BaseModel):
 
 
 class AllocationRequest(BaseModel):
+    """Allocation research request.
+
+    Attributes:
+        scenario_name: Scenario display name.
+        total_demand_boe_d: Total demand, boe/d.
+        candidates: Allocation candidates.
+    """
+
     scenario_name: str = ""
     total_demand_boe_d: float = 0.0
     candidates: list[AllocationCandidateRequest] = Field(default_factory=list)
 
 
 class MonitoringThresholdRequest(BaseModel):
+    """One monitoring threshold in a research request.
+
+    Attributes:
+        field: Observation field to test.
+        operator: Comparison operator (e.g. ``gt``).
+        value: Threshold value.
+        severity: Alert severity.
+        message_template: Alert message template.
+    """
+
     field: str = ""
     operator: str = "gt"
     value: float = 0.0
@@ -109,6 +201,15 @@ class MonitoringThresholdRequest(BaseModel):
 
 
 class MonitoringRequest(BaseModel):
+    """Monitoring research request.
+
+    Attributes:
+        entity_id: Monitored entity id.
+        entity_name: Monitored entity name.
+        observations: Field -> value observations.
+        thresholds: Threshold rules.
+    """
+
     entity_id: str = ""
     entity_name: str = ""
     observations: dict[str, float] = Field(default_factory=dict)
@@ -116,6 +217,19 @@ class MonitoringRequest(BaseModel):
 
 
 class NowcastRequest(BaseModel):
+    """Demand-nowcast research request.
+
+    Attributes:
+        market: Market label.
+        period_start_utc: Window start (ISO).
+        period_end_utc: Window end (ISO).
+        base_demand_boe_d: Base demand, boe/d.
+        hdd: Heating degree days.
+        cdd: Cooling degree days.
+        hdd_sensitivity_boe_per_deg: HDD sensitivity.
+        cdd_sensitivity_boe_per_deg: CDD sensitivity.
+    """
+
     market: str = ""
     period_start_utc: str = ""
     period_end_utc: str = ""
@@ -127,11 +241,27 @@ class NowcastRequest(BaseModel):
 
 
 class TradeRecordRequest(BaseModel):
+    """One backtest trade record.
+
+    Attributes:
+        pnl_eur: Trade PnL in EUR.
+        date: Trade date (ISO).
+    """
+
     pnl_eur: float = 0.0
     date: str = ""
 
 
 class BacktestRequest(BaseModel):
+    """Backtest research request.
+
+    Attributes:
+        strategy_name: Strategy display name.
+        start_utc: Backtest start (ISO).
+        end_utc: Backtest end (ISO).
+        trades: Trade records.
+    """
+
     strategy_name: str = ""
     start_utc: str = ""
     end_utc: str = ""
@@ -139,6 +269,16 @@ class BacktestRequest(BaseModel):
 
 
 class ShadowSignalRequest(BaseModel):
+    """One shadow-run signal in a research request.
+
+    Attributes:
+        signal_id: Stable signal id.
+        route_name: Route display name.
+        action: Action tag (research-only).
+        score: Signal score.
+        note: Free note.
+    """
+
     signal_id: str = ""
     route_name: str = ""
     action: str = "research_candidate"
@@ -147,6 +287,15 @@ class ShadowSignalRequest(BaseModel):
 
 
 class ShadowRunRequest(BaseModel):
+    """Shadow-run research request.
+
+    Attributes:
+        strategy_name: Strategy display name.
+        started_at_utc: Run start (ISO).
+        signals: Shadow signals.
+        paper_pnl_eur: Paper PnL in EUR.
+    """
+
     strategy_name: str = ""
     started_at_utc: str = ""
     signals: list[ShadowSignalRequest] = Field(default_factory=list)
@@ -438,4 +587,11 @@ def _envelope(result) -> dict:
             for s in result.signals
         ]
 
-    return {"data": data, "meta": {"research_only": True, "human_review_required": True}}
+    return {
+        "data": data,
+        "meta": {
+            "research_only": True,
+            "human_review_required": True,
+            "decision_context": SANDBOX_SCENARIO,
+        },
+    }

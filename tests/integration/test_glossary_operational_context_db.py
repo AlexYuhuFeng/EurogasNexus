@@ -1,4 +1,4 @@
-﻿"""DB-backed operational glossary context tests."""
+"""DB-backed operational glossary context tests."""
 
 from datetime import UTC, datetime
 

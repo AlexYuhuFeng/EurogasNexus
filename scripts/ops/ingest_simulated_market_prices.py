@@ -18,6 +18,7 @@ from eurogas_nexus.ingestion.simulated_market_prices import (
 
 
 def main(argv: list[str] | None = None) -> int:
+    """    Ingest simulated market price rows into the runtime DB."""
     args = _parse_args(argv)
     database_url = resolve_database_url()
     if not database_url:

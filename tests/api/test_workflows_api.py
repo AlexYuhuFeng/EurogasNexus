@@ -26,42 +26,18 @@ WORKFLOW_PATHS = [
 
 
 @pytest.mark.parametrize("path", WORKFLOW_PATHS)
-def test_workflow_route_returns_200(client: TestClient, path: str) -> None:
+def test_legacy_workflow_shell_was_physically_removed(client: TestClient, path: str) -> None:
+    """S4.3 post-migration contract: no /api/workflows/* path remains."""
+
     r = client.get(path)
-    assert r.status_code == 200, f"{path} returned {r.status_code}"
+    assert r.status_code == 404, f"{path} should be removed, got {r.status_code}"
 
 
-@pytest.mark.parametrize("path", WORKFLOW_PATHS)
-def test_workflow_route_research_metadata(client: TestClient, path: str) -> None:
-    r = client.get(path)
-    meta = r.json()["meta"]
-    assert meta["research_only"] is True, f"{path} missing research_only"
-    assert meta["human_review_required"] is True, f"{path} missing human_review_required"
-    assert meta["source_references"] == ["runtime-db-not-configured"]
-    assert "RUNTIME_DB_NOT_CONFIGURED" in meta["warnings"]
-
-
-@pytest.mark.parametrize("path", WORKFLOW_PATHS)
-def test_workflow_route_has_no_static_fixture_payload(client: TestClient, path: str) -> None:
-    r = client.get(path)
-    data = r.json()["data"]
-    assert data["status"] == "BLOCKED"
-    assert data["code"] == "RUNTIME_DATA_REQUIRED"
-
-
-@pytest.mark.parametrize("path", WORKFLOW_PATHS)
-def test_workflow_route_is_marked_deprecated(client: TestClient, path: str) -> None:
-    r = client.get(path)
-    assert r.json()["data"]["deprecated"] is True, f"{path} missing deprecated flag"
-    assert "DEPRECATED_WORKFLOW_SHELL" in r.json()["meta"]["warnings"]
-
-
-@pytest.mark.parametrize("path", WORKFLOW_PATHS)
-def test_workflow_routes_are_deprecated_in_openapi(path: str) -> None:
+def test_legacy_workflow_paths_are_absent_from_openapi() -> None:
     from apps.api.main import app
 
-    operation = app.openapi()["paths"][path]["get"]
-    assert operation["deprecated"] is True, f"{path} not deprecated in OpenAPI"
+    paths = app.openapi()["paths"]
+    assert not any(path.startswith("/api/workflows/") for path in paths)
 
 
 def test_glossary_list_en(client: TestClient) -> None:

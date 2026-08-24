@@ -86,7 +86,12 @@ class ReferenceFacility(Base):
 
 
 class ReferenceMarketHub(Base):
-    """A market trading hub abstraction (TTF, NBP, PEG, etc.)."""
+    """A market trading hub abstraction (TTF, NBP, PEG, etc.).
+
+    Effective-dated DB reference master (Gate 2): validity window, market-area
+    binding, and supersession (THE replacing NCG/GASPOOL) live here rather than
+    in code enums.
+    """
 
     __tablename__ = "reference_market_hubs"
 
@@ -94,6 +99,14 @@ class ReferenceMarketHub(Base):
     name: Mapped[str] = mapped_column(String(128), nullable=False)
     hub_code: Mapped[str] = mapped_column(String(16), nullable=False, unique=True)
     country: Mapped[str] = mapped_column(String(2), nullable=False)
+    market_area: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    valid_from_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    valid_to_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    superseded_by_hub_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     source_system: Mapped[str | None] = mapped_column(String(64), nullable=True)
     source_dataset: Mapped[str | None] = mapped_column(String(128), nullable=True)

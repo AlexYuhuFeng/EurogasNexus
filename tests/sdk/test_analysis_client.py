@@ -1,4 +1,4 @@
-﻿"""SDK analysis client tests."""
+"""SDK analysis client tests."""
 
 import httpx
 

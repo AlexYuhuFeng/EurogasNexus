@@ -1,4 +1,4 @@
-﻿"""Integration tests for DB-backed context observation API reads."""
+"""Integration tests for DB-backed context observation API reads."""
 
 from datetime import UTC, datetime
 

@@ -1,4 +1,9 @@
-"""Observation domain SQLAlchemy models."""
+"""Observation domain SQLAlchemy models.
+
+观测域模型：市场/汇率/流量/容量/储气/LNG 观测与审计、授权、凭据记录。
+所有观测行都携带 source_reference 溯源、freshness 与 research_only
+标记（fail-closed 数据纪律的落库形态）。
+"""
 
 from datetime import UTC, datetime
 
@@ -9,6 +14,12 @@ from eurogas_nexus.db.base import Base
 
 
 class MarketObservationRecord(Base):
+    """A market price observation (assessment/index/settlement row).
+
+    对应表 ``market_observations``；metadata_json 承载 hub/tenor 等
+    规范化辅助字段。
+    """
+
     __tablename__ = "market_observations"
 
     observation_id: Mapped[str] = mapped_column(String(64), primary_key=True)
@@ -32,6 +43,11 @@ class MarketObservationRecord(Base):
 
 
 class FxObservationRecord(Base):
+    """An FX reference observation (e.g. ECB eurofxref row).
+
+    对应表 ``fx_observations``；用于跨币种换算的 as-of 汇率。
+    """
+
     __tablename__ = "fx_observations"
 
     observation_id: Mapped[str] = mapped_column(String(64), primary_key=True)
@@ -51,12 +67,21 @@ class FxObservationRecord(Base):
 
 
 class FlowObservationRecord(Base):
+    """A physical flow observation at a network point.
+
+    对应表 ``flow_observations``；``kind`` 标记性质
+    （actual/nomination/allocation/forecast，Gate 2 语义）。
+    """
+
     __tablename__ = "flow_observations"
 
     observation_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     point_id: Mapped[str] = mapped_column(String(64), nullable=False)
     point_name: Mapped[str] = mapped_column(String(128), nullable=False)
     direction: Mapped[str] = mapped_column(String(8), nullable=False)
+    kind: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="actual"
+    )  # "actual" | "nomination" | "allocation" | "forecast"
     flow_mcm_d: Mapped[float] = mapped_column(Float, nullable=False)
     original_value: Mapped[float | None] = mapped_column(Float, nullable=True)
     original_unit: Mapped[str | None] = mapped_column(String(32), nullable=True)
@@ -74,6 +99,11 @@ class FlowObservationRecord(Base):
 
 
 class CapacityObservationRecord(Base):
+    """A capacity observation at a network point (ENTSOG style).
+
+    对应表 ``capacity_observations``；capacity_type 区分容量种类。
+    """
+
     __tablename__ = "capacity_observations"
 
     observation_id: Mapped[str] = mapped_column(String(96), primary_key=True)
@@ -98,6 +128,11 @@ class CapacityObservationRecord(Base):
 
 
 class StorageObservationRecord(Base):
+    """A storage facility observation (GIE AGSI style).
+
+    对应表 ``storage_observations``；库存/工作气量/注采率按设施日粒度。
+    """
+
     __tablename__ = "storage_observations"
 
     observation_id: Mapped[str] = mapped_column(String(64), primary_key=True)
@@ -124,6 +159,11 @@ class StorageObservationRecord(Base):
 
 
 class LngObservationRecord(Base):
+    """An LNG terminal observation (GIE ALSI style).
+
+    对应表 ``lng_observations``；库存/外输/DTMI 按终端日粒度。
+    """
+
     __tablename__ = "lng_observations"
 
     observation_id: Mapped[str] = mapped_column(String(64), primary_key=True)
@@ -148,6 +188,11 @@ class LngObservationRecord(Base):
 
 
 class AuditEventRecord(Base):
+    """One audit event row (who did what, when, with what outcome).
+
+    对应表 ``audit_events``；全链路审计的持久化载体。
+    """
+
     __tablename__ = "audit_events"
 
     event_id: Mapped[str] = mapped_column(String(64), primary_key=True)
@@ -166,6 +211,11 @@ class AuditEventRecord(Base):
 
 
 class EntitlementDecisionRecord(Base):
+    """One persisted entitlement decision (fail-closed audit trail).
+
+    对应表 ``entitlement_decisions``；每次授权裁决留痕。
+    """
+
     __tablename__ = "entitlement_decisions"
 
     decision_id: Mapped[str] = mapped_column(String(64), primary_key=True)
@@ -181,6 +231,12 @@ class EntitlementDecisionRecord(Base):
 
 
 class ProviderCredentialRecord(Base):
+    """One stored provider credential (encrypted at rest).
+
+    对应表 ``provider_credentials``；仅存加密载荷与脱敏预览，
+    明文密钥永不落库。
+    """
+
     __tablename__ = "provider_credentials"
 
     provider_id: Mapped[str] = mapped_column(String(64), primary_key=True)

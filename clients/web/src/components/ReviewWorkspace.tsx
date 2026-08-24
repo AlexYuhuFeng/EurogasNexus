@@ -13,6 +13,7 @@ interface ReviewWorkspaceProps {
   allocations: PortfolioOptimizationResultDTO["allocations"];
   saleOptionById: Map<string, PortfolioSaleOptionDTO>;
   reviewWarnings: string[];
+  resourcePoolResult: PortfolioOptimizationResultDTO | null;
   analysisQuestion: string;
   invokeDeepSeek: boolean;
   analysisResult: AnalysisResultDTO | null;
@@ -55,6 +56,7 @@ export function ReviewWorkspace({
   allocations,
   saleOptionById,
   reviewWarnings,
+  resourcePoolResult,
   analysisQuestion,
   invokeDeepSeek,
   analysisResult,
@@ -106,8 +108,8 @@ export function ReviewWorkspace({
               <div key={`review-pool-${allocation.resource_id}-${allocation.option_id}`} className="data-table-row four">
                 <strong>{option?.label ?? allocation.option_id}</strong>
                 <span>{allocation.allocated_quantity_mwh_per_day.toLocaleString()} MWh/d</span>
-                <span>{allocation.total_cost_gbp_mwh.toFixed(2)} EUR/MWh</span>
-                <span>EUR {Math.round(allocation.net_pnl_gbp_per_day).toLocaleString()}</span>
+                <span>{allocation.total_cost_gbp_mwh.toFixed(2)} GBP/MWh</span>
+                <span>GBP {Math.round(allocation.net_pnl_gbp_per_day).toLocaleString()}</span>
               </div>
             );
           })}
@@ -123,6 +125,47 @@ export function ReviewWorkspace({
             ? reviewWarnings.slice(0, 6).map((warning) => <span key={`review-warning-${warning}`}>{warning}</span>)
             : <span>{t("review.no_warnings")}</span>}
         </div>
+      </div>
+      <div className="workspace-panel span-2 review-evidence-panel">
+        <div className="section-heading">
+          <span className="eyebrow">{t("nav.review")}</span>
+          <strong>{t("review.evidence_pack")}</strong>
+        </div>
+        <p className="panel-copy">{t("review.evidence_help")}</p>
+        {resourcePoolResult ? (
+          <div className="review-evidence-grid">
+            <div><span>{t("review.status")}</span><strong>{resourcePoolResult.status}</strong></div>
+            <div><span>{t("review.algorithm")}</span><strong>{resourcePoolResult.algorithm}</strong></div>
+            <div><span>{t("review.optimality")}</span><strong>{resourcePoolResult.optimality}</strong></div>
+            <div><span>{t("review.allocated_volume")}</span><strong>{resourcePoolResult.total_allocated_mwh_per_day.toLocaleString()} MWh/d</strong></div>
+            <div className="review-evidence-full">
+              <span>{t("review.missing_inputs")}</span>
+              <div className="review-evidence-list">
+                {resourcePoolResult.missing_inputs.length > 0
+                  ? resourcePoolResult.missing_inputs.map((item) => <span key={`missing-${item}`}>{item}</span>)
+                  : <span>{t("review.none")}</span>}
+              </div>
+            </div>
+            <div className="review-evidence-full">
+              <span>{t("review.assumptions")}</span>
+              <div className="review-evidence-list">
+                {resourcePoolResult.assumptions.length > 0
+                  ? resourcePoolResult.assumptions.map((item) => <span key={`assumption-${item}`}>{item}</span>)
+                  : <span>{t("review.none")}</span>}
+              </div>
+            </div>
+            <div className="review-evidence-full">
+              <span>{t("review.source_refs")}</span>
+              <div className="review-evidence-list">
+                {resourcePoolResult.source_refs.length > 0
+                  ? resourcePoolResult.source_refs.slice(0, 8).map((ref) => <span key={`ref-${ref}`}>{ref}</span>)
+                  : <span>{t("review.none")}</span>}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <p className="panel-copy">{t("review.no_pool_result")}</p>
+        )}
       </div>
       <div className="workspace-panel span-2">
         <div className="section-heading">

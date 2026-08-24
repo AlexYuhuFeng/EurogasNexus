@@ -8,7 +8,7 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision = "0016_drop_business_ontology_terms"
+revision = "0016_drop_business_ontology"
 down_revision = "0015_llm_monitoring_alerts"
 branch_labels = None
 depends_on = None

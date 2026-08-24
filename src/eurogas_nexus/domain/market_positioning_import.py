@@ -1,4 +1,9 @@
-"""Governed import contracts for market-positioning observations."""
+"""Governed import contracts for market-positioning observations.
+
+市场定位观测（屏幕订单/PnL 快照）的内部导入契约：批量导入前先做
+entitlement、数量守恒与时间戳校验，任何一项不合法都拒绝写入
+（fail-closed），并记录审计事件。
+"""
 
 from __future__ import annotations
 
@@ -16,7 +21,16 @@ PORTFOLIO_PNL_DATASET = "portfolio-pnl"
 
 
 class MarketPositioningImportBatch(BaseModel):
-    """Operator-supplied import batch for read-only observation records."""
+    """Operator-supplied import batch for read-only observation records.
+
+    Attributes:
+        batch_id: Operator-supplied batch id (1-128 chars).
+        source_reference: Provenance reference (1-256 chars).
+        screen_orders: Screen order observations to import.
+        pnl_snapshots: PnL snapshot observations to import.
+        research_only: Must be True (read-only observations).
+        human_review_required: Must be True.
+    """
 
     batch_id: str = Field(min_length=1, max_length=128)
     source_reference: str = Field(min_length=1, max_length=256)
@@ -27,7 +41,19 @@ class MarketPositioningImportBatch(BaseModel):
 
 
 class MarketPositioningImportResult(BaseModel):
-    """Result of an internal market-positioning observation import."""
+    """Result of an internal market-positioning observation import.
+
+    Attributes:
+        batch_id: Echoed batch id.
+        status: Import status tag.
+        screen_orders_imported: Imported order count.
+        pnl_snapshots_imported: Imported snapshot count.
+        ingestion_run_id: Owning ingestion run id.
+        audit_event_id: Written audit event id.
+        errors: Validation errors (empty on success).
+        warnings: Non-blocking warnings.
+        research_only / human_review_required: Always True.
+    """
 
     batch_id: str
     status: str
@@ -46,7 +72,19 @@ def validate_market_positioning_import_batch(
     *,
     entitled_pairs: set[tuple[str, str]],
 ) -> list[str]:
-    """Return validation errors for a market-positioning import batch."""
+    """Return validation errors for a market-positioning import batch.
+
+    批量导入前置校验：信封标记、非空、重复 id、逐条观测校验与
+    entitlement 检查；错误按稳定编码返回，去重保序。
+
+    Args:
+        batch: The import batch to validate.
+        entitled_pairs: Known-entitled ``(source_system, dataset)`` pairs
+            (``"*"`` matches any dataset).
+
+    Returns:
+        Deduplicated validation error codes; empty when the batch is valid.
+    """
 
     errors: list[str] = []
     if not batch.research_only:
@@ -80,7 +118,19 @@ def validate_market_positioning_import_batch(
 
 
 def parse_utc(value: str) -> datetime:
-    """Parse an ISO timestamp and normalize it to timezone-aware UTC."""
+    """Parse an ISO timestamp and normalize it to timezone-aware UTC.
+
+    解析并规范化 ISO 时间戳（含 ``Z`` 后缀；naive 按 UTC 解释）。
+
+    Args:
+        value: ISO timestamp string.
+
+    Returns:
+        Aware UTC datetime.
+
+    Raises:
+        ValueError: When the value is not a valid ISO timestamp.
+    """
 
     parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     if parsed.tzinfo is None:
@@ -89,6 +139,12 @@ def parse_utc(value: str) -> datetime:
 
 
 def _validate_screen_order(order: ScreenOrderObservation) -> list[str]:
+    """Validate one screen order: flags, quantities, timestamps.
+
+    单条屏幕订单校验：research/review 标记、数量非负、已成交≤总量、
+    剩余≤总量、数量守恒（filled+remaining=quantity，容差 0.001）与时间戳。
+    """
+
     errors: list[str] = []
     if not order.research_only:
         errors.append(f"SCREEN_ORDER_RESEARCH_ONLY_MUST_BE_TRUE:{order.order_observation_id}")
@@ -113,6 +169,11 @@ def _validate_screen_order(order: ScreenOrderObservation) -> list[str]:
 
 
 def _validate_pnl_snapshot(snapshot: PortfolioPnlSnapshot) -> list[str]:
+    """Validate one PnL snapshot: flags, quantity, timestamps.
+
+    单条 PnL 快照校验：research/review 标记、数量非负与时间戳合法性。
+    """
+
     errors: list[str] = []
     if not snapshot.research_only:
         errors.append(f"PNL_SNAPSHOT_RESEARCH_ONLY_MUST_BE_TRUE:{snapshot.pnl_snapshot_id}")
@@ -133,6 +194,8 @@ def _validate_pnl_snapshot(snapshot: PortfolioPnlSnapshot) -> list[str]:
 
 
 def _timestamp_errors(record_id: str, prefix: str, values: list[str]) -> list[str]:
+    """Timestamp parse errors for the given fields (stable codes)."""
+
     errors: list[str] = []
     for value in values:
         try:
@@ -147,6 +210,11 @@ def _is_entitled(
     source_dataset: str,
     entitled_pairs: set[tuple[str, str]],
 ) -> bool:
+    """Whether the (system, dataset) pair is entitled (dataset ``*`` wildcard).
+
+    entitlement 判定：精确配对或数据集通配符 ``*`` 均视为已授权。
+    """
+
     return (
         (source_system, source_dataset) in entitled_pairs
         or (source_system, "*") in entitled_pairs

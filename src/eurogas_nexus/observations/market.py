@@ -6,6 +6,11 @@ from enum import StrEnum
 
 
 class ObservationFreshness(StrEnum):
+    """Three-state freshness of an observation.
+
+    UNKNOWN 不得当作新鲜（fail-closed 语义，与 domain.monitoring 一致）。
+    """
+
     FRESH = "fresh"
     STALE = "stale"
     UNKNOWN = "unknown"

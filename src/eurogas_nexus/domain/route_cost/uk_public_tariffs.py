@@ -301,7 +301,15 @@ EXIT_TARIFF_ROWS = (
 
 
 def published_uk_capacity_tariffs() -> list[CapacityTariff]:
-    """Return audited public UK National Gas NTS tariff rows."""
+    """Return audited public UK National Gas NTS tariff rows.
+
+    返回已审计的英国 National Gas NTS 公开费率行：把入口/出口费率表
+    展开为按气体年的 CapacityTariff 记录（2025/26 为 FINAL，其余为
+    INDICATIVE，供种子脚本写入 PostgreSQL 做本地路由成本校验）。
+
+    Returns:
+        List of CapacityTariff rows (entry + exit, all gas years).
+    """
 
     tariffs: list[CapacityTariff] = []
     for point_name, point_type, values, page in ENTRY_TARIFF_ROWS:
@@ -346,6 +354,12 @@ def _tariff(
     source_table: str,
     page: int,
 ) -> CapacityTariff:
+    """Build one CapacityTariff row with provenance and review flags.
+
+    组装单条费率记录：固定 firm-daily 产品、GBP/p/kWh/day 单位、
+    10 月 1 日生效；非 FINAL 状态强制 manual_review_required。
+    """
+
     return CapacityTariff(
         tariff_id=(
             f"{point_id}-{direction.lower()}-{gas_year.replace('/', '-')}-"
@@ -380,6 +394,11 @@ def _tariff(
 
 
 def _point_id(point_name: str, point_type: str) -> str:
+    """Slugify (point name + type) into a stable UK NTS point id.
+
+    生成稳定点位 id：小写化并用连字符替换非字母数字字符，前缀 uk-ng-nts-。
+    """
+
     raw = f"{point_name} {point_type}".lower()
     slug = re.sub(r"[^a-z0-9]+", "-", raw).strip("-")
     return f"uk-ng-nts-{slug}"

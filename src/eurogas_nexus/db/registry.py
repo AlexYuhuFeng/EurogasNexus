@@ -75,6 +75,34 @@ REQUIRED_TABLES: tuple[RequiredTable, ...] = (
         introduced_in="0018_provider_certifications",
     ),
     RequiredTable(
+        name="optimization_runs",
+        introduced_in="0019_ontology_slots_optimization",
+    ),
+    RequiredTable(
+        name="raw_payload_archives",
+        introduced_in="0021_raw_payload_archives",
+    ),
+    RequiredTable(
+        name="identity_principals",
+        introduced_in="0022_identity_api_keys",
+    ),
+    RequiredTable(
+        name="identity_api_keys",
+        introduced_in="0022_identity_api_keys",
+    ),
+    RequiredTable(
+        name="storage_facility_masters",
+        introduced_in="0023_storage_nomination_masters",
+    ),
+    RequiredTable(
+        name="storage_inventory_observations",
+        introduced_in="0023_storage_nomination_masters",
+    ),
+    RequiredTable(
+        name="nomination_window_masters",
+        introduced_in="0023_storage_nomination_masters",
+    ),
+    RequiredTable(
         name="screen_order_observations",
         introduced_in="0009_market_positioning",
     ),

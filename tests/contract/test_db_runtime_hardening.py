@@ -29,6 +29,11 @@ def test_required_table_names_returns_ordered_list() -> None:
     names = required_table_names()
     assert "alembic_version" in names
     assert "ingestion_runs" in names
+    assert "identity_principals" in names
+    assert "identity_api_keys" in names
+    assert "storage_facility_masters" in names
+    assert "storage_inventory_observations" in names
+    assert "nomination_window_masters" in names
 
 
 # --- health contract ---------------------------------------------------------

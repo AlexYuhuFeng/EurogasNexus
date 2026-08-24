@@ -125,7 +125,14 @@ class RuntimeStoreRepository(ABC):
     """
 
     @abstractmethod
-    def list_all(self) -> ResultEnvelope[list[Any]]: ...
+    def list_all(self) -> ResultEnvelope[list[Any]]:
+        """List all records wrapped in a ResultEnvelope.
+
+        Returns:
+            A research-safe envelope; never a bare list.
+        """
+
+        ...
 
 
 # ---------------------------------------------------------------------------
@@ -145,7 +152,18 @@ class HeartbeatRecord:
 class RuntimeStore(Protocol):
     """Optional runtime-store abstraction for ephemeral state."""
 
-    def get_heartbeat(self, service_name: str, instance_id: str) -> HeartbeatRecord | None: ...
+    def get_heartbeat(self, service_name: str, instance_id: str) -> HeartbeatRecord | None:
+        """Fetch the latest heartbeat for a service instance.
+
+        Args:
+            service_name: Service name.
+            instance_id: Instance id.
+
+        Returns:
+            The heartbeat record, or None when absent.
+        """
+
+        ...
 
 
 # ---------------------------------------------------------------------------

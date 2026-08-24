@@ -37,7 +37,21 @@ class PrincipalValidationError(ValueError):
 
 
 def normalize_principal(value: str | None) -> str:
-    """Validate and return the canonical (trimmed) actor principal."""
+    """Validate and return the canonical (trimmed) actor principal.
+
+    校验并规范化操作者主体标识（review 决策、审计事件、内部写入共用）。
+
+    Args:
+        value: Raw principal value; None and whitespace-only are rejected.
+
+    Returns:
+        The trimmed canonical principal.
+
+    Raises:
+        PrincipalValidationError: When the value is empty, too long, or
+            contains characters outside ``[A-Za-z0-9._@-]`` (with a
+            letter/digit first character).
+    """
 
     candidate = (value or "").strip()
     if not candidate:
@@ -45,6 +59,7 @@ def normalize_principal(value: str | None) -> str:
     if len(candidate) > MAX_LENGTH:
         raise PrincipalValidationError(f"principal longer than {MAX_LENGTH} characters")
     if not PRINCIPAL_PATTERN.fullmatch(candidate):
+        # 规则与模块 docstring 同步：首字符字母/数字，仅允许白名单符号。
         raise PrincipalValidationError(
             "principal must start with a letter/digit and contain only "
             "letters, digits, '.', '_', '@', '-'"

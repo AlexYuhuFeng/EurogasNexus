@@ -13,6 +13,19 @@ Eurogas Nexus 按设备角色交付，且只有以下三种模式：
 不存在隐含的第四种模式。客户端永远不会得到 PostgreSQL 地址、数据库
 密码、供应商密钥或数据库迁移权限。
 
+## 显式部署姿态开关
+
+后端读取 `EUROGAS_NEXUS_DEPLOYMENT_POSTURE`：
+
+- `private_network_preview`（默认）：当前姿态；Server/AllInOne 仍必须位于
+  客户防火墙或 VPN 白名单之后。
+- `security_accepted`：仅当
+  `EUROGAS_NEXUS_SECURITY_ACCEPTANCE_EVIDENCE` 指向存在的、经运营方评审的
+  验收证据文件时才有效。
+
+`public_network_deployment_allowed()` 在两项条件同时成立前始终返回 false。
+在真实部署完成外部安全验收前，本仓库的 Windows 部署预检保持不变。
+
 ## Release 产物选择
 
 独立的 Windows NSIS 安装包**仅包含 Client**。安装后只会以整机模式创建桌面

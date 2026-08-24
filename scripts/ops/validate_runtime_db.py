@@ -81,6 +81,7 @@ def _build_report() -> tuple[dict[str, Any], int]:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """    Validate the runtime DB against the required table registry."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--json", action="store_true", help="Emit machine-readable JSON.")
     args = parser.parse_args(argv)

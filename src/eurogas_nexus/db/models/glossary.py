@@ -9,11 +9,18 @@ from eurogas_nexus.db.base import Base
 
 
 class GlossaryTermRecord(Base):
+    """One glossary term row (runtime truth for the glossary surface).
+
+    对应表 ``glossary_terms``；``concept_id`` 锚定本体概念（Gate 2），
+    active 控制展示可见性。
+    """
+
     __tablename__ = "glossary_terms"
 
     term_id: Mapped[str] = mapped_column(String(128), primary_key=True)
     term: Mapped[str] = mapped_column(String(128), nullable=False, unique=True)
     category: Mapped[str] = mapped_column(String(64), nullable=False)
+    concept_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     definition_en: Mapped[str] = mapped_column(Text(), nullable=False)
     definition_zh_cn: Mapped[str] = mapped_column(Text(), nullable=False)
     aliases: Mapped[list[str]] = mapped_column(JSON, nullable=False)

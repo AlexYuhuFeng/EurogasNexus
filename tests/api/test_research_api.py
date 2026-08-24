@@ -1,4 +1,4 @@
-﻿"""Research API endpoint tests (DB-free)."""
+"""Research API endpoint tests (DB-free)."""
 
 import pytest
 from fastapi.testclient import TestClient

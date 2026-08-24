@@ -54,12 +54,13 @@ def test_route_optimization_endpoint() -> None:
     assert payload["data"]["status"] == "optimal"
     assert payload["data"]["edge_ids"] == ["ab", "bc"]
     assert payload["data"]["human_review_required"] is True
-    assert payload["meta"] == {
-        "research_only": True,
-        "human_review_required": True,
-        "source_references": ["operator-input"],
-        "warnings": [],
-    }
+    assert payload["meta"]["research_only"] is True
+    assert payload["meta"]["human_review_required"] is True
+    assert payload["meta"]["source_references"] == ["operator-input"]
+    assert payload["meta"]["warnings"] == []
+    # No runtime DB in this test: no run was persisted.
+    assert payload["meta"]["run_id"] is None
+    assert payload["meta"]["decision_context"] == "SANDBOX_SCENARIO"
 
 
 def test_resource_pool_optimization_endpoint() -> None:

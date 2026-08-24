@@ -1,4 +1,4 @@
-﻿"""Governed LLM-ready analysis API tests."""
+"""Governed LLM-ready analysis API tests."""
 
 from fastapi.testclient import TestClient
 

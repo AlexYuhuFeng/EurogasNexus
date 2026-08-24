@@ -126,6 +126,21 @@ def list_monitoring_alerts(
     severity: str | None = None,
     limit: int = 100,
 ) -> list[dict]:
+    """List monitoring alerts with optional filters, newest first.
+
+    列出监控告警（可按状态/分类/级别过滤，按更新时间倒序）。
+
+    Args:
+        session: DB session.
+        status: Status filter, or None.
+        category: Category filter, or None.
+        severity: Severity filter, or None.
+        limit: Max rows.
+
+    Returns:
+        List of alert payload dicts.
+    """
+
     query = session.query(MonitoringAlertRecord)
     if status:
         query = query.filter(MonitoringAlertRecord.status == status)
@@ -141,6 +156,8 @@ def list_monitoring_alerts(
 
 
 def get_monitoring_alert(session: Session, alert_id: str) -> MonitoringAlertRecord | None:
+    """Fetch one alert by id (None when absent)."""
+
     return session.get(MonitoringAlertRecord, alert_id)
 
 
@@ -150,6 +167,19 @@ def acknowledge_monitoring_alert(
     *,
     now_utc: datetime,
 ) -> MonitoringAlertRecord | None:
+    """Acknowledge an open alert (no-op for non-open alerts).
+
+    确认一条 open 状态的告警；非 open 状态保持不变。
+
+    Args:
+        session: DB session.
+        alert_id: Alert id.
+        now_utc: Acknowledge time.
+
+    Returns:
+        The updated record, or None when the alert does not exist.
+    """
+
     row = session.get(MonitoringAlertRecord, alert_id)
     if row is None:
         return None
@@ -162,6 +192,17 @@ def acknowledge_monitoring_alert(
 
 
 def monitoring_summary(session: Session) -> dict:
+    """Aggregate alert counts by status/severity/LLM state.
+
+    汇总告警统计：按状态/级别/LLM 待处理/模拟数据计数。
+
+    Args:
+        session: DB session.
+
+    Returns:
+        Dict of aggregate counters.
+    """
+
     rows = session.query(MonitoringAlertRecord).all()
     open_rows = [row for row in rows if row.status == "open"]
     return {
@@ -179,6 +220,15 @@ def monitoring_summary(session: Session) -> dict:
 
 
 def monitoring_alert_payload(row: MonitoringAlertRecord) -> dict:
+    """Serialize an alert row to its API payload (datetimes -> ISO).
+
+    Args:
+        row: The alert record.
+
+    Returns:
+        Dict with every table column, datetimes normalized to UTC ISO.
+    """
+
     return {
         column.name: _json_value(getattr(row, column.name))
         for column in MonitoringAlertRecord.__table__.columns

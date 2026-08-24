@@ -2,14 +2,36 @@
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
+from eurogas_nexus.security.identity import (
+    legacy_public_token_principal,
+    principal_allows_source_family,
+)
+
 router = APIRouter(tags=["market"])
 
 
 @router.get("/api/market/observations")
 def list_observations(request: Request) -> dict:
+    """List market observations from the runtime DB.
+
+    返回市场观测列表；DB 未配置时降级为空并告警（fail-closed）。
+
+    Args:
+        request: Incoming FastAPI request (unused except wiring).
+
+    Returns:
+        Enveloped observation rows or an empty enveloped response.
+
+    Raises:
+        HTTPException: 503 ``runtime_db_unavailable`` on DB read failure.
+    """
+
     observations = _db_market_observations()
     if observations is not None:
-        return _env(observations, source="runtime-postgresql")
+        return _env(
+            _filter_entitled_rows(request, observations, source_key="source_system"),
+            source="runtime-postgresql",
+        )
 
     return _env(
         [],
@@ -20,6 +42,20 @@ def list_observations(request: Request) -> dict:
 
 @router.get("/api/market/fx")
 def list_fx(request: Request) -> dict:
+    """List ECB FX observations from the runtime DB.
+
+    返回汇率观测列表；DB 未配置时降级为空并告警。
+
+    Args:
+        request: Incoming FastAPI request (unused except wiring).
+
+    Returns:
+        Enveloped FX rows or an empty enveloped response.
+
+    Raises:
+        HTTPException: 503 ``runtime_db_unavailable`` on DB read failure.
+    """
+
     fx_rows = _db_fx_observations()
     if fx_rows is not None:
         return _env(fx_rows, source="runtime-postgresql")
@@ -60,7 +96,10 @@ def list_quotes(
                 source_system=source_system,
                 limit=limit,
             )
-        return _env(rows, source="runtime-postgresql")
+        return _env(
+            _filter_entitled_rows(request, rows, source_key="source_system"),
+            source="runtime-postgresql",
+        )
     except sqlalchemy_error as exc:
         raise _db_unavailable(exc) from exc
 
@@ -126,6 +165,21 @@ def list_normalized_view(
 
 @router.get("/api/market/spreads")
 def list_spreads(request: Request) -> dict:
+    """List intraday cross-hub spreads derived from runtime opportunities.
+
+    返回由日内机会派生的跨枢纽价差（gross spread）；DB 未配置或未采集
+    价格时降级为空并告警。
+
+    Args:
+        request: Incoming FastAPI request (unused except wiring).
+
+    Returns:
+        Enveloped spread rows or an empty enveloped response.
+
+    Raises:
+        HTTPException: 503 ``runtime_db_unavailable`` on DB read failure.
+    """
+
     if not _db_is_configured():
         return _env(
             [],
@@ -157,6 +211,24 @@ def list_spreads(request: Request) -> dict:
         return _env(rows, source="runtime-postgresql")
     except sqlalchemy_error as exc:
         raise _db_unavailable(exc) from exc
+
+
+def _filter_entitled_rows(request: Request, rows: list[dict], *, source_key: str) -> list[dict]:
+    """Apply row-level commercial entitlement to DB-identity callers.
+
+    Legacy public-token deployments retain the single-trust-domain view. A
+    DB-backed identity sees only rows whose source family is in its data
+    scopes (public baseline families remain visible to all).
+    """
+
+    identity = getattr(request.state, "identity", legacy_public_token_principal())
+    if identity.auth_method == "legacy_public_token":
+        return rows
+    return [
+        row
+        for row in rows
+        if principal_allows_source_family(identity, row.get(source_key) or "")
+    ]
 
 
 def _db_market_observations() -> list[dict] | None:
@@ -204,6 +276,8 @@ def _db_fx_observations() -> list[dict] | None:
 
 
 def _market_row(row) -> dict:
+    from eurogas_nexus.governance.entitlement import entitlement_scope_for_source
+
     return {
         "observation_id": row.observation_id,
         "market_venue": row.market_venue,
@@ -219,12 +293,15 @@ def _market_row(row) -> dict:
         "source_record_id": row.source_record_id,
         "freshness": row.freshness,
         "quality_score": row.quality_score,
+        "entitlement_scope": entitlement_scope_for_source(row.source_system),
         "research_only": row.research_only,
         "metadata_json": row.metadata_json or {},
     }
 
 
 def _fx_row(row) -> dict:
+    from eurogas_nexus.governance.entitlement import entitlement_scope_for_source
+
     return {
         "observation_id": row.observation_id,
         "pair": row.pair,
@@ -237,11 +314,14 @@ def _fx_row(row) -> dict:
         "source_system": row.source_system,
         "source_reference": row.source_reference,
         "freshness": row.freshness,
+        "entitlement_scope": entitlement_scope_for_source(row.source_system),
         "research_only": row.research_only,
     }
 
 
 def _fx_row_from_market_observation(row) -> dict:
+    from eurogas_nexus.governance.entitlement import entitlement_scope_for_source
+
     quote = row.currency
     pair = row.product.replace("/", "")
     return {
@@ -256,6 +336,7 @@ def _fx_row_from_market_observation(row) -> dict:
         "source_system": row.source_system,
         "source_reference": row.source_reference,
         "freshness": row.freshness,
+        "entitlement_scope": entitlement_scope_for_source(row.source_system),
         "research_only": row.research_only,
     }
 

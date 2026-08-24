@@ -667,11 +667,20 @@ def _market_hub_code(label: str, fallback: str) -> str:
 
 
 def _gas_day_period(record: dict[str, Any]) -> tuple[datetime, datetime]:
+    """Map a GIE ``gasDayStart`` date to a CAM gas-day UTC interval.
+
+    GIE reports the calendar date of the gas day; the interval runs from that
+    date's gas-day start (05:00 CET/CEST -> 04:00 UTC winter / 03:00 UTC during
+    DST) to the following gas day, matching the versioned calendar in
+    ``eurogas_nexus.domain.market.gas_day``.
+    """
+    from eurogas_nexus.domain.market.gas_day import gas_day_start_for_date
+
     start_date = _parse_date(record.get("gasDayStart")) or date.today()
     end_date = _parse_date(record.get("gasDayEnd")) or (start_date + timedelta(days=1))
     return (
-        datetime.combine(start_date, time.min, tzinfo=UTC),
-        datetime.combine(end_date, time.min, tzinfo=UTC),
+        gas_day_start_for_date(start_date),
+        gas_day_start_for_date(end_date),
     )
 
 

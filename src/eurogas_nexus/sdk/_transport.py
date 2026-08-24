@@ -3,8 +3,9 @@
 from dataclasses import dataclass
 from typing import Any, Generic, TypeVar
 
-import httpx
 from pydantic import BaseModel, ConfigDict, Field
+
+from eurogas_nexus.sdk import _http
 
 T = TypeVar("T")
 
@@ -40,7 +41,7 @@ def get_envelope(
 ) -> tuple[Any, ResponseMeta]:
     """GET and validate one public API response envelope."""
 
-    response = httpx.get(url, params=params, timeout=timeout_seconds)
+    response = _http.get(url, params=params, timeout=timeout_seconds)
     response.raise_for_status()
     try:
         payload = response.json()

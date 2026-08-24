@@ -1,4 +1,4 @@
-﻿"""SDK health client tests."""
+"""SDK health client tests."""
 
 import httpx
 import pytest

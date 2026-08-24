@@ -25,6 +25,17 @@ from eurogas_nexus.domain.route_cost.tariff_models import CapacityTariff
 
 
 def list_tso_tariffs(session: Session) -> list[CapacityTariff]:
+    """List all stored TSO tariffs as domain CapacityTariff rows.
+
+    列出全部 TSO 费率（按国家/点位/方向/气体年排序）并映射为领域模型。
+
+    Args:
+        session: DB session.
+
+    Returns:
+        List of CapacityTariff domain rows.
+    """
+
     rows = session.query(TsoTariffRecord).order_by(
         TsoTariffRecord.country,
         TsoTariffRecord.source_point_name,
@@ -35,6 +46,15 @@ def list_tso_tariffs(session: Session) -> list[CapacityTariff]:
 
 
 def list_upstream_contracts(session: Session) -> list[dict]:
+    """List upstream resource contracts, newest update first.
+
+    Args:
+        session: DB session.
+
+    Returns:
+        List of contract payload dicts.
+    """
+
     rows = session.query(UpstreamResourceContractRecord).order_by(
         UpstreamResourceContractRecord.updated_at_utc.desc()
     )
@@ -42,6 +62,19 @@ def list_upstream_contracts(session: Session) -> list[dict]:
 
 
 def upsert_upstream_contract(session: Session, data: Mapping[str, object]) -> dict:
+    """Insert or update one upstream resource contract (no commit).
+
+    Args:
+        session: DB session.
+        data: Contract fields (see UpstreamContractUpsertRequest).
+
+    Returns:
+        The persisted contract payload.
+
+    Raises:
+        KeyError/ValueError: When required fields are missing/malformed.
+    """
+
     now = datetime.now(UTC)
     contract_id = str(data["contract_id"])
     row = session.get(UpstreamResourceContractRecord, contract_id)
@@ -108,6 +141,15 @@ def upsert_upstream_contract(session: Session, data: Mapping[str, object]) -> di
 
 
 def latest_market_marks(session: Session) -> list[LiveMarketMark]:
+    """List latest market marks as domain LiveMarketMark rows.
+
+    Args:
+        session: DB session.
+
+    Returns:
+        List of LiveMarketMark domain rows, newest mark time first.
+    """
+
     rows = session.query(LiveMarketMarkRecord).order_by(
         LiveMarketMarkRecord.mark_time_utc.desc()
     )
@@ -115,6 +157,15 @@ def latest_market_marks(session: Session) -> list[LiveMarketMark]:
 
 
 def list_route_candidates(session: Session) -> list[dict]:
+    """List active route candidates.
+
+    Args:
+        session: DB session.
+
+    Returns:
+        List of route candidate payload dicts.
+    """
+
     rows = session.query(RouteCandidateRecord).filter(
         RouteCandidateRecord.active.is_(True)
     ).order_by(RouteCandidateRecord.route_name)
@@ -122,6 +173,16 @@ def list_route_candidates(session: Session) -> list[dict]:
 
 
 def list_capacity_profiles(session: Session, contract_id: str) -> list[dict]:
+    """List capacity profiles of one contract.
+
+    Args:
+        session: DB session.
+        contract_id: Contract id filter.
+
+    Returns:
+        List of capacity profile payload dicts.
+    """
+
     rows = session.query(CapacityProfileRecord).filter(
         CapacityProfileRecord.contract_id == contract_id
     )

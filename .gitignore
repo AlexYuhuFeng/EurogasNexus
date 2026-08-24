@@ -16,6 +16,15 @@ env/
 .pytest_cache/
 .pytest-cache-*/
 .pytest-tmp-*/
+/.agent/tmp/
+/.deps/
+/.tmp/
+/.tmp_work/
+/pytest-cache-files-*/
+/tmp*/
+/_pytest_*/
+/_p2/
+/_pip_patch.py
 .ruff_cache/
 .playwright-cli/
 .coverage

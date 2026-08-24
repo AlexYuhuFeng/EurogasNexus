@@ -31,6 +31,7 @@ def test_worker_continues_after_failed_iteration_without_sleeping_at_end() -> No
         limit=20,
         interval_seconds=60,
         max_iterations=2,
+        retry_max=0,
         runner=runner,
         sleeper=sleeps.append,
     )
@@ -38,3 +39,28 @@ def test_worker_continues_after_failed_iteration_without_sleeping_at_end() -> No
     assert result == 0
     assert len(calls) == 2
     assert sleeps == [60]
+
+
+def test_worker_retries_transient_failure_before_next_interval() -> None:
+    return_codes = iter([1, 0])
+    calls: list[list[str]] = []
+    sleeps: list[float] = []
+
+    def runner(command: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        return subprocess.CompletedProcess(command, next(return_codes))
+
+    result = run_worker(
+        sources=["ecb"],
+        limit=20,
+        interval_seconds=60,
+        max_iterations=1,
+        retry_max=1,
+        retry_backoff_seconds=5,
+        runner=runner,
+        sleeper=sleeps.append,
+    )
+
+    assert result == 0
+    assert len(calls) == 2
+    assert sleeps == [5]

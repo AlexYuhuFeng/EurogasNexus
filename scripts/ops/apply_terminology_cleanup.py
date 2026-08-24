@@ -13,6 +13,7 @@ COMPATIBILITY_LINE = f'            "{LEGACY_FIELD}": True,'
 
 
 def main() -> int:
+    """    Apply the terminology cleanup to route-cost and app files."""
     route_text = ROUTE_COST.read_text(encoding="utf-8-sig")
     app_text = APP_TSX.read_text(encoding="utf-8-sig")
 

@@ -1,4 +1,4 @@
-﻿"""Feasibility and allocation API tests (DB-free)."""
+"""Feasibility and allocation API tests (DB-free)."""
 
 import pytest
 from fastapi.testclient import TestClient

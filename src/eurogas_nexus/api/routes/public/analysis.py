@@ -1,4 +1,4 @@
-﻿"""Governed LLM-ready analysis and report endpoints."""
+"""Governed LLM-ready analysis and report endpoints."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import json
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 
 from eurogas_nexus.domain.analysis import (
     AnalysisRequest,
@@ -26,22 +26,64 @@ router = APIRouter(tags=["analysis"])
 
 @router.get("/api/analysis/ontology")
 def get_business_ontology(request: Request) -> dict:
+    """Return the business ontology used by analysis and reports.
+
+    返回业务本体摘要（实体/关系/护栏），来源为领域契约而非运行时库。
+
+    Args:
+        request: Incoming FastAPI request (envelope context).
+
+    Returns:
+        Enveloped ontology dict with ``domain-contract`` source tag.
+    """
+
     return _env(business_logic_ontology(), request, source="domain-contract")
 
 
 @router.post("/api/analysis/query")
 def post_analysis_query(body: AnalysisRequest, request: Request) -> dict:
+    """Run one analysis query with optional provider synthesis.
+
+    执行分析查询：加载快照 → （可选）调用 LLM provider → 组装确定性
+    结果 → 审计与持久化。provider 仅在请求显式开启且密钥可用时调用。
+
+    Args:
+        body: Analysis request (question/task/context selections).
+        request: Incoming FastAPI request (request-id context).
+
+    Returns:
+        Enveloped AnalysisResult with citations, sections and warnings.
+
+    Raises:
+        HTTPException: 403 ``llm_provider_denied`` when provider invocation
+            is requested without a configured provider key.
+    """
+
     snapshot = _load_snapshot(
         duration_start_utc=body.duration_start_utc,
         duration_end_utc=body.duration_end_utc,
     )
-    provider_text, provider_status = _maybe_invoke_provider(body, snapshot)
+    request_id = getattr(request.state, "request_id", None)
+    provider_text, provider_status = _maybe_invoke_provider(
+        body,
+        snapshot,
+        request_id=request_id,
+    )
+    _audit_llm_decision(
+        body=body,
+        provider_status=provider_status,
+        snapshot=snapshot,
+        request_id=request_id,
+    )
     result = build_analysis_result(
         body,
         snapshot,
         provider_text=provider_text,
         provider_status=provider_status,
     )
+    if body.invoke_provider and not body.include_contract_prices:
+        # 未授权合约价格参与 LLM 载荷：显式过滤并告警（fail-closed）。
+        result.warnings = _unique([*result.warnings, "LLM_PAYLOAD_FILTERED:contract_prices"])
     _persist_analysis_if_db(body, snapshot, result)
     return _env(
         result.model_dump(mode="json"),
@@ -53,30 +95,91 @@ def post_analysis_query(body: AnalysisRequest, request: Request) -> dict:
 
 @router.post("/api/reports/portfolio")
 def post_portfolio_report(body: PortfolioReportRequest, request: Request) -> dict:
+    """Generate a portfolio decision-support report.
+
+    生成组合决策支持报告（复用分析构建器，任务类型为 PORTFOLIO_REPORT）。
+
+    Args:
+        body: Portfolio report request.
+        request: Incoming FastAPI request (request-id context).
+
+    Returns:
+        Enveloped AnalysisResult for the portfolio report.
+    """
+
     snapshot = _load_snapshot(
         duration_start_utc=body.duration_start_utc,
         duration_end_utc=body.duration_end_utc,
     )
+    request_id = getattr(request.state, "request_id", None)
+    export_blocker = _export_blocker(snapshot)
+    if export_blocker is not None:
+        _record_audit(
+            event_type="governance.policy",
+            action="export.denied",
+            resource="generated_reports",
+            outcome="denied",
+            severity="warning",
+            detail=f"report generation blocked; unentitled snapshot source={export_blocker}",
+            source_system="analysis",
+            request_id=request_id,
+        )
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "export_denied",
+                "message": (
+                    "Report generation blocked: snapshot contains data from an "
+                    "unentitled source (fail-closed export policy)."
+                ),
+                "source_system": export_blocker,
+                "research_only": True,
+                "human_review_required": True,
+            },
+        )
     analysis_request = AnalysisRequest(
         question=body.title,
         task="PORTFOLIO_REPORT",
         provider_id=body.provider_id,
         model=body.model,
         invoke_provider=body.invoke_provider,
+        include_contract_prices=body.include_contract_prices,
         selected_assets=body.selected_resources,
         selected_contracts=body.selected_contracts,
         duration_start_utc=body.duration_start_utc,
         duration_end_utc=body.duration_end_utc,
         language=body.language,
     )
-    provider_text, provider_status = _maybe_invoke_provider(analysis_request, snapshot)
+    provider_text, provider_status = _maybe_invoke_provider(
+        analysis_request,
+        snapshot,
+        request_id=request_id,
+    )
+    _audit_llm_decision(
+        body=analysis_request,
+        provider_status=provider_status,
+        snapshot=snapshot,
+        request_id=request_id,
+    )
     result = build_portfolio_report(
         body,
         snapshot,
         provider_text=provider_text,
         provider_status=provider_status,
     )
+    if body.invoke_provider and not body.include_contract_prices:
+        result.warnings = _unique([*result.warnings, "LLM_PAYLOAD_FILTERED:contract_prices"])
     _persist_report_if_db(body, snapshot, result)
+    _record_audit(
+        event_type="governance.action",
+        action="report.generated",
+        resource=f"generated_reports:{result.analysis_id}",
+        outcome="generated",
+        severity="info",
+        detail=f"portfolio report generated; provider_status={provider_status}",
+        source_system="analysis",
+        request_id=request_id,
+    )
     return _env(
         result.model_dump(mode="json"),
         request,
@@ -240,15 +343,44 @@ def _db_snapshot(
 def _maybe_invoke_provider(
     body: AnalysisRequest,
     snapshot: AnalysisSnapshot,
+    *,
+    request_id: str | None = None,
 ) -> tuple[str | None, str]:
     if not body.invoke_provider:
         return None, "not_invoked"
+
+    from eurogas_nexus.core.config import get_settings
+
+    if not get_settings().llm_external_provider_enabled:
+        # P0-2: trial/release profiles never call external LLM providers.
+        return None, "LLM_PROVIDER_DISABLED_IN_PROFILE"
+
+    entitlement_blocker = _snapshot_entitlement_blocker(snapshot)
+    if entitlement_blocker is not None:
+        # P0-2: fail closed before any provider call when snapshot data is not
+        # in the known-entitled set.
+        _record_audit(
+            event_type="governance.policy",
+            action="entitlement.denied",
+            resource="analysis_query",
+            outcome="denied",
+            severity="warning",
+            detail=f"LLM invocation blocked; unentitled snapshot source={entitlement_blocker}",
+            source_system="analysis",
+            request_id=request_id,
+        )
+        return None, f"ENTITLEMENT_DENIED:{entitlement_blocker}"
+
     if body.provider_id != "DEEPSEEK":
         return None, "LLM_PROVIDER_NOT_SUPPORTED_IN_V1"
     credential = load_provider_api_key("DEEPSEEK") or load_provider_api_key("LLM")
     if credential is None:
         return None, "LLM_PROVIDER_CREDENTIAL_MISSING"
 
+    snapshot_payload = _filtered_llm_payload(
+        snapshot,
+        include_contract_prices=body.include_contract_prices,
+    )
     messages = [
         {
             "role": "system",
@@ -266,7 +398,7 @@ def _maybe_invoke_provider(
                 {
                     "question": body.question,
                     "task": body.task,
-                    "snapshot": snapshot.model_dump(mode="json"),
+                    "snapshot": snapshot_payload,
                 },
                 ensure_ascii=False,
             ),
@@ -282,6 +414,194 @@ def _maybe_invoke_provider(
     if result.status == "success":
         return result.content, "success"
     return None, f"LLM_PROVIDER_CALL_FAILED:{result.error_code or result.status}"
+
+
+# Financial fields excluded from LLM payloads unless the caller opts in.
+_LLM_CONTRACT_FINANCIAL_FIELDS = frozenset(
+    {
+        "contract_price_gbp_mwh",
+        "tolerance_risk_allowance_gbp_mwh",
+        "annual_financing_rate_pct",
+        "owned_entry_capacity_mwh_per_day",
+        "owned_exit_capacity_mwh_per_day",
+    }
+)
+
+
+def _filtered_llm_payload(
+    snapshot: AnalysisSnapshot,
+    *,
+    include_contract_prices: bool,
+) -> dict:
+    """Return the provider-bound snapshot payload with field filtering.
+
+    Gate 1: contract financial details are excluded by default so raw
+    commercial prices never leave the platform without explicit opt-in.
+    """
+
+    payload = snapshot.model_dump(mode="json")
+    if include_contract_prices:
+        return payload
+    filtered_contracts = []
+    for row in payload.get("portfolio_context") or []:
+        filtered_contracts.append(
+            {
+                key: value
+                for key, value in row.items()
+                if key not in _LLM_CONTRACT_FINANCIAL_FIELDS
+            }
+        )
+    payload["portfolio_context"] = filtered_contracts
+    return payload
+
+
+def _export_blocker(snapshot: AnalysisSnapshot) -> str | None:
+    """Return the first snapshot source whose entitlement scope is UNKNOWN.
+
+    Unknown scope fails closed for export-like actions (report generation);
+    internal-research and public scopes remain restricted-but-allowed inside
+    the platform.
+    """
+
+    from eurogas_nexus.governance.entitlement import entitlement_check, export_check
+
+    sources: set[str] = set()
+    row_sections = (
+        "market_observations",
+        "live_market_marks",
+        "fx_rates",
+        "flow_observations",
+        "capacity_context",
+        "portfolio_context",
+    )
+    for section in row_sections:
+        for row in getattr(snapshot, section, None) or []:
+            value = row.get("source_system") if isinstance(row, dict) else None
+            if isinstance(value, str) and value.strip():
+                sources.add(value.strip())
+    if not sources:
+        return None
+    for source in sorted(sources):
+        candidate = source.removesuffix("_Sim") if source.endswith("_Sim") else source
+        decision = entitlement_check(
+            candidate,
+            known_entitled_systems=_KNOWN_ENTITLED_SYSTEMS,
+        )
+        export = export_check(decision.scope)
+        if export.decision.value == "denied":
+            return source
+    return None
+
+
+def _audit_llm_decision(
+    *,
+    body: AnalysisRequest,
+    provider_status: str,
+    snapshot: AnalysisSnapshot,
+    request_id: str | None,
+) -> None:
+    """Record an audit event for every requested LLM invocation attempt."""
+
+    if not body.invoke_provider:
+        return
+    denied = provider_status.startswith("ENTITLEMENT_DENIED")
+    _record_audit(
+        event_type="governance.policy" if denied else "governance.action",
+        action="llm.invoke.denied" if denied else "llm.invoke",
+        resource=f"analysis_query:{body.task.value}",
+        outcome=provider_status,
+        severity="warning" if denied else "info",
+        detail=(
+            f"provider={body.provider_id}; filtered={not body.include_contract_prices}; "
+            f"snapshot_source={snapshot.source}"
+        ),
+        source_system="analysis",
+        request_id=request_id,
+    )
+
+
+def _record_audit(
+    *,
+    event_type: str,
+    action: str,
+    resource: str,
+    outcome: str,
+    severity: str,
+    detail: str,
+    source_system: str,
+    request_id: str | None,
+) -> None:
+    from eurogas_nexus.application.audit_service import record_audit_event
+
+    record_audit_event(
+        event_type=event_type,
+        action=action,
+        resource=resource,
+        outcome=outcome,
+        severity=severity,
+        detail=detail,
+        source_system=source_system,
+        request_id=request_id,
+    )
+
+
+_KNOWN_ENTITLED_SYSTEMS = frozenset(
+    {
+        "operator-input",
+        "ENTSOG",
+        "GIE",
+        "ECB",
+        "EEX",
+        "Trayport",
+        "ICE_OCM",
+        "Weather",
+    }
+)
+
+
+def _snapshot_entitlement_blocker(snapshot: AnalysisSnapshot) -> str | None:
+    """Return the first source system in the snapshot that is not entitled.
+
+    Simulated sources are evaluated by their licensed family (``EEX_Sim`` ->
+    ``EEX``), so simulated rows follow the same entitlement boundary as their
+    commercial counterpart. When no source rows are present (e.g. empty DB),
+    there is nothing to leak and the check passes.
+    """
+
+    from eurogas_nexus.governance.entitlement import entitlement_check
+
+    sources: set[str] = set()
+    row_sections = (
+        "market_observations",
+        "live_market_marks",
+        "fx_rates",
+        "flow_observations",
+        "capacity_context",
+        "portfolio_context",
+    )
+    for section in row_sections:
+        for row in getattr(snapshot, section, None) or []:
+            value = row.get("source_system") if isinstance(row, dict) else None
+            if isinstance(value, str) and value.strip():
+                sources.add(value.strip())
+    for row in snapshot.route_candidates or []:
+        if not isinstance(row, dict):
+            continue
+        for value in row.get("source_systems") or []:
+            if isinstance(value, str) and value.strip():
+                sources.add(value.strip())
+    if not sources:
+        return None
+
+    for source in sorted(sources):
+        candidate = source.removesuffix("_Sim") if source.endswith("_Sim") else source
+        decision = entitlement_check(
+            candidate,
+            known_entitled_systems=_KNOWN_ENTITLED_SYSTEMS,
+        )
+        if not decision.granted:
+            return source
+    return None
 
 
 def _persist_analysis_if_db(
@@ -352,6 +672,8 @@ def _persist_report_if_db(
 
 
 def _market_row(row) -> dict:
+    from eurogas_nexus.governance.entitlement import entitlement_scope_for_source
+
     return {
         "market_venue": row.market_venue,
         "product": row.product,
@@ -363,10 +685,13 @@ def _market_row(row) -> dict:
         "source_system": row.source_system,
         "source_reference": row.source_reference,
         "freshness": row.freshness,
+        "entitlement_scope": entitlement_scope_for_source(row.source_system),
     }
 
 
 def _live_mark_row(row) -> dict:
+    from eurogas_nexus.governance.entitlement import entitlement_scope_for_source
+
     return {
         "venue": row.venue,
         "hub": row.hub,
@@ -377,6 +702,7 @@ def _live_mark_row(row) -> dict:
         "mark_time_utc": row.mark_time_utc.isoformat(),
         "source_system": row.source_system,
         "source_reference": row.source_reference,
+        "entitlement_scope": entitlement_scope_for_source(row.source_system),
     }
 
 
@@ -393,19 +719,25 @@ def _fx_row(row) -> dict:
 
 
 def _flow_row(row) -> dict:
+    from eurogas_nexus.governance.entitlement import entitlement_scope_for_source
+
     return {
         "point_name": row.point_name,
         "direction": row.direction,
+        "kind": row.kind,
         "flow_mcm_d": row.flow_mcm_d,
         "period_start_utc": row.period_start_utc.isoformat(),
         "period_end_utc": row.period_end_utc.isoformat(),
         "source_system": row.source_system,
         "source_reference": row.source_reference,
         "freshness": row.freshness,
+        "entitlement_scope": entitlement_scope_for_source(row.source_system),
     }
 
 
 def _capacity_row(row) -> dict:
+    from eurogas_nexus.governance.entitlement import entitlement_scope_for_source
+
     return {
         "capacity_profile_id": row.capacity_profile_id,
         "contract_id": row.contract_id,
@@ -413,9 +745,12 @@ def _capacity_row(row) -> dict:
         "direction": row.direction,
         "capacity_mwh_per_day": row.capacity_mwh_per_day,
         "firmness": row.firmness,
+        "capacity_product": row.capacity_product,
+        "capacity_scope": row.capacity_scope,
         "valid_from_utc": row.valid_from_utc.isoformat(),
         "valid_to_utc": row.valid_to_utc.isoformat(),
         "source_reference": row.source_reference,
+        "entitlement_scope": entitlement_scope_for_source("operator-input"),
     }
 
 
@@ -487,3 +822,7 @@ def _env(
             "warnings": list(dict.fromkeys(warnings or [])),
         },
     }
+
+
+def _unique(values: list[str]) -> list[str]:
+    return list(dict.fromkeys(values))

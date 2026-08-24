@@ -2,11 +2,16 @@
 
 Every decision-support action is enumerable and, by product boundary, requires
 human review. The forbidden set encodes the hard no-execution boundary.
+Actions are classified into governance categories so approval/audit rules can
+treat System, Analytical, Decision Candidate, and External actions
+differently (audit: "数据导入、查询、分析、人工决策、外部执行混在一个 ActionKind").
 """
 
 from __future__ import annotations
 
 from enum import StrEnum
+
+from eurogas_nexus.domain.ontology.vocabulary import ActionKindCategory
 
 
 class ActionKind(StrEnum):
@@ -52,3 +57,60 @@ class ForbiddenAction(StrEnum):
     AUTO_TRADE = "auto_trade"
     LEGAL_ADVICE = "legal_advice"
     ETRM_REPLACEMENT = "etrm_replacement"
+
+
+ACTION_KIND_CATEGORIES: dict[ActionKind, ActionKindCategory] = {
+    # System: import, topology materialization, governance plumbing.
+    ActionKind.IMPORT_SCREEN_OBSERVATION: ActionKindCategory.SYSTEM,
+    ActionKind.MATERIALIZE_TOPOLOGY: ActionKindCategory.SYSTEM,
+    ActionKind.ENFORCE_ENTITLEMENT: ActionKindCategory.SYSTEM,
+    ActionKind.AUDIT_ACTION: ActionKindCategory.SYSTEM,
+    # Analytical: research outputs that change no state.
+    ActionKind.QUERY_ROUTE: ActionKindCategory.ANALYTICAL,
+    ActionKind.ESTIMATE_ROUTE_COST: ActionKindCategory.ANALYTICAL,
+    ActionKind.OBSERVE_PRICE: ActionKindCategory.ANALYTICAL,
+    ActionKind.MARK_TO_MARKET: ActionKindCategory.ANALYTICAL,
+    ActionKind.EVALUATE_SPREAD: ActionKindCategory.ANALYTICAL,
+    ActionKind.ASSESS_REGAS_READINESS: ActionKindCategory.ANALYTICAL,
+    ActionKind.ASSESS_STORAGE_DISPATCH: ActionKindCategory.ANALYTICAL,
+    ActionKind.ASSESS_NOMINATION_WINDOW: ActionKindCategory.ANALYTICAL,
+    ActionKind.MONITOR_IMBALANCE: ActionKindCategory.ANALYTICAL,
+    ActionKind.RECONCILE_PNL: ActionKindCategory.ANALYTICAL,
+    ActionKind.COMPUTE_CASH_FLOW: ActionKindCategory.ANALYTICAL,
+    ActionKind.BACKTEST: ActionKindCategory.ANALYTICAL,
+    ActionKind.LIVE_MONITOR: ActionKindCategory.ANALYTICAL,
+    # Decision candidate: outputs that require human review before use.
+    ActionKind.CAPTURE_RESOURCE_TERM: ActionKindCategory.DECISION_CANDIDATE,
+    ActionKind.REVIEW_RESOURCE_ASSUMPTION: ActionKindCategory.DECISION_CANDIDATE,
+    ActionKind.MARK_AT_HUB: ActionKindCategory.DECISION_CANDIDATE,
+    ActionKind.TRANSFER_BETWEEN_ZONES: ActionKindCategory.DECISION_CANDIDATE,
+    ActionKind.ALLOCATE_CAPACITY: ActionKindCategory.DECISION_CANDIDATE,
+    ActionKind.VALIDATE_ACCESS: ActionKindCategory.DECISION_CANDIDATE,
+    ActionKind.SHADOW_RUN: ActionKindCategory.DECISION_CANDIDATE,
+    ActionKind.REVIEW_STRATEGY_OUTPUT: ActionKindCategory.DECISION_CANDIDATE,
+}
+
+FORBIDDEN_ACTION_CATEGORY = ActionKindCategory.EXTERNAL_ACTION
+
+
+def action_category(action: ActionKind | ForbiddenAction) -> ActionKindCategory:
+    """Return the governance category for an action.
+
+    返回动作的治理分类（审批/审计规则按分类差异化处理）。
+
+    Forbidden actions are always EXTERNAL_ACTION (never performed); allowed
+    actions must be classified explicitly so a missing classification fails
+    closed as DECISION_CANDIDATE (human review required).
+
+    Args:
+        action: An allowed or forbidden action kind.
+
+    Returns:
+        The governance category; missing classifications default to
+        DECISION_CANDIDATE (fail-closed toward human review).
+    """
+
+    if isinstance(action, ForbiddenAction):
+        return FORBIDDEN_ACTION_CATEGORY
+    # 未登记的动作按 DECISION_CANDIDATE 处理：宁严勿松，强制人工复核。
+    return ACTION_KIND_CATEGORIES.get(action, ActionKindCategory.DECISION_CANDIDATE)

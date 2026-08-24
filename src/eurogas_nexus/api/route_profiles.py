@@ -22,6 +22,7 @@ class ApiRouteProfile(BaseModel):
     include_public: bool = True
     include_internal: bool = False
     include_dev: bool = False
+    require_auth: bool = False
 
 
 API_ROUTE_PROFILES: dict[ApiProfileName, ApiRouteProfile] = {
@@ -41,6 +42,7 @@ API_ROUTE_PROFILES: dict[ApiProfileName, ApiRouteProfile] = {
         name=ApiProfileName.RELEASE,
         expose_docs=False,
         expose_openapi=False,
+        require_auth=True,
     ),
 }
 

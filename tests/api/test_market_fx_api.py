@@ -1,4 +1,4 @@
-﻿"""Market FX API tests."""
+"""Market FX API tests."""
 
 from datetime import UTC, datetime, timedelta
 

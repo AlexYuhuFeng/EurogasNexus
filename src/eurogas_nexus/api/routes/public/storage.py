@@ -31,6 +31,20 @@ def _runtime_env(data: object) -> dict:
 
 @router.get("/api/storage/sites")
 def list_sites(request: Request) -> dict:
+    """List storage sites aggregated from runtime observations.
+
+    按 facility_id 聚合最新观测为储气库站点列表；DB 未配置时降级为空。
+
+    Args:
+        request: Incoming FastAPI request (unused except wiring).
+
+    Returns:
+        Enveloped site list or an empty enveloped response with a warning.
+
+    Raises:
+        HTTPException: 503 ``runtime_db_unavailable`` on DB read failure.
+    """
+
     observations = _db_storage_observations()
     if observations is None:
         return _env([], request)
@@ -54,6 +68,20 @@ def list_sites(request: Request) -> dict:
 
 @router.get("/api/storage/observations")
 def list_observations(request: Request) -> dict:
+    """List storage observations from the runtime DB.
+
+    返回储气库观测列表（按设施名 + 周期倒序）；DB 未配置时降级为空。
+
+    Args:
+        request: Incoming FastAPI request (unused except wiring).
+
+    Returns:
+        Enveloped observation rows or an empty enveloped response.
+
+    Raises:
+        HTTPException: 503 ``runtime_db_unavailable`` on DB read failure.
+    """
+
     observations = _db_storage_observations()
     if observations is not None:
         return _runtime_env(observations)

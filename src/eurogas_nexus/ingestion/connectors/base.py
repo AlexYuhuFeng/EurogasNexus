@@ -27,17 +27,28 @@ class Connector(Protocol):
     """Protocol for source connectors.
 
     Connectors fetch only — they do not analyze, rank, recommend, or calculate.
+    连接器只负责取数：不做分析、推荐或计算（架构纪律）。
     """
 
     @property
-    def metadata(self) -> ConnectorMetadata: ...
+    def metadata(self) -> ConnectorMetadata:
+        """Capabilities/requirements metadata of this connector."""
 
-    def fetch(self, dataset: str) -> IngestionPayload: ...
+        ...
+
+    def fetch(self, dataset: str) -> IngestionPayload:
+        """Fetch one dataset and return the raw ingestion payload."""
+
+        ...
 
 
 class MockConnector:
     """Mock connector that returns empty payloads. Used when credentials or
-    live access are unavailable. Never calls external APIs."""
+    live access are unavailable. Never calls external APIs.
+
+    模拟连接器：无凭据/无实时接入时返回空载荷，绝不发起外部调用
+    （测试与离线环境的安全回退）。
+    """
 
     def __init__(self, source_system: str, datasets: tuple[str, ...] = ()) -> None:
         self._metadata = ConnectorMetadata(
@@ -49,9 +60,13 @@ class MockConnector:
 
     @property
     def metadata(self) -> ConnectorMetadata:
+        """Capabilities metadata of this mock connector."""
+
         return self._metadata
 
     def fetch(self, dataset: str) -> IngestionPayload:
+        """Return an empty payload stamped with the mock source identity."""
+
         from datetime import UTC, datetime
 
         return IngestionPayload(

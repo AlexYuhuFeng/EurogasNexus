@@ -94,7 +94,7 @@ def test_certified_source_goes_native_live_uncertified_does_not(
     database_url = f"sqlite+pysqlite:///{db_path.as_posix()}"
     engine = create_engine(database_url, future=True)
     Base.metadata.create_all(engine)
-    observed_at = datetime(2026, 7, 1, 10, 15, tzinfo=UTC)
+    observed_at = datetime.now(UTC)
     with Session(engine) as session:
         for source_system in ("EEX", "ICIS"):
             session.add(

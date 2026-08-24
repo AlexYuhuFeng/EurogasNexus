@@ -18,7 +18,17 @@ from eurogas_nexus.domain.constraints.route_economics import netback
 
 @dataclass(frozen=True)
 class Constraint:
-    """A named, described computable constraint bound to its validator."""
+    """A named, described computable constraint bound to its validator.
+
+    一条可计算约束：把纯校验函数以命名规则的形式暴露给本体层，
+    便于审计与文档声明式引用。
+
+    Attributes:
+        constraint_id: Stable constraint id (e.g. ``TSO_ACCESS_FAIL_CLOSED``).
+        name: Short human-readable name.
+        description: One-line description of the rule.
+        validator: The pure function implementing the rule (import-safe).
+    """
 
     constraint_id: str
     name: str

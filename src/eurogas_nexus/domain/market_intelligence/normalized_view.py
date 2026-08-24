@@ -16,6 +16,10 @@ value-identical:
 - tenor extraction prefers ``metadata_json.tenor``, then the full ``product``;
 - a gas-price observation has a unit containing ``MWH`` and a three-letter
   currency code.
+
+本模块是市场视图规范化的后端唯一契约：客户端不得自行重实现 FX 换算与
+hub/tenor 抽取，避免前后端口径漂移（审计项对应前端 marketPriceNormalization
+迁移）。
 """
 
 from __future__ import annotations
@@ -32,7 +36,15 @@ MAX_CONVERSION_DEPTH = 3
 
 @dataclass(frozen=True)
 class FxRateInput:
-    """Minimal FX rate record for normalization."""
+    """Minimal FX rate record for normalization.
+
+    Attributes:
+        pair: Currency pair string (e.g. ``EURGBP``).
+        base_currency: Base currency override, or None.
+        quote_currency: Quote currency override, or None.
+        rate: Conversion rate (base -> quote).
+        observed_at_utc: Observation time (ISO), used for latest-rate choice.
+    """
 
     pair: str = ""
     base_currency: str | None = None
@@ -43,7 +55,18 @@ class FxRateInput:
 
 @dataclass(frozen=True)
 class MarketObservationInput:
-    """Minimal market observation record for normalization."""
+    """Minimal market observation record for normalization.
+
+    Attributes:
+        market_venue: Venue of the observation.
+        product: Product label (hub/tenor extraction source).
+        price: Observed price.
+        currency: ISO 4217 currency code.
+        unit: Unit string (gas-price detection source).
+        observed_at_utc: Observation time (ISO).
+        period_start_utc: Period start (ISO).
+        metadata_json: Metadata dict (hub/tenor overrides).
+    """
 
     market_venue: str
     product: str
@@ -56,10 +79,24 @@ class MarketObservationInput:
 
 
 def normalized_currency(value: str | None) -> str:
+    """Normalize a currency code for comparison (trim + uppercase).
+
+    Args:
+        value: Raw currency string, or None.
+
+    Returns:
+        Uppercased trimmed code (empty string when None/blank).
+    """
+
     return (value or "").strip().upper()
 
 
 def _timestamp_ms(value: str | None) -> float:
+    """Epoch seconds of an ISO timestamp; 0.0 when unparseable.
+
+    宽松解析：naive 视为 UTC；解析失败按 0.0 处理（旧记录优先于无效记录）。
+    """
+
     if not value:
         return 0.0
     try:
@@ -69,6 +106,12 @@ def _timestamp_ms(value: str | None) -> float:
 
 
 def _rate_currencies(rate: FxRateInput) -> tuple[str, str] | None:
+    """Derive (base, quote) from explicit fields or the pair string.
+
+    解析币对：显式 base/quote 优先，其次从 pair 字符串取前 3/后 3 字母；
+    无法得到两个 3 字母代码时返回 None（该条汇率不可用）。
+    """
+
     pair = re.sub(r"[^A-Za-z]", "", rate.pair).upper()
     base = normalized_currency(rate.base_currency) or pair[:3]
     quote = normalized_currency(rate.quote_currency) or pair[3:6]
@@ -78,7 +121,17 @@ def _rate_currencies(rate: FxRateInput) -> tuple[str, str] | None:
 
 
 def latest_fx_edges(rates: list[FxRateInput]) -> dict[str, list[tuple[str, float]]]:
-    """Build an undirected latest-rate graph: currency -> [(target, multiplier)]."""
+    """Build an undirected latest-rate graph: currency -> [(target, multiplier)].
+
+    构建"最新汇率"无向图：同币对保留观测时间最新的记录，正数有效汇率
+    双向建边（反方向为 1/rate）。
+
+    Args:
+        rates: FX rate records.
+
+    Returns:
+        Adjacency dict; malformed or non-positive rates are skipped.
+    """
 
     latest: dict[tuple[str, str], FxRateInput] = {}
     for rate in rates:
@@ -112,7 +165,20 @@ def convert_currency(
     target_currency: str,
     rates: list[FxRateInput],
 ) -> float | None:
-    """Convert a value across the latest FX graph (BFS, max 3 edges)."""
+    """Convert a value across the latest FX graph (BFS, max 3 edges).
+
+    跨最新汇率图做 BFS 换算（最多 3 条边），返回第一条到达目标币种的
+    路径乘积；无路径或输入非法时返回 None（不静默近似）。
+
+    Args:
+        value: Amount to convert.
+        source_currency: Source ISO 4217 code.
+        target_currency: Target ISO 4217 code.
+        rates: FX rate records.
+
+    Returns:
+        Converted amount, or None when not convertible.
+    """
 
     if not _is_finite_number(value):
         return None
@@ -142,6 +208,11 @@ def convert_currency(
 
 
 def observation_hub(observation: MarketObservationInput) -> str:
+    """Extract the hub for an observation (metadata > product token > venue).
+
+    提取枢纽：优先 metadata_json.hub，其次 product 首词，最后 market_venue。
+    """
+
     metadata_hub = (observation.metadata_json or {}).get("hub")
     if isinstance(metadata_hub, str) and metadata_hub.strip():
         return metadata_hub.strip()
@@ -150,6 +221,11 @@ def observation_hub(observation: MarketObservationInput) -> str:
 
 
 def observation_tenor(observation: MarketObservationInput) -> str:
+    """Extract the tenor for an observation (metadata > full product).
+
+    提取期限：优先 metadata_json.tenor，否则取完整 product（小写）。
+    """
+
     metadata_tenor = (observation.metadata_json or {}).get("tenor")
     if isinstance(metadata_tenor, str) and metadata_tenor.strip():
         return metadata_tenor.strip().lower()
@@ -157,6 +233,11 @@ def observation_tenor(observation: MarketObservationInput) -> str:
 
 
 def is_gas_price_observation(observation: MarketObservationInput) -> bool:
+    """Whether the observation is a gas price (MWh unit + 3-letter currency).
+
+    气体价格判定：单位含 MWH 且币种为 3 字母代码——决定是否做 GBP 换算。
+    """
+
     unit = (observation.unit or "").upper()
     return "MWH" in unit and len(normalized_currency(observation.currency)) == 3
 
@@ -165,7 +246,19 @@ def normalize_observation(
     observation: MarketObservationInput,
     rates: list[FxRateInput],
 ) -> dict[str, Any]:
-    """Return the observation row with backend-owned normalization fields."""
+    """Return the observation row with backend-owned normalization fields.
+
+    返回带后端规范化字段的观测行：hub/tenor 抽取、气体价格判定与
+    可选的 GBP/MWh 换算（仅气体价格行尝试换算）。
+
+    Args:
+        observation: Raw observation input.
+        rates: FX rate records for conversion.
+
+    Returns:
+        Normalized row dict with all original fields plus ``hub``,
+        ``tenor``, ``is_gas_price`` and ``price_gbp_mwh``.
+    """
 
     gas_price = is_gas_price_observation(observation)
     price_gbp_mwh = (
@@ -192,7 +285,18 @@ def build_normalized_market_view(
     observations: list[MarketObservationInput],
     fx_rates: list[FxRateInput],
 ) -> dict[str, Any]:
-    """Build the normalized market view with per-row conversion status."""
+    """Build the normalized market view with per-row conversion status.
+
+    构建规范化市场视图：逐行规范化并收集换算失败的告警（气体价格行
+    无法换算时逐条说明，而不是静默丢弃）。
+
+    Args:
+        observations: Raw market observation inputs.
+        fx_rates: FX rate records.
+
+    Returns:
+        Dict with ``rows`` (normalized) and ``warnings`` (conversion gaps).
+    """
 
     rows: list[dict[str, Any]] = []
     warnings: list[str] = []
@@ -209,10 +313,14 @@ def build_normalized_market_view(
 
 
 def _is_positive_finite(value: float) -> bool:
+    """Positive finite check for rate values (zero/negative rates rejected)."""
+
     return _is_finite_number(value) and value > 0
 
 
 def _is_finite_number(value: float) -> bool:
+    """Finite number check (rejects NaN/Inf/non-numbers)."""
+
     return (
         isinstance(value, int | float)
         and value == value

@@ -43,6 +43,37 @@ class ExportDecision(StrEnum):
     UNKNOWN = "unknown"
 
 
+KNOWN_ENTITLED_SYSTEMS_V1 = frozenset(
+    {
+        "operator-input",
+        "ENTSOG",
+        "GIE",
+        "ECB",
+        "EEX",
+        "Trayport",
+        "ICE_OCM",
+        "Weather",
+    }
+)
+
+
+def entitlement_scope_for_source(source_system: str) -> str:
+    """Classify a source system's entitlement scope for row-level annotation.
+
+    Simulated sources are evaluated by their licensed family (``EEX_Sim`` ->
+    ``EEX``) so the annotation follows the same boundary as their commercial
+    counterpart; unknown families annotate as UNKNOWN (fail-closed display).
+    """
+
+    value = (source_system or "").strip()
+    if not value:
+        return EntitlementScope.UNKNOWN.value
+    family = value.removesuffix("_Sim") if value.endswith("_Sim") else value
+    if family in KNOWN_ENTITLED_SYSTEMS_V1:
+        return EntitlementScope.INTERNAL_RESEARCH.value
+    return EntitlementScope.UNKNOWN.value
+
+
 @dataclass(frozen=True)
 class ExportEvaluation:
     """Result of an export-policy evaluation. Defaults to denied."""

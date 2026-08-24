@@ -8,6 +8,8 @@ from enum import StrEnum
 
 
 class AlertSeverity(StrEnum):
+    """Monitoring alert severity levels."""
+
     INFO = "info"
     WARNING = "warning"
     CRITICAL = "critical"
@@ -15,6 +17,16 @@ class AlertSeverity(StrEnum):
 
 @dataclass(frozen=True)
 class MonitoringThreshold:
+    """One threshold rule.
+
+    Attributes:
+        field: Observation field to test.
+        operator: ``gt`` / ``lt`` / ``gte`` / ``lte``.
+        value: Threshold value.
+        severity: Alert severity when triggered.
+        message_template: Alert message template.
+    """
+
     field: str
     operator: str  # "gt", "lt", "gte", "lte"
     value: float
@@ -24,6 +36,15 @@ class MonitoringThreshold:
 
 @dataclass(frozen=True)
 class MonitoringInput:
+    """Monitoring evaluation input.
+
+    Attributes:
+        entity_id: Monitored entity id.
+        entity_name: Monitored entity name.
+        observations: Field -> value observations.
+        thresholds: Threshold rules.
+    """
+
     entity_id: str
     entity_name: str
     observations: dict[str, float] = field(default_factory=dict)
@@ -32,6 +53,19 @@ class MonitoringInput:
 
 @dataclass(frozen=True)
 class MonitoringAlert:
+    """One generated monitoring alert.
+
+    Attributes:
+        alert_id: Stable alert id.
+        entity_id / entity_name: Monitored entity.
+        alert_type: Alert kind tag.
+        severity: Alert severity.
+        message: Alert message.
+        observed_value: Observed value.
+        threshold_value: Threshold that triggered.
+        triggered_at_utc: Trigger time (ISO).
+    """
+
     alert_id: str
     entity_id: str
     entity_name: str
@@ -47,6 +81,18 @@ class MonitoringAlert:
 
 @dataclass(frozen=True)
 class MonitoringOutput:
+    """Monitoring evaluation output (research-only envelope).
+
+    Attributes:
+        entity_id / entity_name: Echoed entity identity.
+        alerts: Generated alerts.
+        total_alerts: Alert count.
+        assumptions / missing_inputs / warnings: Transparency fields.
+        source_references / lineage: Provenance.
+        research_only / human_review_required: Always True.
+        generated_at_utc: Generation time (ISO).
+    """
+
     entity_id: str
     entity_name: str
     alerts: list[MonitoringAlert] = field(default_factory=list)

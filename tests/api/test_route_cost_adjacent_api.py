@@ -74,5 +74,8 @@ def test_resource_pool_optimization_api_returns_allocations() -> None:
 
     assert response.status_code == 200
     data = response.json()["data"]
-    assert data["status"] == "SUCCESS"
+    # 4,000 MWh/d of the 10,000 MWh/d resource remain unallocated, so the
+    # status must be PARTIAL — SUCCESS would be dishonest.
+    assert data["status"] == "PARTIAL"
+    assert "PORTFOLIO_VOLUME_UNALLOCATED" in data["warnings"]
     assert data["allocations"][0]["allocated_quantity_mwh_per_day"] == 6000

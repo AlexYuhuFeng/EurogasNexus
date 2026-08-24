@@ -1,4 +1,4 @@
-﻿"""Portfolio, screen order, and PnL observation API tests."""
+"""Portfolio, screen order, and PnL observation API tests."""
 
 from datetime import UTC, datetime
 

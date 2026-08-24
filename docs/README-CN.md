@@ -22,6 +22,13 @@
 - [资源池合同中文](contracts/21_RESOURCE_POOL_CONTRACT-CN.md)
 - [资源池合同英文](contracts/21_RESOURCE_POOL_CONTRACT-EN.md)
 
+## 本体
+
+- [OWL 天然气角色模型中文](ontology/OWL_GAS_ROLE_MODEL-CN.md)
+- [OWL 天然气角色模型英文](ontology/OWL_GAS_ROLE_MODEL.md)
+- [欧洲天然气主体架构](ontology/europe-natural-gas.md)
+- [本体化 gap 报告](ontology/gap-report.md)
+
 ## 客户端
 
 - [客户端文档索引](clients/README.md)
@@ -36,8 +43,18 @@
 - [本地开发](operations/LOCAL_DEVELOPMENT.md)
 - [验证指南](operations/VALIDATION.md)
 - [PostgreSQL 运行指南](operations/LIVE_POSTGRESQL.md)
+- [身份、授权与审计治理中文](operations/IDENTITY_AUDIT_GOVERNANCE-CN.md)
+- [身份、授权与审计治理英文](operations/IDENTITY_AUDIT_GOVERNANCE.md)
+- [OIDC access token 中文](operations/OIDC_ACCESS_TOKEN-CN.md)
+- [OIDC access token 英文](operations/OIDC_ACCESS_TOKEN.md)
+- [生产数据源运营中文](operations/PRODUCTION_SOURCE_OPERATIONS-CN.md)
+- [生产数据源运营英文](operations/PRODUCTION_SOURCE_OPERATIONS.md)
+- [储气与提名评估中文](operations/STORAGE_NOMINATION_ASSESSMENT-CN.md)
+- [储气与提名评估英文](operations/STORAGE_NOMINATION_ASSESSMENT.md)
 - [部署角色中文](deployment/DEPLOYMENT_ROLES-CN.md)
 - [部署角色英文](deployment/DEPLOYMENT_ROLES-EN.md)
+- [安全验收证据中文](release/SECURITY_ACCEPTANCE_EVIDENCE-CN.md)
+- [安全验收证据英文](release/SECURITY_ACCEPTANCE_EVIDENCE.md)
 - [发布就绪](release/RELEASE_READINESS.md)
 
 ## 文档状态规则

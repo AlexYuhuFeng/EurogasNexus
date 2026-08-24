@@ -31,6 +31,21 @@ def _runtime_env(data: object) -> dict:
 
 @router.get("/api/lng/terminals")
 def list_terminals(request: Request) -> dict:
+    """List LNG terminals aggregated from runtime observations.
+
+    按 terminal_id 聚合最新观测为终端列表；DB 未配置时降级为空并告警。
+
+    Args:
+        request: Incoming FastAPI request (unused except wiring).
+
+    Returns:
+        Enveloped terminal list (one entry per terminal) or an empty
+        enveloped response with a warning.
+
+    Raises:
+        HTTPException: 503 ``runtime_db_unavailable`` on DB read failure.
+    """
+
     observations = _db_lng_observations()
     if observations is None:
         return _env([], request)
@@ -55,6 +70,20 @@ def list_terminals(request: Request) -> dict:
 
 @router.get("/api/lng/observations")
 def list_observations(request: Request) -> dict:
+    """List LNG terminal observations from the runtime DB.
+
+    返回 LNG 观测列表（按终端名 + 周期倒序）；DB 未配置时降级为空并告警。
+
+    Args:
+        request: Incoming FastAPI request (unused except wiring).
+
+    Returns:
+        Enveloped observation rows or an empty enveloped response.
+
+    Raises:
+        HTTPException: 503 ``runtime_db_unavailable`` on DB read failure.
+    """
+
     observations = _db_lng_observations()
     if observations is not None:
         return _runtime_env(observations)

@@ -14,6 +14,8 @@ from enum import StrEnum
 
 
 class TariffStatus(StrEnum):
+    """Status of a tariff source document, best-to-worst for selection."""
+
     FINAL = "FINAL"
     INDICATIVE = "INDICATIVE"
     PROVISIONAL = "PROVISIONAL"
@@ -22,11 +24,15 @@ class TariffStatus(StrEnum):
 
 
 class TariffDirection(StrEnum):
+    """Direction of a capacity/tariff charge at a system point."""
+
     ENTRY = "ENTRY"
     EXIT = "EXIT"
 
 
 class CapacityProduct(StrEnum):
+    """Capacity product duration offered at interconnection points."""
+
     ANNUAL = "ANNUAL"
     QUARTERLY = "QUARTERLY"
     MONTHLY = "MONTHLY"
@@ -36,6 +42,8 @@ class CapacityProduct(StrEnum):
 
 
 class Firmness(StrEnum):
+    """Firmness class of a capacity product or tariff."""
+
     FIRM = "FIRM"
     INTERRUPTIBLE = "INTERRUPTIBLE"
     BACKHAUL = "BACKHAUL"
@@ -43,6 +51,8 @@ class Firmness(StrEnum):
 
 
 class PointType(StrEnum):
+    """Kind of a network point in route/tariff modelling."""
+
     ENTRY = "ENTRY"
     EXIT = "EXIT"
     BEACH = "BEACH"
@@ -54,6 +64,8 @@ class PointType(StrEnum):
 
 
 class BusinessModel(StrEnum):
+    """Commercial model of a route-cost scenario."""
+
     VIRTUAL_HUB_SALE = "VIRTUAL_HUB_SALE"
     PHYSICAL_DELIVERY = "PHYSICAL_DELIVERY"
     STORAGE_INJECTION = "STORAGE_INJECTION"
@@ -61,6 +73,8 @@ class BusinessModel(StrEnum):
 
 
 class DeliveryMode(StrEnum):
+    """How a resource delivers or a sale is executed (physical/title)."""
+
     TERMINAL_TITLE_TRANSFER = "TERMINAL_TITLE_TRANSFER"
     VIRTUAL_HUB_SALE = "VIRTUAL_HUB_SALE"
     PHYSICAL_ENTRY_DELIVERY = "PHYSICAL_ENTRY_DELIVERY"
@@ -71,6 +85,8 @@ class DeliveryMode(StrEnum):
 
 
 class SourceResourceType(StrEnum):
+    """Type of an upstream source resource in the portfolio."""
+
     BEACH_DELIVERY = "BEACH_DELIVERY"
     LNG_REGAS = "LNG_REGAS"
     PIPELINE_IMPORT = "PIPELINE_IMPORT"
@@ -79,6 +95,8 @@ class SourceResourceType(StrEnum):
 
 
 class CostComponentType(StrEnum):
+    """Cost component kinds in route-cost breakdowns."""
+
     ENTRY_CAPACITY = "ENTRY_CAPACITY"
     EXIT_CAPACITY = "EXIT_CAPACITY"
     COMMODITY_CHARGE = "COMMODITY_CHARGE"
@@ -88,11 +106,102 @@ class CostComponentType(StrEnum):
     MANUAL_ADJUSTMENT = "MANUAL_ADJUSTMENT"
 
 
+class AccessStatus(StrEnum):
+    """Three-state TSO access evaluation.
+
+    UNKNOWN must never be interpreted as granted: it fails closed for
+    cross-zone routes until the company access list is supplied and checked.
+    """
+
+    CONFIRMED = "CONFIRMED"
+    DENIED = "DENIED"
+    UNKNOWN = "UNKNOWN"
+
+
+class CapacityStatus(StrEnum):
+    """Three-state capacity availability evaluation.
+
+    Only NOT_REQUIRED (no network capacity needed, e.g. a same-point title
+    transfer) may be treated as unlimited; UNKNOWN must fail closed.
+    """
+
+    KNOWN = "KNOWN"
+    NOT_REQUIRED = "NOT_REQUIRED"
+    UNKNOWN = "UNKNOWN"
+
+
+class CapacityProductDuration(StrEnum):
+    """Standard CAM capacity product durations.
+
+    CAM (Regulation (EU) 2017/459) standard capacity products are yearly,
+    quarterly, monthly, daily, and within-day. Day-ahead is an auction timing,
+    not a capacity product (see ``AuctionTiming``).
+    """
+
+    YEARLY = "YEARLY"
+    QUARTERLY = "QUARTERLY"
+    MONTHLY = "MONTHLY"
+    DAILY = "DAILY"
+    WITHIN_DAY = "WITHIN_DAY"
+
+
+class AuctionTiming(StrEnum):
+    """Auction timing of capacity products (CAM Article 11)."""
+
+    YEARLY_AUCTION = "YEARLY_AUCTION"
+    QUARTERLY_AUCTION = "QUARTERLY_AUCTION"
+    MONTHLY_AUCTION = "MONTHLY_AUCTION"
+    DAILY_AUCTION = "DAILY_AUCTION"
+    WITHIN_DAY_AUCTION = "WITHIN_DAY_AUCTION"
+    DAY_AHEAD = "DAY_AHEAD"
+
+
+# Non-standard capacity products kept for compatibility with legacy rows.
+# They are explicitly marked as extensions so callers can flag them.
+CAPACITY_PRODUCT_EXTENSIONS: frozenset[str] = frozenset({"WEEKLY"})
+
+
+class StatusKind(StrEnum):
+    """Unified result status semantics for optimizers and workflows.
+
+    SUCCESS only when the outcome is complete; PARTIAL when volume or inputs
+    are missing; BLOCKED when nothing could be decided; UNKNOWN when the
+    evaluation did not run.
+    """
+
+    SUCCESS = "SUCCESS"
+    PARTIAL = "PARTIAL"
+    BLOCKED = "BLOCKED"
+    UNKNOWN = "UNKNOWN"
+
+
+class ActionKindCategory(StrEnum):
+    """Action classification for governance/audit/approval rules.
+
+    System actions need no human approval, analytical actions produce
+    research outputs, decision candidates require human review before use,
+    and external actions (orders, nominations) are forbidden by product
+    boundary — never performed.
+    """
+
+    SYSTEM = "SYSTEM"
+    ANALYTICAL = "ANALYTICAL"
+    DECISION_CANDIDATE = "DECISION_CANDIDATE"
+    EXTERNAL_ACTION = "EXTERNAL_ACTION"
+
+
 # --- Ontology-specific taxonomies -------------------------------------------
 
 
 class MarketHub(StrEnum):
-    """European virtual trading hubs / market-area price anchors."""
+    """European virtual trading hubs / market-area price anchors.
+
+    NOTE (Gate 2): the effective-dated DB reference master is
+    ``reference_market_hubs`` (validity window, market area, supersession).
+    This enum is the compatibility closure used by legacy code; historical
+    codes (NCG, GASPOOL) are retained for backfill and superseded by THE per
+    ``MARKET_HUB_SUPERSESSIONS``.
+    """
 
     TTF = "TTF"
     NBP = "NBP"
@@ -103,6 +212,14 @@ class MarketHub(StrEnum):
     CEGH = "CEGH"
     PSV = "PSV"
     ZTP = "ZTP"
+
+
+# Market-area / hub replacements: historical market areas merged into THE
+# (Trading Hub Europe) when the German market areas consolidated (2021).
+MARKET_HUB_SUPERSESSIONS: dict[str, str] = {
+    "NCG": "THE",
+    "GASPOOL": "THE",
+}
 
 
 class NodeType(StrEnum):

@@ -8,6 +8,8 @@ from enum import StrEnum
 
 
 class BacktestResultStatus(StrEnum):
+    """Backtest outcome status."""
+
     COMPLETE = "complete"
     PARTIAL = "partial"
     ERROR = "error"
@@ -15,6 +17,14 @@ class BacktestResultStatus(StrEnum):
 
 @dataclass(frozen=True)
 class BacktestInput:
+    """Backtest input (strategy identity + trade PnL records).
+
+    Attributes:
+        strategy_name: Strategy display name.
+        start_utc / end_utc: Backtest window (ISO).
+        trades: List of ``{"pnl_eur": ..., "date": ...}`` records.
+    """
+
     strategy_name: str
     start_utc: str = ""
     end_utc: str = ""
@@ -23,6 +33,23 @@ class BacktestInput:
 
 @dataclass(frozen=True)
 class BacktestOutput:
+    """Backtest metrics output (research-only envelope).
+
+    Attributes:
+        strategy_name: Strategy display name.
+        start_utc / end_utc: Backtest window.
+        total_return_eur: Total PnL.
+        trade_count / win_count / loss_count: Trade statistics.
+        win_rate_pct: Win rate percent.
+        sharpe_ratio: Simple Sharpe approximation, or None.
+        max_drawdown_pct: Max drawdown percent, or None.
+        status: COMPLETE / PARTIAL / ERROR.
+        assumptions / missing_inputs / warnings: Transparency fields.
+        source_references / lineage: Provenance.
+        research_only / human_review_required: Always True.
+        generated_at_utc: Generation time (ISO).
+    """
+
     strategy_name: str
     start_utc: str
     end_utc: str

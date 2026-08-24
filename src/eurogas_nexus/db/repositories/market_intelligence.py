@@ -50,6 +50,21 @@ def list_market_quotes(
     source_system: str | None = None,
     limit: int = 500,
 ) -> list[dict]:
+    """List market quotes with optional filters, newest first.
+
+    列出规范化 L1 报价（可按 hub/product/来源过滤，按观测时间倒序）。
+
+    Args:
+        session: DB session.
+        hub: Hub filter (case-insensitive), or None.
+        product: Product filter (case-insensitive), or None.
+        source_system: Source system filter, or None.
+        limit: Max rows.
+
+    Returns:
+        List of quote payload dicts.
+    """
+
     query = session.query(MarketQuoteRecord)
     if hub:
         query = query.filter(MarketQuoteRecord.hub == hub.strip().upper())
@@ -68,6 +83,21 @@ def list_intraday_opportunities(
     limit: int = 100,
     now_utc: datetime | None = None,
 ) -> list[dict]:
+    """List intraday opportunities, optionally filtered by status.
+
+    列出日内机会（可按状态过滤，按检出时间倒序）；带状态过滤时扩大
+    预取量以补偿过滤损耗。
+
+    Args:
+        session: DB session.
+        status: Status filter (e.g. ``ACTIONABLE_REVIEW``), or None.
+        limit: Max rows after filtering.
+        now_utc: Evaluation clock for validity checks, or None.
+
+    Returns:
+        List of opportunity payload dicts.
+    """
+
     query = session.query(IntradayOpportunityRecord)
     requested_status = status.strip().upper() if status else None
     query_limit = min(limit * 5, 1000) if requested_status else limit

@@ -1,4 +1,4 @@
-﻿# Project Directory
+# Project Directory
 
 ## Purpose
 
@@ -15,10 +15,21 @@ apps/                   Process entrypoints
 clients/                API-consuming Web and Windows/Linux desktop clients
 data/                   Local artifacts, fixtures, reports, and milestone outputs
 docs/                   Architecture, contracts, policies, operations, release docs
-docs/clients/           Web and Windows client specs, stack, i18n, theme
-docs/data/              Canonical data model blueprints
-docs/design/            Text wireframes and UX layout blueprints
-docs/product/           Commercial workflow and product semantics
+  docs/api/             API surface blueprints
+  docs/architecture/    Architecture, ADRs, pause points, roadmaps
+  docs/clients/         Web/Windows client specs, stack, i18n, theme
+  docs/compliance/      Compliance and governance notes
+  docs/contracts/       Public API contracts and conventions
+  docs/data/            Canonical data model blueprints
+  docs/deployment/      Deployment roles and installers
+  docs/design/          Text wireframes and UX layout blueprints
+  docs/ontology/        Ontology, vocabulary, and gap reports
+  docs/operations/      Runbooks: live PostgreSQL, backup/restore, SLO, validation
+  docs/policies/        Policy documents
+  docs/product/         Commercial workflow and product semantics
+  docs/proposals/       Proposals
+  docs/release/         Release readiness and release plans
+  docs/sdk/             SDK design notes
 infra/                  Deployment templates and operator notes
 packages/               Future distributable packages
 release/                Source-controlled release blueprint
@@ -48,17 +59,37 @@ The current release-candidate worktree implements backend, SDK, CLI, Web, and
 Windows shell surfaces for the tested local scope:
 
 - API entrypoint: `apps/api/main.py`
-- API package: `src/eurogas_nexus/api`
-- DB foundation: `src/eurogas_nexus/db`
+- API package: `src/eurogas_nexus/api` (route profiles, middleware, dependencies,
+  public/internal/dev routes)
+- DB foundation: `src/eurogas_nexus/db` (models, repositories, session, registry)
 - route-cost domain: `src/eurogas_nexus/domain/route_cost`
+- ontology: `src/eurogas_nexus/domain/ontology` (typed concepts, vocabulary,
+  semantic kernel, bindings) + `docs/ontology/`
 - market-positioning domain: `src/eurogas_nexus/domain/market_positioning.py`
 - market-positioning import domain:
   `src/eurogas_nexus/domain/market_positioning_import.py`
 - glossary domain: `src/eurogas_nexus/domain/glossary.py`
-- operational glossary context: `src/eurogas_nexus/domain/analysis.py` and
-  `/api/glossary/{term}/context`
+- operational glossary context: `src/eurogas_nexus/domain/analysis/`
+  (contracts / builders / glossary_context / glossary_profile /
+  glossary_entities) and `/api/glossary/{term}/context`
 - strategy-lab domain: `src/eurogas_nexus/domain/strategy_lab`
-- SDK clients: `src/eurogas_nexus/sdk`
+- phase-two optimization engines: `src/eurogas_nexus/optimization`
+  (route / resource-pool / capacity / contract / shared-capacity network flow)
+  + `/api/optimization/*`
+- DB-composed portfolio network optimization:
+  `src/eurogas_nexus/domain/route_cost/portfolio_network.py` +
+  `POST /api/optimization/portfolio-network` (R31)
+- governance and audit: `src/eurogas_nexus/governance` (entitlement, audit)
+- identity: `src/eurogas_nexus/db/models/identity.py`,
+  `src/eurogas_nexus/db/repositories/identity.py`,
+  `src/eurogas_nexus/security/identity.py` (R32 local identities, hashed keys,
+  roles, commercial data scopes)
+- security: `src/eurogas_nexus/security` (tokens, credentials, permissions)
+- application workflows: `src/eurogas_nexus/application`
+- streaming: `src/eurogas_nexus/streaming` (SSE contracts)
+- MCP server: `src/eurogas_nexus/mcp` (read-only stdio tools)
+- SDK clients: `src/eurogas_nexus/sdk` (market, physical, route_cost,
+  optimization, analysis, review, credentials, streaming, strategy_lab, ...)
 - CLI client: `src/eurogas_nexus/cli`
 - Web workspace: `clients/web`
 - Windows/Linux desktop shell: `clients/desktop`
@@ -130,6 +161,19 @@ Codex should use:
 - `docs/contracts/21_RESOURCE_POOL_CONTRACT-EN.md` and
   `docs/contracts/21_RESOURCE_POOL_CONTRACT-CN.md` as the resource-pool and
   EFET-style contract authority;
+- `docs/contracts/API_CONVENTIONS.md` as the envelope/pagination/error/status
+  conventions for the public `/api` surface;
+- `docs/operations/SLO.md` as the preview service-level objectives and their
+  automated evidence;
+- `docs/operations/BACKUP_RESTORE.md` as the backup/restore procedure and
+  drill checklist;
+- `docs/ontology/gap-report.md` and `docs/ontology/europe-natural-gas.md` as
+  the ontology alignment status and the semantic backbone, together with
+  `docs/ontology/eurogas-nexus-grm.ttl` and its
+  `OWL_GAS_ROLE_MODEL*.md` companions as the machine-readable GRM/SAREF OWL
+  ontology;
+- `docs/release/RELEASE_READINESS.md` as the current release-candidate state
+  and validated gates;
 - `docs/clients/MARKET_POSITIONING_COCKPIT_SPEC-EN.md` and
   `docs/clients/MARKET_POSITIONING_COCKPIT_SPEC-CN.md` as the read-only
   imported order/PnL cockpit contract;
@@ -154,9 +198,12 @@ placeholder only. Do not add runtime behavior just because a folder exists.
 
 - Backend work activates `apps/api`, `src/eurogas_nexus`, `alembic`, `scripts`,
   `tests`, and backend docs.
-- SDK work activates `src/eurogas_nexus/sdk`, `packages/python-sdk`, and
-  `tests/sdk`.
+- SDK work activates `src/eurogas_nexus/sdk` and `tests/sdk` (the historical
+  `packages/python-sdk` directory does not exist; SDK lives in the backend
+  package).
 - CLI work activates `src/eurogas_nexus/cli` and `tests/cli`.
+- MCP work activates `src/eurogas_nexus/mcp` and its unit tests; tools are
+  read-only and reuse the SDK auth gates.
 - Web client work activates `clients/web` only after a web milestone is selected.
 - Windows client work activates `clients/desktop` only after backend and web API
   contracts are stable enough for packaging.

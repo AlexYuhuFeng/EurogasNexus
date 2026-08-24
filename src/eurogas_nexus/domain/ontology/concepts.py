@@ -32,7 +32,16 @@ from eurogas_nexus.domain.ontology.vocabulary import (
 
 @dataclass(frozen=True)
 class Slot:
-    """A typed attribute of a concept."""
+    """A typed attribute of a concept.
+
+    类型化槽位：类型可以是内置类型、受控词表枚举类或嵌套概念 id
+    （字符串），使概念形状可被机器校验而非散落为散文。
+
+    Attributes:
+        name: Slot name (e.g. ``delivery_mode``).
+        type: Built-in type, enum class, or nested concept id (str).
+        cardinality: ``"1"``, ``"0..1"`` or ``"0..n"``.
+    """
 
     name: str
     type: Any  # a built-in type, enum class, or nested concept id (str)
@@ -41,7 +50,16 @@ class Slot:
 
 @dataclass(frozen=True)
 class Concept:
-    """A typed concept in the European natural-gas ontology."""
+    """A typed concept in the European natural-gas ontology.
+
+    Attributes:
+        concept_id: Stable concept id (e.g. ``VirtualHub``).
+        name: Display name.
+        definition_en: English definition.
+        definition_zh_cn: Chinese definition.
+        slots: Typed attribute slots.
+        supertype: Parent concept id, or None.
+    """
 
     concept_id: str
     name: str
@@ -83,7 +101,10 @@ CONCEPTS: tuple[Concept, ...] = (
         "市场区内的记账式交易点，承载该区的平衡价格。",
         (
             Slot("hub", MarketHub),
-            Slot("market_area", "MarketArea"),
+            Slot("market_area", "MarketArea", "0..1"),
+            Slot("valid_from", datetime, "0..1"),
+            Slot("valid_to", datetime, "0..1"),
+            Slot("superseded_by", str, "0..1"),
         ),
     ),
     Concept(
@@ -138,7 +159,10 @@ CONCEPTS: tuple[Concept, ...] = (
         (
             Slot("point", "ReferenceNode"),
             Slot("kind", FlowKind),
+            Slot("direction", str),
             Slot("flow_mcm_d", float),
+            Slot("source_system", str),
+            Slot("freshness", str),
         ),
     ),
     Concept(
@@ -213,6 +237,12 @@ CONCEPTS: tuple[Concept, ...] = (
             Slot("price_type", PriceType),
             Slot("price", float),
             Slot("currency", Currency),
+            Slot("unit", str),
+            Slot("source_system", str),
+            Slot("source_reference", str),
+            Slot("freshness", str),
+            Slot("quality_score", float),
+            Slot("entitlement_scope", str, "0..1"),
         ),
     ),
     Concept(
@@ -342,11 +372,15 @@ CONCEPTS: tuple[Concept, ...] = (
     Concept(
         "GlossaryTerm",
         "Glossary Term",
-        "A human-readable bilingual annotation; not the correctness backbone.",
-        "人读的双语注释，不是正确性骨干。",
+        (
+            "A human-readable bilingual annotation of an ontology concept, "
+            "carrying that concept's stable id."
+        ),
+        "人读的双语注释，通过稳定 concept_id 关联本体概念。",
         (
             Slot("term", str),
             Slot("category", str),
+            Slot("concept_id", str, "0..1"),
             Slot("definition_en", str),
             Slot("definition_zh_cn", str),
         ),

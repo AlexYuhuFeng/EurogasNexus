@@ -45,6 +45,8 @@ class NetbackOutput:
 
     @property
     def is_partial(self) -> bool:
+        """Whether inputs are missing or warnings were raised."""
+
         return bool(self.missing_inputs or self.warnings)
 
 

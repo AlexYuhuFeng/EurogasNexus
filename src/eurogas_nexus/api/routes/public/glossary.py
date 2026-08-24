@@ -1,4 +1,4 @@
-﻿"""Read-only /api/glossary routes for English and Mandarin terms."""
+"""Read-only /api/glossary routes for English and Mandarin terms."""
 
 from datetime import datetime
 from typing import Annotated
@@ -17,11 +17,28 @@ def list_terms(
     lang: str = Query("en", pattern="^(en|zh|zh-CN)$"),
     category: str | None = Query(None),
     q: str | None = Query(None),
+    limit: int = Query(100, ge=1, le=1000),
 ) -> dict:
+    """List glossary terms, optionally filtered by category and query.
+
+    列出术语表（可按分类/关键词过滤并限制条数）；数据源为运行时 DB
+    或基线回退（见 _load_terms）。
+
+    Args:
+        request: Incoming FastAPI request (unused except wiring).
+        lang: Output language (``en``/``zh``/``zh-CN``).
+        category: Category filter, or None.
+        q: Free-text filter, or None.
+        limit: Max results (1-1000).
+
+    Returns:
+        Enveloped list of localized term payloads.
+    """
+
     terms, source, warnings = _load_terms()
     filtered = _filter_terms(terms, category=category, query=q)
     return _env(
-        [term.localized(lang) for term in filtered],
+        [term.localized(lang) for term in filtered[:limit]],
         source=source,
         warnings=warnings,
     )
@@ -33,6 +50,22 @@ def get_term(
     request: Request,
     lang: str = Query("en", pattern="^(en|zh|zh-CN)$"),
 ) -> dict:
+    """Return one glossary term by name, id, or alias.
+
+    按术语名/term_id/别名精确匹配返回单条术语（大小写不敏感）。
+
+    Args:
+        term: Term, term_id, or alias.
+        request: Incoming FastAPI request (unused except wiring).
+        lang: Output language.
+
+    Returns:
+        Enveloped localized term payload.
+
+    Raises:
+        HTTPException: 404 when no term matches.
+    """
+
     terms, source, warnings = _load_terms()
     normalized = term.strip().lower()
     for item in terms:

@@ -75,6 +75,17 @@ def list_review_decisions(
 
 
 def review_payload(row: ReviewDecisionRecord) -> dict:
+    """Serialize a review decision row to its API payload shape.
+
+    把评审决策记录序列化为 API 载荷（时间戳规范化到 UTC）。
+
+    Args:
+        row: The review decision record.
+
+    Returns:
+        Dict with all payload fields.
+    """
+
     return {
         "decision_id": row.decision_id,
         "entity_type": row.entity_type,

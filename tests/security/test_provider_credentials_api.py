@@ -1,4 +1,4 @@
-﻿"""Provider credential API tests."""
+"""Provider credential API tests."""
 
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine

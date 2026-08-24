@@ -61,12 +61,27 @@ def certification_gate(
     stage: str,
     checks: list[str] | None = None,
 ) -> CertificationGateResult:
-    """Evaluate whether a source system may be treated as native live."""
+    """Evaluate whether a source system may be treated as native live.
+
+    模拟转实时认证门禁：只有 stage 为 live_validated 且必需检查齐备时
+    才允许 live（fail-closed）。
+
+    Args:
+        source_system: Source system being evaluated.
+        stage: Persisted certification stage (any casing; normalized).
+        checks: Persisted certification check ids, or None.
+
+    Returns:
+        A CertificationGateResult with ``allows_live`` False unless the
+        stage is ``live_validated`` AND both required checks are present;
+        the reason field carries a stable machine-readable code.
+    """
 
     normalized_stage = str(stage or "").strip().lower()
     provided_checks = {str(check or "").strip().lower() for check in (checks or [])}
 
     if normalized_stage != CertificationStage.LIVE_VALIDATED.value:
+        # 未到 live_validated 阶段：一律禁活；缺记录与阶段不足分开报因。
         return CertificationGateResult(
             source_system=source_system,
             stage=normalized_stage or CertificationStage.UNVERIFIED.value,
@@ -80,6 +95,7 @@ def certification_gate(
 
     missing = [check for check in REQUIRED_LIVE_CHECKS if check not in provided_checks]
     if missing:
+        # 阶段达标但检查缺失：仍禁活，缺哪项报哪项。
         return CertificationGateResult(
             source_system=source_system,
             stage=normalized_stage,
@@ -102,7 +118,25 @@ def validate_certification_payload(
     evidence: dict[str, Any],
     evaluated_by: str,
 ) -> None:
-    """Validate an incoming certification record before persistence."""
+    """Validate an incoming certification record before persistence.
+
+    持久化前的输入校验：来源系统、操作者主体、阶段、检查清单与证据
+    逐项验证，任何一项不合法即抛错拒绝写入。
+
+    Args:
+        source_system: Non-empty source system id.
+        stage: One of the CertificationStage values (any casing).
+        checks: Check ids; all must be in KNOWN_CHECKS.
+        evidence: JSON object with certification evidence.
+        evaluated_by: Operator principal (see identity.principal).
+
+    Returns:
+        None when the payload is valid.
+
+    Raises:
+        ValueError: When any field violates its rule, including
+            ``live_validated`` stages missing a required check.
+    """
 
     if not str(source_system or "").strip():
         raise ValueError("source_system is required.")
@@ -119,6 +153,7 @@ def validate_certification_payload(
     if not isinstance(evidence, dict):
         raise ValueError("evidence must be a JSON object.")
     if CertificationStage(stage) is CertificationStage.LIVE_VALIDATED:
+        # live_validated 阶段强制要求两项必需检查（与门禁规则一致）。
         missing = [check for check in REQUIRED_LIVE_CHECKS if check not in normalized_checks]
         if missing:
             raise ValueError(

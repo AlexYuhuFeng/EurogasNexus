@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import UTC, date, datetime
+
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field, ValidationError
 
@@ -24,6 +26,29 @@ router = APIRouter(tags=["route-cost"])
 
 
 class UpstreamContractUpsertRequest(BaseModel):
+    """Upsert payload for one operator-owned upstream resource contract.
+
+    Attributes:
+        contract_id: Stable contract id (1-128 chars).
+        contract_name: Contract display name.
+        resource_type: Resource type tag (e.g. ``BEACH_DELIVERY``).
+        delivery_point_name: Delivery point name.
+        gas_year: Contract gas year.
+        delivery_quantity_mwh_per_day: Daily volume (positive).
+        contract_price_gbp_mwh: All-in contract price per MWh.
+        settlement_frequency: Settlement frequency tag.
+        upstream_payment_lag_days: Upstream payment lag (days).
+        screen_sale_cash_lag_days: Screen-sale cash lag (days).
+        delivery_tolerance_pct / nomination_tolerance_pct: Tolerances.
+        tolerance_risk_allowance_gbp_mwh: Risk allowance, or None.
+        annual_financing_rate_pct: Financing rate for early-cash value.
+        owned_entry_capacity_mwh_per_day / owned_exit_capacity_mwh_per_day:
+            Owned capacity, or None.
+        allowed_exit_points: Allowed exit points.
+        eligible_sale_modes: Eligible sale modes.
+        notes: Operator notes, or None.
+    """
+
     contract_id: str = Field(min_length=1, max_length=128)
     contract_name: str = Field(min_length=1, max_length=256)
     resource_type: str = Field(min_length=1, max_length=64)
@@ -189,7 +214,11 @@ def get_resource_pool_options(request: Request) -> dict:
 
     sqlalchemy_error = _sqlalchemy_error_type()
     try:
-        from eurogas_nexus.db.models import MarketObservationRecord
+        from eurogas_nexus.db.models import (
+            CompanyTsoAccessRecord,
+            FxObservationRecord,
+            MarketObservationRecord,
+        )
         from eurogas_nexus.db.repositories.route_cost import (
             list_route_candidates,
             list_tso_tariffs,
@@ -206,12 +235,24 @@ def get_resource_pool_options(request: Request) -> dict:
                 .order_by(MarketObservationRecord.observed_at_utc.desc())
                 .all()
             )
+            fx_rows = (
+                session.query(FxObservationRecord)
+                .order_by(FxObservationRecord.observed_at_utc.desc())
+                .all()
+            )
+            access_rows = (
+                session.query(CompanyTsoAccessRecord)
+                .order_by(CompanyTsoAccessRecord.tso)
+                .all()
+            )
 
         data = _compose_resource_pool_options(
             contracts=contracts,
             candidates=candidates,
             tariffs=tariffs,
             market_rows=market_rows,
+            fx_rows=fx_rows,
+            company_accessible_tsos=_active_company_tsos(access_rows),
         )
         return _env(data, request, source="runtime-postgresql", warnings=data["warnings"])
     except sqlalchemy_error as exc:
@@ -319,6 +360,8 @@ def _compose_resource_pool_options(
     candidates: list[dict],
     tariffs: list,
     market_rows: list,
+    fx_rows: list,
+    company_accessible_tsos: list[str] | None = None,
 ) -> dict:
     blockers: list[str] = []
     warnings: list[str] = []
@@ -357,16 +400,67 @@ def _compose_resource_pool_options(
             warnings.append(f"ROUTE_TARGET_NOT_ALLOWED_BY_CONTRACT:{candidate['route_id']}")
             continue
 
-        route_cost, cost_warnings, cost_blockers = _candidate_route_cost(
-            candidate,
-            tariffs,
-            price_currency=market_price["currency"],
-            price_unit=market_price["unit"],
+        route_cost, cost_currency, cost_unit, cost_warnings, cost_blockers = (
+            _candidate_route_cost(
+                candidate,
+                tariffs,
+                price_currency=market_price["currency"],
+                price_unit=market_price["unit"],
+                company_accessible_tsos=company_accessible_tsos,
+            )
         )
         warnings.extend(cost_warnings)
         blockers.extend(cost_blockers)
         if cost_blockers:
             continue
+
+        capacity_limit = _route_capacity_limit(candidate)
+        is_cross_zone = (
+            str(candidate.get("business_model") or "").upper()
+            in {"CROSS_BORDER_TRANSFER", "BORDER_TRANSFER"}
+            or start != target
+        )
+        if capacity_limit is None and is_cross_zone:
+            # Cross-zone route with no known capacity: fail closed. Only a
+            # same-point sale (NOT_REQUIRED) may proceed without capacity.
+            blockers.append(f"ROUTE_CAPACITY_UNKNOWN:{candidate['route_id']}")
+            continue
+        capacity_status = "KNOWN" if capacity_limit is not None else "NOT_REQUIRED"
+
+        observed_at_iso = market_price["observed_at_utc"]
+        asof_date = _date_from_iso(observed_at_iso)
+
+        sale_price_gbp, sale_fx_info, sale_fx_warning = _value_in_gbp(
+            market_price["price"],
+            market_price["currency"],
+            market_price["unit"],
+            asof_date,
+            fx_rows,
+        )
+        if sale_price_gbp is None:
+            blockers.append(
+                f"MARKET_PRICE_FX_UNAVAILABLE:{target} "
+                f"({market_price['currency']}->GBP)"
+            )
+            continue
+        if sale_fx_warning:
+            warnings.append(f"{sale_fx_warning}:{target}")
+
+        route_cost_gbp, route_fx_info, route_fx_warning = _value_in_gbp(
+            route_cost,
+            cost_currency,
+            cost_unit,
+            asof_date,
+            fx_rows,
+        )
+        if route_cost_gbp is None:
+            blockers.append(
+                f"ROUTE_COST_FX_UNAVAILABLE:{candidate['route_id']} "
+                f"({cost_currency}->GBP)"
+            )
+            continue
+        if route_fx_warning:
+            warnings.append(f"{route_fx_warning}:{candidate['route_id']}")
 
         sale_options.append(
             {
@@ -374,20 +468,25 @@ def _compose_resource_pool_options(
                 "label": candidate["route_name"],
                 "delivery_mode": "VIRTUAL_HUB_SALE",
                 "target_point_name": candidate["target_point_name"],
-                "sale_price_gbp_mwh": market_price["price"],
-                "sale_price_currency": market_price["currency"],
-                "sale_price_unit": market_price["unit"],
+                "sale_price_gbp_mwh": sale_price_gbp,
+                "sale_price_currency": "GBP",
+                "sale_price_unit": "GBP/MWh",
                 "sale_price_source_system": market_price["source_system"],
                 "sale_price_source_reference": market_price["source_reference"],
-                "sale_price_observed_at_utc": market_price["observed_at_utc"],
+                "sale_price_observed_at_utc": observed_at_iso,
                 "sale_price_freshness": market_price["freshness"],
                 "sale_price_quality_score": market_price["quality_score"],
                 "sale_price_simulated": market_price["simulated"],
                 "sale_price_source_family": market_price["source_family"],
-                "route_cost_gbp_mwh": route_cost,
-                "route_cost_currency": market_price["currency"],
-                "route_cost_unit": market_price["unit"],
-                "capacity_limit_mwh_per_day": _route_capacity_limit(candidate),
+                "sale_price_original_currency": market_price["currency"],
+                "sale_price_original_unit": market_price["unit"],
+                **sale_fx_info,
+                "route_cost_gbp_mwh": route_cost_gbp,
+                "route_cost_currency": "GBP",
+                "route_cost_unit": "GBP/MWh",
+                **route_fx_info,
+                "capacity_limit_mwh_per_day": capacity_limit,
+                "capacity_status": capacity_status,
                 "screen_sale_cash_lag_days": _screen_cash_lag_days(contracts),
                 "required_tso_access": candidate["required_tso_access"],
                 "source_refs": [
@@ -542,14 +641,15 @@ def _candidate_route_cost(
     *,
     price_currency: str,
     price_unit: str,
-) -> tuple[float, list[str], list[str]]:
+    company_accessible_tsos: list[str] | None = None,
+) -> tuple[float | None, str | None, str | None, list[str], list[str]]:
     if not candidate["route_legs"]:
-        return 0.0, [], []
+        return 0.0, None, None, [], []
 
     try:
         legs = [RouteTariffLeg.model_validate(leg) for leg in candidate["route_legs"]]
     except ValidationError:
-        return 0.0, [], [f"ROUTE_LEG_INVALID:{candidate['route_id']}"]
+        return 0.0, None, None, [], [f"ROUTE_LEG_INVALID:{candidate['route_id']}"]
 
     scenario = RouteCostScenario(
         scenario_id=f"resource-pool-options:{candidate['route_id']}",
@@ -562,6 +662,9 @@ def _candidate_route_cost(
         capacity_product=legs[0].capacity_product or "ANNUAL",
         firmness=legs[0].firmness or "FIRM",
         required_tso_access=candidate["required_tso_access"],
+        company_accessible_tsos=(
+            company_accessible_tsos if candidate["required_tso_access"] else None
+        ),
         tariff_legs=legs,
     )
     result = calculate_route_cost(scenario, tariffs)
@@ -575,12 +678,131 @@ def _candidate_route_cost(
     ]
     if result.total_cost is None:
         blockers.append(f"ROUTE_COST_MISSING:{candidate['route_id']}")
-        return 0.0, result.warnings, blockers
-    if result.currency and result.currency != price_currency:
-        blockers.append(f"ROUTE_COST_MISSING:{candidate['route_id']}:PRICE_COST_CURRENCY_MISMATCH")
-    if result.unit and result.unit != price_unit:
-        blockers.append(f"ROUTE_COST_MISSING:{candidate['route_id']}:PRICE_COST_UNIT_MISMATCH")
-    return result.total_cost, result.warnings, blockers
+        return 0.0, result.currency, result.unit, result.warnings, blockers
+    # Currency/unit harmonisation happens downstream in _value_in_gbp, which
+    # converts both sale price and route cost to GBP/MWh with as-of FX and
+    # fails closed when conversion is unavailable.
+    return result.total_cost, result.currency, result.unit, result.warnings, blockers
+
+
+def _value_in_gbp(
+    value: float | None,
+    currency: str | None,
+    unit: str | None,
+    asof_date: date | None,
+    fx_rows: list,
+) -> tuple[float | None, dict, str | None]:
+    """Convert a value to GBP/MWh with as-of FX provenance (P0-3).
+
+    Values already in GBP pass through unchanged. Non-GBP values are converted
+    with FX observations whose value date is not later than ``asof_date``
+    (valuation-date as-of join); when no as-of rate exists, the latest rate is
+    used and ``fx_as_of_approximated`` is set. Conversion failure returns None
+    so callers fail closed.
+    """
+
+    if value is None:
+        return None, {}, None
+    currency_code = (currency or "").strip().upper()
+    unit_code = (unit or "").strip().upper()
+    if currency_code == "" and value == 0.0:
+        # A zero cost carries no currency risk.
+        return round(value, 4), {}, None
+    if currency_code == "GBP":
+        return round(value, 4), {}, None
+    if unit_code and not unit_code.endswith("/MWH"):
+        return None, {}, None
+
+    asof_rates = _fx_rows_as_of(fx_rows, asof_date)
+    converted = _convert_with_rows(value, currency_code, "GBP", asof_rates)
+    approximated = converted is None
+    if approximated:
+        converted = _convert_with_rows(value, currency_code, "GBP", fx_rows)
+    if converted is None:
+        return None, {}, None
+
+    rate_row = _direct_fx_row(fx_rows, currency_code, "GBP", asof_date)
+    provenance = {
+        "fx_converted_from": currency_code,
+        "fx_rate_used": rate_row.rate if rate_row is not None else None,
+        "fx_observation_id": rate_row.observation_id if rate_row is not None else None,
+        "fx_value_date": rate_row.value_date if rate_row is not None else None,
+        "fx_as_of_approximated": approximated,
+    }
+    warning = f"FX_AS_OF_APPROXIMATED:{currency_code}->GBP" if approximated else None
+    return round(converted, 4), provenance, warning
+
+
+def _convert_with_rows(value: float, base: str, quote: str, fx_rows: list) -> float | None:
+    """Convert ``value`` from ``base`` to ``quote`` using FX rows as rates.
+
+    Rows are turned into ``FxRateInput`` with ``observed_at_utc`` taken from
+    the row's value date, so the shared latest-rate graph picks the latest
+    value date within the supplied (already as-of filtered) set.
+    """
+
+    from eurogas_nexus.domain.market_intelligence.normalized_view import (
+        FxRateInput,
+        convert_currency,
+    )
+
+    rates = [
+        FxRateInput(
+            pair=row.pair,
+            base_currency=row.base_currency,
+            quote_currency=row.quote_currency,
+            rate=row.rate,
+            observed_at_utc=(row.value_date + "T00:00:00+00:00"),
+        )
+        for row in fx_rows
+        if isinstance(row.rate, int | float) and row.rate > 0
+    ]
+    return convert_currency(value, base, quote, rates)
+
+
+def _fx_rows_as_of(fx_rows: list, asof_date: date | None) -> list:
+    """Keep FX rows whose value date is not later than ``asof_date``."""
+
+    if asof_date is None:
+        return list(fx_rows)
+    return [
+        row
+        for row in fx_rows
+        if _fx_value_date(row) is not None and _fx_value_date(row) <= asof_date
+    ]
+
+
+def _direct_fx_row(fx_rows: list, base: str, quote: str, asof_date: date | None):
+    """Return the latest FX row for a direct currency pair (as-of when given)."""
+
+    matches = []
+    for row in fx_rows:
+        row_base = str(getattr(row, "base_currency", "") or "").strip().upper()
+        row_quote = str(getattr(row, "quote_currency", "") or "").strip().upper()
+        pair = str(getattr(row, "pair", "") or "").upper()
+        if (row_base == base and row_quote == quote) or pair == f"{base}{quote}":
+            row_date = _fx_value_date(row)
+            if asof_date is None or (row_date is not None and row_date <= asof_date):
+                matches.append(row)
+    if not matches:
+        return None
+    return max(matches, key=lambda row: _fx_value_date(row) or date.min)
+
+
+def _fx_value_date(row) -> date | None:
+    value = getattr(row, "value_date", None)
+    if isinstance(value, str):
+        return _date_from_iso(value)
+    return None
+
+
+def _date_from_iso(value: str | None) -> date | None:
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(str(value)[:10])
+    except ValueError:
+        return None
 
 
 def _route_capacity_limit(candidate: dict) -> float | None:
@@ -600,6 +822,27 @@ def _screen_cash_lag_days(contracts: list[dict]) -> int:
         if isinstance(contract.get("screen_sale_cash_lag_days"), int)
     ]
     return min(lags) if lags else 1
+
+
+def _active_company_tsos(rows: list) -> list[str]:
+    """Return currently active company TSO access names."""
+
+    now = datetime.now(UTC)
+    active: list[str] = []
+    for row in rows:
+        valid_from = row.valid_from_utc
+        if valid_from.tzinfo is None:
+            valid_from = valid_from.replace(tzinfo=UTC)
+        valid_to = row.valid_to_utc
+        if valid_to is not None and valid_to.tzinfo is None:
+            valid_to = valid_to.replace(tzinfo=UTC)
+        if valid_from > now:
+            continue
+        if valid_to is not None and valid_to < now:
+            continue
+        if str(row.status).strip().upper() in {"ACTIVE", "CONFIRMED"}:
+            active.append(str(row.tso).strip())
+    return active
 
 
 def _unique(values: list[str]) -> list[str]:

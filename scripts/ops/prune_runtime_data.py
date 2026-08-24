@@ -13,6 +13,7 @@ from eurogas_nexus.db.session import get_session_factory, resolve_database_url
 
 
 def main() -> int:
+    """    Prune stale runtime records per the retention policy."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dry-run", action="store_true", help="Report counts without deleting.")
     args = parser.parse_args()

@@ -11,6 +11,7 @@ from eurogas_nexus.db.session import get_session_factory, resolve_database_url
 
 
 def main() -> int:
+    """    Run the monitoring worker loop."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--interval-seconds",

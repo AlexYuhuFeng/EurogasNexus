@@ -29,7 +29,14 @@ IUK_TARIFF_URL = (
 
 
 def published_european_corridor_tariffs() -> list[CapacityTariff]:
-    """Return official public corridor tariff rows audited for V1."""
+    """Return official public corridor tariff rows audited for V1.
+
+    返回经审计的欧洲走廊公开费率行（BBL 双向 + IUK 四向，均为 FINAL
+    状态），供本地 PostgreSQL 测试种子与确定性路由成本测试使用。
+
+    Returns:
+        List of audited CapacityTariff rows with provenance source URLs.
+    """
 
     return [
         CapacityTariff(
@@ -174,7 +181,13 @@ def published_european_corridor_tariffs() -> list[CapacityTariff]:
 
 
 def published_european_corridor_points() -> list[TariffPoint]:
-    """Return points covered by the audited public corridor tariff rows."""
+    """Return points covered by the audited public corridor tariff rows.
+
+    返回与上述费率行对应的走廊点位（BBL/IUK 互联点，带枢纽绑定）。
+
+    Returns:
+        List of TariffPoint rows with canonical point ids.
+    """
 
     return [
         TariffPoint(

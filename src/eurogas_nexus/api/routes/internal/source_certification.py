@@ -17,6 +17,17 @@ router = APIRouter(prefix="/sources", tags=["internal-sources"])
 
 
 class CertificationUpsertRequest(BaseModel):
+    """Upsert payload for one source-system certification record.
+
+    Attributes:
+        source_system: Source system being certified.
+        stage: Certification stage (see domain.ingestion.certification).
+        checks: Certification check ids (live_validated requires the
+            mandatory two).
+        evidence: JSON object with certification evidence.
+        note: Operator note, or None.
+    """
+
     source_system: str
     stage: str
     checks: list[str] = Field(default_factory=list)

@@ -1,4 +1,9 @@
-"""Pure intraday spread evaluation using executable quote sides."""
+"""Pure intraday spread evaluation using executable quote sides.
+
+日内跨枢纽价差评估的唯一实现：用可成交的报价侧（买价 ask / 卖价 bid）
+评估一条路线的机会，输出 ACTIONABLE_REVIEW / WATCH / BLOCKED 三态与
+置信度——只生成"供人工复核"的机会记录，绝不产生任何订单或执行指令。
+"""
 
 from __future__ import annotations
 
@@ -10,18 +15,56 @@ from pydantic import BaseModel, Field
 
 
 class AccessStatus(StrEnum):
+    """Route access state for the opportunity scan.
+
+    UNCONFIRMED 视为阻断项（fail-closed），只有 CONFIRMED 才可放行。
+    """
+
     CONFIRMED = "CONFIRMED"
     UNCONFIRMED = "UNCONFIRMED"
     DENIED = "DENIED"
 
 
 class OpportunityStatus(StrEnum):
+    """Three-state opportunity classification.
+
+    ACTIONABLE_REVIEW = 净边际达标、输入齐全，交人工复核；
+    WATCH = 输入齐全但未达阈值；BLOCKED = 存在缺失/阻断输入。
+    """
+
     ACTIONABLE_REVIEW = "ACTIONABLE_REVIEW"
     WATCH = "WATCH"
     BLOCKED = "BLOCKED"
 
 
 class MarketQuote(BaseModel):
+    """One executable market quote (bid/ask/last) at a venue.
+
+    Attributes:
+        quote_id: Stable quote id.
+        source_system: Source system of the quote.
+        venue: Screen venue.
+        instrument_id: Instrument identifier.
+        hub: Hub the quote belongs to.
+        product: Product label.
+        delivery_start_utc: Delivery window start.
+        delivery_end_utc: Delivery window end.
+        bid_price: Executable bid, or None.
+        ask_price: Executable ask, or None.
+        last_price: Last mark, or None.
+        bid_quantity_mwh: Bid depth, or None.
+        ask_quantity_mwh: Ask depth, or None.
+        currency: ISO 4217 currency code.
+        unit: Price unit (MWh for gas prices).
+        observed_at_utc: Quote time.
+        received_at_utc: Receipt time.
+        source_reference: Provenance reference.
+        freshness: Freshness tag.
+        quality_score: Data quality in [0, 1].
+        simulated: True when the quote is simulated data.
+        metadata_json: Extra metadata.
+    """
+
     quote_id: str
     source_system: str
     venue: str
@@ -47,6 +90,16 @@ class MarketQuote(BaseModel):
 
 
 class FxRate(BaseModel):
+    """One FX rate record used for comparison-currency conversion.
+
+    Attributes:
+        base_currency: Base ISO 4217 code.
+        quote_currency: Quote ISO 4217 code.
+        rate: Positive base->quote rate.
+        observed_at_utc: Rate time.
+        source_reference: Provenance reference.
+    """
+
     base_currency: str
     quote_currency: str
     rate: float = Field(gt=0)
@@ -55,6 +108,25 @@ class FxRate(BaseModel):
 
 
 class RouteEconomics(BaseModel):
+    """Economic profile of one candidate route.
+
+    Attributes:
+        route_id: Stable route id.
+        route_name: Display name.
+        from_hub: Buy-side hub.
+        to_hub: Sell-side hub.
+        total_cost: Route cost, or None when unestimated.
+        currency: ISO 4217 code of the cost.
+        unit: Unit of the cost.
+        available_capacity_mwh: Route capacity, or None.
+        access_status: TSO access state (UNCONFIRMED blocks).
+        required_tso_access: TSO access codes required.
+        cost_components: Cost breakdown rows.
+        source_refs: Provenance references.
+        missing_inputs: Known missing inputs.
+        warnings: Known warnings.
+    """
+
     route_id: str
     route_name: str
     from_hub: str
@@ -72,6 +144,18 @@ class RouteEconomics(BaseModel):
 
 
 class OpportunityScanPolicy(BaseModel):
+    """Tunables of one opportunity scan.
+
+    Attributes:
+        comparison_currency: Currency all prices are converted to.
+        quote_max_age_seconds: Max quote age before QUOTE_STALE.
+        quote_future_tolerance_seconds: Tolerance for future timestamps.
+        trading_cost_per_mwh: Per-MWh trading cost deduction.
+        risk_buffer_per_mwh: Per-MWh risk buffer deduction.
+        minimum_net_margin_per_mwh: Net-margin threshold for ACTIONABLE.
+        validity_seconds: Opportunity validity window.
+    """
+
     comparison_currency: str = "EUR"
     quote_max_age_seconds: float = Field(default=30.0, gt=0)
     quote_future_tolerance_seconds: float = Field(default=2.0, ge=0)
@@ -82,6 +166,39 @@ class OpportunityScanPolicy(BaseModel):
 
 
 class IntradayOpportunity(BaseModel):
+    """One evaluated cross-hub opportunity (decision support only).
+
+    Attributes:
+        opportunity_id: Deterministic id from route+quotes.
+        scan_id: Owning scan id.
+        opportunity_type: Always ``CROSS_HUB_TRANSPORT_SPREAD``.
+        status: ACTIONABLE_REVIEW / WATCH / BLOCKED.
+        buy_quote_id: Buy-side quote (ask side).
+        sell_quote_id: Sell-side quote (bid side).
+        route_id: Evaluated route.
+        route_name: Evaluated route name.
+        buy_venue / sell_venue: Venues.
+        buy_hub / sell_hub: Hubs.
+        product: Product label.
+        delivery_start_utc / delivery_end_utc: Delivery window.
+        comparison_currency / comparison_unit: Normalized price basis.
+        buy_ask: Converted executable ask.
+        sell_bid: Converted executable bid.
+        gross_spread: sell_bid - buy_ask.
+        route_cost: Converted route cost, or None.
+        trading_cost / risk_buffer: Deductions.
+        net_margin: Gross spread minus costs, or None.
+        max_quantity_mwh: Min of visible depths and route capacity.
+        indicative_net_value: net_margin × max_quantity.
+        quote_age_seconds: Max quote age at detection.
+        confidence_score: Quality-derived score in [0, 1].
+        cost_components / source_refs / assumptions / missing_inputs /
+            warnings: Transparency fields.
+        detected_at_utc / valid_until_utc: Detection and validity window.
+        simulated: True when any input is simulated.
+        human_review_required: Always True — never auto-acts.
+    """
+
     opportunity_id: str
     scan_id: str
     opportunity_type: str = "CROSS_HUB_TRANSPORT_SPREAD"
@@ -131,7 +248,29 @@ def evaluate_route_opportunity(
     fx_rates: list[FxRate] | None = None,
     policy: OpportunityScanPolicy | None = None,
 ) -> IntradayOpportunity | None:
-    """Evaluate one route without creating any order or execution instruction."""
+    """Evaluate one route without creating any order or execution instruction.
+
+    评估一条路线的跨枢纽价差机会（只输出复核信号，不产生执行指令）。
+
+    Args:
+        buy_quote: Buy-side quote; its ask is the executable buy price.
+        sell_quote: Sell-side quote; its bid is the executable sell price.
+        route: Route economics (cost, capacity, access).
+        scan_id: Owning scan id.
+        detected_at_utc: Detection time (clock for age checks).
+        fx_rates: FX rates for comparison-currency conversion, or None.
+        policy: Scan tunables; defaults to OpportunityScanPolicy().
+
+    Returns:
+        An IntradayOpportunity when the quotes match the route and an
+        executable spread exists; None when quotes do not match, an
+        executable side is missing, FX conversion fails, or the gross
+        spread is non-positive. Missing inputs surface as BLOCKED rather
+        than None where a record can still be produced.
+
+    Raises:
+        No exceptions; degradations are reported in the result.
+    """
 
     policy = policy or OpportunityScanPolicy()
     detected_at = _as_utc(detected_at_utc)
@@ -150,6 +289,7 @@ def evaluate_route_opportunity(
         "HUMAN_REVIEW_BEFORE_EXTERNAL_ACTION",
     ]
 
+    # 价格统一换算到比较币种：任一侧换算失败都记为缺失（不静默混合币种）。
     buy_ask = _convert_price(
         buy_quote.ask_price,
         buy_quote.currency,
@@ -188,6 +328,7 @@ def evaluate_route_opportunity(
                 f"ROUTE_COST_FX_MISSING:{route.currency}:{policy.comparison_currency}"
             )
 
+    # 可见深度与容量缺失：限制可交易量，必须显式上报。
     if buy_quote.ask_quantity_mwh is None or buy_quote.ask_quantity_mwh <= 0:
         missing_inputs.append("BUY_VISIBLE_DEPTH_MISSING")
     if sell_quote.bid_quantity_mwh is None or sell_quote.bid_quantity_mwh <= 0:
@@ -197,8 +338,10 @@ def evaluate_route_opportunity(
     if route.access_status == AccessStatus.DENIED:
         missing_inputs.append("TSO_ACCESS_DENIED")
     elif route.access_status == AccessStatus.UNCONFIRMED:
+        # 准入未确认：fail-closed，与已拒绝同等阻断。
         missing_inputs.append("TSO_ACCESS_UNCONFIRMED")
 
+    # 报价时效检查：未来时间戳超容忍度记为缺失；超龄标记 QUOTE_STALE。
     buy_age_raw = (detected_at - _as_utc(buy_quote.observed_at_utc)).total_seconds()
     sell_age_raw = (detected_at - _as_utc(sell_quote.observed_at_utc)).total_seconds()
     if min(buy_age_raw, sell_age_raw) < -policy.quote_future_tolerance_seconds:
@@ -236,6 +379,7 @@ def evaluate_route_opportunity(
     elif net_margin is not None and net_margin < policy.minimum_net_margin_per_mwh:
         warnings.append("NET_MARGIN_BELOW_ALERT_THRESHOLD")
 
+    # 置信度 = 双方质量分取小；有缺失减半，含模拟数据再乘 0.85。
     confidence = min(buy_quote.quality_score, sell_quote.quality_score)
     if missing_inputs:
         confidence *= 0.5
@@ -243,6 +387,7 @@ def evaluate_route_opportunity(
         warnings.append("SIMULATED_MARKET_DATA")
         confidence *= 0.85
 
+    # 机会 id 由路由与报价对确定性派生，同组合重复扫描得到同一 id。
     opportunity_key = sha256(
         f"{route.route_id}:{buy_quote.quote_id}:{sell_quote.quote_id}".encode()
     ).hexdigest()[:32]
@@ -298,6 +443,12 @@ def _quotes_match_route_and_delivery(
     sell_quote: MarketQuote,
     route: RouteEconomics,
 ) -> bool:
+    """Whether the quote pair belongs to the route and shares delivery/product.
+
+    报价对与路由的匹配校验：买卖枢纽分别对应路由起终点，产品与交付
+    窗口一致，且两侧单位都是 MWh（气体价格）。
+    """
+
     return (
         buy_quote.hub.strip().upper() == route.from_hub.strip().upper()
         and sell_quote.hub.strip().upper() == route.to_hub.strip().upper()
@@ -316,6 +467,12 @@ def _convert_price(
     to_currency: str,
     fx_rates: list[FxRate],
 ) -> float | None:
+    """Convert a price using the latest matching direct FX rate.
+
+    直接汇率换算：同币种原样返回；否则按观测时间最新且匹配该币对的
+    汇率换算（正反方向）；无匹配汇率返回 None。
+    """
+
     source = from_currency.strip().upper()
     target = to_currency.strip().upper()
     if source == target:
@@ -335,6 +492,12 @@ def _max_quantity(
     sell_quote: MarketQuote,
     route: RouteEconomics,
 ) -> float | None:
+    """Bottleneck quantity = min(ask depth, bid depth, route capacity).
+
+    瓶颈量：买侧可见深度、卖侧可见深度与路由容量的最小值；任一缺失
+    或非正则无法确定。
+    """
+
     values = [
         buy_quote.ask_quantity_mwh,
         sell_quote.bid_quantity_mwh,
@@ -346,10 +509,14 @@ def _max_quantity(
 
 
 def _as_utc(value: datetime) -> datetime:
+    """Normalize a timestamp to aware UTC (naive assumed UTC)."""
+
     if value.tzinfo is None:
         return value.replace(tzinfo=UTC)
     return value.astimezone(UTC)
 
 
 def _unique(values: list[str]) -> list[str]:
+    """Deduplicate preserving first-seen order, dropping blanks."""
+
     return list(dict.fromkeys(value for value in values if value))

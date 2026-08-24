@@ -1,4 +1,8 @@
-"""Read-only repositories for reference network domain models."""
+"""Read-only repositories for reference network domain models.
+
+参考网络域的只读仓储：DTO 数据类（领域安全载荷）、仓储协议（供测试
+与依赖注入）与 SQLAlchemy 适配器。所有适配器只做查询映射，不写库。
+"""
 
 from dataclasses import dataclass
 from typing import Protocol
@@ -73,12 +77,16 @@ class FacilityDTO:
 
 @dataclass(frozen=True)
 class MarketHubDTO:
-    """Domain-safe market hub payload."""
+    """Domain-safe market hub payload (effective-dated DB reference master)."""
 
     id: str
     name: str
     hub_code: str
     country: str
+    market_area: str | None = None
+    valid_from_utc: str | None = None
+    valid_to_utc: str | None = None
+    superseded_by_hub_id: str | None = None
     description: str | None = None
     source_system: str | None = None
     source_dataset: str | None = None
@@ -132,8 +140,15 @@ class NodeRepository(Protocol):
         *,
         country: str | None = None,
         node_type: str | None = None,
-    ) -> list[NodeDTO]: ...
-    def get_by_id(self, node_id: str) -> NodeDTO | None: ...
+    ) -> list[NodeDTO]:
+        """List nodes, optionally filtered by country and node type."""
+
+        ...
+
+    def get_by_id(self, node_id: str) -> NodeDTO | None:
+        """Fetch one node by id (None when absent)."""
+
+        ...
 
 
 class EdgeRepository(Protocol):
@@ -144,8 +159,15 @@ class EdgeRepository(Protocol):
         *,
         from_node_id: str | None = None,
         to_node_id: str | None = None,
-    ) -> list[EdgeDTO]: ...
-    def get_by_id(self, edge_id: str) -> EdgeDTO | None: ...
+    ) -> list[EdgeDTO]:
+        """List edges, optionally filtered by endpoint node ids."""
+
+        ...
+
+    def get_by_id(self, edge_id: str) -> EdgeDTO | None:
+        """Fetch one edge by id (None when absent)."""
+
+        ...
 
 
 class FacilityRepository(Protocol):
@@ -156,15 +178,29 @@ class FacilityRepository(Protocol):
         *,
         facility_type: str | None = None,
         country: str | None = None,
-    ) -> list[FacilityDTO]: ...
-    def get_by_id(self, facility_id: str) -> FacilityDTO | None: ...
+    ) -> list[FacilityDTO]:
+        """List facilities, optionally filtered by type and country."""
+
+        ...
+
+    def get_by_id(self, facility_id: str) -> FacilityDTO | None:
+        """Fetch one facility by id (None when absent)."""
+
+        ...
 
 
 class MarketHubRepository(Protocol):
     """Read-only repository for market hubs."""
 
-    def list_all(self) -> list[MarketHubDTO]: ...
-    def get_by_id(self, hub_id: str) -> MarketHubDTO | None: ...
+    def list_all(self) -> list[MarketHubDTO]:
+        """List all market hubs."""
+
+        ...
+
+    def get_by_id(self, hub_id: str) -> MarketHubDTO | None:
+        """Fetch one hub by id (None when absent)."""
+
+        ...
 
 
 class TsoAccessPointRepository(Protocol):
@@ -177,7 +213,10 @@ class TsoAccessPointRepository(Protocol):
         country: str | None = None,
         operator_key: str | None = None,
         direction: str | None = None,
-    ) -> list[TsoAccessPointDTO]: ...
+    ) -> list[TsoAccessPointDTO]:
+        """List TSO access points, optionally filtered."""
+
+        ...
 
 
 # --- SQLAlchemy adapters -----------------------------------------------------
@@ -195,6 +234,16 @@ class SqlAlchemyNodeRepository:
         country: str | None = None,
         node_type: str | None = None,
     ) -> list[NodeDTO]:
+        """List nodes from the runtime DB, optionally filtered.
+
+        Args:
+            country: Country filter, or None.
+            node_type: Node type filter, or None.
+
+        Returns:
+            NodeDTO list.
+        """
+
         q = self._session.query(ReferenceNode)
         if country is not None:
             q = q.filter(ReferenceNode.country == country)
@@ -203,6 +252,15 @@ class SqlAlchemyNodeRepository:
         return [_node_to_dto(row) for row in q.all()]
 
     def get_by_id(self, node_id: str) -> NodeDTO | None:
+        """Fetch one node by id.
+
+        Args:
+            node_id: Node id.
+
+        Returns:
+            NodeDTO, or None when absent.
+        """
+
         row = self._session.get(ReferenceNode, node_id)
         return _node_to_dto(row) if row else None
 
@@ -219,6 +277,16 @@ class SqlAlchemyEdgeRepository:
         from_node_id: str | None = None,
         to_node_id: str | None = None,
     ) -> list[EdgeDTO]:
+        """List edges from the runtime DB, optionally filtered by endpoints.
+
+        Args:
+            from_node_id: Source endpoint filter, or None.
+            to_node_id: Target endpoint filter, or None.
+
+        Returns:
+            EdgeDTO list.
+        """
+
         q = self._session.query(ReferenceEdge)
         if from_node_id is not None:
             q = q.filter(ReferenceEdge.from_node_id == from_node_id)
@@ -227,6 +295,15 @@ class SqlAlchemyEdgeRepository:
         return [_edge_to_dto(row) for row in q.all()]
 
     def get_by_id(self, edge_id: str) -> EdgeDTO | None:
+        """Fetch one edge by id.
+
+        Args:
+            edge_id: Edge id.
+
+        Returns:
+            EdgeDTO, or None when absent.
+        """
+
         row = self._session.get(ReferenceEdge, edge_id)
         return _edge_to_dto(row) if row else None
 
@@ -243,6 +320,16 @@ class SqlAlchemyFacilityRepository:
         facility_type: str | None = None,
         country: str | None = None,
     ) -> list[FacilityDTO]:
+        """List facilities from the runtime DB, optionally filtered.
+
+        Args:
+            facility_type: Facility type filter, or None.
+            country: Country filter, or None.
+
+        Returns:
+            FacilityDTO list.
+        """
+
         q = self._session.query(ReferenceFacility)
         if facility_type is not None:
             q = q.filter(ReferenceFacility.facility_type == facility_type)
@@ -251,6 +338,15 @@ class SqlAlchemyFacilityRepository:
         return [_facility_to_dto(row) for row in q.all()]
 
     def get_by_id(self, facility_id: str) -> FacilityDTO | None:
+        """Fetch one facility by id.
+
+        Args:
+            facility_id: Facility id.
+
+        Returns:
+            FacilityDTO, or None when absent.
+        """
+
         row = self._session.get(ReferenceFacility, facility_id)
         return _facility_to_dto(row) if row else None
 
@@ -262,10 +358,25 @@ class SqlAlchemyMarketHubRepository:
         self._session = session
 
     def list_all(self) -> list[MarketHubDTO]:
+        """List all market hubs from the runtime DB.
+
+        Returns:
+            MarketHubDTO list.
+        """
+
         rows = self._session.query(ReferenceMarketHub).all()
         return [_hub_to_dto(row) for row in rows]
 
     def get_by_id(self, hub_id: str) -> MarketHubDTO | None:
+        """Fetch one hub by id.
+
+        Args:
+            hub_id: Hub id.
+
+        Returns:
+            MarketHubDTO, or None when absent.
+        """
+
         row = self._session.get(ReferenceMarketHub, hub_id)
         return _hub_to_dto(row) if row else None
 
@@ -284,6 +395,18 @@ class SqlAlchemyTsoAccessPointRepository:
         operator_key: str | None = None,
         direction: str | None = None,
     ) -> list[TsoAccessPointDTO]:
+        """List TSO access points from the runtime DB, optionally filtered.
+
+        Args:
+            point_id: Point id filter, or None.
+            country: Country filter, or None.
+            operator_key: Operator key filter, or None.
+            direction: Direction filter, or None.
+
+        Returns:
+            TsoAccessPointDTO list.
+        """
+
         q = self._session.query(ReferenceTsoAccessPoint)
         if point_id is not None:
             q = q.filter(ReferenceTsoAccessPoint.point_id == point_id)
@@ -351,12 +474,20 @@ def _facility_to_dto(row: ReferenceFacility) -> FacilityDTO:
     )
 
 
+def _iso_or_none(value) -> str | None:
+    return value.isoformat() if hasattr(value, "isoformat") else value
+
+
 def _hub_to_dto(row: ReferenceMarketHub) -> MarketHubDTO:
     return MarketHubDTO(
         id=row.id,
         name=row.name,
         hub_code=row.hub_code,
         country=row.country,
+        market_area=row.market_area,
+        valid_from_utc=_iso_or_none(row.valid_from_utc),
+        valid_to_utc=_iso_or_none(row.valid_to_utc),
+        superseded_by_hub_id=row.superseded_by_hub_id,
         description=row.description,
         source_system=row.source_system,
         source_dataset=row.source_dataset,

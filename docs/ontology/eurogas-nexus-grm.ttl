@@ -1,0 +1,338 @@
+@prefix : <https://eurogas-nexus.eu/ontology/grm#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix saref: <https://saref.etsi.org/core/> .
+
+<https://eurogas-nexus.eu/ontology/grm> a owl:Ontology ;
+    dcterms:title "Eurogas Nexus Harmonised Gas Role Model ontology"@en ;
+    dcterms:title "Eurogas Nexus 协调天然气角色模型本体"@zh-cn ;
+    dcterms:description "OWL representation of the EASEE-gas Harmonised Gas Role Model business-process view, aligned with the SAREF core Commodity pattern."@en ;
+    dcterms:creator "Eurogas Nexus ontology working group" ;
+    dcterms:source <https://easee-gas.eu/_library/_files/Harmonised_GRM_Document_FINAL_2018-05-30.pdf> ;
+    dcterms:source <https://saref.etsi.org/core/Commodity> ;
+    owl:versionInfo "0.5.0" ;
+    owl:imports <https://saref.etsi.org/core/> .
+
+# ---------------------------------------------------------------------------
+# Commodity alignment with SAREF core
+# ---------------------------------------------------------------------------
+
+:GasCommodity a owl:Class ;
+    rdfs:subClassOf saref:EnergyCommodity , saref:NaturalResourceCommodity ;
+    rdfs:label "Gas"@en ;
+    rdfs:label "天然气"@zh-cn ;
+    skos:definition "A gaseous energy commodity traded and transported in the European gas market."@en ;
+    skos:definition "欧洲天然气市场中交易和运输的气态能源商品。"@zh-cn .
+
+:LngCommodity a owl:Class ;
+    rdfs:subClassOf :GasCommodity ;
+    rdfs:label "LNG"@en ;
+    rdfs:label "液化天然气"@zh-cn ;
+    skos:definition "Liquefied natural gas handled by an LNG system operator."@en .
+
+:GasMarketServiceCommodity a owl:Class ;
+    rdfs:subClassOf saref:Commodity ;
+    rdfs:label "Gas market service commodity"@en ;
+    rdfs:label "天然气市场服务商品"@zh-cn ;
+    skos:definition "A marketable gas-market service such as storage, capacity, or balancing energy, modelled in the SAREF Commodity taxonomy."@en .
+
+:StorageServiceCommodity a owl:Class ;
+    rdfs:subClassOf :GasMarketServiceCommodity ;
+    rdfs:label "Storage service"@en ;
+    skos:definition "The service of storing gas provided by a storage system operator."@en .
+
+:CapacityCommodity a owl:Class ;
+    rdfs:subClassOf :GasMarketServiceCommodity ;
+    rdfs:label "Capacity service"@en ;
+    skos:definition "Entry or exit capacity offered through the capacity allocation process."@en .
+
+:BalanceServiceCommodity a owl:Class ;
+    rdfs:subClassOf :GasMarketServiceCommodity ;
+    rdfs:label "Balancing energy service"@en ;
+    skos:definition "Balancing energy procured by a balancing-energy-responsible role."@en .
+
+# ---------------------------------------------------------------------------
+# Market role model
+# ---------------------------------------------------------------------------
+
+:MarketParty a owl:Class ;
+    rdfs:label "Market party"@en ;
+    skos:definition "A legal or organisational party in the European gas market; one party may play several roles."@en .
+
+:GasMarketRole a owl:Class ;
+    rdfs:label "Gas market role"@en ;
+    skos:definition "An external business interaction role defined by the EASEE-gas Harmonised Gas Role Model."@en .
+
+:playsRole a owl:ObjectProperty ;
+    rdfs:domain :MarketParty ;
+    rdfs:range :GasMarketRole ;
+    rdfs:label "plays role"@en .
+
+:participatesIn a owl:ObjectProperty ;
+    rdfs:domain :GasMarketRole ;
+    rdfs:range :GasBusinessProcess ;
+    rdfs:label "participates in"@en .
+
+:concerns a owl:ObjectProperty ;
+    rdfs:domain :GasBusinessProcess ;
+    rdfs:range saref:Commodity ;
+    rdfs:label "concerns"@en .
+
+# GRM role classes and their harmonised descriptions.
+
+:AllocationResponsible a owl:Class ;
+    rdfs:subClassOf :GasMarketRole ;
+    rdfs:label "Allocation Responsible"@en ;
+    skos:definition "A party allocating energy to portfolios based on agreed procedures."@en .
+
+:AreaCoordinator a owl:Class ;
+    rdfs:subClassOf :GasMarketRole ;
+    rdfs:label "Area Coordinator"@en ;
+    skos:definition "A party coordinating transmission and/or distribution, balancing groups, system balancing, and provision of settlement or balancing information."@en .
+
+:BalanceResponsibleParty a owl:Class ;
+    rdfs:subClassOf :GasMarketRole ;
+    rdfs:label "Balance Responsible Party"@en ;
+    skos:definition "A party managing its own portfolio and/or portfolios on behalf of other parties and financially responsible for the account imbalance."@en .
+
+:BalancingEnergyResponsible a owl:Class ;
+    rdfs:subClassOf :GasMarketRole ;
+    rdfs:label "Balancing Energy Responsible"@en ;
+    skos:definition "A party responsible for price formation for balancing energy in the network."@en .
+
+:CapacityPlatformResponsible a owl:Class ;
+    rdfs:subClassOf :GasMarketRole ;
+    rdfs:label "Capacity Platform Responsible"@en ;
+    skos:definition "A party providing and operating a platform implementing the rules and processes for offering and allocation of capacity products."@en .
+
+:CapacityResponsibleParty a owl:Class ;
+    rdfs:subClassOf :GasMarketRole ;
+    rdfs:label "Capacity Responsible Party"@en ;
+    skos:definition "A party that employs the system operator to transport gas."@en .
+
+:ClearingResponsible a owl:Class ;
+    rdfs:subClassOf :GasMarketRole ;
+    rdfs:label "Clearing Responsible"@en ;
+    skos:definition "A party acting as clearing house to settle trades concluded on the energy trading platform or trades registered directly for clearing."@en .
+
+:DistributionSystemOperator a owl:Class ;
+    rdfs:subClassOf :GasMarketRole ;
+    rdfs:label "Distribution System Operator"@en ;
+    skos:definition "A party carrying out distribution and responsible for operating, maintaining and developing the distribution system in a given area."@en .
+
+:EnergyTradingPlatformResponsible a owl:Class ;
+    rdfs:subClassOf :GasMarketRole ;
+    rdfs:label "Energy Trading Platform Responsible"@en ;
+    skos:definition "A party providing and operating a platform where trading participants may post and accept bids and offers for gas."@en .
+
+:FinalCustomer a owl:Class ;
+    rdfs:subClassOf :GasMarketRole ;
+    rdfs:label "Final Customer"@en ;
+    skos:definition "A party purchasing gas for its own use; includes gas consumers and electricity producers."@en .
+
+:LngSystemOperator a owl:Class ;
+    rdfs:subClassOf :GasMarketRole ;
+    rdfs:label "LNG System Operator"@en ;
+    skos:definition "A party carrying out liquefaction of natural gas, or offloading and regasification of LNG, and responsible for operating an LNG facility."@en .
+
+:MarketInformationAggregator a owl:Class ;
+    rdfs:subClassOf :GasMarketRole ;
+    rdfs:label "Market Information Aggregator"@en ;
+    skos:definition "A party receiving, compiling, publishing or distributing market-related information supplied by different actors."@en .
+
+:MeterOperator a owl:Class ;
+    rdfs:subClassOf :GasMarketRole ;
+    rdfs:label "Meter Operator"@en ;
+    skos:definition "A party responsible for installing, maintaining, testing, certifying and decommissioning physical meters."@en .
+
+:MeteredDataResponsible a owl:Class ;
+    rdfs:subClassOf :GasMarketRole ;
+    rdfs:label "Metered Data Responsible"@en ;
+    skos:definition "A party responsible for collection, validation, aggregation and making available metered data."@en .
+
+:ProductionFacilityOperator a owl:Class ;
+    rdfs:subClassOf :GasMarketRole ;
+    rdfs:label "Production Facility Operator"@en ;
+    skos:definition "A party managing gas production within a production facility."@en .
+
+:ReconciliationResponsible a owl:Class ;
+    rdfs:subClassOf :GasMarketRole ;
+    rdfs:label "Reconciliation Responsible"@en ;
+    skos:definition "A party responsible for reconciling, within a given network, energy used in the imbalance settlement process and actual metered quantities."@en .
+
+:StorageSystemOperator a owl:Class ;
+    rdfs:subClassOf :GasMarketRole ;
+    rdfs:label "Storage System Operator"@en ;
+    skos:definition "A party carrying out the function of storage and responsible for operating a storage facility."@en .
+
+:Supplier a owl:Class ;
+    rdfs:subClassOf :GasMarketRole ;
+    rdfs:label "Supplier"@en ;
+    skos:definition "A party carrying out the function of supply, including the sale or resale of gas to final customers."@en .
+
+:SystemOperator a owl:Class ;
+    rdfs:subClassOf :GasMarketRole ;
+    rdfs:label "System Operator"@en ;
+    skos:definition "A party developing, operating, maintaining and providing access to gas infrastructure such as transmission networks, storage, LNG terminals and distribution networks."@en .
+
+:Trader a owl:Class ;
+    rdfs:subClassOf :GasMarketRole ;
+    rdfs:label "Trader"@en ;
+    skos:definition "A party responsible for buying and selling gas at virtual or physical points on an energy trading platform or bilaterally with other traders."@en .
+
+:TransmissionSystemOperator a owl:Class ;
+    rdfs:subClassOf :GasMarketRole ;
+    rdfs:label "Transmission System Operator"@en ;
+    skos:definition "A party carrying out transmission and responsible for operating, maintaining and developing the transmission system in a given area and its interconnections."@en .
+
+:WeatherDataProvider a owl:Class ;
+    rdfs:subClassOf :GasMarketRole ;
+    rdfs:label "Weather Data Provider"@en ;
+    skos:definition "A party determining forecasted and validated weather data for a designated area and providing it to roles that request it."@en .
+
+# ---------------------------------------------------------------------------
+# Business-process view
+# ---------------------------------------------------------------------------
+
+:GasBusinessProcess a owl:Class ;
+    rdfs:label "Gas business process"@en ;
+    skos:definition "A harmonised EASEE-gas business process viewed from its information-exchange perspective."@en .
+
+:CapacityAllocationProcess a owl:Class ;
+    rdfs:subClassOf :GasBusinessProcess ;
+    rdfs:label "Capacity Allocation Process"@en ;
+    skos:definition "The transparent and non-discriminatory process for access to, and allocation of, transmission capacities for all capacity-responsible parties."@en .
+
+:ExchangeGasTradingProcess a owl:Class ;
+    rdfs:subClassOf :GasBusinessProcess ;
+    rdfs:label "Exchange Gas Trading Process"@en ;
+    skos:definition "Trading at an energy trading platform where bids and offers lead to a trade executed through clearing and single-sided nomination."@en .
+
+:OtcGasTradingProcess a owl:Class ;
+    rdfs:subClassOf :GasBusinessProcess ;
+    rdfs:label "OTC Gas Trading Process"@en ;
+    skos:definition "Bilateral gas trading between traders outside the energy trading platform."@en .
+
+:NominationMatchingProcess a owl:Class ;
+    rdfs:subClassOf :GasBusinessProcess ;
+    rdfs:label "Nomination and Matching Process"@en ;
+    skos:definition "The exchange of nomination and matching information between capacity-responsible parties and system operators."@en .
+
+:MeteringProcess a owl:Class ;
+    rdfs:subClassOf :GasBusinessProcess ;
+    rdfs:label "Metering Process"@en ;
+    skos:definition "Collection and validation of metered data by metering roles."@en .
+
+:AllocationProcess a owl:Class ;
+    rdfs:subClassOf :GasBusinessProcess ;
+    rdfs:label "Allocation Process"@en ;
+    skos:definition "Allocation of energy to portfolios based on agreed procedures."@en .
+
+:BalancingProcess a owl:Class ;
+    rdfs:subClassOf :GasBusinessProcess ;
+    rdfs:label "Balancing Process"@en ;
+    skos:definition "Management and settlement of portfolio imbalances within a balancing zone."@en .
+
+:SettlementProcess a owl:Class ;
+    rdfs:subClassOf :GasBusinessProcess ;
+    rdfs:label "Settlement Process"@en ;
+    skos:definition "Financial settlement of allocated and reconciled energy quantities."@en .
+
+:RemitTransparencyProcess a owl:Class ;
+    rdfs:subClassOf :GasBusinessProcess ;
+    rdfs:label "REMIT and Transparency Process"@en ;
+    skos:definition "Publication and aggregation of market information under REMIT transparency obligations."@en .
+
+# ---------------------------------------------------------------------------
+# GRM interaction properties (business-process view)
+# ---------------------------------------------------------------------------
+
+:providesAllocationData a owl:ObjectProperty ;
+    rdfs:domain :GasMarketRole ;
+    rdfs:range :GasMarketRole .
+
+:providesMatchingResults a owl:ObjectProperty ;
+    rdfs:domain :GasMarketRole ;
+    rdfs:range :GasMarketRole .
+
+:providesMeteredData a owl:ObjectProperty ;
+    rdfs:domain :GasMarketRole ;
+    rdfs:range :GasMarketRole .
+
+:providesValidatedMeteredData a owl:ObjectProperty ;
+    rdfs:subPropertyOf :providesMeteredData ;
+    rdfs:domain :MeteredDataResponsible ;
+    rdfs:range :MarketInformationAggregator .
+
+:providesWeatherData a owl:ObjectProperty ;
+    rdfs:domain :WeatherDataProvider ;
+    rdfs:range :GasMarketRole .
+
+:providesNominationAndMatchingData a owl:ObjectProperty ;
+    rdfs:domain :GasMarketRole ;
+    rdfs:range :GasMarketRole .
+
+:submitsBidsOrOffers a owl:ObjectProperty ;
+    rdfs:domain :Trader ;
+    rdfs:range :EnergyTradingPlatformResponsible .
+
+:reportsTradeData a owl:ObjectProperty ;
+    rdfs:domain :Trader ;
+    rdfs:range :MarketInformationAggregator .
+
+:providesTradeInformation a owl:ObjectProperty ;
+    rdfs:domain :EnergyTradingPlatformResponsible ;
+    rdfs:range :ClearingResponsible .
+
+:confirmsExecutedTrades a owl:ObjectProperty ;
+    rdfs:domain :EnergyTradingPlatformResponsible ;
+    rdfs:range :Trader .
+
+:nominatesConcludedTrades a owl:ObjectProperty ;
+    rdfs:domain :EnergyTradingPlatformResponsible ;
+    rdfs:range :BalanceResponsibleParty .
+
+:purchasesCapacityFrom a owl:ObjectProperty ;
+    rdfs:domain :CapacityResponsibleParty ;
+    rdfs:range :CapacityPlatformResponsible .
+
+:allocatesCapacityTo a owl:ObjectProperty ;
+    rdfs:domain :CapacityPlatformResponsible ;
+    rdfs:range :CapacityResponsibleParty .
+
+:offersAvailableCapacity a owl:ObjectProperty ;
+    rdfs:domain :TransmissionSystemOperator ;
+    rdfs:range :CapacityPlatformResponsible .
+
+:commissionsBalancingEnergy a owl:ObjectProperty ;
+    rdfs:domain :AreaCoordinator ;
+    rdfs:range :BalancingEnergyResponsible .
+
+:suppliesGasTo a owl:ObjectProperty ;
+    rdfs:domain :Supplier ;
+    rdfs:range :FinalCustomer .
+
+:tradesGas a owl:ObjectProperty ;
+    rdfs:domain :Trader ;
+    rdfs:range :GasCommodity .
+
+:transportsGas a owl:ObjectProperty ;
+    rdfs:domain :CapacityResponsibleParty ;
+    rdfs:range :GasCommodity .
+
+# ---------------------------------------------------------------------------
+# Eurogas Nexus product boundary annotations
+# ---------------------------------------------------------------------------
+
+:DecisionSupportOutput a owl:Class ;
+    rdfs:subClassOf saref:Commodity ;
+    rdfs:label "Decision-support output"@en ;
+    skos:definition "A trader-reviewed, non-executable analysis or optimization output; never an order, nomination submission, or settlement instruction."@en .
+
+:hasHumanReviewRequirement a owl:DatatypeProperty ;
+    rdfs:domain :DecisionSupportOutput ;
+    rdfs:range xsd:boolean .

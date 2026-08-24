@@ -13,32 +13,113 @@ _TOLERANCE = 1e-9
 
 @dataclass(frozen=True, slots=True)
 class FlowSupply:
+    """One supply node in the shared-capacity flow model.
+
+    Attributes:
+        node: Node id.
+        available_mwh: Available volume, MWh.
+        unit_cost_gbp_mwh: Unit cost, GBP/MWh.
+        supply_id: Optional stable business id; generated when absent so a
+            caller can reconstruct per-supply usage after optimization.
+    """
+
     node: str
     available_mwh: float
     unit_cost_gbp_mwh: float = 0.0
+    supply_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class FlowDemand:
+    """One demand node in the shared-capacity flow model.
+
+    Attributes:
+        node: Node id.
+        required_mwh: Required volume, MWh.
+        value_gbp_mwh: Value per MWh (objective coefficient).
+        demand_id: Optional stable business id; generated when absent so a
+            caller can reconstruct per-demand service after optimization.
+        optional: True when this demand is an upper bound rather than a
+            mandatory requirement. Optional demand volume does not make the
+            result ``feasible``/``infeasible`` when it is left unsold.
+    """
+
     node: str
     required_mwh: float
     value_gbp_mwh: float = 0.0
+    demand_id: str | None = None
+    optional: bool = False
 
 
 @dataclass(frozen=True, slots=True)
 class EdgeFlow:
+    """Flow quantity on one network edge.
+
+    Attributes:
+        edge_id: Edge id.
+        quantity_mwh: Flow volume, MWh.
+    """
+
     edge_id: str
     quantity_mwh: float
 
 
 @dataclass(frozen=True, slots=True)
+class SupplyUsage:
+    """Final usage of one supply arc.
+
+    Attributes:
+        supply_id: Stable business id (or generated fallback).
+        node: Node id.
+        quantity_mwh: Volume sourced from this supply, MWh.
+    """
+
+    supply_id: str
+    node: str
+    quantity_mwh: float
+
+
+@dataclass(frozen=True, slots=True)
+class DemandService:
+    """Final service of one demand arc.
+
+    Attributes:
+        demand_id: Stable business id (or generated fallback).
+        node: Node id.
+        quantity_mwh: Volume served to this demand, MWh.
+    """
+
+    demand_id: str
+    node: str
+    quantity_mwh: float
+
+
+@dataclass(frozen=True, slots=True)
 class NetworkFlowResult:
+    """Shared-capacity flow optimization result.
+
+    Attributes:
+        status: Optimization status.
+        served_demand_mwh: Served demand, MWh.
+        unserved_demand_mwh: Unserved demand, MWh.
+        total_network_cost_gbp: Total network cost.
+        total_objective_gbp: Total objective value.
+        edge_flows: Per-edge flows.
+        supply_usage: Final per-supply usage (empty for callers that only
+            inspect edge flows).
+        demand_service: Final per-demand service.
+        warnings: Aggregated warnings.
+        human_review_required: Always True.
+    """
+
     status: OptimizationStatus
     served_demand_mwh: float
     unserved_demand_mwh: float
     total_network_cost_gbp: float
     total_objective_gbp: float
     edge_flows: tuple[EdgeFlow, ...]
+    supply_usage: tuple[SupplyUsage, ...] = ()
+    demand_service: tuple[DemandService, ...] = ()
     warnings: tuple[str, ...] = ()
     human_review_required: bool = True
 
@@ -95,11 +176,22 @@ def optimize_network_flow(
     )
     ordered_supplies = sorted(
         supplies,
-        key=lambda item: (item.node, item.unit_cost_gbp_mwh, item.available_mwh),
+        key=lambda item: (
+            item.node,
+            item.unit_cost_gbp_mwh,
+            item.available_mwh,
+            item.supply_id or "",
+        ),
     )
     ordered_demands = sorted(
         demands,
-        key=lambda item: (item.node, item.value_gbp_mwh, item.required_mwh),
+        key=lambda item: (
+            item.node,
+            item.value_gbp_mwh,
+            item.required_mwh,
+            item.demand_id or "",
+            item.optional,
+        ),
     )
 
     node_names = sorted(
@@ -130,8 +222,8 @@ def optimize_network_flow(
             _ArcReference(source, arc_index, edge.available_capacity_mwh),
         )
 
-    supply_references: list[tuple[FlowSupply, _ArcReference]] = []
-    for supply in ordered_supplies:
+    supply_references: list[tuple[FlowSupply, str, _ArcReference]] = []
+    for index, supply in enumerate(ordered_supplies):
         arc_index = _add_residual_arc(
             graph,
             super_source,
@@ -142,12 +234,13 @@ def optimize_network_flow(
         supply_references.append(
             (
                 supply,
+                supply.supply_id or f"supply:{supply.node}:{index}",
                 _ArcReference(super_source, arc_index, supply.available_mwh),
             )
         )
 
-    demand_references: list[tuple[FlowDemand, _ArcReference]] = []
-    for demand in ordered_demands:
+    demand_references: list[tuple[FlowDemand, str, _ArcReference]] = []
+    for index, demand in enumerate(ordered_demands):
         source = node_index[demand.node]
         arc_index = _add_residual_arc(
             graph,
@@ -159,6 +252,7 @@ def optimize_network_flow(
         demand_references.append(
             (
                 demand,
+                demand.demand_id or f"demand:{demand.node}:{index}",
                 _ArcReference(source, arc_index, demand.required_mwh),
             )
         )
@@ -181,11 +275,11 @@ def optimize_network_flow(
     }
     supply_usage = [
         (supply, _flow_on_reference(graph, reference))
-        for supply, reference in supply_references
+        for supply, _, reference in supply_references
     ]
     demand_service = [
         (demand, _flow_on_reference(graph, reference))
-        for demand, reference in demand_references
+        for demand, _, reference in demand_references
     ]
     _validate_final_flow(
         active_edges,
@@ -195,7 +289,9 @@ def optimize_network_flow(
     )
 
     served = sum(quantity for _, quantity in demand_service)
-    required = sum(demand.required_mwh for demand in ordered_demands)
+    required = sum(
+        0.0 if demand.optional else demand.required_mwh for demand in ordered_demands
+    )
     unserved = max(required - served, 0.0)
     supply_cost = sum(
         quantity * supply.unit_cost_gbp_mwh for supply, quantity in supply_usage
@@ -227,6 +323,38 @@ def optimize_network_flow(
         edge_flows=tuple(
             EdgeFlow(edge_id, _clean_number(quantity))
             for edge_id, quantity in sorted(edge_flows.items())
+            if quantity > tolerance
+        ),
+        supply_usage=tuple(
+            SupplyUsage(
+                supply_id=supply_id,
+                node=supply.node,
+                quantity_mwh=_clean_number(quantity),
+            )
+            for supply, supply_id, _ in supply_references
+            for quantity in (
+                next(
+                    usage
+                    for usage_supply, usage in supply_usage
+                    if usage_supply is supply
+                ),
+            )
+            if quantity > tolerance
+        ),
+        demand_service=tuple(
+            DemandService(
+                demand_id=demand_id,
+                node=demand.node,
+                quantity_mwh=_clean_number(quantity),
+            )
+            for demand, demand_id, _ in demand_references
+            for quantity in (
+                next(
+                    usage
+                    for usage_demand, usage in demand_service
+                    if usage_demand is demand
+                ),
+            )
             if quantity > tolerance
         ),
         warnings=warnings,

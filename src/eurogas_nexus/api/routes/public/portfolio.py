@@ -1,4 +1,4 @@
-﻿"""Read-only portfolio, screen-order, and PnL observation routes."""
+"""Read-only portfolio, screen-order, and PnL observation routes."""
 
 from __future__ import annotations
 

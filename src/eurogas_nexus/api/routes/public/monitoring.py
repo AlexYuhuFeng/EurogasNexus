@@ -17,6 +17,14 @@ router = APIRouter(tags=["monitoring"])
 
 
 class AlertAnalysisRequest(BaseModel):
+    """Request body for LLM-assisted alert analysis.
+
+    Attributes:
+        question: Analyst question (2-2000 chars).
+        language: Output language (``en`` or ``zh-CN``).
+        model: Provider model (only ``deepseek-v4-flash`` accepted).
+    """
+
     question: str = Field(min_length=2, max_length=2000)
     language: Literal["en", "zh-CN"] = "en"
     model: Literal["deepseek-v4-flash"] = "deepseek-v4-flash"
@@ -29,6 +37,20 @@ def get_alerts(
     severity: Literal["info", "warning", "critical"] | None = None,
     limit: int = Query(default=100, ge=1, le=500),
 ) -> dict:
+    """List monitoring alerts with optional filters.
+
+    列出监控告警（可按状态/分类/级别过滤并限制条数）。
+
+    Args:
+        status: Alert status filter, or None.
+        category: Category filter (max 64 chars), or None.
+        severity: Severity filter, or None.
+        limit: Max results (1-500).
+
+    Returns:
+        Enveloped alert list from the runtime DB.
+    """
+
     from eurogas_nexus.db.repositories.monitoring import list_monitoring_alerts
 
     with _session() as session:
@@ -44,6 +66,14 @@ def get_alerts(
 
 @router.get("/api/monitoring/summary")
 def get_alert_summary() -> dict:
+    """Return the aggregated monitoring alert summary.
+
+    返回按状态/级别聚合的告警摘要。
+
+    Returns:
+        Enveloped summary dict from the runtime DB.
+    """
+
     from eurogas_nexus.db.repositories.monitoring import monitoring_summary
 
     with _session() as session:
@@ -53,6 +83,20 @@ def get_alert_summary() -> dict:
 
 @router.post("/api/monitoring/alerts/{alert_id}/acknowledge")
 def acknowledge_alert(alert_id: str) -> dict:
+    """Acknowledge one open monitoring alert.
+
+    确认（acknowledge）一条告警，返回更新后的告警载荷。
+
+    Args:
+        alert_id: Alert id to acknowledge.
+
+    Returns:
+        Enveloped updated alert payload.
+
+    Raises:
+        HTTPException: 404 when the alert does not exist.
+    """
+
     from eurogas_nexus.db.repositories.monitoring import (
         acknowledge_monitoring_alert,
         monitoring_alert_payload,

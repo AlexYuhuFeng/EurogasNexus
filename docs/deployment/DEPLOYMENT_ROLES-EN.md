@@ -14,6 +14,20 @@ which components are installed and which secrets the device may hold.
 There is no fourth hidden mode. A client never receives a PostgreSQL URL,
 database password, provider credential, or migration capability.
 
+## Explicit deployment posture switch
+
+The backend reads `EUROGAS_NEXUS_DEPLOYMENT_POSTURE`:
+
+- `private_network_preview` (default): current posture; Server/AllInOne remain
+  behind a customer firewall or VPN allowlist.
+- `security_accepted`: only effective when
+  `EUROGAS_NEXUS_SECURITY_ACCEPTANCE_EVIDENCE` points to an existing
+  operator-reviewed acceptance evidence file.
+
+`public_network_deployment_allowed()` returns false unless both conditions are
+true. The Windows deployment preflight remains unchanged in this repository
+until a real deployment completes external security acceptance.
+
 ## Release asset selection
 
 The standalone Windows NSIS installer is **Client only**. Installing it creates

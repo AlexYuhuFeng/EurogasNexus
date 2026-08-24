@@ -4,9 +4,10 @@
 
 ## 范围
 
-Eurogas Nexus 目前是单信任域的决策支持预览产品。本文档定义信任链（复核决策、
-审计事件、internal operator 写入）使用的最小 actor 身份模型，并明确声明
-未实现的部分。
+R32 已增加本地 PostgreSQL 身份（`identity_principals` /
+`identity_api_keys`），包含 USER/SERVICE 主体、哈希 bearer key 和
+VIEWER/ANALYST/OPERATOR/ADMIN 角色。本文档定义信任链（复核决策、审计事件、
+internal operator 写入）使用的 actor 身份模型，并明确说明仍推迟的部分。
 
 ## Actor Principal
 
@@ -29,21 +30,27 @@ actor 由 **principal 字符串**标识：一个稳定的 operator 标识符，�
 |---|---|
 | `POST /api/review/decisions` | 持久化前用 `normalize_principal` 校验 actor |
 | Internal operator 写入（`/api/internal/*`） | `X-Eurogas-Principal` 头以同一规则校验 |
+| R32 identity-key 客户端 | `X-Eurogas-Identity` bearer 解析为 PostgreSQL 主体；其角色/名称为已认证 actor |
 | 审计事件 | principal 原样记录；由上述入口点先行校验 |
 | 公共摄入脚本 | 在具备运行身份前固定为 `operator` |
 
-## 明确不在范围内（R32）
+## R32 已交付范围
 
-- 用户账户、密码、会话、多用户授权。
-- 公司 SSO / OIDC / SAML。
-- 超出「internal token + principal 头」的按用户数据隔离或 RBAC。
-- 取消私网/VPN-only 的服务器部署姿态。
+- PostgreSQL 本地 USER/SERVICE 账户。
+- 哈希 bearer API key（`X-Eurogas-Identity`），明文仅返回一次。
+- OIDC access-token 校验（`X-Eurogas-Oidc-Access-Token`，R32A）：
+  RS256/JWKS/issuer/audience/expiry 校验与声明到角色的映射。
+- 角色授权：PUBLIC/READ VIEWER+，GOVERNED ANALYST+，OPERATOR OPERATOR+。
+- 按身份执行商业数据 scope，未知来源 fail-closed。
 
-这些都取决于 R32 认证增量（`NEXT_DEVELOPMENT_QUEUE.md`）。在此之前身份模型
-保持最小，但每条敏感行都已带校验过的 actor，将来接入真实认证无需重写信任链。
+## 仍推迟
+
+- OIDC 交互式登录（redirect/PKCE/refresh/session）与 SAML。
+- 浏览器/密码会话。
+- 取消私网/VPN-only 服务器部署姿态；须等待安全验收。
 
 ## 演进
 
-R32 落地后，principal 字符串变为对已认证身份的引用（如 `user:<id>` 或
-`service:<id>`），审计/复核 schema 增加 `actor_kind` 判别字段。既有行保留
-字符串 principal；两者通过同一 `actor` 列契约可读。
+identity-key 调用方已由持久化的 `principal_id`/`name` 表示；仅使用旧头部的
+调用方继续保留 V1 principal 字符串。审计/复核行通过同一 `actor` 列契约可读。
+未来的 `actor_kind` 判别字段与 SSO 映射属于 R32A 范围。

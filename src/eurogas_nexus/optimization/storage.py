@@ -10,12 +10,32 @@ from .models import OptimizationStatus
 
 @dataclass(frozen=True, slots=True)
 class StoragePeriod:
+    """One dispatch period.
+
+    Attributes:
+        period_id: Stable period id.
+        market_price_gbp_mwh: Market price in the period, GBP/MWh.
+    """
+
     period_id: str
     market_price_gbp_mwh: float
 
 
 @dataclass(frozen=True, slots=True)
 class StorageFacility:
+    """Storage facility parameters for dispatch optimization.
+
+    Attributes:
+        initial_inventory_mwh: Inventory at period start.
+        minimum_inventory_mwh: Inventory floor.
+        maximum_inventory_mwh: Inventory ceiling.
+        maximum_injection_mwh: Per-period injection cap.
+        maximum_withdrawal_mwh: Per-period withdrawal cap.
+        injection_efficiency / withdrawal_efficiency: Energy efficiency.
+        injection_cost_gbp_mwh / withdrawal_cost_gbp_mwh: Unit costs.
+        terminal_inventory_mwh: Required ending inventory, or None.
+    """
+
     initial_inventory_mwh: float
     minimum_inventory_mwh: float
     maximum_inventory_mwh: float
@@ -30,6 +50,16 @@ class StorageFacility:
 
 @dataclass(frozen=True, slots=True)
 class StorageDecision:
+    """One period's dispatch decision.
+
+    Attributes:
+        period_id: Period id.
+        injection_mwh: Injected volume, MWh.
+        withdrawal_mwh: Withdrawn volume, MWh.
+        ending_inventory_mwh: Inventory at period end.
+        cashflow_gbp: Period cashflow.
+    """
+
     period_id: str
     injection_mwh: float
     withdrawal_mwh: float
@@ -39,6 +69,17 @@ class StorageDecision:
 
 @dataclass(frozen=True, slots=True)
 class StorageDispatchResult:
+    """Storage dispatch optimization result.
+
+    Attributes:
+        status: Optimization status.
+        objective_value_gbp: Total objective value.
+        decisions: Per-period decisions.
+        terminal_inventory_mwh: Ending inventory.
+        warnings: Aggregated warnings.
+        human_review_required: Always True.
+    """
+
     status: OptimizationStatus
     objective_value_gbp: float
     decisions: tuple[StorageDecision, ...]

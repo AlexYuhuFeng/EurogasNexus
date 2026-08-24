@@ -20,7 +20,6 @@ Discipline (per the ontology methodology):
 from eurogas_nexus.domain.ontology.actions import ActionKind, ForbiddenAction
 from eurogas_nexus.domain.ontology.bindings import CONCEPT_TABLE_BINDINGS
 from eurogas_nexus.domain.ontology.concepts import CONCEPTS, Concept, Slot
-from eurogas_nexus.domain.ontology.constraints import CONSTRAINTS, Constraint
 from eurogas_nexus.domain.ontology.relations import RELATIONS, Relation
 from eurogas_nexus.domain.ontology.vocabulary import (
     BusinessModel,
@@ -65,14 +64,46 @@ class Ontology:
 
     concepts = CONCEPTS
     relations = RELATIONS
-    constraints = CONSTRAINTS
     guardrails = GUARDRAILS
     bindings = CONCEPT_TABLE_BINDINGS
     actions = ActionKind
     forbidden_actions = ForbiddenAction
 
+    @property
+    def constraints(self):
+        """Lazily expose the computable-constraint registry.
+
+        延迟导入：constraints 模块会经 domain.constraints.access 反向依赖
+        本包 vocabulary，此处若急切导入会造成包初始化环（见 __getattr__）。
+        """
+
+        from eurogas_nexus.domain.ontology.constraints import CONSTRAINTS
+
+        return CONSTRAINTS
+
 
 ONTOLOGY = Ontology()
+
+
+def __getattr__(name: str):
+    """Lazily expose the computable-constraint registry.
+
+    ``ontology.constraints`` imports ``domain.constraints.access``, which
+    itself imports ``ontology.vocabulary``; an eager import here would create
+    a package-initialization cycle (access.py partially initialized). Deferring
+    the import keeps ``from eurogas_nexus.domain.ontology import CONSTRAINTS``
+    working via PEP 562.
+    """
+
+    if name in {"CONSTRAINTS", "Constraint"}:
+        from eurogas_nexus.domain.ontology.constraints import (
+            CONSTRAINTS,
+            Constraint,
+        )
+
+        return {"CONSTRAINTS": CONSTRAINTS, "Constraint": Constraint}[name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 __all__ = [
     "ONTOLOGY",

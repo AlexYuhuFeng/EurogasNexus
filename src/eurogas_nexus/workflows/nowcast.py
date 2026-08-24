@@ -8,6 +8,17 @@ from datetime import UTC, datetime
 
 @dataclass(frozen=True)
 class NowcastInput:
+    """Weather-adjusted nowcast input.
+
+    Attributes:
+        market: Market label.
+        period_start_utc / period_end_utc: Forecast window (ISO).
+        base_demand_boe_d: Base demand, boe/d.
+        hdd / cdd: Weather inputs.
+        hdd_sensitivity_boe_per_deg: HDD sensitivity.
+        cdd_sensitivity_boe_per_deg: CDD sensitivity.
+    """
+
     market: str
     period_start_utc: str = ""
     period_end_utc: str = ""
@@ -20,6 +31,22 @@ class NowcastInput:
 
 @dataclass(frozen=True)
 class NowcastOutput:
+    """Weather-adjusted nowcast output (research-only envelope).
+
+    Attributes:
+        market: Market label.
+        period_start_utc / period_end_utc: Forecast window.
+        base_demand_boe_d: Base demand.
+        hdd_adjustment_boe_d / cdd_adjustment_boe_d: Weather deltas.
+        weather_adjustment_boe_d: Total weather delta.
+        adjusted_demand_boe_d: Final demand.
+        hdd / cdd: Weather inputs.
+        assumptions / missing_inputs / warnings: Transparency fields.
+        source_references / lineage: Provenance.
+        research_only / human_review_required: Always True.
+        generated_at_utc: Generation time (ISO).
+    """
+
     market: str
     period_start_utc: str
     period_end_utc: str

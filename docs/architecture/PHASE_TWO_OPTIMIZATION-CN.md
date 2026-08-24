@@ -21,9 +21,9 @@ src/eurogas_nexus/optimization/
 | 资源池分配 | `resource_pool.py` | 适用于已说明可分模型的稳定启发式算法 | 统一服务 + API |
 | 管容产品选择 | `capacity.py` | 面向有限产品集合的精确子集模型 | 统一服务 + API |
 | 单日合同调度 | `contract.py` | 面向单一市场净回值的稳定确定性模型 | 统一服务 + API |
-| 共享管容网络流 | `network_flow.py` | 已验证的残量网络模型 | 仅 Python 内部模块 |
-| 多周期储气调度 | `storage.py` | 已验证的网格化原型 | 仅 Python 内部模块 |
-| 提名窗口评估 | `nomination.py` | 已验证的规则原型 | 仅 Python 内部模块 |
+| 共享管容网络流 | `network_flow.py` | 已验证的残量网络模型 | API：`POST /api/optimization/portfolio-network`（仅 DB 组装输入） |
+| 多周期储气调度 | `storage.py` | 已验证的网格化模型 | API：`POST /api/optimization/storage-dispatch`（仅沙箱评估） |
+| 提名窗口评估 | `nomination.py` | 已验证的规则模型 | API：`POST /api/optimization/nomination-window`（仅评估） |
 
 `PhaseTwoOptimizer` 目前只对前四项能力提供稳定门面。后三个模块暂不导出到统一服务或公共 API；在对外开放前，必须先完成基于 PostgreSQL 的输入组装、DTO、数据来源追踪和产品工作流评审。
 
@@ -34,7 +34,15 @@ POST /api/optimization/route
 POST /api/optimization/resource-pool
 POST /api/optimization/capacity
 POST /api/optimization/contracts
+POST /api/optimization/portfolio-network
+POST /api/optimization/storage-dispatch
+POST /api/optimization/nomination-window
 ```
+
+前四个端点接受操作员提供的沙箱输入；第五个端点是 R31 的 DB 组装运行时
+决策，只接受组合编号、gas day、产品、可靠性和市场价格年龄上限，并在调用
+共享管容网络流模型前从 PostgreSQL 组装合同、参考节点、路由候选、TSO
+权限、费率、市场观测和 FX。
 
 这些端点接收明确的操作员输入，并统一返回 `data/meta` 信封。`meta.source_references` 为 `operator-input`，所有结果都要求人工复核。`meta.research_only` 仅作为现有公共信封的临时兼容字段保留，不得进入新的业务数据 DTO。
 
@@ -68,6 +76,13 @@ POST /api/optimization/contracts
 - 对最终流量执行流守恒、管容、成本和目标值校验。
 
 严格负边际的可选流量不会被输送，零边际流量按确定性顺序处理。该模型不是水力学仿真，不处理压力、管存、压缩机耗气、气质或提名执行。
+
+R31 组合层位于 `src/eurogas_nexus/domain/route_cost/portfolio_network.py`，
+是该模型唯一的 DB 组装消费方：供应弧来自 PostgreSQL
+`upstream_resource_contracts`，销售选项来自 PostgreSQL 市场观测与有效
+`route_candidates`，路由边来自数据库费率选择，TSO 权限过滤来自
+`company_tso_access`，FX 按请求 gas day 做 as-of 换算。最终流量会被分解为
+“来源→销售”路径，并给每个合同显式 PnL 归因。
 
 ### 储气调度原型
 

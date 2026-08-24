@@ -8,12 +8,16 @@ from enum import StrEnum
 
 
 class ShadowRunStatus(StrEnum):
+    """Lifecycle status of a shadow run."""
+
     ACTIVE = "active"
     COMPLETED = "completed"
     PAUSED = "paused"
 
 
 class PaperAction(StrEnum):
+    """Research-only action tags (never execution instructions)."""
+
     RESEARCH_CANDIDATE = "research_candidate"
     CANDIDATE_RANKING = "candidate_ranking"
     RESEARCH_SIGNAL = "research_signal"
@@ -22,6 +26,16 @@ class PaperAction(StrEnum):
 
 @dataclass(frozen=True)
 class ShadowSignal:
+    """One shadow-run signal.
+
+    Attributes:
+        signal_id: Stable signal id.
+        route_name: Route display name.
+        action: Research-only action tag.
+        score: Signal score.
+        note: Free note.
+    """
+
     signal_id: str
     route_name: str
     action: PaperAction = PaperAction.RESEARCH_CANDIDATE
@@ -31,6 +45,15 @@ class ShadowSignal:
 
 @dataclass(frozen=True)
 class ShadowRunInput:
+    """Shadow-run input.
+
+    Attributes:
+        strategy_name: Strategy display name.
+        started_at_utc: Run start (ISO).
+        signals: Shadow signals.
+        paper_pnl_eur: Paper PnL in EUR.
+    """
+
     strategy_name: str
     started_at_utc: str = ""
     signals: list[ShadowSignal] = field(default_factory=list)
@@ -39,6 +62,22 @@ class ShadowRunInput:
 
 @dataclass(frozen=True)
 class ShadowRunOutput:
+    """Shadow-run output (research-only envelope).
+
+    Attributes:
+        strategy_name: Strategy display name.
+        status: Run lifecycle status.
+        started_at_utc: Run start (ISO).
+        elapsed_days: Days since start.
+        signal_count: Signal count.
+        paper_pnl_eur: Paper PnL in EUR.
+        signals: Echoed signals.
+        assumptions / missing_inputs / warnings: Transparency fields.
+        source_references / lineage: Provenance.
+        research_only / human_review_required: Always True.
+        generated_at_utc: Generation time (ISO).
+    """
+
     strategy_name: str
     status: ShadowRunStatus = ShadowRunStatus.ACTIVE
     started_at_utc: str = ""

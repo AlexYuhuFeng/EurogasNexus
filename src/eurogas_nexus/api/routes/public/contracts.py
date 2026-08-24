@@ -1,4 +1,4 @@
-﻿"""DB-first /api/contracts routes for capacity and route context."""
+"""DB-first /api/contracts routes for capacity and route context."""
 
 from fastapi import APIRouter, HTTPException, Request
 
@@ -7,6 +7,23 @@ router = APIRouter(tags=["contracts"])
 
 @router.get("/api/contracts/capacity")
 def list_capacity_contracts(request: Request) -> dict:
+    """List capacity profile contracts from the runtime DB.
+
+    返回容量档案契约列表（按生效时间倒序）；DB 未配置或不可用时
+    降级为空数据并告警，绝不返回编造的容量。
+
+    Args:
+        request: Incoming FastAPI request (envelope context).
+
+    Returns:
+        Enveloped capacity rows with ``runtime-postgresql`` source tag,
+        or an empty enveloped response with a warning.
+
+    Raises:
+        HTTPException: 503 ``runtime_db_unavailable`` when the DB is
+            configured but the read fails.
+    """
+
     if not _db_is_configured():
         return _env(
             [],
@@ -49,6 +66,18 @@ def list_capacity_contracts(request: Request) -> dict:
 
 @router.get("/api/contracts/routes")
 def list_route_eligibility(request: Request) -> dict:
+    """List route eligibility context (no generated routes are returned).
+
+    返回路线资格上下文：路由发现必须由源拓扑/TSO 准入/容量/费率推导，
+    本端点不生成路线，未配置 DB 时降级为空并告警。
+
+    Args:
+        request: Incoming FastAPI request (envelope context).
+
+    Returns:
+        Enveloped empty list with a derivation warning.
+    """
+
     if not _db_is_configured():
         return _env(
             [],

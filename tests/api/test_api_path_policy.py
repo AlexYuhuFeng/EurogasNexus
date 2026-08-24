@@ -5,11 +5,13 @@ from fastapi.testclient import TestClient
 from eurogas_nexus.api.app import create_app
 from eurogas_nexus.core.config import Settings
 
+AUTH_HEADERS = {"X-Eurogas-Api-Key": "test-public-api-token"}
+
 
 def test_public_health_path_uses_unversioned_api_prefix() -> None:
     client = TestClient(create_app(Settings(api_profile="release")))
 
-    assert client.get("/api/health").status_code == 200
+    assert client.get("/api/health", headers=AUTH_HEADERS).status_code == 200
 
 
 def test_versioned_api_alias_is_not_exposed() -> None:

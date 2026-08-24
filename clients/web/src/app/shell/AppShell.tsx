@@ -42,6 +42,18 @@ export function AppShell({ controller }: AppShellProps) {
         onDeliveryProductChange={controls.setDeliveryProduct}
       />
 
+      {Object.keys(api.endpointErrors).length > 0 && (
+        <div className="endpoint-error-banner" role="status" aria-live="polite">
+          <span>{t("workspace.partial_load")}</span>
+          <strong>
+            {t("workspace.failed_endpoints")}: {Object.keys(api.endpointErrors).join(", ")}
+          </strong>
+          <button type="button" onClick={() => void api.retryFailedWorkspaceEndpoints()}>
+            {t("workspace.retry_failed")}
+          </button>
+        </div>
+      )}
+
       <main className="app-main">
         <NetworkWorkspace
           t={t}

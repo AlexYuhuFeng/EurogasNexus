@@ -3,22 +3,18 @@
 from __future__ import annotations
 
 import re
+from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
 from eurogas_nexus.domain.ingestion.certification import certification_gate
+from eurogas_nexus.domain.ingestion.source_registry import (
+    CATEGORY_LABELS,
+    registered_sources,
+)
 
 router = APIRouter(tags=["sources"])
-
-CATEGORY_LABELS = {
-    "price": "Prices",
-    "fx": "FX",
-    "infrastructure": "Infrastructure",
-    "tariff": "TSO Tariffs",
-    "weather": "Weather",
-    "ai": "LLM",
-}
 
 PREVIEW_SUBSTITUTE_SOURCE_SYSTEM_BY_LICENSED_SOURCE = {
     "EEX": "EEX_Sim",
@@ -97,13 +93,14 @@ def get_source(source_id: str, request: Request) -> dict:
 def list_ingestion_runs(
     request: Request,
     source_id: str | None = Query(None),
+    limit: int = Query(100, ge=1, le=1000),
 ) -> dict:
-    """List persisted ingestion runs from the runtime DB."""
+    """List persisted ingestion runs from the runtime DB (bounded by limit)."""
 
     runs = _db_ingestion_runs()
     if source_id:
         runs = [run for run in runs if run["source_id"] == source_id]
-    return _envelope(runs, request, source=_source_label())
+    return _envelope(runs[:limit], request, source=_source_label())
 
 
 def _envelope(
@@ -138,292 +135,19 @@ def _envelope(
     }
 
 
-def _registered_sources() -> list[dict]:
-    return [
-        _src(
-            "src-ecb",
-            "ECB",
-            "fx",
-            ("eurofxref-daily", "fx-reference-rates"),
-            "European Central Bank FX reference rates.",
-            False,
-            freshness_minutes=1440,
-        ),
-        _src(
-            "src-entsog",
-            "ENTSOG",
-            "infrastructure",
-            ("connection-points", "operator-directions", "flows", "capacity", "outages", "ip"),
-            "ENTSOG Transparency Platform infrastructure, flows, capacities, IPs, and outages.",
-            False,
-            freshness_minutes=60,
-        ),
-        _src(
-            "src-gie",
-            "GIE",
-            "infrastructure",
-            ("agsi-storage", "alsi-lng"),
-            "Gas Infrastructure Europe AGSI storage and ALSI LNG data.",
-            True,
-            freshness_minutes=360,
-        ),
-        _src(
-            "src-national-gas-nts",
-            "NationalGasNTS",
-            "tariff",
-            ("transportation-statement", "entry-tariffs", "exit-tariffs", "commodity-charges"),
-            "National Gas NTS transportation tariff references for explicit-leg route costing.",
-            False,
-            freshness_minutes=43200,
-        ),
-        _src(
-            "src-bbl",
-            "BBL",
-            "tariff",
-            ("interconnector-tariffs", "forward-flow", "reverse-flow"),
-            "BBL Company public interconnector capacity tariff references.",
-            False,
-            freshness_minutes=43200,
-        ),
-        _src(
-            "src-iuk",
-            "IUK",
-            "tariff",
-            ("interconnector-tariffs", "bacton", "zeebrugge"),
-            "Interconnector UK public charging statement and capacity tariff references.",
-            False,
-            freshness_minutes=43200,
-        ),
-        _src(
-            "src-gts",
-            "GTS",
-            "tariff",
-            ("netherlands-transmission-tariffs", "entry-exit"),
-            "Gasunie Transport Services Dutch transmission tariff references.",
-            False,
-            freshness_minutes=43200,
-        ),
-        _src(
-            "src-natran",
-            "NaTran",
-            "tariff",
-            ("france-transmission-tariffs", "entry-exit", "peg"),
-            "French transmission tariff references for NaTran/GRTgaz/Terega context.",
-            False,
-            freshness_minutes=43200,
-        ),
-        _src(
-            "src-german-tso",
-            "GermanTSO",
-            "tariff",
-            ("germany-transmission-tariffs", "the-market-area", "entry-exit"),
-            "German gas transmission tariff references for THE market-area routing.",
-            False,
-            freshness_minutes=43200,
-        ),
-        _src(
-            "src-fluxys-belgium",
-            "FluxysBelgium",
-            "tariff",
-            ("belgium-transmission-tariffs", "ztp", "interconnection"),
-            "Fluxys Belgium transmission tariff references for ZTP and border routing.",
-            False,
-            freshness_minutes=43200,
-        ),
-        _src(
-            "src-cnmc-enagas",
-            "CNMCEnagas",
-            "tariff",
-            ("spain-access-tolls", "transmission", "regasification"),
-            "Spanish CNMC/Enagas gas access toll and tariff references.",
-            False,
-            freshness_minutes=43200,
-        ),
-        _src(
-            "src-eex",
-            "EEX",
-            "price",
-            ("gas-futures", "gas-spot", "screen-trades", "settlements"),
-            "European Energy Exchange gas market prices and screen observations.",
-            True,
-            freshness_minutes=1,
-        ),
-        _src(
-            "src-eex-sim",
-            "EEX_Sim",
-            "price",
-            ("gas-spot", "day-ahead", "weekend", "month-ahead", "simulated"),
-            (
-                "EEX-shaped simulated gas market prices injected into the runtime DB "
-                "at a continuous worker cadence for decision-support testing."
-            ),
-            False,
-            freshness_minutes=1,
-        ),
-        _src(
-            "src-ice-ocm",
-            "ICE_OCM",
-            "price",
-            ("within-day", "day-ahead", "screen-orders", "live-marks"),
-            "ICE OCM live within-day and day-ahead market observations.",
-            True,
-            freshness_minutes=1,
-        ),
-        _src(
-            "src-ice-ocm-sim",
-            "ICE_OCM_Sim",
-            "price",
-            ("within-day", "day-ahead", "screen-marks", "simulated"),
-            (
-                "ICE OCM-shaped simulated within-day and day-ahead marks injected "
-                "through the runtime DB path at a high-frequency worker cadence."
-            ),
-            False,
-            freshness_minutes=1,
-        ),
-        _src(
-            "src-trayport",
-            "Trayport",
-            "price",
-            ("broker-screens", "market-data", "screen-orders"),
-            "Trayport screen and broker market data.",
-            True,
-            freshness_minutes=1,
-        ),
-        _src(
-            "src-trayport-sim",
-            "Trayport_Sim",
-            "price",
-            ("broker-screens", "within-day", "day-ahead", "simulated"),
-            (
-                "Trayport-shaped simulated broker-screen marks injected through "
-                "the canonical runtime DB path at a realtime worker cadence."
-            ),
-            False,
-            freshness_minutes=1,
-        ),
-        _src(
-            "src-platts",
-            "Platts",
-            "price",
-            ("assessments", "forward-curves", "indices"),
-            "Platts licensed gas price assessments and curves.",
-            True,
-            freshness_minutes=1440,
-        ),
-        _src(
-            "src-icis",
-            "ICIS",
-            "price",
-            ("heren-assessments", "day-ahead", "indices", "curves"),
-            "ICIS Heren licensed gas assessments and reference prices.",
-            True,
-            freshness_minutes=1440,
-        ),
-        _src(
-            "src-icis-sim",
-            "ICIS_Sim",
-            "price",
-            ("heren-assessments", "day-ahead", "daily-assessment", "simulated"),
-            "ICIS Heren-shaped simulated daily assessment rows injected into market observations.",
-            False,
-            freshness_minutes=1440,
-        ),
-        _src(
-            "src-argus",
-            "Argus",
-            "price",
-            ("assessments", "indices", "curves"),
-            "Argus licensed gas assessments and market references.",
-            True,
-            freshness_minutes=1440,
-        ),
-        _src(
-            "src-kpler",
-            "Kpler",
-            "price",
-            ("lng-flows", "cargo-tracking", "market-data"),
-            "Kpler licensed LNG and market intelligence feeds.",
-            True,
-            freshness_minutes=60,
-        ),
-        _src(
-            "src-weather",
-            "Weather",
-            "weather",
-            ("temperature", "hdd", "cdd", "forecast"),
-            "Weather observations and forecast signals for HDD/CDD modelling.",
-            True,
-            freshness_minutes=180,
-        ),
-        _src(
-            "src-deepseek",
-            "DEEPSEEK",
-            "ai",
-            ("analysis", "reporting", "qa"),
-            "DeepSeek LLM analysis provider for operator-reviewed reports.",
-            True,
-            freshness_minutes=0,
-        ),
-    ]
-
-
-def _src(
-    source_id: str,
-    system: str,
-    category: str,
-    datasets: tuple[str, ...],
-    description: str,
-    entitled: bool,
-    *,
-    freshness_minutes: int,
-) -> dict:
-    return {
-        "source_id": source_id,
-        "source_system": system,
-        "category": category,
-        "category_label": CATEGORY_LABELS[category],
-        "datasets": list(datasets),
-        "status": "registered",
-        "connectivity_status": "registered",
-        "operational_status": "registered",
-        "workflow_ready": False,
-        "live_record_count": 0,
-        "effective_source_system": system,
-        "effective_record_count": 0,
-        "effective_last_success_at_utc": None,
-        "entitlement_scope": "licensed" if entitled else "public",
-        "freshness_expectation_minutes": freshness_minutes,
-        "description": description,
-        "credential_requirements": ["api_key"] if entitled else [],
-        "credential_provider_id": system if entitled else None,
-        "credential_state": "missing" if entitled else "not_required",
-        "credential_status": None,
-        "credential_last_tested_at_utc": None,
-        "credential_last_test_status": None,
-        "export_restrictions": ["license-controlled"] if entitled else [],
-        "certification_stage": "unverified",
-        "certification_allows_live": False,
-        "preview_substitute_source_system": None,
-        "preview_substitute_status": None,
-        "preview_substitute_record_count": 0,
-        "last_success_at_utc": None,
-        "last_failure_at_utc": None,
-        "last_ingestion_status": None,
-        "last_ingestion_message": None,
-        "diagnostics": [],
-    }
-
-
 def _sources_with_runtime_status() -> list[dict]:
-    sources = _registered_sources()
+    sources = registered_sources()
     counts = _runtime_source_counts()
+    latest_observed = _runtime_source_latest_observed()
     ingestion_status = _latest_ingestion_status_by_source()
     credential_status = _credential_status_by_provider()
     certifications = _certification_by_source_system()
     for source in sources:
         count = counts.get(source["source_system"], 0)
         source["live_record_count"] = count
+        last_observed = latest_observed.get(source["source_system"])
+        source["last_observed_at_utc"] = last_observed
+        source["freshness_status"] = _source_freshness_status(source, last_observed)
         source_id = source["source_id"]
         source_ingestion = ingestion_status.get(source_id, {})
         latest_run = source_ingestion.get("latest")
@@ -462,6 +186,30 @@ def _sources_with_runtime_status() -> list[dict]:
     _attach_preview_substitute_status(sources)
     _attach_operational_status(sources)
     return sources
+
+
+def _source_freshness_status(source: dict, last_observed_at_utc: str | None) -> str:
+    """Evaluate read-side freshness against the source expectation (audit item 3)."""
+
+    from eurogas_nexus.domain.monitoring.freshness import evaluate_freshness
+
+    observed = _parse_utc_datetime(last_observed_at_utc)
+    expectation = int(source.get("freshness_expectation_minutes") or 0)
+    return evaluate_freshness(expectation, observed).value
+
+
+def _parse_utc_datetime(value: str | None):
+    from datetime import UTC, datetime
+
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed
 
 
 def _source_posture_summary(sources: list[dict]) -> dict[str, Any]:
@@ -653,6 +401,10 @@ def _connectivity_status(
     if latest_run and latest_run.get("status") == "failed":
         return "failed"
     if live_record_count > 0:
+        # Audit item 3: records alone do not make a source live. A source whose
+        # newest observation is older than its freshness expectation is stale.
+        if source.get("freshness_status") == "stale":
+            return "stale"
         return "active"
     if not _db_is_configured():
         return "runtime_unconfigured"
@@ -678,6 +430,8 @@ def _diagnostics(
         diagnostics.append("live_records_available")
         if source["credential_requirements"] and not source["certification_allows_live"]:
             diagnostics.append("certification_required")
+        if source.get("freshness_status") == "stale":
+            diagnostics.append("data_stale")
     elif not _db_is_configured():
         diagnostics.append("runtime_db_not_configured")
     elif source["category"] != "ai":
@@ -793,6 +547,92 @@ def _runtime_source_counts() -> dict[str, int]:
                 "DEEPSEEK": 0,
             }
     except sqlalchemy_error:
+        return {}
+
+
+def _runtime_source_latest_observed() -> dict[str, str]:
+    """Return the newest observation timestamp per source system (ISO UTC).
+
+    Drives the read-side freshness evaluation (audit item 3): a source is
+    only ``active`` while its newest row satisfies the freshness expectation.
+    """
+
+    if not _db_is_configured():
+        return {}
+
+    try:
+        from sqlalchemy import func
+
+        from eurogas_nexus.db.models import (
+            FlowObservationRecord,
+            FxObservationRecord,
+            LngObservationRecord,
+            MarketObservationRecord,
+            ScreenOrderObservationRecord,
+            StorageObservationRecord,
+        )
+        from eurogas_nexus.db.session import get_session_factory
+
+        latest: dict[str, datetime | None] = {}
+
+        def track(system: str, value: datetime | None) -> None:
+            if value is None:
+                return
+            if system not in latest or value > latest[system]:
+                latest[system] = value
+
+        with get_session_factory()() as session:
+            for row in (
+                session.query(
+                    MarketObservationRecord.source_system,
+                    func.max(MarketObservationRecord.observed_at_utc),
+                ).group_by(MarketObservationRecord.source_system)
+            ):
+                track(str(row[0]), row[1])
+            for row in (
+                session.query(
+                    FlowObservationRecord.source_system,
+                    func.max(FlowObservationRecord.observed_at_utc),
+                ).group_by(FlowObservationRecord.source_system)
+            ):
+                track(str(row[0]), row[1])
+            for row in (
+                session.query(
+                    StorageObservationRecord.source_system,
+                    func.max(StorageObservationRecord.observed_at_utc),
+                ).group_by(StorageObservationRecord.source_system)
+            ):
+                track(str(row[0]), row[1])
+            for row in (
+                session.query(
+                    LngObservationRecord.source_system,
+                    func.max(LngObservationRecord.observed_at_utc),
+                ).group_by(LngObservationRecord.source_system)
+            ):
+                track(str(row[0]), row[1])
+            for row in (
+                session.query(
+                    FxObservationRecord.source_system,
+                    func.max(FxObservationRecord.observed_at_utc),
+                ).group_by(FxObservationRecord.source_system)
+            ):
+                track(str(row[0]), row[1])
+            for row in (
+                session.query(
+                    ScreenOrderObservationRecord.source_system,
+                    func.max(ScreenOrderObservationRecord.observed_at_utc),
+                ).group_by(ScreenOrderObservationRecord.source_system)
+            ):
+                track(str(row[0]), row[1])
+        return {
+            system: value.isoformat()
+            for system, value in latest.items()
+            if hasattr(value, "isoformat")
+        }
+    except Exception:
+        # Freshness annotation is best-effort: unavailability (including
+        # monkeypatched test environments without a DSN) yields no timestamps
+        # and sources evaluate as UNKNOWN rather than failing the registry.
         return {}
 
 

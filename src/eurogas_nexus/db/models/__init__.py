@@ -13,6 +13,7 @@ from eurogas_nexus.db.models.analysis import (
 )
 from eurogas_nexus.db.models.certification import ProviderCertificationRecord
 from eurogas_nexus.db.models.glossary import GlossaryTermRecord
+from eurogas_nexus.db.models.identity import IdentityApiKeyRecord, IdentityPrincipalRecord
 from eurogas_nexus.db.models.market_intelligence import (
     CompanyTsoAccessRecord,
     IntradayOpportunityRecord,
@@ -34,6 +35,8 @@ from eurogas_nexus.db.models.observation import (
     ProviderCredentialRecord,
     StorageObservationRecord,
 )
+from eurogas_nexus.db.models.optimization import OptimizationRunRecord
+from eurogas_nexus.db.models.raw_archive import RawPayloadArchiveRecord
 from eurogas_nexus.db.models.reference_network import (
     NodeFacilityMapping,
     ReferenceEdge,
@@ -50,6 +53,11 @@ from eurogas_nexus.db.models.route_cost import (
     RouteCandidateRecord,
     TsoTariffRecord,
     UpstreamResourceContractRecord,
+)
+from eurogas_nexus.db.models.storage_nomination import (
+    NominationWindowMasterRecord,
+    StorageFacilityMasterRecord,
+    StorageInventoryObservationRecord,
 )
 from eurogas_nexus.db.models.strategy import (
     StrategyAlertRecord,
@@ -86,6 +94,8 @@ __all__ = [
     "GeneratedReportRecord",
     "IngestionRunRecord",
     "IngestionRunStatus",
+    "IdentityApiKeyRecord",
+    "IdentityPrincipalRecord",
     "IntradayOpportunityRecord",
     "LngObservationRecord",
     "CapacityProfileRecord",
@@ -94,6 +104,8 @@ __all__ = [
     "MarketQuoteRecord",
     "MonitoringAlertRecord",
     "NodeFacilityMapping",
+    "NominationWindowMasterRecord",
+    "OptimizationRunRecord",
     "PortfolioPnlSnapshotRecord",
     "ProviderCertificationRecord",
     "ProviderCredentialRecord",
@@ -104,7 +116,10 @@ __all__ = [
     "ReferenceTsoAccessPoint",
     "ReviewDecisionRecord",
     "RouteCandidateRecord",
+    "RawPayloadArchiveRecord",
     "ScreenOrderObservationRecord",
+    "StorageFacilityMasterRecord",
+    "StorageInventoryObservationRecord",
     "StorageObservationRecord",
     "StrategyAlertRecord",
     "StrategyAllocationTargetRecord",
