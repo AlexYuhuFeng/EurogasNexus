@@ -3461,6 +3461,86 @@ body {
   padding: 6px 12px;
 }
 
+.runtime-release-readiness,
+.runtime-commercial-sources {
+  align-self: stretch;
+}
+
+.runtime-readiness-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 14px;
+}
+
+.runtime-readiness-row {
+  align-items: start;
+  background: var(--eg-canvas-soft);
+  border: 1px solid var(--eg-hairline);
+  border-radius: var(--eg-radius-sm);
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-height: 122px;
+  padding: 12px;
+}
+
+.runtime-readiness-row > div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.runtime-readiness-row strong,
+.runtime-readiness-row span,
+.runtime-readiness-row small {
+  min-width: 0;
+}
+
+.runtime-readiness-row strong {
+  color: var(--eg-ink);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.runtime-readiness-row div span,
+.runtime-readiness-row small {
+  color: var(--eg-body);
+  font-size: 12px;
+  line-height: 17px;
+}
+
+.runtime-readiness-state {
+  border-radius: var(--eg-radius-sm);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 18px;
+  padding: 2px 8px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.runtime-readiness-state.ready {
+  background: var(--eg-positive-soft, rgba(28, 138, 76, 0.14));
+  color: var(--eg-positive, #1c8a4c);
+}
+
+.runtime-readiness-state.partial {
+  background: var(--eg-warn-soft, rgba(183, 121, 31, 0.14));
+  color: var(--eg-warn, #b7791f);
+}
+
+.runtime-readiness-state.blocked {
+  background: rgba(192, 57, 43, 0.13);
+  color: var(--eg-negative, #c0392b);
+}
+
+.runtime-commercial-sources .data-table {
+  max-height: 360px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
 .pipeline-status {
   font-weight: 600;
 }
@@ -4145,6 +4225,10 @@ button.glossary-related-chip {
     grid-template-columns: 0.75fr 1fr 1fr 0.9fr;
   }
 
+  .runtime-readiness-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .workspace-panel.span-2,
   .workspace-panel.span-3,
   .efet-section.span-2 {
@@ -4174,6 +4258,7 @@ button.glossary-related-chip {
   .strategy-data-quality-banner,
   .strategy-pool-baseline,
   .strategy-tape-grid,
+  .runtime-readiness-grid,
   .economics-grid.wide,
   .credential-form.horizontal {
     grid-template-columns: 1fr;

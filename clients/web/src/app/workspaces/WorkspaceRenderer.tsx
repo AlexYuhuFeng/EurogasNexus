@@ -241,6 +241,9 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
           meta={api.meta}
           runtimeDb={api.runtimeDb}
           pipelineHealth={api.pipelineHealth}
+          sources={api.sources}
+          streamingActive={api.streamingActive}
+          endpointErrors={api.endpointErrors}
           t={t}
           onRefreshHealth={api.refreshMonitoring}
         />

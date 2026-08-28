@@ -381,7 +381,9 @@ Purpose:
 
 Purpose:
 
-- prove backend/API/DB status before deeper workflows.
+- prove backend/API/DB status before deeper workflows;
+- expose commercial release readiness as an operator-facing matrix without
+  hiding external deployment gates.
 
 Content:
 
@@ -390,6 +392,14 @@ Content:
 - API base URL;
 - active route profile;
 - DB validation status from backend when available;
+- commercial release-readiness board covering runtime DB/schema, source
+  operations, realtime delivery mode, commercial source credential/certification
+  posture, no-execution guardrails, and external security acceptance;
+- commercial-source table showing credential state, certification stage, and
+  effective source, including preview substitutes;
+- release blockers derived from endpoint failures, DB/schema gaps, missing
+  credentials, live-certification gaps, and the unresolved external security
+  acceptance gate;
 - warning if simulated/preview provenance, stale data, missing DB tables, or
   unavailable backend capabilities are reported by the API.
 

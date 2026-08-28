@@ -90,10 +90,14 @@ def test_review_workspace_records_persisted_decisions_with_page_memory_actor() -
 
 def test_runtime_workspace_shows_pipeline_health_and_stream_mode() -> None:
     runtime_workspace = _read(WEB / "components" / "RuntimeWorkspace.tsx")
+    renderer = _read(WEB / "app" / "workspaces" / "WorkspaceRenderer.tsx")
+    css = _read(WEB / "styles" / "app.css")
     topbar = _read(WEB / "components" / "WorkspaceTopBar.tsx")
     shell = _read(WEB / "app" / "shell" / "AppShell.tsx")
     client = _read(WEB / "api" / "client.ts")
     store = _read(WEB / "stores" / "api.ts")
+    en = json.loads(_read(WEB / "i18n" / "en.json"))
+    zh = json.loads(_read(WEB / "i18n" / "zh.json"))
 
     assert 'get<PipelineHealthDTO>("/runtime/pipeline-health"' in client
     assert "api.pipelineHealth()" in store
@@ -103,6 +107,36 @@ def test_runtime_workspace_shows_pipeline_health_and_stream_mode() -> None:
     assert "streamingActive" in topbar
     assert "stream.live" in topbar
     assert "streamingActive={api.streamingActive}" in shell
+    assert "SourceSystemDTO" in runtime_workspace
+    assert "sources: SourceSystemDTO[]" in runtime_workspace
+    assert "streamingActive: boolean" in runtime_workspace
+    assert "endpointErrors: Record<string, string>" in runtime_workspace
+    assert "sources={api.sources}" in renderer
+    assert "streamingActive={api.streamingActive}" in renderer
+    assert "endpointErrors={api.endpointErrors}" in renderer
+    assert "releaseReadinessRows" in runtime_workspace
+    assert "runtime-release-readiness" in runtime_workspace
+    assert "runtime-readiness-row" in runtime_workspace
+    assert "runtime-readiness-state" in runtime_workspace
+    assert "runtime-commercial-sources" in runtime_workspace
+    assert "commercialSourceRows" in runtime_workspace
+    assert "commercialSourceRows.length === 0" in runtime_workspace
+    assert "credentialBlockers" in runtime_workspace
+    assert "certificationBlockers" in runtime_workspace
+    assert 'key: "external_security_acceptance"' in runtime_workspace
+    assert 'key: "no_execution_boundary"' in runtime_workspace
+    assert 'streamingActive ? t("stream.live") : t("stream.polling_fallback")' in runtime_workspace
+    assert ".runtime-release-readiness" in css
+    assert ".runtime-readiness-row" in css
+    assert ".runtime-readiness-state.blocked" in css
+    assert ".runtime-commercial-sources" in css
+    assert en["runtime.release_readiness"] == "Commercial release readiness"
+    assert en["runtime.release_blockers"] == "Release blockers"
+    assert en["runtime.security_acceptance"] == "Security acceptance"
+    assert en["runtime.security_acceptance_detail"].startswith("External security acceptance")
+    assert zh["runtime.release_readiness"] == "\u5546\u4e1a\u53d1\u5e03\u5c31\u7eea"
+    assert zh["runtime.release_blockers"] == "\u53d1\u5e03\u963b\u65ad\u9879"
+    assert zh["runtime.security_acceptance"] == "\u5b89\u5168\u9a8c\u6536"
 
 
 def test_source_center_shows_certification_gate_status() -> None:

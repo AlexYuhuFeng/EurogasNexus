@@ -92,6 +92,10 @@ passed
   service, plus an in-process API load smoke with latency percentiles.
 - Source posture panels show runtime row counts, credential state, and
   read-side freshness (live/stale/unknown) from backend API diagnostics.
+- Runtime workspace exposes a commercial release-readiness matrix for DB/schema
+  status, source operations, realtime delivery mode, commercial
+  credential/certification posture, no-execution guardrails, and the external
+  security-acceptance gate.
 - Market workspace renders a terminal-style major-hub board, regional TTF
   spreads, observed-row sparklines, ECB FX, and price-source posture without
   fabricating missing licensed prices.
@@ -108,6 +112,8 @@ Every successful `Build and Release` workflow publishes the following assets:
 - `release-all-in-one-windows`: Windows one-click AllInOne NSIS installer and checksum.
 - `release-deployment`: Server and advanced deployment operator toolkits.
 - `ghcr.io/alexyuhufeng/eurogasnexus-api`: multi-architecture runtime image.
+- `release-desktop-linux-x64`: Linux DEB package for x64 Linux users.
+- `release-desktop-linux-arm64`: Linux DEB package for ARM64 Linux users.
 
 Server deployment defaults to private-network preview. The explicit
 `EUROGAS_NEXUS_DEPLOYMENT_POSTURE=security_accepted` switch only takes effect
@@ -117,14 +123,8 @@ multi-tenant deployment remain blocked until the full user directory / role
 model milestone ships (release currently enforces an API token on every
 request and an operator principal for credential writes, but has no per-user
 accounts).
-- `release-desktop-linux-x64`: Linux DEB package for x64 Linux users.
-- `release-desktop-linux-arm64`: Linux DEB package for ARM64 Linux users.
 
-The Linux artifacts must remain explicitly architecture-labelled so ARM Linux
-users do not receive the x64 DEB by mistake. ARM Linux users do not receive the
-x64 DEB by mistake.
-
-ARM Linux users do not receive the x64 DEB by mistake.
+The Linux artifacts must remain explicitly architecture-labelled so ARM Linux users do not receive the x64 DEB by mistake.
 
 ## What Runtime DB Means In The Client
 
