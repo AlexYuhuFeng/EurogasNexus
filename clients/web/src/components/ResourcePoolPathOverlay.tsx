@@ -58,23 +58,18 @@ function formatPct(value: number | null): string {
   return `${value.toFixed(1)}%`;
 }
 
-function routeGeometryLabel(state: RouteGeometryState): string {
-  if (state === "surveyed_pipeline_route") return "Surveyed pipeline route";
-  if (state === "source_derived_leg_sequence") return "Source-derived leg sequence";
-  if (state === "source_derived_corridor") return "Source-derived corridor";
-  return "Geometry unavailable";
+function routeGeometryLabel(state: RouteGeometryState, t: Translate): string {
+  if (state === "surveyed_pipeline_route") return t("map.geometry_surveyed_pipeline");
+  if (state === "source_derived_leg_sequence") return t("map.geometry_source_derived_sequence");
+  if (state === "source_derived_corridor") return t("map.geometry_source_derived_corridor");
+  if (state === "directLineFallback") return t("map.geometry_indicative_corridor");
+  return t("map.geometry_indicative_corridor");
 }
 
-function routeGeometryWarning(path: ResourcePoolMapPath): string | null {
+function routeGeometryWarning(path: ResourcePoolMapPath, t: Translate): string | null {
   if (path.routeGeometryWarning) return path.routeGeometryWarning;
   if (path.routeGeometryState === "surveyed_pipeline_route") return null;
-  if (path.routeGeometryState === "source_derived_leg_sequence") {
-    return "Matched route legs are shown as a corridor, not surveyed pipeline geometry.";
-  }
-  if (path.routeGeometryState === "source_derived_corridor") {
-    return "Only source and target corridor geometry is available.";
-  }
-  return "No verified route geometry is available; the map does not draw this path.";
+  return t("map.indicative_route_warning");
 }
 
 function routeStateLabelKey(state: RouteState): string {
@@ -143,6 +138,12 @@ export function ResourcePoolPathOverlay({ paths, blockers, t }: ResourcePoolPath
   const visiblePaths = paths.slice(0, 3);
   const poolSummary = summarizeResourcePool(paths);
   const hiddenPathCount = Math.max(paths.length - visiblePaths.length, 0);
+  const firstIndicativeGeometryPath = visiblePaths.find(
+    (path) => path.routeGeometryState !== "surveyed_pipeline_route",
+  );
+  const firstIndicativeGeometryWarning = firstIndicativeGeometryPath
+    ? routeGeometryWarning(firstIndicativeGeometryPath, t)
+    : null;
 
   return (
     <div className="resource-pool-map-overlay" aria-label={t("home.resource_paths")}>
@@ -160,6 +161,13 @@ export function ResourcePoolPathOverlay({ paths, blockers, t }: ResourcePoolPath
           </button>
         )}
       </div>
+      {firstIndicativeGeometryPath && firstIndicativeGeometryWarning && (
+        <div className="resource-path-geometry-notice">
+          <strong>{t("map.indicative_route_notice_title")}</strong>
+          <span>{firstIndicativeGeometryPath.sourcePointName} -&gt; {firstIndicativeGeometryPath.targetPointName}</span>
+          <small>{firstIndicativeGeometryWarning}</small>
+        </div>
+      )}
       {visiblePaths.length > 0 ? (
         <>
           <div className="resource-pool-allocation-summary" aria-label={t("home.pool_allocation")}>
@@ -223,8 +231,8 @@ export function ResourcePoolPathOverlay({ paths, blockers, t }: ResourcePoolPath
                     </div>
                   )}
                   <div className={`resource-path-geometry ${path.routeGeometryState === "surveyed_pipeline_route" ? "" : "warning"}`}>
-                    <span title={routeGeometryWarning(path) ?? undefined}>
-                      {t("home.route_geometry")}: {routeGeometryLabel(path.routeGeometryState)}
+                    <span title={routeGeometryWarning(path, t) ?? undefined}>
+                      {t("home.route_geometry")}: {routeGeometryLabel(path.routeGeometryState, t)}
                     </span>
                     {path.routeLegSummary.length > 0 && (
                       <small>{t("home.route_legs")}: {path.routeLegSummary.slice(0, 3).join(" -> ")}</small>

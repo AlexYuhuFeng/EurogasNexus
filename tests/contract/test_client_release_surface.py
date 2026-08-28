@@ -390,6 +390,9 @@ def test_web_client_release_cockpit_chrome_is_clean_and_color_coded() -> None:
     map_component = (
         ROOT / "clients" / "web" / "src" / "components" / "GasNetworkMap.tsx"
     ).read_text(encoding="utf-8")
+    line_model = (
+        ROOT / "clients" / "web" / "src" / "app" / "networkMapLines.ts"
+    ).read_text(encoding="utf-8")
     en = json.loads(
         (ROOT / "clients" / "web" / "src" / "i18n" / "en.json").read_text(encoding="utf-8")
     )
@@ -401,9 +404,9 @@ def test_web_client_release_cockpit_chrome_is_clean_and_color_coded() -> None:
     assert "map-layer-chip compact" in network_workspace
     assert "aria-pressed={activeLayers.includes(layer)}" in network_workspace
     assert "MapLibre controls sit outside both decision rails" in css
-    assert "route_candidate" in map_component
-    assert 'edge.source_system === "route_candidate"' in map_component
-    assert 'metadata.materialization === "route_candidate_edge"' in map_component
+    assert "route_candidate" in line_model
+    assert 'edge.source_system === "route_candidate"' in line_model
+    assert 'metadata.materialization === "route_candidate_edge"' in line_model
     assert "line-opacity" in map_component
     assert "--eg-map-pipeline" in css
     assert "--eg-map-lng" in css
@@ -794,6 +797,9 @@ def test_web_client_network_page_shows_resource_pool_paths_on_map() -> None:
     assert "highlightedRoute={portfolio.highlightedRoute}" in app
     assert "highlightedRoute={highlightedRoute}" in network_workspace
     assert "resource-pool-map-overlay" in overlay
+    assert "resource-path-geometry-notice" in overlay
+    assert "firstIndicativeGeometryPath" in overlay
+    assert 't("map.indicative_route_notice_title")' in overlay
     assert "resource-path-card" in overlay
     assert "resource-path-flow" in overlay
     assert "sourcePointName" in overlay
@@ -834,6 +840,11 @@ def test_web_client_network_page_shows_resource_pool_paths_on_map() -> None:
     assert "saleOptions.slice(0, 3).map" not in app
     assert "rankedResourcePoolMapPaths" not in app
     assert "resource-pool-map-overlay" in css
+    assert "map-visual-legend" in network_workspace
+    assert "buildVisibleMapNetworkLines" in network_workspace
+    assert ".map-visual-legend" in css
+    assert ".line-swatch.verified" in css
+    assert ".line-swatch.indicative" in css
     assert "resource-path-card" in css
     assert ".resource-pool-allocation-summary" in css
     assert ".resource-route-status-legend" in css
@@ -843,7 +854,9 @@ def test_web_client_network_page_shows_resource_pool_paths_on_map() -> None:
     assert ".resource-route-state-pill" in css
     assert ".resource-path-more" in css
     assert "max-height: min(42vh, 380px)" in css
-    assert "verifiedEdgeGeometryCoordinates" in map_component
+    assert "buildVisibleMapNetworkLines" in map_component
+    assert 'id: "verified-pipeline-lines"' in map_component
+    assert 'id: "indicative-route-lines"' in map_component
     assert "fallback-flow-path direct-corridor" not in map_component
     assert en["home.resource_paths"] == "Resource paths"
     assert en["home.pool_allocation"] == "Pool allocation"
@@ -859,6 +872,12 @@ def test_web_client_network_page_shows_resource_pool_paths_on_map() -> None:
     assert en["home.route_state.candidate"] == "Candidate"
     assert en["home.route_state.blocked"] == "Blocked"
     assert en["home.path_unavailable"].startswith("No persisted resource")
+    assert en["map.visual_legend"] == "Map legend"
+    assert en["map.verified_pipeline_lines"] == "Verified line geometry"
+    assert en["map.indicative_route_lines"] == "Indicative route corridors"
+    assert en["map.indicative_route_notice_title"] == "Indicative route corridor"
+    assert "map.route_not_drawn" not in en
+    assert "map.suppressed_route_lines" not in en
     assert zh["home.resource_paths"] == "\u8d44\u6e90\u8def\u5f84"
     assert zh["home.pool_allocation"] == "\u8d44\u6e90\u6c60\u5206\u914d"
     assert zh["home.route_status_legend"] == "\u8def\u5f84\u72b6\u6001"
@@ -870,8 +889,15 @@ def test_web_client_network_page_shows_resource_pool_paths_on_map() -> None:
     assert zh["home.more_route_paths"] == (
         "\u6761\u66f4\u591a\u5019\u9009\u8def\u5f84\u5728\u53f3\u4fa7\u51b3\u7b56\u680f"
     )
+    assert zh["map.visual_legend"] == "地图图例"
+    assert zh["map.verified_pipeline_lines"] == "已验证线几何"
+    assert zh["map.indicative_route_lines"] == "指示性路线走廊"
+    assert "map.route_not_drawn" not in zh
     assert "pool allocation summary" in web_spec
     assert "route status legend" in web_spec
+    assert "indicative route corridors" in web_spec
+    assert "not official pipeline geometry" in web_spec
+    assert "never surveyed or authoritative pipeline geometry" in web_spec
     assert "route ranking evidence" in web_spec
     assert "capacity utilization" in web_spec
     assert "required TSO access" in web_spec
@@ -922,7 +948,8 @@ def test_web_client_map_renders_resource_paths_as_route_segments_not_direct_line
     assert "routeId: option.option_id" in resource_pool_paths
     assert "resolveRouteGeometryState" in resource_pool_paths
     assert "buildRouteGeometryEdgesByRouteId" in resource_pool_paths
-    assert "geometry_quality" in resource_pool_paths
+    assert "verifiedEdgeGeometryCoordinates" in resource_pool_paths
+    assert "unmatchedRouteLegsWarning" in resource_pool_paths
     assert "unmatched_route_leg_count" in resource_pool_paths
     assert "buildHighlightedResourcePoolRoute" in map_path_surface
     assert "routeId" in overlay
@@ -936,22 +963,48 @@ def test_web_client_map_renders_resource_paths_as_route_segments_not_direct_line
     assert "route_geometry_state" in map_component
     assert "geometry_quality" in map_component
     assert "routeGeometryStateLabel" in map_component
-    assert "not surveyed pipeline geometry" in map_component
+    assert "map.geometry_indicative_warning" in map_component
     assert "highlighted-route-segments" in map_component
     assert "fallback-flow-segment" in map_component
+    assert "verified_pipeline" in map_component
+    assert "indicative_route" in map_component
+    assert 'id: "verified-pipeline-lines"' in map_component
+    assert 'id: "indicative-route-lines"' in map_component
+    assert "geometry_classification" in map_component
+    assert 'is_schematic_corridor: true' in map_component
+    assert 't("map.indicative_route_warning")' in map_component
     assert "fallback-flow-path direct-corridor" not in map_component
-    assert "verifiedEdgeGeometryCoordinates" in map_component
+    assert "fallback-flow endpoint-link" not in map_component
+    assert "fallback-flow-path endpoint-link" not in map_component
+    assert "routeDrawingSuppressed" not in map_component
+    assert "route_geometry_suppressed_body" not in map_component
+    assert "direct-${highlightedRoutePoints.routeId}" not in map_component
     assert "geometryCoordinates" in map_component
     assert "geometryWarning" in map_component
     assert "source_derived_leg_sequence" in map_component
-    assert "directLineFallback" in map_component
+    assert "directLineFallback" in overlay
+    assert "directLineFallback" in resource_pool_paths
+    assert 't("map.indicative_route_notice_title")' in overlay
+    assert 't("map.indicative_route_warning")' in overlay
+    assert "firstIndicativeGeometryPath" in overlay
+    assert "Matched route legs are shown as an indicative schematic corridor" not in overlay
+    assert "Only source and target corridor evidence is available" not in overlay
     assert ".fallback-flow-segment" in css
-    assert ".fallback-flow-path.endpoint-link" in css
+    assert ".fallback-flow-path.endpoint-link" not in css
     assert ".fallback-flow.segmented.corridor" in css
+    assert ".fallback-flow.segmented.indicative-highlight" in css
+    assert ".fallback-edge.indicative-route" in css
     assert ".resource-path-geometry.warning" in css
+    assert ".resource-path-geometry-notice" in css
+    assert ".map-visual-legend" in css
+    assert ".line-swatch.verified" in css
+    assert ".line-swatch.indicative" in css
     assert "route geometry" in css
-    assert "successful geometry" in web_spec
-    assert "does not draw a source-to-target" in web_spec
+    assert "Keep the six-item legend" in css
+    assert "verified_pipeline" in web_spec
+    assert "indicative_route" in web_spec
+    assert "schematic, not surveyed or official pipeline geometry" in web_spec
+    assert "unlabelled source-to-target shortcut" in web_spec
 
 
 def test_web_client_glossary_page_is_term_wiki_surface() -> None:

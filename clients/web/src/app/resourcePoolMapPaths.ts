@@ -17,8 +17,9 @@ import {
   routeEdgeRouteId,
   routeLegLabel,
 } from "./routeMetadata";
+import { verifiedEdgeGeometryCoordinates } from "@/app/workspaceDerivedData";
 
-type Translate = (key: string) => string;
+type Translate = (key: string, options?: Record<string, unknown>) => string;
 type ResourcePoolAllocation = PortfolioOptimizationResultDTO["allocations"][number];
 
 export interface ResourcePoolHighlightedRoute {
@@ -57,10 +58,7 @@ function metadataNumber(
 export function buildRouteGeometryEdgesByRouteId(edges: EdgeDTO[]): Map<string, EdgeDTO[]> {
   const grouped = new Map<string, EdgeDTO[]>();
   edges
-    .filter((edge) => {
-      const materialization = routeEdgeMetadataText(edge, "materialization");
-      return edge.source_system === "route_candidate" || materialization === "route_candidate_edge";
-    })
+    .filter((edge) => Boolean(routeEdgeRouteId(edge)))
     .forEach((edge) => {
       const routeId = routeEdgeRouteId(edge);
       if (!routeId) return;
@@ -76,51 +74,52 @@ export function resolveRouteGeometryState(
 ): RouteGeometryState {
   const routeEdges = routeGeometryEdgesByRouteId.get(routeId) ?? [];
   if (routeEdges.length === 0) return "directLineFallback";
+  if (routeEdges.some((edge) => verifiedEdgeGeometryCoordinates(edge) !== null)) {
+    return "surveyed_pipeline_route";
+  }
   const states = new Set(
     routeEdges
       .map((edge) => routeEdgeMetadataText(edge, "route_geometry_state"))
       .filter((value): value is RouteGeometryState =>
-        value === "surveyed_pipeline_route" ||
         value === "source_derived_leg_sequence" ||
         value === "source_derived_corridor",
       ),
   );
-  if (states.has("surveyed_pipeline_route")) return "surveyed_pipeline_route";
   if (states.has("source_derived_leg_sequence")) return "source_derived_leg_sequence";
   if (states.has("source_derived_corridor")) return "source_derived_corridor";
   return routeEdges.length > 1 ? "source_derived_leg_sequence" : "source_derived_corridor";
+}
+
+function unmatchedRouteLegsWarning(t: Translate, count: number): string {
+  return t("map.unmatched_route_legs_warning", { count });
 }
 
 export function resolveRouteGeometryWarning(
   routeGeometryEdgesByRouteId: Map<string, EdgeDTO[]>,
   routeId: string,
   routeGeometryState: RouteGeometryState,
+  t: Translate,
 ): string | null {
   const routeEdges = routeGeometryEdgesByRouteId.get(routeId) ?? [];
   const explicitWarning = routeEdges
     .map((edge) => routeEdgeMetadataText(edge, "geometry_warning"))
     .find((warning): warning is string => Boolean(warning));
   if (explicitWarning) return explicitWarning;
-  const geometryQuality = routeEdges
-    .map((edge) => routeEdgeMetadataText(edge, "geometry_quality"))
-    .find((quality): quality is string => Boolean(quality));
   const unmatchedRouteLegCount = routeEdges.reduce(
     (total, edge) => total + metadataNumber(edge.metadata_json, "unmatched_route_leg_count", 0),
     0,
   );
   if (unmatchedRouteLegCount > 0) {
-    return `${unmatchedRouteLegCount} route leg node(s) were not matched; map shows source-derived corridor geometry.`;
+    return unmatchedRouteLegsWarning(t, unmatchedRouteLegCount);
   }
   if (routeGeometryState === "source_derived_leg_sequence") {
-    return "Matched route legs are displayed as source-derived corridor geometry, not surveyed pipeline geometry.";
+    return t("map.source_derived_leg_sequence_warning");
   }
   if (routeGeometryState === "source_derived_corridor") {
-    return geometryQuality === "endpoint_corridor"
-      ? "Only endpoint corridor geometry is available for this route."
-      : "Only source-derived corridor geometry is available for this route.";
+    return t("map.source_derived_corridor_warning");
   }
   if (routeGeometryState === "directLineFallback") {
-    return "No materialized reference edge exists for this route; direct display fallback is shown.";
+    return t("map.direct_route_fallback_warning");
   }
   return null;
 }
@@ -158,6 +157,7 @@ export function buildResourcePoolMapPaths({
         routeGeometryEdgesByRouteId,
         option.option_id,
         routeGeometryState,
+        t,
       );
       const routeWarnings = [
         ...(allocation?.warnings ?? []),

@@ -275,6 +275,12 @@ input {
   stroke-opacity: 0.88;
 }
 
+.fallback-edge.route.indicative-route {
+  stroke-dasharray: 7 9;
+  stroke-opacity: 0.62;
+  stroke-width: 3;
+}
+
 .fallback-flow-shadow,
 .fallback-flow-path {
   fill: none;
@@ -312,13 +318,14 @@ input {
   stroke-dasharray: 12 8;
 }
 
-.fallback-flow.segmented.surveyed .fallback-flow-segment {
+.fallback-flow.segmented.surveyed .fallback-flow-segment,
+.fallback-flow.segmented.verified-highlight .fallback-flow-segment {
   stroke-dasharray: none;
 }
 
-.fallback-flow-path.endpoint-link {
-  opacity: 0.55;
-  stroke-dasharray: 4 7;
+.fallback-flow.segmented.indicative-highlight .fallback-flow-segment {
+  opacity: 0.68;
+  stroke-dasharray: 7 10;
 }
 
 .fallback-flow-pulse {
@@ -4928,6 +4935,84 @@ button.glossary-related-chip {
   font-size: 12px;
 }
 
+.map-visual-legend {
+  position: absolute;
+  z-index: 39;
+  top: 132px;
+  right: calc(18px + var(--eg-right-rail) + 72px);
+  display: grid;
+  width: min(260px, calc(100vw - var(--eg-left-rail) - var(--eg-right-rail) - 190px));
+  min-width: 210px;
+  gap: 6px;
+  pointer-events: none;
+}
+
+.map-visual-legend span,
+.resource-path-geometry-notice {
+  border: 1px solid var(--eg-hairline);
+  border-radius: var(--eg-radius-sm);
+  background: rgb(255 255 255 / 90%);
+  box-shadow: var(--eg-shadow-2);
+}
+
+.map-visual-legend span {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  color: var(--eg-body);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
+  padding: 6px 8px;
+  pointer-events: auto;
+}
+
+.map-visual-legend strong {
+  color: var(--eg-ink);
+  font-size: 11px;
+}
+
+.line-swatch {
+  display: inline-block;
+  width: 18px;
+  height: 0;
+  border-top: 3px solid var(--eg-map-pipeline);
+  border-radius: 999px;
+}
+
+.line-swatch.verified {
+  border-top-color: var(--eg-map-pipeline);
+}
+
+.line-swatch.indicative {
+  border-top-style: dashed;
+  border-top-color: var(--eg-map-route);
+  opacity: 0.72;
+}
+
+.resource-path-geometry-notice {
+  display: grid;
+  width: fit-content;
+  max-width: min(520px, 100%);
+  gap: 3px;
+  padding: 8px 10px;
+  pointer-events: auto;
+}
+
+.resource-path-geometry-notice strong {
+  color: var(--eg-ink);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.resource-path-geometry-notice span,
+.resource-path-geometry-notice small {
+  color: var(--eg-body);
+  font-size: 11px;
+  line-height: 16px;
+}
+
 .cockpit-app .fallback-node.approximate circle {
   opacity: 0.74;
   stroke-dasharray: 3 2;
@@ -5435,7 +5520,9 @@ button.glossary-related-chip {
 :root.dark .route-state-item,
 :root.dark .resource-path-card,
 :root.dark .resource-path-empty,
-:root.dark .resource-path-more {
+:root.dark .resource-path-more,
+:root.dark .map-visual-legend span,
+:root.dark .resource-path-geometry-notice {
   background: rgb(17 17 17 / 90%);
 }
 
@@ -5667,10 +5754,18 @@ button.glossary-related-chip {
   stroke-opacity: 0.86;
 }
 
-.cockpit-app .fallback-edge.route {
+.cockpit-app .fallback-edge.verified {
+  stroke: var(--eg-map-pipeline);
+  stroke-width: 2.1;
+  stroke-opacity: 0.94;
+}
+
+.cockpit-app .fallback-edge.route.indicative-route,
+.cockpit-app .fallback-edge.indicative-route {
   stroke: var(--eg-map-route);
-  stroke-width: 4.2;
-  stroke-opacity: 0.96;
+  stroke-dasharray: 7 9;
+  stroke-opacity: 0.58;
+  stroke-width: 3;
 }
 
 .cockpit-app .fallback-edge.warm {
@@ -5706,6 +5801,12 @@ button.glossary-related-chip {
     right: calc(18px + min(360px, 38vw) + 12px);
     left: calc(18px + min(360px, 38vw) + 12px);
   }
+
+  .map-visual-legend {
+    right: calc(18px + min(360px, 38vw) + 58px);
+    width: min(230px, calc(100vw - 770px));
+    min-width: 190px;
+  }
 }
 
 @media (max-width: 900px) {
@@ -5718,6 +5819,19 @@ button.glossary-related-chip {
     right: 12px;
     left: 12px;
     flex-wrap: wrap;
+  }
+
+  .map-visual-legend {
+    top: 58px;
+    right: 64px;
+    left: 12px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: auto;
+    min-width: 0;
+  }
+
+  .resource-pool-map-overlay {
+    top: 184px;
   }
 
   .workspace-network .scenario-rail,
@@ -5821,6 +5935,13 @@ button.glossary-related-chip {
 
   .cockpit-app .map-toolbar .reset-chip {
     min-width: 76px;
+  }
+
+  /* Keep the six-item legend above the re-positioned mobile toolbar. */
+  .map-visual-legend {
+    top: 58px;
+    right: 8px;
+    left: 8px;
   }
 
   .map-layer-chip.compact {

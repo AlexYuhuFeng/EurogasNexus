@@ -1,4 +1,4 @@
-﻿# Map-First Trader Cockpit Spec - EN
+# Map-First Trader Cockpit Spec - EN
 
 ## Purpose
 
@@ -46,6 +46,14 @@ priority assets as colored points and reserve visible labels for active
 resource-path endpoints, hubs, search matches, and named market points. Full
 asset identity belongs in search results, hover/click inspectors, and detail
 pages, not as hundreds of always-on map labels.
+
+The map surface must carry a compact visual legend for node colors, verified
+line geometry, and indicative route corridors. Unverified route evidence is
+rendered as a dashed, subdued schematic corridor and is explicitly labelled as
+not official pipeline geometry; it must never be styled as a verified physical
+pipeline. A selected resource path with route evidence but without verified
+line geometry must show a visible "Indicative route corridor" notice, while
+preserving the path evidence in the resource-path overlay and decision rail.
 
 The map must not be a decorative background. It is the main work surface.
 
@@ -108,25 +116,34 @@ Required interactions:
 - launch route-cost, LNG regas readiness, resource-pool, or strategy evaluation
   through backend API calls only.
 
-When an active route/PnL context exists, the map may highlight it only when every
-displayed segment has licence-approved line coordinates and a successful geometry
-verification result. A route candidate without verified geometry remains available
-in route evidence and decision cards, but the map does not draw a source-to-target
-shortcut or inferred leg sequence.
+When an active route/PnL context exists, only segments that pass the verified
+edge geometry check are rendered in the solid `verified_pipeline` layer.
+Segments without verified line coordinates, but with backend route/topology
+evidence, are rendered in the dashed `indicative_route` layer as a schematic
+corridor derived from backend endpoint coordinates and `route_leg_sequence`.
+Indicative corridors carry explicit metadata and labels stating that they are
+schematic, not surveyed or official pipeline geometry. The map never draws an
+unlabelled source-to-target shortcut or claims an inferred leg sequence is
+verified pipe.
 
 The route geometry quality ladder is explicit:
 
-- `surveyed_pipeline_route`: approved polyline geometry that may be rendered;
-- `source_derived_leg_sequence`: topology evidence only; not rendered as pipe;
-- `source_derived_corridor`: commercial corridor evidence only; not rendered;
-- `directLineFallback`: legacy state meaning geometry unavailable; no fallback
-  line is drawn.
+- `surveyed_pipeline_route`: approved polyline geometry; only rendered solid
+  when it also passes the independent verified-geometry check;
+- `source_derived_leg_sequence`: topology/leg evidence rendered as a dashed
+  indicative schematic corridor, never as verified pipe;
+- `source_derived_corridor`: commercial corridor evidence rendered as a dashed
+  indicative schematic corridor, never as verified pipe;
+- `directLineFallback`: legacy state meaning geometry unavailable; the map may
+  derive a simple curved schematic corridor from matched backend endpoint
+  coordinates, clearly labelled indicative and never treated as surveyed pipe.
 
 The resource-path overlay shows the quality label and warning. Physical map layers
 accept only `verification_status=verified`, an approved `geometry_authority`, and a
-complete `geometry_coordinates` sequence. Approximate physical LNG, IP, or pipeline
-coordinates are suppressed; virtual market hubs may use representative market-area
-positions when labelled as such.
+complete `geometry_coordinates` sequence. Approximate LNG, IP, or point coordinates
+are never rendered as verified; unverified pipeline route evidence is never
+suppressed, but is shown as a dashed indicative corridor. Virtual market hubs may
+use representative market-area positions when labelled as such.
 
 ## Resource-Pool Decision Rail
 

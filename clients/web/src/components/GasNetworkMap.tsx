@@ -3,16 +3,20 @@ import maplibregl, { GeoJSONSource, Map as MapLibreMap, Marker } from "maplibre-
 import "maplibre-gl/dist/maplibre-gl.css";
 import { EdgeDTO, NodeDTO, RouteEligibilityDTO } from "@/api/client";
 import {
+  buildVisibleMapNetworkLines,
+  buildVisibleNetworkNodes,
+  networkLineMatchesRoute,
+  type NetworkHighlightedRoute,
+} from "@/app/networkMapLines";
+import {
   buildMapStyle,
   configuredMapTileProvider,
   configuredMapTileToken,
   transformCoordinate,
 } from "@/app/mapTileProviders";
-import {
-  isMapEligibleNode,
-  verifiedEdgeGeometryCoordinates,
-} from "@/app/workspaceDerivedData";
 import type { RouteGeometryState } from "@/components/ResourcePoolPathOverlay";
+
+type Translate = (key: string) => string;
 
 interface GasNetworkMapProps {
   nodes: NodeDTO[];
@@ -21,15 +25,8 @@ interface GasNetworkMapProps {
   themeMode: "light" | "dark" | "system";
   activeLayers: string[];
   searchTerm: string;
-  highlightedRoute?: {
-    fromNodeId: string;
-    toNodeId: string;
-    routeId: string;
-    label: string;
-    pnlGbp: number | null;
-    routeGeometryState: RouteGeometryState;
-    routeLegSummary: string[];
-  };
+  t: Translate;
+  highlightedRoute?: NetworkHighlightedRoute;
 }
 
 function resolveEffectiveTheme(themeMode: GasNetworkMapProps["themeMode"]): "light" | "dark" {
@@ -48,16 +45,6 @@ function metadataString(metadata: Record<string, unknown> | null | undefined, ke
   return typeof value === "string" && value.trim() ? value.trim() : fallback;
 }
 
-function metadataNumber(metadata: Record<string, unknown> | null | undefined, key: string, fallback = 0): number {
-  const value = metadata?.[key];
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string" && value.trim()) {
-    const parsed = Number(value);
-    if (Number.isFinite(parsed)) return parsed;
-  }
-  return fallback;
-}
-
 function escapeHtml(value: unknown): string {
   return propertyText(value).replace(/[&<>"']/g, (char) => ({
     "&": "&amp;",
@@ -68,18 +55,18 @@ function escapeHtml(value: unknown): string {
   }[char] ?? char));
 }
 
-function routeGeometryStateLabel(state: RouteGeometryState): string {
-  if (state === "surveyed_pipeline_route") return "Surveyed pipeline route";
-  if (state === "source_derived_leg_sequence") return "Source-derived leg sequence";
-  if (state === "source_derived_corridor") return "Source-derived corridor";
-  return "Direct display fallback";
+function routeGeometryStateLabel(state: RouteGeometryState, t: Translate): string {
+  if (state === "surveyed_pipeline_route") return t("map.geometry_surveyed_pipeline");
+  if (state === "source_derived_leg_sequence") return t("map.geometry_source_derived_sequence");
+  if (state === "source_derived_corridor") return t("map.geometry_source_derived_corridor");
+  return t("map.geometry_indicative_corridor");
 }
 
 function routeGeometryStateClass(state: RouteGeometryState): string {
   if (state === "surveyed_pipeline_route") return "surveyed";
   if (state === "source_derived_leg_sequence") return "leg-sequence";
   if (state === "source_derived_corridor") return "corridor";
-  return "endpoint-link";
+  return "corridor";
 }
 
 const MAX_MAP_LABELS = 12;
@@ -115,10 +102,10 @@ function isSearchLabelMatch(node: NodeDTO, searchTerm: string): boolean {
 export function GasNetworkMap({
   nodes,
   edges,
-  routes,
   themeMode,
   activeLayers,
   searchTerm,
+  t,
   highlightedRoute,
 }: GasNetworkMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -154,60 +141,21 @@ export function GasNetworkMap({
     [effectiveTheme],
   );
   const nodeLookup = useMemo(() => new globalThis.Map(nodes.map((node) => [node.id, node])), [nodes]);
-  const highlightedRouteNodeIds = useMemo(() => {
-    const ids = new Set<string>();
-    if (!highlightedRoute) return ids;
-    ids.add(highlightedRoute.fromNodeId);
-    ids.add(highlightedRoute.toNodeId);
-    edges.forEach((edge) => {
-      const metadata = edge.metadata_json ?? {};
-      if (
-        edge.source_record_id === highlightedRoute.routeId ||
-        metadataString(metadata, "route_id") === highlightedRoute.routeId
-      ) {
-        ids.add(edge.from_node_id);
-        ids.add(edge.to_node_id);
-      }
-    });
-    return ids;
-  }, [edges, highlightedRoute]);
-  const filteredNodes = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase();
-    return nodes.filter(isMapEligibleNode).filter((node) => {
-      const layerMatch =
-        (activeLayers.includes("hubs") && node.node_type === "hub") ||
-        (activeLayers.includes("lng") && node.node_type === "lng") ||
-        (activeLayers.includes("ips") && node.node_type === "interconnection") ||
-        (activeLayers.includes("network") && !["hub", "lng", "interconnection"].includes(node.node_type));
-      const searchMatch = !term ||
-        node.name.toLowerCase().includes(term) ||
-        node.country.toLowerCase().includes(term) ||
-        node.node_type.toLowerCase().includes(term);
-      const routeContextMatch = highlightedRouteNodeIds.has(node.id) && !term;
-      return (layerMatch || routeContextMatch) && searchMatch;
-    });
-  }, [activeLayers, highlightedRouteNodeIds, nodes, searchTerm]);
-  const visibleEdges = useMemo(() => {
-    const visibleNodeIds = new Set(filteredNodes.map((node) => node.id));
-    return edges
-      .map((edge) => {
-        const from = nodeLookup.get(edge.from_node_id);
-        const to = nodeLookup.get(edge.to_node_id);
-        if (!from || !to) return null;
-        const geometryCoordinates = verifiedEdgeGeometryCoordinates(edge);
-        if (!geometryCoordinates) return null;
-        if (
-          !activeLayers.includes("network") &&
-          !visibleNodeIds.has(from.id) &&
-          !visibleNodeIds.has(to.id)
-        ) return null;
-        return { ...edge, from, to, geometryCoordinates };
-      })
-      .filter((edge): edge is NonNullable<typeof edge> => edge !== null);
-  }, [activeLayers, edges, filteredNodes, nodeLookup]);
-  const routeIds = useMemo(
-    () => new Set(routes.map((route) => `${route.from_node_id}:${route.to_node_id}`)),
-    [routes],
+  const filteredNodes = useMemo(
+    () => buildVisibleNetworkNodes({ nodes, edges, activeLayers, searchTerm, highlightedRoute }),
+    [activeLayers, edges, highlightedRoute, nodes, searchTerm],
+  );
+  const visibleLines = useMemo(
+    () => buildVisibleMapNetworkLines({ nodes, edges, activeLayers, searchTerm, highlightedRoute }),
+    [activeLayers, edges, highlightedRoute, nodes, searchTerm],
+  );
+  const verifiedPipelineLines = useMemo(
+    () => visibleLines.filter((line) => line.displayKind === "verified_pipeline"),
+    [visibleLines],
+  );
+  const indicativeRouteLines = useMemo(
+    () => visibleLines.filter((line) => line.displayKind === "indicative_route"),
+    [visibleLines],
   );
   const highlightedRoutePoints = useMemo(() => {
     if (!highlightedRoute) return null;
@@ -218,71 +166,42 @@ export function GasNetworkMap({
   }, [highlightedRoute, nodeLookup]);
   const routeSegmentsForHighlight = useMemo(() => {
     if (!highlightedRoutePoints?.routeId) return [];
-    return visibleEdges
-      .filter((edge) => {
-        const metadata = edge.metadata_json ?? {};
-        return (
-          edge.source_record_id === highlightedRoutePoints.routeId ||
-          metadataString(metadata, "route_id") === highlightedRoutePoints.routeId
-        );
-      })
-      .sort(
-        (left, right) =>
-          metadataNumber(left.metadata_json, "route_leg_sequence") -
-          metadataNumber(right.metadata_json, "route_leg_sequence"),
-      );
-  }, [highlightedRoutePoints?.routeId, visibleEdges]);
-  const directLineFallback = Boolean(highlightedRoutePoints && routeSegmentsForHighlight.length === 0);
-  const geometryWarning = directLineFallback
-    ? "Route geometry unavailable: endpoints linked schematically, not surveyed pipeline geometry."
+    return visibleLines
+      .filter((line) => networkLineMatchesRoute(line, highlightedRoutePoints.routeId))
+      .sort((left, right) => left.routeLegSequence - right.routeLegSequence);
+  }, [highlightedRoutePoints?.routeId, visibleLines]);
+  const highlightedRouteIsVerified = routeSegmentsForHighlight.length > 0 &&
+    routeSegmentsForHighlight.every((line) => line.displayKind === "verified_pipeline");
+  const geometryWarning = highlightedRouteIsVerified
+    ? `${routeGeometryStateLabel(highlightedRoutePoints?.routeGeometryState ?? "surveyed_pipeline_route", t)} ${t("map.geometry_from_verified_metadata")}`
     : highlightedRoutePoints?.routeGeometryState === "surveyed_pipeline_route"
-      ? `${routeGeometryStateLabel(highlightedRoutePoints.routeGeometryState)} from reference edge metadata.`
-      : `${routeGeometryStateLabel(highlightedRoutePoints?.routeGeometryState ?? "source_derived_corridor")}: source-derived corridor, not surveyed pipeline geometry.`;
+      ? `${routeGeometryStateLabel(highlightedRoutePoints.routeGeometryState, t)}: ${t("map.geometry_surveyed_metadata_only")}`
+      : `${routeGeometryStateLabel(highlightedRoutePoints?.routeGeometryState ?? "source_derived_corridor", t)}: ${t("map.geometry_indicative_warning")}`;
   const highlightedRouteSegmentFeatures = useMemo(
-    () => {
-      const segmentFeatures = routeSegmentsForHighlight.map((edge) => {
-        const metadata = edge.metadata_json ?? {};
+    () =>
+      routeSegmentsForHighlight.map((line) => {
+        const metadata = line.edge?.metadata_json ?? {};
         return {
           type: "Feature" as const,
           properties: {
-            id: edge.id,
-            route_id: metadataString(metadata, "route_id", highlightedRoutePoints?.routeId ?? ""),
-            route_leg_sequence: metadataNumber(metadata, "route_leg_sequence"),
-            route_geometry_state: metadataString(
-              metadata,
-              "route_geometry_state",
-              highlightedRoutePoints?.routeGeometryState ?? "source_derived_leg_sequence",
-            ),
-            geometry_quality: metadataString(metadata, "geometry_quality", "unknown"),
-            geometry_warning: metadataString(metadata, "geometry_warning", geometryWarning),
+            id: line.id,
+            route_id: line.routeId || highlightedRoutePoints?.routeId || "",
+            route_leg_sequence: line.routeLegSequence,
+            route_geometry_state: line.routeGeometryState,
+            geometry_quality: metadataString(metadata, "geometry_quality", line.geometryBasis),
+            geometry_basis: line.geometryBasis,
+            display_kind: line.displayKind,
+            geometry_verification: line.displayKind === "verified_pipeline" ? "verified" : "unverified",
+            is_schematic_corridor: line.displayKind === "indicative_route",
+            geometry_warning: geometryWarning,
           },
           geometry: {
             type: "LineString" as const,
-            coordinates: edge.geometryCoordinates.map(([lon, lat]) => toMapCoordinates(lon, lat)),
+            coordinates: line.geometryCoordinates.map(([lon, lat]) => toMapCoordinates(lon, lat)),
           },
         };
-      });
-      if (segmentFeatures.length > 0 || !highlightedRoutePoints) return segmentFeatures;
-      return [{
-        type: "Feature" as const,
-        properties: {
-          id: `direct-${highlightedRoutePoints.routeId}`,
-          route_id: highlightedRoutePoints.routeId,
-          route_leg_sequence: 1,
-          route_geometry_state: "directLineFallback",
-          geometry_quality: "endpoint_corridor",
-          geometry_warning: geometryWarning,
-        },
-        geometry: {
-          type: "LineString" as const,
-          coordinates: [
-            toMapCoordinates(highlightedRoutePoints.from.lon, highlightedRoutePoints.from.lat),
-            toMapCoordinates(highlightedRoutePoints.to.lon, highlightedRoutePoints.to.lat),
-          ],
-        },
-      }];
-    },
-    [geometryWarning, highlightedRoutePoints, routeSegmentsForHighlight],
+      }),
+    [geometryWarning, highlightedRoutePoints, routeSegmentsForHighlight, t],
   );
   const normalizedSearchTerm = searchTerm.trim().toLowerCase();
   const priorityLabelNodes = useMemo(() => {
@@ -379,8 +298,17 @@ export function GasNetworkMap({
     }
     if (!mapReady) return;
 
-    if (map.getLayer("edges-line")) {
-      map.setPaintProperty("edges-line", "line-color", ["case", ["get", "route_candidate"], mapColors.route, mapColors.edge]);
+    if (map.getLayer("verified-pipeline-lines")) {
+      map.setPaintProperty("verified-pipeline-lines", "line-color", mapColors.edge);
+    }
+    if (map.getLayer("indicative-route-lines")) {
+      map.setPaintProperty("indicative-route-lines", "line-color", mapColors.route);
+    }
+    if (map.getLayer("highlighted-route-verified")) {
+      map.setPaintProperty("highlighted-route-verified", "line-color", mapColors.edge);
+    }
+    if (map.getLayer("highlighted-route-indicative")) {
+      map.setPaintProperty("highlighted-route-indicative", "line-color", mapColors.route);
     }
     if (map.getLayer("nodes-circle")) {
       map.setPaintProperty("nodes-circle", "circle-color", [
@@ -415,7 +343,6 @@ export function GasNetworkMap({
     const map = mapRef.current;
     if (!map || !mapReady || !map.isStyleLoaded()) return;
 
-    const visibleNodeIds = new Set(filteredNodes.map((node) => node.id));
     const nodeFeatures = filteredNodes.map((node) => ({
       type: "Feature" as const,
       properties: {
@@ -435,55 +362,103 @@ export function GasNetworkMap({
         coordinates: toMapCoordinates(node.lon, node.lat),
       },
     }));
-    const edgeFeatures = visibleEdges
-      .map((edge) => {
-        const metadata = edge.metadata_json ?? {};
-        const routeCandidate =
-          routeIds.has(`${edge.from_node_id}:${edge.to_node_id}`) ||
-          edge.source_system === "route_candidate" ||
-          metadata.materialization === "route_candidate_edge";
-        const capacity = Number(metadata.capacity_mwh_d ?? metadata.firm_capacity_mwh_d ?? 0);
-        const flow = Number(metadata.live_physical_flow_mwh_d ?? 0);
-        const utilization = Number(metadata.utilization_pct ?? (capacity > 0 ? flow / capacity : 0));
-        return {
-          type: "Feature" as const,
-          properties: {
-            id: edge.id,
-            from_node_id: edge.from_node_id,
-            to_node_id: edge.to_node_id,
-            operator: String(metadata.operator ?? ""),
-            tariff_gbp_mwh: Number(metadata.tariff_gbp_mwh ?? 0),
-            capacity_mwh_d: capacity,
-            live_flow_mwh_d: flow,
-            utilization_pct: utilization,
-            route_candidate: routeCandidate,
-          },
-          geometry: {
-            type: "LineString" as const,
-            coordinates: edge.geometryCoordinates.map(([lon, lat]) => toMapCoordinates(lon, lat)),
-          },
-        };
-      })
+    const verifiedEdgeFeatures = verifiedPipelineLines.map((line) => {
+      const metadata = line.edge?.metadata_json ?? {};
+      const capacity = Number(metadata.capacity_mwh_d ?? metadata.firm_capacity_mwh_d ?? 0);
+      const flow = Number(metadata.live_physical_flow_mwh_d ?? 0);
+      const utilization = Number(metadata.utilization_pct ?? (capacity > 0 ? flow / capacity : 0));
+      return {
+        type: "Feature" as const,
+        properties: {
+          id: line.id,
+          from_node_id: line.from.id,
+          to_node_id: line.to.id,
+          display_kind: "verified_pipeline",
+          geometry_basis: "verified_geometry",
+          geometry_verification: "verified",
+          is_schematic_corridor: false,
+          operator: String(metadata.operator ?? ""),
+          capacity_mwh_d: capacity,
+          live_flow_mwh_d: flow,
+          utilization_pct: utilization,
+        },
+        geometry: {
+          type: "LineString" as const,
+          coordinates: line.geometryCoordinates.map(([lon, lat]) => toMapCoordinates(lon, lat)),
+        },
+      };
+    });
+    const indicativeEdgeFeatures = indicativeRouteLines.map((line) => {
+      const metadata = line.edge?.metadata_json ?? {};
+      return {
+        type: "Feature" as const,
+        properties: {
+          id: line.id,
+          from_node_id: line.from.id,
+          to_node_id: line.to.id,
+          route_id: line.routeId,
+          route_leg_sequence: line.routeLegSequence,
+          route_geometry_state: line.routeGeometryState,
+          display_kind: "indicative_route",
+          geometry_basis: line.geometryBasis,
+          geometry_verification: "unverified",
+          is_schematic_corridor: true,
+          geometry_classification: "indicative_schematic_corridor",
+          geometry_warning: line.edge
+            ? metadataString(metadata, "geometry_warning", t("map.indicative_route_warning"))
+            : t("map.indicative_route_warning"),
+        },
+        geometry: {
+          type: "LineString" as const,
+          coordinates: line.geometryCoordinates.map(([lon, lat]) => toMapCoordinates(lon, lat)),
+        },
+      };
+    });
 
-    if (!map.getSource("edges")) {
-      map.addSource("edges", {
+    if (!map.getSource("verified-pipeline-lines")) {
+      map.addSource("verified-pipeline-lines", {
         type: "geojson",
-        data: { type: "FeatureCollection", features: edgeFeatures },
+        data: { type: "FeatureCollection", features: verifiedEdgeFeatures },
       });
       map.addLayer({
-        id: "edges-line",
+        id: "verified-pipeline-lines",
         type: "line",
-        source: "edges",
+        source: "verified-pipeline-lines",
+        layout: { "line-cap": "round", "line-join": "round" },
         paint: {
-          "line-color": ["case", ["get", "route_candidate"], mapColors.route, mapColors.edge],
-          "line-width": ["case", ["get", "route_candidate"], 4.2, ["interpolate", ["linear"], ["get", "utilization_pct"], 0, 1.2, 0.65, 2.4, 0.9, 3.4]],
-          "line-opacity": 0.9,
+          "line-color": mapColors.edge,
+          "line-width": ["interpolate", ["linear"], ["get", "utilization_pct"], 0, 1.4, 0.65, 2.6, 0.9, 3.6],
+          "line-opacity": 0.94,
         },
       });
     } else {
-      (map.getSource("edges") as GeoJSONSource).setData({
+      (map.getSource("verified-pipeline-lines") as GeoJSONSource).setData({
         type: "FeatureCollection",
-        features: edgeFeatures,
+        features: verifiedEdgeFeatures,
+      });
+    }
+
+    if (!map.getSource("indicative-route-lines")) {
+      map.addSource("indicative-route-lines", {
+        type: "geojson",
+        data: { type: "FeatureCollection", features: indicativeEdgeFeatures },
+      });
+      map.addLayer({
+        id: "indicative-route-lines",
+        type: "line",
+        source: "indicative-route-lines",
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: {
+          "line-color": mapColors.route,
+          "line-width": 3.2,
+          "line-opacity": 0.62,
+          "line-dasharray": [2.2, 2.4],
+        },
+      });
+    } else {
+      (map.getSource("indicative-route-lines") as GeoJSONSource).setData({
+        type: "FeatureCollection",
+        features: indicativeEdgeFeatures,
       });
     }
 
@@ -493,14 +468,28 @@ export function GasNetworkMap({
         data: { type: "FeatureCollection", features: highlightedRouteSegmentFeatures },
       });
       map.addLayer({
-        id: "highlighted-route-segments",
+        id: "highlighted-route-verified",
         type: "line",
         source: "highlighted-route-segments",
+        filter: ["==", ["get", "display_kind"], "verified_pipeline"],
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: {
+          "line-color": mapColors.edge,
+          "line-width": 6,
+          "line-opacity": 0.98,
+        },
+      });
+      map.addLayer({
+        id: "highlighted-route-indicative",
+        type: "line",
+        source: "highlighted-route-segments",
+        filter: ["==", ["get", "display_kind"], "indicative_route"],
+        layout: { "line-cap": "round", "line-join": "round" },
         paint: {
           "line-color": mapColors.route,
-          "line-width": 6,
-          "line-opacity": 0.96,
-          "line-dasharray": [1.4, 1.2],
+          "line-width": 5,
+          "line-opacity": 0.78,
+          "line-dasharray": [2.4, 2.6],
         },
       });
     } else {
@@ -596,18 +585,18 @@ export function GasNetworkMap({
         const feature = event.features?.[0];
         if (!feature) return;
         const props = feature.properties ?? {};
-        const coordinateQuality = propertyText(props.coordinate_quality, "unknown");
-        const source = propertyText(props.source_system, "unknown");
+        const coordinateQuality = propertyText(props.coordinate_quality, t("data.unavailable"));
+        const source = propertyText(props.source_system, t("data.unavailable"));
         new maplibregl.Popup({ closeButton: false })
           .setLngLat(event.lngLat)
           .setHTML(
             `<div class="node-popup">
               <strong>${escapeHtml(props.name)}</strong>
               <span>${escapeHtml(props.node_type)} / ${escapeHtml(props.country)}</span>
-              <small>Source ${escapeHtml(source)}</small>
-              <small>Coordinate quality ${escapeHtml(coordinateQuality)}</small>
+              <small>${escapeHtml(t("map.node_popup_source"))} ${escapeHtml(source)}</small>
+              <small>${escapeHtml(t("map.node_popup_coordinate_quality"))} ${escapeHtml(coordinateQuality)}</small>
               ${coordinateQuality === "display_approximation"
-                ? "<em>Approximate display coordinate, not surveyed WGS84 geometry.</em>"
+                ? `<em>${escapeHtml(t("map.node_popup_approximate_coordinate"))}</em>`
                 : ""}
             </div>`
           )
@@ -625,7 +614,7 @@ export function GasNetworkMap({
         features: nodeFeatures,
       });
     }
-  }, [filteredNodes, highlightedRouteSegmentFeatures, mapColors, mapReady, routeIds, visibleEdges]);
+  }, [filteredNodes, highlightedRouteSegmentFeatures, indicativeRouteLines, mapColors, mapReady, t, verifiedPipelineLines]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -676,7 +665,7 @@ export function GasNetworkMap({
   }
 
   return (
-    <div className="gas-map" aria-label="Gas network map">
+    <div className="gas-map" aria-label={t("map.gas_network_map")}>
       <div ref={containerRef} className="maplibre-canvas" />
       <svg className={mapReady ? "fallback-network-map map-ready" : "fallback-network-map"} viewBox="0 0 1000 620" role="presentation">
         <path
@@ -691,78 +680,54 @@ export function GasNetworkMap({
           const [, y] = project(5, lat);
           return <line key={`lat-${lat}`} className="fallback-grid" x1={35} x2={960} y1={y} y2={y} />;
         })}
-        {visibleEdges.map((edge) => {
-          const metadata = edge.metadata_json ?? {};
+        {visibleLines.map((line) => {
+          const metadata = line.edge?.metadata_json ?? {};
           const capacity = Number(metadata.capacity_mwh_d ?? metadata.firm_capacity_mwh_d ?? 0);
           const flow = Number(metadata.live_physical_flow_mwh_d ?? 0);
           const utilization = Number(metadata.utilization_pct ?? (capacity > 0 ? flow / capacity : 0));
           const pressureClass = utilization >= 0.75 ? " hot" : utilization >= 0.5 ? " warm" : "";
-          const routeCandidate =
-            routeIds.has(`${edge.from_node_id}:${edge.to_node_id}`) ||
-            edge.source_system === "route_candidate" ||
-            metadata.materialization === "route_candidate_edge";
+          const indicativeClass = line.displayKind === "indicative_route" ? " route indicative-route" : " verified";
           return (
             <polyline
-              key={edge.id}
-              className={routeCandidate ? `fallback-edge route${pressureClass}` : `fallback-edge${pressureClass}`}
-              points={edge.geometryCoordinates.map(([lon, lat]) => project(lon, lat).join(",")).join(" ")}
+              key={line.id}
+              className={`fallback-edge${indicativeClass}${pressureClass}`}
+              points={line.geometryCoordinates.map(([lon, lat]) => project(lon, lat).join(",")).join(" ")}
               fill="none"
             />
           );
         })}
-        {highlightedRoutePoints && (() => {
+        {highlightedRoutePoints && routeSegmentsForHighlight.length > 0 && (() => {
           const pnlText = highlightedRoutePoints.pnlGbp === null
             ? ""
             : `GBP ${Math.round(highlightedRoutePoints.pnlGbp).toLocaleString()}`;
-          if (routeSegmentsForHighlight.length > 0) {
-            const segmentPoints = routeSegmentsForHighlight.map((edge) => {
-              const projected = edge.geometryCoordinates.map(([lon, lat]) => project(lon, lat));
-              return { edge, projected };
-            });
-            const labelSegment = segmentPoints[Math.floor(segmentPoints.length / 2)];
-            const labelPoint = labelSegment.projected[Math.floor(labelSegment.projected.length / 2)];
-            const labelX = labelPoint[0] + 12;
-            const labelY = labelPoint[1] - 12;
-            return (
-              <g className={`fallback-flow segmented ${routeGeometryStateClass(highlightedRoutePoints.routeGeometryState)}`} aria-hidden="true">
-                <desc>{geometryWarning}</desc>
-                {segmentPoints.map(({ edge, projected }) => (
-                  <g key={`highlighted-fallback-segment-${edge.id}`}>
-                    <polyline
-                      className="fallback-flow-shadow"
-                      points={projected.map(([x, y]) => `${x},${y}`).join(" ")}
-                      fill="none"
-                    />
-                    <polyline
-                      className="fallback-flow-segment"
-                      points={projected.map(([x, y]) => `${x},${y}`).join(" ")}
-                      fill="none"
-                    />
-                  </g>
-                ))}
-                <text className="fallback-flow-label" x={labelX} y={labelY}>
-                  {highlightedRoutePoints.label}
-                </text>
-                {pnlText && (
-                  <text className="fallback-flow-value" x={labelX} y={labelY + 18}>
-                    {pnlText}
-                  </text>
-                )}
-              </g>
-            );
-          }
-          const [fromX, fromY] = project(highlightedRoutePoints.from.lon, highlightedRoutePoints.from.lat);
-          const [toX, toY] = project(highlightedRoutePoints.to.lon, highlightedRoutePoints.to.lat);
-          const labelX = (fromX + toX) / 2 + 12;
-          const labelY = (fromY + toY) / 2 - 12;
-          const controlX = (fromX + toX) / 2;
-          const controlY = (fromY + toY) / 2 - Math.max(14, Math.abs(toX - fromX) * 0.08);
-          const path = `M ${fromX} ${fromY} Q ${controlX} ${controlY} ${toX} ${toY}`;
+          const segmentPoints = routeSegmentsForHighlight.map((line) => {
+            const projected = line.geometryCoordinates.map(([lon, lat]) => project(lon, lat));
+            return { line, projected };
+          });
+          const labelSegment = segmentPoints[Math.floor(segmentPoints.length / 2)];
+          const labelPoint = labelSegment.projected[Math.floor(labelSegment.projected.length / 2)];
+          const labelX = labelPoint[0] + 12;
+          const labelY = labelPoint[1] - 12;
+          const highlightClass = highlightedRouteIsVerified
+            ? "verified-highlight"
+            : `indicative-highlight ${routeGeometryStateClass(highlightedRoutePoints.routeGeometryState)}`;
           return (
-            <g className="fallback-flow endpoint-link" aria-hidden="true">
+            <g className={`fallback-flow segmented ${highlightClass}`} aria-hidden="true">
               <desc>{geometryWarning}</desc>
-              <path className="fallback-flow-shadow" d={path} fill="none" />
-              <path className="fallback-flow-path endpoint-link" d={path} fill="none" />
+              {segmentPoints.map(({ line, projected }) => (
+                <g key={`highlighted-fallback-segment-${line.id}`}>
+                  <polyline
+                    className="fallback-flow-shadow"
+                    points={projected.map(([x, y]) => `${x},${y}`).join(" ")}
+                    fill="none"
+                  />
+                  <polyline
+                    className="fallback-flow-segment"
+                    points={projected.map(([x, y]) => `${x},${y}`).join(" ")}
+                    fill="none"
+                  />
+                </g>
+              ))}
               <text className="fallback-flow-label" x={labelX} y={labelY}>
                 {highlightedRoutePoints.label}
               </text>
@@ -790,7 +755,7 @@ export function GasNetworkMap({
         })}
         {filteredNodes.length === 0 && (
           <text className="fallback-empty" x="500" y="310" textAnchor="middle">
-            Loading network layers
+            {t("map.loading_network_layers")}
           </text>
         )}
       </svg>

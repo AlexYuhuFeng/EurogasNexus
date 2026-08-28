@@ -11,6 +11,7 @@ import type {
   RouteRecommendationResultDTO,
   StrategyLabResultDTO,
 } from "@/api/client";
+import { buildVisibleMapNetworkLines } from "@/app/networkMapLines";
 import {
   isMapEligibleNode,
   type NetworkGeometryState,
@@ -164,6 +165,20 @@ export function NetworkWorkspace({
   const displayedIpCount = nodes.filter(
     (node) => node.node_type === "interconnection" && isMapEligibleNode(node),
   ).length;
+  const displayedHubCount = nodes.filter((node) => node.node_type === "hub").length;
+  const visibleMapLines = buildVisibleMapNetworkLines({
+    nodes,
+    edges,
+    activeLayers,
+    searchTerm,
+    highlightedRoute,
+  });
+  const verifiedPipelineCount = visibleMapLines.filter(
+    (line) => line.displayKind === "verified_pipeline",
+  ).length;
+  const indicativeRouteCount = visibleMapLines.filter(
+    (line) => line.displayKind === "indicative_route",
+  ).length;
   return (
     <>
       <section className="map-container map-stage" id="map">
@@ -196,8 +211,17 @@ export function NetworkWorkspace({
           themeMode={mode}
           activeLayers={activeLayers}
           searchTerm={searchTerm}
+          t={t}
           highlightedRoute={highlightedRoute}
         />
+        <div className="map-visual-legend" aria-label={t("map.visual_legend")}>
+          <span><i className="node-swatch network" />{t("map.layer.network")}<strong>{displayedNetworkCount}</strong></span>
+          <span><i className="node-swatch lng" />{t("map.layer.lng")}<strong>{displayedLngCount}</strong></span>
+          <span><i className="node-swatch ips" />{t("map.layer.ips")}<strong>{displayedIpCount}</strong></span>
+          <span><i className="node-swatch hubs" />{t("map.layer.hubs")}<strong>{displayedHubCount}</strong></span>
+          <span><i className="line-swatch verified" />{t("map.verified_pipeline_lines")}<strong>{verifiedPipelineCount}</strong></span>
+          <span><i className="line-swatch indicative" />{t("map.indicative_route_lines")}<strong>{indicativeRouteCount}</strong></span>
+        </div>
         <ResourcePoolPathOverlay
           paths={resourcePoolMapPaths}
           blockers={poolInputBlockers}
@@ -317,7 +341,7 @@ export function NetworkWorkspace({
             <span><i className="node-swatch network" />{t("map.layer.network")}<strong>{displayedNetworkCount}</strong></span>
             <span><i className="node-swatch lng" />{t("map.layer.lng")}<strong>{displayedLngCount}</strong></span>
             <span><i className="node-swatch ips" />{t("map.layer.ips")}<strong>{displayedIpCount}</strong></span>
-            <span><i className="node-swatch hubs" />{t("map.layer.hubs")}<strong>{nodes.filter((node) => node.node_type === "hub").length}</strong></span>
+            <span><i className="node-swatch hubs" />{t("map.layer.hubs")}<strong>{displayedHubCount}</strong></span>
           </div>
           <p className="coordinate-quality-note">{t("map.coordinate_quality_note")}</p>
         </div>

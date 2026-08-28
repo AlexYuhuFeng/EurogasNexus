@@ -124,9 +124,14 @@ Initial content:
 
 - map surface;
 - layer controls;
+- map visual legend showing node colours, verified line geometry, and dashed
+  indicative route corridors for unverified backend route evidence;
 - resource-path overlay showing persisted resource delivery point, target sale
   point, quantity, capacity limit, route cost, sale price, net margin, route
   state, and blockers from backend resource-pool data;
+- visible "Indicative route corridor" notice when a selected resource path has
+  backend route evidence but no licence-approved line geometry, so the user sees
+  that the dashed corridor is schematic and not official pipeline geometry;
 - pool allocation summary showing total pool volume, allocated quantity,
   unallocated quantity, and weighted net margin;
 - route status legend for allocated, candidate, and blocked paths;
@@ -136,6 +141,17 @@ Initial content:
   capacity utilization, and required TSO access so traders can understand why a
   path is allocated, still only a candidate, or blocked;
 - source/freshness and warning evidence.
+
+Line geometry on the Network map must remain visually split into two layers:
+
+- `verified_pipeline`: only edges passing the verified geometry check, rendered
+  solid and authoritative;
+- `indicative_route`: unverified route evidence for route candidates and
+  selected resource paths, rendered dashed and subdued as a schematic corridor
+  only; never surveyed or authoritative pipeline geometry. When no
+  `geometry_coordinates` exists, the client derives a simple curved schematic
+  polyline from backend endpoint coordinates and `route_leg_sequence` only, and
+  marks the feature as indicative/schematic.
 
 The Network home must not contain data-source forms, runtime DB administration,
 or LLM report generation panels. Those belong on Data Sources, Runtime, or

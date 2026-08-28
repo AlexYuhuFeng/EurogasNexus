@@ -224,16 +224,54 @@ def test_network_geometry_does_not_overstate_route_corridor_coverage() -> None:
     app = _read_application()
     network_workspace = _read(WEB / "components" / "NetworkWorkspace.tsx")
     map_component = _read(WEB / "components" / "GasNetworkMap.tsx")
+    line_model = _read(WEB / "app" / "networkMapLines.ts")
+    resource_pool_paths = _read(WEB / "app" / "resourcePoolMapPaths.ts")
 
+    # Verification gate stays strict and is the only path into the solid layer.
     assert '"corridors_only"' in derived
     assert 'edge.source_system === "route_candidate"' in derived
     assert 'metadata.materialization === "route_candidate_edge"' in derived
     assert 'metadata.verification_status !== "verified"' in derived
     assert "VERIFIED_GEOMETRY_AUTHORITIES" in derived
     assert "geometry_coordinates" in derived
-    assert "verifiedEdgeGeometryCoordinates" in map_component
-    assert "fallback-flow-path direct-corridor" not in map_component
+    assert "verifiedEdgeGeometryCoordinates(edge)" in line_model
+    assert 'displayKind: "verified_pipeline"' in line_model
+    assert 'displayKind: "indicative_route"' in line_model
+    assert "verifiedCoordinates" in line_model
+    assert "isRouteCandidateEdge" in line_model
+    assert "metadata.route_id && metadata.route_geometry_state" not in line_model
+    assert "buildSchematicRouteCoordinates" in line_model
+    assert "routeLegSequence" in line_model
+
+    # The resource-path overlay must use the same verified gate as the map.
+    assert "verifiedEdgeGeometryCoordinates(edge)" in resource_pool_paths
+    assert "routeEdges.some((edge) => verifiedEdgeGeometryCoordinates(edge) !== null)" in resource_pool_paths
+
+    # Unverified evidence must be rendered, but explicitly as schematic/indicative.
+    assert "buildVisibleMapNetworkLines" in line_model
+    assert "buildSyntheticSelectedRouteLine" in line_model
+    assert '"schematic_endpoint_curve"' in line_model
+    assert 't("map.indicative_route_warning")' in map_component
+    assert 'geometry_classification: "indicative_schematic_corridor"' in map_component
+    assert 'geometry_verification: "unverified"' in map_component
+    assert 'id: "verified-pipeline-lines"' in map_component
+    assert 'id: "indicative-route-lines"' in map_component
+
+    # The map must not be empty when backend route evidence exists.
+    assert "buildVisibleMapNetworkLines({ nodes, edges, activeLayers, searchTerm, highlightedRoute })" in map_component
+    assert "visibleLines.map((line)" in map_component
+    assert "routeDrawingSuppressed" not in map_component
+    assert "route_geometry_suppressed_body" not in map_component
+    assert "fallback-flow endpoint-link" not in map_component
+    assert "fallback-flow-path endpoint-link" not in map_component
     assert 't("map.route_corridors_only")' in network_workspace
+    assert 't("map.visual_legend")' in network_workspace
+    assert 't("map.verified_pipeline_lines")' in network_workspace
+    assert 't("map.indicative_route_lines")' in network_workspace
+    assert 't("map.suppressed_route_lines")' not in network_workspace
+    assert "unmatchedRouteLegsWarning" in resource_pool_paths
+    assert 't("map.unmatched_route_legs_warning", { count })' in resource_pool_paths
+    assert 't("map.source_derived_leg_sequence_warning")' in resource_pool_paths
     assert "<NetworkWorkspace" in app
     assert "MAJOR_HUB_PRIORITY" in map_component
     assert "map-node-label" in map_component
