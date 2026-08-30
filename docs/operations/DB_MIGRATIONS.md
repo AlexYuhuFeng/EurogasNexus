@@ -12,7 +12,12 @@ Start the PostgreSQL container before running migrations:
 docker compose up -d
 ```
 
-The local dev DSN is `postgresql+psycopg://eurogas:eurogas_dev@localhost:5432/eurogas_nexus`.
+The local dev DSN is `postgresql+pg8000://eurogas:eurogas_dev@localhost:5432/eurogas_nexus`.
+
+Runtime API routes obtain sessions through the shared session factory, which
+reuses one bounded SQLAlchemy connection pool per resolved DSN. Route code must
+not create a new engine or pool per request; doing so can exhaust PostgreSQL
+connections during parallel workspace hydration.
 
 To reset local data:
 

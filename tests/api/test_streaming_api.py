@@ -8,11 +8,13 @@ from unittest.mock import MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
+from starlette.requests import Request
 
 from eurogas_nexus.api.app import create_app
 from eurogas_nexus.api.routes.public.streaming import (
     _event_stream,
     _fetch_new_quotes,
+    _initial_cursor,
     _parse_cursor,
     _sse,
 )
@@ -118,6 +120,31 @@ def test_parse_cursor_rejects_malformed_values() -> None:
 def test_parse_cursor_accepts_naive_timestamp_as_utc() -> None:
     cursor = _parse_cursor("2026-07-01T10:00:00|q1")
     assert cursor == (TS_1, "q1")
+
+
+def test_new_stream_connection_starts_at_current_time() -> None:
+    request = Request({"type": "http", "headers": []})
+    before = datetime.now(UTC)
+
+    cursor = _initial_cursor(request)
+
+    after = datetime.now(UTC)
+    assert cursor is not None
+    assert before <= cursor[0] <= after
+    assert cursor[1] == ""
+
+
+def test_reconnecting_stream_preserves_last_event_cursor() -> None:
+    request = Request(
+        {
+            "type": "http",
+            "headers": [
+                (b"last-event-id", b"2026-07-01T10:00:00+00:00|q199"),
+            ],
+        }
+    )
+
+    assert _initial_cursor(request) == (TS_1, "q199")
 
 
 def test_stream_routes_and_pipeline_health_are_registered() -> None:

@@ -217,7 +217,9 @@ def get_resource_pool_options(request: Request) -> dict:
         from eurogas_nexus.db.models import (
             CompanyTsoAccessRecord,
             FxObservationRecord,
-            MarketObservationRecord,
+        )
+        from eurogas_nexus.db.repositories.market_intelligence import (
+            list_market_observations_with_source_coverage,
         )
         from eurogas_nexus.db.repositories.route_cost import (
             list_route_candidates,
@@ -230,10 +232,9 @@ def get_resource_pool_options(request: Request) -> dict:
             contracts = list_upstream_contracts(session)
             candidates = list_route_candidates(session)
             tariffs = list_tso_tariffs(session)
-            market_rows = (
-                session.query(MarketObservationRecord)
-                .order_by(MarketObservationRecord.observed_at_utc.desc())
-                .all()
+            market_rows = list_market_observations_with_source_coverage(
+                session,
+                limit=2000,
             )
             fx_rows = (
                 session.query(FxObservationRecord)
@@ -572,16 +573,32 @@ def _market_price_basis_priority(row) -> int:
     return 3
 
 
-def _market_price_selection_priority(row) -> tuple[int, int]:
+def _market_price_selection_priority(row) -> tuple[int, int, int]:
     """Rank rows for spot-like resource-pool pricing.
 
     The query already orders newest rows first. This priority keeps that order
     for equal candidates while making the two business rules explicit:
-    preferred tenors first, and licensed/source-provided rows before simulated
-    rows when both are present for the same price basis.
+    preferred tenors first, licensed/source-provided rows before simulated
+    rows, and exchange observations before broker or assessment sources when
+    otherwise tied. The source precedence removes dependence on database row
+    order for simulator ticks emitted at the same instant.
     """
 
-    return (_market_price_basis_priority(row), 1 if _is_simulated_market_price(row) else 0)
+    return (
+        _market_price_basis_priority(row),
+        1 if _is_simulated_market_price(row) else 0,
+        _market_price_source_priority(getattr(row, "source_system", None)),
+    )
+
+
+def _market_price_source_priority(source_system: str | None) -> int:
+    family = (source_system or "").removesuffix("_Sim").upper()
+    return {
+        "EEX": 0,
+        "ICE_OCM": 0,
+        "TRAYPORT": 1,
+        "ICIS": 2,
+    }.get(family, 3)
 
 
 def _is_simulated_market_price(row) -> bool:

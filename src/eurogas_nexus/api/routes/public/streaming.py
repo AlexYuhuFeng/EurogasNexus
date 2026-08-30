@@ -222,11 +222,24 @@ def _stream_response(
     pk_field: str,
     request: Request,
 ) -> StreamingResponse:
-    initial_cursor = _parse_cursor(request.headers.get("last-event-id"))
+    initial_cursor = _initial_cursor(request)
     return StreamingResponse(
         _event_stream(topic, fetch, ts_field, pk_field, initial_cursor),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+def _initial_cursor(request: Request) -> Cursor:
+    """Resume from Last-Event-ID or start a new connection at the current time."""
+
+    # Without Last-Event-ID, start from "now" rather than replaying the entire
+    # PostgreSQL table. The client already reconciles recent rows through the
+    # regular REST polling path, so an initial full-table replay would flood the
+    # EventSource and freeze low-memory browser contexts without adding data.
+    return _parse_cursor(request.headers.get("last-event-id")) or (
+        datetime.now(UTC),
+        "",
     )
 
 

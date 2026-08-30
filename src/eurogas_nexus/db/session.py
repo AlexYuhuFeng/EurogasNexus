@@ -3,6 +3,7 @@
 import os
 import re
 from collections.abc import Mapping
+from functools import lru_cache
 
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine, make_url
@@ -79,6 +80,13 @@ def create_session_factory(engine: Engine) -> sessionmaker[Session]:
     return sessionmaker(bind=engine, autocommit=False, autoflush=False, class_=Session)
 
 
+@lru_cache(maxsize=16)
+def _cached_session_factory(database_url: str) -> sessionmaker[Session]:
+    """Reuse one bounded SQLAlchemy pool for each resolved runtime database."""
+
+    return create_session_factory(get_engine(database_url))
+
+
 def get_session_factory(
     *,
     engine: Engine | None = None,
@@ -86,5 +94,10 @@ def get_session_factory(
 ) -> sessionmaker[Session]:
     """Return a session factory for an explicit or resolved engine."""
 
-    resolved_engine = engine or get_engine(database_url)
-    return create_session_factory(resolved_engine)
+    if engine is not None:
+        return create_session_factory(engine)
+
+    resolved_url = database_url.strip() if database_url else resolve_database_url()
+    if not resolved_url:
+        raise ValueError("Database URL is required to create a session factory.")
+    return _cached_session_factory(resolved_url)

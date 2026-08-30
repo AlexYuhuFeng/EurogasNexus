@@ -240,9 +240,19 @@ Purpose:
 
 Rules:
 
-- show backend-served market observations, ECB FX, and source metadata;
-- render a terminal-style gas market board when sourced observations are present;
-- show within-day, day-ahead, and month-ahead tenor controls;
+- show backend-served PostgreSQL market observations, L1 market quotes, ECB FX,
+  and source metadata without client-side market-price fallbacks;
+- render a terminal-style gas market board when sourced observations are
+  present;
+- show within-day, day-ahead, weekend, and month-ahead tenor controls, with all
+  six major hubs and all simulated source IDs readable at every responsive
+  breakpoint;
+- show quote age, tick change, quote-history sparklines, live quote-derived
+  spreads to TTF when backend spread rows are missing, and FX observation time;
+- keep exchange/broker/source quotes distinct in the detailed market table;
+  hub headlines may use the newest quote, but must not hide source-level prices;
+- label market timestamps as source observation times, not page refresh times;
+- show a source matrix with backend timing, hub coverage, and cadence metadata;
 - show regional comparison only when both sides have comparable currency/unit
   rows;
 - do not invent market data or render client-side fake observations.
@@ -316,11 +326,11 @@ Purpose:
   signal monitoring and scenario comparison;
 - expose market tape, paper state, allocation ladder, risk stack, source
   evidence, warning stack, and candidate action in one terminal surface;
-- include a price-basis comparison board for within-day, day-ahead, monthly,
+- include a price-basis comparison board for within-day, day-ahead, month-ahead,
   ICIS assessment, ICE OCM mark, EEX curve, and FX contexts;
-- cover within-day, day-ahead, monthly, ICIS assessments, ICE OCM marks, EEX
-  curves, and ECB FX as explicit basis families;
-- Basis families: within-day, day-ahead, monthly, ICIS assessments, ICE OCM marks, EEX curves, and ECB FX.
+- cover within-day, day-ahead, month-ahead, ICIS assessments, ICE OCM marks,
+  EEX curves, and ECB FX as explicit basis families;
+- Basis families: within-day, day-ahead, month-ahead, ICIS assessments, ICE OCM marks, EEX curves, and ECB FX.
 - include a selected price-basis control for switching active basis context;
 - show a basis exposure ladder that ranks each non-FX basis by current sale
   price, margin versus weighted pool cost, pool PnL at risk, source systems, and

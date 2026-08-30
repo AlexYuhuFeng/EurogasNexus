@@ -3207,6 +3207,40 @@ body {
   font-size: 12px;
 }
 
+.market-ticker-meta {
+  display: flex;
+  min-width: 0;
+  gap: 6px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.market-ticker-meta .market-source-pill {
+  min-width: 0;
+  max-width: 65%;
+  overflow: hidden;
+  line-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.market-price-delta {
+  flex: 0 0 auto;
+  color: var(--eg-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.market-price-delta.up {
+  color: var(--eg-positive, #1c8a4c);
+}
+
+.market-price-delta.down {
+  color: var(--eg-negative, #c0392b);
+}
+
 .market-price-ticker.is-live {
   border-color: rgb(15 118 110 / 35%);
 }
@@ -3317,6 +3351,10 @@ body {
 .market-region-list small {
   grid-column: 2;
   text-align: right;
+}
+
+.market-fx-table .data-table-row {
+  grid-template-columns: 0.8fr 0.8fr 1fr 0.8fr;
 }
 
 .data-table-row.six {
@@ -4443,9 +4481,13 @@ button.glossary-related-chip {
 }
 
 @media (max-width: 520px) {
-  .market-terminal-strip,
-  .market-curve-lanes {
+  .market-terminal-strip {
     grid-template-columns: 1fr;
+  }
+
+  /* Four-tenor curves stay scannable as paired lanes instead of a 24-row stack. */
+  .market-curve-lanes {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .market-price-ticker {
@@ -5994,6 +6036,14 @@ button.glossary-related-chip {
   .workspace-network .maplibregl-ctrl-bottom-left {
     bottom: 8px;
     left: 8px;
+  }
+}
+
+@media (max-width: 360px) {
+  .cockpit-app .header-controls select {
+    grid-column: 1 / -1;
+    min-width: 0;
+    padding-right: 24px;
   }
 }
 

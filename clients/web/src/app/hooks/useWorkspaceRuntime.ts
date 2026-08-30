@@ -37,12 +37,11 @@ export function useWorkspaceRuntime({
   useEffect(() => {
     if (!LIVE_MARKET_WORKSPACES.has(activeWorkspace)) return;
     void refreshMarketData();
-    if (streamingActive) return;
     const intervalId = window.setInterval(() => {
       void refreshMarketData();
     }, MARKET_REFRESH_INTERVAL_MS);
     return () => window.clearInterval(intervalId);
-  }, [activeWorkspace, refreshMarketData, streamingActive]);
+  }, [activeWorkspace, refreshMarketData]);
 
   useEffect(() => {
     if (streamingActive) return;

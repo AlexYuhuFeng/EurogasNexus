@@ -10,7 +10,6 @@ def test_web_client_streams_via_event_source_with_polling_fallback() -> None:
     client = (WEB / "api" / "client.ts").read_text(encoding="utf-8")
     store = (WEB / "stores" / "api.ts").read_text(encoding="utf-8")
     runtime = (WEB / "app" / "hooks" / "useWorkspaceRuntime.ts").read_text(encoding="utf-8")
-
     assert "openEventStream" in client
     assert "new EventSource" in client
     assert "subscribeDecisionStreams" in store

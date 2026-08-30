@@ -15,9 +15,14 @@ This is intentionally different from static demo data:
 - source labels are `EEX_Sim`, `ICE_OCM_Sim`, `Trayport_Sim`, and `ICIS_Sim`;
 - rows include `metadata_json.simulated=true`;
 - rows include tenor and timing metadata such as `within-day`, `day-ahead`,
-  `month-ahead`, `instant`, and `daily_assessment`;
-- `/api/market/observations`, `/api/sources`, resource-pool pricing, the Market
-  terminal, and Strategy inputs all read the same runtime DB rows.
+  `weekend`, `month-ahead`, and `daily_assessment`;
+- `/api/market/observations`, `/api/market/normalized`, `/api/market/quotes`,
+  `/api/sources`, resource-pool pricing, the Market terminal, and Strategy
+  inputs use the same PostgreSQL ingestion workflow and linked source metadata;
+  observations and L1 quotes remain distinct persisted projections;
+- the bounded normalized market view keeps the latest rows per simulated gas
+  source so the daily `ICIS_Sim` assessment remains visible beside
+  higher-frequency EEX, Trayport, and ICE OCM ticks.
 
 The simulator must not be used as a substitute for licensed commercial data in
 production decisions. It is for validating ingestion, UI behavior, strategy
@@ -40,7 +45,7 @@ connectors will use. Default cadence:
 
 - `ICE_OCM_Sim`: every 10 seconds for within-day and day-ahead screen marks;
 - `Trayport_Sim`: every 10 seconds for multi-hub within-day and day-ahead broker-screen marks;
-- `EEX_Sim`: every 10 seconds for spot/curve marks;
+- `EEX_Sim`: every 10 seconds for day-ahead, weekend, and month-ahead marks;
 - `ICIS_Sim`: every 86,400 seconds for daily day-ahead assessments.
 
 The cadence is a configurable simulation of market-data behavior. It preserves
@@ -48,8 +53,9 @@ real connector shape and operational pressure without claiming to reproduce an
 entitled vendor feed byte-for-byte.
 
 When the Web or Windows Market workspace is open, the client polls the backend
-market observation, FX, and source-posture endpoints. It does not connect to
-PostgreSQL directly. This lets the simulated worker exercise the same runtime
+normalized market, quote, spread, opportunity, FX, and source-posture endpoints
+every 10 seconds, and SSE only streams newly persisted rows. It does not connect
+to PostgreSQL directly. This lets the simulated worker exercise the same runtime
 loop expected from licensed EEX, ICE OCM, ICIS, broker, or Trayport connectors:
 
 ```text
@@ -58,9 +64,9 @@ simulated adapter -> PostgreSQL quotes -> backend scan -> PostgreSQL opportuniti
 ```
 
 The Market terminal must keep simulated rows visibly labeled and must show
-tenor, timing, and cadence metadata so traders can distinguish instant OCM
-marks, day-ahead assessments, and curve marks before using them in strategy
-shadow runs or resource-pool decisions.
+tenor, timing, and cadence metadata so traders can distinguish within-day OCM
+marks, day-ahead assessments, weekend rows, and month-ahead curve marks before
+using them in strategy shadow runs or resource-pool decisions.
 
 Override cadences when a faster local test is useful:
 
@@ -83,7 +89,8 @@ connectivity checks; the project runtime should use the long-running worker.
 
 Each due tick writes:
 
-- EEX-shaped spot/curve marks for TTF, NBP, THE, PEG, ZTP, and PSV;
+- EEX-shaped day-ahead, weekend, and month-ahead marks for TTF, NBP, THE, PEG,
+  ZTP, and PSV;
 - ICE OCM-shaped NBP within-day and day-ahead screen marks;
 - Trayport-shaped multi-hub within-day and day-ahead broker-screen marks;
 - ICIS Heren-shaped daily day-ahead assessments for the major hubs.
@@ -145,7 +152,7 @@ compare temporal price differences across tenors.
 
 Strategy work should preserve the distinction between:
 
-- instant/within-day screen marks;
+- within-day screen marks;
 - day-ahead exchange or assessment prices;
 - weekend and balance-of-period products;
 - month-ahead or curve products;

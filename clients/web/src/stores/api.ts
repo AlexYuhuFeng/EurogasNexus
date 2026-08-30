@@ -48,10 +48,69 @@ import {
 } from "@/api/client";
 
 let decisionStreamClosers: Array<() => void> = [];
+let marketRefreshSequence = 0;
+
+function timestampMs(value: string): number {
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function latestTimestamp(values: Array<string | null | undefined>): string | null {
+  const latestTimestampMs = values.reduce<number>(
+    (latest, value) => Math.max(latest, value ? timestampMs(value) : 0),
+    0,
+  );
+  return latestTimestampMs > 0 ? new Date(latestTimestampMs).toISOString() : null;
+}
 
 function closeDecisionStreams() {
   decisionStreamClosers.forEach((close) => close());
   decisionStreamClosers = [];
+}
+
+function mergeMarketQuotes(
+  current: MarketQuoteDTO[],
+  incoming: MarketQuoteDTO[],
+): MarketQuoteDTO[] {
+  const byId = new Map(current.map((quote) => [quote.quote_id, quote]));
+  incoming.forEach((quote) => {
+    const existing = byId.get(quote.quote_id);
+    if (!existing || timestampMs(quote.observed_at_utc) >= timestampMs(existing.observed_at_utc)) {
+      byId.set(quote.quote_id, quote);
+    }
+  });
+  return Array.from(byId.values())
+    .sort((left, right) => timestampMs(right.observed_at_utc) - timestampMs(left.observed_at_utc))
+    .slice(0, 500);
+}
+
+function mergeIntradayOpportunities(
+  current: IntradayOpportunityDTO[],
+  incoming: IntradayOpportunityDTO[],
+): IntradayOpportunityDTO[] {
+  const byId = new Map(current.map((item) => [item.opportunity_id, item]));
+  incoming.forEach((item) => {
+    const existing = byId.get(item.opportunity_id);
+    if (!existing || timestampMs(item.detected_at_utc) >= timestampMs(existing.detected_at_utc)) {
+      byId.set(item.opportunity_id, item);
+    }
+  });
+  return Array.from(byId.values())
+    .sort((left, right) => timestampMs(right.detected_at_utc) - timestampMs(left.detected_at_utc))
+    .slice(0, 100);
+}
+
+function latestMarketObservedAt(
+  normalizedMarkets: NormalizedMarketObsDTO[],
+  marketQuotes: MarketQuoteDTO[],
+  fxRates: FxRateDTO[],
+): string | null {
+  const timestamps = [
+    ...normalizedMarkets.map((row) => row.observed_at_utc),
+    ...marketQuotes.map((row) => row.observed_at_utc),
+    ...fxRates.map((row) => row.observed_at_utc),
+  ].filter((value): value is string => Boolean(value));
+  return latestTimestamp(timestamps);
 }
 
 export interface ApiState {
@@ -368,7 +427,11 @@ export const useApiStore = create<ApiState>((set, get) => ({
       endpointMeta,
       endpointErrors,
       meta: endpointMeta.referenceNodes ?? null,
-      marketLastUpdatedAtUtc: new Date().toISOString(),
+      marketLastUpdatedAtUtc: latestMarketObservedAt(
+        (slices.normalizedMarkets ?? []) as NormalizedMarketObsDTO[],
+        (slices.marketQuotes ?? []) as MarketQuoteDTO[],
+        (slices.fxRates ?? []) as FxRateDTO[],
+      ),
       dataStatus: resolvedStatus,
       loading: false,
       error: allFailed
@@ -415,49 +478,94 @@ export const useApiStore = create<ApiState>((set, get) => ({
   },
 
   refreshMarketData: async () => {
-    try {
-      const [
+    const refreshSequence = ++marketRefreshSequence;
+    // Market board data must not wait on the slower /api/sources diagnostic
+    // endpoint. Update source posture in the background after live prices land.
+    void api.sources()
+      .then((sources) => {
+        if (refreshSequence !== marketRefreshSequence) return;
+        set((state) => ({
+          sources: sources.data,
+          endpointMeta: {
+            ...state.endpointMeta,
+            sources: sources.meta,
+          },
+        }));
+      })
+      .catch(() => undefined);
+    const [normalizedResult, spreadResult, quoteResult, opportunityResult, fxResult] =
+      await Promise.all([
+        loadEndpointWithRetry(api.normalizedMarketObservations, 0),
+        loadEndpointWithRetry(api.marketSpreads, 0),
+        loadEndpointWithRetry(api.marketQuotes, 0),
+        loadEndpointWithRetry(api.intradayOpportunities, 0),
+        loadEndpointWithRetry(api.fxRates, 0),
+      ]);
+    if (refreshSequence !== marketRefreshSequence) return;
+
+    set((state) => {
+      const endpointMeta = { ...state.endpointMeta };
+      const endpointErrors = { ...state.endpointErrors };
+      const recordOutcome = (
+        key: string,
+        outcome: LoaderOutcome<{ data: unknown; meta: ApiMeta }>,
+      ) => {
+        if (outcome.ok) {
+          endpointMeta[key] = outcome.value.meta;
+          delete endpointErrors[key];
+        } else {
+          endpointErrors[key] = outcome.error;
+        }
+      };
+      recordOutcome("normalizedMarkets", normalizedResult);
+      recordOutcome("marketSpreads", spreadResult);
+      recordOutcome("marketQuotes", quoteResult);
+      recordOutcome("intradayOpportunities", opportunityResult);
+      recordOutcome("fxRates", fxResult);
+
+      const normalizedMarkets = normalizedResult.ok
+        ? normalizedResult.value.data
+        : state.normalizedMarkets;
+      const marketSpreads = spreadResult.ok
+        ? spreadResult.value.data
+        : state.marketSpreads;
+      const marketQuotes = quoteResult.ok
+        ? mergeMarketQuotes(state.marketQuotes, quoteResult.value.data)
+        : state.marketQuotes;
+      const intradayOpportunities = opportunityResult.ok
+        ? mergeIntradayOpportunities(
+          state.intradayOpportunities,
+          opportunityResult.value.data,
+        )
+        : state.intradayOpportunities;
+      const fxRates = fxResult.ok ? fxResult.value.data : state.fxRates;
+      const failedMarketEndpoints = [
+        "normalizedMarkets",
+        "marketSpreads",
+        "marketQuotes",
+        "intradayOpportunities",
+        "fxRates",
+      ].filter((key) => endpointErrors[key]);
+
+      return {
         normalizedMarkets,
         marketSpreads,
         marketQuotes,
         intradayOpportunities,
         fxRates,
-        sources,
-      ] = await Promise.all([
-        api.normalizedMarketObservations(),
-        api.marketSpreads(),
-        api.marketQuotes(),
-        api.intradayOpportunities(),
-        api.fxRates(),
-        api.sources(),
-      ]);
-      set((state) => ({
-        normalizedMarkets: normalizedMarkets.data,
-        marketSpreads: marketSpreads.data,
-        marketQuotes: marketQuotes.data,
-        intradayOpportunities: intradayOpportunities.data,
-        fxRates: fxRates.data,
-        sources: sources.data,
-        endpointMeta: {
-          ...state.endpointMeta,
-          normalizedMarkets: normalizedMarkets.meta,
-          marketSpreads: marketSpreads.meta,
-          marketQuotes: marketQuotes.meta,
-          intradayOpportunities: intradayOpportunities.meta,
-          fxRates: fxRates.meta,
-          sources: sources.meta,
-        },
-        meta: normalizedMarkets.meta,
-        marketLastUpdatedAtUtc: new Date().toISOString(),
-        error: null,
-      }));
-    } catch (e) {
-      set({
-        marketQuotes: [],
-        intradayOpportunities: [],
-        error: String(e),
-      });
-    }
+        endpointMeta,
+        endpointErrors,
+        meta: normalizedResult.ok ? normalizedResult.value.meta : state.meta,
+        marketLastUpdatedAtUtc: latestMarketObservedAt(
+          normalizedMarkets,
+          marketQuotes,
+          fxRates,
+        ),
+        error: failedMarketEndpoints.length > 0
+          ? `Market refresh partial: ${failedMarketEndpoints.join(", ")}`
+          : null,
+      };
+    });
   },
 
   subscribeDecisionStreams: () => {
@@ -473,11 +581,11 @@ export const useApiStore = create<ApiState>((set, get) => ({
             const quote = payload as MarketQuoteDTO;
             if (!quote || typeof quote !== "object" || !("quote_id" in quote)) return;
             set((state) => ({
-              marketQuotes: [
-                quote,
-                ...state.marketQuotes.filter((item) => item.quote_id !== quote.quote_id),
-              ].slice(0, 500),
-              marketLastUpdatedAtUtc: new Date().toISOString(),
+              marketQuotes: mergeMarketQuotes(state.marketQuotes, [quote]),
+              marketLastUpdatedAtUtc: latestTimestamp([
+                state.marketLastUpdatedAtUtc,
+                quote.observed_at_utc,
+              ]),
             }));
           },
         },
@@ -497,12 +605,10 @@ export const useApiStore = create<ApiState>((set, get) => ({
             return;
           }
           set((state) => ({
-            intradayOpportunities: [
-              opportunity,
-              ...state.intradayOpportunities.filter(
-                (item) => item.opportunity_id !== opportunity.opportunity_id,
-              ),
-            ].slice(0, 100),
+            intradayOpportunities: mergeIntradayOpportunities(
+              state.intradayOpportunities,
+              [opportunity],
+            ),
           }));
         },
       }).close,

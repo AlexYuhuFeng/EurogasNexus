@@ -61,6 +61,16 @@ def test_get_session_factory_can_use_explicit_import_safe_engine() -> None:
     assert session_factory.kw["bind"] is engine
 
 
+def test_get_session_factory_reuses_pool_for_same_runtime_url(tmp_path) -> None:
+    database_url = f"sqlite+pysqlite:///{(tmp_path / 'pool-cache.sqlite').as_posix()}"
+
+    first = get_session_factory(database_url=database_url)
+    second = get_session_factory(database_url=database_url)
+
+    assert first is second
+    first.kw["bind"].dispose()
+
+
 def test_get_engine_bounds_postgresql_connection_and_pool_waits(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

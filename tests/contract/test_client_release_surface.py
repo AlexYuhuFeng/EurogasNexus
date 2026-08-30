@@ -534,12 +534,13 @@ def test_web_client_market_page_is_trader_terminal_surface() -> None:
     assert "<MarketTerminal\n" in app
     assert "marketLastUpdatedAtUtc" in app
     assert "refreshMarketData" in app
+    assert "markets={api.normalizedMarkets}" in app
     assert "MARKET_REFRESH_INTERVAL_MS" in app
     assert "marketLastUpdatedAtUtc: string | null" in store
     assert "refreshMarketData: () => Promise<void>" in store
-    assert "api.normalizedMarketObservations()" in store
-    assert "api.marketSpreads()" in store
-    assert "api.fxRates()" in store
+    assert "loadEndpointWithRetry(api.normalizedMarketObservations" in store
+    assert "loadEndpointWithRetry(api.marketSpreads" in store
+    assert "loadEndpointWithRetry(api.fxRates" in store
     assert "market-terminal-board" in market_terminal
     assert "market-price-ticker" in market_terminal
     assert "market-region-comparison" in market_terminal
@@ -552,7 +553,15 @@ def test_web_client_market_page_is_trader_terminal_surface() -> None:
     assert "sourceMatrixRows" in market_terminal
     assert "update_interval_seconds" in market_terminal
     assert "market-live-status" in market_terminal
+    assert "quoteHistoryByHubTenor" in market_terminal
+    assert "quoteAgeSeconds" in market_terminal
+    assert "quoteDelta" in market_terminal
+    assert "quote.source_system" in market_terminal
     assert "lastUpdatedAtUtc" in market_terminal
+    assert "marketTenorOrder" in market_terminal
+    assert "market.tenor_weekend" in market_terminal
+    assert 't("market.tenor_tabs")' in market_terminal
+    assert 't("market.hub")' in market_terminal
     assert "marketMajorHubs" in market_terminal
     assert "TTF" in market_terminal
     assert "NBP" in market_terminal
@@ -570,6 +579,8 @@ def test_web_client_market_page_is_trader_terminal_surface() -> None:
     assert ".market-tenor-tab.active" in css
     assert ".market-source-matrix" in css
     assert ".market-live-status" in css
+    assert ".market-price-delta.up" in css
+    assert ".market-fx-table" in css
     assert en["market.title"] == "Gas Market Terminal"
     assert en["market.terminal"] == "Major European gas markets"
     assert en["market.region_comparison"] == "Regional comparison"
@@ -730,7 +741,7 @@ def test_web_client_strategy_page_is_shadow_run_terminal() -> None:
     assert "stale/simulated/unavailable data banner" in web_spec
     assert "resource-pool PnL curve" in web_spec
     assert (
-        "within-day, day-ahead, monthly, ICIS assessments, ICE OCM marks, EEX curves, and ECB FX"
+        "within-day, day-ahead, month-ahead, ICIS assessments, ICE OCM marks, EEX curves, and ECB FX"
     ) in web_spec
 
 
@@ -1255,6 +1266,7 @@ def test_web_client_market_terminal_surfaces_simulated_source_and_tenor_context(
     assert "market-tenor-tabs" in market_terminal
     assert "market-source-pill" in market_terminal
     assert "market-curve-lanes" in market_terminal
+    assert '"Trayport_Sim"' in market_terminal
     assert "marketTenorOrder" in market_terminal
     assert "price_timing" in market_terminal
     assert "metadata_json" in market_terminal
@@ -1263,10 +1275,12 @@ def test_web_client_market_terminal_surfaces_simulated_source_and_tenor_context(
     assert ".market-curve-lanes" in css
     assert en["market.tenor_within_day"] == "Within-day"
     assert en["market.tenor_day_ahead"] == "Day-ahead"
+    assert en["market.tenor_weekend"] == "Weekend"
     assert en["market.tenor_month_ahead"] == "Month-ahead"
     assert en["market.simulated_source"] == "Simulated source"
     assert zh["market.tenor_within_day"] == "\u65e5\u5185"
     assert zh["market.tenor_day_ahead"] == "\u65e5\u524d"
+    assert zh["market.tenor_weekend"] == "周末"
     assert zh["market.tenor_month_ahead"] == "\u6708\u524d"
     assert zh["market.simulated_source"] == "\u4eff\u771f\u6570\u636e\u6e90"
 

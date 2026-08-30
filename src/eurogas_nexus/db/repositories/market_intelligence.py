@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from eurogas_nexus.db.models import (
@@ -120,15 +121,10 @@ def list_normalized_market_view(session: Session, *, limit: int = 500) -> dict:
     ``price_gbp_mwh`` computed by the domain normalization module.
     """
 
-    observation_rows = (
-        session.query(MarketObservationRecord)
-        .order_by(
-            MarketObservationRecord.observed_at_utc.desc(),
-            MarketObservationRecord.market_venue,
-            MarketObservationRecord.product,
-        )
-        .limit(limit)
-        .all()
+    observation_rows = list_market_observations_with_source_coverage(
+        session,
+        limit=limit,
+        per_source_limit=40,
     )
     fx_rows = (
         session.query(FxObservationRecord)
@@ -158,6 +154,118 @@ def list_normalized_market_view(session: Session, *, limit: int = 500) -> dict:
         for row, normalized in zip(observation_rows, view["rows"], strict=True)
     ]
     return {"rows": rows, "warnings": view["warnings"]}
+
+
+def list_market_observations_with_source_coverage(
+    session: Session,
+    *,
+    limit: int,
+    per_source_limit: int = 40,
+) -> list:
+    """Return recent observations with bounded low-frequency source coverage."""
+
+    newest_rows = (
+        session.query(MarketObservationRecord)
+        .order_by(
+            MarketObservationRecord.observed_at_utc.desc(),
+            MarketObservationRecord.market_venue,
+            MarketObservationRecord.product,
+        )
+        .limit(limit)
+        .all()
+    )
+    return _with_latest_row_per_gas_source(
+        session,
+        newest_rows,
+        limit=limit,
+        per_source_limit=per_source_limit,
+    )
+
+
+def _with_latest_row_per_gas_source(
+    session: Session,
+    newest_rows: list,
+    *,
+    limit: int,
+    per_source_limit: int,
+) -> list:
+    """Reserve recent rows for gas sources without exceeding the API limit.
+
+    The normalized endpoint is intentionally bounded, but a low-frequency source
+    such as a daily ICIS assessment must not disappear behind hundreds of
+    high-frequency simulated ticks. A bounded per-source quota is selected first;
+    the remaining capacity is filled with the globally newest observations.
+    """
+
+    if limit <= 0 or not newest_rows:
+        return newest_rows
+    source_count = (
+        session.query(func.count(func.distinct(MarketObservationRecord.source_system)))
+        .filter(MarketObservationRecord.unit.ilike("%MWH%"))
+        .scalar()
+        or 0
+    )
+    if source_count == 0:
+        return newest_rows[:limit]
+
+    source_quota = min(per_source_limit, max(1, limit // source_count))
+    ranked_rows = (
+        session.query(
+            MarketObservationRecord.observation_id.label("observation_id"),
+            func.row_number()
+            .over(
+                partition_by=MarketObservationRecord.source_system,
+                order_by=(
+                    MarketObservationRecord.observed_at_utc.desc(),
+                    MarketObservationRecord.market_venue,
+                    MarketObservationRecord.product,
+                ),
+            )
+            .label("source_rank"),
+        )
+        .filter(MarketObservationRecord.unit.ilike("%MWH%"))
+        .subquery()
+    )
+    coverage_rows = (
+        session.query(MarketObservationRecord)
+        .join(
+            ranked_rows,
+            ranked_rows.c.observation_id == MarketObservationRecord.observation_id,
+        )
+        .filter(ranked_rows.c.source_rank <= source_quota)
+        .all()
+    )
+    return _merge_bounded_source_coverage(newest_rows, coverage_rows, limit=limit)
+
+
+def _merge_bounded_source_coverage(
+    newest_rows: list,
+    coverage_rows: list,
+    *,
+    limit: int,
+) -> list:
+    """Merge reserved source rows with newest rows, deduplicate, and cap output."""
+
+    selected: list = []
+    known_ids: set[str] = set()
+    for row in [*coverage_rows, *newest_rows]:
+        if row.observation_id in known_ids:
+            continue
+        known_ids.add(row.observation_id)
+        selected.append(row)
+        if len(selected) >= limit:
+            break
+    selected.sort(
+        key=lambda row: (
+            _as_utc(row.observed_at_utc)
+            if row.observed_at_utc is not None
+            else datetime.min.replace(tzinfo=UTC),
+            row.market_venue,
+            row.product,
+        ),
+        reverse=True,
+    )
+    return selected
 
 
 def _fx_rate_input(row: FxObservationRecord) -> FxRateInput:
