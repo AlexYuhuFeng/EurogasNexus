@@ -4,9 +4,13 @@ import type {
   RuntimeDbStatusDTO,
   SourceSystemDTO,
 } from "@/api/client";
+import { type KeyboardEvent, useState } from "react";
 
 type Translate = (key: string) => string;
 type ReadinessState = "ready" | "partial" | "blocked";
+type RuntimeViewId = "readiness" | "delivery" | "governance";
+
+const RUNTIME_VIEWS: RuntimeViewId[] = ["readiness", "delivery", "governance"];
 
 interface ReleaseReadinessRow {
   key: string;
@@ -25,6 +29,7 @@ interface RuntimeWorkspaceProps {
   endpointErrors: Record<string, string>;
   t: Translate;
   onRefreshHealth: () => Promise<void>;
+  onOpenSources: () => void;
 }
 
 function formatHealthTime(value: string | null | undefined): string {
@@ -75,7 +80,9 @@ export function RuntimeWorkspace({
   endpointErrors,
   t,
   onRefreshHealth,
+  onOpenSources,
 }: RuntimeWorkspaceProps) {
+  const [activeView, setActiveView] = useState<RuntimeViewId>("readiness");
   const health = pipelineHealth;
   const freshnessEntries = health ? Object.entries(health.quote_freshness) : [];
   const endpointFailureCount = Object.keys(endpointErrors).length;
@@ -89,13 +96,22 @@ export function RuntimeWorkspace({
   const credentialBlockers = commercialSourceRows.filter(needsCredential);
   const certificationBlockers = commercialSourceRows.filter(needsLiveCertification);
   const noExecutionBoundaryReady = Boolean(meta?.research_only && meta.human_review_required);
+  const sourceAttentionCount = sources.length - workflowReadySources;
   const sourceOperationsState: ReadinessState =
-    sources.length === 0 ? "blocked" : endpointFailureCount > 0 ? "partial" : "ready";
+    sources.length === 0 || workflowReadySources === 0
+      ? "blocked"
+      : endpointFailureCount > 0 || sourceAttentionCount > 0
+        ? "partial"
+        : "ready";
   const sourceOperationsDetail =
     sources.length === 0
       ? t("runtime.no_sources")
+      : workflowReadySources === 0
+        ? t("runtime.no_workflow_ready_sources")
       : endpointFailureCount > 0
         ? `${endpointFailureCount} ${t("runtime.endpoint_failures")}`
+        : sourceAttentionCount > 0
+          ? `${sourceAttentionCount} ${t("runtime.source_attention_required")}`
         : t("runtime.source_operations_detail");
   const commercialCertificationState: ReadinessState =
     commercialSourceRows.length === 0
@@ -166,9 +182,61 @@ export function RuntimeWorkspace({
     ...certificationBlockers.map((source) => `${t("runtime.certification_blockers")}: ${source.source_system}`),
     t("runtime.security_acceptance_detail"),
   ];
+  const readyGateCount = releaseReadinessRows.filter((row) => row.state === "ready").length;
+  const blockedGateCount = releaseReadinessRows.filter((row) => row.state === "blocked").length;
+  const handleViewKeyDown = (
+    event: KeyboardEvent<HTMLButtonElement>,
+    currentView: RuntimeViewId,
+  ) => {
+    const currentIndex = RUNTIME_VIEWS.indexOf(currentView);
+    let nextIndex: number | null = null;
+    if (event.key === "ArrowRight") nextIndex = (currentIndex + 1) % RUNTIME_VIEWS.length;
+    if (event.key === "ArrowLeft") nextIndex = (currentIndex - 1 + RUNTIME_VIEWS.length) % RUNTIME_VIEWS.length;
+    if (event.key === "Home") nextIndex = 0;
+    if (event.key === "End") nextIndex = RUNTIME_VIEWS.length - 1;
+    if (nextIndex === null) return;
+    event.preventDefault();
+    const nextView = RUNTIME_VIEWS[nextIndex];
+    setActiveView(nextView);
+    window.requestAnimationFrame(() => document.getElementById(`runtime-tab-${nextView}`)?.focus());
+  };
 
   return (
-    <div className="workspace-grid runtime-page">
+    <div className={`workspace-grid runtime-page runtime-view-${activeView}`}>
+      <div className="workspace-panel span-3 runtime-operations-strip">
+        <div className="metric-grid four-column">
+          <div><span>{t("runtime.ready_gates")}</span><strong>{readyGateCount}/{releaseReadinessRows.length}</strong></div>
+          <div><span>{t("runtime.blocked_gates")}</span><strong>{blockedGateCount}</strong></div>
+          <div><span>{t("runtime.stream_delivery")}</span><strong>{streamingActive ? t("stream.live") : t("stream.polling_fallback")}</strong></div>
+          <div><span>{t("status.db")}</span><strong>{dbReady ? t("runtime.state_ready") : t("runtime.state_blocked")}</strong></div>
+        </div>
+      </div>
+
+      <nav className="runtime-view-tabs span-3" role="tablist" aria-label={t("runtime.workspace_views")}>
+        {RUNTIME_VIEWS.map((view) => (
+          <button
+            key={`runtime-view-${view}`}
+            id={`runtime-tab-${view}`}
+            type="button"
+            role="tab"
+            aria-selected={activeView === view}
+            aria-controls="runtime-active-panel"
+            className={activeView === view ? "active" : ""}
+            onClick={() => setActiveView(view)}
+            onKeyDown={(event) => handleViewKeyDown(event, view)}
+          >
+            {t(`runtime.view.${view}`)}
+          </button>
+        ))}
+      </nav>
+
+      <div
+        id="runtime-active-panel"
+        className="workspace-grid runtime-active-view"
+        role="tabpanel"
+        aria-labelledby={`runtime-tab-${activeView}`}
+      >
+      {activeView === "readiness" && (
       <div className="workspace-panel span-3 runtime-release-readiness">
         <div className="section-heading">
           <span className="eyebrow">{t("nav.runtime")}</span>
@@ -193,9 +261,13 @@ export function RuntimeWorkspace({
           {releaseBlockers.slice(0, 8).map((blocker) => (
             <span key={`release-blocker-${blocker}`}>{blocker}</span>
           ))}
+          <button type="button" onClick={onOpenSources}>{t("runtime.open_source_center")}</button>
         </div>
       </div>
+      )}
 
+      {activeView === "governance" && (
+      <>
       <div className="workspace-panel span-3 runtime-commercial-sources">
         <div className="panel-title-row">
           <h3>{t("runtime.commercial_sources")}</h3>
@@ -224,6 +296,9 @@ export function RuntimeWorkspace({
             </div>
           )}
         </div>
+        <button type="button" className="runtime-source-action" onClick={onOpenSources}>
+          {t("runtime.open_source_center")}
+        </button>
       </div>
 
       <div className="workspace-panel">
@@ -236,7 +311,7 @@ export function RuntimeWorkspace({
           </div>
         ) : <p className="panel-copy">{t("data.unavailable")}</p>}
       </div>
-      <div className="workspace-panel span-2">
+      <div className="workspace-panel span-2 runtime-db-panel">
         <h3>{t("status.db")}</h3>
         {runtimeDb ? (
           <div className="metric-grid three-column">
@@ -246,6 +321,11 @@ export function RuntimeWorkspace({
           </div>
         ) : <p className="panel-copy">{t("data.unavailable")}</p>}
       </div>
+      </>
+      )}
+
+      {activeView === "delivery" && (
+      <>
       <div className="workspace-panel span-3">
         <div className="section-heading">
           <span className="eyebrow">{t("nav.runtime")}</span>
@@ -257,7 +337,7 @@ export function RuntimeWorkspace({
           <div><span>{t("runtime.generated_at")}</span><strong>{formatHealthTime(health?.generated_at_utc)}</strong></div>
         </div>
         <button type="button" className="runtime-health-refresh" onClick={() => void onRefreshHealth()}>
-          {t("market.refresh")}
+          {t("runtime.refresh_pipeline_health")}
         </button>
         <div className="data-table">
           <div className="data-table-row header four">
@@ -281,7 +361,7 @@ export function RuntimeWorkspace({
           )}
         </div>
       </div>
-      <div className="workspace-panel span-2">
+      <div className="workspace-panel span-3">
         <h3>{t("runtime.quote_freshness")}</h3>
         <div className="data-table">
           <div className="data-table-row header three">
@@ -300,6 +380,9 @@ export function RuntimeWorkspace({
             <div className="data-table-row three"><strong>{t("runtime.no_sources")}</strong><span>n/a</span><span>n/a</span></div>
           )}
         </div>
+      </div>
+      </>
+      )}
       </div>
     </div>
   );

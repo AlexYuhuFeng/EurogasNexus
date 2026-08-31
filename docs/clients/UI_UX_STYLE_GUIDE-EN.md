@@ -38,6 +38,10 @@ Eurogas Nexus Web and Windows client UI must follow the local reference guide su
   task views: Monitor, Economics, Risk & Evidence, and Run History. Cumulative
   PnL charts must be derived from persisted runs and show an empty state when
   history is absent; illustrative performance curves are prohibited.
+- Data Sources uses exactly four task views: Attention, Catalog, Access &
+  certification, and Infrastructure. Runtime uses Readiness, Delivery, and
+  Governance. Only the active view is mounted; compact readiness context stays
+  visible, and remediation actions navigate to the owning workspace.
 - MapLibre controls, attribution, layer chips, and rails must never overlap.
 - AI/LLM features must appear as decision-support analysis and report generation, never as autonomous execution.
 - All visible strings must be available in English and Mandarin Chinese.
@@ -57,6 +61,10 @@ Current Web implementation should expose these structural classes so contract te
 - `strategy-command-deck`
 - `strategy-view-tabs`
 - `strategy-performance-chart`
+- `source-view-tabs`
+- `source-readiness-strip`
+- `runtime-view-tabs`
+- `runtime-operations-strip`
 
 The 2026-08-31 Image Gen 2 market-workspace direction is stored at
 `docs/design/references/market-workspace-imagegen-2026-08-31.png`. It is a
@@ -66,5 +74,10 @@ The 2026-08-31 Strategy workspace reference is stored at
 `docs/design/references/strategy-workspace-imagegen-2026-08-31.png`. Its chart
 and values are illustrative design material; production charts use strategy
 runs persisted in PostgreSQL only.
+
+The 2026-09-01 Operations workspace reference is stored at
+`docs/design/references/operations-source-center-imagegen-2026-09-01.png`.
+Its source names, counts, states, and values are illustrative design material;
+production posture is read from PostgreSQL-backed APIs only.
 
 Future client work must update this guide before changing the UI language or layout model.

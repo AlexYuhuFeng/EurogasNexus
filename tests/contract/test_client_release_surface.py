@@ -1275,13 +1275,18 @@ def test_web_client_sources_page_is_categorized_source_center() -> None:
         in api_client
     )
     assert "source-center" in css
+    assert "source-view-tabs" in css
+    assert "source-readiness-strip" in css
     assert "runtime-blocker-list" in css
     assert en["nav.sources"] == "Data Sources"
     assert en["sources.title"] == "Data Source Center"
     assert en["sources.next_action"] == "Next action"
     assert en["sources.action.run_ingestion"].startswith("Run the source ingestion")
+    assert en["sources.attention_queue"] == "Priority action queue"
+    assert en["sources.access_queue"] == "Licensed access queue"
     assert zh["sources.title"] == "\u6570\u636e\u6e90\u4e2d\u5fc3"
     assert zh["sources.next_action"] == "\u4e0b\u4e00\u6b65\u52a8\u4f5c"
+    assert zh["sources.attention_queue"] == "\u4f18\u5148\u5904\u7406\u961f\u5217"
 
 
 def test_web_client_market_terminal_surfaces_simulated_source_and_tenor_context() -> None:

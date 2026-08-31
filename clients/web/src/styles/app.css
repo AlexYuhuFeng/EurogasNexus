@@ -1593,20 +1593,22 @@ input {
 }
 
 .source-posture-grid.compact {
-  grid-template-columns: repeat(6, minmax(120px, 1fr));
+  grid-template-columns: repeat(7, minmax(118px, 1fr));
 }
 
 .source-posture-grid.compact .source-posture-row {
-  min-height: 92px;
+  min-height: 76px;
 }
 
 .source-operations-table-wrap {
-  overflow-x: auto;
+  max-height: 680px;
+  overflow: auto;
   border: 1px solid var(--eg-hairline);
 }
 
 .source-operations-table {
   width: 100%;
+  min-width: 860px;
   border-collapse: collapse;
   table-layout: fixed;
   color: var(--eg-body);
@@ -1629,12 +1631,13 @@ input {
   font-weight: 600;
 }
 
-.source-operations-table th:nth-child(1) { width: 12%; }
-.source-operations-table th:nth-child(2) { width: 17%; }
+.source-operations-table th:nth-child(1) { width: 11%; }
+.source-operations-table th:nth-child(2) { width: 15%; }
 .source-operations-table th:nth-child(3) { width: 12%; }
-.source-operations-table th:nth-child(4) { width: 16%; }
-.source-operations-table th:nth-child(5) { width: 11%; }
-.source-operations-table th:nth-child(6) { width: 32%; }
+.source-operations-table th:nth-child(4) { width: 13%; }
+.source-operations-table th:nth-child(5) { width: 14%; }
+.source-operations-table th:nth-child(6) { width: 12%; }
+.source-operations-table th:nth-child(7) { width: 23%; }
 
 .source-operations-table tr.active td {
   background: rgb(15 118 110 / 8%);
@@ -1673,7 +1676,7 @@ input {
 }
 
 .source-detail-panel {
-  grid-column: span 2;
+  grid-column: auto;
 }
 
 .strategy-command-deck {
@@ -1793,7 +1796,9 @@ input {
   color: var(--eg-on-ink);
 }
 
-.strategy-view-tabs {
+.strategy-view-tabs,
+.source-view-tabs,
+.runtime-view-tabs {
   display: flex;
   min-width: 0;
   overflow-x: auto;
@@ -1803,11 +1808,20 @@ input {
   scrollbar-width: none;
 }
 
-.strategy-view-tabs::-webkit-scrollbar {
+.source-view-tabs,
+.runtime-view-tabs {
+  grid-column: 1 / -1;
+}
+
+.strategy-view-tabs::-webkit-scrollbar,
+.source-view-tabs::-webkit-scrollbar,
+.runtime-view-tabs::-webkit-scrollbar {
   display: none;
 }
 
-.strategy-view-tabs button {
+.strategy-view-tabs button,
+.source-view-tabs button,
+.runtime-view-tabs button {
   position: relative;
   min-width: 130px;
   min-height: 42px;
@@ -1822,11 +1836,15 @@ input {
   padding: 0 14px;
 }
 
-.strategy-view-tabs button:last-child {
+.strategy-view-tabs button:last-child,
+.source-view-tabs button:last-child,
+.runtime-view-tabs button:last-child {
   border-right: 0;
 }
 
-.strategy-view-tabs button::after {
+.strategy-view-tabs button::after,
+.source-view-tabs button::after,
+.runtime-view-tabs button::after {
   position: absolute;
   right: 12px;
   bottom: -1px;
@@ -1837,15 +1855,23 @@ input {
 }
 
 .strategy-view-tabs button:hover,
-.strategy-view-tabs button.active {
+.strategy-view-tabs button.active,
+.source-view-tabs button:hover,
+.source-view-tabs button.active,
+.runtime-view-tabs button:hover,
+.runtime-view-tabs button.active {
   color: var(--eg-ink);
 }
 
-.strategy-view-tabs button.active::after {
+.strategy-view-tabs button.active::after,
+.source-view-tabs button.active::after,
+.runtime-view-tabs button.active::after {
   background: var(--accent);
 }
 
-.strategy-view-tabs button:focus-visible {
+.strategy-view-tabs button:focus-visible,
+.source-view-tabs button:focus-visible,
+.runtime-view-tabs button:focus-visible {
   outline: 2px solid var(--eg-link);
   outline-offset: -2px;
 }
@@ -3849,6 +3875,38 @@ body {
   padding: 6px 12px;
 }
 
+.runtime-active-view {
+  grid-column: 1 / -1;
+}
+
+.runtime-operations-strip,
+.source-readiness-strip {
+  padding: 10px 12px;
+}
+
+.runtime-operations-strip .metric-grid,
+.source-readiness-strip .metric-grid {
+  gap: 8px;
+}
+
+.runtime-operations-strip .metric-grid > div,
+.source-readiness-strip .metric-grid > div {
+  min-height: 64px;
+  padding: 9px 11px;
+}
+
+.source-readiness-strip .metric-grid > div {
+  align-content: start;
+}
+
+.source-readiness-strip .metric-grid small {
+  display: block;
+  margin-top: 2px;
+  color: var(--eg-muted);
+  font-size: 10px;
+  line-height: 14px;
+}
+
 .runtime-release-readiness,
 .runtime-commercial-sources {
   align-self: stretch;
@@ -3925,8 +3983,43 @@ body {
 
 .runtime-commercial-sources .data-table {
   max-height: 360px;
-  overflow-y: auto;
+  overflow: auto;
   padding-right: 4px;
+}
+
+.runtime-source-action,
+.runtime-blocker-list button,
+.source-open-access {
+  width: fit-content;
+  min-height: 32px;
+  border: 1px solid var(--eg-ink);
+  border-radius: var(--eg-radius-sm);
+  background: var(--eg-ink);
+  color: var(--eg-on-ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 10px;
+}
+
+.runtime-source-action {
+  margin-top: 10px;
+}
+
+.runtime-db-panel .metric-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.runtime-db-panel .metric-grid > div {
+  display: grid;
+  align-content: start;
+  justify-content: stretch;
+  gap: 4px;
+}
+
+.runtime-db-panel strong {
+  overflow-wrap: anywhere;
 }
 
 .pipeline-status {
@@ -4035,6 +4128,18 @@ body {
   align-items: start;
 }
 
+.source-view-access .source-catalog-panel {
+  order: 1;
+}
+
+.source-view-access .source-credential-panel {
+  order: 2;
+}
+
+.source-view-access .source-detail-panel {
+  order: 3;
+}
+
 .source-center .source-category-rail,
 .source-center .source-catalog-panel,
 .source-center .source-detail-panel {
@@ -4067,6 +4172,7 @@ body {
 
 .source-posture-board {
   align-self: stretch;
+  padding: 12px;
 }
 
 .source-category-list,
@@ -4096,6 +4202,16 @@ body {
   cursor: pointer;
   padding: 10px;
   text-align: left;
+}
+
+.source-posture-grid.compact .source-posture-row {
+  gap: 3px;
+  padding: 8px 9px;
+}
+
+.source-posture-grid.compact .source-posture-row small {
+  border-top: 0;
+  padding-top: 0;
 }
 
 .source-posture-row strong {
@@ -4651,6 +4767,29 @@ button.glossary-related-chip {
   .runtime-readiness-grid,
   .economics-grid.wide,
   .credential-form.horizontal {
+    grid-template-columns: 1fr;
+  }
+
+  .source-posture-grid.compact {
+    grid-template-columns: none;
+    grid-auto-columns: minmax(145px, 48%);
+    grid-auto-flow: column;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+
+  .source-view-tabs button,
+  .runtime-view-tabs button {
+    flex: 0 0 auto;
+  }
+
+  .runtime-operations-strip .four-column,
+  .source-readiness-strip .four-column,
+  .source-runtime-panel .six-column {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .runtime-db-panel .metric-grid {
     grid-template-columns: 1fr;
   }
 

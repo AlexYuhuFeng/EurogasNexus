@@ -116,7 +116,10 @@ def test_runtime_workspace_shows_pipeline_health_and_stream_mode() -> None:
     assert "sources={api.sources}" in renderer
     assert "streamingActive={api.streamingActive}" in renderer
     assert "endpointErrors={api.endpointErrors}" in renderer
+    assert 'onOpenSources={() => navigation.openWorkspace("sources")}' in renderer
     assert "releaseReadinessRows" in runtime_workspace
+    assert 'sources.length === 0 || workflowReadySources === 0' in runtime_workspace
+    assert 'endpointFailureCount > 0 || sourceAttentionCount > 0' in runtime_workspace
     assert "runtime-release-readiness" in runtime_workspace
     assert "runtime-readiness-row" in runtime_workspace
     assert "runtime-readiness-state" in runtime_workspace
@@ -128,14 +131,27 @@ def test_runtime_workspace_shows_pipeline_health_and_stream_mode() -> None:
     assert 'key: "external_security_acceptance"' in runtime_workspace
     assert 'key: "no_execution_boundary"' in runtime_workspace
     assert 'streamingActive ? t("stream.live") : t("stream.polling_fallback")' in runtime_workspace
+    assert 'const RUNTIME_VIEWS: RuntimeViewId[] = ["readiness", "delivery", "governance"]' in runtime_workspace
+    assert 'useState<RuntimeViewId>("readiness")' in runtime_workspace
+    assert 'role="tablist"' in runtime_workspace
+    assert 'id="runtime-active-panel"' in runtime_workspace
+    assert 'activeView === "readiness"' in runtime_workspace
+    assert 'activeView === "delivery"' in runtime_workspace
+    assert 'activeView === "governance"' in runtime_workspace
+    assert "onOpenSources" in runtime_workspace
     assert ".runtime-release-readiness" in css
     assert ".runtime-readiness-row" in css
     assert ".runtime-readiness-state.blocked" in css
     assert ".runtime-commercial-sources" in css
+    assert ".runtime-view-tabs" in css
+    assert ".runtime-operations-strip" in css
     assert en["runtime.release_readiness"] == "Commercial release readiness"
     assert en["runtime.release_blockers"] == "Release blockers"
     assert en["runtime.security_acceptance"] == "Security acceptance"
     assert en["runtime.security_acceptance_detail"].startswith("External security acceptance")
+    assert en["runtime.view.readiness"] == "Readiness"
+    assert en["runtime.open_source_center"] == "Resolve in Data Sources"
+    assert en["runtime.refresh_pipeline_health"] == "Refresh pipeline health"
     assert zh["runtime.release_readiness"] == "\u5546\u4e1a\u53d1\u5e03\u5c31\u7eea"
     assert zh["runtime.release_blockers"] == "\u53d1\u5e03\u963b\u65ad\u9879"
     assert zh["runtime.security_acceptance"] == "\u5b89\u5168\u9a8c\u6536"
@@ -152,6 +168,31 @@ def test_source_center_shows_certification_gate_status() -> None:
     assert "certification_stage" in source_center
     assert 'sources.action.certify' in derived
     assert 'operational_status === "active_uncertified"' in derived
+
+
+def test_source_center_mounts_task_specific_operating_views() -> None:
+    source_center = _read(WEB / "components" / "SourceCenter.tsx")
+    css = _read(WEB / "styles" / "app.css")
+    en = json.loads(_read(WEB / "i18n" / "en.json"))
+    zh = json.loads(_read(WEB / "i18n" / "zh.json"))
+
+    assert 'const SOURCE_VIEWS: SourceViewId[] = ["attention", "catalog", "access", "infrastructure"]' in source_center
+    assert 'useState<SourceViewId>("attention")' in source_center
+    assert "attentionSources" in source_center
+    assert "accessSources" in source_center
+    assert "displayedSources" in source_center
+    assert 'role="tablist"' in source_center
+    assert 'activeView !== "infrastructure"' in source_center
+    assert 'activeView === "access"' in source_center
+    assert 'activeView === "infrastructure"' in source_center
+    assert "source-open-access" in source_center
+    assert ".source-view-tabs" in css
+    assert ".source-readiness-strip" in css
+    assert ".source-view-access .source-credential-panel" in css
+    assert en["sources.view.attention"] == "Attention"
+    assert en["sources.view.access"] == "Access & certification"
+    assert zh["sources.view.attention"] == "待处理"
+    assert zh["sources.view.access"] == "接入与认证"
 
 
 def test_frontend_runtime_business_data_is_api_owned() -> None:

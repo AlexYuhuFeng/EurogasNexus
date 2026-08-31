@@ -1,4 +1,4 @@
-import type { FormEventHandler } from "react";
+import { type FormEventHandler, type KeyboardEvent, useState } from "react";
 import type {
   CapacityObsDTO,
   CredentialProviderDTO,
@@ -17,6 +17,10 @@ interface SourceStats {
   records: number;
   missingCredentials: number;
 }
+
+type SourceViewId = "attention" | "catalog" | "access" | "infrastructure";
+
+const SOURCE_VIEWS: SourceViewId[] = ["attention", "catalog", "access", "infrastructure"];
 
 interface SourceCenterProps {
   t: (key: string) => string;
@@ -104,34 +108,88 @@ export function SourceCenter({
   sourceNextAction,
   formatSourceTimestamp,
 }: SourceCenterProps) {
+  const [activeView, setActiveView] = useState<SourceViewId>("attention");
   const sortedSources = [...filteredSources].sort((left, right) => {
     const priorityDelta = sourcePriority(left) - sourcePriority(right);
     return priorityDelta || left.source_system.localeCompare(right.source_system);
   });
+  const attentionSources = sortedSources.filter((source) => sourcePriority(source) < 5);
+  const accessSources = sortedSources.filter((source) => (
+    source.entitlement_scope === "licensed"
+    || source.credential_requirements.length > 0
+    || Boolean(source.credential_provider_id)
+  ));
+  const displayedSources = activeView === "attention"
+    ? attentionSources
+    : activeView === "access"
+      ? accessSources
+      : sortedSources;
+  const simulatedOrPreviewSources = sources.filter((source) => (
+    source.operational_status === "active_simulated"
+    || source.preview_substitute_status === "active"
+  )).length;
+
+  const activateView = (view: SourceViewId) => {
+    setActiveView(view);
+    if (view === "access" && !accessSources.some((source) => source.source_id === selectedSource?.source_id)) {
+      const nextSource = accessSources[0];
+      if (nextSource) onSourceSelect(nextSource.source_id);
+    }
+  };
+  const handleViewKeyDown = (
+    event: KeyboardEvent<HTMLButtonElement>,
+    currentView: SourceViewId,
+  ) => {
+    const currentIndex = SOURCE_VIEWS.indexOf(currentView);
+    let nextIndex: number | null = null;
+    if (event.key === "ArrowRight") nextIndex = (currentIndex + 1) % SOURCE_VIEWS.length;
+    if (event.key === "ArrowLeft") nextIndex = (currentIndex - 1 + SOURCE_VIEWS.length) % SOURCE_VIEWS.length;
+    if (event.key === "Home") nextIndex = 0;
+    if (event.key === "End") nextIndex = SOURCE_VIEWS.length - 1;
+    if (nextIndex === null) return;
+    event.preventDefault();
+    const nextView = SOURCE_VIEWS[nextIndex];
+    activateView(nextView);
+    window.requestAnimationFrame(() => document.getElementById(`source-tab-${nextView}`)?.focus());
+  };
 
   return (
-    <div className="workspace-grid sources-page source-center">
-      <div className="workspace-panel span-3 source-overview">
-        <div className="section-heading">
-          <span className="eyebrow">{t("nav.sources")}</span>
-          <strong>{t("sources.title")}</strong>
-        </div>
-        <p>{t("sources.subtitle")}</p>
+    <div className={`workspace-grid sources-page source-center source-view-${activeView}`}>
+      <div className="workspace-panel span-3 source-overview source-readiness-strip">
         <div className="metric-grid four-column source-kpi-grid">
           <div><span>{t("sources.total_sources")}</span><strong>{sourceStats.total}</strong></div>
-          <div><span>{t("sources.active_sources")}</span><strong>{sourceStats.active}</strong></div>
-          <div><span>{t("sources.issue_sources")}</span><strong>{sourceStats.issues}</strong></div>
-          <div><span>{t("sources.runtime_records")}</span><strong>{sourceStats.records.toLocaleString()}</strong></div>
+          <div><span>{t("sources.workflow_ready")}</span><strong>{sourceStats.active}</strong></div>
+          <div><span>{t("sources.action_required")}</span><strong>{attentionSources.length}</strong></div>
+          <div><span>{t("sources.runtime_records")}</span><strong>{sourceStats.records.toLocaleString()}</strong><small>{simulatedOrPreviewSources} {t("sources.preview_substitutes_active")}</small></div>
         </div>
       </div>
+
+      <nav className="source-view-tabs span-3" role="tablist" aria-label={t("sources.workspace_views")}>
+        {SOURCE_VIEWS.map((view) => (
+          <button
+            key={`source-view-${view}`}
+            id={`source-tab-${view}`}
+            type="button"
+            role="tab"
+            aria-selected={activeView === view}
+            aria-controls="source-active-panel"
+            className={activeView === view ? "active" : ""}
+            onClick={() => activateView(view)}
+            onKeyDown={(event) => handleViewKeyDown(event, view)}
+          >
+            {t(`sources.view.${view}`)}
+          </button>
+        ))}
+      </nav>
 
       <div className="workspace-panel span-3 source-posture-board">
         <div className="panel-title-row">
           <h3>{t("sources.posture_board")}</h3>
           <span>{t("sources.next_action")}</span>
         </div>
-        <div className="source-category-filter" role="tablist" aria-label={t("sources.categories")}>
+        <div className="source-category-filter source-posture-grid compact" aria-label={t("sources.categories")}>
           {sourceCategories.map((category) => {
+            const posture = sourcePostureRows.find((row) => row.category === category);
             const nextSource = category === "all"
               ? sources[0]
               : sources.find((source) => source.category === category);
@@ -139,42 +197,25 @@ export function SourceCenter({
               <button
                 key={`source-category-${category}`}
                 type="button"
-                role="tab"
-                aria-selected={sourceCategory === category}
-                className={sourceCategory === category ? "source-category-chip active" : "source-category-chip"}
+                aria-pressed={sourceCategory === category}
+                className={sourceCategory === category ? "source-posture-row active" : "source-posture-row"}
                 title={categoryProviderSummary(category)}
                 onClick={() => onSourceCategoryChange(category, nextSource?.source_id ?? null)}
               >
-                <span>{sourceLabel("sources.category", category)}</span>
-                <strong>{category === "all" ? sources.length : sourceCategoryCounts.get(category) ?? 0}</strong>
+                <strong>{sourceLabel("sources.category", category)}</strong>
+                <span>{posture ? `${posture.workflow_ready_sources}/${sourceCategoryCounts.get(category) ?? posture.registered_sources}` : `${sourceStats.active}/${sources.length}`} {t("sources.workflow_ready")}</span>
+                <small>{posture?.sources_needing_attention ?? attentionSources.length} {t("context.issues")}</small>
               </button>
             );
           })}
         </div>
-        <div className="source-posture-grid compact">
-          {sourcePostureRows.map((row) => (
-            <button
-              key={`source-posture-row-${row.category}`}
-              type="button"
-              className={sourceCategory === row.category ? "source-posture-row active" : "source-posture-row"}
-              onClick={() => {
-                const nextSource = sources.find((source) => source.category === row.category);
-                onSourceCategoryChange(row.category, nextSource?.source_id ?? null);
-              }}
-            >
-              <strong>{sourceLabel("sources.category", row.category)}</strong>
-              <span>{row.workflow_ready_sources}/{row.registered_sources} {t("sources.workflow_ready")}</span>
-              <span>{row.sources_needing_attention} {t("context.issues")}</span>
-              <small>{t(`sources.action.${row.next_action}`)}</small>
-            </button>
-          ))}
-        </div>
       </div>
 
-      <div className="workspace-panel span-3 source-catalog-panel">
+      {activeView !== "infrastructure" && (
+      <div id="source-active-panel" role="tabpanel" aria-labelledby={`source-tab-${activeView}`} className="workspace-panel span-2 source-catalog-panel">
         <div className="panel-title-row">
-          <h3>{t("sources.registered_feeds")}</h3>
-          <span>{sortedSources.length} / {sources.length} · {sourceStats.missingCredentials} {t("sources.missing_credentials")}</span>
+          <h3>{activeView === "attention" ? t("sources.attention_queue") : activeView === "access" ? t("sources.access_queue") : t("sources.registered_feeds")}</h3>
+          <span>{displayedSources.length} / {sources.length} · {sourceStats.missingCredentials} {t("sources.missing_credentials")}</span>
         </div>
         <div className="source-operations-table-wrap">
           <table className="source-operations-table">
@@ -190,7 +231,7 @@ export function SourceCenter({
               </tr>
             </thead>
             <tbody>
-              {sortedSources.map((source) => (
+              {displayedSources.map((source) => (
                 <tr
                   key={`source-row-${source.source_id}`}
                   className={selectedSource?.source_id === source.source_id ? "active" : undefined}
@@ -226,12 +267,19 @@ export function SourceCenter({
                   </td>
                 </tr>
               ))}
+              {displayedSources.length === 0 && (
+                <tr>
+                  <td colSpan={7}><span>{t("review.no_warnings")}</span></td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
       </div>
+      )}
 
-      <div className="workspace-panel source-detail-panel">
+      {activeView !== "infrastructure" && (
+      <div className={activeView === "access" ? "workspace-panel span-3 source-detail-panel" : "workspace-panel source-detail-panel"}>
         <div className="panel-title-row">
           <h3>{selectedSource?.source_system ?? t("sources.no_source")}</h3>
           {selectedSource && (
@@ -277,6 +325,11 @@ export function SourceCenter({
             <div className="source-next-action">
               <span>{t("sources.next_action")}</span>
               <strong>{sourceNextAction(selectedSource)}</strong>
+              {activeView !== "access" && (
+                <button type="button" className="source-open-access" onClick={() => activateView("access")}>
+                  {t("sources.open_access")}
+                </button>
+              )}
             </div>
             {selectedSource.preview_substitute_source_system && (
               <div className="source-next-action source-preview-substitute">
@@ -296,7 +349,9 @@ export function SourceCenter({
           </>
         )}
       </div>
+      )}
 
+      {activeView === "access" && (
       <div className="workspace-panel source-credential-panel">
         <h3>{t("panel.credentials")}</h3>
         <p>
@@ -350,8 +405,10 @@ export function SourceCenter({
         )}
         {credentialMessage && <p>{credentialMessage}</p>}
       </div>
+      )}
 
-      <div className="workspace-panel span-3 source-runtime-panel">
+      {activeView === "infrastructure" && (
+      <div id="source-active-panel" role="tabpanel" aria-labelledby="source-tab-infrastructure" className="workspace-panel span-3 source-runtime-panel">
         <div className="section-heading">
           <span className="eyebrow">{t("data.runtime")}</span>
           <strong>{t("panel.infrastructure")}</strong>
@@ -395,6 +452,7 @@ export function SourceCenter({
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 }

@@ -26,6 +26,7 @@ Eurogas Nexus Web 与 Windows 客户端 UI 必须遵循本地参考指南 `C:\Us
 - 非地图工作区使用紧凑、无卡片外框的页面标题带，并提供同一业务分组内的本地页签。运行状态只保留在全局顶部栏，不在标题卡中重复。
 - 只挂载当前工作区。非地图页面后方不得继续保留隐藏的地图 canvas、overlay 或可聚焦控件。
 - Strategy 使用始终可见的受控纸面运行命令带，并严格分为四个任务视图：监控、经济性、风险与证据、运行历史。累计 PnL 曲线只能来自 PostgreSQL 中已持久化的策略运行；没有历史时必须显示明确空状态，禁止绘制示意性收益曲线。
+- Data Sources 严格分为四个任务视图：待处理、目录、接入与认证、基础设施。Runtime 分为就绪检查、数据交付、治理。仅挂载当前视图；紧凑的就绪上下文保持可见，修复动作跳转到真正负责该任务的工作区。
 - MapLibre 控件、attribution、图层 chips 和左右栏不能重叠。
 - AI/LLM 功能只能表现为决策支持分析和报告生成，不能表现为自主执行。
 - 所有可见字符串必须支持英文和简体中文。
@@ -46,11 +47,19 @@ Eurogas Nexus Web 与 Windows 客户端 UI 必须遵循本地参考指南 `C:\Us
 - `strategy-command-deck`
 - `strategy-view-tabs`
 - `strategy-performance-chart`
+- `source-view-tabs`
+- `source-readiness-strip`
+- `runtime-view-tabs`
+- `runtime-operations-strip`
 
 2026-08-31 的 Image Gen 2 市场工作区视觉方向保存在
 `docs/design/references/market-workspace-imagegen-2026-08-31.png`。该文件仅作为设计参考，不是行情数据，也不定义功能需求。
 
 2026-08-31 的 Strategy 工作区参考保存在
 `docs/design/references/strategy-workspace-imagegen-2026-08-31.png`。其中曲线和数值仅是视觉设计材料；生产曲线只能使用 PostgreSQL 已持久化的策略运行。
+
+2026-09-01 的 Operations 工作区参考保存在
+`docs/design/references/operations-source-center-imagegen-2026-09-01.png`。
+其中数据源名称、数量、状态和数值仅是视觉设计材料；生产态势只能来自以 PostgreSQL 为运行事实源的 API。
 
 未来客户端工作如需改变 UI 语言或布局模型，必须先更新本指南。

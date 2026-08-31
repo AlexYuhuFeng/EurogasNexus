@@ -262,6 +262,7 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
           endpointErrors={api.endpointErrors}
           t={t}
           onRefreshHealth={api.refreshMonitoring}
+          onOpenSources={() => navigation.openWorkspace("sources")}
         />
       )}
 

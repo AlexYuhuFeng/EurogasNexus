@@ -398,6 +398,24 @@ LLM. Every live-source panel must show entitlement, freshness, source status,
 degraded/offline state, and whether data is live, delayed, demo, partial, or
 unavailable.
 
+The workspace is task-led and mounts only the active task surface:
+
+- **Attention** is the default operator queue. It prioritizes failed, missing-
+  credential, empty, stale, and simulated-substitute feeds before healthy feeds.
+- **Catalog** exposes every registered source for inventory and diagnosis.
+- **Access & certification** limits the queue to licensed or credential-backed
+  providers and places credential controls beside the queue. Credential values
+  remain write-only and must never be rendered back to the operator.
+- **Infrastructure** owns ENTSOG/GIE/TSO runtime counts, latest capacity rows,
+  and tariff rows; these records are not duplicated in the other task views.
+
+The compact readiness strip and category posture rail remain visible across
+views. Source, effective source, simulation/preview substitution, entitlement,
+credential state, certification stage, freshness, latest ingestion, and record
+counts are backend-owned. A simulated substitute such as `EEX_Sim`,
+`ICE_OCM_Sim`, or `ICIS_Sim` must remain visibly distinct from licensed live
+access and must not satisfy live certification.
+
 ## Screen: Glossary
 
 Purpose:
@@ -438,6 +456,19 @@ Content:
   acceptance gate;
 - warning if simulated/preview provenance, stale data, missing DB tables, or
   unavailable backend capabilities are reported by the API.
+
+Runtime is split into three active-only task views beneath a persistent
+readiness strip:
+
+- **Readiness** owns the six commercial gates, prioritized release blockers,
+  and the action that opens Data Sources for remediation.
+- **Delivery** owns ingestion pipeline telemetry and quote freshness.
+- **Governance** owns commercial-source certification, no-execution metadata,
+  and PostgreSQL/Alembic status.
+
+The client derives these summaries only from API responses. It does not infer
+database health from local browser state, treat preview data as licensed live
+data, or mark the external security-acceptance gate complete.
 
 ## Screen: Settings
 
