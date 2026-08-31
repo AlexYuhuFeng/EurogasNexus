@@ -11,6 +11,7 @@ import { ScenarioWorkspace } from "@/components/ScenarioWorkspace";
 import { SettingsCenter } from "@/components/SettingsCenter";
 import { SourceCenter } from "@/components/SourceCenter";
 import { StrategyShadowRunTerminal } from "@/components/StrategyShadowRunTerminal";
+import { workspaceGroups } from "@/workspaceNavigation";
 
 interface WorkspaceRendererProps {
   controller: AppController;
@@ -31,16 +32,31 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
     sources,
   } = controller;
   const activeWorkspace = navigation.activeWorkspace;
+  const activeGroup = workspaceGroups.find((group) => group.pages.includes(activeWorkspace));
 
   return (
     <section className="workspace-page" aria-label={t(`nav.${activeWorkspace}`)}>
-      <div className="workspace-page-header">
-        <div>
-          <span className="eyebrow">{t("app.title")}</span>
+      <header className="workspace-page-header">
+        <div className="workspace-page-heading">
+          <span className="eyebrow">{activeGroup ? t(activeGroup.labelKey) : t("app.title")}</span>
           <h1>{t(`nav.${activeWorkspace}`)}</h1>
         </div>
-        <span className={`status-badge status-${api.dataStatus}`}>{t(`data.${api.dataStatus}`)}</span>
-      </div>
+        {activeGroup && (
+          <nav className="workspace-page-tabs" aria-label={t(activeGroup.labelKey)}>
+            {activeGroup.pages.map((page) => (
+              <button
+                key={`workspace-page-tab-${page}`}
+                type="button"
+                className={page === activeWorkspace ? "workspace-page-tab active" : "workspace-page-tab"}
+                aria-current={page === activeWorkspace ? "page" : undefined}
+                onClick={() => navigation.openWorkspace(page)}
+              >
+                {t(`nav.${page}`)}
+              </button>
+            ))}
+          </nav>
+        )}
+      </header>
 
       {activeWorkspace === "capacity" && (
         <CapacityWorkspace

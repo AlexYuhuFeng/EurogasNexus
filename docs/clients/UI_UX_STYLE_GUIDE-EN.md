@@ -27,6 +27,13 @@ Eurogas Nexus Web and Windows client UI must follow the local reference guide su
   own pages. Do not add them back to the home rails.
 - The workspace pill plus hamburger glyph is the single navigation trigger on
   the map. Do not reintroduce a duplicate horizontal nav on the home screen.
+- The map asset search is rendered only in the Network workspace. A control
+  must not remain visible on pages where it has no effect.
+- Non-map workspaces use a compact, unframed page identity band with local tabs
+  for sibling pages in the same workflow group. Runtime state remains in the
+  global top bar and is not repeated in a decorative title card.
+- Mount only the active workspace surface. Hidden map canvases, overlays, and
+  focus targets must not remain active behind non-network pages.
 - MapLibre controls, attribution, layer chips, and rails must never overlap.
 - AI/LLM features must appear as decision-support analysis and report generation, never as autonomous execution.
 - All visible strings must be available in English and Mandarin Chinese.
@@ -41,5 +48,11 @@ Current Web implementation should expose these structural classes so contract te
 - `decision-rail`
 - `trade-result-panel`
 - `topbar-search`
+- `workspace-page-tabs`
+- `workspace-topbar-page`
+
+The 2026-08-31 Image Gen 2 market-workspace direction is stored at
+`docs/design/references/market-workspace-imagegen-2026-08-31.png`. It is a
+design reference, not market data or a source of functional requirements.
 
 Future client work must update this guide before changing the UI language or layout model.

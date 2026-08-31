@@ -60,6 +60,7 @@ export function WorkspaceTopBar({
   onDeliveryProductChange,
 }: WorkspaceTopBarProps) {
   const [groupedMenuOpen, setGroupedMenuOpen] = useState(false);
+  const hasMapSearch = activeWorkspace === "network";
 
   function openWorkspace(page: WorkspacePageId) {
     if (typeof window !== "undefined") {
@@ -73,7 +74,9 @@ export function WorkspaceTopBar({
 
   return (
     <>
-      <header className="app-header cockpit-topbar workspace-topbar-only">
+      <header
+        className={`app-header cockpit-topbar workspace-topbar-only ${hasMapSearch ? "has-map-search" : "workspace-topbar-page"}`}
+      >
         <button
           className="workspace-pill workspace-trigger"
           type="button"
@@ -87,12 +90,14 @@ export function WorkspaceTopBar({
             <strong>{t(`nav.${activeWorkspace}`)}</strong>
           </span>
         </button>
-        <input
-          className="topbar-search"
-          value={searchTerm}
-          onChange={(event) => onSearchTermChange(event.target.value)}
-          placeholder={t("map.search")}
-        />
+        {hasMapSearch && (
+          <input
+            className="topbar-search"
+            value={searchTerm}
+            onChange={(event) => onSearchTermChange(event.target.value)}
+            placeholder={t("map.search")}
+          />
+        )}
         <div className="topbar-trading-context" aria-label={t("context.title")}>
           <label>
             <span>{t("context.gas_day")}</span>

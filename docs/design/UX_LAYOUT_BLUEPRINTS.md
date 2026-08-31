@@ -2,27 +2,41 @@
 
 ## Purpose
 
-These text wireframes give future client implementation agents a fixed layout
-target before visual design tooling exists.
+These text wireframes define the current shell contract. High-fidelity visual
+references complement them under `docs/design/references/` but do not replace
+runtime, provenance, accessibility, or responsive requirements.
 
 ## Web Workspace Desktop Layout
 
 ```text
 +--------------------------------------------------------------------------------+
-| Eurogas Nexus | API ok | DB degraded | Profile: development | 2 warnings        |
-+------+----------------------------------------------+--------------------------+
-|      | Search assets, routes, hubs                  | Inspector                |
-| Nav  +----------------------------------------------+--------------------------+
-|      |                                              | Selected asset           |
-| Net  |                                              | Type, country, source    |
-| Scn  |                  Map Surface                 | Freshness, warnings      |
-| Mkt  |                                              | Lineage tab              |
-| Rev  |                                              | Sources tab              |
-| Src  |                                              |                          |
-| Run  +----------------------------------------------+--------------------------+
-| Set  | Candidates | Missing inputs | Warnings | Sources | Lineage              |
-+------+-------------------------------------------------------------------------+
+| Tools / Network | Search network assets | Gas day / Product | Live / DB / Alerts|
++--------------------------------------------------------------------------------+
+| Resource pool rail | Verified and indicative topology map | Decision inspector |
+|                    | Layer legend and map controls         | PnL / allocation   |
+|                    | never overlap either rail             | warnings / evidence|
++--------------------------------------------------------------------------------+
 ```
+
+The map search exists only on this workspace. The map surface is not mounted
+behind any non-network page.
+
+## Non-Network Workspace Desktop Layout
+
+```text
++--------------------------------------------------------------------------------+
+| Tools / Active page | Gas day / Product context        | Live / DB / Alerts    |
++--------------------------------------------------------------------------------+
+| WORKFLOW GROUP   Page title         Sibling page tabs                         |
++--------------------------------------------------------------------------------+
+| Dense operational content: aligned tables, controls, status, evidence          |
+| No duplicate title card; no hidden map; no nested decorative cards             |
++--------------------------------------------------------------------------------+
+```
+
+At mobile widths the top bar stacks workspace, status controls, language, and
+theme without an empty search row. Sibling page tabs scroll horizontally and
+the document must not gain horizontal overflow.
 
 ## Scenario Workspace Layout
 
@@ -77,8 +91,9 @@ target before visual design tooling exists.
 
 ## Visual Priorities
 
-1. Runtime status and warnings are visible.
-2. The map or active workflow surface dominates the screen.
-3. Inspector explains the selected item.
-4. Bottom panel supports comparison and review.
-5. Settings never expose secrets.
+1. Runtime status and warnings are visible once, in the global shell.
+2. Only the active workflow surface is mounted.
+3. The map or active workflow surface dominates the screen.
+4. Local workflow tabs make adjacent tasks directly reachable.
+5. Inspector and evidence surfaces explain selected decisions.
+6. Settings never expose secrets.

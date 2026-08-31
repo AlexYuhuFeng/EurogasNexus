@@ -293,6 +293,9 @@ def test_web_client_matches_design_reference_cockpit() -> None:
     assert "trade-result-panel" in network_workspace
 
     assert "topbar-search" in app_and_topbar
+    assert "hasMapSearch" in topbar
+    assert '{hasMapSearch && (' in topbar
+    assert "workspace-topbar-page" in topbar
     assert "topbar-icon-button" not in app
     assert "workspace-nav" not in app
     assert "workspace-menu" in topbar
@@ -301,6 +304,9 @@ def test_web_client_matches_design_reference_cockpit() -> None:
     assert "workspace-pill-copy" in app_and_topbar
     assert "topbar-menu-glyph" in app_and_topbar
     assert "workspace-page" in app
+    assert "workspace-page-tabs" in app
+    assert 'navigation.activeWorkspace === "network" ? (' in app
+    assert "<WorkspaceRenderer controller={controller} />" in app
     assert '"capacity"' in app
     assert '"orders"' in app
     assert '"manual"' in app

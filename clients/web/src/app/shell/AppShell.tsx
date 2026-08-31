@@ -55,53 +55,56 @@ export function AppShell({ controller }: AppShellProps) {
       )}
 
       <main className="app-main">
-        <NetworkWorkspace
-          t={t}
-          nodes={api.nodes}
-          edges={api.edges}
-          routes={api.routes}
-          mode={theme.mode}
-          activeLayers={controls.activeLayers}
-          searchTerm={controls.searchTerm}
-          highlightedRoute={portfolio.highlightedRoute}
-          resourcePoolMapPaths={portfolio.resourcePoolMapPaths}
-          poolInputBlockers={portfolio.poolInputBlockers}
-          error={api.error}
-          loading={api.loading}
-          saleOptions={portfolio.saleOptions}
-          canRunPoolOptimizer={portfolio.canRunPoolOptimizer}
-          portfolioResources={portfolio.portfolioResources}
-          totalPoolVolume={portfolio.totalPoolVolume}
-          portfolioSummary={api.portfolioSummary}
-          screenOrderCount={api.screenOrders.length}
-          upstreamContractCount={api.upstreamContracts.length}
-          networkGeometryState={portfolio.networkGeometryState}
-          routeRecommendation={api.routeRecommendation}
-          decisionPnl={portfolio.decisionPnl}
-          resourcePoolResult={api.resourcePoolResult}
-          poolAllocations={portfolio.poolAllocations}
-          saleOptionById={portfolio.saleOptionById}
-          hasPortfolioResources={portfolio.hasPortfolioResources}
-          selectedAllocation={portfolio.selectedAllocation}
-          purchasePrice={portfolio.purchasePrice}
-          salePrice={portfolio.salePrice}
-          routeCharge={portfolio.routeCharge}
-          firstPoolAllocation={portfolio.firstPoolAllocation}
-          firstStrategyTarget={portfolio.firstStrategyTarget}
-          strategyResult={api.strategyResult}
-          activeWarning={portfolio.activeWarning}
-          reviewEvidenceItems={portfolio.reviewEvidenceItems}
-          gasDay={controls.gasDay}
-          deliveryProduct={controls.deliveryProduct}
-          marketLastUpdatedAtUtc={api.marketLastUpdatedAtUtc}
-          intradayOpportunities={api.intradayOpportunities}
-          sourceStats={sources.sourceStats}
-          onResetSearch={() => controls.setSearchTerm("")}
-          onToggleLayer={controls.toggleLayer}
-          onOptimizePool={() => api.optimizeResourcePool(portfolio.resourcePoolOptimizationRequest)}
-          onOpenReview={() => navigation.openWorkspace("review")}
-        />
-        <WorkspaceRenderer controller={controller} />
+        {navigation.activeWorkspace === "network" ? (
+          <NetworkWorkspace
+            t={t}
+            nodes={api.nodes}
+            edges={api.edges}
+            routes={api.routes}
+            mode={theme.mode}
+            activeLayers={controls.activeLayers}
+            searchTerm={controls.searchTerm}
+            highlightedRoute={portfolio.highlightedRoute}
+            resourcePoolMapPaths={portfolio.resourcePoolMapPaths}
+            poolInputBlockers={portfolio.poolInputBlockers}
+            error={api.error}
+            loading={api.loading}
+            saleOptions={portfolio.saleOptions}
+            canRunPoolOptimizer={portfolio.canRunPoolOptimizer}
+            portfolioResources={portfolio.portfolioResources}
+            totalPoolVolume={portfolio.totalPoolVolume}
+            portfolioSummary={api.portfolioSummary}
+            screenOrderCount={api.screenOrders.length}
+            upstreamContractCount={api.upstreamContracts.length}
+            networkGeometryState={portfolio.networkGeometryState}
+            routeRecommendation={api.routeRecommendation}
+            decisionPnl={portfolio.decisionPnl}
+            resourcePoolResult={api.resourcePoolResult}
+            poolAllocations={portfolio.poolAllocations}
+            saleOptionById={portfolio.saleOptionById}
+            hasPortfolioResources={portfolio.hasPortfolioResources}
+            selectedAllocation={portfolio.selectedAllocation}
+            purchasePrice={portfolio.purchasePrice}
+            salePrice={portfolio.salePrice}
+            routeCharge={portfolio.routeCharge}
+            firstPoolAllocation={portfolio.firstPoolAllocation}
+            firstStrategyTarget={portfolio.firstStrategyTarget}
+            strategyResult={api.strategyResult}
+            activeWarning={portfolio.activeWarning}
+            reviewEvidenceItems={portfolio.reviewEvidenceItems}
+            gasDay={controls.gasDay}
+            deliveryProduct={controls.deliveryProduct}
+            marketLastUpdatedAtUtc={api.marketLastUpdatedAtUtc}
+            intradayOpportunities={api.intradayOpportunities}
+            sourceStats={sources.sourceStats}
+            onResetSearch={() => controls.setSearchTerm("")}
+            onToggleLayer={controls.toggleLayer}
+            onOptimizePool={() => api.optimizeResourcePool(portfolio.resourcePoolOptimizationRequest)}
+            onOpenReview={() => navigation.openWorkspace("review")}
+          />
+        ) : (
+          <WorkspaceRenderer controller={controller} />
+        )}
       </main>
     </div>
   );

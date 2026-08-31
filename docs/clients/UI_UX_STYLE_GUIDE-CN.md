@@ -22,6 +22,9 @@ Eurogas Nexus Web 与 Windows 客户端 UI 必须遵循本地参考指南 `C:\Us
 - 首页右侧栏只承载决策结果：净 PnL、路线分配阶梯、经济性快照、策略/预警信号。
 - 数据源诊断、运行数据库健康、TSO 准入表、容量汇总、费率表、凭据、术语库和 AI 报告必须放在独立页面，不得重新塞回首页左右栏。
 - 地图上的 workspace pill 和汉堡图标是唯一导航入口；首页不得恢复重复横向导航。
+- 地图资产搜索框仅在 Network 工作区显示。控件在当前页面无实际作用时不得继续显示。
+- 非地图工作区使用紧凑、无卡片外框的页面标题带，并提供同一业务分组内的本地页签。运行状态只保留在全局顶部栏，不在标题卡中重复。
+- 只挂载当前工作区。非地图页面后方不得继续保留隐藏的地图 canvas、overlay 或可聚焦控件。
 - MapLibre 控件、attribution、图层 chips 和左右栏不能重叠。
 - AI/LLM 功能只能表现为决策支持分析和报告生成，不能表现为自主执行。
 - 所有可见字符串必须支持英文和简体中文。
@@ -37,5 +40,10 @@ Eurogas Nexus Web 与 Windows 客户端 UI 必须遵循本地参考指南 `C:\Us
 - `trade-result-panel`
 - `decision-signal-panel`
 - `topbar-search`
+- `workspace-page-tabs`
+- `workspace-topbar-page`
+
+2026-08-31 的 Image Gen 2 市场工作区视觉方向保存在
+`docs/design/references/market-workspace-imagegen-2026-08-31.png`。该文件仅作为设计参考，不是行情数据，也不定义功能需求。
 
 未来客户端工作如需改变 UI 语言或布局模型，必须先更新本指南。
