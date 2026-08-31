@@ -325,7 +325,13 @@ Purpose:
 - present the strategy workspace as a shadow-run terminal for trader-reviewed
   signal monitoring and scenario comparison;
 - expose market tape, paper state, allocation ladder, risk stack, source
-  evidence, warning stack, and candidate action in one terminal surface;
+  evidence, warning stack, and candidate action through four task-led views:
+  Monitor, Economics, Risk & Evidence, and Run History;
+- keep strategy identity, `PAPER` / `SHADOW_RUN`, no-execution state, bar
+  selection, latest observation, and paper-evaluation command visible above
+  every task view;
+- render cumulative paper PnL only from persisted strategy runs. When no runs
+  exist, render an explicit empty state rather than an illustrative curve;
 - include a price-basis comparison board for within-day, day-ahead, month-ahead,
   ICIS assessment, ICE OCM mark, EEX curve, and FX contexts;
 - cover within-day, day-ahead, month-ahead, ICIS assessments, ICE OCM marks,
@@ -343,6 +349,10 @@ Purpose:
   selected portfolio resources;
 - monitor live signal processes when the backend has authorized data and
   operator-configured inputs.
+
+Only the active Strategy task view is mounted. On mobile, the view tabs scroll
+horizontally inside their own container and the document must not overflow the
+viewport.
 
 Shadow run creates no orders, trades, nominations, execution records, or official
 recommendations.

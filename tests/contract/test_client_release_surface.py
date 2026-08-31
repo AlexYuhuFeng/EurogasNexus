@@ -638,6 +638,20 @@ def test_web_client_strategy_page_is_shadow_run_terminal() -> None:
     assert "strategy-shadow-run-terminal" in strategy_terminal
     assert 'from "@/components/strategy/StrategyShadowRunSections"' in strategy_terminal
     assert "strategy-command-deck" in strategy_terminal
+    assert 'useState<StrategyViewId>("monitor")' in strategy_terminal
+    assert 'const STRATEGY_VIEWS: StrategyViewId[] = ["monitor", "economics", "risk", "runs"]' in strategy_terminal
+    assert 'role="tablist"' in strategy_terminal
+    assert 'role="tabpanel"' in strategy_terminal
+    assert 'aria-selected={activeView === view}' in strategy_terminal
+    assert 'event.key === "ArrowRight"' in strategy_terminal
+    assert 'event.key === "ArrowLeft"' in strategy_terminal
+    assert 'event.key === "Home"' in strategy_terminal
+    assert 'event.key === "End"' in strategy_terminal
+    assert 'activeView === "monitor"' in strategy_terminal
+    assert 'activeView === "economics"' in strategy_terminal
+    assert 'activeView === "risk"' in strategy_terminal
+    assert 'activeView === "runs"' in strategy_terminal
+    assert "StrategyPerformancePanel" in strategy_surface
     assert "strategy-price-basis-board" in strategy_surface
     assert "strategy-price-basis-selector" in strategy_surface
     assert "strategy-basis-option" in strategy_surface
@@ -691,6 +705,9 @@ def test_web_client_strategy_page_is_shadow_run_terminal() -> None:
     assert "strategy-candidate-action" in strategy_terminal
     assert "source_refs" in strategy_terminal
     assert "candidate_action_for_review" in strategy_terminal
+    assert "latestPersistedRun" in strategy_terminal
+    assert "persistedHumanReviewRequired" in strategy_terminal
+    assert "latestPersistedRun?.paper_pnl_gbp" in strategy_terminal
     assert "portfolioResources" in strategy_terminal
     assert "marketObservations" in strategy_terminal
     assert "human_review_required" in strategy_terminal
@@ -699,6 +716,12 @@ def test_web_client_strategy_page_is_shadow_run_terminal() -> None:
     assert "StrategyPriceBasisBoard" in strategy_sections
     assert "StrategyPnlCurvePanel" in strategy_sections
     assert "StrategyContractPnlAttribution" in strategy_sections
+    assert "strategy-performance-chart" in strategy_sections
+    assert "strategy-performance-empty" in strategy_sections
+    assert "run.cumulative_pnl_gbp !== null" in strategy_sections
+    assert "plottedRuns.length > 0" in strategy_sections
+    assert '<polyline className="strategy-chart-line"' in strategy_sections
+    assert 'className="strategy-chart-point"' in strategy_sections
     assert "strategy-shadow-run-terminal" in css
     assert "strategy-price-basis-board" in css
     assert "strategy-price-basis-selector" in css
@@ -714,6 +737,9 @@ def test_web_client_strategy_page_is_shadow_run_terminal() -> None:
     assert "strategy-market-tape" in css
     assert "strategy-allocation-ladder" in css
     assert "strategy-candidate-action" in css
+    assert "strategy-view-tabs" in css
+    assert "strategy-performance-chart" in css
+    assert "strategy-chart-line" in css
     assert en["strategy.shadow_terminal"] == "Strategy shadow-run terminal"
     assert en["strategy.price_basis_board"] == "Price-basis comparison"
     assert en["strategy.basis_exposure_ladder"] == "Basis exposure ladder"
@@ -728,6 +754,11 @@ def test_web_client_strategy_page_is_shadow_run_terminal() -> None:
     assert en["strategy.market_tape"] == "Market tape"
     assert en["strategy.paper_state"] == "Paper state"
     assert en["strategy.no_execution"] == "No execution"
+    assert en["strategy.view.monitor"] == "Monitor"
+    assert en["strategy.view.economics"] == "Economics"
+    assert en["strategy.view.risk"] == "Risk & Evidence"
+    assert en["strategy.view.runs"] == "Run History"
+    assert en["strategy.cumulative_paper_pnl"] == "Cumulative paper PnL"
     assert zh["strategy.shadow_terminal"] == "\u7b56\u7565\u5f71\u5b50\u8fd0\u884c\u7ec8\u7aef"
     assert zh["strategy.price_basis_board"] == "\u4ef7\u683c\u57fa\u51c6\u5bf9\u6bd4"
     assert zh["strategy.basis_exposure_ladder"] == "\u57fa\u51c6\u66b4\u9732\u9636\u68af"
@@ -738,6 +769,9 @@ def test_web_client_strategy_page_is_shadow_run_terminal() -> None:
     assert zh["strategy.pnl_curve"] == "\u8d44\u6e90\u6c60 PnL \u66f2\u7ebf"
     assert zh["strategy.selected_price_basis"] == "\u9009\u5b9a\u4ef7\u683c\u57fa\u51c6"
     assert zh["strategy.contract_pnl_attribution"] == "\u5408\u7ea6 PnL \u5f52\u56e0"
+    assert zh["strategy.view.monitor"] == "\u76d1\u63a7"
+    assert zh["strategy.view.economics"] == "\u7ecf\u6d4e\u6027"
+    assert zh["strategy.view.risk"] == "\u98ce\u9669\u4e0e\u8bc1\u636e"
     assert "shadow-run terminal" in web_spec
     assert "market tape, paper state, allocation ladder" in web_spec
     assert "price-basis comparison board" in web_spec
@@ -746,6 +780,8 @@ def test_web_client_strategy_page_is_shadow_run_terminal() -> None:
     assert "contract-level PnL attribution" in web_spec
     assert "stale/simulated/unavailable data banner" in web_spec
     assert "resource-pool PnL curve" in web_spec
+    assert "Monitor, Economics, Risk & Evidence, and Run History" in web_spec
+    assert "persisted strategy runs" in web_spec
     assert (
         "within-day, day-ahead, month-ahead, ICIS assessments, ICE OCM marks, EEX curves, and ECB FX"
     ) in web_spec

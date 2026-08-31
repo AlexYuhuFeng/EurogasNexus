@@ -11,6 +11,7 @@ import type {
 import {
   StrategyBasisExposureLadder,
   StrategyContractPnlAttribution,
+  StrategyPerformancePanel,
   StrategyPnlCurvePanel,
   StrategyPriceBasisBoard,
 } from "@/components/strategy/StrategyShadowRunSections";
@@ -21,7 +22,7 @@ import type {
   StrategyPnlCurveRow,
   StrategyPriceBasisRow,
 } from "@/components/strategy/StrategyShadowRunSections";
-import { useMemo, useState } from "react";
+import { type KeyboardEvent, useMemo, useState } from "react";
 
 type Translate = (key: string) => string;
 
@@ -53,6 +54,10 @@ const PRICE_BASIS_ORDER: PriceBasisId[] = [
   "EEX_CURVE",
   "FX",
 ];
+
+type StrategyViewId = "monitor" | "economics" | "risk" | "runs";
+
+const STRATEGY_VIEWS: StrategyViewId[] = ["monitor", "economics", "risk", "runs"];
 
 const STALE_HOURS_BY_BASIS: Record<PriceBasisId, number> = {
   WITHIN_DAY: 2,
@@ -223,6 +228,7 @@ export function StrategyShadowRunTerminal({
   onEvaluate,
 }: StrategyShadowRunTerminalProps) {
   const [activeBasis, setActiveBasis] = useState<PriceBasisId>("WITHIN_DAY");
+  const [activeView, setActiveView] = useState<StrategyViewId>("monitor");
   const [barMinutes, setBarMinutes] = useState("5");
   const [riskOverrides, setRiskOverrides] = useState<Record<string, string>>(() => {
     const control = strategyScenario.risk_control ?? {};
@@ -238,6 +244,22 @@ export function StrategyShadowRunTerminal({
   });
   const updateRiskOverride = (key: string, value: string) =>
     setRiskOverrides((prev) => ({ ...prev, [key]: value }));
+  const handleViewKeyDown = (
+    event: KeyboardEvent<HTMLButtonElement>,
+    currentView: StrategyViewId,
+  ) => {
+    const currentIndex = STRATEGY_VIEWS.indexOf(currentView);
+    let nextIndex: number | null = null;
+    if (event.key === "ArrowRight") nextIndex = (currentIndex + 1) % STRATEGY_VIEWS.length;
+    if (event.key === "ArrowLeft") nextIndex = (currentIndex - 1 + STRATEGY_VIEWS.length) % STRATEGY_VIEWS.length;
+    if (event.key === "Home") nextIndex = 0;
+    if (event.key === "End") nextIndex = STRATEGY_VIEWS.length - 1;
+    if (nextIndex === null) return;
+    event.preventDefault();
+    const nextView = STRATEGY_VIEWS[nextIndex];
+    setActiveView(nextView);
+    window.requestAnimationFrame(() => document.getElementById(`strategy-tab-${nextView}`)?.focus());
+  };
   const buildRiskOverrides = (): Record<string, unknown> => {
     const out: Record<string, unknown> = {};
     const numericKeys = [
@@ -428,32 +450,119 @@ export function StrategyShadowRunTerminal({
     if (row.staleCount > 0) flags.push(`${t("strategy.stale_data")}: ${label}`);
     return flags;
   });
+  const latestPersistedRun = strategyRuns.reduce<StrategyRunDTO | null>((latest, run) => {
+    if (!latest) return run;
+    return observedAtMs(run.started_at_utc) > observedAtMs(latest.started_at_utc) ? run : latest;
+  }, null);
+  const persistedHumanReviewRequired =
+    strategyResult?.human_review_required ?? latestPersistedRun?.human_review_required ?? false;
   const source_refs = strategyResult?.source_refs.length
     ? strategyResult.source_refs
+    : latestPersistedRun?.source_refs.length
+      ? latestPersistedRun.source_refs
     : priceTape
         .map((item) => item.source_reference ?? item.source_system)
         .filter((item): item is string => Boolean(item));
   const warningStack = [
-    ...(strategyResult?.missing_inputs ?? []),
-    ...(strategyResult?.warnings ?? []),
-    ...(!strategyResult?.human_review_required ? [] : ["HUMAN_REVIEW_REQUIRED"]),
+    ...(strategyResult?.missing_inputs ?? latestPersistedRun?.missing_inputs ?? []),
+    ...(strategyResult?.warnings ?? latestPersistedRun?.warnings ?? []),
+    ...(!persistedHumanReviewRequired ? [] : ["HUMAN_REVIEW_REQUIRED"]),
   ];
   const firstResource = portfolioResources[0] ?? strategyScenario.resource_contexts[0];
   const candidateAction =
-    strategyResult?.candidate_action_for_review ?? t("strategy.awaiting_shadow_run");
+    strategyResult?.candidate_action_for_review
+    ?? (latestPersistedRun
+      ? `${t("strategy.latest_persisted_run")}: ${latestPersistedRun.status}`
+      : t("strategy.awaiting_shadow_run"));
+
+  const selectedBasisPanel = (
+    <section className="workspace-panel span-2 strategy-pnl-scenario-comparison">
+      <div className="panel-title-row">
+        <h3>{t("strategy.selected_price_basis")}</h3>
+        <span>{activeBasisRow ? t(basisLabelKey(activeBasisRow.basis)) : t("data.unavailable")}</span>
+      </div>
+      <div className="metric-grid strategy-selected-basis-metrics">
+        <div>
+          <span>{t("strategy.latest_price")}</span>
+          <strong>{formatMoney(activeBasisRow?.latestPrice)} {activeBasis === "FX" ? "" : "GBP/MWh"}</strong>
+        </div>
+        <div>
+          <span>{t("strategy.weighted_pool_cost")}</span>
+          <strong>{formatMoney(weightedPoolCostGbpMwh)} GBP/MWh</strong>
+        </div>
+        <div>
+          <span>{t("strategy.spread")}</span>
+          <strong>{formatMoney(activePnlRow?.marginGbpMwh)} GBP/MWh</strong>
+        </div>
+        <div>
+          <span>{t("strategy.pool_volume")}</span>
+          <strong>{formatQuantity(totalPoolQuantityMwhPerDay)}</strong>
+        </div>
+        <div>
+          <span>{t("strategy.contract_pnl_attribution")}</span>
+          <strong>{formatSignedMoney(selectedContractPnlGbpPerDay)} GBP/d</strong>
+        </div>
+        <div>
+          <span>{t("strategy.observations")}</span>
+          <strong>{activeBasisRow?.observationCount ?? 0}</strong>
+        </div>
+      </div>
+      <StrategyContractPnlAttribution rows={contractPnlRows} t={t} />
+    </section>
+  );
+
+  const resourcePoolPanel = (
+    <section className="workspace-panel strategy-resource-stack">
+      <h3>{t("home.resource_pool")}</h3>
+      <div className="net-pnl-card">
+        <span>{firstResource?.resource_name ?? t("data.unavailable")}</span>
+        <strong>{formatQuantity(firstResource?.available_quantity_mwh_per_day)}</strong>
+        <small>{resourcePoolRows.length} {t("home.resources")}</small>
+      </div>
+    </section>
+  );
+
+  const dataQualityPanel = (
+    <section className="workspace-panel strategy-data-quality-flags">
+      <h3>{t("strategy.data_quality")}</h3>
+      <div className="review-warning-list">
+        {dataQualityFlags.length > 0
+          ? dataQualityFlags.slice(0, 10).map((flag) => <span key={`strategy-quality-${flag}`}>{flag}</span>)
+          : <span>{t("review.no_warnings")}</span>}
+      </div>
+    </section>
+  );
+
+  const warningPanel = (
+    <section className="workspace-panel strategy-warning-stack">
+      <h3>{t("strategy.warning_stack")}</h3>
+      <div className="review-warning-list">
+        {warningStack.length > 0
+          ? warningStack.slice(0, 8).map((warning) => <span key={`strategy-warning-${warning}`}>{strategyWarningLabel(warning, t)}</span>)
+          : <span>{t("review.no_warnings")}</span>}
+      </div>
+    </section>
+  );
 
   return (
-    <div className="workspace-grid strategy-page strategy-shadow-run-terminal">
-      <section className="workspace-panel span-3 strategy-command-deck">
-        <div className="section-heading">
+    <div className="strategy-page strategy-shadow-run-terminal">
+      <section className="workspace-panel strategy-command-deck">
+        <div className="strategy-command-identity">
           <span className="eyebrow">{t("strategy.shadow_terminal")}</span>
           <strong>{strategyScenario.strategy_name}</strong>
+          <small>{strategyScenario.strategy_id}</small>
         </div>
-        <p className="panel-copy">{t("strategy.description")}</p>
-        <div className="strategy-summary">
-          <span>{t("strategy.window")}: 15:00-17:00</span>
-          <span className="strategy-bar-selector">
-            {t("strategy.bar")}:
+        <div className="strategy-command-state">
+          <small>{t("strategy.status")}</small>
+          <div>
+            <span className="strategy-state-badge paper">PAPER</span>
+            <span className="strategy-state-badge">{strategyScenario.run_mode}</span>
+          </div>
+          <strong>{t("strategy.no_execution")}</strong>
+        </div>
+        <div className="strategy-command-bars">
+          <small>{t("strategy.bar")}</small>
+          <span className="strategy-bar-selector" aria-label={t("strategy.bar")}>
             {["1", "5", "15"].map((bar) => (
               <button
                 key={`bar-${bar}`}
@@ -465,10 +574,11 @@ export function StrategyShadowRunTerminal({
               </button>
             ))}
           </span>
-          <span>{t("strategy.mode")}: {strategyScenario.run_mode}</span>
-          <span>{t("strategy.no_execution")}</span>
-          <span>{t("strategy.observations")}: {combinedPriceTape.length}</span>
-          <span>{t("context.updated")}: {priceTape[0]?.observed_at_utc ? new Date(priceTape[0].observed_at_utc).toLocaleString(language) : t("data.unavailable")}</span>
+        </div>
+        <div className="strategy-command-freshness">
+          <small>{t("strategy.latest_observation")}</small>
+          <strong>{priceTape[0]?.observed_at_utc ? formatTimestamp(priceTape[0].observed_at_utc, language) : t("data.unavailable")}</strong>
+          <span>{combinedPriceTape.length} {t("strategy.observations")}</span>
         </div>
         <div className="strategy-command-actions">
           <button
@@ -483,237 +593,202 @@ export function StrategyShadowRunTerminal({
           >
             {t("strategy.evaluate")}
           </button>
-          <span className="status-badge">{t("strategy.paper_state")}</span>
         </div>
       </section>
 
-      <section className="workspace-panel strategy-paper-state">
-        <h3>{t("strategy.paper_state")}</h3>
-        <div className="strategy-candidate-action">
-          <span>{strategyResult?.status ?? t("home.not_running")}</span>
-          <strong>{candidateAction}</strong>
-          <small>{strategyResult?.human_review_required ? t("review.title") : t("strategy.no_execution")}</small>
-        </div>
-        <div className="metric-grid">
-          <div><span>{t("strategy.day_ahead")}</span><strong>{formatMoney(strategyResult?.day_ahead_average_gbp_mwh)}</strong></div>
-          <div><span>{t("strategy.intraday")}</span><strong>{formatMoney(strategyResult?.intraday_average_gbp_mwh)}</strong></div>
-          <div><span>{t("strategy.spread")}</span><strong>{formatMoney(strategyResult?.intraday_vs_day_ahead_spread_gbp_mwh)}</strong></div>
-          <div><span>{t("strategy.paper_pnl")}</span><strong>{formatSignedMoney(strategyResult?.paper_pnl_gbp)} GBP</strong></div>
-          <div><span>{t("strategy.cumulative_pnl")}</span><strong>{formatSignedMoney(strategyResult?.cumulative_pnl_gbp)} GBP</strong></div>
-        </div>
-      </section>
+      <nav className="strategy-view-tabs" role="tablist" aria-label={t("strategy.workspace_views")}>
+        {STRATEGY_VIEWS.map((view) => (
+          <button
+            key={`strategy-view-${view}`}
+            id={`strategy-tab-${view}`}
+            type="button"
+            role="tab"
+            aria-selected={activeView === view}
+            aria-controls="strategy-active-panel"
+            className={activeView === view ? "active" : ""}
+            onClick={() => setActiveView(view)}
+            onKeyDown={(event) => handleViewKeyDown(event, view)}
+          >
+            {t(`strategy.view.${view}`)}
+          </button>
+        ))}
+      </nav>
 
-      <section className="workspace-panel strategy-cumulative-state">
-        <h3>{t("strategy.cumulative_state")}</h3>
-        <div className="metric-grid">
-          <div><span>{t("strategy.run_count")}</span><strong>{strategySummary?.run_count ?? 0}</strong></div>
-          <div><span>{t("strategy.hit_rate")}</span><strong>{((strategySummary?.hit_rate ?? 0) * 100).toFixed(1)}%</strong></div>
-          <div><span>{t("strategy.max_drawdown")}</span><strong>{formatSignedMoney(strategySummary?.max_drawdown_gbp)} GBP</strong></div>
-          <div><span>{t("strategy.cumulative_pnl")}</span><strong>{formatSignedMoney(strategySummary?.cumulative_pnl_gbp)} GBP</strong></div>
-        </div>
-      </section>
+      <div
+        id="strategy-active-panel"
+        className={`workspace-grid strategy-view-grid strategy-view-${activeView}`}
+        role="tabpanel"
+        aria-labelledby={`strategy-tab-${activeView}`}
+      >
+        {activeView === "monitor" && (
+          <>
+            <StrategyPerformancePanel runs={strategyRuns} summary={strategySummary} language={language} t={t} />
+            <section className="workspace-panel strategy-paper-state">
+              <div className="panel-title-row">
+                <h3>{t("strategy.current_candidate_action")}</h3>
+                {persistedHumanReviewRequired && <span>{t("strategy.warning.human_review_required")}</span>}
+              </div>
+              <div className="strategy-candidate-action">
+                <span>{strategyResult?.status ?? latestPersistedRun?.status ?? t("home.not_running")}</span>
+                <strong>{candidateAction}</strong>
+                <small>{persistedHumanReviewRequired ? t("strategy.warning.human_review_required") : t("strategy.no_execution")}</small>
+              </div>
+              <div className="metric-grid">
+                <div><span>{t("strategy.day_ahead")}</span><strong>{formatMoney(strategyResult?.day_ahead_average_gbp_mwh)}</strong></div>
+                <div><span>{t("strategy.intraday")}</span><strong>{formatMoney(strategyResult?.intraday_average_gbp_mwh)}</strong></div>
+                <div><span>{t("strategy.spread")}</span><strong>{formatMoney(strategyResult?.intraday_vs_day_ahead_spread_gbp_mwh)}</strong></div>
+                <div><span>{t("strategy.paper_pnl")}</span><strong>{formatSignedMoney(strategyResult?.paper_pnl_gbp ?? latestPersistedRun?.paper_pnl_gbp)} GBP</strong></div>
+              </div>
+            </section>
+            {selectedBasisPanel}
+            {resourcePoolPanel}
+            {dataQualityPanel}
+            {warningPanel}
+          </>
+        )}
 
-      <section className="workspace-panel strategy-risk-stack">
-        <h3>{t("strategy.risk_controls")}</h3>
-        <div className="strategy-risk-inputs">
-          <label>
-            <span>{t("strategy.max_ocm")} (%)</span>
-            <input
-              type="number"
-              value={riskOverrides.max_ocm_allocation_pct}
-              onChange={(event) => updateRiskOverride("max_ocm_allocation_pct", event.target.value)}
+        {activeView === "economics" && (
+          <>
+            <StrategyPriceBasisBoard
+              rows={priceBasisRows}
+              activeBasis={activeBasis}
+              simulatedBasisCount={simulatedBasisCount}
+              staleBasisCount={staleBasisCount}
+              unavailableBasisCount={unavailableBasisCount}
+              language={language}
+              t={t}
+              onSelectBasis={setActiveBasis}
             />
-          </label>
-          <label>
-            <span>{t("strategy.min_day_ahead")} (%)</span>
-            <input
-              type="number"
-              value={riskOverrides.min_day_ahead_allocation_pct}
-              onChange={(event) => updateRiskOverride("min_day_ahead_allocation_pct", event.target.value)}
+            {selectedBasisPanel}
+            {resourcePoolPanel}
+            <StrategyBasisExposureLadder rows={basisExposureRows} t={t} />
+            <StrategyPnlCurvePanel
+              rows={pnlCurveRows}
+              maxAbsPnl={maxAbsPnl}
+              weightedPoolCostGbpMwh={weightedPoolCostGbpMwh}
+              totalPoolQuantityMwhPerDay={totalPoolQuantityMwhPerDay}
+              t={t}
             />
-          </label>
-          <label>
-            <span>{t("strategy.max_market")}</span>
-            <input
-              type="number"
-              value={riskOverrides.max_single_market_volume_mwh_per_day}
-              onChange={(event) => updateRiskOverride("max_single_market_volume_mwh_per_day", event.target.value)}
-            />
-          </label>
-          <label>
-            <span>{t("strategy.min_margin")}</span>
-            <input
-              type="number"
-              value={riskOverrides.min_expected_margin_gbp_mwh}
-              onChange={(event) => updateRiskOverride("min_expected_margin_gbp_mwh", event.target.value)}
-            />
-          </label>
-          <label>
-            <span>{t("strategy.stop_loss")}</span>
-            <input
-              type="number"
-              value={riskOverrides.stop_shadow_run_loss_gbp}
-              onChange={(event) => updateRiskOverride("stop_shadow_run_loss_gbp", event.target.value)}
-            />
-          </label>
-        </div>
-        <div className="metric-grid">
-          <div><span>{t("strategy.tso_access")}</span><strong>{riskValue(strategyScenario.risk_control, "require_tso_access")}</strong></div>
-        </div>
-      </section>
+            <section className="workspace-panel strategy-allocation-ladder">
+              <h3>{t("strategy.allocation_targets")}</h3>
+              <div className="data-table">
+                <div className="data-table-row header four"><span>{t("strategy.bucket")}</span><span>{t("strategy.target")}</span><span>{t("strategy.quantity")}</span><span>{t("strategy.reference")}</span></div>
+                {strategyResult?.allocation_targets.map((target) => (
+                  <div key={`shadow-target-${target.market_bucket}`} className="data-table-row four">
+                    <strong>{target.market_bucket}</strong>
+                    <span>{target.target_allocation_pct.toFixed(1)}%</span>
+                    <span>{formatQuantity(target.target_quantity_mwh_per_day)}</span>
+                    <span>{formatMoney(target.reference_price_gbp_mwh)}</span>
+                  </div>
+                ))}
+                {!strategyResult && (
+                  <div className="data-table-row four"><strong>{t("home.not_running")}</strong><span>n/a</span><span>n/a</span><span>{t("strategy.no_execution")}</span></div>
+                )}
+              </div>
+            </section>
+            <section className="workspace-panel span-2 strategy-market-tape">
+              <div className="panel-title-row">
+                <h3>{t("strategy.market_tape")}</h3>
+                <span>{priceTape.length} {t("panel.records")}</span>
+              </div>
+              <div className="strategy-tape-grid">
+                {priceTape.map((price) => (
+                  <div key={`strategy-tape-${price.observation_id}`} className="strategy-tape-card">
+                    <span>{price.venue} / {price.hub}</span>
+                    <strong>{formatMoney(price.price_gbp_mwh)} GBP/MWh</strong>
+                    <small>{price.price_name} / {price.source_system}</small>
+                  </div>
+                ))}
+                {priceTape.length === 0 && <p className="panel-copy">{t("data.unavailable")}</p>}
+              </div>
+            </section>
+          </>
+        )}
 
-      <StrategyPriceBasisBoard
-        rows={priceBasisRows}
-        activeBasis={activeBasis}
-        simulatedBasisCount={simulatedBasisCount}
-        staleBasisCount={staleBasisCount}
-        unavailableBasisCount={unavailableBasisCount}
-        language={language}
-        t={t}
-        onSelectBasis={setActiveBasis}
-      />
+        {activeView === "risk" && (
+          <>
+            <section className="workspace-panel span-2 strategy-risk-stack">
+              <h3>{t("strategy.risk_controls")}</h3>
+              <div className="strategy-risk-inputs">
+                <label>
+                  <span>{t("strategy.max_ocm")} (%)</span>
+                  <input type="number" value={riskOverrides.max_ocm_allocation_pct} onChange={(event) => updateRiskOverride("max_ocm_allocation_pct", event.target.value)} />
+                </label>
+                <label>
+                  <span>{t("strategy.min_day_ahead")} (%)</span>
+                  <input type="number" value={riskOverrides.min_day_ahead_allocation_pct} onChange={(event) => updateRiskOverride("min_day_ahead_allocation_pct", event.target.value)} />
+                </label>
+                <label>
+                  <span>{t("strategy.max_market")}</span>
+                  <input type="number" value={riskOverrides.max_single_market_volume_mwh_per_day} onChange={(event) => updateRiskOverride("max_single_market_volume_mwh_per_day", event.target.value)} />
+                </label>
+                <label>
+                  <span>{t("strategy.min_margin")}</span>
+                  <input type="number" value={riskOverrides.min_expected_margin_gbp_mwh} onChange={(event) => updateRiskOverride("min_expected_margin_gbp_mwh", event.target.value)} />
+                </label>
+                <label>
+                  <span>{t("strategy.stop_loss")}</span>
+                  <input type="number" value={riskOverrides.stop_shadow_run_loss_gbp} onChange={(event) => updateRiskOverride("stop_shadow_run_loss_gbp", event.target.value)} />
+                </label>
+              </div>
+              <div className="metric-grid">
+                <div><span>{t("strategy.tso_access")}</span><strong>{riskValue(strategyScenario.risk_control, "require_tso_access")}</strong></div>
+              </div>
+            </section>
+            {dataQualityPanel}
+            {warningPanel}
+            <section className="workspace-panel span-2 strategy-source-evidence">
+              <h3>{t("strategy.source_evidence")}</h3>
+              <div className="source-chip-list">
+                {source_refs.slice(0, 12).map((source) => <span key={`strategy-source-${source}`}>{source}</span>)}
+                {source_refs.length === 0 && <span>{t("data.partial")}</span>}
+              </div>
+            </section>
+          </>
+        )}
 
-      <section className="workspace-panel span-2 strategy-pnl-scenario-comparison">
-        <div className="panel-title-row">
-          <h3>{t("strategy.selected_price_basis")}</h3>
-          <span>{activeBasisRow ? t(basisLabelKey(activeBasisRow.basis)) : t("data.unavailable")}</span>
-        </div>
-        <div className="metric-grid">
-          <div>
-            <span>{t("strategy.latest_price")}</span>
-            <strong>{formatMoney(activeBasisRow?.latestPrice)} {activeBasis === "FX" ? "" : "GBP/MWh"}</strong>
-          </div>
-          <div>
-            <span>{t("strategy.weighted_pool_cost")}</span>
-            <strong>{formatMoney(weightedPoolCostGbpMwh)} GBP/MWh</strong>
-          </div>
-          <div>
-            <span>{t("strategy.spread")}</span>
-            <strong>{formatMoney(activePnlRow?.marginGbpMwh)} GBP/MWh</strong>
-          </div>
-          <div>
-            <span>{t("strategy.pool_volume")}</span>
-            <strong>{formatQuantity(totalPoolQuantityMwhPerDay)}</strong>
-          </div>
-          <div>
-            <span>{t("strategy.contract_pnl_attribution")}</span>
-            <strong>{formatSignedMoney(selectedContractPnlGbpPerDay)} GBP/d</strong>
-          </div>
-          <div>
-            <span>{t("strategy.observations")}</span>
-            <strong>{activeBasisRow?.observationCount ?? 0}</strong>
-          </div>
-        </div>
-        <StrategyContractPnlAttribution rows={contractPnlRows} t={t} />
-      </section>
-
-      <StrategyBasisExposureLadder rows={basisExposureRows} t={t} />
-
-      <StrategyPnlCurvePanel
-        rows={pnlCurveRows}
-        maxAbsPnl={maxAbsPnl}
-        weightedPoolCostGbpMwh={weightedPoolCostGbpMwh}
-        totalPoolQuantityMwhPerDay={totalPoolQuantityMwhPerDay}
-        t={t}
-      />
-
-      <section className="workspace-panel strategy-data-quality-flags">
-        <h3>{t("strategy.data_quality")}</h3>
-        <div className="review-warning-list">
-          {dataQualityFlags.length > 0
-            ? dataQualityFlags.slice(0, 10).map((flag) => <span key={`strategy-quality-${flag}`}>{flag}</span>)
-            : <span>{t("review.no_warnings")}</span>}
-        </div>
-      </section>
-
-      <section className="workspace-panel span-2 strategy-market-tape">
-        <div className="panel-title-row">
-          <h3>{t("strategy.market_tape")}</h3>
-          <span>{priceTape.length} {t("panel.records")}</span>
-        </div>
-        <div className="strategy-tape-grid">
-          {priceTape.map((price) => (
-            <div key={`strategy-tape-${price.observation_id}`} className="strategy-tape-card">
-              <span>{price.venue} / {price.hub}</span>
-              <strong>{formatMoney(price.price_gbp_mwh)} GBP/MWh</strong>
-              <small>{price.price_name} / {price.source_system}</small>
-            </div>
-          ))}
-          {priceTape.length === 0 && <p className="panel-copy">{t("data.unavailable")}</p>}
-        </div>
-      </section>
-
-      <section className="workspace-panel strategy-resource-stack">
-        <h3>{t("home.resource_pool")}</h3>
-        <div className="net-pnl-card">
-          <span>{firstResource?.resource_name ?? t("data.unavailable")}</span>
-          <strong>{formatQuantity(firstResource?.available_quantity_mwh_per_day)}</strong>
-          <small>{portfolioResources.length} {t("home.resources")}</small>
-        </div>
-      </section>
-
-      <section className="workspace-panel span-2 strategy-allocation-ladder">
-        <h3>{t("strategy.allocation_targets")}</h3>
-        <div className="data-table">
-          <div className="data-table-row header four"><span>{t("strategy.bucket")}</span><span>{t("strategy.target")}</span><span>{t("strategy.quantity")}</span><span>{t("strategy.reference")}</span></div>
-          {strategyResult?.allocation_targets.map((target) => (
-            <div key={`shadow-target-${target.market_bucket}`} className="data-table-row four">
-              <strong>{target.market_bucket}</strong>
-              <span>{target.target_allocation_pct.toFixed(1)}%</span>
-              <span>{formatQuantity(target.target_quantity_mwh_per_day)}</span>
-              <span>{formatMoney(target.reference_price_gbp_mwh)}</span>
-            </div>
-          ))}
-          {!strategyResult && (
-            <div className="data-table-row four"><strong>{t("home.not_running")}</strong><span>n/a</span><span>n/a</span><span>{t("strategy.no_execution")}</span></div>
-          )}
-        </div>
-      </section>
-
-      <section className="workspace-panel span-2 strategy-run-history">
-        <div className="panel-title-row">
-          <h3>{t("strategy.run_history")}</h3>
-          <span>{strategyRuns.length} {t("panel.records")}</span>
-        </div>
-        <div className="data-table">
-          <div className="data-table-row header five">
-            <span>{t("strategy.run_time")}</span><span>{t("strategy.status")}</span>
-            <span>{t("strategy.paper_pnl")}</span><span>{t("strategy.cumulative_pnl")}</span>
-            <span>{t("strategy.win")}</span>
-          </div>
-          {strategyRuns.map((run) => (
-            <div key={`strategy-run-${run.run_id}`} className="data-table-row five">
-              <span>{formatTimestamp(run.started_at_utc, language)}</span>
-              <strong>{run.status}</strong>
-              <span>{formatSignedMoney(run.paper_pnl_gbp)}</span>
-              <span>{formatSignedMoney(run.cumulative_pnl_gbp)}</span>
-              <span>{run.hit ? t("strategy.win") : t("strategy.loss")}</span>
-            </div>
-          ))}
-          {strategyRuns.length === 0 && (
-            <div className="data-table-row five">
-              <span>{t("home.not_running")}</span><span>n/a</span><span>n/a</span><span>n/a</span><span>n/a</span>
-            </div>
-          )}
-        </div>
-      </section>
-
-      <section className="workspace-panel strategy-source-evidence">
-        <h3>{t("strategy.source_evidence")}</h3>
-        <div className="source-chip-list">
-          {source_refs.slice(0, 8).map((source) => <span key={`strategy-source-${source}`}>{source}</span>)}
-          {source_refs.length === 0 && <span>{t("data.partial")}</span>}
-        </div>
-      </section>
-
-      <section className="workspace-panel strategy-warning-stack">
-        <h3>{t("strategy.warning_stack")}</h3>
-        <div className="review-warning-list">
-          {warningStack.length > 0
-            ? warningStack.slice(0, 8).map((warning) => <span key={`strategy-warning-${warning}`}>{strategyWarningLabel(warning, t)}</span>)
-            : <span>{t("review.no_warnings")}</span>}
-        </div>
-      </section>
+        {activeView === "runs" && (
+          <>
+            <StrategyPerformancePanel runs={strategyRuns} summary={strategySummary} language={language} t={t} />
+            <section className="workspace-panel strategy-cumulative-state">
+              <h3>{t("strategy.cumulative_state")}</h3>
+              <div className="metric-grid">
+                <div><span>{t("strategy.run_count")}</span><strong>{strategySummary?.run_count ?? 0}</strong></div>
+                <div><span>{t("strategy.hit_rate")}</span><strong>{((strategySummary?.hit_rate ?? 0) * 100).toFixed(1)}%</strong></div>
+                <div><span>{t("strategy.max_drawdown")}</span><strong>{formatSignedMoney(strategySummary?.max_drawdown_gbp)} GBP</strong></div>
+                <div><span>{t("strategy.cumulative_pnl")}</span><strong>{formatSignedMoney(strategySummary?.cumulative_pnl_gbp)} GBP</strong></div>
+              </div>
+            </section>
+            <section className="workspace-panel span-3 strategy-run-history">
+              <div className="panel-title-row">
+                <h3>{t("strategy.run_history")}</h3>
+                <span>{strategyRuns.length} {t("panel.records")}</span>
+              </div>
+              <div className="data-table">
+                <div className="data-table-row header five">
+                  <span>{t("strategy.run_time")}</span><span>{t("strategy.status")}</span>
+                  <span>{t("strategy.paper_pnl")}</span><span>{t("strategy.cumulative_pnl")}</span>
+                  <span>{t("strategy.win")}</span>
+                </div>
+                {strategyRuns.map((run) => (
+                  <div key={`strategy-run-${run.run_id}`} className="data-table-row five">
+                    <span>{formatTimestamp(run.started_at_utc, language)}</span>
+                    <strong>{run.status}</strong>
+                    <span>{formatSignedMoney(run.paper_pnl_gbp)}</span>
+                    <span>{formatSignedMoney(run.cumulative_pnl_gbp)}</span>
+                    <span>{run.hit === null ? "n/a" : run.hit ? t("strategy.win") : t("strategy.loss")}</span>
+                  </div>
+                ))}
+                {strategyRuns.length === 0 && (
+                  <div className="data-table-row five">
+                    <span>{t("home.not_running")}</span><span>n/a</span><span>n/a</span><span>n/a</span><span>n/a</span>
+                  </div>
+                )}
+              </div>
+            </section>
+          </>
+        )}
+      </div>
     </div>
   );
 }

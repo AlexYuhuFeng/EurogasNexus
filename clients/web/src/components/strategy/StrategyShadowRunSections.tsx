@@ -1,3 +1,5 @@
+import type { StrategyRunDTO, StrategySummaryDTO } from "@/api/client";
+
 type Translate = (key: string) => string;
 
 export type PriceBasisId =
@@ -79,6 +81,13 @@ interface StrategyPnlCurvePanelProps {
 
 interface StrategyContractPnlAttributionProps {
   rows: StrategyContractPnlRow[];
+  t: Translate;
+}
+
+interface StrategyPerformancePanelProps {
+  runs: StrategyRunDTO[];
+  summary: StrategySummaryDTO | null;
+  language: string;
   t: Translate;
 }
 
@@ -239,7 +248,7 @@ export function StrategyPnlCurvePanel({
   t,
 }: StrategyPnlCurvePanelProps) {
   return (
-    <section className="workspace-panel span-2 strategy-pnl-curve">
+    <section className="workspace-panel strategy-pnl-curve">
       <div className="panel-title-row">
         <h3>{t("strategy.pnl_curve")}</h3>
         <span>{t("home.resource_pool")}</span>
@@ -307,5 +316,101 @@ export function StrategyContractPnlAttribution({ rows, t }: StrategyContractPnlA
       })}
       {rows.length === 0 && <p className="panel-copy">{t("data.unavailable")}</p>}
     </div>
+  );
+}
+
+export function StrategyPerformancePanel({
+  runs,
+  summary,
+  language,
+  t,
+}: StrategyPerformancePanelProps) {
+  const plottedRuns = runs
+    .filter((run) => run.cumulative_pnl_gbp !== null)
+    .slice()
+    .sort((left, right) => Date.parse(left.started_at_utc) - Date.parse(right.started_at_utc))
+    .slice(-30);
+  const values = plottedRuns.map((run) => run.cumulative_pnl_gbp ?? 0);
+  const minimum = Math.min(0, ...values);
+  const maximum = Math.max(0, ...values);
+  const range = Math.max(maximum - minimum, 1);
+  const plotLeft = 8;
+  const plotRight = 96;
+  const plotTop = 12;
+  const plotBottom = 84;
+  const xForIndex = (index: number) => (
+    plottedRuns.length <= 1
+      ? (plotLeft + plotRight) / 2
+      : plotLeft + (index / (plottedRuns.length - 1)) * (plotRight - plotLeft)
+  );
+  const yForValue = (value: number) => plotBottom - ((value - minimum) / range) * (plotBottom - plotTop);
+  const pointList = values.map((value, index) => `${xForIndex(index)},${yForValue(value)}`).join(" ");
+  const latestRun = plottedRuns.at(-1) ?? null;
+
+  return (
+    <section className="workspace-panel span-2 strategy-performance-chart">
+      <div className="panel-title-row">
+        <h3>{t("strategy.cumulative_paper_pnl")}</h3>
+        <span>{plottedRuns.length} {t("panel.records")}</span>
+      </div>
+      <div className="strategy-performance-plot">
+        {plottedRuns.length > 0 ? (
+          <svg
+            viewBox="0 0 104 96"
+            role="img"
+            aria-label={t("strategy.cumulative_paper_pnl")}
+            preserveAspectRatio="none"
+          >
+            {[30, 48, 66].map((y) => (
+              <line key={`strategy-grid-${y}`} className="strategy-chart-grid" x1="8" x2="96" y1={y} y2={y} />
+            ))}
+            <line
+              className="strategy-chart-zero"
+              x1="8"
+              x2="96"
+              y1={yForValue(0)}
+              y2={yForValue(0)}
+            />
+            <polyline className="strategy-chart-line" points={pointList} />
+          </svg>
+        ) : (
+          <div className="strategy-performance-empty">
+            <strong>{t("strategy.awaiting_shadow_run")}</strong>
+            <span>{t("strategy.no_execution")}</span>
+          </div>
+        )}
+        {plottedRuns.length > 0 && (
+          <span
+            className="strategy-chart-point"
+            style={{
+              left: `${(xForIndex(plottedRuns.length - 1) / 104) * 100}%`,
+              top: `${(yForValue(values.at(-1) ?? 0) / 96) * 100}%`,
+            }}
+          />
+        )}
+      </div>
+      <div className="strategy-performance-summary">
+        <div>
+          <span>{t("strategy.cumulative_pnl")}</span>
+          <strong>{formatSignedMoney(summary?.cumulative_pnl_gbp)} GBP</strong>
+        </div>
+        <div>
+          <span>{t("strategy.hit_rate")}</span>
+          <strong>{((summary?.hit_rate ?? 0) * 100).toFixed(1)}%</strong>
+        </div>
+        <div>
+          <span>{t("strategy.max_drawdown")}</span>
+          <strong>{formatSignedMoney(summary?.max_drawdown_gbp)} GBP</strong>
+        </div>
+        <div>
+          <span>{t("strategy.run_count")}</span>
+          <strong>{summary?.run_count ?? runs.length}</strong>
+        </div>
+        <div>
+          <span>{t("context.updated")}</span>
+          <strong>{formatTimestamp(latestRun?.started_at_utc, language)}</strong>
+        </div>
+      </div>
+    </section>
   );
 }

@@ -34,6 +34,10 @@ Eurogas Nexus Web and Windows client UI must follow the local reference guide su
   global top bar and is not repeated in a decorative title card.
 - Mount only the active workspace surface. Hidden map canvases, overlays, and
   focus targets must not remain active behind non-network pages.
+- Strategy uses a persistent governed-paper command strip and exactly four
+  task views: Monitor, Economics, Risk & Evidence, and Run History. Cumulative
+  PnL charts must be derived from persisted runs and show an empty state when
+  history is absent; illustrative performance curves are prohibited.
 - MapLibre controls, attribution, layer chips, and rails must never overlap.
 - AI/LLM features must appear as decision-support analysis and report generation, never as autonomous execution.
 - All visible strings must be available in English and Mandarin Chinese.
@@ -50,9 +54,17 @@ Current Web implementation should expose these structural classes so contract te
 - `topbar-search`
 - `workspace-page-tabs`
 - `workspace-topbar-page`
+- `strategy-command-deck`
+- `strategy-view-tabs`
+- `strategy-performance-chart`
 
 The 2026-08-31 Image Gen 2 market-workspace direction is stored at
 `docs/design/references/market-workspace-imagegen-2026-08-31.png`. It is a
 design reference, not market data or a source of functional requirements.
+
+The 2026-08-31 Strategy workspace reference is stored at
+`docs/design/references/strategy-workspace-imagegen-2026-08-31.png`. Its chart
+and values are illustrative design material; production charts use strategy
+runs persisted in PostgreSQL only.
 
 Future client work must update this guide before changing the UI language or layout model.

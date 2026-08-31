@@ -36,8 +36,10 @@ def test_strategy_prices_consume_backend_normalized_market_view() -> None:
     assert not (WEB / "app" / "marketPriceNormalization.ts").exists()
 
     # the store consumes the backend-normalized view and backend spreads
-    assert "api.normalizedMarketObservations()" in store
-    assert "api.marketSpreads()" in store
+    assert '["normalizedMarkets", api.normalizedMarketObservations]' in store
+    assert "loadEndpointWithRetry(api.normalizedMarketObservations, 0)" in store
+    assert '["marketSpreads", api.marketSpreads]' in store
+    assert "loadEndpointWithRetry(api.marketSpreads, 0)" in store
 
     # scenario assembly reads backend-owned fields only (no FX math)
     assert "observation.price_gbp_mwh" in scenario
@@ -297,6 +299,22 @@ def test_strategy_freshness_uses_latest_observation_per_basis() -> None:
     assert "staleCount: latestFx && isStaleObservation(" in strategy_terminal
     assert "staleCount: observations.filter" not in strategy_terminal
     assert "staleCount: fxRates.filter" not in strategy_terminal
+
+
+def test_strategy_performance_chart_uses_persisted_runs_without_fabricated_fallback() -> None:
+    strategy_sections = _read(
+        WEB / "components" / "strategy" / "StrategyShadowRunSections.tsx"
+    )
+
+    assert "runs: StrategyRunDTO[]" in strategy_sections
+    assert "run.cumulative_pnl_gbp !== null" in strategy_sections
+    assert "Date.parse(left.started_at_utc)" in strategy_sections
+    assert ".slice(-30)" in strategy_sections
+    assert "plottedRuns.length > 0" in strategy_sections
+    assert 'className="strategy-performance-empty"' in strategy_sections
+    assert '<polyline className="strategy-chart-line"' in strategy_sections
+    assert 'className="strategy-chart-point"' in strategy_sections
+    assert "Math.random" not in strategy_sections
 
 
 def test_source_credentials_follow_selected_public_source() -> None:
