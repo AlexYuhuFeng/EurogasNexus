@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { ComponentProps } from "react";
 import type {
   EdgeDTO,
@@ -33,6 +34,8 @@ interface ReviewEvidenceItem {
   kind: string;
   text: string;
 }
+
+type DecisionRailView = "decision" | "pnl" | "warnings" | "evidence";
 
 interface SourceStats {
   total: number;
@@ -179,57 +182,11 @@ export function NetworkWorkspace({
   const indicativeRouteCount = visibleMapLines.filter(
     (line) => line.displayKind === "indicative_route",
   ).length;
-  return (
-    <>
-      <section className="map-container map-stage" id="map">
-        <div className="map-toolbar">
-          <button className="chip reset-chip" type="button" onClick={onResetSearch}>
-            {t("map.reset")}
-          </button>
-          {["network", "lng", "ips", "hubs"].map((layer) => (
-            <button
-              key={layer}
-              type="button"
-              className={
-                activeLayers.includes(layer)
-                  ? `chip map-layer-chip compact layer-${layer} active`
-                  : `chip map-layer-chip compact layer-${layer}`
-              }
-              aria-pressed={activeLayers.includes(layer)}
-              aria-label={t(`map.layer.${layer}`)}
-              title={t(`map.layer.${layer}`)}
-              onClick={() => onToggleLayer(layer)}
-            >
-              <span className="layer-label">{t(`map.layer.${layer}`)}</span>
-            </button>
-          ))}
-        </div>
-        <GasNetworkMap
-          nodes={nodes}
-          edges={edges}
-          routes={routes}
-          themeMode={mode}
-          activeLayers={activeLayers}
-          searchTerm={searchTerm}
-          t={t}
-          highlightedRoute={highlightedRoute}
-        />
-        <div className="map-visual-legend" aria-label={t("map.visual_legend")}>
-          <span><i className="node-swatch network" />{t("map.layer.network")}<strong>{displayedNetworkCount}</strong></span>
-          <span><i className="node-swatch lng" />{t("map.layer.lng")}<strong>{displayedLngCount}</strong></span>
-          <span><i className="node-swatch ips" />{t("map.layer.ips")}<strong>{displayedIpCount}</strong></span>
-          <span><i className="node-swatch hubs" />{t("map.layer.hubs")}<strong>{displayedHubCount}</strong></span>
-          <span><i className="line-swatch verified" />{t("map.verified_pipeline_lines")}<strong>{verifiedPipelineCount}</strong></span>
-          <span><i className="line-swatch indicative" />{t("map.indicative_route_lines")}<strong>{indicativeRouteCount}</strong></span>
-        </div>
-        <ResourcePoolPathOverlay
-          paths={resourcePoolMapPaths}
-          blockers={poolInputBlockers}
-          t={t}
-        />
-      </section>
+  const [activeRailView, setActiveRailView] = useState<DecisionRailView>("decision");
 
-      <aside className="scenario-rail">
+  return (
+    <div className="network-workspace-shell">
+      <aside className="scenario-rail network-resource-rail" aria-label={t("home.resource_pool")}>
         {error && <div className="panel alert">{error}</div>}
         {loading && <div className="panel">{t("status.loading")}</div>}
 
@@ -347,138 +304,229 @@ export function NetworkWorkspace({
         </div>
       </aside>
 
-      <aside className="decision-rail">
-        <div className="panel intraday-home-panel">
-          <IntradayDecisionFeed
-            opportunities={intradayOpportunities}
-            lastUpdatedAtUtc={marketLastUpdatedAtUtc}
+      <section className="network-map-column" aria-label={t("network.map_column_label")}>
+        <div className="map-toolbar">
+          <button className="chip reset-chip" type="button" onClick={onResetSearch}>
+            {t("map.reset")}
+          </button>
+          {["network", "lng", "ips", "hubs"].map((layer) => (
+            <button
+              key={layer}
+              type="button"
+              className={
+                activeLayers.includes(layer)
+                  ? `chip map-layer-chip compact layer-${layer} active`
+                  : `chip map-layer-chip compact layer-${layer}`
+              }
+              aria-pressed={activeLayers.includes(layer)}
+              aria-label={t(`map.layer.${layer}`)}
+              title={t(`map.layer.${layer}`)}
+              onClick={() => onToggleLayer(layer)}
+            >
+              <span className="layer-label">{t(`map.layer.${layer}`)}</span>
+            </button>
+          ))}
+        </div>
+        <div className="map-container map-stage network-map-stage" id="map">
+          <GasNetworkMap
+            nodes={nodes}
+            edges={edges}
+            routes={routes}
+            themeMode={mode}
+            activeLayers={activeLayers}
+            searchTerm={searchTerm}
             t={t}
-            compact
+            highlightedRoute={highlightedRoute}
           />
-        </div>
-        <div className="panel trade-result-panel">
-          <div className="panel-title-row">
-            <div>
-              <span className="eyebrow">{t("result.eyebrow")}</span>
-              <h3>{t("result.title")}</h3>
-            </div>
-            <span className="status-pill">{routeRecommendation ? t("result.live") : t("result.snapshot")}</span>
-          </div>
-          <div className="net-pnl-card">
-            <span>{t("result.net_pnl")}</span>
-            <strong>
-              {decisionPnl === null ? t("home.pending") : `GBP ${Math.round(decisionPnl).toLocaleString()}`}
-            </strong>
-            <small>
-              {t("home.allocated")} {resourcePoolResult?.total_allocated_mwh_per_day?.toLocaleString() ?? "n/a"} MWh/d / {t("home.unallocated")} {resourcePoolResult?.total_unallocated_mwh_per_day?.toLocaleString() ?? "n/a"} MWh/d
-            </small>
+          <div className="map-visual-legend" aria-label={t("map.visual_legend")}>
+            <span><i className="node-swatch network" />{t("map.layer.network")}<strong>{displayedNetworkCount}</strong></span>
+            <span><i className="node-swatch lng" />{t("map.layer.lng")}<strong>{displayedLngCount}</strong></span>
+            <span><i className="node-swatch ips" />{t("map.layer.ips")}<strong>{displayedIpCount}</strong></span>
+            <span><i className="node-swatch hubs" />{t("map.layer.hubs")}<strong>{displayedHubCount}</strong></span>
+            <span><i className="line-swatch verified" />{t("map.verified_pipeline_lines")}<strong>{verifiedPipelineCount}</strong></span>
+            <span><i className="line-swatch indicative" />{t("map.indicative_route_lines")}<strong>{indicativeRouteCount}</strong></span>
           </div>
         </div>
+      </section>
 
-        <div className="panel route-alpha-panel">
-          <div className="panel-title-row">
-            <h3>{t("result.route_alpha")}</h3>
-            <span>{t("result.pool_decision")}</span>
-          </div>
-          {poolAllocations.length > 0 ? poolAllocations.map((allocation, index) => {
-            const option = saleOptionById.get(allocation.option_id);
-            return (
-              <details key={`pool-allocation-${allocation.resource_id}-${allocation.option_id}`} className="route-decision-card" open={index === 0}>
-                <summary>
-                  <span>
-                    <small>{option?.target_point_name ?? allocation.option_id}</small>
-                    <strong>{option?.label ?? allocation.option_id}</strong>
-                  </span>
-                  <span className="route-decision-value">
-                    <strong>GBP {Math.round(allocation.net_pnl_gbp_per_day).toLocaleString()}</strong>
-                    <small>{allocation.allocated_quantity_mwh_per_day.toLocaleString()} MWh/d</small>
-                  </span>
-                </summary>
-                <div className="route-decision-metrics">
-                  <span><small>{t("result.sale")}</small><strong>{allocation.gross_sale_price_gbp_mwh.toFixed(2)} GBP/MWh</strong></span>
-                  <span><small>{t("result.route_cost")}</small><strong>{(option?.route_cost_gbp_mwh ?? 0).toFixed(2)} GBP/MWh</strong></span>
-                  <span><small>{t("result.net_margin")}</small><strong>{allocation.net_margin_gbp_mwh.toFixed(2)} GBP/MWh</strong></span>
-                  <span><small>{t("result.cash_value")}</small><strong>{allocation.early_cash_value_gbp_mwh.toFixed(3)} GBP/MWh</strong></span>
-                  <span><small>{t("home.capacity_limit")}</small><strong>{option?.capacity_limit_mwh_per_day?.toLocaleString() ?? t("home.unlimited")} MWh/d</strong></span>
-                  <span><small>{t("home.required_access")}</small><strong>{option?.required_tso_access?.join(", ") || t("home.none_declared")}</strong></span>
+      <aside className="decision-rail network-decision-rail" aria-label={t("network.rail_tabs")}>
+        <div className="network-rail-tabs" role="tablist" aria-label={t("network.rail_tabs")}>
+          {(["decision", "pnl", "warnings", "evidence"] as DecisionRailView[]).map((view) => (
+            <button
+              key={`network-rail-${view}`}
+              type="button"
+              role="tab"
+              className={activeRailView === view ? "network-rail-tab active" : "network-rail-tab"}
+              aria-selected={activeRailView === view}
+              onClick={() => setActiveRailView(view)}
+            >
+              {t(`network.rail_${view}`)}
+            </button>
+          ))}
+        </div>
+        <div className="network-rail-view">
+          {activeRailView === "decision" && (
+            <>
+              <div className="panel intraday-home-panel">
+                <IntradayDecisionFeed
+                  opportunities={intradayOpportunities}
+                  lastUpdatedAtUtc={marketLastUpdatedAtUtc}
+                  t={t}
+                  compact
+                />
+              </div>
+              <div className="panel route-alpha-panel">
+                <div className="panel-title-row">
+                  <h3>{t("result.route_alpha")}</h3>
+                  <span>{t("result.pool_decision")}</span>
                 </div>
-                <div className="route-decision-evidence">
-                  <span>{t("home.price_source")}: {option?.sale_price_simulated ? t("market.simulated_source") : option?.sale_price_source_system ?? "n/a"}</span>
-                  <span>{t("context.updated")}: {option?.sale_price_observed_at_utc ? new Date(option.sale_price_observed_at_utc).toLocaleString() : "n/a"}</span>
-                  <span>{t("home.source_refs")}: {option?.source_refs?.join(" / ") || t("data.unavailable")}</span>
-                  {allocation.warnings.map((warning) => (
-                    <strong key={`${allocation.option_id}-${warning}`}>{warningLabel(warning, t)}</strong>
+                {poolAllocations.length > 0 ? poolAllocations.map((allocation, index) => {
+                  const option = saleOptionById.get(allocation.option_id);
+                  return (
+                    <details key={`pool-allocation-${allocation.resource_id}-${allocation.option_id}`} className="route-decision-card" open={index === 0}>
+                      <summary>
+                        <span>
+                          <small>{option?.target_point_name ?? allocation.option_id}</small>
+                          <strong>{option?.label ?? allocation.option_id}</strong>
+                        </span>
+                        <span className="route-decision-value">
+                          <strong>GBP {Math.round(allocation.net_pnl_gbp_per_day).toLocaleString()}</strong>
+                          <small>{allocation.allocated_quantity_mwh_per_day.toLocaleString()} MWh/d</small>
+                        </span>
+                      </summary>
+                      <div className="route-decision-metrics">
+                        <span><small>{t("result.sale")}</small><strong>{allocation.gross_sale_price_gbp_mwh.toFixed(2)} GBP/MWh</strong></span>
+                        <span><small>{t("result.route_cost")}</small><strong>{(option?.route_cost_gbp_mwh ?? 0).toFixed(2)} GBP/MWh</strong></span>
+                        <span><small>{t("result.net_margin")}</small><strong>{allocation.net_margin_gbp_mwh.toFixed(2)} GBP/MWh</strong></span>
+                        <span><small>{t("result.cash_value")}</small><strong>{allocation.early_cash_value_gbp_mwh.toFixed(3)} GBP/MWh</strong></span>
+                        <span><small>{t("home.capacity_limit")}</small><strong>{option?.capacity_limit_mwh_per_day?.toLocaleString() ?? t("home.unlimited")} MWh/d</strong></span>
+                        <span><small>{t("home.required_access")}</small><strong>{option?.required_tso_access?.join(", ") || t("home.none_declared")}</strong></span>
+                      </div>
+                      <div className="route-decision-evidence">
+                        <span>{t("home.price_source")}: {option?.sale_price_simulated ? t("market.simulated_source") : option?.sale_price_source_system ?? "n/a"}</span>
+                        <span>{t("context.updated")}: {option?.sale_price_observed_at_utc ? new Date(option.sale_price_observed_at_utc).toLocaleString() : "n/a"}</span>
+                        <span>{t("home.source_refs")}: {option?.source_refs?.join(" / ") || t("data.unavailable")}</span>
+                        {allocation.warnings.map((warning) => (
+                          <strong key={`${allocation.option_id}-${warning}`}>{warningLabel(warning, t)}</strong>
+                        ))}
+                      </div>
+                    </details>
+                  );
+                }) : (
+                  <div className="route-alpha-card">
+                    <span>{t("result.optimal")}</span>
+                    <strong>{hasPortfolioResources ? selectedAllocation?.route_name ?? saleOptions[0]?.label ?? t("home.pending") : t("home.no_db_contracts")}</strong>
+                    <small>{hasPortfolioResources ? routeRecommendation ? t("result.no_route") : t("home.run_pool_optimizer") : t("home.draft_contract_note")}</small>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          {activeRailView === "pnl" && (
+            <>
+              <div className="panel trade-result-panel">
+                <div className="panel-title-row">
+                  <div>
+                    <span className="eyebrow">{t("result.eyebrow")}</span>
+                    <h3>{t("result.title")}</h3>
+                  </div>
+                  <span className="status-pill">{routeRecommendation ? t("result.live") : t("result.snapshot")}</span>
+                </div>
+                <div className="net-pnl-card">
+                  <span>{t("result.net_pnl")}</span>
+                  <strong>
+                    {decisionPnl === null ? t("home.pending") : `GBP ${Math.round(decisionPnl).toLocaleString()}`}
+                  </strong>
+                  <small>
+                    {t("home.allocated")} {resourcePoolResult?.total_allocated_mwh_per_day?.toLocaleString() ?? "n/a"} MWh/d / {t("home.unallocated")} {resourcePoolResult?.total_unallocated_mwh_per_day?.toLocaleString() ?? "n/a"} MWh/d
+                  </small>
+                </div>
+              </div>
+              <div className="panel economics-snapshot">
+                <h3>{t("result.economics_snapshot")}</h3>
+                <div className="metric-grid two-column">
+                  <div><span>{t("result.purchase")}</span><strong>{purchasePrice === null ? "n/a" : `GBP ${purchasePrice.toFixed(2)}/MWh`}</strong></div>
+                  <div><span>{t("result.sale")}</span><strong>{salePrice === null ? "n/a" : `GBP ${salePrice.toFixed(2)}/MWh`}</strong></div>
+                  <div><span>{t("result.route_cost")}</span><strong>{routeCharge === null ? "n/a" : `GBP ${routeCharge.toFixed(2)}/MWh`}</strong></div>
+                  <div><span>{t("result.cash_value")}</span><strong>{firstPoolAllocation ? `GBP ${firstPoolAllocation.early_cash_value_gbp_mwh.toFixed(2)}/MWh` : "n/a"}</strong></div>
+                </div>
+              </div>
+              <div className="panel decision-signal-panel">
+                <div className="panel-title-row">
+                  <h3>{t("home.signal")}</h3>
+                  <span>{firstStrategyTarget ? t("data.live") : t("result.snapshot")}</span>
+                </div>
+                <div className="net-pnl-card">
+                  <span>{t("home.strategy_process")}</span>
+                  <strong>
+                    {firstStrategyTarget ? `${firstStrategyTarget.market_bucket} ${firstStrategyTarget.target_allocation_pct.toFixed(1)}%` : t("home.not_running")}
+                  </strong>
+                  <small>{strategyResult?.candidate_action_for_review ?? t("home.signal_idle")}</small>
+                </div>
+              </div>
+            </>
+          )}
+
+          {activeRailView === "warnings" && (
+            <div className="panel network-warning-panel">
+              <div className="panel-title-row">
+                <h3>{t("home.warning")}</h3>
+                <span>{activeWarning ? t("data.live") : t("result.snapshot")}</span>
+              </div>
+              <div className="signal-warning">
+                <span>{t("home.warning")}</span>
+                <strong>{activeWarning ? warningLabel(activeWarning, t) : t("home.warning_clear")}</strong>
+              </div>
+              {poolInputBlockers.length > 0 && (
+                <div className="runtime-blocker-list">
+                  <strong>{t("home.optimizer_blocked")}</strong>
+                  {poolInputBlockers.map((blocker) => <span key={`rail-blocker-${blocker}`}>{blocker}</span>)}
+                </div>
+              )}
+              {poolAllocations.flatMap((allocation) => allocation.warnings).length > 0 && (
+                <div className="runtime-blocker-list">
+                  <strong>{t("home.warning")}</strong>
+                  {poolAllocations.flatMap((allocation) => allocation.warnings).map((warning) => (
+                    <span key={`rail-allocation-${warning}`}>{warningLabel(warning, t)}</span>
                   ))}
                 </div>
-              </details>
-            );
-          }) : (
-            <div className="route-alpha-card">
-              <span>{t("result.optimal")}</span>
-              <strong>{hasPortfolioResources ? selectedAllocation?.route_name ?? saleOptions[0]?.label ?? t("home.pending") : t("home.no_db_contracts")}</strong>
-              <small>{hasPortfolioResources ? routeRecommendation ? t("result.no_route") : t("home.run_pool_optimizer") : t("home.draft_contract_note")}</small>
+              )}
+              {error && <div className="panel alert">{error}</div>}
+              {loading && <div className="panel">{t("status.loading")}</div>}
+            </div>
+          )}
+
+          {activeRailView === "evidence" && (
+            <div className="panel evidence-stack-panel">
+              <div className="panel-title-row">
+                <h3>{t("home.evidence_stack")}</h3>
+                <button type="button" className="text-action" onClick={onOpenReview}>
+                  {t("home.review_warnings")}
+                </button>
+              </div>
+              <div className="review-warning-list compact">
+                {reviewEvidenceItems.length > 0
+                  ? reviewEvidenceItems.map((item) => (
+                      <span key={`evidence-${item.kind}-${item.text}`}>
+                        <strong>{item.kind}</strong> {item.text}
+                      </span>
+                    ))
+                  : <span>{t("home.no_evidence_warnings")}</span>}
+              </div>
             </div>
           )}
         </div>
-
-        <div className="panel economics-snapshot">
-          <h3>{t("result.economics_snapshot")}</h3>
-          <div className="metric-grid two-column">
-            <div>
-              <span>{t("result.purchase")}</span>
-              <strong>{purchasePrice === null ? "n/a" : `GBP ${purchasePrice.toFixed(2)}/MWh`}</strong>
-            </div>
-            <div>
-              <span>{t("result.sale")}</span>
-              <strong>{salePrice === null ? "n/a" : `GBP ${salePrice.toFixed(2)}/MWh`}</strong>
-            </div>
-            <div>
-              <span>{t("result.route_cost")}</span>
-              <strong>{routeCharge === null ? "n/a" : `GBP ${routeCharge.toFixed(2)}/MWh`}</strong>
-            </div>
-            <div>
-              <span>{t("result.cash_value")}</span>
-              <strong>{firstPoolAllocation ? `GBP ${firstPoolAllocation.early_cash_value_gbp_mwh.toFixed(2)}/MWh` : "n/a"}</strong>
-            </div>
-          </div>
-        </div>
-
-        <div className="panel decision-signal-panel">
-          <div className="panel-title-row">
-            <h3>{t("home.signal")}</h3>
-            <span>{firstStrategyTarget ? t("data.live") : t("result.snapshot")}</span>
-          </div>
-          <div className="net-pnl-card">
-            <span>{t("home.strategy_process")}</span>
-            <strong>
-              {firstStrategyTarget ? `${firstStrategyTarget.market_bucket} ${firstStrategyTarget.target_allocation_pct.toFixed(1)}%` : t("home.not_running")}
-            </strong>
-            <small>{strategyResult?.candidate_action_for_review ?? t("home.signal_idle")}</small>
-          </div>
-          <div className="signal-warning">
-            <span>{t("home.warning")}</span>
-            <strong>{activeWarning ? warningLabel(activeWarning, t) : t("home.warning_clear")}</strong>
-          </div>
-        </div>
-
-        <div className="panel evidence-stack-panel">
-          <div className="panel-title-row">
-            <h3>{t("home.evidence_stack")}</h3>
-            <button type="button" className="text-action" onClick={onOpenReview}>
-              {t("home.review_warnings")}
-            </button>
-          </div>
-          <div className="review-warning-list compact">
-            {reviewEvidenceItems.length > 0
-              ? reviewEvidenceItems.map((item) => (
-                  <span key={`evidence-${item.kind}-${item.text}`}>
-                    <strong>{item.kind}</strong> {item.text}
-                  </span>
-                ))
-              : <span>{t("home.no_evidence_warnings")}</span>}
-          </div>
-        </div>
       </aside>
-    </>
+
+      <section className="network-route-ladder" aria-label={t("home.resource_paths")}>
+        <ResourcePoolPathOverlay
+          paths={resourcePoolMapPaths}
+          blockers={poolInputBlockers}
+          t={t}
+          defaultOpen
+        />
+      </section>
+    </div>
   );
 }

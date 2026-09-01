@@ -32,14 +32,16 @@ or title-transfer points. Recommended sale paths must be drawn at the same time
 so the trader can see the whole allocation, including split routes and blocked
 alternatives.
 
-The Network map also carries a compact resource-path overlay. Each path row is
-derived from backend resource-pool options or optimization output and shows the
-resource delivery point, recommended sale/delivery target, quantity, capacity
-limit, route cost, sale price, net margin, route state, and blocker/warning
-state. If source or target nodes can be matched in the reference network, the
-map may animate a highlighted corridor. If no persisted contracts or sale
-options exist, the overlay must show the blocked/empty state instead of
-inventing a route.
+The Network workspace carries a compact resource-path ladder below the map. It
+must never cover the map. Each path row is derived from backend resource-pool
+options or optimization output and shows the resource delivery point,
+recommended sale/delivery target, quantity, capacity limit, route cost, sale
+price, net margin, route state, and blocker/warning state. The ladder exposes
+the complete backend-derived route set through contained scrolling rather than
+silently truncating candidates. If source or target nodes can be matched in the
+reference network, the map may animate a highlighted corridor. If no persisted
+contracts or sale options exist, the ladder must show the blocked/empty state
+instead of inventing a route.
 
 Map labels are budgeted, not exhaustive. The default map should keep low-
 priority assets as colored points and reserve visible labels for active
@@ -53,20 +55,24 @@ rendered as a dashed, subdued schematic corridor and is explicitly labelled as
 not official pipeline geometry; it must never be styled as a verified physical
 pipeline. A selected resource path with route evidence but without verified
 line geometry must show a visible "Indicative route corridor" notice, while
-preserving the path evidence in the resource-path overlay and decision rail.
+preserving the path evidence in the bottom route ladder and decision rail.
 
 The map must not be a decorative background. It is the main work surface.
 
 ## Home Information Architecture
 
-The home screen must remain clean. It has exactly three functional zones:
+The home screen must remain clean. It has one persistent top bar and four task
+regions:
 
 1. Persistent top bar: workspace menu, global search, runtime status, language,
    and theme.
 2. Left rail: resource-pool context, recommended sale-path controls, and active
    portfolio resources.
-3. Right rail: pool PnL, route allocation ladder, economics snapshot, and
-   strategy/warning signal.
+3. Central map: network assets, verified line geometry, indicative corridors,
+   layer controls, and the explicit topology legend.
+4. Right rail: Decision, P&L, Warnings, and Evidence task views.
+5. Bottom ladder: the complete route-allocation and geometry-evidence set,
+   contained below the map with no map overlap.
 
 Detailed data-source diagnostics, PostgreSQL health, TSO access tables,
 capacity summaries, tariff tables, and provider credentials do not belong on
@@ -140,12 +146,13 @@ The route geometry quality ladder is explicit:
   derive a simple curved schematic corridor from matched backend endpoint
   coordinates, clearly labelled indicative and never treated as surveyed pipe.
 
-The resource-path overlay shows the quality label and warning. Physical map layers
-accept only `verification_status=verified`, an approved `geometry_authority`, and a
-complete `geometry_coordinates` sequence. Approximate LNG, IP, or point coordinates
-are never rendered as verified; unverified pipeline route evidence is never
-suppressed, but is shown as a dashed indicative corridor. Virtual market hubs may
-use representative market-area positions when labelled as such.
+The bottom resource-path ladder shows the quality label and warning. Physical
+map layers accept only `verification_status=verified`, an approved
+`geometry_authority`, and a complete `geometry_coordinates` sequence.
+Approximate LNG, IP, or point coordinates are never rendered as verified;
+unverified pipeline route evidence is never suppressed, but is shown as a
+dashed indicative corridor. Virtual market hubs may use representative
+market-area positions when labelled as such.
 
 The API-owned `route_topology_kind` is the gate between commercial actions and
 map topology. `LOCAL_MARKET_DISPOSITION` displays as a local sale with “no

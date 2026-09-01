@@ -93,7 +93,13 @@ Build:
 
 Delivered latest slice:
 
-- added `ResourcePoolPathOverlay` on the Network map;
+- moved `ResourcePoolPathOverlay` out of the map and into a contained bottom
+  route ladder so decision evidence never covers network geography;
+- added a stable left-resource / central-map / right-decision / bottom-ladder
+  desktop shell, with map-first stacking at 900px and 390px;
+- split the right rail into Decision, P&L, Warnings, and Evidence views;
+- renders every backend-derived route candidate in the scrollable ladder rather
+  than truncating the route set to three entries;
 - derives source delivery point, target point, quantity, route cost, sale price,
   net margin, capacity limit, route state, and blockers from backend-loaded
   resource-pool state;

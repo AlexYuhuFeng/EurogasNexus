@@ -226,7 +226,7 @@ def test_route_overlay_is_compact_by_default_and_details_are_accessible() -> Non
     overlay = _read(WEB / "components" / "ResourcePoolPathOverlay.tsx")
     css = _read(WEB / "styles" / "app.css")
 
-    assert "useState(false)" in overlay
+    assert "useState(defaultOpen)" in overlay
     assert "aria-expanded={detailsOpen}" in overlay
     assert "detailsOpen && (" in overlay
     assert 't("home.show_path_details")' in overlay

@@ -831,7 +831,7 @@ def test_web_client_settings_page_is_trader_preference_center() -> None:
     assert zh["settings.energy_unit"] == "\u80fd\u91cf\u5355\u4f4d"
 
 
-def test_web_client_network_page_shows_resource_pool_paths_on_map() -> None:
+def test_web_client_network_page_shows_complete_resource_pool_path_ladder() -> None:
     app = _read_application_source()
     network_workspace = (
         ROOT / "clients" / "web" / "src" / "components" / "NetworkWorkspace.tsx"
@@ -884,9 +884,9 @@ def test_web_client_network_page_shows_resource_pool_paths_on_map() -> None:
     assert "home.recommendation_reason" in overlay
     assert "home.capacity_utilization" in overlay
     assert "home.required_tso_access" in overlay
-    assert "paths.slice(0, 3)" in overlay
-    assert "hiddenPathCount" in overlay
-    assert "home.more_route_paths" in overlay
+    assert "const visiblePaths = paths;" in overlay
+    assert "paths.slice(0, 3)" not in overlay
+    assert "hiddenPathCount" not in overlay
     assert "weightedNetMargin" in overlay
     assert "capacityHeadroomMwhPerDay" in overlay
     assert "poolSharePct" in overlay
@@ -915,7 +915,6 @@ def test_web_client_network_page_shows_resource_pool_paths_on_map() -> None:
     assert ".resource-path-recommendation-evidence" in css
     assert ".resource-path-capacity-warning" in css
     assert ".resource-route-state-pill" in css
-    assert ".resource-path-more" in css
     assert "max-height: min(42vh, 380px)" in css
     assert "buildVisibleMapNetworkLines" in map_component
     assert 'id: "verified-pipeline-lines"' in map_component
@@ -929,7 +928,6 @@ def test_web_client_network_page_shows_resource_pool_paths_on_map() -> None:
     assert en["home.recommendation_reason"] == "Recommendation reason"
     assert en["home.capacity_utilization"] == "Capacity utilization"
     assert en["home.required_tso_access"] == "Required TSO access"
-    assert en["home.more_route_paths"] == "more route candidates in decision rail"
     assert en["home.pnl_per_day"] == "PnL/day"
     assert en["home.route_state.allocated"] == "Allocated"
     assert en["home.route_state.candidate"] == "Candidate"
@@ -949,9 +947,6 @@ def test_web_client_network_page_shows_resource_pool_paths_on_map() -> None:
     assert zh["home.recommendation_reason"] == "\u63a8\u8350\u7406\u7531"
     assert zh["home.capacity_utilization"] == "\u5bb9\u91cf\u4f7f\u7528\u7387"
     assert zh["home.required_tso_access"] == "\u6240\u9700 TSO \u51c6\u5165"
-    assert zh["home.more_route_paths"] == (
-        "\u6761\u66f4\u591a\u5019\u9009\u8def\u5f84\u5728\u53f3\u4fa7\u51b3\u7b56\u680f"
-    )
     assert zh["map.visual_legend"] == "地图图例"
     assert zh["map.verified_pipeline_lines"] == "已验证线几何"
     assert zh["map.indicative_route_lines"] == "指示性路线走廊"
@@ -966,6 +961,51 @@ def test_web_client_network_page_shows_resource_pool_paths_on_map() -> None:
     assert "required TSO access" in web_spec
     assert "capacity bottleneck" in web_spec
     assert "path-level PnL/day" in web_spec
+
+
+def test_network_workspace_is_map_first_with_non_overlapping_rails_and_ladder() -> None:
+    network_workspace = (
+        ROOT / "clients" / "web" / "src" / "components" / "NetworkWorkspace.tsx"
+    ).read_text(encoding="utf-8")
+    overlay = (
+        ROOT / "clients" / "web" / "src" / "components" / "ResourcePoolPathOverlay.tsx"
+    ).read_text(encoding="utf-8")
+    css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(encoding="utf-8")
+    en = json.loads(
+        (ROOT / "clients" / "web" / "src" / "i18n" / "en.json").read_text(encoding="utf-8")
+    )
+
+    assert "network-workspace-shell" in network_workspace
+    assert "network-resource-rail" in network_workspace
+    assert "network-map-column" in network_workspace
+    assert "network-decision-rail" in network_workspace
+    assert "network-route-ladder" in network_workspace
+    assert "network-rail-tabs" in network_workspace
+    assert "network-rail-view" in network_workspace
+    assert 'role="tablist"' in network_workspace
+    assert 'aria-selected={activeRailView === view}' in network_workspace
+    assert 'activeRailView === "decision"' in network_workspace
+    assert 'activeRailView === "pnl"' in network_workspace
+    assert 'activeRailView === "warnings"' in network_workspace
+    assert 'activeRailView === "evidence"' in network_workspace
+    assert "<IntradayDecisionFeed" in network_workspace
+    assert "onOpenReview" in network_workspace
+    assert "defaultOpen" in overlay
+    assert "useState(defaultOpen)" in overlay
+    assert ".network-workspace-shell" in css
+    assert 'grid-template-areas: "left map right" "ladder ladder ladder"' in css
+    assert ".network-route-ladder .resource-pool-map-overlay" in css
+    assert "position: static" in css
+    assert "grid-auto-flow: column" in css
+    assert '.workspace-network .workspace-topbar-only' in css
+    assert 'grid-template-areas: "workspace search topbar-controls"' in css
+    assert "const visiblePaths = paths;" in overlay
+    assert "paths.slice(0, 3)" not in overlay
+    assert en["network.map_column_label"] == "European gas map"
+    assert en["network.rail_decision"] == "Decision"
+    assert en["network.rail_pnl"] == "P&L"
+    assert en["network.rail_warnings"] == "Warnings"
+    assert en["network.rail_evidence"] == "Evidence"
 
 
 def test_web_client_map_fallback_prioritizes_labels_for_trader_readability() -> None:

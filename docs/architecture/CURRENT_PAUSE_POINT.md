@@ -4,7 +4,7 @@ Chinese companion: [CURRENT_PAUSE_POINT-CN.md](CURRENT_PAUSE_POINT-CN.md)
 
 ## Status
 
-Date checked: 2026-09-01
+Date checked: 2026-09-02
 
 Eurogas Nexus is a `0.5.0` preview-release worktree containing the FastAPI
 backend, PostgreSQL runtime schema, Python SDK, CLI, React/Vite Web workspace,
@@ -57,8 +57,9 @@ Provider credentials are backend-owned and are never returned in plaintext.
   `1707x960`. The shared topbar now has deterministic responsive grid areas,
   Settings authentication controls no longer collide, and Review evidence is
   structured into readable key/value rows and wrapped semantic lists. The
-  selected conceptual Network direction is committed under
-  `docs/design/references/`; it does not define runtime data or topology truth.
+  selected Network design reference is implemented as a stable left-resource,
+  central-map, right-decision, bottom-route-ladder shell. The reference remains
+  visual guidance only and does not define runtime data or topology truth.
 - Desktop: Tauri shells for Windows x64 and Linux x64/ARM64.
 - Deployment: distinct Server, Client-only, and AllInOne assets. The Windows
   AllInOne NSIS package provisions the loopback-only Docker/PostgreSQL/API
@@ -232,8 +233,11 @@ assessment remain validated internal prototypes.
   PostgreSQL-backed API on 2026-09-01. The Network workspace loaded 31 hubs and
   four persisted indicative route corridors, showed their non-surveyed-geometry
   warning, and did not draw the TTF local-sale option as a transport route.
-  Narrow mobile-browser QA confirmed the same counts, legends, and disclosure
-  without panel overlap.
+  Microsoft Edge QA at 1707, 1101, 900, and 390 pixels confirmed the new
+  non-overlapping route ladder, complete two-path runtime result, all four
+  decision-rail views, the same counts/legends/disclosures, and no page-level
+  horizontal overflow. The runtime still has zero verified line geometries, so
+  authoritative pipeline rendering remains unverified in this environment.
 - Every `main` push runs the release workflow for Web, Windows Client-only,
   Windows AllInOne, Linux x64, Linux ARM64, the Server operator bundle, and the
   amd64/arm64 runtime image.

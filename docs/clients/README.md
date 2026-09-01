@@ -74,8 +74,8 @@ list of pages. Technical workspace ids remain stable for compatibility.
 
 ### Decision Workspace
 
-- Network: map-first resource-pool cockpit, resource-path overlay, route
-  options, warnings, and PnL summary.
+- Network: map-first resource-pool cockpit with a left resource rail, central
+  topology map, tabbed decision rail, and non-overlapping bottom route ladder.
 - Scenario: route-cost, resource-pool, and economics review controls.
 - Review: route allocation, warning, and analysis/report review.
 

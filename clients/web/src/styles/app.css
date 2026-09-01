@@ -6574,19 +6574,6 @@ button.glossary-related-chip {
   white-space: nowrap;
 }
 
-.resource-path-more {
-  width: fit-content;
-  border: 1px solid var(--eg-hairline);
-  border-radius: var(--eg-pill);
-  background: rgb(255 255 255 / 90%);
-  box-shadow: var(--eg-shadow-2);
-  color: var(--eg-muted);
-  font-size: 11px;
-  font-weight: 700;
-  padding: 6px 10px;
-  pointer-events: auto;
-}
-
 .resource-path-empty strong {
   color: var(--eg-ink);
   font-size: 13px;
@@ -6597,7 +6584,6 @@ button.glossary-related-chip {
 :root.dark .route-state-item,
 :root.dark .resource-path-card,
 :root.dark .resource-path-empty,
-:root.dark .resource-path-more,
 :root.dark .map-visual-legend span,
 :root.dark .resource-path-geometry-notice {
   background: rgb(17 17 17 / 90%);
@@ -7883,5 +7869,294 @@ button.glossary-related-chip {
 
   .review-evidence-row {
     grid-template-columns: 1fr;
+  }
+}
+
+/* ============================================================
+   Network workspace layout 2026-09-01
+   Map-first shell with independent resource/decision rails and a
+   non-overlapping bottom resource-path ladder.
+   ============================================================ */
+
+.workspace-network {
+  --network-left-rail: 320px;
+  --network-right-rail: 340px;
+  --network-topbar-reserve: 76px;
+}
+
+.workspace-network .network-workspace-shell {
+  position: fixed;
+  z-index: 1;
+  inset: 0;
+  display: grid;
+  grid-template-areas: "left map right" "ladder ladder ladder";
+  grid-template-columns: var(--network-left-rail) minmax(0, 1fr) var(--network-right-rail);
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 10px;
+  min-width: 0;
+  padding: var(--network-topbar-reserve) 16px 12px;
+}
+
+.workspace-network .network-resource-rail,
+.workspace-network .network-decision-rail {
+  position: static;
+  z-index: 1;
+  top: auto;
+  right: auto;
+  bottom: auto;
+  left: auto;
+  width: auto;
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.workspace-network .network-resource-rail {
+  grid-area: left;
+}
+
+.workspace-network .network-map-column {
+  position: relative;
+  grid-area: map;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--eg-hairline);
+  border-radius: var(--eg-radius-md);
+  background: var(--eg-canvas);
+}
+
+.workspace-network .network-map-stage {
+  position: absolute;
+  inset: 0;
+  height: auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.workspace-network .network-map-column .map-toolbar {
+  top: 8px;
+  right: auto;
+  bottom: auto;
+  left: 8px;
+  z-index: 42;
+  max-width: calc(100% - 16px);
+  flex-wrap: nowrap;
+}
+
+.workspace-network .network-map-column .map-visual-legend {
+  top: 58px;
+  right: 8px;
+  left: auto;
+  width: min(250px, calc(100% - 16px));
+  min-width: 0;
+}
+
+.workspace-network .network-map-column .maplibregl-ctrl-top-right {
+  top: 8px;
+  right: 8px;
+}
+
+.workspace-network .network-map-column .maplibregl-ctrl-bottom-left {
+  bottom: 8px;
+  left: 8px;
+}
+
+.workspace-network .network-decision-rail {
+  grid-area: right;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.workspace-network .network-decision-rail .panel,
+.workspace-network .network-resource-rail .panel {
+  min-width: 0;
+}
+
+.workspace-network .network-rail-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+.workspace-network .network-rail-tab {
+  min-width: 0;
+  min-height: 32px;
+  border: 1px solid var(--eg-hairline);
+  border-radius: var(--eg-radius-sm);
+  background: var(--eg-canvas-soft);
+  color: var(--eg-body);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 5px 6px;
+  text-transform: uppercase;
+}
+
+.workspace-network .network-rail-tab.active {
+  border-color: var(--eg-accent);
+  background: var(--eg-canvas);
+  color: var(--eg-ink);
+  box-shadow: inset 0 -2px 0 var(--eg-accent);
+}
+
+.workspace-network .network-rail-view {
+  display: grid;
+  min-height: 0;
+  align-content: start;
+  gap: 10px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.workspace-network .network-warning-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.workspace-network .network-route-ladder {
+  grid-area: ladder;
+  min-width: 0;
+  min-height: 0;
+  border: 1px solid var(--eg-hairline);
+  border-radius: var(--eg-radius-md);
+  background: var(--eg-canvas);
+  overflow: hidden;
+}
+
+.workspace-network .network-route-ladder .resource-pool-map-overlay {
+  position: static;
+  z-index: 1;
+  top: auto;
+  right: auto;
+  left: auto;
+  display: grid;
+  width: auto;
+  max-width: none;
+  gap: 8px;
+  pointer-events: auto;
+  padding: 8px 10px;
+}
+
+.workspace-network .network-route-ladder .resource-path-detail-stack {
+  max-height: 180px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.workspace-network .network-route-ladder .resource-path-list {
+  display: grid;
+  grid-auto-columns: minmax(280px, 1fr);
+  grid-auto-flow: column;
+  grid-template-columns: none;
+  gap: 8px;
+  overflow-x: auto;
+}
+
+@media (min-width: 1101px) and (max-width: 1279px) {
+  .workspace-network {
+    --network-left-rail: 280px;
+    --network-right-rail: 320px;
+  }
+
+  .workspace-network .workspace-topbar-only {
+    grid-template-areas: "workspace search topbar-controls";
+    grid-template-columns: minmax(180px, 220px) minmax(180px, 1fr) auto;
+  }
+
+  .workspace-network .topbar-trading-context {
+    display: none;
+  }
+}
+
+@media (min-width: 901px) and (max-width: 1100px) {
+  .workspace-network .network-workspace-shell {
+    position: relative;
+    inset: auto;
+    grid-template-areas: "left map" "left right" "ladder ladder";
+    grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+    grid-template-rows: minmax(460px, 62vh) auto auto;
+    min-height: 100vh;
+    padding: 76px 16px 12px;
+  }
+
+  .workspace-network .network-resource-rail,
+  .workspace-network .network-decision-rail {
+    height: auto;
+    max-height: 62vh;
+  }
+
+  .workspace-network .network-decision-rail {
+    grid-area: right;
+  }
+
+  .workspace-network .network-route-ladder {
+    min-height: 180px;
+  }
+}
+
+@media (max-width: 900px) {
+  .workspace-network .network-workspace-shell {
+    position: relative;
+    inset: auto;
+    grid-template-areas: "map" "ladder" "left" "right";
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(420px, 58vh) auto auto auto;
+    min-height: auto;
+    padding: 0 12px 12px;
+    gap: 10px;
+  }
+
+  .workspace-network .network-map-column {
+    min-height: 420px;
+  }
+
+  .workspace-network .network-resource-rail,
+  .workspace-network .network-decision-rail {
+    height: auto;
+    max-height: none;
+    overflow-y: visible;
+  }
+
+  .workspace-network .network-route-ladder .resource-path-list {
+    grid-auto-columns: auto;
+    grid-auto-flow: row;
+    grid-template-columns: minmax(0, 1fr);
+    overflow-x: hidden;
+  }
+
+  .workspace-network .network-route-ladder .resource-path-detail-stack {
+    max-height: 320px;
+  }
+}
+
+@media (max-width: 640px) {
+  .workspace-network .network-workspace-shell {
+    grid-template-rows: minmax(420px, 52vh) auto auto auto;
+    padding: 8px 8px 8px;
+  }
+
+  .workspace-network .network-map-column {
+    min-height: 420px;
+  }
+
+  .workspace-network .network-map-column .map-visual-legend {
+    top: 58px;
+    right: 8px;
+    left: 8px;
+    width: auto;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .workspace-network .network-rail-tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .workspace-network .network-route-ladder .resource-path-card {
+    max-width: calc(100vw - 28px);
   }
 }

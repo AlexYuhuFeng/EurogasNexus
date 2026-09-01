@@ -124,18 +124,22 @@ Persistent layout:
 +--------------------------------------------------------------------------------+
 +----------------------+----------------------------------+----------------------+
 | Resource-pool rail   | European gas map                 | Decision rail        |
-| resources, blockers, | nodes, routes, corridors, layers | pool PnL, route      |
-| route controls       | and selected route context       | ladder, economics    |
+| resources, blockers, | nodes, routes, corridors, layers | Decision / P&L /     |
+| route controls       | and selected route context       | Warnings / Evidence  |
 +----------------------+----------------------------------+----------------------+
-| Workspace pages: scenario, resource terms, market, capacity, strategy, review   |
+| Bottom route-alpha / resource-path ladder (does not cover the map)             |
 +--------------------------------------------------------------------------------+
 ```
 
 Responsive behavior:
 
-- desktop: top bar, map, left resource rail, and right decision rail visible;
-- tablet: inspector becomes a drawer;
-- mobile: map/workspace first, nav collapses, bottom panel becomes tabs.
+- desktop >=1280: 320px resource rail, dominant central map, 340px decision
+  rail, and a contained bottom route ladder;
+- 1101-1279: 280px resource rail and 320px decision rail; the top bar omits
+  the duplicated trading-context group so all command controls remain visible;
+- 900: map, bottom ladder, resource rail, then decision rail in page flow;
+- 390: map first, then contained ladder and stacked rails; all controls scroll
+  within their own regions without page-level horizontal overflow.
 
 ## Screen: Network
 
@@ -151,9 +155,9 @@ Initial content:
 - layer controls;
 - map visual legend showing node colours, verified line geometry, and dashed
   indicative route corridors for unverified backend route evidence;
-- resource-path overlay showing persisted resource delivery point, target sale
-  point, quantity, capacity limit, route cost, sale price, net margin, route
-  state, and blockers from backend resource-pool data;
+- bottom resource-path ladder showing persisted resource delivery point, target
+  sale point, quantity, capacity limit, route cost, sale price, net margin,
+  route state, and blockers from backend resource-pool data;
 - visible "Indicative route corridor" notice when a selected resource path has
   backend route evidence but no licence-approved line geometry, so the user sees
   that the dashed corridor is schematic and not official pipeline geometry;

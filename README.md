@@ -105,7 +105,7 @@ Recommended README visual set:
 
 | Surface | Purpose | Suggested file |
 | --- | --- | --- |
-| Network map cockpit | European map-first workspace, resource-pool overlay, route candidates, warnings, and indicative PnL. | `docs/assets/readme/network-map-cockpit.png` |
+| Network decision workspace | European map-first workspace with resource and decision rails, a non-overlapping route ladder, warnings, and indicative PnL. | `docs/assets/readme/network-map-cockpit.png` |
 | Scenario and route economics | Resource, destination, route, tariff, LNG readiness, and missing-input validation. | `docs/assets/readme/scenario-route-economics.png` |
 | Review and report | Candidate comparison, warning stack, source references, lineage, and LLM-assisted commentary with human-review badges. | `docs/assets/readme/review-report.png` |
 

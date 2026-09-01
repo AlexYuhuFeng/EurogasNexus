@@ -39,6 +39,7 @@ interface ResourcePoolPathOverlayProps {
   paths: ResourcePoolMapPath[];
   blockers: string[];
   t: Translate;
+  defaultOpen?: boolean;
 }
 
 function formatQuantity(value: number | null): string {
@@ -141,11 +142,10 @@ function allocationEvidenceForPath(path: ResourcePoolMapPath, totalAvailableMwhP
   };
 }
 
-export function ResourcePoolPathOverlay({ paths, blockers, t }: ResourcePoolPathOverlayProps) {
-  const [detailsOpen, setDetailsOpen] = useState(false);
-  const visiblePaths = paths.slice(0, 3);
+export function ResourcePoolPathOverlay({ paths, blockers, t, defaultOpen = false }: ResourcePoolPathOverlayProps) {
+  const [detailsOpen, setDetailsOpen] = useState(defaultOpen);
+  const visiblePaths = paths;
   const poolSummary = summarizeResourcePool(paths);
-  const hiddenPathCount = Math.max(paths.length - visiblePaths.length, 0);
   const firstIndicativeGeometryPath = visiblePaths.find(
     (path) =>
       path.routeTopologyKind === "NETWORK_ROUTE" &&
@@ -264,9 +264,6 @@ export function ResourcePoolPathOverlay({ paths, blockers, t }: ResourcePoolPath
               );
             })}
               </div>
-              {hiddenPathCount > 0 && (
-                <div className="resource-path-more">+{hiddenPathCount} {t("home.more_route_paths")}</div>
-              )}
             </div>
           )}
         </>

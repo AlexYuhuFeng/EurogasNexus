@@ -96,7 +96,7 @@ called a full project release.
 | --- | --- |
 | SDK/API data boundary | web reaches PostgreSQL data only through backend `/api`; no direct DB/vendor/secret access |
 | Runtime visibility | backend, DB, source, warning posture visible |
-| Network workspace | map-ready reference network view with backend-derived resource-path overlay, route/pool decision context, and priority-budgeted labels for readable fallback rendering |
+| Network workspace | map-ready reference network view with separate resource and decision rails, complete backend-derived bottom route ladder, verified-versus-indicative topology disclosure, route/pool decision context, and priority-budgeted labels |
 | Capacity workspace | ENTSOG flow/capacity, TSO access, tariff, GIE storage/LNG context visible through backend API |
 | Scenario workspace | inputs, missing inputs, assumptions |
 | Market workspace | terminal-style European gas hub board, regional TTF spreads, ECB FX, and exchange/broker source posture without fabricated prices |
