@@ -1,6 +1,6 @@
 # Documentation Consistency Audit
 
-Date checked: 2026-07-18
+Date checked: 2026-09-01
 
 This audit reviews whether repository documentation matches the current product
 reality. Eurogas Nexus should be described as a commercial European gas
@@ -64,6 +64,10 @@ The cleanup standard is:
   completed ExecPlans.
 - Added bilingual Web application architecture rules and reduced `App.tsx` to
   a composition root with explicit hook, model, shell, and workspace owners.
+- Recorded the 2026-09-01 packaged-EXE audit of all 13 workspaces, committed the
+  selected conceptual Network design reference, and reconciled the Web client
+  specification with the responsive topbar, Settings authentication, and
+  Review evidence implementation. Local QA screenshots remain untracked.
 
 ## Remaining High-Priority Items
 

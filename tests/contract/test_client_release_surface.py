@@ -810,6 +810,11 @@ def test_web_client_settings_page_is_trader_preference_center() -> None:
     assert "settings-unit-panel" in settings_center
     assert "settings-service-panel" in settings_center
     assert "settings-boundary-panel" in settings_center
+    assert "settings-auth-grid" in settings_center
+    assert "settings-auth-field" in settings_center
+    assert "settings-auth-save" in settings_center
+    assert 'autoComplete="new-password"' in settings_center
+    assert ".settings-auth-grid" in css
     assert "default_currency" in settings_center
     assert "energy_unit" in settings_center
     assert "session_timezone" in settings_center
@@ -1400,6 +1405,41 @@ def test_source_center_shows_category_operational_posture_board() -> None:
     assert zh["sources.preview_substitutes_active"] == "\u9884\u89c8\u66ff\u4ee3\u6e90"
 
 
+def test_web_client_review_evidence_pack_is_readable_and_responsive() -> None:
+    review_workspace = (
+        ROOT / "clients" / "web" / "src" / "components" / "ReviewWorkspace.tsx"
+    ).read_text(encoding="utf-8")
+    css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(encoding="utf-8")
+
+    assert "review-evidence-grid" in review_workspace
+    assert "review-evidence-row" in review_workspace
+    assert "review-evidence-row-full" in review_workspace
+    assert "review-evidence-key" in review_workspace
+    assert "review-evidence-value" in review_workspace
+    assert "review-evidence-list" in review_workspace
+    assert "review-evidence-item" in review_workspace
+    assert '<ul className="review-evidence-list">' in review_workspace
+    assert '<li className="review-evidence-item"' in review_workspace
+    assert "overflow-wrap: anywhere" in css
+    assert ".review-evidence-grid" in css
+    assert ".review-evidence-row-full" in css
+
+
+def test_web_client_ui_foundation_docs_label_imagegen_as_conceptual() -> None:
+    web_spec = (ROOT / "docs" / "clients" / "WEB_CLIENT_DESIGN_SPEC.md").read_text(
+        encoding="utf-8"
+    )
+    audit = (ROOT / "docs" / "design" / "UI_AUDIT_2026-09-01.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "UI Foundation (2026-09-01 EXE Audit)" in web_spec
+    assert "conceptual only and is not runtime evidence" in web_spec
+    assert "UI Audit - 2026-09-01 EXE Foundation" in audit
+    assert "Image Gen 2 Direction C" in audit
+    assert "not runtime evidence" in audit
+
+
 def test_web_client_mobile_topbar_constrains_controls_to_viewport() -> None:
     css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(encoding="utf-8")
 
@@ -1409,6 +1449,8 @@ def test_web_client_mobile_topbar_constrains_controls_to_viewport() -> None:
     assert "min-width: 0" in css
     assert "flex-wrap: wrap" in css
     assert "minmax(0, 1fr)" in css
+    assert "grid-template-areas: \"workspace\" \"topbar-controls\"" in css
+    assert "grid-template-areas: \"workspace\" \"search\" \"topbar-controls\"" in css
 
 
 def test_web_client_resource_pool_options_are_backend_owned() -> None:

@@ -24,6 +24,31 @@ The Web client must not implement trade execution, order entry, nomination
 submission, official recommendation, settlement/accounting, ETRM replacement, or
 auto-trading workflows.
 
+## UI Foundation (2026-09-01 EXE Audit)
+
+The shared topbar, Settings authentication controls, and Review evidence pack
+were re-audited from the running EXE at 1707x960 and then checked at 900x1000
+and 390x844.
+
+Selected design direction: Image Gen 2 Direction C reference at
+`docs/design/references/network-workspace-imagegen-2026-09-01.png`.
+This reference is conceptual only and is not runtime evidence. Its data values
+must never be treated as market, credential, entitlement, or PostgreSQL state.
+
+Implemented foundation rules:
+
+- the shared topbar uses explicit grid areas for workspace identity, map search,
+  trading context, and header controls; at 900px and 390px controls reflow in
+  predictable rows without page-level horizontal overflow;
+- Settings authentication is a semantic responsive grid with separate labels and
+  inputs, password-safe attributes, a stable Save auth button, and no text
+  collision at desktop/tablet/mobile widths;
+- Review evidence is rendered as readable key/value rows with separate
+  assumption and source-reference lists; long source identifiers wrap with
+  `overflow-wrap: anywhere`;
+- no new datastore, API contract, or client-side fake data was introduced by
+  this foundation milestone.
+
 ## Recommended Stack
 
 Use the exact library contract in `docs/clients/CLIENT_TECH_STACK.md`:

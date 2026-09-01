@@ -133,34 +133,46 @@ export function ReviewWorkspace({
         </div>
         <p className="panel-copy">{t("review.evidence_help")}</p>
         {resourcePoolResult ? (
-          <div className="review-evidence-grid">
-            <div><span>{t("review.status")}</span><strong>{resourcePoolResult.status}</strong></div>
-            <div><span>{t("review.algorithm")}</span><strong>{resourcePoolResult.algorithm}</strong></div>
-            <div><span>{t("review.optimality")}</span><strong>{resourcePoolResult.optimality}</strong></div>
-            <div><span>{t("review.allocated_volume")}</span><strong>{resourcePoolResult.total_allocated_mwh_per_day.toLocaleString()} MWh/d</strong></div>
-            <div className="review-evidence-full">
-              <span>{t("review.missing_inputs")}</span>
-              <div className="review-evidence-list">
+          <div className="review-evidence-grid" aria-label={t("review.evidence_pack")}>
+            <div className="review-evidence-row">
+              <span className="review-evidence-key">{t("review.status")}</span>
+              <strong className="review-evidence-value">{resourcePoolResult.status}</strong>
+            </div>
+            <div className="review-evidence-row">
+              <span className="review-evidence-key">{t("review.algorithm")}</span>
+              <strong className="review-evidence-value">{resourcePoolResult.algorithm}</strong>
+            </div>
+            <div className="review-evidence-row">
+              <span className="review-evidence-key">{t("review.optimality")}</span>
+              <strong className="review-evidence-value">{resourcePoolResult.optimality}</strong>
+            </div>
+            <div className="review-evidence-row">
+              <span className="review-evidence-key">{t("review.allocated_volume")}</span>
+              <strong className="review-evidence-value">{resourcePoolResult.total_allocated_mwh_per_day.toLocaleString()} MWh/d</strong>
+            </div>
+            <div className="review-evidence-row review-evidence-row-full">
+              <span className="review-evidence-key">{t("review.missing_inputs")}</span>
+              <ul className="review-evidence-list">
                 {resourcePoolResult.missing_inputs.length > 0
-                  ? resourcePoolResult.missing_inputs.map((item) => <span key={`missing-${item}`}>{item}</span>)
-                  : <span>{t("review.none")}</span>}
-              </div>
+                  ? resourcePoolResult.missing_inputs.map((item) => <li className="review-evidence-item" key={`missing-${item}`}>{item}</li>)
+                  : <li className="review-evidence-item">{t("review.none")}</li>}
+              </ul>
             </div>
-            <div className="review-evidence-full">
-              <span>{t("review.assumptions")}</span>
-              <div className="review-evidence-list">
+            <div className="review-evidence-row review-evidence-row-full">
+              <span className="review-evidence-key">{t("review.assumptions")}</span>
+              <ul className="review-evidence-list">
                 {resourcePoolResult.assumptions.length > 0
-                  ? resourcePoolResult.assumptions.map((item) => <span key={`assumption-${item}`}>{item}</span>)
-                  : <span>{t("review.none")}</span>}
-              </div>
+                  ? resourcePoolResult.assumptions.map((item) => <li className="review-evidence-item" key={`assumption-${item}`}>{item}</li>)
+                  : <li className="review-evidence-item">{t("review.none")}</li>}
+              </ul>
             </div>
-            <div className="review-evidence-full">
-              <span>{t("review.source_refs")}</span>
-              <div className="review-evidence-list">
+            <div className="review-evidence-row review-evidence-row-full">
+              <span className="review-evidence-key">{t("review.source_refs")}</span>
+              <ul className="review-evidence-list">
                 {resourcePoolResult.source_refs.length > 0
-                  ? resourcePoolResult.source_refs.slice(0, 8).map((ref) => <span key={`ref-${ref}`}>{ref}</span>)
-                  : <span>{t("review.none")}</span>}
-              </div>
+                  ? resourcePoolResult.source_refs.slice(0, 8).map((ref) => <li className="review-evidence-item" key={`ref-${ref}`}>{ref}</li>)
+                  : <li className="review-evidence-item">{t("review.none")}</li>}
+              </ul>
             </div>
           </div>
         ) : (

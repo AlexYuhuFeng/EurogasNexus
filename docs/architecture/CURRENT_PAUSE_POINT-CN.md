@@ -35,6 +35,10 @@ app import ok
 - 开发接口：`/api/dev`，受运行配置限制。
 - 数据权威来源：PostgreSQL 和 Alembic。
 - 客户端：共享的 Web 工作区，以及 Windows x64、Linux x64/ARM64 Tauri 外壳。
+- UI 审计基线：已在 `1707x960` 下逐页检查打包 EXE 的 13 个工作区。共享顶栏
+  现使用确定性的响应式网格区域，Settings 认证控件不再重叠，Review 证据已拆分
+  为可读的键值行和可换行语义列表。选定的 Network 概念方向已提交到
+  `docs/design/references/`；它不定义运行时数据或拓扑事实。
 - 部署角色：Server、Client-only、AllInOne 三类 Release 产物相互独立。Windows AllInOne NSIS 会在已安装 Docker 的测试电脑上自动部署仅回环可见的 PostgreSQL/API 运行时和桌面 Client。外部安全验收完成前，Server 部署只允许用于私网或 VPN 预览环境。`EUROGAS_NEXUS_DEPLOYMENT_POSTURE` 默认为 `private_network_preview`；只有同时设置 `security_accepted` 和存在的 `EUROGAS_NEXUS_SECURITY_ACCEPTANCE_EVIDENCE` 文件才生效。
 - 预览价格：仿真数据源把与真实提供商同形的数据写入 PostgreSQL，并完整经过后端、API、SDK/客户端链路。
 - 日内决策：标准化 L1 报价触发后端路径净价差扫描；已持久化机会通过 API/SDK 提供，Network、Market 和 Strategy 工作区每 10 秒读取一次。过期快照不会继续显示为可审阅机会。

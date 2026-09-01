@@ -53,6 +53,12 @@ Provider credentials are backend-owned and are never returned in plaintext.
 - Development API: `/api/dev`, profile-gated.
 - Runtime truth: PostgreSQL with Alembic-managed schema.
 - Web: shared map-first trader workspace.
+- UI audit baseline: all 13 packaged-EXE workspaces were inspected at
+  `1707x960`. The shared topbar now has deterministic responsive grid areas,
+  Settings authentication controls no longer collide, and Review evidence is
+  structured into readable key/value rows and wrapped semantic lists. The
+  selected conceptual Network direction is committed under
+  `docs/design/references/`; it does not define runtime data or topology truth.
 - Desktop: Tauri shells for Windows x64 and Linux x64/ARM64.
 - Deployment: distinct Server, Client-only, and AllInOne assets. The Windows
   AllInOne NSIS package provisions the loopback-only Docker/PostgreSQL/API

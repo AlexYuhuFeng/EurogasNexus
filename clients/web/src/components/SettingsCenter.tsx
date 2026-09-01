@@ -207,38 +207,45 @@ export function SettingsCenter({
               : `${t("settings.backend_failed")}: ${apiConnectionState.error}`}
           </p>
         )}
-        <div className="settings-auth-form">
+        <div className="settings-auth-form" aria-label={t("settings.auth_help")}>
           <p className="panel-copy">{t("settings.auth_help")}</p>
-          <label>
-            {t("settings.api_token")}
-            <input
-              type="password"
-              value={apiToken}
-              spellCheck={false}
-              autoComplete="off"
-              onChange={(event) => setApiToken(event.target.value)}
-              placeholder="EUROGAS_NEXUS_PUBLIC_API_TOKEN"
-            />
-          </label>
-          <label>
-            {t("settings.operator_principal")}
-            <input
-              value={operatorPrincipal}
-              spellCheck={false}
-              autoComplete="off"
-              onChange={(event) => setOperatorPrincipal(event.target.value)}
-              placeholder="operator-name"
-            />
-          </label>
-          <button
-            type="button"
-            onClick={() => {
-              saveApiAuth(apiToken, operatorPrincipal);
-              setAuthMessage(t("settings.auth_saved"));
-            }}
-          >
-            {t("settings.auth_save")}
-          </button>
+          <div className="settings-auth-grid">
+            <label className="settings-auth-field">
+              <span>{t("settings.api_token")}</span>
+              <input
+                type="password"
+                name="eurogas-api-token"
+                value={apiToken}
+                spellCheck={false}
+                autoComplete="new-password"
+                aria-label={t("settings.api_token")}
+                onChange={(event) => setApiToken(event.target.value)}
+                placeholder="EUROGAS_NEXUS_PUBLIC_API_TOKEN"
+              />
+            </label>
+            <label className="settings-auth-field">
+              <span>{t("settings.operator_principal")}</span>
+              <input
+                name="eurogas-operator-principal"
+                value={operatorPrincipal}
+                spellCheck={false}
+                autoComplete="off"
+                aria-label={t("settings.operator_principal")}
+                onChange={(event) => setOperatorPrincipal(event.target.value)}
+                placeholder="operator-name"
+              />
+            </label>
+            <button
+              className="settings-auth-save"
+              type="button"
+              onClick={() => {
+                saveApiAuth(apiToken, operatorPrincipal);
+                setAuthMessage(t("settings.auth_saved"));
+              }}
+            >
+              {t("settings.auth_save")}
+            </button>
+          </div>
           {authMessage && (
             <p className="settings-backend-message" role="status">{authMessage}</p>
           )}
