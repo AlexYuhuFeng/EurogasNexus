@@ -4,7 +4,7 @@
 
 ## 状态
 
-检查日期：2026-07-22
+检查日期：2026-09-01
 
 Eurogas Nexus 当前是 `0.5.0` 预览发布版本，已经包含 FastAPI 后端、PostgreSQL 运行数据库、Python SDK、CLI、React/Vite Web 客户端、Tauri Windows/Linux 客户端以及按角色部署工具。
 
@@ -19,7 +19,7 @@ missing_tables: 0
 source: runtime-postgresql
 
 app import ok
-84 routes
+92 paths
 ```
 
 > `len(app.openapi()['paths'])` 是版本无关的端点数；原始 `len(app.routes)` 依赖 FastAPI 版本（FastAPI 0.141.x 的惰性 router 下为 25），不宜作为稳定健康指标。
@@ -38,6 +38,11 @@ app import ok
 - 部署角色：Server、Client-only、AllInOne 三类 Release 产物相互独立。Windows AllInOne NSIS 会在已安装 Docker 的测试电脑上自动部署仅回环可见的 PostgreSQL/API 运行时和桌面 Client。外部安全验收完成前，Server 部署只允许用于私网或 VPN 预览环境。`EUROGAS_NEXUS_DEPLOYMENT_POSTURE` 默认为 `private_network_preview`；只有同时设置 `security_accepted` 和存在的 `EUROGAS_NEXUS_SECURITY_ACCEPTANCE_EVIDENCE` 文件才生效。
 - 预览价格：仿真数据源把与真实提供商同形的数据写入 PostgreSQL，并完整经过后端、API、SDK/客户端链路。
 - 日内决策：标准化 L1 报价触发后端路径净价差扫描；已持久化机会通过 API/SDK 提供，Network、Market 和 Strategy 工作区每 10 秒读取一次。过期快照不会继续显示为可审阅机会。
+- 网络拓扑语义：资源池结果现已区分 `LOCAL_MARKET_DISPOSITION` 与
+  `NETWORK_ROUTE`。同枢纽本地销售没有运输段，也不会作为地图线路绘制；
+  网络路径解析时精确节点标识优先于别名。线路只能显示为已验证几何，或显示为
+  有 PostgreSQL 路径/拓扑证据支撑且明确标注的示意走廊。客户端当前采用
+  2,000 行有界读取以避免遗漏排序靠后的 VTP 端点；后续规模化应改为服务端分页。
 - 监控与 DeepSeek：PostgreSQL worker 每 10 秒归一化机会、策略和数据源失败告警；稳定指纹避免同一事件重复产生调用费用。顶部告警中心支持确认和显式 DeepSeek 对话。2026-07-22 已验证一次真实连接、三次告警解释和一次交互回答；自动化测试仍然不访问外网。
 - 策略影子运行持久化：每次 `POST /api/strategy-lab/evaluate` 的结果都会写入 `strategy_runs` 和 `strategy_allocation_targets`，并附带 `run_id`、指示性 `paper_pnl_gbp`、累计盈亏和命中标记。只读端点 `GET /api/strategy-lab/runs`、`/runs/{run_id}` 和 `/summary` 聚合累计纸面盈亏、胜率和最大回撤。止损现在按累计（历史 + 本次）盈亏判定，`PARTIAL` 结果返回 `REVIEW_PARTIAL_STRATEGY` 而非正向配置建议。
 - 公共数据源摄入可安全重跑：观测记录按自然主键 upsert，`observed_at_utc` 保持首次观测时间；ENTSOG 参考网络只替换 ENTSOG 作用域、且仅在新载荷非空时执行（operator 维护的边和映射绝不被摄入路径删除）；每次运行（无论成败）都追加 `audit_events` 和一条 `ingestion_runs`。过期运行数据按保留策略清理（报价 30 天 / 观测 90 天 / 机会 7 天），入口为 `scripts/ops/prune_runtime_data.py`。
@@ -93,6 +98,10 @@ POST /api/optimization/nomination-window
 
 - 普通 CI 执行 Python、优化器、API 导入和 Web 验证，并在 PR 上构建桌面包。
 - 每次 `main` 提交由 Build and Release workflow 构建 Web、Windows Client-only、Windows AllInOne、Linux x64、Linux ARM64、Server 部署包和 amd64/arm64 API 镜像。
+- 2026-09-01 已用重建的 Windows 可执行程序连接本机 PostgreSQL API 完成
+  Network 工作区验收：加载 31 个枢纽和 4 条已持久化示意走廊，明确展示
+  “非测绘管线坐标”提示，且不把 TTF 本地销售绘制为运输路径。窄屏浏览器
+  验收显示相同数量、图例与免责声明，未发现面板重叠。
 - Linux Tauri 依赖安装使用 Ubuntu 官方 HTTPS 镜像和有限重试，降低 ARM runner 的瞬时网络故障影响。
 
 ## Web 应用架构
@@ -117,6 +126,9 @@ React 的 `App.tsx` 现为九行组合入口，只创建应用 controller 和 sh
 5. 储气/提名评估工作流已面向复核开放（R34）；自动化安全验收证据已通过，
    但真实部署的外部验收仍未完成。
 6. 订单和 PnL 是只读导入观测；系统不创建、修改、取消、路由或执行订单，也不做交易捕获。
+7. 当前已验证的本机运行时仍没有测绘/权威管线几何（数量为 0）。地图上的
+   4 条走廊来自已持久化路径候选节点和运输段证据，均为示意线路，不代表精确
+   物理走向。权威几何获取与来源验证仍是后续工作。
 
 ## 下一步
 

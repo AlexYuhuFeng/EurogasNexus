@@ -131,7 +131,10 @@ def test_runtime_workspace_shows_pipeline_health_and_stream_mode() -> None:
     assert 'key: "external_security_acceptance"' in runtime_workspace
     assert 'key: "no_execution_boundary"' in runtime_workspace
     assert 'streamingActive ? t("stream.live") : t("stream.polling_fallback")' in runtime_workspace
-    assert 'const RUNTIME_VIEWS: RuntimeViewId[] = ["readiness", "delivery", "governance"]' in runtime_workspace
+    assert (
+        'const RUNTIME_VIEWS: RuntimeViewId[] = ["readiness", "delivery", "governance"]'
+        in runtime_workspace
+    )
     assert 'useState<RuntimeViewId>("readiness")' in runtime_workspace
     assert 'role="tablist"' in runtime_workspace
     assert 'id="runtime-active-panel"' in runtime_workspace
@@ -176,7 +179,11 @@ def test_source_center_mounts_task_specific_operating_views() -> None:
     en = json.loads(_read(WEB / "i18n" / "en.json"))
     zh = json.loads(_read(WEB / "i18n" / "zh.json"))
 
-    assert 'const SOURCE_VIEWS: SourceViewId[] = ["attention", "catalog", "access", "infrastructure"]' in source_center
+    assert (
+        'const SOURCE_VIEWS: SourceViewId[] = '
+        '["attention", "catalog", "access", "infrastructure"]'
+        in source_center
+    )
     assert 'useState<SourceViewId>("attention")' in source_center
     assert "attentionSources" in source_center
     assert "accessSources" in source_center
@@ -263,12 +270,18 @@ def test_visible_literal_translation_keys_exist_in_both_locales() -> None:
 
 
 def test_network_geometry_does_not_overstate_route_corridor_coverage() -> None:
+    api_client = _read(WEB / "api" / "client.ts")
     derived = _read(WEB / "app" / "workspaceDerivedData.ts")
     app = _read_application()
     network_workspace = _read(WEB / "components" / "NetworkWorkspace.tsx")
     map_component = _read(WEB / "components" / "GasNetworkMap.tsx")
     line_model = _read(WEB / "app" / "networkMapLines.ts")
     resource_pool_paths = _read(WEB / "app" / "resourcePoolMapPaths.ts")
+
+    # The initial topology read must include persisted VTPs and route endpoints,
+    # which currently sit beyond the API's historical 500-row default.
+    assert 'const REFERENCE_NETWORK_READ_LIMIT = "2000"' in api_client
+    assert api_client.count("limit: REFERENCE_NETWORK_READ_LIMIT") >= 5
 
     # Verification gate stays strict and is the only path into the solid layer.
     assert '"corridors_only"' in derived
@@ -288,7 +301,14 @@ def test_network_geometry_does_not_overstate_route_corridor_coverage() -> None:
 
     # The resource-path overlay must use the same verified gate as the map.
     assert "verifiedEdgeGeometryCoordinates(edge)" in resource_pool_paths
-    assert "routeEdges.some((edge) => verifiedEdgeGeometryCoordinates(edge) !== null)" in resource_pool_paths
+    assert (
+        "routeEdges.some((edge) => verifiedEdgeGeometryCoordinates(edge) !== null)"
+        in resource_pool_paths
+    )
+    assert '"LOCAL_MARKET_DISPOSITION"' in resource_pool_paths
+    assert '"not_applicable_local_disposition"' in resource_pool_paths
+    assert 'path.routeTopologyKind === "NETWORK_ROUTE"' in resource_pool_paths
+    assert "edge.from_node_id === edge.to_node_id" in line_model
 
     # Unverified evidence must be rendered, but explicitly as schematic/indicative.
     assert "buildVisibleMapNetworkLines" in line_model
@@ -301,7 +321,10 @@ def test_network_geometry_does_not_overstate_route_corridor_coverage() -> None:
     assert 'id: "indicative-route-lines"' in map_component
 
     # The map must not be empty when backend route evidence exists.
-    assert "buildVisibleMapNetworkLines({ nodes, edges, activeLayers, searchTerm, highlightedRoute })" in map_component
+    assert (
+        "buildVisibleMapNetworkLines({ nodes, edges, activeLayers, searchTerm, highlightedRoute })"
+        in map_component
+    )
     assert "visibleLines.map((line)" in map_component
     assert "routeDrawingSuppressed" not in map_component
     assert "route_geometry_suppressed_body" not in map_component

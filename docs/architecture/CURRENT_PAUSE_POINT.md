@@ -4,7 +4,7 @@ Chinese companion: [CURRENT_PAUSE_POINT-CN.md](CURRENT_PAUSE_POINT-CN.md)
 
 ## Status
 
-Date checked: 2026-07-22
+Date checked: 2026-09-01
 
 Eurogas Nexus is a `0.5.0` preview-release worktree containing the FastAPI
 backend, PostgreSQL runtime schema, Python SDK, CLI, React/Vite Web workspace,
@@ -67,6 +67,14 @@ Provider credentials are backend-owned and are never returned in plaintext.
   scans; persisted opportunities are exposed through API/SDK and polled by the
   Network, Market, and Strategy workspaces every 10 seconds. Expired snapshots
   are never left actionable.
+- Network topology semantics: resource-pool results now distinguish
+  `LOCAL_MARKET_DISPOSITION` from `NETWORK_ROUTE`. Local same-hub sales have no
+  transport leg and are not drawn as map routes. Network routes resolve exact
+  node identifiers before aliases and may be rendered only as verified geometry
+  or explicitly labelled indicative corridors backed by persisted route/topology
+  evidence. The client currently requests a bounded 2,000-row reference-network
+  view so VTP endpoints are not omitted; server-driven pagination remains the
+  scale-up path.
 - Monitoring and DeepSeek: a PostgreSQL-backed worker normalizes opportunity,
   strategy, and source-failure alerts every 10 seconds. Stable fingerprints
   prevent repeated provider charges for an unchanged event. The top-bar Alert
@@ -214,6 +222,12 @@ assessment remain validated internal prototypes.
   packaged Resource Terms Library/Pool Impact workflow was exercised against
   the PostgreSQL-backed API. This completes R15 packaging, not official V1
   release acceptance.
+- The rebuilt Windows executable was also exercised against the local
+  PostgreSQL-backed API on 2026-09-01. The Network workspace loaded 31 hubs and
+  four persisted indicative route corridors, showed their non-surveyed-geometry
+  warning, and did not draw the TTF local-sale option as a transport route.
+  Narrow mobile-browser QA confirmed the same counts, legends, and disclosure
+  without panel overlap.
 - Every `main` push runs the release workflow for Web, Windows Client-only,
   Windows AllInOne, Linux x64, Linux ARM64, the Server operator bundle, and the
   amd64/arm64 runtime image.
@@ -252,6 +266,11 @@ See [WEB_APPLICATION_ARCHITECTURE-EN.md](../clients/WEB_APPLICATION_ARCHITECTURE
    deployment review is still required.
 6. Orders and PnL are imported observations; no order entry, amendment,
    cancellation, routing, execution, or trade capture is performed.
+7. The validated local runtime currently has zero surveyed/verified pipeline
+   geometries. Its four visible route corridors are indicative, derived from
+   persisted route-candidate nodes and leg evidence, and must not be interpreted
+   as exact physical alignments. Authoritative geometry acquisition and
+   provenance validation remain open work.
 
 ## Next Work
 

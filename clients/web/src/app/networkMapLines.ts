@@ -170,7 +170,7 @@ export function buildRenderableNetworkLine(
     };
   }
 
-  if (!isRouteCandidateEdge(edge)) return null;
+  if (!isRouteCandidateEdge(edge) || edge.from_node_id === edge.to_node_id) return null;
 
   const metadata = edge.metadata_json ?? {};
   const explicitCoordinates = validLineCoordinates(metadata.geometry_coordinates);
@@ -208,7 +208,11 @@ export function buildSyntheticSelectedRouteLine(
   from: NodeDTO,
   to: NodeDTO,
 ): RenderableNetworkLine | null {
-  if (!isUsableEndpointCoordinate(from) || !isUsableEndpointCoordinate(to)) return null;
+  if (
+    from.id === to.id ||
+    !isUsableEndpointCoordinate(from) ||
+    !isUsableEndpointCoordinate(to)
+  ) return null;
   const geometryState: RouteGeometryState =
     highlightedRoute.routeGeometryState === "surveyed_pipeline_route"
       ? "source_derived_corridor"

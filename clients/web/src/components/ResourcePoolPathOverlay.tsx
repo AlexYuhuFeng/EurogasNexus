@@ -6,7 +6,10 @@ export type RouteGeometryState =
   | "surveyed_pipeline_route"
   | "source_derived_leg_sequence"
   | "source_derived_corridor"
-  | "directLineFallback";
+  | "directLineFallback"
+  | "not_applicable_local_disposition";
+
+export type RouteTopologyKind = "LOCAL_MARKET_DISPOSITION" | "NETWORK_ROUTE";
 
 export interface ResourcePoolMapPath {
   pathId: string;
@@ -14,6 +17,7 @@ export interface ResourcePoolMapPath {
   resourceName: string;
   sourcePointName: string;
   targetPointName: string;
+  routeTopologyKind: RouteTopologyKind;
   availableQuantityMwhPerDay: number;
   allocatedQuantityMwhPerDay: number | null;
   capacityLimitMwhPerDay: number | null;
@@ -59,6 +63,9 @@ function formatPct(value: number | null): string {
 }
 
 function routeGeometryLabel(state: RouteGeometryState, t: Translate): string {
+  if (state === "not_applicable_local_disposition") {
+    return t("map.geometry_not_applicable_local_sale");
+  }
   if (state === "surveyed_pipeline_route") return t("map.geometry_surveyed_pipeline");
   if (state === "source_derived_leg_sequence") return t("map.geometry_source_derived_sequence");
   if (state === "source_derived_corridor") return t("map.geometry_source_derived_corridor");
@@ -67,6 +74,7 @@ function routeGeometryLabel(state: RouteGeometryState, t: Translate): string {
 }
 
 function routeGeometryWarning(path: ResourcePoolMapPath, t: Translate): string | null {
+  if (path.routeTopologyKind === "LOCAL_MARKET_DISPOSITION") return null;
   if (path.routeGeometryWarning) return path.routeGeometryWarning;
   if (path.routeGeometryState === "surveyed_pipeline_route") return null;
   return t("map.indicative_route_warning");
@@ -139,7 +147,9 @@ export function ResourcePoolPathOverlay({ paths, blockers, t }: ResourcePoolPath
   const poolSummary = summarizeResourcePool(paths);
   const hiddenPathCount = Math.max(paths.length - visiblePaths.length, 0);
   const firstIndicativeGeometryPath = visiblePaths.find(
-    (path) => path.routeGeometryState !== "surveyed_pipeline_route",
+    (path) =>
+      path.routeTopologyKind === "NETWORK_ROUTE" &&
+      path.routeGeometryState !== "surveyed_pipeline_route",
   );
   const firstIndicativeGeometryWarning = firstIndicativeGeometryPath
     ? routeGeometryWarning(firstIndicativeGeometryPath, t)
@@ -192,10 +202,14 @@ export function ResourcePoolPathOverlay({ paths, blockers, t }: ResourcePoolPath
               const evidence = allocationEvidenceForPath(path, poolSummary.totalAvailableMwhPerDay);
               return (
                 <div key={path.pathId} className={`resource-path-card ${path.routeState}`}>
-                  <div className="resource-path-flow">
+                  <div className={`resource-path-flow ${path.routeTopologyKind === "LOCAL_MARKET_DISPOSITION" ? "local" : ""}`}>
                     <span>{path.sourcePointName}</span>
                     <i aria-hidden="true" />
-                    <strong>{path.targetPointName}</strong>
+                    <strong>
+                      {path.routeTopologyKind === "LOCAL_MARKET_DISPOSITION"
+                        ? t("home.local_market_sale")
+                        : path.targetPointName}
+                    </strong>
                   </div>
                   <div className="resource-path-meta">
                     <span>{path.resourceName}</span>
@@ -230,7 +244,12 @@ export function ResourcePoolPathOverlay({ paths, blockers, t }: ResourcePoolPath
                       {t("home.capacity_bottleneck")}: {formatQuantity(path.capacityLimitMwhPerDay)}
                     </div>
                   )}
-                  <div className={`resource-path-geometry ${path.routeGeometryState === "surveyed_pipeline_route" ? "" : "warning"}`}>
+                  <div className={`resource-path-geometry ${
+                    path.routeGeometryState === "surveyed_pipeline_route" ||
+                    path.routeGeometryState === "not_applicable_local_disposition"
+                      ? ""
+                      : "warning"
+                  }`}>
                     <span title={routeGeometryWarning(path, t) ?? undefined}>
                       {t("home.route_geometry")}: {routeGeometryLabel(path.routeGeometryState, t)}
                     </span>

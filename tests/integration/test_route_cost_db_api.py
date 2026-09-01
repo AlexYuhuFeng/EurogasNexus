@@ -388,6 +388,7 @@ def test_resource_pool_options_are_built_from_runtime_db_and_simulated_prices(
         if option["option_id"] == "public-route-ttf-local"
     )
     assert local_option["target_point_name"] == "TTF"
+    assert local_option["route_topology_kind"] == "LOCAL_MARKET_DISPOSITION"
     assert local_option["capacity_status"] == "NOT_REQUIRED"
     assert local_option["capacity_limit_mwh_per_day"] is None
     assert local_option["sale_price_source_system"] in {"EEX_Sim", "ICIS_Sim"}
@@ -403,6 +404,12 @@ def test_resource_pool_options_are_built_from_runtime_db_and_simulated_prices(
     assert local_option["fx_rate_used"] == 0.85
     assert local_option["fx_as_of_approximated"] is False
     assert local_option["sale_price_gbp_mwh"] > 0
+    network_option = next(
+        option
+        for option in data["sale_options"]
+        if option["option_id"] == "public-route-ttf-bbl-nbp"
+    )
+    assert network_option["route_topology_kind"] == "NETWORK_ROUTE"
 
 
 def test_resource_pool_options_report_missing_market_prices(tmp_path, monkeypatch) -> None:

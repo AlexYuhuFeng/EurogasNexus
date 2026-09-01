@@ -7074,6 +7074,19 @@ button.glossary-related-chip {
   }
 }
 
+.resource-path-flow.local i {
+  width: 8px;
+  height: 8px;
+  justify-self: center;
+  border: 2px solid var(--eg-accent);
+  border-radius: 50%;
+  background: transparent;
+}
+
+.resource-path-flow.local i::after {
+  display: none;
+}
+
 @media (max-width: 360px) {
   .cockpit-app .header-controls select {
     grid-column: 1 / -1;

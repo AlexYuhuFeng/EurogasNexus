@@ -117,6 +117,12 @@ both bootstrap and full-envelope responses during transition.
 | `GET /api/analysis/ontology` | business ontology for analysis and glossary QA | active |
 | `POST /api/analysis/query` | DeepSeek-ready cited LLM/data analysis over backend snapshots | active |
 | `POST /api/reports/portfolio` | portfolio/resource/strategy/PnL report generation | active |
+
+The desktop/web workspace requests the reference-network endpoints at their
+current bounded 2,000-row limit so virtual trading points and route endpoints
+are not silently omitted by the API's 500-row default. This is a bounded V1
+read, not a claim of unlimited coverage; cursor pagination remains required
+before any reference table can exceed 2,000 active rows.
 | `GET /api/portfolio/screen-orders` | read-only imported screen/broker order observations | active |
 | `GET /api/portfolio/pnl-snapshots` | indicative portfolio/resource/strategy PnL snapshots | active |
 | `GET /api/portfolio/live-summary` | cockpit order/PnL/cash summary | active |
@@ -159,7 +165,11 @@ parse the database or bypass this API.
 - `fuel_loss_allowance_pct` as a separate delivered-unit cost input;
 - resource-specific `screen_sale_cash_lag_days`;
 - route-level `eligible_resource_ids`, derived from each persisted resource's
-  delivery point and allowed exits.
+  delivery point and allowed exits;
+- `route_topology_kind`, with `LOCAL_MARKET_DISPOSITION` for a same-point sale
+  that has no transport leg and `NETWORK_ROUTE` for a route that may be shown
+  against network topology. A local disposition remains an economic option but
+  must never be converted into a map corridor.
 
 Minimum-take/take-or-pay and versioned effective windows are not yet part of
 this endpoint. Persisted eligible sale modes are also not enforced until a

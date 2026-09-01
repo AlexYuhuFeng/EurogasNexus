@@ -137,6 +137,9 @@ def materialize_route_candidate_edges(
 
 def _build_node_lookup(nodes: list[ReferenceNode]) -> dict[str, ReferenceNode]:
     lookup: dict[str, ReferenceNode] = {}
+    # Canonical identifiers and exact names must win over incidental tokens in
+    # names such as "VIP TTF-THE-L". Otherwise a route starting at TTF can be
+    # attached to an unrelated interconnection point.
     for node in nodes:
         for value in [
             node.id,
@@ -144,8 +147,12 @@ def _build_node_lookup(nodes: list[ReferenceNode]) -> dict[str, ReferenceNode]:
             node.source_record_id,
             (node.metadata_json or {}).get("market_code"),
             (node.metadata_json or {}).get("point_key"),
-            *_name_aliases(node.name),
         ]:
+            key = _normalise_key(value)
+            if key and key not in lookup:
+                lookup[key] = node
+    for node in nodes:
+        for value in _name_aliases(node.name):
             key = _normalise_key(value)
             if key and key not in lookup:
                 lookup[key] = node

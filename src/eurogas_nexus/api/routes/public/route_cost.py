@@ -382,6 +382,7 @@ def _compose_resource_pool_options(
     for candidate in candidates:
         target = str(candidate["target_point_name"]).strip().upper()
         start = str(candidate["start_point_name"]).strip().upper()
+        route_topology_kind = _route_topology_kind(candidate)
         market_price = price_by_point.get(target)
         if market_price is None:
             blockers.append(f"MARKET_PRICE_MISSING:{target}")
@@ -478,6 +479,7 @@ def _compose_resource_pool_options(
                 "label": candidate["route_name"],
                 "delivery_mode": "VIRTUAL_HUB_SALE",
                 "target_point_name": candidate["target_point_name"],
+                "route_topology_kind": route_topology_kind,
                 "sale_price_gbp_mwh": sale_price_gbp,
                 "sale_price_currency": "GBP",
                 "sale_price_unit": "GBP/MWh",
@@ -683,6 +685,16 @@ def _portfolio_resource_from_contract(contract: dict) -> dict:
             ]
         ),
     }
+
+
+def _route_topology_kind(candidate: dict) -> str:
+    """Separate non-spatial local sales from network transport routes."""
+
+    start = str(candidate.get("start_point_name") or "").strip().upper()
+    target = str(candidate.get("target_point_name") or "").strip().upper()
+    if start and start == target and not candidate.get("route_legs"):
+        return "LOCAL_MARKET_DISPOSITION"
+    return "NETWORK_ROUTE"
 
 
 def _contract_notes_payload(value: object) -> dict:

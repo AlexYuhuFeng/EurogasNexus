@@ -68,10 +68,13 @@ Network 地图还必须带有紧凑的资源路径覆盖层。每条路径必须
 
 路线几何质量等级必须明确：
 
+- `not_applicable_local_disposition`：同一交易点的本地市场销售，没有运输分段；保留在组合经济性结果中，但绝不画成线路；
 - `surveyed_pipeline_route`：已批准的线几何；只有同时通过独立验证几何检查时才以实线渲染；
 - `source_derived_leg_sequence`：只有拓扑/分段证据，以虚线指示性示意走廊渲染，绝不显示为实测管线；
 - `source_derived_corridor`：只有商业走廊证据，以虚线指示性示意走廊渲染，绝不显示为实测管线；
 - `directLineFallback`：旧兼容状态，表示几何不可用；地图只能根据后端匹配端点坐标派生简单弯曲的示意走廊，并明确标注为指示性走廊，绝不视为实测管线。
+
+后端提供的 `route_topology_kind` 是商业动作与地图拓扑之间的强制门控。`LOCAL_MARKET_DISPOSITION` 显示为“本地市场销售、无运输分段”；只有 `NETWORK_ROUTE` 才能在地图上高亮。客户端还必须防御性拒绝同节点候选边。VTP 代表位置继续标记为 `display_approximation`，不得解释为实体设施坐标。
 
 ## 资源池决策栏
 

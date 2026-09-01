@@ -56,6 +56,9 @@ function escapeHtml(value: unknown): string {
 }
 
 function routeGeometryStateLabel(state: RouteGeometryState, t: Translate): string {
+  if (state === "not_applicable_local_disposition") {
+    return t("map.geometry_not_applicable_local_sale");
+  }
   if (state === "surveyed_pipeline_route") return t("map.geometry_surveyed_pipeline");
   if (state === "source_derived_leg_sequence") return t("map.geometry_source_derived_sequence");
   if (state === "source_derived_corridor") return t("map.geometry_source_derived_corridor");

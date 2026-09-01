@@ -22,6 +22,20 @@ def test_materialize_route_candidate_edges_writes_reference_edges(tmp_path) -> N
       session.add_all(
           [
               ReferenceNode(
+                  id="entsog-itp-10010",
+                  name="VIP TTF-THE-L",
+                  node_type="interconnection",
+                  country="DE",
+                  lat=52.11,
+                  lon=6.7582,
+                  source_system="ENTSOG",
+                  source_dataset="connectionpoints",
+                  source_reference="entsog-connectionpoints",
+                  source_record_id="ITP-10010",
+                  data_quality="display_approximation",
+                  metadata_json={"point_key": "ITP-10010"},
+              ),
+              ReferenceNode(
                   id="entsog-vtp-00002",
                   name="TTF",
                   node_type="hub",
@@ -119,6 +133,20 @@ def test_materialize_route_candidate_edges_writes_reference_edges(tmp_path) -> N
                   active=True,
                   created_at_utc=now,
               ),
+              RouteCandidateRecord(
+                  route_id="public-route-ttf-local",
+                  route_name="Sell locally at TTF",
+                  start_point_name="TTF",
+                  target_point_name="TTF",
+                  business_model="VIRTUAL_HUB_SALE",
+                  route_legs=[],
+                  required_entry_point_name=None,
+                  required_exit_point_name=None,
+                  required_tso_access=[],
+                  source_systems=["public_route_template", "ENTSOG"],
+                  active=True,
+                  created_at_utc=now,
+              ),
           ]
       )
       session.commit()
@@ -126,10 +154,12 @@ def test_materialize_route_candidate_edges_writes_reference_edges(tmp_path) -> N
     summary = materialize_route_candidate_edges(database_url=database_url)
 
     assert summary["created_or_updated"] == 3
+    assert summary["skipped"] == 1
     with Session(engine) as session:
         edges = session.query(ReferenceEdge).order_by(ReferenceEdge.id).all()
 
     assert len(edges) == 3
+    assert all(edge.source_record_id != "public-route-ttf-local" for edge in edges)
     ttf_bbl_edges = [
         item for item in edges if item.source_record_id == "public-route-ttf-bbl-nbp"
     ]

@@ -128,6 +128,8 @@ verified pipe.
 
 The route geometry quality ladder is explicit:
 
+- `not_applicable_local_disposition`: a same-point local market sale with no
+  transport leg; retained in portfolio economics but never drawn as a line;
 - `surveyed_pipeline_route`: approved polyline geometry; only rendered solid
   when it also passes the independent verified-geometry check;
 - `source_derived_leg_sequence`: topology/leg evidence rendered as a dashed
@@ -144,6 +146,13 @@ complete `geometry_coordinates` sequence. Approximate LNG, IP, or point coordina
 are never rendered as verified; unverified pipeline route evidence is never
 suppressed, but is shown as a dashed indicative corridor. Virtual market hubs may
 use representative market-area positions when labelled as such.
+
+The API-owned `route_topology_kind` is the gate between commercial actions and
+map topology. `LOCAL_MARKET_DISPOSITION` displays as a local sale with “no
+transport leg”; only `NETWORK_ROUTE` can be highlighted on the map. The client
+also rejects same-node candidate edges defensively. Representative VTP positions
+remain `display_approximation` coordinates and do not identify physical
+facilities.
 
 ## Resource-Pool Decision Rail
 

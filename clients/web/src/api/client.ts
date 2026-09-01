@@ -2,6 +2,7 @@
 
 const DEFAULT_BROWSER_BASE = "/api";
 const DEFAULT_DESKTOP_BASE = "http://127.0.0.1:8000/api";
+const REFERENCE_NETWORK_READ_LIMIT = "2000";
 export const API_BASE_STORAGE_KEY = "eurogas.settings.api_base_url";
 export const API_TOKEN_STORAGE_KEY = "eurogas.settings.api_token";
 export const PRINCIPAL_STORAGE_KEY = "eurogas.settings.operator_principal";
@@ -728,6 +729,7 @@ export interface PortfolioResourceDTO {
 
 export interface PortfolioSaleOptionDTO {
   option_id: string; label: string; delivery_mode: string; target_point_name: string;
+  route_topology_kind?: "LOCAL_MARKET_DISPOSITION" | "NETWORK_ROUTE";
   sale_price_gbp_mwh: number; route_cost_gbp_mwh?: number;
   sale_price_source_system?: string | null; sale_price_source_reference?: string | null;
   sale_price_observed_at_utc?: string | null; sale_price_freshness?: string | null;
@@ -897,19 +899,33 @@ export const api = {
     parseResponse<HealthDTO>(await fetch(apiUrl("/health"), { headers: authHeaders() })),
 
   nodes: (params?: { country?: string; node_type?: string }) =>
-    get<NodeDTO[]>("/reference-network/nodes", params),
+    get<NodeDTO[]>("/reference-network/nodes", {
+      limit: REFERENCE_NETWORK_READ_LIMIT,
+      ...params,
+    }),
 
   edges: (params?: { from_node_id?: string; to_node_id?: string }) =>
-    get<EdgeDTO[]>("/reference-network/edges", params),
+    get<EdgeDTO[]>("/reference-network/edges", {
+      limit: REFERENCE_NETWORK_READ_LIMIT,
+      ...params,
+    }),
 
   facilities: (params?: { facility_type?: string; country?: string }) =>
-    get<FacilityDTO[]>("/reference-network/facilities", params),
+    get<FacilityDTO[]>("/reference-network/facilities", {
+      limit: REFERENCE_NETWORK_READ_LIMIT,
+      ...params,
+    }),
 
-  marketHubs: () => get<MarketHubDTO[]>("/reference-network/market-hubs"),
+  marketHubs: () => get<MarketHubDTO[]>("/reference-network/market-hubs", {
+    limit: REFERENCE_NETWORK_READ_LIMIT,
+  }),
 
   tsoAccess: (params?: {
     point_id?: string; country?: string; operator_key?: string; direction?: string;
-  }) => get<TsoAccessPointDTO[]>("/reference-network/tso-access", params),
+  }) => get<TsoAccessPointDTO[]>("/reference-network/tso-access", {
+    limit: REFERENCE_NETWORK_READ_LIMIT,
+    ...params,
+  }),
 
   sources: () => get<SourceSystemWire[]>("/sources").then(normalizeSourcesResponse),
 

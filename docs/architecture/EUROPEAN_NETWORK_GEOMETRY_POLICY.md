@@ -95,8 +95,21 @@ geometry.
 - `schematic`: subdued dashed line.
 - `route_candidate`: highlighted commercial decision corridor, visually distinct
   from physical infrastructure.
-- unavailable geometry: show validated nodes and topology status; do not invent a
-  line to make the map appear complete.
+- unavailable verified geometry with backend route/topology evidence: show a
+  labelled indicative schematic corridor derived from persisted endpoint and
+  route-leg sequence evidence. It must carry source, quality, and unverified
+  status and must never be described as surveyed pipe.
+- unavailable geometry without backend route/topology evidence: show validated
+  nodes and the missing-evidence status; do not invent a line merely to fill the
+  map.
+- local same-point market disposition: keep the sale in portfolio economics,
+  label it as having no transport leg, and never create a topology edge or map
+  line for it.
+
+Route-to-node resolution must prefer canonical identifiers and exact names.
+Aliases may only fill an otherwise unresolved match and must not override an
+exact hub or point identity. For example, the exact `TTF` virtual trading point
+must win over the token `TTF` embedded in an interconnection name.
 
 ## V1 Acceptance Boundary
 

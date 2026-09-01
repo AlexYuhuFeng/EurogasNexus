@@ -20,6 +20,7 @@ boundary with as-of FX observations and explicit provenance.
 from __future__ import annotations
 
 import math
+from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -96,6 +97,7 @@ class PortfolioSaleOption(BaseModel):
         label: Human-readable option label.
         delivery_mode: Required delivery mode of the sale.
         target_point_name: Sale target point.
+        route_topology_kind: Whether the option is local disposition or a network route.
         sale_price_gbp_mwh: Sale price, in its own currency/unit.
         sale_price_currency: ISO 4217 code of the price currency.
         sale_price_unit: Unit of the price (e.g. ``GBP/MWh``).
@@ -112,6 +114,9 @@ class PortfolioSaleOption(BaseModel):
     label: str
     delivery_mode: DeliveryMode
     target_point_name: str
+    route_topology_kind: Literal["LOCAL_MARKET_DISPOSITION", "NETWORK_ROUTE"] = (
+        "NETWORK_ROUTE"
+    )
     sale_price_gbp_mwh: float
     sale_price_currency: str = "GBP"
     sale_price_unit: str = "GBP/MWh"

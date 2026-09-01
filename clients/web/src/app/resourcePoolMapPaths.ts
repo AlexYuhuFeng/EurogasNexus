@@ -9,6 +9,7 @@ import type {
 import type {
   ResourcePoolMapPath,
   RouteGeometryState,
+  RouteTopologyKind,
 } from "@/components/ResourcePoolPathOverlay";
 import {
   metadataText,
@@ -148,17 +149,25 @@ export function buildResourcePoolMapPaths({
       const allocation = allocationByResourceAndOption.get(`${resource.resource_id}:${option.option_id}`) ?? null;
       const routeCandidate = routeCandidates.find((candidate) => candidate.route_id === option.option_id);
       const routeLegSummary = routeCandidate?.route_legs.map(routeLegLabel) ?? [];
-      const routeGeometryState = resolveRouteGeometryState(
-        routeGeometryEdgesByRouteId,
-        option.option_id,
-        routeLegSummary,
-      );
-      const routeGeometryWarning = resolveRouteGeometryWarning(
-        routeGeometryEdgesByRouteId,
-        option.option_id,
-        routeGeometryState,
-        t,
-      );
+      const routeTopologyKind: RouteTopologyKind = option.route_topology_kind ??
+        (normalizePointName(resource.location_point_name) === normalizePointName(option.target_point_name)
+          ? "LOCAL_MARKET_DISPOSITION"
+          : "NETWORK_ROUTE");
+      const routeGeometryState: RouteGeometryState = routeTopologyKind === "LOCAL_MARKET_DISPOSITION"
+        ? "not_applicable_local_disposition"
+        : resolveRouteGeometryState(
+          routeGeometryEdgesByRouteId,
+          option.option_id,
+          routeLegSummary,
+        );
+      const routeGeometryWarning = routeTopologyKind === "LOCAL_MARKET_DISPOSITION"
+        ? null
+        : resolveRouteGeometryWarning(
+          routeGeometryEdgesByRouteId,
+          option.option_id,
+          routeGeometryState,
+          t,
+        );
       const routeWarnings = [
         ...(allocation?.warnings ?? []),
         ...(option.required_tso_access ?? [])
@@ -190,6 +199,7 @@ export function buildResourcePoolMapPaths({
         resourceName: resource.resource_name,
         sourcePointName: resource.location_point_name,
         targetPointName: option.target_point_name,
+        routeTopologyKind,
         availableQuantityMwhPerDay: resource.available_quantity_mwh_per_day,
         allocatedQuantityMwhPerDay: allocation?.allocated_quantity_mwh_per_day ?? null,
         capacityLimitMwhPerDay: option.capacity_limit_mwh_per_day ?? null,
@@ -262,11 +272,14 @@ export function buildHighlightedResourcePoolRoute(
   const firstPath =
     resourcePoolMapPaths.find((path) => {
       const { fromNodeId, toNodeId } = resolvePathNodes(path);
-      return path.routeState !== "blocked" && Boolean(fromNodeId && toNodeId && fromNodeId !== toNodeId);
+      return path.routeTopologyKind === "NETWORK_ROUTE" &&
+        path.routeState !== "blocked" &&
+        Boolean(fromNodeId && toNodeId && fromNodeId !== toNodeId);
     }) ??
     resourcePoolMapPaths.find((path) => {
       const { fromNodeId, toNodeId } = resolvePathNodes(path);
-      return Boolean(fromNodeId && toNodeId && fromNodeId !== toNodeId);
+      return path.routeTopologyKind === "NETWORK_ROUTE" &&
+        Boolean(fromNodeId && toNodeId && fromNodeId !== toNodeId);
     }) ??
     resourcePoolMapPaths[0];
   if (!firstPath) return undefined;

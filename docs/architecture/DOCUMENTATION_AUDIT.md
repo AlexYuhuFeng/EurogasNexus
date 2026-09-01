@@ -51,6 +51,11 @@ The cleanup standard is:
   four task views, JSON/plain-text-only import, validation-gated PostgreSQL
   persistence, variable/regas/fuel-loss economics, per-resource route
   eligibility, and explicit minimum-take/take-or-pay/versioning gaps.
+- Reconciled network-map documentation with runtime behavior: local same-hub
+  disposition is non-spatial, network routes require persisted topology
+  evidence, verified and indicative geometry remain visibly distinct, exact
+  node identifiers outrank aliases, and the current four corridors are recorded
+  as indicative rather than surveyed pipeline alignments.
 - Replaced the obsolete R15 toolchain-placeholder report and plan with the
   successful 2026-09-01 Tauri executable/NSIS build and direct packaged-client
   interaction evidence; marked superseded R16 text as historical.

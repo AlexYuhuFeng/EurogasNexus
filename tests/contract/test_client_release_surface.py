@@ -1442,6 +1442,7 @@ def test_web_client_resource_pool_options_are_backend_owned() -> None:
     assert "sale_price_source_system?: string | null" in api_client
     assert "sale_price_simulated?: boolean" in api_client
     assert "sale_price_source_family?: string | null" in api_client
+    assert 'route_topology_kind?: "LOCAL_MARKET_DISPOSITION" | "NETWORK_ROUTE"' in api_client
     assert 'sale_price_simulated ? t("market.simulated_source")' in network_workspace
     assert "saveUpstreamContract" in api_client
     assert "saveDraftContract" in store
