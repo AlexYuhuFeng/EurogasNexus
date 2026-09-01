@@ -2,11 +2,11 @@ import type { ContractDraft } from "./defaultContractDraft";
 
 export function buildContractPayload(contract: ContractDraft) {
   return {
-    contract_id: contract.contract_id.trim() || "operator-ttf-supply-2025",
-    contract_name: contract.contract_name.trim() || contract.contract_id.trim() || "Operator supply contract",
-    resource_type: "PIPELINE_IMPORT",
-    delivery_point_name: contract.delivery_point_name.trim() || "TTF",
-    gas_year: contract.gas_year.trim() || "2025+",
+    contract_id: contract.contract_id.trim(),
+    contract_name: contract.contract_name.trim(),
+    resource_type: contract.resource_type,
+    delivery_point_name: contract.delivery_point_name.trim(),
+    gas_year: contract.gas_year.trim(),
     delivery_quantity_mwh_per_day: contract.delivery_quantity_mwh_per_day,
     contract_price_gbp_mwh: contract.contract_price_gbp_mwh,
     settlement_frequency: contract.settlement_frequency,
@@ -20,6 +20,9 @@ export function buildContractPayload(contract: ContractDraft) {
     owned_exit_capacity_mwh_per_day: contract.owned_exit_capacity_mwh_per_day,
     allowed_exit_points: contract.allowed_exit_points,
     eligible_sale_modes: contract.eligible_sale_modes,
+    variable_cost_gbp_mwh: contract.variable_cost_gbp_mwh,
+    regas_fee_gbp_mwh: contract.regas_fee_gbp_mwh,
+    fuel_loss_allowance_pct: contract.fuel_loss_allowance_pct,
     notes: JSON.stringify({
       source: "web_contract_capture",
       decision_support_only: true,

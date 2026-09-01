@@ -1,68 +1,64 @@
-# V1 R14 Web Research Workspace ExecPlan
-
-**Goal:** Create the map-first web research workspace using React/Vite/MapLibre.
-
-**Architecture:** Web client layer; consumes /api/v1 via typed fetch client.
-
-**Tech Stack:** React 19, TypeScript 5, Vite 6, MapLibre GL 5, deck.gl 9,
-Zustand 5, i18next 24, lucide-react, date-fns, zod, plain CSS.
-
----
-
-## Milestone ID
-
-`R14`
+# V1 R14 Web Decision-Support Workspace ExecPlan
 
 ## Status
 
-`partial`
-
-## Internet Requirement
-
-Internet required: yes — npm packages (React, Vite, MapLibre GL, deck.gl,
-Zustand, i18next, etc.) must be downloaded via `npm install`.
-
-Fallback: Created complete file structure, TypeScript interfaces, i18n resources
-(en-US/zh-CN), light/dark/system theme store (Zustand + CSS variables), API
-data store, App shell with header/nav/map-placeholder/sidebar, and gap report.
-All source code is ready for `npm install && npm run dev`.
+`partial` (updated 2026-09-01)
 
 ## Goal
 
-Deliver the map-first web workspace with English/Mandarin i18n, light/dark/system
-themes, and SDK/API-backed data flow. The first visual screen is the workspace.
+Deliver the shared React/Vite workspace used by Web and Windows Tauri clients as
+a professional European gas-trading decision-support product. All runtime data
+must come through backend `/api` services backed by PostgreSQL.
 
-## Non-goals
+## Architecture
 
-- No marketing landing page.
-- No direct DB access, vendor credentials, or LLM provider calls from browser.
-- No Electron, Next.js, Tailwind, Material UI, Ant Design, Bootstrap, or Redux.
+- React 19, TypeScript, Vite, Zustand, i18next, MapLibre GL, plain CSS;
+- grouped task navigation rather than a flat demo dashboard;
+- no direct database, vendor credential, or LLM provider access in clients;
+- no trade execution, order routing, nominations, settlement, or ETRM claims;
+- verified infrastructure geometry when licensed evidence exists, otherwise
+  explicitly labelled indicative route/asset representations.
 
-## Files Created (partial)
+## Delivered Evidence
 
-- `clients/web/package.json`
-- `clients/web/tsconfig.json`
-- `clients/web/vite.config.ts`
-- `clients/web/index.html`
-- `clients/web/src/main.tsx`
-- `clients/web/src/App.tsx`
-- `clients/web/src/api/client.ts`
-- `clients/web/src/i18n/index.ts`
-- `clients/web/src/i18n/en.json`
-- `clients/web/src/i18n/zh.json`
-- `clients/web/src/stores/theme.ts`
-- `clients/web/src/stores/api.ts`
-- `clients/web/src/styles/app.css`
+- production Web build passes;
+- full workspace shell and grouped navigation exist;
+- Network, Scenario, Review, Resource Terms, Market, Capacity, Market
+  Positioning, Strategy, Glossary, Data Sources, Runtime, Settings, and Manual
+  are implemented;
+- English/Chinese and light/dark/system modes exist;
+- Web build is embedded by the Tauri Windows client;
+- Resource Terms received task-led UI, validation-gated PostgreSQL persistence,
+  exact cost/restriction semantics, and browser QA on 2026-09-01;
+- current report: `data/release_v1/r14_web_release_workspace_report.md`.
 
-## Remaining
+## Remaining Work
 
-- `npm install` to download dependencies
-- `npm run build` to verify compilation
-- Map component with MapLibre GL + deck.gl
-- Full workspace pages (Network, Market, Scenario, Strategy, Review, Sources,
-  Glossary, Runtime, Settings)
-- E2E tests
+1. Complete the page-by-page visual, responsive, bilingual, keyboard, and
+   accessibility audit with durable browser-flow tests.
+2. Reconcile every operational claim with backend data and explicit unavailable
+   states; remove any remaining placeholder or invented fallback.
+3. Finish Resource Terms obligations/versioning/currency-unit gaps and typed SDK
+   support in separate bounded milestones.
+4. Rebuild and inspect the Windows executable after each major shared-Web UI
+   milestone.
+5. Update the acceptance matrix and mark R14 complete only when the required
+   evidence covers the whole workspace, not one page.
+
+## Validation
+
+```text
+npm --prefix clients/web run build
+python -m pytest tests/api tests/contract tests/integration tests/unit -q
+python -m ruff check src tests
+```
+
+Risk-proportionate focused suites may be used during implementation, but final
+R14 acceptance requires the broader release suite plus real browser and Windows
+desktop evidence.
 
 ## Rollback
 
-Remove `clients/web/` directory. No backend impact.
+Revert only the bounded milestone commit. Do not remove `clients/web`, reset the
+worktree, discard user changes, introduce SQLite runtime storage, or bypass the
+backend API.

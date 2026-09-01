@@ -53,6 +53,7 @@ class PortfolioResource(BaseModel):
         contract_cost_currency: ISO 4217 code of the cost currency.
         contract_cost_unit: Unit of the cost (e.g. ``GBP/MWh``).
         variable_cost_gbp_mwh: Variable unit cost in the same currency/unit.
+        fuel_loss_allowance_pct: Fuel/shrinkage loss uplift applied to unit cost.
         delivery_tolerance_pct: Delivery tolerance, or None when unknown.
         nomination_tolerance_pct: Nomination tolerance, or None when unknown.
         tolerance_risk_allowance_gbp_mwh: Risk allowance for tolerances.
@@ -74,10 +75,12 @@ class PortfolioResource(BaseModel):
     contract_cost_currency: str = "GBP"
     contract_cost_unit: str = "GBP/MWh"
     variable_cost_gbp_mwh: float = 0.0
+    fuel_loss_allowance_pct: float = Field(default=0.0, ge=0, lt=100)
     delivery_tolerance_pct: float | None = None
     nomination_tolerance_pct: float | None = None
     tolerance_risk_allowance_gbp_mwh: float = 0.0
     upstream_payment_lag_days: int = 20
+    screen_sale_cash_lag_days: int | None = Field(default=None, ge=0)
     settlement_frequency: str = "monthly"
     required_tso_access: list[str] = Field(default_factory=list)
     accessible_tsos: list[str] | None = None
@@ -101,6 +104,7 @@ class PortfolioSaleOption(BaseModel):
         capacity_status: Capacity state; see the validator below.
         screen_sale_cash_lag_days: Cash receipt lag of the sale.
         required_tso_access: TSO access codes the route requires.
+        eligible_resource_ids: Resource ids allowed to use this option; empty means all.
         source_refs: Provenance references for the option data.
     """
 
@@ -116,6 +120,7 @@ class PortfolioSaleOption(BaseModel):
     capacity_status: CapacityStatus = CapacityStatus.UNKNOWN
     screen_sale_cash_lag_days: int = 1
     required_tso_access: list[str] = Field(default_factory=list)
+    eligible_resource_ids: list[str] = Field(default_factory=list)
     source_refs: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
@@ -286,6 +291,11 @@ def optimize_resource_pool(
         missing_inputs.extend(_resource_missing_inputs(resource))
         for option in scenario.sale_options:
             pair_warnings = [*resource_warnings]
+            if (
+                option.eligible_resource_ids
+                and resource.resource_id not in option.eligible_resource_ids
+            ):
+                continue
             required_access = _unique(
                 [*resource.required_tso_access, *option.required_tso_access]
             )
@@ -326,6 +336,7 @@ def optimize_resource_pool(
             total_cost = (
                 resource.contract_cost_gbp_mwh
                 + resource.variable_cost_gbp_mwh
+                + _fuel_loss_cost_gbp_mwh(resource)
                 + resource.tolerance_risk_allowance_gbp_mwh
                 + option.route_cost_gbp_mwh
                 - early_cash
@@ -817,10 +828,29 @@ def _early_cash_value_gbp_mwh(
         Round(4) early-cash credit per MWh in the cost currency/unit.
     """
 
-    lag_days = max(resource.upstream_payment_lag_days - option.screen_sale_cash_lag_days, 0)
+    screen_lag_days = (
+        resource.screen_sale_cash_lag_days
+        if resource.screen_sale_cash_lag_days is not None
+        else option.screen_sale_cash_lag_days
+    )
+    lag_days = max(resource.upstream_payment_lag_days - screen_lag_days, 0)
     annual_rate = annual_financing_rate_pct / 100
-    base_cost = resource.contract_cost_gbp_mwh + resource.variable_cost_gbp_mwh
+    base_cost = (
+        resource.contract_cost_gbp_mwh
+        + resource.variable_cost_gbp_mwh
+        + _fuel_loss_cost_gbp_mwh(resource)
+    )
     return round(base_cost * annual_rate * lag_days / 365, 4)
+
+
+def _fuel_loss_cost_gbp_mwh(resource: PortfolioResource) -> float:
+    """Uplift delivered-unit cost for contractual fuel/shrinkage loss."""
+
+    loss_fraction = resource.fuel_loss_allowance_pct / 100
+    if loss_fraction <= 0:
+        return 0.0
+    base_cost = resource.contract_cost_gbp_mwh + resource.variable_cost_gbp_mwh
+    return round(base_cost / (1 - loss_fraction) - base_cost, 4)
 
 
 def _unique(values: list[str]) -> list[str]:

@@ -97,7 +97,7 @@ def test_contract_payload_builder_is_wired_into_app() -> None:
     assert "buildContractPayload(contract)" in owner_text
     assert "export function buildContractPayload" in module_text
     for phrase in [
-        'resource_type: "PIPELINE_IMPORT"',
+        "resource_type: contract.resource_type",
         'source: "web_contract_capture"',
         "decision_support_only: true",
         "human_review_required: true",

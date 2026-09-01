@@ -1,52 +1,52 @@
-# V1 R15 Windows Client Package Shell ExecPlan
+# V1 R15 Windows Desktop Client Package ExecPlan
 
-**Goal:** Package the web workspace as a Windows desktop application using Tauri 2.
+**Milestone ID:** `R15`
 
-**Architecture:** Desktop client layer; wraps web workspace; configurable backend URL.
+**Status:** `complete`
 
-**Tech Stack:** Tauri 2, Rust, packaged web workspace (React/Vite build).
-
----
-
-## Milestone ID
-
-`R15`
-
-## Status
-
-`partial`
-
-## Internet Requirement
-
-Internet required: yes — Rust toolchain, Tauri CLI, and web workspace build
-(npm install) must be available. Offline fallback: documented prerequisites and
-project structure.
+**Completed:** 2026-09-01
 
 ## Goal
 
-Package the web workspace into a Windows desktop shell with Tauri 2. The desktop
-app must: consume /api/v1 through the web workspace, allow configurable backend
-base URL, store only non-sensitive UI preferences, preserve English/Mandarin
-and light/dark/system modes, and never connect to PostgreSQL directly.
+Package the shared React/Vite decision-support workspace as a Tauri 2 Windows
+client with a configurable backend `/api` URL and no direct database, vendor, or
+LLM-provider access.
+
+## Delivered Architecture
+
+- Tauri 2/Rust shell in `clients/desktop/src-tauri`.
+- Shared Web production bundle built by `beforeBuildCommand`.
+- Desktop API default `http://127.0.0.1:8000/api` with deployment-config support.
+- English/Mandarin and light/dark/system behavior from the shared Web client.
+- Windows x64 NSIS packaging; Linux package work is handled by release workflows.
+
+## Completed Acceptance Checks
+
+- [x] Web production build passes.
+- [x] Tauri optimized release build passes.
+- [x] Windows application executable is produced.
+- [x] Windows x64 Client-only NSIS installer is produced.
+- [x] Fresh release executable launches and remains interactive.
+- [x] Workspace navigation opens Resource Terms.
+- [x] Persisted PostgreSQL Resource Terms load through `/api` only.
+- [x] Exact Pool Impact values render in the packaged desktop client.
+- [x] Decision-support and no-direct-PostgreSQL boundaries remain visible.
 
 ## Non-goals
 
-- No Electron, SQLite, or copied historical Desktop code.
-- No direct DB access, vendor credentials, or LLM provider calls.
-- No company SSO/OIDC.
+- No Electron or SQLite runtime.
+- No direct PostgreSQL access from the client.
+- No vendor credentials or LLM provider calls from the client.
+- No claim of MSI, code signing, SSO/OIDC, or official V1 readiness.
 
-## Files Created (partial)
+## Evidence
 
-- `clients/desktop/README.md` — prerequisites and setup instructions
-
-## Remaining
-
-- Install Rust toolchain and Tauri CLI (`cargo install tauri-cli`)
-- Build web workspace (`npm run build` in clients/web)
-- `tauri init` in clients/desktop
-- Configure backend base URL
-- Build Windows .msi/.exe
+- `data/release_v1/r15_windows_release_shell_report.md`
+- `clients/desktop/src-tauri/target/release/eurogas-nexus-desktop.exe`
+- `clients/desktop/src-tauri/target/release/bundle/nsis/Eurogas Nexus_0.5.0_x64-setup.exe`
 
 ## Rollback
 
-Remove `clients/desktop/` directory. No backend impact.
+Revert the desktop package configuration and shared-Web change that caused a
+regression, rebuild, and rerun executable interaction QA. Do not remove the
+desktop directory or substitute another client architecture.

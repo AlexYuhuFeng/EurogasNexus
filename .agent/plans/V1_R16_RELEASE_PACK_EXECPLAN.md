@@ -53,8 +53,12 @@ app import ok
 
 ## Gap Report
 
-- R14 PARTIAL: web workspace source ready; needs npm install
-- R15 PARTIAL: Windows shell needs Tauri/Rust toolchain + web build
+- This section was reconciled on 2026-09-01; the original 2026-05-29 toolchain
+  assumptions are no longer current.
+- R14 PARTIAL: the Web workspace builds and is functional, but the complete
+  page-by-page browser/accessibility/bilingual release audit remains open.
+- R15 COMPLETE: the Tauri release executable and Windows x64 NSIS installer
+  build and the packaged client has passed direct interaction QA.
 - Live connectors: mocked; need credentials and internet
 - LLM provider: model exists; needs API keys and internet
 

@@ -100,6 +100,7 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
           t={t}
           updateContractText={contractEditor.updateContractText}
           updateContractNumber={contractEditor.updateContractNumber}
+          updateContractList={contractEditor.updateContractList}
           saveDraftContract={api.saveDraftContract}
           resetContractDraft={contractEditor.resetContractDraft}
           importContractDraftFile={contractEditor.importContractDraftFile}

@@ -47,6 +47,13 @@ The cleanup standard is:
 - Productized `Contracts` as the user-facing `Resource Terms` workspace in
   README, Web client spec, client docs, and Web i18n overrides while keeping the
   technical `contracts` workspace id and API field names for compatibility.
+- Reconciled Resource Terms documentation with the 2026-09-01 implementation:
+  four task views, JSON/plain-text-only import, validation-gated PostgreSQL
+  persistence, variable/regas/fuel-loss economics, per-resource route
+  eligibility, and explicit minimum-take/take-or-pay/versioning gaps.
+- Replaced the obsolete R15 toolchain-placeholder report and plan with the
+  successful 2026-09-01 Tauri executable/NSIS build and direct packaged-client
+  interaction evidence; marked superseded R16 text as historical.
 - Added `docs/README.md` and `docs/README-CN.md` as current-documentation entry
   points that distinguish normative contracts from historical blueprints and
   completed ExecPlans.

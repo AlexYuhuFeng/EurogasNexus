@@ -169,8 +169,10 @@ Provider credentials are backend-owned and are never returned in plaintext.
 - Market: PostgreSQL-backed hub prices, tenors, spreads, ECB FX, source and
   simulation posture.
 - Capacity: ENTSOG flow/capacity, TSO access, tariffs, GIE storage, and LNG.
-- Contracts: EFET-style resource terms with backend persistence and JSON draft
-  import.
+- Resource Terms (`contracts` technical id): task-led Source/Terms/Pool
+  impact/Library workflow with JSON/plain-text draft import, validation-gated
+  PostgreSQL persistence, exact persisted impact, and per-resource route/cost
+  semantics. Minimum-take/take-or-pay remains an explicit model gap.
 - Scenario and Strategy: trader-reviewed calculations and shadow evaluation.
 - Review: warnings, assumptions, source evidence, and report surfaces.
 - Market Positioning: read-only external screen-order and indicative PnL
@@ -207,6 +209,11 @@ assessment remain validated internal prototypes.
 - GitHub Actions validates Python, API import, Web, desktop, deployment assets,
   and the multi-architecture API image.
 - Normal CI runs optimizer tests and builds desktop packages on pull requests.
+- Local Windows package evidence was refreshed on 2026-09-01: the Tauri release
+  executable and x64 Client-only NSIS installer built successfully, and the
+  packaged Resource Terms Library/Pool Impact workflow was exercised against
+  the PostgreSQL-backed API. This completes R15 packaging, not official V1
+  release acceptance.
 - Every `main` push runs the release workflow for Web, Windows Client-only,
   Windows AllInOne, Linux x64, Linux ARM64, the Server operator bundle, and the
   amd64/arm64 runtime image.

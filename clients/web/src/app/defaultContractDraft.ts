@@ -5,6 +5,7 @@ export type ContractDraft = ContractDraftModel;
 export const defaultContractDraft: ContractDraft = {
   contract_id: "operator-ttf-supply-2025",
   contract_name: "Operator TTF supply 2025",
+  resource_type: "PIPELINE_IMPORT",
   counterparty: "Operator draft counterparty",
   contract_type: "EFET physical supply",
   delivery_point_name: "TTF",

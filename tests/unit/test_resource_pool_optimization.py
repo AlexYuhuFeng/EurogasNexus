@@ -348,3 +348,90 @@ def test_exact_solver_beats_greedy_on_pairwise_capacity_conflict() -> None:
     assert by_option["option-x"].resource_id == "resource-b"
     assert by_option["option-y"].resource_id == "resource-a"
     assert result.total_net_pnl_gbp_per_day == 3700
+
+
+def test_resource_specific_route_eligibility_cannot_leak_between_contracts() -> None:
+    result = optimize_resource_pool(
+        PortfolioOptimizationScenario(
+            portfolio_id="pool-contract-restrictions",
+            annual_financing_rate_pct=0,
+            resources=[
+                PortfolioResource(
+                    resource_id="allowed-resource",
+                    resource_name="Allowed resource",
+                    resource_type=SourceResourceType.PIPELINE_IMPORT,
+                    delivery_mode=DeliveryMode.PHYSICAL_ENTRY_DELIVERY,
+                    location_point_name="TTF",
+                    available_quantity_mwh_per_day=100,
+                    contract_cost_gbp_mwh=20,
+                    delivery_tolerance_pct=0,
+                    nomination_tolerance_pct=0,
+                ),
+                PortfolioResource(
+                    resource_id="restricted-resource",
+                    resource_name="Restricted resource",
+                    resource_type=SourceResourceType.PIPELINE_IMPORT,
+                    delivery_mode=DeliveryMode.PHYSICAL_ENTRY_DELIVERY,
+                    location_point_name="TTF",
+                    available_quantity_mwh_per_day=100,
+                    contract_cost_gbp_mwh=10,
+                    delivery_tolerance_pct=0,
+                    nomination_tolerance_pct=0,
+                ),
+            ],
+            sale_options=[
+                PortfolioSaleOption(
+                    option_id="ttf-nbp",
+                    label="TTF to NBP",
+                    delivery_mode=DeliveryMode.VIRTUAL_HUB_SALE,
+                    target_point_name="NBP",
+                    sale_price_gbp_mwh=30,
+                    capacity_status=CapacityStatus.NOT_REQUIRED,
+                    eligible_resource_ids=["allowed-resource"],
+                )
+            ],
+        )
+    )
+
+    assert len(result.allocations) == 1
+    assert result.allocations[0].resource_id == "allowed-resource"
+    assert result.allocations[0].allocated_quantity_mwh_per_day == 100
+    assert result.total_unallocated_mwh_per_day == 100
+
+
+def test_resource_pool_includes_variable_cost_and_fuel_loss_uplift() -> None:
+    result = optimize_resource_pool(
+        PortfolioOptimizationScenario(
+            portfolio_id="pool-cost-truth",
+            annual_financing_rate_pct=0,
+            resources=[
+                PortfolioResource(
+                    resource_id="lng-resource",
+                    resource_name="LNG resource",
+                    resource_type=SourceResourceType.PIPELINE_IMPORT,
+                    delivery_mode=DeliveryMode.PHYSICAL_ENTRY_DELIVERY,
+                    location_point_name="TTF",
+                    available_quantity_mwh_per_day=10,
+                    contract_cost_gbp_mwh=20,
+                    variable_cost_gbp_mwh=1,
+                    fuel_loss_allowance_pct=5,
+                    delivery_tolerance_pct=0,
+                    nomination_tolerance_pct=0,
+                )
+            ],
+            sale_options=[
+                PortfolioSaleOption(
+                    option_id="ttf-local",
+                    label="TTF local",
+                    delivery_mode=DeliveryMode.VIRTUAL_HUB_SALE,
+                    target_point_name="TTF",
+                    sale_price_gbp_mwh=30,
+                    capacity_status=CapacityStatus.NOT_REQUIRED,
+                )
+            ],
+        )
+    )
+
+    allocation = result.allocations[0]
+    assert allocation.total_cost_gbp_mwh == 22.1053
+    assert allocation.net_margin_gbp_mwh == 7.8947

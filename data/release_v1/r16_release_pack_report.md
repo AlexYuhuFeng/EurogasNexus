@@ -16,6 +16,15 @@ Use these files instead:
 
 Current release status: `NOT READY FOR OFFICIAL V1 RELEASE`.
 
+## 2026-09-01 Reconciliation
+
+R14 remains partial because full-page browser/accessibility/bilingual release
+evidence is incomplete. R15 is now complete: the Tauri release executable and
+Windows x64 Client-only NSIS installer build successfully, and the executable
+was exercised against the PostgreSQL-backed API. The milestone table and exact
+next prompt below are a retained 2026-05-29 historical snapshot and are not
+current instructions.
+
 Historical content below is retained for traceability.
 
 ## V1 Release Summary

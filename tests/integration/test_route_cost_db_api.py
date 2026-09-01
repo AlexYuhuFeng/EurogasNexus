@@ -199,6 +199,9 @@ def test_upsert_upstream_contract_persists_and_reads_back_from_runtime_db(
             "owned_exit_capacity_mwh_per_day": None,
             "allowed_exit_points": ["NBP", "TTF"],
             "eligible_sale_modes": ["TARGET_MARKET_SALE", "LOCAL_MARKET_SALE"],
+            "variable_cost_gbp_mwh": 0.75,
+            "regas_fee_gbp_mwh": 1.25,
+            "fuel_loss_allowance_pct": 1.5,
             "notes": "operator draft decision support",
         },
     )
@@ -210,6 +213,10 @@ def test_upsert_upstream_contract_persists_and_reads_back_from_runtime_db(
     assert payload["data"]["contract_name"] == "Persisted TTF supply 2025"
     assert payload["data"]["delivery_quantity_mwh_per_day"] == 125.5
     assert payload["data"]["allowed_exit_points"] == ["NBP", "TTF"]
+    assert payload["data"]["variable_cost_gbp_mwh"] == 0.75
+    assert payload["data"]["regas_fee_gbp_mwh"] == 1.25
+    assert payload["data"]["fuel_loss_allowance_pct"] == 1.5
+    assert "operator draft decision support" in payload["data"]["notes"]
     assert payload["meta"]["research_only"] is True
     assert "research_only" not in payload["data"]
     assert payload["data"]["human_review_required"] is True
@@ -220,6 +227,9 @@ def test_upsert_upstream_contract_persists_and_reads_back_from_runtime_db(
     contracts = readback.json()["data"]
     assert len(contracts) == 1
     assert contracts[0]["contract_id"] == "persisted-ttf-supply-2025"
+    assert contracts[0]["variable_cost_gbp_mwh"] == 0.75
+    assert contracts[0]["regas_fee_gbp_mwh"] == 1.25
+    assert contracts[0]["fuel_loss_allowance_pct"] == 1.5
 
 
 def test_resource_pool_options_are_built_from_runtime_db_and_simulated_prices(

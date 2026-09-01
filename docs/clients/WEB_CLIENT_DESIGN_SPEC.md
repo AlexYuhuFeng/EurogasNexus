@@ -193,9 +193,15 @@ Purpose:
 
 Content:
 
-- import zone for JSON drafts and staged text evidence;
-- upload zone for customer-owned contract files, import diagnostics, and
-  manual correction before backend persistence;
+- four task views: `Source`, `Terms`, `Pool impact`, and `Library`;
+- compact command strip with draft/persisted identity, counterparty, source,
+  PostgreSQL state, human-review state, import/new/save actions, and an
+  `aria-live` persistence status;
+- import zone for structured JSON drafts and staged plain-text evidence;
+  PDF/DOCX extraction is not enabled and must not be advertised by the client;
+- clause navigation for agreement, product, delivery, quantity, price/costs,
+  capacity, settlement, and restrictions; only the active group is mounted so
+  desktop and mobile users do not traverse one very long form;
 - beach delivery point, title-transfer point, and terminal access remain visible
   in the manual intake surface;
 - agreement and counterparty assumptions;
@@ -210,6 +216,34 @@ Content:
 - restrictions, permitted sale markets, blocked TSOs/routes, source/freshness,
   entitlement, and warning state;
 - persisted resource-term library loaded through backend API.
+
+Current implemented calculation contract (2026-09-01):
+
+- required client-side persistence checks cover resource id/name,
+  counterparty, delivery point, gas year, positive daily quantity,
+  non-negative costs, and a fuel-loss percentage below 100%;
+- `resource_type` is a controlled value rather than a hard-coded pipeline
+  import, and entry/exit capacity plus route restrictions are editable;
+- variable cost and regas fee are persisted through PostgreSQL-backed resource
+  terms and included in resource-pool unit cost; fuel/loss is applied as a
+  delivered-unit cost uplift;
+- route options carry `eligible_resource_ids`; a resource cannot inherit
+  another resource term's permitted destination, and cash-lag input remains
+  resource-specific;
+- allowed exit points are enforced today. Eligible sale modes are persisted for
+  review but are not yet enforced because a governed sale-mode-to-route-
+  candidate mapping has not been implemented;
+- `Pool impact` shows only the exact resource returned by the backend after
+  persistence. Draft values are never presented as persisted impact;
+- minimum-take, take-or-pay, make-up/carry-forward, interruption, and
+  force-majeure obligations are not yet represented by this resource-pool
+  optimizer. The UI must disclose that boundary and must not approximate it.
+
+Design evidence:
+
+- `docs/design/references/resource-terms-workspace-imagegen-2026-09-01.png`
+  is the GPT Image 2 operational layout reference. Its data values are
+  illustrative; implementation behavior and values remain API-owned.
 
 The page may use API field names such as `contract_id` and
 `upstream-contracts` internally for compatibility, but user-facing copy should

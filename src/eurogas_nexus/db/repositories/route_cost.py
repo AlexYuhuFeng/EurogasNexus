@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Mapping
 from datetime import UTC, datetime
 
@@ -104,7 +105,7 @@ def upsert_upstream_contract(session: Session, data: Mapping[str, object]) -> di
             ),
             allowed_exit_points=_string_list(data.get("allowed_exit_points")),
             eligible_sale_modes=_string_list(data.get("eligible_sale_modes")),
-            notes=_optional_string(data.get("notes")),
+            notes=_merged_contract_notes(data),
             created_at_utc=now,
             updated_at_utc=now,
         )
@@ -133,7 +134,7 @@ def upsert_upstream_contract(session: Session, data: Mapping[str, object]) -> di
         )
         row.allowed_exit_points = _string_list(data.get("allowed_exit_points"))
         row.eligible_sale_modes = _string_list(data.get("eligible_sale_modes"))
-        row.notes = _optional_string(data.get("notes"))
+        row.notes = _merged_contract_notes(data)
         row.updated_at_utc = now
 
     session.flush()
@@ -242,6 +243,7 @@ def _mark_from_record(row: LiveMarketMarkRecord) -> LiveMarketMark:
 
 
 def _contract_payload(row: UpstreamResourceContractRecord) -> dict:
+    notes = _contract_notes(row.notes)
     return {
         "contract_id": row.contract_id,
         "contract_name": row.contract_name,
@@ -261,8 +263,44 @@ def _contract_payload(row: UpstreamResourceContractRecord) -> dict:
         "owned_exit_capacity_mwh_per_day": row.owned_exit_capacity_mwh_per_day,
         "allowed_exit_points": row.allowed_exit_points,
         "eligible_sale_modes": row.eligible_sale_modes,
+        "notes": row.notes,
+        **{
+            field: notes[field]
+            for field in _STRUCTURED_NOTE_FIELDS
+            if field in notes
+        },
         "updated_at_utc": row.updated_at_utc.isoformat(),
     }
+
+
+_STRUCTURED_NOTE_FIELDS = (
+    "variable_cost_gbp_mwh",
+    "regas_fee_gbp_mwh",
+    "fuel_loss_allowance_pct",
+)
+
+
+def _contract_notes(value: object) -> dict:
+    if isinstance(value, Mapping):
+        return {str(key): item for key, item in value.items()}
+    if not isinstance(value, str) or not value.strip():
+        return {}
+    try:
+        parsed = json.loads(value)
+    except (TypeError, ValueError):
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _merged_contract_notes(data: Mapping[str, object]) -> str | None:
+    raw_notes = _optional_string(data.get("notes"))
+    notes = _contract_notes(raw_notes)
+    if raw_notes and not notes:
+        notes["operator_notes"] = raw_notes
+    for field in _STRUCTURED_NOTE_FIELDS:
+        if field in data and data[field] is not None:
+            notes[field] = data[field]
+    return json.dumps(notes, sort_keys=True) if notes else None
 
 
 def _optional_float(value: object) -> float | None:

@@ -54,6 +54,7 @@ export function contractDraftFromRecord(record: Record<string, unknown>, current
     ...current,
     contract_id: stringFromRecord(mergedRecord, "contract_id", current.contract_id),
     contract_name: stringFromRecord(mergedRecord, "contract_name", current.contract_name),
+    resource_type: stringFromRecord(mergedRecord, "resource_type", current.resource_type),
     counterparty: stringFromRecord(mergedRecord, "counterparty", current.counterparty),
     contract_type: stringFromRecord(mergedRecord, "contract_type", current.contract_type),
     delivery_point_name: stringFromRecord(mergedRecord, "delivery_point_name", current.delivery_point_name),

@@ -136,7 +136,10 @@ def test_compose_resource_pool_options_converts_eur_market_price_to_gbp() -> Non
             "owned_exit_capacity_mwh_per_day": None,
             "allowed_exit_points": ["NBP"],
             "eligible_sale_modes": [],
-            "notes": None,
+            "notes": (
+                '{"variable_cost_gbp_mwh": 0.6, "regas_fee_gbp_mwh": 0.4, '
+                '"fuel_loss_allowance_pct": 1.5}'
+            ),
         }
     ]
     candidates = [
@@ -216,6 +219,9 @@ def test_compose_resource_pool_options_converts_eur_market_price_to_gbp() -> Non
     assert option["fx_as_of_approximated"] is False
     assert option["capacity_status"] == "KNOWN"
     assert option["capacity_limit_mwh_per_day"] == 5_000
+    assert option["eligible_resource_ids"] == ["c1"]
+    assert data["portfolio_resources"][0]["variable_cost_gbp_mwh"] == 1.0
+    assert data["portfolio_resources"][0]["fuel_loss_allowance_pct"] == 1.5
     assert data["blockers"] == []
 
 

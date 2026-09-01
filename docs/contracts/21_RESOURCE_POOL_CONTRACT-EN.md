@@ -88,6 +88,42 @@ The contract model must store these terms in PostgreSQL and expose them through
 backend `/api` and SDK surfaces. Web and desktop clients do not read contract
 tables directly.
 
+## Current Release Support And Gaps (2026-09-01)
+
+The current PostgreSQL/API/Web vertical slice supports:
+
+- controlled resource type, resource id/name, counterparty evidence, gas year,
+  delivery/title/beach/physical-exit points, daily available quantity,
+  delivery and nomination tolerances, price basis, and settlement timing;
+- resource cost, balancing allowance, variable cost, terminal/regas fee, and
+  fuel/loss percentage. Variable plus regas cost flows into the optimizer's
+  variable unit cost. Fuel/loss applies the delivered-unit uplift
+  `base_cost / (1 - loss_fraction) - base_cost`;
+- entry/exit capacity assumptions, terminal access evidence, allowed exit
+  points, eligible sale modes, source evidence, and human-review state;
+- API readback of the full notes evidence plus typed cost fields. PostgreSQL is
+  the runtime source of truth; clients refresh resource terms and pool options
+  after persistence;
+- per-resource route eligibility through `eligible_resource_ids`, preventing a
+  resource from borrowing another contract's permitted destination;
+- resource-specific screen-sale cash lag in early-cash valuation.
+
+Not yet supported in this vertical slice:
+
+- minimum-take/take-or-pay, make-up and carry-forward obligations;
+- effective-date/version history and status-based gas-day selection;
+- governed mapping and enforcement of persisted eligible sale modes against
+  route-candidate business models (allowed exit points are enforced now);
+- structured currency/unit/premium fields beyond the current GBP/MWh resource
+  cost contract;
+- interruption/force-majeure logic, capacity product/firmness, invoice lag, and
+  prohibited-route/TSO rules as typed optimizer inputs;
+- typed SDK list/upsert methods for Resource Terms.
+
+These gaps must remain visible in UI/docs and must not be approximated silently.
+The separate phase-two optimization package contains minimum-take primitives,
+but it is not yet the PostgreSQL-backed Resource Terms allocation path.
+
 ## Data Policy
 
 Missing DB records must produce explicit empty states or blockers. The product

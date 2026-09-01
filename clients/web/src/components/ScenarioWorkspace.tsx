@@ -82,7 +82,7 @@ export function ScenarioWorkspace({
         <div className="section-heading"><span className="eyebrow">{t("home.resource_pool")}</span><strong>{t("panel.route_allocation")}</strong></div>
         <div className="economics-grid wide">
           {ECONOMIC_INPUTS.map(({ key, label }) => (
-            <label key={key}>{t(label)}<input type="number" value={contract[key]} onChange={(event) => updateContractNumber(key, event.target.value)} /></label>
+            <label key={key}>{t(label)}<input type="number" value={contract[key] ?? ""} onChange={(event) => updateContractNumber(key, event.target.value)} /></label>
           ))}
         </div>
         <div className="action-row">

@@ -9,7 +9,7 @@ import {
   contractRecordFromImportedFile,
 } from "@/app/index";
 import type { ContractDraft } from "@/app/index";
-import type { ContractNumberKey, ContractTextKey } from "@/components/ContractWorkbench";
+import type { ContractListKey, ContractNumberKey, ContractTextKey } from "@/components/ContractWorkbench";
 
 export function useContractEditor(t: TFunction) {
   const contractImportRef = useRef<HTMLInputElement>(null);
@@ -18,11 +18,17 @@ export function useContractEditor(t: TFunction) {
   const contractPayload = useMemo(() => buildContractPayload(contract), [contract]);
 
   function updateContractNumber(key: ContractNumberKey, value: string) {
-    setContract((current) => ({ ...current, [key]: value === "" ? 0 : Number(value) }));
+    const nullable = key === "owned_entry_capacity_mwh_per_day" || key === "owned_exit_capacity_mwh_per_day";
+    setContract((current) => ({ ...current, [key]: value === "" && nullable ? null : value === "" ? 0 : Number(value) }));
   }
 
   function updateContractText(key: ContractTextKey, value: string) {
     setContract((current) => ({ ...current, [key]: value }));
+  }
+
+  function updateContractList(key: ContractListKey, value: string) {
+    const items = value.split(",").map((item) => item.trim()).filter(Boolean);
+    setContract((current) => ({ ...current, [key]: items }));
   }
 
   function loadPersistedContract(saved: UpstreamContractDTO) {
@@ -57,6 +63,7 @@ export function useContractEditor(t: TFunction) {
     contractImportMessage,
     updateContractNumber,
     updateContractText,
+    updateContractList,
     loadPersistedContract,
     resetContractDraft,
     importContractDraftFile,

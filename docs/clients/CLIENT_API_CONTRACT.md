@@ -145,6 +145,27 @@ route for upstream resource terms. It stores the EFET-style resource attributes
 needed by the resource-pool optimizer and returns `research_only=true` and
 `human_review_required=true`.
 
+The active typed write contract includes `variable_cost_gbp_mwh`,
+`regas_fee_gbp_mwh`, and `fuel_loss_allowance_pct` in addition to the base
+resource, quantity, price, tolerance, capacity, restriction, and cash-lag
+fields. The current table keeps extended EFET evidence in the `notes` JSON text
+payload for schema compatibility; GET and POST responses return that evidence
+and promote the three cost fields as typed top-level values. Clients must not
+parse the database or bypass this API.
+
+`GET /api/route-cost/resource-pool/options` composes:
+
+- `variable_cost_gbp_mwh` as variable cost plus regas fee;
+- `fuel_loss_allowance_pct` as a separate delivered-unit cost input;
+- resource-specific `screen_sale_cash_lag_days`;
+- route-level `eligible_resource_ids`, derived from each persisted resource's
+  delivery point and allowed exits.
+
+Minimum-take/take-or-pay and versioned effective windows are not yet part of
+this endpoint. Persisted eligible sale modes are also not enforced until a
+governed route-candidate mapping exists; allowed exit points are enforced.
+Consumers must not infer unsupported constraints from free text.
+
 Clients may use this route to save resource inputs, then refresh:
 
 - `GET /api/route-cost/upstream-contracts`;

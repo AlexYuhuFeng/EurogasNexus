@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, date, datetime
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field, ValidationError
 
+from eurogas_nexus.domain.route_cost.enums import SourceResourceType
 from eurogas_nexus.domain.route_cost.lng_regas import (
     LngRegasScenario,
     assess_lng_regas_readiness,
@@ -51,7 +53,7 @@ class UpstreamContractUpsertRequest(BaseModel):
 
     contract_id: str = Field(min_length=1, max_length=128)
     contract_name: str = Field(min_length=1, max_length=256)
-    resource_type: str = Field(min_length=1, max_length=64)
+    resource_type: SourceResourceType
     delivery_point_name: str = Field(min_length=1, max_length=256)
     gas_year: str = Field(min_length=1, max_length=16)
     delivery_quantity_mwh_per_day: float = Field(gt=0)
@@ -67,6 +69,9 @@ class UpstreamContractUpsertRequest(BaseModel):
     owned_exit_capacity_mwh_per_day: float | None = Field(default=None, ge=0)
     allowed_exit_points: list[str] = Field(default_factory=list)
     eligible_sale_modes: list[str] = Field(default_factory=list)
+    variable_cost_gbp_mwh: float = Field(default=0, ge=0)
+    regas_fee_gbp_mwh: float = Field(default=0, ge=0)
+    fuel_loss_allowance_pct: float = Field(default=0, ge=0, lt=100)
     notes: str | None = None
 
 
@@ -374,18 +379,6 @@ def _compose_resource_pool_options(
     price_by_point = _latest_market_price_by_point(market_rows)
     resources = [_portfolio_resource_from_contract(contract) for contract in contracts]
     sale_options = []
-    allowed_targets = {
-        point.strip().upper()
-        for contract in contracts
-        for point in [contract["delivery_point_name"], *contract.get("allowed_exit_points", [])]
-        if isinstance(point, str) and point.strip()
-    }
-    resource_points = {
-        contract["delivery_point_name"].strip().upper()
-        for contract in contracts
-        if isinstance(contract.get("delivery_point_name"), str)
-    }
-
     for candidate in candidates:
         target = str(candidate["target_point_name"]).strip().upper()
         start = str(candidate["start_point_name"]).strip().upper()
@@ -394,10 +387,26 @@ def _compose_resource_pool_options(
             blockers.append(f"MARKET_PRICE_MISSING:{target}")
             continue
 
-        if contracts and start not in resource_points:
+        start_contracts = [
+            contract
+            for contract in contracts
+            if str(contract.get("delivery_point_name") or "").strip().upper() == start
+        ]
+        if contracts and not start_contracts:
             warnings.append(f"ROUTE_START_NOT_IN_RESOURCE_POOL:{candidate['route_id']}")
             continue
-        if contracts and allowed_targets and target not in allowed_targets:
+        eligible_contracts = [
+            contract
+            for contract in start_contracts
+            if target == start
+            or target
+            in {
+                str(point).strip().upper()
+                for point in contract.get("allowed_exit_points", [])
+                if str(point).strip()
+            }
+        ]
+        if contracts and not eligible_contracts:
             warnings.append(f"ROUTE_TARGET_NOT_ALLOWED_BY_CONTRACT:{candidate['route_id']}")
             continue
 
@@ -488,7 +497,10 @@ def _compose_resource_pool_options(
                 **route_fx_info,
                 "capacity_limit_mwh_per_day": capacity_limit,
                 "capacity_status": capacity_status,
-                "screen_sale_cash_lag_days": _screen_cash_lag_days(contracts),
+                "screen_sale_cash_lag_days": _screen_cash_lag_days(eligible_contracts),
+                "eligible_resource_ids": [
+                    contract["contract_id"] for contract in eligible_contracts
+                ],
                 "required_tso_access": candidate["required_tso_access"],
                 "source_refs": [
                     f"route_candidate:{candidate['route_id']}",
@@ -627,6 +639,16 @@ def _iso_or_none(value) -> str | None:
 
 def _portfolio_resource_from_contract(contract: dict) -> dict:
     resource_type = contract["resource_type"]
+    notes = _contract_notes_payload(contract.get("notes"))
+    variable_cost = _non_negative_number(
+        contract.get("variable_cost_gbp_mwh", notes.get("variable_cost_gbp_mwh"))
+    )
+    regas_fee = _non_negative_number(
+        contract.get("regas_fee_gbp_mwh", notes.get("regas_fee_gbp_mwh"))
+    )
+    fuel_loss = _non_negative_number(
+        contract.get("fuel_loss_allowance_pct", notes.get("fuel_loss_allowance_pct"))
+    )
     return {
         "resource_id": contract["contract_id"],
         "resource_name": contract["contract_name"],
@@ -639,17 +661,57 @@ def _portfolio_resource_from_contract(contract: dict) -> dict:
         "location_point_name": contract["delivery_point_name"],
         "available_quantity_mwh_per_day": contract["delivery_quantity_mwh_per_day"],
         "contract_cost_gbp_mwh": contract["contract_price_gbp_mwh"],
-        "variable_cost_gbp_mwh": 0.0,
+        "variable_cost_gbp_mwh": round(variable_cost + regas_fee, 4),
+        "fuel_loss_allowance_pct": fuel_loss,
         "delivery_tolerance_pct": contract["delivery_tolerance_pct"],
         "nomination_tolerance_pct": contract["nomination_tolerance_pct"],
         "tolerance_risk_allowance_gbp_mwh": contract.get("tolerance_risk_allowance_gbp_mwh") or 0.0,
         "upstream_payment_lag_days": contract["upstream_payment_lag_days"],
+        "screen_sale_cash_lag_days": contract["screen_sale_cash_lag_days"],
         "settlement_frequency": contract["settlement_frequency"],
         "required_tso_access": [],
         "accessible_tsos": None,
-        "pricing_method": "OPERATOR_CONTRACT",
-        "source_refs": [f"upstream_resource_contract:{contract['contract_id']}"],
+        "pricing_method": _pricing_method(notes.get("index_basis")),
+        "source_refs": _unique(
+            [
+                f"upstream_resource_contract:{contract['contract_id']}",
+                *(
+                    [str(notes["source_reference"])]
+                    if notes.get("source_reference")
+                    else []
+                ),
+            ]
+        ),
     }
+
+
+def _contract_notes_payload(value: object) -> dict:
+    if isinstance(value, dict):
+        return value
+    if not isinstance(value, str) or not value.strip():
+        return {}
+    try:
+        parsed = json.loads(value)
+    except (TypeError, ValueError):
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _non_negative_number(value: object) -> float:
+    if not isinstance(value, int | float) or isinstance(value, bool):
+        return 0.0
+    return max(float(value), 0.0)
+
+
+def _pricing_method(value: object) -> str:
+    normalized = str(value or "").strip().upper()
+    if "DAY-AHEAD" in normalized or "DAY AHEAD" in normalized:
+        return "DAILY_INDEX"
+    if "MONTH" in normalized:
+        return "MONTHLY_INDEX"
+    if "FIXED" in normalized:
+        return "FIXED_PRICE"
+    return "OPERATOR_CONTRACT"
 
 
 def _candidate_route_cost(

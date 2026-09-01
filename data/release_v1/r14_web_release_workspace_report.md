@@ -1,55 +1,83 @@
-﻿# R14: Web Research Workspace Report
+# R14: Web Decision-Support Workspace Report
 
-**Milestone ID:** R14 | **Status:** PARTIAL | **Date:** 2026-05-29
+**Milestone ID:** R14 | **Status:** PARTIAL | **Updated:** 2026-09-01
 
-## Status: PARTIAL
+## Current State
 
-**Reason:** npm package installation requires internet access. Full build cannot
-be verified without `npm install` and `npm run build`.
+The React 19/Vite/TypeScript workspace is implemented and builds locally. It is
+the shared UI embedded by the Windows Tauri client and consumes backend `/api`
+routes only. PostgreSQL remains the runtime source of truth.
 
-**What was created:**
-- Full web workspace file structure under `clients/web/`
-- `package.json` with approved stack: React 19, Vite 6, TypeScript 5,
-  MapLibre GL 5, deck.gl 9, Zustand 5, i18next 24, lucide-react, date-fns, zod
-- `vite.config.ts` with `/api` proxy to backend
-- `tsconfig.json` with strict mode and path aliases
-- Typed API client (`src/api/client.ts`) calling `/api` with fetch
-- i18n resources: English (en.json) and Mandarin Chinese (zh.json)
-- Light/dark/system theme store (Zustand + CSS variables + localStorage)
-- API data store (Zustand) with loading/error/dataStatus states
-- Main App component with header, nav, map placeholder, sidebar panels
-- Production-grade CSS with light/dark/system theme variables
+Active grouped workspaces:
 
-**What remains:**
-- `npm install` to download and install dependencies
-- `npm run build` to verify TypeScript compilation and Vite bundling
-- Map component with MapLibre GL + deck.gl integration
-- Full workspace pages (Network, Market, Scenario, Strategy, Review, Sources,
-  Glossary, Runtime, Settings)
-- E2E tests
+- Decision Workspace: Network, Scenario, Review;
+- Commercial Inputs: Resource Terms, Market, Capacity, Market Positioning;
+- Analytics: Strategy, Glossary;
+- Operations: Data Sources, Runtime, Settings, Manual.
 
-**Internet required:** yes 鈥?npm packages must be downloaded.
+The Network workspace includes verified-versus-indicative topology semantics,
+source-labelled route corridors, persisted resources, and resource-pool route
+evidence. Market is a terminal-style multi-hub/tenor/FX board. Strategy supports
+task-led backtest/shadow monitoring. Capacity, Data Sources, Runtime, Glossary,
+Review, Settings, and Manual are implemented rather than placeholders.
 
-**Fallback applied:** Created file structure, TypeScript interfaces, i18n/theme
-resources, mocked API client, Zustand stores, and CSS theme system. All source
-code is ready for `npm install && npm run dev`.
+## Resource Terms Milestone (2026-09-01)
 
-## Files
+The former long-form contract page is now a task-led operational workspace:
 
-- `clients/web/package.json`
-- `clients/web/tsconfig.json`
-- `clients/web/vite.config.ts`
-- `clients/web/index.html`
-- `clients/web/src/main.tsx`
-- `clients/web/src/App.tsx`
-- `clients/web/src/api/client.ts`
-- `clients/web/src/i18n/index.ts`
-- `clients/web/src/i18n/en.json`
-- `clients/web/src/i18n/zh.json`
-- `clients/web/src/stores/theme.ts`
-- `clients/web/src/stores/api.ts`
-- `clients/web/src/styles/app.css`
+- command strip with draft/persisted identity, source, PostgreSQL, review, and
+  validation state;
+- `Source`, `Terms`, `Pool impact`, and `Library` views;
+- section navigation that mounts one clause group at a time;
+- JSON/plain-text import only; unsupported PDF/DOCX claims were removed;
+- validation-gated save and accessible live status feedback;
+- editable resource type, entry/exit capacity, exits, and sale modes;
+- exact persisted-resource impact rather than draft-derived claims;
+- English and Chinese terminology aligned to Resource Terms.
+
+Backend correctness delivered with the UI:
+
+- variable cost, regas fee, and fuel/loss survive PostgreSQL/API readback and
+  enter resource-pool economics;
+- fuel/loss is a delivered-unit cost uplift;
+- sale options expose `eligible_resource_ids`, preventing cross-contract route
+  permission leakage;
+- screen-sale cash lag remains resource-specific.
+
+Design reference:
+
+- `docs/design/references/resource-terms-workspace-imagegen-2026-09-01.png`
+  (GPT Image 2; layout reference only, not runtime data evidence).
+
+## Evidence
+
+- `npm --prefix clients/web run build`: passed on 2026-09-01.
+- Focused resource-pool/API tests: 23 passed on 2026-09-01.
+- Ruff checks for changed Python modules/tests: passed after formatting fix.
+- Browser QA: 1440x1000 desktop and 390x844 responsive captures, task-view
+  interaction, validation blocker, pool impact, and persisted library.
+- Windows package QA: the fresh Tauri release executable and x64 NSIS installer
+  built successfully. The executable was launched and the Resource Terms,
+  Library, persisted-record, and Pool Impact flows were exercised against the
+  PostgreSQL-backed API.
+
+## Why Status Is Still Partial
+
+R14 is broader than one workspace. Remaining release work includes:
+
+- repeatable browser-flow/accessibility automation rather than screenshot-only
+  QA;
+- completion of the full-page UI/UX audit across every workspace and both
+  languages;
+- minimum-take/take-or-pay, effective-window/version history, structured
+  currency/unit/premium, and typed SDK Resource Terms support;
+- final release-matrix reconciliation after the remaining page-by-page audit.
+
+No internet or package-install blocker remains. The old 2026-05-29 report was
+stale and has been replaced by this evidence-based status.
 
 ## Next
 
-R15: Windows Client Package Shell (also PARTIAL 鈥?requires Tauri/Rust toolchain)
+Continue the page-by-page Web/desktop release audit without marking R14 complete
+until the remaining acceptance evidence exists. The Windows package/toolchain is
+no longer a blocker.

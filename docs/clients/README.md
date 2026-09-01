@@ -81,9 +81,11 @@ list of pages. Technical workspace ids remain stable for compatibility.
 
 ### Commercial Inputs
 
-- Resource Terms: EFET-style resource term capture, JSON draft import, persisted
-  resource-term library, and backend-owned resource-pool refresh. Technical id:
-  `contracts`.
+- Resource Terms: task-led `Source`, `Terms`, `Pool impact`, and `Library`
+  views; JSON/plain-text draft import; validated PostgreSQL persistence;
+  persisted cost/restriction readback; and backend-owned resource-pool refresh.
+  PDF/DOCX extraction and minimum-take/take-or-pay modelling are not enabled.
+  Technical id: `contracts`.
 - Market: terminal-style European gas hub board, regional TTF spreads, ECB FX,
   and exchange/broker source posture without fabricated prices.
 - Capacity: ENTSOG flow/capacity, TSO access, tariffs, storage, and LNG.

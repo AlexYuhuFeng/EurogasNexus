@@ -687,6 +687,8 @@ export interface UpstreamContractDTO {
   tolerance_risk_allowance_gbp_mwh?: number | null; annual_financing_rate_pct: number;
   owned_entry_capacity_mwh_per_day?: number | null; owned_exit_capacity_mwh_per_day?: number | null;
   allowed_exit_points: string[]; eligible_sale_modes: string[]; updated_at_utc?: string;
+  variable_cost_gbp_mwh?: number; regas_fee_gbp_mwh?: number; fuel_loss_allowance_pct?: number;
+  notes?: string | null;
   research_only?: boolean; human_review_required?: boolean;
 }
 export type UpstreamContractInputDTO = Omit<UpstreamContractDTO, "updated_at_utc" | "research_only" | "human_review_required"> & {
@@ -717,6 +719,7 @@ export interface PortfolioResourceDTO {
   resource_id: string; resource_name: string; resource_type: string; delivery_mode: string;
   location_point_name: string; available_quantity_mwh_per_day: number;
   contract_cost_gbp_mwh: number; variable_cost_gbp_mwh?: number;
+  fuel_loss_allowance_pct?: number; screen_sale_cash_lag_days?: number | null;
   delivery_tolerance_pct?: number | null; nomination_tolerance_pct?: number | null;
   tolerance_risk_allowance_gbp_mwh?: number; upstream_payment_lag_days?: number;
   settlement_frequency?: string; required_tso_access?: string[];
@@ -732,6 +735,7 @@ export interface PortfolioSaleOptionDTO {
   sale_price_source_family?: string | null;
   capacity_limit_mwh_per_day?: number | null; screen_sale_cash_lag_days?: number;
   required_tso_access?: string[]; source_refs?: string[];
+  eligible_resource_ids?: string[];
 }
 
 export interface PortfolioOptimizationRequestDTO {

@@ -326,7 +326,8 @@ def test_web_client_matches_design_reference_cockpit() -> None:
     assert "poolInputBlockers" in app
     assert "runtimeDbReady" in app
     assert "blocker_runtime_db" in app
-    assert "efet-section-grid" in app_and_components
+    assert "contract-task-tabs" in app_and_components
+    assert "contract-terms-layout" in app_and_components
     assert "map-overlay" not in app
     assert "topology-status-panel" not in app
     assert "network-operations-panel" not in app
@@ -639,7 +640,10 @@ def test_web_client_strategy_page_is_shadow_run_terminal() -> None:
     assert 'from "@/components/strategy/StrategyShadowRunSections"' in strategy_terminal
     assert "strategy-command-deck" in strategy_terminal
     assert 'useState<StrategyViewId>("monitor")' in strategy_terminal
-    assert 'const STRATEGY_VIEWS: StrategyViewId[] = ["monitor", "economics", "risk", "runs"]' in strategy_terminal
+    assert (
+        'const STRATEGY_VIEWS: StrategyViewId[] = '
+        '["monitor", "economics", "risk", "runs"]'
+    ) in strategy_terminal
     assert 'role="tablist"' in strategy_terminal
     assert 'role="tabpanel"' in strategy_terminal
     assert 'aria-selected={activeView === view}' in strategy_terminal
@@ -783,7 +787,8 @@ def test_web_client_strategy_page_is_shadow_run_terminal() -> None:
     assert "Monitor, Economics, Risk & Evidence, and Run History" in web_spec
     assert "persisted strategy runs" in web_spec
     assert (
-        "within-day, day-ahead, month-ahead, ICIS assessments, ICE OCM marks, EEX curves, and ECB FX"
+        "within-day, day-ahead, month-ahead, ICIS assessments, ICE OCM marks, "
+        "EEX curves, and ECB FX"
     ) in web_spec
 
 
@@ -1148,7 +1153,7 @@ def test_web_client_glossary_keeps_article_visible_while_browsing_terms() -> Non
     assert "position: static" in css
 
 
-def test_web_client_contracts_page_is_upload_and_manual_intake_workbench() -> None:
+def test_web_client_contracts_page_is_task_led_resource_terms_workbench() -> None:
     app = _read_application_source()
     workbench_path = ROOT / "clients" / "web" / "src" / "components" / "ContractWorkbench.tsx"
     workbench = workbench_path.read_text(encoding="utf-8")
@@ -1184,51 +1189,56 @@ def test_web_client_contracts_page_is_upload_and_manual_intake_workbench() -> No
     assert "human_review_required" in contract_payload
 
     for token in [
-        "contract-intake-workbench",
-        "contract-upload-zone",
-        "contract-manual-editor",
-        "contract-library-panel",
-        "contract-detail-preview",
-        "efet-clause-map",
-        "beach-delivery-strip",
-        "contract-source-evidence",
-        "contract-warning-stack",
+        "contract-task-workspace",
+        "contract-command-strip",
+        "contract-task-tabs",
+        "contract-source-view",
+        "contract-terms-layout",
+        "contract-clause-nav",
+        "contract-clause-editor",
+        "contract-decision-rail",
+        "contract-impact-view",
+        "contract-library-view",
+        "contract-library-row",
         "contractImportRef",
         "importContractDraftFile",
-        "loadPersistedContract",
+        "loadTerm",
         "saveDraftContract(contractPayload)",
-        ".json,.txt,.pdf,.doc,.docx",
+        ".json,.txt,application/json,text/plain",
         't("contracts.upload_contract")',
-        't("contracts.beach_delivery")',
+        't("contracts.beach_delivery_point")',
         't("contracts.title_transfer_point")',
         't("contracts.document_status")',
     ]:
         assert token in workbench
 
     for token in [
-        ".contract-intake-workbench",
-        ".contract-upload-zone",
-        ".contract-manual-editor",
-        ".contract-library-panel",
-        ".contract-detail-preview",
-        ".efet-clause-map",
-        ".beach-delivery-strip",
-        ".contract-source-evidence",
-        ".contract-warning-stack",
+        ".contract-task-workspace",
+        ".contract-command-strip",
+        ".contract-task-tabs",
+        ".contract-source-view",
+        ".contract-terms-layout",
+        ".contract-clause-nav",
+        ".contract-clause-editor",
+        ".contract-decision-rail",
+        ".contract-impact-view",
+        ".contract-library-view",
     ]:
         assert token in css
 
-    assert en["contracts.upload_contract"] == "Upload contract"
+    assert en["contracts.upload_contract"] == "Import Resource Terms"
     assert en["contracts.beach_delivery"] == "Beach delivery"
     assert en["contracts.counterparty"] == "Counterparty"
     assert en["contracts.title_transfer_point"] == "Title transfer point"
     assert en["contracts.document_status"] == "Document status"
-    assert zh["contracts.upload_contract"] == "\u4e0a\u4f20\u5408\u540c"
+    assert zh["contracts.upload_contract"] == "\u5bfc\u5165\u8d44\u6e90\u6761\u6b3e"
     assert zh["contracts.beach_delivery"] == "\u6d77\u5cb8\u4ea4\u4ed8"
     assert zh["contracts.counterparty"] == "\u5bf9\u624b\u65b9"
     assert zh["contracts.title_transfer_point"] == "\u6743\u5c5e\u8f6c\u79fb\u70b9"
     assert zh["contracts.document_status"] == "\u6587\u4ef6\u72b6\u6001"
-    assert "upload zone" in web_spec
+    assert "task-led" in web_spec
+    assert "structured JSON drafts" in web_spec
+    assert "plain-text evidence" in web_spec
     assert "title-transfer point" in web_spec
     assert "beach delivery point" in web_spec
 
@@ -1437,15 +1447,15 @@ def test_web_client_resource_pool_options_are_backend_owned() -> None:
     assert "saveDraftContract" in store
     assert "saveDraftContract(contractPayload)" in app_and_contracts
     assert "contractSaveMessage" in app
-    assert "contract-library-panel" in app_and_contracts
+    assert "contract-library-view" in app_and_contracts
     assert "contract-library-row" in app_and_contracts
     assert "contract-import-input" in app_and_contracts
     assert "importContractDraftFile" in app_and_contracts
-    assert "loadPersistedContract" in app_and_contracts
+    assert "loadTerm" in app_and_contracts
     assert "contractDraftFromRecord" in app
-    assert en["contracts.library"] == "Contract library"
+    assert en["contracts.library"] == "Resource Terms Library"
     assert en["contracts.import_json"] == "Import JSON"
-    assert zh["contracts.library"] == "\u5408\u540c\u5e93"
+    assert zh["contracts.library"] == "\u8d44\u6e90\u6761\u6b3e\u5e93"
     assert zh["contracts.import_json"] == "\u5bfc\u5165 JSON"
     assert "nbp-via-bbl" not in app
     assert "cheap-nbp-route" not in app
