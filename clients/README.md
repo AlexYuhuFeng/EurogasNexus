@@ -27,7 +27,7 @@ Read before changing client code:
 - `docs/clients/README.md`
 - `docs/clients/CLIENT_DELIVERY_MILESTONES.md`
 - `docs/clients/CLIENT_API_CONTRACT.md`
-- `docs/clients/CLIENT_DESIGN_SYSTEM.md`
+- `docs/clients/UI_CONTENT_STANDARDS.md`
 - `docs/clients/CLIENT_TECH_STACK.md`
 - `docs/clients/WEB_CLIENT_DESIGN_SPEC.md`
 - `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-EN.md`

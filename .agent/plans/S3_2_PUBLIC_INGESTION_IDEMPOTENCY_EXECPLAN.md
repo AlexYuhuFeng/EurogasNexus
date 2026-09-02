@@ -4,7 +4,7 @@
 
 让 `public_sources` 摄入路径（`scripts/ops/ingest_public_sources.py`）在重跑时收敛到
 相同的持久化状态：自然键 upsert、无重复、部分/空载荷不会破坏已有数据。落地路线图
-[IMPROVEMENT_ROADMAP.md](../../docs/architecture/IMPROVEMENT_ROADMAP.md) 的 S3.2 与
+[IMPROVEMENT_ROADMAP-CN.md](../../docs/architecture/IMPROVEMENT_ROADMAP-CN.md) 的 S3.2 与
 问题 E，并顺带补齐 S2.2 中「摄入重跑写 audit_events」的覆盖。
 
 ## 2. Non-goals

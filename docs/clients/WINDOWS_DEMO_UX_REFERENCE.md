@@ -83,7 +83,7 @@ bottom panel
 
 Read this file together with:
 
-- `docs/clients/CLIENT_DESIGN_SYSTEM.md`
+- `docs/clients/UI_CONTENT_STANDARDS.md`
 - `docs/clients/WEB_CLIENT_DESIGN_SPEC.md`
 - `docs/clients/WINDOWS_CLIENT_DESIGN_SPEC.md`
 - `docs/design/UX_LAYOUT_BLUEPRINTS.md`

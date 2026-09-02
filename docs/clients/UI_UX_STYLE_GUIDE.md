@@ -1,8 +1,13 @@
 # UI/UX Style Guide Index
 
-Read both language versions before changing client UI/UX:
+> Superseded as an authority. Use
+> [`UI_CONTENT_STANDARDS.md`](UI_CONTENT_STANDARDS.md) as the single
+> authoritative UI/content standard.
 
-1. `docs/clients/UI_UX_STYLE_GUIDE-EN.md`
-2. `docs/clients/UI_UX_STYLE_GUIDE-CN.md`
+The bilingual visual companions remain in use:
 
-The authoritative visual source remains `C:\Users\qqshu\design.md`.
+1. [UI/UX style guide EN](UI_UX_STYLE_GUIDE-EN.md)
+2. [UI/UX style guide CN](UI_UX_STYLE_GUIDE-CN.md)
+
+Those companions must not be edited independently; update the consolidated
+standard first when behavior changes.

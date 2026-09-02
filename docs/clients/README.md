@@ -31,18 +31,19 @@ When working on clients, read these files in order:
 7. `docs/clients/WORKSPACE_NAVIGATION_SPEC.md`
 8. `docs/clients/WEB_APPLICATION_ARCHITECTURE-EN.md`
 9. `docs/clients/WEB_APPLICATION_ARCHITECTURE-CN.md`
-10. `docs/clients/UI_UX_STYLE_GUIDE-EN.md`
-11. `docs/clients/UI_UX_STYLE_GUIDE-CN.md`
-12. `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-EN.md`
-13. `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-CN.md`
-14. `docs/contracts/21_RESOURCE_POOL_CONTRACT-EN.md`
-15. `docs/contracts/21_RESOURCE_POOL_CONTRACT-CN.md`
-16. `docs/clients/WEB_CLIENT_DESIGN_SPEC.md`
-17. `docs/clients/WINDOWS_CLIENT_DESIGN_SPEC.md`
-18. `docs/clients/MARKET_POSITIONING_COCKPIT_SPEC-EN.md`
-19. `docs/clients/MARKET_POSITIONING_COCKPIT_SPEC-CN.md`
-20. `docs/clients/OPERATIONAL_GLOSSARY_CONTEXT_SPEC-EN.md`
-21. `docs/clients/OPERATIONAL_GLOSSARY_CONTEXT_SPEC-CN.md`
+10. `docs/clients/UI_CONTENT_STANDARDS.md`
+11. `docs/clients/UI_UX_STYLE_GUIDE-EN.md`
+12. `docs/clients/UI_UX_STYLE_GUIDE-CN.md`
+13. `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-EN.md`
+14. `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-CN.md`
+15. `docs/contracts/21_RESOURCE_POOL_CONTRACT-EN.md`
+16. `docs/contracts/21_RESOURCE_POOL_CONTRACT-CN.md`
+17. `docs/clients/WEB_CLIENT_DESIGN_SPEC.md`
+18. `docs/clients/WINDOWS_CLIENT_DESIGN_SPEC.md`
+19. `docs/clients/MARKET_POSITIONING_COCKPIT_SPEC-EN.md`
+20. `docs/clients/MARKET_POSITIONING_COCKPIT_SPEC-CN.md`
+21. `docs/clients/OPERATIONAL_GLOSSARY_CONTEXT_SPEC-EN.md`
+22. `docs/clients/OPERATIONAL_GLOSSARY_CONTEXT_SPEC-CN.md`
 
 ## Client Boundary
 

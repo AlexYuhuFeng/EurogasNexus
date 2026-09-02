@@ -55,6 +55,7 @@ Read before changing UI/UX:
 - `docs/clients/CLIENT_API_CONTRACT.md`
 - `docs/clients/CLIENT_TECH_STACK.md`
 - `docs/clients/WEB_CLIENT_DESIGN_SPEC.md`
+- `docs/clients/UI_CONTENT_STANDARDS.md`
 - `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-EN.md`
 - `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-CN.md`
 - `docs/clients/UI_UX_STYLE_GUIDE-EN.md`

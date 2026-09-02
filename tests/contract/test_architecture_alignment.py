@@ -70,7 +70,7 @@ def test_reference_lessons_document_failed_implementation_patterns() -> None:
 
 
 def test_stepwise_roadmap_starts_with_backend_foundations() -> None:
-    text = _read_doc("docs/architecture/V1_STEPWISE_DELIVERY_ROADMAP.md")
+    text = _read_doc("docs/archive/architecture/V1_STEPWISE_DELIVERY_ROADMAP.md")
 
     assert "Milestone 1" in text
     assert "Milestone 2" in text
@@ -155,7 +155,8 @@ def test_client_design_docs_are_ready_for_future_goal_mode() -> None:
     web = _read_doc("docs/clients/WEB_CLIENT_DESIGN_SPEC.md")
     windows = _read_doc("docs/clients/WINDOWS_CLIENT_DESIGN_SPEC.md")
     windows_demo = _read_doc("docs/clients/WINDOWS_DEMO_UX_REFERENCE.md")
-    design_system = _read_doc("docs/clients/CLIENT_DESIGN_SYSTEM.md")
+    design_system = _read_doc("docs/archive/clients/CLIENT_DESIGN_SYSTEM.md")
+    ui_standard = _read_doc("docs/clients/UI_CONTENT_STANDARDS.md")
     api_contract = _read_doc("docs/clients/CLIENT_API_CONTRACT.md")
     layouts = _read_doc("docs/design/UX_LAYOUT_BLUEPRINTS.md")
     web_plan = _read_doc(".agent/plans/WEB_M1_WORKSPACE_SHELL_EXECPLAN.md")
@@ -183,6 +184,7 @@ def test_client_design_docs_are_ready_for_future_goal_mode() -> None:
     assert "The CLI is the operator and automation command surface" in cli
     assert "CLI -> Python SDK -> backend /api" in cli
     assert "First screen is the workspace" in design_system
+    assert "single authoritative UI and content standard" in ui_standard
     assert "Top status bar" in web
     assert "Web UI -> web API client -> backend /api" in web
     assert "Web UI -> web API client -> backend /api" in web
@@ -229,11 +231,11 @@ def test_reference_evidence_log_records_archived_sources() -> None:
     assert "WINDOWS_DEMO_UX_REFERENCE.md" in text
 
 def test_full_v1_release_docs_are_precise_for_local_execution() -> None:
-    scope = _read_doc("docs/release/V1_FULL_PROJECT_RELEASE_SCOPE.md")
-    plan = _read_doc("docs/release/V1_FULL_PROJECT_RELEASE_EXECUTION_PLAN.md")
-    matrix = _read_doc("docs/release/V1_RELEASE_ACCEPTANCE_MATRIX.md")
-    backlog = _read_doc("docs/release/V1_RELEASE_MILESTONE_BACKLOG.md")
-    template = _read_doc("docs/release/V1_RELEASE_EXECPLAN_TEMPLATE.md")
+    scope = _read_doc("docs/archive/release/V1_FULL_PROJECT_RELEASE_SCOPE.md")
+    plan = _read_doc("docs/archive/release/V1_FULL_PROJECT_RELEASE_EXECUTION_PLAN.md")
+    matrix = _read_doc("docs/archive/release/V1_RELEASE_ACCEPTANCE_MATRIX.md")
+    backlog = _read_doc("docs/archive/release/V1_RELEASE_MILESTONE_BACKLOG.md")
+    template = _read_doc("docs/archive/release/V1_RELEASE_EXECPLAN_TEMPLATE.md")
 
     for phrase in [
         "Backend/API service",

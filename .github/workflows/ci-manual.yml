@@ -29,6 +29,9 @@ jobs:
       - name: Ruff
         run: ruff check .
 
+      - name: Markdown links
+        run: python scripts/ci/check_markdown_links.py
+
       - name: Tests
         run: pytest -q tests
 
@@ -56,6 +59,10 @@ jobs:
       - name: Build Web client
         working-directory: clients/web
         run: npm run build
+
+      - name: Test Web client
+        working-directory: clients/web
+        run: npm run test
 
       - name: Upload Web artifact
         uses: actions/upload-artifact@v7

@@ -26,14 +26,14 @@ def test_validation_doc_includes_active_test_suites() -> None:
 def test_readme_mentions_starting_docs_and_extended_validation() -> None:
     text = (ROOT / "README.md").read_text(encoding="utf-8")
 
-    assert "[Project directory](PROJECT_DIRECTORY.md)" in text
+    assert "[Project directory and ownership](PROJECT_DIRECTORY.md)" in text
     assert "[Release readiness](docs/release/RELEASE_READINESS.md)" in text
-    assert "## Data Sources" in text
+    assert "## Documentation map" in text
     assert (
         "tests/integration tests/ingestion tests/unit tests/optimization tests/sdk tests/cli"
         in text
     )
-    assert "## 中文说明" in text
+    assert "中文说明：" in text
 
 
 def test_resource_pool_contract_defines_home_and_efet_contract_entry() -> None:

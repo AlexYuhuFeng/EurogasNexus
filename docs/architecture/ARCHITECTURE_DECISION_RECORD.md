@@ -1,10 +1,54 @@
 # Architecture Decision Record
 
+## ADR Index And Process
+
+This file is the single ADR index and record for Eurogas Nexus. Do not create a
+separate architecture-decision authority. Accepted architecture changes must be
+recorded here in the same change that introduces them.
+
+The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD",
+"SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this section are to be
+interpreted as described in RFC 2119 and RFC 8174.
+
+### Index
+
+| ADR | Title | Status |
+| --- | --- | --- |
+| ADR-0001 | V1 is backend-first and multi-surface | Accepted |
+| ADR-0002 | PostgreSQL is runtime truth | Accepted |
+| ADR-0003 | Live PostgreSQL validation is in V1 | Accepted |
+| ADR-0004 | Stable API prefix is `/api` | Accepted |
+| ADR-0005 | Stack boundaries are explicit | Accepted |
+| ADR-0006 | Domain work is slice-based | Accepted |
+| ADR-0007 | Connectors fetch, they do not analyze | Accepted |
+| ADR-0008 | SDK and CLI are API consumers | Accepted |
+| ADR-0009 | Output metadata is mandatory for decision support | Accepted |
+| ADR-0010 | Offline work is the default for local agents | Accepted |
+| ADR-0011 | Historical projects are evidence, not source | Accepted |
+| ADR-0012 | Product boundary is decision support only | Accepted |
+| ADR-0013 | Documentation index, archive/RFC gates, and shared UI primitives are the baseline | Accepted |
+
+The numbered sections below are the historical record for these ADRs. ADR-0003
+corresponds to Decision 2A below; subsequent decisions shift by one in the
+section numbering.
+
+### Process
+
+1. A proposal MUST state the decision, the alternatives considered, the
+   affected owners, and the non-goals.
+2. Accepted ADRs MUST be appended to this file and to the index. Existing ADR
+   text MUST NOT be edited to mean something different; supersede it with a new
+   ADR that links the old one.
+3. An accepted ADR SHOULD have at least one contract or focused test that makes
+   the decision observable where practical.
+4. If an accepted RFC changes architecture, the ADR index MUST be updated in
+   the same change. See
+   [`docs/engineering/RFC_PROCESS.md`](../engineering/RFC_PROCESS.md).
+
 ## Purpose
 
-This document records firm architecture decisions for Eurogas Nexus V1. It
-exists to remove ambiguity for future implementation agents and to keep the
-worktree aligned with the current gas-trader decision-support goal.
+This record removes ambiguity for implementation agents and keeps the worktree
+aligned with the current gas decision-support goal.
 
 ## Decision 1: V1 Is Backend-First And Multi-Surface
 
@@ -198,11 +242,30 @@ V1 must not implement:
 - auto-trading;
 - ETRM replacement behavior.
 
+## Decision 12: Documentation And UI Baseline Is Maintained Through One Index And One Primitive Boundary
+
+Decision:
+
+`docs/README.md` is the authoritative documentation index; RFC, archive, and
+Markdown-link gates govern documentation changes; shared Web UI primitives live
+under `clients/web/src/components/ui`.
+
+Implication:
+
+- Root README remains a landing page, not an operations manual.
+- Current, runbook, design-reference, historical, and archived documents are
+  labelled in the documentation index.
+- Obsolete documents move through the archive policy instead of being deleted or
+  mixed with current material.
+- Shared UI primitives (`WorkspaceTabs`, `PanelHeader`, `StatusBadge`,
+  `MetricStrip`) are owned under `components/ui`; workspace components own domain
+  rendering and may consume primitives but must not fork their markup or
+  keyboard behavior.
+- The accepted baseline is RFC 0001
+  (`docs/engineering/rfc/0001-documentation-and-ui-baseline.md`).
+
 ## Current Recommended Next Step
 
-Follow `docs/architecture/NEXT_DEVELOPMENT_QUEUE.md`.
-
-The current work item is V1 R22: documentation and client cockpit alignment.
-Next work should improve documentation accuracy, client structure, Source
-Center diagnostics, review evidence, and persisted contract/resource workflows
-without weakening the backend/API boundary.
+Follow `docs/architecture/NEXT_DEVELOPMENT_QUEUE.md`. It is the only ordered
+implementation queue; do not use the archived V1 milestone plan as a new work
+list.

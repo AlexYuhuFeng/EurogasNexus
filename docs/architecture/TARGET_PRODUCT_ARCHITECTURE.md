@@ -233,7 +233,7 @@ runtime status, and API-backed state.
 
 Client design authority:
 
-- `docs/clients/CLIENT_DESIGN_SYSTEM.md`
+- `docs/clients/UI_CONTENT_STANDARDS.md`
 - `docs/clients/CLIENT_API_CONTRACT.md`
 - `docs/clients/WEB_CLIENT_DESIGN_SPEC.md`
 - `docs/clients/WINDOWS_CLIENT_DESIGN_SPEC.md`

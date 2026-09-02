@@ -106,7 +106,7 @@ historical replay. Use these current authorities instead:
 
 - `docs/architecture/CURRENT_PAUSE_POINT.md` for current implementation state.
 - `docs/architecture/NEXT_DEVELOPMENT_QUEUE.md` for ordered next work.
-- `docs/release/V1_RELEASE_READINESS.md` for release-candidate status.
+- `docs/release/RELEASE_READINESS.md` for release-candidate status.
 - `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-EN.md` for home cockpit rules.
 - `docs/contracts/21_RESOURCE_POOL_CONTRACT-EN.md` for resource-pool and
   EFET-style contract rules.

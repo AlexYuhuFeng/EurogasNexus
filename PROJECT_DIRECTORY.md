@@ -2,208 +2,150 @@
 
 ## Purpose
 
-This file is the quick directory map for Eurogas Nexus. It reflects the intended
-architecture for the current phased multi-surface repository.
+This file is the current directory map and ownership boundary for Eurogas
+Nexus. It intentionally does not list every file. For detailed module rules use
+the contracts and client docs linked below; for the verified current shape use
+[docs/architecture/CURRENT_PAUSE_POINT.md](docs/architecture/CURRENT_PAUSE_POINT.md).
 
-## Root Layout
+## Root layout
 
 ```text
-.agent/                 Agent ExecPlans and planning artifacts
-.github/                CI and contribution governance
-alembic/                Alembic migration boundary
-apps/                   Process entrypoints
-clients/                API-consuming Web and Windows/Linux desktop clients
-data/                   Local artifacts, fixtures, reports, and milestone outputs
-docs/                   Architecture, contracts, policies, operations, release docs
-  docs/api/             API surface blueprints
-  docs/architecture/    Architecture, ADRs, pause points, roadmaps
-  docs/clients/         Web/Windows client specs, stack, i18n, theme
-  docs/compliance/      Compliance and governance notes
-  docs/contracts/       Public API contracts and conventions
-  docs/data/            Canonical data model blueprints
-  docs/deployment/      Deployment roles and installers
-  docs/design/          Text wireframes and UX layout blueprints
-  docs/ontology/        Ontology, vocabulary, and gap reports
-  docs/operations/      Runbooks: live PostgreSQL, backup/restore, SLO, validation
-  docs/policies/        Policy documents
-  docs/product/         Commercial workflow and product semantics
-  docs/proposals/       Proposals
-  docs/release/         Release readiness and release plans
-  docs/sdk/             SDK design notes
-infra/                  Deployment templates and operator notes
-packages/               Future distributable packages
-release/                Source-controlled release blueprint
-scripts/                Local operations and validation scripts
-src/eurogas_nexus/      Backend Python package
-tests/                  API, contract, integration, security, SDK, CLI, release tests
+.agent/                 Historical agent ExecPlans and planning evidence
+.agents/                Agent-scoped task artifacts (not runtime input)
+.github/                CI workflows, issue templates, and PR template
+alembic/                Alembic migrations and migration env
+apps/                   Process entrypoints only (api active; worker/scheduler reserved)
+clients/                API-consuming clients: web/ and desktop/
+data/                   Ignored local artifacts and fixtures; never runtime truth
+deploy/                 Runtime container deployment files
+dist/                   Release output placeholder; generated artifacts are ignored
+docs/                   Current, runbook, design-reference, and archived documentation
+infra/                  Deployment component notes (deployment, docker, nginx, postgres, systemd)
+installer/              Windows installer sources
+output/                 Untracked generated material; never commit
+packages/               Reserved future distributable packages (placeholders only)
+release/                Source-controlled release-blueprint placeholder
+scripts/                CI, dev, ops, release, and security scripts
+src/eurogas_nexus/      Backend Python package (the only backend runtime package)
+tests/                  Python test suite (api, contract, integration, unit, sdk, etc.)
+tmp/                    Ignored scratch space
 ```
 
-## Product Surfaces
+Local or ignored tool directories may also exist (`.venv`, `.local-runtime`,
+`node_modules`, `clients/*/dist`) and are never runtime truth or commit
+material.
 
-Eurogas Nexus is delivered through five surfaces, in this order:
+## Documentation layout
 
-1. Backend service
-2. Python SDK
-3. CLI
-4. Web client
-5. Windows client
+```text
+docs/api/                API surface and path policies
+docs/architecture/       Architecture policies, ADR record, status and queue
+docs/archive/            Archived/superseded documents (read-only provenance)
+docs/clients/            Client contracts and UI standards
+docs/compliance/         Compliance notes
+docs/contracts/          Normative repository contracts
+docs/data/               Canonical data model blueprints
+docs/deployment/         Deployment roles and installer runbooks
+docs/design/             UI audits and visual references
+docs/engineering/        Coding standards and RFC process
+docs/ontology/           OWL model and natural-gas semantic backbone
+docs/operations/         Operator and development runbooks
+docs/policies/           Product, data, dependency, and archive policies
+docs/product/            Product capability and workflow specifications
+docs/release/            Release readiness, security evidence, and backlog
+docs/sdk/                Reserved SDK design notes
+```
 
-The backend service is the active foundation. The Python SDK is required for the
-current release line. SDK and CLI shells exist as API-backed helpers. Web and
-Windows client docs are explicit implementation targets. Runtime client code is
-expanded only after the relevant milestone is selected.
+The authoritative navigation order is in
+[docs/README.md](docs/README.md) (English) and
+[docs/README-CN.md](docs/README-CN.md) (Mandarin).
 
-## Current Implementation Shape
+## Product surfaces
 
-The current release-candidate worktree implements backend, SDK, CLI, Web, and
-Windows shell surfaces for the tested local scope:
+Eurogas Nexus is delivered through five active surfaces:
 
-- API entrypoint: `apps/api/main.py`
-- API package: `src/eurogas_nexus/api` (route profiles, middleware, dependencies,
-  public/internal/dev routes)
-- DB foundation: `src/eurogas_nexus/db` (models, repositories, session, registry)
-- route-cost domain: `src/eurogas_nexus/domain/route_cost`
-- ontology: `src/eurogas_nexus/domain/ontology` (typed concepts, vocabulary,
-  semantic kernel, bindings) + `docs/ontology/`
-- market-positioning domain: `src/eurogas_nexus/domain/market_positioning.py`
-- market-positioning import domain:
-  `src/eurogas_nexus/domain/market_positioning_import.py`
-- glossary domain: `src/eurogas_nexus/domain/glossary.py`
-- operational glossary context: `src/eurogas_nexus/domain/analysis/`
-  (contracts / builders / glossary_context / glossary_profile /
-  glossary_entities) and `/api/glossary/{term}/context`
-- strategy-lab domain: `src/eurogas_nexus/domain/strategy_lab`
-- phase-two optimization engines: `src/eurogas_nexus/optimization`
-  (route / resource-pool / capacity / contract / shared-capacity network flow)
-  + `/api/optimization/*`
-- DB-composed portfolio network optimization:
-  `src/eurogas_nexus/domain/route_cost/portfolio_network.py` +
-  `POST /api/optimization/portfolio-network` (R31)
-- governance and audit: `src/eurogas_nexus/governance` (entitlement, audit)
-- identity: `src/eurogas_nexus/db/models/identity.py`,
-  `src/eurogas_nexus/db/repositories/identity.py`,
-  `src/eurogas_nexus/security/identity.py` (R32 local identities, hashed keys,
-  roles, commercial data scopes)
-- security: `src/eurogas_nexus/security` (tokens, credentials, permissions)
-- application workflows: `src/eurogas_nexus/application`
-- streaming: `src/eurogas_nexus/streaming` (SSE contracts)
-- MCP server: `src/eurogas_nexus/mcp` (read-only stdio tools)
-- SDK clients: `src/eurogas_nexus/sdk` (market, physical, route_cost,
-  optimization, analysis, review, credentials, streaming, strategy_lab, ...)
-- CLI client: `src/eurogas_nexus/cli`
-- Web workspace: `clients/web`
-- Windows/Linux desktop shell: `clients/desktop`
+1. Backend service — `apps/api` + `src/eurogas_nexus`.
+2. PostgreSQL runtime store — Alembic-managed schema under `alembic/versions`.
+3. Python SDK — `src/eurogas_nexus/sdk`.
+4. CLI — `src/eurogas_nexus/cli`.
+5. Web and Windows/Linux clients — `clients/web` and `clients/desktop`.
 
-The active Web application has explicit ownership boundaries:
+PostgreSQL is the runtime source of truth. SDK, CLI, Web, and desktop clients
+consume `/api` or the SDK; they never read PostgreSQL, backend local files, raw
+vendor data, or credentials directly.
+
+## Backend ownership boundaries
+
+`apps/` contains process entrypoints only. Business logic, route
+implementations, persistence, and workflows belong under `src/eurogas_nexus`:
+
+```text
+src/eurogas_nexus/api/             FastAPI app, route profiles, routes, dependencies
+src/eurogas_nexus/application/     Workflow orchestration and application services
+src/eurogas_nexus/db/              SQLAlchemy models, repositories, sessions, registry
+src/eurogas_nexus/domain/          Domain models and calculations
+src/eurogas_nexus/ingestion/       Connectors and normalization boundaries
+src/eurogas_nexus/optimization/    Deterministic optimization engines
+src/eurogas_nexus/security/        Tokens, credentials, permissions, identity helpers
+src/eurogas_nexus/governance/      Entitlement and audit policy
+src/eurogas_nexus/sdk/             Typed API consumer facade
+src/eurogas_nexus/cli/             API-backed command interface
+src/eurogas_nexus/mcp/             Read-only stdio MCP tools
+src/eurogas_nexus/streaming/       Optional SSE contracts
+```
+
+Other `src/eurogas_nexus` subdirectories exist for audit, data quality,
+infrastructure, legacy, LLM, observations, runtime-store contracts, and
+workflows. Treat them as backend-owned; do not import them from SDK, CLI, or
+client code.
+
+Backend work activates `apps/api`, `src/eurogas_nexus`, `alembic`, `scripts`,
+`tests`, and backend docs. Database schema changes require an Alembic migration;
+do not add a second datastore.
+
+## Client ownership boundaries
 
 ```text
 clients/web/src/App.tsx                 composition root only
-clients/web/src/app/hooks/              workflow state and lifecycle
-clients/web/src/app/model/              derived decision view models
-clients/web/src/app/shell/              persistent application/map shell
-clients/web/src/app/workspaces/         workspace-to-page wiring
-clients/web/src/app/*.ts                pure builders and normalization
-clients/web/src/components/             domain page rendering
-clients/web/src/api/                    backend transport and DTOs
-clients/web/src/stores/                 API and preference state
+clients/web/src/app/hooks/             workflow state and lifecycle
+clients/web/src/app/model/             derived decision view models
+clients/web/src/app/shell/             persistent application/map shell
+clients/web/src/app/workspaces/        workspace-to-page wiring
+clients/web/src/components/            domain page rendering
+clients/web/src/components/ui/         shared UI primitives (WorkspaceTabs, PanelHeader,
+                                        StatusBadge, MetricStrip)
+clients/web/src/api/                   backend transport and DTOs
+clients/web/src/stores/                API and preference state
+clients/web/src/i18n/                  English and Mandarin resources
+clients/web/src/styles/                global CSS (deliberate changes only)
 ```
 
-See `docs/clients/WEB_APPLICATION_ARCHITECTURE-EN.md` and
-`docs/clients/WEB_APPLICATION_ARCHITECTURE-CN.md` before adding Web behavior.
+The Web workspace is the single UI source for browser, Windows, and Linux
+packaging. `clients/desktop` is the Tauri shell only and packages
+`clients/web/dist`.
 
-Route cost is a European explicit-leg model in this release line. BBL and IUK
-public corridor tariff references are included, UK NTS rows can remain as a
-public tariff source, and additional European TSO tariffs must be loaded into
-PostgreSQL rather than represented as client-side fixtures. Route cost, LNG
-regas readiness, capacity-constrained route/sale allocation, resource-pool
-optimization, EFET-style contract entry, strategy lab, FX, market marks, and
-glossary surfaces are exposed through API/SDK/Web contracts.
+Read [docs/clients/README.md](docs/clients/README.md),
+[docs/clients/WEB_APPLICATION_ARCHITECTURE-EN.md](docs/clients/WEB_APPLICATION_ARCHITECTURE-EN.md),
+and [docs/clients/UI_CONTENT_STANDARDS.md](docs/clients/UI_CONTENT_STANDARDS.md)
+before adding Web behavior.
 
-The home screen must treat all active purchase contracts as one portfolio
-resource pool, optimize sale paths for the pool, then attribute PnL back to
-contracts. Imported external screen-order observations and indicative portfolio
-PnL snapshots are exposed through `/api/portfolio/*` and
-`src/eurogas_nexus/sdk/portfolio.py`. Clients must not read PostgreSQL directly.
-Operational glossary context is also API-only and combines runtime matched
-entities, capacity, selected-duration usage, prices, live marks, routes, and
-linked contracts for terms such as TTF, GATE LNG, Zeebrugge Entry Point, ICIS
-Heren, NBP, ICE OCM, and any customer-loaded point with PostgreSQL records.
-
-## Development Direction
-
-Codex should use:
-
-- `docs/README.md` or `docs/README-CN.md` as the documentation entry point;
-- `docs/architecture/CURRENT_PAUSE_POINT.md` as the current status marker;
-- `docs/architecture/NEXT_DEVELOPMENT_QUEUE.md` as the ordered queue;
-- `docs/architecture/PRODUCT_DELIVERY_MASTER_PLAN.md` as the full backend,
-  SDK, CLI, Web, and Windows delivery plan;
-- `docs/architecture/WHOLE_PROJECT_CAPABILITY_BLUEPRINT.md` as the full
-  capability map;
-- `docs/architecture/REFERENCE_EVIDENCE_LOG.md` as the historical-reference
-  evidence log;
-- `docs/product/REAL_TIME_MARKET_INTELLIGENCE_BLUEPRINT.md` as the map-first
-  live-source, capacity/contract, strategy, weather, glossary, and LLM
-  requirement source;
-- `docs/architecture/MARKET_PRACTICE_AUDIT-EN.md` and
-  `docs/architecture/MARKET_PRACTICE_AUDIT-CN.md` as the latest
-  market-practice audit for route cost, market marks, FX, physical signals,
-  contract/capacity, strategy, and glossary;
-- `docs/clients/README.md` as the client design index;
-- `docs/clients/WEB_APPLICATION_ARCHITECTURE-EN.md` and
-  `docs/clients/WEB_APPLICATION_ARCHITECTURE-CN.md` as the active React module
-  ownership and extension rules;
-- `docs/clients/UI_UX_STYLE_GUIDE-EN.md` and
-  `docs/clients/UI_UX_STYLE_GUIDE-CN.md` as the tracked UI/UX authority;
-- `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-EN.md` and
-  `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-CN.md` as the home-screen UX
-  contract;
-- `docs/contracts/21_RESOURCE_POOL_CONTRACT-EN.md` and
-  `docs/contracts/21_RESOURCE_POOL_CONTRACT-CN.md` as the resource-pool and
-  EFET-style contract authority;
-- `docs/contracts/API_CONVENTIONS.md` as the envelope/pagination/error/status
-  conventions for the public `/api` surface;
-- `docs/operations/SLO.md` as the preview service-level objectives and their
-  automated evidence;
-- `docs/operations/BACKUP_RESTORE.md` as the backup/restore procedure and
-  drill checklist;
-- `docs/ontology/gap-report.md` and `docs/ontology/europe-natural-gas.md` as
-  the ontology alignment status and the semantic backbone, together with
-  `docs/ontology/eurogas-nexus-grm.ttl` and its
-  `OWL_GAS_ROLE_MODEL*.md` companions as the machine-readable GRM/SAREF OWL
-  ontology;
-- `docs/release/RELEASE_READINESS.md` as the current release-candidate state
-  and validated gates;
-- `docs/clients/MARKET_POSITIONING_COCKPIT_SPEC-EN.md` and
-  `docs/clients/MARKET_POSITIONING_COCKPIT_SPEC-CN.md` as the read-only
-  imported order/PnL cockpit contract;
-- `docs/clients/OPERATIONAL_GLOSSARY_CONTEXT_SPEC-EN.md` and
-  `docs/clients/OPERATIONAL_GLOSSARY_CONTEXT_SPEC-CN.md` as the glossary
-  context and metric-rendering contract;
-- `docs/operations/MARKET_POSITIONING_IMPORTS-EN.md` and
-  `docs/operations/MARKET_POSITIONING_IMPORTS-CN.md` as the internal
-  entitlement/audit import runbook;
-- `docs/clients/CLIENT_TECH_STACK.md` as the fixed Web/Windows library
-  authority;
-- `docs/clients/CLIENT_I18N_THEME_SPEC.md` as the English/Mandarin and
-  light/dark/system implementation authority;
-- `.agent/plans/` for milestone execution plans.
-
-## Directory Rule
-
-If a directory does not have an active milestone, keep it as documentation or
-placeholder only. Do not add runtime behavior just because a folder exists.
-
-## Directory Activation Rule
+## Activation rules
 
 - Backend work activates `apps/api`, `src/eurogas_nexus`, `alembic`, `scripts`,
   `tests`, and backend docs.
-- SDK work activates `src/eurogas_nexus/sdk` and `tests/sdk` (the historical
-  `packages/python-sdk` directory does not exist; SDK lives in the backend
-  package).
+- SDK work activates `src/eurogas_nexus/sdk` and `tests/sdk`. The directory
+  `packages/python-sdk` is a reserved placeholder; the active SDK lives in the
+  backend package.
 - CLI work activates `src/eurogas_nexus/cli` and `tests/cli`.
-- MCP work activates `src/eurogas_nexus/mcp` and its unit tests; tools are
-  read-only and reuse the SDK auth gates.
-- Web client work activates `clients/web` only after a web milestone is selected.
-- Windows client work activates `clients/desktop` only after backend and web API
-  contracts are stable enough for packaging.
+- Web work activates `clients/web` and uses `npm run build` plus the
+  `clients/web/tests` suite.
+- Windows/Linux work activates `clients/desktop`, `installer`, `deploy`, and
+  release scripts only when packaging is in scope.
+- Directories without an active milestone remain documentation or placeholders.
+  Do not add runtime behavior just because a folder exists.
+
+## Directory rule
+
+Keep one owner per runtime area. If a change crosses an ownership boundary,
+update the relevant contract first, add a boundary test, and keep generated
+`output/`, `dist/`, `tmp/`, and local data directories out of Git.

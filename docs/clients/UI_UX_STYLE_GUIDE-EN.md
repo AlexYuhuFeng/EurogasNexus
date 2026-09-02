@@ -1,6 +1,12 @@
-# UI/UX Style Guide
+# UI/UX Style Guide - EN
 
-Eurogas Nexus Web and Windows client UI must follow the local reference guide supplied at `C:\Users\qqshu\design.md`, interpreted for a professional map-first gas trading decision-support cockpit.
+> Bilingual companion to
+> [`UI_CONTENT_STANDARDS.md`](UI_CONTENT_STANDARDS.md). That document is the
+> single authoritative UI/content standard; this file supplies the agreed
+> visual direction. On conflict, `UI_CONTENT_STANDARDS.md` wins.
+
+Eurogas Nexus Web and Windows client UI follows the professional map-first gas
+decision-support cockpit direction described below.
 
 ## Non-Negotiable Visual Rules
 
@@ -80,4 +86,4 @@ The 2026-09-01 Operations workspace reference is stored at
 Its source names, counts, states, and values are illustrative design material;
 production posture is read from PostgreSQL-backed APIs only.
 
-Future client work must update this guide before changing the UI language or layout model.
+Future client work must update `UI_CONTENT_STANDARDS.md` first, then this companion and its CN counterpart together.

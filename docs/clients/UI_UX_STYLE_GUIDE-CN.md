@@ -1,6 +1,10 @@
 # UI/UX 风格指南 - CN
 
-Eurogas Nexus Web 与 Windows 客户端 UI 必须遵循本地参考指南 `C:\Users\qqshu\design.md`，并将其解释为专业、地图优先、资源池原生的欧洲天然气交易决策支持工作台。
+> 本文是 [`UI_CONTENT_STANDARDS.md`](UI_CONTENT_STANDARDS.md) 的中文视觉配套文档。
+> `UI_CONTENT_STANDARDS.md` 是唯一的 UI/内容权威标准；本文只提供已确认的视觉方向。
+> 如有冲突，以 `UI_CONTENT_STANDARDS.md` 为准。
+
+Eurogas Nexus Web 与 Windows 客户端 UI 遵循下文所述的专业、地图优先的欧洲天然气决策支持工作台方向。
 
 ## 不可协商的视觉规则
 
@@ -62,4 +66,4 @@ Eurogas Nexus Web 与 Windows 客户端 UI 必须遵循本地参考指南 `C:\Us
 `docs/design/references/operations-source-center-imagegen-2026-09-01.png`。
 其中数据源名称、数量、状态和数值仅是视觉设计材料；生产态势只能来自以 PostgreSQL 为运行事实源的 API。
 
-未来客户端工作如需改变 UI 语言或布局模型，必须先更新本指南。
+未来客户端工作如需改变 UI 语言或布局模型，必须先更新 `UI_CONTENT_STANDARDS.md`，再同步更新本文与 EN 配套文档。

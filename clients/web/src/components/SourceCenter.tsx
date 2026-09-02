@@ -1,4 +1,10 @@
-import { type FormEventHandler, type KeyboardEvent, useState } from "react";
+import { type FormEventHandler, useState } from "react";
+import {
+  MetricStrip,
+  PanelHeader,
+  StatusBadge,
+  WorkspaceTabs,
+} from "@/components/ui";
 import type {
   CapacityObsDTO,
   CredentialProviderDTO,
@@ -136,57 +142,41 @@ export function SourceCenter({
       if (nextSource) onSourceSelect(nextSource.source_id);
     }
   };
-  const handleViewKeyDown = (
-    event: KeyboardEvent<HTMLButtonElement>,
-    currentView: SourceViewId,
-  ) => {
-    const currentIndex = SOURCE_VIEWS.indexOf(currentView);
-    let nextIndex: number | null = null;
-    if (event.key === "ArrowRight") nextIndex = (currentIndex + 1) % SOURCE_VIEWS.length;
-    if (event.key === "ArrowLeft") nextIndex = (currentIndex - 1 + SOURCE_VIEWS.length) % SOURCE_VIEWS.length;
-    if (event.key === "Home") nextIndex = 0;
-    if (event.key === "End") nextIndex = SOURCE_VIEWS.length - 1;
-    if (nextIndex === null) return;
-    event.preventDefault();
-    const nextView = SOURCE_VIEWS[nextIndex];
-    activateView(nextView);
-    window.requestAnimationFrame(() => document.getElementById(`source-tab-${nextView}`)?.focus());
-  };
-
   return (
     <div className={`workspace-grid sources-page source-center source-view-${activeView}`}>
       <div className="workspace-panel span-3 source-overview source-readiness-strip">
-        <div className="metric-grid four-column source-kpi-grid">
-          <div><span>{t("sources.total_sources")}</span><strong>{sourceStats.total}</strong></div>
-          <div><span>{t("sources.workflow_ready")}</span><strong>{sourceStats.active}</strong></div>
-          <div><span>{t("sources.action_required")}</span><strong>{attentionSources.length}</strong></div>
-          <div><span>{t("sources.runtime_records")}</span><strong>{sourceStats.records.toLocaleString()}</strong><small>{simulatedOrPreviewSources} {t("sources.preview_substitutes_active")}</small></div>
-        </div>
+        <MetricStrip
+          className="metric-grid four-column source-kpi-grid"
+          items={[
+            { label: t("sources.total_sources"), value: sourceStats.total },
+            { label: t("sources.workflow_ready"), value: sourceStats.active },
+            { label: t("sources.action_required"), value: attentionSources.length },
+            {
+              label: t("sources.runtime_records"),
+              value: sourceStats.records.toLocaleString(),
+              detail: `${simulatedOrPreviewSources} ${t("sources.preview_substitutes_active")}`,
+            },
+          ]}
+        />
       </div>
 
-      <nav className="source-view-tabs span-3" role="tablist" aria-label={t("sources.workspace_views")}>
-        {SOURCE_VIEWS.map((view) => (
-          <button
-            key={`source-view-${view}`}
-            id={`source-tab-${view}`}
-            type="button"
-            role="tab"
-            aria-selected={activeView === view}
-            aria-controls="source-active-panel"
-            className={activeView === view ? "active" : ""}
-            onClick={() => activateView(view)}
-            onKeyDown={(event) => handleViewKeyDown(event, view)}
-          >
-            {t(`sources.view.${view}`)}
-          </button>
-        ))}
-      </nav>
+      <WorkspaceTabs
+        idPrefix="source-tab"
+        role="tablist"
+        label={t("sources.workspace_views")}
+        tabs={SOURCE_VIEWS.map((view) => ({
+          id: view,
+          label: t(`sources.view.${view}`),
+          controls: "source-active-panel",
+        }))}
+        activeId={activeView}
+        panelId="source-active-panel"
+        className="source-view-tabs span-3"
+        onActivate={activateView}
+      />
 
       <div className="workspace-panel span-3 source-posture-board">
-        <div className="panel-title-row">
-          <h3>{t("sources.posture_board")}</h3>
-          <span>{t("sources.next_action")}</span>
-        </div>
+        <PanelHeader title={t("sources.posture_board")} meta={t("sources.next_action")} />
         <div className="source-category-filter source-posture-grid compact" aria-label={t("sources.categories")}>
           {sourceCategories.map((category) => {
             const posture = sourcePostureRows.find((row) => row.category === category);
@@ -213,10 +203,10 @@ export function SourceCenter({
 
       {activeView !== "infrastructure" && (
       <div id="source-active-panel" role="tabpanel" aria-labelledby={`source-tab-${activeView}`} className="workspace-panel span-2 source-catalog-panel">
-        <div className="panel-title-row">
-          <h3>{activeView === "attention" ? t("sources.attention_queue") : activeView === "access" ? t("sources.access_queue") : t("sources.registered_feeds")}</h3>
-          <span>{displayedSources.length} / {sources.length} · {sourceStats.missingCredentials} {t("sources.missing_credentials")}</span>
-        </div>
+        <PanelHeader
+          title={activeView === "attention" ? t("sources.attention_queue") : activeView === "access" ? t("sources.access_queue") : t("sources.registered_feeds")}
+          meta={`${displayedSources.length} / ${sources.length} · ${sourceStats.missingCredentials} ${t("sources.missing_credentials")}`}
+        />
         <div className="source-operations-table-wrap">
           <table className="source-operations-table">
             <thead>
@@ -237,9 +227,9 @@ export function SourceCenter({
                   className={selectedSource?.source_id === source.source_id ? "active" : undefined}
                 >
                   <td>
-                    <span className={`source-status source-status-${source.operational_status}`}>
+                    <StatusBadge variant="source" status={source.operational_status}>
                       {sourceLabel("sources.status", source.operational_status)}
-                    </span>
+                    </StatusBadge>
                   </td>
                   <td>
                     <button type="button" className="source-row-select" onClick={() => onSourceSelect(source.source_id)}>
@@ -280,14 +270,14 @@ export function SourceCenter({
 
       {activeView !== "infrastructure" && (
       <div className={activeView === "access" ? "workspace-panel span-3 source-detail-panel" : "workspace-panel source-detail-panel"}>
-        <div className="panel-title-row">
-          <h3>{selectedSource?.source_system ?? t("sources.no_source")}</h3>
-          {selectedSource && (
-            <span className={`source-status source-status-${selectedSource.operational_status}`}>
+        <PanelHeader
+          title={selectedSource?.source_system ?? t("sources.no_source")}
+          meta={selectedSource ? (
+            <StatusBadge variant="source" status={selectedSource.operational_status}>
               {sourceLabel("sources.status", selectedSource.operational_status)}
-            </span>
-          )}
-        </div>
+            </StatusBadge>
+          ) : undefined}
+        />
         {selectedSource && (
           <>
             <p>{selectedSource.description}</p>

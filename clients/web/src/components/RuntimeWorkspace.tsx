@@ -4,7 +4,13 @@ import type {
   RuntimeDbStatusDTO,
   SourceSystemDTO,
 } from "@/api/client";
-import { type KeyboardEvent, useState } from "react";
+import { useState } from "react";
+import {
+  MetricStrip,
+  PanelHeader,
+  StatusBadge,
+  WorkspaceTabs,
+} from "@/components/ui";
 
 type Translate = (key: string) => string;
 type ReadinessState = "ready" | "partial" | "blocked";
@@ -184,51 +190,40 @@ export function RuntimeWorkspace({
   ];
   const readyGateCount = releaseReadinessRows.filter((row) => row.state === "ready").length;
   const blockedGateCount = releaseReadinessRows.filter((row) => row.state === "blocked").length;
-  const handleViewKeyDown = (
-    event: KeyboardEvent<HTMLButtonElement>,
-    currentView: RuntimeViewId,
-  ) => {
-    const currentIndex = RUNTIME_VIEWS.indexOf(currentView);
-    let nextIndex: number | null = null;
-    if (event.key === "ArrowRight") nextIndex = (currentIndex + 1) % RUNTIME_VIEWS.length;
-    if (event.key === "ArrowLeft") nextIndex = (currentIndex - 1 + RUNTIME_VIEWS.length) % RUNTIME_VIEWS.length;
-    if (event.key === "Home") nextIndex = 0;
-    if (event.key === "End") nextIndex = RUNTIME_VIEWS.length - 1;
-    if (nextIndex === null) return;
-    event.preventDefault();
-    const nextView = RUNTIME_VIEWS[nextIndex];
-    setActiveView(nextView);
-    window.requestAnimationFrame(() => document.getElementById(`runtime-tab-${nextView}`)?.focus());
-  };
-
   return (
     <div className={`workspace-grid runtime-page runtime-view-${activeView}`}>
       <div className="workspace-panel span-3 runtime-operations-strip">
-        <div className="metric-grid four-column">
-          <div><span>{t("runtime.ready_gates")}</span><strong>{readyGateCount}/{releaseReadinessRows.length}</strong></div>
-          <div><span>{t("runtime.blocked_gates")}</span><strong>{blockedGateCount}</strong></div>
-          <div><span>{t("runtime.stream_delivery")}</span><strong>{streamingActive ? t("stream.live") : t("stream.polling_fallback")}</strong></div>
-          <div><span>{t("status.db")}</span><strong>{dbReady ? t("runtime.state_ready") : t("runtime.state_blocked")}</strong></div>
-        </div>
+        <MetricStrip
+          className="metric-grid four-column"
+          items={[
+            { label: t("runtime.ready_gates"), value: `${readyGateCount}/${releaseReadinessRows.length}` },
+            { label: t("runtime.blocked_gates"), value: blockedGateCount },
+            {
+              label: t("runtime.stream_delivery"),
+              value: streamingActive ? t("stream.live") : t("stream.polling_fallback"),
+            },
+            {
+              label: t("status.db"),
+              value: dbReady ? t("runtime.state_ready") : t("runtime.state_blocked"),
+            },
+          ]}
+        />
       </div>
 
-      <nav className="runtime-view-tabs span-3" role="tablist" aria-label={t("runtime.workspace_views")}>
-        {RUNTIME_VIEWS.map((view) => (
-          <button
-            key={`runtime-view-${view}`}
-            id={`runtime-tab-${view}`}
-            type="button"
-            role="tab"
-            aria-selected={activeView === view}
-            aria-controls="runtime-active-panel"
-            className={activeView === view ? "active" : ""}
-            onClick={() => setActiveView(view)}
-            onKeyDown={(event) => handleViewKeyDown(event, view)}
-          >
-            {t(`runtime.view.${view}`)}
-          </button>
-        ))}
-      </nav>
+      <WorkspaceTabs
+        idPrefix="runtime-tab"
+        role="tablist"
+        label={t("runtime.workspace_views")}
+        tabs={RUNTIME_VIEWS.map((view) => ({
+          id: view,
+          label: t(`runtime.view.${view}`),
+          controls: "runtime-active-panel",
+        }))}
+        activeId={activeView}
+        panelId="runtime-active-panel"
+        className="runtime-view-tabs span-3"
+        onActivate={setActiveView}
+      />
 
       <div
         id="runtime-active-panel"
@@ -249,9 +244,9 @@ export function RuntimeWorkspace({
                 <strong>{row.label}</strong>
                 <span>{row.detail}</span>
               </div>
-              <span className={`runtime-readiness-state ${row.state}`}>
+              <StatusBadge variant="runtime-readiness-state" status={row.state}>
                 {readinessStateLabel(row.state, t)}
-              </span>
+              </StatusBadge>
               <small>{row.value}</small>
             </div>
           ))}
@@ -269,10 +264,10 @@ export function RuntimeWorkspace({
       {activeView === "governance" && (
       <>
       <div className="workspace-panel span-3 runtime-commercial-sources">
-        <div className="panel-title-row">
-          <h3>{t("runtime.commercial_sources")}</h3>
-          <span>{commercialSourceRows.length} {t("panel.records")}</span>
-        </div>
+        <PanelHeader
+          title={t("runtime.commercial_sources")}
+          meta={`${commercialSourceRows.length} ${t("panel.records")}`}
+        />
         <div className="data-table">
           <div className="data-table-row header four">
             <span>{t("panel.source")}</span>
@@ -349,7 +344,7 @@ export function RuntimeWorkspace({
           {(health?.sources ?? []).map((source) => (
             <div key={`pipeline-source-${source.source_name}`} className="data-table-row four">
               <strong>{source.source_name}</strong>
-              <span className={`pipeline-status pipeline-status-${source.status}`}>{source.status}</span>
+              <StatusBadge variant="pipeline" status={source.status}>{source.status}</StatusBadge>
               <span>{source.consecutive_failures}</span>
               <span>
                 {source.finished_at_utc ? formatHealthTime(source.finished_at_utc) : formatHealthTime(source.started_at_utc)}

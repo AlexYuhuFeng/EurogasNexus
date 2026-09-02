@@ -8,11 +8,15 @@ This directory is documentation-only until a release milestone activates it.
 
 Full V1 release authority:
 
-- `docs/release/V1_FULL_PROJECT_RELEASE_SCOPE.md`
-- `docs/release/V1_FULL_PROJECT_RELEASE_EXECUTION_PLAN.md`
-- `docs/release/V1_RELEASE_MILESTONE_BACKLOG.md`
-- `docs/release/V1_RELEASE_ACCEPTANCE_MATRIX.md`
-- `docs/release/V1_RELEASE_EXECPLAN_TEMPLATE.md`
+- `docs/archive/release/V1_FULL_PROJECT_RELEASE_SCOPE.md`
+- `docs/archive/release/V1_FULL_PROJECT_RELEASE_EXECUTION_PLAN.md`
+- `docs/archive/release/V1_RELEASE_MILESTONE_BACKLOG.md`
+- `docs/archive/release/V1_RELEASE_ACCEPTANCE_MATRIX.md`
+- `docs/archive/release/V1_RELEASE_EXECPLAN_TEMPLATE.md`
+
+Current release authority:
+- `docs/release/RELEASE_READINESS.md`
+- `docs/release/PRODUCTION_READINESS_BACKLOG.md`
 
 ## V1 Release Gate
 
