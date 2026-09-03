@@ -47,7 +47,7 @@ a candidate that requires human review.
 - Web workspace packaged for Windows and Linux through Tauri, plus Server,
   Client-only, and AllInOne deployment roles.
 
-## Architecture at a glance
+## Architecture
 
 ```mermaid
 flowchart TB
