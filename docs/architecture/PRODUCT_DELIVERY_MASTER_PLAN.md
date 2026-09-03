@@ -102,7 +102,7 @@ not become a local database, credential store, or connector runtime.
 
 ## Current Development Queue
 
-Use `docs/architecture/NEXT_DEVELOPMENT_QUEUE.md` as the ordered queue. Current
+Use `docs/release/PRODUCTION_READINESS_BACKLOG.md` as the active production-work queue. Current
 work should focus on:
 
 1. documentation alignment and cockpit structure;

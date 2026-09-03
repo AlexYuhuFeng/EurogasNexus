@@ -105,21 +105,6 @@ def test_architecture_decisions_are_explicit() -> None:
     ]:
         assert phrase in text
 
-def test_next_development_queue_records_r30_and_selects_db_backed_optimization() -> None:
-    text = _read_doc("docs/architecture/NEXT_DEVELOPMENT_QUEUE.md")
-
-    assert "R30: Optimization Correctness And Release Gate" in text
-    assert ".agent/plans/V1_R30_OPTIMIZATION_CORRECTNESS_EXECPLAN.md" in text
-    assert "R30B: Intraday Decision Feed" in text
-    assert ".agent/plans/V1_R30B_INTRADAY_DECISION_FEED_EXECPLAN.md" in text
-    assert "R30C: Visible LLM Monitoring And Interaction" in text
-    assert ".agent/plans/V1_R30C_LLM_MONITORING_EXECPLAN.md" in text
-    assert "R31: DB-Backed Portfolio Network Optimization" in text
-    assert ".agent/plans/V1_R31_DB_PORTFOLIO_NETWORK_EXECPLAN.md" in text
-    assert "R32: Authentication, Entitlement, Audit, And Export Governance" in text
-    assert ".agent/plans/V1_R32_IDENTITY_AUTH_GOVERNANCE_EXECPLAN.md" in text
-
-
 def test_current_pause_point_records_holistic_runtime_pause_state() -> None:
     text = _read_doc("docs/architecture/CURRENT_PAUSE_POINT.md")
 

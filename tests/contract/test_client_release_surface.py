@@ -1603,8 +1603,7 @@ def test_release_workflow_publishes_web_windows_and_linux_assets() -> None:
     workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
 
     assert "on:" in workflow
-    assert "branches:" in workflow
-    assert "- main" in workflow
+    assert "workflow_dispatch:" in workflow
     assert "contents: write" in workflow
     assert "gh release create" in workflow
     assert "eurogas-nexus-web-${GITHUB_SHA::7}.tar.gz" in workflow
@@ -1616,10 +1615,7 @@ def test_release_workflow_publishes_web_windows_and_linux_assets() -> None:
     assert "docker/setup-buildx-action@v4" in workflow
     assert "docker/login-action@v4" in workflow
     assert "docker/build-push-action@v7" in workflow
-    assert (
-        "pytest -q tests/api tests/contract tests/integration tests/ingestion tests/unit "
-        "tests/optimization tests/sdk tests/cli tests/release tests/security"
-    ) in workflow
+    assert "pytest -q tests" in workflow
     linux_dependencies = (
         ROOT / "scripts" / "ci" / "install_linux_tauri_dependencies.sh"
     ).read_text(encoding="utf-8")

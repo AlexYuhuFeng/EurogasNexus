@@ -49,7 +49,7 @@ Eurogas Nexus follows a conventional Python/FastAPI + React monorepo layout:
    automation; `docs/` contains repository knowledge.
 4. **No empty source placeholders**: do not create runtime packages with only
    an `__init__.py` to reserve a future capability. Keep future work in
-   `docs/architecture/NEXT_DEVELOPMENT_QUEUE.md` or an ExecPlan and create the
+   `docs/release/PRODUCTION_READINESS_BACKLOG.md` or an ExecPlan and create the
    package when the first implementation lands.
 5. **Tests mirror the work they cover**: API tests under `tests/api`, domain
    research tests under `tests/domain/research`, workflow tests under

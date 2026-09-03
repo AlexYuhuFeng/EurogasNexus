@@ -58,18 +58,16 @@ def test_current_guidance_reflects_active_web_and_windows_runtime() -> None:
     north_star = (ROOT / "docs" / "architecture" / "PROJECT_NORTH_STAR.md").read_text(
         encoding="utf-8"
     )
-    queue = (ROOT / "docs" / "architecture" / "NEXT_DEVELOPMENT_QUEUE.md").read_text(
-        encoding="utf-8"
-    )
     client_index = (ROOT / "docs" / "clients" / "README.md").read_text(encoding="utf-8")
     master_plan = (
         ROOT / "docs" / "architecture" / "PRODUCT_DELIVERY_MASTER_PLAN.md"
     ).read_text(encoding="utf-8")
 
     assert "Web and Windows client surfaces are active" in north_star
-    assert "Status: `complete-in-current-worktree`" in queue
-    assert "R30: Optimization Correctness And Release Gate" in queue
-    assert "R31: DB-Backed Portfolio Network Optimization" in queue
+    backlog = (ROOT / "docs" / "release" / "PRODUCTION_READINESS_BACKLOG.md").read_text(
+        encoding="utf-8"
+    )
+    assert "Production Readiness Backlog" in backlog
     assert "active client runtime code" in client_index
     assert "Default next milestone" not in master_plan
     assert "No frontend runtime implementation belongs" not in north_star

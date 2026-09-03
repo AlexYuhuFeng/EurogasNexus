@@ -284,7 +284,7 @@ See [WEB_APPLICATION_ARCHITECTURE-EN.md](../clients/WEB_APPLICATION_ARCHITECTURE
 
 ## Next Work
 
-Follow [NEXT_DEVELOPMENT_QUEUE.md](NEXT_DEVELOPMENT_QUEUE.md). Remaining work
+Follow the [production readiness backlog](../release/PRODUCTION_READINESS_BACKLOG.md). Remaining work
 is external security acceptance (penetration test, OIDC TLS review,
 backup/restore drill, owner sign-off) before removing the
 private-network/VPN-only posture. S4.3 `/api/workflows/*` removal is complete.

@@ -266,6 +266,6 @@ Implication:
 
 ## Current Recommended Next Step
 
-Follow `docs/architecture/NEXT_DEVELOPMENT_QUEUE.md`. It is the only ordered
+Follow `docs/release/PRODUCTION_READINESS_BACKLOG.md`. It is the active ordered
 implementation queue; do not use the archived V1 milestone plan as a new work
 list.

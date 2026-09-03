@@ -127,7 +127,7 @@ contract/resource workflows, review evidence, and browser/desktop quality.
 
 ## Current Development Queue
 
-Use `docs/architecture/NEXT_DEVELOPMENT_QUEUE.md` for the ordered queue.
+Use `docs/release/PRODUCTION_READINESS_BACKLOG.md` for remaining production work.
 
 Current priority:
 

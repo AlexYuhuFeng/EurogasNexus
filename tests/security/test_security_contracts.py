@@ -25,7 +25,7 @@ def test_governance_contract_requires_fail_closed_entitlement() -> None:
     assert "Official trading recommendations" in text
 
 
-def test_validation_doc_includes_security_suite() -> None:
+def test_validation_doc_includes_full_suite() -> None:
     text = (ROOT / "docs" / "operations" / "VALIDATION.md").read_text(encoding="utf-8")
 
-    assert "tests/security" in text
+    assert "pytest -q tests" in text

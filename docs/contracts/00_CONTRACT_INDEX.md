@@ -41,7 +41,7 @@ first and add a matching boundary test before implementing the behavior.
 - `../architecture/REFERENCE_EVIDENCE_LOG.md`
 - `../architecture/ARCHITECTURE_DECISION_RECORD.md`
 - `../architecture/CURRENT_PAUSE_POINT.md`
-- `../architecture/NEXT_DEVELOPMENT_QUEUE.md`
+- `../release/PRODUCTION_READINESS_BACKLOG.md`
 - `../architecture/TARGET_PRODUCT_ARCHITECTURE.md`
 - `../architecture/REFERENCE_PROJECT_LESSONS.md`
 - `../archive/architecture/FUTURE_CLIENT_UX_REFERENCE.md`

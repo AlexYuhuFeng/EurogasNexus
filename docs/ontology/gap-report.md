@@ -160,7 +160,7 @@ Eurogas Nexus 的领域知识层**已经存在，但处于"隐式 + 分散 + 部
 - 仅有 `__init__.py` 且无实现的占位包已从 `src/eurogas_nexus/domain/` 移除：
   `allocation / assets / economics / feasibility / netback / nowcast /
   operations / relationships / reporting / resources / topology / weather`。
-  未来能力按 `docs/architecture/NEXT_DEVELOPMENT_QUEUE.md` 或 ExecPlan 落地时再
+  未来能力按 `docs/release/PRODUCTION_READINESS_BACKLOG.md` 或 ExecPlan 落地时再
   创建实现包，不在源码树中保留空占位目录。
 
 

@@ -2,7 +2,7 @@
 
 > 语言规范说明：本文件为中文文档，按仓库惯例使用 `-CN` 后缀（2026 年整理时
 > 从 `IMPROVEMENT_ROADMAP.md` 更名）；暂无对应英文版，属历史定稿文档。
-> 执行状态以 `NEXT_DEVELOPMENT_QUEUE.md` 与 `CURRENT_PAUSE_POINT.md` 为准。
+> 执行状态以 `docs/release/PRODUCTION_READINESS_BACKLOG.md` 与 `docs/architecture/CURRENT_PAUSE_POINT.md` 为准。
 
 > 状态：**已定稿，按建议执行**。决策点 D1–D9 已拍板（见 §4 批注）。
 > 执行方式：每个阶段独立 ExecPlan（12 节）、独立验收、独立回滚。

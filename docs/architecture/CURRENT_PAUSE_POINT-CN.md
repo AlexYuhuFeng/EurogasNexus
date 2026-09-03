@@ -139,6 +139,6 @@ React 的 `App.tsx` 现为九行组合入口，只创建应用 controller 和 sh
 
 ## 下一步
 
-按照 [NEXT_DEVELOPMENT_QUEUE-CN.md](NEXT_DEVELOPMENT_QUEUE-CN.md) 剩余工作
+按照 [生产就绪待办](../release/PRODUCTION_READINESS_BACKLOG.md) 剩余工作
 是外部安全验收（渗透测试、OIDC TLS 评审、备份恢复演练、负责人签批），通过后
 才可取消私网/VPN-only 姿态。S4.3 的 `/api/workflows/*` 已完成移除。

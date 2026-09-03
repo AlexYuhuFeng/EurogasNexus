@@ -12,8 +12,8 @@ the current/normative document listed here and report the conflict.
 1. [Changelog](../CHANGELOG.md)
 2. [Current pause point](architecture/CURRENT_PAUSE_POINT.md) — verified runtime
    and product baseline.
-3. [Next development queue](architecture/NEXT_DEVELOPMENT_QUEUE.md) — the only
-   ordered implementation queue.
+3. [Production readiness backlog](release/PRODUCTION_READINESS_BACKLOG.md) — active
+   production gaps and remaining work.
 4. [Project directory and ownership](../PROJECT_DIRECTORY.md)
 5. [Architecture decisions](architecture/ARCHITECTURE_DECISION_RECORD.md)
 6. [RFC process](engineering/RFC_PROCESS.md) and

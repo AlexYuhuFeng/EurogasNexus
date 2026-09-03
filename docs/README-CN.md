@@ -9,7 +9,7 @@
 
 1. [更新日志](../CHANGELOG.md)
 2. [当前暂停点](architecture/CURRENT_PAUSE_POINT-CN.md)
-3. [下一步开发队列](architecture/NEXT_DEVELOPMENT_QUEUE-CN.md)
+3. [生产就绪待办](release/PRODUCTION_READINESS_BACKLOG.md)
 4. [项目目录与归属](../PROJECT_DIRECTORY.md)
 5. [架构决策记录](architecture/ARCHITECTURE_DECISION_RECORD.md)
 6. [RFC 流程](engineering/RFC_PROCESS.md) 与

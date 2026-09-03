@@ -26,7 +26,7 @@ def test_release_readiness_doc_records_release_candidate_state_and_gates() -> No
     assert "No silent local file fallback in trial or release mode" in text
 
 
-def test_validation_doc_includes_release_test_suite() -> None:
+def test_validation_doc_includes_full_suite() -> None:
     text = (ROOT / "docs" / "operations" / "VALIDATION.md").read_text(encoding="utf-8")
 
-    assert "tests/release" in text
+    assert "pytest -q tests" in text

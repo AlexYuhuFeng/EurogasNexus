@@ -46,7 +46,7 @@ Purpose:
 
 Primary docs:
 
-- `docs/architecture/NEXT_DEVELOPMENT_QUEUE.md`
+- `docs/release/PRODUCTION_READINESS_BACKLOG.md`
 - `docs/operations/LIVE_POSTGRESQL.md`
 - `docs/contracts/00_CONTRACT_INDEX.md`
 

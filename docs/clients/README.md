@@ -24,7 +24,7 @@ When working on clients, read these files in order:
 
 1. `docs/architecture/PROJECT_NORTH_STAR.md`
 2. `docs/architecture/CURRENT_PAUSE_POINT.md`
-3. `docs/architecture/NEXT_DEVELOPMENT_QUEUE.md`
+3. `docs/release/PRODUCTION_READINESS_BACKLOG.md`
 4. `docs/clients/CLIENT_DELIVERY_MILESTONES.md`
 5. `docs/clients/CLIENT_API_CONTRACT.md`
 6. `docs/clients/CLIENT_TECH_STACK.md`

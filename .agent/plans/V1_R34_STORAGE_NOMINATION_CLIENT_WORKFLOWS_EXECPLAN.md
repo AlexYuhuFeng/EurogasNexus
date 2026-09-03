@@ -37,7 +37,7 @@ Modify:
 - `src/eurogas_nexus/sdk/optimization.py`
 - `tests/contract/test_api_surface_stability.py`
 - `tests/contract/test_sdk_backend_parity.py`
-- `docs/architecture/NEXT_DEVELOPMENT_QUEUE*.md`
+- `docs/release/PRODUCTION_READINESS_BACKLOG.md`
 - `docs/architecture/CURRENT_PAUSE_POINT*.md`
 - `docs/architecture/PHASE_TWO_OPTIMIZATION*.md`
 - `docs/architecture/API_CONTRACT_EVOLUTION_POLICY*.md`

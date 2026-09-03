@@ -3,10 +3,7 @@
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-EXPECTED_PYTEST = (
-    "pytest -q tests/api tests/contract tests/integration tests/ingestion tests/unit "
-    "tests/optimization tests/sdk tests/cli tests/release tests/security"
-)
+EXPECTED_PYTEST = "pytest -q tests"
 
 
 def test_validation_script_contains_expected_commands() -> None:
