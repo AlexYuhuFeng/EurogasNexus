@@ -108,7 +108,7 @@ Before submitting changes:
 ruff check .
 pytest -q tests/api tests/contract tests/integration tests/ingestion tests/unit tests/optimization tests/sdk tests/cli tests/release tests/security
 npm --prefix clients/web run build
-python -c "from apps.api.main import app; print('app import ok'); print(len(app.routes))"
+python -c "from apps.api.main import app; print('app import ok'); print(len(app.openapi()['paths']))"
 ```
 
 Documentation integrity:
@@ -122,6 +122,7 @@ Detailed guidance is in [Validation](docs/operations/VALIDATION.md) and
 
 ## Documentation map
 
+- [Changelog](CHANGELOG.md)
 - [Documentation index](docs/README.md) — current, normative, runbook, design
   reference, and historical documents.
 - [中文文档索引](docs/README-CN.md)

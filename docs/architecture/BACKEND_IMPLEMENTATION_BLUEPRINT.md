@@ -187,7 +187,7 @@ Run:
 ```powershell
 ruff check .
 pytest -q tests/api tests/contract tests/integration tests/security
-python -c "from apps.api.main import app; print('app import ok'); print(len(app.routes))"
+python -c "from apps.api.main import app; print('app import ok'); print(len(app.openapi()['paths']))"
 ```
 
 CI-targeted:

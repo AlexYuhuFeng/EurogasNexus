@@ -7,14 +7,14 @@
 
 ## 先读
 
-1. [当前暂停点](architecture/CURRENT_PAUSE_POINT-CN.md)
-2. [下一步开发队列](architecture/NEXT_DEVELOPMENT_QUEUE-CN.md)
-3. [项目目录与归属](../PROJECT_DIRECTORY.md)
-4. [架构决策记录](architecture/ARCHITECTURE_DECISION_RECORD.md)
-5. [RFC 流程](engineering/RFC_PROCESS.md) 与
+1. [更新日志](../CHANGELOG.md)
+2. [当前暂停点](architecture/CURRENT_PAUSE_POINT-CN.md)
+3. [下一步开发队列](architecture/NEXT_DEVELOPMENT_QUEUE-CN.md)
+4. [项目目录与归属](../PROJECT_DIRECTORY.md)
+5. [架构决策记录](architecture/ARCHITECTURE_DECISION_RECORD.md)
+6. [RFC 流程](engineering/RFC_PROCESS.md) 与
    [已接受 RFC](engineering/rfc/README.md)
-6. [归档政策](policies/ARCHIVE_POLICY.md)
-
+7. [归档政策](policies/ARCHIVE_POLICY.md)
 ## 规范与当前文档
 
 ### 治理与流程

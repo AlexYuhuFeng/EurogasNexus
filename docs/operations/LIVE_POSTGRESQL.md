@@ -154,7 +154,7 @@ Default validation remains DB-free:
 ```bash
 ruff check .
 pytest -q tests/api tests/contract tests/integration tests/security
-python -c "from apps.api.main import app; print('app import ok'); print(len(app.routes))"
+python -c "from apps.api.main import app; print('app import ok'); print(len(app.openapi()['paths']))"
 ```
 
 Opt-in live DB tests must be isolated under a clear name such as:

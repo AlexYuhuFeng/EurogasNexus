@@ -9,16 +9,16 @@ the current/normative document listed here and report the conflict.
 
 ## Read first
 
-1. [Current pause point](architecture/CURRENT_PAUSE_POINT.md) — verified runtime
+1. [Changelog](../CHANGELOG.md)
+2. [Current pause point](architecture/CURRENT_PAUSE_POINT.md) — verified runtime
    and product baseline.
-2. [Next development queue](architecture/NEXT_DEVELOPMENT_QUEUE.md) — the only
+3. [Next development queue](architecture/NEXT_DEVELOPMENT_QUEUE.md) — the only
    ordered implementation queue.
-3. [Project directory and ownership](../PROJECT_DIRECTORY.md)
-4. [Architecture decisions](architecture/ARCHITECTURE_DECISION_RECORD.md)
-5. [RFC process](engineering/RFC_PROCESS.md) and
+4. [Project directory and ownership](../PROJECT_DIRECTORY.md)
+5. [Architecture decisions](architecture/ARCHITECTURE_DECISION_RECORD.md)
+6. [RFC process](engineering/RFC_PROCESS.md) and
    [accepted RFCs](engineering/rfc/README.md)
-6. [Archive policy](policies/ARCHIVE_POLICY.md)
-
+7. [Archive policy](policies/ARCHIVE_POLICY.md)
 ## Normative and current
 
 These documents define binding engineering boundaries. Contracts and policies

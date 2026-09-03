@@ -59,7 +59,7 @@ jobs:
         run: pytest -q tests/api tests/contract tests/integration tests/ingestion tests/unit tests/optimization tests/sdk tests/cli tests/release tests/security
 
       - name: Import API
-        run: python -c "from apps.api.main import app; print('app import ok'); print(len(app.routes))"
+        run: python -c "from apps.api.main import app; print('app import ok'); print(len(app.openapi()['paths']))"
 
   web:
     name: Build Web client

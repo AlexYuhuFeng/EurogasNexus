@@ -111,7 +111,7 @@ pytest -q tests/optimization tests/api/test_optimization_routes.py
 ```bash
 ruff check .
 pytest -q tests/api tests/contract tests/integration tests/ingestion tests/unit tests/optimization tests/sdk tests/cli tests/release tests/security
-python -c "from apps.api.main import app; print('app import ok'); print(len(app.routes))"
+python -c "from apps.api.main import app; print('app import ok'); print(len(app.openapi()['paths']))"
 ```
 
 ## 下一次对外扩展前的必备工作

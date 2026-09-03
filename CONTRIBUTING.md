@@ -69,7 +69,7 @@ pytest -q tests/api tests/contract tests/integration tests/ingestion tests/unit 
 python scripts/ci/check_markdown_links.py
 npm --prefix clients/web run test
 npm --prefix clients/web run build
-python -c "from apps.api.main import app; print('app import ok'); print(len(app.routes))"
+python -c "from apps.api.main import app; print('app import ok'); print(len(app.openapi()['paths']))"
 ```
 
 Run focused checks when touching client contracts, route-cost logic, or release

@@ -19,5 +19,5 @@ Those belong under `src/eurogas_nexus`.
 ## Validation
 
 ```powershell
-python -c "from apps.api.main import app; print('app import ok'); print(len(app.routes))"
+python -c "from apps.api.main import app; print('app import ok'); print(len(app.openapi()['paths']))"
 ```

@@ -6,11 +6,13 @@ Status: `RELEASE CANDIDATE FOR TESTED LOCAL SCOPE`
 
 Release marker: `RELEASE CANDIDATE`
 
-Date checked: 2026-06-30
+Date checked: 2026-09-03
 
 Eurogas Nexus passes the current local release-candidate shape for
 backend/API/SDK/CLI, PostgreSQL runtime schema, Web workspace, and Tauri desktop
-shell. This status does not mean production multi-user deployment is complete.
+shell. This is **not** an official production release. The repository is not
+marked as a stable/GA release until the production items below and the external
+security-acceptance evidence are complete.
 
 Actionable production work is tracked in
 `docs/release/PRODUCTION_READINESS_BACKLOG.md`.
@@ -42,11 +44,11 @@ public openapi paths=84
 Local source validation:
 
 ```text
-python -c "from apps.api.main import app; print('app import ok'); print(len(app.routes))"
+python -c "from apps.api.main import app; print('app import ok'); print(len(app.openapi()['paths']))"
 app import ok
 
 pytest (api/contract/integration/ingestion/unit/optimization/sdk/cli/release/security/streaming)
-890 passed, 4 skipped (skips: postgres-backed smoke, run by CI against PostgreSQL 16)
+1081 passed in the local broad suite; PostgreSQL-backed smoke tests run in CI against PostgreSQL 16
 
 npm --prefix clients/web run build
 passed
