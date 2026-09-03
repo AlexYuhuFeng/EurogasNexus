@@ -48,7 +48,7 @@ These tests fail CI loudly on contract drift:
 
 ## Change Process
 
-1. Write an ExecPlan under `docs/archive/agent-plans/` listing API impact and rollback.
+1. Write an ExecPlan under `docs/engineering/plans/` listing API impact and rollback.
 2. For a new path: add it to `PINNED_PUBLIC_PATHS` in
    `tests/contract/test_api_surface_stability.py`, update the documented
    route count (`RELEASE_READINESS.md` and the

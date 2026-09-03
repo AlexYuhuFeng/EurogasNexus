@@ -66,8 +66,8 @@ gate, and a small shared UI primitive boundary.
 - New or moved files: root `README.md`, `docs/README.md`,
   `PROJECT_DIRECTORY.md`, RFC/ADR/archive governance, link-check script and
   test, UI primitive components, and focused UI tests.
-- Archived files retain provenance under `docs/archive/` and must not be used
-  as current authority.
+- Obsolete documents are removed after current references are updated; internal
+  milestone evidence is not part of the public release repository.
 - `npm run test` runs the Node built-in test runner; no new frontend dependency
   is introduced.
 - CI and local validation include the Markdown-link gate.

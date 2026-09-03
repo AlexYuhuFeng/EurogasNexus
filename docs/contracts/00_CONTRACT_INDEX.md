@@ -44,9 +44,6 @@ first and add a matching boundary test before implementing the behavior.
 - `../release/RELEASE_READINESS.md`
 - `../architecture/TARGET_PRODUCT_ARCHITECTURE.md`
 - `../architecture/REFERENCE_PROJECT_LESSONS.md`
-- `../archive/architecture/FUTURE_CLIENT_UX_REFERENCE.md`
-- `../archive/architecture/V1_DOMAIN_DELIVERY_MAP.md`
-- `../archive/architecture/V1_STEPWISE_DELIVERY_ROADMAP.md`
 - `../clients/README.md`
 - `../clients/CLIENT_DELIVERY_MILESTONES.md`
 - `../clients/CLIENT_API_CONTRACT.md`
@@ -56,8 +53,6 @@ first and add a matching boundary test before implementing the behavior.
 - `../clients/WEB_CLIENT_DESIGN_SPEC.md`
 - `../clients/WINDOWS_CLIENT_DESIGN_SPEC.md`
 - `../clients/WINDOWS_DEMO_UX_REFERENCE.md`
-- `../archive/architecture/V1_BACKEND_ARCHITECTURE.md`
-- `../archive/architecture/V1_GAP_REPORT.md`
 - `../policies/PRODUCT_BOUNDARY_POLICY.md`
 - `../policies/DEPENDENCY_POLICY.md`
 - `../policies/DATA_POLICY.md`
@@ -68,8 +63,3 @@ first and add a matching boundary test before implementing the behavior.
 - `../operations/VALIDATION.md`
 - `../compliance/RESEARCH_ONLY_COMPLIANCE.md`
 - `../release/RELEASE_READINESS.md`
-- `../archive/release/V1_FULL_PROJECT_RELEASE_SCOPE.md`
-- `../archive/release/V1_FULL_PROJECT_RELEASE_EXECUTION_PLAN.md`
-- `../archive/release/V1_RELEASE_MILESTONE_BACKLOG.md`
-- `../archive/release/V1_RELEASE_ACCEPTANCE_MATRIX.md`
-- `../archive/release/V1_RELEASE_EXECPLAN_TEMPLATE.md`

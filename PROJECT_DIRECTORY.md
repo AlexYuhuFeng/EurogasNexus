@@ -17,7 +17,7 @@ clients/                API-consuming clients: web/ and desktop/
 data/                   Ignored local artifacts and fixtures; never runtime truth
 deploy/                 Runtime container deployment files
 dist/                   Release output placeholder; generated artifacts are ignored
-docs/                   Current, runbook, design-reference, and archived documentation
+docs/                   Current runbook, design-reference, and product documentation
 infra/                  Deployment component notes (deployment, docker, nginx, postgres, systemd)
 packaging/              Windows installer sources
 output/                 Untracked generated material; never commit
@@ -60,7 +60,6 @@ Eurogas Nexus follows a conventional Python/FastAPI + React monorepo layout:
 ```text
 docs/api/                API surface and path policies
 docs/architecture/       Architecture policies, ADR record, status and queue
-docs/archive/            Archived/superseded documents (read-only provenance)
 docs/clients/            Client contracts and UI standards
 docs/compliance/         Compliance notes
 docs/contracts/          Normative repository contracts
@@ -70,7 +69,7 @@ docs/design/             UI audits and visual references
 docs/engineering/        Coding standards and RFC process
 docs/ontology/           OWL model and natural-gas semantic backbone
 docs/operations/         Operator and development runbooks
-docs/policies/           Product, data, dependency, and archive policies
+docs/policies/           Product, data, and dependency policies
 docs/product/            Product capability and workflow specifications
 docs/release/            Release readiness, security evidence, and backlog
 ```

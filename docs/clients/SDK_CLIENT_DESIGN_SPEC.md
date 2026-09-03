@@ -285,5 +285,5 @@ Required tests:
 Use after backend runtime status and API response contracts are stable:
 
 ```text
-Read AGENTS.md, docs/clients/SDK_CLIENT_DESIGN_SPEC.md, docs/clients/CLIENT_API_CONTRACT.md, docs/contracts/15_SDK_CLI_CONTRACT.md, and docs/archive/agent-plans/SDK_M1_API_CLIENT_EXECPLAN.md. Implement SDK M1 only. Keep the SDK as an API client for /api. Do not import backend internals, read DB/files directly, call vendor APIs, or add packaging until a packaging milestone is selected.
+Read AGENTS.md, docs/clients/SDK_CLIENT_DESIGN_SPEC.md, docs/clients/CLIENT_API_CONTRACT.md, docs/contracts/15_SDK_CLI_CONTRACT.md, and the SDK M1 ExecPlan. Implement SDK M1 only. Keep the SDK as an API client for /api. Do not import backend internals, read DB/files directly, call vendor APIs, or add packaging until a packaging milestone is selected.
 ```

@@ -4,9 +4,7 @@ Eurogas Nexus Windows client shell.
 
 ## Blueprint
 
-Read `docs/clients/WINDOWS_CLIENT_DESIGN_SPEC.md` and, for delivery history,
-`docs/archive/architecture/WINDOWS_CLIENT_IMPLEMENTATION_BLUEPRINT.md` before
-adding code here.
+Read `docs/clients/WINDOWS_CLIENT_DESIGN_SPEC.md` before adding code here.
 
 Also read:
 

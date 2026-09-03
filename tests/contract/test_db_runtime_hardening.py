@@ -1,6 +1,5 @@
 """DB runtime hardening contract tests (DB-free)."""
 
-import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -106,41 +105,6 @@ def test_live_postgresql_doc_exists() -> None:
 
 def test_db_runtime_hardening_doc_exists() -> None:
     assert (ROOT / "docs" / "operations" / "DB_RUNTIME_HARDENING.md").is_file()
-
-
-def test_milestone_2_report_files_exist() -> None:
-    assert (
-        ROOT
-        / "docs"
-        / "archive"
-        / "reports"
-        / "milestone_2"
-        / "db_runtime_hardening_report.md"
-    ).is_file()
-    assert (
-        ROOT
-        / "docs"
-        / "archive"
-        / "reports"
-        / "milestone_2"
-        / "db_runtime_hardening_report.json"
-    ).is_file()
-
-
-def test_milestone_2_json_report_is_valid() -> None:
-    data = json.loads(
-        (
-            ROOT
-            / "docs"
-            / "archive"
-            / "reports"
-            / "milestone_2"
-            / "db_runtime_hardening_report.json"
-        ).read_text(encoding="utf-8")
-    )
-    assert data["milestone"] == "M2"
-    assert data["status"] == "complete"
-
 
 # --- validation script -------------------------------------------------------
 

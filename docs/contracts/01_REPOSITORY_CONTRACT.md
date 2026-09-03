@@ -48,5 +48,5 @@ The product is DB-first, API-first, client-active, and decision-support only.
 
 ## Planning Rule
 
-Large changes require an ExecPlan under `docs/archive/agent-plans/` with scope, files,
+Large changes require an ExecPlan under `docs/engineering/plans/` with scope, files,
 tests, acceptance criteria, and non-goals.

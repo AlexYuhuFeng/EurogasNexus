@@ -16,7 +16,6 @@ the current/normative document listed here and report the conflict.
 5. [Architecture decisions](architecture/ARCHITECTURE_DECISION_RECORD.md)
 6. [RFC process](engineering/RFC_PROCESS.md) and
    [accepted RFCs](engineering/rfc/README.md)
-7. [Archive policy](policies/ARCHIVE_POLICY.md)
 ## Normative and current
 
 These documents define binding engineering boundaries. Contracts and policies
@@ -30,7 +29,6 @@ behavior.
 | [Architecture decisions and ADR process](architecture/ARCHITECTURE_DECISION_RECORD.md) | Normative for architecture decisions |
 | [RFC process](engineering/RFC_PROCESS.md) | Normative for cross-cutting engineering changes |
 | [RFC index](engineering/rfc/README.md) | Index of accepted RFCs |
-| [Archive policy](policies/ARCHIVE_POLICY.md) | Normative for documentation lifecycle |
 | [Coding standards](engineering/CODING_STANDARDS.md) | Normative for Python code review |
 | [API contract evolution policy EN](architecture/API_CONTRACT_EVOLUTION_POLICY.md) / [CN](architecture/API_CONTRACT_EVOLUTION_POLICY-CN.md) | Normative for `/api` change control |
 | [API path policy](api/API_PATH_POLICY.md) | Normative for route prefixes |
@@ -151,14 +149,6 @@ them.
 - [Reference project lessons](architecture/REFERENCE_PROJECT_LESSONS.md)
 - [Documentation consistency audit](architecture/DOCUMENTATION_AUDIT.md)
 - [Architecture improvement roadmap CN](architecture/IMPROVEMENT_ROADMAP-CN.md)
-- [Completed delivery history](archive/architecture/V1_STEPWISE_DELIVERY_ROADMAP.md)
-
-## Archived
-
-Superseded or completed documents live under the
-[archive index](archive/README.md) and are retained for provenance only. They
-are not current authority. See the
-[archive policy](policies/ARCHIVE_POLICY.md) for criteria and process.
 
 ## Document status rules
 
@@ -168,18 +158,13 @@ are not current authority. See the
   behavior.
 - Files named `BLUEPRINT`, `REFERENCE`, or `AUDIT` provide context unless a
   current queue item explicitly activates them.
-- `docs/archive/agent-plans/` records scoped implementation decisions and completion
-  evidence; completed plans are historical.
-- Anything under `docs/archive/` is historical, regardless of wording inside
-  the file.
 
 ## Documentation maintenance
 
 - Internal Markdown links are checked by
   [`scripts/ci/check_markdown_links.py`](../scripts/ci/check_markdown_links.py).
-- Move obsolete documents through the
-  [archive policy](policies/ARCHIVE_POLICY.md); do not delete or mass-move
-  uncertain material.
+- Remove obsolete documents after current references are updated; do not keep
+  internal milestone evidence in the public release repository.
 - Cross-cutting changes start with the [RFC process](engineering/RFC_PROCESS.md);
   architecture changes also update
   [ADR-0001 onward](architecture/ARCHITECTURE_DECISION_RECORD.md).

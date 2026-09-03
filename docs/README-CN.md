@@ -13,7 +13,6 @@
 5. [架构决策记录](architecture/ARCHITECTURE_DECISION_RECORD.md)
 6. [RFC 流程](engineering/RFC_PROCESS.md) 与
    [已接受 RFC](engineering/rfc/README.md)
-7. [归档政策](policies/ARCHIVE_POLICY.md)
 ## 规范与当前文档
 
 ### 治理与流程
@@ -21,7 +20,6 @@
 - [架构决策与 ADR 流程](architecture/ARCHITECTURE_DECISION_RECORD.md)
 - [RFC 流程](engineering/RFC_PROCESS.md)
 - [RFC 索引](engineering/rfc/README.md)
-- [归档政策](policies/ARCHIVE_POLICY.md)
 - [代码规范](engineering/CODING_STANDARDS.md)
 - [API 合同演进政策 EN](architecture/API_CONTRACT_EVOLUTION_POLICY.md) /
   [CN](architecture/API_CONTRACT_EVOLUTION_POLICY-CN.md)
@@ -136,12 +134,6 @@
 - [参考项目经验](architecture/REFERENCE_PROJECT_LESSONS.md)
 - [文档一致性审计](architecture/DOCUMENTATION_AUDIT.md)
 - [架构改进路线图](architecture/IMPROVEMENT_ROADMAP-CN.md)
-- [历史交付记录](archive/architecture/V1_STEPWISE_DELIVERY_ROADMAP.md)
-
-## 归档
-
-已取代或已完成的文档位于[归档索引](archive/README.md)，仅作溯源保留，不
-再是当前权威。归档标准与流程见[归档政策](policies/ARCHIVE_POLICY.md)。
 
 ## 文档状态规则
 
@@ -149,15 +141,12 @@
 - `*-EN.md` 与 `*-CN.md` 是语言配套文件，必须描述同一行为。
 - 名称含 `BLUEPRINT`、`REFERENCE` 或 `AUDIT` 的文件默认提供背景，只有当前
   队列明确启用时才是实施任务。
-- `docs/archive/agent-plans/` 记录范围明确的实施决策和完成证据；已完成计划属于历史。
-- `docs/archive/` 下的一切内容均为历史，不受文件内措辞影响。
 
 ## 文档维护
 
 - 内部 Markdown 链接由
   [`scripts/ci/check_markdown_links.py`](../scripts/ci/check_markdown_links.py)
   检查。
-- 过时文档按[归档政策](policies/ARCHIVE_POLICY.md)归档，不删除，也不批量
-  移动不确定材料。
+- 过时文档在更新引用后移除，不在公开交付仓库中保留内部里程碑证据。
 - 跨切面变更从 [RFC 流程](engineering/RFC_PROCESS.md) 开始；架构变更同步
   更新[架构决策记录](architecture/ARCHITECTURE_DECISION_RECORD.md)。

@@ -69,16 +69,6 @@ def test_reference_lessons_document_failed_implementation_patterns() -> None:
         assert phrase in text
 
 
-def test_stepwise_roadmap_starts_with_backend_foundations() -> None:
-    text = _read_doc("docs/archive/architecture/V1_STEPWISE_DELIVERY_ROADMAP.md")
-
-    assert "Milestone 1" in text
-    assert "Milestone 2" in text
-    assert "DB runtime hardening" in text
-    assert "/api" in text
-    assert "research_only" in text
-    assert "human_review_required" in text
-
 def test_target_product_architecture_explains_workflows() -> None:
     text = _read_doc("docs/architecture/TARGET_PRODUCT_ARCHITECTURE.md")
 
@@ -118,32 +108,22 @@ def test_live_postgresql_policy_is_explicit_and_safe() -> None:
     assert "python scripts/ops/validate_runtime_db.py --json" in text
 
 
-def test_client_design_docs_are_ready_for_future_goal_mode() -> None:
+def test_client_design_docs_are_ready_for_current_client_runtime() -> None:
     index = _read_doc("docs/clients/README.md")
     sdk = _read_doc("docs/clients/SDK_CLIENT_DESIGN_SPEC.md")
     cli = _read_doc("docs/clients/CLI_CLIENT_DESIGN_SPEC.md")
     web = _read_doc("docs/clients/WEB_CLIENT_DESIGN_SPEC.md")
     windows = _read_doc("docs/clients/WINDOWS_CLIENT_DESIGN_SPEC.md")
     windows_demo = _read_doc("docs/clients/WINDOWS_DEMO_UX_REFERENCE.md")
-    design_system = _read_doc("docs/archive/clients/CLIENT_DESIGN_SYSTEM.md")
     ui_standard = _read_doc("docs/clients/UI_CONTENT_STANDARDS.md")
     api_contract = _read_doc("docs/clients/CLIENT_API_CONTRACT.md")
     layouts = _read_doc("docs/design/UX_LAYOUT_BLUEPRINTS.md")
-    web_plan = _read_doc("docs/archive/agent-plans/WEB_M1_WORKSPACE_SHELL_EXECPLAN.md")
-    windows_plan = _read_doc("docs/archive/agent-plans/WINDOWS_D1_DESKTOP_SHELL_EXECPLAN.md")
-    sdk_plan = _read_doc("docs/archive/agent-plans/SDK_M1_API_CLIENT_EXECPLAN.md")
-    cli_plan = _read_doc("docs/archive/agent-plans/CLI_M1_OPERATOR_COMMANDS_EXECPLAN.md")
 
     assert "CLIENT_DELIVERY_MILESTONES.md" in index
     assert "Clients are SDK/API consumers" in index
-    milestones = _read_doc(
+    assert "Client implementation is separated by surface" in _read_doc(
         "docs/clients/CLIENT_DELIVERY_MILESTONES.md"
     )
-    assert "Client implementation is separated by surface" in milestones
-    assert "SDK_M1_API_CLIENT_EXECPLAN.md" in milestones
-    assert "CLI_M1_OPERATOR_COMMANDS_EXECPLAN.md" in milestones
-    assert "WEB_M1_WORKSPACE_SHELL_EXECPLAN.md" in milestones
-    assert "WINDOWS_D1_DESKTOP_SHELL_EXECPLAN.md" in milestones
     assert "GET /api/health" in api_contract
     assert "Runtime Data Access Rule" in api_contract
     assert "Python SDK -> backend `/api`" in api_contract
@@ -153,21 +133,13 @@ def test_client_design_docs_are_ready_for_future_goal_mode() -> None:
     assert "The SDK is a required product surface" in sdk
     assert "The CLI is the operator and automation command surface" in cli
     assert "CLI -> Python SDK -> backend /api" in cli
-    assert "First screen is the workspace" in design_system
     assert "single authoritative UI and content standard" in ui_standard
     assert "Top status bar" in web
     assert "Web UI -> web API client -> backend /api" in web
-    assert "Web UI -> web API client -> backend /api" in web
     assert "Tauri" in windows
     assert "Windows shell -> packaged web workspace/API client" in windows
-    assert "First Windows Implementation Prompt" in windows
     assert "Dense terminal-style workspace" in windows_demo
-    assert "eurogas-nexus-v0.5.0.exe" in windows_demo
     assert "Web Workspace Desktop Layout" in layouts
-    assert "SDK M1 API Client Implementation Plan" in sdk_plan
-    assert "CLI M1 Operator Commands Implementation Plan" in cli_plan
-    assert "Web M1 Workspace Shell Implementation Plan" in web_plan
-    assert "Windows D1 Desktop Shell Implementation Plan" in windows_plan
 
 def test_whole_project_blueprint_covers_requested_capabilities() -> None:
     text = _read_doc("docs/architecture/WHOLE_PROJECT_CAPABILITY_BLUEPRINT.md")
@@ -199,76 +171,6 @@ def test_reference_evidence_log_records_archived_sources() -> None:
     assert "THREE_LAYER_GRAPH.md" in text
     assert "ROUTE_COST_ENGINE_MODEL.md" in text
     assert "WINDOWS_DEMO_UX_REFERENCE.md" in text
-
-def test_full_v1_release_docs_are_precise_for_local_execution() -> None:
-    scope = _read_doc("docs/archive/release/V1_FULL_PROJECT_RELEASE_SCOPE.md")
-    plan = _read_doc("docs/archive/release/V1_FULL_PROJECT_RELEASE_EXECUTION_PLAN.md")
-    matrix = _read_doc("docs/archive/release/V1_RELEASE_ACCEPTANCE_MATRIX.md")
-    backlog = _read_doc("docs/archive/release/V1_RELEASE_MILESTONE_BACKLOG.md")
-    template = _read_doc("docs/archive/release/V1_RELEASE_EXECPLAN_TEMPLATE.md")
-
-    for phrase in [
-        "Backend/API service",
-        "Python SDK",
-        "All V1 clients access runtime data through SDK/API boundaries",
-        "CLI",
-        "Web client",
-        "Windows client",
-        "route cost research workflow",
-        "indicative netback research workflow",
-        "shadow run paper-evaluation workflow",
-    ]:
-        assert phrase in scope
-
-    for phrase in [
-        "Milestone R1: DB Runtime Foundation",
-        "Milestone R7: Route Cost And Indicative Netback",
-        "Milestone R12: SDK Release Surface",
-        "Milestone R13: CLI Release Surface",
-        "Milestone R14: Web Research Workspace",
-        "Milestone R15: Windows Client Package Shell",
-        "Milestone R16: Release Pack And Final Validation",
-        "Stop Rule",
-        "create it from",
-        "execute the milestone in the",
-    ]:
-        assert phrase in plan
-
-    for phrase in [
-        "Backend Runtime",
-        "Data And Domain Slices",
-        "SDK",
-        "Required product surface",
-        "CLI",
-        "Web Client",
-        "Windows Client",
-        "Release Pack",
-        "Final Release Gate",
-    ]:
-        assert phrase in matrix
-
-    for phrase in [
-        "R0",
-        "R1",
-        "R16",
-        "V1_R7_ROUTE_COST_NETBACK_EXECPLAN.md",
-        "V1_R14_WEB_RELEASE_WORKSPACE_EXECPLAN.md",
-        "V1_R15_WINDOWS_RELEASE_SHELL_EXECPLAN.md",
-        "Do Not Skip",
-    ]:
-        assert phrase in backlog
-
-    for phrase in [
-        "V1 Release ExecPlan Template",
-        "plain local CLI",
-        "Files To Create Or Modify",
-        "DB Impact",
-        "API Impact",
-        "Data Policy",
-        "Handoff Output",
-    ]:
-        assert phrase in template
-
 
 def test_api_surface_blueprint_covers_target_route_groups() -> None:
     text = _read_doc("docs/api/API_SURFACE_BLUEPRINT.md")

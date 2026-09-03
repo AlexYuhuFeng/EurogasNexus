@@ -165,7 +165,6 @@ Detailed guidance is in [Validation](docs/operations/VALIDATION.md) and
 - [Project directory and ownership](PROJECT_DIRECTORY.md)
 - [Architecture decisions](docs/architecture/ARCHITECTURE_DECISION_RECORD.md)
 - [RFC process](docs/engineering/RFC_PROCESS.md)
-- [Archive policy](docs/policies/ARCHIVE_POLICY.md)
 - [UI and content standards](docs/clients/UI_CONTENT_STANDARDS.md)
 
 ## Security, contribution, and license
