@@ -65,7 +65,7 @@ Run the baseline validation before pushing:
 
 ```bash
 ruff check .
-pytest -q tests/api tests/contract tests/integration tests/ingestion tests/unit tests/optimization tests/sdk tests/cli tests/release tests/security
+pytest -q tests
 python scripts/ci/check_markdown_links.py
 npm --prefix clients/web run test
 npm --prefix clients/web run build

@@ -15,24 +15,20 @@ def test_ownership_matrix_reflects_db_sdk_cli_status() -> None:
     assert "Read-only health check helper shell" in text
 
 
-def test_validation_doc_includes_active_test_suites() -> None:
+def test_validation_doc_includes_full_suite_command() -> None:
     text = (ROOT / "docs" / "operations" / "VALIDATION.md").read_text(encoding="utf-8")
 
-    assert "tests/integration" in text
-    assert "tests/sdk" in text
-    assert "tests/cli" in text
+    assert "pytest -q tests" in text
+    assert "ruff check ." in text
 
 
-def test_readme_mentions_starting_docs_and_extended_validation() -> None:
+def test_readme_mentions_starting_docs_and_full_suite_validation() -> None:
     text = (ROOT / "README.md").read_text(encoding="utf-8")
 
     assert "[Project directory and ownership](PROJECT_DIRECTORY.md)" in text
     assert "[Release readiness](docs/release/RELEASE_READINESS.md)" in text
     assert "## Documentation map" in text
-    assert (
-        "tests/integration tests/ingestion tests/unit tests/optimization tests/sdk tests/cli"
-        in text
-    )
+    assert "pytest -q tests" in text
     assert "中文说明：" in text
 
 

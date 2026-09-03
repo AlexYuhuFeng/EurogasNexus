@@ -1,9 +1,6 @@
 name: Build and Release
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
     inputs:
       release_channel:
@@ -56,7 +53,7 @@ jobs:
         run: ruff check .
 
       - name: Tests
-        run: pytest -q tests/api tests/contract tests/integration tests/ingestion tests/unit tests/optimization tests/sdk tests/cli tests/release tests/security
+        run: pytest -q tests
 
       - name: Import API
         run: python -c "from apps.api.main import app; print('app import ok'); print(len(app.openapi()['paths']))"

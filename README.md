@@ -50,14 +50,54 @@ a candidate that requires human review.
 ## Architecture at a glance
 
 ```mermaid
-flowchart LR
-    Sources["Public and licensed data sources"] --> Ingestion["Ingestion and normalization"]
-    Ingestion --> DB[("PostgreSQL runtime store")]
-    DB --> API["FastAPI backend /api"]
-    API --> SDK["Python SDK"]
-    API --> CLI["CLI"]
-    API --> Web["Web client"]
-    API --> Desktop["Windows / Linux desktop client"]
+flowchart TB
+    subgraph Repo["Eurogas Nexus repository"]
+        direction TB
+        subgraph Backend["Backend"]
+            Apps["apps/api · apps/worker · apps/scheduler"]
+            Ing["src/eurogas_nexus/ingestion"]
+            Api["src/eurogas_nexus/api"]
+            App["src/eurogas_nexus/application"]
+            Domain["src/eurogas_nexus/domain"]
+            Db["src/eurogas_nexus/db"]
+            Opt["src/eurogas_nexus/optimization"]
+            Gov["src/eurogas_nexus/security · governance"]
+        end
+
+        subgraph Clients["Clients"]
+            SDK["Python SDK"]
+            CLI["CLI"]
+            Web["Web client"]
+            Desktop["Desktop client"]
+        end
+
+        subgraph Delivery["Packaging and delivery"]
+            Deploy["deploy/ runtime containers"]
+            Installer["installer/ Windows AllInOne"]
+            Scripts["scripts/ release and ops"]
+        end
+    end
+
+    Sources["Public and licensed data sources"] --> Ing
+    Ing --> PG[("PostgreSQL runtime store")]
+    PG --> Db
+    Db --> Api
+    Api --> App
+    App --> Domain
+    Domain --> Opt
+    Api --> Gov
+
+    Apps -. "thin process entrypoints" .-> Api
+    Api --> SDK
+    Api --> CLI
+    Api --> Web
+    Web --> Desktop
+
+    Deploy --> PG
+    Installer --> Desktop
+    Installer --> Deploy
+    Scripts -. "operator actions" .-> Db
+    Scripts -. "operator actions" .-> Api
 ```
 
 Core rules:
@@ -106,7 +146,7 @@ Before submitting changes:
 
 ```bash
 ruff check .
-pytest -q tests/api tests/contract tests/integration tests/ingestion tests/unit tests/optimization tests/sdk tests/cli tests/release tests/security
+pytest -q tests
 npm --prefix clients/web run build
 python -c "from apps.api.main import app; print('app import ok'); print(len(app.openapi()['paths']))"
 ```

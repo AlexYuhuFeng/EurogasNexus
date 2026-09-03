@@ -32,7 +32,7 @@ jobs:
         run: python scripts/ci/check_markdown_links.py
 
       - name: Tests
-        run: pytest -q tests/api tests/contract tests/integration tests/ingestion tests/unit tests/optimization tests/sdk tests/cli tests/release tests/security
+        run: pytest -q tests
 
       - name: API load smoke (in-process, no server)
         run: python scripts/ops/load_smoke.py --requests 200 --concurrency 8 --p95-threshold-ms 1000

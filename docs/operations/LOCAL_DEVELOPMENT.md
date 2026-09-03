@@ -56,7 +56,7 @@ The runtime DB validation script is read-only. It performs `SELECT 1`, checks
 known required tables, and reads the Alembic revision if available.
 
 ```powershell
-python scripts/ops/validate_v1_runtime_db.py --json
+python scripts/ops/validate_runtime_db.py --json
 ```
 
 The script exits non-zero when the DB URL is missing, the DB is unreachable, or

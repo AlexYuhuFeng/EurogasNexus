@@ -71,25 +71,17 @@ The cleanup standard is:
 
 ## Remaining High-Priority Items
 
-### DOC-001 Compatibility wrappers still contain `v1` in filenames
+### DOC-001 Legacy V1 compatibility names
 
-The following files remain intentionally as compatibility wrappers or link
-pointers:
+The deprecated `build_v1_release.*` and `validate_v1_runtime_db.py` wrappers
+have been removed. The neutral names are authoritative:
 
-- `scripts/ops/validate_v1_runtime_db.py`
-- `scripts/release/build_v1_release.sh`
-- `scripts/release/build_v1_release.ps1`
-- `docs/operations/LIVE_POSTGRESQL_V1.md`
-
-Preferred replacements are:
-
-- `scripts/ops/validate_runtime_db.py`
 - `scripts/release/build_release.sh`
 - `scripts/release/build_release.ps1`
-- `docs/operations/LIVE_POSTGRESQL.md`
+- `scripts/ops/validate_runtime_db.py`
 
-These compatibility files can be removed later after CI, docs, release notes, and
-user habits have moved to the neutral names.
+`docs/operations/LIVE_POSTGRESQL_V1.md` remains as a compatibility pointer to
+`docs/operations/LIVE_POSTGRESQL.md` until references are migrated.
 
 ### DOC-002 Product boundary should be durable
 

@@ -122,7 +122,7 @@ python scripts/ops/validate_runtime_db.py --json
 Compatibility command:
 
 ```bash
-python scripts/ops/validate_v1_runtime_db.py --json
+python scripts/ops/validate_runtime_db.py --json
 ```
 
 Expected behavior:

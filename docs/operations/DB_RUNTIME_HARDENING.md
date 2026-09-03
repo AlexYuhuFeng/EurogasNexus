@@ -36,7 +36,7 @@ source=runtime-postgresql
 
 ```powershell
 # Validate a running PostgreSQL (read-only, secret-safe)
-python scripts/ops/validate_v1_runtime_db.py --json
+python scripts/ops/validate_runtime_db.py --json
 
 # Apply pending migrations (explicit operator action)
 alembic upgrade head
@@ -71,7 +71,7 @@ revision `0013_gie_lng_dtmi_energy`, including:
 The authoritative list lives in code and should be validated with:
 
 ```powershell
-python scripts/ops/validate_v1_runtime_db.py --json
+python scripts/ops/validate_runtime_db.py --json
 ```
 
 ## Import Safety Guarantee

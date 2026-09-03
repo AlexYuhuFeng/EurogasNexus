@@ -145,7 +145,7 @@ def test_live_postgresql_policy_is_explicit_and_safe() -> None:
         in text
     )
     assert "must never be printed in full" in text
-    assert "python scripts/ops/validate_v1_runtime_db.py --json" in text
+    assert "python scripts/ops/validate_runtime_db.py --json" in text
 
 
 def test_client_design_docs_are_ready_for_future_goal_mode() -> None:

@@ -126,11 +126,11 @@ def test_milestone_2_json_report_is_valid() -> None:
 # --- validation script -------------------------------------------------------
 
 def test_validation_script_exists_and_is_executable() -> None:
-    script = ROOT / "scripts" / "ops" / "validate_v1_runtime_db.py"
+    script = ROOT / "scripts" / "ops" / "validate_runtime_db.py"
     assert script.is_file()
     content = script.read_text(encoding="utf-8")
-    assert "from validate_runtime_db import main" in content
-    assert "migration away from milestone-style naming" in content
+    assert "def main(" in content
+    assert "redact_database_url" in content
 
 
 def test_validation_script_references_redaction() -> None:
