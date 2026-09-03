@@ -103,6 +103,10 @@ REQUIRED_TABLES: tuple[RequiredTable, ...] = (
         introduced_in="0023_storage_nomination_masters",
     ),
     RequiredTable(
+        name="cost_observations",
+        introduced_in="0024_cost_observations",
+    ),
+    RequiredTable(
         name="screen_order_observations",
         introduced_in="0009_market_positioning",
     ),

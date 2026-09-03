@@ -12,6 +12,7 @@ from eurogas_nexus.db.models.analysis import (
     GeneratedReportRecord,
 )
 from eurogas_nexus.db.models.certification import ProviderCertificationRecord
+from eurogas_nexus.db.models.cost_observation import CostObservationRecord
 from eurogas_nexus.db.models.glossary import GlossaryTermRecord
 from eurogas_nexus.db.models.identity import IdentityApiKeyRecord, IdentityPrincipalRecord
 from eurogas_nexus.db.models.market_intelligence import (
@@ -87,6 +88,7 @@ __all__ = [
     "AnalysisRunRecord",
     "CapacityObservationRecord",
     "CompanyTsoAccessRecord",
+    "CostObservationRecord",
     "EntitlementDecisionRecord",
     "FlowObservationRecord",
     "FxObservationRecord",
