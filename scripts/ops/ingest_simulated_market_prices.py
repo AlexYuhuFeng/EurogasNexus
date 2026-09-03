@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 from datetime import UTC, datetime
 
+from eurogas_nexus.core.config import simulated_sources_allowed
 from eurogas_nexus.db.session import (
     get_session_factory,
     redact_database_url,
@@ -20,6 +21,9 @@ from eurogas_nexus.ingestion.simulated_market_prices import (
 def main(argv: list[str] | None = None) -> int:
     """    Ingest simulated market price rows into the runtime DB."""
     args = _parse_args(argv)
+    if not simulated_sources_allowed():
+        print("Simulated market price sources are not allowed in trial or release environments.")
+        return 2
     database_url = resolve_database_url()
     if not database_url:
         print("Runtime DB URL missing. Set RUNTIME_STORE_DATABASE_URL or DATABASE_URL.")

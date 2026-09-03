@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
+from eurogas_nexus.core.config import simulated_sources_allowed
 from eurogas_nexus.db.models import (
     CompanyTsoAccessRecord,
     GlossaryTermRecord,
@@ -80,6 +81,9 @@ LEGACY_FIXTURE_CONTRACT_IDS = [
 
 def main() -> int:
     """    Seed preview runtime data into the DB (development only)."""
+    if not simulated_sources_allowed():
+        print("Simulated/preview seed data is not allowed in trial or release environments.")
+        return 2
     database_url = resolve_database_url()
     if not database_url:
         print("Runtime DB URL missing. Set RUNTIME_STORE_DATABASE_URL or DATABASE_URL.")

@@ -11,6 +11,7 @@ from eurogas_nexus.core.config import (
     DeploymentConfig,
     Settings,
     public_network_deployment_allowed,
+    simulated_sources_allowed,
 )
 
 
@@ -76,3 +77,24 @@ def test_deployment_config_defaults() -> None:
 
     assert config.posture == "private_network_preview"
     assert config.security_acceptance_evidence_path is None
+
+
+def test_simulated_sources_allowed_in_development(monkeypatch) -> None:
+    monkeypatch.setenv("EUROGAS_NEXUS_ENV", "development")
+    monkeypatch.delenv("EUROGAS_NEXUS_ENABLE_SIMULATED_SOURCES", raising=False)
+
+    assert simulated_sources_allowed() is True
+
+
+def test_simulated_sources_denied_in_release(monkeypatch) -> None:
+    monkeypatch.setenv("EUROGAS_NEXUS_ENV", "release")
+    monkeypatch.setenv("EUROGAS_NEXUS_ENABLE_SIMULATED_SOURCES", "true")
+
+    assert simulated_sources_allowed() is False
+
+
+def test_simulated_sources_denied_in_trial(monkeypatch) -> None:
+    monkeypatch.setenv("EUROGAS_NEXUS_ENV", "trial")
+    monkeypatch.setenv("EUROGAS_NEXUS_ENABLE_SIMULATED_SOURCES", "true")
+
+    assert simulated_sources_allowed() is False

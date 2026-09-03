@@ -87,6 +87,9 @@ Operational procedures and operator-facing guides:
 - [DB migrations](operations/DB_MIGRATIONS.md)
 - [DB runtime hardening](operations/DB_RUNTIME_HARDENING.md)
 - [Backup and restore](operations/BACKUP_RESTORE.md)
+- [Incident response](operations/INCIDENT_RESPONSE.md)
+- [Release signing](operations/RELEASE_SIGNING.md)
+- [Provider live validation](operations/PROVIDER_VALIDATION.md)
 - [Service level objectives](operations/SLO.md)
 - [Production source operations EN](operations/PRODUCTION_SOURCE_OPERATIONS.md) /
   [CN](operations/PRODUCTION_SOURCE_OPERATIONS-CN.md)

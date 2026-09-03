@@ -135,6 +135,24 @@ def public_network_deployment_allowed(
     return True, f"security_accepted evidence file present: {evidence_path}"
 
 
+def simulated_sources_allowed() -> bool:
+    """Return whether simulated market/price sources are permitted.
+
+    Trial and release environments are fail-closed: simulated sources are only
+    for local development and explicit demonstration worktrees. An operator
+    cannot silently ship demo data in a delivered release environment.
+    """
+
+    environment = os.getenv("EUROGAS_NEXUS_ENV", "development").strip().lower()
+    if environment in {"trial", "release"}:
+        return False
+    return parse_env_bool(
+        os.getenv("EUROGAS_NEXUS_ENABLE_SIMULATED_SOURCES"),
+        default=True,
+    )
+
+
+
 @lru_cache
 def get_settings() -> Settings:
     """Return cached application settings."""
