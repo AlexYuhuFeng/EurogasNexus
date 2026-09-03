@@ -108,7 +108,7 @@ def test_applicable_instrument_respects_effective_from() -> None:
 
 
 def test_ontology_version_is_v0_3() -> None:
-    assert current_ontology_version().label() == "v0.3.0"
+    assert current_ontology_version().label() == "v0.5.0"
 
 
 def test_gas_day_calendar_versions_exposed() -> None:

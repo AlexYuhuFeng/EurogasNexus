@@ -554,7 +554,7 @@ def current_ontology_version() -> OntologyVersion:
         semantics change in a way consumers must observe.
     """
 
-    return OntologyVersion(0, 3, 0)
+    return OntologyVersion(0, 5, 0)
 
 
 def gas_day_calendar_versions() -> tuple[str, ...]:

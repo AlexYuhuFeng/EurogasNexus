@@ -190,6 +190,46 @@ class ActionKindCategory(StrEnum):
     EXTERNAL_ACTION = "EXTERNAL_ACTION"
 
 
+# --- OWL/GRM companion identifiers -----------------------------------------
+
+GRM_ROLES: tuple[str, ...] = (
+    "AllocationResponsible",
+    "AreaCoordinator",
+    "BalanceResponsibleParty",
+    "BalancingEnergyResponsible",
+    "CapacityPlatformResponsible",
+    "CapacityResponsibleParty",
+    "ClearingResponsible",
+    "DistributionSystemOperator",
+    "EnergyTradingPlatformResponsible",
+    "FinalCustomer",
+    "LngSystemOperator",
+    "MarketInformationAggregator",
+    "MeterOperator",
+    "MeteredDataResponsible",
+    "ProductionFacilityOperator",
+    "ReconciliationResponsible",
+    "StorageSystemOperator",
+    "Supplier",
+    "SystemOperator",
+    "Trader",
+    "TransmissionSystemOperator",
+    "WeatherDataProvider",
+)
+
+GRM_PROCESSES: tuple[str, ...] = (
+    "CapacityAllocationProcess",
+    "ExchangeGasTradingProcess",
+    "OtcGasTradingProcess",
+    "NominationMatchingProcess",
+    "MeteringProcess",
+    "AllocationProcess",
+    "BalancingProcess",
+    "SettlementProcess",
+    "RemitTransparencyProcess",
+)
+
+
 # --- Ontology-specific taxonomies -------------------------------------------
 
 
