@@ -100,8 +100,8 @@ def test_no_file_fallback_allows_development() -> None:
 
 # --- docs existence ----------------------------------------------------------
 
-def test_live_postgresql_v1_doc_exists() -> None:
-    assert (ROOT / "docs" / "operations" / "LIVE_POSTGRESQL_V1.md").is_file()
+def test_live_postgresql_doc_exists() -> None:
+    assert (ROOT / "docs" / "operations" / "LIVE_POSTGRESQL.md").is_file()
 
 
 def test_db_runtime_hardening_doc_exists() -> None:

@@ -13,7 +13,7 @@ and neutral persistence metadata contracts. The API app must not require a DB
 connection at import time.
 
 Live local PostgreSQL validation is part of V1 runtime readiness when a safe DB
-URL is configured. See `docs/operations/LIVE_POSTGRESQL_V1.md`.
+URL is configured. See `docs/operations/LIVE_POSTGRESQL.md`.
 
 ## Future Rules
 

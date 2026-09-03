@@ -4,7 +4,6 @@
 
 Release and deployment assets are organized under:
 
-- `release/v1`
 - `dist/releases`
 - `infra/docker`
 - `infra/nginx`

@@ -27,7 +27,6 @@ EXPECTED_DIRECTORIES = [
     "clients/web",
     "clients/desktop",
     "packages/python-sdk",
-    "release/v1",
     "dist/releases",
     "infra/deployment",
     "docs/contracts",

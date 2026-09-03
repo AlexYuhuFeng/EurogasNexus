@@ -47,7 +47,7 @@ Purpose:
 Primary docs:
 
 - `docs/architecture/NEXT_DEVELOPMENT_QUEUE.md`
-- `docs/operations/LIVE_POSTGRESQL_V1.md`
+- `docs/operations/LIVE_POSTGRESQL.md`
 - `docs/contracts/00_CONTRACT_INDEX.md`
 
 ### Runtime Store And Data Governance

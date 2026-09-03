@@ -38,7 +38,6 @@ The cleanup standard is:
 - Added `docs/release/PRODUCTION_READINESS_BACKLOG.md`.
 - Added neutral runtime validation and release-build entrypoints.
 - Added `docs/operations/LIVE_POSTGRESQL.md` and reduced the old
-  `LIVE_POSTGRESQL_V1.md` file to a compatibility pointer.
 - Stabilized CI/release workflow action versions and default release behavior.
 - Renamed the user-facing `Order Records` surface to `Market Positioning` while
   keeping the technical `orders` workspace id for compatibility.
@@ -80,8 +79,7 @@ have been removed. The neutral names are authoritative:
 - `scripts/release/build_release.ps1`
 - `scripts/ops/validate_runtime_db.py`
 
-`docs/operations/LIVE_POSTGRESQL_V1.md` remains as a compatibility pointer to
-`docs/operations/LIVE_POSTGRESQL.md` until references are migrated.
+The legacy `LIVE_POSTGRESQL_V1.md` compatibility pointer has been removed.
 
 ### DOC-002 Product boundary should be durable
 

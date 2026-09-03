@@ -81,7 +81,7 @@
 - [本地 Docker 运行时](operations/LOCAL_DOCKER_RUNTIME.md)
 - [验证指南](operations/VALIDATION.md)
 - [PostgreSQL 运行指南](operations/LIVE_POSTGRESQL.md)
-  （[兼容说明](operations/LIVE_POSTGRESQL_V1.md)）
+
 - [数据库迁移](operations/DB_MIGRATIONS.md)
 - [数据库运行加固](operations/DB_RUNTIME_HARDENING.md)
 - [备份与恢复](operations/BACKUP_RESTORE.md)

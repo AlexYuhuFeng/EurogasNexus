@@ -96,7 +96,7 @@ Operational procedures and operator-facing guides:
 - [Local Docker runtime](operations/LOCAL_DOCKER_RUNTIME.md)
 - [Validation](operations/VALIDATION.md)
 - [Live PostgreSQL](operations/LIVE_POSTGRESQL.md)
-  ([compatibility pointer](operations/LIVE_POSTGRESQL_V1.md))
+
 - [DB migrations](operations/DB_MIGRATIONS.md)
 - [DB runtime hardening](operations/DB_RUNTIME_HARDENING.md)
 - [Backup and restore](operations/BACKUP_RESTORE.md)
