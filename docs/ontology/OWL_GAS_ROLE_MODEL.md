@@ -126,7 +126,14 @@ pip install rdflib
 python -c "import rdflib; g=rdflib.Graph(); g.parse('docs/ontology/eurogas-nexus-grm.ttl', format='turtle'); print(len(g))"
 ```
 
-The repository contract test
-`tests/contract/test_grm_owl_ontology.py` additionally enforces the namespace,
-the SAREF import, the complete role/process inventory, the decision-support
-boundary, and the absence of execution-action terms.
+The executable vocabulary is the semantic source of truth. Re-render its
+machine-readable core with:
+
+```bash
+python scripts/ontology/generate_grm_ttl.py docs/ontology/eurogas-nexus-grm.generated.ttl
+```
+
+The repository contract tests additionally enforce the namespace, the SAREF
+import, the complete role/process inventory, the decision-support boundary,
+the absence of execution-action terms (`tests/contract/test_grm_owl_ontology.py`),
+and mechanical OWL/executable parity (`tests/contract/test_ontology_grm_parity.py`).

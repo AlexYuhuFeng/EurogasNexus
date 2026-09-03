@@ -5,6 +5,20 @@ All notable changes to Eurogas Nexus are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project does not yet use semantic versioning for public releases.
 
+## Ontology version changes
+
+Ontology versions are tracked independently of application releases and are
+asserted by `tests/contract/test_ontology_version_alignment.py`.
+
+- **0.5.0** — the executable vocabulary under
+  `src/eurogas_nexus/domain/ontology/` is the semantic source of truth. It
+  models the full GRM role inventory, business processes, commodity taxonomy,
+  typed interaction properties, and the human-review decision-support boundary.
+  `scripts/ontology/generate_grm_ttl.py` renders the model as OWL/Turtle, and
+  `tests/contract/test_ontology_grm_parity.py` verifies that the published
+  `docs/ontology/eurogas-nexus-grm.ttl` remains in structural parity with the
+  executable vocabulary.
+
 ## [Unreleased]
 
 - Standardized backend project structure:

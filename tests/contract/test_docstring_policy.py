@@ -58,6 +58,7 @@ CHECKED_MODULES = [
     "domain/glossary.py",
     "domain/ontology/concepts.py",
     "domain/ontology/vocabulary.py",
+    "domain/ontology/grm_turtle.py",
     "domain/ontology/bindings.py",
     "domain/ontology/__init__.py",
     "domain/route_cost/uk_public_tariffs.py",

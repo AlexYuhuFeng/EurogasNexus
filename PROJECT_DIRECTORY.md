@@ -22,7 +22,7 @@ infra/                  Deployment component notes (deployment, docker, nginx, p
 packaging/              Windows installer sources
 output/                 Untracked generated material; never commit
 release/                Source-controlled release-blueprint placeholder
-scripts/                CI, dev, ops, release, and security scripts
+scripts/                CI, dev, ontology-generation, ops, release, and security scripts
 src/eurogas_nexus/      Backend Python package (the only backend runtime package)
 tests/                  Python test suite (api, contract, integration, unit, sdk, etc.)
 tmp/                    Ignored scratch space

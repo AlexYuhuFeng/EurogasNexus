@@ -113,7 +113,7 @@ class RouteCostResult(BaseModel):
     required_tso_access: list[str] = Field(default_factory=list)
     company_accessible_tsos: list[str] | None = None
     inaccessible_tsos: list[str] = Field(default_factory=list)
-    # research_only 是共享信封 meta 的临时兼容字段（见 AGENTS.md）：
+    # research_only 是共享信封 meta 的临时兼容字段（见 docs/architecture/TERMINOLOGY.md）：
     # 只保留在既有结果载荷中，新业务数据载荷不得新增该字段。
     research_only: bool
     human_review_required: bool

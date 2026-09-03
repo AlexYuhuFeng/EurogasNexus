@@ -4,45 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from eurogas_nexus.domain.ontology.vocabulary import GRM_PROCESSES, GRM_ROLES
+
 ROOT = Path(__file__).resolve().parents[2]
 ONTOLOGY = ROOT / "docs" / "ontology" / "eurogas-nexus-grm.ttl"
-
-GRM_ROLES = {
-    "AllocationResponsible",
-    "AreaCoordinator",
-    "BalanceResponsibleParty",
-    "BalancingEnergyResponsible",
-    "CapacityPlatformResponsible",
-    "CapacityResponsibleParty",
-    "ClearingResponsible",
-    "DistributionSystemOperator",
-    "EnergyTradingPlatformResponsible",
-    "FinalCustomer",
-    "LngSystemOperator",
-    "MarketInformationAggregator",
-    "MeterOperator",
-    "MeteredDataResponsible",
-    "ProductionFacilityOperator",
-    "ReconciliationResponsible",
-    "StorageSystemOperator",
-    "Supplier",
-    "SystemOperator",
-    "Trader",
-    "TransmissionSystemOperator",
-    "WeatherDataProvider",
-}
-
-GRM_PROCESSES = {
-    "CapacityAllocationProcess",
-    "ExchangeGasTradingProcess",
-    "OtcGasTradingProcess",
-    "NominationMatchingProcess",
-    "MeteringProcess",
-    "AllocationProcess",
-    "BalancingProcess",
-    "SettlementProcess",
-    "RemitTransparencyProcess",
-}
 
 
 def _read(path: Path) -> str:

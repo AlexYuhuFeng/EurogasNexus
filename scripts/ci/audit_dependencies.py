@@ -1,4 +1,4 @@
-"""Offline dependency license audit against the AGENTS.md license policy.
+"""Offline dependency license audit against docs/policies/DEPENDENCY_POLICY.md.
 
 Scans an installed site-packages directory (default ``.deps``) by reading each
 ``*.dist-info/METADATA``, extracts license fields/classifiers, and fails closed
@@ -71,7 +71,7 @@ def _forbidden_hit(text: str, terms: tuple[str, ...]) -> str | None:
 
 
 def audit(site_packages: Path) -> int:
-    """    Audit installed packages against the approved dependency policy.
+    """Audit installed packages against the approved dependency policy.
 
     Returns:
         Exit code: 0 clean, 1 when violations are found."""
@@ -106,7 +106,7 @@ def audit(site_packages: Path) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """    CLI entry point for the dependency audit."""
+    """CLI entry point for the dependency audit."""
     args = list(argv) if argv is not None else sys.argv[1:]
     target = args[0] if args else ".deps"
     site_packages = Path(target)

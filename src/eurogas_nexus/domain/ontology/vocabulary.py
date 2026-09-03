@@ -217,6 +217,50 @@ GRM_ROLES: tuple[str, ...] = (
     "WeatherDataProvider",
 )
 
+GRM_INTERACTION_PROPERTIES: dict[str, tuple[str, str]] = {
+    # property: (rdfs:domain role, rdfs:range role or commodity class)
+    "providesAllocationData": ("GasMarketRole", "GasMarketRole"),
+    "providesMatchingResults": ("GasMarketRole", "GasMarketRole"),
+    "providesMeteredData": ("GasMarketRole", "GasMarketRole"),
+    "providesValidatedMeteredData": ("MeteredDataResponsible", "MarketInformationAggregator"),
+    "providesWeatherData": ("WeatherDataProvider", "GasMarketRole"),
+    "providesNominationAndMatchingData": ("GasMarketRole", "GasMarketRole"),
+    "submitsBidsOrOffers": ("Trader", "EnergyTradingPlatformResponsible"),
+    "reportsTradeData": ("Trader", "MarketInformationAggregator"),
+    "providesTradeInformation": ("EnergyTradingPlatformResponsible", "ClearingResponsible"),
+    "confirmsExecutedTrades": ("EnergyTradingPlatformResponsible", "Trader"),
+    "nominatesConcludedTrades": ("EnergyTradingPlatformResponsible", "BalanceResponsibleParty"),
+    "purchasesCapacityFrom": ("CapacityResponsibleParty", "CapacityPlatformResponsible"),
+    "allocatesCapacityTo": ("CapacityPlatformResponsible", "CapacityResponsibleParty"),
+    "offersAvailableCapacity": ("TransmissionSystemOperator", "CapacityPlatformResponsible"),
+    "commissionsBalancingEnergy": ("AreaCoordinator", "BalancingEnergyResponsible"),
+    "suppliesGasTo": ("Supplier", "FinalCustomer"),
+    "tradesGas": ("Trader", "GasCommodity"),
+    "transportsGas": ("CapacityResponsibleParty", "GasCommodity"),
+}
+
+# Sub-property relationships emitted by scripts/ontology/generate_grm_ttl.py.
+GRM_INTERACTION_SUBPROPERTIES: dict[str, str] = {
+    "providesValidatedMeteredData": "providesMeteredData",
+}
+
+GRM_BOUNDARY_CLASSES: tuple[str, ...] = ("DecisionSupportOutput",)
+
+# GRM commodity view. Values use the OWL/Turtle prefixed notation emitted by
+# scripts/ontology/generate_grm_ttl.py; they are rendered with the ``saref:``
+# prefix and the local ``:`` prefix respectively.
+GRM_COMMODITY_TAXONOMY: dict[str, tuple[str, ...]] = {
+    "GasCommodity": (
+        "saref:EnergyCommodity",
+        "saref:NaturalResourceCommodity",
+    ),
+    "LngCommodity": (":GasCommodity",),
+    "GasMarketServiceCommodity": ("saref:Commodity",),
+    "StorageServiceCommodity": (":GasMarketServiceCommodity",),
+    "CapacityCommodity": (":GasMarketServiceCommodity",),
+    "BalanceServiceCommodity": (":GasMarketServiceCommodity",),
+}
+
 GRM_PROCESSES: tuple[str, ...] = (
     "CapacityAllocationProcess",
     "ExchangeGasTradingProcess",
