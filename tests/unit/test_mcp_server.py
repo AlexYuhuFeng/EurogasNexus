@@ -41,6 +41,7 @@ def test_tools_list_declares_read_only_tools() -> None:
     assert "get_hdd_cdd" in names
     assert "optimize_resource_pool_sandbox" in names
     assert "optimize_capacity_sandbox" in names
+    assert "optimize_contracts_sandbox" in names
     assert "optimize_storage_dispatch_sandbox" in names
     assert "optimize_nomination_window_sandbox" in names
     for tool in result["result"]["tools"]:

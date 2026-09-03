@@ -33,6 +33,7 @@ behavior.
 ### Architecture and contracts
 
 - [API contract](api/API_CONTRACT.md)
+- [Data science function catalog](api/DATA_SCIENCE_FUNCTIONS.md)
 - [Public API conventions](api/API_CONVENTIONS.md)
 - [Database contract](architecture/DB_CONTRACT.md)
 - [Runtime store contract](architecture/RUNTIME_STORE_CONTRACT.md)

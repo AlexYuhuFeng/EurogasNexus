@@ -163,6 +163,20 @@ def _tool_optimize_capacity_sandbox(arguments: dict[str, Any]) -> Any:
     return result.data.model_dump()
 
 
+def _tool_optimize_contracts_sandbox(arguments: dict[str, Any]) -> Any:
+    from eurogas_nexus_sdk.optimization import optimize_contracts
+
+    _reject_runtime(arguments)
+    result = optimize_contracts(
+        _base_url(),
+        resources=arguments["resources"],
+        market_price_gbp_mwh=float(arguments["market_price_gbp_mwh"]),
+        demand_limit_mwh=float(arguments["demand_limit_mwh"]),
+        decision_context="SANDBOX_SCENARIO",
+    )
+    return result.data.model_dump()
+
+
 def _tool_optimize_storage_dispatch_sandbox(arguments: dict[str, Any]) -> Any:
     from eurogas_nexus_sdk.optimization import optimize_storage_dispatch
 
@@ -399,6 +413,24 @@ TOOLS: tuple[MCPTool, ...] = (
             "additionalProperties": False,
         },
         handler=_tool_optimize_capacity_sandbox,
+    ),
+    MCPTool(
+        name="optimize_contracts_sandbox",
+        description=(
+            "What-if daily contract take recommendation over client-supplied "
+            "resources (SANDBOX_SCENARIO only)."
+        ),
+        input_schema={
+            "type": "object",
+            "properties": {
+                "resources": {"type": "array", "items": {"type": "object"}},
+                "market_price_gbp_mwh": {"type": "number"},
+                "demand_limit_mwh": {"type": "number"},
+            },
+            "required": ["resources", "market_price_gbp_mwh", "demand_limit_mwh"],
+            "additionalProperties": False,
+        },
+        handler=_tool_optimize_contracts_sandbox,
     ),
     MCPTool(
         name="optimize_storage_dispatch_sandbox",
