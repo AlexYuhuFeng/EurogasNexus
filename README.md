@@ -53,7 +53,7 @@ flowchart TB
     subgraph Repo["Eurogas Nexus repository"]
         direction TB
         subgraph Backend["Backend"]
-            Apps["apps/api · apps/worker · apps/scheduler"]
+            Apps["apps/api"]
             Ing["src/eurogas_nexus/ingestion"]
             Api["src/eurogas_nexus/api"]
             App["src/eurogas_nexus/application"]

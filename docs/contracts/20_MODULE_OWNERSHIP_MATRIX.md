@@ -3,8 +3,6 @@
 | Path | Ownership | Current Status |
 | --- | --- | --- |
 | `apps/api` | API process entrypoint | Active ASGI entrypoint |
-| `apps/worker` | Future worker process | Reserved placeholder |
-| `apps/scheduler` | Future scheduler process | Reserved placeholder |
 | `src/eurogas_nexus/core` | Shared primitives | Active settings, errors, response envelopes |
 | `src/eurogas_nexus/db` | Import-safe DB foundation: SQLAlchemy models, repositories, sessions, registry | Active runtime-store persistence and migration support |
 | `src/eurogas_nexus/runtime_store` | Ephemeral runtime state contracts | Active contract definitions; runtime truth remains PostgreSQL |

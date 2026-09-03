@@ -9,8 +9,6 @@ ROOT = Path(__file__).resolve().parents[2]
 
 EXPECTED_DIRECTORIES = [
     "apps/api",
-    "apps/worker",
-    "apps/scheduler",
     "src/eurogas_nexus/core",
     "src/eurogas_nexus/db",
     "src/eurogas_nexus/runtime_store",

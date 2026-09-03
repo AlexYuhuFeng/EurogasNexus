@@ -12,7 +12,7 @@ the contracts and client docs linked below; for the verified current shape use
 ```text
 .github/                CI workflows, issue templates, and PR template
 alembic/                Alembic migrations and migration env
-apps/                   Process entrypoints only (api active; worker/scheduler reserved)
+apps/                   Process entrypoint for the API service
 clients/                API-consuming clients: web/ and desktop/
 data/                   Ignored local artifacts and fixtures; never runtime truth
 deploy/                 Runtime container deployment files
