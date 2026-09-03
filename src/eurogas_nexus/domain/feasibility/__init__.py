@@ -1,2 +1,0 @@
-"""Feasibility domain package."""
-

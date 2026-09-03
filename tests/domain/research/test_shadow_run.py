@@ -1,6 +1,6 @@
 """Shadow run evaluation tests."""
 
-from eurogas_nexus.workflows.shadow_run import (
+from eurogas_nexus.domain.research.shadow_run import (
     ShadowRunInput,
     ShadowSignal,
     evaluate_shadow_run,

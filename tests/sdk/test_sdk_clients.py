@@ -85,7 +85,7 @@ def test_sdk_does_not_import_backend_internals() -> None:
     after = set(sys.modules.keys())
     forbidden = {
         "eurogas_nexus.db", "eurogas_nexus.runtime_store",
-        "eurogas_nexus.workflows", "eurogas_nexus.ingestion",
+        "eurogas_nexus.domain.research", "eurogas_nexus.ingestion",
         "eurogas_nexus.observations", "eurogas_nexus.governance",
     }
     leaked = (after - before) & forbidden

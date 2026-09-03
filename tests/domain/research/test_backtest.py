@@ -1,6 +1,6 @@
 """Backtest computation tests."""
 
-from eurogas_nexus.workflows.backtest import BacktestInput, compute_backtest
+from eurogas_nexus.domain.research.backtest import BacktestInput, compute_backtest
 
 
 def test_backtest_computes_metrics() -> None:

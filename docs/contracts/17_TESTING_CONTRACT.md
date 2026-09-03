@@ -15,6 +15,7 @@ vendor data. Use fixtures and dry-run behavior for all bootstrap tests.
 - `tests/sdk`: SDK tests.
 - `tests/cli`: CLI tests.
 - `tests/workflow`: application workflow tests.
+- `tests/domain/research`: pure research/domain calculation tests.
 - `tests/security`: authorization and security tests.
 - `tests/contract`: repository, import, and architecture boundary tests.
 - `tests/release`: release packaging tests.

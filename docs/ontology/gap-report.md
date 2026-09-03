@@ -152,6 +152,18 @@ Eurogas Nexus 的领域知识层**已经存在，但处于"隐式 + 分散 + 部
 
 ---
 
+## 0c. 结构整改决定（2026-09）
+
+- `src/eurogas_nexus/workflows/`（旧 research-only 工作流壳）已整体并入
+  `src/eurogas_nexus/domain/research/`，消除与 `domain/` 的重复；API 路由改为
+  从 `eurogas_nexus.domain.research` 导入。
+- 仅有 `__init__.py` 且无实现的占位包已从 `src/eurogas_nexus/domain/` 移除：
+  `allocation / assets / economics / feasibility / netback / nowcast /
+  operations / relationships / reporting / resources / topology / weather`。
+  未来能力按 `docs/architecture/NEXT_DEVELOPMENT_QUEUE.md` 或 ExecPlan 落地时再
+  创建实现包，不在源码树中保留空占位目录。
+
+
 ## 1. 现状盘点（有据）
 
 ### 1.1 四套重叠的"本体"面（重复）

@@ -35,6 +35,29 @@ Local or ignored tool directories may also exist (`.venv`, `.local-runtime`,
 `node_modules`, `clients/*/dist`) and are never runtime truth or commit
 material.
 
+## Structure principles
+
+Eurogas Nexus follows a conventional Python/FastAPI + React monorepo layout:
+
+1. **Source-tree layout**: all importable backend code lives under
+   `src/eurogas_nexus/`; process entrypoints under `apps/` stay thin.
+2. **Layered backend**: `domain/` holds pure domain logic, `application/`
+   orchestrates use cases, `db/` owns persistence, `infrastructure/` owns
+   adapters, and `api/` owns HTTP delivery.
+3. **One surface per directory**: `clients/` contains API-consuming clients;
+   `packages/` contains future distributable packages; `scripts/` contains
+   automation; `docs/` contains repository knowledge.
+4. **No empty source placeholders**: do not create runtime packages with only
+   an `__init__.py` to reserve a future capability. Keep future work in
+   `docs/architecture/NEXT_DEVELOPMENT_QUEUE.md` or an ExecPlan and create the
+   package when the first implementation lands.
+5. **Tests mirror the work they cover**: API tests under `tests/api`, domain
+   research tests under `tests/domain/research`, workflow tests under
+   `tests/domain/research` or `tests/workflow`, and client-boundary tests under
+   `tests/sdk`, `tests/cli`, or `tests/contract`.
+
+
+
 ## Documentation layout
 
 ```text
@@ -83,7 +106,8 @@ implementations, persistence, and workflows belong under `src/eurogas_nexus`:
 src/eurogas_nexus/api/             FastAPI app, route profiles, routes, dependencies
 src/eurogas_nexus/application/     Workflow orchestration and application services
 src/eurogas_nexus/db/              SQLAlchemy models, repositories, sessions, registry
-src/eurogas_nexus/domain/          Domain models and calculations
+src/eurogas_nexus/domain/          Domain models, calculations, and pure research logic
+src/eurogas_nexus/domain/research/  Research model/calculation package (route-cost, feasibility, allocation, etc.)
 src/eurogas_nexus/ingestion/       Connectors and normalization boundaries
 src/eurogas_nexus/optimization/    Deterministic optimization engines
 src/eurogas_nexus/security/        Tokens, credentials, permissions, identity helpers
@@ -95,9 +119,9 @@ src/eurogas_nexus/streaming/       Optional SSE contracts
 ```
 
 Other `src/eurogas_nexus` subdirectories exist for audit, data quality,
-infrastructure, legacy, LLM, observations, runtime-store contracts, and
-workflows. Treat them as backend-owned; do not import them from SDK, CLI, or
-client code.
+infrastructure, legacy, LLM, observations, and runtime-store contracts.
+Treat them as backend-owned; do not import them from SDK, CLI, or client
+code.
 
 Backend work activates `apps/api`, `src/eurogas_nexus`, `alembic`, `scripts`,
 `tests`, and backend docs. Database schema changes require an Alembic migration;

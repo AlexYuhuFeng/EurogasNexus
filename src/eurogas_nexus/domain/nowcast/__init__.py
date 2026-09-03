@@ -1,2 +1,0 @@
-"""Nowcast domain package."""
-

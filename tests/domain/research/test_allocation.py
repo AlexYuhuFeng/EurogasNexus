@@ -1,6 +1,6 @@
 """Allocation computation tests."""
 
-from eurogas_nexus.workflows.allocation import (
+from eurogas_nexus.domain.research.allocation import (
     AllocationCandidate,
     AllocationInput,
     compute_allocation,

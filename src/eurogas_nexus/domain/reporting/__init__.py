@@ -1,2 +1,0 @@
-"""Reporting domain package."""
-

@@ -1,6 +1,6 @@
 """Indicative netback computation tests."""
 
-from eurogas_nexus.workflows.netback import NetbackInput, compute_netback
+from eurogas_nexus.domain.research.netback import NetbackInput, compute_netback
 
 
 def test_netback_subtracts_route_cost() -> None:

@@ -1,6 +1,6 @@
 """Monitoring alert generation tests."""
 
-from eurogas_nexus.workflows.monitoring import (
+from eurogas_nexus.domain.research.monitoring import (
     MonitoringInput,
     MonitoringThreshold,
     generate_alerts,

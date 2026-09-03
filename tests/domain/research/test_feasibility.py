@@ -1,6 +1,6 @@
 """Feasibility check computation tests."""
 
-from eurogas_nexus.workflows.feasibility import (
+from eurogas_nexus.domain.research.feasibility import (
     FeasibilityInput,
     FeasibilityStatus,
     check_feasibility,

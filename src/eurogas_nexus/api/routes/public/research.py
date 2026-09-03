@@ -12,38 +12,38 @@ from eurogas_nexus.api.dependencies.sandbox import (
     SANDBOX_SCENARIO,
     require_sandbox_scenario,
 )
-from eurogas_nexus.workflows.allocation import (
+from eurogas_nexus.domain.research.allocation import (
     AllocationCandidate,
     AllocationInput,
     compute_allocation,
 )
-from eurogas_nexus.workflows.backtest import (
+from eurogas_nexus.domain.research.backtest import (
     BacktestInput,
     compute_backtest,
 )
-from eurogas_nexus.workflows.feasibility import (
+from eurogas_nexus.domain.research.feasibility import (
     FeasibilityInput,
     check_feasibility,
 )
-from eurogas_nexus.workflows.monitoring import (
+from eurogas_nexus.domain.research.monitoring import (
     MonitoringInput,
     MonitoringThreshold,
     generate_alerts,
 )
-from eurogas_nexus.workflows.netback import (
+from eurogas_nexus.domain.research.netback import (
     NetbackInput,
     compute_netback,
 )
-from eurogas_nexus.workflows.nowcast import (
+from eurogas_nexus.domain.research.nowcast import (
     NowcastInput,
     compute_nowcast,
 )
-from eurogas_nexus.workflows.route_cost import (
+from eurogas_nexus.domain.research.route_cost import (
     CostComponent,
     RouteCostInput,
     compute_route_cost,
 )
-from eurogas_nexus.workflows.shadow_run import (
+from eurogas_nexus.domain.research.shadow_run import (
     ShadowRunInput,
     ShadowSignal,
     evaluate_shadow_run,

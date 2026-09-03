@@ -1,6 +1,6 @@
 """Route cost computation tests."""
 
-from eurogas_nexus.workflows.route_cost import (
+from eurogas_nexus.domain.research.route_cost import (
     CostComponent,
     RouteCostInput,
     compute_route_cost,

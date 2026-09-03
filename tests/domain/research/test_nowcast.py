@@ -1,6 +1,6 @@
 """Weather-adjusted nowcast tests."""
 
-from eurogas_nexus.workflows.nowcast import NowcastInput, compute_nowcast
+from eurogas_nexus.domain.research.nowcast import NowcastInput, compute_nowcast
 
 
 def test_nowcast_adjusts_for_hdd() -> None:

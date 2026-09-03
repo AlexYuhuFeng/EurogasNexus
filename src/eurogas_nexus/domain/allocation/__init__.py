@@ -1,2 +1,0 @@
-"""Allocation domain package."""
-

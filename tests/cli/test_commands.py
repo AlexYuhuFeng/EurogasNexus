@@ -161,7 +161,7 @@ def test_cli_uses_sdk_only(monkeypatch: pytest.MonkeyPatch) -> None:
     import eurogas_nexus.cli.commands  # noqa: F401
     after = set(sys.modules.keys())
     forbidden = {"eurogas_nexus.db", "eurogas_nexus.runtime_store",
-                 "eurogas_nexus.workflows", "eurogas_nexus.ingestion",
+                 "eurogas_nexus.domain.research", "eurogas_nexus.ingestion",
                  "eurogas_nexus.observations", "eurogas_nexus.governance"}
     leaked = (after - before) & forbidden
     assert not leaked, f"CLI imported backend modules: {leaked}"
