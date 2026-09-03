@@ -1,2 +1,0 @@
-"""Legacy integration quarantine package."""
-

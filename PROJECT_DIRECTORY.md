@@ -76,7 +76,6 @@ docs/operations/         Operator and development runbooks
 docs/policies/           Product, data, dependency, and archive policies
 docs/product/            Product capability and workflow specifications
 docs/release/            Release readiness, security evidence, and backlog
-docs/sdk/                Reserved SDK design notes
 ```
 
 The authoritative navigation order is in
@@ -118,10 +117,9 @@ src/eurogas_nexus/mcp/             Read-only stdio MCP tools
 src/eurogas_nexus/streaming/       Optional SSE contracts
 ```
 
-Other `src/eurogas_nexus` subdirectories exist for audit, data quality,
-infrastructure, legacy, LLM, observations, and runtime-store contracts.
-Treat them as backend-owned; do not import them from SDK, CLI, or client
-code.
+Other `src/eurogas_nexus` subdirectories exist for data quality, LLM,
+observations, and runtime-store contracts. Treat them as backend-owned; do
+not import them from SDK, CLI, or client code.
 
 Backend work activates `apps/api`, `src/eurogas_nexus`, `alembic`, `scripts`,
 `tests`, and backend docs. Database schema changes require an Alembic migration;

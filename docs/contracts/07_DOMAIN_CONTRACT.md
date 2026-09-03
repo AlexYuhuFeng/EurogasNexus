@@ -4,24 +4,22 @@
 
 `src/eurogas_nexus/domain` owns pure domain concepts for Eurogas Nexus.
 
-## Domain Areas
+## Implemented Domain Areas
 
+- `analysis`
+- `constraints`
+- `identity`
+- `ingestion`
 - `market`
-- `operations`
-- `relationships`
-- `topology`
-- `assets`
-- `economics`
-- `route_cost`
-- `netback`
-- `feasibility`
-- `allocation`
-- `resources`
-- `strategy_lab`
-- `weather`
-- `nowcast`
+- `market_intelligence`
 - `monitoring`
-- `reporting`
+- `ontology`
+- `research`
+- `route_cost`
+- `strategy_lab`
+
+Additional domain areas are added when their first implementation is created,
+not as empty placeholder packages.
 
 ## Rules
 
@@ -35,6 +33,7 @@
   references, lineage, `research_only`, and `human_review_required` where
   relevant.
 
-## Bootstrap State
+## Current State
 
-Only package boundaries are created. No business logic is implemented.
+Implemented domain packages contain pure logic and calculations. Empty
+placeholder directories are intentionally removed from the source tree.

@@ -2,13 +2,11 @@
 
 ## Purpose
 
-`src/eurogas_nexus/infrastructure` owns future adapters for external systems,
-object stores, and secrets providers.
-
-## Bootstrap State
-
-The connector, object store, and secrets packages are inert. No live connector
-exists.
+External system, object store, and secret-provider adapters are not
+materialized as empty source packages. Active external-facing connector work
+lives under `src/eurogas_nexus/ingestion/connectors/`; when a dedicated
+infrastructure adapter package is needed, it is created with its first
+implementation.
 
 ## Rules
 

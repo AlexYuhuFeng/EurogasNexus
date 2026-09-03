@@ -13,12 +13,9 @@
 | `src/eurogas_nexus/domain/research` | Research-only calculation package (route cost, feasibility, allocation, netback, nowcast, backtest, shadow run) | Active; consolidated from legacy `workflows/` |
 | `src/eurogas_nexus/application` | Workflow orchestration and application services | Active audit, retention, monitoring, source operations, storage/nomination composition |
 | `src/eurogas_nexus/application/workflows` | Ingestion-run workflow orchestration | Active |
-| `src/eurogas_nexus/infrastructure` | External adapters and infrastructure interfaces | Reserved/inert boundaries |
 | `src/eurogas_nexus/ingestion` | Connectors, public-source ingestion, normalization | Active connector and normalization contracts; live calls remain gated |
 | `src/eurogas_nexus/data_quality` | Data quality contracts | Active minimal contract definitions |
 | `src/eurogas_nexus/streaming` | Optional SSE contracts | Active contract definitions only |
-| `src/eurogas_nexus/auth_runtime` | Runtime authorization | Reserved placeholder |
-| `src/eurogas_nexus/audit` | Audit models and sinks | Reserved; active audit service lives in `application/` and `governance/` |
 | `src/eurogas_nexus/governance` | Entitlement, audit, and export policy | Active |
 | `src/eurogas_nexus/sdk` | Typed API consumer facade | Active Python SDK (expanded from Read-only health API client shell) |
 | `src/eurogas_nexus/cli` | API-backed command interface | Active CLI (expanded from Read-only health check helper shell) |
@@ -27,8 +24,12 @@
 | `src/eurogas_nexus/security` | Identity, API keys, OIDC, permissions, provider keys | Active |
 | `src/eurogas_nexus/llm` | Backend-controlled LLM provider integration | Active DeepSeek integration |
 | `src/eurogas_nexus/observations` | Observation domain models | Retained for contract compatibility; not part of public client package |
-| `src/eurogas_nexus/internal` | Internal support | Reserved placeholder |
-| `src/eurogas_nexus/legacy` | Legacy quarantine | Reserved placeholder |
+
+Reserved capabilities (external adapters, runtime authorization, audit sinks,
+internal support, legacy quarantine) are documented in the contracts but are
+not materialized as empty source packages. Source packages are created when an
+implemented milestone provides their first module.
+
 | `packages/python-sdk` | Future distributable Python SDK package | Placeholder; active SDK remains `src/eurogas_nexus/sdk` |
 | `clients/web` | Browser/desktop Web workspace | Active React/Vite/MapLibre client |
 | `clients/desktop` | Tauri desktop shell | Active Windows/Linux packaging shell |

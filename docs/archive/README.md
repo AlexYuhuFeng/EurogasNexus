@@ -20,6 +20,10 @@ and this dedicated archive-index section.
 | `architecture/WEB_CLIENT_IMPLEMENTATION_BLUEPRINT.md` | 2026-09-02 | Activation condition passed | `docs/clients/WEB_APPLICATION_ARCHITECTURE-EN.md` |
 | `architecture/WINDOWS_CLIENT_IMPLEMENTATION_BLUEPRINT.md` | 2026-09-02 | Activation condition passed | `docs/clients/WINDOWS_CLIENT_DESIGN_SPEC.md` |
 | `clients/CLIENT_DESIGN_SYSTEM.md` | 2026-09-02 | Superseded UI guidance | `docs/clients/UI_CONTENT_STANDARDS.md` |
+| `architecture/LLM_ANALYSIS_REPORTING_SPEC-EN.md` | 2026-09-03 | Superseded by current LLM/DeepSeek monitoring documentation | `docs/operations/LLM_MONITORING-EN.md` |
+| `architecture/LLM_ANALYSIS_REPORTING_SPEC-CN.md` | 2026-09-03 | Superseded by current LLM/DeepSeek monitoring documentation | `docs/operations/LLM_MONITORING-CN.md` |
+| `clients/UI_UX_STYLE_GUIDE.md` | 2026-09-03 | Superseded UI/UX index | `docs/clients/UI_CONTENT_STANDARDS.md` and `docs/clients/README.md` |
+
 | `release/V1_FULL_PROJECT_RELEASE_SCOPE.md` | 2026-09-02 | Completed V1 planning scope | `docs/release/RELEASE_READINESS.md` |
 | `release/V1_FULL_PROJECT_RELEASE_EXECUTION_PLAN.md` | 2026-09-02 | Completed V1 planning plan | `docs/architecture/NEXT_DEVELOPMENT_QUEUE.md` |
 | `release/V1_RELEASE_ACCEPTANCE_MATRIX.md` | 2026-09-02 | Completed V1 gate checklist | `docs/release/RELEASE_READINESS.md` |

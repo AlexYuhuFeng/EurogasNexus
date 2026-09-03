@@ -1,2 +1,0 @@
-"""Object store adapter package."""
-
