@@ -42,7 +42,7 @@ async def require_entitlement(request: Request, source_system: str = "") -> None
     try:
         from eurogas_nexus.governance.entitlement import entitlement_check
 
-        # V1 决策支持场景的已知授权来源白名单：与治理登记表保持同步，
+        # 当前决策支持场景的已知授权来源白名单：与治理登记表保持同步，
         # 新增商业来源必须先经治理评审再进白名单。
         known = frozenset({
             "operator-input", "ENTSOG", "GIE", "ECB",

@@ -32,9 +32,9 @@ Backend foundation milestones use the smallest useful subset:
 Heavy optional dependencies are deferred until a milestone proves they are
 needed.
 
-## Required V1 Client Stack
+## Active Client Stack
 
-V1 includes SDK, CLI, web, and Windows client surfaces.
+The supported client set includes SDK, CLI, web, and Windows client surfaces.
 
 Allowed only when the selected milestone activates that surface:
 
@@ -45,7 +45,7 @@ Allowed only when the selected milestone activates that surface:
 - Windows client: Tauri and Rust wrapping the web workspace.
 
 Client dependencies must not be added during backend foundation milestones.
-Electron is not approved for V1.
+Electron is not approved.
 
 If internet access is unavailable and dependencies are not already installed,
 the client milestone must create local file structure, interfaces, mocks, and a

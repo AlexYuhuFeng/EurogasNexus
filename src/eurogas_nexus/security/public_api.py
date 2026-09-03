@@ -27,7 +27,7 @@ class PublicApiAuthError(Exception):
 
 
 def public_api_token_configured() -> bool:
-    """Return whether the static V1 public API token is configured."""
+    """Return whether the static public API token is configured."""
 
     return bool(_expected_token())
 

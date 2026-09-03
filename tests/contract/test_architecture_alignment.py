@@ -180,7 +180,7 @@ def test_client_design_docs_are_ready_for_future_goal_mode() -> None:
     assert "No client may open a PostgreSQL connection" in api_contract
     assert "research_only" in api_contract
     assert "The Python SDK is the programmatic client" in sdk
-    assert "The SDK is a required V1 product surface" in sdk
+    assert "The SDK is a required product surface" in sdk
     assert "The CLI is the operator and automation command surface" in cli
     assert "CLI -> Python SDK -> backend /api" in cli
     assert "First screen is the workspace" in design_system
@@ -268,7 +268,7 @@ def test_full_v1_release_docs_are_precise_for_local_execution() -> None:
         "Backend Runtime",
         "Data And Domain Slices",
         "SDK",
-        "Required V1 surface",
+        "Required product surface",
         "CLI",
         "Web Client",
         "Windows Client",
@@ -380,7 +380,7 @@ def test_client_stack_i18n_and_theme_are_fixed() -> None:
     i18n = _read_doc("docs/clients/CLIENT_I18N_THEME_SPEC.md")
 
     for phrase in [
-        "authoritative V1 library contract",
+        "authoritative client library contract",
         "Library choices are fixed",
         "react",
         "maplibre-gl",

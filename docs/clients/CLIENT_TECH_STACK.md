@@ -2,12 +2,12 @@
 
 ## Purpose
 
-This file is the authoritative V1 library contract for Web and Windows client
+This file is the authoritative client library contract for Web and Windows client
 implementation. Codex must not substitute frameworks or GPL-family
 dependencies.
 
 Historical Desktop evidence under `C:\Users\qqshu\Desktop` used React, Vite,
-MapLibre GL, deck.gl, Zustand, and Tauri. V1 keeps that direction, but removes
+MapLibre GL, deck.gl, Zustand, and Tauri. The current stack keeps that direction, but removes
 old local-runtime assumptions and requires SDK/API-only data access.
 
 ## License Rule
@@ -88,7 +88,7 @@ dependencies are available:
 Do not use `rusqlite`, SQLite, local embedded databases, or local data caches in
 V1 Windows. The Windows client stores only non-sensitive UI preferences.
 
-Electron is not approved for V1.
+Electron is not approved.
 
 ## Map Tile Providers
 
@@ -120,7 +120,7 @@ Required locales:
 - `en-US`;
 - `zh-CN` for Simplified Chinese/Mandarin UI copy.
 
-Do not use live translation APIs in V1.
+Do not use live translation APIs in the client.
 
 ## Theme Libraries
 

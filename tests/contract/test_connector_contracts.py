@@ -33,7 +33,7 @@ def test_mock_connector_never_calls_external_apis() -> None:
 
 
 def test_all_seven_connector_shells_are_importable() -> None:
-    """Verify all 7 V1 source family connectors exist and are importable."""
+    """Verify all supported source family connectors exist and are importable."""
     from eurogas_nexus.ingestion.connectors.ecb import EcbConnector
     from eurogas_nexus.ingestion.connectors.eex import EexConnector
     from eurogas_nexus.ingestion.connectors.entsog import EntsogConnector

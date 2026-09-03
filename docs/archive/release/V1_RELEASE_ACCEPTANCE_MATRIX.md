@@ -73,7 +73,7 @@ called a full project release.
 
 | Area | Required Evidence |
 | --- | --- |
-| Required V1 surface | SDK release milestone complete and covered by tests |
+| Required product surface | SDK release milestone complete and covered by tests |
 | API-only boundary | no imports from domain/application/runtime_store/db |
 | Route prefix | SDK targets `/api` |
 | Typed clients | clients for released route groups |

@@ -1,4 +1,4 @@
-"""Explicit live ingestion for public/source-keyed V1 data sources.
+"""Explicit live ingestion for public/source-keyed data sources.
 
 This script is operator-invoked only. It performs live HTTP reads, writes
 normalized rows to PostgreSQL, never prints secrets, and archives the raw

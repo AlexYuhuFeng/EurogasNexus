@@ -27,7 +27,7 @@ class InternalApiAuthError(Exception):
 
 
 def internal_api_token_configured() -> bool:
-    """Return whether the static V1 internal API token is configured."""
+    """Return whether the static internal API token is configured."""
 
     return bool(_expected_token())
 

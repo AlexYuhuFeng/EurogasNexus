@@ -1,4 +1,4 @@
-"""Connector contracts and shells for V1 source families."""
+"""Connector contracts and shells for supported source families."""
 
 from eurogas_nexus.ingestion.connectors.base import Connector, MockConnector
 

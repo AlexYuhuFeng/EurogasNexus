@@ -1,6 +1,6 @@
 """Read-only /api/weather routes.
 
-Weather is a V1 data-source integration surface. The API must not invent
+Weather is a supported data-source integration surface. The API must not invent
 weather/HDD/CDD values when no runtime source has been ingested.
 """
 

@@ -1,2 +1,2 @@
-"""Public V1 API routes."""
+"""Public API routes."""
 

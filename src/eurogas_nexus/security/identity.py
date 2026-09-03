@@ -116,7 +116,7 @@ def role_allows(actual: str | Role, required: str | Role) -> bool:
 
 
 def legacy_public_token_principal() -> AuthenticatedPrincipal:
-    """Compatibility principal for the V1 deployment API token.
+    """Compatibility principal for the static deployment API token.
 
     Deployments that send only ``X-Eurogas-Api-Key`` keep working as the
     single-trust-domain operator service. New multi-user clients should send

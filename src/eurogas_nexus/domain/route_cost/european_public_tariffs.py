@@ -29,7 +29,7 @@ IUK_TARIFF_URL = (
 
 
 def published_european_corridor_tariffs() -> list[CapacityTariff]:
-    """Return official public corridor tariff rows audited for V1.
+    """Return official public corridor tariff rows audited for the current scope.
 
     返回经审计的欧洲走廊公开费率行（BBL 双向 + IUK 四向，均为 FINAL
     状态），供本地 PostgreSQL 测试种子与确定性路由成本测试使用。

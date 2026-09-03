@@ -5,7 +5,7 @@
 The Python SDK is the programmatic client for Eurogas Nexus. It wraps stable
 `/api` routes with typed Python functions and models so internal scripts,
 notebooks, automation, and future integrations can consume the backend safely.
-The SDK is a required V1 product surface.
+The SDK is a required product surface.
 
 ## Product Boundary
 
