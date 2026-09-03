@@ -8,7 +8,6 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 EXPECTED_DIRECTORIES = [
-    ".agent/plans",
     "apps/api",
     "apps/worker",
     "apps/scheduler",
@@ -26,7 +25,6 @@ EXPECTED_DIRECTORIES = [
     "src/eurogas_nexus/cli",
     "clients/web",
     "clients/desktop",
-    "packages/python-sdk",
     "dist/releases",
     "infra/deployment",
     "docs/contracts",
@@ -88,4 +86,4 @@ def test_agent_instructions_capture_decision_support_boundary() -> None:
     assert "Do not reintroduce `/v1` or `/api/v1` aliases" in instructions
     assert "PostgreSQL is the runtime source of truth" in instructions
     assert "SDK and CLI code must call the backend API" in instructions
-    assert ".agent/plans/" in instructions
+    assert "docs/engineering/plans/" in instructions

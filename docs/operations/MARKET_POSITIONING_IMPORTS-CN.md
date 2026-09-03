@@ -2,7 +2,7 @@
 
 ## 目的
 
-Eurogas Nexus V1 可以在交易员驾驶舱中展示导入后的屏幕订单观察和指示性组合 PnL
+Eurogas Nexus 可以在交易员驾驶舱中展示导入后的屏幕订单观察和指示性组合 PnL
 快照。导入的目标是把外部系统状态写入 PostgreSQL，供 `/api/portfolio/*` 只读
 端点展示。
 
@@ -31,7 +31,7 @@ EUROGAS_NEXUS_INTERNAL_API_TOKEN
 ```
 
 如果环境变量缺失、请求 token 缺失、token 不匹配，或者
-`X-Eurogas-Principal` 为空，路线会在访问数据库之前失败关闭。这是 V1 内部操作员
+`X-Eurogas-Principal` 为空，路线会在访问数据库之前失败关闭。这是 当前内部操作员
 token 门禁，不是公司 SSO/OIDC。token 不得写入日志、API 返回、仓库文件、Web、
 Windows、SDK 或 CLI 客户端。
 

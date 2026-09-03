@@ -86,7 +86,7 @@ dependencies are available:
 | `reqwest` | `0.12` with `rustls-tls` | MIT/Apache-2.0 | optional backend health smoke check |
 
 Do not use `rusqlite`, SQLite, local embedded databases, or local data caches in
-V1 Windows. The Windows client stores only non-sensitive UI preferences.
+Windows. The Windows client stores only non-sensitive UI preferences.
 
 Electron is not approved.
 

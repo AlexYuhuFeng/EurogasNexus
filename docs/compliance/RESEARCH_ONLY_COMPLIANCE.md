@@ -1,6 +1,6 @@
 # Research-Only Compliance
 
-Eurogas Nexus V1 must preserve a clear research-only boundary.
+Eurogas Nexus must preserve a clear research-only boundary.
 
 ## Prohibited Product Behavior
 
@@ -14,7 +14,7 @@ Eurogas Nexus V1 must preserve a clear research-only boundary.
 - Provide official trading recommendations.
 - Auto-trade.
 - Replace an ETRM.
-- Integrate company SSO/OIDC in V1.
+- Integrate company SSO/OIDC in the current release.
 
 ## Human Review
 

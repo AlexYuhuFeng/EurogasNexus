@@ -35,14 +35,9 @@ Current source package:
 src/eurogas_nexus/sdk/
 ```
 
-Future distributable package:
-
-```text
-packages/python-sdk/
-```
-
-Do not move packaging into `packages/python-sdk` until an SDK packaging
-milestone is selected.
+The SDK is distributed as part of the current `eurogas-nexus` Python package
+under `src/eurogas_nexus/sdk`. A standalone SDK distribution can be introduced
+later as a separate packaging milestone if required.
 
 ## API Base URL
 
@@ -174,7 +169,7 @@ Purpose:
 - compare DB/API-backed route economics and live market marks without direct DB
   access.
 
-Current V1 endpoints:
+Current endpoints:
 
 ```text
 GET /api/route-cost/route-candidates
@@ -185,7 +180,7 @@ POST /api/route-cost/lng-regas/assess
 POST /api/route-cost/resource-pool/optimize
 ```
 
-Current V1 route-cost scope is European explicit-leg route economics. A route
+Current route-cost scope is European explicit-leg route economics. A route
 calculation must provide tariff legs or route candidates that map to tariff
 rows in PostgreSQL. The SDK must support BBL and IUK corridor examples, UK NTS
 reference rows, and additional European TSO tariff rows as they are loaded.
@@ -201,7 +196,7 @@ Purpose:
 - return paper allocation targets, risk-control status, missing inputs,
   warnings, and source references.
 
-Current V1 endpoint:
+Current endpoint:
 
 ```text
 POST /api/strategy-lab/evaluate
@@ -240,7 +235,7 @@ Purpose:
 - expose bilingual European gas trading vocabulary to scripts, CLI, Web, and
   Windows clients.
 
-Current V1 endpoints:
+Current endpoints:
 
 ```text
 GET /api/glossary?lang=en
@@ -263,7 +258,7 @@ and live screen context without reading PostgreSQL directly.
 
 ## Authentication
 
-V1 bootstrap may run without company SSO/OIDC. Future auth must be injected into
+current bootstrap may run without company SSO/OIDC. Future auth must be injected into
 the SDK through explicit configuration.
 
 The SDK must not store long-lived secrets in source files, logs, reports, or
@@ -290,5 +285,5 @@ Required tests:
 Use after backend runtime status and API response contracts are stable:
 
 ```text
-Read AGENTS.md, docs/clients/SDK_CLIENT_DESIGN_SPEC.md, docs/clients/CLIENT_API_CONTRACT.md, docs/contracts/15_SDK_CLI_CONTRACT.md, and .agent/plans/SDK_M1_API_CLIENT_EXECPLAN.md. Implement SDK M1 only. Keep the SDK as an API client for /api. Do not import backend internals, read DB/files directly, call vendor APIs, or add packaging until a packaging milestone is selected.
+Read AGENTS.md, docs/clients/SDK_CLIENT_DESIGN_SPEC.md, docs/clients/CLIENT_API_CONTRACT.md, docs/contracts/15_SDK_CLI_CONTRACT.md, and docs/archive/agent-plans/SDK_M1_API_CLIENT_EXECPLAN.md. Implement SDK M1 only. Keep the SDK as an API client for /api. Do not import backend internals, read DB/files directly, call vendor APIs, or add packaging until a packaging milestone is selected.
 ```

@@ -7,7 +7,7 @@ Eurogas Nexus 将 DeepSeek 作为确定性监控结果之上的受控分析层�
 并以 PostgreSQL 为唯一运行时事实来源。DeepSeek 只负责解释、关联和回答用户
 问题，不负责产生事实数据，也不能执行任何业务动作。
 
-V1 固定使用 **DeepSeek V4 Flash**，API 模型 ID 为
+当前固定使用 **DeepSeek V4 Flash**，API 模型 ID 为
 `deepseek-v4-flash`。后端使用 `https://api.deepseek.com` 及其兼容 OpenAI
 的 Chat Completions 接口；客户端不得覆盖模型或供应商 Base URL。
 

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Eurogas Nexus V1 can display imported screen-order observations and indicative
+Eurogas Nexus can display imported screen-order observations and indicative
 portfolio PnL snapshots in the cockpit. R19 adds the governed internal import
 path that loads those observations into PostgreSQL.
 
@@ -28,7 +28,7 @@ X-Eurogas-Principal: <operator-or-job-id>
 `EUROGAS_NEXUS_INTERNAL_API_TOKEN` must be configured in the backend runtime
 environment. The route fails closed before DB access when the token is missing
 from the environment, missing from the request, invalid, or when
-`X-Eurogas-Principal` is blank. This is a V1 internal operator token gate, not
+`X-Eurogas-Principal` is blank. This is a internal operator token gate, not
 company SSO/OIDC. The token must never be logged, returned, committed, or stored
 in Web, Windows, SDK, or CLI clients.
 

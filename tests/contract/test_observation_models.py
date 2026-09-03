@@ -2,7 +2,7 @@
 
 
 def test_market_observation_importable() -> None:
-    from eurogas_nexus.observations.market import MarketObservation
+    from eurogas_nexus.domain.observations.market import MarketObservation
 
     obs = MarketObservation(
         observation_id="mkt-001", market_venue="TTF", product="month-ahead",
@@ -14,7 +14,7 @@ def test_market_observation_importable() -> None:
 
 
 def test_fx_observation_importable() -> None:
-    from eurogas_nexus.observations.market import FxObservation
+    from eurogas_nexus.domain.observations.market import FxObservation
 
     fx = FxObservation(pair="EURUSD", rate=1.085, base_currency="EUR", quote_currency="USD")
     assert fx.pair == "EURUSD"
@@ -23,7 +23,7 @@ def test_fx_observation_importable() -> None:
 
 
 def test_market_price_mark_supports_live_screen_fields() -> None:
-    from eurogas_nexus.observations.market import MarketPriceMark
+    from eurogas_nexus.domain.observations.market import MarketPriceMark
 
     mark = MarketPriceMark(
         mark_id="ice-ocm-nbp-wd",
@@ -42,7 +42,7 @@ def test_market_price_mark_supports_live_screen_fields() -> None:
 
 
 def test_flow_observation_importable() -> None:
-    from eurogas_nexus.observations.physical import FlowObservation
+    from eurogas_nexus.domain.observations.physical import FlowObservation
 
     obs = FlowObservation(
         observation_id="flw-001", point_id="node-x", point_name="Test",
@@ -56,7 +56,7 @@ def test_flow_observation_importable() -> None:
 
 
 def test_capacity_observation_importable() -> None:
-    from eurogas_nexus.observations.physical import CapacityObservation
+    from eurogas_nexus.domain.observations.physical import CapacityObservation
 
     obs = CapacityObservation(
         observation_id="cap-001", point_id="node-x", point_name="Test",
@@ -67,7 +67,7 @@ def test_capacity_observation_importable() -> None:
 
 
 def test_outage_event_importable() -> None:
-    from eurogas_nexus.observations.physical import OutageEvent
+    from eurogas_nexus.domain.observations.physical import OutageEvent
 
     evt = OutageEvent(
         event_id="out-001", facility_id="fac-x", facility_name="Test",
@@ -77,7 +77,7 @@ def test_outage_event_importable() -> None:
 
 
 def test_lng_models_importable() -> None:
-    from eurogas_nexus.observations.lng import LngObservation, LngTerminal
+    from eurogas_nexus.domain.observations.lng import LngObservation, LngTerminal
 
     terminal = LngTerminal(terminal_id="lng-x", name="Test", country="NL", lat=52.0, lon=4.0)
     assert terminal.country == "NL"
@@ -90,7 +90,7 @@ def test_lng_models_importable() -> None:
 
 
 def test_storage_models_importable() -> None:
-    from eurogas_nexus.observations.storage import StorageObservation, StorageSite
+    from eurogas_nexus.domain.observations.storage import StorageObservation, StorageSite
 
     site = StorageSite(site_id="stor-x", name="Test", country="AT", lat=48.0, lon=13.0)
     assert site.country == "AT"
@@ -103,7 +103,11 @@ def test_storage_models_importable() -> None:
 
 
 def test_weather_models_importable() -> None:
-    from eurogas_nexus.observations.weather import HddCddMetric, WeatherObservation, WeatherStation
+    from eurogas_nexus.domain.observations.weather import (
+        HddCddMetric,
+        WeatherObservation,
+        WeatherStation,
+    )
 
     station = WeatherStation(station_id="ws-x", name="Test", country="NL", lat=52.0, lon=4.0)
     assert station.country == "NL"
@@ -124,7 +128,7 @@ def test_weather_models_importable() -> None:
 
 
 def test_contracts_models_importable() -> None:
-    from eurogas_nexus.observations.contracts import CapacityContract, RouteEligibility
+    from eurogas_nexus.domain.observations.contracts import CapacityContract, RouteEligibility
 
     ctr = CapacityContract(
         contract_id="ctr-001", route_name="TTF-NCG",
@@ -143,11 +147,11 @@ def test_contracts_models_importable() -> None:
 
 def test_all_models_preserve_research_metadata() -> None:
     """All observation models must have research_only flag."""
-    from eurogas_nexus.observations.lng import LngObservation
-    from eurogas_nexus.observations.market import MarketObservation
-    from eurogas_nexus.observations.physical import FlowObservation
-    from eurogas_nexus.observations.storage import StorageObservation
-    from eurogas_nexus.observations.weather import WeatherObservation
+    from eurogas_nexus.domain.observations.lng import LngObservation
+    from eurogas_nexus.domain.observations.market import MarketObservation
+    from eurogas_nexus.domain.observations.physical import FlowObservation
+    from eurogas_nexus.domain.observations.storage import StorageObservation
+    from eurogas_nexus.domain.observations.weather import WeatherObservation
 
     assert MarketObservation.__dataclass_fields__["research_only"].default is True
     assert FlowObservation.__dataclass_fields__["research_only"].default is True

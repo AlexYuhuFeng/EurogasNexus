@@ -30,7 +30,7 @@ Windows/Linux desktop clients.
   relevant. `meta.research_only` remains only as a temporary shared-envelope
   compatibility field; do not add it to new business-data payloads.
 - Do not add broad capabilities without an approved ExecPlan under
-  `.agent/plans/`.
+  `docs/engineering/plans/`.
 - Do not call external APIs, market data providers, LLM providers, or live
   infrastructure from import-time code or tests.
 - Do not add frontend, desktop, Node, Rust, Tauri, or client runtime
@@ -63,7 +63,7 @@ PolyForm dependencies without explicit review.
 
 ## Planning
 
-Before large changes, create or update an ExecPlan under `.agent/plans/`. Each
+Before large changes, create or update an ExecPlan under `docs/engineering/plans/`. Each
 milestone plan must include:
 
 1. Goal

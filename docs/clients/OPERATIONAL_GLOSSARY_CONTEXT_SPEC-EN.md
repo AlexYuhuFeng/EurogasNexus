@@ -21,7 +21,7 @@ Supported query parameters:
 
 ## Required Response Shape
 
-The response must preserve the legacy scalar fields and include the grouped V1
+The response must preserve the legacy scalar fields and include the grouped
 context fields:
 
 - `description`, `description_en`, `description_zh_cn`
@@ -46,7 +46,7 @@ context fields:
 records match the selected duration, the API must return average used capacity,
 peak used capacity, utilization percentage, peak utilization percentage, source
 references, and observation count. If flow is in `mcm/d` and capacity is in
-`MWh/d`, V1 may use the documented assumption `1 mcm = 10,550 MWh` until
+`MWh/d`, the product may use the documented assumption `1 mcm = 10,550 MWh` until
 calorific-value-specific conversion is available.
 
 ## Matching Rules

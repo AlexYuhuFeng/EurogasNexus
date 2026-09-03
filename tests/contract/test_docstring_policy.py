@@ -101,7 +101,7 @@ CHECKED_MODULES = [
     "db/repositories/review.py",
     "db/repositories/route_cost.py",
     "ingestion/connectors/base.py",
-    "observations/market.py",
+    "domain/observations/market.py",
     "data_quality/contracts.py",
     "runtime_store/contracts.py",
     "optimization/_validation.py",

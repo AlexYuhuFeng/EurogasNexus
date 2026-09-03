@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document defines the V1 target for map-focused live market intelligence,
+This document defines the current target for map-focused live market intelligence,
 capacity/contract context, strategy shadow runs, weather signals, glossary, and
 LLM-assisted analysis.
 
@@ -34,7 +34,7 @@ and decision-support candidates in one coherent visual workflow.
 
 ## Required Live Source Families
 
-V1 should support connector contracts and, where credentials/entitlements are
+the product should support connector contracts and, where credentials/entitlements are
 provided, live or near-real-time ingestion for:
 
 - ECB: FX reference rates and currency context.
@@ -82,7 +82,7 @@ entitlement fails closed.
 
 ## Capacity And Contract Management
 
-V1 client workflows must represent capacity and contract context without
+client workflows must represent capacity and contract context without
 becoming an ETRM, order-entry, nomination, or trade-capture system.
 
 Allowed:
@@ -175,7 +175,7 @@ Do not use this language for released outputs:
 
 ## Strategy Shadow Run
 
-V1 must support strategy shadow run as paper evaluation.
+the product must support strategy shadow run as paper evaluation.
 
 Inputs:
 
@@ -211,7 +211,7 @@ Weather outputs must remain research-only and carry source/freshness metadata.
 
 ## LLM-Assisted Analysis Layer
 
-V1 may include an LLM-assisted analysis layer for explanation and synthesis, not
+the product may include an LLM-assisted analysis layer for explanation and synthesis, not
 for source-of-truth data or autonomous decisions.
 
 Allowed LLM tasks:
@@ -250,7 +250,7 @@ mock responses, tests, and gap report. Do not call an LLM provider.
 
 ## Glossary
 
-V1 must include a glossary surface for gas, LNG, storage, trading venue,
+the product must include a glossary surface for gas, LNG, storage, trading venue,
 capacity, route economics, weather, and data-governance terms.
 
 Glossary entries should be backend-served so SDK, CLI, web, and Windows clients

@@ -2,7 +2,7 @@
 
 ## Source Of Truth
 
-PostgreSQL is the runtime source of truth for Eurogas Nexus V1.
+PostgreSQL is the runtime source of truth for Eurogas Nexus.
 
 ## Local Files
 
@@ -26,7 +26,7 @@ Official or licensed reference and infrastructure data must flow through:
 official/source API or published source -> PostgreSQL -> /api or SDK -> clients
 ```
 
-V1 treats the following as source-ingested runtime data when available:
+the product treats the following as source-ingested runtime data when available:
 
 - ECB FX reference rates;
 - ENTSOG operational flows, connection points, and TSO access metadata;

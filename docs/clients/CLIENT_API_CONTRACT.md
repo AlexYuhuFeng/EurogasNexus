@@ -120,7 +120,7 @@ both bootstrap and full-envelope responses during transition.
 
 The desktop/web workspace requests the reference-network endpoints at their
 current bounded 2,000-row limit so virtual trading points and route endpoints
-are not silently omitted by the API's 500-row default. This is a bounded V1
+are not silently omitted by the API's 500-row default. This is a bounded current-release
 read, not a claim of unlimited coverage; cursor pagination remains required
 before any reference table can exceed 2,000 active rows.
 | `GET /api/portfolio/screen-orders` | read-only imported screen/broker order observations | active |
@@ -197,7 +197,7 @@ The internal route requires:
 - request header `X-Eurogas-Principal`.
 
 The route fails closed before DB access if the token is not configured, missing,
-invalid, or if the principal is blank. This V1 token gate is not company
+invalid, or if the principal is blank. This token gate is not company
 SSO/OIDC and must not be used by Web, Windows, SDK, or CLI release clients.
 
 The route writes external screen-order observations and indicative portfolio PnL
@@ -260,7 +260,7 @@ Unexpected errors must not reveal secrets or full URLs.
 
 ## Retry Policy
 
-For V1 clients:
+For clients:
 
 - retry idempotent `GET` requests at most once after a short delay;
 - do not retry mutation-like requests automatically;

@@ -48,7 +48,7 @@ python -c "from apps.api.main import app; print('app import ok'); print(len(app.
 
 ## Runtime DB Check
 
-Live local PostgreSQL validation is part of V1 runtime readiness when a safe DB
+Live local PostgreSQL validation is part of the current release runtime readiness when a safe DB
 URL is configured. Read `docs/operations/LIVE_POSTGRESQL.md` before changing
 DB runtime behavior.
 

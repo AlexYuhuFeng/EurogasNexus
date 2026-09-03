@@ -49,7 +49,7 @@ a disconnected runtime surface that fabricates live market, capacity, tariff,
 or portfolio data.
 
 Do not use Electron. Do not use SQLite, `rusqlite`, or any embedded client
-runtime database in V1.
+runtime database in the current release.
 
 ## Desktop App Frame
 

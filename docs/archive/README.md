@@ -27,5 +27,5 @@ and this dedicated archive-index section.
 | `release/V1_FULL_PROJECT_RELEASE_SCOPE.md` | 2026-09-02 | Completed V1 planning scope | `docs/release/RELEASE_READINESS.md` |
 | `release/V1_FULL_PROJECT_RELEASE_EXECUTION_PLAN.md` | 2026-09-02 | Completed V1 planning plan | `docs/release/RELEASE_READINESS.md` |
 | `release/V1_RELEASE_ACCEPTANCE_MATRIX.md` | 2026-09-02 | Completed V1 gate checklist | `docs/release/RELEASE_READINESS.md` |
-| `release/V1_RELEASE_EXECPLAN_TEMPLATE.md` | 2026-09-02 | Superseded ExecPlan template | `.agent/plans/` plus `docs/release/RELEASE_READINESS.md` |
+| `release/V1_RELEASE_EXECPLAN_TEMPLATE.md` | 2026-09-02 | Superseded ExecPlan template | `docs/archive/agent-plans/` plus `docs/release/RELEASE_READINESS.md` |
 | `release/V1_RELEASE_MILESTONE_BACKLOG.md` | 2026-09-02 | Completed V1 milestone backlog | `docs/release/RELEASE_READINESS.md` |

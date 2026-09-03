@@ -2,18 +2,17 @@
 
 ## Purpose
 
-The repository is a product-level monorepo for a V1 European gas intelligence
+The repository is a product-level monorepo for a European gas intelligence
 workspace with backend/API, PostgreSQL runtime store, Python SDK, CLI, React
 Web workspace, and Tauri desktop shell.
 
-V1 is DB-first, API-first, client-active, and decision-support only.
+The product is DB-first, API-first, client-active, and decision-support only.
 
 ## Required Roots
 
 - `apps/`: deployable process entry points.
 - `src/eurogas_nexus/`: backend package.
 - `clients/`: Web and desktop client code.
-- `packages/`: future distributable packages.
 - `release/` and `dist/releases/`: release preparation and artifacts.
 - `infra/`: deployment templates and service configuration.
 - `docs/`: architecture, policy, API, SDK, operations, compliance, release docs.
@@ -35,7 +34,7 @@ V1 is DB-first, API-first, client-active, and decision-support only.
   plaintext credentials.
 - Provider credentials are backend-owned and are never returned in plaintext.
 
-## V1 Phase Restrictions
+## Phase Restrictions
 
 - Do not add live data connectors without credential, entitlement, and operator
   approval.
@@ -49,5 +48,5 @@ V1 is DB-first, API-first, client-active, and decision-support only.
 
 ## Planning Rule
 
-Large changes require an ExecPlan under `.agent/plans/` with scope, files,
+Large changes require an ExecPlan under `docs/archive/agent-plans/` with scope, files,
 tests, acceptance criteria, and non-goals.

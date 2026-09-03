@@ -4,7 +4,7 @@ PostgreSQL operator notes live here.
 
 ## Status
 
-Active for V1 documentation and local operator validation. This directory does
+Active for the current release documentation and local operator validation. This directory does
 not provision PostgreSQL by itself.
 
 ## V1 Rule

@@ -184,7 +184,7 @@ def _checks() -> list[dict]:
     )
 
     pause_text = (
-        ROOT / "docs" / "architecture" / "CURRENT_PAUSE_POINT.md"
+        ROOT / "docs" / "release" / "SECURITY_ACCEPTANCE_EVIDENCE.md"
     ).read_text(encoding="utf-8")
     check(
         "private_network_posture_retained",

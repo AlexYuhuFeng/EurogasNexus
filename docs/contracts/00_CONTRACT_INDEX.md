@@ -1,6 +1,6 @@
 # Contract Index
 
-This directory defines the V1.0 bootstrap contracts for Eurogas Nexus. Contracts
+This directory defines the current contracts for Eurogas Nexus. Contracts
 are product boundaries, not business feature specifications.
 
 ## Contract Set

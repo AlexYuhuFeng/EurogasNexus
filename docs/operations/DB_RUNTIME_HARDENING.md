@@ -5,7 +5,7 @@
 Status: `complete-in-current-worktree`
 
 DB runtime hardening has delivered the PostgreSQL runtime boundary needed for
-the current V1 release-candidate local scope.
+the current release-candidate local scope.
 
 ## Delivered Capabilities
 

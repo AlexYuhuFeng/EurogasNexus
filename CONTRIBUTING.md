@@ -5,7 +5,7 @@ gas decision-support platform. Contributions must preserve the product boundary,
 API boundary, and data-governance rules in this document.
 
 This guide is for human contributors and repository maintainers. Agent-specific
-execution plans and milestone instructions belong in `AGENTS.md` and `.agent/`.
+execution plans belong in `AGENTS.md` and archived plans live in `docs/archive/agent-plans/`.
 
 ## Repository Boundary
 

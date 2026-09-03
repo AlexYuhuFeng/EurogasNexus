@@ -14,9 +14,9 @@ interpreted as described in RFC 2119 and RFC 8174.
 
 | ADR | Title | Status |
 | --- | --- | --- |
-| ADR-0001 | V1 is backend-first and multi-surface | Accepted |
+| ADR-0001 | Product is backend-first and multi-surface | Accepted |
 | ADR-0002 | PostgreSQL is runtime truth | Accepted |
-| ADR-0003 | Live PostgreSQL validation is in V1 | Accepted |
+| ADR-0003 | Live PostgreSQL validation is in the current release | Accepted |
 | ADR-0004 | Stable API prefix is `/api` | Accepted |
 | ADR-0005 | Stack boundaries are explicit | Accepted |
 | ADR-0006 | Domain work is slice-based | Accepted |
@@ -50,11 +50,11 @@ section numbering.
 This record removes ambiguity for implementation agents and keeps the worktree
 aligned with the current gas decision-support goal.
 
-## Decision 1: V1 Is Backend-First And Multi-Surface
+## Decision 1: Product Is Backend-First And Multi-Surface
 
 Decision:
 
-Eurogas Nexus V1 includes a Python backend/API service, PostgreSQL runtime
+Eurogas Nexus includes a Python backend/API service, PostgreSQL runtime
 store, Python SDK, CLI, React/Vite Web workspace, and Tauri desktop shell. It
 is backend-first because all runtime truth and integration boundaries remain
 behind `/api`, not because clients are absent.
@@ -62,7 +62,7 @@ behind `/api`, not because clients are absent.
 Implication:
 
 - Backend/API remains the authoritative runtime boundary.
-- The Python SDK is a required V1 surface and targets `/api`.
+- The Python SDK is a required product surface and targets `/api`.
 - CLI, Web, and Windows clients consume `/api` contracts.
 - Web is the primary trader workspace.
 - Windows/Tauri packages the same Web workspace.
@@ -86,11 +86,11 @@ Implication:
   provenance. Price previews use simulated source systems such as `EEX_Sim`,
   `ICE_OCM_Sim`, and `ICIS_Sim` in `market_observations`.
 
-## Decision 2A: Live PostgreSQL Validation Is In V1
+## Decision 2A: Live PostgreSQL Validation Is In The Current Release
 
 Decision:
 
-V1 supports explicit live local PostgreSQL validation when the operator
+the product supports explicit live local PostgreSQL validation when the operator
 configures a safe DB URL.
 
 Implication:
@@ -127,7 +127,7 @@ Implication:
 - Backend import paths must not depend on Node, React, Vite, Tauri, Rust,
   browser APIs, or desktop runtime APIs.
 - Client code must not import backend internals.
-- Electron is not approved for V1.
+- Electron is not approved for the current release.
 - Historical Rust/React/Tauri demos are product evidence, not source code to
   copy into this repository.
 
@@ -228,7 +228,7 @@ or officially recommend trades.
 
 Implication:
 
-V1 must not implement:
+the product must not implement:
 
 - order entry;
 - order routing;
@@ -267,5 +267,5 @@ Implication:
 ## Current Recommended Next Step
 
 Follow `docs/release/RELEASE_READINESS.md`. It is the active ordered
-implementation queue; do not use the archived V1 milestone plan as a new work
+implementation queue; do not use archived milestone plans as a new work
 list.

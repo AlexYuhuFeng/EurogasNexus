@@ -2,7 +2,7 @@
 
 ## 目的
 
-本规范定义 V1 的只读订单与 PnL 驾驶舱扩展。它帮助天然气交易员在地图优先的
+本规范定义 当前版本的只读订单与 PnL 驾驶舱扩展。它帮助天然气交易员在地图优先的
 Eurogas Nexus 工作台中查看外部屏幕活动、组合估值、路线经济性和策略输出，但
 不会把 Eurogas Nexus 变成执行系统、订单路由系统、提名系统或 ETRM。所有输出
 都属于决策支持，必须由交易员人工复核。
@@ -17,7 +17,7 @@ Web / Windows / SDK -> /api/portfolio/* -> backend repositories -> PostgreSQL
 
 客户端不得直接连接 PostgreSQL，不得保存订单或 PnL 文件，不得调用交易所或经纪商
 接口，不得读取后端原始数据文件。外部订单记录只是导入后的观察数据，不是交易捕获
-记录，也不能在 V1 中从客户端修改、撤销或确认。
+记录，也不能在 当前版本中从客户端修改、撤销或确认。
 
 ## 已启用 API
 
@@ -66,7 +66,7 @@ X-Eurogas-Principal
 ```
 
 如果后端没有配置 token、请求没有提供 token、token 不匹配，或者 principal 为空，
-路线会在访问数据库之前失败关闭。这是 V1 内部操作员 token 门禁，不是公司
+路线会在访问数据库之前失败关闭。这是 当前内部操作员 token 门禁，不是公司
 SSO/OIDC。
 
 正式 Web、Windows、SDK 和 CLI 客户端必须继续使用只读 `/api/portfolio/*` 路线，

@@ -73,7 +73,7 @@ flowchart TB
 
         subgraph Delivery["Packaging and delivery"]
             Deploy["deploy/ runtime containers"]
-            Installer["installer/ Windows AllInOne"]
+            Installer["packaging/ Windows AllInOne"]
             Scripts["scripts/ release and ops"]
         end
     end

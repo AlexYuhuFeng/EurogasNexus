@@ -2,7 +2,7 @@
 
 ## 目的
 
-本文是 Eurogas Nexus V1 继续贴近欧洲天然气市场真实业务的执行参考。它面向本地开发代理和维护人员，即使没有互联网，也应能按照本文判断当前模型是否符合产品方向。
+本文是 Eurogas Nexus 继续贴近欧洲天然气市场真实业务的执行参考。它面向本地开发代理和维护人员，即使没有互联网，也应能按照本文判断当前模型是否符合产品方向。
 
 ## 产品边界
 
@@ -63,7 +63,7 @@ PostgreSQL 是运行时事实来源。Web、Windows、Linux、CLI 和 SDK 只能
 
 ### Strategy
 
-- V1 必须支持 backtest、shadow-run 和 live-monitor evaluation contract。
+- 当前产品必须支持 backtest、shadow-run 和 live-monitor evaluation contract。
 - 策略可以包括 SAP vs ICIS Heren day-ahead vs ICE OCM、mean reversion、scoring、best buckets、weighted combinations 等。
 - 策略必须支持时间窗口、bar size、selected resources/resource pools、risk controls、max single-market volume、stop-loss、stale-data blocking、TSO-access blocking 和 human-review warnings。
 - 输出是 paper allocation target 或 decision-support signal，不是官方推荐、订单、提名、booking、trade capture 或 execution instruction。

@@ -206,7 +206,7 @@ Responsibilities:
 
 ### Python SDK
 
-The SDK is the required typed programmatic API client for V1. It should use
+The SDK is the required typed programmatic API client for the current release. It should use
 `/api` and never
 reach into internal domain, DB, or local runtime files.
 

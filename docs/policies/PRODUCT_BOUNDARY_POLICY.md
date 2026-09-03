@@ -1,15 +1,15 @@
 ﻿# Product Boundary Policy
 
-Eurogas Nexus V1 is research-only decision support for European gas resource
+Eurogas Nexus is research-only decision support for European gas resource
 analysis. It is not an execution, trading, legal, approval, nomination, or ETRM
 system.
 
-## Allowed In V1
+## Allowed
 
 - Backend API service shell.
 - Future worker and scheduler boundaries.
 - PostgreSQL-backed persistence once approved by a DB milestone.
-- API-backed Python SDK. The SDK is required for V1 and expands through SDK
+- API-backed Python SDK. The SDK is required for the current release and expands through SDK
   milestones after API contracts exist.
 - API-backed CLI once approved by CLI milestones.
 - API-backed web workspace once approved by web milestones.
@@ -18,7 +18,7 @@ system.
   milestones.
 - Dry-run tests and fixture-based development.
 
-## Not Allowed In V1
+## Not Allowed
 
 - Trade execution.
 - Order entry.

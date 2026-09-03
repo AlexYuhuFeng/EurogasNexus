@@ -9,7 +9,7 @@ data, contracts, generated reports, or source artifacts into this repository.
 
 The `eurogas nexus.exe` Desktop demo is treated as a future Windows client UX
 reference only. Its UI/UX may help explain the map-centric workspace idea, but
-it is not an implementation target for V1 and should be redesigned before any
+it is not an implementation target for the current release and should be redesigned before any
 future client milestone. See `REFERENCE_EVIDENCE_LOG.md` for the local
 executable artifact paths and archived QA references used during this pass.
 
@@ -28,7 +28,7 @@ The historical projects consistently point toward the same product ambition:
 - explicit data scopes and governance;
 - research output rather than execution behavior.
 
-Those ideas are compatible with the current V1 bootstrap when introduced
+Those ideas are compatible with the current current bootstrap when introduced
 step-by-step behind DB, API, governance, and test boundaries.
 
 ## Failure Patterns To Avoid
@@ -39,7 +39,7 @@ Pattern label: desktop-first drift.
 
 The earliest implementation spent too much surface area on desktop packaging,
 native runtime validation, local app acceptance, and UI workflow checks before a
-stable backend source of truth existed. The current V1 should keep desktop as a
+stable backend source of truth existed. The current the product should keep desktop as a
 future client placeholder only.
 
 ### local-file runtime truth
@@ -64,7 +64,7 @@ gives them a tested boundary and a DB/API contract.
 
 Pattern label: live connector temptation.
 
-Historical docs and configs were close to live source integration. V1 must not
+Historical docs and configs were close to live source integration. the product must not
 run live connector code, call external APIs, or imply entitlement for vendor or
 operator data. Connectors should remain adapters with mocked tests until
 credentials, licensing, lineage, and export policy are approved.
@@ -72,7 +72,7 @@ credentials, licensing, lineage, and export policy are approved.
 ### LLM surface expansion
 
 Historical LLM/RAG and provider-gateway surfaces were broader than the current
-bootstrap should support. V1 may preserve future boundaries in docs, but it must
+bootstrap should support. the product may preserve future boundaries in docs, but it must
 not call LLM providers or build production research-answering workflows until
 governance, citation, data permission, and review requirements are approved.
 
@@ -106,6 +106,6 @@ rules enforceable.
 - Raw or canonical market/vendor data.
 - Generated reports or snapshots as runtime truth.
 - Frontend, desktop, Node, Rust, Tauri, Docker, Kafka, Redis, Celery, LLM, or
-  live connector dependencies during V1 bootstrap.
+  live connector dependencies during current bootstrap.
 - Over-broad service modules without a milestone, tests, and contracts.
 - The existing Windows demo UI/UX as-is.

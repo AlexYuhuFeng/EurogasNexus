@@ -30,7 +30,6 @@ internal support, legacy quarantine) are documented in the contracts but are
 not materialized as empty source packages. Source packages are created when an
 implemented milestone provides their first module.
 
-| `packages/python-sdk` | Future distributable Python SDK package | Placeholder; active SDK remains `src/eurogas_nexus/sdk` |
 | `clients/web` | Browser/desktop Web workspace | Active React/Vite/MapLibre client |
 | `clients/desktop` | Tauri desktop shell | Active Windows/Linux packaging shell |
 | `infra` | Deployment component notes and assets | Active deployment documentation |

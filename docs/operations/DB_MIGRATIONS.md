@@ -62,5 +62,5 @@ alembic downgrade -1
 python scripts/ops/validate_runtime_db.py --json
 ```
 
-- V1 live PostgreSQL policy is documented in
+- Current live PostgreSQL policy is documented in
   `docs/operations/LIVE_POSTGRESQL.md`.

@@ -138,7 +138,7 @@
 - [参考项目经验](architecture/REFERENCE_PROJECT_LESSONS.md)
 - [文档一致性审计](architecture/DOCUMENTATION_AUDIT.md)
 - [架构改进路线图](architecture/IMPROVEMENT_ROADMAP-CN.md)
-- [V1 交付历史](archive/architecture/V1_STEPWISE_DELIVERY_ROADMAP.md)
+- [历史交付记录](archive/architecture/V1_STEPWISE_DELIVERY_ROADMAP.md)
 
 ## 归档
 
@@ -151,7 +151,7 @@
 - `*-EN.md` 与 `*-CN.md` 是语言配套文件，必须描述同一行为。
 - 名称含 `BLUEPRINT`、`REFERENCE` 或 `AUDIT` 的文件默认提供背景，只有当前
   队列明确启用时才是实施任务。
-- `.agent/plans/` 记录范围明确的实施决策和完成证据；已完成计划属于历史。
+- `docs/archive/agent-plans/` 记录范围明确的实施决策和完成证据；已完成计划属于历史。
 - `docs/archive/` 下的一切内容均为历史，不受文件内措辞影响。
 
 ## 文档维护

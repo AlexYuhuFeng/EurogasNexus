@@ -21,11 +21,11 @@ Decision-support meta may additionally carry `run_id`, `snapshot_id`, and
 
 ## Pagination
 
-List endpoints accept optional `limit` (and only `limit` in V1):
+List endpoints accept optional `limit` (and only `limit` in the current release):
 
 - `limit`: `1..N` inclusive, endpoint-specific cap (100–2000).
   Omitted → endpoint default. Out-of-range → 422 by FastAPI validation.
-- There is no `offset`/cursor in V1; lists are newest-first or
+- There is no `offset`/cursor in the current release; lists are newest-first or
   repository-ordered and bounded.
 
 Endpoints with `limit`: `/api/glossary`, `/api/ingestion-runs`,

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This file is the execution reference for bringing non-route Eurogas Nexus V1
+This file is the execution reference for bringing non-route Eurogas Nexus
 models closer to real European gas market practice. It is written for Codex
 and other local implementation agents that may not have internet access.
 
@@ -105,7 +105,7 @@ Contract/capacity layer:
 
 Strategy layer:
 
-- V1 must support strategy backtest, shadow-run, and live-monitor evaluation
+- the product must support strategy backtest, shadow-run, and live-monitor evaluation
   contracts.
 - Strategy examples include SAP versus ICIS Heren day-ahead versus ICE OCM,
   mean reversion, scoring, best buckets, and weighted combinations.

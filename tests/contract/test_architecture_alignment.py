@@ -95,9 +95,9 @@ def test_architecture_decisions_are_explicit() -> None:
     text = _read_doc("docs/architecture/ARCHITECTURE_DECISION_RECORD.md")
 
     for phrase in [
-        "V1 Is Backend-First And Multi-Surface",
+        "Product Is Backend-First And Multi-Surface",
         "PostgreSQL Is Runtime Truth",
-        "Live PostgreSQL Validation Is In V1",
+        "Live PostgreSQL Validation Is In The Current Release",
         "Stable API Prefix Is `/api`",
         "Domain Work Is Slice-Based",
         "Offline Work Is The Default For Local Agents",
@@ -129,10 +129,10 @@ def test_client_design_docs_are_ready_for_future_goal_mode() -> None:
     ui_standard = _read_doc("docs/clients/UI_CONTENT_STANDARDS.md")
     api_contract = _read_doc("docs/clients/CLIENT_API_CONTRACT.md")
     layouts = _read_doc("docs/design/UX_LAYOUT_BLUEPRINTS.md")
-    web_plan = _read_doc(".agent/plans/WEB_M1_WORKSPACE_SHELL_EXECPLAN.md")
-    windows_plan = _read_doc(".agent/plans/WINDOWS_D1_DESKTOP_SHELL_EXECPLAN.md")
-    sdk_plan = _read_doc(".agent/plans/SDK_M1_API_CLIENT_EXECPLAN.md")
-    cli_plan = _read_doc(".agent/plans/CLI_M1_OPERATOR_COMMANDS_EXECPLAN.md")
+    web_plan = _read_doc("docs/archive/agent-plans/WEB_M1_WORKSPACE_SHELL_EXECPLAN.md")
+    windows_plan = _read_doc("docs/archive/agent-plans/WINDOWS_D1_DESKTOP_SHELL_EXECPLAN.md")
+    sdk_plan = _read_doc("docs/archive/agent-plans/SDK_M1_API_CLIENT_EXECPLAN.md")
+    cli_plan = _read_doc("docs/archive/agent-plans/CLI_M1_OPERATOR_COMMANDS_EXECPLAN.md")
 
     assert "CLIENT_DELIVERY_MILESTONES.md" in index
     assert "Clients are SDK/API consumers" in index

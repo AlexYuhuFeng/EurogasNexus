@@ -16,7 +16,7 @@ The cleanup standard is:
    "decision-support workspace" instead of "research-only".
 2. **Release language**: use normal release-line language such as
    `v0.5-preview`, "current release line", "current release-candidate scope", or
-   "current product boundary". Avoid treating "V1" as the product identity.
+   "current product boundary". Avoid treating milestone names as the product identity.
 3. **Boundary language**: the product supports commercial analysis, route
    economics, portfolio/resource-pool optimization, market positioning, strategy
    evaluation, LLM-assisted explanation, and reporting. The boundary is
@@ -70,7 +70,7 @@ The cleanup standard is:
 
 ## Remaining High-Priority Items
 
-### DOC-001 Legacy V1 compatibility names
+### DOC-001 Legacy compatibility names
 
 The deprecated `build_v1_release.*` and `validate_v1_runtime_db.py` wrappers
 have been removed. The neutral names are authoritative:

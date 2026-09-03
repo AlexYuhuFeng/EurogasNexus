@@ -41,7 +41,7 @@ Windows/Linux 桌面外壳和双语运营文档。所有消费方都是同一契
 
 ## 变更流程
 
-1. 在 `.agent/plans/` 写 ExecPlan，列明 API 影响与回滚。
+1. 在 `docs/archive/agent-plans/` 写 ExecPlan，列明 API 影响与回滚。
 2. 新增路径：同一变更中把路径加入
    `tests/contract/test_api_surface_stability.py` 的
    `PINNED_PUBLIC_PATHS`，并更新文档化路由数（`RELEASE_READINESS.md`、

@@ -153,7 +153,7 @@ them.
 - [Reference project lessons](architecture/REFERENCE_PROJECT_LESSONS.md)
 - [Documentation consistency audit](architecture/DOCUMENTATION_AUDIT.md)
 - [Architecture improvement roadmap CN](architecture/IMPROVEMENT_ROADMAP-CN.md)
-- [Completed V1 delivery history](archive/architecture/V1_STEPWISE_DELIVERY_ROADMAP.md)
+- [Completed delivery history](archive/architecture/V1_STEPWISE_DELIVERY_ROADMAP.md)
 
 ## Archived
 
@@ -170,7 +170,7 @@ are not current authority. See the
   behavior.
 - Files named `BLUEPRINT`, `REFERENCE`, or `AUDIT` provide context unless a
   current queue item explicitly activates them.
-- `.agent/plans/` records scoped implementation decisions and completion
+- `docs/archive/agent-plans/` records scoped implementation decisions and completion
   evidence; completed plans are historical.
 - Anything under `docs/archive/` is historical, regardless of wording inside
   the file.

@@ -16,7 +16,7 @@ Glossary 是交易员 cockpit 的产品表面，不是静态帮助文本。选�
 
 ## 必需响应字段
 
-响应必须保留旧标量字段，并包含 V1 分组字段：
+响应必须保留旧标量字段，并包含 当前分组字段：
 
 - `description`, `description_en`, `description_zh_cn`
 - `requested_duration`
@@ -36,7 +36,7 @@ Glossary 是交易员 cockpit 的产品表面，不是静态帮助文本。选�
 - `research_only=true`
 - `human_review_required=true`
 
-`capacity_usage` 必须支持选定时间段分析。多条 flow records 命中时，API 必须返回 average used capacity、peak used capacity、utilization percentage、peak utilization percentage、source references 和 observation count。若 flow 为 `mcm/d` 且 capacity 为 `MWh/d`，V1 可以使用明确标注的假设 `1 mcm = 10,550 MWh`，直到接入按 CV 的换算。
+`capacity_usage` 必须支持选定时间段分析。多条 flow records 命中时，API 必须返回 average used capacity、peak used capacity、utilization percentage、peak utilization percentage、source references 和 observation count。若 flow 为 `mcm/d` 且 capacity 为 `MWh/d`，当前产品可以使用明确标注的假设 `1 mcm = 10,550 MWh`，直到接入按 CV 的换算。
 
 ## 匹配规则
 

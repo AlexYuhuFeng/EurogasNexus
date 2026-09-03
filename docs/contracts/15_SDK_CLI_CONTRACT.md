@@ -2,8 +2,8 @@
 
 ## Purpose
 
-`src/eurogas_nexus/sdk` and `packages/python-sdk` are reserved for the required
-V1 Python SDK. `src/eurogas_nexus/cli` is reserved for operational commands
+`src/eurogas_nexus/sdk` is the required
+Python SDK. `src/eurogas_nexus/cli` is reserved for operational commands
 that call the SDK/API.
 
 ## Bootstrap State
@@ -11,8 +11,8 @@ that call the SDK/API.
 The SDK and CLI expose a read-only health shell. Future expansion is governed by
 `docs/clients/SDK_CLIENT_DESIGN_SPEC.md`,
 `docs/clients/CLI_CLIENT_DESIGN_SPEC.md`,
-`.agent/plans/SDK_M1_API_CLIENT_EXECPLAN.md`, and
-`.agent/plans/CLI_M1_OPERATOR_COMMANDS_EXECPLAN.md`.
+`docs/archive/agent-plans/SDK_M1_API_CLIENT_EXECPLAN.md`, and
+`docs/archive/agent-plans/CLI_M1_OPERATOR_COMMANDS_EXECPLAN.md`.
 
 ## Rules
 

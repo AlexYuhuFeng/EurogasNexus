@@ -88,7 +88,7 @@ API / SSE 推送（EventSource，1–2s）
 
 | 步骤 | 内容 |
 |---|---|
-| S2.1 | **复核生命周期后端化**：新增 `review_status` 持久化（candidate→reviewed→accepted/rejected），评审对象 = 机会/策略输出/报告 | ✅ 已交付（后端 `review_decisions` 表 + `/api/review/decisions` + 审计，迁移 `0017`；前端 Review 工作区决策历史流 + 记录器 `.agent/plans/F2_REVIEW_WORKFLOW_UI_EXECPLAN.md`，actor 仅页面内存、无浏览器持久化） |
+| S2.1 | **复核生命周期后端化**：新增 `review_status` 持久化（candidate→reviewed→accepted/rejected），评审对象 = 机会/策略输出/报告 | ✅ 已交付（后端 `review_decisions` 表 + `/api/review/decisions` + 审计，迁移 `0017`；前端 Review 工作区决策历史流 + 记录器 `docs/archive/agent-plans/F2_REVIEW_WORKFLOW_UI_EXECPLAN.md`，actor 仅页面内存、无浏览器持久化） |
 | S2.2 | **审计覆盖**：所有敏感动作（复核、导出、凭据变更、摄入重跑）写 `audit_events`（actor/action/scope/evidence），与 S2.1 绑定 | ✅ 已交付：`record_audit_event` 共享助手；复核决策、凭据 upsert/删除、认证写入、公共源摄入（成功/失败）均写审计 |
 | S2.3 | **契约一致性测试**：SDK DTO ↔ 后端 schema 的自动一致性检查（防 5 surface 漂移） | ✅ 已交付：`tests/contract/test_sdk_backend_parity.py`（SDK DTO ⊆ 后端载荷契约） |
 
@@ -98,17 +98,17 @@ API / SSE 推送（EventSource，1–2s）
 | 步骤 | 内容 |
 |---|---|
 | S3.1 | **保留策略**：市场观测/报价/机会按保留期归档/清理（默认值待定 D6），PG 分区或按时间清理 | ✅ 已交付：报价 30 天 / 观测 90 天 / 机会 7 天；`application/retention.py` + `scripts/ops/prune_runtime_data.py --dry-run` |
-| S3.2 | **幂等性审计**：`public_sources` 摄入路径补 upsert/去重，保证重跑安全 | ✅ 已交付：`.agent/plans/S3_2_PUBLIC_INGESTION_IDEMPOTENCY_EXECPLAN.md`（自然键 PG upsert + first-seen `observed_at_utc` + 参考网络 source 作用域非空守卫替换 + 摄入审计） |
-| S3.3 | **前端逻辑下沉**：新增「规范化市场视图」API（FX/tenor/spread 后端出），删前端 `marketPriceNormalization` 重实现 | ✅ 已交付（前后端全部）：`.agent/plans/S3_3_NORMALIZED_MARKET_VIEW_EXECPLAN.md`（后端 `/api/market/normalized`）+ `.agent/plans/F1_NORMALIZED_MARKET_VIEW_WEB_EXECPLAN.md`（前端删 `marketPriceNormalization.ts`，Strategy/Market 消费后端 `hub`/`tenor`/`price_gbp_mwh` 与 `/api/market/spreads`，契约测试禁客户端汇率/价差数学） |
+| S3.2 | **幂等性审计**：`public_sources` 摄入路径补 upsert/去重，保证重跑安全 | ✅ 已交付：`docs/archive/agent-plans/S3_2_PUBLIC_INGESTION_IDEMPOTENCY_EXECPLAN.md`（自然键 PG upsert + first-seen `observed_at_utc` + 参考网络 source 作用域非空守卫替换 + 摄入审计） |
+| S3.3 | **前端逻辑下沉**：新增「规范化市场视图」API（FX/tenor/spread 后端出），删前端 `marketPriceNormalization` 重实现 | ✅ 已交付（前后端全部）：`docs/archive/agent-plans/S3_3_NORMALIZED_MARKET_VIEW_EXECPLAN.md`（后端 `/api/market/normalized`）+ `docs/archive/agent-plans/F1_NORMALIZED_MARKET_VIEW_WEB_EXECPLAN.md`（前端删 `marketPriceNormalization.ts`，Strategy/Market 消费后端 `hub`/`tenor`/`price_gbp_mwh` 与 `/api/market/spreads`，契约测试禁客户端汇率/价差数学） |
 
 ### 阶段 4：生产化收口
 
 | 步骤 | 内容 |
 |---|---|
-| S4.1 | **契约演化策略**：版本化/弃用政策文档 + 兼容测试门 | ✅ 已交付：`.agent/plans/S4_1_CONTRACT_EVOLUTION_POLICY_EXECPLAN.md`（`API_CONTRACT_EVOLUTION_POLICY.md` 双语 + `tests/contract/test_api_surface_stability.py` 钉死 90 条路径集合） |
-| S4.2 | **Provider 认证门**：真实适配器过「模拟→真实」测试门，未过门不许标 live | ✅ 已交付：`.agent/plans/S4_2_PROVIDER_CERTIFICATION_GATE_EXECPLAN.md`（`provider_certifications` 表 + 域门 + internal 写入端点 + `/api/sources` fail-closed：未认证 licensed 源标 `active_uncertified` 且永不为 workflow_ready；前端 F4：Sources 认证徽章 + `certify` 下一动作） |
+| S4.1 | **契约演化策略**：版本化/弃用政策文档 + 兼容测试门 | ✅ 已交付：`docs/archive/agent-plans/S4_1_CONTRACT_EVOLUTION_POLICY_EXECPLAN.md`（`API_CONTRACT_EVOLUTION_POLICY.md` 双语 + `tests/contract/test_api_surface_stability.py` 钉死 90 条路径集合） |
+| S4.2 | **Provider 认证门**：真实适配器过「模拟→真实」测试门，未过门不许标 live | ✅ 已交付：`docs/archive/agent-plans/S4_2_PROVIDER_CERTIFICATION_GATE_EXECPLAN.md`（`provider_certifications` 表 + 域门 + internal 写入端点 + `/api/sources` fail-closed：未认证 licensed 源标 `active_uncertified` 且永不为 workflow_ready；前端 F4：Sources 认证徽章 + `certify` 下一动作） |
 | S4.3 | **表面收敛**：`workflows/` 遗留壳层显式标记 deprecated 或移除 | ✅ 已完成：Web/SDK/CLI 迁移后物理移除 10 条 `/api/workflows/*`（旧路径返回 404）；`src/eurogas_nexus/api/routes/public/workflows.py` 与 `sdk/workflows.py` 已删除 |
-| S4.4 | **身份/授权（对接 R32）**：为 S2 的 actor 提供身份模型，Server 角色可多用户 | ✅ 最小形态交付：`.agent/plans/S4_4_ACTOR_IDENTITY_MODEL_EXECPLAN.md`（`ACTOR_IDENTITY_MODEL.md` 双语 + `domain/identity/principal.py` 唯一校验器，复核/internal/认证写入统一走 `normalize_principal`）；多用户认证与 SSO 仍属 R32 待办 |
+| S4.4 | **身份/授权（对接 R32）**：为 S2 的 actor 提供身份模型，Server 角色可多用户 | ✅ 最小形态交付：`docs/archive/agent-plans/S4_4_ACTOR_IDENTITY_MODEL_EXECPLAN.md`（`ACTOR_IDENTITY_MODEL.md` 双语 + `domain/identity/principal.py` 唯一校验器，复核/internal/认证写入统一走 `normalize_principal`）；多用户认证与 SSO 仍属 R32 待办 |
 
 ---
 

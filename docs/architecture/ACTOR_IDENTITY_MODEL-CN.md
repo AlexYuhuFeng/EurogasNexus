@@ -52,5 +52,5 @@ actor 由 **principal 字符串**标识：一个稳定的 operator 标识符，�
 ## 演进
 
 identity-key 调用方已由持久化的 `principal_id`/`name` 表示；仅使用旧头部的
-调用方继续保留 V1 principal 字符串。审计/复核行通过同一 `actor` 列契约可读。
+调用方继续保留 legacy principal 字符串。审计/复核行通过同一 `actor` 列契约可读。
 未来的 `actor_kind` 判别字段与 SSO 映射属于 R32A 范围。

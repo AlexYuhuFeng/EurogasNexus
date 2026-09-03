@@ -33,7 +33,7 @@ Goal:
 
 Build:
 
-- `data/release_v1/r0_orientation_gap_audit.md`;
+- `docs/archive/reports/release_v1/r0_orientation_gap_audit.md`;
 - update status markers if stale;
 - no runtime behavior.
 
@@ -46,7 +46,7 @@ Acceptance:
 
 ExecPlan:
 
-- `.agent/plans/V1_M2_DB_RUNTIME_HARDENING_EXECPLAN.md`
+- `docs/archive/agent-plans/V1_M2_DB_RUNTIME_HARDENING_EXECPLAN.md`
 
 Build:
 
@@ -61,13 +61,13 @@ Acceptance:
 - app import requires no DB;
 - live validation is explicit, read-only, and secret-safe;
 - default tests remain DB-free;
-- `data/release_v1/r1_db_runtime_report.md` exists.
+- `docs/archive/reports/release_v1/r1_db_runtime_report.md` exists.
 
 ## Milestone R2: Runtime Store And Governance Foundation
 
 ExecPlan:
 
-- `.agent/plans/V1_R2_RUNTIME_STORE_GOVERNANCE_EXECPLAN.md`
+- `docs/archive/agent-plans/V1_R2_RUNTIME_STORE_GOVERNANCE_EXECPLAN.md`
 
 Build:
 
@@ -84,13 +84,13 @@ Acceptance:
 - API routes do not access DB directly;
 - domain modules do not import FastAPI;
 - unknown commercial data fails closed;
-- `data/release_v1/r2_runtime_governance_report.md` exists.
+- `docs/archive/reports/release_v1/r2_runtime_governance_report.md` exists.
 
 ## Milestone R3: Reference Network And Relationship Mapping
 
 ExecPlan:
 
-- `.agent/plans/V1_R3_REFERENCE_NETWORK_EXECPLAN.md`
+- `docs/archive/agent-plans/V1_R3_REFERENCE_NETWORK_EXECPLAN.md`
 
 Build:
 
@@ -110,7 +110,7 @@ Acceptance:
 
 ExecPlan:
 
-- `.agent/plans/V1_R4_INGESTION_CONTROL_EXECPLAN.md`
+- `docs/archive/agent-plans/V1_R4_INGESTION_CONTROL_EXECPLAN.md`
 
 Build:
 
@@ -135,7 +135,7 @@ Acceptance:
 
 ExecPlan:
 
-- `.agent/plans/V1_R5_CONTEXT_OBSERVATIONS_EXECPLAN.md`
+- `docs/archive/agent-plans/V1_R5_CONTEXT_OBSERVATIONS_EXECPLAN.md`
 
 Build:
 
@@ -159,7 +159,7 @@ Acceptance:
 
 ExecPlan:
 
-- `.agent/plans/V1_R6_RESEARCH_WORKFLOW_MODELS_EXECPLAN.md`
+- `docs/archive/agent-plans/V1_R6_RESEARCH_WORKFLOW_MODELS_EXECPLAN.md`
 
 Build:
 
@@ -176,7 +176,7 @@ Acceptance:
 
 ExecPlan:
 
-- `.agent/plans/V1_R7_ROUTE_COST_NETBACK_EXECPLAN.md`
+- `docs/archive/agent-plans/V1_R7_ROUTE_COST_NETBACK_EXECPLAN.md`
 
 Build:
 
@@ -197,7 +197,7 @@ Acceptance:
 
 ExecPlan:
 
-- `.agent/plans/V1_R8_FEASIBILITY_ALLOCATION_EXECPLAN.md`
+- `docs/archive/agent-plans/V1_R8_FEASIBILITY_ALLOCATION_EXECPLAN.md`
 
 Build:
 
@@ -216,7 +216,7 @@ Acceptance:
 
 ExecPlan:
 
-- `.agent/plans/V1_R9_MONITORING_NOWCAST_EXECPLAN.md`
+- `docs/archive/agent-plans/V1_R9_MONITORING_NOWCAST_EXECPLAN.md`
 
 Build:
 
@@ -235,7 +235,7 @@ Acceptance:
 
 ExecPlan:
 
-- `.agent/plans/V1_R10_STRATEGY_SHADOW_RUN_EXECPLAN.md`
+- `docs/archive/agent-plans/V1_R10_STRATEGY_SHADOW_RUN_EXECPLAN.md`
 
 Build:
 
@@ -254,7 +254,7 @@ Acceptance:
 
 ExecPlan:
 
-- `.agent/plans/V1_R11_RESEARCH_BRIEF_REPORTING_EXECPLAN.md`
+- `docs/archive/agent-plans/V1_R11_RESEARCH_BRIEF_REPORTING_EXECPLAN.md`
 
 Build:
 
@@ -276,11 +276,11 @@ Acceptance:
 
 ExecPlan:
 
-- `.agent/plans/SDK_M1_API_CLIENT_EXECPLAN.md`
+- `docs/archive/agent-plans/SDK_M1_API_CLIENT_EXECPLAN.md`
 
 Extend if needed:
 
-- create `.agent/plans/V1_R12_SDK_RELEASE_SURFACE_EXECPLAN.md`
+- create `docs/archive/agent-plans/V1_R12_SDK_RELEASE_SURFACE_EXECPLAN.md`
 
 Build:
 
@@ -298,11 +298,11 @@ Acceptance:
 
 ExecPlan:
 
-- `.agent/plans/CLI_M1_OPERATOR_COMMANDS_EXECPLAN.md`
+- `docs/archive/agent-plans/CLI_M1_OPERATOR_COMMANDS_EXECPLAN.md`
 
 Extend if needed:
 
-- create `.agent/plans/V1_R13_CLI_RELEASE_SURFACE_EXECPLAN.md`
+- create `docs/archive/agent-plans/V1_R13_CLI_RELEASE_SURFACE_EXECPLAN.md`
 
 Build:
 
@@ -320,11 +320,11 @@ Acceptance:
 
 ExecPlan:
 
-- `.agent/plans/WEB_M1_WORKSPACE_SHELL_EXECPLAN.md`
+- `docs/archive/agent-plans/WEB_M1_WORKSPACE_SHELL_EXECPLAN.md`
 
 Extend if needed:
 
-- create `.agent/plans/V1_R14_WEB_RELEASE_WORKSPACE_EXECPLAN.md`
+- create `docs/archive/agent-plans/V1_R14_WEB_RELEASE_WORKSPACE_EXECPLAN.md`
 
 Build:
 
@@ -351,11 +351,11 @@ Acceptance:
 
 ExecPlan:
 
-- `.agent/plans/WINDOWS_D1_DESKTOP_SHELL_EXECPLAN.md`
+- `docs/archive/agent-plans/WINDOWS_D1_DESKTOP_SHELL_EXECPLAN.md`
 
 Extend if needed:
 
-- create `.agent/plans/V1_R15_WINDOWS_RELEASE_SHELL_EXECPLAN.md`
+- create `docs/archive/agent-plans/V1_R15_WINDOWS_RELEASE_SHELL_EXECPLAN.md`
 
 Build:
 
@@ -376,7 +376,7 @@ Acceptance:
 
 ExecPlan:
 
-- `.agent/plans/V1_R16_RELEASE_PACK_EXECPLAN.md`
+- `docs/archive/agent-plans/V1_R16_RELEASE_PACK_EXECPLAN.md`
 
 Build:
 

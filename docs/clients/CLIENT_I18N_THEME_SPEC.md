@@ -2,7 +2,7 @@
 
 ## Purpose
 
-V1 clients must support English and Mandarin Chinese from the first client
+clients must support English and Mandarin Chinese from the first client
 implementation milestone. They must also support light, dark, and system theme
 modes.
 

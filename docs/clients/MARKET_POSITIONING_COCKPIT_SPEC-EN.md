@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This spec defines the V1 read-only order/PnL cockpit extension. It supports a
+This spec defines the read-only order/PnL cockpit extension. It supports a
 gas trader reviewing external screen activity, portfolio valuation, route
 economics, and strategy output on the map-first workspace without turning
 Eurogas Nexus into an execution, order-routing, nomination, or ETRM system.
@@ -17,7 +17,7 @@ Web/Windows/SDK -> /api/portfolio/* -> backend repositories -> PostgreSQL
 
 Clients must not connect to PostgreSQL, store order/PnL files, call exchanges,
 or read backend raw data files. External order records are imported observations
-only. They are not trade capture and cannot be amended or cancelled from V1.
+only. They are not trade capture and cannot be amended or cancelled from the current release.
 
 ## Active API Surface
 

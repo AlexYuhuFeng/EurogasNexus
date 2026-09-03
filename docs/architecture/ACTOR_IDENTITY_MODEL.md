@@ -57,6 +57,6 @@ Enforcement points:
 ## Evolution
 
 Identity-key callers are already represented by their persisted
-`principal_id`/`name`; legacy header-only callers keep the V1 principal
+`principal_id`/`name`; legacy header-only callers keep the legacy principal
 string. Audit/review rows remain readable through the same `actor` column. A
 future `actor_kind` discriminator and SSO mapping are R32A scope.

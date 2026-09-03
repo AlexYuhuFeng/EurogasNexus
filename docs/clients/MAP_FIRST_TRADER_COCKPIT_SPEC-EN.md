@@ -202,7 +202,7 @@ Detailed work must not crowd the home map. Provide separate tabs/windows for:
 - user manual;
 - credentials and settings.
 
-Order records are imported/reference records only in V1. The product must not
+Order records are imported/reference records only in the current release. The product must not
 place, route, amend, or cancel orders.
 
 ## Strategy UX

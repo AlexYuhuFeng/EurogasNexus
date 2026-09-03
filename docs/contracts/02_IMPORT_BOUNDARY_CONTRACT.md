@@ -32,7 +32,7 @@ Importing `apps.api.main` must not:
 - `api` may import application services, core models, and route registration.
 - `db` owns SQLAlchemy mapping and migration support, but import must remain
   side-effect free.
-- `infrastructure` owns adapters, but V1.0 may only define inert boundaries.
+- `infrastructure` owns adapters, but the current release may only define inert boundaries.
 - SDK and CLI code must call the backend API rather than importing internal
   domain modules.
 - Connectors must not perform analytics.

@@ -6,7 +6,7 @@ This is the full delivery map for Eurogas Nexus as one DB-backed gas trader
 intelligence product across backend, SDK, CLI, Web, and Windows surfaces.
 
 The plan now reflects the current worktree: all five surfaces exist for the
-tested local V1 scope. Future work should harden and deepen those surfaces
+tested local release scope. Future work should harden and deepen those surfaces
 without breaking the API and PostgreSQL source-of-truth boundaries.
 
 ## One Product, Five Active Surfaces
@@ -33,7 +33,7 @@ historical project files, `.env`, or connector credentials directly.
 
 ## Current Active Scope
 
-The active V1 release-candidate scope includes:
+The active release-candidate scope includes:
 
 - `/api/health`, `/api/runtime/db`, reference network, physical/capacity,
   storage, LNG, market/FX, source posture, credentials, contracts/routes,

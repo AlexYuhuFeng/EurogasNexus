@@ -13,6 +13,7 @@
 - `market`
 - `market_intelligence`
 - `monitoring`
+- `observations`
 - `ontology`
 - `research`
 - `route_cost`

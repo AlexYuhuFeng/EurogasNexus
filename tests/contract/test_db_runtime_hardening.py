@@ -109,15 +109,34 @@ def test_db_runtime_hardening_doc_exists() -> None:
 
 
 def test_milestone_2_report_files_exist() -> None:
-    assert (ROOT / "data" / "milestone_2" / "db_runtime_hardening_report.md").is_file()
-    assert (ROOT / "data" / "milestone_2" / "db_runtime_hardening_report.json").is_file()
+    assert (
+        ROOT
+        / "docs"
+        / "archive"
+        / "reports"
+        / "milestone_2"
+        / "db_runtime_hardening_report.md"
+    ).is_file()
+    assert (
+        ROOT
+        / "docs"
+        / "archive"
+        / "reports"
+        / "milestone_2"
+        / "db_runtime_hardening_report.json"
+    ).is_file()
 
 
 def test_milestone_2_json_report_is_valid() -> None:
     data = json.loads(
-        (ROOT / "data" / "milestone_2" / "db_runtime_hardening_report.json").read_text(
-            encoding="utf-8"
-        )
+        (
+            ROOT
+            / "docs"
+            / "archive"
+            / "reports"
+            / "milestone_2"
+            / "db_runtime_hardening_report.json"
+        ).read_text(encoding="utf-8")
     )
     assert data["milestone"] == "M2"
     assert data["status"] == "complete"

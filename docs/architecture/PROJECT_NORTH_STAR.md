@@ -14,9 +14,9 @@ observations feed a portfolio resource pool. The product evaluates how that pool
 can be sold or held across European markets and routes, then attributes PnL
 back to resources and contracts for review.
 
-## Current V1 Posture
+## Current Posture
 
-The current repository is no longer only a backend foundation. It is a V1
+The current repository is no longer only a backend foundation. It is a product
 release-candidate worktree for the tested local scope. It is PostgreSQL-first,
 API-first, SDK-ready, and client-active:
 

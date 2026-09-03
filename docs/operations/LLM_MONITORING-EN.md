@@ -7,7 +7,7 @@ PostgreSQL-backed monitoring events. DeepSeek does not discover spreads, decide
 capacity feasibility, calculate route cost, or execute business actions. Those
 results remain owned by the market, route, strategy, ingestion, and risk engines.
 
-The V1 provider configuration is fixed to **DeepSeek V4 Flash** with API model
+The current provider configuration is fixed to **DeepSeek V4 Flash** with API model
 ID `deepseek-v4-flash`. The backend uses `https://api.deepseek.com` and its
 OpenAI-compatible Chat Completions endpoint. Clients cannot override the model
 or provider base URL.

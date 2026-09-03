@@ -10,8 +10,6 @@ the contracts and client docs linked below; for the verified current shape use
 ## Root layout
 
 ```text
-.agent/                 Historical agent ExecPlans and planning evidence
-.agents/                Agent-scoped task artifacts (not runtime input)
 .github/                CI workflows, issue templates, and PR template
 alembic/                Alembic migrations and migration env
 apps/                   Process entrypoints only (api active; worker/scheduler reserved)
@@ -21,9 +19,8 @@ deploy/                 Runtime container deployment files
 dist/                   Release output placeholder; generated artifacts are ignored
 docs/                   Current, runbook, design-reference, and archived documentation
 infra/                  Deployment component notes (deployment, docker, nginx, postgres, systemd)
-installer/              Windows installer sources
+packaging/              Windows installer sources
 output/                 Untracked generated material; never commit
-packages/               Reserved future distributable packages (placeholders only)
 release/                Source-controlled release-blueprint placeholder
 scripts/                CI, dev, ops, release, and security scripts
 src/eurogas_nexus/      Backend Python package (the only backend runtime package)
@@ -45,7 +42,7 @@ Eurogas Nexus follows a conventional Python/FastAPI + React monorepo layout:
    orchestrates use cases, `db/` owns persistence, `infrastructure/` owns
    adapters, and `api/` owns HTTP delivery.
 3. **One surface per directory**: `clients/` contains API-consuming clients;
-   `packages/` contains future distributable packages; `scripts/` contains
+   `scripts/` contains
    automation; `docs/` contains repository knowledge.
 4. **No empty source placeholders**: do not create runtime packages with only
    an `__init__.py` to reserve a future capability. Keep future work in
@@ -156,12 +153,10 @@ before adding Web behavior.
 - Backend work activates `apps/api`, `src/eurogas_nexus`, `alembic`, `scripts`,
   `tests`, and backend docs.
 - SDK work activates `src/eurogas_nexus/sdk` and `tests/sdk`. The directory
-  `packages/python-sdk` is a reserved placeholder; the active SDK lives in the
-  backend package.
 - CLI work activates `src/eurogas_nexus/cli` and `tests/cli`.
 - Web work activates `clients/web` and uses `npm run build` plus the
   `clients/web/tests` suite.
-- Windows/Linux work activates `clients/desktop`, `installer`, `deploy`, and
+- Windows/Linux work activates `clients/desktop`, `packaging`, `deploy`, and
   release scripts only when packaging is in scope.
 - Directories without an active milestone remain documentation or placeholders.
   Do not add runtime behavior just because a folder exists.

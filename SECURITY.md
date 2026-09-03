@@ -22,7 +22,7 @@ channel for the repository owner.
 
 ## Supported Scope
 
-The V1 bootstrap supports backend foundation work only. Trade execution, order
+The current bootstrap supports backend foundation work only. Trade execution, order
 entry, order routing, trade capture, nomination submission, official approval,
 legal advice, official trading recommendations, auto-trading, ETRM replacement
 behavior, frontend, desktop clients, live connectors, and company SSO/OIDC are

@@ -22,7 +22,7 @@ def read(relative: str) -> str:
 
 
 def test_nsis_embeds_frontend_runtime_and_non_destructive_uninstaller() -> None:
-    nsis = read("installer/windows/all-in-one/EurogasNexusAllInOne.nsi")
+    nsis = read("packaging/windows/all-in-one/EurogasNexusAllInOne.nsi")
 
     for phrase in [
         'Name "Eurogas Nexus AllInOne"',

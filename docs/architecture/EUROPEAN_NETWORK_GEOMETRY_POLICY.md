@@ -111,9 +111,9 @@ Aliases may only fill an otherwise unresolved match and must not override an
 exact hub or point identity. For example, the exact `TTF` virtual trading point
 must win over the token `TTF` embedded in an interconnection name.
 
-## V1 Acceptance Boundary
+## Current Acceptance Boundary
 
-V1 may deliver a verified multi-country topology and operating-state graph from
+the product may deliver a verified multi-country topology and operating-state graph from
 ENTSOG/GIE plus approved TSO data. It may claim complete European pipeline geometry
 only after a licence-approved geometry dataset passes the verification pipeline
 above. Until then, the UI and reports must state the actual geometry coverage and
