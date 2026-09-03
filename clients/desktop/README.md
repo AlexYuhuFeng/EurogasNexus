@@ -12,7 +12,6 @@ Also read:
 - `docs/clients/CLIENT_API_CONTRACT.md`
 - `docs/clients/UI_CONTENT_STANDARDS.md`
 - `docs/clients/WINDOWS_CLIENT_DESIGN_SPEC.md`
-- `docs/design/UX_LAYOUT_BLUEPRINTS.md`
 
 ## Target
 

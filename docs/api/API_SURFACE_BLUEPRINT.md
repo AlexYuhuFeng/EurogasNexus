@@ -100,8 +100,6 @@ values.
 Live fetch routes are not allowed until an ingestion connector milestone
 explicitly approves them.
 
-Required source families are defined in
-`docs/product/REAL_TIME_MARKET_INTELLIGENCE_BLUEPRINT.md`.
 
 ### Reference Network
 

@@ -56,14 +56,4 @@ Eurogas Nexus Web 与 Windows 客户端 UI 遵循下文所述的专业、地图�
 - `runtime-view-tabs`
 - `runtime-operations-strip`
 
-2026-08-31 的 Image Gen 2 市场工作区视觉方向保存在
-`docs/design/references/market-workspace-imagegen-2026-08-31.png`。该文件仅作为设计参考，不是行情数据，也不定义功能需求。
-
-2026-08-31 的 Strategy 工作区参考保存在
-`docs/design/references/strategy-workspace-imagegen-2026-08-31.png`。其中曲线和数值仅是视觉设计材料；生产曲线只能使用 PostgreSQL 已持久化的策略运行。
-
-2026-09-01 的 Operations 工作区参考保存在
-`docs/design/references/operations-source-center-imagegen-2026-09-01.png`。
-其中数据源名称、数量、状态和数值仅是视觉设计材料；生产态势只能来自以 PostgreSQL 为运行事实源的 API。
-
 未来客户端工作如需改变 UI 语言或布局模型，必须先更新 `UI_CONTENT_STANDARDS.md`，再同步更新本文与 EN 配套文档。

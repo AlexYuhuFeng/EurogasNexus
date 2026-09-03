@@ -22,8 +22,7 @@ provider connectors, or credential vaults.
 
 When working on clients, read these files in order:
 
-1. `docs/architecture/PROJECT_NORTH_STAR.md`
-2. `docs/release/RELEASE_READINESS.md`
+1. `docs/release/RELEASE_READINESS.md`
 3. `docs/clients/CLIENT_DELIVERY_MILESTONES.md`
 5. `docs/clients/CLIENT_API_CONTRACT.md`
 6. `docs/clients/CLIENT_TECH_STACK.md`

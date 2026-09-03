@@ -1465,21 +1465,6 @@ def test_web_client_review_evidence_pack_is_readable_and_responsive() -> None:
     assert ".review-evidence-row-full" in css
 
 
-def test_web_client_ui_foundation_docs_label_imagegen_as_conceptual() -> None:
-    web_spec = (ROOT / "docs" / "clients" / "WEB_CLIENT_DESIGN_SPEC.md").read_text(
-        encoding="utf-8"
-    )
-    audit = (ROOT / "docs" / "design" / "UI_AUDIT_2026-09-01.md").read_text(
-        encoding="utf-8"
-    )
-
-    assert "UI Foundation (2026-09-01 EXE Audit)" in web_spec
-    assert "conceptual only and is not runtime evidence" in web_spec
-    assert "UI Audit - 2026-09-01 EXE Foundation" in audit
-    assert "Image Gen 2 Direction C" in audit
-    assert "not runtime evidence" in audit
-
-
 def test_web_client_mobile_topbar_constrains_controls_to_viewport() -> None:
     css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(encoding="utf-8")
 

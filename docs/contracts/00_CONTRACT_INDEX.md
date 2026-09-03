@@ -36,8 +36,6 @@ first and add a matching boundary test before implementing the behavior.
 
 ## Related Docs
 
-- `../architecture/PROJECT_NORTH_STAR.md`
-- `../architecture/WHOLE_PROJECT_CAPABILITY_BLUEPRINT.md`
 - `../architecture/ARCHITECTURE_DECISION_RECORD.md`
 - `../release/RELEASE_READINESS.md`
 - `../release/RELEASE_READINESS.md`
@@ -57,7 +55,6 @@ first and add a matching boundary test before implementing the behavior.
 - `../api/API_PROFILES.md`
 - `../api/API_SURFACE_BLUEPRINT.md`
 - `../data/CANONICAL_DATA_MODEL_BLUEPRINT.md`
-- `../product/RESEARCH_WORKFLOW_BLUEPRINT.md`
 - `../operations/VALIDATION.md`
 - `../compliance/RESEARCH_ONLY_COMPLIANCE.md`
 - `../release/RELEASE_READINESS.md`

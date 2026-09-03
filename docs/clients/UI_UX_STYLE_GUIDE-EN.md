@@ -72,18 +72,4 @@ Current Web implementation should expose these structural classes so contract te
 - `runtime-view-tabs`
 - `runtime-operations-strip`
 
-The 2026-08-31 Image Gen 2 market-workspace direction is stored at
-`docs/design/references/market-workspace-imagegen-2026-08-31.png`. It is a
-design reference, not market data or a source of functional requirements.
-
-The 2026-08-31 Strategy workspace reference is stored at
-`docs/design/references/strategy-workspace-imagegen-2026-08-31.png`. Its chart
-and values are illustrative design material; production charts use strategy
-runs persisted in PostgreSQL only.
-
-The 2026-09-01 Operations workspace reference is stored at
-`docs/design/references/operations-source-center-imagegen-2026-09-01.png`.
-Its source names, counts, states, and values are illustrative design material;
-production posture is read from PostgreSQL-backed APIs only.
-
 Future client work must update `UI_CONTENT_STANDARDS.md` first, then this companion and its CN counterpart together.

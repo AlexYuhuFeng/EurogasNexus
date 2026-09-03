@@ -46,9 +46,6 @@ behavior.
   [CN](contracts/21_RESOURCE_POOL_CONTRACT-CN.md)
 - [Testing contract](contracts/17_TESTING_CONTRACT.md)
 - [Target product architecture](architecture/TARGET_PRODUCT_ARCHITECTURE.md)
-- [Backend implementation blueprint](architecture/BACKEND_IMPLEMENTATION_BLUEPRINT.md)
-- [Optimization layer](architecture/PHASE_TWO_OPTIMIZATION.md) /
-  [CN](architecture/PHASE_TWO_OPTIMIZATION-CN.md)
 - [European network geometry policy](architecture/EUROPEAN_NETWORK_GEOMETRY_POLICY.md)
 - [Actor identity model](architecture/ACTOR_IDENTITY_MODEL.md) /
   [CN](architecture/ACTOR_IDENTITY_MODEL-CN.md)
@@ -121,41 +118,12 @@ Operational procedures and operator-facing guides:
 - [Deployment roles EN](deployment/DEPLOYMENT_ROLES-EN.md) /
   [CN](deployment/DEPLOYMENT_ROLES-CN.md)
 
-## Design references
-
-Context and visual direction, not implementation queues. Re-read only when the
-current queue explicitly activates a related UI milestone.
-
-- [UX layout blueprints](design/UX_LAYOUT_BLUEPRINTS.md)
-- [UI audit 2026-08-31](design/UI_AUDIT_2026-08-31.md)
-- [UI audit 2026-09-01](design/UI_AUDIT_2026-09-01.md)
-- [Intraday decision feed EN](product/INTRADAY_DECISION_FEED-EN.md) /
-  [CN](product/INTRADAY_DECISION_FEED-CN.md)
-- [Market practice audit EN](architecture/MARKET_PRACTICE_AUDIT-EN.md) /
-  [CN](architecture/MARKET_PRACTICE_AUDIT-CN.md)
-
-## Historical and planning
-
-Background, delivery history, and finalized planning material. Do not treat
-these as implementation instructions unless a current queue item activates
-them.
-
-- [Project north star](architecture/PROJECT_NORTH_STAR.md)
-- [Product delivery master plan](architecture/PRODUCT_DELIVERY_MASTER_PLAN.md)
-- [Whole-project capability blueprint](architecture/WHOLE_PROJECT_CAPABILITY_BLUEPRINT.md)
-- [Real-time market intelligence blueprint](product/REAL_TIME_MARKET_INTELLIGENCE_BLUEPRINT.md)
-- [Research workflow blueprint](product/RESEARCH_WORKFLOW_BLUEPRINT.md)
-- [Documentation consistency audit](architecture/DOCUMENTATION_AUDIT.md)
-- [Architecture improvement roadmap CN](architecture/IMPROVEMENT_ROADMAP-CN.md)
-
 ## Document status rules
 
 - `contracts/`, current architecture policies, current client standards, and
   current runbooks are normative.
 - `*-EN.md` and `*-CN.md` are language companions and must describe the same
   behavior.
-- Files named `BLUEPRINT`, `REFERENCE`, or `AUDIT` provide context unless a
-  current queue item explicitly activates them.
 
 ## Documentation maintenance
 

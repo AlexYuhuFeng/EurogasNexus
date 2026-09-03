@@ -237,7 +237,6 @@ Client design authority:
 - `docs/clients/CLIENT_API_CONTRACT.md`
 - `docs/clients/WEB_CLIENT_DESIGN_SPEC.md`
 - `docs/clients/WINDOWS_CLIENT_DESIGN_SPEC.md`
-- `docs/design/UX_LAYOUT_BLUEPRINTS.md`
 
 ## Target Data Model Themes
 
@@ -261,7 +260,6 @@ Every durable record should answer:
 API surface authority:
 
 - `docs/api/API_SURFACE_BLUEPRINT.md`
-- `docs/product/RESEARCH_WORKFLOW_BLUEPRINT.md`
 
 Research outputs should include:
 

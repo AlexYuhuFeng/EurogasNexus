@@ -289,4 +289,3 @@ resources / topology / weather`。这些包名与主体架构的环节**部分�
 - `src/eurogas_nexus/db/models/glossary.py`、`src/eurogas_nexus/db/models/analysis.py`
 - `src/eurogas_nexus/governance/entitlement.py`、`src/eurogas_nexus/governance/audit.py`
 - `scripts/ops/seed_preview_runtime_data.py`
-- `docs/architecture/MARKET_PRACTICE_AUDIT-EN.md`

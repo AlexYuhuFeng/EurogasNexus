@@ -54,24 +54,15 @@ def test_resource_pool_contract_defines_home_and_efet_contract_entry() -> None:
     assert "contract-level PnL attribution" in cockpit
 
 
-def test_current_guidance_reflects_active_web_and_windows_runtime() -> None:
-    north_star = (ROOT / "docs" / "architecture" / "PROJECT_NORTH_STAR.md").read_text(
-        encoding="utf-8"
-    )
+def test_current_guidance_reflects_active_client_runtime() -> None:
     client_index = (ROOT / "docs" / "clients" / "README.md").read_text(encoding="utf-8")
-    master_plan = (
-        ROOT / "docs" / "architecture" / "PRODUCT_DELIVERY_MASTER_PLAN.md"
-    ).read_text(encoding="utf-8")
-
-    assert "Web and Windows client surfaces are active" in north_star
     release = (ROOT / "docs" / "release" / "RELEASE_READINESS.md").read_text(
         encoding="utf-8"
     )
+
     assert "RELEASE CANDIDATE" in release
     assert "Validated Gates" in release
     assert "active client runtime code" in client_index
-    assert "Default next milestone" not in master_plan
-    assert "No frontend runtime implementation belongs" not in north_star
     assert "runtime client implementation starts only" not in client_index
 
 

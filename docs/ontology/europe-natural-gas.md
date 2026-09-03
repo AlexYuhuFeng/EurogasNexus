@@ -5,7 +5,7 @@
 - **定位**：本文件是「本体方法论」在**欧洲天然气贸易域**的实例落地，也是
   Eurogas Nexus 后续 gap 分析与重构的领域参照基线。
 - **性质**：这是一份**领域架构 / 本体骨架**文档，不包含任何代码或实现细节。
-- **版本**：v0.2（对齐本项目 `MARKET_PRACTICE_AUDIT-EN.md` 后）。
+- **版本**：v0.2。
 - **纪律**：方法论（元模型、L1–L5 分层、种子 vs 绑定）是稳定的、跨项目共享的；
   本文件的品种实体、受控词表、制度规则、可计算约束，属于欧洲天然气域自建内容。
 
@@ -521,7 +521,6 @@ BACKTEST, SHADOW_RUN, LIVE_MONITOR, REVIEW_STRATEGY_OUTPUT
 
 ## 参考来源
 
-- 本项目 `docs/architecture/MARKET_PRACTICE_AUDIT-EN.md`（市场实践对齐审计，本文件 v0.2 已对齐）
 - 本项目 `src/eurogas_nexus/domain/glossary.py`（29 条双语术语基线）
 - [ENTSOG Network Codes and Guidelines](https://www.entsog.eu/network-codes-and-guidelines)（CAM NC / TAR NC / BAL NC）
 - [EEX Natural Gas Markets](https://www.eex.com/en/markets/natural-gas)

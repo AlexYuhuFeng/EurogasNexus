@@ -30,11 +30,6 @@ The shared topbar, Settings authentication controls, and Review evidence pack
 were re-audited from the running EXE at 1707x960 and then checked at 900x1000
 and 390x844.
 
-Selected design direction: Image Gen 2 Direction C reference at
-`docs/design/references/network-workspace-imagegen-2026-09-01.png`.
-This reference is conceptual only and is not runtime evidence. Its data values
-must never be treated as market, credential, entitlement, or PostgreSQL state.
-
 Implemented foundation rules:
 
 - the shared topbar uses explicit grid areas for workspace identity, map search,
@@ -267,12 +262,6 @@ Current implemented calculation contract (2026-09-01):
 - minimum-take, take-or-pay, make-up/carry-forward, interruption, and
   force-majeure obligations are not yet represented by this resource-pool
   optimizer. The UI must disclose that boundary and must not approximate it.
-
-Design evidence:
-
-- `docs/design/references/resource-terms-workspace-imagegen-2026-09-01.png`
-  is the GPT Image 2 operational layout reference. Its data values are
-  illustrative; implementation behavior and values remain API-owned.
 
 The page may use API field names such as `contract_id` and
 `upstream-contracts` internally for compatibility, but user-facing copy should

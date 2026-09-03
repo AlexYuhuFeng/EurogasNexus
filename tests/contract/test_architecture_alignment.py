@@ -43,32 +43,6 @@ def test_repository_has_no_legacy_handoff_surface() -> None:
     assert matches == []
 
 
-def test_project_north_star_preserves_v1_boundaries() -> None:
-    text = _read_doc("docs/architecture/PROJECT_NORTH_STAR.md")
-
-    assert "decision-support, market-intelligence, and" in text.lower()
-    assert "strategy shadow-run workspace" in text.lower()
-    assert "PostgreSQL" in text
-    assert "API-first" in text
-    assert "SDK-ready" in text
-    assert "Web and Windows client surfaces are active" in text
-    assert "docs/clients/" in text
-    assert "trade execution" in text.lower()
-
-
-def test_reference_lessons_document_failed_implementation_patterns() -> None:
-    text = _read_doc("docs/architecture/REFERENCE_PROJECT_LESSONS.md")
-
-    for phrase in [
-        "desktop-first drift",
-        "local-file runtime truth",
-        "domain sprawl",
-        "live connector",
-        "LLM",
-    ]:
-        assert phrase in text
-
-
 def test_target_product_architecture_explains_workflows() -> None:
     text = _read_doc("docs/architecture/TARGET_PRODUCT_ARCHITECTURE.md")
 
@@ -116,7 +90,6 @@ def test_client_design_docs_are_ready_for_current_client_runtime() -> None:
     windows = _read_doc("docs/clients/WINDOWS_CLIENT_DESIGN_SPEC.md")
     ui_standard = _read_doc("docs/clients/UI_CONTENT_STANDARDS.md")
     api_contract = _read_doc("docs/clients/CLIENT_API_CONTRACT.md")
-    layouts = _read_doc("docs/design/UX_LAYOUT_BLUEPRINTS.md")
 
     assert "CLIENT_DELIVERY_MILESTONES.md" in index
     assert "Clients are SDK/API consumers" in index
@@ -137,29 +110,6 @@ def test_client_design_docs_are_ready_for_current_client_runtime() -> None:
     assert "Web UI -> web API client -> backend /api" in web
     assert "Tauri" in windows
     assert "Windows shell -> packaged web workspace/API client" in windows
-    assert "Web Workspace Desktop Layout" in layouts
-
-def test_whole_project_blueprint_covers_requested_capabilities() -> None:
-    text = _read_doc("docs/architecture/WHOLE_PROJECT_CAPABILITY_BLUEPRINT.md")
-
-    for phrase in [
-        "market prices",
-        "physical flows",
-        "LNG/regas",
-        "storage",
-        "weather",
-        "Path Cost And Indicative Netback",
-        "Feasibility And Allocation Scenario",
-        "Weather-Adjusted Nowcast",
-        "Strategy Backtest And Shadow Run",
-        "Research Brief And Reporting",
-        "not official trading recommendations",
-        "docs/data/CANONICAL_DATA_MODEL_BLUEPRINT.md",
-        "docs/api/API_SURFACE_BLUEPRINT.md",
-        "docs/product/RESEARCH_WORKFLOW_BLUEPRINT.md",
-    ]:
-        assert phrase in text
-
 
 def test_api_surface_blueprint_covers_target_route_groups() -> None:
     text = _read_doc("docs/api/API_SURFACE_BLUEPRINT.md")
@@ -194,44 +144,6 @@ def test_data_model_blueprint_covers_canonical_entity_families() -> None:
         "Monitoring, Nowcast, Strategy",
         "Research Output And Reporting",
         "Governance And Audit",
-    ]:
-        assert phrase in text
-
-
-def test_research_workflow_blueprint_preserves_research_boundary() -> None:
-    text = _read_doc("docs/product/RESEARCH_WORKFLOW_BLUEPRINT.md")
-
-    for phrase in [
-        "Route Cost",
-        "Indicative Netback",
-        "Feasibility",
-        "Allocation Scenario",
-        "Weather-Adjusted Nowcast",
-        "Strategy Backtest",
-        "Shadow Run",
-        "Research Brief",
-        "research_only: true",
-        "Shadow run creates no orders",
-    ]:
-        assert phrase in text
-
-def test_realtime_market_intelligence_blueprint_covers_user_requirements() -> None:
-    text = _read_doc("docs/product/REAL_TIME_MARKET_INTELLIGENCE_BLUEPRINT.md")
-
-    for phrase in [
-        "map-first workspace",
-        "ECB",
-        "ENTSOG",
-        "GIE",
-        "EEX",
-        "Trayport",
-        "ICE OCM",
-        "Capacity And Contract Management",
-        "HDD/CDD",
-        "Strategy Shadow Run",
-        "LLM-Assisted Analysis Layer",
-        "Glossary",
-        "candidate_action_for_review",
     ]:
         assert phrase in text
 
