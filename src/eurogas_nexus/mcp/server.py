@@ -90,6 +90,109 @@ def _tool_ontology(arguments: dict[str, Any]) -> Any:
     return fetch_business_ontology(_base_url())
 
 
+def _tool_weather_stations(arguments: dict[str, Any]) -> Any:
+    from eurogas_nexus_sdk.weather import fetch_weather_stations
+
+    return [
+        row.model_dump() if hasattr(row, "model_dump") else row
+        for row in fetch_weather_stations(_base_url())
+    ]
+
+
+def _tool_weather_observations(arguments: dict[str, Any]) -> Any:
+    from eurogas_nexus_sdk.weather import fetch_weather_observations
+
+    return [
+        row.model_dump() if hasattr(row, "model_dump") else row
+        for row in fetch_weather_observations(_base_url())
+    ]
+
+
+def _tool_hdd_cdd(arguments: dict[str, Any]) -> Any:
+    from eurogas_nexus_sdk.weather import fetch_hdd_cdd
+
+    return [
+        row.model_dump() if hasattr(row, "model_dump") else row
+        for row in fetch_hdd_cdd(_base_url())
+    ]
+
+
+def _tool_get_optimization_run(arguments: dict[str, Any]) -> Any:
+    from eurogas_nexus_sdk.optimization import fetch_optimization_run
+
+    result = fetch_optimization_run(_base_url(), str(arguments["run_id"]))
+    return result.data.model_dump()
+
+
+def _reject_runtime(arguments: dict[str, Any]) -> None:
+    if (arguments.get("decision_context") or "SANDBOX_SCENARIO") == _RUNTIME_DECISION:
+        raise ValueError("RUNTIME_DECISION is not available through MCP tools")
+
+
+def _tool_optimize_resource_pool_sandbox(arguments: dict[str, Any]) -> Any:
+    from eurogas_nexus_sdk.optimization import optimize_resource_pool
+
+    _reject_runtime(arguments)
+    result = optimize_resource_pool(
+        _base_url(),
+        resources=arguments["resources"],
+        sale_options=arguments["sale_options"],
+        accessible_tsos=arguments.get("accessible_tsos"),
+        portfolio_id=arguments.get("portfolio_id"),
+        decision_context="SANDBOX_SCENARIO",
+    )
+    return result.data.model_dump()
+
+
+def _tool_optimize_capacity_sandbox(arguments: dict[str, Any]) -> Any:
+    from eurogas_nexus_sdk.optimization import optimize_capacity
+
+    _reject_runtime(arguments)
+    result = optimize_capacity(
+        _base_url(),
+        products=arguments["products"],
+        required_capacity_mwh=float(arguments["required_capacity_mwh"]),
+        expected_throughput_mwh=(
+            float(arguments["expected_throughput_mwh"])
+            if arguments.get("expected_throughput_mwh") is not None
+            else None
+        ),
+        allow_interruptible=bool(arguments.get("allow_interruptible", True)),
+        decision_context="SANDBOX_SCENARIO",
+    )
+    return result.data.model_dump()
+
+
+def _tool_optimize_storage_dispatch_sandbox(arguments: dict[str, Any]) -> Any:
+    from eurogas_nexus_sdk.optimization import optimize_storage_dispatch
+
+    _reject_runtime(arguments)
+    result = optimize_storage_dispatch(
+        _base_url(),
+        facility=arguments.get("facility"),
+        periods=arguments.get("periods"),
+        inventory_step_mwh=float(arguments.get("inventory_step_mwh") or 1.0),
+        decision_context="SANDBOX_SCENARIO",
+        max_periods=int(arguments.get("max_periods") or 5),
+    )
+    return result.data.model_dump()
+
+
+def _tool_optimize_nomination_window_sandbox(arguments: dict[str, Any]) -> Any:
+    from eurogas_nexus_sdk.optimization import optimize_nomination_window
+
+    _reject_runtime(arguments)
+    result = optimize_nomination_window(
+        _base_url(),
+        initial_quantity_mwh=float(arguments["initial_quantity_mwh"]),
+        instructions=arguments["instructions"],
+        windows=arguments.get("windows"),
+        decision_context="SANDBOX_SCENARIO",
+        gas_day=arguments.get("gas_day"),
+    )
+    return result.data.model_dump()
+
+
 def _tool_review_decisions(arguments: dict[str, Any]) -> Any:
     from eurogas_nexus_sdk.review import fetch_review_decisions
 
@@ -167,6 +270,35 @@ TOOLS: tuple[MCPTool, ...] = (
         handler=_tool_ontology,
     ),
     MCPTool(
+        name="get_weather_stations",
+        description="List weather stations (empty until a runtime source is ingested).",
+        input_schema={"type": "object", "properties": {}, "additionalProperties": False},
+        handler=_tool_weather_stations,
+    ),
+    MCPTool(
+        name="get_weather_observations",
+        description="List weather observations (empty until a runtime source is ingested).",
+        input_schema={"type": "object", "properties": {}, "additionalProperties": False},
+        handler=_tool_weather_observations,
+    ),
+    MCPTool(
+        name="get_hdd_cdd",
+        description="List heating/cooling degree-day series (empty until ingested).",
+        input_schema={"type": "object", "properties": {}, "additionalProperties": False},
+        handler=_tool_hdd_cdd,
+    ),
+    MCPTool(
+        name="get_optimization_run",
+        description="Fetch one persisted optimization run for evidence reconstruction.",
+        input_schema={
+            "type": "object",
+            "properties": {"run_id": {"type": "string"}},
+            "required": ["run_id"],
+            "additionalProperties": False,
+        },
+        handler=_tool_get_optimization_run,
+    ),
+    MCPTool(
         name="get_review_decisions",
         description="List trader review decisions (evidence trail).",
         input_schema={
@@ -232,6 +364,78 @@ TOOLS: tuple[MCPTool, ...] = (
             "additionalProperties": False,
         },
         handler=_tool_optimize_route_sandbox,
+    ),
+    MCPTool(
+        name="optimize_resource_pool_sandbox",
+        description=(
+            "What-if resource-pool allocation over client-supplied resources and "
+            "sale options (SANDBOX_SCENARIO only)."
+        ),
+        input_schema={
+            "type": "object",
+            "properties": {
+                "portfolio_id": {"type": "string"},
+                "resources": {"type": "array", "items": {"type": "object"}},
+                "sale_options": {"type": "array", "items": {"type": "object"}},
+                "accessible_tsos": {"type": "array", "items": {"type": "string"}},
+            },
+            "required": ["resources", "sale_options"],
+            "additionalProperties": False,
+        },
+        handler=_tool_optimize_resource_pool_sandbox,
+    ),
+    MCPTool(
+        name="optimize_capacity_sandbox",
+        description="What-if capacity product selection (SANDBOX_SCENARIO only).",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "products": {"type": "array", "items": {"type": "object"}},
+                "required_capacity_mwh": {"type": "number"},
+                "expected_throughput_mwh": {"type": "number"},
+                "allow_interruptible": {"type": "boolean"},
+            },
+            "required": ["products", "required_capacity_mwh"],
+            "additionalProperties": False,
+        },
+        handler=_tool_optimize_capacity_sandbox,
+    ),
+    MCPTool(
+        name="optimize_storage_dispatch_sandbox",
+        description=(
+            "What-if storage inject/withdraw/hold assessment "
+            "(SANDBOX_SCENARIO only; no booking or nomination action)."
+        ),
+        input_schema={
+            "type": "object",
+            "properties": {
+                "facility": {"type": "object"},
+                "periods": {"type": "array", "items": {"type": "object"}},
+                "inventory_step_mwh": {"type": "number"},
+                "max_periods": {"type": "integer"},
+            },
+            "additionalProperties": False,
+        },
+        handler=_tool_optimize_storage_dispatch_sandbox,
+    ),
+    MCPTool(
+        name="optimize_nomination_window_sandbox",
+        description=(
+            "Assess nomination/renomination windows against submitted instructions "
+            "(SANDBOX_SCENARIO only; nothing is submitted)."
+        ),
+        input_schema={
+            "type": "object",
+            "properties": {
+                "initial_quantity_mwh": {"type": "number"},
+                "instructions": {"type": "array", "items": {"type": "object"}},
+                "windows": {"type": "array", "items": {"type": "object"}},
+                "gas_day": {"type": "string"},
+            },
+            "required": ["initial_quantity_mwh", "instructions"],
+            "additionalProperties": False,
+        },
+        handler=_tool_optimize_nomination_window_sandbox,
     ),
 )
 

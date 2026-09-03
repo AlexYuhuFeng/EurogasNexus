@@ -37,6 +37,12 @@ def test_tools_list_declares_read_only_tools() -> None:
     assert "get_market_observations" in names
     assert "calculate_route_cost" in names
     assert "optimize_route_sandbox" in names
+    assert "get_weather_stations" in names
+    assert "get_hdd_cdd" in names
+    assert "optimize_resource_pool_sandbox" in names
+    assert "optimize_capacity_sandbox" in names
+    assert "optimize_storage_dispatch_sandbox" in names
+    assert "optimize_nomination_window_sandbox" in names
     for tool in result["result"]["tools"]:
         assert tool["inputSchema"]["type"] == "object"
 
@@ -119,3 +125,44 @@ def test_tools_call_list_sources_returns_sdk_data(monkeypatch) -> None:
     )
     assert result["result"]["isError"] is False
     assert '"ENTSOG"' in result["result"]["content"][0]["text"]
+
+
+def test_tools_call_weather_stations_returns_sdk_data(monkeypatch) -> None:
+    def fake_stations(base_url):
+        return [{
+            "station_id": "ws-1", "name": "Amsterdam", "country": "NL",
+            "lat": 52.0, "lon": 4.9,
+        }]
+
+    monkeypatch.setattr("eurogas_nexus_sdk.weather.fetch_weather_stations", fake_stations)
+
+    result = _send(
+        {
+            "jsonrpc": "2.0",
+            "id": 10,
+            "method": "tools/call",
+            "params": {"name": "get_weather_stations", "arguments": {}},
+        }
+    )
+    assert result["result"]["isError"] is False
+    assert '"Amsterdam"' in result["result"]["content"][0]["text"]
+
+
+def test_tools_call_capacity_sandbox_rejects_runtime_decision() -> None:
+    result = _send(
+        {
+            "jsonrpc": "2.0",
+            "id": 11,
+            "method": "tools/call",
+            "params": {
+                "name": "optimize_capacity_sandbox",
+                "arguments": {
+                    "products": [],
+                    "required_capacity_mwh": 100,
+                    "decision_context": "RUNTIME_DECISION",
+                },
+            },
+        }
+    )
+    assert result["result"]["isError"] is True
+    assert "RUNTIME_DECISION" in result["result"]["content"][0]["text"]
