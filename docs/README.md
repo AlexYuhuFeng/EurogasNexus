@@ -145,8 +145,6 @@ them.
 - [Whole-project capability blueprint](architecture/WHOLE_PROJECT_CAPABILITY_BLUEPRINT.md)
 - [Real-time market intelligence blueprint](product/REAL_TIME_MARKET_INTELLIGENCE_BLUEPRINT.md)
 - [Research workflow blueprint](product/RESEARCH_WORKFLOW_BLUEPRINT.md)
-- [Reference evidence log](architecture/REFERENCE_EVIDENCE_LOG.md)
-- [Reference project lessons](architecture/REFERENCE_PROJECT_LESSONS.md)
 - [Documentation consistency audit](architecture/DOCUMENTATION_AUDIT.md)
 - [Architecture improvement roadmap CN](architecture/IMPROVEMENT_ROADMAP-CN.md)
 

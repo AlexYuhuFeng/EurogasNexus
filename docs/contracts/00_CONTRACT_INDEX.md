@@ -38,7 +38,6 @@ first and add a matching boundary test before implementing the behavior.
 
 - `../architecture/PROJECT_NORTH_STAR.md`
 - `../architecture/WHOLE_PROJECT_CAPABILITY_BLUEPRINT.md`
-- `../architecture/REFERENCE_EVIDENCE_LOG.md`
 - `../architecture/ARCHITECTURE_DECISION_RECORD.md`
 - `../release/RELEASE_READINESS.md`
 - `../release/RELEASE_READINESS.md`
@@ -52,7 +51,6 @@ first and add a matching boundary test before implementing the behavior.
 - `../clients/CLI_CLIENT_DESIGN_SPEC.md`
 - `../clients/WEB_CLIENT_DESIGN_SPEC.md`
 - `../clients/WINDOWS_CLIENT_DESIGN_SPEC.md`
-- `../clients/WINDOWS_DEMO_UX_REFERENCE.md`
 - `../policies/PRODUCT_BOUNDARY_POLICY.md`
 - `../policies/DEPENDENCY_POLICY.md`
 - `../policies/DATA_POLICY.md`

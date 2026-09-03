@@ -130,8 +130,6 @@
 - [全项目能力蓝图](architecture/WHOLE_PROJECT_CAPABILITY_BLUEPRINT.md)
 - [实时市场情报蓝图](product/REAL_TIME_MARKET_INTELLIGENCE_BLUEPRINT.md)
 - [研究工作流蓝图](product/RESEARCH_WORKFLOW_BLUEPRINT.md)
-- [参考证据日志](architecture/REFERENCE_EVIDENCE_LOG.md)
-- [参考项目经验](architecture/REFERENCE_PROJECT_LESSONS.md)
 - [文档一致性审计](architecture/DOCUMENTATION_AUDIT.md)
 - [架构改进路线图](architecture/IMPROVEMENT_ROADMAP-CN.md)
 

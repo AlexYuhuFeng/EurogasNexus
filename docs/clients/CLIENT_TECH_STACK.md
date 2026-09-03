@@ -6,9 +6,9 @@ This file is the authoritative client library contract for Web and Windows clien
 implementation. Codex must not substitute frameworks or GPL-family
 dependencies.
 
-Historical Desktop evidence under `C:\Users\qqshu\Desktop` used React, Vite,
-MapLibre GL, deck.gl, Zustand, and Tauri. The current stack keeps that direction, but removes
-old local-runtime assumptions and requires SDK/API-only data access.
+The current stack keeps the established React, Vite, MapLibre GL, deck.gl,
+Zustand, and Tauri direction, but removes old local-runtime assumptions and
+requires SDK/API-only data access.
 
 ## License Rule
 

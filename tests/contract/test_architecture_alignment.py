@@ -114,7 +114,6 @@ def test_client_design_docs_are_ready_for_current_client_runtime() -> None:
     cli = _read_doc("docs/clients/CLI_CLIENT_DESIGN_SPEC.md")
     web = _read_doc("docs/clients/WEB_CLIENT_DESIGN_SPEC.md")
     windows = _read_doc("docs/clients/WINDOWS_CLIENT_DESIGN_SPEC.md")
-    windows_demo = _read_doc("docs/clients/WINDOWS_DEMO_UX_REFERENCE.md")
     ui_standard = _read_doc("docs/clients/UI_CONTENT_STANDARDS.md")
     api_contract = _read_doc("docs/clients/CLIENT_API_CONTRACT.md")
     layouts = _read_doc("docs/design/UX_LAYOUT_BLUEPRINTS.md")
@@ -138,7 +137,6 @@ def test_client_design_docs_are_ready_for_current_client_runtime() -> None:
     assert "Web UI -> web API client -> backend /api" in web
     assert "Tauri" in windows
     assert "Windows shell -> packaged web workspace/API client" in windows
-    assert "Dense terminal-style workspace" in windows_demo
     assert "Web Workspace Desktop Layout" in layouts
 
 def test_whole_project_blueprint_covers_requested_capabilities() -> None:
@@ -162,15 +160,6 @@ def test_whole_project_blueprint_covers_requested_capabilities() -> None:
     ]:
         assert phrase in text
 
-
-def test_reference_evidence_log_records_archived_sources() -> None:
-    text = _read_doc("docs/architecture/REFERENCE_EVIDENCE_LOG.md")
-
-    assert "eurogas-nexus-v0.5.0.exe" in text
-    assert "real-user-audit-2026-04-02.md" in text
-    assert "THREE_LAYER_GRAPH.md" in text
-    assert "ROUTE_COST_ENGINE_MODEL.md" in text
-    assert "WINDOWS_DEMO_UX_REFERENCE.md" in text
 
 def test_api_surface_blueprint_covers_target_route_groups() -> None:
     text = _read_doc("docs/api/API_SURFACE_BLUEPRINT.md")

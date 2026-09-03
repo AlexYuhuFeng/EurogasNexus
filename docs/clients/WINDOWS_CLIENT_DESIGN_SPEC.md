@@ -150,7 +150,6 @@ The historical `eurogas nexus.exe` is a workflow reference only.
 
 Detailed demo-derived UX notes:
 
-- `docs/clients/WINDOWS_DEMO_UX_REFERENCE.md`
 
 Preserve the intent:
 
