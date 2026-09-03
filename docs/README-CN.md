@@ -10,16 +10,12 @@
 1. [更新日志](../CHANGELOG.md)
 2. [发布就绪](release/RELEASE_READINESS.md) — 当前发布状态、已验证门槛与已知生产差距。
 3. [项目目录与归属](../PROJECT_DIRECTORY.md)
-5. [架构决策记录](architecture/ARCHITECTURE_DECISION_RECORD.md)
-6. [RFC 流程](engineering/RFC_PROCESS.md) 与
-   [已接受 RFC](engineering/rfc/README.md)
+4. [架构决策记录](architecture/ARCHITECTURE_DECISION_RECORD.md)
 ## 规范与当前文档
 
 ### 治理与流程
 
 - [架构决策与 ADR 流程](architecture/ARCHITECTURE_DECISION_RECORD.md)
-- [RFC 流程](engineering/RFC_PROCESS.md)
-- [RFC 索引](engineering/rfc/README.md)
 - [代码规范](engineering/CODING_STANDARDS.md)
 - [API 合同演进政策 EN](architecture/API_CONTRACT_EVOLUTION_POLICY.md) /
   [CN](architecture/API_CONTRACT_EVOLUTION_POLICY-CN.md)
@@ -28,21 +24,19 @@
 
 ### 架构与合同
 
-- [合同索引](contracts/00_CONTRACT_INDEX.md)
-- [API 合同](contracts/06_API_CONTRACT.md)
-- [公共 API 约定](contracts/API_CONVENTIONS.md)
-- [数据库合同](contracts/04_DB_CONTRACT.md)
-- [运行存储合同](contracts/05_RUNTIME_STORE_CONTRACT.md)
-- [SDK/CLI 合同](contracts/15_SDK_CLI_CONTRACT.md)
-- [资源池合同 EN](contracts/21_RESOURCE_POOL_CONTRACT-EN.md) /
-  [CN](contracts/21_RESOURCE_POOL_CONTRACT-CN.md)
+- [API 合同](api/API_CONTRACT.md)
+- [公共 API 约定](api/API_CONVENTIONS.md)
+- [数据库合同](architecture/DB_CONTRACT.md)
+- [运行存储合同](architecture/RUNTIME_STORE_CONTRACT.md)
+- [SDK/CLI 合同](clients/SDK_CLI_CONTRACT.md)
+- [资源池合同 EN](architecture/RESOURCE_POOL_CONTRACT-EN.md) /
+  [CN](architecture/RESOURCE_POOL_CONTRACT-CN.md)
 - [目标产品架构](architecture/TARGET_PRODUCT_ARCHITECTURE.md)
 - [欧洲网络几何政策](architecture/EUROPEAN_NETWORK_GEOMETRY_POLICY.md)
 - [主体身份模型](architecture/ACTOR_IDENTITY_MODEL-CN.md)
 - [OWL 天然气角色模型 EN](ontology/OWL_GAS_ROLE_MODEL.md) /
   [CN](ontology/OWL_GAS_ROLE_MODEL-CN.md)
 - [天然气主体架构](ontology/europe-natural-gas.md)
-- [本体化 gap 报告](ontology/gap-report.md)
 
 ### 客户端规范
 
@@ -107,7 +101,7 @@
 
 ## 文档状态规则
 
-- `contracts/`、当前架构政策、当前客户端标准和当前运维手册具有规范性。
+- 当前架构政策、API 合同、客户端标准和当前运维手册具有规范性。
 - `*-EN.md` 与 `*-CN.md` 是语言配套文件，必须描述同一行为。
 
 ## 文档维护
@@ -116,5 +110,3 @@
   [`scripts/ci/check_markdown_links.py`](../scripts/ci/check_markdown_links.py)
   检查。
 - 过时文档在更新引用后移除，不在公开交付仓库中保留内部里程碑证据。
-- 跨切面变更从 [RFC 流程](engineering/RFC_PROCESS.md) 开始；架构变更同步
-  更新[架构决策记录](architecture/ARCHITECTURE_DECISION_RECORD.md)。

@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 import httpx
-
-from eurogas_nexus.sdk.strategy_lab import (
+from eurogas_nexus_sdk.strategy_lab import (
     StrategyLabResult,
     StrategyRunDTO,
     StrategySummaryDTO,

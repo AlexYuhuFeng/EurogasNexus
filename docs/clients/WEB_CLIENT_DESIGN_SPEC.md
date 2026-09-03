@@ -280,8 +280,8 @@ Forbidden:
 
 Authority:
 
-- `docs/contracts/21_RESOURCE_POOL_CONTRACT-EN.md`
-- `docs/contracts/21_RESOURCE_POOL_CONTRACT-CN.md`
+- `docs/architecture/RESOURCE_POOL_CONTRACT-EN.md`
+- `docs/architecture/RESOURCE_POOL_CONTRACT-CN.md`
 
 ## Screen: Market
 

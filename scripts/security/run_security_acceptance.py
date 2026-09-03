@@ -163,7 +163,6 @@ def _checks() -> list[dict]:
 
     removed = [
         ROOT / "src/eurogas_nexus/api/routes/public/workflows.py",
-        ROOT / "src/eurogas_nexus/sdk/workflows.py",
     ]
     check("workflow_shell_removed", not any(path.exists() for path in removed))
 

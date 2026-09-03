@@ -33,7 +33,7 @@ def test_normalized_record_preserves_traceability_and_research_flag() -> None:
 
 
 def test_ingestion_contract_doc_preserves_no_live_dependency_rules() -> None:
-    text = (ROOT / "docs" / "contracts" / "10_INGESTION_ETL_CONTRACT.md").read_text(
+    text = (ROOT / "docs" / "architecture" / "INGESTION_ETL_CONTRACT.md").read_text(
         encoding="utf-8"
     )
 

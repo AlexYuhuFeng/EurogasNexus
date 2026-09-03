@@ -5,8 +5,7 @@ from __future__ import annotations
 from datetime import date
 
 import httpx
-
-from eurogas_nexus.sdk.optimization import optimize_portfolio_network
+from eurogas_nexus_sdk.optimization import optimize_portfolio_network
 
 
 def _response(url: str, data: dict, meta: dict | None = None) -> httpx.Response:

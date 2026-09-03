@@ -13,7 +13,7 @@ def test_streaming_contract_forbids_kafka_dependency_tokens() -> None:
 
 
 def test_streaming_contract_doc_preserves_non_authoritative_policy() -> None:
-    text = (ROOT / "docs" / "contracts" / "12_STREAMING_KAFKA_CONTRACT.md").read_text(
+    text = (ROOT / "docs" / "architecture" / "STREAMING_KAFKA_CONTRACT.md").read_text(
         encoding="utf-8"
     )
 

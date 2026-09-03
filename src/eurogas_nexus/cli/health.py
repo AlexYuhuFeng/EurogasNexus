@@ -1,6 +1,6 @@
 """CLI-friendly health command helpers."""
 
-from eurogas_nexus.sdk import fetch_health
+from eurogas_nexus_sdk import fetch_health
 
 
 def run_health_check(base_url: str) -> str:

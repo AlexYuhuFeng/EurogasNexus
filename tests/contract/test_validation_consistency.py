@@ -17,7 +17,7 @@ def test_docs_reference_consistent_pytest_command() -> None:
     for rel in [
         "README.md",
         "docs/operations/VALIDATION.md",
-        "docs/contracts/17_TESTING_CONTRACT.md",
+        "docs/architecture/TESTING_CONTRACT.md",
     ]:
         text = (ROOT / rel).read_text(encoding="utf-8")
         assert EXPECTED_PYTEST in text

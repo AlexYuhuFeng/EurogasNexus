@@ -4,7 +4,7 @@ import httpx
 
 
 def test_route_cost_sdk_models_and_functions_importable() -> None:
-    from eurogas_nexus.sdk.route_cost import (
+    from eurogas_nexus_sdk.route_cost import (
         LngRegasReadinessResult,
         PortfolioOptimizationResult,
         RouteRecommendationResult,
@@ -26,7 +26,7 @@ def test_route_cost_sdk_models_and_functions_importable() -> None:
 
 
 def test_route_cost_sdk_uses_backend_api_only(monkeypatch) -> None:
-    from eurogas_nexus.sdk.route_cost import recommend_route_allocation
+    from eurogas_nexus_sdk.route_cost import recommend_route_allocation
 
     captured: dict[str, object] = {}
 

@@ -32,12 +32,12 @@ It must not:
 Current source package:
 
 ```text
-src/eurogas_nexus/sdk/
+packages/python-sdk/src/eurogas_nexus_sdk/
 ```
 
-The SDK is distributed as part of the current `eurogas-nexus` Python package
-under `src/eurogas_nexus/sdk`. A standalone SDK distribution can be introduced
-later as a separate packaging milestone if required.
+The SDK is a standalone package under `packages/python-sdk` and imports as
+`eurogas_nexus_sdk`. It is installed as part of the repository distribution
+during development.
 
 ## API Base URL
 
@@ -62,10 +62,10 @@ whenever provenance or warning handling matters.
 
 ## Client Shape
 
-Recommended future structure:
+Current package structure:
 
 ```text
-src/eurogas_nexus/sdk/
+packages/python-sdk/src/eurogas_nexus_sdk/
   __init__.py
   client.py
   config.py
@@ -285,5 +285,5 @@ Required tests:
 Use after backend runtime status and API response contracts are stable:
 
 ```text
-Read AGENTS.md, docs/clients/SDK_CLIENT_DESIGN_SPEC.md, docs/clients/CLIENT_API_CONTRACT.md, docs/contracts/15_SDK_CLI_CONTRACT.md, and the SDK M1 ExecPlan. Implement SDK M1 only. Keep the SDK as an API client for /api. Do not import backend internals, read DB/files directly, call vendor APIs, or add packaging until a packaging milestone is selected.
+Read docs/clients/SDK_CLIENT_DESIGN_SPEC.md, docs/clients/CLIENT_API_CONTRACT.md, docs/clients/SDK_CLI_CONTRACT.md, and the SDK M1 ExecPlan. Implement SDK M1 only. Keep the SDK as an API client for /api. Do not import backend internals, read DB/files directly, call vendor APIs, or add packaging until a packaging milestone is selected.
 ```

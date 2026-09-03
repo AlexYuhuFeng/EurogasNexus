@@ -34,8 +34,8 @@ When working on clients, read these files in order:
 12. `docs/clients/UI_UX_STYLE_GUIDE-CN.md`
 13. `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-EN.md`
 14. `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-CN.md`
-15. `docs/contracts/21_RESOURCE_POOL_CONTRACT-EN.md`
-16. `docs/contracts/21_RESOURCE_POOL_CONTRACT-CN.md`
+15. `docs/architecture/RESOURCE_POOL_CONTRACT-EN.md`
+16. `docs/architecture/RESOURCE_POOL_CONTRACT-CN.md`
 17. `docs/clients/WEB_CLIENT_DESIGN_SPEC.md`
 18. `docs/clients/WINDOWS_CLIENT_DESIGN_SPEC.md`
 19. `docs/clients/MARKET_POSITIONING_COCKPIT_SPEC-EN.md`

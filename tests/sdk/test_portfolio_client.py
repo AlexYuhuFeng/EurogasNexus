@@ -1,8 +1,7 @@
 """SDK portfolio client tests."""
 
 import httpx
-
-from eurogas_nexus.sdk.portfolio import (
+from eurogas_nexus_sdk.portfolio import (
     PortfolioLiveSummary,
     fetch_live_summary,
     fetch_pnl_snapshots,

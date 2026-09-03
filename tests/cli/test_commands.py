@@ -1,17 +1,17 @@
 """CLI command tests (SDK-backed, no live server needed)."""
 
 import pytest
-
-from eurogas_nexus.sdk.glossary import GlossaryTerm
-from eurogas_nexus.sdk.market import MarketObservation
-from eurogas_nexus.sdk.physical import FlowObservation
-from eurogas_nexus.sdk.reference_network import NodeDTO
-from eurogas_nexus.sdk.sources import SourceSystem
+from eurogas_nexus_sdk.glossary import GlossaryTerm
+from eurogas_nexus_sdk.market import MarketObservation
+from eurogas_nexus_sdk.physical import FlowObservation
+from eurogas_nexus_sdk.reference_network import NodeDTO
+from eurogas_nexus_sdk.sources import SourceSystem
 
 
 def test_cmd_health_uses_sdk(monkeypatch: pytest.MonkeyPatch) -> None:
+    from eurogas_nexus_sdk.health_client import HealthPayload
+
     from eurogas_nexus.cli.commands import cmd_health
-    from eurogas_nexus.sdk.health_client import HealthPayload
 
     def fake_fetch(base_url: str) -> HealthPayload:
         return HealthPayload(status="ok", service="test", version="0.1", profile="dev")
@@ -22,8 +22,9 @@ def test_cmd_health_uses_sdk(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_cmd_runtime_db_formats_sdk_payload(monkeypatch: pytest.MonkeyPatch) -> None:
+    from eurogas_nexus_sdk.runtime import RuntimeConnectivity, RuntimeDbStatus
+
     from eurogas_nexus.cli.commands import cmd_runtime_db
-    from eurogas_nexus.sdk.runtime import RuntimeConnectivity, RuntimeDbStatus
 
     def fake_fetch(base_url: str) -> RuntimeDbStatus:
         return RuntimeDbStatus(
@@ -120,8 +121,9 @@ def test_cmd_to_json_outputs_string(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_cmd_strategy_runs_returns_list(monkeypatch: pytest.MonkeyPatch) -> None:
+    from eurogas_nexus_sdk.strategy_lab import StrategyRunDTO
+
     from eurogas_nexus.cli.commands import cmd_strategy_runs
-    from eurogas_nexus.sdk.strategy_lab import StrategyRunDTO
 
     def fake_fetch(base_url, *, strategy_id=None):
         return [
@@ -139,8 +141,9 @@ def test_cmd_strategy_runs_returns_list(monkeypatch: pytest.MonkeyPatch) -> None
 
 
 def test_cmd_strategy_summary_returns_summary(monkeypatch: pytest.MonkeyPatch) -> None:
+    from eurogas_nexus_sdk.strategy_lab import StrategySummaryDTO
+
     from eurogas_nexus.cli.commands import cmd_strategy_summary
-    from eurogas_nexus.sdk.strategy_lab import StrategySummaryDTO
 
     def fake_fetch(base_url, *, strategy_id=None):
         return StrategySummaryDTO(

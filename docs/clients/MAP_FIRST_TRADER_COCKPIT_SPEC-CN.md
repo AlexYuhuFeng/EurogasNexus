@@ -92,7 +92,7 @@ Network 工作区必须在地图下方设置紧凑的资源路径梯，且绝不
 
 ## 合同录入
 
-合同细节属于独立 Contracts 页面。页面必须遵循 `docs/contracts/21_RESOURCE_POOL_CONTRACT-CN.md` 的 EFET 风格结构：Agreement、Product and term、Delivery、Quantity/tolerance、Price、Costs、Capacity rights、Settlement/cash 和 Restrictions。首页只消费已存入 PostgreSQL 并通过 `/api` 暴露的资源池状态。
+合同细节属于独立 Contracts 页面。页面必须遵循 `docs/architecture/RESOURCE_POOL_CONTRACT-CN.md` 的 EFET 风格结构：Agreement、Product and term、Delivery、Quantity/tolerance、Price、Costs、Capacity rights、Settlement/cash 和 Restrictions。首页只消费已存入 PostgreSQL 并通过 `/api` 暴露的资源池状态。
 
 ## 独立详情页面
 

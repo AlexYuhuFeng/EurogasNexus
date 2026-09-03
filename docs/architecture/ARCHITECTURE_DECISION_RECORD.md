@@ -41,9 +41,6 @@ section numbering.
    ADR that links the old one.
 3. An accepted ADR SHOULD have at least one contract or focused test that makes
    the decision observable where practical.
-4. If an accepted RFC changes architecture, the ADR index MUST be updated in
-   the same change. See
-   [`docs/engineering/RFC_PROCESS.md`](../engineering/RFC_PROCESS.md).
 
 ## Purpose
 
@@ -261,8 +258,6 @@ Implication:
   `MetricStrip`) are owned under `components/ui`; workspace components own domain
   rendering and may consume primitives but must not fork their markup or
   keyboard behavior.
-- The accepted baseline is RFC 0001
-  (`docs/engineering/rfc/0001-documentation-and-ui-baseline.md`).
 
 ## Current Recommended Next Step
 

@@ -164,7 +164,6 @@ Detailed guidance is in [Validation](docs/operations/VALIDATION.md) and
 - [中文文档索引](docs/README-CN.md)
 - [Project directory and ownership](PROJECT_DIRECTORY.md)
 - [Architecture decisions](docs/architecture/ARCHITECTURE_DECISION_RECORD.md)
-- [RFC process](docs/engineering/RFC_PROCESS.md)
 - [UI and content standards](docs/clients/UI_CONTENT_STANDARDS.md)
 
 ## Security, contribution, and license

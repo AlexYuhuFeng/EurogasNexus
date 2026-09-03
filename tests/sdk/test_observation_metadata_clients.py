@@ -2,11 +2,10 @@
 
 import httpx
 import pytest
-
-from eurogas_nexus.sdk._transport import SdkProtocolError
-from eurogas_nexus.sdk.market import fetch_market_observations_result
-from eurogas_nexus.sdk.physical import fetch_capacity_result
-from eurogas_nexus.sdk.sources import fetch_sources_result
+from eurogas_nexus_sdk._transport import SdkProtocolError
+from eurogas_nexus_sdk.market import fetch_market_observations_result
+from eurogas_nexus_sdk.physical import fetch_capacity_result
+from eurogas_nexus_sdk.sources import fetch_sources_result
 
 
 def _response(url: str, data: object, *, warnings: list[str] | None = None) -> httpx.Response:

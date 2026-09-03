@@ -32,11 +32,11 @@ dev = [
 eurogas-nexus = "eurogas_nexus.cli.main:main"
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["src", "packages/python-sdk/src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src", "."]
+pythonpath = ["src", "packages/python-sdk/src", "."]
 addopts = ["--import-mode=importlib"]
 
 [tool.ruff]

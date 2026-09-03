@@ -2,8 +2,7 @@
 
 import httpx
 import pytest
-
-from eurogas_nexus.sdk.health_client import fetch_health
+from eurogas_nexus_sdk.health_client import fetch_health
 
 
 def test_fetch_health_calls_backend_health_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:

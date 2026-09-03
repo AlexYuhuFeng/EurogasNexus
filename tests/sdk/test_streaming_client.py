@@ -1,8 +1,7 @@
 """SDK streaming client tests (P2 SSE resume)."""
 
 import httpx
-
-from eurogas_nexus.sdk.streaming import iter_sse, stream_events
+from eurogas_nexus_sdk.streaming import iter_sse, stream_events
 
 SSE_TEXT = (
     "id: 2026-07-01T10:00:00+00:00|q1\n"

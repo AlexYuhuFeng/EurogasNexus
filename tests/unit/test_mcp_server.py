@@ -107,7 +107,7 @@ def test_tools_call_list_sources_returns_sdk_data(monkeypatch) -> None:
     def fake_sources(base_url):
         return [{"source_system": "ENTSOG", "connectivity_status": "active"}]
 
-    monkeypatch.setattr("eurogas_nexus.sdk.sources.fetch_sources", fake_sources)
+    monkeypatch.setattr("eurogas_nexus_sdk.sources.fetch_sources", fake_sources)
 
     result = _send(
         {

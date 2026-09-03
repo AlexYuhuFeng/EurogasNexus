@@ -10,38 +10,39 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from eurogas_nexus.cli.health import run_health_check
-from eurogas_nexus.sdk.analysis import ask_analysis
-from eurogas_nexus.sdk.contracts import fetch_capacity_contracts, fetch_route_eligibility
-from eurogas_nexus.sdk.credentials import fetch_credential_providers
-from eurogas_nexus.sdk.glossary import fetch_glossary, fetch_term
-from eurogas_nexus.sdk.lng import fetch_lng_observations, fetch_lng_terminals
-from eurogas_nexus.sdk.market import fetch_fx_rates, fetch_market_observations, fetch_spreads
-from eurogas_nexus.sdk.optimization import (
+from eurogas_nexus_sdk.analysis import ask_analysis
+from eurogas_nexus_sdk.contracts import fetch_capacity_contracts, fetch_route_eligibility
+from eurogas_nexus_sdk.credentials import fetch_credential_providers
+from eurogas_nexus_sdk.glossary import fetch_glossary, fetch_term
+from eurogas_nexus_sdk.lng import fetch_lng_observations, fetch_lng_terminals
+from eurogas_nexus_sdk.market import fetch_fx_rates, fetch_market_observations, fetch_spreads
+from eurogas_nexus_sdk.optimization import (
     fetch_optimization_run,
     optimize_capacity,
     optimize_contracts,
     optimize_resource_pool,
     optimize_route,
 )
-from eurogas_nexus.sdk.physical import fetch_capacity, fetch_flows, fetch_outages
-from eurogas_nexus.sdk.reference_network import (
+from eurogas_nexus_sdk.physical import fetch_capacity, fetch_flows, fetch_outages
+from eurogas_nexus_sdk.reference_network import (
     fetch_edges,
     fetch_facilities,
     fetch_market_hubs,
     fetch_node,
     fetch_nodes,
 )
-from eurogas_nexus.sdk.review import fetch_review_decisions
-from eurogas_nexus.sdk.runtime import fetch_runtime_db_status
-from eurogas_nexus.sdk.sources import fetch_ingestion_runs, fetch_source, fetch_sources
-from eurogas_nexus.sdk.storage import fetch_storage_observations, fetch_storage_sites
-from eurogas_nexus.sdk.strategy_lab import list_strategy_runs, strategy_summary
-from eurogas_nexus.sdk.weather import (
+from eurogas_nexus_sdk.review import fetch_review_decisions
+from eurogas_nexus_sdk.runtime import fetch_runtime_db_status
+from eurogas_nexus_sdk.sources import fetch_ingestion_runs, fetch_source, fetch_sources
+from eurogas_nexus_sdk.storage import fetch_storage_observations, fetch_storage_sites
+from eurogas_nexus_sdk.strategy_lab import list_strategy_runs, strategy_summary
+from eurogas_nexus_sdk.weather import (
     fetch_hdd_cdd,
     fetch_weather_observations,
     fetch_weather_stations,
 )
+
+from eurogas_nexus.cli.health import run_health_check
 
 
 def _to_json(data: object) -> str:

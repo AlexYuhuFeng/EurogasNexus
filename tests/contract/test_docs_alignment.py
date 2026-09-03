@@ -6,7 +6,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_ownership_matrix_reflects_db_sdk_cli_status() -> None:
-    text = (ROOT / "docs" / "contracts" / "20_MODULE_OWNERSHIP_MATRIX.md").read_text(
+    text = (ROOT / "docs" / "architecture" / "MODULE_OWNERSHIP_MATRIX.md").read_text(
         encoding="utf-8"
     )
 
@@ -33,10 +33,10 @@ def test_readme_mentions_starting_docs_and_full_suite_validation() -> None:
 
 
 def test_resource_pool_contract_defines_home_and_efet_contract_entry() -> None:
-    en = (ROOT / "docs" / "contracts" / "21_RESOURCE_POOL_CONTRACT-EN.md").read_text(
+    en = (ROOT / "docs" / "architecture" / "RESOURCE_POOL_CONTRACT-EN.md").read_text(
         encoding="utf-8"
     )
-    cn = (ROOT / "docs" / "contracts" / "21_RESOURCE_POOL_CONTRACT-CN.md").read_text(
+    cn = (ROOT / "docs" / "architecture" / "RESOURCE_POOL_CONTRACT-CN.md").read_text(
         encoding="utf-8"
     )
     cockpit = (

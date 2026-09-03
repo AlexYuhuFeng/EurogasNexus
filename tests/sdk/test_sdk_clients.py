@@ -2,39 +2,39 @@
 
 
 def test_sdk_all_clients_importable() -> None:
-    from eurogas_nexus.sdk.analysis import (
+    from eurogas_nexus_sdk.analysis import (
         ask_analysis,
         fetch_business_ontology,
         fetch_glossary_context,
         generate_portfolio_report,
     )
-    from eurogas_nexus.sdk.glossary import (
+    from eurogas_nexus_sdk.glossary import (
         GlossaryContext,
         GlossaryTerm,
         fetch_glossary,
     )
-    from eurogas_nexus.sdk.glossary import (
+    from eurogas_nexus_sdk.glossary import (
         fetch_glossary_context as fetch_glossary_context_direct,
     )
-    from eurogas_nexus.sdk.portfolio import (
+    from eurogas_nexus_sdk.portfolio import (
         fetch_live_summary,
         fetch_pnl_snapshots,
         fetch_screen_orders,
     )
-    from eurogas_nexus.sdk.reference_network import (
+    from eurogas_nexus_sdk.reference_network import (
         NodeDTO,
         fetch_nodes,
     )
-    from eurogas_nexus.sdk.research import (
+    from eurogas_nexus_sdk.research import (
         compute_route_cost,
     )
-    from eurogas_nexus.sdk.route_cost import (
+    from eurogas_nexus_sdk.route_cost import (
         recommend_route_allocation,
     )
-    from eurogas_nexus.sdk.sources import (
+    from eurogas_nexus_sdk.sources import (
         SourceSystem,
     )
-    from eurogas_nexus.sdk.strategy_lab import (
+    from eurogas_nexus_sdk.strategy_lab import (
         evaluate_strategy_lab,
     )
     assert callable(fetch_nodes)
@@ -57,13 +57,13 @@ def test_sdk_all_clients_importable() -> None:
 
 
 def test_health_client_imports() -> None:
-    from eurogas_nexus.sdk.health_client import HealthPayload, fetch_health
+    from eurogas_nexus_sdk.health_client import HealthPayload, fetch_health
     assert callable(fetch_health)
     assert HealthPayload.model_fields
 
 
 def test_research_result_models() -> None:
-    from eurogas_nexus.sdk.research import (
+    from eurogas_nexus_sdk.research import (
         BacktestResult,
         NetbackResult,
         RouteCostResult,
@@ -78,10 +78,10 @@ def test_research_result_models() -> None:
 def test_sdk_does_not_import_backend_internals() -> None:
     import sys
     before = set(sys.modules.keys())
-    import eurogas_nexus.sdk.portfolio  # noqa: F401
-    import eurogas_nexus.sdk.reference_network  # noqa: F401
-    import eurogas_nexus.sdk.research  # noqa: F401
-    import eurogas_nexus.sdk.sources  # noqa: F401
+    import eurogas_nexus_sdk.portfolio  # noqa: F401
+    import eurogas_nexus_sdk.reference_network  # noqa: F401
+    import eurogas_nexus_sdk.research  # noqa: F401
+    import eurogas_nexus_sdk.sources  # noqa: F401
     after = set(sys.modules.keys())
     forbidden = {
         "eurogas_nexus.db", "eurogas_nexus.runtime_store",

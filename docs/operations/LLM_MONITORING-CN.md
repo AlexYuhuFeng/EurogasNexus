@@ -97,10 +97,10 @@ worker 不会每 10 秒对同一条件重复调用 DeepSeek：
 
 客户端不得直连 PostgreSQL，也不得直接调用 DeepSeek。
 
-Python SDK 从 `eurogas_nexus.sdk.monitoring` 导入：
+Python SDK 从 `eurogas_nexus_sdk.monitoring` 导入：
 
 ```python
-from eurogas_nexus.sdk.monitoring import (
+from eurogas_nexus_sdk.monitoring import (
     analyze_monitoring_alert,
     fetch_monitoring_alerts,
     fetch_monitoring_summary,

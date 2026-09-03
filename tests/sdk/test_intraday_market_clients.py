@@ -1,8 +1,7 @@
 """SDK coverage for normalized quotes and intraday opportunities."""
 
 import httpx
-
-from eurogas_nexus.sdk.market import (
+from eurogas_nexus_sdk.market import (
     fetch_intraday_opportunities_result,
     fetch_market_quotes_result,
     fetch_normalized_market_observations_result,

@@ -58,25 +58,25 @@ class MCPTool:
 
 
 def _tool_list_sources(arguments: dict[str, Any]) -> Any:
-    from eurogas_nexus.sdk.sources import fetch_sources
+    from eurogas_nexus_sdk.sources import fetch_sources
 
     return fetch_sources(_base_url())
 
 
 def _tool_market_observations(arguments: dict[str, Any]) -> Any:
-    from eurogas_nexus.sdk.market import fetch_market_observations
+    from eurogas_nexus_sdk.market import fetch_market_observations
 
     return fetch_market_observations(_base_url())
 
 
 def _tool_fx_rates(arguments: dict[str, Any]) -> Any:
-    from eurogas_nexus.sdk.market import fetch_fx_rates
+    from eurogas_nexus_sdk.market import fetch_fx_rates
 
     return fetch_fx_rates(_base_url())
 
 
 def _tool_glossary_term(arguments: dict[str, Any]) -> Any:
-    from eurogas_nexus.sdk.glossary import fetch_term
+    from eurogas_nexus_sdk.glossary import fetch_term
 
     term = str(arguments.get("term") or "").strip()
     if not term:
@@ -85,13 +85,13 @@ def _tool_glossary_term(arguments: dict[str, Any]) -> Any:
 
 
 def _tool_ontology(arguments: dict[str, Any]) -> Any:
-    from eurogas_nexus.sdk.analysis import fetch_business_ontology
+    from eurogas_nexus_sdk.analysis import fetch_business_ontology
 
     return fetch_business_ontology(_base_url())
 
 
 def _tool_review_decisions(arguments: dict[str, Any]) -> Any:
-    from eurogas_nexus.sdk.review import fetch_review_decisions
+    from eurogas_nexus_sdk.review import fetch_review_decisions
 
     result = fetch_review_decisions(
         _base_url(),
@@ -103,14 +103,14 @@ def _tool_review_decisions(arguments: dict[str, Any]) -> Any:
 
 
 def _tool_calculate_route_cost(arguments: dict[str, Any]) -> Any:
-    from eurogas_nexus.sdk.route_cost import calculate_route_cost
+    from eurogas_nexus_sdk.route_cost import calculate_route_cost
 
     result = calculate_route_cost(_base_url(), **arguments)
     return result.model_dump()
 
 
 def _tool_optimize_route_sandbox(arguments: dict[str, Any]) -> Any:
-    from eurogas_nexus.sdk.optimization import optimize_route
+    from eurogas_nexus_sdk.optimization import optimize_route
 
     decision_context = arguments.get("decision_context") or "SANDBOX_SCENARIO"
     if decision_context == _RUNTIME_DECISION:

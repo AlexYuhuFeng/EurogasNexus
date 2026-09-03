@@ -205,5 +205,5 @@ Release artifacts must exclude:
 Use this prompt only after the web workspace shell exists:
 
 ```text
-Read AGENTS.md, docs/clients/README.md, docs/clients/CLIENT_DELIVERY_MILESTONES.md, docs/clients/CLIENT_API_CONTRACT.md, docs/clients/UI_CONTENT_STANDARDS.md, and docs/clients/WINDOWS_CLIENT_DESIGN_SPEC.md. Implement Windows Milestone D1 only. Use Tauri only if dependencies are available or internet access is explicitly allowed. If unavailable, create config templates and a gap report. The Windows client must consume /api, package the web workspace, and store only non-sensitive UI preferences.
+Read docs/clients/README.md, docs/clients/CLIENT_DELIVERY_MILESTONES.md, docs/clients/CLIENT_API_CONTRACT.md, docs/clients/UI_CONTENT_STANDARDS.md, and docs/clients/WINDOWS_CLIENT_DESIGN_SPEC.md. Implement Windows Milestone D1 only. Use Tauri only if dependencies are available or internet access is explicitly allowed. If unavailable, create config templates and a gap report. The Windows client must consume /api, package the web workspace, and store only non-sensitive UI preferences.
 ```

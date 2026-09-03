@@ -62,7 +62,6 @@ docs/api/                API surface and path policies
 docs/architecture/       Architecture policies, ADR record, status and queue
 docs/clients/            Client contracts and UI standards
 docs/compliance/         Compliance notes
-docs/contracts/          Normative repository contracts
 docs/data/               Canonical data model blueprints
 docs/deployment/         Deployment roles and installer runbooks
 docs/design/             UI audits and visual references
@@ -84,7 +83,7 @@ Eurogas Nexus is delivered through five active surfaces:
 
 1. Backend service — `apps/api` + `src/eurogas_nexus`.
 2. PostgreSQL runtime store — Alembic-managed schema under `alembic/versions`.
-3. Python SDK — `src/eurogas_nexus/sdk`.
+3. Python SDK — `packages/python-sdk/src/eurogas_nexus_sdk`.
 4. CLI — `src/eurogas_nexus/cli`.
 5. Web and Windows/Linux clients — `clients/web` and `clients/desktop`.
 
@@ -107,7 +106,7 @@ src/eurogas_nexus/ingestion/       Connectors and normalization boundaries
 src/eurogas_nexus/optimization/    Deterministic optimization engines
 src/eurogas_nexus/security/        Tokens, credentials, permissions, identity helpers
 src/eurogas_nexus/governance/      Entitlement and audit policy
-src/eurogas_nexus/sdk/             Typed API consumer facade
+packages/python-sdk/src/eurogas_nexus_sdk/             Typed API consumer facade
 src/eurogas_nexus/cli/             API-backed command interface
 src/eurogas_nexus/mcp/             Read-only stdio MCP tools
 src/eurogas_nexus/streaming/       Optional SSE contracts
@@ -151,7 +150,7 @@ before adding Web behavior.
 
 - Backend work activates `apps/api`, `src/eurogas_nexus`, `alembic`, `scripts`,
   `tests`, and backend docs.
-- SDK work activates `src/eurogas_nexus/sdk` and `tests/sdk`. The directory
+- SDK work activates `packages/python-sdk/src/eurogas_nexus_sdk` and `tests/sdk`. The directory
 - CLI work activates `src/eurogas_nexus/cli` and `tests/cli`.
 - Web work activates `clients/web` and uses `npm run build` plus the
   `clients/web/tests` suite.

@@ -108,10 +108,10 @@ Clients use the stable `/api` surface:
 
 No client accesses PostgreSQL or DeepSeek directly.
 
-Python SDK users import from `eurogas_nexus.sdk.monitoring`:
+Python SDK users import from `eurogas_nexus_sdk.monitoring`:
 
 ```python
-from eurogas_nexus.sdk.monitoring import (
+from eurogas_nexus_sdk.monitoring import (
     analyze_monitoring_alert,
     fetch_monitoring_alerts,
     fetch_monitoring_summary,

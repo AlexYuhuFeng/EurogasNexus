@@ -1,8 +1,7 @@
 """SDK analysis client tests."""
 
 import httpx
-
-from eurogas_nexus.sdk.analysis import (
+from eurogas_nexus_sdk.analysis import (
     AnalysisResult,
     ask_analysis,
     fetch_business_ontology,

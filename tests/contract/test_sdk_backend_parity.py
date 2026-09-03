@@ -7,15 +7,16 @@ fails loudly instead of drifting silently.
 
 from __future__ import annotations
 
-from eurogas_nexus.domain.strategy_lab.evaluation import (
-    StrategyLabResult as DomainStrategyResult,
-)
-from eurogas_nexus.sdk.strategy_lab import (
+from eurogas_nexus_sdk.strategy_lab import (
     StrategyLabResult as SdkStrategyResult,
 )
-from eurogas_nexus.sdk.strategy_lab import (
+from eurogas_nexus_sdk.strategy_lab import (
     StrategyRunDTO,
     StrategySummaryDTO,
+)
+
+from eurogas_nexus.domain.strategy_lab.evaluation import (
+    StrategyLabResult as DomainStrategyResult,
 )
 
 # The strategy-run payload contract produced by
@@ -85,8 +86,9 @@ def test_sdk_strategy_summary_covers_all_summary_contract_keys() -> None:
 def test_sdk_optimization_route_dto_matches_backend_result() -> None:
     from dataclasses import fields
 
+    from eurogas_nexus_sdk.optimization import RouteResultDTO
+
     from eurogas_nexus.optimization.models import RouteResult
-    from eurogas_nexus.sdk.optimization import RouteResultDTO
 
     backend_keys = {item.name for item in fields(RouteResult)}
     sdk_fields = set(RouteResultDTO.model_fields)
@@ -96,8 +98,9 @@ def test_sdk_optimization_route_dto_matches_backend_result() -> None:
 def test_sdk_optimization_pool_dto_matches_backend_result() -> None:
     from dataclasses import fields
 
+    from eurogas_nexus_sdk.optimization import ResourcePoolResultDTO
+
     from eurogas_nexus.optimization.models import OptimizationResult
-    from eurogas_nexus.sdk.optimization import ResourcePoolResultDTO
 
     backend_keys = {item.name for item in fields(OptimizationResult)}
     sdk_fields = set(ResourcePoolResultDTO.model_fields)
@@ -107,10 +110,11 @@ def test_sdk_optimization_pool_dto_matches_backend_result() -> None:
 def test_sdk_portfolio_network_dto_matches_backend_result() -> None:
     from dataclasses import fields
 
+    from eurogas_nexus_sdk.optimization import PortfolioNetworkResultDTO
+
     from eurogas_nexus.domain.route_cost.portfolio_network import (
         PortfolioNetworkOptimizationResult,
     )
-    from eurogas_nexus.sdk.optimization import PortfolioNetworkResultDTO
 
     backend_keys = {item.name for item in fields(PortfolioNetworkOptimizationResult)}
     sdk_fields = set(PortfolioNetworkResultDTO.model_fields)
@@ -121,12 +125,13 @@ def test_sdk_portfolio_network_dto_matches_backend_result() -> None:
 def test_sdk_storage_nomination_dtos_match_backend_results() -> None:
     from dataclasses import fields
 
-    from eurogas_nexus.optimization.nomination import NominationScheduleResult
-    from eurogas_nexus.optimization.storage import StorageDispatchResult
-    from eurogas_nexus.sdk.optimization import (
+    from eurogas_nexus_sdk.optimization import (
         NominationWindowResultDTO,
         StorageDispatchResultDTO,
     )
+
+    from eurogas_nexus.optimization.nomination import NominationScheduleResult
+    from eurogas_nexus.optimization.storage import StorageDispatchResult
 
     storage_keys = {item.name for item in fields(StorageDispatchResult)}
     nomination_keys = {item.name for item in fields(NominationScheduleResult)}
@@ -137,8 +142,9 @@ def test_sdk_storage_nomination_dtos_match_backend_results() -> None:
 def test_sdk_optimization_capacity_dto_matches_backend_result() -> None:
     from dataclasses import fields
 
+    from eurogas_nexus_sdk.optimization import CapacityResultDTO
+
     from eurogas_nexus.optimization.models import CapacityBookingResult
-    from eurogas_nexus.sdk.optimization import CapacityResultDTO
 
     backend_keys = {item.name for item in fields(CapacityBookingResult)}
     sdk_fields = set(CapacityResultDTO.model_fields)
@@ -146,7 +152,7 @@ def test_sdk_optimization_capacity_dto_matches_backend_result() -> None:
 
 
 def test_sdk_optimization_run_dto_matches_evidence_payload() -> None:
-    from eurogas_nexus.sdk.optimization import OptimizationRunDTO
+    from eurogas_nexus_sdk.optimization import OptimizationRunDTO
 
     # The evidence endpoint serializes the OptimizationRunRecord columns.
     record_columns = {
@@ -167,7 +173,7 @@ def test_sdk_optimization_run_dto_matches_evidence_payload() -> None:
 
 
 def test_sdk_review_decision_dto_matches_repository_payload() -> None:
-    from eurogas_nexus.sdk.review import ReviewDecisionDTO
+    from eurogas_nexus_sdk.review import ReviewDecisionDTO
 
     repository_keys = {
         "decision_id",
@@ -183,7 +189,7 @@ def test_sdk_review_decision_dto_matches_repository_payload() -> None:
 
 
 def test_sdk_credential_provider_dto_matches_provider_status_payload() -> None:
-    from eurogas_nexus.sdk.credentials import CredentialProviderDTO
+    from eurogas_nexus_sdk.credentials import CredentialProviderDTO
 
     payload_keys = {
         "provider_id",

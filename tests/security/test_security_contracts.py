@@ -6,7 +6,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_auth_audit_contract_keeps_bootstrap_forbidden_items() -> None:
-    text = (ROOT / "docs" / "contracts" / "13_AUTH_AUDIT_CONTRACT.md").read_text(
+    text = (ROOT / "docs" / "architecture" / "AUTH_AUDIT_CONTRACT.md").read_text(
         encoding="utf-8"
     )
 
@@ -16,7 +16,7 @@ def test_auth_audit_contract_keeps_bootstrap_forbidden_items() -> None:
 
 
 def test_governance_contract_requires_fail_closed_entitlement() -> None:
-    text = (ROOT / "docs" / "contracts" / "14_GOVERNANCE_ENTITLEMENT_CONTRACT.md").read_text(
+    text = (ROOT / "docs" / "architecture" / "GOVERNANCE_ENTITLEMENT_CONTRACT.md").read_text(
         encoding="utf-8"
     )
 

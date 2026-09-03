@@ -5,8 +5,7 @@ from __future__ import annotations
 from datetime import datetime, time
 
 import httpx
-
-from eurogas_nexus.sdk.optimization import (
+from eurogas_nexus_sdk.optimization import (
     NominationInstructionInput,
     NominationWindowInput,
     StorageFacilityInput,

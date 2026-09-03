@@ -57,7 +57,7 @@ These tests fail CI loudly on contract drift:
    envelope warning, and record it in the deprecation table below.
 4. Add API, SDK, and contract tests before the implementation is considered
    complete.
-5. Run the full validation command set from `AGENTS.md`.
+5. Run the full validation command set from `CONTRIBUTING.md`.
 
 ## Declared Additive Paths
 

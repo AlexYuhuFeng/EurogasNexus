@@ -182,7 +182,7 @@ market sale, or hold/no-sale rather than forcing a loss-making path.
 
 Contract detail work belongs on a separate Contracts page. The page must follow
 the EFET-style structure in
-`docs/contracts/21_RESOURCE_POOL_CONTRACT-EN.md`: agreement, product and term,
+`docs/architecture/RESOURCE_POOL_CONTRACT-EN.md`: agreement, product and term,
 delivery, quantity/tolerance, price, costs, capacity rights, settlement/cash,
 and restrictions. The home screen consumes the resulting resource-pool state
 after it is persisted in PostgreSQL and exposed by `/api`.

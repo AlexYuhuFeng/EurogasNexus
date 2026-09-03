@@ -154,5 +154,5 @@ Required tests:
 Use after SDK M1 exists:
 
 ```text
-Read AGENTS.md, docs/clients/CLI_CLIENT_DESIGN_SPEC.md, docs/clients/SDK_CLIENT_DESIGN_SPEC.md, docs/contracts/15_SDK_CLI_CONTRACT.md, and the CLI M1 ExecPlan. Implement CLI M1 only. Keep commands safe, read-only by default, API-backed, and secret-redacted. Do not add mutating operational commands without explicit --execute guards.
+Read docs/clients/CLI_CLIENT_DESIGN_SPEC.md, docs/clients/SDK_CLIENT_DESIGN_SPEC.md, docs/clients/SDK_CLI_CONTRACT.md, and the CLI M1 ExecPlan. Implement CLI M1 only. Keep commands safe, read-only by default, API-backed, and secret-redacted. Do not add mutating operational commands without explicit --execute guards.
 ```

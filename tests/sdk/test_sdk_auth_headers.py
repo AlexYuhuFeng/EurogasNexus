@@ -1,9 +1,8 @@
 """SDK release-profile auth header tests (Gate 1 client wiring)."""
 
 import httpx
-
-from eurogas_nexus.sdk import _http
-from eurogas_nexus.sdk._http import (
+from eurogas_nexus_sdk import _http
+from eurogas_nexus_sdk._http import (
     API_TOKEN_ENV,
     IDENTITY_ENV,
     IDENTITY_HEADER,

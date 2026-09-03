@@ -19,13 +19,12 @@ EXPECTED_DIRECTORIES = [
     "src/eurogas_nexus/data_quality",
     "src/eurogas_nexus/streaming",
     "src/eurogas_nexus/governance",
-    "src/eurogas_nexus/sdk",
+    "packages/python-sdk/src/eurogas_nexus_sdk",
     "src/eurogas_nexus/cli",
     "clients/web",
     "clients/desktop",
     "dist/releases",
     "infra/deployment",
-    "docs/contracts",
     "tests/release",
     "scripts/release",
     "data/test_fixtures",
@@ -73,15 +72,3 @@ def test_api_import_does_not_load_database_layer() -> None:
     )
 
     assert result.stdout.splitlines() == ["True", "False", "False"]
-
-
-def test_agent_instructions_capture_decision_support_boundary() -> None:
-    instructions = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
-
-    assert "market-intelligence, optimization, and" in instructions
-    assert "human_review_required" in instructions
-    assert "`meta.research_only` remains only" in instructions
-    assert "Do not reintroduce `/v1` or `/api/v1` aliases" in instructions
-    assert "PostgreSQL is the runtime source of truth" in instructions
-    assert "SDK and CLI code must call the backend API" in instructions
-    assert "docs/engineering/plans/" in instructions

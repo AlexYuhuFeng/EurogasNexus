@@ -1,9 +1,8 @@
 """SDK review and credentials client tests (P1 coverage closure)."""
 
 import httpx
-
-from eurogas_nexus.sdk.credentials import fetch_credential_providers
-from eurogas_nexus.sdk.review import (
+from eurogas_nexus_sdk.credentials import fetch_credential_providers
+from eurogas_nexus_sdk.review import (
     ReviewDecisionInput,
     fetch_review_decisions,
     record_review_decision,

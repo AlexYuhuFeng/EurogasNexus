@@ -2,8 +2,7 @@
 
 import httpx
 import pytest
-
-from eurogas_nexus.sdk.optimization import (
+from eurogas_nexus_sdk.optimization import (
     NetworkEdgeInput,
     SupplyResourceInput,
     fetch_optimization_run,
@@ -189,6 +188,6 @@ def test_fetch_optimization_run_evidence(monkeypatch) -> None:
 
 def test_optimize_resource_pool_rejects_mixed_input_types() -> None:
     with pytest.raises(TypeError, match="expected dict or pydantic model"):
-        from eurogas_nexus.sdk.optimization import _as_dict
+        from eurogas_nexus_sdk.optimization import _as_dict
 
         _as_dict(42)

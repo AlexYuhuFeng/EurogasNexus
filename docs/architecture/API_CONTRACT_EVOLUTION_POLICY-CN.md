@@ -49,7 +49,7 @@ Windows/Linux 桌面外壳和双语运营文档。所有消费方都是同一契
 3. 弃用路径：在 router 标记 `deprecated`、在信封加 warning，并登记到下方
    弃用表。
 4. 先补 API、SDK、契约测试，再视为完成。
-5. 运行 `AGENTS.md` 的完整验证命令集。
+5. 运行 `CONTRIBUTING.md` 中的完整验证命令集。
 
 ## 已声明的新增路径
 

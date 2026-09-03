@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 import httpx
-
-from eurogas_nexus.sdk.monitoring import (
+from eurogas_nexus_sdk.monitoring import (
     MonitoringAnalysis,
     MonitoringSummary,
     analyze_monitoring_alert,

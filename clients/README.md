@@ -7,8 +7,7 @@ User-facing API consumers live here.
 - `web/`: React/Vite/MapLibre workspace and the single UI source for Web,
   Windows, and Linux desktop packaging.
 - `desktop/`: Tauri shell that packages `clients/web/dist`.
-- Python SDK lives under `src/eurogas_nexus/sdk` now and later
-  `packages/python-sdk`.
+- Python SDK lives under `packages/python-sdk` and imports as `eurogas_nexus_sdk`.
 - CLI lives under `src/eurogas_nexus/cli`.
 
 ## Rule

@@ -13,9 +13,7 @@ the current/normative document listed here and report the conflict.
 2. [Release readiness](release/RELEASE_READINESS.md) — current release status,
    validated gates, and known production gaps.
 3. [Project directory and ownership](../PROJECT_DIRECTORY.md)
-5. [Architecture decisions](architecture/ARCHITECTURE_DECISION_RECORD.md)
-6. [RFC process](engineering/RFC_PROCESS.md) and
-   [accepted RFCs](engineering/rfc/README.md)
+4. [Architecture decisions](architecture/ARCHITECTURE_DECISION_RECORD.md)
 ## Normative and current
 
 These documents define binding engineering boundaries. Contracts and policies
@@ -27,8 +25,6 @@ behavior.
 | Document | Authority |
 | --- | --- |
 | [Architecture decisions and ADR process](architecture/ARCHITECTURE_DECISION_RECORD.md) | Normative for architecture decisions |
-| [RFC process](engineering/RFC_PROCESS.md) | Normative for cross-cutting engineering changes |
-| [RFC index](engineering/rfc/README.md) | Index of accepted RFCs |
 | [Coding standards](engineering/CODING_STANDARDS.md) | Normative for Python code review |
 | [API contract evolution policy EN](architecture/API_CONTRACT_EVOLUTION_POLICY.md) / [CN](architecture/API_CONTRACT_EVOLUTION_POLICY-CN.md) | Normative for `/api` change control |
 | [API path policy](api/API_PATH_POLICY.md) | Normative for route prefixes |
@@ -36,15 +32,14 @@ behavior.
 
 ### Architecture and contracts
 
-- [Contract index](contracts/00_CONTRACT_INDEX.md)
-- [API contract](contracts/06_API_CONTRACT.md)
-- [Public API conventions](contracts/API_CONVENTIONS.md)
-- [Database contract](contracts/04_DB_CONTRACT.md)
-- [Runtime store contract](contracts/05_RUNTIME_STORE_CONTRACT.md)
-- [SDK and CLI contract](contracts/15_SDK_CLI_CONTRACT.md)
-- [Resource-pool contract EN](contracts/21_RESOURCE_POOL_CONTRACT-EN.md) /
-  [CN](contracts/21_RESOURCE_POOL_CONTRACT-CN.md)
-- [Testing contract](contracts/17_TESTING_CONTRACT.md)
+- [API contract](api/API_CONTRACT.md)
+- [Public API conventions](api/API_CONVENTIONS.md)
+- [Database contract](architecture/DB_CONTRACT.md)
+- [Runtime store contract](architecture/RUNTIME_STORE_CONTRACT.md)
+- [SDK and CLI contract](clients/SDK_CLI_CONTRACT.md)
+- [Resource-pool contract EN](architecture/RESOURCE_POOL_CONTRACT-EN.md) /
+  [CN](architecture/RESOURCE_POOL_CONTRACT-CN.md)
+- [Testing contract](architecture/TESTING_CONTRACT.md)
 - [Target product architecture](architecture/TARGET_PRODUCT_ARCHITECTURE.md)
 - [European network geometry policy](architecture/EUROPEAN_NETWORK_GEOMETRY_POLICY.md)
 - [Actor identity model](architecture/ACTOR_IDENTITY_MODEL.md) /
@@ -52,7 +47,6 @@ behavior.
 - [OWL gas role model EN](ontology/OWL_GAS_ROLE_MODEL.md) /
   [CN](ontology/OWL_GAS_ROLE_MODEL-CN.md)
 - [Natural-gas subject architecture](ontology/europe-natural-gas.md)
-- [Ontology gap report](ontology/gap-report.md)
 
 ### Client standards
 
@@ -120,7 +114,7 @@ Operational procedures and operator-facing guides:
 
 ## Document status rules
 
-- `contracts/`, current architecture policies, current client standards, and
+- Current architecture policies, API contracts, client standards, and
   current runbooks are normative.
 - `*-EN.md` and `*-CN.md` are language companions and must describe the same
   behavior.
@@ -131,6 +125,3 @@ Operational procedures and operator-facing guides:
   [`scripts/ci/check_markdown_links.py`](../scripts/ci/check_markdown_links.py).
 - Remove obsolete documents after current references are updated; do not keep
   internal milestone evidence in the public release repository.
-- Cross-cutting changes start with the [RFC process](engineering/RFC_PROCESS.md);
-  architecture changes also update
-  [ADR-0001 onward](architecture/ARCHITECTURE_DECISION_RECORD.md).
