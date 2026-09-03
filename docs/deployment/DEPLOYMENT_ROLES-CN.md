@@ -2,13 +2,12 @@
 
 ## 明确决策
 
-Eurogas Nexus 按设备角色交付，且只有以下三种模式：
+Eurogas Nexus 按设备角色交付，且只有以下两种模式：
 
 | 角色 | 部署设备 | 安装内容 | API 地址 | 数据库访问 |
 | --- | --- | --- | --- | --- |
 | `Server` | 专用服务器或虚拟机 | PostgreSQL、迁移、API、HTTPS 网关、采集任务、可选模拟价格任务 | 客户自有域名的 HTTPS 地址 | 仅后端服务 |
 | `Client` | 交易员工作站 | 仅 Windows 或 Linux 客户端 | 现有服务器的 `/api` HTTPS 地址 | 永不访问 |
-| `AllInOne` | 演示、试用或单用户工作站 | 本地 PostgreSQL、迁移、API、采集任务和桌面 Client | 仅回环地址 `http://127.0.0.1:8765/api` | 仅后端服务 |
 
 不存在隐含的第四种模式。客户端永远不会得到 PostgreSQL 地址、数据库
 密码、供应商密钥或数据库迁移权限。
@@ -17,7 +16,7 @@ Eurogas Nexus 按设备角色交付，且只有以下三种模式：
 
 后端读取 `EUROGAS_NEXUS_DEPLOYMENT_POSTURE`：
 
-- `private_network_preview`（默认）：当前姿态；Server/AllInOne 仍必须位于
+- `private_network_preview`（默认）：当前姿态；Server 仍必须位于
   客户防火墙或 VPN 白名单之后。
 - `security_accepted`：仅当
   `EUROGAS_NEXUS_SECURITY_ACCEPTANCE_EVIDENCE` 指向存在的、经运营方评审的
@@ -38,10 +37,6 @@ HTTPS 网关或数据采集任务。
   结尾的 HTTPS 后端地址；
 - `Server`：下载 `Eurogas-Nexus-Server-Windows.zip` 并运行
   `Deploy-EurogasNexus.ps1 -Role Server`，不需要桌面安装包；
-- `AllInOne`：只下载
-  `Eurogas-Nexus-AllInOne-<版本>-<提交>-x64-setup.exe`。该安装包已包含桌面
-  Client 和本地 API 镜像，会自动完成 Docker 与 PostgreSQL 配置。
-
 因此，安装后目录里只有桌面程序和卸载程序，属于正常的 Client 安装结果，
 不表示数据库和后端已经安装。Release 说明和产物命名必须明确标注这一边界；
 相关生产化工作记录在
@@ -112,7 +107,7 @@ Eurogas Nexus **不会静默下载或安装** Docker Desktop、WSL、PostgreSQL�
 GIE 采集在客户通过“数据源”工作流保存自己的 GIE 密钥后才启用。授权价格
 供应商在客户配置相应凭据之前保持禁用。
 
-`v0.5-preview` 尚未实现多用户登录或 SSO，因此 Server 和 AllInOne 必须指定
+`v0.5-preview` 尚未实现多用户登录或 SSO，因此 Server 必须指定
 `-PrivateNetworkOnly`，部署在客户防火墙或 VPN 白名单之后，严禁直接暴露到公网。
 HTTPS 只保护传输，不能替代用户授权。后端认证和权限控制完成前，公网及多租户
 部署均属于阻塞项。
@@ -143,30 +138,6 @@ Web 部署通过 `VITE_EUROGAS_API_BASE_URL` 指定相同的 HTTPS 地址策略�
 
 部署工具默认拒绝签名无效或未签名的安装包。内部预览测试可使用
 `-AllowUnsignedPreview`，客户交付不得使用该参数。
-
-## AllInOne 角色
-
-AllInOne 是 Windows 一键试用安装包。测试电脑需要 64 位 Windows 10/11、
-管理员权限、8 GB 内存、10 GB 可用磁盘，以及已经安装的 Docker Desktop 和
-Docker Compose v2。首次安装需要联网。电脑不需要预装 Python、Node.js、Rust、
-Git、PostgreSQL，也不需要源代码、域名或 TLS 证书。
-
-直接运行 `Eurogas-Nexus-AllInOne-...-x64-setup.exe`。安装器会按顺序：
-
-1. 检查 Docker Compose；如果 Docker Desktop 已安装但未启动，则自动启动并等待；
-2. 加载安装包内与当前 Release 提交绑定的 API 镜像；
-3. 拉取官方 `postgres:16-alpine` 镜像；
-4. 用密码学安全随机数生成数据库和后端密钥，并限制配置文件权限；
-5. 启动 PostgreSQL，并显式执行 `alembic upgrade head`；
-6. 将预览输入和带 `_Sim` 标记的模拟行情写入 PostgreSQL；
-7. 启动 API、模拟行情循环任务和公开数据源采集任务；
-8. 以整机模式安装桌面 Client，并写入受管本机 API 地址；
-9. 通过 `/api/health` 验证成功后才结束安装。
-
-API 和 PostgreSQL 的宿主机端口只绑定 `127.0.0.1`，不会向局域网暴露。模拟源
-与正式授权源走相同的采集、标准化、PostgreSQL、API、SDK 和客户端链路，并
-保留 `_Sim` 来源标记。高级实施人员仍可检查仓库中相同的 PowerShell 与 Compose
-源文件，但 Release 不再提供第二个含义不清的 AllInOne ZIP 包。
 
 ## 网络要求
 

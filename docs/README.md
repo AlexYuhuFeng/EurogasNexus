@@ -122,8 +122,6 @@ Operational procedures and operator-facing guides:
   [CN](release/SECURITY_ACCEPTANCE_EVIDENCE-CN.md)
 - [Deployment roles EN](deployment/DEPLOYMENT_ROLES-EN.md) /
   [CN](deployment/DEPLOYMENT_ROLES-CN.md)
-- [Windows AllInOne installer EN](deployment/ALL_IN_ONE_INSTALLER-EN.md) /
-  [CN](deployment/ALL_IN_ONE_INSTALLER-CN.md)
 
 ## Design references
 

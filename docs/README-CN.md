@@ -108,8 +108,6 @@
   [CN](release/SECURITY_ACCEPTANCE_EVIDENCE-CN.md)
 - [部署角色 EN](deployment/DEPLOYMENT_ROLES-EN.md) /
   [CN](deployment/DEPLOYMENT_ROLES-CN.md)
-- [Windows AllInOne 安装 EN](deployment/ALL_IN_ONE_INSTALLER-EN.md) /
-  [CN](deployment/ALL_IN_ONE_INSTALLER-CN.md)
 
 ## 设计参考
 

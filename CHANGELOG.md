@@ -26,7 +26,7 @@ Highlights:
 - Intraday opportunity monitoring with persisted alerts and DeepSeek enrichment.
 - Storage/nomination assessment workflows (assessment only).
 - Local identities, hashed API keys, role authorization, data scopes, and OIDC verification.
-- Server, Client-only, and AllInOne deployment roles.
+- Server and Client-only deployment roles.
 
 See `docs/release/RELEASE_READINESS.md` for the current release status and
 `docs/release/RELEASE_READINESS.md` for production gaps.

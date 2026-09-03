@@ -109,7 +109,6 @@ passed
 Every successful `Build and Release` workflow publishes the following assets:
 
 - `release-desktop-windows-x64`: Windows Client-only NSIS installer.
-- `release-all-in-one-windows`: Windows one-click AllInOne NSIS installer and checksum.
 - `release-deployment`: Server and advanced deployment operator toolkits.
 - `ghcr.io/alexyuhufeng/eurogasnexus-api`: multi-architecture runtime image.
 - `release-desktop-linux-x64`: Linux DEB package for x64 Linux users.

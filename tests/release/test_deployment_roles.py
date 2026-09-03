@@ -21,7 +21,7 @@ def read(relative: str) -> str:
 def test_deployment_bundle_defines_exact_device_roles() -> None:
     script = read("scripts/install/windows/Deploy-EurogasNexus.ps1")
 
-    assert '[ValidateSet("Server", "Client", "AllInOne")]' in script
+    assert '[ValidateSet("Server", "Client")]' in script
     assert "ServerApiUrl" in script
     assert "ClientInstallerPath" in script
     assert "client_database_credentials = $false" in script
@@ -93,8 +93,6 @@ def test_release_publishes_runtime_image_and_deployment_bundle() -> None:
         "deployment:",
         "package_deployment_bundle.sh",
         "release-deployment",
-        "all-in-one-windows:",
-        "release-all-in-one-windows",
     ]:
         assert phrase in workflow
 
@@ -103,7 +101,7 @@ def test_deployment_documentation_is_bilingual_and_unambiguous() -> None:
     english = read("docs/deployment/DEPLOYMENT_ROLES-EN.md")
     chinese = read("docs/deployment/DEPLOYMENT_ROLES-CN.md")
 
-    for role in ["`Server`", "`Client`", "`AllInOne`"]:
+    for role in ["`Server`", "`Client`"]:
         assert role in english
         assert role in chinese
     assert "never receives a PostgreSQL URL" in english

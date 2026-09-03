@@ -1,6 +1,6 @@
 # 服务器运行时部署包
 
-本目录是 `Server` 和 `AllInOne` 使用的服务器运行时定义。正常实施应运行
+本目录是 `Server` 和 `Server` 使用的服务器运行时定义。正常实施应运行
 `Deploy-EurogasNexus.ps1`，不应手工修改或逐个启动 Compose 服务。
 
 服务包括 PostgreSQL 16、一次性 Alembic 迁移、FastAPI、Caddy HTTPS 网关、

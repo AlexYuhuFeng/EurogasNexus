@@ -44,8 +44,7 @@ a candidate that requires human review.
   nothing is submitted).
 - Local identities, hashed API keys, roles, commercial data scopes, and OIDC
   access-token verification.
-- Web workspace packaged for Windows and Linux through Tauri, plus Server,
-  Client-only, and AllInOne deployment roles.
+- Web workspace packaged for Windows and Linux through Tauri, plus Server and Client-only deployment roles.
 
 ## Architecture
 
@@ -73,7 +72,6 @@ flowchart TB
 
         subgraph Delivery["Packaging and delivery"]
             Deploy["deploy/ runtime containers"]
-            Installer["packaging/ Windows AllInOne"]
             Scripts["scripts/ release and ops"]
         end
     end
@@ -94,8 +92,6 @@ flowchart TB
     Web --> Desktop
 
     Deploy --> PG
-    Installer --> Desktop
-    Installer --> Deploy
     Scripts -. "operator actions" .-> Db
     Scripts -. "operator actions" .-> Api
 ```

@@ -49,7 +49,7 @@ test status. The key must never be added to `.env` files committed to Git, shell
 history, screenshots, reports, support tickets, or client local storage.
 
 `EUROGAS_NEXUS_SECRET_KEY` protects stored provider credentials and is generated
-for AllInOne/Server installation. Losing this encryption key makes existing
+for Server installation. Losing this encryption key makes existing
 credential rows unusable; rotate provider keys after restoring the runtime.
 
 ## Runtime Calls and Cost Control

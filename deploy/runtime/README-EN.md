@@ -1,7 +1,7 @@
 # Runtime Deployment Bundle
 
 This directory is the committed server-runtime definition used by `Server` and
-`AllInOne` deployments. Operators should use `Deploy-EurogasNexus.ps1`; they
+`Server` deployments. Operators should use `Deploy-EurogasNexus.ps1`; they
 should not edit or invoke individual Compose services during normal install.
 
 Services: PostgreSQL 16, one-shot Alembic migration, FastAPI, Caddy HTTPS

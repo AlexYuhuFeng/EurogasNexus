@@ -40,7 +40,7 @@ Eurogas Nexus 将 DeepSeek 作为确定性监控结果之上的受控分析层�
 脱敏预览和测试状态。密钥不得写入 Git、提交到仓库的 `.env`、命令历史、截图、
 报告、工单或客户端本地存储。
 
-AllInOne/Server 安装会生成 `EUROGAS_NEXUS_SECRET_KEY`，用于保护数据库中的供应商
+Server 安装会生成 `EUROGAS_NEXUS_SECRET_KEY`，用于保护数据库中的供应商
 凭据。该加密密钥丢失后，原有凭据行无法解密，应在恢复运行时后轮换供应商密钥。
 
 ## 调用频率与费用控制

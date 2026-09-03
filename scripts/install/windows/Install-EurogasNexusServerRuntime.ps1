@@ -7,8 +7,8 @@ param(
     [int]$ApiPort = 8765,
     [ValidateRange(1024, 65535)]
     [int]$PostgresPort = 55432,
-    [ValidateSet("Server", "AllInOne")]
-    [string]$DeploymentRole = "AllInOne",
+    [ValidateSet("Server")]
+    [string]$DeploymentRole = "Server",
     [string]$ServerName,
     [ValidateRange(1024, 65535)]
     [int]$HttpsPort = 8443,
@@ -35,7 +35,7 @@ $ComposeFile = Join-Path $InstallRoot "compose.yaml"
 $EnvironmentFile = Join-Path $InstallRoot ".env"
 $DeploymentFile = Join-Path $InstallRoot "deployment.json"
 $LocalApiBaseUrl = "http://127.0.0.1:$ApiPort/api"
-$UseLocalHttp = $DeploymentRole -eq "AllInOne" -and [bool]$LocalHttpOnly
+$UseLocalHttp = $false
 $ApiBaseUrl = if ($UseLocalHttp) { $LocalApiBaseUrl } else { "https://${ServerName}:$HttpsPort/api" }
 
 function Test-Administrator {
@@ -120,17 +120,17 @@ function Get-PreflightReport {
     )
     if ($UseLocalHttp) {
         if ($HttpsBindAddress -ne "127.0.0.1") {
-            $blocking += "Local AllInOne mode is restricted to the 127.0.0.1 loopback interface."
+            $blocking += "Local loopback mode is not supported in Server deployment."
         }
     }
-    elseif ($DeploymentRole -in @("Server", "AllInOne")) {
+    elseif ($DeploymentRole -eq "Server") {
         if (-not $PrivateNetworkOnly) {
-            $blocking += "v0.5-preview Server and AllInOne roles require -PrivateNetworkOnly. Public exposure is not supported before authentication is implemented."
+            $blocking += "v0.5-preview Server role requires -PrivateNetworkOnly. Public exposure is not supported before authentication is implemented."
         }
         if (-not (Test-LocalBindAddress $HttpsBindAddress)) {
             $blocking += "HttpsBindAddress must be 127.0.0.1 or a specific IP assigned to this device; 0.0.0.0 is refused."
         }
-        if ([string]::IsNullOrWhiteSpace($ServerName)) { $blocking += "ServerName is required for the $DeploymentRole role." }
+        if ([string]::IsNullOrWhiteSpace($ServerName)) { $blocking += "ServerName is required for the Server role." }
         if ([string]::IsNullOrWhiteSpace($TlsCertificatePath) -or -not (Test-Path -LiteralPath $TlsCertificatePath)) {
             $blocking += "TlsCertificatePath must point to the PEM server certificate."
         }
@@ -171,7 +171,7 @@ function Initialize-RuntimeFiles {
     if (-not $UseLocalHttp) {
         Copy-Item -LiteralPath $SourceCaddyFile -Destination (Join-Path $InstallRoot "Caddyfile") -Force
     }
-    if (-not $UseLocalHttp -and $DeploymentRole -in @("Server", "AllInOne")) {
+    if (-not $UseLocalHttp -and $DeploymentRole -eq "Server") {
         $tlsRoot = Join-Path $InstallRoot "tls"
         New-Item -ItemType Directory -Path $tlsRoot -Force | Out-Null
         Copy-Item -LiteralPath $TlsCertificatePath -Destination (Join-Path $tlsRoot "server.crt") -Force
@@ -207,7 +207,7 @@ function Initialize-RuntimeFiles {
     [IO.File]::WriteAllLines($EnvironmentFile, $lines, [Text.UTF8Encoding]::new($false))
     Protect-EnvironmentFile
     [ordered]@{
-        deployment_mode = if ($DeploymentRole -eq "Server") { "server" } else { "all_in_one" }
+        deployment_mode = "server"
         api_base_url = $ApiBaseUrl
         compose_file = $ComposeFile
         simulated_prices_enabled = [bool]$EnableSimulatedPrices
@@ -279,7 +279,7 @@ function Install-OrRepairRuntime {
         "--profile", "monitoring", "up", "-d",
         "--no-deps", "monitoring-worker"
     )
-    if (-not $UseLocalHttp -and $DeploymentRole -in @("Server", "AllInOne")) {
+    if (-not $UseLocalHttp -and $DeploymentRole -eq "Server") {
         Invoke-Compose @("--profile", "server", "up", "-d", "--no-deps", "gateway")
     }
     if ($EnableSimulatedPrices) {
@@ -316,7 +316,7 @@ function Install-OrRepairRuntime {
     return [ordered]@{
         ok = $true
         action = $Action
-        deployment_mode = if ($DeploymentRole -eq "Server") { "server" } else { "all_in_one" }
+        deployment_mode = "server"
         api_base_url = $ApiBaseUrl
         api_status = $health.status
         api_version = $health.version

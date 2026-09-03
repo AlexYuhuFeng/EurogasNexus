@@ -2,14 +2,13 @@
 
 ## Decision
 
-Eurogas Nexus is delivered in exactly three device roles. The role controls
+Eurogas Nexus is delivered in exactly two device roles. The role controls
 which components are installed and which secrets the device may hold.
 
 | Role | Install on | Components | API endpoint | Database access |
 | --- | --- | --- | --- | --- |
 | `Server` | Dedicated server or VM | PostgreSQL, migrations, API, HTTPS gateway, ingestion workers, optional simulated price worker | Customer DNS name over HTTPS | Backend services only |
 | `Client` | Trader workstation | Windows client or Linux client only | Existing server URL ending in `/api` | Never |
-| `AllInOne` | Demonstration, evaluation, or single-user workstation | Local PostgreSQL, migrations, API, ingestion workers, and desktop Client | Loopback-only `http://127.0.0.1:8765/api` | Backend services only |
 
 There is no fourth hidden mode. A client never receives a PostgreSQL URL,
 database password, provider credential, or migration capability.
@@ -18,7 +17,7 @@ database password, provider credential, or migration capability.
 
 The backend reads `EUROGAS_NEXUS_DEPLOYMENT_POSTURE`:
 
-- `private_network_preview` (default): current posture; Server/AllInOne remain
+- `private_network_preview` (default): current posture; Server remains
   behind a customer firewall or VPN allowlist.
 - `security_accepted`: only effective when
   `EUROGAS_NEXUS_SECURITY_ACCEPTANCE_EVIDENCE` points to an existing
@@ -40,11 +39,6 @@ Choose release assets by role:
   reachable HTTPS endpoint ending in `/api`.
 - `Server`: download `Eurogas-Nexus-Server-Windows.zip` and run
   `Deploy-EurogasNexus.ps1 -Role Server`; the desktop installer is not required.
-- `AllInOne`: download the single
-  `Eurogas-Nexus-AllInOne-<version>-<commit>-x64-setup.exe` asset. The installer
-  contains the desktop Client and local API image and performs the complete
-  Docker/PostgreSQL setup itself.
-
 A desktop installation showing only the application executable and uninstaller
 is therefore a normal Client installation, not evidence that the database or
 backend has been installed. Release notes and asset names must make this
@@ -120,7 +114,7 @@ GIE ingestion remains disabled until the customer stores its own GIE key via
 the backend-managed Data Sources workflow. Licensed providers remain disabled
 until customer credentials are configured.
 
-`v0.5-preview` has no multi-user login or SSO. Server and AllInOne therefore
+`v0.5-preview` has no multi-user login or SSO. Server therefore
 require `-PrivateNetworkOnly`, must sit behind a customer firewall/VPN allowlist,
 and must not be exposed to the public internet. HTTPS protects transport; it
 does not provide user authorization. Public or multi-tenant deployment is
@@ -156,32 +150,6 @@ The deployment tool rejects an invalid or unsigned installer. Internal preview
 testing may use `-AllowUnsignedPreview`; customer delivery must not use that
 switch.
 
-## AllInOne role
-
-AllInOne is the one-click Windows evaluation package. The workstation needs
-64-bit Windows 10/11, administrator rights, 8 GB RAM, 10 GB free disk, Docker
-Desktop with Compose v2, and first-install internet access. It does **not** need
-Python, Node.js, Rust, Git, PostgreSQL, a source checkout, or a TLS certificate.
-
-Run the `Eurogas-Nexus-AllInOne-...-x64-setup.exe` asset. The installer:
-
-1. verifies Docker Compose and starts Docker Desktop when it is installed but stopped;
-2. loads the release-pinned API image embedded in the installer;
-3. pulls the official `postgres:16-alpine` image;
-4. creates cryptographically random DB/backend secrets under restricted ACLs;
-5. starts PostgreSQL and explicitly runs `alembic upgrade head`;
-6. writes preview inputs and `_Sim` market data into PostgreSQL;
-7. starts the API, recurring simulated price worker, and public-source workers;
-8. installs the desktop Client system-wide and configures its managed endpoint;
-9. validates `/api/health` before reporting success.
-
-The API and PostgreSQL host ports bind to `127.0.0.1`; no workstation API is
-exposed to the LAN. Simulated feeds use the same ingestion, normalization,
-PostgreSQL, API, SDK, and client path as licensed feeds and retain `_Sim`
-provenance. Advanced operators can inspect the same committed PowerShell and
-Compose sources in the repository, but the Release has no second, ambiguous
-AllInOne ZIP package.
-
 ## Internet requirements
 
 Internet is required to pull container images and ingest current public data.
@@ -194,7 +162,7 @@ the bootstrapper never performs an undisclosed internet search or download.
 - `Repair` reapplies Compose configuration and migrations without deleting data.
 - `Validate` checks API health, PostgreSQL connectivity, required tables, and
   Alembic revision.
-- `Uninstall` stops the server or AllInOne runtime but preserves the PostgreSQL volume.
+- `Uninstall` stops the server runtime but preserves the PostgreSQL volume.
 - `Uninstall -PurgeServerData` is the only path that deletes the runtime volume.
 - Remove the desktop client through Windows Apps after disconnecting its managed
   endpoint configuration.

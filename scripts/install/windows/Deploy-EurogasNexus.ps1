@@ -2,7 +2,7 @@
 param(
     [ValidateSet("Preflight", "Install", "Repair", "Validate", "Uninstall")]
     [string]$Action = "Preflight",
-    [ValidateSet("Server", "Client", "AllInOne")]
+    [ValidateSet("Server", "Client")]
     [string]$Role,
     [string]$ServerApiUrl,
     [string]$ClientInstallerPath,
@@ -124,11 +124,11 @@ function Invoke-ServerRuntime([string]$RuntimeAction) {
 
 function Get-Preflight {
     $blocking = @()
-    if (-not $Role) { $blocking += "Role is required: Server, Client, or AllInOne." }
+    if (-not $Role) { $blocking += "Role is required: Server or Client." }
     if ($Action -in @("Install", "Repair", "Uninstall") -and -not (Test-Administrator)) {
         $blocking += "$Action requires an elevated PowerShell session."
     }
-    if ($Role -in @("Client", "AllInOne") -and $Action -in @("Install", "Repair")) {
+    if ($Role -eq "Client" -and $Action -in @("Install", "Repair")) {
         if ([string]::IsNullOrWhiteSpace($ClientInstallerPath) -or -not (Test-Path -LiteralPath $ClientInstallerPath)) {
             $blocking += "ClientInstallerPath must point to the Windows NSIS installer."
         }
@@ -136,11 +136,11 @@ function Get-Preflight {
     $apiUrl = $null
     try {
         if ($Role -eq "Client") { $apiUrl = Resolve-ApiUrl $ServerApiUrl $true }
-        if ($Role -in @("Server", "AllInOne")) {
+        if ($Role -eq "Server") {
             if (-not $PrivateNetworkOnly) {
-                throw "v0.5-preview Server and AllInOne deployments require -PrivateNetworkOnly."
+                throw "v0.5-preview Server deployments require -PrivateNetworkOnly."
             }
-            if ([string]::IsNullOrWhiteSpace($ServerName)) { throw "ServerName is required for the $Role role." }
+            if ([string]::IsNullOrWhiteSpace($ServerName)) { throw "ServerName is required for the Server role." }
             if ([string]::IsNullOrWhiteSpace($TlsCertificatePath) -or -not (Test-Path -LiteralPath $TlsCertificatePath)) {
                 throw "TlsCertificatePath must point to the PEM server certificate."
             }
@@ -154,7 +154,7 @@ function Get-Preflight {
         $blocking += $_.Exception.Message
     }
     $runtimePreflight = $null
-    if ($Role -in @("Server", "AllInOne")) {
+    if ($Role -eq "Server") {
         try {
             $runtimePreflight = Invoke-ServerRuntime "Preflight"
             if (-not $runtimePreflight.ok) { $blocking += $runtimePreflight.blocking }
@@ -174,7 +174,7 @@ function Get-Preflight {
         automatic_docker_install = $false
         client_database_credentials = $false
         unsigned_preview_allowed = [bool]$AllowUnsignedPreview
-        network_exposure = if ($Role -in @("Server", "AllInOne")) { "private_network_only" } else { "client_only" }
+        network_exposure = if ($Role -eq "Server") { "private_network_only" } else { "client_only" }
     }
 }
 
@@ -184,12 +184,12 @@ if ($Action -ne "Preflight" -and $preflight.ok) {
     if ($Action -in @("Install", "Repair")) {
         if ($PSCmdlet.ShouldProcess("Eurogas Nexus $Role", $Action)) {
             $runtime = $null
-            if ($Role -in @("Server", "AllInOne")) {
+            if ($Role -eq "Server") {
                 $runtime = Invoke-ServerRuntime $Action
             }
             $apiUrl = Get-DeployedApiUrl
             $health = $null
-            if ($Role -in @("Client", "AllInOne")) {
+            if ($Role -eq "Client") {
                 $health = Test-Api $apiUrl
                 Install-Client $apiUrl $Role
             }
@@ -199,8 +199,8 @@ if ($Action -ne "Preflight" -and $preflight.ok) {
                 role = $Role
                 api_base_url = $apiUrl
                 api_version = if ($health) { $health.version } else { $runtime.api_version }
-                server_runtime_changed = $Role -in @("Server", "AllInOne")
-                client_changed = $Role -in @("Client", "AllInOne")
+                server_runtime_changed = $Role -eq "Server"
+                client_changed = $Role -eq "Client"
             }
         }
         else {
@@ -209,9 +209,9 @@ if ($Action -ne "Preflight" -and $preflight.ok) {
     }
     elseif ($Action -eq "Validate") {
         $runtime = $null
-        if ($Role -in @("Server", "AllInOne")) { $runtime = Invoke-ServerRuntime "Validate" }
+        if ($Role -eq "Server") { $runtime = Invoke-ServerRuntime "Validate" }
         $apiUrl = Get-DeployedApiUrl
-        $health = if ($Role -in @("Client", "AllInOne")) { Test-Api $apiUrl } else { $null }
+        $health = if ($Role -eq "Client") { Test-Api $apiUrl } else { $null }
         $result = [ordered]@{
             ok = $true
             action = "Validate"
@@ -222,8 +222,8 @@ if ($Action -ne "Preflight" -and $preflight.ok) {
         }
     }
     elseif ($Action -eq "Uninstall" -and $PSCmdlet.ShouldProcess("Eurogas Nexus $Role", "Uninstall")) {
-        if ($Role -in @("Server", "AllInOne")) { $null = Invoke-ServerRuntime "Uninstall" }
-        if ($Role -in @("Client", "AllInOne") -and (Test-Path -LiteralPath $ClientConfigFile)) {
+        if ($Role -eq "Server") { $null = Invoke-ServerRuntime "Uninstall" }
+        if ($Role -eq "Client" -and (Test-Path -LiteralPath $ClientConfigFile)) {
             Remove-Item -LiteralPath $ClientConfigFile -Force
         }
         $result = [ordered]@{ ok = $true; action = "Uninstall"; role = $Role }

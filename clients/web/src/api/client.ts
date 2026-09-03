@@ -105,7 +105,7 @@ export function clearApiBaseUrl(): string {
 
 interface DesktopDeploymentConfig {
   schema_version: number;
-  role: "Client" | "AllInOne";
+  role: "Client";
   api_base_url: string;
 }
 
