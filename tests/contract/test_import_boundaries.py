@@ -19,7 +19,10 @@ def test_domain_modules_do_not_import_fastapi() -> None:
 
 
 def test_sdk_and_cli_do_not_import_internal_domain_modules() -> None:
-    boundary_roots = [SRC / "sdk", SRC / "cli"]
+    boundary_roots = [
+        ROOT / "packages" / "python-sdk" / "src" / "eurogas_nexus_sdk",
+        SRC / "cli",
+    ]
     offenders: list[str] = []
 
     for root in boundary_roots:

@@ -1,7 +1,7 @@
 """Generalized cost-observation domain contract.
 
-The domain model intentionally has no SQLAlchemy or FastAPI imports. The
-repository/API layers map database rows to this contract.
+The domain model intentionally has no SQLAlchemy or web-framework imports.
+The repository/API layers map database rows to this contract.
 """
 
 from __future__ import annotations

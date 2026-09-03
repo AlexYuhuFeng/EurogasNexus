@@ -22,6 +22,8 @@ def test_catalog_has_required_data_science_functions() -> None:
         "weather_stations",
         "weather_observations",
         "weather_hdd_cdd",
+        "cost_observation_values",
+        "applicable_cost_resolution",
         "optimization_run_evidence",
     ]:
         assert expected in names

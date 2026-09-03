@@ -11,6 +11,9 @@ from eurogas_nexus.db.repositories.cost_observation import (
     list_cost_observations,
     upsert_cost_observation,
 )
+from eurogas_nexus.db.repositories.cost_observation_resolver import (
+    resolve_cost_observation,
+)
 from eurogas_nexus.db.repositories.market_positioning_import import (
     upsert_market_positioning_import_batch,
 )
@@ -60,6 +63,7 @@ __all__ = [
     "IngestionRunRepository",
     "SqlAlchemyIngestionRunRepository",
     "list_cost_observations",
+    "resolve_cost_observation",
     "upsert_cost_observation",
     "upsert_market_positioning_import_batch",
 ]

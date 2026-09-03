@@ -6,8 +6,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 
 SDK_FILES = [
-    ROOT / "src" / "eurogas_nexus" / "sdk" / "__init__.py",
-    ROOT / "src" / "eurogas_nexus" / "sdk" / "health_client.py",
+    ROOT / "packages" / "python-sdk" / "src" / "eurogas_nexus_sdk" / "__init__.py",
+    ROOT / "packages" / "python-sdk" / "src" / "eurogas_nexus_sdk" / "health_client.py",
 ]
 CLI_FILES = [
     ROOT / "src" / "eurogas_nexus" / "cli" / "__init__.py",

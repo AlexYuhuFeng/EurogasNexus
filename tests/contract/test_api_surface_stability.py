@@ -17,6 +17,8 @@ PINNED_PUBLIC_PATHS = {
     "/api/analysis/query",
     "/api/contracts/capacity",
     "/api/contracts/routes",
+    "/api/cost-observations/applicable",
+    "/api/cost-observations/values",
     "/api/credentials/providers",
     "/api/credentials/{provider_id}",
     "/api/credentials/{provider_id}/connection-test",

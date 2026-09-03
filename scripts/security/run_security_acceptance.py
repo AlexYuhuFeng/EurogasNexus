@@ -56,7 +56,7 @@ def _checks() -> list[dict]:
         not any(path.startswith("/api/workflows/") for path in paths),
         f"public paths={len(paths)}",
     )
-    check("public_surface_bounded", len(paths) == 84, f"public paths={len(paths)}")
+    check("public_surface_bounded", len(paths) == 86, f"public paths={len(paths)}")
 
     from eurogas_nexus.security.permissions import permission_for_path
 

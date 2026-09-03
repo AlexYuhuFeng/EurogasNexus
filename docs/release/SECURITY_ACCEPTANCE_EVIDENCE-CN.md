@@ -11,7 +11,7 @@
 检查项：
 
 - API 导入不加载数据库/网络。
-- 公开 API 表面受控（84 条路径），`/api/workflows/*` 已移除。
+- 公开 API 表面受控（86 条路径），`/api/workflows/*` 已移除。
 - 每条公开路径都有权限声明。
 - 公共令牌与 internal 令牌在未配置时 fail-closed。
 - 身份 API key 仅存哈希，角色优先级正确。

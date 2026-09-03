@@ -33,7 +33,7 @@ def test_intraday_api_and_sdk_use_stable_unversioned_paths() -> None:
         / "market.py"
     ).read_text(encoding="utf-8")
     sdk = (
-        ROOT / "src" / "eurogas_nexus" / "sdk" / "market.py"
+        ROOT / "packages" / "python-sdk" / "src" / "eurogas_nexus_sdk" / "market.py"
     ).read_text(encoding="utf-8")
 
     assert '"/api/market/quotes"' in api_route

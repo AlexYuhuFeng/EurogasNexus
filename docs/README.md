@@ -91,6 +91,7 @@ Operational procedures and operator-facing guides:
 - [Incident response](operations/INCIDENT_RESPONSE.md)
 - [Release signing](operations/RELEASE_SIGNING.md)
 - [Provider live validation](operations/PROVIDER_VALIDATION.md)
+- [Cost observation sources](operations/COST_OBSERVATION_SOURCES.md)
 - [Service level objectives](operations/SLO.md)
 - [Production source operations EN](operations/PRODUCTION_SOURCE_OPERATIONS.md) /
   [CN](operations/PRODUCTION_SOURCE_OPERATIONS-CN.md)

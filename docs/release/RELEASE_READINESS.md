@@ -36,7 +36,7 @@ Source/runtime evidence from the running workspace:
 registered sources=24
 active feeds=6
 runtime records=7487+
-public openapi paths=84
+public openapi paths=86
 ```
 
 Local source validation:

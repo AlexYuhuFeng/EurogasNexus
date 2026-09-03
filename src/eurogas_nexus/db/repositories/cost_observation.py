@@ -87,6 +87,48 @@ def upsert_cost_observation(
     return row
 
 
+def cost_observation_freshness(
+    session: Session,
+    *,
+    scope_type: str,
+    scope_id: str,
+    now_utc: datetime,
+    expectation_minutes: int = 1440,
+) -> dict:
+    """Return freshness metadata for one cost-observation scope.
+
+    The result is deliberately read-only and source-honest. A scope with no
+    observations is ``unavailable`` rather than fabricated.
+    """
+
+    rows = list_cost_observations(
+        session,
+        scope_type=scope_type,
+        scope_id=scope_id,
+    )
+    if not rows:
+        return {
+            "scope_type": scope_type,
+            "scope_id": scope_id,
+            "status": "unavailable",
+            "latest_created_at_utc": None,
+            "age_minutes": None,
+            "expectation_minutes": expectation_minutes,
+        }
+    latest = max(row.created_at_utc for row in rows)
+    latest = _as_utc(latest)
+    age_minutes = max(0.0, (now_utc - latest).total_seconds() / 60.0)
+    status = "live" if age_minutes <= expectation_minutes else "stale"
+    return {
+        "scope_type": scope_type,
+        "scope_id": scope_id,
+        "status": status,
+        "latest_created_at_utc": latest.isoformat(),
+        "age_minutes": round(age_minutes, 2),
+        "expectation_minutes": expectation_minutes,
+    }
+
+
 def _as_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=UTC)

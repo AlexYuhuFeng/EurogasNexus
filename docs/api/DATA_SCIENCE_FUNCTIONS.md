@@ -22,6 +22,8 @@ Source of truth: `src/eurogas_nexus/api/function_catalog.py`.
 | Weather observations | `/api/weather/observations` | GET | `eurogas_nexus_sdk.weather.fetch_weather_observations` | `get_weather_observations` | runtime |
 | HDD/CDD | `/api/weather/hdd-cdd` | GET | `eurogas_nexus_sdk.weather.fetch_hdd_cdd` | `get_hdd_cdd` | runtime |
 | Optimization run evidence | `/api/optimization/runs/{run_id}` | GET | `eurogas_nexus_sdk.optimization.fetch_optimization_run` | `get_optimization_run` | runtime |
+| Cost observation values | `/api/cost-observations/values` | GET | `eurogas_nexus_sdk.cost_observations.fetch_cost_observations` | `get_cost_observations` | runtime |
+| Applicable cost resolution | `/api/cost-observations/applicable` | GET | `eurogas_nexus_sdk.cost_observations.resolve_cost_observation` | `get_applicable_cost` | runtime |
 
 ## Design rules
 

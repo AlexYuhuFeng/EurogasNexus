@@ -52,6 +52,7 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     ("/api/ingestion-runs", Permission.READ),
     # --- read families ---
     ("/api/contracts/", Permission.READ),
+    ("/api/cost-observations/", Permission.READ),
     ("/api/glossary", Permission.READ),
     ("/api/glossary/{term}", Permission.READ),
     ("/api/glossary/{term}/context", Permission.READ),

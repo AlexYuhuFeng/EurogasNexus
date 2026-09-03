@@ -39,6 +39,8 @@ def test_tools_list_declares_read_only_tools() -> None:
     assert "optimize_route_sandbox" in names
     assert "get_weather_stations" in names
     assert "get_hdd_cdd" in names
+    assert "get_cost_observations" in names
+    assert "get_applicable_cost" in names
     assert "optimize_resource_pool_sandbox" in names
     assert "optimize_capacity_sandbox" in names
     assert "optimize_contracts_sandbox" in names

@@ -117,6 +117,33 @@ def _tool_hdd_cdd(arguments: dict[str, Any]) -> Any:
     ]
 
 
+def _tool_cost_observations(arguments: dict[str, Any]) -> Any:
+    from eurogas_nexus_sdk.cost_observations import fetch_cost_observations
+
+    return [
+        row.model_dump()
+        for row in fetch_cost_observations(
+            _base_url(),
+            scope_type=arguments.get("scope_type"),
+            scope_id=arguments.get("scope_id"),
+            as_of=arguments.get("as_of"),
+        )
+    ]
+
+
+def _tool_applicable_cost(arguments: dict[str, Any]) -> Any:
+    from eurogas_nexus_sdk.cost_observations import resolve_cost_observation
+
+    result = resolve_cost_observation(
+        _base_url(),
+        scope_type=str(arguments["scope_type"]),
+        scope_id=str(arguments["scope_id"]),
+        as_of=str(arguments["as_of"]),
+        entitlement_scope=arguments.get("entitlement_scope"),
+    )
+    return result.model_dump()
+
+
 def _tool_get_optimization_run(arguments: dict[str, Any]) -> Any:
     from eurogas_nexus_sdk.optimization import fetch_optimization_run
 
@@ -300,6 +327,42 @@ TOOLS: tuple[MCPTool, ...] = (
         description="List heating/cooling degree-day series (empty until ingested).",
         input_schema={"type": "object", "properties": {}, "additionalProperties": False},
         handler=_tool_hdd_cdd,
+    ),
+    MCPTool(
+        name="get_cost_observations",
+        description=(
+            "List time-windowed route/point/LNG cost observations "
+            "(TSO, contract, secondary transfer, auction, slot)."
+        ),
+        input_schema={
+            "type": "object",
+            "properties": {
+                "scope_type": {"type": "string"},
+                "scope_id": {"type": "string"},
+                "as_of": {"type": "string"},
+            },
+            "additionalProperties": False,
+        },
+        handler=_tool_cost_observations,
+    ),
+    MCPTool(
+        name="get_applicable_cost",
+        description=(
+            "Resolve the applicable cost for a route/point/LNG terminal using "
+            "entitlement priority."
+        ),
+        input_schema={
+            "type": "object",
+            "properties": {
+                "scope_type": {"type": "string"},
+                "scope_id": {"type": "string"},
+                "as_of": {"type": "string"},
+                "entitlement_scope": {"type": "array", "items": {"type": "string"}},
+            },
+            "required": ["scope_type", "scope_id", "as_of"],
+            "additionalProperties": False,
+        },
+        handler=_tool_applicable_cost,
     ),
     MCPTool(
         name="get_optimization_run",
