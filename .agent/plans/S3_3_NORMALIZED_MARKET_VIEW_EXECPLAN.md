@@ -44,7 +44,7 @@
 - create `tests/api/test_market_normalized_api.py`
 - modify `tests/sdk/test_intraday_market_clients.py`（新 SDK 方法覆盖）
 - modify `tests/contract/test_architecture_alignment.py`（路由数 89→90）
-- modify `docs/architecture/CURRENT_PAUSE_POINT.md` + `-CN.md`（路由数 90 + 产品形态）
+- modify `docs/release/RELEASE_READINESS.md` + `-CN.md`（路由数 90 + 产品形态）
 - modify `docs/architecture/IMPROVEMENT_ROADMAP.md`（S3.3 后端部分 ✅，前端部分标注 defer）
 - create `.agent/plans/S3_3_NORMALIZED_MARKET_VIEW_EXECPLAN.md`（本文件）
 

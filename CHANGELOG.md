@@ -29,4 +29,4 @@ Highlights:
 - Server, Client-only, and AllInOne deployment roles.
 
 See `docs/release/RELEASE_READINESS.md` for the current release status and
-`docs/release/PRODUCTION_READINESS_BACKLOG.md` for production gaps.
+`docs/release/RELEASE_READINESS.md` for production gaps.

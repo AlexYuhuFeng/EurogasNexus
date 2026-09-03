@@ -29,7 +29,7 @@
 - modify `src/eurogas_nexus/domain/ingestion/certification.py`
 - create `tests/unit/test_principal.py`
 - create `docs/architecture/ACTOR_IDENTITY_MODEL.md` + `-CN.md`
-- modify `docs/architecture/IMPROVEMENT_ROADMAP.md`、`CURRENT_PAUSE_POINT.md`/`-CN.md`
+- modify `docs/architecture/IMPROVEMENT_ROADMAP.md`、`RELEASE_READINESS.md`/`-CN.md`
 
 ## 5. Dependency policy
 

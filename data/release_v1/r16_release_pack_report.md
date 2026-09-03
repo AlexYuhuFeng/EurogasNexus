@@ -12,7 +12,7 @@ Use these files instead:
 
 - `data/release_v1/holistic_real_test_report.md`
 - `docs/release/V1_RELEASE_READINESS.md`
-- `docs/architecture/CURRENT_PAUSE_POINT.md`
+- `docs/release/RELEASE_READINESS.md`
 
 Current release status: `NOT READY FOR OFFICIAL V1 RELEASE`.
 
@@ -101,7 +101,7 @@ glossary (2), research POST (8), compat (5)
 ### Exact Next Prompt for R14/R15 Toolchain Completion
 
 ```text
-docs/architecture/CURRENT_PAUSE_POINT.md.
+docs/release/RELEASE_READINESS.md.
 
 Internet is now available. Run:
   cd clients/web && npm install && npm run build

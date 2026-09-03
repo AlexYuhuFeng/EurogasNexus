@@ -66,7 +66,7 @@ These are broader commercial-release tasks, not incomplete R15 shell work:
 - code signing and trusted publisher/release-channel evidence;
 - full page-by-page desktop accessibility and bilingual regression automation;
 - security acceptance for external deployment and official V1 release;
-- remaining domain gaps listed in `docs/architecture/CURRENT_PAUSE_POINT.md`.
+- remaining domain gaps listed in `docs/release/RELEASE_READINESS.md`.
 
 ## Next
 

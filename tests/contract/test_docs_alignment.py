@@ -64,10 +64,11 @@ def test_current_guidance_reflects_active_web_and_windows_runtime() -> None:
     ).read_text(encoding="utf-8")
 
     assert "Web and Windows client surfaces are active" in north_star
-    backlog = (ROOT / "docs" / "release" / "PRODUCTION_READINESS_BACKLOG.md").read_text(
+    release = (ROOT / "docs" / "release" / "RELEASE_READINESS.md").read_text(
         encoding="utf-8"
     )
-    assert "Production Readiness Backlog" in backlog
+    assert "RELEASE CANDIDATE" in release
+    assert "Validated Gates" in release
     assert "active client runtime code" in client_index
     assert "Default next milestone" not in master_plan
     assert "No frontend runtime implementation belongs" not in north_star

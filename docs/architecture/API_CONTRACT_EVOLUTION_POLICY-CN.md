@@ -44,7 +44,7 @@ Windows/Linux 桌面外壳和双语运营文档。所有消费方都是同一契
 1. 在 `.agent/plans/` 写 ExecPlan，列明 API 影响与回滚。
 2. 新增路径：同一变更中把路径加入
    `tests/contract/test_api_surface_stability.py` 的
-   `PINNED_PUBLIC_PATHS`，并更新文档化路由数（`CURRENT_PAUSE_POINT.md`、
+   `PINNED_PUBLIC_PATHS`，并更新文档化路由数（`RELEASE_READINESS.md`、
    `-CN.md` 及 `test_architecture_alignment.py` 断言）。
 3. 弃用路径：在 router 标记 `deprecated`、在信封加 warning，并登记到下方
    弃用表。

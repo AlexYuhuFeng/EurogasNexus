@@ -212,4 +212,4 @@ Every backend milestone final report should include:
 - tests run;
 - route count;
 - remaining gaps;
-- recommended next work from `docs/release/PRODUCTION_READINESS_BACKLOG.md`.
+- recommended next work from `docs/release/RELEASE_READINESS.md`.

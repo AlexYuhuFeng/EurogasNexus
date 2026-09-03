@@ -10,11 +10,9 @@ the current/normative document listed here and report the conflict.
 ## Read first
 
 1. [Changelog](../CHANGELOG.md)
-2. [Current pause point](architecture/CURRENT_PAUSE_POINT.md) — verified runtime
-   and product baseline.
-3. [Production readiness backlog](release/PRODUCTION_READINESS_BACKLOG.md) — active
-   production gaps and remaining work.
-4. [Project directory and ownership](../PROJECT_DIRECTORY.md)
+2. [Release readiness](release/RELEASE_READINESS.md) — current release status,
+   validated gates, and known production gaps.
+3. [Project directory and ownership](../PROJECT_DIRECTORY.md)
 5. [Architecture decisions](architecture/ARCHITECTURE_DECISION_RECORD.md)
 6. [RFC process](engineering/RFC_PROCESS.md) and
    [accepted RFCs](engineering/rfc/README.md)
@@ -120,7 +118,6 @@ Operational procedures and operator-facing guides:
 ## Release, security, and deployment
 
 - [Release readiness](release/RELEASE_READINESS.md)
-- [Production readiness backlog](release/PRODUCTION_READINESS_BACKLOG.md)
 - [Security acceptance evidence EN](release/SECURITY_ACCEPTANCE_EVIDENCE.md) /
   [CN](release/SECURITY_ACCEPTANCE_EVIDENCE-CN.md)
 - [Deployment roles EN](deployment/DEPLOYMENT_ROLES-EN.md) /

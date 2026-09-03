@@ -14,13 +14,11 @@ shell. This is **not** an official production release. The repository is not
 marked as a stable/GA release until the production items below and the external
 security-acceptance evidence are complete.
 
-Actionable production work is tracked in
-`docs/release/PRODUCTION_READINESS_BACKLOG.md`.
+The remaining production work is listed below.
 
 ## Latest Local Evidence
 
-Runtime API evidence from the operator's local API (see
-`docs/architecture/CURRENT_PAUSE_POINT.md` for the pinned numbers):
+Runtime API evidence from the operator's local API:
 
 ```text
 GET /api/runtime/db
@@ -140,8 +138,7 @@ operator-owned test portfolio/price records. Commercial feeds remain gated.
 
 ## Required Before Production Deployment
 
-The following items are summarized here and expanded in
-`docs/release/PRODUCTION_READINESS_BACKLOG.md`:
+The following items are the current production gaps:
 
 - Production scheduling/retry/monitoring for ingestion.
 - Provider-specific live tests for EEX, ICE OCM, Trayport, Kpler, Platts, ICIS,

@@ -45,7 +45,7 @@ native live；未过门（包括 DB 不可用）一律 fail-closed。落地路�
 - create `tests/contract/test_certification_db_models.py`
 - create `tests/api/test_source_certification_api.py`
 - modify `tests/contract/test_architecture_alignment.py`（0018 / 38）
-- modify `docs/architecture/CURRENT_PAUSE_POINT.md` + `-CN.md`（head 0018、38 表、产品形态）
+- modify `docs/release/RELEASE_READINESS.md` + `-CN.md`（head 0018、38 表、产品形态）
 - modify `docs/architecture/IMPROVEMENT_ROADMAP.md`（S4.2 ✅）
 
 ## 5. Dependency policy

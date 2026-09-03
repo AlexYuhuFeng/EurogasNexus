@@ -105,21 +105,6 @@ def test_architecture_decisions_are_explicit() -> None:
     ]:
         assert phrase in text
 
-def test_current_pause_point_records_holistic_runtime_pause_state() -> None:
-    text = _read_doc("docs/architecture/CURRENT_PAUSE_POINT.md")
-
-    assert "`0.5.0` preview-release worktree" in text
-    assert "0023_storage_nomination_masters" in text
-    assert "45" in text
-    assert "84" in text
-    assert "Windows/Linux desktop clients" in text
-    assert "Linux ARM64" in text
-    assert "screen_order_observations" in text
-    assert "/api/internal" in text
-    assert "Provider credentials are backend-owned" in text
-    assert "DB-backed portfolio network optimization" in text
-
-
 def test_live_postgresql_policy_is_explicit_and_safe() -> None:
     text = _read_doc("docs/operations/LIVE_POSTGRESQL.md")
 

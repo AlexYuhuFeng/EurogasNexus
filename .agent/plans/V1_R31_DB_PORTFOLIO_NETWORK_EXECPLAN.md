@@ -58,9 +58,9 @@ Modify:
 - `tests/contract/test_api_surface_stability.py` — pin the new path.
 - `tests/contract/test_architecture_alignment.py` — update route count and
   R31 queue assertions.
-- `docs/release/PRODUCTION_READINESS_BACKLOG.md` — mark R31
+- `docs/release/RELEASE_READINESS.md` — mark R31
   complete with delivered scope and evidence.
-- `docs/architecture/CURRENT_PAUSE_POINT.md` and `-CN.md` — route count and
+- `docs/release/RELEASE_READINESS.md` and `-CN.md` — route count and
   optimization state.
 - `docs/architecture/PHASE_TWO_OPTIMIZATION.md` and `-CN.md` — expose the
   new DB-backed capability status.

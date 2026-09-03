@@ -33,7 +33,7 @@ data are committed.
 ## Files
 
 - `data/release_v1/r16_release_pack_report.md` — release pack report
-- `docs/architecture/CURRENT_PAUSE_POINT.md` — updated pause point
+- `docs/release/RELEASE_READINESS.md` — updated pause point
 
 ## Validation
 

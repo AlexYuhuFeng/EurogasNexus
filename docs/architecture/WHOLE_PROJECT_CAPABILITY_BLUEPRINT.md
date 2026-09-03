@@ -46,7 +46,7 @@ Purpose:
 
 Primary docs:
 
-- `docs/release/PRODUCTION_READINESS_BACKLOG.md`
+- `docs/release/RELEASE_READINESS.md`
 - `docs/operations/LIVE_POSTGRESQL.md`
 - `docs/contracts/00_CONTRACT_INDEX.md`
 

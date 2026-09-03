@@ -49,7 +49,7 @@ A desktop installation showing only the application executable and uninstaller
 is therefore a normal Client installation, not evidence that the database or
 backend has been installed. Release notes and asset names must make this
 boundary explicit; production hardening is tracked as `DEP-001` in
-`docs/release/PRODUCTION_READINESS_BACKLOG.md`.
+`docs/release/RELEASE_READINESS.md`.
 
 ## Installation entry point
 

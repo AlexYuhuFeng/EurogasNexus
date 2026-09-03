@@ -8,9 +8,8 @@
 ## 先读
 
 1. [更新日志](../CHANGELOG.md)
-2. [当前暂停点](architecture/CURRENT_PAUSE_POINT-CN.md)
-3. [生产就绪待办](release/PRODUCTION_READINESS_BACKLOG.md)
-4. [项目目录与归属](../PROJECT_DIRECTORY.md)
+2. [发布就绪](release/RELEASE_READINESS.md) — 当前发布状态、已验证门槛与已知生产差距。
+3. [项目目录与归属](../PROJECT_DIRECTORY.md)
 5. [架构决策记录](architecture/ARCHITECTURE_DECISION_RECORD.md)
 6. [RFC 流程](engineering/RFC_PROCESS.md) 与
    [已接受 RFC](engineering/rfc/README.md)
@@ -105,7 +104,6 @@
 ## 发布、安全与部署
 
 - [发布就绪](release/RELEASE_READINESS.md)
-- [生产就绪待办](release/PRODUCTION_READINESS_BACKLOG.md)
 - [安全验收证据 EN](release/SECURITY_ACCEPTANCE_EVIDENCE.md) /
   [CN](release/SECURITY_ACCEPTANCE_EVIDENCE-CN.md)
 - [部署角色 EN](deployment/DEPLOYMENT_ROLES-EN.md) /

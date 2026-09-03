@@ -45,7 +45,7 @@ HTTPS 网关或数据采集任务。
 因此，安装后目录里只有桌面程序和卸载程序，属于正常的 Client 安装结果，
 不表示数据库和后端已经安装。Release 说明和产物命名必须明确标注这一边界；
 相关生产化工作记录在
-`docs/release/PRODUCTION_READINESS_BACKLOG.md` 的 `DEP-001`。
+`docs/release/RELEASE_READINESS.md` 的 `DEP-001`。
 
 ## Windows 部署入口
 

@@ -40,7 +40,7 @@
 - create `tests/unit/test_public_ingestion_upsert.py`
 - create `tests/unit/test_ingest_public_sources.py`
 - modify `docs/architecture/IMPROVEMENT_ROADMAP.md`（S3.2 标记 ✅）
-- modify `docs/architecture/CURRENT_PAUSE_POINT.md` + `-CN.md`（产品形态增补一行）
+- modify `docs/release/RELEASE_READINESS.md` + `-CN.md`（产品形态增补一行）
 
 ## 5. Dependency policy
 

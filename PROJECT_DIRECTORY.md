@@ -5,7 +5,7 @@
 This file is the current directory map and ownership boundary for Eurogas
 Nexus. It intentionally does not list every file. For detailed module rules use
 the contracts and client docs linked below; for the verified current shape use
-[docs/architecture/CURRENT_PAUSE_POINT.md](docs/architecture/CURRENT_PAUSE_POINT.md).
+[docs/release/RELEASE_READINESS.md](docs/release/RELEASE_READINESS.md).
 
 ## Root layout
 
@@ -49,7 +49,7 @@ Eurogas Nexus follows a conventional Python/FastAPI + React monorepo layout:
    automation; `docs/` contains repository knowledge.
 4. **No empty source placeholders**: do not create runtime packages with only
    an `__init__.py` to reserve a future capability. Keep future work in
-   `docs/release/PRODUCTION_READINESS_BACKLOG.md` or an ExecPlan and create the
+   `docs/release/RELEASE_READINESS.md` or an ExecPlan and create the
    package when the first implementation lands.
 5. **Tests mirror the work they cover**: API tests under `tests/api`, domain
    research tests under `tests/domain/research`, workflow tests under

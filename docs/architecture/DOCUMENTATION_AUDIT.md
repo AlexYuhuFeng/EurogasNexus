@@ -35,7 +35,7 @@ The cleanup standard is:
   and versioned/bootstrap aliases return `404`.
 - Renamed `docs/release/V1_RELEASE_READINESS.md` to
   `docs/release/RELEASE_READINESS.md`.
-- Added `docs/release/PRODUCTION_READINESS_BACKLOG.md`.
+- Added `docs/release/RELEASE_READINESS.md`.
 - Added neutral runtime validation and release-build entrypoints.
 - Added `docs/operations/LIVE_POSTGRESQL.md` and reduced the old
 - Stabilized CI/release workflow action versions and default release behavior.
@@ -144,7 +144,7 @@ policy.
 
 ### DOC-007 Production readiness should become managed work
 
-`docs/release/PRODUCTION_READINESS_BACKLOG.md` is the tracked backlog, but it is
+`docs/release/RELEASE_READINESS.md` is the tracked backlog, but it is
 still a markdown file. Convert each item into GitHub issues or milestones when
 issue automation is available.
 

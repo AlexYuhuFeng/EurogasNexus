@@ -26,7 +26,7 @@
 - create `tests/contract/test_api_surface_stability.py`
   （钉死 90 条公开路径集合；禁止 `/v1` 前缀；任何增删必须在测试里显式声明）
 - modify `docs/architecture/IMPROVEMENT_ROADMAP.md`（S4.1 ✅）
-- modify `docs/architecture/CURRENT_PAUSE_POINT.md` + `-CN.md`（产品形态增补）
+- modify `docs/release/RELEASE_READINESS.md` + `-CN.md`（产品形态增补）
 
 ## 5. Dependency policy
 

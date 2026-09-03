@@ -12,8 +12,8 @@ update the relevant report and recommend the next prompt.
 
 1. `AGENTS.md`
 2. `PROJECT_DIRECTORY.md`
-3. `docs/architecture/CURRENT_PAUSE_POINT.md`
-4. `docs/release/PRODUCTION_READINESS_BACKLOG.md`
+3. `docs/release/RELEASE_READINESS.md`
+4. `docs/release/RELEASE_READINESS.md`
 5. `docs/release/V1_FULL_PROJECT_RELEASE_SCOPE.md`
 6. `docs/release/V1_FULL_PROJECT_RELEASE_EXECUTION_PLAN.md`
 7. `docs/release/V1_RELEASE_ACCEPTANCE_MATRIX.md`
