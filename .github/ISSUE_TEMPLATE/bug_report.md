@@ -1,6 +1,6 @@
 ---
 name: Bug report
-about: Report a reproducible defect in the V1 backend shell
+about: Report a reproducible defect in Eurogas Nexus
 title: "[Bug]: "
 labels: bug
 assignees: ""

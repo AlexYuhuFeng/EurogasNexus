@@ -29,6 +29,17 @@ python -m venv .venv
 .venv\Scripts\python.exe -m pip install -e ".[dev]"
 ```
 
+## Dependency Lock Regeneration
+
+Hash-pinned locks are generated from `pyproject.toml` with `uv`:
+
+```powershell
+python scripts/ci/freeze_lock.py
+```
+
+This writes `requirements.lock`, `requirements-runtime.lock`, and
+`requirements-build.lock`. Commit all three whenever dependencies change.
+
 ## Expected Result
 
 - Ruff exits with code 0.

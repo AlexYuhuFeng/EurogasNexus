@@ -99,6 +99,9 @@ jobs, keep this section and CI in sync.
 - Importing the API must not open DB connections or network sockets.
 - Do not add heavy dependencies or restricted-license dependencies without
   explicit review.
+- Dependency changes must be followed by `python scripts/ci/freeze_lock.py`
+  and by committing `requirements.lock`, `requirements-runtime.lock`, and
+  `requirements-build.lock` together with the change.
 
 ## Pull Request Expectations
 

@@ -85,9 +85,11 @@ passed
 - Resource-pool allocation is an exact min-cost flow; results persist input
   snapshots with `run_id`/`snapshot_id` evidence, and `RUNTIME_DECISION` mode
   consumes DB snapshots only (client-supplied prices rejected).
-- Dependency versions are pinned in `requirements.lock`; CI runs an offline
-  license-policy audit and a pip-audit CVE scan, and release builds install
-  from the lock.
+- Dependency versions are hash-pinned in `requirements.lock` (runtime + dev),
+  `requirements-runtime.lock` (runtime image), and `requirements-build.lock`
+  (wheel build); CI runs an offline license-policy audit and a pip-audit CVE
+  scan, and release builds install from the hash-pinned locks with
+  `--require-hashes`.
 - CI runs migrations and DB-backed smoke tests against a real PostgreSQL 16
   service, plus an in-process API load smoke with latency percentiles.
 - Source posture panels show runtime row counts, credential state, and

@@ -1,6 +1,6 @@
 ---
 name: Feature request
-about: Propose milestone-scoped backend foundation work
+about: Propose milestone-scoped Eurogas Nexus work
 title: "[Feature]: "
 labels: enhancement
 assignees: ""
@@ -21,8 +21,8 @@ parameters.
 ## Product boundary check
 
 - [ ] No trade execution, order entry, routing, capture, nomination submission, official approval, legal advice, official trading recommendation, auto-trading, or ETRM replacement behavior.
-- [ ] No frontend, desktop client, live connector, or company SSO/OIDC.
-- [ ] No external API or LLM provider call is required.
+- [ ] No live commercial connector or company SSO/OIDC is assumed; those remain future milestones.
+- [ ] No external API or LLM provider call is required for local validation.
 
 ## Milestone dependency
 

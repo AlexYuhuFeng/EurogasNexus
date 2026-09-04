@@ -12,7 +12,7 @@ Do not open a public issue for suspected secrets, credentials, entitlement
 failures, or vulnerabilities. Report them through the private project security
 channel for the repository owner.
 
-## V1 Guardrails
+## Runtime Guardrails
 
 - Runtime DB URLs must never be printed in full.
 - Unknown commercial-data entitlement must fail closed.
@@ -22,8 +22,11 @@ channel for the repository owner.
 
 ## Supported Scope
 
-The current bootstrap supports backend foundation work only. Trade execution, order
-entry, order routing, trade capture, nomination submission, official approval,
-legal advice, official trading recommendations, auto-trading, ETRM replacement
-behavior, frontend, desktop clients, live connectors, and company SSO/OIDC are
-out of scope.
+The current release-candidate line supports the backend/API, PostgreSQL
+runtime store, Python SDK, CLI, React Web workspace, Tauri desktop shells,
+public-source ingestion, and decision-support research workflows.
+
+Trade execution, order entry, order routing, trade capture, nomination
+submission, official approval, legal advice, official trading
+recommendations, auto-trading, ETRM replacement behavior, live commercial
+provider connectors, and company SSO/OIDC are out of scope for this preview.

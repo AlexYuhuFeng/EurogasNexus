@@ -1,0 +1,4 @@
+# Build-only dependencies required by the pyproject build-system.
+# Kept separate so the runtime image does not carry setuptools/wheel.
+setuptools>=68
+wheel>=0.42

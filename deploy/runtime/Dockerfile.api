@@ -1,3 +1,23 @@
+# Build stage: produce the project wheel using hash-pinned build dependencies.
+FROM python:3.11-slim AS builder
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+WORKDIR /build
+
+COPY requirements-build.lock requirements-runtime.lock ./
+RUN python -m pip install --no-cache-dir --require-hashes \
+    -r requirements-build.lock \
+    -r requirements-runtime.lock
+
+COPY pyproject.toml README.md ./
+COPY src ./src
+COPY packages ./packages
+RUN python -m pip wheel --no-deps --no-build-isolation . --wheel-dir /wheels
+
+# Runtime stage: install only the locked runtime dependencies and the wheel.
 FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -9,9 +29,14 @@ RUN groupadd --system eurogas \
 
 WORKDIR /app
 
-COPY pyproject.toml README.md ./
-COPY src ./src
-RUN python -m pip install --no-cache-dir .
+COPY requirements-runtime.lock ./
+RUN python -m pip install --no-cache-dir --require-hashes \
+    -r requirements-runtime.lock
+
+COPY --from=builder /wheels ./wheels
+RUN python -m pip install --no-cache-dir --no-deps --no-index \
+    --find-links ./wheels eurogas_nexus \
+    && rm -rf ./wheels
 
 COPY alembic.ini ./
 COPY alembic ./alembic
@@ -24,4 +49,3 @@ USER eurogas
 EXPOSE 8000
 
 CMD ["python", "-m", "uvicorn", "apps.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
-
