@@ -13,7 +13,9 @@ The product is DB-first, API-first, client-active, and decision-support only.
 - `apps/`: deployable process entry points.
 - `src/eurogas_nexus/`: backend package.
 - `clients/`: Web and desktop client code.
-- `release/` and `dist/releases/`: release preparation and artifacts.
+- `packages/python-sdk/src/eurogas_nexus_sdk/`: typed Python SDK consumer.
+- `dist/releases/`: tracked release-output placeholder; generated release files
+  are ignored.
 - `infra/`: deployment templates and service configuration.
 - `docs/`: architecture, policy, API, SDK, operations, compliance, release docs.
 - `tests/`: unit, integration, API, SDK, CLI, workflow, security, contract,
@@ -48,5 +50,10 @@ The product is DB-first, API-first, client-active, and decision-support only.
 
 ## Planning Rule
 
-Large changes require an ExecPlan under `docs/engineering/plans/` with scope, files,
-tests, acceptance criteria, and non-goals.
+Large changes require a public ExecPlan recorded through
+`docs/engineering/EXECPLAN_INDEX.md` with scope, files, tests, acceptance
+criteria, and non-goals. Changes that introduce a new normative boundary first
+follow `docs/engineering/RFC_PROCESS.md`. CI-generated release assets are
+staged under `release-assets/` and Tauri bundle directories; neither generated
+path is source material or a required repository root. The tracked
+`dist/releases/.gitkeep` preserves the local release-output boundary.

@@ -17,8 +17,8 @@ Runtime truth lives in PostgreSQL and is exposed through the backend API or
 Python SDK. Web, Windows, Linux, SDK, CLI, and public integrations all consume
 the single unversioned `/api` surface.
 
-Current line: `v0.5-preview` · Status: release candidate for the tested local
-scope, not production multi-user deployment.
+Package version: `0.5.0` · Channel: `preview` · Status: release candidate for
+the tested local scope, not a production or GA release.
 
 ## Product boundary
 

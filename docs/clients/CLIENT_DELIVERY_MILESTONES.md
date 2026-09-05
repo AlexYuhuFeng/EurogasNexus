@@ -15,13 +15,10 @@ permission gates to begin client work.
 Client implementation is separated by surface: SDK, CLI, Web, and Windows each
 have distinct responsibilities, but all consume backend API contracts.
 
-Historical and current client execution plans:
-
-- `SDK_M1_API_CLIENT_EXECPLAN.md`
-- `CLI_M1_OPERATOR_COMMANDS_EXECPLAN.md`
-- `WEB_M1_WORKSPACE_SHELL_EXECPLAN.md`
-- `WINDOWS_D1_DESKTOP_SHELL_EXECPLAN.md`
-- `V1_R22_DOCS_CLIENT_COCKPIT_ALIGNMENT_EXECPLAN.md`
+Public client execution plans are registered in
+`docs/engineering/EXECPLAN_INDEX.md`. Use
+`docs/engineering/EXECPLAN_TEMPLATE.md` when a new client milestone is
+selected; deleted internal plans are not restored.
 
 ## Standing Client Rules
 

@@ -13,7 +13,7 @@ Use this checklist before adding a new source file.
 - External calls: none unless contract-approved
 - Persistence access: none unless contract-approved
 - Tests:
-- ExecPlan updated for large change:
+- Public RFC/ExecPlan updated for large change:
 
 ## Questions
 
@@ -22,3 +22,5 @@ Use this checklist before adding a new source file.
 3. Does it avoid live network, DB, secrets, and provider calls at import time?
 4. Does it need a contract or boundary test update?
 5. Is it adding business behavior that belongs to a later milestone?
+6. If the change is normative, is the RFC process complete? If it is a bounded
+   implementation, is the public ExecPlan index updated?

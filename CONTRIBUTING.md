@@ -4,8 +4,10 @@ Eurogas Nexus is a public, source-visible repository for a proprietary European
 gas decision-support platform. Contributions must preserve the product boundary,
 API boundary, and data-governance rules in this document.
 
-This guide is for human contributors and repository maintainers. Agent-specific
-Execution plans belong under `docs/engineering/plans/` when needed.
+This guide is for human contributors and repository maintainers. Normative
+proposals follow [the RFC process](docs/engineering/RFC_PROCESS.md); bounded
+implementation work follows the public [ExecPlan index](docs/engineering/EXECPLAN_INDEX.md).
+Private or deleted internal milestone records are not restored.
 
 ## Repository Boundary
 

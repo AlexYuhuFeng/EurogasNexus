@@ -16,21 +16,18 @@ apps/                   Process entrypoint for the API service
 clients/                API-consuming clients: web/ and desktop/
 data/                   Ignored local artifacts and fixtures; never runtime truth
 deploy/                 Runtime container deployment files
-dist/                   Release output placeholder; generated artifacts are ignored
+dist/releases/          Tracked release-output placeholder; generated files are ignored
 docs/                   Current runbook, design-reference, and product documentation
 infra/                  Deployment component notes (deployment, docker, nginx, postgres, systemd)
-packaging/              Windows installer sources
-output/                 Untracked generated material; never commit
-release/                Source-controlled release-blueprint placeholder
+packages/               Packaged consumers, including the Python SDK
 scripts/                CI, dev, ontology-generation, ops, release, and security scripts
 src/eurogas_nexus/      Backend Python package (the only backend runtime package)
 tests/                  Python test suite (api, contract, integration, unit, sdk, etc.)
-tmp/                    Ignored scratch space
 ```
 
-Local or ignored tool directories may also exist (`.venv`, `.local-runtime`,
-`node_modules`, `clients/*/dist`) and are never runtime truth or commit
-material.
+The following optional or generated paths may be absent from a clean checkout:
+`release-assets/`, `output/`, `tmp/`, `.venv`, `.local-runtime`, `node_modules`,
+and `clients/*/dist`. They are never runtime truth or source material.
 
 ## Structure principles
 
@@ -46,7 +43,7 @@ Eurogas Nexus follows a conventional Python/FastAPI + React monorepo layout:
    automation; `docs/` contains repository knowledge.
 4. **No empty source placeholders**: do not create runtime packages with only
    an `__init__.py` to reserve a future capability. Keep future work in
-   `docs/release/RELEASE_READINESS.md` or an ExecPlan and create the
+   `docs/release/RELEASE_READINESS.md` or a public ExecPlan and create the
    package when the first implementation lands.
 5. **Tests mirror the work they cover**: API tests under `tests/api`, domain
    research tests under `tests/domain/research`, workflow tests under
@@ -64,12 +61,10 @@ docs/clients/            Client contracts and UI standards
 docs/compliance/         Compliance notes
 docs/data/               Canonical data model blueprints
 docs/deployment/         Deployment roles and installer runbooks
-docs/design/             UI audits and visual references
-docs/engineering/        Coding standards and RFC process
+docs/engineering/        Coding standards, RFC process, and ExecPlan templates/indexes
 docs/ontology/           OWL model and natural-gas semantic backbone
 docs/operations/         Operator and development runbooks
 docs/policies/           Product, data, and dependency policies
-docs/product/            Product capability and workflow specifications
 docs/release/            Release readiness, security evidence, and backlog
 ```
 
@@ -150,11 +145,11 @@ before adding Web behavior.
 
 - Backend work activates `apps/api`, `src/eurogas_nexus`, `alembic`, `scripts`,
   `tests`, and backend docs.
-- SDK work activates `packages/python-sdk/src/eurogas_nexus_sdk` and `tests/sdk`. The directory
+- SDK work activates `packages/python-sdk/src/eurogas_nexus_sdk` and `tests/sdk`.
 - CLI work activates `src/eurogas_nexus/cli` and `tests/cli`.
 - Web work activates `clients/web` and uses `npm run build` plus the
   `clients/web/tests` suite.
-- Windows/Linux work activates `clients/desktop`, `packaging`, `deploy`, and
+- Windows/Linux work activates `clients/desktop`, `deploy`, and
   release scripts only when packaging is in scope.
 - Directories without an active milestone remain documentation or placeholders.
   Do not add runtime behavior just because a folder exists.
@@ -163,4 +158,6 @@ before adding Web behavior.
 
 Keep one owner per runtime area. If a change crosses an ownership boundary,
 update the relevant contract first, add a boundary test, and keep generated
-`output/`, `dist/`, `tmp/`, and local data directories out of Git.
+contents of `dist/releases/`, plus optional `release-assets/`, `output/`,
+`tmp/`, and local data directories out of Git. The tracked
+`dist/releases/.gitkeep` is the only release-output placeholder.

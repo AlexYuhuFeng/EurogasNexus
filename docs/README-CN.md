@@ -2,8 +2,8 @@
 
 英文主文档：[README.md](README.md)
 
-本索引是仓库文档的权威入口，用于区分当前/规范文档、运维手册、设计参考、
-历史规划与归档记录。如两份文档冲突，以当前/规范文档为准并报告冲突。
+本索引是仓库文档的权威入口，用于区分当前/规范文档、运维手册、设计参考与
+历史公开参考。如两份文档冲突，以当前/规范文档为准并报告冲突。
 
 ## 先读
 
@@ -22,9 +22,18 @@
 - [API 路径政策](api/API_PATH_POLICY.md)
 - [术语标准](architecture/TERMINOLOGY.md)
 
+### 工程治理
+
+- [工程治理索引](engineering/README.md)
+- [RFC 流程](engineering/RFC_PROCESS.md)
+- [RFC 索引](engineering/RFC_INDEX.md) / [模板](engineering/RFC_TEMPLATE.md)
+- [ExecPlan 索引](engineering/EXECPLAN_INDEX.md) /
+  [模板](engineering/EXECPLAN_TEMPLATE.md)
+
 ### 架构与合同
 
 - [API 合同](api/API_CONTRACT.md)
+- [数据科学函数目录](api/DATA_SCIENCE_FUNCTIONS.md)
 - [公共 API 约定](api/API_CONVENTIONS.md)
 - [数据库合同](architecture/DB_CONTRACT.md)
 - [运行存储合同](architecture/RUNTIME_STORE_CONTRACT.md)
@@ -32,6 +41,7 @@
 - [资源池合同 EN](architecture/RESOURCE_POOL_CONTRACT-EN.md) /
   [CN](architecture/RESOURCE_POOL_CONTRACT-CN.md)
 - [目标产品架构](architecture/TARGET_PRODUCT_ARCHITECTURE.md)
+- [测试合同](architecture/TESTING_CONTRACT.md)
 - [欧洲网络几何政策](architecture/EUROPEAN_NETWORK_GEOMETRY_POLICY.md)
 - [主体身份模型](architecture/ACTOR_IDENTITY_MODEL-CN.md)
 - [OWL 天然气角色模型 EN](ontology/OWL_GAS_ROLE_MODEL.md) /
@@ -70,6 +80,11 @@
 - [本地 Docker 运行时](operations/LOCAL_DOCKER_RUNTIME.md)
 - [验证指南](operations/VALIDATION.md)
 - [PostgreSQL 运行指南](operations/LIVE_POSTGRESQL.md)
+
+- [事故响应](operations/INCIDENT_RESPONSE.md)
+- [发布签名](operations/RELEASE_SIGNING.md)
+- [供应商实时验证](operations/PROVIDER_VALIDATION.md)
+- [成本观测来源](operations/COST_OBSERVATION_SOURCES.md)
 
 - [数据库迁移](operations/DB_MIGRATIONS.md)
 - [数据库运行加固](operations/DB_RUNTIME_HARDENING.md)

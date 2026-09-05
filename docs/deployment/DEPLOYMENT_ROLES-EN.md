@@ -52,8 +52,10 @@ The Windows deployment bundle contains:
 - `Deploy-EurogasNexus.ps1`: operator-facing role selector;
 - `Install-EurogasNexusServerRuntime.ps1`: internal server-runtime primitive;
 - `compose.yaml`, `Caddyfile`, and the API image reference;
-- English and Mandarin operating instructions;
-- the Client-only NSIS installer as a separate release asset.
+- English and Mandarin operating instructions.
+
+The Client-only NSIS installer is published as a separate GitHub Release asset;
+it is not included in the Server operator ZIP.
 
 Run PowerShell as Administrator. Start with a non-destructive preflight:
 
@@ -114,9 +116,10 @@ GIE ingestion remains disabled until the customer stores its own GIE key via
 the backend-managed Data Sources workflow. Licensed providers remain disabled
 until customer credentials are configured.
 
-`v0.5-preview` has no multi-user login or SSO. Server therefore
-require `-PrivateNetworkOnly`, must sit behind a customer firewall/VPN allowlist,
-and must not be exposed to the public internet. HTTPS protects transport; it
+Package version `0.5.0` on the `preview` channel has no multi-user login or SSO.
+Server therefore requires `-PrivateNetworkOnly`, must sit behind a customer
+firewall/VPN allowlist and must not be exposed to the public internet. HTTPS
+protects transport; it
 does not provide user authorization. Public or multi-tenant deployment is
 blocked until backend authentication and authorization are implemented.
 

@@ -11,8 +11,9 @@ that call the SDK/API.
 The SDK and CLI expose a read-only health shell. Future expansion is governed by
 `docs/clients/SDK_CLIENT_DESIGN_SPEC.md`,
 `docs/clients/CLI_CLIENT_DESIGN_SPEC.md`,
-`docs/engineering/plans/SDK_M1_API_CLIENT_EXECPLAN.md`, and
-`docs/engineering/plans/CLI_M1_OPERATOR_COMMANDS_EXECPLAN.md`.
+`docs/clients/CLI_CLIENT_DESIGN_SPEC.md`, and the public RFC/ExecPlan workflow
+in `docs/engineering/RFC_PROCESS.md` and
+`docs/engineering/EXECPLAN_INDEX.md`.
 
 ## Rules
 

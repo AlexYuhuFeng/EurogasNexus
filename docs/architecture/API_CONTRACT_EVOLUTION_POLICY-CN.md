@@ -41,7 +41,9 @@ Windows/Linux 桌面外壳和双语运营文档。所有消费方都是同一契
 
 ## 变更流程
 
-1. 在 `docs/engineering/plans/` 写 ExecPlan，列明 API 影响与回滚。
+1. 使用 `docs/engineering/EXECPLAN_TEMPLATE.md` 编写公开 ExecPlan，列明
+   API 影响与回滚，并更新 ExecPlan 索引；如果变更引入新的规范合同，先
+   遵循 `docs/engineering/RFC_PROCESS.md`。
 2. 新增路径：同一变更中把路径加入
    `tests/contract/test_api_surface_stability.py` 的
    `PINNED_PUBLIC_PATHS`，并更新文档化路由数（`RELEASE_READINESS.md`、
@@ -55,9 +57,9 @@ Windows/Linux 桌面外壳和双语运营文档。所有消费方都是同一契
 
 | 路径 | 声明来源 | 契约 |
 |---|---|---|
-| `POST /api/optimization/portfolio-network` | R31（`V1_R31_DB_PORTFOLIO_NETWORK_EXECPLAN.md`） | 仅 DB `RUNTIME_DECISION`；只接受决策元数据，绝不接受客户端网络/费率/管容/价格事实 |
-| `POST /api/optimization/storage-dispatch` | R34（`V1_R34_STORAGE_NOMINATION_CLIENT_WORKFLOWS_EXECPLAN.md`） | 仅评估的储气调度；RUNTIME_DECISION 组装 PostgreSQL master/观测 |
-| `POST /api/optimization/nomination-window` | R34 | 仅评估的提名窗口；RUNTIME_DECISION 读取 DB 窗口 master；无提交动作 |
+| `POST /api/optimization/portfolio-network` | 已接受的发布合同 | 仅 DB `RUNTIME_DECISION`；只接受决策元数据，绝不接受客户端网络/费率/管容/价格事实 |
+| `POST /api/optimization/storage-dispatch` | 已接受的发布合同 | 仅评估的储气调度；RUNTIME_DECISION 组装 PostgreSQL master/观测 |
+| `POST /api/optimization/nomination-window` | 已接受的发布合同 | 仅评估的提名窗口；RUNTIME_DECISION 读取 DB 窗口 master；无提交动作 |
 
 ## 弃用表
 

@@ -49,8 +49,10 @@ Windows 部署包包括：
 - `Deploy-EurogasNexus.ps1`：面向实施人员的统一角色部署工具；
 - `Install-EurogasNexusServerRuntime.ps1`：部署工具内部调用的服务器运行时脚本；
 - `compose.yaml`、`Caddyfile` 和 API 镜像引用；
-- 中英文运维说明；
-- 作为独立 Release 产物提供的 Client-only NSIS 客户端安装包。
+- 中英文运维说明。
+
+Client-only NSIS 客户端安装包作为独立的 GitHub Release 产物发布，
+不包含在 Server 运维 ZIP 包中。
 
 以管理员身份运行 PowerShell，并先执行无副作用的预检：
 
@@ -107,7 +109,7 @@ Eurogas Nexus **不会静默下载或安装** Docker Desktop、WSL、PostgreSQL�
 GIE 采集在客户通过“数据源”工作流保存自己的 GIE 密钥后才启用。授权价格
 供应商在客户配置相应凭据之前保持禁用。
 
-`v0.5-preview` 尚未实现多用户登录或 SSO，因此 Server 必须指定
+`0.5.0` 的 `preview` 渠道尚未实现多用户登录或 SSO，因此 Server 必须指定
 `-PrivateNetworkOnly`，部署在客户防火墙或 VPN 白名单之后，严禁直接暴露到公网。
 HTTPS 只保护传输，不能替代用户授权。后端认证和权限控制完成前，公网及多租户
 部署均属于阻塞项。

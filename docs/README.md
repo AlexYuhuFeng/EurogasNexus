@@ -3,8 +3,8 @@
 Mandarin companion: [README-CN.md](README-CN.md)
 
 This index is the authoritative entry point for repository documentation. It
-separates current/normative material from runbooks, design references,
-historical planning, and archived records. If two documents disagree, follow
+separates current/normative material from runbooks, design references, and
+historical public references. If two documents disagree, follow
 the current/normative document listed here and report the conflict.
 
 ## Read first
@@ -29,6 +29,14 @@ behavior.
 | [API contract evolution policy EN](architecture/API_CONTRACT_EVOLUTION_POLICY.md) / [CN](architecture/API_CONTRACT_EVOLUTION_POLICY-CN.md) | Normative for `/api` change control |
 | [API path policy](api/API_PATH_POLICY.md) | Normative for route prefixes |
 | [Terminology standard](architecture/TERMINOLOGY.md) | Normative for product language |
+
+### Engineering governance
+
+- [Engineering governance index](engineering/README.md)
+- [RFC process](engineering/RFC_PROCESS.md)
+- [RFC index](engineering/RFC_INDEX.md) / [template](engineering/RFC_TEMPLATE.md)
+- [ExecPlan index](engineering/EXECPLAN_INDEX.md) /
+  [template](engineering/EXECPLAN_TEMPLATE.md)
 
 ### Architecture and contracts
 

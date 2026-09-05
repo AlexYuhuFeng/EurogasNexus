@@ -25,7 +25,9 @@ five hand-maintained surfaces).
 3. **Breaking changes are a major event.** Removing, renaming, or re-typing a
    path, parameter, or response field requires a written migration plan
    (deprecate → dual-run → remove across at least one release) and an
-   ExecPlan review. There is no in-place breaking change.
+   reviewed public ExecPlan. Follow `docs/engineering/RFC_PROCESS.md` when the
+   change introduces a new normative contract. There is no in-place breaking
+   change.
 4. **Deprecation is explicit.** A deprecated path or field must carry
    `deprecated=True` in its OpenAPI operation, a `meta.warnings` entry in its
    runtime envelope, and a removal date in this document's deprecation table.
@@ -48,7 +50,8 @@ These tests fail CI loudly on contract drift:
 
 ## Change Process
 
-1. Write an ExecPlan under `docs/engineering/plans/` listing API impact and rollback.
+1. Record a public ExecPlan using `docs/engineering/EXECPLAN_TEMPLATE.md`,
+   listing API impact and rollback; update its index entry.
 2. For a new path: add it to `PINNED_PUBLIC_PATHS` in
    `tests/contract/test_api_surface_stability.py`, update the documented
    route count (`RELEASE_READINESS.md` and the
@@ -63,9 +66,9 @@ These tests fail CI loudly on contract drift:
 
 | Path | Declared in | Contract |
 |---|---|---|
-| `POST /api/optimization/portfolio-network` | R31 (`V1_R31_DB_PORTFOLIO_NETWORK_EXECPLAN.md`) | DB-only `RUNTIME_DECISION`; accepts decision metadata only, never client network/tariff/capacity/price facts |
-| `POST /api/optimization/storage-dispatch` | R34 (`V1_R34_STORAGE_NOMINATION_CLIENT_WORKFLOWS_EXECPLAN.md`) | assessment-only storage dispatch; RUNTIME_DECISION composes PostgreSQL masters/observations |
-| `POST /api/optimization/nomination-window` | R34 | assessment-only nomination windows; RUNTIME_DECISION loads DB window masters; no submission action |
+| `POST /api/optimization/portfolio-network` | Accepted release contract | DB-only `RUNTIME_DECISION`; accepts decision metadata only, never client network/tariff/capacity/price facts |
+| `POST /api/optimization/storage-dispatch` | Accepted release contract | assessment-only storage dispatch; RUNTIME_DECISION composes PostgreSQL masters/observations |
+| `POST /api/optimization/nomination-window` | Accepted release contract | assessment-only nomination windows; RUNTIME_DECISION loads DB window masters; no submission action |
 
 ## Deprecation Table
 

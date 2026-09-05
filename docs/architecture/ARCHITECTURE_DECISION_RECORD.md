@@ -27,6 +27,7 @@ interpreted as described in RFC 2119 and RFC 8174.
 | ADR-0011 | Historical projects are evidence, not source | Accepted |
 | ADR-0012 | Product boundary is decision support only | Accepted |
 | ADR-0013 | Documentation index, archive/RFC gates, and shared UI primitives are the baseline | Accepted |
+| ADR-0014 | Public RFC/ExecPlan governance replaces private milestone archives | Accepted |
 
 The numbered sections below are the historical record for these ADRs. ADR-0003
 corresponds to Decision 2A below; subsequent decisions shift by one in the
@@ -264,3 +265,22 @@ Implication:
 Follow `docs/release/RELEASE_READINESS.md`. It is the active ordered
 implementation queue; do not use archived milestone plans as a new work
 list.
+
+## Decision 13: Public RFC And ExecPlan Governance Does Not Restore Private Records
+
+Decision:
+
+The repository provides a lightweight public RFC/ExecPlan workflow under
+`docs/engineering/`. It does not restore deleted internal plans or publish a
+private milestone archive. The public workflow is the current implementation
+path for reusable proposals and bounded plans.
+
+Implication:
+
+- `docs/engineering/RFC_PROCESS.md` defines proposal and acceptance workflow.
+- `docs/engineering/RFC_INDEX.md` and `EXECPLAN_INDEX.md` contain only reusable
+  public records.
+- README files remain descriptive navigation; normative requirements use RFC
+  2119 and RFC 8174 language in policies, contracts, RFCs, or ADRs.
+- The accepted ADR history above remains unchanged; future changes append or
+  supersede rather than silently rewriting an accepted decision.

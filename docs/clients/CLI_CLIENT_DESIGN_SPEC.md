@@ -154,5 +154,9 @@ Required tests:
 Use after SDK M1 exists:
 
 ```text
-Read docs/clients/CLI_CLIENT_DESIGN_SPEC.md, docs/clients/SDK_CLIENT_DESIGN_SPEC.md, docs/clients/SDK_CLI_CONTRACT.md, and the CLI M1 ExecPlan. Implement CLI M1 only. Keep commands safe, read-only by default, API-backed, and secret-redacted. Do not add mutating operational commands without explicit --execute guards.
+Read docs/clients/CLI_CLIENT_DESIGN_SPEC.md, docs/clients/SDK_CLIENT_DESIGN_SPEC.md,
+docs/clients/SDK_CLI_CONTRACT.md, and the selected public ExecPlan from
+`docs/engineering/EXECPLAN_INDEX.md`. Implement only the selected CLI milestone.
+Keep commands safe, read-only by default, API-backed, and secret-redacted. Do
+not add mutating operational commands without explicit --execute guards.
 ```

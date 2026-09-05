@@ -3,7 +3,10 @@
 All notable changes to Eurogas Nexus are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project does not yet use semantic versioning for public releases.
+Application artifacts use package version `0.5.0`; the current public channel is
+`preview` and is not a GA/stable release.
+CI tags use `v0.5-<channel>-<run>-<short-sha>`, independently of the package
+version.
 
 ## Ontology version changes
 
@@ -30,8 +33,8 @@ asserted by `tests/contract/test_ontology_version_alignment.py`.
 
 ## [0.5.0] - Preview release line
 
-The current released line remains `v0.5-preview`. It is a release candidate for
-the tested local scope, not a production multi-user deployment.
+The current preview line is package version `0.5.0`. It is a release candidate
+for the tested local scope, not a production multi-user or GA deployment.
 
 Highlights:
 
@@ -43,4 +46,4 @@ Highlights:
 - Server and Client-only deployment roles.
 
 See `docs/release/RELEASE_READINESS.md` for the current release status and
-`docs/release/RELEASE_READINESS.md` for production gaps.
+production gaps.

@@ -23,25 +23,25 @@ provider connectors, or credential vaults.
 When working on clients, read these files in order:
 
 1. `docs/release/RELEASE_READINESS.md`
-3. `docs/clients/CLIENT_DELIVERY_MILESTONES.md`
-5. `docs/clients/CLIENT_API_CONTRACT.md`
-6. `docs/clients/CLIENT_TECH_STACK.md`
-7. `docs/clients/WORKSPACE_NAVIGATION_SPEC.md`
-8. `docs/clients/WEB_APPLICATION_ARCHITECTURE-EN.md`
-9. `docs/clients/WEB_APPLICATION_ARCHITECTURE-CN.md`
-10. `docs/clients/UI_CONTENT_STANDARDS.md`
-11. `docs/clients/UI_UX_STYLE_GUIDE-EN.md`
-12. `docs/clients/UI_UX_STYLE_GUIDE-CN.md`
-13. `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-EN.md`
-14. `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-CN.md`
-15. `docs/architecture/RESOURCE_POOL_CONTRACT-EN.md`
-16. `docs/architecture/RESOURCE_POOL_CONTRACT-CN.md`
-17. `docs/clients/WEB_CLIENT_DESIGN_SPEC.md`
-18. `docs/clients/WINDOWS_CLIENT_DESIGN_SPEC.md`
-19. `docs/clients/MARKET_POSITIONING_COCKPIT_SPEC-EN.md`
-20. `docs/clients/MARKET_POSITIONING_COCKPIT_SPEC-CN.md`
-21. `docs/clients/OPERATIONAL_GLOSSARY_CONTEXT_SPEC-EN.md`
-22. `docs/clients/OPERATIONAL_GLOSSARY_CONTEXT_SPEC-CN.md`
+2. `docs/clients/CLIENT_DELIVERY_MILESTONES.md`
+3. `docs/clients/CLIENT_API_CONTRACT.md`
+4. `docs/clients/CLIENT_TECH_STACK.md`
+5. `docs/clients/WORKSPACE_NAVIGATION_SPEC.md`
+6. `docs/clients/WEB_APPLICATION_ARCHITECTURE-EN.md`
+7. `docs/clients/WEB_APPLICATION_ARCHITECTURE-CN.md`
+8. `docs/clients/UI_CONTENT_STANDARDS.md`
+9. `docs/clients/UI_UX_STYLE_GUIDE-EN.md`
+10. `docs/clients/UI_UX_STYLE_GUIDE-CN.md`
+11. `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-EN.md`
+12. `docs/clients/MAP_FIRST_TRADER_COCKPIT_SPEC-CN.md`
+13. `docs/architecture/RESOURCE_POOL_CONTRACT-EN.md`
+14. `docs/architecture/RESOURCE_POOL_CONTRACT-CN.md`
+15. `docs/clients/WEB_CLIENT_DESIGN_SPEC.md`
+16. `docs/clients/WINDOWS_CLIENT_DESIGN_SPEC.md`
+17. `docs/clients/MARKET_POSITIONING_COCKPIT_SPEC-EN.md`
+18. `docs/clients/MARKET_POSITIONING_COCKPIT_SPEC-CN.md`
+19. `docs/clients/OPERATIONAL_GLOSSARY_CONTEXT_SPEC-EN.md`
+20. `docs/clients/OPERATIONAL_GLOSSARY_CONTEXT_SPEC-CN.md`
 
 ## Client Boundary
 

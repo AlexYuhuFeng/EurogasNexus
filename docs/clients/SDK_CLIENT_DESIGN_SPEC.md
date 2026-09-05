@@ -285,5 +285,10 @@ Required tests:
 Use after backend runtime status and API response contracts are stable:
 
 ```text
-Read docs/clients/SDK_CLIENT_DESIGN_SPEC.md, docs/clients/CLIENT_API_CONTRACT.md, docs/clients/SDK_CLI_CONTRACT.md, and the SDK M1 ExecPlan. Implement SDK M1 only. Keep the SDK as an API client for /api. Do not import backend internals, read DB/files directly, call vendor APIs, or add packaging until a packaging milestone is selected.
+Read docs/clients/SDK_CLIENT_DESIGN_SPEC.md, docs/clients/CLIENT_API_CONTRACT.md,
+docs/clients/SDK_CLI_CONTRACT.md, and the selected public ExecPlan from
+`docs/engineering/EXECPLAN_INDEX.md`. Implement only the selected SDK milestone.
+Keep the SDK as an API client for /api. Do not import backend internals, read
+DB/files directly, call vendor APIs, or add packaging until a packaging
+milestone is selected.
 ```
