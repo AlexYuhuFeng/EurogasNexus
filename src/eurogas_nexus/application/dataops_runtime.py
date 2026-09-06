@@ -71,6 +71,7 @@ def scan_scheduler(
     now_utc: datetime | None = None,
     limit: int = 10,
     definitions: tuple[SourceDefinition, ...] | None = None,
+    stale_after_seconds: int = 900,
 ) -> dict:
     """Reconcile state, recover stale runs, claim due scheduled runs."""
 

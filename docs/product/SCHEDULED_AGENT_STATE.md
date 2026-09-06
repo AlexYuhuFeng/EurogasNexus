@@ -37,6 +37,27 @@
   should become `0025_strategy_registry_v1`; live migration was not performed
   because the local environment has no running PostgreSQL service.
 
+## CR-11 implementation plan
+
+1. Audit deployment topology, health/telemetry, backups, migrations, rollout,
+   benchmarks and release profile.
+2. Write `docs/operations/PRODUCTION_RELIABILITY_SPEC.md`,
+   `PERFORMANCE_BASELINE.md`, `PERFORMANCE_BUDGET.md`, `DISASTER_RECOVERY.md`,
+   `RELEASE_ROLLBACK.md`.
+3. Split `/api/health/live` (process only) from `/api/health/ready`
+   (PostgreSQL/schema only; external providers never gate readiness).
+4. Add `/api/runtime/dependencies` dependency/failure matrix, HTTP metrics
+   middleware, DB pool metrics and configurable pool/timeout policy.
+5. Add operational error taxonomy, recovery script for stale ingestion/shadow
+   jobs, migration preflight, backup/restore drill, release smoke and
+   compatibility-check scripts.
+6. Add evidence-backed indexes (strategy run filters, session token, audit
+   actor/action) and bound backtest periods.
+7. Measure 10-concurrency baseline; update CI/release workflow with
+   PostgreSQL evidence job; update Runtime dependency-health UI.
+8. Run full validation, PostgreSQL restore drill, migration-failure test,
+   update docs/backlog/state and commit one coherent milestone.
+
 ## CR-10 implementation plan
 
 1. Audit current identity/auth/OIDC/Web/desktop/SSE/audit implementation.
@@ -298,23 +319,27 @@
     tests.
 11. Commit one coherent milestone; do not push unless explicitly authorized.
 
-## Tests run (CR-10)
+## Tests run (CR-11)
 
 - `npm --prefix clients/web run test`: **41 passed**; `npm run build`: **passed**.
 - `pytest tests --ignore=tests/contract/test_ontology_grm_parity.py`:
-  **1267 passed, 9 skipped** (2 new PostgreSQL integration tests skip locally
+  **1277 passed, 10 skipped** (new PostgreSQL integration tests skip locally
   unless `RUNTIME_STORE_DATABASE_URL` is configured).
 - PostgreSQL 16 scratch DB `eurogas_nexus_cr10`: `alembic upgrade head` applied
-  through `0029_enterprise_identity_v1`; required-table contract 67/67; CR-09
-  + CR-10 PostgreSQL integration tests **5 passed**.
-- `ruff check .`: **passed**.
-- `python scripts/ci/check_markdown_links.py`: **passed**.
-- OpenAPI public surface: **137 paths**, pinned and permission-declared.
+  through `0030_reliability_indexes`; CR-09/CR-10/CR-11 PostgreSQL integration
+  tests **6 passed**.
+- Automated restore drill: 161798-byte custom-format dump; isolated restore;
+  revision `0030_reliability_indexes`; required tables present; API smoke 200;
+  elapsed 2.8s.
+- Migration failure test: `alembic upgrade 9999_missing_revision` exits
+  non-zero and the database head remains unchanged.
+- `ruff check .`: **passed**. Markdown links: 159 files, all resolve.
+- OpenAPI public surface: **140 paths**, pinned and permission-declared.
 - Automated security acceptance: **PASS** (external review remains BLOCKED).
-- Desktop Tauri `cargo check`: **passed** (loopback OIDC command compiles).
-- Security benchmark (scratch PostgreSQL): authorization expansion 8-28us,
-  API-key verify 16us, audit insert 20.7ms.
-- Load smoke: **200 ok / 0 errors**.
+- Desktop Tauri `cargo check`: **passed**.
+- Representative 10-concurrency baseline: p50 20.5ms, p95 1172.3ms,
+  p99 2173.9ms, 0 errors (scratch PostgreSQL).
+- CI load smoke: **200 ok / 0 errors** (p50 5.2ms, p95 12.7ms).
 
 ## Known failures
 
@@ -346,6 +371,6 @@
 
 ## Next recommended milestone
 
-- `CR-11` — Reliability, Performance, Observability, Backup/Restore, Disaster
-  Recovery, and Production Operations Hardening, unless repository evidence
-  shows a higher-priority security blocker.
+- `CR-12` — Software Supply Chain, Release Engineering, Signing, SBOM,
+  Provenance, Installer/Updater, and GA Distribution Hardening, unless
+  repository evidence reveals a higher-priority reliability/security blocker.

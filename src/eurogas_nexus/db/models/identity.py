@@ -121,6 +121,7 @@ class UserSessionRecord(Base):
     __table_args__ = (
         Index("ix_user_sessions_principal", "principal_id", "revoked_at_utc"),
         Index("ix_user_sessions_expiry", "expires_at_utc"),
+        Index("uq_user_sessions_token", "session_token_hash", unique=True),
     )
 
     session_id: Mapped[str] = mapped_column(String(64), primary_key=True)

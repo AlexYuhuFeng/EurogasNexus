@@ -2,6 +2,7 @@ import type {
   ApiMeta,
   PipelineHealthDTO,
   RuntimeDbStatusDTO,
+  RuntimeDependenciesDTO,
   SourceSystemDTO,
 } from "@/api/client";
 import { useState } from "react";
@@ -30,6 +31,7 @@ interface RuntimeWorkspaceProps {
   meta: ApiMeta | null;
   runtimeDb: RuntimeDbStatusDTO | null;
   pipelineHealth: PipelineHealthDTO | null;
+  runtimeDependencies: RuntimeDependenciesDTO | null;
   sources: SourceSystemDTO[];
   streamingActive: boolean;
   endpointErrors: Record<string, string>;
@@ -81,6 +83,7 @@ export function RuntimeWorkspace({
   meta,
   runtimeDb,
   pipelineHealth,
+  runtimeDependencies,
   sources,
   streamingActive,
   endpointErrors,
@@ -144,6 +147,16 @@ export function RuntimeWorkspace({
     commercialSourceRows.length === 0
       ? t("runtime.commercial_source_blocked_detail")
       : `${credentialBlockers.length} ${t("runtime.credential_blockers")} / ${certificationBlockers.length} ${t("runtime.certification_blockers")}`;
+  const dependencyRows: Array<[string, { state: string; detail?: string } | undefined]> =
+    runtimeDependencies
+      ? [
+          ["PostgreSQL", runtimeDependencies.database],
+          ["Dataops scheduler", runtimeDependencies.schedulers?.dataops],
+          ["Shadow scheduler", runtimeDependencies.schedulers?.shadow],
+          ["OIDC", runtimeDependencies.oidc],
+          ["Streaming", runtimeDependencies.streaming],
+        ]
+      : [];
   const releaseReadinessRows: ReleaseReadinessRow[] = [
     {
       key: "runtime_schema",
@@ -343,6 +356,28 @@ export function RuntimeWorkspace({
 
       {activeView === "delivery" && (
       <>
+      <div className="workspace-panel span-3">
+        <div className="section-heading">
+          <span className="eyebrow">{t("nav.runtime")}</span>
+          <strong>{t("runtime.dependency_health")}</strong>
+        </div>
+        <div className="data-table">
+          <div className="data-table-row header three">
+            <span>{t("runtime.dependency")}</span>
+            <span>{t("runtime.dependency_state")}</span>
+            <span>{t("runtime.dependency_detail")}</span>
+          </div>
+          {dependencyRows.map(([name, row]) => (
+            <div key={`dep-${name}`} className="data-table-row three">
+              <strong>{name}</strong>
+              <StatusBadge variant="pipeline" status={(row?.state ?? "unknown").toLowerCase()}>
+                {row?.state ?? "UNKNOWN"}
+              </StatusBadge>
+              <span>{row?.detail ?? "n/a"}</span>
+            </div>
+          ))}
+        </div>
+      </div>
       <div className="workspace-panel span-3">
         <div className="section-heading">
           <span className="eyebrow">{t("nav.runtime")}</span>

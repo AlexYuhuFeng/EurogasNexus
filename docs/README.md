@@ -107,7 +107,12 @@ Operational procedures and operator-facing guides:
 
 - [DB migrations](operations/DB_MIGRATIONS.md)
 - [DB runtime hardening](operations/DB_RUNTIME_HARDENING.md)
+- [Production reliability](operations/PRODUCTION_RELIABILITY_SPEC.md)
+- [Performance baseline](operations/PERFORMANCE_BASELINE.md)
+- [Performance budget](operations/PERFORMANCE_BUDGET.md)
 - [Backup and restore](operations/BACKUP_RESTORE.md)
+- [Disaster recovery](operations/DISASTER_RECOVERY.md)
+- [Release rollback](operations/RELEASE_ROLLBACK.md)
 - [Incident response](operations/INCIDENT_RESPONSE.md)
 - [Release signing](operations/RELEASE_SIGNING.md)
 - [Provider live validation](operations/PROVIDER_VALIDATION.md)

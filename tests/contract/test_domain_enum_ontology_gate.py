@@ -50,6 +50,7 @@ _REVIEWED_DOMAIN_STR_ENUMS: set[str] = {
     "eurogas_nexus.domain.dataops.contracts:ScheduleType",
     "eurogas_nexus.domain.dataops.contracts:SourceCalendar",
     "eurogas_nexus.domain.dataops.contracts:SourceClass",
+    "eurogas_nexus.domain.operations.errors:OperationalErrorCategory",
 }
 
 

@@ -52,7 +52,7 @@ services:
         - CMD
         - python
         - -c
-        - "import json,urllib.request; req=urllib.request.Request('http://127.0.0.1:8000/api/health'); req.add_header('X-Eurogas-Api-Key', '${EUROGAS_NEXUS_PUBLIC_API_TOKEN}'); assert json.load(urllib.request.urlopen(req, timeout=3))['status'] == 'ok'"
+        - "import json,urllib.request; req=urllib.request.Request('http://127.0.0.1:8000/api/health/ready'); req.add_header('X-Eurogas-Api-Key', '${EUROGAS_NEXUS_PUBLIC_API_TOKEN}'); assert json.load(urllib.request.urlopen(req, timeout=3))['status'] == 'ok'"
       interval: 10s
       timeout: 5s
       retries: 12

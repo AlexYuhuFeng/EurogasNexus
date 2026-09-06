@@ -1440,6 +1440,7 @@ export const api = {
   capacityContracts: () => get<CapacityContractDTO[]>("/contracts/capacity"),
 
   runtimeDb: () => get<RuntimeDbStatusDTO>("/runtime/db"),
+  runtimeDependencies: () => get<RuntimeDependenciesDTO>("/runtime/dependencies"),
 
   glossary: (lang: string = "en", params?: { category?: string; q?: string }) =>
     get<GlossaryTermDTO[]>("/glossary", { lang, ...(params ?? {}) }),
@@ -1537,4 +1538,19 @@ export interface AuditEventDTO {
   action: string; resource: string; outcome: string; detail: string;
   event_ts_utc: string; source_system: string; permission?: string | null;
   correlation_id?: string | null; client_type?: string | null;
+}
+
+export interface RuntimeDependencyStateDTO {
+  state: string; detail?: string; checked_at_utc?: string;
+  last_heartbeat_at_utc?: string; age_seconds?: number;
+  missing_tables?: string[]; configured?: boolean;
+}
+
+export interface RuntimeDependenciesDTO {
+  generated_at_utc: string;
+  database: RuntimeDependencyStateDTO;
+  schedulers: Record<string, RuntimeDependencyStateDTO>;
+  oidc: RuntimeDependencyStateDTO;
+  llm: RuntimeDependencyStateDTO;
+  streaming: RuntimeDependencyStateDTO;
 }

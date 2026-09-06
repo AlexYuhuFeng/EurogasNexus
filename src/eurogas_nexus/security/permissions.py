@@ -38,6 +38,8 @@ class EnforcementStatus(StrEnum):
 ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     # --- health / bootstrap ---
     ("/api/health", Permission.PUBLIC),
+    ("/api/health/live", Permission.PUBLIC),
+    ("/api/health/ready", Permission.PUBLIC),
     ("/api/dev/health", Permission.PUBLIC),
     ("/api/auth/status", Permission.PUBLIC),
     ("/api/auth/oidc/login", Permission.PUBLIC),
@@ -80,6 +82,7 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     ("/api/portfolio/", Permission.READ),
     ("/api/reference-network/", Permission.READ),
     ("/api/runtime/", Permission.READ),
+    ("/api/runtime/dependencies", Permission.READ),
     ("/api/runtime/metrics", Permission.READ),
     ("/api/runtime/source-operations", Permission.READ),
     ("/api/sources", Permission.READ),

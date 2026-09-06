@@ -7,7 +7,7 @@
 
 from datetime import UTC, datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, String, Text
+from sqlalchemy import JSON, Boolean, DateTime, Float, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from eurogas_nexus.db.base import Base
@@ -194,6 +194,10 @@ class AuditEventRecord(Base):
     """
 
     __tablename__ = "audit_events"
+    __table_args__ = (
+        Index("ix_audit_events_actor_action", "principal", "action"),
+    )
+
 
     event_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     event_type: Mapped[str] = mapped_column(String(64), nullable=False)

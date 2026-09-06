@@ -1,16 +1,15 @@
 # Service Level Objectives (Preview)
 
-Preview-grade objectives for the Eurogas Nexus runtime. These are the numbers
-the operator-facing checks (health, pipeline-health, load smoke, freshness)
-map to; production SLOs with error budgets are part of the release-gate
-milestone and are not claimed yet.
+Preview-grade objectives for the Eurogas Nexus runtime. These are engineering objectives for the current single-organization
+deployment model, based on the CR-11 baseline. They are not contractual SLAs.
 
 ## Objectives
 
 | Objective | Target | Evidence (automated) |
 |---|---|---|
-| API availability (process up) | 99% per day | `/api/health` returns 200; CI `Import API` step |
-| API latency, read endpoints | p95 ≤ 500 ms (in-process baseline) | `scripts/ops/load_smoke.py` in CI (threshold 1000 ms on shared runners) |
+| API liveness (process up) | process alive | `/api/health/live` never depends on PostgreSQL/providers |
+| API readiness | mandatory deps only | `/api/health/ready` fails when PostgreSQL/schema unavailable |
+| Interactive API p50/p95/p99 | ≤100/1500/2500 ms | `scripts/ops/performance_baseline.py`; CI load smoke p95 ≤1000ms |
 | API error rate, smoke paths | ≤ 5% of requests | `load_smoke.py` error-rate threshold |
 | Runtime DB reachable when configured | 100% of health polls | `/api/runtime/db` + `/api/runtime/pipeline-health` |
 | Data freshness honesty | 100% of sources evaluated | Source Center backend-owned `freshness_state` (fresh/late/stale/missing/not_expected/unknown/restricted) — never silent `active` for stale data |

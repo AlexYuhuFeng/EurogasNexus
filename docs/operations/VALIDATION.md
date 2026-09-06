@@ -18,6 +18,9 @@ python scripts/ci/check_markdown_links.py
 npm --prefix clients/web run test
 npm --prefix clients/web run build
 python -c "from apps.api.main import app; print('app import ok'); print(len(app.openapi()['paths']))"
+python scripts/ops/load_smoke.py --requests 200 --concurrency 8 --p95-threshold-ms 1000
+python scripts/ops/migration_preflight.py --json
+python scripts/release/compatibility_check.py
 ```
 
 ## Environment Setup
@@ -62,6 +65,16 @@ Report validation as `PARTIAL` if only a subset of checks can run.
 
 ```bash
 ./scripts/ops/validate_repo.sh
+```
+
+## Reliability Validation
+
+With `RUNTIME_STORE_DATABASE_URL` configured:
+
+```bash
+python scripts/ops/performance_baseline.py --requests 200 --concurrency 10 --json
+python scripts/ops/backup_restore_drill.py --target-database-url <isolated-target-dsn>
+python scripts/ops/recover_stale_jobs.py --commit
 ```
 
 ## Runtime DB Validation

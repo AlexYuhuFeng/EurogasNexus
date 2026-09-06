@@ -43,6 +43,10 @@ a candidate that requires human review.
   breaking, calendar-aware freshness SLAs, structured quality issues, dataset
   certification evidence, row-level entitlement propagation, and
   Prometheus-text runtime metrics.
+- Distinct liveness/readiness health, dependency health matrix, configurable
+  DB pooling/timeouts, HTTP/DB observability, stale-job recovery, automated
+  backup/restore drill, migration preflight, release smoke and evidence-based
+  performance budgets.
 - Strategy backtesting, shadow-running, persisted run history, and risk-control
   signals.
 - Storage-dispatch and nomination-window assessment workflows (assessment only;

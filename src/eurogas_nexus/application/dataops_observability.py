@@ -105,11 +105,28 @@ def emit_event(
 def prometheus_metrics(session, *, now_utc: datetime | None = None) -> str:
     """Render the low-cardinality data-operations metric family."""
 
+    from eurogas_nexus.api.middleware.observability import http_metric_lines
     from eurogas_nexus.db.models import IngestionRunRecord, SourceRuntimeStateRecord
     from eurogas_nexus.domain.dataops.contracts import as_utc
 
     now = as_utc(now_utc or datetime.now(UTC))
-    lines: list[str] = []
+    lines: list[str] = [*http_metric_lines()]
+    pool = getattr(session.get_bind(), "pool", None)
+    if pool is not None:
+        lines.extend(
+            [
+                "# HELP eurogas_db_pool_checked_out Checked-out connections.",
+                "# TYPE eurogas_db_pool_checked_out gauge",
+                f"eurogas_db_pool_checked_out {getattr(pool, 'checkedout', 0) or 0}",
+                "# HELP eurogas_db_pool_size Configured pool size.",
+                "# TYPE eurogas_db_pool_size gauge",
+                f"eurogas_db_pool_size "
+                f"{getattr(pool, '_pool', None) and getattr(pool._pool, 'maxsize', 0) or 0}",
+                "# HELP eurogas_db_pool_overflow Maximum overflow.",
+                "# TYPE eurogas_db_pool_overflow gauge",
+                f"eurogas_db_pool_overflow {getattr(pool, '_max_overflow', 0) or 0}",
+            ]
+        )
     states = session.query(SourceRuntimeStateRecord).all()
     runs = session.query(IngestionRunRecord).all()
 

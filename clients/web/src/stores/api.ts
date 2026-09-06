@@ -34,6 +34,7 @@ import {
   RouteCandidateDTO,
   RouteEligibilityDTO,
   RuntimeDbStatusDTO,
+  RuntimeDependenciesDTO,
   ScreenOrderObservationDTO,
   SourceSystemDTO,
   StrategyLabRequestDTO,
@@ -153,6 +154,7 @@ export interface ApiState {
   monitoringBusyAlertId: string | null;
   currentUser: CurrentUserDTO | null;
   runtimeDb: RuntimeDbStatusDTO | null;
+  runtimeDependencies: RuntimeDependenciesDTO | null;
   pipelineHealth: PipelineHealthDTO | null;
   endpointMeta: Record<string, ApiMeta>;
   endpointErrors: Record<string, string>;
@@ -270,6 +272,7 @@ const WORKSPACE_LOADERS: Array<[string, () => Promise<{ data: unknown; meta: Api
   ["resourcePoolOptions", api.resourcePoolOptions],
   ["glossaryTerms", () => api.glossary("en")],
   ["runtimeDb", api.runtimeDb],
+  ["runtimeDependencies", api.runtimeDependencies],
   ["credentialProviders", api.credentialProviders],
   ["monitoringAlerts", api.monitoringAlerts],
   ["monitoringSummary", api.monitoringSummary],
@@ -303,6 +306,7 @@ const WORKSPACE_STATE_KEYS: Record<string, keyof ApiState> = {
   resourcePoolOptions: "resourcePoolOptions",
   glossaryTerms: "glossaryTerms",
   runtimeDb: "runtimeDb",
+  runtimeDependencies: "runtimeDependencies",
   credentialProviders: "credentialProviders",
   monitoringAlerts: "monitoringAlerts",
   monitoringSummary: "monitoringSummary",
@@ -378,6 +382,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
   monitoringBusyAlertId: null,
   currentUser: null,
   runtimeDb: null,
+  runtimeDependencies: null,
   pipelineHealth: null,
   endpointMeta: {},
   endpointErrors: {},
@@ -447,6 +452,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
       resourcePoolOptions: (slices.resourcePoolOptions ?? null) as ResourcePoolOptionsDTO | null,
       glossaryTerms: (slices.glossaryTerms ?? []) as GlossaryTermDTO[],
       runtimeDb: (slices.runtimeDb ?? null) as RuntimeDbStatusDTO | null,
+      runtimeDependencies: (slices.runtimeDependencies ?? null) as RuntimeDependenciesDTO | null,
       credentialProviders: (slices.credentialProviders ?? []) as CredentialProviderDTO[],
       monitoringAlerts: (slices.monitoringAlerts ?? []) as MonitoringAlertDTO[],
       monitoringSummary: (slices.monitoringSummary ?? DEFAULT_MONITORING_SUMMARY) as MonitoringSummaryDTO,

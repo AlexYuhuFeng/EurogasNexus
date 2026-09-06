@@ -10,6 +10,14 @@ the target deployment.
 - Reviewer: validates evidence and approves status changes.
 - Deployment owner: accepts residual risk and sign-off.
 
+## Severity levels
+
+- SEV1: production API/PostgreSQL unavailability, security compromise, or data
+  integrity failure.
+- SEV2: major trading-analysis workflow degraded (required sources, scheduler
+  backlog, SSE unavailable with polling fallback broken).
+- SEV3: limited provider/feature degradation.
+
 ## Incident classes
 
 | Class | Example | First response |
@@ -31,8 +39,9 @@ the target deployment.
    `pg_restore`, or redeploy the previous API image.
 5. **Verify** – run:
    ```bash
+   python scripts/release/smoke_release.py --base-url <base>/api
    python scripts/ops/validate_runtime_db.py --json
-   python -c "from apps.api.main import app; print('app import ok')"
+   python scripts/ops/migration_preflight.py --json
    ```
 6. **Notify** – report to deployment owner without exposing secrets.
 7. **Post-incident** – update this runbook and the security acceptance evidence.

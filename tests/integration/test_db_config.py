@@ -91,7 +91,7 @@ def test_get_engine_bounds_postgresql_connection_and_pool_waits(
 
     assert engine is sentinel
     assert captured["connect_args"] == {"connect_timeout": 3}
-    assert captured["pool_timeout"] == 3
+    assert captured["pool_timeout"] == 5.0
 
 
 def test_get_engine_does_not_pass_postgresql_options_to_sqlite(

@@ -36,6 +36,8 @@ class BacktestPeriod(BaseModel):
     def _ordered(self) -> BacktestPeriod:
         if self.start_utc >= self.end_utc:
             raise ValueError("backtest period start must be before end")
+        if (self.end_utc - self.start_utc).days > 3660:
+            raise ValueError("backtest period must not exceed 3660 days")
         return self
 
 

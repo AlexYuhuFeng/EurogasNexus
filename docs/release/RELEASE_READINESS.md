@@ -6,7 +6,7 @@ Status: `RELEASE CANDIDATE FOR TESTED LOCAL SCOPE`
 
 Release marker: `RELEASE CANDIDATE`
 
-Date checked: 2026-09-07 (CR-10 enterprise identity/authorization validated against scratch PostgreSQL head `0029_enterprise_identity_v1`; broad local suite recorded below)
+Date checked: 2026-09-07 (CR-11 reliability hardening validated against scratch PostgreSQL head `0030_reliability_indexes`; broad local suite recorded below)
 
 Eurogas Nexus passes the current local release-candidate shape for
 backend/API/SDK/CLI, PostgreSQL runtime schema, Web workspace, and Tauri desktop
@@ -24,7 +24,7 @@ Runtime API evidence from the operator's local API:
 GET /api/runtime/db
 database_url_present=true
 connectivity.ok=true
-alembic_revision=0029_enterprise_identity_v1 (scratch PostgreSQL 16)
+alembic_revision=0030_reliability_indexes (scratch PostgreSQL 16)
 required_tables=67
 missing_tables=0
 source=runtime-postgresql
@@ -46,7 +46,7 @@ python -c "from apps.api.main import app; print('app import ok'); print(len(app.
 app import ok
 
 pytest (api/contract/integration/ingestion/unit/optimization/sdk/cli/release/security/streaming)
-1267 passed, 9 skipped (rdflib-dependent ontology parity excluded locally) in the local broad suite; PostgreSQL-backed smoke tests run in CI against PostgreSQL 16
+1277 passed, 10 skipped (rdflib-dependent ontology parity excluded locally) in the local broad suite; PostgreSQL-backed smoke tests run in CI against PostgreSQL 16
 
 npm --prefix clients/web run build
 passed
@@ -101,6 +101,20 @@ passed
   `--require-hashes`.
 - CI runs migrations and DB-backed smoke tests against a real PostgreSQL 16
   service, plus an in-process API load smoke with latency percentiles.
+- CR-11 separates process liveness (`/api/health/live`) from mandatory
+  readiness (`/api/health/ready`); external providers never gate liveness.
+  `/api/runtime/dependencies` exposes the dependency/failure matrix.
+- PostgreSQL pool size/overflow/timeout/recycle are deployment-configurable;
+  pool gauges and HTTP request/error/latency metrics are exposed.
+- Backup/restore is exercised by an automated drill: custom-format dump,
+  isolated restore, revision/required-table validation, representative rows,
+  API smoke. CR-11 local evidence: 161798-byte dump, restore in 2.8s,
+  restored head `0030_reliability_indexes`, API 200.
+- Migration preflight and a missing-revision failure test are present; the
+  failed migration leaves the database head unchanged in PostgreSQL.
+- Representative 10-concurrency baseline is recorded in
+  `docs/operations/PERFORMANCE_BASELINE.md` with p50/p95/p99 and an
+  evidence-based budget in `docs/operations/PERFORMANCE_BUDGET.md`.
 - Desktop Tauri uses a system-browser + loopback Authorization Code flow; the
   desktop frontend keeps the returned short-lived session token in memory only.
   Tauri capabilities remain `core:default` with no shell/fs/http/keychain
@@ -158,9 +172,9 @@ The following items are the current production gaps:
   Trayport, Kpler, Platts, ICIS, Argus, brokers, Weather, and LLM providers
   after credential and entitlement approval. CR-09 does not fabricate these:
   each remains `NOT CERTIFIED — credential/entitlement unavailable`.
-- Live deployment migration to head `0029_enterprise_identity_v1` on the target
-  runtime store; CR-09/CR-10 were validated against a scratch PostgreSQL 16
-  database while the local operator runtime store remained at
+- Live deployment migration to head `0030_reliability_indexes` on the target
+  runtime store; CR-09/CR-10/CR-11 were validated against a scratch
+  PostgreSQL 16 database while the local operator runtime store remained at
   `0024_cost_observations`.
 - A real enterprise IdP acceptance test against the customer identity
   provider; the CR-10 flow is validated with local cryptographic OIDC fixtures

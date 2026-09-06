@@ -50,6 +50,10 @@ def get_engine(
     echo: bool = False,
     pool_pre_ping: bool = True,
     connect_timeout_seconds: int = 5,
+    pool_size: int | None = None,
+    max_overflow: int | None = None,
+    pool_timeout_seconds: float | None = None,
+    pool_recycle_seconds: int | None = None,
 ) -> Engine:
     """Create a SQLAlchemy engine lazily without opening a connection."""
 
@@ -69,7 +73,30 @@ def get_engine(
             "timeout" if parsed_url.drivername.endswith("+pg8000") else "connect_timeout"
         )
         engine_options["connect_args"] = {timeout_parameter: bounded_timeout}
-        engine_options["pool_timeout"] = bounded_timeout
+        engine_options["pool_size"] = max(
+            1,
+            pool_size
+            if pool_size is not None
+            else _env_int("EUROGAS_NEXUS_DB_POOL_SIZE", 10),
+        )
+        engine_options["max_overflow"] = max(
+            0,
+            max_overflow
+            if max_overflow is not None
+            else _env_int("EUROGAS_NEXUS_DB_MAX_OVERFLOW", 20),
+        )
+        engine_options["pool_timeout"] = max(
+            1.0,
+            pool_timeout_seconds
+            if pool_timeout_seconds is not None
+            else _env_float("EUROGAS_NEXUS_DB_POOL_TIMEOUT", 5.0),
+        )
+        engine_options["pool_recycle"] = max(
+            60,
+            pool_recycle_seconds
+            if pool_recycle_seconds is not None
+            else _env_int("EUROGAS_NEXUS_DB_POOL_RECYCLE", 1800),
+        )
 
     return create_engine(resolved_url, **engine_options)
 
@@ -101,3 +128,23 @@ def get_session_factory(
     if not resolved_url:
         raise ValueError("Database URL is required to create a session factory.")
     return _cached_session_factory(resolved_url)
+
+
+def _env_int(name: str, default: int) -> int:
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        return default
+
+
+def _env_float(name: str, default: float) -> float:
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        return default

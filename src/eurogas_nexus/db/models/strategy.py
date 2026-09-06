@@ -105,6 +105,11 @@ class StrategyRunRecord(Base):
     """Stored backtest, shadow-run, or live-monitor evaluation snapshot."""
 
     __tablename__ = "strategy_runs"
+    __table_args__ = (
+        Index("ix_strategy_runs_strategy_started", "strategy_id", "started_at_utc"),
+        Index("ix_strategy_runs_version_started", "strategy_version_id", "started_at_utc"),
+        Index("ix_strategy_runs_type_started", "run_type", "started_at_utc"),
+    )
 
     run_id: Mapped[str] = mapped_column(String(128), primary_key=True)
     strategy_id: Mapped[str] = mapped_column(String(128), nullable=False)
