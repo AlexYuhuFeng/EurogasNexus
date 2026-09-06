@@ -2,16 +2,16 @@
 
 ## Current run
 
-- Current milestone: `CR-07 / P6` — Market / Network / Capacity Trader Cockpit
-  Consolidation (implemented; see Tests run below).
-- Last completed milestone: `CR-06 / P5` (commit `69aaaa6`). Earlier commits:
-  `5517bbe` (CR-05), `a930199` (CR-04), `77e2168` (CR-03).
-- CR-07 planned commit:
-  `feat(market): consolidate European gas trader cockpit`.
-- Current branch/commit at CR-07 start: `main` @ `69aaaa6`.
-- Model routing: DSH Pro owns market-workflow design, physical-market domain
-  semantics, route/capacity integration, cross-panel linking, hierarchy,
-  visualization, terminal UX and source/evidence decisions.
+- Current milestone: `CR-08 / P7` — Portfolio / Resource / Route / Scenario
+  Commercial Decision Workflow Consolidation (implemented; see Tests run below).
+- Last completed milestone: `CR-07 / P6` (commit `20c0bc2`). Earlier commits:
+  `69aaaa6` (CR-06), `5517bbe` (CR-05), `a930199` (CR-04).
+- CR-08 planned commit:
+  `feat(commercial): consolidate portfolio scenario and decision workflow`.
+- Current branch/commit at CR-08 start: `main` @ `20c0bc2`.
+- Model routing: DSH Pro owns commercial workflow semantics, resource/portfolio
+  domain modeling, route/scenario linkage, optimizer evidence presentation,
+  attribution, constraint interpretation and Decision Center UX.
 
 ## Baseline observed at start
 
@@ -32,6 +32,26 @@
   provenance columns on legacy `strategy_runs`). The runtime PostgreSQL head
   should become `0025_strategy_registry_v1`; live migration was not performed
   because the local environment has no running PostgreSQL service.
+
+## CR-08 implementation plan
+
+1. Audit ContractWorkbench, MarketPositioning, Scenario, Review, optimizer
+   DTOs, route candidates, TSO access, tariffs, warnings and tests.
+2. Write `docs/product/COMMERCIAL_DECISION_WORKFLOW_SPEC.md`.
+3. Introduce typed Portfolio and Decision task models with legacy deep-link
+   compatibility.
+4. Replace separate contracts/scenario/review/orders renderer branches with
+   one PortfolioWorkspace and one DecisionWorkspace.
+5. Build Portfolio Overview/Resources/Routes/Exposure tasks and Decision
+   Scenario/Optimize/Review tasks, sharing trader context and resource/route
+   selection.
+6. Add conservative route feasibility classification, compact optimizer
+   preflight/allocation/constraint/unallocated-reason views and non-execution
+   review handoff.
+7. Add scoped CSS, EN/ZH parity, Node tests for task/feasibility helpers and
+   updated release-surface contracts.
+8. Run web tests/build, ruff, markdown, load smoke and full backend suite;
+   update docs/backlog/state; commit one coherent slice.
 
 ## CR-07 implementation plan
 
@@ -205,10 +225,10 @@
     tests.
 11. Commit one coherent milestone; do not push unless explicitly authorized.
 
-## Tests run (CR-07)
+## Tests run (CR-08)
 
-- `npm --prefix clients/web run test`: **38 passed** (new Market cockpit
-  task/deep-link/hub tests).
+- `npm --prefix clients/web run test`: **41 passed** (new commercial task/
+  deep-link/feasibility tests).
 - `npm --prefix clients/web run build`: **passed**.
 - `pytest tests --ignore=tests/contract/test_ontology_grm_parity.py`:
   **1211 passed, 4 skipped**.
@@ -246,6 +266,6 @@
 
 ## Next recommended milestone
 
-- `CR-08` — Portfolio / Resource / Route / Scenario Commercial Decision
-  Workflow Consolidation, unless repository evidence shows a higher-priority
-  blocker.
+- `CR-09` — Production Data Operations: Ingestion Scheduling, Source
+  Certification, Freshness SLAs, Entitlement Enforcement, and Observability,
+  unless repository evidence reveals a higher-priority blocker.

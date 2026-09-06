@@ -74,7 +74,6 @@ def test_review_workspace_records_persisted_decisions_with_page_memory_actor() -
     review_workspace = _read(WEB / "components" / "ReviewWorkspace.tsx")
     client = _read(WEB / "api" / "client.ts")
     store = _read(WEB / "stores" / "api.ts")
-    renderer = _read(WEB / "app" / "workspaces" / "WorkspaceRenderer.tsx")
 
     assert "reviewDecisions: (params" in client
     assert 'get<ReviewDecisionDTO[]>("/review/decisions"' in client
@@ -85,18 +84,19 @@ def test_review_workspace_records_persisted_decisions_with_page_memory_actor() -
     # actor identity is page-memory only, never persisted in the browser
     assert 'useState("operator")' in review_workspace
     assert "localStorage" not in review_workspace
-    assert "onRecordDecision={api.recordReviewDecision}" in renderer
-    assert "latestStrategyRunId={api.strategyRuns[0]?.run_id ?? null}" in renderer
+    decision_workspace = _read(WEB / "components" / "DecisionWorkspace.tsx")
+    assert "onRecordDecision={api.recordReviewDecision}" in decision_workspace
+    assert "latestStrategyRunId={api.strategyRuns[0]?.run_id ?? null}" in decision_workspace
     assert "review.decision_recorder" in review_workspace
     assert "review.decision_history" in review_workspace
 
 
 def test_runtime_workspace_shows_pipeline_health_and_stream_mode() -> None:
     runtime_workspace = _read(WEB / "components" / "RuntimeWorkspace.tsx")
-    renderer = _read(WEB / "app" / "workspaces" / "WorkspaceRenderer.tsx")
     css = _read(WEB / "styles" / "app.css")
     topbar = _read(WEB / "components" / "WorkspaceTopBar.tsx")
     shell = _read(WEB / "app" / "shell" / "AppShell.tsx")
+    renderer = _read(WEB / "app" / "workspaces" / "WorkspaceRenderer.tsx")
     client = _read(WEB / "api" / "client.ts")
     store = _read(WEB / "stores" / "api.ts")
     en = json.loads(_read(WEB / "i18n" / "en.json"))
@@ -413,8 +413,14 @@ def test_secondary_workspaces_are_extracted_from_app_shell() -> None:
         "RuntimeWorkspace",
         "ManualWorkspace",
     ]:
-        assert f"<{component}" in app
         assert (WEB / "components" / f"{component}.tsx").is_file()
+    portfolio_workspace = _read(WEB / "components" / "PortfolioWorkspace.tsx")
+    decision_workspace = _read(WEB / "components" / "DecisionWorkspace.tsx")
+    for component in ["ScenarioWorkspace", "ReviewWorkspace"]:
+        assert f"<{component}" in decision_workspace
+    assert "<MarketPositioningWorkspace" in portfolio_workspace
+    assert "<RuntimeWorkspace" in app
+    assert "<ManualWorkspace" in app
 
     for page_class in [
         "scenario-page",

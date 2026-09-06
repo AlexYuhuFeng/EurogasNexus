@@ -58,6 +58,14 @@ commodity-terminal and ENTSOG/GIE research:
   geometry legend;
 - degraded state is partial, never a blank cockpit.
 
+## CR-08 Commercial workflow references
+
+GPT Image Gen 2 was not available. Accepted direction from institutional
+commodity analytics research: one Portfolio/Decision workflow with shared
+resource identity, explicit route feasibility, compact metric strips, binding
+constraint tables and a non-execution review pack. Scenario/optimizer/review
+remain separate analysis modes, not separate pages.
+
 ## Implementation note
 
 No rasterized screenshots are shipped as application UI. The accepted concept is

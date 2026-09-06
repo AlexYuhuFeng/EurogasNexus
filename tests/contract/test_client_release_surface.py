@@ -310,14 +310,18 @@ def test_web_client_matches_design_reference_cockpit() -> None:
     market_cockpit_for_contract = (
         ROOT / "clients" / "web" / "src" / "components" / "MarketCockpit.tsx"
     ).read_text(encoding="utf-8")
+    portfolio_workspace_for_contract = (
+        ROOT / "clients" / "web" / "src" / "components" / "PortfolioWorkspace.tsx"
+    ).read_text(encoding="utf-8")
     assert '"capacity"' in market_cockpit_for_contract
-    assert '"orders"' in app
+    assert '"exposure"' in portfolio_workspace_for_contract
     assert '"manual"' in app
     assert 'activePrimaryWorkspace.id === "market"' in app
     assert 'import { MarketCockpit } from "@/components/MarketCockpit";' in app
-    assert 'activeWorkspace === "contracts"' in app
-    assert 'activeWorkspace === "review"' in app
-    assert 'activeWorkspace === "orders"' in app
+    assert 'import { PortfolioWorkspace } from "@/components/PortfolioWorkspace";' in app
+    assert 'import { DecisionWorkspace } from "@/components/DecisionWorkspace";' in app
+    assert 'activePrimaryWorkspace.id === "portfolio"' in app
+    assert 'activePrimaryWorkspace.id === "decision"' in app
     assert 'activeWorkspace === "glossary"' in app
     assert 'activeWorkspace === "manual"' in app
     assert "resourcePoolOptimizationRequest" in app
@@ -495,10 +499,15 @@ def test_web_client_separates_market_capacity_orders_and_review_pages() -> None:
     assert 'window.addEventListener("popstate", syncWorkspaceFromUrl)' in app
     assert (
         app.index('activePrimaryWorkspace.id === "market"')
-        < app.index('activeWorkspace === "contracts"')
+        < app.index('activePrimaryWorkspace.id === "portfolio"')
     )
-    assert app.index('activeWorkspace === "review"') < app.index('activeWorkspace === "orders"')
-    assert "MarketPositioningWorkspace" in app
+    assert app.index('activePrimaryWorkspace.id === "portfolio"') < app.index(
+        'activePrimaryWorkspace.id === "decision"'
+    )
+    portfolio_workspace = (
+        ROOT / "clients" / "web" / "src" / "components" / "PortfolioWorkspace.tsx"
+    ).read_text(encoding="utf-8")
+    assert "MarketPositioningWorkspace" in portfolio_workspace
     assert 'className="data-table orders-table"' in positioning_workspace
     assert '["network", "storage", "lng"] as CapacityView[]' in capacity_workspace
     assert "capacity.view_${view}" in capacity_workspace
@@ -1229,10 +1238,16 @@ def test_web_client_contracts_page_is_task_led_resource_terms_workbench() -> Non
     )
     web_spec = (ROOT / "docs" / "clients" / "WEB_CLIENT_DESIGN_SPEC.md").read_text(encoding="utf-8")
 
-    assert 'import { ContractWorkbench } from "@/components/ContractWorkbench";' in app
-    assert "<ContractWorkbench" in app
+    portfolio_workspace = (
+        ROOT / "clients" / "web" / "src" / "components" / "PortfolioWorkspace.tsx"
+    ).read_text(encoding="utf-8")
+    assert (
+        'import { ContractWorkbench } from "@/components/ContractWorkbench";'
+        in portfolio_workspace
+    )
+    assert "<ContractWorkbench" in portfolio_workspace
     assert 'import type { ContractDraft } from "@/app/index";' in app
-    app_and_workbench = app + workbench
+    app_and_workbench = app + workbench + portfolio_workspace
     assert "counterparty" in app_and_workbench
     assert "title_transfer_point" in app_and_workbench
     assert "beach_delivery_point" in app_and_workbench
@@ -1526,7 +1541,10 @@ def test_web_client_resource_pool_options_are_backend_owned() -> None:
     assert "saveUpstreamContract" in api_client
     assert "saveDraftContract" in store
     assert "saveDraftContract(contractPayload)" in app_and_contracts
-    assert "contractSaveMessage" in app
+    portfolio_workspace_source = (
+        ROOT / "clients" / "web" / "src" / "components" / "PortfolioWorkspace.tsx"
+    ).read_text(encoding="utf-8")
+    assert "contractSaveMessage" in portfolio_workspace_source
     assert "contract-library-view" in app_and_contracts
     assert "contract-library-row" in app_and_contracts
     assert "contract-import-input" in app_and_contracts

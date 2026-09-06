@@ -7,6 +7,8 @@ import { GlossaryWiki } from "@/components/GlossaryWiki";
 import { ManualWorkspace } from "@/components/ManualWorkspace";
 import { MarketPositioningWorkspace } from "@/components/MarketPositioningWorkspace";
 import { MarketCockpit } from "@/components/MarketCockpit";
+import { PortfolioWorkspace } from "@/components/PortfolioWorkspace";
+import { DecisionWorkspace } from "@/components/DecisionWorkspace";
 import { ReviewWorkspace } from "@/components/ReviewWorkspace";
 import { RuntimeWorkspace } from "@/components/RuntimeWorkspace";
 import { ScenarioWorkspace } from "@/components/ScenarioWorkspace";
@@ -48,7 +50,7 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
       setStrategyRunId: selection.setStrategyRunId,
     },
   });
-  const localTabs = activePrimaryWorkspace.id === "market"
+  const localTabs = ["market", "portfolio", "decision"].includes(activePrimaryWorkspace.id)
     ? []
     : activePrimaryWorkspace.pages.map((page) => ({
         id: page,
@@ -83,58 +85,15 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
         <MarketCockpit controller={controller} />
       )}
 
-      {activeWorkspace === "contracts" && (
-        <ContractWorkbench
-          contract={contractEditor.contract}
-          contractPayload={contractEditor.contractPayload}
-          upstreamContracts={api.upstreamContracts}
-          portfolioResources={portfolio.portfolioResources}
-          totalPoolVolume={portfolio.totalPoolVolume}
-          firstPoolAllocation={portfolio.firstPoolAllocation}
-          runtimeDbReady={portfolio.runtimeDbReady}
-          loading={api.loading}
-          selectedResourceId={selection.resourceId}
-          onOpenStrategyForResource={(resourceId) => {
-            selection.setResourceId(resourceId);
-            navigation.openWorkspace("strategy");
-          }}
-          contractImportRef={contractEditor.contractImportRef}
-          contractImportMessage={contractEditor.contractImportMessage}
-          contractSaveMessage={api.contractSaveMessage}
-          t={t}
-          updateContractText={contractEditor.updateContractText}
-          updateContractNumber={contractEditor.updateContractNumber}
-          updateContractList={contractEditor.updateContractList}
-          saveDraftContract={api.saveDraftContract}
-          resetContractDraft={contractEditor.resetContractDraft}
-          importContractDraftFile={contractEditor.importContractDraftFile}
-          loadPersistedContract={contractEditor.loadPersistedContract}
-        />
+      {activePrimaryWorkspace.id === "portfolio" && (
+        <PortfolioWorkspace controller={controller} />
       )}
 
-      {activeWorkspace === "scenario" && (
-        <ScenarioWorkspace
-          routeCandidates={api.routeCandidates}
-          purchasePrice={portfolio.purchasePrice}
-          salePrice={portfolio.salePrice}
-          routeCharge={portfolio.routeCharge}
-          routeRecommendation={api.routeRecommendation}
-          contract={contractEditor.contract}
-          canRunPoolOptimizer={portfolio.canRunPoolOptimizer}
-          canCompareRoutes={portfolio.hasPortfolioResources && portfolio.saleOptions.length > 0}
-          poolInputBlockers={portfolio.poolInputBlockers}
-          resourcePoolResult={api.resourcePoolResult}
-          saleOptionById={portfolio.saleOptionById}
-          carriedRouteId={selection.routeId}
-          contextMismatch={portfolio.routeContextMismatch}
-          t={t}
-          updateContractNumber={contractEditor.updateContractNumber}
-          onOptimize={portfolio.optimizeResourcePoolForCurrentContext}
-          onCompare={portfolio.recommendRouteAllocationForCurrentContext}
-        />
+      {activePrimaryWorkspace.id === "decision" && (
+        <DecisionWorkspace controller={controller} />
       )}
 
-      {activeWorkspace === "strategy" && (
+      {activePrimaryWorkspace.id === "strategy" && (
         <StrategyLabWorkspace
           controller={strategyLab}
           selection={{
@@ -147,39 +106,6 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
           }}
           gasDay={traderContext.gasDay}
           language={i18n.language}
-          t={t}
-        />
-      )}
-
-      {activeWorkspace === "review" && (
-        <ReviewWorkspace
-          allocations={portfolio.poolAllocations}
-          saleOptionById={portfolio.saleOptionById}
-          reviewWarnings={portfolio.reviewWarnings}
-          resourcePoolResult={api.resourcePoolResult}
-          analysisQuestion={review.analysisQuestion}
-          invokeDeepSeek={review.invokeDeepSeek}
-          analysisResult={api.analysisResult}
-          language={i18n.language}
-          reviewDecisions={api.reviewDecisions}
-          reviewMessage={api.reviewMessage}
-          latestStrategyRunId={api.strategyRuns[0]?.run_id ?? null}
-          carriedStrategyRunId={selection.strategyRunId}
-          t={t}
-          onAnalysisQuestionChange={review.setAnalysisQuestion}
-          onInvokeDeepSeekChange={review.setInvokeDeepSeek}
-          onAnalyze={() => api.askAnalysis(review.analysisPayload)}
-          onGenerateReport={() => api.generatePortfolioReport(review.analysisPayload)}
-          onRecordDecision={api.recordReviewDecision}
-        />
-      )}
-
-      {activeWorkspace === "orders" && (
-        <MarketPositioningWorkspace
-          portfolioSummary={api.portfolioSummary}
-          screenOrders={api.screenOrders}
-          pnlSnapshots={api.pnlSnapshots}
-          formatTimestamp={sources.formatSourceTimestamp}
           t={t}
         />
       )}

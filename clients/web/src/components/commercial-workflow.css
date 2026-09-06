@@ -1,0 +1,100 @@
+.commercial-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.commercial-task-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border, #d7dde6);
+  padding: 0 4px 6px;
+}
+
+.commercial-task-tabs button {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted, #58657a);
+  padding: 5px 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.commercial-task-tabs button.active {
+  color: var(--text, #18202f);
+  border-bottom: 2px solid var(--accent, #0b63ce);
+}
+
+.commercial-overview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.commercial-metric-strip {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  border: 1px solid var(--border, #d7dde6);
+  background: var(--panel, #ffffff);
+  padding: 6px 8px;
+}
+
+.commercial-metric-strip span {
+  display: grid;
+  gap: 2px;
+}
+
+.commercial-metric-strip small {
+  color: var(--text-muted, #58657a);
+  font-size: 10.5px;
+}
+
+.commercial-metric-strip strong {
+  font-size: 13px;
+}
+
+.commercial-routes-panel,
+.commercial-route-table {
+  min-width: 0;
+}
+
+.commercial-route-table {
+  max-height: 520px;
+  overflow: auto;
+}
+
+.commercial-route-table .data-table-row {
+  grid-template-columns: 1.2fr 1.4fr 1fr 0.9fr 0.8fr 0.8fr;
+  min-width: 720px;
+  font-size: 11.5px;
+}
+
+.commercial-route-table button.data-table-row {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+
+.commercial-route-table button.data-table-row.selected {
+  background: var(--selection, #eef5ff);
+}
+
+.commercial-warning-list {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  color: var(--text-muted, #58657a);
+  font-size: 11.5px;
+}
+
+.commercial-handoff-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
