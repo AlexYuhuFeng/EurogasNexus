@@ -25,12 +25,12 @@ def test_strategy_bar_minutes_is_operator_selectable() -> None:
     terminal = (
         WEB / "components" / "StrategyShadowRunTerminal.tsx"
     ).read_text(encoding="utf-8")
-    renderer = (WEB / "app" / "workspaces" / "WorkspaceRenderer.tsx").read_text(
+    portfolio = (WEB / "app" / "model" / "usePortfolioDecisionModel.ts").read_text(
         encoding="utf-8"
     )
 
     assert "bar_minutes" in terminal
-    assert "target_bar_minutes" in renderer
+    assert "target_bar_minutes" in portfolio
     assert '"1", "5", "15"' in terminal
 
 

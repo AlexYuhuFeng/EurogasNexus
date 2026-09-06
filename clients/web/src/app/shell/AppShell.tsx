@@ -14,6 +14,8 @@ export function AppShell({ controller }: AppShellProps) {
     api,
     theme,
     navigation,
+    traderContext,
+    selection,
     controls,
     portfolio,
     sources,
@@ -30,8 +32,9 @@ export function AppShell({ controller }: AppShellProps) {
         streamingActive={api.streamingActive}
         language={i18n.language}
         mode={theme.mode}
-        gasDay={controls.gasDay}
-        deliveryProduct={controls.deliveryProduct}
+        gasDay={traderContext.gasDay}
+        deliveryProduct={traderContext.deliveryProduct}
+        hubId={traderContext.hubId}
         marketLastUpdatedAtUtc={api.marketLastUpdatedAtUtc}
         sourceIssueCount={sources.sourceStats.issues}
         monitoring={api}
@@ -39,8 +42,9 @@ export function AppShell({ controller }: AppShellProps) {
         onSearchTermChange={controls.setSearchTerm}
         onLanguageChange={(language) => void i18n.changeLanguage(language)}
         onModeChange={theme.setMode}
-        onGasDayChange={controls.setGasDay}
-        onDeliveryProductChange={controls.setDeliveryProduct}
+        onGasDayChange={traderContext.setGasDay}
+        onDeliveryProductChange={traderContext.setDeliveryProduct}
+        onHubChange={traderContext.setHubId}
         onOpenPrimaryWorkspace={navigation.openPrimaryWorkspace}
       />
 
@@ -99,15 +103,25 @@ export function AppShell({ controller }: AppShellProps) {
             strategyResult={api.strategyResult}
             activeWarning={portfolio.activeWarning}
             reviewEvidenceItems={portfolio.reviewEvidenceItems}
-            gasDay={controls.gasDay}
-            deliveryProduct={controls.deliveryProduct}
+            gasDay={traderContext.gasDay}
+            deliveryProduct={traderContext.deliveryProduct}
+            hubId={traderContext.hubId}
             marketLastUpdatedAtUtc={api.marketLastUpdatedAtUtc}
             intradayOpportunities={api.intradayOpportunities}
             sourceStats={sources.sourceStats}
+            optimizerContextMismatch={portfolio.optimizerContextMismatch}
             onResetSearch={() => controls.setSearchTerm("")}
             onToggleLayer={controls.toggleLayer}
-            onOptimizePool={() => api.optimizeResourcePool(portfolio.resourcePoolOptimizationRequest)}
+            onOptimizePool={portfolio.optimizeResourcePoolForCurrentContext}
             onOpenReview={() => navigation.openWorkspace("review")}
+            onOpenScenario={() => {
+              const routeId =
+                portfolio.selectedAllocation?.route_id ??
+                portfolio.highlightedRoute?.routeId ??
+                null;
+              if (routeId) selection.setRouteId(routeId);
+              navigation.openWorkspace("scenario");
+            }}
           />
         ) : (
           <WorkspaceRenderer controller={controller} />

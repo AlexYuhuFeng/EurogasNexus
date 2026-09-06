@@ -19,6 +19,8 @@ interface MarketTerminalProps {
   fxRates: FxRateDTO[];
   sources: SourceSystemDTO[];
   lastUpdatedAtUtc: string | null;
+  focusedHub: string | null;
+  onHubChange: (hubId: string | null) => void;
   onRefresh: () => Promise<void>;
   t: Translate;
 }
@@ -250,6 +252,8 @@ export function MarketTerminal({
   fxRates,
   sources,
   lastUpdatedAtUtc,
+  focusedHub,
+  onHubChange,
   onRefresh,
   t,
 }: MarketTerminalProps) {
@@ -462,6 +466,19 @@ export function MarketTerminal({
             {t("market.refresh")}
           </button>
         </div>
+        <div className="market-hub-focus" role="group" aria-label={t("context.hub")}>
+          {marketMajorHubs.map((definition) => (
+            <button
+              key={`market-hub-focus-${definition.hub}`}
+              type="button"
+              className={focusedHub === definition.hub ? "market-hub-focus-button active" : "market-hub-focus-button"}
+              aria-pressed={focusedHub === definition.hub}
+              onClick={() => onHubChange(focusedHub === definition.hub ? null : definition.hub)}
+            >
+              {definition.hub}
+            </button>
+          ))}
+        </div>
         <div className="market-tenor-tabs" aria-label={t("market.tenor_tabs")}>
           {marketTenorOrder.map((tenor) => (
             <button
@@ -488,7 +505,7 @@ export function MarketTerminal({
             return (
             <div
               key={`ticker-${row.hub}-${row.tenor}`}
-              className={`market-price-ticker ${quote || row.latest ? "is-live" : "is-waiting"}`}
+              className={`market-price-ticker ${quote || row.latest ? "is-live" : "is-waiting"} ${focusedHub && focusedHub === row.hub ? "hub-focused" : ""}`}
             >
               <span>{row.hub}</span>
               <strong>

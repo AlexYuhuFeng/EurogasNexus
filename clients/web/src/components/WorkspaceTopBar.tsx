@@ -1,5 +1,9 @@
 import type { Dispatch, SetStateAction } from "react";
 import {
+  SUPPORTED_HUB_IDS,
+  type SupportedHubId,
+} from "@/app/context";
+import {
   primaryWorkspaces,
   type PrimaryWorkspace,
   type PrimaryWorkspaceId,
@@ -23,6 +27,7 @@ interface WorkspaceTopBarProps {
   mode: ThemeMode;
   gasDay: string;
   deliveryProduct: string;
+  hubId: SupportedHubId | null;
   marketLastUpdatedAtUtc: string | null;
   sourceIssueCount: number;
   monitoring: Pick<
@@ -40,6 +45,7 @@ interface WorkspaceTopBarProps {
   onModeChange: (mode: ThemeMode) => void;
   onGasDayChange: (gasDay: string) => void;
   onDeliveryProductChange: (product: string) => void;
+  onHubChange: (hubId: string | null) => void;
   onOpenPrimaryWorkspace: (primary: PrimaryWorkspaceId) => void;
 }
 
@@ -54,6 +60,7 @@ export function WorkspaceTopBar({
   mode,
   gasDay,
   deliveryProduct,
+  hubId,
   marketLastUpdatedAtUtc,
   sourceIssueCount,
   monitoring,
@@ -63,6 +70,7 @@ export function WorkspaceTopBar({
   onModeChange,
   onGasDayChange,
   onDeliveryProductChange,
+  onHubChange,
   onOpenPrimaryWorkspace,
 }: WorkspaceTopBarProps) {
   const hasMapSearch = activeWorkspace === "network";
@@ -117,6 +125,19 @@ export function WorkspaceTopBar({
             <option value="day-ahead">{t("context.day_ahead")}</option>
             <option value="within-day">{t("context.within_day")}</option>
             <option value="month-ahead">{t("context.month_ahead")}</option>
+          </select>
+        </label>
+        <label>
+          <span>{t("context.hub")}</span>
+          <select
+            aria-label={t("context.hub")}
+            value={hubId ?? ""}
+            onChange={(event) => onHubChange(event.target.value || null)}
+          >
+            <option value="">{t("context.no_hub_focus")}</option>
+            {SUPPORTED_HUB_IDS.map((hub) => (
+              <option key={`context-hub-${hub}`} value={hub}>{hub}</option>
+            ))}
           </select>
         </label>
         <span className={sourceIssueCount > 0 ? "context-freshness issue" : "context-freshness"}>

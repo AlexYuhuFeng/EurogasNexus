@@ -633,9 +633,9 @@ def test_web_client_strategy_page_is_shadow_run_terminal() -> None:
     assert "marketObservations={portfolio.contextMarkets}" in app
     assert "fxRates={api.fxRates}" in app
     assert "language={i18n.language}" in app
-    assert "onEvaluate={(overrides)" in app
+    assert "onEvaluate={portfolio.evaluateStrategyForCurrentContext}" in app
     assert "api.evaluateStrategyLab({" in app
-    assert "existing_shadow_pnl_gbp: portfolio.strategySummary?.cumulative_pnl_gbp ?? 0" in app
+    assert "existing_shadow_pnl_gbp: api.strategySummary?.cumulative_pnl_gbp ?? 0" in app
     assert "strategy-shadow-run-terminal" in strategy_terminal
     assert 'from "@/components/strategy/StrategyShadowRunSections"' in strategy_terminal
     assert "strategy-command-deck" in strategy_terminal

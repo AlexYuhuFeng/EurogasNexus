@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { useSelectionContext, useTraderContext } from "@/app/context";
 import { useApiStore } from "@/stores/api";
 import { useThemeStore } from "@/stores/theme";
 import { usePortfolioDecisionModel } from "@/app/model/usePortfolioDecisionModel";
@@ -15,6 +16,8 @@ export function useAppController() {
   const api = useApiStore();
   const theme = useThemeStore();
   const navigation = useWorkspaceNavigation();
+  const trader = useTraderContext();
+  const selection = useSelectionContext();
   const controls = useCockpitControls();
   const contractEditor = useContractEditor(t);
 
@@ -29,8 +32,10 @@ export function useAppController() {
   const portfolio = usePortfolioDecisionModel({
     api,
     contract: contractEditor.contract,
-    gasDay: controls.gasDay,
-    deliveryProduct: controls.deliveryProduct,
+    gasDay: trader.gasDay,
+    deliveryProduct: trader.deliveryProduct,
+    hubId: trader.hubId,
+    selectedResourceId: selection.resourceId,
     t,
   });
   const review = useReviewAnalysis(i18n.language, portfolio.portfolioResources);
@@ -55,6 +60,8 @@ export function useAppController() {
     api,
     theme,
     navigation,
+    traderContext: trader,
+    selection,
     controls,
     contractEditor,
     portfolio,

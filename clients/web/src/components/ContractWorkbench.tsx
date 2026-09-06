@@ -92,6 +92,8 @@ interface ContractWorkbenchProps {
   firstPoolAllocation: { early_cash_value_gbp_mwh: number; net_margin_gbp_mwh: number; net_pnl_gbp_per_day: number } | null;
   runtimeDbReady: boolean;
   loading: boolean;
+  selectedResourceId: string | null;
+  onOpenStrategyForResource: (resourceId: string) => void;
   contractImportRef: RefObject<HTMLInputElement | null>;
   contractImportMessage: string | null;
   contractSaveMessage: string | null;
@@ -128,7 +130,8 @@ function formatTimestamp(value: string | undefined): string {
 
 export function ContractWorkbench({
   contract, contractPayload, upstreamContracts, portfolioResources, totalPoolVolume,
-  firstPoolAllocation, runtimeDbReady, loading, contractImportRef, contractImportMessage,
+  firstPoolAllocation, runtimeDbReady, loading, selectedResourceId,
+  onOpenStrategyForResource, contractImportRef, contractImportMessage,
   contractSaveMessage, t, updateContractText, updateContractNumber, updateContractList,
   saveDraftContract, resetContractDraft, importContractDraftFile, loadPersistedContract,
 }: ContractWorkbenchProps) {
@@ -289,6 +292,13 @@ export function ContractWorkbench({
           <section className="contract-content-band span-2">
             <div className="section-heading"><span className="eyebrow">{t("contracts.persisted_impact")}</span><strong>{persistedResource ? t("contracts.in_pool") : t("contracts.not_in_pool")}</strong></div>
               {persistedResource ? <div className="contract-impact-grid"><div><span>{t("contracts.resource_id")}</span><strong>{persistedResource.resource_id}</strong></div><div><span>{t("economics.volume")}</span><strong>{formatQuantity(persistedResource.available_quantity_mwh_per_day)}</strong></div><div><span>{t("economics.contract_price")}</span><strong>{formatMoney(persistedResource.contract_cost_gbp_mwh)}</strong></div><div><span>{t("contracts.variable_and_regas")}</span><strong>{formatMoney(persistedResource.variable_cost_gbp_mwh)}</strong></div><div><span>{t("contracts.fuel_loss")}</span><strong>{formatPercentage(persistedResource.fuel_loss_allowance_pct)}</strong></div><div><span>{t("contracts.pricing_method")}</span><strong>{persistedResource.pricing_method || "n/a"}</strong></div></div> : <p className="panel-copy">{t("contracts.impact_pending")}</p>}
+              {persistedResource && (
+                <div className="contract-handoff-row">
+                  <button type="button" className="secondary-button" onClick={() => onOpenStrategyForResource(persistedResource.resource_id)}>
+                    {t("contracts.open_in_strategy")}
+                  </button>
+                </div>
+              )}
             </section>
           <section className="contract-content-band"><div className="section-heading"><span className="eyebrow">{t("home.resource_pool")}</span><strong>{portfolioResources.length} {t(portfolioResources.length === 1 ? "contracts.resource_singular" : "home.resources")}</strong></div><div className="contract-definition-list"><div><span>{t("home.pool_volume")}</span><strong>{formatQuantity(totalPoolVolume)}</strong></div><div><span>{t("result.cash_value")}</span><strong>{firstPoolAllocation ? formatMoney(firstPoolAllocation.early_cash_value_gbp_mwh) : "n/a"}</strong></div><div><span>{t("result.net_margin")}</span><strong>{firstPoolAllocation ? formatMoney(firstPoolAllocation.net_margin_gbp_mwh) : "n/a"}</strong></div></div></section>
         </div>
@@ -298,7 +308,29 @@ export function ContractWorkbench({
         <section className="contract-library-view">
           <div className="panel-title-row"><h3>{t("contracts.library")}</h3><span>{upstreamContracts.length} {t("panel.records")}</span></div>
           <div className="contract-library-header" aria-hidden="true"><span>{t("contracts.resource_term")}</span><span>{t("economics.volume")}</span><span>{t("economics.contract_price")}</span><span>{t("panel.status")}</span></div>
-          <div className="contract-library-list">{upstreamContracts.map((saved) => <button key={saved.contract_id} type="button" className={`contract-library-row ${saved.contract_id === contract.contract_id ? "selected" : ""}`} onClick={() => loadTerm(saved)}><span><strong>{saved.contract_name}</strong><small>{saved.contract_id} · {saved.delivery_point_name} · {saved.gas_year}</small></span><span><strong>{formatQuantity(saved.delivery_quantity_mwh_per_day)}</strong></span><span><strong>{formatMoney(saved.contract_price_gbp_mwh)}</strong><small>GBP/MWh</small></span><span><strong>{t("contracts.persisted")}</strong><small>{formatTimestamp(saved.updated_at_utc)}</small></span></button>)}{upstreamContracts.length === 0 && <p className="panel-copy">{t("contracts.no_saved_contracts")}</p>}</div>
+          <div className="contract-library-list">{upstreamContracts.map((saved) => {
+            const resourceInPool = portfolioResources.some((resource) => resource.resource_id === saved.contract_id);
+            const selected = selectedResourceId === saved.contract_id || saved.contract_id === contract.contract_id;
+            return (
+              <div key={saved.contract_id} className={`contract-library-row ${selected ? "selected" : ""}`}>
+                <button type="button" className="contract-library-load" onClick={() => loadTerm(saved)}>
+                  <span><strong>{saved.contract_name}</strong><small>{saved.contract_id} · {saved.delivery_point_name} · {saved.gas_year}</small></span>
+                  <span><strong>{formatQuantity(saved.delivery_quantity_mwh_per_day)}</strong></span>
+                  <span><strong>{formatMoney(saved.contract_price_gbp_mwh)}</strong><small>GBP/MWh</small></span>
+                  <span><strong>{t("contracts.persisted")}</strong><small>{formatTimestamp(saved.updated_at_utc)}</small></span>
+                </button>
+                <button
+                  type="button"
+                  className="contract-library-handoff"
+                  disabled={!resourceInPool}
+                  title={resourceInPool ? t("contracts.open_in_strategy") : t("contracts.open_in_strategy_unavailable")}
+                  onClick={() => onOpenStrategyForResource(saved.contract_id)}
+                >
+                  {t("contracts.open_in_strategy")}
+                </button>
+              </div>
+            );
+          })}{upstreamContracts.length === 0 && <p className="panel-copy">{t("contracts.no_saved_contracts")}</p>}</div>
         </section>
       )}
       <footer className="contract-boundary-note">{t("contracts.boundary_note")}</footer>

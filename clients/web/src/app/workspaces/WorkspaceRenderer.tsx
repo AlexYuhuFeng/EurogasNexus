@@ -26,6 +26,8 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
     api,
     theme,
     navigation,
+    traderContext,
+    selection,
     controls,
     contractEditor,
     portfolio,
@@ -85,6 +87,8 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
           fxRates={api.fxRates}
           sources={api.sources}
           lastUpdatedAtUtc={api.marketLastUpdatedAtUtc}
+          focusedHub={traderContext.hubId}
+          onHubChange={traderContext.setHubId}
           onRefresh={api.refreshMarketData}
           t={t}
         />
@@ -100,6 +104,11 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
           firstPoolAllocation={portfolio.firstPoolAllocation}
           runtimeDbReady={portfolio.runtimeDbReady}
           loading={api.loading}
+          selectedResourceId={selection.resourceId}
+          onOpenStrategyForResource={(resourceId) => {
+            selection.setResourceId(resourceId);
+            navigation.openWorkspace("strategy");
+          }}
           contractImportRef={contractEditor.contractImportRef}
           contractImportMessage={contractEditor.contractImportMessage}
           contractSaveMessage={api.contractSaveMessage}
@@ -127,10 +136,12 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
           poolInputBlockers={portfolio.poolInputBlockers}
           resourcePoolResult={api.resourcePoolResult}
           saleOptionById={portfolio.saleOptionById}
+          carriedRouteId={selection.routeId}
+          contextMismatch={portfolio.routeContextMismatch}
           t={t}
           updateContractNumber={contractEditor.updateContractNumber}
-          onOptimize={() => api.optimizeResourcePool(portfolio.resourcePoolOptimizationRequest)}
-          onCompare={() => api.recommendRouteAllocation(portfolio.routeRecommendationRequest)}
+          onOptimize={portfolio.optimizeResourcePoolForCurrentContext}
+          onCompare={portfolio.recommendRouteAllocationForCurrentContext}
         />
       )}
 
@@ -145,23 +156,14 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
           fxRates={api.fxRates}
           language={i18n.language}
           loading={api.loading}
+          selectedResourceId={selection.resourceId}
+          contextMismatch={portfolio.strategyContextMismatch}
           t={t}
-          onEvaluate={(overrides) =>
-            api.evaluateStrategyLab({
-              ...portfolio.strategyScenario,
-              risk_control: {
-                ...(portfolio.strategyScenario.risk_control ?? {}),
-                ...(overrides?.risk_control ?? {}),
-              },
-              existing_shadow_pnl_gbp: portfolio.strategySummary?.cumulative_pnl_gbp ?? 0,
-              components: overrides?.bar_minutes
-                ? portfolio.strategyScenario.components.map((component) => ({
-                    ...component,
-                    target_bar_minutes: overrides.bar_minutes,
-                  }))
-                : portfolio.strategyScenario.components,
-            })
-          }
+          onEvaluate={portfolio.evaluateStrategyForCurrentContext}
+          onReviewRun={(runId) => {
+            selection.setStrategyRunId(runId);
+            navigation.openWorkspace("review");
+          }}
         />
       )}
 
@@ -178,6 +180,7 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
           reviewDecisions={api.reviewDecisions}
           reviewMessage={api.reviewMessage}
           latestStrategyRunId={api.strategyRuns[0]?.run_id ?? null}
+          carriedStrategyRunId={selection.strategyRunId}
           t={t}
           onAnalysisQuestionChange={review.setAnalysisQuestion}
           onInvokeDeepSeekChange={review.setInvokeDeepSeek}

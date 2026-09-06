@@ -90,6 +90,7 @@ export function buildStrategyScenario(
   liveMark: LiveMarkLike,
   markets: MarketLike[],
   portfolioResources: PortfolioResourceLike[],
+  selectedResourceId?: string | null,
 ) {
   const nbpMarkets = markets.filter((observation) => observation.hub.toUpperCase() === "NBP");
   const sapRow = latestPositiveObservation(
@@ -147,7 +148,9 @@ export function buildStrategyScenario(
         source_reference: liveMark.source_system,
       };
   const intradayObservation = manualOcmObservation ?? persistedOcmObservation;
-  const resource = portfolioResources[0];
+  const resource = selectedResourceId
+    ? portfolioResources.find((candidate) => candidate.resource_id === selectedResourceId) ?? portfolioResources[0]
+    : portfolioResources[0];
   const dayAheadNames = dayAheadObservations.map((observation) => observation.price_name);
 
   return {

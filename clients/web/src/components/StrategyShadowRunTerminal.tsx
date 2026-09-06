@@ -41,8 +41,11 @@ interface StrategyShadowRunTerminalProps {
   fxRates: FxRateDTO[];
   language: string;
   loading: boolean;
+  selectedResourceId: string | null;
+  contextMismatch: boolean;
   t: Translate;
   onEvaluate: (overrides?: StrategyEvaluateOverrides) => void;
+  onReviewRun: (runId: string) => void;
 }
 
 const PRICE_BASIS_ORDER: PriceBasisId[] = [
@@ -224,8 +227,11 @@ export function StrategyShadowRunTerminal({
   fxRates,
   language,
   loading,
+  selectedResourceId,
+  contextMismatch,
   t,
   onEvaluate,
+  onReviewRun,
 }: StrategyShadowRunTerminalProps) {
   const [activeBasis, setActiveBasis] = useState<PriceBasisId>("WITHIN_DAY");
   const [activeView, setActiveView] = useState<StrategyViewId>("monitor");
@@ -620,6 +626,12 @@ export function StrategyShadowRunTerminal({
         role="tabpanel"
         aria-labelledby={`strategy-tab-${activeView}`}
       >
+        {(selectedResourceId || contextMismatch) && (
+          <div className="workspace-panel span-3 strategy-context-banner" role="status" aria-live="polite">
+            {selectedResourceId && <span><small>{t("strategy.carried_resource")}</small><strong>{selectedResourceId}</strong></span>}
+            {contextMismatch && <span className="context-mismatch"><strong>{t("context.result_mismatch")}</strong><small>{t("context.result_mismatch_hint")}</small></span>}
+          </div>
+        )}
         {activeView === "monitor" && (
           <>
             <StrategyPerformancePanel runs={strategyRuns} summary={strategySummary} language={language} t={t} />
@@ -765,23 +777,24 @@ export function StrategyShadowRunTerminal({
                 <span>{strategyRuns.length} {t("panel.records")}</span>
               </div>
               <div className="data-table">
-                <div className="data-table-row header five">
+                <div className="data-table-row header six">
                   <span>{t("strategy.run_time")}</span><span>{t("strategy.status")}</span>
                   <span>{t("strategy.paper_pnl")}</span><span>{t("strategy.cumulative_pnl")}</span>
-                  <span>{t("strategy.win")}</span>
+                  <span>{t("strategy.win")}</span><span>{t("strategy.review")}</span>
                 </div>
                 {strategyRuns.map((run) => (
-                  <div key={`strategy-run-${run.run_id}`} className="data-table-row five">
+                  <div key={`strategy-run-${run.run_id}`} className="data-table-row six">
                     <span>{formatTimestamp(run.started_at_utc, language)}</span>
                     <strong>{run.status}</strong>
                     <span>{formatSignedMoney(run.paper_pnl_gbp)}</span>
                     <span>{formatSignedMoney(run.cumulative_pnl_gbp)}</span>
                     <span>{run.hit === null ? "n/a" : run.hit ? t("strategy.win") : t("strategy.loss")}</span>
+                    <button type="button" className="strategy-review-handoff" onClick={() => onReviewRun(run.run_id)}>{t("strategy.review_decision")}</button>
                   </div>
                 ))}
                 {strategyRuns.length === 0 && (
-                  <div className="data-table-row five">
-                    <span>{t("home.not_running")}</span><span>n/a</span><span>n/a</span><span>n/a</span><span>n/a</span>
+                  <div className="data-table-row six">
+                    <span>{t("home.not_running")}</span><span>n/a</span><span>n/a</span><span>n/a</span><span>n/a</span><span>n/a</span>
                   </div>
                 )}
               </div>

@@ -1,10 +1,7 @@
 import { useState } from "react";
-import { DEFAULT_GAS_DAY } from "@/app/index";
 
 export function useCockpitControls() {
   const [activeLayers, setActiveLayers] = useState(["hubs"]);
-  const [gasDay, setGasDay] = useState(DEFAULT_GAS_DAY);
-  const [deliveryProduct, setDeliveryProduct] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
 
   function toggleLayer(layer: string) {
@@ -15,11 +12,7 @@ export function useCockpitControls() {
 
   return {
     activeLayers,
-    gasDay,
-    deliveryProduct,
     searchTerm,
-    setGasDay,
-    setDeliveryProduct,
     setSearchTerm,
     toggleLayer,
   };

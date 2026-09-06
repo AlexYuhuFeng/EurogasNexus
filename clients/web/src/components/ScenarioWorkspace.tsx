@@ -21,6 +21,8 @@ interface ScenarioWorkspaceProps {
   poolInputBlockers: string[];
   resourcePoolResult: PortfolioOptimizationResultDTO | null;
   saleOptionById: Map<string, PortfolioSaleOptionDTO>;
+  carriedRouteId: string | null;
+  contextMismatch: boolean;
   t: Translate;
   updateContractNumber: (key: ContractNumberKey, value: string) => void;
   onOptimize: () => void;
@@ -54,6 +56,8 @@ export function ScenarioWorkspace({
   poolInputBlockers,
   resourcePoolResult,
   saleOptionById,
+  carriedRouteId,
+  contextMismatch,
   t,
   updateContractNumber,
   onOptimize,
@@ -61,11 +65,27 @@ export function ScenarioWorkspace({
 }: ScenarioWorkspaceProps) {
   return (
     <div className="workspace-grid scenario-page">
+      {(carriedRouteId || contextMismatch) && (
+        <div className="workspace-panel span-3 scenario-context-banner" role="status" aria-live="polite">
+          {carriedRouteId && (
+            <span><small>{t("scenario.carried_route")}</small><strong>{carriedRouteId}</strong></span>
+          )}
+          {contextMismatch && (
+            <span className="context-mismatch"><strong>{t("context.result_mismatch")}</strong><small>{t("context.result_mismatch_hint")}</small></span>
+          )}
+        </div>
+      )}
       <div className="workspace-panel span-2">
         <div className="section-heading"><span className="eyebrow">{t("home.recommended_paths")}</span><strong>{t("panel.routes")}</strong></div>
         <div className="route-list">
           {routeCandidates.map((route) => (
-            <div key={`scenario-route-${route.route_id}`} className="route-row route-candidate"><span>{route.route_name}</span><strong>{route.required_tso_access.join(", ") || "n/a"}</strong></div>
+            <div
+              key={`scenario-route-${route.route_id}`}
+              className={`route-row route-candidate ${carriedRouteId === route.route_id ? "carried-route" : ""}`}
+            >
+              <span>{route.route_name}</span>
+              <strong>{route.required_tso_access.join(", ") || "n/a"}</strong>
+            </div>
           ))}
         </div>
       </div>

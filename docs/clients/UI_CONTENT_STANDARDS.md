@@ -17,7 +17,8 @@ visual direction; they have no independent authority.
 
 ## Information hierarchy
 
-1. Global shell and runtime status stay visible and persistent.
+1. Global shell, compact trader context strip, and runtime status stay visible
+   and persistent.
 2. Persistent primary workspace navigation identifies the active professional
    workspace; only five primary workspaces are exposed globally.
 3. The workspace page header identifies the active local task and primary

@@ -8233,3 +8233,158 @@ button.glossary-related-chip {
     width: 100%;
   }
 }
+
+/* ============================================================
+   CR-02 — persistent trader context and linked handoffs
+   ============================================================ */
+.market-hub-focus {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0 8px;
+}
+
+.market-hub-focus-button {
+  min-height: 30px;
+  border: 1px solid var(--eg-hairline);
+  border-radius: var(--eg-pill, 100px);
+  background: var(--eg-canvas-soft);
+  color: var(--eg-muted);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 5px 9px;
+}
+
+.market-hub-focus-button:hover,
+.market-hub-focus-button.active {
+  border-color: var(--eg-ink);
+  color: var(--eg-ink);
+}
+
+.market-hub-focus-button.active {
+  background: var(--eg-ink);
+  color: var(--eg-surface);
+}
+
+.market-price-ticker.hub-focused {
+  border-color: var(--eg-link, #0070f3);
+}
+
+.scenario-context-banner,
+.strategy-context-banner,
+.review-context-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  border-left: 3px solid var(--eg-link, #0070f3);
+  background: rgb(0 112 243 / 5%);
+  padding: 10px 12px;
+}
+
+.scenario-context-banner > span,
+.strategy-context-banner > span,
+.review-context-banner > span {
+  display: grid;
+  gap: 2px;
+}
+
+.scenario-context-banner small,
+.strategy-context-banner small,
+.review-context-banner small {
+  color: var(--eg-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.scenario-context-banner strong,
+.strategy-context-banner strong,
+.review-context-banner strong {
+  color: var(--eg-ink);
+  font-size: 12px;
+}
+
+.scenario-context-banner .context-mismatch,
+.strategy-context-banner .context-mismatch {
+  border-left: 1px solid var(--eg-hairline);
+  padding-left: 12px;
+}
+
+.route-row.carried-route {
+  border-color: var(--eg-link, #0070f3);
+  background: rgb(0 112 243 / 5%);
+}
+
+.strategy-review-handoff {
+  min-height: 28px;
+  border: 1px solid var(--eg-hairline);
+  border-radius: 6px;
+  background: var(--eg-surface);
+  color: var(--eg-ink);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 8px;
+}
+
+.contract-library-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.contract-library-load {
+  display: grid;
+  grid-template-columns: minmax(240px, 1.55fr) minmax(130px, 0.62fr) minmax(120px, 0.62fr) minmax(150px, 0.72fr);
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+}
+
+.contract-library-load > span {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.contract-library-load strong {
+  min-width: 0;
+  color: var(--eg-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.contract-library-load small {
+  color: var(--eg-muted);
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+.contract-library-handoff {
+  min-height: 32px;
+  border: 1px solid var(--eg-hairline);
+  border-radius: 6px;
+  background: var(--eg-surface);
+  color: var(--eg-ink);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 6px 9px;
+}
+
+.contract-library-handoff:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.contract-handoff-row {
+  display: flex;
+  margin-top: 10px;
+}

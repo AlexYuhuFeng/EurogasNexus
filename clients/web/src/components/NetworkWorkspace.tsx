@@ -83,13 +83,16 @@ interface NetworkWorkspaceProps {
   reviewEvidenceItems: ReviewEvidenceItem[];
   gasDay: string;
   deliveryProduct: string;
+  hubId: string | null;
   marketLastUpdatedAtUtc: string | null;
   intradayOpportunities: IntradayOpportunityDTO[];
   sourceStats: SourceStats;
+  optimizerContextMismatch: boolean;
   onResetSearch: () => void;
   onToggleLayer: (layer: string) => void;
   onOptimizePool: () => void;
   onOpenReview: () => void;
+  onOpenScenario: () => void;
 }
 
 function geometryMessageKey(state: NetworkGeometryState): string {
@@ -149,13 +152,16 @@ export function NetworkWorkspace({
   reviewEvidenceItems,
   gasDay,
   deliveryProduct,
+  hubId,
   marketLastUpdatedAtUtc,
   intradayOpportunities,
   sourceStats,
+  optimizerContextMismatch,
   onResetSearch,
   onToggleLayer,
   onOptimizePool,
   onOpenReview,
+  onOpenScenario,
 }: NetworkWorkspaceProps) {
   const displayedNetworkCount = nodes.filter(
     (node) =>
@@ -200,6 +206,9 @@ export function NetworkWorkspace({
               <small>{t("context.product")}</small>
               <strong>{deliveryProduct === "all" ? t("context.all_products") : t(`context.${deliveryProduct.replaceAll("-", "_")}`)}</strong>
             </span>
+            {hubId && (
+              <span><small>{t("context.hub")}</small><strong>{hubId}</strong></span>
+            )}
             <span className={sourceStats.issues > 0 ? "issue" : "ready"}>
               <small>{t("context.source_posture")}</small>
               <strong>{sourceStats.active}/{sourceStats.total} {t("context.active")}</strong>
@@ -262,7 +271,16 @@ export function NetworkWorkspace({
             <button type="button" disabled={!canRunPoolOptimizer} onClick={onOptimizePool}>
               {t("home.optimize_pool")}
             </button>
+            <button type="button" className="secondary-button" disabled={!hasPortfolioResources} onClick={onOpenScenario}>
+              {t("network.open_in_scenario")}
+            </button>
           </div>
+          {optimizerContextMismatch && (
+            <div className="runtime-blocker-list compact">
+              <strong>{t("context.result_mismatch")}</strong>
+              <span>{t("context.result_mismatch_hint")}</span>
+            </div>
+          )}
           {poolInputBlockers.length > 0 && (
             <div className="runtime-blocker-list">
               <strong>{t("home.optimizer_blocked")}</strong>

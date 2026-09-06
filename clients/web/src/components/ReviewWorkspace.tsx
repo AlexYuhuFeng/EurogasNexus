@@ -21,6 +21,7 @@ interface ReviewWorkspaceProps {
   reviewDecisions: ReviewDecisionDTO[];
   reviewMessage: string | null;
   latestStrategyRunId: string | null;
+  carriedStrategyRunId: string | null;
   t: Translate;
   onAnalysisQuestionChange: (value: string) => void;
   onInvokeDeepSeekChange: (value: boolean) => void;
@@ -64,6 +65,7 @@ export function ReviewWorkspace({
   reviewDecisions,
   reviewMessage,
   latestStrategyRunId,
+  carriedStrategyRunId,
   t,
   onAnalysisQuestionChange,
   onInvokeDeepSeekChange,
@@ -73,12 +75,17 @@ export function ReviewWorkspace({
 }: ReviewWorkspaceProps) {
   const [actor, setActor] = useState("operator");
   const [entityType, setEntityType] = useState<ReviewDecisionInputDTO["entity_type"]>("strategy_run");
-  const [entityId, setEntityId] = useState(latestStrategyRunId ?? "");
+  const [entityId, setEntityId] = useState(carriedStrategyRunId ?? latestStrategyRunId ?? "");
   const [note, setNote] = useState("");
 
   useEffect(() => {
+    if (carriedStrategyRunId) {
+      setEntityId(carriedStrategyRunId);
+      setEntityType("strategy_run");
+      return;
+    }
     if (!entityId && latestStrategyRunId) setEntityId(latestStrategyRunId);
-  }, [entityId, latestStrategyRunId]);
+  }, [carriedStrategyRunId, entityId, latestStrategyRunId]);
 
   const submitDecision = (decision: ReviewDecisionInputDTO["decision"]) => {
     const trimmedId = entityId.trim();
@@ -94,6 +101,11 @@ export function ReviewWorkspace({
 
   return (
     <div className="workspace-grid review-page">
+      {carriedStrategyRunId && (
+        <div className="workspace-panel span-3 review-context-banner" role="status" aria-live="polite">
+          <span><small>{t("review.carried_strategy_run")}</small><strong>{carriedStrategyRunId}</strong></span>
+        </div>
+      )}
       <div className="workspace-panel span-2">
         <div className="section-heading">
           <span className="eyebrow">{t("nav.review")}</span>

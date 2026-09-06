@@ -59,6 +59,24 @@ These reinforce the five-primary-workspace decision and the CR-02 trader-context
 contract. Retrieval is dated; re-open sources before a future milestone depends
 on a specific vendor claim.
 
+## CR-02 linked-context research notes
+
+Professional market software reviewed for contextual linking principles:
+Trading Technologies workspace/backtest docs, Trayport Joule public materials,
+public Bloomberg/LSEG workspace guides, Argus Direct workspace material, and
+commodity-risk analytics descriptions. The recurring pattern is:
+
+- one persistent workspace/symbol context;
+- linked widgets rather than independent page state;
+- selection propagation that is visible and reversible;
+- local overrides where a surface needs different scope;
+- saved/restorable workspace composition without URL secrets;
+- operations and monitoring surfaces recede from the analytical workflow.
+
+Eurogas Nexus applies these as a bounded context subsystem, not as free-floating
+windows or a vendor screen copy. Vendor URLs are already dated in this file;
+re-open sources before future UI work depends on a specific claim.
+
 ## Principles accepted for Eurogas Nexus product work
 
 1. One coherent workstation, not one page per backend capability.

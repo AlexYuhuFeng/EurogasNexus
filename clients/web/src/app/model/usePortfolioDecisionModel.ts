@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { TFunction } from "i18next";
 import {
+  resultContextMatches,
+  traderContextKey,
+  type DeliveryProductId,
+  type SupportedHubId,
+} from "@/app/context";
+import {
   buildHighlightedResourcePoolRoute,
   buildNodeIdByPointName,
   buildResourcePoolMapPaths,
@@ -20,7 +26,9 @@ interface PortfolioDecisionModelParams {
   api: ApiState;
   contract: ContractDraft;
   gasDay: string;
-  deliveryProduct: string;
+  deliveryProduct: DeliveryProductId;
+  hubId: SupportedHubId | null;
+  selectedResourceId: string | null;
   t: TFunction;
 }
 
@@ -29,9 +37,17 @@ export function usePortfolioDecisionModel({
   contract,
   gasDay,
   deliveryProduct,
+  hubId,
+  selectedResourceId,
   t,
 }: PortfolioDecisionModelParams) {
   const lastAutoOptimizerSignatureRef = useRef<string | null>(null);
+  const [optimizerResultContextKey, setOptimizerResultContextKey] = useState<string | null>(null);
+  const [strategyResultContextKey, setStrategyResultContextKey] = useState<string | null>(null);
+  const currentContextKey = useMemo(
+    () => traderContextKey({ gasDay, deliveryProduct, hubId }),
+    [deliveryProduct, gasDay, hubId],
+  );
   const [liveMark] = useState({
     venue: "ICE OCM",
     hub: "NBP",
@@ -65,9 +81,11 @@ export function usePortfolioDecisionModel({
   );
   const contextMarkets = useMemo(
     () => api.normalizedMarkets.filter(
-      (observation) => marketMatchesTradingContext(observation, gasDay, deliveryProduct),
+      (observation) =>
+        marketMatchesTradingContext(observation, gasDay, deliveryProduct) &&
+        (!hubId || observation.hub.toUpperCase() === hubId),
     ),
-    [api.normalizedMarkets, deliveryProduct, gasDay],
+    [api.normalizedMarkets, deliveryProduct, gasDay, hubId],
   );
   const resourcePoolOptimizationRequest = useMemo(
     () => buildResourcePoolOptimizationRequest(
@@ -93,8 +111,9 @@ export function usePortfolioDecisionModel({
       liveMark,
       contextMarkets,
       portfolioResources,
+      selectedResourceId,
     ),
-    [contextMarkets, contract, liveMark, portfolioResources],
+    [contextMarkets, contract, liveMark, portfolioResources, selectedResourceId],
   );
 
   const selectedAllocation = api.routeRecommendation?.allocations[0] ?? null;
@@ -160,6 +179,17 @@ export function usePortfolioDecisionModel({
     hasPortfolioResources &&
     saleOptions.length > 0 &&
     optionBlockers.length === 0;
+  const optimizerResultContextMatches = resultContextMatches(
+    optimizerResultContextKey,
+    { gasDay, deliveryProduct, hubId },
+  );
+  const optimizerContextMismatch =
+    api.resourcePoolResult !== null && !optimizerResultContextMatches;
+  const routeContextMismatch =
+    api.routeRecommendation !== null && !optimizerResultContextMatches;
+  const strategyContextMismatch =
+    api.strategyResult !== null &&
+    !resultContextMatches(strategyResultContextKey, { gasDay, deliveryProduct, hubId });
   const poolInputBlockers = useMemo(() => {
     const blockers: string[] = [];
     if (!runtimeDbReady) blockers.push(t("home.blocker_runtime_db"));
@@ -190,6 +220,7 @@ export function usePortfolioDecisionModel({
     if (!canRunPoolOptimizer || api.loading) return;
     if (lastAutoOptimizerSignatureRef.current === autoOptimizerSignature) return;
     lastAutoOptimizerSignatureRef.current = autoOptimizerSignature;
+    setOptimizerResultContextKey(currentContextKey);
     void api.optimizeResourcePool(resourcePoolOptimizationRequest);
   }, [
     api.loading,
@@ -264,6 +295,37 @@ export function usePortfolioDecisionModel({
     [api.edges, api.nodes, runtimeDbReady],
   );
 
+  function optimizeResourcePoolForCurrentContext() {
+    setOptimizerResultContextKey(currentContextKey);
+    void api.optimizeResourcePool(resourcePoolOptimizationRequest);
+  }
+
+  function recommendRouteAllocationForCurrentContext() {
+    setOptimizerResultContextKey(currentContextKey);
+    void api.recommendRouteAllocation(routeRecommendationRequest);
+  }
+
+  function evaluateStrategyForCurrentContext(overrides?: {
+    risk_control?: Record<string, unknown>;
+    bar_minutes?: number;
+  }) {
+    setStrategyResultContextKey(currentContextKey);
+    void api.evaluateStrategyLab({
+      ...strategyScenario,
+      risk_control: {
+        ...(strategyScenario.risk_control ?? {}),
+        ...(overrides?.risk_control ?? {}),
+      },
+      existing_shadow_pnl_gbp: api.strategySummary?.cumulative_pnl_gbp ?? 0,
+      components: overrides?.bar_minutes
+        ? strategyScenario.components.map((component) => ({
+            ...component,
+            target_bar_minutes: overrides.bar_minutes,
+          }))
+        : strategyScenario.components,
+    });
+  }
+
   return {
     portfolioResources,
     saleOptions,
@@ -278,6 +340,12 @@ export function usePortfolioDecisionModel({
     strategyRuns: api.strategyRuns,
     selectedAllocation,
     poolAllocations,
+    optimizerContextMismatch,
+    routeContextMismatch,
+    strategyContextMismatch,
+    optimizeResourcePoolForCurrentContext,
+    recommendRouteAllocationForCurrentContext,
+    evaluateStrategyForCurrentContext,
     firstPoolAllocation,
     decisionPnl,
     decisionMargin,

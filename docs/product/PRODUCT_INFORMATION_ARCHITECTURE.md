@@ -135,8 +135,8 @@ existing i18n overrides. No redirect URL rewrite is introduced.
 
 ## 10. Next milestone dependencies
 
-- `CR-02` Persistent Trader Context and Cross-Workspace Selection Model.
-- The shared context contract is prepared in
-  `docs/product/TRADER_CONTEXT_SPEC.md`; it is not implemented here.
+- `CR-02` Persistent Trader Context and Cross-Workspace Selection Model is
+  implemented in `clients/web/src/app/context/` and documented in
+  `docs/product/TRADER_CONTEXT_SPEC.md`.
 - Strategy subviews (Design/Backtest/Compare/Shadow) are added in later strategy
   milestones and must not introduce new global peers.
