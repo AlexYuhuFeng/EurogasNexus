@@ -29,4 +29,7 @@ public-source ingestion, and decision-support research workflows.
 Trade execution, order entry, order routing, trade capture, nomination
 submission, official approval, legal advice, official trading
 recommendations, auto-trading, ETRM replacement behavior, live commercial
-provider connectors, and company SSO/OIDC are out of scope for this preview.
+provider connectors, multi-tenant SaaS, public signup, and SCIM are out of
+scope. Interactive enterprise OIDC login is delivered in CR-10 for
+single-organization deployments; live enterprise IdP acceptance remains
+deployment-specific.

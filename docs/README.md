@@ -119,6 +119,11 @@ Operational procedures and operator-facing guides:
 - [Backfill](operations/BACKFILL.md)
 - [Source certification](operations/SOURCE_CERTIFICATION.md)
 - [Data freshness](operations/DATA_FRESHNESS.md)
+- [SSO/OIDC](operations/SSO_OIDC.md)
+- [User access](operations/USER_ACCESS.md)
+- [API keys](operations/API_KEYS.md)
+- [Security audit](operations/SECURITY_AUDIT.md)
+- [Access revocation](operations/ACCESS_REVOCATION.md)
 - [Simulated market price sources](operations/SIMULATED_MARKET_PRICE_SOURCES.md)
 - [Portfolio network optimization EN](operations/PORTFOLIO_NETWORK_OPTIMIZATION.md) /
   [CN](operations/PORTFOLIO_NETWORK_OPTIMIZATION-CN.md)

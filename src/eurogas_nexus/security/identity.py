@@ -34,19 +34,25 @@ IDENTITY_BEARER_PREFIX = "nexus_"
 
 
 class Role(StrEnum):
-    """Local identity roles, least-privilege ordered."""
+    """Local identity roles, least-privilege ordered.
+
+    REVIEWER can record analytical human-review decisions but has no
+    research-edit or operator rights. No execution-oriented roles exist.
+    """
 
     VIEWER = "VIEWER"
     ANALYST = "ANALYST"
+    REVIEWER = "REVIEWER"
     OPERATOR = "OPERATOR"
     ADMIN = "ADMIN"
 
 
 ROLE_RANK: dict[Role, int] = {
     Role.VIEWER: 0,
-    Role.ANALYST: 1,
-    Role.OPERATOR: 2,
-    Role.ADMIN: 3,
+    Role.REVIEWER: 1,
+    Role.ANALYST: 2,
+    Role.OPERATOR: 3,
+    Role.ADMIN: 4,
 }
 
 
@@ -72,6 +78,9 @@ class AuthenticatedPrincipal:
     role: str
     status: str
     data_scopes: tuple[str, ...] = ()
+    roles: tuple[str, ...] = ()
+    email: str | None = None
+    identity_source: str = "LOCAL"
     auth_method: str = "identity_key"
 
 
@@ -130,6 +139,8 @@ def legacy_public_token_principal() -> AuthenticatedPrincipal:
         role=Role.OPERATOR.value,
         status="ACTIVE",
         data_scopes=("*",),
+        roles=(Role.OPERATOR.value,),
+        identity_source="LOCAL",
         auth_method="legacy_public_token",
     )
 
@@ -149,15 +160,43 @@ def generate_api_key(*, key_id: str, display_name: str) -> NewApiKey:
 
 
 def hash_key_secret(secret: str) -> str:
-    """Return the non-reversible SHA-256 hex digest for a key secret."""
+    """Return the non-reversible digest for a key secret.
 
+    When ``EUROGAS_NEXUS_SECRET_KEY`` is configured, new keys use a keyed
+    HMAC-SHA256 digest (``hmac:...``). Unkeyed deployments retain the legacy
+    SHA-256 format for compatibility; both formats verify.
+    """
+
+    import os
+
+    raw_key = os.environ.get("EUROGAS_NEXUS_SECRET_KEY", "").strip()
+    if raw_key:
+        digest = hmac.new(
+            raw_key.encode("utf-8"),
+            secret.encode("utf-8"),
+            hashlib.sha256,
+        ).hexdigest()
+        return f"hmac:{digest}"
     return hashlib.sha256(secret.encode("utf-8")).hexdigest()
 
 
 def verify_key_hash(secret: str, expected_hash: str) -> bool:
     """Constant-time compare a provided key secret against its stored hash."""
 
-    return hmac.compare_digest(hash_key_secret(secret), expected_hash or "")
+    expected = expected_hash or ""
+    if expected.startswith("hmac:"):
+        import os
+
+        raw_key = os.environ.get("EUROGAS_NEXUS_SECRET_KEY", "").strip()
+        if not raw_key:
+            return False
+        digest = hmac.new(
+            raw_key.encode("utf-8"),
+            secret.encode("utf-8"),
+            hashlib.sha256,
+        ).hexdigest()
+        return hmac.compare_digest(digest, expected.removeprefix("hmac:"))
+    return hmac.compare_digest(hash_key_secret(secret), expected)
 
 
 def parse_identity_bearer(value: str | None) -> tuple[str, str] | None:

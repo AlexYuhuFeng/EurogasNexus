@@ -180,6 +180,18 @@ REQUIRED_TABLES: tuple[RequiredTable, ...] = (
         name="data_operations_heartbeat",
         introduced_in="0028_data_operations_v1",
     ),
+    RequiredTable(
+        name="identity_external_ids",
+        introduced_in="0029_enterprise_identity_v1",
+    ),
+    RequiredTable(
+        name="user_sessions",
+        introduced_in="0029_enterprise_identity_v1",
+    ),
+    RequiredTable(
+        name="oidc_authorization_states",
+        introduced_in="0029_enterprise_identity_v1",
+    ),
 )
 
 

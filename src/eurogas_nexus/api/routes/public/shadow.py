@@ -52,6 +52,12 @@ def post_shadow_monitor(
                 status_code=422,
                 detail={"code": "shadow_activation_blocked", "message": str(exc)},
             ) from exc
+    _audit_action(
+        request,
+        "shadow.monitor.create",
+        f"shadow_monitor:{data['shadow_monitor_id']}",
+        "created",
+    )
     return _env(data, request, source="runtime-postgresql")
 
 
@@ -96,6 +102,7 @@ def pause_shadow_monitor(monitor_id: str, request: Request) -> dict:
             data = pause_monitor(session, monitor_id=monitor_id)
         except ValueError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
+    _audit_action(request, "shadow.monitor.pause", f"shadow_monitor:{monitor_id}", "paused")
     return _env(data, request, source="operator-input")
 
 
@@ -110,6 +117,7 @@ def resume_shadow_monitor(monitor_id: str, request: Request) -> dict:
             data = resume_monitor(session, monitor_id=monitor_id)
         except ValueError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
+    _audit_action(request, "shadow.monitor.resume", f"shadow_monitor:{monitor_id}", "resumed")
     return _env(data, request, source="operator-input")
 
 
@@ -124,6 +132,7 @@ def retire_shadow_monitor(monitor_id: str, request: Request) -> dict:
             data = retire_monitor(session, monitor_id=monitor_id)
         except ValueError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
+    _audit_action(request, "shadow.monitor.retire", f"shadow_monitor:{monitor_id}", "retired")
     return _env(data, request, source="operator-input")
 
 
@@ -272,6 +281,23 @@ def _require_evaluation_visible(request: Request, data: dict) -> None:
                 "human_review_required": True,
             },
         )
+
+def _audit_action(request: Request, action: str, resource: str, outcome: str) -> None:
+    try:
+        from eurogas_nexus.application.audit_service import record_audit_event
+
+        record_audit_event(
+            event_type="governance.strategy",
+            action=action,
+            resource=resource,
+            principal=_requested_by(request),
+            outcome=outcome,
+            severity="info",
+            source_system="shadow-runtime",
+        )
+    except Exception:
+        return
+
 
 # --- session/envelope helpers ---------------------------------------------
 

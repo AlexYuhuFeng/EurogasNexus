@@ -25,9 +25,24 @@ with their first implementation under `security/`, `governance/`, or
 
 ## Forbidden In Bootstrap
 
-- Company SSO/OIDC.
-- Production identity-provider calls.
+- Production identity-provider calls at import time.
 - Permission bypasses hidden inside route handlers.
+
+## CR-10 Additions
+
+- Interactive enterprise OIDC login (Authorization Code + PKCE), provider
+  discovery/JWKS caching, issuer+subject external identity mapping,
+  pre-provisioning by default and optional approved-domain JIT with explicit
+  group maps.
+- Backend-managed sessions (`user_sessions`) with hashed tokens, logout,
+  disable-driven revocation, and CSRF/origin protection for cookie
+  authentication.
+- Fine-grained permission expansion (`security/authorization.py`) with
+  VIEWER/ANALYST/REVIEWER/OPERATOR/ADMIN and public Access & Identity APIs.
+- API keys remain first-class service credentials with scopes/created_by and
+  keyed HMAC hashing when the deployment secret is configured.
+- Audit events remain append-only and now carry permission/correlation/client
+  type and safe before/after summaries.
 
 ## R32 Additions
 
@@ -37,8 +52,9 @@ with their first implementation under `security/`, `governance/`, or
   VIEWER for PUBLIC/READ, ANALYST for GOVERNED, OPERATOR for OPERATOR.
 - R32A OIDC access-token verification is allowed only through
   `security/oidc.py`; discovery/JWKS calls are lazy request-time HTTPS calls
-  and never occur at import time. Interactive OIDC login flows and SAML remain
-  forbidden until a separate reviewed ExecPlan.
+  and never occur at import time. Company SSO/OIDC interactive login flows
+  were previously forbidden; CR-10 delivers Authorization Code + PKCE for the
+  reviewed single-organization deployment model. SAML remains forbidden.
 - Audit rows are append-only, export is internal-only and bounded, and
   retention pruning is dry-run by default with a minimum 30-day window.
 

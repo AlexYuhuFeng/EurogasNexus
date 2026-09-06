@@ -12,6 +12,8 @@ from eurogas_nexus.security.public_api import (
     verify_public_api_token,
 )
 
+AUTH_EXEMPT_PREFIXES = ("/api/auth/",)
+
 
 async def require_public_api_auth(request: Request) -> None:
     """Enforce the public API token on every request in the release profile.
@@ -35,6 +37,12 @@ async def require_public_api_auth(request: Request) -> None:
         HTTPException: 401 when no token is present, 403 when the token is
             invalid, and 503 when the deployment has no configured token.
     """
+
+    if request.url.path.startswith(AUTH_EXEMPT_PREFIXES):
+        return
+    if request.cookies.get("eurogas_session"):
+        # Interactive browser session is authenticated by require_identity.
+        return
 
     authorization = request.headers.get("authorization", "")
     scheme, _, value = authorization.partition(" ")

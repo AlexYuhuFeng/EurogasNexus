@@ -6,6 +6,7 @@ import {
   ApiMeta,
   CapacityObsDTO,
   CredentialProviderDTO,
+  CurrentUserDTO,
   EdgeDTO,
   FlowObsDTO,
   FxRateDTO,
@@ -150,6 +151,7 @@ export interface ApiState {
   monitoringSummary: MonitoringSummaryDTO;
   monitoringAnalysisByAlert: Record<string, MonitoringAnalysisDTO>;
   monitoringBusyAlertId: string | null;
+  currentUser: CurrentUserDTO | null;
   runtimeDb: RuntimeDbStatusDTO | null;
   pipelineHealth: PipelineHealthDTO | null;
   endpointMeta: Record<string, ApiMeta>;
@@ -167,6 +169,9 @@ export interface ApiState {
   refreshMarketData: () => Promise<void>;
   subscribeDecisionStreams: () => void;
   refreshMonitoring: () => Promise<void>;
+  fetchMe: () => Promise<void>;
+  signIn: () => Promise<void>;
+  signOut: () => Promise<void>;
   saveProviderCredential: (providerId: string, apiKey: string, label: string) => Promise<void>;
   testProviderConnection: (providerId: string) => Promise<void>;
   acknowledgeMonitoringAlert: (alertId: string) => Promise<void>;
@@ -188,6 +193,26 @@ export interface ApiState {
   ) => Promise<void>;
   askAnalysis: (body: AnalysisRequestDTO) => Promise<void>;
   generatePortfolioReport: (body: AnalysisRequestDTO) => Promise<void>;
+}
+
+
+
+function generatePkceVerifier(): string {
+  const bytes = new Uint8Array(48);
+  crypto.getRandomValues(bytes);
+  return base64Url(bytes);
+}
+
+async function generatePkceChallenge(verifier: string): Promise<string> {
+  const bytes = new TextEncoder().encode(verifier);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return base64Url(new Uint8Array(digest));
+}
+
+function base64Url(bytes: Uint8Array): string {
+  let binary = "";
+  bytes.forEach((value) => { binary += String.fromCharCode(value); });
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
 const DEFAULT_STRATEGY_ID = "nbp-sap-icis-ocm-window";
@@ -250,6 +275,7 @@ const WORKSPACE_LOADERS: Array<[string, () => Promise<{ data: unknown; meta: Api
   ["monitoringSummary", api.monitoringSummary],
   ["reviewDecisions", api.reviewDecisions],
   ["pipelineHealth", api.pipelineHealth],
+  ["me", api.me],
 ];
 
 /** endpointMeta key -> ApiState slice key. */
@@ -282,6 +308,7 @@ const WORKSPACE_STATE_KEYS: Record<string, keyof ApiState> = {
   monitoringSummary: "monitoringSummary",
   reviewDecisions: "reviewDecisions",
   pipelineHealth: "pipelineHealth",
+  me: "currentUser",
 };
 
 function deriveWorkspaceSlice(key: string, response: { data: unknown }): unknown {
@@ -349,6 +376,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
   },
   monitoringAnalysisByAlert: {},
   monitoringBusyAlertId: null,
+  currentUser: null,
   runtimeDb: null,
   pipelineHealth: null,
   endpointMeta: {},
@@ -424,6 +452,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
       monitoringSummary: (slices.monitoringSummary ?? DEFAULT_MONITORING_SUMMARY) as MonitoringSummaryDTO,
       reviewDecisions: (slices.reviewDecisions ?? []) as ReviewDecisionDTO[],
       pipelineHealth: (slices.pipelineHealth ?? null) as PipelineHealthDTO | null,
+      currentUser: (slices.me ?? null) as CurrentUserDTO | null,
       endpointMeta,
       endpointErrors,
       meta: endpointMeta.referenceNodes ?? null,
@@ -440,6 +469,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
     });
     void get().fetchStrategySummary();
     void get().fetchStrategyRuns();
+    void get().fetchMe();
     get().subscribeDecisionStreams();
   },
 
@@ -628,6 +658,70 @@ export const useApiStore = create<ApiState>((set, get) => ({
         },
       }).close,
     );
+  },
+
+  fetchMe: async () => {
+    try {
+      const response = await api.me();
+      const csrf = response.data.csrf_token;
+      if (csrf) {
+        const { setDesktopSessionToken } = await import("@/api/client");
+        // Browser sessions use the cookie; CSRF token is kept in memory for
+        // cookie-authenticated mutations.
+        setDesktopSessionToken("", csrf);
+      }
+      set({ currentUser: response.data });
+    } catch {
+      set({ currentUser: null });
+    }
+  },
+
+  signIn: async () => {
+    const client = await import("@/api/client");
+    const isDesktop =
+      "__TAURI_INTERNALS__" in window ||
+      window.location.protocol === "tauri:" ||
+      window.location.hostname === "tauri.localhost";
+    if (!isDesktop) {
+      window.location.assign(`${client.configuredApiBaseUrl()}/auth/oidc/login`);
+      return;
+    }
+    const { invoke } = await import("@tauri-apps/api/core");
+    const redirectUri = await invoke<string>("start_loopback_auth");
+    const verifier = generatePkceVerifier();
+    const challenge = await generatePkceChallenge(verifier);
+    const started = await client.api.startDesktopOidcLogin({
+      code_challenge: challenge,
+      code_verifier: verifier,
+      redirect_uri: redirectUri,
+    });
+    const query = await invoke<string>("open_browser_login_and_wait", {
+      authorizationUrl: started.data.authorization_url,
+      expectedRedirectUri: redirectUri,
+    });
+    const params = new URLSearchParams(query);
+    const code = params.get("code") ?? "";
+    const state = params.get("state") ?? "";
+    if (!code || !state) throw new Error("Desktop login callback was incomplete.");
+    const token = await client.api.desktopOidcToken({
+      code,
+      state,
+      code_verifier: verifier,
+      redirect_uri: redirectUri,
+    });
+    client.setDesktopSessionToken(token.data.access_token);
+    await get().fetchMe();
+  },
+
+  signOut: async () => {
+    try {
+      await api.logout();
+    } catch {
+      // Server-side session may already be gone; local state is still cleared.
+    }
+    const { clearDesktopSession } = await import("@/api/client");
+    clearDesktopSession();
+    set({ currentUser: null });
   },
 
   refreshMonitoring: async () => {

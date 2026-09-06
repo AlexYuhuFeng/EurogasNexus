@@ -31,14 +31,27 @@ async def require_identity(request: Request) -> None:
 
     bearer = request.headers.get(IDENTITY_HEADER)
     oidc_token = request.headers.get(OIDC_ACCESS_TOKEN_HEADER)
-    if not (bearer or "").strip() and not (oidc_token or "").strip():
+    session_cookie = request.cookies.get("eurogas_session", "")
+    if not (bearer or "").strip() and not (oidc_token or "").strip() and not session_cookie:
         request.state.identity = legacy_public_token_principal()
+        return
+
+    if (bearer or "").strip():
+        request.state.identity = _authenticate_identity_key(bearer)
         return
 
     if (oidc_token or "").strip():
         request.state.identity = _authenticate_oidc(oidc_token)
         return
 
+    if session_cookie:
+        request.state.identity = _authenticate_session_cookie(request, session_cookie)
+        return
+
+    request.state.identity = _authenticate_identity_key(bearer)
+
+
+def _authenticate_identity_key(bearer: str) -> AuthenticatedPrincipal:
     if not _db_is_configured():
         raise HTTPException(
             status_code=503,
@@ -71,7 +84,63 @@ async def require_identity(request: Request) -> None:
                 "error_class": exc.__class__.__name__,
             },
         ) from exc
-    request.state.identity = principal
+    return principal
+
+
+def _authenticate_session_cookie(request: Request, token: str) -> AuthenticatedPrincipal:
+    if not _db_is_configured():
+        raise HTTPException(
+            status_code=503,
+            detail={"error": "identity_store_not_configured"}
+        )
+    try:
+        from eurogas_nexus.db.models import IdentityPrincipalRecord
+        from eurogas_nexus.db.repositories.security import (
+            get_active_session_by_token,
+            touch_session,
+        )
+        from eurogas_nexus.db.session import get_session_factory
+
+        with get_session_factory()() as session:
+            session_row = get_active_session_by_token(session, token)
+            if session_row is None:
+                _audit_auth_failure("session_invalid")
+                raise HTTPException(
+                    status_code=401,
+                    detail={
+                        "error": "session_invalid",
+                        "message": "Session is invalid or expired.",
+                    },
+                )
+            principal = session.get(IdentityPrincipalRecord, session_row.principal_id)
+            if principal is None or principal.status != "ACTIVE":
+                _audit_auth_failure("session_principal_inactive")
+                raise HTTPException(
+                    status_code=403,
+                    detail={"error": "session_principal_inactive"},
+                )
+            touch_session(session, session_row)
+            resolved = AuthenticatedPrincipal(
+                principal_id=principal.principal_id,
+                name=principal.name,
+                principal_type=principal.principal_type,
+                role=principal.role,
+                status=principal.status,
+                data_scopes=tuple(principal.data_scopes or []),
+                roles=tuple(principal.roles or [principal.role]),
+                email=principal.email,
+                identity_source=principal.identity_source or "LOCAL",
+                auth_method="session",
+            )
+            session.commit()
+    except HTTPException:
+        raise
+    except _sqlalchemy_error_type() as exc:
+        raise HTTPException(
+            status_code=503,
+            detail={"error": "identity_store_unavailable", "error_class": exc.__class__.__name__},
+        ) from exc
+    return resolved
 
 
 def _authenticate_oidc(token: str) -> AuthenticatedPrincipal:
@@ -104,6 +173,9 @@ def _authenticate_oidc(token: str) -> AuthenticatedPrincipal:
         role=identity.role,
         status="ACTIVE",
         data_scopes=identity.data_scopes,
+        roles=(identity.role,),
+        email=identity.email,
+        identity_source="OIDC",
         auth_method="oidc_access_token",
     )
 

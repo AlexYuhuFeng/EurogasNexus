@@ -72,7 +72,7 @@ async def require_route_permission(request: Request) -> None:
             },
         )
 
-    if permission is not Permission.OPERATOR:
+    if permission not in {Permission.OPERATOR, Permission.ADMIN}:
         return
 
     if identity.auth_method == "identity_key":

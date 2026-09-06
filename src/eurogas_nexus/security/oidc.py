@@ -23,6 +23,12 @@ OIDC_AUDIENCE_ENV = "EUROGAS_NEXUS_OIDC_AUDIENCE"
 OIDC_ROLE_CLAIM_ENV = "EUROGAS_NEXUS_OIDC_ROLE_CLAIM"
 OIDC_SCOPE_CLAIM_ENV = "EUROGAS_NEXUS_OIDC_SCOPE_CLAIM"
 OIDC_ALLOW_HTTP_ENV = "EUROGAS_NEXUS_OIDC_ALLOW_HTTP"
+OIDC_CLIENT_SECRET_ENV = "EUROGAS_NEXUS_OIDC_CLIENT_SECRET"
+OIDC_REDIRECT_URI_ENV = "EUROGAS_NEXUS_OIDC_REDIRECT_URI"
+OIDC_PROVISIONING_MODE_ENV = "EUROGAS_NEXUS_OIDC_PROVISIONING_MODE"
+OIDC_APPROVED_DOMAINS_ENV = "EUROGAS_NEXUS_OIDC_APPROVED_DOMAINS"
+OIDC_GROUPS_ROLE_MAP_ENV = "EUROGAS_NEXUS_OIDC_GROUPS_ROLE_MAP"
+OIDC_GROUPS_SCOPE_MAP_ENV = "EUROGAS_NEXUS_OIDC_GROUPS_SCOPE_MAP"
 
 DISCOVERY_CACHE_TTL_SECONDS = 300.0
 DEFAULT_LEEWAY_SECONDS = 60.0
@@ -37,6 +43,8 @@ _ROLE_ALIASES = {
     "analyst": "ANALYST",
     "trader": "ANALYST",
     "research": "ANALYST",
+    "reviewer": "REVIEWER",
+    "review": "REVIEWER",
     "viewer": "VIEWER",
     "read": "VIEWER",
 }
@@ -58,13 +66,15 @@ class OidcValidationError(Exception):
 
 @dataclass(frozen=True, slots=True)
 class OidcIdentity:
-    """Claims extracted from a verified OIDC access token."""
+    """Claims extracted from a verified OIDC access/id token."""
 
     subject: str
     name: str
     role: str
     data_scopes: tuple[str, ...]
     issuer: str
+    email: str | None = None
+    groups: tuple[str, ...] = ()
 
 
 def oidc_configured() -> bool:
@@ -79,6 +89,7 @@ def validate_oidc_access_token(
     http_get: Callable[..., Any] | None = None,
     now_utc: datetime | None = None,
     leeway_seconds: float = DEFAULT_LEEWAY_SECONDS,
+    expected_nonce: str | None = None,
 ) -> OidcIdentity:
     """Validate one OIDC access token and return its mapped identity.
 
@@ -125,6 +136,14 @@ def validate_oidc_access_token(
         leeway_seconds=leeway_seconds,
     )
 
+    if expected_nonce is not None:
+        token_nonce = payload.get("nonce")
+        if not isinstance(token_nonce, str) or token_nonce != expected_nonce:
+            raise OidcValidationError(
+                code="oidc_nonce_invalid",
+                status_code=403,
+                message="OIDC token nonce does not match the authorization request.",
+            )
     jwks = _cached_json(
         "jwks",
         lambda: _fetch_jwks(
@@ -137,12 +156,20 @@ def validate_oidc_access_token(
     key = _select_signing_key(jwks, header.get("kid"))
     _verify_rs256_signature(key, signing_input, signature)
 
+    email = payload.get("email")
+    groups = tuple(
+        value
+        for value in _claim_list(payload, "groups") + _claim_list(payload, "realm_access.groups")
+        if value
+    )
     return OidcIdentity(
         subject=str(payload["sub"]),
         name=_display_name(payload),
         role=_mapped_role(payload),
         data_scopes=tuple(_claim_list(payload, _scope_claim())),
         issuer=issuer,
+        email=email if isinstance(email, str) and email.strip() else None,
+        groups=groups,
     )
 
 
@@ -259,7 +286,8 @@ def _mapped_role(payload: dict) -> str:
     if not matched:
         # No recognized role claim: least privilege rather than fail-open.
         return "VIEWER"
-    return max(matched, key=lambda role: ["VIEWER", "ANALYST", "OPERATOR", "ADMIN"].index(role))
+    rank = ["VIEWER", "REVIEWER", "ANALYST", "OPERATOR", "ADMIN"]
+    return max(matched, key=rank.index)
 
 
 def _display_name(payload: dict) -> str:
@@ -417,6 +445,159 @@ def _fetch_discovery(issuer: str, *, http_get: Callable[..., Any]) -> dict:
     return data
 
 
+def oidc_discovery(http_get: Callable[..., Any] | None = None) -> dict:
+    """Return the configured issuer discovery document (cached)."""
+
+    issuer = _issuer()
+    if not issuer:
+        raise OidcValidationError(
+            code="oidc_not_configured",
+            status_code=503,
+            message="OIDC issuer is not configured.",
+        )
+    return _cached_json(
+        "discovery",
+        lambda: _fetch_discovery(issuer, http_get=http_get or _default_http_get),
+        ttl_seconds=DISCOVERY_CACHE_TTL_SECONDS,
+    )
+
+
+def oidc_authorization_url(
+    *,
+    state: str,
+    code_challenge: str,
+    redirect_uri: str,
+    nonce: str,
+    http_get: Callable[..., Any] | None = None,
+) -> str:
+    """Build a provider-neutral authorization-code + PKCE login URL."""
+
+    from urllib.parse import urlencode
+
+    discovery = oidc_discovery(http_get=http_get)
+    endpoint = discovery.get("authorization_endpoint")
+    if not isinstance(endpoint, str) or not endpoint:
+        raise OidcValidationError(
+            code="oidc_discovery_invalid",
+            status_code=503,
+            message="OIDC discovery is missing authorization_endpoint.",
+        )
+    params = {
+        "response_type": "code",
+        "client_id": _client_id(),
+        "redirect_uri": redirect_uri,
+        "scope": "openid profile email roles entitlements",
+        "state": state,
+        "nonce": nonce,
+        "code_challenge": code_challenge,
+        "code_challenge_method": "S256",
+    }
+    separator = "&" if "?" in endpoint else "?"
+    return f"{endpoint}{separator}{urlencode(params)}"
+
+
+def exchange_authorization_code(
+    *,
+    code: str,
+    code_verifier: str,
+    redirect_uri: str,
+    http_get: Callable[..., Any] | None = None,
+    http_post: Callable[..., Any] | None = None,
+) -> dict:
+    """Exchange one authorization code at the provider token endpoint."""
+
+    discovery = oidc_discovery(http_get=http_get)
+    endpoint = discovery.get("token_endpoint")
+    if not isinstance(endpoint, str) or not endpoint:
+        raise OidcValidationError(
+            code="oidc_discovery_invalid",
+            status_code=503,
+            message="OIDC discovery is missing token_endpoint.",
+        )
+    payload = {
+        "grant_type": "authorization_code",
+        "code": code,
+        "redirect_uri": redirect_uri,
+        "client_id": _client_id(),
+        "code_verifier": code_verifier,
+    }
+    secret = _client_secret()
+    post = http_post or _default_http_post
+    try:
+        response = post(
+            endpoint,
+            data=payload,
+            auth=(_client_id(), secret) if secret else None,
+            timeout=5.0,
+        )
+        if int(getattr(response, "status_code", 0)) != 200:
+            raise OidcValidationError(
+                code="oidc_token_exchange_failed",
+                status_code=403,
+                message="OIDC token endpoint rejected the authorization code.",
+            )
+        data = response.json()
+    except OidcValidationError:
+        raise
+    except Exception as exc:
+        raise OidcValidationError(
+            code="oidc_token_exchange_unavailable",
+            status_code=503,
+            message="OIDC token endpoint is unavailable.",
+        ) from exc
+    if not isinstance(data, dict):
+        raise OidcValidationError(
+            code="oidc_token_exchange_invalid",
+            status_code=503,
+            message="OIDC token endpoint returned a non-object response.",
+        )
+    return data
+
+
+def configured_oidc_profile() -> dict:
+    """Return the safe, non-secret OIDC configuration profile for admins."""
+
+    return {
+        "issuer": _issuer(),
+        "client_id": _client_id(),
+        "audience": _audience() or _client_id(),
+        "redirect_uri": oidc_redirect_uri(),
+        "provisioning_mode": _provisioning_mode(),
+        "role_claim": _role_claim(),
+        "scope_claim": _scope_claim(),
+        "client_secret_configured": bool(_client_secret()),
+        "groups_role_map": _groups_role_map(),
+        "groups_scope_map": _groups_scope_map(),
+    }
+
+
+def oidc_redirect_uri() -> str:
+    return (
+        os.environ.get(OIDC_REDIRECT_URI_ENV, "").strip()
+        or "/api/auth/oidc/callback"
+    )
+
+
+def provisioning_mode() -> str:
+    return _provisioning_mode()
+
+
+def approved_domains() -> tuple[str, ...]:
+    return tuple(
+        value.strip().lower()
+        for value in os.environ.get(OIDC_APPROVED_DOMAINS_ENV, "").split(",")
+        if value.strip()
+    )
+
+
+def groups_role_map() -> dict[str, str]:
+    return _groups_role_map()
+
+
+def groups_scope_map() -> dict[str, list[str]]:
+    return _groups_scope_map()
+
+
 def clear_oidc_cache() -> None:
     """Clear cached discovery/JWKS documents (tests and forced refresh)."""
 
@@ -431,6 +612,50 @@ def _cached_json(name: str, loader: Callable[[], Any], *, ttl_seconds: float) ->
     value = loader()
     _cache[name] = (now + ttl_seconds, value)
     return value
+
+
+def _default_http_post(url: str, *, data: dict, auth=None, timeout: float):
+    import httpx
+
+    return httpx.post(url, data=data, auth=auth, timeout=timeout, follow_redirects=True)
+
+
+def _client_secret() -> str:
+    return os.environ.get(OIDC_CLIENT_SECRET_ENV, "").strip()
+
+
+def _provisioning_mode() -> str:
+    return os.environ.get(OIDC_PROVISIONING_MODE_ENV, "preprovisioned").strip().lower()
+
+
+def _groups_role_map() -> dict[str, str]:
+    raw = os.environ.get(OIDC_GROUPS_ROLE_MAP_ENV, "").strip()
+    try:
+        value = json.loads(raw) if raw else {}
+    except json.JSONDecodeError:
+        return {}
+    if not isinstance(value, dict):
+        return {}
+    return {
+        str(key): str(item).upper()
+        for key, item in value.items()
+        if str(item).upper() in {"VIEWER", "REVIEWER", "ANALYST", "OPERATOR", "ADMIN"}
+    }
+
+
+def _groups_scope_map() -> dict[str, list[str]]:
+    raw = os.environ.get(OIDC_GROUPS_SCOPE_MAP_ENV, "").strip()
+    try:
+        value = json.loads(raw) if raw else {}
+    except json.JSONDecodeError:
+        return {}
+    if not isinstance(value, dict):
+        return {}
+    return {
+        str(key): [str(item) for item in (items or [])]
+        for key, items in value.items()
+        if isinstance(items, list)
+    }
 
 
 def _default_http_get(url: str, *, timeout: float):

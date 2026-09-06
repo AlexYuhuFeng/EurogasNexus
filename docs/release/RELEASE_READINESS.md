@@ -6,7 +6,7 @@ Status: `RELEASE CANDIDATE FOR TESTED LOCAL SCOPE`
 
 Release marker: `RELEASE CANDIDATE`
 
-Date checked: 2026-09-07 (CR-09 data-operations implementation validated against scratch PostgreSQL head `0028_data_operations_v1`; broad local suite recorded below)
+Date checked: 2026-09-07 (CR-10 enterprise identity/authorization validated against scratch PostgreSQL head `0029_enterprise_identity_v1`; broad local suite recorded below)
 
 Eurogas Nexus passes the current local release-candidate shape for
 backend/API/SDK/CLI, PostgreSQL runtime schema, Web workspace, and Tauri desktop
@@ -24,8 +24,8 @@ Runtime API evidence from the operator's local API:
 GET /api/runtime/db
 database_url_present=true
 connectivity.ok=true
-alembic_revision=0028_data_operations_v1 (scratch PostgreSQL 16)
-required_tables=64
+alembic_revision=0029_enterprise_identity_v1 (scratch PostgreSQL 16)
+required_tables=67
 missing_tables=0
 source=runtime-postgresql
 ```
@@ -36,7 +36,7 @@ Source/runtime evidence from the running workspace:
 registered sources=24
 active feeds=6
 runtime records=7487+ (operator store) / CR-09 validated on scratch store
-public openapi paths=122
+public openapi paths=137
 ```
 
 Local source validation:
@@ -46,7 +46,7 @@ python -c "from apps.api.main import app; print('app import ok'); print(len(app.
 app import ok
 
 pytest (api/contract/integration/ingestion/unit/optimization/sdk/cli/release/security/streaming)
-1256 passed, 7 skipped (rdflib-dependent ontology parity excluded locally) in the local broad suite; PostgreSQL-backed smoke tests run in CI against PostgreSQL 16
+1267 passed, 9 skipped (rdflib-dependent ontology parity excluded locally) in the local broad suite; PostgreSQL-backed smoke tests run in CI against PostgreSQL 16
 
 npm --prefix clients/web run build
 passed
@@ -69,9 +69,15 @@ passed
 - Clients do not connect directly to PostgreSQL.
 - Provider credentials are backend-owned: clients can submit keys to the
   backend, but plaintext keys are not returned or stored in client state.
-- Release profile enforces an API token on every public request
-  (Bearer / X-Eurogas-Api-Key / documented SSE query channel); credential-write
-  routes additionally require an explicit operator principal.
+- Release profile supports interactive enterprise SSO sessions (backend
+  HttpOnly cookie) as an alternative to the deployment API token; machine
+  clients continue to use API keys/bearer tokens. Credential-write and
+  identity-administration routes require explicit role floors.
+- CR-10 adds Authorization Code + PKCE OIDC login, issuer+subject identity
+  mapping, pre-provisioned default with optional approved-domain JIT,
+  VIEWER/REVIEWER/ANALYST/OPERATOR/ADMIN RBAC, fine-grained permissions,
+  server-side sessions, CSRF/origin protection, API-key lifecycle and audit
+  hooks for identity/strategy/shadow/dataops/review actions.
 - External LLM providers are disabled in trial/release environments; LLM
   payloads exclude contract financial fields unless explicitly opted in, and
   snapshot sources are entitlement-checked before any provider call.
@@ -95,6 +101,10 @@ passed
   `--require-hashes`.
 - CI runs migrations and DB-backed smoke tests against a real PostgreSQL 16
   service, plus an in-process API load smoke with latency percentiles.
+- Desktop Tauri uses a system-browser + loopback Authorization Code flow; the
+  desktop frontend keeps the returned short-lived session token in memory only.
+  Tauri capabilities remain `core:default` with no shell/fs/http/keychain
+  permissions.
 - Source posture panels show runtime row counts, credential state, and
   backend-owned freshness; CR-09 adds typed source registry semantics,
   per-source scheduler/circuit state, next run, consecutive failures and
@@ -124,11 +134,9 @@ Every successful `Build and Release` workflow publishes the following assets:
 Server deployment defaults to private-network preview. The explicit
 `EUROGAS_NEXUS_DEPLOYMENT_POSTURE=security_accepted` switch only takes effect
 when `EUROGAS_NEXUS_SECURITY_ACCEPTANCE_EVIDENCE` points to an existing
-acceptance file. Public internet and
-multi-tenant deployment remain blocked until the full user directory / role
-model milestone ships (release currently enforces an API token on every
-request and an operator principal for credential writes, but has no per-user
-accounts).
+acceptance file. Public internet and multi-tenant deployment remain blocked;
+CR-10 delivers the single-organization user directory, SSO, roles, scopes and
+audit, but external security acceptance is still pending.
 
 The Linux artifacts must remain explicitly architecture-labelled so ARM Linux users do not receive the x64 DEB by mistake.
 
@@ -150,15 +158,16 @@ The following items are the current production gaps:
   Trayport, Kpler, Platts, ICIS, Argus, brokers, Weather, and LLM providers
   after credential and entitlement approval. CR-09 does not fabricate these:
   each remains `NOT CERTIFIED — credential/entitlement unavailable`.
-- Live deployment migration to head `0028_data_operations_v1` on the target
-  runtime store; CR-09 was validated against a scratch PostgreSQL 16 database
-  while the local operator runtime store remained at `0024_cost_observations`.
-- Full multi-user account lifecycle and company SSO/OIDC remain CR-10; local
-  PostgreSQL identities, hashed bearer keys, role authorization, and
-  commercial data scopes are delivered.
-- Persisted EFET-style customer contract/resource workflow through backend APIs.
+- Live deployment migration to head `0029_enterprise_identity_v1` on the target
+  runtime store; CR-09/CR-10 were validated against a scratch PostgreSQL 16
+  database while the local operator runtime store remained at
+  `0024_cost_observations`.
+- A real enterprise IdP acceptance test against the customer identity
+  provider; the CR-10 flow is validated with local cryptographic OIDC fixtures
+  only and is explicitly pending live IdP acceptance.
 - External security acceptance and backup/restore plus incident-response drills
   on a real deployment (documentation and tooling exist; drills are external).
+- Persisted EFET-style customer contract/resource workflow through backend APIs.
 
 ## Product Boundary
 

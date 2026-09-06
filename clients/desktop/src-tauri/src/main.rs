@@ -1,6 +1,15 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::{env, fs, path::PathBuf, thread, time::Duration};
+use std::{
+    env, fs,
+    io::Read,
+    net::TcpListener,
+    path::PathBuf,
+    process::Command,
+    sync::Mutex,
+    thread,
+    time::Duration,
+};
 
 use serde::{Deserialize, Serialize};
 use tauri::Manager;
@@ -47,9 +56,122 @@ fn read_deployment_config() -> Result<Option<DeploymentConfig>, String> {
     Ok(None)
 }
 
+#[derive(Default)]
+struct LoopbackAuthState {
+    listener: Mutex<Option<TcpListener>>,
+    redirect_uri: Mutex<Option<String>>,
+}
+
+#[tauri::command]
+fn start_loopback_auth(state: tauri::State<'_, LoopbackAuthState>) -> Result<String, String> {
+    let listener = TcpListener::bind("127.0.0.1:0")
+        .map_err(|error| format!("cannot bind loopback listener: {error}"))?;
+    listener
+        .set_nonblocking(false)
+        .map_err(|error| format!("cannot configure loopback listener: {error}"))?;
+    let port = listener
+        .local_addr()
+        .map_err(|error| format!("cannot read loopback port: {error}"))?
+        .port();
+    let redirect_uri = format!("http://127.0.0.1:{port}/callback");
+    *state.listener.lock().unwrap() = Some(listener);
+    *state.redirect_uri.lock().unwrap() = Some(redirect_uri.clone());
+    Ok(redirect_uri)
+}
+
+#[tauri::command]
+fn open_browser_login_and_wait(
+    state: tauri::State<'_, LoopbackAuthState>,
+    authorization_url: String,
+    expected_redirect_uri: String,
+) -> Result<String, String> {
+    let listener = state
+        .listener
+        .lock()
+        .unwrap()
+        .take()
+        .ok_or_else(|| "loopback listener was not started".to_string())?;
+    let registered_uri = state
+        .redirect_uri
+        .lock()
+        .unwrap()
+        .take()
+        .unwrap_or_default();
+    if registered_uri != expected_redirect_uri {
+        return Err("redirect_uri does not match the started loopback listener".to_string());
+    }
+    listener
+        .set_nonblocking(false)
+        .map_err(|error| format!("cannot configure loopback listener: {error}"))?;
+
+    thread::spawn(move || {
+        let url = authorization_url.clone();
+        #[cfg(target_os = "windows")]
+        {
+            let _ = Command::new("cmd")
+                .args(["/C", "start", "", &url])
+                .spawn();
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            let _ = Command::new("xdg-open").arg(&url).spawn();
+        }
+    });
+
+    let (mut stream, _) = listener
+        .accept()
+        .map_err(|error| format!("loopback accept failed: {error}"))?;
+    stream
+        .set_read_timeout(Some(Duration::from_secs(15)))
+        .map_err(|error| format!("loopback timeout config failed: {error}"))?;
+    let mut buffer = [0_u8; 8192];
+    let read = stream
+        .read(&mut buffer)
+        .map_err(|error| format!("loopback read failed: {error}"))?;
+    let request = String::from_utf8_lossy(&buffer[..read]);
+    let path = request
+        .lines()
+        .next()
+        .and_then(|line| line.split_whitespace().nth(1))
+        .unwrap_or("");
+    if !path.starts_with("/callback?") {
+        return Err("loopback callback did not include an authorization code".to_string());
+    }
+    let body = b"<html><body><h1>Eurogas Nexus login complete</h1><p>You may close this window and return to the desktop app.</p></body></html>";
+    let _ = write_http_ok(&mut stream, body);
+    Ok(path.trim_start_matches("/callback?").to_string())
+}
+
+fn write_http_ok(stream: &mut std::net::TcpStream, body: &[u8]) -> std::io::Result<()> {
+    use std::io::Write;
+
+    write!(
+        stream,
+        "HTTP/1.1 200 OK
+
+Content-Type: text/html; charset=utf-8
+
+Content-Length: {}
+
+Connection: close
+
+
+
+",
+        body.len()
+    )?;
+    stream.write_all(body)?;
+    stream.flush()
+}
+
 fn main() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![read_deployment_config])
+        .manage(LoopbackAuthState::default())
+        .invoke_handler(tauri::generate_handler![
+            read_deployment_config,
+            start_loopback_auth,
+            open_browser_login_and_wait
+        ])
         .setup(|app| {
             let main_window = app
                 .get_webview_window("main")

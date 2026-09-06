@@ -22,7 +22,7 @@ test("every technical workspace resolves to exactly one primary", () => {
       seen.add(page);
     }
   }
-  assert.equal(seen.size, 13);
+  assert.equal(seen.size, 14);
 });
 
 test("primary workspace defaults match the accepted architecture", () => {

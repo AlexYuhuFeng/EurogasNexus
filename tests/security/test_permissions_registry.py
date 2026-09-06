@@ -32,12 +32,12 @@ def test_policy_gated_paths_are_governed() -> None:
     for path in (
         "/api/analysis/query",
         "/api/reports/portfolio",
-        "/api/review/decisions",
         "/api/optimization/resource-pool",
         "/api/route-cost/recommend",
         "/api/strategy-lab/evaluate",
     ):
         assert permission_for_path(path) is Permission.GOVERNED
+    assert permission_for_path("/api/review/decisions") is Permission.REVIEW
 
 
 def test_longest_pattern_wins_for_nested_routes() -> None:

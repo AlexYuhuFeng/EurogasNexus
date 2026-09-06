@@ -208,6 +208,11 @@ class AuditEventRecord(Base):
     )
     source_system: Mapped[str] = mapped_column(String(64), nullable=False)
     human_review_required: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    permission: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    correlation_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    client_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    before_summary: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    after_summary: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
 
 class EntitlementDecisionRecord(Base):

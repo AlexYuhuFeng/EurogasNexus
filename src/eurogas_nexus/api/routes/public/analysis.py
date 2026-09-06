@@ -64,6 +64,14 @@ def post_analysis_query(body: AnalysisRequest, request: Request) -> dict:
         duration_end_utc=body.duration_end_utc,
     )
     request_id = getattr(request.state, "request_id", None)
+    if body.invoke_provider:
+        from eurogas_nexus.api.dependencies.row_entitlement import require_derived_access
+
+        require_derived_access(
+            request,
+            _snapshot_source_systems(snapshot),
+            resource="analysis_query",
+        )
     provider_text, provider_status = _maybe_invoke_provider(
         body,
         snapshot,

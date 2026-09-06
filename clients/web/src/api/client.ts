@@ -12,6 +12,19 @@ const isDesktopShell =
   window.location.protocol === "tauri:" ||
   window.location.hostname === "tauri.localhost";
 
+let desktopSessionToken = "";
+let currentCsrfToken = "";
+
+export function setDesktopSessionToken(token: string, csrfToken = ""): void {
+  desktopSessionToken = token.trim();
+  currentCsrfToken = csrfToken.trim();
+}
+
+export function clearDesktopSession(): void {
+  desktopSessionToken = "";
+  currentCsrfToken = "";
+}
+
 export function configuredApiToken(): string {
   try {
     return (localStorage.getItem(API_TOKEN_STORAGE_KEY) ?? "").trim();
@@ -49,11 +62,20 @@ export function saveApiAuth(token: string, principal: string): void {
 
 export function authHeaders(): Record<string, string> {
   const headers: Record<string, string> = {};
-  const token = configuredApiToken();
+  const token = desktopSessionToken || configuredApiToken();
   if (token) headers["Authorization"] = `Bearer ${token}`;
   const principal = configuredOperatorPrincipal();
   if (principal) headers["X-Eurogas-Principal"] = principal;
+  if (currentCsrfToken) headers["X-Eurogas-CSRF"] = currentCsrfToken;
   return headers;
+}
+
+function requestInit(init: RequestInit = {}): RequestInit {
+  return {
+    ...init,
+    credentials: "include",
+    headers: { ...authHeaders(), ...(init.headers as Record<string, string> | undefined) },
+  };
 }
 
 export function defaultApiBaseUrl(): string {
@@ -144,7 +166,7 @@ export function openEventStream(
   const url = new URL(apiUrl(path), window.location.origin);
   const token = configuredApiToken();
   if (token) url.searchParams.set("api_key", token);
-  const source = new EventSource(url.toString());
+  const source = new EventSource(url.toString(), { withCredentials: true });
   source.onopen = () => onStatus?.("open");
   source.onerror = () => onStatus?.("error");
   for (const [event, handler] of Object.entries(handlers)) {
@@ -217,7 +239,7 @@ async function parseResponse<T>(res: Response): Promise<T> {
 export async function testApiBaseUrl(value: string): Promise<HealthDTO> {
   const normalized = normalizeApiBaseUrl(value);
   return parseResponse<HealthDTO>(
-    await fetch(apiUrlForBase(normalized, "/health"), { headers: authHeaders() }),
+    await fetch(apiUrlForBase(normalized, "/health"), requestInit()),
   );
 }
 
@@ -226,34 +248,34 @@ async function get<T>(path: string, params?: Record<string, string>): Promise<Ap
   if (params) {
     Object.entries(params).forEach(([k, v]) => { if (v) url.searchParams.set(k, v); });
   }
-  const res = await fetch(url.toString(), { headers: authHeaders() });
+  const res = await fetch(url.toString(), requestInit());
   return parseResponse<ApiResponse<T>>(res);
 }
 
 async function patch<T>(path: string, body: unknown): Promise<ApiResponse<T>> {
-  const response = await fetch(apiUrl(path), {
+  const response = await fetch(apiUrl(path), requestInit({
     method: "PATCH",
-    headers: { "Content-Type": "application/json", ...authHeaders() },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
-  });
+  }));
   return parseResponse<ApiResponse<T>>(response);
 }
 
 async function put<T>(path: string, body: unknown): Promise<ApiResponse<T>> {
-  const response = await fetch(apiUrl(path), {
+  const response = await fetch(apiUrl(path), requestInit({
     method: "PUT",
-    headers: { "Content-Type": "application/json", ...authHeaders() },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
-  });
+  }));
   return parseResponse<ApiResponse<T>>(response);
 }
 
 async function post<T>(path: string, body: unknown): Promise<ApiResponse<T>> {
-  const res = await fetch(apiUrl(path), {
+  const res = await fetch(apiUrl(path), requestInit({
     method: "POST",
-    headers: { "Content-Type": "application/json", ...authHeaders() },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
-  });
+  }));
   return parseResponse<ApiResponse<T>>(res);
 }
 
@@ -1178,7 +1200,7 @@ export interface AnalysisResultDTO {
 
 export const api = {
   health: async () =>
-    parseResponse<HealthDTO>(await fetch(apiUrl("/health"), { headers: authHeaders() })),
+    parseResponse<HealthDTO>(await fetch(apiUrl("/health"), requestInit())),
 
   nodes: (params?: { country?: string; node_type?: string }) =>
     get<NodeDTO[]>("/reference-network/nodes", {
@@ -1250,11 +1272,11 @@ export const api = {
   credentialProviders: () => get<CredentialProviderDTO[]>("/credentials/providers"),
 
   saveCredential: (providerId: string, body: { api_key: string; label: string }) =>
-    fetch(apiUrl(`/credentials/${providerId}`), {
+    fetch(apiUrl(`/credentials/${providerId}`), requestInit({
       method: "PUT",
-      headers: { "Content-Type": "application/json", ...authHeaders() },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-    }).then((res) => parseResponse<ApiResponse<CredentialProviderDTO>>(res)),
+    })).then((res) => parseResponse<ApiResponse<CredentialProviderDTO>>(res)),
 
   testCredentialConnection: (providerId: string) =>
     post<CredentialProviderDTO & { connection_status: string; connection_error_code: string | null }>(
@@ -1434,5 +1456,85 @@ export const api = {
 
   routeCost: (body: unknown) => post<unknown>("/research/route-cost", body),
   netback: (body: unknown) => post<unknown>("/research/netback", body),
+
+  me: () => get<CurrentUserDTO>("/me"),
+  authStatus: () => get<AuthStatusDTO>("/auth/status"),
+  logout: () => post<{ logged_out: boolean }>("/auth/logout", {}),
+  desktopOidcToken: (body: DesktopOidcTokenInputDTO) =>
+    post<DesktopOidcTokenDTO>("/auth/oidc/desktop/token", body),
+  startDesktopOidcLogin: (body: DesktopOidcLoginInputDTO) =>
+    post<DesktopOidcLoginDTO>("/auth/oidc/desktop/login", body),
+  accessUsers: () => get<AccessUserDTO[]>("/access/users"),
+  patchAccessUser: (principalId: string, body: AccessUserPatchInputDTO) =>
+    patch<AccessUserDTO>(`/access/users/${encodeURIComponent(principalId)}`, body),
+  accessRoles: () => get<Record<string, string[]>>("/access/roles"),
+  accessDataScopes: () => get<Record<string, string[]>>("/access/data-scopes"),
+  accessApiKeys: () => get<AccessApiKeyDTO[]>("/access/api-keys"),
+  createAccessApiKey: (body: AccessApiKeyCreateInputDTO) =>
+    post<AccessApiKeyDTO & { api_key: string }>("/access/api-keys", body),
+  revokeAccessApiKey: (keyId: string) =>
+    post<{ key_id: string; revoked: boolean }>(`/access/api-keys/${encodeURIComponent(keyId)}/revoke`, {}),
+  auditEvents: (params?: { actor?: string; action?: string; resource?: string; outcome?: string; limit?: string }) =>
+    get<AuditEventDTO[]>("/audit", params),
+  ssoProfile: () => get<Record<string, unknown>>("/access/sso"),
 };
 
+
+export interface CurrentUserDTO {
+  principal_id: string; name: string; display_name?: string; principal_type: string;
+  role: string; roles: string[]; email: string | null;
+  identity_source: string; status: string; data_scopes: string[];
+  permissions: string[]; auth_method: string; csrf_token: string | null;
+}
+
+export interface AuthStatusDTO {
+  oidc_configured: boolean; session_cookie: boolean;
+  profile: Record<string, unknown> | null;
+}
+
+export interface DesktopOidcLoginInputDTO {
+  code_challenge: string; code_verifier: string; redirect_uri: string;
+}
+
+export interface DesktopOidcLoginDTO {
+  state: string; authorization_url: string;
+}
+
+export interface DesktopOidcTokenInputDTO {
+  code: string; state: string; code_verifier: string; redirect_uri: string;
+}
+
+export interface DesktopOidcTokenDTO {
+  access_token: string; token_type: string; principal_id: string;
+  principal_name: string; expires_in_seconds: number;
+}
+
+export interface AccessUserDTO {
+  principal_id: string; principal_type: string; name: string; display_name: string;
+  role: string; roles: string[]; email: string | null; identity_source: string;
+  status: string; data_scopes: string[]; created_at_utc: string; updated_at_utc: string;
+  last_login_at_utc: string | null; keys: AccessApiKeyDTO[];
+}
+
+export interface AccessUserPatchInputDTO {
+  status?: string; roles?: string[]; data_scopes?: string[]; email?: string | null;
+}
+
+export interface AccessApiKeyDTO {
+  key_id: string; principal_id: string; key_prefix: string; display_name: string;
+  expires_at_utc: string | null; last_used_at_utc: string | null;
+  created_at_utc: string; revoked_at_utc: string | null;
+  scopes: string[]; created_by: string | null;
+}
+
+export interface AccessApiKeyCreateInputDTO {
+  principal_id: string; display_name?: string; expires_at_utc?: string | null;
+  scopes?: string[];
+}
+
+export interface AuditEventDTO {
+  event_id: string; event_type: string; severity: string; principal: string;
+  action: string; resource: string; outcome: string; detail: string;
+  event_ts_utc: string; source_system: string; permission?: string | null;
+  correlation_id?: string | null; client_type?: string | null;
+}

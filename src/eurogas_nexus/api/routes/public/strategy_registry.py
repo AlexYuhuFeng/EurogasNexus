@@ -143,6 +143,7 @@ def post_strategy(body: StrategyCreateRequest, request: Request) -> dict:
             tags=body.tags,
         )
         data = strategy_registry.strategy_record_payload(row)
+    _audit_action(request, "strategy.create", f"strategy:{strategy_id}", "created")
     return _env(data, request, source="operator-input")
 
 
@@ -312,6 +313,7 @@ def freeze_strategy_version(version_id: str, request: Request) -> dict:
             now_utc=datetime.now(UTC),
         )
         data = strategy_registry.strategy_version_payload(row)
+    _audit_action(request, "strategy.version.freeze", f"strategy_version:{version_id}", "frozen")
     return _env(data, request, source="operator-input")
 
 
@@ -796,6 +798,24 @@ def _db_is_configured() -> bool:
     from eurogas_nexus.db.session import resolve_database_url
 
     return resolve_database_url() is not None
+
+
+def _audit_action(request: Request, action: str, resource: str, outcome: str) -> None:
+    try:
+        from eurogas_nexus.application.audit_service import record_audit_event
+
+        record_audit_event(
+            event_type="governance.strategy",
+            action=action,
+            resource=resource,
+            principal=_requested_by(request),
+            outcome=outcome,
+            severity="info",
+            source_system="strategy-registry",
+            request_id=getattr(request.state, "request_id", None),
+        )
+    except Exception:
+        return
 
 
 def _requested_by(request: Request) -> str:

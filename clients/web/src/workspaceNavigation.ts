@@ -11,7 +11,8 @@ export type WorkspacePageId =
   | "glossary"
   | "runtime"
   | "settings"
-  | "manual";
+  | "manual"
+  | "access";
 
 export const workspacePageIds: WorkspacePageId[] = [
   "network",
@@ -27,6 +28,7 @@ export const workspacePageIds: WorkspacePageId[] = [
   "runtime",
   "settings",
   "manual",
+  "access",
 ];
 
 export const DEFAULT_WORKSPACE_PAGE_ID: WorkspacePageId = "network";

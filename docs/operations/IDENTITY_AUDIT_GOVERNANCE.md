@@ -4,13 +4,14 @@ Chinese companion: [IDENTITY_AUDIT_GOVERNANCE-CN.md](IDENTITY_AUDIT_GOVERNANCE-C
 
 ## Supported identity model
 
-R32 supports local PostgreSQL identities. There is no company SSO/OIDC in this
-increment and no OIDC dependency was introduced.
+CR-10 extends R32 with interactive enterprise SSO (Authorization Code + PKCE),
+backend sessions, REVIEWER role, and fine-grained permissions. Local
+PostgreSQL identities and service API keys remain supported.
 
 | Item | Behavior |
 |---|---|
 | Principal | USER or SERVICE row in `identity_principals` |
-| Roles | VIEWER, ANALYST, OPERATOR, ADMIN |
+| Roles | VIEWER, REVIEWER, ANALYST, OPERATOR, ADMIN |
 | Credential | Hashed bearer API key in `identity_api_keys` |
 | Client header | `X-Eurogas-Identity: nexus_<key_id>_<secret>` |
 | Legacy deployment | `X-Eurogas-Api-Key` without identity header remains an OPERATOR service principal |
@@ -79,7 +80,9 @@ python scripts/ops/prune_audit_events.py --retention-days 365 --commit
   records an `audit.export` event.
 - Identity lifecycle actions always append audit events.
 
-## Remaining R32A scope
+## Remaining scope
 
-- Company SSO/OIDC/SAML, browser sessions, and password lifecycle.
+- SAML and password lifecycle remain out of scope.
+- Live enterprise IdP acceptance is deployment-specific and not claimed from
+  local cryptographic fixtures.
 - Security acceptance and removal of the private-network/VPN-only posture.

@@ -11,6 +11,7 @@ import {
 import { WorkspaceTabs } from "@/components/ui";
 import type { WorkspacePageId } from "@/workspaceNavigation";
 import type { ApiState } from "@/stores/api";
+import type { CurrentUserDTO } from "@/api/client";
 import { AlertCenter } from "./AlertCenter";
 import "./WorkspaceTopBar.css";
 
@@ -30,6 +31,7 @@ interface WorkspaceTopBarProps {
   hubId: SupportedHubId | null;
   marketLastUpdatedAtUtc: string | null;
   sourceIssueCount: number;
+  currentUser: CurrentUserDTO | null;
   monitoring: Pick<
     ApiState,
     | "monitoringAlerts"
@@ -47,6 +49,9 @@ interface WorkspaceTopBarProps {
   onDeliveryProductChange: (product: string) => void;
   onHubChange: (hubId: string | null) => void;
   onOpenPrimaryWorkspace: (primary: PrimaryWorkspaceId) => void;
+  onSignIn: () => void;
+  onSignOut: () => void;
+  onOpenAccess: () => void;
 }
 
 export function WorkspaceTopBar({
@@ -63,6 +68,7 @@ export function WorkspaceTopBar({
   hubId,
   marketLastUpdatedAtUtc,
   sourceIssueCount,
+  currentUser,
   monitoring,
   t,
   onSearchTermChange,
@@ -72,6 +78,9 @@ export function WorkspaceTopBar({
   onDeliveryProductChange,
   onHubChange,
   onOpenPrimaryWorkspace,
+  onSignIn,
+  onSignOut,
+  onOpenAccess,
 }: WorkspaceTopBarProps) {
   const hasMapSearch = activeWorkspace === "network";
   const primaryTabs = primaryWorkspaces.map((primary) => ({
@@ -185,6 +194,20 @@ export function WorkspaceTopBar({
           <option value="dark">{t("theme.dark")}</option>
           <option value="system">{t("theme.system")}</option>
         </select>
+        <div className="topbar-user-menu">
+          {currentUser ? (
+            <>
+              <span title={currentUser.name}>{currentUser.display_name ?? currentUser.name}</span>
+              <small>{currentUser.role}</small>
+              {currentUser.permissions.includes("identity.manage") && (
+                <button type="button" onClick={onOpenAccess}>{t("topbar.access_identity")}</button>
+              )}
+              <button type="button" onClick={onSignOut}>{t("topbar.sign_out")}</button>
+            </>
+          ) : (
+            <button type="button" onClick={onSignIn}>{t("topbar.sign_in")}</button>
+          )}
+        </div>
       </div>
     </header>
   );

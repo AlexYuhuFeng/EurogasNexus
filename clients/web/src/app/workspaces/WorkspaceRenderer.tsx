@@ -1,4 +1,5 @@
 import type { AppController } from "@/app/hooks/useAppController";
+import { AccessCenter } from "@/components/AccessCenter";
 import { primaryWorkspaceForPage } from "@/app/navigation/productNavigation";
 import { WorkspaceTabs } from "@/components/ui";
 import type { WorkspacePageId } from "@/workspaceNavigation";
@@ -170,6 +171,10 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
           onOpenContext={glossary.openContext}
           formatContextValue={glossary.formatContextValue}
         />
+      )}
+
+      {activeWorkspace === "access" && (
+        <AccessCenter currentUser={api.currentUser} t={t} />
       )}
 
       {activeWorkspace === "runtime" && (

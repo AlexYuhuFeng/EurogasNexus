@@ -37,6 +37,7 @@ export function AppShell({ controller }: AppShellProps) {
         hubId={traderContext.hubId}
         marketLastUpdatedAtUtc={api.marketLastUpdatedAtUtc}
         sourceIssueCount={sources.sourceStats.issues}
+        currentUser={api.currentUser}
         monitoring={api}
         t={t}
         onSearchTermChange={controls.setSearchTerm}
@@ -46,6 +47,9 @@ export function AppShell({ controller }: AppShellProps) {
         onDeliveryProductChange={traderContext.setDeliveryProduct}
         onHubChange={traderContext.setHubId}
         onOpenPrimaryWorkspace={navigation.openPrimaryWorkspace}
+        onSignIn={() => void api.signIn()}
+        onSignOut={() => void api.signOut()}
+        onOpenAccess={() => navigation.openWorkspace("access")}
       />
 
       {Object.keys(api.endpointErrors).length > 0 && (

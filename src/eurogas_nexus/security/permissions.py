@@ -21,7 +21,9 @@ class Permission(StrEnum):
     READ = "read"  # read-only governed data
     WRITE = "write"  # creates/modifies records
     GOVERNED = "governed"  # policy evaluation (entitlement/export/LLM) applies
+    REVIEW = "review"  # reviewer-gated human review recording
     OPERATOR = "operator"  # explicit operator identity required (planned)
+    ADMIN = "admin"  # identity/access administration requires ADMIN
 
 
 class EnforcementStatus(StrEnum):
@@ -37,6 +39,21 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     # --- health / bootstrap ---
     ("/api/health", Permission.PUBLIC),
     ("/api/dev/health", Permission.PUBLIC),
+    ("/api/auth/status", Permission.PUBLIC),
+    ("/api/auth/oidc/login", Permission.PUBLIC),
+    ("/api/auth/oidc/callback", Permission.PUBLIC),
+    ("/api/auth/oidc/desktop/login", Permission.PUBLIC),
+    ("/api/auth/oidc/desktop/token", Permission.PUBLIC),
+    ("/api/auth/logout", Permission.READ),
+    ("/api/me", Permission.READ),
+    ("/api/access/users", Permission.ADMIN),
+    ("/api/access/users/{principal_id}", Permission.ADMIN),
+    ("/api/access/roles", Permission.ADMIN),
+    ("/api/access/data-scopes", Permission.ADMIN),
+    ("/api/access/api-keys", Permission.ADMIN),
+    ("/api/access/api-keys/{key_id}/revoke", Permission.ADMIN),
+    ("/api/audit", Permission.ADMIN),
+    ("/api/access/sso", Permission.ADMIN),
     # --- credentials: reads are safe metadata; every write is operator-only ---
     ("/api/credentials/providers", Permission.READ),
     ("/api/credentials/{provider_id}", Permission.OPERATOR),
@@ -48,7 +65,7 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     ("/api/analysis/query", Permission.GOVERNED),
     ("/api/reports/portfolio", Permission.GOVERNED),
     ("/api/analysis/ontology", Permission.READ),
-    ("/api/review/decisions", Permission.GOVERNED),
+    ("/api/review/decisions", Permission.REVIEW),
     ("/api/ingestion-runs", Permission.READ),
     # --- read families ---
     ("/api/contracts/", Permission.READ),
@@ -124,7 +141,9 @@ PERMISSION_ENFORCEMENT: dict[Permission, EnforcementStatus] = {
     Permission.PUBLIC: EnforcementStatus.API_TOKEN,
     Permission.READ: EnforcementStatus.API_TOKEN,
     Permission.GOVERNED: EnforcementStatus.API_TOKEN,
+    Permission.REVIEW: EnforcementStatus.API_TOKEN,
     Permission.OPERATOR: EnforcementStatus.PRINCIPAL_REQUIRED,
+    Permission.ADMIN: EnforcementStatus.PRINCIPAL_REQUIRED,
 }
 
 # R32 role floor per permission category. The legacy public-token service
@@ -134,7 +153,9 @@ ROLE_REQUIREMENTS: dict[Permission, str] = {
     Permission.PUBLIC: "VIEWER",
     Permission.READ: "VIEWER",
     Permission.GOVERNED: "ANALYST",
+    Permission.REVIEW: "REVIEWER",
     Permission.OPERATOR: "OPERATOR",
+    Permission.ADMIN: "ADMIN",
 }
 
 

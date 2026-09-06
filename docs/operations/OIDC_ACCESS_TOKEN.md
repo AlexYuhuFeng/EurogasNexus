@@ -58,7 +58,14 @@ are present.
 - Private-network/VPN-only server posture is unchanged until a real security
   acceptance review.
 
+## Interactive login (CR-10)
+
+Interactive browser login now uses Authorization Code + PKCE and backend
+sessions; see `docs/security/ENTERPRISE_IDENTITY_AUTHORIZATION_SPEC.md` and
+`docs/operations/SSO_OIDC.md`. The access-token header flow described above
+remains for machine clients.
+
 ## Non-goals
 
-- No login redirect, PKCE, refresh tokens, sessions, or SAML.
+- No refresh tokens, SAML, or public signup.
 - No identity-provider calls in import-time code or automated tests.

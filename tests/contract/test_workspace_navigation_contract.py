@@ -35,6 +35,7 @@ EXPECTED_PAGES = [
     "runtime",
     "settings",
     "manual",
+    "access",
 ]
 
 EXPECTED_PRIMARY_CHILDREN = {
@@ -42,7 +43,7 @@ EXPECTED_PRIMARY_CHILDREN = {
     "portfolio": ["contracts", "orders"],
     "strategy": ["strategy"],
     "decision": ["scenario", "review"],
-    "system": ["sources", "runtime", "settings", "manual", "glossary"],
+    "system": ["sources", "runtime", "settings", "manual", "glossary", "access"],
 }
 
 EXPECTED_DEFAULTS = {

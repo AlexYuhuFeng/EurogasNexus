@@ -37,6 +37,29 @@
   should become `0025_strategy_registry_v1`; live migration was not performed
   because the local environment has no running PostgreSQL service.
 
+## CR-10 implementation plan
+
+1. Audit current identity/auth/OIDC/Web/desktop/SSE/audit implementation.
+2. Write `docs/security/ENTERPRISE_IDENTITY_AUTHORIZATION_SPEC.md` and
+   `docs/security/ASVS_CONTROL_MAPPING.md`.
+3. Extend the canonical Principal model (roles/email/identity source/last
+   login), external identity (issuer+subject), sessions, OIDC authorization
+   states, API-key scopes/created_by and audit columns in migration
+   `0029_enterprise_identity_v1`.
+4. Add centralized fine-grained authorization with VIEWER/ANALYST/REVIEWER/
+   OPERATOR/ADMIN matrix and fail-closed unknown permissions.
+5. Implement Authorization Code + PKCE browser login with backend HttpOnly
+   session cookie, desktop loopback login/token exchange, /api/me, logout and
+   CSRF/origin protection.
+6. Add `/api/access/*` and `/api/audit` admin APIs; propagate strategy/shadow
+   lifecycle audit hooks.
+7. Harden SSE/CORS/CSRF/Tauri least privilege and AI entitlement context.
+8. Build SYSTEM Access & Identity UI and topbar user menu.
+9. Add OIDC/RBAC/deprovisioning/API-key/audit/CSRF tests and PostgreSQL
+   integration tests.
+10. Measure authorization/audit overhead; update runbooks, release readiness,
+    backlog/state; commit one coherent milestone.
+
 ## CR-09 implementation plan
 
 1. Audit repo/CI/docs, source registry, ingestion adapters, PostgreSQL
@@ -275,24 +298,23 @@
     tests.
 11. Commit one coherent milestone; do not push unless explicitly authorized.
 
-## Tests run (CR-09)
+## Tests run (CR-10)
 
 - `npm --prefix clients/web run test`: **41 passed**; `npm run build`: **passed**.
 - `pytest tests --ignore=tests/contract/test_ontology_grm_parity.py`:
-  **1256 passed, 7 skipped** (3 new PostgreSQL integration tests skip locally
+  **1267 passed, 9 skipped** (2 new PostgreSQL integration tests skip locally
   unless `RUNTIME_STORE_DATABASE_URL` is configured).
-- PostgreSQL 16 scratch DB `eurogas_nexus_cr09`: `alembic upgrade head` applied
-  through `0028_data_operations_v1`; required-table contract 64/64; CR-09
-  PostgreSQL integration tests **3 passed**.
+- PostgreSQL 16 scratch DB `eurogas_nexus_cr10`: `alembic upgrade head` applied
+  through `0029_enterprise_identity_v1`; required-table contract 67/67; CR-09
+  + CR-10 PostgreSQL integration tests **5 passed**.
 - `ruff check .`: **passed**.
 - `python scripts/ci/check_markdown_links.py`: **passed**.
-- OpenAPI public surface: **122 paths**, pinned and permission-declared.
+- OpenAPI public surface: **137 paths**, pinned and permission-declared.
 - Automated security acceptance: **PASS** (external review remains BLOCKED).
-- Dataops benchmark (scratch PostgreSQL): scheduler scan 0.011844s, freshness
-  24 sources 0.000206s, entitlement filter 0.000011s.
-- Live provider test: ECB `eurofxref-daily` returned 12 normalized rows and
-  persisted `SUCCEEDED`; ENTSOG live fetch correctly blocked fail-closed at
-  the certification gate. No commercial credentials were available.
+- Desktop Tauri `cargo check`: **passed** (loopback OIDC command compiles).
+- Security benchmark (scratch PostgreSQL): authorization expansion 8-28us,
+  API-key verify 16us, audit insert 20.7ms.
+- Load smoke: **200 ok / 0 errors**.
 
 ## Known failures
 
@@ -324,6 +346,6 @@
 
 ## Next recommended milestone
 
-- `CR-10` — Enterprise Identity, SSO/OIDC, Fine-Grained Authorization, Audit,
-  and Multi-User Commercial Security, unless repository evidence reveals a
-  more urgent production blocker.
+- `CR-11` — Reliability, Performance, Observability, Backup/Restore, Disaster
+  Recovery, and Production Operations Hardening, unless repository evidence
+  shows a higher-priority security blocker.

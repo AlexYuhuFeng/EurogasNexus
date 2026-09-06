@@ -47,8 +47,10 @@ a candidate that requires human review.
   signals.
 - Storage-dispatch and nomination-window assessment workflows (assessment only;
   nothing is submitted).
-- Local identities, hashed API keys, roles, commercial data scopes, and OIDC
-  access-token verification.
+- Single-organization enterprise SSO (Authorization Code + PKCE), backend
+  sessions, local identities, hashed service API keys, VIEWER/REVIEWER/
+  ANALYST/OPERATOR/ADMIN RBAC, commercial data scopes, audit and access
+  administration.
 - Web workspace packaged for Windows and Linux through Tauri, plus Server and Client-only deployment roles.
 
 ## Architecture

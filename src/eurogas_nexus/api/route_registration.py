@@ -5,7 +5,9 @@ from fastapi import FastAPI
 from eurogas_nexus.api.route_profiles import ApiRouteProfile, get_route_profile
 from eurogas_nexus.api.routes.dev.router import router as dev_router
 from eurogas_nexus.api.routes.internal.router import router as internal_router
+from eurogas_nexus.api.routes.public.access import router as access_router
 from eurogas_nexus.api.routes.public.analysis import router as analysis_router
+from eurogas_nexus.api.routes.public.auth import router as auth_router
 from eurogas_nexus.api.routes.public.contracts import router as contracts_router
 from eurogas_nexus.api.routes.public.cost_observations import router as cost_observations_router
 from eurogas_nexus.api.routes.public.credentials import router as credentials_router
@@ -42,6 +44,8 @@ def register_routes(
 
     if route_profile.include_public:
         app.include_router(health_router)
+        app.include_router(auth_router)
+        app.include_router(access_router)
         app.include_router(analysis_router)
         app.include_router(reference_network_router)
         app.include_router(sources_router)

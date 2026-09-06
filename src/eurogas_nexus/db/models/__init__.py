@@ -25,7 +25,13 @@ from eurogas_nexus.db.models.dataops import (
     SourceRuntimeStateRecord,
 )
 from eurogas_nexus.db.models.glossary import GlossaryTermRecord
-from eurogas_nexus.db.models.identity import IdentityApiKeyRecord, IdentityPrincipalRecord
+from eurogas_nexus.db.models.identity import (
+    IdentityApiKeyRecord,
+    IdentityExternalIdRecord,
+    IdentityPrincipalRecord,
+    OidcAuthorizationStateRecord,
+    UserSessionRecord,
+)
 from eurogas_nexus.db.models.market_intelligence import (
     CompanyTsoAccessRecord,
     IntradayOpportunityRecord,
@@ -224,7 +230,10 @@ __all__ = [
     "IngestionRunRecord",
     "IngestionRunStatus",
     "IdentityApiKeyRecord",
+    "IdentityExternalIdRecord",
     "IdentityPrincipalRecord",
+    "OidcAuthorizationStateRecord",
+    "UserSessionRecord",
     "IntradayOpportunityRecord",
     "LngObservationRecord",
     "CapacityProfileRecord",

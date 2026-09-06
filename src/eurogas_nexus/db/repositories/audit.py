@@ -22,6 +22,11 @@ def record_audit_event(
     detail: str = "",
     source_system: str = "eurogas-nexus",
     now_utc: datetime | None = None,
+    permission: str | None = None,
+    correlation_id: str | None = None,
+    client_type: str | None = None,
+    before_summary: dict | None = None,
+    after_summary: dict | None = None,
 ) -> AuditEventRecord:
     """Append one audit event to the append-only audit trail."""
 
@@ -37,6 +42,11 @@ def record_audit_event(
         event_ts_utc=now_utc or datetime.now(UTC),
         source_system=source_system,
         human_review_required=True,
+        permission=permission,
+        correlation_id=correlation_id,
+        client_type=client_type,
+        before_summary=before_summary,
+        after_summary=after_summary,
     )
     session.add(event)
     session.flush()

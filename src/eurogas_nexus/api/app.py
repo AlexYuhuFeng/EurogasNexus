@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from eurogas_nexus.api.dependencies.identity import require_identity
 from eurogas_nexus.api.dependencies.public_auth import require_public_api_auth
 from eurogas_nexus.api.dependencies.route_permission import require_route_permission
+from eurogas_nexus.api.middleware.origin_csrf import OriginCsrfGuardMiddleware
 from eurogas_nexus.api.middleware.request_id import RequestIdMiddleware
 from eurogas_nexus.api.route_profiles import get_route_profile
 from eurogas_nexus.api.route_registration import register_routes
@@ -42,16 +43,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.route_profile = route_profile
 
     app.add_middleware(RequestIdMiddleware)
+    app.add_middleware(OriginCsrfGuardMiddleware)
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origin_regex=(
-            r"^(https?://(localhost|127\.0\.0\.1)(:\d+)?|"
-            r"https?://tauri\.localhost|tauri://localhost)$"
-        ),
+        allow_origins=_cors_origins(),
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-        allow_headers=["*"],
-        allow_credentials=False,
+        allow_headers=["Authorization", "Content-Type", "X-Eurogas-Api-Key",
+                       "X-Eurogas-Identity", "X-Eurogas-Oidc-Access-Token",
+                       "X-Eurogas-Principal", "X-Eurogas-CSRF"],
+        allow_credentials=True,
     )
 
     if route_profile.expose_openapi:
@@ -87,3 +88,20 @@ def _declare_openapi_security_scheme(app: FastAPI) -> None:
         return schema
 
     app.openapi = openapi_with_security  # type: ignore[method-assign]
+
+
+def _cors_origins() -> list[str]:
+    import os
+
+    configured = [
+        value.strip().rstrip("/")
+        for value in os.environ.get("EUROGAS_NEXUS_CORS_ORIGINS", "").split(",")
+        if value.strip()
+    ]
+    return [
+        "http://localhost",
+        "http://127.0.0.1",
+        "http://tauri.localhost",
+        "tauri://localhost",
+        *configured,
+    ]

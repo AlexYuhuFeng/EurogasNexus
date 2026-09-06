@@ -71,6 +71,9 @@ def create_identity_principal(
         name=normalized_name,
         display_name=(display_name or "").strip() or normalized_name,
         role=role.strip().upper(),
+        roles=[role.strip().upper()],
+        email=None,
+        identity_source="LOCAL",
         status="ACTIVE",
         data_scopes=[
             _normalize_scope(scope)
@@ -98,13 +101,20 @@ def disable_identity_principal(
     *,
     now_utc: datetime | None = None,
 ) -> IdentityPrincipalRecord | None:
-    """Disable a principal; its keys stop authenticating immediately."""
+    """Disable a principal; keys and sessions stop authenticating immediately."""
 
     row = get_identity_principal(session, principal_id)
     if row is None:
         return None
+    now = _as_utc(now_utc or datetime.now(UTC))
     row.status = "DISABLED"
-    row.updated_at_utc = _as_utc(now_utc or datetime.now(UTC))
+    row.updated_at_utc = now
+    from eurogas_nexus.db.models.identity import UserSessionRecord
+
+    session.query(UserSessionRecord).filter(
+        UserSessionRecord.principal_id == principal_id,
+        UserSessionRecord.revoked_at_utc.is_(None),
+    ).update({"revoked_at_utc": now}, synchronize_session=False)
     session.flush()
     return row
 
@@ -115,6 +125,8 @@ def create_identity_api_key(
     *,
     display_name: str = "default",
     expires_at_utc: datetime | None = None,
+    scopes: list[str] | None = None,
+    created_by: str | None = None,
     now_utc: datetime | None = None,
 ) -> tuple[IdentityApiKeyRecord, str]:
     """Create one hashed bearer key for an active principal.
@@ -134,7 +146,7 @@ def create_identity_api_key(
         raise IdentityAuthError(
             code="identity_principal_disabled",
             status_code=403,
-            message="Identity principal is disabled.",
+            message="Identity principal is not active.",
         )
     now = _as_utc(now_utc or datetime.now(UTC))
     key_id = uuid4().hex[:24]
@@ -149,6 +161,8 @@ def create_identity_api_key(
         last_used_at_utc=None,
         created_at_utc=now,
         revoked_at_utc=None,
+        scopes=[_normalize_scope(scope) for scope in (scopes or []) if _normalize_scope(scope)],
+        created_by=created_by,
         is_bootstrap=False,
     )
     session.add(row)
@@ -254,7 +268,7 @@ def authenticate_identity_bearer(
         raise IdentityAuthError(
             code="identity_principal_disabled",
             status_code=403,
-            message="Identity principal is disabled.",
+            message="Identity principal is not active.",
         )
     key.last_used_at_utc = now
     session.flush()
@@ -265,6 +279,9 @@ def authenticate_identity_bearer(
         role=principal.role,
         status=principal.status,
         data_scopes=tuple(principal.data_scopes or []),
+        roles=tuple(principal.roles or [principal.role]),
+        email=principal.email,
+        identity_source=principal.identity_source or "LOCAL",
         auth_method="identity_key",
     )
 
@@ -279,10 +296,14 @@ def _principal_payload(
         "name": row.name,
         "display_name": row.display_name,
         "role": row.role,
+        "roles": list(row.roles or [row.role]),
+        "email": row.email,
+        "identity_source": row.identity_source or "LOCAL",
         "status": row.status,
         "data_scopes": row.data_scopes,
         "created_at_utc": row.created_at_utc.isoformat(),
         "updated_at_utc": row.updated_at_utc.isoformat(),
+        "last_login_at_utc": row.last_login_at_utc.isoformat() if row.last_login_at_utc else None,
         "keys": [_key_payload(key) for key in keys],
     }
 
@@ -298,6 +319,8 @@ def _key_payload(key: IdentityApiKeyRecord) -> dict:
         ),
         "created_at_utc": key.created_at_utc.isoformat(),
         "revoked_at_utc": key.revoked_at_utc.isoformat() if key.revoked_at_utc else None,
+        "scopes": list(key.scopes or []),
+        "created_by": key.created_by,
         "is_bootstrap": key.is_bootstrap,
     }
 
