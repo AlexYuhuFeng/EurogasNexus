@@ -196,6 +196,13 @@ def main() -> int:
                         _record_run(session, "ECB", "failed", started, 0, "empty_response")
                         report["warnings"].append("ECB returned no observations.")
                     else:
+                        run_id = _new_run_id("ECB")
+                        rows = _stamp_lineage(
+                            rows, run_id=run_id, adapter_version="public-source-ingestor/1"
+                        )
+                        fx_rows = _stamp_lineage(
+                            fx_rows, run_id=run_id, adapter_version="public-source-ingestor/1"
+                        )
                         upsert_observation_rows(session, MarketObservationRecord, rows)
                         upsert_observation_rows(session, FxObservationRecord, fx_rows)
                         _record_run(
@@ -205,6 +212,7 @@ def main() -> int:
                             started,
                             len(rows) + len(fx_rows),
                             "ecb-eurofxref-daily",
+                            run_id=run_id,
                         )
                         report["sources"]["ECB"] = {
                             "records": len(rows) + len(fx_rows),
@@ -248,6 +256,19 @@ def main() -> int:
                     )
                     hub_rows = entsog_market_hubs_from_connectionpoints(connection_payload)
                     tso_access_rows = entsog_tso_access_points_from_json(direction_payload)
+                    run_id = _new_run_id("ENTSOG-reference")
+                    node_rows = _stamp_lineage(
+                        node_rows, run_id=run_id, adapter_version="public-source-ingestor/1"
+                    )
+                    facility_rows = _stamp_lineage(
+                        facility_rows, run_id=run_id, adapter_version="public-source-ingestor/1"
+                    )
+                    hub_rows = _stamp_lineage(
+                        hub_rows, run_id=run_id, adapter_version="public-source-ingestor/1"
+                    )
+                    tso_access_rows = _stamp_lineage(
+                        tso_access_rows, run_id=run_id, adapter_version="public-source-ingestor/1"
+                    )
                     reference_summary = _replace_reference_network(
                         session,
                         nodes=node_rows,
@@ -271,6 +292,7 @@ def main() -> int:
                         + len(hub_rows)
                         + len(tso_access_rows),
                         "entsog-reference-network",
+                        run_id=run_id,
                     )
                     reference_record_count = (
                         len(node_rows)
@@ -301,6 +323,10 @@ def main() -> int:
                     rows = entsog_flow_observations_from_json(flow_payload)
                     if not rows:
                         raise RuntimeError("ENTSOG returned no physical-flow observations.")
+                    run_id = _new_run_id("ENTSOG")
+                    rows = _stamp_lineage(
+                        rows, run_id=run_id, adapter_version="public-source-ingestor/1"
+                    )
                     upsert_observation_rows(session, FlowObservationRecord, rows)
                     _record_run(
                         session,
@@ -309,6 +335,7 @@ def main() -> int:
                         started,
                         len(rows),
                         "entsog-operationaldatas",
+                        run_id=run_id,
                     )
                     report["sources"]["ENTSOG"] = {"records": len(rows), "dataset": "flows"}
 
@@ -324,6 +351,10 @@ def main() -> int:
                                 )
                             )
                         )
+                    run_id = _new_run_id("ENTSOG-capacity")
+                    capacity_rows = _stamp_lineage(
+                        capacity_rows, run_id=run_id, adapter_version="public-source-ingestor/1"
+                    )
                     upsert_observation_rows(session, CapacityObservationRecord, capacity_rows)
                     _record_run(
                         session,
@@ -332,6 +363,7 @@ def main() -> int:
                         started,
                         len(capacity_rows),
                         "entsog-operationaldatas-capacity",
+                        run_id=run_id,
                     )
                     report["sources"]["ENTSOG-capacity"] = {
                         "records": len(capacity_rows),
@@ -359,6 +391,10 @@ def main() -> int:
                         _record_run(session, "GIE-AGSI", "failed", started, 0, "empty_response")
                         report["warnings"].append("GIE AGSI returned no observations.")
                     else:
+                        run_id = _new_run_id("GIE-AGSI")
+                        rows = _stamp_lineage(
+                            rows, run_id=run_id, adapter_version="public-source-ingestor/1"
+                        )
                         upsert_observation_rows(session, StorageObservationRecord, rows)
                         _record_run(
                             session,
@@ -367,6 +403,7 @@ def main() -> int:
                             started,
                             len(rows),
                             "gie-agsi-api",
+                        run_id=run_id,
                         )
                         report["sources"]["GIE-AGSI"] = {"records": len(rows), "dataset": "AGSI"}
 
@@ -391,6 +428,10 @@ def main() -> int:
                         _record_run(session, "GIE-ALSI", "failed", started, 0, "empty_response")
                         report["warnings"].append("GIE ALSI returned no observations.")
                     else:
+                        run_id = _new_run_id("GIE-ALSI")
+                        rows = _stamp_lineage(
+                            rows, run_id=run_id, adapter_version="public-source-ingestor/1"
+                        )
                         upsert_observation_rows(session, LngObservationRecord, rows)
                         _record_run(
                             session,
@@ -399,6 +440,7 @@ def main() -> int:
                             started,
                             len(rows),
                             "gie-alsi-api",
+                        run_id=run_id,
                         )
                         report["sources"]["GIE-ALSI"] = {"records": len(rows), "dataset": "ALSI"}
 
@@ -646,6 +688,28 @@ def _resolve_gie_key(session_factory) -> str | None:
         return None
 
 
+
+
+def _stamp_lineage(
+    rows: list[dict[str, Any]],
+    *,
+    run_id: str,
+    adapter_version: str,
+) -> list[dict[str, Any]]:
+    """Attach CR-09 lineage metadata to normalized rows before persistence."""
+
+    stamped: list[dict[str, Any]] = []
+    for row in rows:
+        metadata = dict(row.get("metadata_json") or {})
+        metadata["ingestion_run_id"] = run_id
+        metadata["adapter_version"] = adapter_version
+        stamped.append({**row, "metadata_json": metadata})
+    return stamped
+
+
+def _new_run_id(source_name: str) -> str:
+    return f"run-{source_name.lower()}-{uuid.uuid4().hex[:12]}"
+
 def _record_run(
     session,
     source_name: str,
@@ -653,11 +717,13 @@ def _record_run(
     started: datetime,
     records: int,
     reference: str,
+    *,
+    run_id: str | None = None,
 ) -> None:
     finished_at = datetime.now(UTC)
     session.merge(
         IngestionRunRecord(
-            run_id=f"run-{source_name.lower()}-{uuid.uuid4().hex[:12]}",
+            run_id=run_id or f"run-{source_name.lower()}-{uuid.uuid4().hex[:12]}",
             source_name=source_name,
             status=status,
             started_at_utc=started,

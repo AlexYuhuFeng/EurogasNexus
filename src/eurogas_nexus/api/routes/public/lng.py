@@ -49,6 +49,9 @@ def list_terminals(request: Request) -> dict:
     observations = _db_lng_observations()
     if observations is None:
         return _env([], request)
+    from eurogas_nexus.api.dependencies.row_entitlement import filter_rows
+
+    observations = filter_rows(request, observations)
     terminals: dict[str, dict] = {}
     for row in observations:
         terminals.setdefault(
@@ -86,7 +89,9 @@ def list_observations(request: Request) -> dict:
 
     observations = _db_lng_observations()
     if observations is not None:
-        return _runtime_env(observations)
+        from eurogas_nexus.api.dependencies.row_entitlement import filter_rows
+
+        return _runtime_env(filter_rows(request, observations))
 
     return _env([], request)
 

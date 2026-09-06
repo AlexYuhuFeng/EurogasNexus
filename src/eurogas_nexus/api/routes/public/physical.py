@@ -23,6 +23,9 @@ def list_flows(request: Request) -> dict:
 
     flows = _db_flow_observations()
     if flows is not None:
+        from eurogas_nexus.api.dependencies.row_entitlement import filter_rows
+
+        flows = filter_rows(request, flows)
         return _env(flows, source="runtime-postgresql", warnings=[])
 
     return _env(
@@ -50,6 +53,9 @@ def list_capacity(request: Request) -> dict:
 
     capacity = _db_capacity_observations()
     if capacity is not None:
+        from eurogas_nexus.api.dependencies.row_entitlement import filter_rows
+
+        capacity = filter_rows(request, capacity)
         return _env(capacity, source="runtime-postgresql", warnings=[])
 
     return _env(

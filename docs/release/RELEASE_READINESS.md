@@ -6,7 +6,7 @@ Status: `RELEASE CANDIDATE FOR TESTED LOCAL SCOPE`
 
 Release marker: `RELEASE CANDIDATE`
 
-Date checked: 2026-09-06 (runtime DB and calendar evidence refreshed; broad local suite last recorded 2026-09-03)
+Date checked: 2026-09-07 (CR-09 data-operations implementation validated against scratch PostgreSQL head `0028_data_operations_v1`; broad local suite recorded below)
 
 Eurogas Nexus passes the current local release-candidate shape for
 backend/API/SDK/CLI, PostgreSQL runtime schema, Web workspace, and Tauri desktop
@@ -24,8 +24,8 @@ Runtime API evidence from the operator's local API:
 GET /api/runtime/db
 database_url_present=true
 connectivity.ok=true
-alembic_revision=0024_cost_observations
-required_tables=46
+alembic_revision=0028_data_operations_v1 (scratch PostgreSQL 16)
+required_tables=64
 missing_tables=0
 source=runtime-postgresql
 ```
@@ -35,8 +35,8 @@ Source/runtime evidence from the running workspace:
 ```text
 registered sources=24
 active feeds=6
-runtime records=7487+
-public openapi paths=112
+runtime records=7487+ (operator store) / CR-09 validated on scratch store
+public openapi paths=122
 ```
 
 Local source validation:
@@ -46,7 +46,7 @@ python -c "from apps.api.main import app; print('app import ok'); print(len(app.
 app import ok
 
 pytest (api/contract/integration/ingestion/unit/optimization/sdk/cli/release/security/streaming)
-1081 passed in the local broad suite; PostgreSQL-backed smoke tests run in CI against PostgreSQL 16
+1256 passed, 7 skipped (rdflib-dependent ontology parity excluded locally) in the local broad suite; PostgreSQL-backed smoke tests run in CI against PostgreSQL 16
 
 npm --prefix clients/web run build
 passed
@@ -96,11 +96,13 @@ passed
 - CI runs migrations and DB-backed smoke tests against a real PostgreSQL 16
   service, plus an in-process API load smoke with latency percentiles.
 - Source posture panels show runtime row counts, credential state, and
-  read-side freshness (live/stale/unknown) from backend API diagnostics.
+  backend-owned freshness; CR-09 adds typed source registry semantics,
+  per-source scheduler/circuit state, next run, consecutive failures and
+  certification/entitlement state to the same surface.
 - Runtime workspace exposes a commercial release-readiness matrix for DB/schema
-  status, source operations, realtime delivery mode, commercial
-  credential/certification posture, no-execution guardrails, and the external
-  security-acceptance gate.
+  status, source operations, the CR-09 data-operations scheduler, realtime
+  delivery mode, commercial credential/certification posture, no-execution
+  guardrails, and the external security-acceptance gate.
 - Market workspace renders a terminal-style major-hub board, regional TTF
   spreads, observed-row sparklines, ECB FX, and price-source posture without
   fabricating missing licensed prices.
@@ -144,20 +146,19 @@ operator-owned test portfolio/price records. Commercial feeds remain gated.
 
 The following items are the current production gaps:
 
-- Production scheduling/retry/monitoring for ingestion.
-- Provider-specific live tests for EEX, ICE OCM, Trayport, Kpler, Platts, ICIS,
-  Argus, brokers, weather, and LLM providers after credential and entitlement
-  approval.
-- Full multi-user account lifecycle and company SSO/OIDC remain R32A; local
+- Provider-specific live tests and certification evidence for EEX, ICE OCM,
+  Trayport, Kpler, Platts, ICIS, Argus, brokers, Weather, and LLM providers
+  after credential and entitlement approval. CR-09 does not fabricate these:
+  each remains `NOT CERTIFIED — credential/entitlement unavailable`.
+- Live deployment migration to head `0028_data_operations_v1` on the target
+  runtime store; CR-09 was validated against a scratch PostgreSQL 16 database
+  while the local operator runtime store remained at `0024_cost_observations`.
+- Full multi-user account lifecycle and company SSO/OIDC remain CR-10; local
   PostgreSQL identities, hashed bearer keys, role authorization, and
-  commercial data scopes are delivered in R32.
-- Row-level entitlement enforcement across every read route (market
-  observation/quote routes filter by identity scopes; remaining read routes
-  still need the same filter before production).
+  commercial data scopes are delivered.
 - Persisted EFET-style customer contract/resource workflow through backend APIs.
-- Operational runbooks for backups, migrations, incident response, and release
-  rollback (backup tooling and restore verification checklist are in
-  `docs/operations/BACKUP_RESTORE.md`; drills require a real deployment).
+- External security acceptance and backup/restore plus incident-response drills
+  on a real deployment (documentation and tooling exist; drills are external).
 
 ## Product Boundary
 

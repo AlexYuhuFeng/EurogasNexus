@@ -37,7 +37,21 @@ _REVIEWED_DOMAIN_STR_ENUMS: set[str] = {
     "eurogas_nexus.domain.research.monitoring:AlertSeverity",
     "eurogas_nexus.domain.research.shadow_run:PaperAction",
     "eurogas_nexus.domain.research.shadow_run:ShadowRunStatus",
+    "eurogas_nexus.domain.dataops.contracts:AccessMode",
+    "eurogas_nexus.domain.dataops.contracts:CertificationState",
+    "eurogas_nexus.domain.dataops.contracts:CircuitState",
+    "eurogas_nexus.domain.dataops.contracts:EntitlementOutcome",
+    "eurogas_nexus.domain.dataops.contracts:FailureCategory",
+    "eurogas_nexus.domain.dataops.contracts:FreshnessState",
+    "eurogas_nexus.domain.dataops.contracts:IngestionRunStatus",
+    "eurogas_nexus.domain.dataops.contracts:IngestionTriggerType",
+    "eurogas_nexus.domain.dataops.contracts:QualityResult",
+    "eurogas_nexus.domain.dataops.contracts:QualitySeverity",
+    "eurogas_nexus.domain.dataops.contracts:ScheduleType",
+    "eurogas_nexus.domain.dataops.contracts:SourceCalendar",
+    "eurogas_nexus.domain.dataops.contracts:SourceClass",
 }
+
 
 
 def _is_str_enum(node: ast.ClassDef) -> bool:

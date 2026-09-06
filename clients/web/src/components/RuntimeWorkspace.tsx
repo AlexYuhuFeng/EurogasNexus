@@ -98,6 +98,21 @@ export function RuntimeWorkspace({
       runtimeDb.missing_tables.length === 0,
   );
   const workflowReadySources = sources.filter((source) => source.workflow_ready).length;
+  const scheduledSources = sources.filter((source) => source.scheduler_enabled);
+  const staleSources = sources.filter((source) => (
+    source.freshness_state === "STALE" || source.freshness_state === "MISSING"
+  ));
+  const failedSources = sources.filter((source) => (
+    source.consecutive_failures >= 3 || source.circuit_state === "OPEN_CIRCUIT"
+  ));
+  const schedulerState: ReadinessState = scheduledSources.length === 0
+    ? "blocked"
+    : staleSources.length > 0 || failedSources.length > 0
+      ? "partial"
+      : "ready";
+  const schedulerDetail = scheduledSources.length === 0
+    ? t("runtime.scheduler_blocked_detail")
+    : `${staleSources.length} ${t("runtime.stale_sources")} / ${failedSources.length} ${t("runtime.failed_sources")}`;
   const commercialSourceRows = sources.filter(isLicensedCommercialSource);
   const credentialBlockers = commercialSourceRows.filter(needsCredential);
   const certificationBlockers = commercialSourceRows.filter(needsLiveCertification);
@@ -145,6 +160,13 @@ export function RuntimeWorkspace({
       state: sourceOperationsState,
       value: `${workflowReadySources}/${sources.length} ${t("runtime.workflow_ready_sources")}`,
       detail: sourceOperationsDetail,
+    },
+    {
+      key: "data_operations_scheduler",
+      label: t("runtime.data_operations_scheduler"),
+      state: schedulerState,
+      value: `${scheduledSources.length}/${sources.length} ${t("runtime.scheduled_sources")}`,
+      detail: schedulerDetail,
     },
     {
       key: "streaming_delivery",

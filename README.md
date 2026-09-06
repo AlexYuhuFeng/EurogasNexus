@@ -38,6 +38,11 @@ a candidate that requires human review.
   certification, freshness, and diagnostics.
 - 10-second intraday opportunity monitoring and deduplicated live DeepSeek
   explanations for persisted alerts.
+- PostgreSQL-backed data-operations scheduling with typed source registry,
+  restart-safe duplicate-proof ingestion runs, failure-category retry/circuit
+  breaking, calendar-aware freshness SLAs, structured quality issues, dataset
+  certification evidence, row-level entitlement propagation, and
+  Prometheus-text runtime metrics.
 - Strategy backtesting, shadow-running, persisted run history, and risk-control
   signals.
 - Storage-dispatch and nomination-window assessment workflows (assessment only;

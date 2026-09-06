@@ -617,7 +617,11 @@ def get_strategy_runs(
             run_type=run_type,
             limit=limit,
         )
-        data = [strategy_run_payload(row) for row in rows]
+        data = [
+            row
+            for row in (strategy_run_payload(item) for item in rows)
+            if _strategy_run_visible(request, row)
+        ]
     return _env(data, request, source="runtime-postgresql")
 
 
@@ -631,6 +635,7 @@ def get_strategy_run(run_id: str, request: Request) -> dict:
         data = get_strategy_run(session, run_id)
         if data is None:
             raise HTTPException(status_code=404, detail=f"Unknown strategy run: {run_id}")
+    _require_strategy_run_visible(request, data)
     return _env(data, request, source="runtime-postgresql")
 
 
@@ -643,8 +648,10 @@ def get_backtest_run_events(run_id: str, request: Request) -> dict:
         from eurogas_nexus.db.repositories import backtest
         from eurogas_nexus.db.repositories.strategy import get_strategy_run
 
-        if get_strategy_run(session, run_id) is None:
+        run_data = get_strategy_run(session, run_id)
+        if run_data is None:
             raise HTTPException(status_code=404, detail=f"Unknown strategy run: {run_id}")
+        _require_strategy_run_visible(request, run_data)
         data = backtest.list_backtest_events(session, run_id)
     return _env(
         data,
@@ -662,8 +669,10 @@ def get_backtest_run_series(run_id: str, request: Request) -> dict:
         from eurogas_nexus.db.repositories import backtest
         from eurogas_nexus.db.repositories.strategy import get_strategy_run
 
-        if get_strategy_run(session, run_id) is None:
+        run_data = get_strategy_run(session, run_id)
+        if run_data is None:
             raise HTTPException(status_code=404, detail=f"Unknown strategy run: {run_id}")
+        _require_strategy_run_visible(request, run_data)
         data = backtest.list_backtest_series(session, run_id)
     return _env(
         data,
@@ -681,8 +690,10 @@ def get_backtest_run_attribution(run_id: str, request: Request) -> dict:
         from eurogas_nexus.db.repositories import backtest
         from eurogas_nexus.db.repositories.strategy import get_strategy_run
 
-        if get_strategy_run(session, run_id) is None:
+        run_data = get_strategy_run(session, run_id)
+        if run_data is None:
             raise HTTPException(status_code=404, detail=f"Unknown strategy run: {run_id}")
+        _require_strategy_run_visible(request, run_data)
         data = backtest.list_backtest_attribution(session, run_id)
     return _env(
         data,
@@ -691,6 +702,33 @@ def get_backtest_run_attribution(run_id: str, request: Request) -> dict:
         warnings=[] if data else ["BACKTEST_ATTRIBUTION_NOT_AVAILABLE"],
     )
 
+
+
+
+def _strategy_run_visible(request: Request, data: dict) -> bool:
+    from eurogas_nexus.api.dependencies.row_entitlement import current_principal
+    from eurogas_nexus.domain.dataops.entitlement import derived_result_access
+
+    return (
+        derived_result_access(
+            current_principal(request),
+            data.get("source_systems") or [],
+        ).outcome.value
+        == "ALLOWED"
+    )
+
+
+def _require_strategy_run_visible(request: Request, data: dict) -> None:
+    if not _strategy_run_visible(request, data):
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "entitlement_denied",
+                "reason": "Strategy run contains restricted source evidence (fail-closed).",
+                "research_only": True,
+                "human_review_required": True,
+            },
+        )
 
 # --- Persistence and envelope helpers ---------------------------------------
 

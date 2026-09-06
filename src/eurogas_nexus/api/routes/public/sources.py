@@ -142,6 +142,7 @@ def _sources_with_runtime_status() -> list[dict]:
     ingestion_status = _latest_ingestion_status_by_source()
     credential_status = _credential_status_by_provider()
     certifications = _certification_by_source_system()
+    runtime_states = _source_runtime_states_by_source_id()
     for source in sources:
         count = counts.get(source["source_system"], 0)
         source["live_record_count"] = count
@@ -165,6 +166,18 @@ def _sources_with_runtime_status() -> list[dict]:
         source["certification_stage"] = (
             certification["stage"] if certification else "unverified"
         )
+        runtime_state = runtime_states.get(source["source_id"])
+        if runtime_state is not None:
+            source["runtime_state"] = runtime_state
+            source["scheduler_enabled"] = runtime_state.get("enabled", False)
+            source["circuit_state"] = runtime_state.get("circuit_state")
+            source["next_run_at_utc"] = runtime_state.get("next_run_at_utc")
+            source["consecutive_failures"] = runtime_state.get("consecutive_failures", 0)
+            source["freshness_state"] = runtime_state.get("freshness_state")
+            source["source_age_seconds"] = runtime_state.get("source_age_seconds")
+            source["certification_state"] = runtime_state.get("certification_state")
+            source["entitlement_state"] = runtime_state.get("entitlement_state")
+            source["adapter_version"] = runtime_state.get("adapter_version")
         gate = certification_gate(
             source["source_system"],
             stage=source["certification_stage"],
@@ -186,6 +199,22 @@ def _sources_with_runtime_status() -> list[dict]:
     _attach_preview_substitute_status(sources)
     _attach_operational_status(sources)
     return sources
+
+
+def _source_runtime_states_by_source_id() -> dict[str, dict[str, Any]]:
+    if not _db_is_configured():
+        return {}
+
+    try:
+        from eurogas_nexus.db.models import SourceRuntimeStateRecord
+        from eurogas_nexus.db.repositories.dataops import source_runtime_payload
+        from eurogas_nexus.db.session import get_session_factory
+
+        with get_session_factory()() as session:
+            rows = session.query(SourceRuntimeStateRecord).all()
+            return {row.source_id: source_runtime_payload(row) for row in rows}
+    except Exception:
+        return {}
 
 
 def _source_freshness_status(source: dict, last_observed_at_utc: str | None) -> str:
@@ -759,13 +788,14 @@ def _db_ingestion_runs() -> list[dict]:
     sqlalchemy_error = _sqlalchemy_error_type()
     try:
         from eurogas_nexus.db.models import IngestionRunRecord
+        from eurogas_nexus.db.repositories.dataops import ingestion_run_payload
         from eurogas_nexus.db.session import get_session_factory
 
         with get_session_factory()() as session:
             rows = session.query(IngestionRunRecord).order_by(
                 IngestionRunRecord.started_at_utc.desc()
             )
-            return [_ingestion_run_payload(row) for row in rows.all()]
+            return [ingestion_run_payload(row) for row in rows.all()]
     except sqlalchemy_error:
         return []
 

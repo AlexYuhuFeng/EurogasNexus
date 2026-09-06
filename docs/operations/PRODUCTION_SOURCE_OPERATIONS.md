@@ -23,7 +23,19 @@ retry policies:
 
 Unknown sources use a safe default (3 retries, 30s backoff, 24h SLA).
 
-## Worker
+## CR-09 scheduler
+
+```bash
+python scripts/ops/run_dataops_scheduler.py   --interval-seconds 60 --scan-limit 10 --run-limit 10
+```
+
+The scheduler reconciles the typed backend-owned source registry into
+`source_runtime_states`, claims due sources with PostgreSQL SKIP LOCKED and a
+partial unique `(source_id, scheduled_for_utc) WHERE trigger_type='SCHEDULED'`
+index, then executes QUEUED `ingestion_runs` with failure-category-aware retry
+and circuit breaking. It is restart-safe and multi-process safe.
+
+## Legacy worker
 
 ```bash
 python scripts/ops/run_public_ingestion_worker.py \
@@ -49,4 +61,4 @@ source of truth for per-run evidence.
 - Deployment scheduler ownership (systemd/Kubernetes/Windows task) is not in
   this repository.
 - Licensed commercial providers remain gated on credentials, entitlement, and
-  `provider_certifications` live validation.
+  live certification evidence; CR-09 never fabricates connectivity.

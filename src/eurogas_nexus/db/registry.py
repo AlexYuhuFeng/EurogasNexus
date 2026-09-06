@@ -168,6 +168,18 @@ REQUIRED_TABLES: tuple[RequiredTable, ...] = (
         name="portfolio_pnl_snapshots",
         introduced_in="0009_market_positioning",
     ),
+    RequiredTable(
+        name="source_runtime_states",
+        introduced_in="0028_data_operations_v1",
+    ),
+    RequiredTable(
+        name="ingestion_run_issues",
+        introduced_in="0028_data_operations_v1",
+    ),
+    RequiredTable(
+        name="data_operations_heartbeat",
+        introduced_in="0028_data_operations_v1",
+    ),
 )
 
 

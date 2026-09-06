@@ -142,7 +142,13 @@ def get_shadow_evaluations(
             raise HTTPException(
                 status_code=404, detail=f"Unknown shadow monitor: {monitor_id}"
             )
-        data = shadow.list_evaluations(session, monitor_id=monitor_id, limit=limit)
+        data = [
+            row
+            for row in shadow.list_evaluations(
+                session, monitor_id=monitor_id, limit=limit
+            )
+            if _evaluation_visible(request, row)
+        ]
     return _env(data, request, source="runtime-postgresql")
 
 
@@ -164,6 +170,7 @@ def get_shadow_evaluation(evaluation_id: str, request: Request) -> dict:
             candidate = shadow.get_candidate(session, row.candidate_id)
             if candidate is not None:
                 data["candidate"] = shadow.candidate_payload(candidate)
+    _require_evaluation_visible(request, data)
     return _env(data, request, source="runtime-postgresql")
 
 
@@ -238,6 +245,33 @@ def get_shadow_runtime_status(request: Request) -> dict:
         data = shadow.runtime_status_payload(session)
     return _env(data, request, source="runtime-postgresql")
 
+
+
+
+def _evaluation_visible(request: Request, data: dict) -> bool:
+    from eurogas_nexus.api.dependencies.row_entitlement import current_principal
+    from eurogas_nexus.domain.dataops.entitlement import derived_result_access
+
+    return (
+        derived_result_access(
+            current_principal(request),
+            data.get("source_systems") or [],
+        ).outcome.value
+        == "ALLOWED"
+    )
+
+
+def _require_evaluation_visible(request: Request, data: dict) -> None:
+    if not _evaluation_visible(request, data):
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "entitlement_denied",
+                "reason": "Shadow evaluation contains restricted source evidence (fail-closed).",
+                "research_only": True,
+                "human_review_required": True,
+            },
+        )
 
 # --- session/envelope helpers ---------------------------------------------
 

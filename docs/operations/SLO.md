@@ -13,9 +13,9 @@ milestone and are not claimed yet.
 | API latency, read endpoints | p95 ≤ 500 ms (in-process baseline) | `scripts/ops/load_smoke.py` in CI (threshold 1000 ms on shared runners) |
 | API error rate, smoke paths | ≤ 5% of requests | `load_smoke.py` error-rate threshold |
 | Runtime DB reachable when configured | 100% of health polls | `/api/runtime/db` + `/api/runtime/pipeline-health` |
-| Data freshness honesty | 100% of sources evaluated | Source Center `freshness_status` (live/stale/unknown) — never silent `active` for stale data |
+| Data freshness honesty | 100% of sources evaluated | Source Center backend-owned `freshness_state` (fresh/late/stale/missing/not_expected/unknown/restricted) — never silent `active` for stale data |
 | Audit completeness | 100% of policy decisions recorded when DB available | `audit_events` write/readback in `test_postgres_backed_smoke.py` |
-| Ingestion run bookkeeping | 100% of runs (success/failure/blocked) recorded | `ingest_public_sources.py` failed-run paths + `ingestion_runs` |
+| Ingestion run bookkeeping | 100% of runs recorded with structured counts/category | `ingestion_runs` + `ingestion_run_issues` + `/api/runtime/source-operations` |
 
 ## Measurement
 

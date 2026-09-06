@@ -24,6 +24,7 @@ the current/normative document listed here and report the conflict.
 - [Industry benchmark principles](product/INDUSTRY_BENCHMARK.md)
 - [UX reference](product/UX_REFERENCE.md)
 - [Gas-day calendar compatibility](product/GAS_DAY_CALENDAR_COMPATIBILITY.md)
+- [Data operations specification](product/DATA_OPERATIONS_SPEC.md)
 
 ## Normative and current
 
@@ -114,6 +115,10 @@ Operational procedures and operator-facing guides:
 - [Service level objectives](operations/SLO.md)
 - [Production source operations EN](operations/PRODUCTION_SOURCE_OPERATIONS.md) /
   [CN](operations/PRODUCTION_SOURCE_OPERATIONS-CN.md)
+- [Source failure](operations/SOURCE_FAILURE.md)
+- [Backfill](operations/BACKFILL.md)
+- [Source certification](operations/SOURCE_CERTIFICATION.md)
+- [Data freshness](operations/DATA_FRESHNESS.md)
 - [Simulated market price sources](operations/SIMULATED_MARKET_PRICE_SOURCES.md)
 - [Portfolio network optimization EN](operations/PORTFOLIO_NETWORK_OPTIMIZATION.md) /
   [CN](operations/PORTFOLIO_NETWORK_OPTIMIZATION-CN.md)

@@ -125,9 +125,22 @@ def list_tso_tariffs(
 
 @router.get("/api/route-cost/route-candidates")
 def list_route_candidates(request: Request) -> dict:
-    """List available route candidates from the runtime DB."""
+    """List route candidates the principal may see (entitlement filtered)."""
+
+    from eurogas_nexus.api.dependencies.row_entitlement import current_principal
+    from eurogas_nexus.domain.dataops.entitlement import derived_result_access
 
     candidates, source, warnings = _load_route_candidates()
+    principal = current_principal(request)
+    candidates = [
+        candidate
+        for candidate in candidates
+        if derived_result_access(
+            principal,
+            candidate.get("source_systems") or [],
+        ).outcome.value
+        == "ALLOWED"
+    ]
     return _env(
         {
             "scope": "EUROPEAN_ROUTE_CANDIDATES",

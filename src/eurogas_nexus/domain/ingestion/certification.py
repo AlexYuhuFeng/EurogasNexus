@@ -24,11 +24,25 @@ from eurogas_nexus.domain.identity.principal import normalize_principal
 
 
 class CertificationStage(StrEnum):
-    """Certification lifecycle for a licensed source system."""
+    """Certification lifecycle for a licensed source system.
+
+    The first three values are the original simulated-to-live gate. The
+    CR-09 ladder adds implementation/configuration/validation states and an
+    explicit expiry/block state; only ``live_validated`` and ``certified``
+    may ever allow native live use.
+    """
 
     UNVERIFIED = "unverified"
     SIMULATION_MATCHED = "simulation_matched"
     LIVE_VALIDATED = "live_validated"
+    NOT_IMPLEMENTED = "not_implemented"
+    IMPLEMENTED = "implemented"
+    CONFIGURED = "configured"
+    CONNECTION_VERIFIED = "connection_verified"
+    DATA_VALIDATED = "data_validated"
+    CERTIFIED = "certified"
+    CERTIFICATION_EXPIRED = "certification_expired"
+    BLOCKED = "blocked"
 
 
 REQUIRED_LIVE_CHECKS: tuple[str, ...] = (
@@ -80,8 +94,11 @@ def certification_gate(
     normalized_stage = str(stage or "").strip().lower()
     provided_checks = {str(check or "").strip().lower() for check in (checks or [])}
 
-    if normalized_stage != CertificationStage.LIVE_VALIDATED.value:
-        # 未到 live_validated 阶段：一律禁活；缺记录与阶段不足分开报因。
+    if normalized_stage not in {
+        CertificationStage.LIVE_VALIDATED.value,
+        CertificationStage.CERTIFIED.value,
+    }:
+        # 未到 live_validated/certified 阶段：一律禁活；缺记录与阶段不足分开报因。
         return CertificationGateResult(
             source_system=source_system,
             stage=normalized_stage or CertificationStage.UNVERIFIED.value,
@@ -152,10 +169,15 @@ def validate_certification_payload(
         raise ValueError(f"unknown certification checks: {', '.join(unknown)}.")
     if not isinstance(evidence, dict):
         raise ValueError("evidence must be a JSON object.")
-    if CertificationStage(stage) is CertificationStage.LIVE_VALIDATED:
-        # live_validated 阶段强制要求两项必需检查（与门禁规则一致）。
+    resolved = CertificationStage(stage)
+    if resolved in {CertificationStage.LIVE_VALIDATED, CertificationStage.CERTIFIED}:
+        # live_validated/certified 阶段强制要求两项必需检查（与门禁规则一致）。
         missing = [check for check in REQUIRED_LIVE_CHECKS if check not in normalized_checks]
         if missing:
             raise ValueError(
-                "live_validated requires checks: " + ", ".join(missing) + "."
+                f"{resolved.value} requires checks: " + ", ".join(missing) + "."
             )
+    if resolved is CertificationStage.CERTIFIED and evidence.get("live_test") != "passed":
+        # Mocked/replayed tests may reach live_validated, but the stronger
+        # CERTIFIED label requires explicit live-test evidence.
+        raise ValueError("certified requires evidence.live_test == 'passed'.")

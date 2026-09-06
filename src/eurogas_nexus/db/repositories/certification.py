@@ -23,6 +23,16 @@ def upsert_provider_certification(
     evaluated_by: str,
     note: str | None = None,
     now_utc: datetime | None = None,
+    dataset: str = "",
+    environment: str = "deployment",
+    adapter_version: str | None = None,
+    credential_label: str | None = None,
+    entitlement_scope: str | None = None,
+    sample_period_start_utc: datetime | None = None,
+    sample_period_end_utc: datetime | None = None,
+    tests_performed: list[str] | None = None,
+    expires_at_utc: datetime | None = None,
+    evidence_ref: str | None = None,
 ) -> dict:
     """Validate and record (or replace) certification evidence for a source.
 
@@ -52,6 +62,16 @@ def upsert_provider_certification(
     record.evaluated_by = evaluated_by
     record.note = note
     record.evaluated_at_utc = evaluated_at
+    record.dataset = (dataset or "").strip()
+    record.environment = (environment or "deployment").strip() or "deployment"
+    record.adapter_version = adapter_version
+    record.credential_label = credential_label
+    record.entitlement_scope = entitlement_scope
+    record.sample_period_start_utc = sample_period_start_utc
+    record.sample_period_end_utc = sample_period_end_utc
+    record.tests_performed = list(tests_performed or [])
+    record.expires_at_utc = expires_at_utc
+    record.evidence_ref = evidence_ref
     if existing is None:
         session.add(record)
     record_audit_event(
@@ -107,10 +127,28 @@ def certification_payload(row: ProviderCertificationRecord) -> dict:
     return {
         "certification_id": row.certification_id,
         "source_system": row.source_system,
+        "dataset": row.dataset,
+        "environment": row.environment,
         "stage": row.stage,
         "checks": list(row.checks or []),
         "evidence": dict(row.evidence or {}),
         "evaluated_by": row.evaluated_by,
         "note": row.note,
         "evaluated_at_utc": row.evaluated_at_utc.isoformat(),
+        "adapter_version": row.adapter_version,
+        "credential_label": row.credential_label,
+        "entitlement_scope": row.entitlement_scope,
+        "sample_period_start_utc": (
+            row.sample_period_start_utc.isoformat()
+            if row.sample_period_start_utc
+            else None
+        ),
+        "sample_period_end_utc": (
+            row.sample_period_end_utc.isoformat()
+            if row.sample_period_end_utc
+            else None
+        ),
+        "tests_performed": list(row.tests_performed or []),
+        "expires_at_utc": row.expires_at_utc.isoformat() if row.expires_at_utc else None,
+        "evidence_ref": row.evidence_ref,
     }

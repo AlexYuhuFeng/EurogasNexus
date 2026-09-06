@@ -326,6 +326,12 @@ export interface SourceSystemDTO {
   last_ingestion_status: string | null; last_ingestion_message: string | null;
   diagnostics: string[]; export_restrictions: string[];
   certification_stage: string; certification_allows_live: boolean;
+  scheduler_enabled: boolean; circuit_state: string | null;
+  next_run_at_utc: string | null; consecutive_failures: number;
+  freshness_state: string | null; freshness_status?: string | null;
+  source_age_seconds: number | null;
+  certification_state: string | null; entitlement_state: string | null;
+  adapter_version: string | null;
 }
 
 export interface SourceCategoryPostureDTO {
@@ -487,6 +493,15 @@ function normalizeSourceSystem(raw: SourceSystemWire): SourceSystemDTO {
           ? ["credential_missing"]
           : ["no_records_in_runtime_db"],
     export_restrictions: asStringArray(raw.export_restrictions),
+    scheduler_enabled: Boolean(raw.scheduler_enabled),
+    circuit_state: typeof raw.circuit_state === "string" ? raw.circuit_state : null,
+    next_run_at_utc: typeof raw.next_run_at_utc === "string" ? raw.next_run_at_utc : null,
+    consecutive_failures: Number(raw.consecutive_failures ?? 0),
+    freshness_state: typeof raw.freshness_state === "string" ? raw.freshness_state : null,
+    source_age_seconds: typeof raw.source_age_seconds === "number" ? raw.source_age_seconds : null,
+    certification_state: typeof raw.certification_state === "string" ? raw.certification_state : null,
+    entitlement_state: typeof raw.entitlement_state === "string" ? raw.entitlement_state : null,
+    adapter_version: typeof raw.adapter_version === "string" ? raw.adapter_version : null,
   };
 }
 

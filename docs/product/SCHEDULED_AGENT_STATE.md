@@ -2,16 +2,20 @@
 
 ## Current run
 
-- Current milestone: `CR-08 / P7` — Portfolio / Resource / Route / Scenario
-  Commercial Decision Workflow Consolidation (implemented; see Tests run below).
-- Last completed milestone: `CR-07 / P6` (commit `20c0bc2`). Earlier commits:
-  `69aaaa6` (CR-06), `5517bbe` (CR-05), `a930199` (CR-04).
-- CR-08 planned commit:
-  `feat(commercial): consolidate portfolio scenario and decision workflow`.
-- Current branch/commit at CR-08 start: `main` @ `20c0bc2`.
-- Model routing: DSH Pro owns commercial workflow semantics, resource/portfolio
-  domain modeling, route/scenario linkage, optimizer evidence presentation,
-  attribution, constraint interpretation and Decision Center UX.
+- Current milestone: `CR-09 / P8` — Production Data Operations: Ingestion
+  Scheduling, Source Certification, Freshness SLAs, Row-Level Data
+  Entitlements, and Operational Observability.
+- Last completed milestone: `CR-09 / P8` (current `main` HEAD); prior commit `c9e1a06` (CR-08). Earlier commits:
+  `20c0bc2` (CR-07), `69aaaa6` (CR-06), `5517bbe` (CR-05), `a930199` (CR-04).
+- CR-09 commit: current `main` HEAD
+  `feat(dataops): add production ingestion and source governance`.
+- Current branch/commit at CR-09 start: `main` @ `c9e1a06`.
+- Model routing: DSH Pro owns all source-operation architecture, scheduler
+  semantics, retry policies, source certification, freshness policy,
+  entitlement enforcement, licensed-data boundaries, observability model and
+  fail-closed behavior. DSH Flash is limited to repetitive DTO/schema
+  propagation, mechanical observability instrumentation, routine migration
+  implementation, repetitive tests, i18n and low-risk UI wiring.
 
 ## Baseline observed at start
 
@@ -32,6 +36,52 @@
   provenance columns on legacy `strategy_runs`). The runtime PostgreSQL head
   should become `0025_strategy_registry_v1`; live migration was not performed
   because the local environment has no running PostgreSQL service.
+
+## CR-09 implementation plan
+
+1. Audit repo/CI/docs, source registry, ingestion adapters, PostgreSQL
+   source/evidence tables, monitoring, auth/scopes, observability and
+   credential storage; verify CR-01..CR-08 from code/tests, not labels.
+2. Write `docs/product/DATA_OPERATIONS_SPEC.md` with current-state audit and
+   the accepted architecture for registry, scheduling, calendars, freshness,
+   latency, runs, retry, circuit, backfill, idempotency, quality, lineage,
+   certification, licensed-data boundary, entitlement propagation,
+   observability, downstream fail-closed behavior, performance and operator
+   workflows.
+3. Add import-safe `domain/dataops` contracts: source classes/definitions,
+   typed schedules, deterministic freshness states, latency decomposition,
+   failure classification, backoff/jitter, circuit transitions, quality
+   codes and entitlement policy.
+4. Add migration `0028_data_operations_v1`: extend `ingestion_runs`,
+   add `source_runtime_states`, `ingestion_run_issues`,
+   `data_operations_heartbeat`, and dataset/environment evidence columns on
+   `provider_certifications`; preserve existing rows.
+5. Add dataops repositories/application runtime: reconcile registry into
+   runtime state, PostgreSQL SKIP LOCKED scheduling claims, partial unique
+   scheduled-run index, run lifecycle, failure-category retry/circuit,
+   backfill/manual/recovery triggers and scheduler heartbeat.
+6. Extend public sources API with source health/runs and operator run/
+   backfill/retry/enable actions; add `/api/source-certifications`; keep
+   existing `/api/sources` and `/api/ingestion-runs` compatible.
+7. Extend row-entitlement filtering beyond market quotes (physical, storage,
+   LNG, route candidates, strategy/shadow evidence reads) and add derived-
+   result fail-closed policy with principal matrix tests.
+8. Add `/api/runtime/source-operations` and `/api/runtime/metrics`
+   (Prometheus text), structured secret-safe dataops events and correlation
+   ids.
+9. Harden Source Center (Overview/Pipelines/Certification/Credentials) and
+   add source-operations health to Runtime workspace; update DTOs and i18n.
+10. Add downstream stale propagation in pipeline health/source posture and
+    keep historical run immutability untouched.
+11. Add scheduler/retry/ingestion/freshness/certification/entitlement/
+    observability tests and `scripts/ops/dataops_benchmark.py`; run provider
+    live tests where actually possible and record explicit SKIP/NOT
+    CERTIFIED where not.
+12. Run PostgreSQL migrations + DB-backed smoke against scratch PostgreSQL,
+    full Python suite, web tests/build, ruff, markdown and load smoke.
+13. Update runbooks (`SOURCE_FAILURE.md`, `BACKFILL.md`,
+    `SOURCE_CERTIFICATION.md`, `DATA_FRESHNESS.md`), RELEASE_READINESS.md,
+    backlog/state, then commit one coherent milestone.
 
 ## CR-08 implementation plan
 
@@ -225,17 +275,24 @@
     tests.
 11. Commit one coherent milestone; do not push unless explicitly authorized.
 
-## Tests run (CR-08)
+## Tests run (CR-09)
 
-- `npm --prefix clients/web run test`: **41 passed** (new commercial task/
-  deep-link/feasibility tests).
-- `npm --prefix clients/web run build`: **passed**.
+- `npm --prefix clients/web run test`: **41 passed**; `npm run build`: **passed**.
 - `pytest tests --ignore=tests/contract/test_ontology_grm_parity.py`:
-  **1211 passed, 4 skipped**.
+  **1256 passed, 7 skipped** (3 new PostgreSQL integration tests skip locally
+  unless `RUNTIME_STORE_DATABASE_URL` is configured).
+- PostgreSQL 16 scratch DB `eurogas_nexus_cr09`: `alembic upgrade head` applied
+  through `0028_data_operations_v1`; required-table contract 64/64; CR-09
+  PostgreSQL integration tests **3 passed**.
 - `ruff check .`: **passed**.
 - `python scripts/ci/check_markdown_links.py`: **passed**.
-- OpenAPI public surface: **112 paths**, unchanged and fully pinned.
-- Load smoke: **200 ok / 0 errors**.
+- OpenAPI public surface: **122 paths**, pinned and permission-declared.
+- Automated security acceptance: **PASS** (external review remains BLOCKED).
+- Dataops benchmark (scratch PostgreSQL): scheduler scan 0.011844s, freshness
+  24 sources 0.000206s, entitlement filter 0.000011s.
+- Live provider test: ECB `eurofxref-daily` returned 12 normalized rows and
+  persisted `SUCCEEDED`; ENTSOG live fetch correctly blocked fail-closed at
+  the certification gate. No commercial credentials were available.
 
 ## Known failures
 
@@ -244,9 +301,10 @@
   gap; no dependency install performed. CI installs declared dependencies.
 - Live GitHub Actions status was not queried; all local gates above are green
   with that one collection exclusion.
-- No browser E2E runner exists in the current test infrastructure; backtest
-  temporal/economic/metric behavior is covered by executable domain/API tests,
-  source contract tests, and the production web build.
+- No browser E2E runner exists in the current test infrastructure; scheduler,
+  retry, freshness, certification, entitlement, observability and UI behavior
+  are covered by executable domain/API/integration tests and the production
+  web build.
 
 ## Unresolved architectural decisions
 
@@ -266,6 +324,6 @@
 
 ## Next recommended milestone
 
-- `CR-09` — Production Data Operations: Ingestion Scheduling, Source
-  Certification, Freshness SLAs, Entitlement Enforcement, and Observability,
-  unless repository evidence reveals a higher-priority blocker.
+- `CR-10` — Enterprise Identity, SSO/OIDC, Fine-Grained Authorization, Audit,
+  and Multi-User Commercial Security, unless repository evidence reveals a
+  more urgent production blocker.

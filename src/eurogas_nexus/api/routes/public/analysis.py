@@ -112,6 +112,13 @@ def post_portfolio_report(body: PortfolioReportRequest, request: Request) -> dic
         duration_end_utc=body.duration_end_utc,
     )
     request_id = getattr(request.state, "request_id", None)
+    from eurogas_nexus.api.dependencies.row_entitlement import require_derived_access
+
+    require_derived_access(
+        request,
+        _snapshot_source_systems(snapshot),
+        resource="portfolio_report",
+    )
     export_blocker = _export_blocker(snapshot)
     if export_blocker is not None:
         _record_audit(
@@ -453,6 +460,26 @@ def _filtered_llm_payload(
         )
     payload["portfolio_context"] = filtered_contracts
     return payload
+
+
+def _snapshot_source_systems(snapshot: AnalysisSnapshot) -> set[str]:
+    """Return the source-system set of a snapshot (used by entitlement)."""
+
+    sources: set[str] = set()
+    row_sections = (
+        "market_observations",
+        "live_market_marks",
+        "fx_rates",
+        "flow_observations",
+        "capacity_context",
+        "portfolio_context",
+    )
+    for section in row_sections:
+        for row in getattr(snapshot, section, None) or []:
+            value = row.get("source_system") if isinstance(row, dict) else None
+            if isinstance(value, str) and value.strip():
+                sources.add(value.strip())
+    return sources
 
 
 def _export_blocker(snapshot: AnalysisSnapshot) -> str | None:

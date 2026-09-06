@@ -143,6 +143,9 @@ def strategy_run_payload(row: StrategyRunRecord) -> dict:
     """
 
     snapshot = row.result_snapshot or {}
+    manifest = row.manifest_json or {}
+    evidence = manifest.get("evidence") or {}
+    source_systems = evidence.get("source_systems") or snapshot.get("source_systems") or []
     strategy_name = snapshot.get("strategy_name")
     if strategy_name is None:
         strategy_name = (row.input_snapshot or {}).get("strategy_name")
@@ -212,6 +215,7 @@ def strategy_run_payload(row: StrategyRunRecord) -> dict:
         "missing_inputs": row.missing_inputs or [],
         "warnings": row.warnings or [],
         "source_refs": row.source_refs or [],
+        "source_systems": sorted(set(source_systems)),
         "research_only": row.research_only,
         "human_review_required": row.human_review_required,
     }

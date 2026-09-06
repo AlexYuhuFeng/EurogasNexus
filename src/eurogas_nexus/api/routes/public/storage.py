@@ -48,6 +48,9 @@ def list_sites(request: Request) -> dict:
     observations = _db_storage_observations()
     if observations is None:
         return _env([], request)
+    from eurogas_nexus.api.dependencies.row_entitlement import filter_rows
+
+    observations = filter_rows(request, observations)
     sites: dict[str, dict] = {}
     for row in observations:
         sites.setdefault(
@@ -84,7 +87,9 @@ def list_observations(request: Request) -> dict:
 
     observations = _db_storage_observations()
     if observations is not None:
-        return _runtime_env(observations)
+        from eurogas_nexus.api.dependencies.row_entitlement import filter_rows
+
+        return _runtime_env(filter_rows(request, observations))
 
     return _env([], request)
 

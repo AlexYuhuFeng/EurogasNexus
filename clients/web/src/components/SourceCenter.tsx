@@ -213,10 +213,12 @@ export function SourceCenter({
               <tr>
                 <th>{t("panel.status")}</th>
                 <th>{t("sources.source")}</th>
-                <th>{t("sources.mode")}</th>
+                <th>{t("sources.freshness")}</th>
+                <th>{t("sources.next_run")}</th>
                 <th>{t("sources.certification")}</th>
                 <th>{t("sources.last_success")}</th>
                 <th>{t("panel.records")}</th>
+                <th>{t("sources.failures")}</th>
                 <th>{t("sources.next_action")}</th>
               </tr>
             </thead>
@@ -237,7 +239,12 @@ export function SourceCenter({
                       <small>{sourceLabel("sources.category", source.category)}</small>
                     </button>
                   </td>
-                  <td><span>{sourceMode(source, t)}</span></td>
+                  <td>
+                    <StatusBadge variant="source" status={(source.freshness_state ?? source.freshness_status ?? "unknown").toLowerCase()}>
+                      {sourceLabel("sources.freshness_state", source.freshness_state ?? source.freshness_status ?? "unknown")}
+                    </StatusBadge>
+                  </td>
+                  <td><span>{source.scheduler_enabled ? formatSourceTimestamp(source.next_run_at_utc) : t("sources.scheduler_disabled")}</span></td>
                   <td>
                     {source.credential_requirements.length > 0 && (
                       <span className={`source-cert source-cert-${source.certification_stage}`}>
@@ -250,6 +257,7 @@ export function SourceCenter({
                     <strong>{source.effective_record_count.toLocaleString()}</strong>
                     {source.operational_status === "active_simulated" && <small>{source.effective_source_system}</small>}
                   </td>
+                  <td><span>{source.consecutive_failures}</span></td>
                   <td>
                     <button type="button" className="source-diagnostic-action" onClick={() => onSourceSelect(source.source_id)}>
                       {sourceNextAction(source)}
@@ -259,7 +267,7 @@ export function SourceCenter({
               ))}
               {displayedSources.length === 0 && (
                 <tr>
-                  <td colSpan={7}><span>{t("review.no_warnings")}</span></td>
+                  <td colSpan={9}><span>{t("review.no_warnings")}</span></td>
                 </tr>
               )}
             </tbody>
@@ -290,6 +298,10 @@ export function SourceCenter({
               <div><span>{t("sources.freshness")}</span><strong>{selectedSource.freshness_expectation_minutes ? `${selectedSource.freshness_expectation_minutes}m` : "n/a"}</strong></div>
               <div><span>{t("sources.last_success")}</span><strong>{formatSourceTimestamp(selectedSource.effective_last_success_at_utc)}</strong></div>
               <div><span>{t("sources.last_failure")}</span><strong>{formatSourceTimestamp(selectedSource.last_failure_at_utc)}</strong></div>
+              <div><span>{t("sources.next_run")}</span><strong>{selectedSource.scheduler_enabled ? formatSourceTimestamp(selectedSource.next_run_at_utc) : t("sources.scheduler_disabled")}</strong></div>
+              <div><span>{t("sources.circuit_state")}</span><strong>{selectedSource.circuit_state ?? "n/a"}</strong></div>
+              <div><span>{t("sources.freshness_state")}</span><strong>{selectedSource.freshness_state ?? selectedSource.freshness_status ?? "n/a"}</strong></div>
+              <div><span>{t("sources.consecutive_failures")}</span><strong>{selectedSource.consecutive_failures}</strong></div>
               {selectedSource.credential_requirements.length > 0 && (
                 <div>
                   <span>{t("sources.certification")}</span>
