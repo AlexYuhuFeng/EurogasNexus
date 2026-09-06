@@ -82,6 +82,10 @@ class StrategyRunDTO(BaseModel):
     Attributes:
         run_id: Identifier of the strategy run.
         strategy_id: Identifier of the evaluated strategy.
+        strategy_name: Display name of the evaluated strategy. The backend
+            returns the result-snapshot value when present and falls back to
+            the input snapshot when that value is absent or null. Legacy runs
+            with no stored name return None.
         run_mode: Run mode (e.g. backtest/paper).
         status: Run status (e.g. ``COMPLETED``/``PENDING``).
         started_at_utc: UTC timestamp when the run started.
@@ -90,6 +94,15 @@ class StrategyRunDTO(BaseModel):
         cumulative_pnl_gbp: Cumulative paper PnL in GBP.
         hit: Whether the run hit its target outcome.
         weighted_score: Weighted score of the run.
+        day_ahead_average_gbp_mwh: Persisted day-ahead average in GBP/MWh, or
+            None for legacy runs without that snapshot field.
+        intraday_average_gbp_mwh: Persisted intraday average in GBP/MWh, or
+            None for legacy runs without that snapshot field.
+        intraday_vs_day_ahead_spread_gbp_mwh: Persisted
+            intraday-vs-day-ahead spread in GBP/MWh, or None for legacy runs
+            without that snapshot field.
+        candidate_action_for_review: Persisted trader-review action tag, or
+            None for legacy runs without that snapshot field.
         allocation_targets: Raw allocation-target records.
         missing_inputs: Inputs that were absent during the run.
         warnings: Human-readable run warnings.
@@ -100,6 +113,7 @@ class StrategyRunDTO(BaseModel):
 
     run_id: str
     strategy_id: str
+    strategy_name: str | None = None
     run_mode: str
     status: str
     started_at_utc: str
@@ -108,6 +122,10 @@ class StrategyRunDTO(BaseModel):
     cumulative_pnl_gbp: float | None = None
     hit: bool | None = None
     weighted_score: float | None = None
+    day_ahead_average_gbp_mwh: float | None = None
+    intraday_average_gbp_mwh: float | None = None
+    intraday_vs_day_ahead_spread_gbp_mwh: float | None = None
+    candidate_action_for_review: str | None = None
     allocation_targets: list[dict] = Field(default_factory=list)
     missing_inputs: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)

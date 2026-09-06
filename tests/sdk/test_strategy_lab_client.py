@@ -157,6 +157,97 @@ def test_strategy_lab_sdk_gets_run(monkeypatch) -> None:
     assert result.run_id == "run-1"
 
 
+def test_strategy_lab_sdk_parses_new_history_fields(monkeypatch) -> None:
+    """New run payloads preserve persisted price basis and review context."""
+
+    def fake_get(url: str, params: dict, timeout: int) -> httpx.Response:
+        return httpx.Response(
+            200,
+            request=httpx.Request("GET", url),
+            json={
+                "data": [
+                    {
+                        "run_id": "run-new",
+                        "strategy_id": "sap-icis-ocm",
+                        "strategy_name": "Snapshot Name",
+                        "run_mode": "SHADOW_RUN",
+                        "status": "SUCCESS",
+                        "started_at_utc": "2026-07-22T10:00:00+00:00",
+                        "finished_at_utc": "2026-07-22T10:01:00+00:00",
+                        "paper_pnl_gbp": 0.0,
+                        "cumulative_pnl_gbp": -2.5,
+                        "hit": False,
+                        "weighted_score": -0.1,
+                        "day_ahead_average_gbp_mwh": 30.0,
+                        "intraday_average_gbp_mwh": 29.5,
+                        "intraday_vs_day_ahead_spread_gbp_mwh": -0.5,
+                        "candidate_action_for_review": "REVIEW_HIGHER_DAY_AHEAD_ALLOCATION",
+                        "allocation_targets": [],
+                        "missing_inputs": [],
+                        "warnings": [],
+                        "source_refs": ["fixture:source"],
+                        "research_only": True,
+                        "human_review_required": True,
+                    }
+                ]
+            },
+        )
+
+    monkeypatch.setattr(httpx, "get", fake_get)
+
+    result = list_strategy_runs("http://testserver")[0]
+
+    assert isinstance(result, StrategyRunDTO)
+    assert result.strategy_name == "Snapshot Name"
+    assert result.day_ahead_average_gbp_mwh == 30.0
+    assert result.intraday_average_gbp_mwh == 29.5
+    assert result.intraday_vs_day_ahead_spread_gbp_mwh == -0.5
+    assert result.candidate_action_for_review == "REVIEW_HIGHER_DAY_AHEAD_ALLOCATION"
+    assert result.paper_pnl_gbp == 0.0
+    assert result.cumulative_pnl_gbp == -2.5
+
+
+def test_strategy_lab_sdk_legacy_run_has_null_history_fields(monkeypatch) -> None:
+    """Legacy run payloads without new fields remain parseable as null."""
+
+    def fake_get(url: str, timeout: int) -> httpx.Response:
+        return httpx.Response(
+            200,
+            request=httpx.Request("GET", url),
+            json={
+                "data": {
+                    "run_id": "run-legacy",
+                    "strategy_id": "sap-icis-ocm",
+                    "run_mode": "SHADOW_RUN",
+                    "status": "SUCCESS",
+                    "started_at_utc": "2026-07-22T10:00:00+00:00",
+                    "finished_at_utc": None,
+                    "paper_pnl_gbp": 10.0,
+                    "cumulative_pnl_gbp": 10.0,
+                    "hit": True,
+                    "weighted_score": 0.4,
+                    "allocation_targets": [],
+                    "missing_inputs": [],
+                    "warnings": [],
+                    "source_refs": [],
+                    "research_only": True,
+                    "human_review_required": True,
+                }
+            },
+        )
+
+    monkeypatch.setattr(httpx, "get", fake_get)
+
+    result = get_strategy_run("http://testserver", "run-legacy")
+
+    assert isinstance(result, StrategyRunDTO)
+    assert result.strategy_name is None
+    assert result.day_ahead_average_gbp_mwh is None
+    assert result.intraday_average_gbp_mwh is None
+    assert result.intraday_vs_day_ahead_spread_gbp_mwh is None
+    assert result.candidate_action_for_review is None
+
+
 def test_strategy_lab_sdk_summary(monkeypatch) -> None:
     def fake_get(url: str, params: dict, timeout: int) -> httpx.Response:
         return httpx.Response(

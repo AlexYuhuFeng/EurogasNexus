@@ -24,6 +24,7 @@ from eurogas_nexus.domain.strategy_lab.evaluation import (
 STRATEGY_RUN_PAYLOAD_KEYS = {
     "run_id",
     "strategy_id",
+    "strategy_name",
     "run_mode",
     "status",
     "started_at_utc",
@@ -32,6 +33,10 @@ STRATEGY_RUN_PAYLOAD_KEYS = {
     "cumulative_pnl_gbp",
     "hit",
     "weighted_score",
+    "day_ahead_average_gbp_mwh",
+    "intraday_average_gbp_mwh",
+    "intraday_vs_day_ahead_spread_gbp_mwh",
+    "candidate_action_for_review",
     "allocation_targets",
     "missing_inputs",
     "warnings",

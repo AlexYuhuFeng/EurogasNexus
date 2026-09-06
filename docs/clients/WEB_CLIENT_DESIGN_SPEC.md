@@ -409,11 +409,23 @@ viewport.
 Shadow run creates no orders, trades, nominations, execution records, or official
 recommendations.
 
-Current endpoint:
+Current endpoints:
 
 ```text
 POST /api/strategy-lab/evaluate
+GET /api/strategy-lab/runs
+GET /api/strategy-lab/runs/{run_id}
+GET /api/strategy-lab/summary
 ```
+
+Persisted strategy-run rows expose nullable `strategy_name`,
+`day_ahead_average_gbp_mwh`, `intraday_average_gbp_mwh`,
+`intraday_vs_day_ahead_spread_gbp_mwh`, and
+`candidate_action_for_review` when present in the original PostgreSQL
+snapshot. `strategy_name` falls back to the input snapshot when the result
+snapshot field is absent or null. The client must render legacy rows without
+those fields as missing history data; it must not infer new market prices or
+recalculate them.
 
 ## Screen: Review
 

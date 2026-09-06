@@ -133,12 +133,23 @@ def strategy_summary(
 
 
 def strategy_run_payload(row: StrategyRunRecord) -> dict:
-    """Render a persisted strategy run as a JSON-safe payload."""
+    """Render a persisted strategy run as a JSON-safe payload.
+
+    Price basis and review-context fields are read from the persisted result
+    snapshot. They are intentionally not recalculated from current inputs or
+    market rows. ``strategy_name`` falls back to the input snapshot only when
+    the result snapshot value is absent or null. Legacy runs lacking these
+    fields expose ``None``; zero and negative stored values are preserved.
+    """
 
     snapshot = row.result_snapshot or {}
+    strategy_name = snapshot.get("strategy_name")
+    if strategy_name is None:
+        strategy_name = (row.input_snapshot or {}).get("strategy_name")
     return {
         "run_id": row.run_id,
         "strategy_id": row.strategy_id,
+        "strategy_name": strategy_name,
         "run_mode": row.run_mode,
         "status": row.status,
         "started_at_utc": _as_utc(row.started_at_utc).isoformat(),
@@ -149,6 +160,12 @@ def strategy_run_payload(row: StrategyRunRecord) -> dict:
         "cumulative_pnl_gbp": snapshot.get("cumulative_pnl_gbp"),
         "hit": snapshot.get("hit"),
         "weighted_score": snapshot.get("weighted_score"),
+        "day_ahead_average_gbp_mwh": snapshot.get("day_ahead_average_gbp_mwh"),
+        "intraday_average_gbp_mwh": snapshot.get("intraday_average_gbp_mwh"),
+        "intraday_vs_day_ahead_spread_gbp_mwh": snapshot.get(
+            "intraday_vs_day_ahead_spread_gbp_mwh"
+        ),
+        "candidate_action_for_review": snapshot.get("candidate_action_for_review"),
         "allocation_targets": snapshot.get("allocation_targets", []),
         "missing_inputs": row.missing_inputs or [],
         "warnings": row.warnings or [],

@@ -822,10 +822,16 @@ export interface StrategyLabResultDTO {
 }
 
 export interface StrategyRunDTO {
-  run_id: string; strategy_id: string; run_mode: string; status: string;
+  run_id: string; strategy_id: string; strategy_name?: string | null;
+  run_mode: string; status: string;
   started_at_utc: string; finished_at_utc: string | null;
   paper_pnl_gbp: number | null; cumulative_pnl_gbp: number | null; hit: boolean | null;
-  weighted_score: number | null; allocation_targets: StrategyAllocationTargetDTO[];
+  weighted_score: number | null;
+  day_ahead_average_gbp_mwh?: number | null;
+  intraday_average_gbp_mwh?: number | null;
+  intraday_vs_day_ahead_spread_gbp_mwh?: number | null;
+  candidate_action_for_review?: string | null;
+  allocation_targets: StrategyAllocationTargetDTO[];
   missing_inputs: string[]; warnings: string[]; source_refs: string[];
   research_only: boolean; human_review_required: boolean;
 }

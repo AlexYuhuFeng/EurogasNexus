@@ -114,6 +114,9 @@ both bootstrap and full-envelope responses during transition.
 | `GET /api/weather/signals` | HDD/CDD and demand-pressure signals | planned |
 | `POST /api/research/shadow-run` | legacy workflow shell | active |
 | `POST /api/strategy-lab/evaluate` | strategy backtest/shadow/live-monitor paper evaluation | active |
+| `GET /api/strategy-lab/runs` | persisted strategy-run history, newest first | active |
+| `GET /api/strategy-lab/runs/{run_id}` | one persisted strategy run by ID | active |
+| `GET /api/strategy-lab/summary` | persisted cumulative paper PnL/hit/drawdown summary | active |
 | `GET /api/analysis/ontology` | business ontology for analysis and glossary QA | active |
 | `POST /api/analysis/query` | DeepSeek-ready cited LLM/data analysis over backend snapshots | active |
 | `POST /api/reports/portfolio` | portfolio/resource/strategy/PnL report generation | active |
@@ -143,6 +146,16 @@ before any reference table can exceed 2,000 active rows.
 Planned endpoints must return explicit unavailable/degraded states from the
 backend until their contracts exist. Clients must not invent local runtime data
 for planned endpoints.
+
+Persisted strategy-run responses expose nullable historical price-basis and
+review fields: `strategy_name`, `day_ahead_average_gbp_mwh`,
+`intraday_average_gbp_mwh`, `intraday_vs_day_ahead_spread_gbp_mwh`, and
+`candidate_action_for_review`. The three numeric price/spread fields are stored
+as-of the original run in GBP/MWh. `strategy_name` and
+`candidate_action_for_review` are text values. `strategy_name` falls back to
+the input snapshot when the result snapshot field is absent or null. Legacy
+runs without those snapshot fields return `null`; clients must not recalculate
+or replace historical economics.
 
 ## Contract Resource Boundary
 

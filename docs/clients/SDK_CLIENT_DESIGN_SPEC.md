@@ -194,13 +194,27 @@ Purpose:
 - evaluate backtest, shadow-run, and live-monitor strategy inputs through the
   backend API;
 - return paper allocation targets, risk-control status, missing inputs,
-  warnings, and source references.
+  warnings, and source references;
+- read persisted strategy-run history and summary.
 
-Current endpoint:
+Endpoints:
 
 ```text
 POST /api/strategy-lab/evaluate
+GET /api/strategy-lab/runs
+GET /api/strategy-lab/runs/{run_id}
+GET /api/strategy-lab/summary
 ```
+
+Persisted run DTOs expose nullable `strategy_name`,
+`day_ahead_average_gbp_mwh`, `intraday_average_gbp_mwh`,
+`intraday_vs_day_ahead_spread_gbp_mwh`, and
+`candidate_action_for_review`. The three numeric price/spread fields are
+stored as-of the original run in GBP/MWh. `strategy_name` and
+`candidate_action_for_review` are text values. `strategy_name` falls back to
+the original input snapshot when the result snapshot field is absent or null.
+Legacy runs without snapshot fields return `None`; SDK methods must not
+recalculate or replace historical economics.
 
 SDK strategy methods must call the backend API only. They must not import
 domain strategy modules, connect to PostgreSQL, call exchanges, or create
