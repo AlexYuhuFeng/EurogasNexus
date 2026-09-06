@@ -307,11 +307,14 @@ def test_web_client_matches_design_reference_cockpit() -> None:
     assert "workspace-page-tabs" in app
     assert 'navigation.activeWorkspace === "network" ? (' in app
     assert "<WorkspaceRenderer controller={controller} />" in app
-    assert '"capacity"' in app
+    market_cockpit_for_contract = (
+        ROOT / "clients" / "web" / "src" / "components" / "MarketCockpit.tsx"
+    ).read_text(encoding="utf-8")
+    assert '"capacity"' in market_cockpit_for_contract
     assert '"orders"' in app
     assert '"manual"' in app
-    assert 'activeWorkspace === "capacity"' in app
-    assert 'activeWorkspace === "market"' in app
+    assert 'activePrimaryWorkspace.id === "market"' in app
+    assert 'import { MarketCockpit } from "@/components/MarketCockpit";' in app
     assert 'activeWorkspace === "contracts"' in app
     assert 'activeWorkspace === "review"' in app
     assert 'activeWorkspace === "orders"' in app
@@ -490,7 +493,10 @@ def test_web_client_separates_market_capacity_orders_and_review_pages() -> None:
     assert 'nextUrl.searchParams.set("workspace", page)' in app
     assert 'window.history.pushState({ workspace: page }, "", nextUrl)' in app
     assert 'window.addEventListener("popstate", syncWorkspaceFromUrl)' in app
-    assert app.index('activeWorkspace === "capacity"') < app.index('activeWorkspace === "market"')
+    assert (
+        app.index('activePrimaryWorkspace.id === "market"')
+        < app.index('activeWorkspace === "contracts"')
+    )
     assert app.index('activeWorkspace === "review"') < app.index('activeWorkspace === "orders"')
     assert "MarketPositioningWorkspace" in app
     assert 'className="data-table orders-table"' in positioning_workspace
@@ -529,6 +535,9 @@ def test_web_client_market_page_is_trader_terminal_surface() -> None:
     store = (ROOT / "clients" / "web" / "src" / "stores" / "api.ts").read_text(encoding="utf-8")
     market_terminal_path = ROOT / "clients" / "web" / "src" / "components" / "MarketTerminal.tsx"
     market_terminal = market_terminal_path.read_text(encoding="utf-8")
+    market_cockpit = (
+        ROOT / "clients" / "web" / "src" / "components" / "MarketCockpit.tsx"
+    ).read_text(encoding="utf-8")
     css = (ROOT / "clients" / "web" / "src" / "styles" / "app.css").read_text(encoding="utf-8")
     en = json.loads(
         (ROOT / "clients" / "web" / "src" / "i18n" / "en.json").read_text(encoding="utf-8")
@@ -537,11 +546,11 @@ def test_web_client_market_page_is_trader_terminal_surface() -> None:
         (ROOT / "clients" / "web" / "src" / "i18n" / "zh.json").read_text(encoding="utf-8")
     )
 
-    assert 'import { MarketTerminal } from "@/components/MarketTerminal";' in app
-    assert "<MarketTerminal\n" in app
-    assert "marketLastUpdatedAtUtc" in app
-    assert "refreshMarketData" in app
-    assert "markets={api.normalizedMarkets}" in app
+    assert 'import { MarketTerminal } from "@/components/MarketTerminal";' in market_cockpit
+    assert "<MarketTerminal" in market_cockpit
+    assert "marketLastUpdatedAtUtc" in market_cockpit
+    assert "refreshMarketData" in market_cockpit
+    assert "markets={api.normalizedMarkets}" in market_cockpit
     assert "MARKET_REFRESH_INTERVAL_MS" in app
     assert "marketLastUpdatedAtUtc: string | null" in store
     assert "refreshMarketData: () => Promise<void>" in store

@@ -2,16 +2,16 @@
 
 ## Current run
 
-- Current milestone: `CR-06 / P5` — Production-Quality Shadow Run Scheduler,
-  Monitoring, Drift, and Alert Lifecycle (implemented; see Tests run below).
-- Last completed milestone: `CR-05 / P4` (commit `5517bbe`). Earlier commits:
-  `a930199` (CR-04), `77e2168` (CR-03), `89f166e` (CR-02).
-- CR-06 planned commit:
-  `feat(strategy): add production-grade shadow monitoring runtime`.
-- Current branch/commit at CR-06 start: `main` @ `5517bbe`.
-- Model routing: DSH Pro owns scheduling semantics, evidence timing,
-  strategy/backtest parity, failure-state design, drift methodology, alert
-  lifecycle, monitoring architecture and operational reliability.
+- Current milestone: `CR-07 / P6` — Market / Network / Capacity Trader Cockpit
+  Consolidation (implemented; see Tests run below).
+- Last completed milestone: `CR-06 / P5` (commit `69aaaa6`). Earlier commits:
+  `5517bbe` (CR-05), `a930199` (CR-04), `77e2168` (CR-03).
+- CR-07 planned commit:
+  `feat(market): consolidate European gas trader cockpit`.
+- Current branch/commit at CR-07 start: `main` @ `69aaaa6`.
+- Model routing: DSH Pro owns market-workflow design, physical-market domain
+  semantics, route/capacity integration, cross-panel linking, hierarchy,
+  visualization, terminal UX and source/evidence decisions.
 
 ## Baseline observed at start
 
@@ -32,6 +32,28 @@
   provenance columns on legacy `strategy_runs`). The runtime PostgreSQL head
   should become `0025_strategy_registry_v1`; live migration was not performed
   because the local environment has no running PostgreSQL service.
+
+## CR-07 implementation plan
+
+1. Audit Network/Market/Capacity components, map layers, DTOs, trader context
+   and responsive behavior.
+2. Research public commodity-terminal, ENTSOG and GIE presentation patterns.
+3. Write `docs/product/MARKET_COCKPIT_SPEC.md`; update benchmark/UX docs.
+4. Introduce typed Market cockpit task model with Overview, Curves & Spreads,
+   Network, Capacity & Events and legacy deep-link compatibility.
+5. Replace separate Market/Capacity renderer branches with one MarketCockpit;
+   Network remains available via AppShell legacy path and the cockpit task.
+6. Build Overview: shared context strip, major hub board (real bid/ask/mid,
+   source/freshness), linked network map, physical/portfolio/route rail and
+   spread strip.
+7. Reuse existing MarketTerminal, NetworkWorkspace and CapacityWorkspace as
+   the deep-inspection task surfaces.
+8. Add scoped `market-cockpit.css`, EN/ZH parity, keyboard-accessible hub
+   table and degraded/partial states.
+9. Add Node tests for task deep-links, task URL preservation and explicit hub
+   list; update web release-surface contracts.
+10. Run web tests/build, ruff, markdown, load smoke and full backend suite;
+    update docs/backlog/state; commit one coherent slice.
 
 ## CR-06 implementation plan
 
@@ -183,21 +205,17 @@
     tests.
 11. Commit one coherent milestone; do not push unless explicitly authorized.
 
-## Tests run (CR-06)
+## Tests run (CR-07)
 
-- `npm --prefix clients/web run test`: **34 passed**.
+- `npm --prefix clients/web run test`: **38 passed** (new Market cockpit
+  task/deep-link/hub tests).
 - `npm --prefix clients/web run build`: **passed**.
-- Focused shadow tests: schedule **5 passed**, runtime/API **8 passed**,
-  no-execution contract **2 passed** (15 focused shadow tests total).
 - `pytest tests --ignore=tests/contract/test_ontology_grm_parity.py`:
   **1211 passed, 4 skipped**.
 - `ruff check .`: **passed**.
 - `python scripts/ci/check_markdown_links.py`: **passed**.
-- OpenAPI public surface: **112 paths**, all covered by
-  `PINNED_PUBLIC_PATHS` and the route-permission registry.
+- OpenAPI public surface: **112 paths**, unchanged and fully pinned.
 - Load smoke: **200 ok / 0 errors**.
-- Shadow benchmark (SQLite fixture): 10 monitors ~0.13 s scan; 100 monitors
-  ~1.07 s scan; duplicate claims prevented.
 
 ## Known failures
 
@@ -228,5 +246,6 @@
 
 ## Next recommended milestone
 
-- `CR-07` — Market / Network / Capacity Trader Cockpit Consolidation, unless
-  repository evidence reveals a more urgent production blocker.
+- `CR-08` — Portfolio / Resource / Route / Scenario Commercial Decision
+  Workflow Consolidation, unless repository evidence shows a higher-priority
+  blocker.

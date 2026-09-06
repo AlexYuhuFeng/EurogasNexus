@@ -66,7 +66,8 @@ def test_strategy_prices_consume_backend_normalized_market_view() -> None:
 
     assert "buildStrategyScenario(" in app
     assert "api.normalizedMarkets.filter(" in app
-    assert "api.fxRates" in app
+    market_cockpit = _read(WEB / "components" / "MarketCockpit.tsx")
+    assert "api.fxRates" in market_cockpit
 
 
 def test_review_workspace_records_persisted_decisions_with_page_memory_actor() -> None:

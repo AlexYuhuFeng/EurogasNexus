@@ -2,12 +2,11 @@ import type { AppController } from "@/app/hooks/useAppController";
 import { primaryWorkspaceForPage } from "@/app/navigation/productNavigation";
 import { WorkspaceTabs } from "@/components/ui";
 import type { WorkspacePageId } from "@/workspaceNavigation";
-import { CapacityWorkspace } from "@/components/CapacityWorkspace";
 import { ContractWorkbench } from "@/components/ContractWorkbench";
 import { GlossaryWiki } from "@/components/GlossaryWiki";
 import { ManualWorkspace } from "@/components/ManualWorkspace";
 import { MarketPositioningWorkspace } from "@/components/MarketPositioningWorkspace";
-import { MarketTerminal } from "@/components/MarketTerminal";
+import { MarketCockpit } from "@/components/MarketCockpit";
 import { ReviewWorkspace } from "@/components/ReviewWorkspace";
 import { RuntimeWorkspace } from "@/components/RuntimeWorkspace";
 import { ScenarioWorkspace } from "@/components/ScenarioWorkspace";
@@ -49,10 +48,12 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
       setStrategyRunId: selection.setStrategyRunId,
     },
   });
-  const localTabs = activePrimaryWorkspace.pages.map((page) => ({
-    id: page,
-    label: t(`nav.${page}`),
-  }));
+  const localTabs = activePrimaryWorkspace.id === "market"
+    ? []
+    : activePrimaryWorkspace.pages.map((page) => ({
+        id: page,
+        label: t(`nav.${page}`),
+      }));
 
   return (
     <section
@@ -78,32 +79,8 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
         )}
       </header>
 
-      {activeWorkspace === "capacity" && (
-        <CapacityWorkspace
-          flows={api.flows}
-          capacity={api.capacity}
-          tsoAccess={api.tsoAccess}
-          tsoTariffs={api.tsoTariffs}
-          storage={api.storage}
-          lng={api.lng}
-          t={t}
-        />
-      )}
-
-      {activeWorkspace === "market" && (
-        <MarketTerminal
-          markets={api.normalizedMarkets}
-          marketSpreads={api.marketSpreads}
-          marketQuotes={api.marketQuotes}
-          intradayOpportunities={api.intradayOpportunities}
-          fxRates={api.fxRates}
-          sources={api.sources}
-          lastUpdatedAtUtc={api.marketLastUpdatedAtUtc}
-          focusedHub={traderContext.hubId}
-          onHubChange={traderContext.setHubId}
-          onRefresh={api.refreshMarketData}
-          t={t}
-        />
+      {activePrimaryWorkspace.id === "market" && (
+        <MarketCockpit controller={controller} />
       )}
 
       {activeWorkspace === "contracts" && (

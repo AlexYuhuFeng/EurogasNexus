@@ -46,6 +46,18 @@ Sources reviewed include Trayport Joule public material, institutional
 portfolio analytics patterns, and strategy experiment-tracking literature;
 no proprietary design was copied.
 
+## CR-07 Market cockpit references
+
+GPT Image Gen 2 was not available in this run. Accepted direction from public
+commodity-terminal and ENTSOG/GIE research:
+
+- overview first: hub board + map + physical/route rail + bottom spread strip;
+- hub selection is the shared anchor; panels react, not duplicate controls;
+- capacity tables keep technical/booked/available separate with timestamp;
+- map layers are grouped and decision-relevant, with verified vs indicative
+  geometry legend;
+- degraded state is partial, never a blank cockpit.
+
 ## Implementation note
 
 No rasterized screenshots are shipped as application UI. The accepted concept is

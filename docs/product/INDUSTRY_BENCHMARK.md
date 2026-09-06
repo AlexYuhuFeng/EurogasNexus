@@ -118,3 +118,15 @@ presented as identity -> KPIs -> series -> drawdown/exposure -> attribution ->
 event detail, and comparison is matrix-first with explicit compatibility
 caveats. These reinforce the local Design/Backtest/Compare/Shadow workflow and
 the rule that higher PnL must not be visually presented as superior.
+
+## CR-07 Market cockpit research notes
+
+Public/official material reviewed (Trayport Joule, Kpler European gas,
+ENTSOG transparency, GIE AGSI/ALSI presentation, institutional multi-panel
+terminals) reinforces: a commodity cockpit is one persistent context with a
+major-hub board, linked map, physical/constraint rail and a synchronized
+bottom analytical strip. Hub boards lead with actual bid/ask/mid fields and
+source freshness; capacity is always directional and separates technical vs
+available vs unknown; route economics is a waterfall/table with explicit
+access, tariff, FX and capacity constraints. Eurogas Nexus applies these as
+a shared-context cockpit, not a vendor screen copy.
