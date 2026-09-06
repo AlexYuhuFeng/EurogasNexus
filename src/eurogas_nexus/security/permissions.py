@@ -133,6 +133,18 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     # GET lists + POST upserts contracts: policy-gated write surface.
     ("/api/route-cost/upstream-contracts", Permission.GOVERNED),
     ("/api/route-cost/resource-pool/options", Permission.READ),
+    # --- agent-native capability layer (CR-15) ---
+    ("/api/capabilities", Permission.READ),
+    ("/api/capabilities/search", Permission.READ),
+    ("/api/capabilities/{capability_id}", Permission.READ),
+    ("/api/capabilities/{capability_id}/invoke", Permission.GOVERNED),
+    ("/api/agent/profiles", Permission.READ),
+    ("/api/agent/plans/validate", Permission.GOVERNED),
+    ("/api/agent/research", Permission.GOVERNED),
+    ("/api/agent/runs", Permission.READ),
+    ("/api/agent/runs/{agent_run_id}", Permission.READ),
+    ("/api/agent/runs/{agent_run_id}/replay", Permission.READ),
+    ("/api/agent/strategy-ir/validate", Permission.GOVERNED),
     # --- research-data catalog is read-only; build/export are governed ---
     ("/api/research/capabilities", Permission.READ),
     ("/api/research/features", Permission.READ),

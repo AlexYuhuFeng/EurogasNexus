@@ -209,6 +209,23 @@ REQUIRED_TABLES: tuple[RequiredTable, ...] = (
     RequiredTable(
         name="observation_temporal_metadata", introduced_in="0031_research_data_foundation"
     ),
+    RequiredTable(name="agent_runs", introduced_in="0032_agent_capability_layer"),
+    RequiredTable(
+        name="agent_tool_invocations", introduced_in="0032_agent_capability_layer"
+    ),
+    RequiredTable(
+        name="agent_research_plans", introduced_in="0032_agent_capability_layer"
+    ),
+    RequiredTable(
+        name="agent_research_findings", introduced_in="0032_agent_capability_layer"
+    ),
+    RequiredTable(
+        name="agent_research_budgets", introduced_in="0032_agent_capability_layer"
+    ),
+    RequiredTable(
+        name="agent_challenge_reports", introduced_in="0032_agent_capability_layer"
+    ),
+    RequiredTable(name="agent_review_packs", introduced_in="0032_agent_capability_layer"),
 )
 
 

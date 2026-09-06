@@ -8501,3 +8501,42 @@ button.glossary-related-chip {
 .research-table {
   margin-top: 12px;
 }
+
+/* CR-15 agent research workspace */
+.agents-page .field-label {
+  display: block;
+  margin: 0.35rem 0;
+  font-weight: 600;
+}
+
+.agents-page .field-inline {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.5rem 0;
+}
+
+.agents-page .textarea {
+  width: 100%;
+  min-height: 5.5rem;
+  resize: vertical;
+}
+
+.agents-result-panel {
+  margin-top: 1rem;
+  padding: 0.75rem;
+  border: 1px solid var(--line-soft, #d8dee6);
+  border-radius: 8px;
+}
+
+.agents-page .link-row {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.agents-page .link-row:hover {
+  background: var(--row-hover, #f3f6f9);
+}

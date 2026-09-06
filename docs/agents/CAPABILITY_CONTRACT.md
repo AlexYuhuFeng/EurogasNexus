@@ -1,7 +1,10 @@
 # Agent Capability Contract
 
 Source of truth:
-`src/eurogas_nexus/domain/research/capabilities.py`.
+`src/eurogas_nexus/application/agents/registry.py` and
+`src/eurogas_nexus/domain/agents/contracts.py`. CR-14 research contracts in
+`src/eurogas_nexus/domain/research/capabilities.py` remain available as the
+dataset capability family.
 
 ## Purpose
 
@@ -45,3 +48,10 @@ freshness/provenance behavior, timeout seconds, and documented error codes.
   never place orders, submit nominations, or trigger execution.
 - A future MCP server must adapt these contracts without adding a second,
   divergent semantic layer.
+
+## CR-15 runtime registry
+
+See [CAPABILITY_REGISTRY.md](CAPABILITY_REGISTRY.md). The runtime exposes 68
+active capabilities with versioned metadata, discovery, permission/
+entitlement gates, and MCP tool names. Capability version is recorded on
+every ToolInvocation and AgentRun replay.

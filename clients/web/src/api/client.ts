@@ -1264,6 +1264,49 @@ export interface ResearchCapabilityDTO {
   timeout_seconds: number;
 }
 
+export interface CapabilityDTO {
+  capability_id: string;
+  name: string;
+  domain: string;
+  description: string;
+  determinism_class: string;
+  side_effect_class: string;
+  action_policy: string;
+  capability_version: string;
+  input_schema: Record<string, unknown>;
+  output_schema: Record<string, unknown>;
+  required_permissions: string[];
+  entitlement_policy: string;
+}
+
+export interface AgentRunDTO {
+  agent_run_id: string;
+  principal_id: string;
+  user_objective: string;
+  agent_profile: string;
+  model_provider: string;
+  model_id: string;
+  status: string;
+  current_stage: string;
+  artifacts_created: string[];
+  created_at: string;
+  completed_at: string | null;
+}
+
+export interface AgentRunDetailDTO extends AgentRunDTO {
+  research_plan_id: string | null;
+  evidence_dependencies: string[];
+  warnings: string[];
+  blockers: string[];
+  final_output_reference: string | null;
+}
+
+export interface AgentReplayDTO extends AgentRunDetailDTO {
+  started_at: string;
+  tool_invocations: unknown[];
+  hidden_chain_of_thought: null;
+}
+
 export const api = {
   health: async () =>
     parseResponse<HealthDTO>(await fetch(apiUrl("/health"), requestInit())),
@@ -1512,6 +1555,22 @@ export const api = {
   researchTargets: () => get<ResearchTargetDTO[]>("/research/targets"),
   researchDatasets: () => get<ResearchDatasetDTO[]>("/research/datasets"),
   researchCapabilities: () => get<ResearchCapabilityDTO[]>("/research/capabilities"),
+  capabilities: (params?: { domain?: string }) =>
+    get<CapabilityDTO[]>("/capabilities", params),
+  searchCapabilities: (q: string) => get<CapabilityDTO[]>("/capabilities/search", { q }),
+  capability: (capabilityId: string) =>
+    get<CapabilityDTO>(`/capabilities/${encodeURIComponent(capabilityId)}`),
+  invokeCapability: (capabilityId: string, argumentsBody: Record<string, unknown>) =>
+    post<Record<string, unknown>>(`/capabilities/${encodeURIComponent(capabilityId)}/invoke`, { arguments: argumentsBody }),
+  agentProfiles: () => get<Record<string, unknown>[]>("/agent/profiles"),
+  agentRuns: (params?: { limit?: number }) =>
+    get<AgentRunDTO[]>("/agent/runs", params ? { limit: String(params.limit) } : undefined),
+  agentRun: (agentRunId: string) =>
+    get<AgentRunDetailDTO>(`/agent/runs/${encodeURIComponent(agentRunId)}`),
+  agentReplay: (agentRunId: string) =>
+    get<AgentReplayDTO>(`/agent/runs/${encodeURIComponent(agentRunId)}/replay`),
+  runAgentResearch: (body: { objective: string; agent_profile?: string; strategy_generation_allowed?: boolean }) =>
+    post<Record<string, unknown>>("/agent/research", body),
   validateResearchDataset: (spec: Record<string, unknown>) =>
     post<{ ok: boolean; issues: string[]; spec_hash: string }>("/research/datasets/validate", { dataset_spec: spec }),
   buildResearchDataset: (spec: Record<string, unknown>) =>

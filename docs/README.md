@@ -79,6 +79,16 @@ behavior.
 - [Point-in-time datasets](research/POINT_IN_TIME_DATASETS.md)
 - [ML readiness](research/ML_READINESS.md)
 - [Agent capability contract](agents/CAPABILITY_CONTRACT.md)
+- [Agent-native architecture](agents/AGENT_NATIVE_ARCHITECTURE.md)
+- [Capability registry](agents/CAPABILITY_REGISTRY.md)
+- [MCP server](agents/MCP_SERVER.md)
+- [Research plan](agents/RESEARCH_PLAN.md)
+- [Strategy IR](agents/STRATEGY_IR.md)
+- [Research orchestration](agents/RESEARCH_ORCHESTRATION.md)
+- [Risk challenger](agents/RISK_CHALLENGER.md)
+- [Agent replay](agents/AGENT_REPLAY.md)
+- [Agent evaluation](agents/AGENT_EVALUATION.md)
+- [Agent security and entitlement](agents/SECURITY_AND_ENTITLEMENT.md)
 
 ### Client standards
 

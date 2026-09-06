@@ -48,7 +48,7 @@ export const primaryWorkspaces: PrimaryWorkspace[] = [
     id: "system",
     labelKey: "nav.primary.system",
     descriptionKey: "nav.primary.system.description",
-    pages: ["sources", "runtime", "research", "settings", "manual", "glossary", "access"],
+    pages: ["sources", "runtime", "research", "agents", "settings", "manual", "glossary", "access"],
     defaultPage: "sources",
   },
 ];

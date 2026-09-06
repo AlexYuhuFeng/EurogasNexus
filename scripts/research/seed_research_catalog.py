@@ -146,6 +146,22 @@ def main() -> int:
 
         for series in (
             SeriesDefinitionRecord(
+                series_id="market.fx.EUR.GBP",
+                name="EUR/GBP reference FX",
+                metric_type="fx",
+                entity_type="market_area",
+                entity_id="ent:market_area:EUROZONE",
+                product_id=None,
+                source_class="ECB",
+                native_frequency="event",
+                native_unit="GBP/EUR",
+                currency="GBP",
+                temporal_type="OBSERVED",
+                availability_semantics="available_at_required",
+                schema_version="series/v1",
+                created_at_utc=now,
+            ),
+            SeriesDefinitionRecord(
                 series_id="market.price.NBP.DAY_AHEAD",
                 name="NBP day-ahead price",
                 metric_type="price",

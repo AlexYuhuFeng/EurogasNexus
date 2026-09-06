@@ -1,5 +1,6 @@
 import type { AppController } from "@/app/hooks/useAppController";
 import { AccessCenter } from "@/components/AccessCenter";
+import { AgentsWorkspace } from "@/components/AgentsWorkspace";
 import { primaryWorkspaceForPage } from "@/app/navigation/productNavigation";
 import { WorkspaceTabs } from "@/components/ui";
 import type { WorkspacePageId } from "@/workspaceNavigation";
@@ -180,6 +181,10 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
 
       {activeWorkspace === "research" && (
         <ResearchDataWorkspace t={t} />
+      )}
+
+      {activeWorkspace === "agents" && (
+        <AgentsWorkspace t={t} />
       )}
 
       {activeWorkspace === "runtime" && (

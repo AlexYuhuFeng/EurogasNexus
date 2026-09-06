@@ -271,7 +271,7 @@ def _tool_optimize_route_sandbox(arguments: dict[str, Any]) -> Any:
     return result.data.model_dump()
 
 
-TOOLS: tuple[MCPTool, ...] = (
+_LEGACY_TOOLS: tuple[MCPTool, ...] = (
     MCPTool(
         name="list_sources",
         description="List registered data sources with runtime posture and freshness.",
@@ -534,8 +534,71 @@ TOOLS: tuple[MCPTool, ...] = (
     ),
 )
 
+_CAPABILITY_TOOLS: tuple[MCPTool, ...] = ()
+_LEGACY_NAMES = {tool.name for tool in _CAPABILITY_TOOLS}
+_LEGACY_COMPAT_TOOLS = tuple(tool for tool in _LEGACY_TOOLS if tool.name not in _LEGACY_NAMES)
+TOOLS: tuple[MCPTool, ...] = (*_CAPABILITY_TOOLS, *_LEGACY_COMPAT_TOOLS)
 TOOLS_BY_NAME: dict[str, MCPTool] = {tool.name: tool for tool in TOOLS}
 
+
+# ---------------------------------------------------------------------------
+# Registry-driven capability tools (CR-15)
+# ---------------------------------------------------------------------------
+
+
+def _agent_context():
+    import os
+
+    from eurogas_nexus.domain.agents.contracts import AgentInvocationContext
+
+    role = os.environ.get("EUROGAS_NEXUS_AGENT_ROLE", "ANALYST")
+    return AgentInvocationContext(
+        principal_id=os.environ.get("EUROGAS_NEXUS_AGENT_PRINCIPAL", "service:mcp"),
+        role=role,
+        roles=[role],
+        data_scopes=[
+            item.strip()
+            for item in os.environ.get("EUROGAS_NEXUS_AGENT_DATA_SCOPES", "*").split(",")
+            if item.strip()
+        ],
+    )
+
+
+def _build_capability_tools():
+    from eurogas_nexus.application.agents.registry import register_builtin_capabilities
+    from eurogas_nexus.application.agents.runtime import CapabilityRuntime
+
+    registry = register_builtin_capabilities()
+    runtime = CapabilityRuntime(registry)
+    tools = []
+    for definition in registry.list_definitions():
+        if not definition.mcp_name:
+            continue
+
+        def handler(arguments, _definition=definition):
+            result = runtime.invoke(_definition.capability_id, arguments, _agent_context())
+            return result.model_dump(mode="json")
+
+        tools.append(
+            MCPTool(
+                name=definition.mcp_name,
+                description=definition.description,
+                input_schema=definition.input_schema,
+                handler=handler,
+            )
+        )
+    return tuple(tools)
+
+
+# Rebuild the exported tool list with registry tools first and legacy
+# read/sandbox aliases second (duplicate names are registry-owned).
+_CAPABILITY_TOOLS = _build_capability_tools()
+_LEGACY_NAMES = {tool.name for tool in _CAPABILITY_TOOLS}
+_LEGACY_COMPAT_TOOLS = tuple(
+    tool for tool in _LEGACY_TOOLS if tool.name not in _LEGACY_NAMES
+)
+TOOLS: tuple[MCPTool, ...] = (*_CAPABILITY_TOOLS, *_LEGACY_COMPAT_TOOLS)
+TOOLS_BY_NAME: dict[str, MCPTool] = {tool.name: tool for tool in TOOLS}
 
 # ---------------------------------------------------------------------------
 # JSON-RPC 2.0 dispatch

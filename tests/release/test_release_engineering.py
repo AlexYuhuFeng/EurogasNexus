@@ -96,8 +96,8 @@ def test_stable_dispatch_is_rejected_and_tag_mismatch_is_rejected() -> None:
         )
 
 
-def test_latest_alembic_revision_is_head_0031() -> None:
-    assert latest_alembic_revision() == "0031_research_data_foundation"
+def test_latest_alembic_revision_is_head_0032() -> None:
+    assert latest_alembic_revision() == "0032_agent_capability_layer"
 
 
 # ---------------------------------------------------------------------------

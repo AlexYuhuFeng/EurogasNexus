@@ -7,6 +7,15 @@ from sqlalchemy import JSON, Boolean, DateTime, Index, Integer, String, Text, te
 from sqlalchemy.orm import Mapped, mapped_column
 
 from eurogas_nexus.db.base import Base
+from eurogas_nexus.db.models.agents import (
+    AgentChallengeReportRecord,
+    AgentResearchBudgetRecord,
+    AgentResearchFindingRecord,
+    AgentResearchPlanRecord,
+    AgentReviewPackRecord,
+    AgentRunRecord,
+    AgentToolInvocationRecord,
+)
 from eurogas_nexus.db.models.analysis import (
     AnalysisRunRecord,
     GeneratedReportRecord,
@@ -292,4 +301,11 @@ __all__ = [
     "TsoTariffRecord",
     "TopologyMarketMapping",
     "UpstreamResourceContractRecord",
+    "AgentChallengeReportRecord",
+    "AgentResearchBudgetRecord",
+    "AgentResearchFindingRecord",
+    "AgentResearchPlanRecord",
+    "AgentReviewPackRecord",
+    "AgentRunRecord",
+    "AgentToolInvocationRecord",
 ]

@@ -6,8 +6,8 @@ Status: `RELEASE CANDIDATE FOR TESTED LOCAL SCOPE`
 
 Release marker: `RELEASE CANDIDATE`
 
-Date checked: 2026-09-07 (CR-14 research data foundation; CR-13 UAT evidence
-preserved and local release dry-run re-run below)
+Date checked: 2026-09-07 (CR-15 agent-native capability layer; CR-14 research
+data foundation and CR-13 UAT evidence preserved)
 
 Eurogas Nexus passes the current local release-candidate shape for
 backend/API/SDK/CLI, PostgreSQL runtime schema, Web workspace, Tauri desktop
@@ -41,9 +41,9 @@ by a CLI flag.
 ## Latest Local Evidence
 
 - Full local Python suite and Web tests/build: see `docs/product/SCHEDULED_AGENT_STATE.md`
-  (updated after CR-14 validation).
-- OpenAPI public surface: **151 paths** (`/api/runtime/release` and the
-  CR-14 research data routes added), pinned and permission-declared.
+  (updated after CR-15 validation).
+- OpenAPI public surface: **162 paths** (`/api/runtime/release`, CR-14 research data
+  routes, and CR-15 agent/capability routes added), pinned and permission-declared.
 - Version consistency: `python scripts/release/check_version_consistency.py`
   passes across pyproject, runtime module, Web/desktop package files,
   tauri/Cargo metadata, docs, install scripts, and the release workflow.
@@ -98,6 +98,10 @@ by a CLI flag.
   point-in-time temporal semantics, versioned feature/target registries,
   bounded resampling, leakage validation, immutable dataset snapshots,
   Parquet/CSV export, and typed MCP-free agent capability contracts.
+- CR-15 adds the agent-native capability layer: first-class capability
+  registry, governed invocation runtime, registry-driven MCP adapter,
+  ResearchPlan/StrategyIR/orchestrator/risk-challenger artifacts, AgentRun
+  replay, and human-review gates. No execution capability exists.
 - Preview/RC/stable channel semantics are explicit. Stable can only originate
   from a pushed `vX.Y.Z` tag on the protected mainline and runs in the
   `production` GitHub Environment.
@@ -146,7 +150,7 @@ has been live-called or validated.
 - Provider-specific live tests and certification evidence for EEX, ICE OCM,
   Trayport, Kpler, Platts, ICIS, Argus, brokers, Weather, and LLM providers
   after credential and entitlement approval.
-- Live deployment migration to head `0031_research_data_foundation` on the
+- Live deployment migration to head `0032_agent_capability_layer` on the
   target runtime store.
 - A real enterprise IdP acceptance test against the customer identity provider.
 - External security acceptance, backup/restore and incident-response drills on

@@ -46,6 +46,10 @@ class Permission(StrEnum):
     API_KEYS_MANAGE = "api_keys.manage"
     AUDIT_READ = "audit.read"
     ANALYSIS_QUERY = "analysis.query"
+    CAPABILITY_READ = "capability.read"
+    CAPABILITY_INVOKE = "capability.invoke"
+    AGENT_READ = "agent.read"
+    AGENT_RESEARCH = "agent.research"
 
 
 ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
@@ -58,6 +62,8 @@ ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.REVIEW_READ,
             Permission.SOURCE_READ,
             Permission.RUNTIME_READ,
+            Permission.CAPABILITY_READ,
+            Permission.AGENT_READ,
         }
     ),
     Role.REVIEWER: frozenset(
@@ -70,6 +76,8 @@ ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.REVIEW_RECORD,
             Permission.SOURCE_READ,
             Permission.RUNTIME_READ,
+            Permission.CAPABILITY_READ,
+            Permission.AGENT_READ,
         }
     ),
     Role.ANALYST: frozenset(
@@ -90,6 +98,10 @@ ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.SOURCE_READ,
             Permission.RUNTIME_READ,
             Permission.ANALYSIS_QUERY,
+            Permission.CAPABILITY_READ,
+            Permission.CAPABILITY_INVOKE,
+            Permission.AGENT_READ,
+            Permission.AGENT_RESEARCH,
         }
     ),
     Role.OPERATOR: frozenset(
@@ -106,6 +118,10 @@ ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.SOURCE_CREDENTIALS_WRITE,
             Permission.SOURCE_CERTIFICATION_MANAGE,
             Permission.RUNTIME_READ,
+            Permission.CAPABILITY_READ,
+            Permission.CAPABILITY_INVOKE,
+            Permission.AGENT_READ,
+            Permission.AGENT_RESEARCH,
         }
     ),
     Role.ADMIN: frozenset(set(Permission)),

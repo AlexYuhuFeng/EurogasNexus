@@ -58,6 +58,16 @@
 - [时点数据集](research/POINT_IN_TIME_DATASETS.md)
 - [机器学习就绪度](research/ML_READINESS.md)
 - [智能体能力契约](agents/CAPABILITY_CONTRACT.md)
+- [智能体原生架构](agents/AGENT_NATIVE_ARCHITECTURE.md)
+- [能力登记](agents/CAPABILITY_REGISTRY.md)
+- [MCP 服务](agents/MCP_SERVER.md)
+- [研究计划](agents/RESEARCH_PLAN.md)
+- [策略 IR](agents/STRATEGY_IR.md)
+- [研究编排](agents/RESEARCH_ORCHESTRATION.md)
+- [风险挑战](agents/RISK_CHALLENGER.md)
+- [智能体回放](agents/AGENT_REPLAY.md)
+- [智能体评估](agents/AGENT_EVALUATION.md)
+- [安全与授权](agents/SECURITY_AND_ENTITLEMENT.md)
 
 ### 客户端规范
 

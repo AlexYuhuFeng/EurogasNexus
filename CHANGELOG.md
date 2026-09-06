@@ -25,6 +25,22 @@ asserted by `tests/contract/test_ontology_version_alignment.py`.
 
 ## [Unreleased]
 
+- Agent-native capability layer (CR-15 / P14):
+  - first-class Capability Registry with 68 versioned semantic capabilities
+    (determinism, side effects, permissions, entitlement, provenance,
+    timeout/retry metadata) and capability discovery API;
+  - governed CapabilityRuntime with typed failure codes and
+    AUTO/RESEARCH/HUMAN_CONFIRMATION/HUMAN_ONLY action policy;
+  - registry-driven MCP adapter with legacy read/sandbox tool compatibility;
+  - AgentRun, ToolInvocation, ResearchPlan, ResearchFinding, ResearchBudget,
+    ChallengeReport, and ReviewPack persistence plus observable Agent Replay
+    (no hidden chain-of-thought);
+  - Strategy IR with semantic validation and compilation into the CR-03
+    StrategyVersionDefinition;
+  - governed ResearchOrchestrator, bounded research budget/final-holdout
+    controls, Risk Challenger, and human review pack;
+  - System > Agent Research UI; migration `0032_agent_capability_layer`;
+    162 OpenAPI paths; 30-case deterministic agent evaluation suite.
 - Research data foundation (CR-14 / P13):
   - executable `energy-ontology/v1`, canonical entities, and point-in-time
     source mappings;

@@ -37,6 +37,7 @@ EXPECTED_PAGES = [
     "manual",
     "access",
     "research",
+    "agents",
 ]
 
 EXPECTED_PRIMARY_CHILDREN = {
@@ -44,7 +45,16 @@ EXPECTED_PRIMARY_CHILDREN = {
     "portfolio": ["contracts", "orders"],
     "strategy": ["strategy"],
     "decision": ["scenario", "review"],
-    "system": ["sources", "runtime", "research", "settings", "manual", "glossary", "access"],
+    "system": [
+        "sources",
+        "runtime",
+        "research",
+        "agents",
+        "settings",
+        "manual",
+        "glossary",
+        "access",
+    ],
 }
 
 EXPECTED_DEFAULTS = {
@@ -81,7 +91,7 @@ def _product_children(text: str) -> dict[str, list[str]]:
 
 def test_technical_page_registry_preserves_all_route_ids() -> None:
     navigation_text = _read(WORKSPACE_NAVIGATION_TS)
-    assert 'export const workspacePageIds: WorkspacePageId[] = [' in navigation_text
+    assert "export const workspacePageIds: WorkspacePageId[] = [" in navigation_text
     for page in EXPECTED_PAGES:
         assert f'"{page}"' in navigation_text
     assert "workspaceGroups" not in navigation_text

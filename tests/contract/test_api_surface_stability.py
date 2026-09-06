@@ -13,6 +13,13 @@ the documented route count) in the same change.
 from apps.api.main import app
 
 PINNED_PUBLIC_PATHS = {
+    "/api/agent/plans/validate",
+    "/api/agent/profiles",
+    "/api/agent/research",
+    "/api/agent/runs",
+    "/api/agent/runs/{agent_run_id}",
+    "/api/agent/runs/{agent_run_id}/replay",
+    "/api/agent/strategy-ir/validate",
     "/api/analysis/ontology",
     "/api/analysis/query",
     "/api/contracts/capacity",
@@ -84,6 +91,10 @@ PINNED_PUBLIC_PATHS = {
     "/api/reference-network/tso-access",
     "/api/reports/portfolio",
     "/api/research/allocation",
+    "/api/capabilities",
+    "/api/capabilities/search",
+    "/api/capabilities/{capability_id}",
+    "/api/capabilities/{capability_id}/invoke",
     "/api/research/capabilities",
     "/api/research/datasets",
     "/api/research/datasets/validate",

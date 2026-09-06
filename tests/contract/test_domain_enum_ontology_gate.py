@@ -69,6 +69,20 @@ _REVIEWED_DOMAIN_STR_ENUMS: set[str] = {
     "eurogas_nexus.domain.research.temporal:DatasetMode",
     "eurogas_nexus.domain.research.temporal:ObservationKind",
     "eurogas_nexus.domain.research.temporal:TemporalIntegrityState",
+    # CR-15 / P14 agent-native contract review. These enums are the typed
+    # control vocabulary for capability orchestration; they deliberately
+    # contain no execution verbs and are owned by the research/agent domain.
+    "eurogas_nexus.domain.agents.challenge:ChallengeResult",
+    "eurogas_nexus.domain.agents.contracts:ActionPolicy",
+    "eurogas_nexus.domain.agents.contracts:AgentRunStatus",
+    "eurogas_nexus.domain.agents.contracts:CapabilityDomain",
+    "eurogas_nexus.domain.agents.contracts:CapabilityFailureCode",
+    "eurogas_nexus.domain.agents.contracts:CapabilityStatus",
+    "eurogas_nexus.domain.agents.contracts:DeterminismClass",
+    "eurogas_nexus.domain.agents.contracts:IdempotencyClass",
+    "eurogas_nexus.domain.agents.contracts:OrchestrationStage",
+    "eurogas_nexus.domain.agents.contracts:SideEffectClass",
+    "eurogas_nexus.domain.agents.strategy_ir:StrategyIROperator",
 }
 
 

@@ -47,4 +47,5 @@ dataset foundation.
 
 ## Next milestone
 
-CR-15 / P14: Agent-Native Capability Layer, unless a blocker is found.
+CR-15 / P14 is complete (see `docs/agents/`). Next: CR-16 / P15 Energy
+Forecast Benchmark, unless CR-15 reveals a material defect first.

@@ -2,20 +2,47 @@
 
 ## Current run
 
-- Current milestone: `CR-14 / P13` — Energy Temporal Data & ML Readiness
-  Architecture: leakage-safe, versioned, provenance-complete multivariate
-  European-energy datasets for current analytics and future forecasting.
-  No model training or GPU infrastructure.
-- Last completed milestone: `CR-13 / P12` (commit `d590fca`).
-- CR-14 commit: the coherent research-data-foundation commit recorded after
+- Current milestone: `CR-15 / P14` - Agent-Native Capability Layer:
+  Capability Registry, MCP adapter, Research Planner, governed strategy
+  research orchestration, Agent Replay, risk challenger, and structured
+  human-review evidence.
+- Last completed milestone: `CR-14 / P13` (commit `f34d469`).
+- CR-15 commit: the coherent agent-native capability commit recorded after
   the final validation report below.
-- Current branch/commit at CR-14 start: `main` @ `d590fca`.
-- Model routing: DSH Pro owns ontology, temporal semantics, feature/target
-  definitions, leakage controls, dataset architecture, and agent boundaries.
-  DSH Flash is limited to mechanical schema/type propagation, migrations,
-  wiring, fixtures, documentation, and i18n.
+- Current branch/commit at CR-15 start: `main` @ `f34d469`.
+- Model routing: DSH Pro owns capability boundaries, semantic contracts,
+  research-plan semantics, orchestration policy, deterministic-vs-LLM
+  ownership, Strategy IR, replay, permissions, and security. DSH Flash is
+  limited to schema/type propagation, MCP boilerplate, SDK/API wrappers,
+  fixtures, docs formatting, i18n, and low-risk registration.
 - Suggested commit:
-  `feat(research): add temporal ontology and point-in-time dataset architecture`.
+  `feat(agents): add governed semantic research orchestration`.
+
+## CR-15 implementation plan
+
+1. Precondition: verify CR-14 foundations and audit existing DeepSeek,
+   analysis, MCP, strategy/backtest/shadow/optimization surfaces.
+2. Define first-class CapabilityDefinition/Registry and typed
+   CapabilityResult/failure envelope (determinism, side effects,
+   permissions, entitlement, freshness, provenance, timeout/retry).
+3. Register a compact semantic capability inventory across ontology, market,
+   network, capacity, portfolio, route, analytics, dataset, strategy,
+   backtest, shadow, review, and capability discovery.
+4. Refactor the MCP server into one registry-driven adapter; preserve legacy
+   read/sandbox tool names as capability aliases where they remain safe.
+5. Add AgentRun, ToolInvocation, ResearchPlan, ResearchFinding,
+   ResearchBudget, ChallengeReport persistence and replay APIs.
+6. Add StrategyIR with semantic validation and compilation to the existing
+   CR-03 StrategyVersionDefinition.
+7. Implement the governed research orchestrator state machine, robustness
+   checks where supported, Risk Challenger, and human ReviewPack.
+8. Add permission/entitlement enforcement, no-execution guardrails,
+   prompt-injection and payload-filtering rules.
+9. Add professional Research Assistant rail + Agent Replay surface under the
+   existing workspaces; update i18n EN/ZH.
+10. Add deterministic business-task eval corpus (30 cases), security tests,
+    workflow latency evidence, docs, migration, full validation, one commit.
+
 
 ## CR-14 implementation plan
 
@@ -569,3 +596,91 @@
 
 - `tests/contract/test_ontology_grm_parity.py` remains excluded locally
   because `rdflib` is not installed in this environment (pre-existing gap).
+
+
+## CR-15 final validation report
+
+### Acceptance checklist
+
+1. Capability Registry exists - 68 active semantic capabilities with versioned
+   metadata.
+2. Meaningful domain capabilities exist across ontology/market/network/
+   capacity/portfolio/route/analytics/dataset/strategy/backtest/shadow/review.
+3. Metadata includes determinism, side effects, permissions, entitlement,
+   freshness, temporal, provenance, timeout/retry/idempotency.
+4. MCP is an adapter over the registry, not business architecture.
+5. MCP exposes high-level semantic tools and preserves legacy read/sandbox
+   aliases.
+6. Agents receive no database access or SQL.
+7. AgentRun exists and is persisted.
+8. ToolInvocation trace exists with capability version, input hash, safe
+   summary, evidence refs, error code, duration.
+9. Agent Replay exists via API and System > Agent Research UI.
+10. Hidden chain-of-thought is never persisted (`hidden_chain_of_thought:
+    null`).
+11. ResearchPlan exists and is persisted.
+12. ResearchPlan is semantically/data validated (entities, series, coverage,
+    temporal provenance, entitlement, horizon, analyses).
+13. Strategy IR exists with `extra="forbid"` schemas.
+14. LLM cannot write arbitrary executable strategy code.
+15. Strategy IR compiles into the existing CR-03 StrategyVersionDefinition.
+16. Governed ResearchOrchestrator exists with an explicit state machine.
+17. Deterministic tools own authoritative calculations.
+18. LLM owns hypothesis/research synthesis only; deterministic planner is the
+    offline fallback.
+19. Robustness stage exists and reports unsupported checks as DEFERRED, never
+    faked.
+20. Risk Challenger exists with structured PASS/CONCERN/FAIL/
+    INSUFFICIENT_EVIDENCE output.
+21. Research-budget and variant/final-holdout tracking exist and are enforced.
+22. Human Review Pack is produced and persisted.
+23. Sensitive research writes require HUMAN_CONFIRMATION.
+24. Agent inherits normal user permissions/entitlements; no AI-admin.
+25. MCP cannot bypass entitlement; typed ENTITLEMENT_DENIED results.
+26. No execution/order/nomination capability is introduced.
+27. 30-case deterministic business-task evaluation suite exists.
+28. Prompt-injection/adversarial cases pass and never require execution tools.
+29. Agent replay is professionally usable and observable.
+30. Existing Market/Portfolio/Strategy workflows remain functional.
+31. Backend tests pass.
+32. PostgreSQL integration passes (migration 0032, scratch round-trip).
+33. Web build passes.
+34. Documentation matches implementation.
+
+### Tests run (CR-15)
+
+- `pytest tests --ignore=tests/contract/test_ontology_grm_parity.py`:
+  **1398 passed, 10 skipped** (CR-14 1342 + 56 CR-15 tests).
+- Fresh PostgreSQL 16 scratch DB `eurogas_nexus_cr14` migrated to head
+  `0032_agent_capability_layer`, downgrade/upgrade round-trip succeeded, all
+  7 agent tables present.
+- UAT `eurogas_nexus_uat` migrated to head 0032; representative governed
+  agent run `agent-run-uat-c94d111eeab9` reached
+  `READY_FOR_HUMAN_REVIEW` in ~0.23s with one structured finding, a valid
+  StrategyIR draft, human-confirmation blocker for freeze/backtest, and a
+  persisted review pack.
+- Web: **50 passed**; production build passed. Desktop `cargo check --locked`:
+  passed.
+- OpenAPI public surface: **162 paths**, all permission-declared; security
+  acceptance automated PASS (external review BLOCKED by design).
+- EN/zh-CN key parity: **1,314/1,314**, no missing static keys.
+- Markdown links: all local links resolve.
+- Capability registry: 68 active capabilities; MCP tools generated from
+  registry plus legacy compatibility aliases.
+
+### Known limitations
+
+- Live external LLM provider calls are not part of local deterministic
+  validation; the orchestrator runs with `DETERMINISTIC/rule-based-plan/v1`
+  and the DeepSeek adapter remains behind existing external-provider policy.
+- Robustness checks beyond the current CR-04 engine are explicitly DEFERRED,
+  not simulated.
+- `tests/contract/test_ontology_grm_parity.py` remains excluded locally
+  because `rdflib` is not installed in this environment (pre-existing gap).
+
+## Next recommended milestone
+
+- `CR-16` - Energy Forecast Benchmark: point-in-time forecasting baselines,
+  TSFM evaluation, probabilistic forecasting, model registry foundation, and
+  forecast evidence integration, unless CR-15 reveals a material semantic or
+  capability defect that must be resolved first.
