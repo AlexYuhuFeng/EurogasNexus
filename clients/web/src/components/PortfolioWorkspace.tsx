@@ -3,6 +3,7 @@ import { WorkspaceTabs } from "@/components/ui";
 import { ContractWorkbench } from "@/components/ContractWorkbench";
 import { MarketPositioningWorkspace } from "@/components/MarketPositioningWorkspace";
 import type { AppController } from "@/app/hooks/useAppController";
+import { warningLabels } from "@/app/warningLabel";
 import {
   PORTFOLIO_TASKS,
   classifyRouteFeasibility,
@@ -47,7 +48,7 @@ function PortfolioOverview({ controller }: { controller: AppController }) {
         <span><small>{t("portfolio.warnings")}</small><strong>{warnings.length}</strong></span>
       </section>
       <section className="workspace-panel">
-        <h3>{t("portfolio.resource_pool")}</h3>
+        <h2>{t("portfolio.resource_pool")}</h2>
         <div className="data-table">
           <div className="data-table-row header five">
             <span>{t("portfolio.resource")}</span><span>{t("portfolio.zone")}</span>
@@ -71,15 +72,15 @@ function PortfolioOverview({ controller }: { controller: AppController }) {
         </div>
       </section>
       <section className="workspace-panel">
-        <h3>{t("portfolio.review_warnings")}</h3>
+        <h2>{t("portfolio.review_warnings")}</h2>
         {warnings.length === 0 ? <p className="muted">{t("review.no_warnings")}</p> : (
           <ul className="commercial-warning-list">
-            {warnings.slice(0, 8).map((warning) => <li key={warning}>{warning}</li>)}
+            {warningLabels(warnings, t).slice(0, 8).map((warning) => <li key={warning}>{warning}</li>)}
           </ul>
         )}
       </section>
       <section className="workspace-panel">
-        <h3>{t("portfolio.handoffs")}</h3>
+        <h2>{t("portfolio.handoffs")}</h2>
         <div className="commercial-handoff-actions">
           <button type="button" onClick={() => navigation.openWorkspace("market")}>{t("portfolio.show_market_context")}</button>
           <button type="button" onClick={() => navigation.openWorkspace("strategy")}>{t("portfolio.inspect_strategy")}</button>

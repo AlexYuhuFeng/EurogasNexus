@@ -90,7 +90,7 @@ export function ScenarioWorkspace({
         </div>
       </div>
       <div className="workspace-panel">
-        <h3>{t("result.economics_snapshot")}</h3>
+        <h2>{t("result.economics_snapshot")}</h2>
         <div className="metric-grid two-column">
           <div><span>{t("result.purchase")}</span><strong>{moneyPerMwh(purchasePrice)}</strong></div>
           <div><span>{t("result.sale")}</span><strong>{moneyPerMwh(salePrice)}</strong></div>

@@ -158,7 +158,7 @@ export function GlossaryWiki({
         <div className="panel-title-row">
           <div>
             <span className="eyebrow">{t("glossary.term_count")}</span>
-            <h3>{t("panel.glossary")}</h3>
+            <h2>{t("panel.glossary")}</h2>
           </div>
           <strong>{terms.length}</strong>
         </div>
@@ -224,7 +224,7 @@ export function GlossaryWiki({
         <div className="panel-title-row">
           <div>
             <span className="eyebrow">{t("glossary.term_wiki")}</span>
-            <h3>{selectedTerm?.term ?? t("panel.glossary")}</h3>
+            <h2>{selectedTerm?.term ?? t("panel.glossary")}</h2>
           </div>
           {selectedTerm && <span className="status-badge">{selectedTerm.category}</span>}
         </div>

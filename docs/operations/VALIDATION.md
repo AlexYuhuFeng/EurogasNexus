@@ -82,6 +82,19 @@ python scripts/release/scan_vulnerabilities.py --channel preview
 The dry-run builds/assembles the release candidate without publishing. Stable
 validation is deliberately fail-closed while external evidence is pending.
 
+## UAT Validation
+
+```bash
+python scripts/uat/check_i18n_parity.py
+python scripts/uat/seed_uat_fixture.py          # development/test only, explicit env gate
+python -m pytest tests/evals tests/uat -q
+# Browser workflows (optional; requires Playwright and running dev servers):
+#   see scripts/uat/browser_workflow_smoke.mjs
+```
+
+Axe/Playwright evidence for CR-13 is recorded in
+`docs/uat/ACCESSIBILITY_REPORT.md` and `docs/uat/RC_ACCEPTANCE_REPORT.md`.
+
 ## Reliability Validation
 
 With `RUNTIME_STORE_DATABASE_URL` configured:

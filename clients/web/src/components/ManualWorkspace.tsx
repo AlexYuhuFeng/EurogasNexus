@@ -38,7 +38,7 @@ export function ManualWorkspace({
         <p className="panel-copy">{t("manual.subtitle")}</p>
       </div>
       <div className="workspace-panel span-2">
-        <h3>{t("manual.workspace_map")}</h3>
+        <h2>{t("manual.workspace_map")}</h2>
         <div className="manual-step-list">
           {WORKSPACE_GUIDE_KEYS.map((key) => (
             <div key={key}><strong>{t(`nav.${key}`)}</strong><span>{t(`manual.${key}`)}</span></div>
@@ -46,7 +46,7 @@ export function ManualWorkspace({
         </div>
       </div>
       <div className="workspace-panel">
-        <h3>{t("manual.operating_boundary")}</h3>
+        <h2>{t("manual.operating_boundary")}</h2>
         <p className="panel-copy">{t("manual.boundary_copy")}</p>
         <div className="review-warning-list">
           <span>{t("manual.api_only")}</span>
@@ -55,7 +55,7 @@ export function ManualWorkspace({
         </div>
       </div>
       <div className="workspace-panel span-3">
-        <h3>{t("manual.release_readiness")}</h3>
+        <h2>{t("manual.release_readiness")}</h2>
         <div className="metric-grid four-column">
           <div><span>{t("status.db")}</span><strong>{runtimeDb?.connectivity.ok ? "ok" : "check"}</strong></div>
           <div><span>{t("sources.active_sources")}</span><strong>{activeSourceCount}</strong></div>

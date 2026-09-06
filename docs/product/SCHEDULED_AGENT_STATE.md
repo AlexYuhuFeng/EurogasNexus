@@ -2,21 +2,18 @@
 
 ## Current run
 
-- Current milestone: `CR-12 / P11` — Software Supply Chain, Release
-  Engineering, Signing, SBOM, Provenance, Installer/Updater, Version
-  Compatibility, and GA Distribution Hardening.
-- Last completed milestone: `CR-11 / P10` (commit `033df92`). Earlier commits:
-  `f70acbf` (CR-10), `974df43` (CR-09), `c9e1a06` (CR-08).
-- CR-12 commit: the coherent milestone commit recorded after the final
+- Current milestone: `CR-13 / P12` — Commercial UAT, Trader Workflow
+  Acceptance, AI/Copilot Evaluation, Accessibility, Final UX Convergence,
+  Documentation, and GA Release-Candidate Stabilization.
+- Last completed milestone: `CR-12 / P11` (commit `1cdc1ca`).
+- CR-13 commit: the coherent stabilization commit recorded after the final
   validation report below.
-- Current branch/commit at CR-12 start: `main` @ `033df92`.
-- Model routing: DSH Pro owns release-channel architecture, version semantics,
-  artifact trust, code-signing strategy, updater security, provenance,
-  supply-chain policy, compatibility rules, promotion gates and GA decisions.
-  DSH Flash is limited to mechanical workflow refactors, version-propagation
-  changes, checksum/SBOM script implementation, routine packaging tests,
-  documentation formatting, CI test expansion, and low-risk installer metadata
-  changes.
+- Current branch/commit at CR-13 start: `main` @ `1cdc1ca`.
+- Model routing: DSH Pro owns all product-quality judgment, professional
+  workflow assessment, AI evaluation methodology, acceptance criteria, UX
+  convergence decisions, release-blocker classification, and GA readiness
+  decisions. DSH Flash is limited to repetitive defect fixes, i18n parity,
+  routine tests, documentation cleanup, and mechanical accessibility fixes.
 
 ## Baseline observed at start
 
@@ -37,6 +34,24 @@
   provenance columns on legacy `strategy_runs`). The runtime PostgreSQL head
   should become `0025_strategy_registry_v1`; live migration was not performed
   because the local environment has no running PostgreSQL service.
+
+## CR-13 implementation plan
+
+1. Verify CR-12 release infrastructure, build a PostgreSQL 16 UAT fixture DB,
+   and run browser-based Golden Workflows for Market, Portfolio/Optimize/
+   Review, Strategy create/freeze/backtest, Review, and degraded states.
+2. Write `docs/uat/COMMERCIAL_UAT_PLAN.md` and the UAT pack, defect register,
+   AI/accessibility/i18n/RC acceptance reports.
+3. Fix discovered defects in severity order: backtest attribution FK P0;
+   review deep-link P1; raw warning-code P1; TSO access propagation P1;
+   heading/landmark/contrast accessibility P1; topbar overflow P2; zh-CN
+   terminology P2.
+4. Add deterministic UAT fixture pack gated to development/test, golden
+   workflow contracts, AI eval corpus, accessibility automation, i18n audit,
+   and long-session smoke evidence.
+5. Create user documentation matching current UI; reconcile GA gates; update
+   release readiness/backlog/state; commit one coherent stabilization
+   milestone.
 
 ## CR-12 implementation plan
 
@@ -391,6 +406,24 @@
 - Stable gate simulation: fail-closed on missing external evidence and
   unsigned Windows artifacts (by design).
 
+## Tests run (CR-13)
+
+- `pytest tests --ignore=tests/contract/test_ontology_grm_parity.py`:
+  **1316 passed, 10 skipped** (CR-12 1299 + 17 CR-13 tests).
+- Fresh PostgreSQL 16 scratch DB `eurogas_nexus_cr13` (head
+  `0030_reliability_indexes`): integration **50 passed**.
+- Web: **50 passed**; production build **passed**. Desktop `cargo check
+  --locked`: **passed**.
+- axe-core: **0 violations** across 13 workspace URLs at 1440×900 after fixes.
+- EN/zh-CN key parity: **1,247/1,247**, no missing static keys.
+- AI deterministic eval corpus: **13/13 critical cases pass**.
+- Browser golden workflows: A PASS, B PASS, C PASS, E PASS; keyboard smoke 0
+  errors. Long-session smoke: 60 workspace switches, 0 errors, heap stable.
+- Performance on dense UAT fixture: p50 44.5ms / p95 1668ms / p99 3099.5ms
+  (inside approved hard thresholds; `/api/sources` recorded as post-RC
+  optimization backlog).
+- CR-12 release dry-run re-run after CR-13 changes: **ok**, 16 steps.
+
 ## Known failures
 
 - `tests/contract/test_ontology_grm_parity.py` cannot collect locally because
@@ -421,7 +454,7 @@
 
 ## Next recommended milestone
 
-- `CR-13` — Commercial UAT, Trader Workflow Acceptance, AI/Copilot
-  Evaluation, Accessibility, Final UX Convergence, Documentation, and GA
-  Release-Candidate Stabilization, unless CR-12 evidence reveals a
-  release/security blocker that must be repaired first.
+- `CR-14` — External UAT / Security Acceptance Closure, Commercial Provider
+  Certification, Release Candidate Burn-In, and GA Go/No-Go, unless CR-13
+  evidence reveals an unresolved P0/P1 that requires another stabilization
+  run first.

@@ -6,8 +6,8 @@ Status: `RELEASE CANDIDATE FOR TESTED LOCAL SCOPE`
 
 Release marker: `RELEASE CANDIDATE`
 
-Date checked: 2026-09-07 (CR-12 supply-chain and distribution hardening; local
-dry-run and full local validation recorded below)
+Date checked: 2026-09-07 (CR-13 commercial UAT convergence; CR-12 supply-chain
+controls re-validated and local dry-run re-run below)
 
 Eurogas Nexus passes the current local release-candidate shape for
 backend/API/SDK/CLI, PostgreSQL runtime schema, Web workspace, Tauri desktop
@@ -15,6 +15,28 @@ shell, and the new release-evidence pipeline. This is **not** an official
 production release and is **not** GA/stable. Stable promotion is fail-closed
 until the external gates below have real evidence; no gate can be turned green
 by a CLI flag.
+
+## CR-13 UAT Evidence
+
+- Golden workflows A/B/E exercised in a real browser against PostgreSQL 16
+  UAT fixture (`eurogas_nexus_uat`): Market → Scenario, Portfolio → Optimize →
+  Review, and Strategy create/freeze/backtest all complete.
+- P0 found and fixed during UAT: PostgreSQL FK ordering failed for backtest
+  attribution rows; regression test now proves events are flushed before
+  attribution.
+- P1 fixes: legacy `?workspace=review` deep link opened Scenario; raw backend
+  warning codes were shown to users; company TSO access was not propagated to
+  the optimizer; heading/landmark/contrast accessibility violations existed
+  on every workspace.
+- Accessibility: axe-core 0 violations across 13 workspace URLs after fixes;
+  keyboard workflow smoke passes.
+- AI/Copilot: 13/13 critical deterministic eval cases pass
+  (`tests/evals/`); live DeepSeek grading remains PENDING_EXTERNAL.
+- EN/zh-CN parity: 1,247 keys each, no missing keys, no unintended fallback.
+- Long-session browser smoke: 60 workspace switches, zero errors, stable JS
+  heap. Performance baseline on the dense UAT fixture: p50 44.5ms /
+  p95 1668ms / p99 3099.5ms (inside hard thresholds; `/api/sources` is the
+  dominant path and remains post-RC performance backlog).
 
 ## Latest Local Evidence
 

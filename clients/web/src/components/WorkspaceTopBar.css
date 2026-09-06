@@ -245,13 +245,13 @@
   white-space: nowrap;
 }
 
-.monitoring-alert h3,
+.monitoring-alert h2,
 .monitoring-alert p {
   margin: 0;
   overflow-wrap: anywhere;
 }
 
-.monitoring-alert h3 {
+.monitoring-alert h2 {
   font-size: 14px;
   line-height: 19px;
 }

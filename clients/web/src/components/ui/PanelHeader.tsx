@@ -10,7 +10,7 @@ export function PanelHeader({ title, meta, className }: PanelHeaderProps) {
   const classes = ["panel-title-row", className].filter(Boolean).join(" ");
   return (
     <div className={classes}>
-      <h3>{title}</h3>
+      <h2>{title}</h2>
       {meta !== undefined && meta !== null ? <span>{meta}</span> : null}
     </div>
   );

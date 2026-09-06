@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { warningLabel } from "@/app/warningLabel";
 
 type Translate = (key: string) => string;
 type RouteState = ResourcePoolMapPath["routeState"];
@@ -197,7 +198,7 @@ export function ResourcePoolPathOverlay({ paths, blockers, t, defaultOpen = fals
                   </span>
                 ))}
               </div>
-              <div className="resource-path-list">
+              <div className="resource-path-list" tabIndex={0}>
             {visiblePaths.map((path) => {
               const evidence = allocationEvidenceForPath(path, poolSummary.totalAvailableMwhPerDay);
               return (
@@ -258,7 +259,7 @@ export function ResourcePoolPathOverlay({ paths, blockers, t, defaultOpen = fals
                     )}
                   </div>
                   {(path.warnings.length > 0 || path.routeState === "blocked") && (
-                    <small>{path.warnings[0] ?? t("home.route_blocked")}</small>
+                    <small>{path.warnings.length > 0 ? warningLabel(path.warnings[0], t) : t("home.route_blocked")}</small>
                   )}
                 </div>
               );

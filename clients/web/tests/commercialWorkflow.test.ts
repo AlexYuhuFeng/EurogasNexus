@@ -31,6 +31,8 @@ test("portfolio and decision task deep links preserve context", () => {
   assert.equal(portfolioTaskFromLocation("?task=unknown"), "overview");
   assert.equal(decisionTaskFromLocation("?task=review"), "review");
   assert.equal(decisionTaskFromLocation("?task=unknown"), "scenario");
+  assert.equal(decisionTaskFromLocation("?workspace=review"), "review");
+  assert.equal(decisionTaskFromLocation("?workspace=scenario"), "scenario");
   assert.equal(
     portfolioTaskToSearch("?gasDay=2026-09-07", "resources"),
     "gasDay=2026-09-07&workspace=contracts&task=resources",

@@ -62,7 +62,7 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
     <section
       className="workspace-page"
       id="workspace-active-panel"
-      aria-label={t(`nav.${activeWorkspace}`)}
+      aria-label={`${t("app.title")} — ${t(activePrimaryWorkspace.labelKey)}`}
     >
       <header className="workspace-page-header">
         <div className="workspace-page-heading">

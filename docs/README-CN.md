@@ -106,6 +106,24 @@
 - [市场定位导入 EN](operations/MARKET_POSITIONING_IMPORTS-EN.md) /
   [CN](operations/MARKET_POSITIONING_IMPORTS-CN.md)
 
+## 用户与 UAT 文档
+
+- [快速开始](user/QUICK_START.md)
+- [市场工作流](user/MARKET_WORKFLOW.md)
+- [组合工作流](user/PORTFOLIO_WORKFLOW.md)
+- [策略实验室](user/STRATEGY_LAB.md)
+- [影子监控](user/SHADOW_MONITORING.md)
+- [决策复核](user/DECISION_REVIEW.md)
+- [数据状态与来源](user/DATA_STATUS_AND_PROVENANCE.md)
+- [商业 UAT 计划](uat/COMMERCIAL_UAT_PLAN.md)
+- [交易员 UAT 脚本](uat/TRADER_UAT_SCRIPT.md)
+- [UAT 反馈模板](uat/UAT_FEEDBACK_TEMPLATE.md)
+- [RC 缺陷登记](uat/RC_DEFECT_REGISTER.md)
+- [AI 评估报告](uat/AI_EVALUATION_REPORT.md)
+- [无障碍报告](uat/ACCESSIBILITY_REPORT.md)
+- [I18N 报告](uat/I18N_REPORT.md)
+- [RC 验收报告](uat/RC_ACCEPTANCE_REPORT.md)
+
 ## 发布、安全与部署
 
 - [发布就绪](release/RELEASE_READINESS.md)

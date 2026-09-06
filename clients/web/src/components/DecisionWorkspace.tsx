@@ -3,6 +3,7 @@ import { WorkspaceTabs } from "@/components/ui";
 import { ScenarioWorkspace } from "@/components/ScenarioWorkspace";
 import { ReviewWorkspace } from "@/components/ReviewWorkspace";
 import type { AppController } from "@/app/hooks/useAppController";
+import { warningLabel } from "@/app/warningLabel";
 import {
   DECISION_TASKS,
   decisionTaskFromLocation,
@@ -38,12 +39,12 @@ function OptimizeWorkspace({ controller }: { controller: AppController }) {
         <span><small>{t("portfolio.warnings")}</small><strong>{result?.warnings.length ?? 0}</strong></span>
       </section>
       <section className="workspace-panel">
-        <h3>{t("decision.preflight")}</h3>
+        <h2>{t("decision.preflight")}</h2>
         {blockers.length === 0 ? (
           <span className="status-badge status-complete">{t("decision.ready")}</span>
         ) : (
           <ul className="commercial-warning-list">
-            {blockers.map((blocker) => <li key={blocker}>{blocker}</li>)}
+            {blockers.map((blocker) => <li key={blocker}>{warningLabel(blocker, t)}</li>)}
           </ul>
         )}
         <button
@@ -55,7 +56,7 @@ function OptimizeWorkspace({ controller }: { controller: AppController }) {
         </button>
       </section>
       <section className="workspace-panel">
-        <h3>{t("decision.allocations")}</h3>
+        <h2>{t("decision.allocations")}</h2>
         <div className="data-table">
           <div className="data-table-row header five">
             <span>{t("portfolio.resource")}</span><span>{t("portfolio.destination")}</span>
@@ -80,7 +81,7 @@ function OptimizeWorkspace({ controller }: { controller: AppController }) {
         </div>
       </section>
       <section className="workspace-panel">
-        <h3>{t("decision.binding_constraints")}</h3>
+        <h2>{t("decision.binding_constraints")}</h2>
         <div className="data-table">
           <div className="data-table-row header three">
             <span>{t("decision.constraint")}</span><span>{t("decision.state")}</span><span>{t("decision.evidence")}</span>
@@ -90,18 +91,21 @@ function OptimizeWorkspace({ controller }: { controller: AppController }) {
               <strong>{blocker}</strong><span>BLOCKED</span><span>{blocker}</span>
             </div>
           ))}
-          {(result?.warnings ?? []).map((warning) => (
-            <div key={warning} className="data-table-row three">
-              <strong>{warning}</strong><span>WARN</span><span>{warning}</span>
-            </div>
-          ))}
+          {(result?.warnings ?? []).map((warning) => {
+            const label = warningLabel(warning, t);
+            return (
+              <div key={warning} className="data-table-row three">
+                <strong>{label}</strong><span>WARN</span><span>{label}</span>
+              </div>
+            );
+          })}
           {blockers.length === 0 && (result?.warnings.length ?? 0) === 0 && (
             <div className="data-table-row three"><span>{t("decision.no_binding")}</span><span>—</span><span>—</span></div>
           )}
         </div>
       </section>
       <section className="workspace-panel">
-        <h3>{t("decision.unallocated_reasons")}</h3>
+        <h2>{t("decision.unallocated_reasons")}</h2>
         {unallocatedReasons.length === 0 ? (
           <p className="muted">{t("decision.fully_allocated")}</p>
         ) : (
@@ -111,7 +115,7 @@ function OptimizeWorkspace({ controller }: { controller: AppController }) {
         )}
       </section>
       <section className="workspace-panel">
-        <h3>{t("decision.handoffs")}</h3>
+        <h2>{t("decision.handoffs")}</h2>
         <div className="commercial-handoff-actions">
           <button type="button" onClick={() => navigation.openWorkspace("review")}>{t("decision.open_review")}</button>
           <button type="button" onClick={() => navigation.openWorkspace("market")}>{t("decision.inspect_market")}</button>

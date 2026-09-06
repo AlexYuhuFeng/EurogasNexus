@@ -23,6 +23,7 @@ import {
   ResourcePoolPathOverlay,
   type ResourcePoolMapPath,
 } from "@/components/ResourcePoolPathOverlay";
+import { warningLabel } from "@/app/warningLabel";
 
 type Translate = (key: string) => string;
 type SaleOption = ResourcePoolOptionsDTO["sale_options"][number];
@@ -104,16 +105,6 @@ function geometryMessageKey(state: NetworkGeometryState): string {
   return "map.network_ready_body";
 }
 
-function warningLabel(warning: string, t: Translate): string {
-  const separator = warning.indexOf(":");
-  const code = (separator >= 0 ? warning.slice(0, separator) : warning).trim().toLowerCase();
-  const detail = separator >= 0 ? warning.slice(separator + 1).trim() : "";
-  const key = `warning.${code}`;
-  const translated = t(key);
-  const label = translated === key ? code.replaceAll("_", " ") : translated;
-  return detail ? `${label}: ${detail}` : label;
-}
-
 export function NetworkWorkspace({
   t,
   nodes,
@@ -192,7 +183,7 @@ export function NetworkWorkspace({
 
   return (
     <div className="network-workspace-shell">
-      <aside className="scenario-rail network-resource-rail" aria-label={t("home.resource_pool")}>
+      <aside className="scenario-rail network-resource-rail" aria-label={t("home.resource_pool")} tabIndex={0}>
         {error && <div className="panel alert">{error}</div>}
         {loading && <div className="panel">{t("status.loading")}</div>}
 
@@ -395,7 +386,7 @@ export function NetworkWorkspace({
               </div>
               <div className="panel route-alpha-panel">
                 <div className="panel-title-row">
-                  <h3>{t("result.route_alpha")}</h3>
+                  <h2>{t("result.route_alpha")}</h2>
                   <span>{t("result.pool_decision")}</span>
                 </div>
                 {poolAllocations.length > 0 ? poolAllocations.map((allocation, index) => {
@@ -447,7 +438,7 @@ export function NetworkWorkspace({
                 <div className="panel-title-row">
                   <div>
                     <span className="eyebrow">{t("result.eyebrow")}</span>
-                    <h3>{t("result.title")}</h3>
+                    <h2>{t("result.title")}</h2>
                   </div>
                   <span className="status-pill">{routeRecommendation ? t("result.live") : t("result.snapshot")}</span>
                 </div>
@@ -462,7 +453,7 @@ export function NetworkWorkspace({
                 </div>
               </div>
               <div className="panel economics-snapshot">
-                <h3>{t("result.economics_snapshot")}</h3>
+                <h2>{t("result.economics_snapshot")}</h2>
                 <div className="metric-grid two-column">
                   <div><span>{t("result.purchase")}</span><strong>{purchasePrice === null ? "n/a" : `GBP ${purchasePrice.toFixed(2)}/MWh`}</strong></div>
                   <div><span>{t("result.sale")}</span><strong>{salePrice === null ? "n/a" : `GBP ${salePrice.toFixed(2)}/MWh`}</strong></div>
@@ -472,7 +463,7 @@ export function NetworkWorkspace({
               </div>
               <div className="panel decision-signal-panel">
                 <div className="panel-title-row">
-                  <h3>{t("home.signal")}</h3>
+                  <h2>{t("home.signal")}</h2>
                   <span>{firstStrategyTarget ? t("data.live") : t("result.snapshot")}</span>
                 </div>
                 <div className="net-pnl-card">
@@ -489,7 +480,7 @@ export function NetworkWorkspace({
           {activeRailView === "warnings" && (
             <div className="panel network-warning-panel">
               <div className="panel-title-row">
-                <h3>{t("home.warning")}</h3>
+                <h2>{t("home.warning")}</h2>
                 <span>{activeWarning ? t("data.live") : t("result.snapshot")}</span>
               </div>
               <div className="signal-warning">
@@ -518,7 +509,7 @@ export function NetworkWorkspace({
           {activeRailView === "evidence" && (
             <div className="panel evidence-stack-panel">
               <div className="panel-title-row">
-                <h3>{t("home.evidence_stack")}</h3>
+                <h2>{t("home.evidence_stack")}</h2>
                 <button type="button" className="text-action" onClick={onOpenReview}>
                   {t("home.review_warnings")}
                 </button>

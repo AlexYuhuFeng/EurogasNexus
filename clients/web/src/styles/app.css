@@ -6,7 +6,7 @@
   --muted: #5e6b75;
   --border: #d7e0e5;
   --accent: #0f766e;
-  --warning: #b45309;
+  --warning: #92400e;
   --danger: #b42318;
   --shadow: 0 12px 28px rgb(24 32 38 / 12%);
 }
@@ -50,10 +50,12 @@ input {
 
 .app-header {
   display: flex;
+  min-width: 0;
   min-height: 64px;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  overflow: hidden;
   padding: 10px 16px;
   border-bottom: 1px solid var(--border);
   background: var(--surface);
@@ -73,8 +75,11 @@ input {
 
 .header-controls {
   display: flex;
+  min-width: 0;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .header-controls select {
@@ -420,7 +425,7 @@ input {
   padding: 12px;
 }
 
-.panel h3 {
+.panel h2 {
   margin: 0 0 10px;
   font-size: 13px;
   letter-spacing: 0;
@@ -739,7 +744,7 @@ input {
   min-width: 0;
 }
 
-.intraday-feed-heading h3 {
+.intraday-feed-heading h2 {
   margin: 2px 0 0;
   font-size: 17px;
 }
@@ -1364,7 +1369,7 @@ input {
 
 .topbar-trading-context label {
   display: grid;
-  min-width: 118px;
+  min-width: 104px;
   gap: 1px;
 }
 
@@ -1886,7 +1891,7 @@ input {
   padding: 14px;
 }
 
-.strategy-view-grid .workspace-panel h3 {
+.strategy-view-grid .workspace-panel h2 {
   margin-bottom: 10px;
   font-size: 15px;
   line-height: 21px;
@@ -2362,13 +2367,19 @@ input {
   --eg-ink: #171717;
   --eg-on-ink: #ffffff;
   --eg-body: #4d4d4d;
-  --eg-muted: #888888;
+  --eg-muted: #6f6f6f;
   --eg-hairline: #ebebeb;
   --eg-hairline-strong: #a1a1a1;
   --eg-canvas: #ffffff;
   --eg-canvas-soft: #fafafa;
   --eg-canvas-soft-2: #f5f5f5;
   --eg-link: #0070f3;
+  --eg-positive: #176e3e;
+  --eg-positive-soft: rgb(23 110 62 / 14%);
+  --eg-warn: #8a5a00;
+  --eg-warn-soft: rgb(138 90 0 / 14%);
+  --eg-negative: #9b2c22;
+  --eg-negative-soft: rgb(155 44 34 / 12%);
   --eg-warning: #f5a623;
   --eg-danger: #ee0000;
   --eg-map-blue: #007cf0;
@@ -2385,6 +2396,12 @@ input {
 
 :root.dark {
   --eg-ink: #fafafa;
+  --eg-positive: #4ade80;
+  --eg-positive-soft: rgb(74 222 128 / 14%);
+  --eg-warn: #fbbf24;
+  --eg-warn-soft: rgb(251 191 36 / 14%);
+  --eg-negative: #fca5a5;
+  --eg-negative-soft: rgb(252 165 165 / 14%);
   --eg-on-ink: #171717;
   --eg-body: #d4d4d4;
   --eg-muted: #a1a1a1;
@@ -2627,7 +2644,7 @@ body {
 }
 
 .scenario-intro h2,
-.cockpit-app .panel h3 {
+.cockpit-app .panel h2 {
   margin: 0;
   color: var(--eg-ink);
   font-size: 18px;
@@ -3114,7 +3131,7 @@ body {
   padding: 16px;
 }
 
-.workspace-panel h3 {
+.workspace-panel h2 {
   margin: 0 0 12px;
   font-size: 18px;
   font-weight: 600;
@@ -4132,7 +4149,7 @@ body {
 }
 
 .market-price-delta.down {
-  color: var(--eg-negative, #c0392b);
+  color: var(--eg-negative);
 }
 
 .market-price-ticker.is-live {
@@ -4358,7 +4375,7 @@ body {
 }
 
 .review-decision-rejected {
-  color: var(--eg-negative, #c0392b);
+  color: var(--eg-negative);
 }
 
 .review-decision-needs_attention {
@@ -4503,7 +4520,7 @@ body {
 
 .runtime-readiness-state.blocked {
   background: rgba(192, 57, 43, 0.13);
-  color: var(--eg-negative, #c0392b);
+  color: var(--eg-negative);
 }
 
 .runtime-commercial-sources .data-table {
@@ -4557,7 +4574,7 @@ body {
 }
 
 .pipeline-status-failed {
-  color: var(--eg-negative, #c0392b);
+  color: var(--eg-negative);
 }
 
 .source-cert {
@@ -4763,6 +4780,11 @@ body {
   border-color: var(--accent);
   background: rgb(15 118 110 / 12%);
   box-shadow: inset 0 0 0 1px rgb(15 118 110 / 18%);
+}
+
+.source-posture-row.active span,
+.source-posture-row.active small {
+  color: var(--eg-ink);
 }
 
 .source-category {
@@ -5109,6 +5131,13 @@ body {
   background: rgb(15 118 110 / 10%);
 }
 
+.glossary-category-tabs button.active span,
+.glossary-category-tabs button.active strong,
+.glossary-term-card.active span,
+.glossary-term-card.active small {
+  color: var(--eg-ink);
+}
+
 .glossary-category-tabs span,
 .glossary-category-tabs strong {
   min-width: 0;
@@ -5134,7 +5163,7 @@ body {
 }
 
 .glossary-term-card strong,
-.glossary-wiki-article h3 {
+.glossary-wiki-article h2 {
   color: var(--eg-ink);
 }
 
@@ -7296,8 +7325,8 @@ button.glossary-related-chip {
   align-items: flex-start;
 }
 
-.capacity-board-panel .panel-title-row h3,
-.capacity-assets-panel .panel-title-row h3 {
+.capacity-board-panel .panel-title-row h2,
+.capacity-assets-panel .panel-title-row h2 {
   margin-bottom: 0;
 }
 

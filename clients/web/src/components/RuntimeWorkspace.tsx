@@ -332,7 +332,7 @@ export function RuntimeWorkspace({
       </div>
 
       <div className="workspace-panel">
-        <h3>{t("panel.governance")}</h3>
+        <h2>{t("panel.governance")}</h2>
         {meta ? (
           <div className="metric-grid">
             <div><span>{t("status.research_only")}</span><strong>{String(meta.research_only)}</strong></div>
@@ -342,7 +342,7 @@ export function RuntimeWorkspace({
         ) : <p className="panel-copy">{t("data.unavailable")}</p>}
       </div>
       <div className="workspace-panel span-2 runtime-db-panel">
-        <h3>{t("status.db")}</h3>
+        <h2>{t("status.db")}</h2>
         {runtimeDb ? (
           <div className="metric-grid three-column">
             <div><span>{t("status.db")}</span><strong>{runtimeDb.connectivity.ok ? "ok" : "failed"}</strong></div>
@@ -414,7 +414,7 @@ export function RuntimeWorkspace({
         </div>
       </div>
       <div className="workspace-panel span-3">
-        <h3>{t("runtime.quote_freshness")}</h3>
+        <h2>{t("runtime.quote_freshness")}</h2>
         <div className="data-table">
           <div className="data-table-row header three">
             <span>{t("panel.source")}</span>

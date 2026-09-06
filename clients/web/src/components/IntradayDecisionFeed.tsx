@@ -50,7 +50,7 @@ export function IntradayDecisionFeed({
       <div className="panel-title-row intraday-feed-heading">
         <div>
           <span className="eyebrow">{t("intraday.eyebrow")}</span>
-          <h3>{t("intraday.title")}</h3>
+          <h2>{t("intraday.title")}</h2>
         </div>
         <span className={`intraday-feed-counter ${actionableCount > 0 ? "active" : ""}`}>
           {actionableCount} {t("intraday.active")}

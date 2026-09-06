@@ -655,7 +655,7 @@ export function MarketTerminal({
       </div>
 
       <div className="workspace-panel market-region-comparison">
-        <h3>{t("market.region_comparison")}</h3>
+        <h2>{t("market.region_comparison")}</h2>
         <div className="market-region-list">
           {priceRowsForStrip.map((row) => (
             <div key={`region-${row.hub}`}>
@@ -682,7 +682,7 @@ export function MarketTerminal({
       </div>
 
       <div className="workspace-panel market-source-quality">
-        <h3>{t("market.source_quality")}</h3>
+        <h2>{t("market.source_quality")}</h2>
         <div className="metric-grid two-column">
           <div><span>{t("sources.total_sources")}</span><strong>{priceSourceSummary.registered}</strong></div>
           <div><span>{t("sources.active_sources")}</span><strong>{priceSourceSummary.active}</strong></div>
@@ -693,7 +693,7 @@ export function MarketTerminal({
       </div>
 
       <div className="workspace-panel">
-        <h3>{t("market.fx")}</h3>
+        <h2>{t("market.fx")}</h2>
         <div className="data-table market-fx-table">
           <div className="data-table-row header"><span>{t("market.pair")}</span><span>{t("market.rate")}</span><span>{t("market.observed")}</span><span>{t("panel.source")}</span></div>
           {fxRates.slice(0, 6).map((rate) => (

@@ -484,7 +484,7 @@ export function StrategyShadowRunTerminal({
   const selectedBasisPanel = (
     <section className="workspace-panel span-2 strategy-pnl-scenario-comparison">
       <div className="panel-title-row">
-        <h3>{t("strategy.selected_price_basis")}</h3>
+        <h2>{t("strategy.selected_price_basis")}</h2>
         <span>{activeBasisRow ? t(basisLabelKey(activeBasisRow.basis)) : t("data.unavailable")}</span>
       </div>
       <div className="metric-grid strategy-selected-basis-metrics">
@@ -519,7 +519,7 @@ export function StrategyShadowRunTerminal({
 
   const resourcePoolPanel = (
     <section className="workspace-panel strategy-resource-stack">
-      <h3>{t("home.resource_pool")}</h3>
+      <h2>{t("home.resource_pool")}</h2>
       <div className="net-pnl-card">
         <span>{firstResource?.resource_name ?? t("data.unavailable")}</span>
         <strong>{formatQuantity(firstResource?.available_quantity_mwh_per_day)}</strong>
@@ -530,7 +530,7 @@ export function StrategyShadowRunTerminal({
 
   const dataQualityPanel = (
     <section className="workspace-panel strategy-data-quality-flags">
-      <h3>{t("strategy.data_quality")}</h3>
+      <h2>{t("strategy.data_quality")}</h2>
       <div className="review-warning-list">
         {dataQualityFlags.length > 0
           ? dataQualityFlags.slice(0, 10).map((flag) => <span key={`strategy-quality-${flag}`}>{flag}</span>)
@@ -541,7 +541,7 @@ export function StrategyShadowRunTerminal({
 
   const warningPanel = (
     <section className="workspace-panel strategy-warning-stack">
-      <h3>{t("strategy.warning_stack")}</h3>
+      <h2>{t("strategy.warning_stack")}</h2>
       <div className="review-warning-list">
         {warningStack.length > 0
           ? warningStack.slice(0, 8).map((warning) => <span key={`strategy-warning-${warning}`}>{strategyWarningLabel(warning, t)}</span>)
@@ -637,7 +637,7 @@ export function StrategyShadowRunTerminal({
             <StrategyPerformancePanel runs={strategyRuns} summary={strategySummary} language={language} t={t} />
             <section className="workspace-panel strategy-paper-state">
               <div className="panel-title-row">
-                <h3>{t("strategy.current_candidate_action")}</h3>
+                <h2>{t("strategy.current_candidate_action")}</h2>
                 {persistedHumanReviewRequired && <span>{t("strategy.warning.human_review_required")}</span>}
               </div>
               <div className="strategy-candidate-action">
@@ -682,7 +682,7 @@ export function StrategyShadowRunTerminal({
               t={t}
             />
             <section className="workspace-panel strategy-allocation-ladder">
-              <h3>{t("strategy.allocation_targets")}</h3>
+              <h2>{t("strategy.allocation_targets")}</h2>
               <div className="data-table">
                 <div className="data-table-row header four"><span>{t("strategy.bucket")}</span><span>{t("strategy.target")}</span><span>{t("strategy.quantity")}</span><span>{t("strategy.reference")}</span></div>
                 {strategyResult?.allocation_targets.map((target) => (
@@ -700,7 +700,7 @@ export function StrategyShadowRunTerminal({
             </section>
             <section className="workspace-panel span-2 strategy-market-tape">
               <div className="panel-title-row">
-                <h3>{t("strategy.market_tape")}</h3>
+                <h2>{t("strategy.market_tape")}</h2>
                 <span>{priceTape.length} {t("panel.records")}</span>
               </div>
               <div className="strategy-tape-grid">
@@ -720,7 +720,7 @@ export function StrategyShadowRunTerminal({
         {activeView === "risk" && (
           <>
             <section className="workspace-panel span-2 strategy-risk-stack">
-              <h3>{t("strategy.risk_controls")}</h3>
+              <h2>{t("strategy.risk_controls")}</h2>
               <div className="strategy-risk-inputs">
                 <label>
                   <span>{t("strategy.max_ocm")} (%)</span>
@@ -750,7 +750,7 @@ export function StrategyShadowRunTerminal({
             {dataQualityPanel}
             {warningPanel}
             <section className="workspace-panel span-2 strategy-source-evidence">
-              <h3>{t("strategy.source_evidence")}</h3>
+              <h2>{t("strategy.source_evidence")}</h2>
               <div className="source-chip-list">
                 {source_refs.slice(0, 12).map((source) => <span key={`strategy-source-${source}`}>{source}</span>)}
                 {source_refs.length === 0 && <span>{t("data.partial")}</span>}
@@ -764,7 +764,7 @@ export function StrategyShadowRunTerminal({
             <StrategyPerformancePanel runs={strategyRuns} summary={strategySummary} language={language} t={t} />
               <section className="workspace-panel strategy-run-provenance">
                 <div className="panel-title-row">
-                  <h3>{t("strategy.run_provenance")}</h3>
+                  <h2>{t("strategy.run_provenance")}</h2>
                   {latestPersistedRun?.manifest_hash && <span>{t("strategy.reproducible")}</span>}
                 </div>
                 {latestPersistedRun?.manifest_hash ? (
@@ -785,7 +785,7 @@ export function StrategyShadowRunTerminal({
               {latestPersistedRun?.backtest_metrics && (
                 <section className="workspace-panel strategy-backtest-metrics">
                   <div className="panel-title-row">
-                    <h3>{t("strategy.backtest_metrics")}</h3>
+                    <h2>{t("strategy.backtest_metrics")}</h2>
                     <span>{t("strategy.temporal_integrity")}: {latestPersistedRun.backtest_metrics.temporal_integrity ?? "n/a"}</span>
                   </div>
                   <div className="metric-grid">
@@ -801,7 +801,7 @@ export function StrategyShadowRunTerminal({
                 </section>
               )}
             <section className="workspace-panel strategy-cumulative-state">
-              <h3>{t("strategy.cumulative_state")}</h3>
+              <h2>{t("strategy.cumulative_state")}</h2>
               <div className="metric-grid">
                 <div><span>{t("strategy.run_count")}</span><strong>{strategySummary?.run_count ?? 0}</strong></div>
                 <div><span>{t("strategy.hit_rate")}</span><strong>{((strategySummary?.hit_rate ?? 0) * 100).toFixed(1)}%</strong></div>
@@ -811,7 +811,7 @@ export function StrategyShadowRunTerminal({
             </section>
             <section className="workspace-panel span-3 strategy-run-history">
               <div className="panel-title-row">
-                <h3>{t("strategy.run_history")}</h3>
+                <h2>{t("strategy.run_history")}</h2>
                 <span>{strategyRuns.length} {t("panel.records")}</span>
               </div>
               <div className="data-table">

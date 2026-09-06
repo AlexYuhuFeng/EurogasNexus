@@ -87,7 +87,7 @@ export function AlertCenter({
                     <span>{alert.category.replace(/_/g, " ")}</span>
                     <time>{new Date(alert.updated_at_utc).toLocaleTimeString(language, { hour: "2-digit", minute: "2-digit" })}</time>
                   </div>
-                  <h3>{title}</h3>
+                  <h2>{title}</h2>
                   <p>{message}</p>
                   <div className="monitoring-alert-flags">
                     <span>{alert.severity}</span>

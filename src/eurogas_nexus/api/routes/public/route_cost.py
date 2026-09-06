@@ -99,15 +99,11 @@ def list_tso_tariffs(
         ]
     if point_name:
         filtered = [
-            tariff
-            for tariff in filtered
-            if tariff.source_point_name.lower() == point_name.lower()
+            tariff for tariff in filtered if tariff.source_point_name.lower() == point_name.lower()
         ]
     if direction:
         filtered = [
-            tariff
-            for tariff in filtered
-            if tariff.direction.value.lower() == direction.lower()
+            tariff for tariff in filtered if tariff.direction.value.lower() == direction.lower()
         ]
     if gas_year:
         filtered = [tariff for tariff in filtered if tariff.gas_year == gas_year]
@@ -260,9 +256,7 @@ def get_resource_pool_options(request: Request) -> dict:
                 .all()
             )
             access_rows = (
-                session.query(CompanyTsoAccessRecord)
-                .order_by(CompanyTsoAccessRecord.tso)
-                .all()
+                session.query(CompanyTsoAccessRecord).order_by(CompanyTsoAccessRecord.tso).all()
             )
 
         data = _compose_resource_pool_options(
@@ -390,7 +384,10 @@ def _compose_resource_pool_options(
         blockers.append("ROUTE_CANDIDATES_MISSING")
 
     price_by_point = _latest_market_price_by_point(market_rows)
-    resources = [_portfolio_resource_from_contract(contract) for contract in contracts]
+    resources = [
+        _portfolio_resource_from_contract(contract, company_accessible_tsos=company_accessible_tsos)
+        for contract in contracts
+    ]
     sale_options = []
     for candidate in candidates:
         target = str(candidate["target_point_name"]).strip().upper()
@@ -424,14 +421,12 @@ def _compose_resource_pool_options(
             warnings.append(f"ROUTE_TARGET_NOT_ALLOWED_BY_CONTRACT:{candidate['route_id']}")
             continue
 
-        route_cost, cost_currency, cost_unit, cost_warnings, cost_blockers = (
-            _candidate_route_cost(
-                candidate,
-                tariffs,
-                price_currency=market_price["currency"],
-                price_unit=market_price["unit"],
-                company_accessible_tsos=company_accessible_tsos,
-            )
+        route_cost, cost_currency, cost_unit, cost_warnings, cost_blockers = _candidate_route_cost(
+            candidate,
+            tariffs,
+            price_currency=market_price["currency"],
+            price_unit=market_price["unit"],
+            company_accessible_tsos=company_accessible_tsos,
         )
         warnings.extend(cost_warnings)
         blockers.extend(cost_blockers)
@@ -463,8 +458,7 @@ def _compose_resource_pool_options(
         )
         if sale_price_gbp is None:
             blockers.append(
-                f"MARKET_PRICE_FX_UNAVAILABLE:{target} "
-                f"({market_price['currency']}->GBP)"
+                f"MARKET_PRICE_FX_UNAVAILABLE:{target} ({market_price['currency']}->GBP)"
             )
             continue
         if sale_fx_warning:
@@ -479,8 +473,7 @@ def _compose_resource_pool_options(
         )
         if route_cost_gbp is None:
             blockers.append(
-                f"ROUTE_COST_FX_UNAVAILABLE:{candidate['route_id']} "
-                f"({cost_currency}->GBP)"
+                f"ROUTE_COST_FX_UNAVAILABLE:{candidate['route_id']} ({cost_currency}->GBP)"
             )
             continue
         if route_fx_warning:
@@ -557,10 +550,7 @@ def _latest_market_price_by_point(market_rows: list) -> dict[str, dict]:
                 "selection_priority": _market_price_selection_priority(row),
             }
             current = prices.get(key)
-            if (
-                current is None
-                or candidate["selection_priority"] < current["selection_priority"]
-            ):
+            if current is None or candidate["selection_priority"] < current["selection_priority"]:
                 prices[key] = candidate
     for price in prices.values():
         price.pop("selection_priority", None)
@@ -652,7 +642,9 @@ def _iso_or_none(value) -> str | None:
     return value.isoformat() if hasattr(value, "isoformat") else value
 
 
-def _portfolio_resource_from_contract(contract: dict) -> dict:
+def _portfolio_resource_from_contract(
+    contract: dict, *, company_accessible_tsos: list[str] | None = None
+) -> dict:
     resource_type = contract["resource_type"]
     notes = _contract_notes_payload(contract.get("notes"))
     variable_cost = _non_negative_number(
@@ -669,9 +661,7 @@ def _portfolio_resource_from_contract(contract: dict) -> dict:
         "resource_name": contract["contract_name"],
         "resource_type": resource_type,
         "delivery_mode": (
-            "TERMINAL_TITLE_TRANSFER"
-            if resource_type == "LNG_REGAS"
-            else "PHYSICAL_ENTRY_DELIVERY"
+            "TERMINAL_TITLE_TRANSFER" if resource_type == "LNG_REGAS" else "PHYSICAL_ENTRY_DELIVERY"
         ),
         "location_point_name": contract["delivery_point_name"],
         "available_quantity_mwh_per_day": contract["delivery_quantity_mwh_per_day"],
@@ -685,16 +675,12 @@ def _portfolio_resource_from_contract(contract: dict) -> dict:
         "screen_sale_cash_lag_days": contract["screen_sale_cash_lag_days"],
         "settlement_frequency": contract["settlement_frequency"],
         "required_tso_access": [],
-        "accessible_tsos": None,
+        "accessible_tsos": list(company_accessible_tsos or []) or None,
         "pricing_method": _pricing_method(notes.get("index_basis")),
         "source_refs": _unique(
             [
                 f"upstream_resource_contract:{contract['contract_id']}",
-                *(
-                    [str(notes["source_reference"])]
-                    if notes.get("source_reference")
-                    else []
-                ),
+                *([str(notes["source_reference"])] if notes.get("source_reference") else []),
             ]
         ),
     }

@@ -179,6 +179,8 @@ behind `scripts/release/validate_stable_release.py`. Detailed guidance is in
   reference, and historical documents.
 - [中文文档索引](docs/README-CN.md)
 - [Software supply chain](docs/release/SUPPLY_CHAIN.md)
+- [Commercial UAT plan](docs/uat/COMMERCIAL_UAT_PLAN.md)
+- [User quick start](docs/user/QUICK_START.md)
 - [Third-party notices](THIRD_PARTY_NOTICES.md)
 - [Project directory and ownership](PROJECT_DIRECTORY.md)
 - [Architecture decisions](docs/architecture/ARCHITECTURE_DECISION_RECORD.md)

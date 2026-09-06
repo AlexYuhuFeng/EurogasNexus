@@ -349,6 +349,23 @@ def main(argv: list[str] | None = None) -> int:
         "GitHub OIDC attestation requires the hosted release workflow",
     )
 
+    notes = _run(
+        [
+            sys.executable,
+            "scripts/release/generate_release_notes.py",
+            "--context",
+            str(context_file),
+            "--output",
+            str(output / "release-notes.md"),
+        ],
+        check=False,
+    )
+    step(
+        "release-notes",
+        notes.returncode == 0,
+        "stable requires reviewed notes; preview/RC draft generated",
+    )
+
     from scripts.release.release_artifacts import write_checksums
 
     write_checksums(output)
@@ -395,23 +412,6 @@ def main(argv: list[str] | None = None) -> int:
         "checksums",
         "PASS" if validation.returncode == 0 else "FAIL",
         "bundle checksums verified",
-    )
-
-    notes = _run(
-        [
-            sys.executable,
-            "scripts/release/generate_release_notes.py",
-            "--context",
-            str(context_file),
-            "--output",
-            str(output / "release-notes.md"),
-        ],
-        check=False,
-    )
-    step(
-        "release-notes",
-        notes.returncode == 0,
-        "stable requires reviewed notes; preview/RC draft generated",
     )
 
     gate = _run(

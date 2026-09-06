@@ -143,6 +143,24 @@ Operational procedures and operator-facing guides:
 - [Market positioning imports EN](operations/MARKET_POSITIONING_IMPORTS-EN.md) /
   [CN](operations/MARKET_POSITIONING_IMPORTS-CN.md)
 
+## User and UAT documentation
+
+- [Quick start](user/QUICK_START.md)
+- [Market workflow](user/MARKET_WORKFLOW.md)
+- [Portfolio workflow](user/PORTFOLIO_WORKFLOW.md)
+- [Strategy Lab](user/STRATEGY_LAB.md)
+- [Shadow monitoring](user/SHADOW_MONITORING.md)
+- [Decision review](user/DECISION_REVIEW.md)
+- [Data status and provenance](user/DATA_STATUS_AND_PROVENANCE.md)
+- [Commercial UAT plan](uat/COMMERCIAL_UAT_PLAN.md)
+- [Trader UAT script](uat/TRADER_UAT_SCRIPT.md)
+- [UAT feedback template](uat/UAT_FEEDBACK_TEMPLATE.md)
+- [RC defect register](uat/RC_DEFECT_REGISTER.md)
+- [AI evaluation report](uat/AI_EVALUATION_REPORT.md)
+- [Accessibility report](uat/ACCESSIBILITY_REPORT.md)
+- [I18N report](uat/I18N_REPORT.md)
+- [RC acceptance report](uat/RC_ACCEPTANCE_REPORT.md)
+
 ## Release, security, and deployment
 
 - [Release readiness](release/RELEASE_READINESS.md)

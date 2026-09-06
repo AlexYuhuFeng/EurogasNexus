@@ -158,7 +158,7 @@ function MarketOverview({ controller }: MarketOverviewProps) {
 
       <aside className="market-context-rail" aria-label={t("market.context_rail")}>
         <section className="workspace-panel">
-          <h3>{t("market.physical_context")}</h3>
+          <h2>{t("market.physical_context")}</h2>
           <div className="metric-grid two-column compact-metrics">
             <div><span>{t("market.flows")}</span><strong>{api.flows.length}</strong></div>
             <div><span>{t("market.capacity")}</span><strong>{api.capacity.length}</strong></div>
@@ -169,7 +169,7 @@ function MarketOverview({ controller }: MarketOverviewProps) {
           </div>
         </section>
         <section className="workspace-panel">
-          <h3>{t("market.opportunities")}</h3>
+          <h2>{t("market.opportunities")}</h2>
           <IntradayDecisionFeed
             opportunities={api.intradayOpportunities.slice(0, 3)}
             lastUpdatedAtUtc={api.marketLastUpdatedAtUtc}
@@ -178,7 +178,7 @@ function MarketOverview({ controller }: MarketOverviewProps) {
           />
         </section>
         <section className="workspace-panel">
-          <h3>{t("market.portfolio_relevance")}</h3>
+          <h2>{t("market.portfolio_relevance")}</h2>
           {relevantResources.length === 0 ? (
             <p className="muted">{t("market.no_relevant_resources")}</p>
           ) : (

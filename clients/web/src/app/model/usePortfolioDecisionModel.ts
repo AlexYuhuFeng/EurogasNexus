@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { TFunction } from "i18next";
+import { warningLabel } from "@/app/warningLabel";
 import {
   resultContextMatches,
   traderContextKey,
@@ -266,7 +267,7 @@ export function usePortfolioDecisionModel({
       items.push({ kind, text });
     };
 
-    reviewWarnings.forEach((warning) => add(t("home.evidence_warning"), warning));
+    reviewWarnings.forEach((warning) => add(t("home.evidence_warning"), warningLabel(warning, t)));
     poolInputBlockers.forEach((blocker) => add(t("home.evidence_blocker"), blocker));
     (api.resourcePoolResult?.missing_inputs ?? []).forEach(
       (input) => add(t("home.evidence_missing_input"), input),

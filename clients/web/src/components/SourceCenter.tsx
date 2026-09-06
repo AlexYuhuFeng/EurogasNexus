@@ -355,7 +355,7 @@ export function SourceCenter({
 
       {activeView === "access" && (
       <div className="workspace-panel source-credential-panel">
-        <h3>{t("panel.credentials")}</h3>
+        <h2>{t("panel.credentials")}</h2>
         <p>
           {selectedCredentialProvider?.credential_required
             ? `${selectedCredentialProvider.display_name}: ${sourceLabel("sources.credential", selectedCredentialProvider.status)}`

@@ -301,7 +301,7 @@ export function StrategyDesignWorkspace({
         </div>
       </div>
       <section className="workspace-panel">
-        <h3>{t("strategy_lab.hypothesis")}</h3>
+        <h2>{t("strategy_lab.hypothesis")}</h2>
         <label>
           {t("strategy_lab.name")}
           <input value={form.name} disabled={frozen} onChange={(event) => set("name", event.target.value)} />
@@ -316,7 +316,7 @@ export function StrategyDesignWorkspace({
         </label>
       </section>
       <section className="workspace-panel">
-        <h3>{t("strategy_lab.component")} · OCM_VS_DAY_AHEAD</h3>
+        <h2>{t("strategy_lab.component")} · OCM_VS_DAY_AHEAD</h2>
         <div className="strategy-form-grid">
           <label>{t("strategy_lab.hubs")}<input value={form.hubs} disabled={frozen} onChange={(event) => set("hubs", event.target.value)} /></label>
           <label>{t("strategy_lab.day_ahead_names")}<input value={form.dayAheadNames} disabled={frozen} onChange={(event) => set("dayAheadNames", event.target.value)} /></label>
@@ -330,7 +330,7 @@ export function StrategyDesignWorkspace({
         </div>
       </section>
       <section className="workspace-panel">
-        <h3>{t("strategy_lab.resource_scope")}</h3>
+        <h2>{t("strategy_lab.resource_scope")}</h2>
         <div className="strategy-form-grid">
           <label>{t("strategy_lab.resource_id")}<input value={form.resourceId} disabled={frozen} onChange={(event) => set("resourceId", event.target.value)} /></label>
           <label>{t("strategy_lab.resource_name")}<input value={form.resourceName} disabled={frozen} onChange={(event) => set("resourceName", event.target.value)} /></label>
@@ -339,7 +339,7 @@ export function StrategyDesignWorkspace({
         </div>
       </section>
       <section className="workspace-panel">
-        <h3>{t("strategy_lab.risk_controls")}</h3>
+        <h2>{t("strategy_lab.risk_controls")}</h2>
         <div className="strategy-form-grid">
           <label>{t("strategy_lab.max_ocm")} %<input type="number" value={form.maxOcm} disabled={frozen} onChange={(event) => set("maxOcm", event.target.value)} /></label>
           <label>{t("strategy_lab.min_day_ahead")} %<input type="number" value={form.minDayAhead} disabled={frozen} onChange={(event) => set("minDayAhead", event.target.value)} /></label>
@@ -350,7 +350,7 @@ export function StrategyDesignWorkspace({
         </div>
       </section>
       <section className="workspace-panel">
-        <h3>{t("strategy_lab.assumptions")}</h3>
+        <h2>{t("strategy_lab.assumptions")}</h2>
         <div className="strategy-form-grid">
           <label>{t("strategy_lab.fill_price_policy")}
             <select value={form.fillPricePolicy} disabled={frozen} onChange={(event) => set("fillPricePolicy", event.target.value)}>

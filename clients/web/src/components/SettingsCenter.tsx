@@ -184,7 +184,7 @@ export function SettingsCenter({
       <div className="workspace-panel span-3 settings-about-panel">
         <div className="panel-title-row">
           <div>
-            <h3>{t("release.about_title")}</h3>
+            <h2>{t("release.about_title")}</h2>
             <p className="panel-copy">{t("release.about_subtitle")}</p>
           </div>
           <span className={`status-badge status-${releaseCompatibility?.state === "compatible" ? "runtime" : "unavailable"}`}>
@@ -211,7 +211,7 @@ export function SettingsCenter({
       <div className="workspace-panel span-3 settings-backend-panel">
         <div className="panel-title-row">
           <div>
-            <h3>{t("settings.backend_api")}</h3>
+            <h2>{t("settings.backend_api")}</h2>
             <p className="panel-copy">{t("settings.backend_api_help")}</p>
           </div>
           <span className={`status-badge status-${dataStatus}`}>{t(`data.${dataStatus}`)}</span>
@@ -287,7 +287,7 @@ export function SettingsCenter({
       </div>
 
       <div className="workspace-panel settings-panel settings-unit-panel">
-        <h3>{t("settings.display_preferences")}</h3>
+        <h2>{t("settings.display_preferences")}</h2>
         <label>
           {t("settings.map_tile_provider")}
           <select
@@ -378,7 +378,7 @@ export function SettingsCenter({
       </div>
 
       <div className="workspace-panel settings-panel settings-session-panel">
-        <h3>{t("settings.session_defaults")}</h3>
+        <h2>{t("settings.session_defaults")}</h2>
         <label>
           {t("settings.session_timezone")}
           <select
@@ -421,7 +421,7 @@ export function SettingsCenter({
 
       <div className="workspace-panel settings-service-panel">
         <div className="panel-title-row">
-          <h3>{t("settings.service_access")}</h3>
+          <h2>{t("settings.service_access")}</h2>
           <button type="button" onClick={onOpenSources}>{t("settings.manage_api_keys")}</button>
         </div>
         <div className="metric-grid two-column">
@@ -447,7 +447,7 @@ export function SettingsCenter({
       </div>
 
       <div className="workspace-panel settings-boundary-panel">
-        <h3>{t("settings.backend_boundary")}</h3>
+        <h2>{t("settings.backend_boundary")}</h2>
         <p className="panel-copy">{t("settings.boundary_copy")}</p>
         <div className="settings-guardrail-list">
           <span>{t("settings.no_client_db_url")}</span>
@@ -458,7 +458,7 @@ export function SettingsCenter({
       </div>
 
       <div className="workspace-panel">
-        <h3>{t("app.title")}</h3>
+        <h2>{t("app.title")}</h2>
         <div className="metric-grid">
           <div><span>{t("map.nodes")}</span><strong>{counts.nodes}</strong></div>
           <div><span>{t("map.edges")}</span><strong>{counts.edges}</strong></div>

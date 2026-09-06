@@ -140,7 +140,7 @@ export function StrategyShadowShell({
   return (
     <div className="strategy-shadow-runtime">
       <section className="workspace-panel">
-        <h3>{t("strategy_lab.shadow")}</h3>
+        <h2>{t("strategy_lab.shadow")}</h2>
         <div className="strategy-shadow-state">
           <span className={`status-badge status-${runtime?.scheduler === "healthy" ? "complete" : "unavailable"}`}>
             {t("strategy_lab.scheduler")}: {runtime?.scheduler ?? "offline"}
@@ -152,7 +152,7 @@ export function StrategyShadowShell({
       </section>
 
       <section className="workspace-panel">
-        <h3>{t("strategy_lab.activate_shadow")}</h3>
+        <h2>{t("strategy_lab.activate_shadow")}</h2>
         <div className="strategy-form-grid">
           <label>
             {t("strategy_lab.version")}
@@ -193,7 +193,7 @@ export function StrategyShadowShell({
         </section>
       ) : (
         <section className="workspace-panel">
-          <h3>{t("strategy_lab.monitors")}</h3>
+          <h2>{t("strategy_lab.monitors")}</h2>
           <div className="data-table">
             <div className="data-table-row header four">
               <span>{t("strategy_lab.monitor")}</span><span>{t("strategy_lab.state")}</span>
@@ -219,14 +219,14 @@ export function StrategyShadowShell({
       {selectedMonitor && (
         <>
           <section className="workspace-panel">
-            <h3>{t("strategy_lab.monitor_actions")}</h3>
+            <h2>{t("strategy_lab.monitor_actions")}</h2>
             <button type="button" onClick={() => void lifecycle("pause")}>{t("strategy_lab.pause")}</button>
             <button type="button" onClick={() => void lifecycle("resume")}>{t("strategy_lab.resume")}</button>
             <button type="button" onClick={() => void lifecycle("retire")}>{t("strategy_lab.retire")}</button>
           </section>
           {candidate && (
             <section className="workspace-panel">
-              <h3>{t("strategy_lab.current_candidate")}</h3>
+              <h2>{t("strategy_lab.current_candidate")}</h2>
               <div className="strategy-form-grid">
                 <span>{String(candidate.decision_time_utc ?? "")}</span>
                 <span>{String(candidate.hypothetical_direction ?? "")}</span>
@@ -238,7 +238,7 @@ export function StrategyShadowShell({
             </section>
           )}
           <section className="workspace-panel">
-            <h3>{t("strategy_lab.recent_evaluations")}</h3>
+            <h2>{t("strategy_lab.recent_evaluations")}</h2>
             {evaluations.length === 0 ? (
               <p className="muted">{t("strategy_lab.no_events")}</p>
             ) : (
@@ -261,7 +261,7 @@ export function StrategyShadowShell({
             )}
           </section>
           <section className="workspace-panel">
-            <h3>{t("strategy_lab.drift")}</h3>
+            <h2>{t("strategy_lab.drift")}</h2>
             {drift.length === 0 ? (
               <p className="muted">{t("strategy_lab.no_drift")}</p>
             ) : (
@@ -284,7 +284,7 @@ export function StrategyShadowShell({
       )}
 
       <section className="workspace-panel">
-        <h3>{t("strategy_lab.alerts")}</h3>
+        <h2>{t("strategy_lab.alerts")}</h2>
         {alerts.length === 0 ? (
           <p className="muted">{t("strategy_lab.no_alerts")}</p>
         ) : (

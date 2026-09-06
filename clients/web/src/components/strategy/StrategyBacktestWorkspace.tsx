@@ -88,7 +88,7 @@ export function StrategyBacktestWorkspace({
 
       {mode === "configure" && (
         <section className="workspace-panel strategy-backtest-config">
-          <h3>{t("strategy_lab.backtest_config")}</h3>
+          <h2>{t("strategy_lab.backtest_config")}</h2>
           <div className="strategy-form-grid">
             <label>{t("strategy_lab.version")}
               <input value={controller.selectedVersion ? `v${controller.selectedVersion.version_number} · ${controller.selectedVersion.status}` : ""} readOnly />
@@ -190,7 +190,7 @@ export function StrategyBacktestWorkspace({
             </section>
           )}
           <section className="workspace-panel">
-            <h3>{t("strategy_lab.attribution")}</h3>
+            <h2>{t("strategy_lab.attribution")}</h2>
             {details?.attribution.length ? (
               <div className="data-table">
                 <div className="data-table-row header four">
@@ -210,7 +210,7 @@ export function StrategyBacktestWorkspace({
             )}
           </section>
           <section className="workspace-panel">
-            <h3>{t("strategy_lab.decision_events")}</h3>
+            <h2>{t("strategy_lab.decision_events")}</h2>
             {details?.events.length ? (
               <div className="data-table strategy-event-table">
                 <div className="data-table-row header five">
@@ -236,7 +236,7 @@ export function StrategyBacktestWorkspace({
       )}
 
       <section className="workspace-panel strategy-run-history">
-        <h3>{t("strategy_lab.run_history")}</h3>
+        <h2>{t("strategy_lab.run_history")}</h2>
         {controller.backtestRuns.length === 0 ? (
           <p className="muted">{t("strategy_lab.no_runs")}</p>
         ) : (

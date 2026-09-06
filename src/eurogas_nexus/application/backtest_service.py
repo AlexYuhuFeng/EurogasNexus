@@ -48,15 +48,11 @@ def execute_backtest_run(
             f"{version.strategy_version_id} is {version.status}"
         )
     if definition.experiment_id:
-        experiment = backtest_repository.get_experiment(
-            session, definition.experiment_id
-        )
+        experiment = backtest_repository.get_experiment(session, definition.experiment_id)
         if experiment is None:
             raise ValueError(f"Unknown experiment: {definition.experiment_id}")
         if experiment.strategy_id != version.strategy_id:
-            raise ValueError(
-                "Experiment strategy does not match the requested strategy version"
-            )
+            raise ValueError("Experiment strategy does not match the requested strategy version")
 
     requested_at = _as_utc(requested_at_utc or datetime.now(UTC))
     resolved_run_id = run_id or f"strategy-run-{uuid4().hex[:24]}"
@@ -208,16 +204,12 @@ def _persist_events_series_attribution(
                 weighted_score=event.weighted_score,
                 day_ahead_average_gbp_mwh=event.day_ahead_average_gbp_mwh,
                 intraday_average_gbp_mwh=event.intraday_average_gbp_mwh,
-                intraday_vs_day_ahead_spread_gbp_mwh=(
-                    event.intraday_vs_day_ahead_spread_gbp_mwh
-                ),
+                intraday_vs_day_ahead_spread_gbp_mwh=(event.intraday_vs_day_ahead_spread_gbp_mwh),
                 allocation_targets=event.allocation_targets,
                 gross_indicative_pnl_gbp=event.gross_indicative_pnl_gbp,
                 modeled_costs_gbp=event.modeled_costs_gbp,
                 net_indicative_pnl_gbp=event.net_indicative_pnl_gbp,
-                cumulative_net_indicative_pnl_gbp=(
-                    event.cumulative_net_indicative_pnl_gbp
-                ),
+                cumulative_net_indicative_pnl_gbp=(event.cumulative_net_indicative_pnl_gbp),
                 ending_exposure_mwh_per_day=event.ending_exposure_mwh_per_day,
                 missing_inputs=event.missing_inputs,
                 warnings=event.warnings,
@@ -234,9 +226,7 @@ def _persist_events_series_attribution(
     for point in result.series:
         session.add(
             BacktestSeriesRecord(
-                series_point_id=(
-                    f"bt-series-{run_id[-24:]}-{point.decision_sequence:06d}"
-                ),
+                series_point_id=(f"bt-series-{run_id[-24:]}-{point.decision_sequence:06d}"),
                 run_id=run_id,
                 decision_sequence=point.decision_sequence,
                 decision_time_utc=point.decision_time_utc,
@@ -244,13 +234,15 @@ def _persist_events_series_attribution(
                 gross_indicative_pnl_gbp=point.gross_indicative_pnl_gbp,
                 modeled_costs_gbp=point.modeled_costs_gbp,
                 net_indicative_pnl_gbp=point.net_indicative_pnl_gbp,
-                cumulative_net_indicative_pnl_gbp=(
-                    point.cumulative_net_indicative_pnl_gbp
-                ),
+                cumulative_net_indicative_pnl_gbp=(point.cumulative_net_indicative_pnl_gbp),
                 ending_exposure_mwh_per_day=point.ending_exposure_mwh_per_day,
                 research_only=True,
             )
         )
+    # Flush decision events before attribution rows: PostgreSQL enforces the
+    # backtest_attribution -> backtest_decision_events foreign key, and the
+    # mapper graph has no relationship dependency to order these inserts.
+    session.flush()
     for index, row in enumerate(result.attribution):
         session.add(
             BacktestAttributionRecord(

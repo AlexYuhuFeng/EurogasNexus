@@ -94,7 +94,7 @@ export function StrategyCompareWorkspace({
   return (
     <div className="strategy-compare">
       <section className="workspace-panel">
-        <h3>{t("strategy_lab.select_runs")} (2–5)</h3>
+        <h2>{t("strategy_lab.select_runs")} (2–5)</h2>
         {runs.length === 0 ? (
           <p className="muted">{t("strategy_lab.no_runs")}</p>
         ) : (
@@ -122,7 +122,7 @@ export function StrategyCompareWorkspace({
       {selectedRuns.length >= 2 && (
         <>
           <section className="workspace-panel">
-            <h3>{t("strategy_lab.parameter_matrix")}</h3>
+            <h2>{t("strategy_lab.parameter_matrix")}</h2>
             <div className="data-table strategy-compare-matrix">
               <div className="data-table-row header">
                 <span>{t("strategy_lab.parameter")}</span>
@@ -140,7 +140,7 @@ export function StrategyCompareWorkspace({
           </section>
 
           <section className="workspace-panel">
-            <h3>{t("strategy_lab.kpi_table")}</h3>
+            <h2>{t("strategy_lab.kpi_table")}</h2>
             <div className="data-table">
               <div className="data-table-row header">
                 <span>{t("strategy_lab.kpi")}</span>
@@ -174,7 +174,7 @@ export function StrategyCompareWorkspace({
           </section>
 
           <section className="workspace-panel">
-            <h3>{t("strategy_lab.synchronized_pnl")}</h3>
+            <h2>{t("strategy_lab.synchronized_pnl")}</h2>
             <div className="strategy-compare-charts">
               {selectedRuns.map((run) => {
                 const details = controller.detailsByRun[run.run_id];
@@ -194,7 +194,7 @@ export function StrategyCompareWorkspace({
           </section>
 
           <section className="workspace-panel">
-            <h3>{t("strategy_lab.data_quality_matrix")}</h3>
+            <h2>{t("strategy_lab.data_quality_matrix")}</h2>
             <div className="data-table">
               <div className="data-table-row header">
                 <span>{t("strategy_lab.quality_dimension")}</span>

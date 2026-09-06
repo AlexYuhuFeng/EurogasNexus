@@ -94,12 +94,7 @@ export function AppShell({ controller }: AppShellProps) {
         </div>
       )}
 
-      <main
-        className="app-main"
-        id="workspace-primary-content"
-        role="tabpanel"
-        aria-labelledby={`workspace-primary-${navigation.activePrimaryWorkspace.id}`}
-      >
+      <main className="app-main" id="workspace-primary-content">
         {navigation.activeWorkspace === "network" ? (
           <NetworkWorkspace
             t={t}

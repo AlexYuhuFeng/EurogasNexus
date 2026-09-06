@@ -16,8 +16,14 @@ export function portfolioTaskFromLocation(search: string): PortfolioTask {
 }
 
 export function decisionTaskFromLocation(search: string): DecisionTask {
-  const value = new URLSearchParams(search).get("task");
-  return value === "optimize" || value === "review" ? value : "scenario";
+  const params = new URLSearchParams(search);
+  const task = params.get("task");
+  const workspace = params.get("workspace");
+  if (task === "optimize" || task === "review") return task;
+  // Legacy deep links: ?workspace=review must open Review, not Scenario.
+  if (workspace === "review") return "review";
+  if (workspace === "optimize") return "optimize";
+  return "scenario";
 }
 
 export function portfolioTaskToSearch(search: string, task: PortfolioTask): string {

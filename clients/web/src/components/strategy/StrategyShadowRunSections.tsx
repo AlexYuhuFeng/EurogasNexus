@@ -136,7 +136,7 @@ export function StrategyPriceBasisBoard({
   return (
     <section className="workspace-panel span-3 strategy-price-basis-board">
       <div className="panel-title-row">
-        <h3>{t("strategy.price_basis_board")}</h3>
+        <h2>{t("strategy.price_basis_board")}</h2>
         <span>{rows.reduce((total, row) => total + row.observationCount, 0)} {t("panel.records")}</span>
       </div>
       <div className="strategy-data-quality-banner">
@@ -202,7 +202,7 @@ export function StrategyBasisExposureLadder({ rows, t }: StrategyBasisExposureLa
   return (
     <section className="workspace-panel span-2 strategy-basis-exposure-ladder">
       <div className="panel-title-row">
-        <h3>{t("strategy.basis_exposure_ladder")}</h3>
+        <h2>{t("strategy.basis_exposure_ladder")}</h2>
         <span>{t("strategy.pool_pnl_at_risk")}</span>
       </div>
       <div className="strategy-basis-exposure-list">
@@ -250,7 +250,7 @@ export function StrategyPnlCurvePanel({
   return (
     <section className="workspace-panel strategy-pnl-curve">
       <div className="panel-title-row">
-        <h3>{t("strategy.pnl_curve")}</h3>
+        <h2>{t("strategy.pnl_curve")}</h2>
         <span>{t("home.resource_pool")}</span>
       </div>
       <div className="strategy-pool-baseline">
@@ -350,7 +350,7 @@ export function StrategyPerformancePanel({
   return (
     <section className="workspace-panel span-2 strategy-performance-chart">
       <div className="panel-title-row">
-        <h3>{t("strategy.cumulative_paper_pnl")}</h3>
+        <h2>{t("strategy.cumulative_paper_pnl")}</h2>
         <span>{plottedRuns.length} {t("panel.records")}</span>
       </div>
       <div className="strategy-performance-plot">

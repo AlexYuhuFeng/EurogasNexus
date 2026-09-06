@@ -37,7 +37,7 @@ export function MarketPositioningWorkspace({
         </div>
       </div>
       <div className="workspace-panel span-3">
-        <h3>{t("orders.screen_orders")}</h3>
+        <h2>{t("orders.screen_orders")}</h2>
         <div className="data-table orders-table">
           <div className="data-table-row header six"><span>Venue</span><span>Side</span><span>Hub</span><span>Qty</span><span>Price</span><span>Status</span></div>
           {screenOrders.map((order) => (
@@ -51,7 +51,7 @@ export function MarketPositioningWorkspace({
         </div>
       </div>
       <div className="workspace-panel span-3">
-        <h3>{t("orders.pnl_snapshots")}</h3>
+        <h2>{t("orders.pnl_snapshots")}</h2>
         <div className="data-table">
           <div className="data-table-row header six"><span>Portfolio</span><span>Valuation</span><span>Quantity</span><span>Indicative</span><span>Cash</span><span>Basis</span></div>
           {pnlSnapshots.slice(0, 8).map((snapshot) => (

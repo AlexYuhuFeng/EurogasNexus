@@ -306,7 +306,7 @@ export function ContractWorkbench({
 
       {taskView === "library" && (
         <section className="contract-library-view">
-          <div className="panel-title-row"><h3>{t("contracts.library")}</h3><span>{upstreamContracts.length} {t("panel.records")}</span></div>
+          <div className="panel-title-row"><h2>{t("contracts.library")}</h2><span>{upstreamContracts.length} {t("panel.records")}</span></div>
           <div className="contract-library-header" aria-hidden="true"><span>{t("contracts.resource_term")}</span><span>{t("economics.volume")}</span><span>{t("economics.contract_price")}</span><span>{t("panel.status")}</span></div>
           <div className="contract-library-list">{upstreamContracts.map((saved) => {
             const resourceInPool = portfolioResources.some((resource) => resource.resource_id === saved.contract_id);

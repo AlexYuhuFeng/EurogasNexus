@@ -25,6 +25,17 @@ asserted by `tests/contract/test_ontology_version_alignment.py`.
 
 ## [Unreleased]
 
+- Commercial UAT convergence (CR-13):
+  - PostgreSQL 16 browser Golden Workflows for Market → Scenario,
+    Portfolio → Optimize → Review, and Strategy create/freeze/backtest;
+  - P0 fixed: backtest attribution persistence now flushes decision events
+    before attribution rows (PostgreSQL FK ordering);
+  - P1 fixed: legacy Review deep link, human-readable warning labels, TSO
+    access propagation, heading/landmark/contrast accessibility across all
+    workspaces;
+  - deterministic development-gated UAT fixture pack, AI eval corpus (13/13
+    critical cases), axe-core 0 violations, EN/zh-CN 1,259-key parity;
+  - user/UAT documentation and internal GA RC acceptance report.
 - Supply-chain and release hardening (CR-12):
   - single canonical version contract enforced by
     `scripts/release/check_version_consistency.py`;

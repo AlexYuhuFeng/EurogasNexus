@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { warningLabel } from "@/app/warningLabel";
 import type {
   AnalysisResultDTO,
   PortfolioOptimizationResultDTO,
@@ -131,10 +132,10 @@ export function ReviewWorkspace({
         </div>
       </div>
       <div className="workspace-panel">
-        <h3>{t("review.warning_register")}</h3>
+        <h2>{t("review.warning_register")}</h2>
         <div className="review-warning-list">
           {reviewWarnings.length > 0
-            ? reviewWarnings.slice(0, 6).map((warning) => <span key={`review-warning-${warning}`}>{warning}</span>)
+            ? reviewWarnings.slice(0, 6).map((warning) => <span key={`review-warning-${warning}`}>{warningLabel(warning, t)}</span>)
             : <span>{t("review.no_warnings")}</span>}
         </div>
       </div>
@@ -269,8 +270,8 @@ export function ReviewWorkspace({
         </div>
       </div>
       <div className="workspace-panel span-3 analysis-panel review-report-panel">
-        <h3>{t("panel.analysis")}</h3>
-        <textarea value={analysisQuestion} onChange={(event) => onAnalysisQuestionChange(event.target.value)} rows={4} />
+        <h2>{t("panel.analysis")}</h2>
+        <textarea aria-label={t("analysis.question")} value={analysisQuestion} onChange={(event) => onAnalysisQuestionChange(event.target.value)} rows={4} />
         <label className="checkbox-row">
           <input type="checkbox" checked={invokeDeepSeek} onChange={(event) => onInvokeDeepSeekChange(event.target.checked)} />
           {t("analysis.invoke_deepseek")}
