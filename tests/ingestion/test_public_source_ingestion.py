@@ -68,6 +68,10 @@ def test_entsog_json_is_normalized_into_flow_observations() -> None:
     assert rows[0]["point_name"] == "Zeebrugge"
     assert rows[0]["flow_mcm_d"] == 1.0
     assert rows[0]["freshness"] == "live"
+    # Offset input is converted to UTC by the current parser. This does NOT yet
+    # prove provider timezone semantics for naive/CET/CEST payloads (M1-P0).
+    assert rows[0]["period_start_utc"] == datetime(2026, 5, 29, 4, 0, tzinfo=UTC)
+    assert rows[0]["period_end_utc"] == datetime(2026, 5, 30, 4, 0, tzinfo=UTC)
 
 
 def test_entsog_operational_indicators_are_not_mixed_between_flow_and_capacity() -> None:
@@ -134,6 +138,9 @@ def test_gie_agsi_json_is_normalized_into_storage_observations() -> None:
     assert rows[0]["injection_twh_d"] == 0.0025
     assert rows[0]["withdrawal_twh_d"] == 0.0012
     assert rows[0]["freshness"] == "live"
+    assert rows[0]["period_start_utc"] == datetime(2026, 5, 29, 4, 0, tzinfo=UTC)
+    assert rows[0]["period_end_utc"] == datetime(2026, 5, 30, 4, 0, tzinfo=UTC)
+    assert rows[0]["metadata_json"]["calendar_version"] == "EU-CAM-UTC-2025"
 
 
 def test_gie_alsi_json_is_normalized_into_lng_observations() -> None:
@@ -161,3 +168,6 @@ def test_gie_alsi_json_is_normalized_into_lng_observations() -> None:
     assert rows[0]["send_out_twh_d"] == 0.0034
     assert rows[0]["dtmi_twh"] == 0.065
     assert rows[0]["freshness"] == "live"
+    assert rows[0]["period_start_utc"] == datetime(2026, 5, 29, 4, 0, tzinfo=UTC)
+    assert rows[0]["period_end_utc"] == datetime(2026, 5, 30, 4, 0, tzinfo=UTC)
+    assert rows[0]["metadata_json"]["calendar_version"] == "EU-CAM-UTC-2025"

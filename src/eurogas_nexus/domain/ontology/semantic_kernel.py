@@ -27,6 +27,7 @@ from datetime import UTC, date, datetime
 from zoneinfo import ZoneInfo
 
 from eurogas_nexus.domain.market.gas_day import (
+    DEFAULT_GAS_DAY_CALENDAR,
     GAS_DAY_CALENDARS,
     gas_day_interval_utc,
 )
@@ -232,9 +233,10 @@ class GasDayRef:
 
     Attributes:
         label: Stable label = calendar date of the local start (ISO).
-        calendar_version: Gas-day calendar version id (e.g. ``EU-CAM-2025``).
+        calendar_version: Gas-day calendar version id
+            (e.g. ``EU-CAM-UTC-2025``).
         start_utc: Gas-day start, aware UTC.
-        end_utc: Gas-day end (next day's local 05:00), aware UTC.
+        end_utc: Gas-day end (next boundary), aware UTC.
     """
 
     label: str
@@ -246,13 +248,13 @@ class GasDayRef:
     def containing(
         cls,
         instant: datetime,
-        calendar: str = "EU-CAM-2025",
+        calendar: str = DEFAULT_GAS_DAY_CALENDAR,
     ) -> GasDayRef:
         """Build the gas-day reference containing ``instant``.
 
         Args:
             instant: Timestamp to locate; naive values are assumed UTC.
-            calendar: Calendar version id; defaults to ``EU-CAM-2025``.
+            calendar: Calendar version id; defaults to ``EU-CAM-UTC-2025``.
 
         Returns:
             A frozen GasDayRef with label, calendar version and UTC bounds.

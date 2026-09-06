@@ -1,15 +1,12 @@
 import type { MarketObsDTO } from "@/api/client";
 
-export const DEFAULT_GAS_DAY = new Date().toISOString().slice(0, 10);
+export const DEFAULT_GAS_DAY = gasDayLabelForUtc(new Date());
 
 /**
- * UTC start of the CAM gas day for a calendar date (05:00 CET/CEST):
- * 04:00 UTC in winter, 03:00 UTC while EU DST is active.
- *
- * DST rule (Europe/Berlin): starts on the last Sunday of March at 01:00 UTC,
- * ends on the last Sunday of October at 01:00 UTC. The two transition days
- * themselves are 23/25 hours long; the UI window below uses the +24h
- * approximation on those days only.
+ * UTC start of the CAM gas day for a calendar date (Regulation (EU) 2017/459
+ * Article 3(16)): 05:00 UTC in winter and 04:00 UTC while EU DST is active.
+ * This is the corrected backend calendar `EU-CAM-UTC-2025`; the legacy
+ * `EU-CAM-2025` version is intentionally not used for new computations.
  */
 function lastSundayUtc(year: number, monthIndex: number): number {
   for (let day = 31; day >= 25; day -= 1) {
@@ -30,8 +27,18 @@ export function gasDayStartUtc(gasDay: string): number {
   const year = Number(gasDay.slice(0, 4));
   const month = Number(gasDay.slice(5, 7)) - 1;
   const day = Number(gasDay.slice(8, 10));
-  const hour = euDstActiveOnUtc(year, month, day) ? 3 : 4;
+  const hour = euDstActiveOnUtc(year, month, day) ? 4 : 5;
   return Date.UTC(year, month, day, hour);
+}
+
+export function gasDayLabelForUtc(instant: Date = new Date()): string {
+  const year = instant.getUTCFullYear();
+  const month = instant.getUTCMonth();
+  const day = instant.getUTCDate();
+  const candidate = new Date(Date.UTC(year, month, day));
+  const label = candidate.toISOString().slice(0, 10);
+  if (instant.getTime() >= gasDayStartUtc(label)) return label;
+  return new Date(Date.UTC(year, month, day - 1)).toISOString().slice(0, 10);
 }
 
 export function marketMatchesTradingContext(
@@ -40,7 +47,12 @@ export function marketMatchesTradingContext(
   deliveryProduct: string,
 ): boolean {
   const gasDayStart = gasDayStartUtc(gasDay);
-  const gasDayEnd = gasDayStart + 24 * 60 * 60 * 1000;
+  const nextDay = new Date(
+    Date.UTC(Number(gasDay.slice(0, 4)), Number(gasDay.slice(5, 7)) - 1, Number(gasDay.slice(8, 10)) + 1),
+  )
+    .toISOString()
+    .slice(0, 10);
+  const gasDayEnd = gasDayStartUtc(nextDay);
   const periodStart = Date.parse(observation.period_start_utc);
   const periodEnd = Date.parse(observation.period_end_utc);
   const overlapsGasDay = Number.isFinite(periodStart) && Number.isFinite(periodEnd)

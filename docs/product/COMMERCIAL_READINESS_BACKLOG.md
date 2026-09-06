@@ -1,0 +1,40 @@
+# Commercial Readiness Backlog
+
+Maintained by the product architect. Status transitions require evidence, not
+labels. Milestones are intentionally vertical; one milestone per scheduled run
+unless a smaller P0 repair is required.
+
+Priority baseline: P0 serious defects/CI -> P1 IA simplification -> P2 strategy
+domain/run reproducibility -> P3 strategy UX -> P4 shadow scheduler -> P5
+market/network cockpit -> P6 portfolio/route/scenario -> P7 governance -> P8
+observability/performance -> P9 security/supply chain -> P10 visual polish/GA
+evidence. Fresh repository evidence may re-order entries with a dated note.
+
+## Milestone ledger
+
+| ID | Problem | User impact | Priority | Dependencies | Proposed solution | Acceptance criteria | Status | Evidence |
+|---|---|---|---|---|---|---|---|---|
+| M0-P0 | CAM gas-day boundary is one hour early in `gas_day.py`, GIE/simulated ingestion, semantic kernel, and web client duplicate | Wrong delivery windows/labels/DST anchors on future and some persisted rows | P0 | External authority evidence S04/S05; dirty working-copy docs review | Add frozen corrected calendar version `EU-CAM-UTC-2025`, keep `EU-CAM-2025` for reproducibility, make corrected version the default for new data, persist `calendar_version` in new row metadata, correct semantic kernel and web duplicate, add boundary/DST/compat tests and proposal doc | Legacy calendar unchanged; corrected winter 05:00Z / summer 04:00Z; DST 23/25h anchors; new rows carry calendar_version; no historical rows rewritten; focused + relevant suite green | complete | M0-P0 tests: 1136 passed/4 skipped (one rdflib-dependent test excluded locally); web test/build green; ruff+markdown+load-smoke green; compatibility policy in `docs/product/GAS_DAY_CALENDAR_COMPATIBILITY.md` |
+| M1-P0 | ENTSOG timezone normalization unproven; naive timestamps treated as UTC | ENTSOG flow/capacity periods can be shifted or mis-labelled | P0 | Provider manual; test fixtures | Source timezone contract + WET/offset/naive/CET/CEST fixtures; fail closed on unprovable source timezone; no live calls | Exact UTC periods asserted for each fixture; unsupported timezone fails closed | ready | assessment Section 2.4 |
+| M2-P1 | Fragmented user-visible pages and workflows | Users cannot understand product in 30 seconds | P1 | M0/M1 green; UX/IA design acceptance | Consolidate into ~5 professional workspaces: Market, Portfolio, Strategy Lab, Decision Center, System; glossary becomes contextual help; preserve deep links | IA map accepted; navigation tests pass; existing deep links mapped/migrated; no new page per feature | ready | `docs/clients/UI_CONTENT_STANDARDS.md` audit section; workspace navigation source |
+| M3-P2 | Strategy definitions are ad-hoc POST payloads; table exists but no CRUD/versioning | Cannot create, reuse, compare, or audit a strategy | P2 | M0 green | Versioned `strategy_definitions` domain model, validation, API, structured client store; no execution state | Definition create/draft->retire lifecycle; immutable version history; validation errors are human-readable | ready | `db/models/strategy.py:13-28`; no repository/API usage |
+| M4-P2 | Runs lack dataset snapshot/as-of integrity and deterministic provenance | Backtests are not defensible or reproducible | P2 | M3 | Immutable dataset snapshot ids, as-of joins, engine/git SHA, data cutoff, parameters, seed, provenance; fail closed when temporal provenance insufficient | Rerun with same snapshot+parameters reproduces result; look-ahead fixtures fail closed | ready | assessment STR-03/STR-04 |
+| M5-P3 | Strategy Lab UX is monitor-centric, hard-coded NBP strategy, duplicated panel, no axes | Cannot design/backtest/compare professionally | P3 | M3+M4 | Strategy Lab lifecycle UX: Design, Backtest, Compare, Shadow Run; structured builder + expert raw view; real charts/axes/units/provenance | Trader can define versioned strategy without JSON; results KPIs/attribution/event log inspectable; compare runs side-by-side | ready | `clients/web/src/app/strategyScenario.ts:153-200`; audit findings |
+| M6-P4 | No shadow scheduler/restart/pause/resume/drift monitoring | Shadow mode is not production-like | P4 | M3+M4 | PostgreSQL job state, scheduler, evaluation schedule, pause/resume/retire, BLOCKED/DEGRADED on stale data, drift vs backtest assumptions, reconciliation | Restart resumes without duplicate evaluation; stale source blocks candidate; pause/resume/retire audited | ready | assessment STR-10/STR-11 |
+| M7-P5 | Market/Network/Capacity fragmented; no hub-linked synchronization | Slow market/network analysis | P5 | IA M2 | Single Market cockpit: hub board, curve, basis matrix, flows/capacity/storage/LNG, outages, route economics; selection propagation | Hub selection updates panels; spread/route questions answerable in one workspace; freshness/source visible | ready | `clients/web/src/components/*Workspace*.tsx`; audit manifest |
+| M8-P6 | Portfolio/route/scenario workflows fragmented; no computed position book | Cannot attribute PnL or stress portfolio | P6 | M2+M5 | Portfolio workspace with resource terms, positions/exposure, capacity/storage rights, portfolio economics; reusable scenarios and stress compare; optimizer binding constraints/marginal economics | Route/allocation shows attribution and binding constraints; scenario compare side-by-side | ready | assessment POS-01..05 |
+| M9-P7 | Row-level entitlement not across all routes; no tenant model; provider certification incomplete | Commercial data risk | P7 | M2 | Row-level entitlement across every read/write route; full identity/OIDC lifecycle; provider live certification; retention rules | Entitlement tests per route; unknown source denied; certification evidence per provider | ready | `docs/release/RELEASE_READINESS.md:118-137` |
+| M10-P8 | No production telemetry, job lifecycle, or measured performance budgets | Cannot operate or claim performance | P8 | M4+M6 | OpenTelemetry-equivalent correlated logs/metrics/traces; PostgreSQL job queue with queued/running/completed/failed/cancelled, progress and cancel; benchmark environment and budgets | Benchmarks persisted; regression budget enforced; failed job lifecycle observable | ready | `docs/operations/SLO.md` (preview only) |
+| M11-P9 | Security baseline and supply-chain evidence incomplete | Cannot claim commercial release security | P9 | M9 | OWASP ASVS 5.0 L2 gap analysis and remediation; SBOM, CVE, checksums, build provenance/attestation, signing where credentials exist | ASVS L2 evidence per control; SBOM/provenance in release; no false signing/acceptance claims | ready | `docs/release/SECURITY_ACCEPTANCE_EVIDENCE.md` external BLOCKED |
+| M12-P10 | Visual polish, onboarding, UAT, GA evidence absent | Cannot call the product release-ready | P10 | all above | Final visual regression, accessibility audit, UAT scripts, onboarding, release notes, operational runbooks, rollback/migration strategy | GA checklist complete; no known P0/P1; external acceptance gaps documented | ready | none yet |
+
+## Current run
+
+See `docs/product/SCHEDULED_AGENT_STATE.md`. This run implements only M0-P0.
+
+## Evidence policy
+
+- A milestone is `complete` only when acceptance evidence is committed and tests
+  or runtime observation support every acceptance criterion.
+- External benchmarks and provider claims require dated source retrieval.
+- The no-execution product boundary is never weakened by a milestone.

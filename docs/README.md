@@ -14,6 +14,14 @@ the current/normative document listed here and report the conflict.
    validated gates, and known production gaps.
 3. [Project directory and ownership](../PROJECT_DIRECTORY.md)
 4. [Architecture decisions](architecture/ARCHITECTURE_DECISION_RECORD.md)
+
+## Product planning
+
+- [Commercial readiness backlog](product/COMMERCIAL_READINESS_BACKLOG.md)
+- [Scheduled agent state](product/SCHEDULED_AGENT_STATE.md)
+- [Industry benchmark principles](product/INDUSTRY_BENCHMARK.md)
+- [Gas-day calendar compatibility](product/GAS_DAY_CALENDAR_COMPATIBILITY.md)
+
 ## Normative and current
 
 These documents define binding engineering boundaries. Contracts and policies

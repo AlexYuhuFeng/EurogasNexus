@@ -68,13 +68,18 @@ def test_time_interval_contains_is_half_open() -> None:
 
 def test_gas_day_ref_uses_versioned_cam_calendar() -> None:
     ref = GasDayRef.containing(datetime(2025, 1, 15, 12, 0, tzinfo=UTC))
-    assert ref.calendar_version == "EU-CAM-2025"
-    assert ref.start_utc == datetime(2025, 1, 15, 4, 0, tzinfo=UTC)
-    assert ref.end_utc == datetime(2025, 1, 16, 4, 0, tzinfo=UTC)
+    assert ref.calendar_version == "EU-CAM-UTC-2025"
+    assert ref.start_utc == datetime(2025, 1, 15, 5, 0, tzinfo=UTC)
+    assert ref.end_utc == datetime(2025, 1, 16, 5, 0, tzinfo=UTC)
     assert ref.label == "2025-01-15"
 
     summer = GasDayRef.containing(datetime(2025, 7, 15, 12, 0, tzinfo=UTC))
-    assert summer.start_utc == datetime(2025, 7, 15, 3, 0, tzinfo=UTC)
+    assert summer.start_utc == datetime(2025, 7, 15, 4, 0, tzinfo=UTC)
+
+    legacy = GasDayRef.containing(
+        datetime(2025, 1, 15, 12, 0, tzinfo=UTC), calendar="EU-CAM-2025"
+    )
+    assert legacy.start_utc == datetime(2025, 1, 15, 4, 0, tzinfo=UTC)
 
 
 def test_gas_year_ref_boundaries() -> None:
@@ -114,6 +119,7 @@ def test_ontology_version_is_v0_3() -> None:
 def test_gas_day_calendar_versions_exposed() -> None:
     versions = gas_day_calendar_versions()
     assert "EU-CAM-2025" in versions
+    assert "EU-CAM-UTC-2025" in versions
     assert "UK-NBP-LEGACY" in versions
 
 

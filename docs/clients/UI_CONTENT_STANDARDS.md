@@ -130,8 +130,11 @@ on the row or in the immediately adjacent panel.
 - Values MUST display currency and unit (`GBP`, `EUR`, `MWh`, `mcm/d`, and so
   on). Do not mix currencies in one calculation display.
 - Time values MUST show their basis (`UTC`, local, or gas-day) and the
-  observation time when relevant. Gas-day boundaries follow the CAM calendar
-  (05:00 CET/CEST) through backend-owned logic.
+  observation time when relevant. Gas-day boundaries follow CAM Article 3(16)
+  through backend-owned logic using the corrected versioned calendar
+  `EU-CAM-UTC-2025` (05:00 UTC winter / 04:00 UTC DST). The legacy
+  `EU-CAM-2025` calendar is frozen for reproducibility and must not be used
+  for new data.
 - PnL is indicative unless the API says otherwise; label `indicative PnL`
   rather than `PnL` when provenance is snapshot or model-derived.
 - Source rows MUST distinguish live, delayed, preview, simulated, stale,

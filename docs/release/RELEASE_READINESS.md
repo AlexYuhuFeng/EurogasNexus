@@ -6,7 +6,7 @@ Status: `RELEASE CANDIDATE FOR TESTED LOCAL SCOPE`
 
 Release marker: `RELEASE CANDIDATE`
 
-Date checked: 2026-09-03
+Date checked: 2026-09-06 (runtime DB and calendar evidence refreshed; broad local suite last recorded 2026-09-03)
 
 Eurogas Nexus passes the current local release-candidate shape for
 backend/API/SDK/CLI, PostgreSQL runtime schema, Web workspace, and Tauri desktop
@@ -24,8 +24,8 @@ Runtime API evidence from the operator's local API:
 GET /api/runtime/db
 database_url_present=true
 connectivity.ok=true
-alembic_revision=0023_storage_nomination_masters
-required_tables=45
+alembic_revision=0024_cost_observations
+required_tables=46
 missing_tables=0
 source=runtime-postgresql
 ```
@@ -80,8 +80,11 @@ passed
   resource/sale pairs fail closed.
 - Cross-zone routes require confirmed TSO access and known capacity; unknown
   access/capacity blocks the pair (never interpreted as unrestricted).
-- Gas-day boundaries follow the CAM calendar (05:00 CET/CEST, DST-aware) via
-  one shared versioned implementation across backend ingestion and simulation.
+- Gas-day boundaries follow CAM Article 3(16) through the corrected versioned
+  calendar `EU-CAM-UTC-2025` (05:00 UTC winter / 04:00 UTC DST); the legacy
+  `EU-CAM-2025` rule is frozen for reproducibility and is not used for new
+  data. Boundaries remain backend-owned across ingestion, simulation, and
+  analysis; the web client duplicate is corrected and is scheduled for removal.
 - Resource-pool allocation is an exact min-cost flow; results persist input
   snapshots with `run_id`/`snapshot_id` evidence, and `RUNTIME_DECISION` mode
   consumes DB snapshots only (client-supplied prices rejected).

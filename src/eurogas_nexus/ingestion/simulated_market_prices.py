@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from eurogas_nexus.db.models import IngestionRunRecord, MarketObservationRecord
 from eurogas_nexus.domain.market.gas_day import (
+    EU_CAM_UTC_CALENDAR,
     gas_day_start_for_date,
     gas_day_start_utc,
 )
@@ -399,6 +400,7 @@ def _market_row(
             ),
             "official_entitlement_required": True,
             "data_contract_shape": "market_observations",
+            "calendar_version": EU_CAM_UTC_CALENDAR,
         },
     }
 
@@ -469,6 +471,7 @@ def _simulated_quote_row(
             "official_entitlement_required": True,
             "data_contract_shape": "market_quotes",
             "price_level": "L1",
+            "calendar_version": EU_CAM_UTC_CALENDAR,
         },
     }
 
@@ -502,20 +505,27 @@ def _period_for_tenor(tenor: str, observed_at: datetime) -> tuple[datetime, date
         return start, start + timedelta(days=2)
     if tenor == "month-ahead":
         first_next_month = _first_day_next_month(observed_at.date())
-        start = gas_day_start_for_date(first_next_month)
+        start = gas_day_start_for_date(
+            first_next_month, calendar=EU_CAM_UTC_CALENDAR
+        )
         first_following_month = _first_day_next_month(first_next_month)
-        return start, gas_day_start_for_date(first_following_month)
+        return (
+            start,
+            gas_day_start_for_date(
+                first_following_month, calendar=EU_CAM_UTC_CALENDAR
+            ),
+        )
     raise ValueError(f"Unsupported simulated tenor: {tenor}")
 
 
 def _gas_day(value: datetime) -> datetime:
     """Return the CAM gas-day start (UTC) containing ``value``.
 
-    Gas days follow the versioned calendar in
-    ``eurogas_nexus.domain.market.gas_day``: 05:00 CET/CEST, i.e. 04:00 UTC in
-    winter and 03:00 UTC during DST.
+    Gas days follow the corrected versioned calendar
+    ``EU-CAM-UTC-2025``: 05:00 UTC in winter and 04:00 UTC during DST
+    (06:00 CET / 06:00 CEST).
     """
-    return gas_day_start_utc(value)
+    return gas_day_start_utc(value, calendar=EU_CAM_UTC_CALENDAR)
 
 
 def _first_day_next_month(value: date) -> date:

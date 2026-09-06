@@ -12,6 +12,8 @@ from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 from xml.etree import ElementTree
 
+from eurogas_nexus.domain.market.gas_day import EU_CAM_UTC_CALENDAR
+
 KWH_PER_MCM = 10_550_000.0
 
 
@@ -477,22 +479,25 @@ def gie_storage_observations_from_json(payload: dict[str, Any]) -> list[dict[str
                 "source_record_id": f"{code}-{gas_day.isoformat()}",
                 "freshness": "live",
                 "research_only": True,
-                "metadata_json": _metadata_subset(
-                    record,
-                    [
-                        "code",
-                        "name",
-                        "url",
-                        "gasDayStart",
-                        "gasDayEnd",
-                        "updatedAt",
-                        "status",
-                        "country",
-                        "countryCode",
-                        "operator",
-                        "operatorKey",
-                    ],
-                ),
+                "metadata_json": {
+                    **_metadata_subset(
+                        record,
+                        [
+                            "code",
+                            "name",
+                            "url",
+                            "gasDayStart",
+                            "gasDayEnd",
+                            "updatedAt",
+                            "status",
+                            "country",
+                            "countryCode",
+                            "operator",
+                            "operatorKey",
+                        ],
+                    ),
+                    "calendar_version": EU_CAM_UTC_CALENDAR,
+                },
             }
         )
     return rows
@@ -526,22 +531,25 @@ def gie_lng_observations_from_json(payload: dict[str, Any]) -> list[dict[str, An
                 "source_record_id": f"{code}-{gas_day.isoformat()}",
                 "freshness": "live",
                 "research_only": True,
-                "metadata_json": _metadata_subset(
-                    record,
-                    [
-                        "code",
-                        "name",
-                        "url",
-                        "gasDayStart",
-                        "gasDayEnd",
-                        "updatedAt",
-                        "status",
-                        "country",
-                        "countryCode",
-                        "operator",
-                        "operatorKey",
-                    ],
-                ),
+                "metadata_json": {
+                    **_metadata_subset(
+                        record,
+                        [
+                            "code",
+                            "name",
+                            "url",
+                            "gasDayStart",
+                            "gasDayEnd",
+                            "updatedAt",
+                            "status",
+                            "country",
+                            "countryCode",
+                            "operator",
+                            "operatorKey",
+                        ],
+                    ),
+                    "calendar_version": EU_CAM_UTC_CALENDAR,
+                },
             }
         )
     return rows
@@ -670,17 +678,17 @@ def _gas_day_period(record: dict[str, Any]) -> tuple[datetime, datetime]:
     """Map a GIE ``gasDayStart`` date to a CAM gas-day UTC interval.
 
     GIE reports the calendar date of the gas day; the interval runs from that
-    date's gas-day start (05:00 CET/CEST -> 04:00 UTC winter / 03:00 UTC during
-    DST) to the following gas day, matching the versioned calendar in
-    ``eurogas_nexus.domain.market.gas_day``.
+    date's CAM Article 3(16) start (05:00 UTC winter / 04:00 UTC during DST)
+    to the following gas day, using the corrected versioned calendar
+    ``EU-CAM-UTC-2025``.
     """
     from eurogas_nexus.domain.market.gas_day import gas_day_start_for_date
 
     start_date = _parse_date(record.get("gasDayStart")) or date.today()
     end_date = _parse_date(record.get("gasDayEnd")) or (start_date + timedelta(days=1))
     return (
-        gas_day_start_for_date(start_date),
-        gas_day_start_for_date(end_date),
+        gas_day_start_for_date(start_date, calendar=EU_CAM_UTC_CALENDAR),
+        gas_day_start_for_date(end_date, calendar=EU_CAM_UTC_CALENDAR),
     )
 
 

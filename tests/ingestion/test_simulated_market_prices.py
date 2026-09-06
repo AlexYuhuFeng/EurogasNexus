@@ -39,6 +39,9 @@ def test_simulated_market_quotes_match_licensed_connector_shape() -> None:
     assert eex_ttf["bid_quantity_mwh"] > 0
     assert eex_ttf["ask_quantity_mwh"] > 0
     assert eex_ttf["unit"] == "MWh"
+    assert eex_ttf["delivery_start_utc"] == datetime(2026, 7, 2, 4, 0, tzinfo=UTC)
+    assert eex_ttf["delivery_end_utc"] == datetime(2026, 7, 3, 4, 0, tzinfo=UTC)
+    assert eex_ttf["metadata_json"]["calendar_version"] == "EU-CAM-UTC-2025"
     assert eex_ttf["metadata_json"]["data_contract_shape"] == "market_quotes"
     assert eex_ttf["metadata_json"]["price_level"] == "L1"
     assert eex_ttf["simulated"] is True
@@ -77,6 +80,19 @@ def test_simulated_market_prices_generate_exchange_and_daily_assessment_rows() -
         and row["metadata_json"]["assessment_format"] == "ICIS Heren daily assessment"
         and row["metadata_json"]["tenor"] == "day-ahead"
         for row in rows
+    )
+    day_ahead_rows = [
+        row for row in rows if row["metadata_json"].get("tenor") == "day-ahead"
+    ]
+    assert day_ahead_rows
+    assert all(
+        row["metadata_json"]["calendar_version"] == "EU-CAM-UTC-2025"
+        for row in day_ahead_rows
+    )
+    assert any(
+        row["period_start_utc"] == datetime(2026, 7, 2, 4, 0, tzinfo=UTC)
+        and row["period_end_utc"] == datetime(2026, 7, 3, 4, 0, tzinfo=UTC)
+        for row in day_ahead_rows
     )
 
 
