@@ -279,11 +279,14 @@ Alembic migration `0025_strategy_registry_v1` chains from
   engine/application/git, snapshot id) for versioned runs.
 - Existing `strategy_definitions` table is frozen legacy and is not extended.
 
-## 21. Future Backtest milestone
+## 21. Backtest milestone (delivered in CR-04)
 
-CR-04 will add dataset snapshot construction, as-of joins, look-ahead-safe
-observation selection, walk-forward/experiment design, and professional
-backtest metrics. CR-03 supplies the exact version/manifest foundation.
+CR-04 delivered the temporally safe backtest engine described in
+`BACKTEST_ENGINE_SPEC.md`: as-of evidence selection, canonical gas-day
+decision clock, explicit economic/fill/missing-data policies, decision-event
+persistence, gross/net indicative PnL, drawdown/metrics, lightweight
+`backtest_experiments`, and `backtest-engine/1` provenance. Walk-forward and
+parameter-sweep execution remain future experiment work.
 
 ## 22. Future Shadow milestone
 

@@ -782,6 +782,24 @@ export function StrategyShadowRunTerminal({
                   <p className="muted">{t("strategy.no_registry_provenance")}</p>
                 )}
               </section>
+              {latestPersistedRun?.backtest_metrics && (
+                <section className="workspace-panel strategy-backtest-metrics">
+                  <div className="panel-title-row">
+                    <h3>{t("strategy.backtest_metrics")}</h3>
+                    <span>{t("strategy.temporal_integrity")}: {latestPersistedRun.backtest_metrics.temporal_integrity ?? "n/a"}</span>
+                  </div>
+                  <div className="metric-grid">
+                    <div><span>{t("strategy.net_indicative_pnl")}</span><strong>{formatSignedMoney(latestPersistedRun.backtest_metrics.net_indicative_pnl_gbp)} GBP</strong></div>
+                    <div><span>{t("strategy.gross_indicative_pnl")}</span><strong>{formatSignedMoney(latestPersistedRun.backtest_metrics.gross_indicative_pnl_gbp)} GBP</strong></div>
+                    <div><span>{t("strategy.modeled_costs")}</span><strong>{formatSignedMoney(latestPersistedRun.backtest_metrics.modeled_costs_gbp)} GBP</strong></div>
+                    <div><span>{t("strategy.max_drawdown")}</span><strong>{formatSignedMoney(latestPersistedRun.backtest_metrics.max_drawdown_gbp)} GBP</strong></div>
+                    <div><span>{t("strategy.data_coverage")}</span><strong>{((latestPersistedRun.backtest_metrics.data_coverage ?? 0) * 100).toFixed(1)}%</strong></div>
+                    <div><span>{t("strategy.evaluation_count")}</span><strong>{latestPersistedRun.backtest_metrics.evaluation_count ?? 0}</strong></div>
+                    <div><span>{t("strategy.blocked_decisions")}</span><strong>{latestPersistedRun.backtest_metrics.blocked_decision_count ?? 0}</strong></div>
+                    <div><span>{t("strategy.candidate_decisions")}</span><strong>{latestPersistedRun.backtest_metrics.candidate_decision_count ?? 0}</strong></div>
+                  </div>
+                </section>
+              )}
             <section className="workspace-panel strategy-cumulative-state">
               <h3>{t("strategy.cumulative_state")}</h3>
               <div className="metric-grid">

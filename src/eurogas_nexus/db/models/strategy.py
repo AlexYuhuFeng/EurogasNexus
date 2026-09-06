@@ -137,6 +137,8 @@ class StrategyRunRecord(Base):
     manifest_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     manifest_hash: Mapped[str | None] = mapped_column(String(128), nullable=True)
     engine_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    backtest_engine_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    experiment_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     application_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
     git_commit_sha: Mapped[str | None] = mapped_column(String(64), nullable=True)
     strategy_schema_version: Mapped[str | None] = mapped_column(String(32), nullable=True)

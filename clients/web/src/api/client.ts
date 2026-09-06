@@ -836,6 +836,8 @@ export interface StrategyRunDTO {
   manifest_json?: Record<string, unknown> | null;
   manifest_hash?: string | null;
   engine_version?: string | null;
+  backtest_engine_version?: string | null;
+  experiment_id?: string | null;
   application_version?: string | null;
   git_commit_sha?: string | null;
   strategy_schema_version?: string | null;
@@ -844,6 +846,7 @@ export interface StrategyRunDTO {
   requested_by?: string | null;
   trigger_type?: string | null;
   correlation_request_id?: string | null;
+  backtest_metrics?: BacktestMetricSetDTO | null;
   paper_pnl_gbp: number | null; cumulative_pnl_gbp: number | null; hit: boolean | null;
   weighted_score: number | null;
   day_ahead_average_gbp_mwh?: number | null;
@@ -924,6 +927,95 @@ export interface StrategyRunCreateInputDTO {
   deterministic_seed?: string | null;
   trigger_type?: string;
   correlation_request_id?: string | null;
+  evaluation_period_start_utc?: string | null;
+  evaluation_period_end_utc?: string | null;
+  decision_schedule?: Record<string, unknown> | null;
+  economic_assumptions?: Record<string, unknown> | null;
+  parameter_values?: Record<string, unknown>;
+  experiment_id?: string | null;
+}
+
+export interface BacktestMetricSetDTO {
+  evaluation_count: number;
+  candidate_decision_count: number;
+  blocked_decision_count: number;
+  skipped_decision_count: number;
+  data_coverage: number;
+  gross_indicative_pnl_gbp: number;
+  modeled_costs_gbp: number;
+  net_indicative_pnl_gbp: number;
+  max_drawdown_gbp: number;
+  peak_timestamp_utc?: string | null;
+  trough_timestamp_utc?: string | null;
+  recovery_timestamp_utc?: string | null;
+  pnl_volatility_gbp?: number | null;
+  worst_event_pnl_gbp?: number | null;
+  best_event_pnl_gbp?: number | null;
+  max_exposure_mwh_per_day: number;
+  average_exposure_mwh_per_day: number;
+  hit_ratio?: number | null;
+  turnover?: number | null;
+  average_margin_gbp_mwh?: number | null;
+  average_modeled_cost_gbp_mwh?: number | null;
+  sharpe_ratio?: number | null;
+  sortino_ratio?: number | null;
+  risk_metric_not_applicable_reasons?: string[];
+  warning_counts?: Record<string, number>;
+  temporal_integrity?: string;
+}
+
+export interface BacktestDecisionEventDTO {
+  event_id: string; run_id: string; experiment_id?: string | null;
+  decision_sequence: number; decision_time_utc: string;
+  gas_day: string; gas_day_start_utc: string; gas_day_end_utc: string;
+  outcome: string; candidate_action_for_review?: string | null;
+  weighted_score?: number | null;
+  day_ahead_average_gbp_mwh?: number | null;
+  intraday_average_gbp_mwh?: number | null;
+  intraday_vs_day_ahead_spread_gbp_mwh?: number | null;
+  allocation_targets: Record<string, unknown>[];
+  gross_indicative_pnl_gbp: number;
+  modeled_costs_gbp: number;
+  net_indicative_pnl_gbp: number;
+  cumulative_net_indicative_pnl_gbp: number;
+  ending_exposure_mwh_per_day: number;
+  missing_inputs: string[]; warnings: string[];
+  price_evidence_refs: string[]; fx_evidence_refs: string[];
+  cost_evidence_refs: string[]; resource_evidence_refs: string[];
+  cost_trace: Record<string, unknown>[];
+  attribution: Record<string, unknown>[];
+  research_only: boolean; human_review_required: boolean;
+}
+
+export interface BacktestSeriesPointDTO {
+  series_point_id: string; run_id: string;
+  decision_sequence: number; decision_time_utc: string; gas_day: string;
+  gross_indicative_pnl_gbp: number; modeled_costs_gbp: number;
+  net_indicative_pnl_gbp: number; cumulative_net_indicative_pnl_gbp: number;
+  ending_exposure_mwh_per_day: number; research_only: boolean;
+}
+
+export interface BacktestAttributionDTO {
+  attribution_id: string; run_id: string; event_id: string;
+  decision_time_utc: string; dimension: string; key: string;
+  gross_indicative_pnl_gbp: number; modeled_costs_gbp: number;
+  net_indicative_pnl_gbp: number; quantity_mwh_per_day: number | null;
+  source_refs: string[]; research_only: boolean;
+}
+
+export interface BacktestExperimentDTO {
+  experiment_id: string; strategy_id: string;
+  base_strategy_version_id: string; name: string; hypothesis: string;
+  experiment_type: string; evaluation_period: Record<string, unknown>;
+  run_ids: string[]; status: string; created_by: string;
+  created_at_utc: string; updated_at_utc: string; research_only: boolean;
+}
+
+export interface BacktestExperimentCreateInputDTO {
+  experiment_id?: string; strategy_id: string;
+  base_strategy_version_id: string; name: string; hypothesis?: string;
+  experiment_type?: string;
+  evaluation_period_start_utc: string; evaluation_period_end_utc: string;
 }
 
 export interface CapacityContractDTO {
@@ -1160,6 +1252,23 @@ export const api = {
 
   strategyRegistryRun: (runId: string) =>
     get<StrategyRunDTO>(`/strategy-runs/${encodeURIComponent(runId)}`),
+
+  strategyRunEvents: (runId: string) =>
+    get<BacktestDecisionEventDTO[]>(`/strategy-runs/${encodeURIComponent(runId)}/events`),
+
+  strategyRunSeries: (runId: string) =>
+    get<BacktestSeriesPointDTO[]>(`/strategy-runs/${encodeURIComponent(runId)}/series`),
+
+  strategyRunAttribution: (runId: string) =>
+    get<BacktestAttributionDTO[]>(`/strategy-runs/${encodeURIComponent(runId)}/attribution`),
+
+  createBacktestExperiment: (body: BacktestExperimentCreateInputDTO) =>
+    post<BacktestExperimentDTO>("/backtest-experiments", body),
+
+  backtestExperiments: () => get<BacktestExperimentDTO[]>("/backtest-experiments"),
+
+  backtestExperiment: (experimentId: string) =>
+    get<BacktestExperimentDTO>(`/backtest-experiments/${encodeURIComponent(experimentId)}`),
 
   capacityContracts: () => get<CapacityContractDTO[]>("/contracts/capacity"),
 

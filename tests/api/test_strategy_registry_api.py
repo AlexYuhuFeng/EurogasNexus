@@ -173,7 +173,7 @@ def test_strategy_version_run_roundtrip_reproducible(tmp_path, monkeypatch) -> N
     assert [row["run_id"] for row in registry_runs.json()["data"]] == [data["run_id"]]
 
 
-def test_run_type_backtest_is_not_executable(tmp_path, monkeypatch) -> None:
+def test_run_type_backtest_requires_explicit_period(tmp_path, monkeypatch) -> None:
     _configure_db(tmp_path, monkeypatch)
     client = TestClient(create_app())
     version_id = _create_frozen_version(client)
@@ -184,7 +184,7 @@ def test_run_type_backtest_is_not_executable(tmp_path, monkeypatch) -> None:
     )
 
     assert response.status_code == 422
-    assert response.json()["detail"]["code"] == "run_type_not_supported"
+    assert response.json()["detail"]["code"] == "backtest_period_required"
 
 
 def test_draft_version_cannot_create_run(tmp_path, monkeypatch) -> None:

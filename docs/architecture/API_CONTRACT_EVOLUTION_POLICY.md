@@ -76,6 +76,12 @@ These tests fail CI loudly on contract drift:
 | `POST /api/strategy-versions/{strategy_version_id}/fork` | CR-03 | FROZEN -> new DRAFT with `parent_version_id`; never mutates the source |
 | `GET/POST /api/strategy-runs` | CR-03 | reproducible run registry; only `EVALUATION` is executable in CR-03 |
 | `GET /api/strategy-runs/{run_id}` | CR-03 | read one run with full manifest/provenance |
+| `POST /api/strategy-runs` (`run_type=BACKTEST`) | CR-04 | as-of historical evaluation; requires period, frozen version, explicit assumptions |
+| `GET /api/strategy-runs/{run_id}/events` | CR-04 | normalized persisted decision events |
+| `GET /api/strategy-runs/{run_id}/series` | CR-04 | persisted gross/net cumulative PnL and exposure series |
+| `GET /api/strategy-runs/{run_id}/attribution` | CR-04 | persisted market-bucket/cost attribution |
+| `GET/POST /api/backtest-experiments` | CR-04 | lightweight SINGLE_RUN experiment grouping |
+| `GET /api/backtest-experiments/{experiment_id}` | CR-04 | read one experiment and its run ids |
 
 ## Deprecation Table
 

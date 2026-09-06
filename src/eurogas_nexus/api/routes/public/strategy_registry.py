@@ -17,7 +17,16 @@ from uuid import uuid4
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
-from eurogas_nexus.domain.ontology.vocabulary import StrategyRunMode
+from eurogas_nexus.domain.backtest.contracts import (
+    BacktestDecisionSchedule,
+    BacktestEconomicAssumptions,
+    BacktestPeriod,
+    BacktestRunDefinition,
+)
+from eurogas_nexus.domain.ontology.vocabulary import (
+    ExperimentType,
+    StrategyRunMode,
+)
 from eurogas_nexus.domain.strategy_lab.registry import (
     StrategyRunType,
     StrategyVersionDefinition,
@@ -65,13 +74,32 @@ class StrategyForkRequest(BaseModel):
 
 
 class StrategyRunCreateRequest(BaseModel):
-    """Request one reproducible strategy evaluation."""
+    """Request one reproducible strategy evaluation or backtest."""
 
     strategy_version_id: str = Field(min_length=1, max_length=128)
     run_type: StrategyRunType = StrategyRunType.EVALUATION
     deterministic_seed: str | None = Field(default=None, max_length=64)
     trigger_type: str = Field(default="MANUAL", max_length=32)
     correlation_request_id: str | None = Field(default=None, max_length=64)
+    evaluation_period_start_utc: datetime | None = None
+    evaluation_period_end_utc: datetime | None = None
+    decision_schedule: BacktestDecisionSchedule | None = None
+    economic_assumptions: BacktestEconomicAssumptions | None = None
+    parameter_values: dict[str, Any] = Field(default_factory=dict)
+    experiment_id: str | None = Field(default=None, max_length=128)
+
+
+class BacktestExperimentCreateRequest(BaseModel):
+    """Create a lightweight SINGLE_RUN backtest experiment group."""
+
+    experiment_id: str | None = Field(default=None, max_length=128)
+    strategy_id: str = Field(min_length=1, max_length=128)
+    base_strategy_version_id: str = Field(min_length=1, max_length=128)
+    name: str = Field(min_length=1, max_length=256)
+    hypothesis: str = Field(default="", max_length=4000)
+    experiment_type: ExperimentType = ExperimentType.SINGLE_RUN
+    evaluation_period_start_utc: datetime
+    evaluation_period_end_utc: datetime
 
 
 @router.get("/api/strategies")
@@ -245,24 +273,38 @@ def fork_strategy_version(
 
 @router.post("/api/strategy-runs")
 def post_strategy_run(body: StrategyRunCreateRequest, request: Request) -> dict:
-    """Evaluate one frozen strategy version and persist a reproducible run.
+    """Evaluate or backtest one frozen strategy version.
 
-    Only ``EVALUATION`` is executable in this release. The persisted run
-    carries a complete run manifest: strategy version content hash, full
-    definition, parameters, assumptions, evidence snapshot, time boundary,
-    engine/application version and git commit.
+    ``EVALUATION`` is the CR-03 single-scenario compatibility path.
+    ``BACKTEST`` runs the temporally safe historical engine over an explicit
+    evaluation period and persists decision events, series and attribution.
     """
 
-    if body.run_type != StrategyRunType.EVALUATION:
-        raise HTTPException(
-            status_code=422,
-            detail={
-                "code": "run_type_not_supported",
-                "message": "Only EVALUATION runs are executable in this release.",
-                "requested_run_type": body.run_type.value,
-            },
-        )
+    if body.run_type == StrategyRunType.EVALUATION:
+        if _has_backtest_fields(body):
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": "backtest_fields_not_applicable",
+                    "message": "Backtest fields require run_type=BACKTEST.",
+                },
+            )
+        return _post_evaluation_run(body, request)
+    if body.run_type == StrategyRunType.BACKTEST:
+        return _post_backtest_run(body, request)
+    raise HTTPException(
+        status_code=422,
+        detail={
+            "code": "run_type_not_supported",
+            "message": "Only EVALUATION and BACKTEST runs are executable.",
+            "requested_run_type": body.run_type.value,
+        },
+    )
 
+
+def _post_evaluation_run(
+    body: StrategyRunCreateRequest, request: Request
+) -> dict:
     with _db_session() as session:
         from eurogas_nexus.db.repositories import strategy_registry
         from eurogas_nexus.db.repositories.strategy import strategy_run_payload
@@ -280,15 +322,7 @@ def post_strategy_run(body: StrategyRunCreateRequest, request: Request) -> dict:
                 detail=f"Unknown strategy version: {body.strategy_version_id}",
             )
         if version.status != "FROZEN":
-            raise HTTPException(
-                status_code=409,
-                detail={
-                    "code": "strategy_version_not_frozen",
-                    "message": "Runs require an immutable FROZEN strategy version.",
-                    "strategy_version_id": version.strategy_version_id,
-                    "version_status": version.status,
-                },
-            )
+            _raise_version_not_frozen(version.status, version.strategy_version_id)
         try:
             row = execute_evaluation_run(
                 session,
@@ -307,6 +341,187 @@ def post_strategy_run(body: StrategyRunCreateRequest, request: Request) -> dict:
                 },
             ) from exc
         data = strategy_run_payload(row)
+    return _env(data, request, source="runtime-postgresql")
+
+
+def _post_backtest_run(
+    body: StrategyRunCreateRequest, request: Request
+) -> dict:
+    if (
+        body.evaluation_period_start_utc is None
+        or body.evaluation_period_end_utc is None
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "backtest_period_required",
+                "message": "BACKTEST requires evaluation_period_start_utc and end_utc.",
+            },
+        )
+    try:
+        period = BacktestPeriod(
+            start_utc=body.evaluation_period_start_utc,
+            end_utc=body.evaluation_period_end_utc,
+        )
+        definition = BacktestRunDefinition(
+            strategy_version_id=body.strategy_version_id,
+            period=period,
+            schedule=body.decision_schedule or BacktestDecisionSchedule(),
+            economic_assumptions=body.economic_assumptions
+            or BacktestEconomicAssumptions(),
+            parameter_values=body.parameter_values,
+            deterministic_seed=body.deterministic_seed,
+            experiment_id=body.experiment_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "backtest_request_invalid", "message": str(exc)},
+        ) from exc
+
+    with _db_session() as session:
+        from eurogas_nexus.application.backtest_service import execute_backtest_run
+        from eurogas_nexus.db.repositories import strategy_registry
+        from eurogas_nexus.db.repositories.strategy import strategy_run_payload
+
+        version = strategy_registry.get_strategy_version(
+            session, body.strategy_version_id
+        )
+        if version is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Unknown strategy version: {body.strategy_version_id}",
+            )
+        if version.status != "FROZEN":
+            _raise_version_not_frozen(version.status, version.strategy_version_id)
+        try:
+            row = execute_backtest_run(
+                session,
+                version=version,
+                definition=definition,
+                requested_by=_requested_by(request),
+                run_id=None,
+                requested_at_utc=None,
+            )
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={"code": "backtest_request_invalid", "message": str(exc)},
+            ) from exc
+        data = strategy_run_payload(row)
+    return _env(data, request, source="runtime-postgresql")
+
+
+
+
+@router.post("/api/backtest-experiments")
+def post_backtest_experiment(
+    body: BacktestExperimentCreateRequest, request: Request
+) -> dict:
+    """Create a lightweight SINGLE_RUN backtest experiment group."""
+
+    try:
+        period = BacktestPeriod(
+            start_utc=body.evaluation_period_start_utc,
+            end_utc=body.evaluation_period_end_utc,
+        )
+        period_payload = period.model_dump(mode="json")
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "experiment_period_invalid", "message": str(exc)},
+        ) from exc
+
+    with _db_session() as session:
+        from eurogas_nexus.db.repositories import backtest, strategy_registry
+
+        strategy = strategy_registry.get_strategy(session, body.strategy_id)
+        if strategy is None:
+            raise HTTPException(
+                status_code=404, detail=f"Unknown strategy: {body.strategy_id}"
+            )
+        version = strategy_registry.get_strategy_version(
+            session, body.base_strategy_version_id
+        )
+        if version is None or version.strategy_id != body.strategy_id:
+            raise HTTPException(
+                status_code=404,
+                detail="Unknown or mismatched base strategy version",
+            )
+        if version.status != "FROZEN":
+            _raise_version_not_frozen(version.status, version.strategy_version_id)
+        experiment_id = body.experiment_id or f"experiment-{uuid4().hex[:20]}"
+        row = backtest.create_experiment(
+            session,
+            experiment_id=experiment_id,
+            strategy_id=body.strategy_id,
+            base_strategy_version_id=body.base_strategy_version_id,
+            name=body.name,
+            hypothesis=body.hypothesis,
+            experiment_type=body.experiment_type.value,
+            evaluation_period=period_payload,
+            created_by=_requested_by(request),
+            now_utc=datetime.now(UTC),
+        )
+        data = {
+            "experiment_id": row.experiment_id,
+            "strategy_id": row.strategy_id,
+            "base_strategy_version_id": row.base_strategy_version_id,
+            "name": row.name,
+            "hypothesis": row.hypothesis,
+            "experiment_type": row.experiment_type,
+            "evaluation_period": row.evaluation_period_json,
+            "run_ids": row.run_ids,
+            "status": row.status,
+            "created_by": row.created_by,
+            "created_at_utc": row.created_at_utc.isoformat(),
+            "updated_at_utc": row.updated_at_utc.isoformat(),
+            "research_only": row.research_only,
+        }
+    return _env(data, request, source="operator-input")
+
+
+@router.get("/api/backtest-experiments")
+def get_backtest_experiments(
+    request: Request,
+    limit: int = Query(default=200, ge=1, le=500),
+) -> dict:
+    """List backtest experiments, newest first."""
+
+    with _db_session() as session:
+        from eurogas_nexus.db.repositories import backtest
+
+        data = backtest.list_experiments(session, limit=limit)
+    return _env(data, request, source="runtime-postgresql")
+
+
+@router.get("/api/backtest-experiments/{experiment_id}")
+def get_backtest_experiment(experiment_id: str, request: Request) -> dict:
+    """Return one backtest experiment, or 404."""
+
+    with _db_session() as session:
+        from eurogas_nexus.db.repositories import backtest
+
+        row = backtest.get_experiment(session, experiment_id)
+        if row is None:
+            raise HTTPException(
+                status_code=404, detail=f"Unknown experiment: {experiment_id}"
+            )
+        data = {
+            "experiment_id": row.experiment_id,
+            "strategy_id": row.strategy_id,
+            "base_strategy_version_id": row.base_strategy_version_id,
+            "name": row.name,
+            "hypothesis": row.hypothesis,
+            "experiment_type": row.experiment_type,
+            "evaluation_period": row.evaluation_period_json,
+            "run_ids": row.run_ids,
+            "status": row.status,
+            "created_by": row.created_by,
+            "created_at_utc": row.created_at_utc.isoformat(),
+            "updated_at_utc": row.updated_at_utc.isoformat(),
+            "research_only": row.research_only,
+        }
     return _env(data, request, source="runtime-postgresql")
 
 
@@ -348,7 +563,92 @@ def get_strategy_run(run_id: str, request: Request) -> dict:
     return _env(data, request, source="runtime-postgresql")
 
 
+
+@router.get("/api/strategy-runs/{run_id}/events")
+def get_backtest_run_events(run_id: str, request: Request) -> dict:
+    """Return persisted backtest decision events for one run."""
+
+    with _db_session() as session:
+        from eurogas_nexus.db.repositories import backtest
+        from eurogas_nexus.db.repositories.strategy import get_strategy_run
+
+        if get_strategy_run(session, run_id) is None:
+            raise HTTPException(status_code=404, detail=f"Unknown strategy run: {run_id}")
+        data = backtest.list_backtest_events(session, run_id)
+    return _env(
+        data,
+        request,
+        source="runtime-postgresql",
+        warnings=[] if data else ["BACKTEST_EVENTS_NOT_AVAILABLE"],
+    )
+
+
+@router.get("/api/strategy-runs/{run_id}/series")
+def get_backtest_run_series(run_id: str, request: Request) -> dict:
+    """Return the persisted cumulative net PnL/exposure series."""
+
+    with _db_session() as session:
+        from eurogas_nexus.db.repositories import backtest
+        from eurogas_nexus.db.repositories.strategy import get_strategy_run
+
+        if get_strategy_run(session, run_id) is None:
+            raise HTTPException(status_code=404, detail=f"Unknown strategy run: {run_id}")
+        data = backtest.list_backtest_series(session, run_id)
+    return _env(
+        data,
+        request,
+        source="runtime-postgresql",
+        warnings=[] if data else ["BACKTEST_SERIES_NOT_AVAILABLE"],
+    )
+
+
+@router.get("/api/strategy-runs/{run_id}/attribution")
+def get_backtest_run_attribution(run_id: str, request: Request) -> dict:
+    """Return persisted backtest attribution rows for one run."""
+
+    with _db_session() as session:
+        from eurogas_nexus.db.repositories import backtest
+        from eurogas_nexus.db.repositories.strategy import get_strategy_run
+
+        if get_strategy_run(session, run_id) is None:
+            raise HTTPException(status_code=404, detail=f"Unknown strategy run: {run_id}")
+        data = backtest.list_backtest_attribution(session, run_id)
+    return _env(
+        data,
+        request,
+        source="runtime-postgresql",
+        warnings=[] if data else ["BACKTEST_ATTRIBUTION_NOT_AVAILABLE"],
+    )
+
+
 # --- Persistence and envelope helpers ---------------------------------------
+
+
+
+def _has_backtest_fields(body: StrategyRunCreateRequest) -> bool:
+    return any(
+        value is not None and bool(value)
+        for value in (
+            body.evaluation_period_start_utc,
+            body.evaluation_period_end_utc,
+            body.decision_schedule,
+            body.economic_assumptions,
+            body.parameter_values,
+            body.experiment_id,
+        )
+    )
+
+
+def _raise_version_not_frozen(status: str, version_id: str) -> None:
+    raise HTTPException(
+        status_code=409,
+        detail={
+            "code": "strategy_version_not_frozen",
+            "message": "Runs require an immutable FROZEN strategy version.",
+            "strategy_version_id": version_id,
+            "version_status": status,
+        },
+    )
 
 
 @contextmanager

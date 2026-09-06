@@ -64,8 +64,10 @@ def evaluation_scenario_from_version(
 
     known_component_types = {item.value for item in StrategyComponentType}
     components: list[StrategyComponent] = []
-    for raw in definition.get("components", []):
-        raw = dict(raw)
+    for item in definition.get("components", []):
+        item = dict(item)
+        extension = dict(item.get("extension_json") or {})
+        raw = {**extension, **item}
         component_type = raw.get("component_type") or "OCM_VS_DAY_AHEAD"
         if component_type not in known_component_types:
             raise StrategyVersionExecutionError(

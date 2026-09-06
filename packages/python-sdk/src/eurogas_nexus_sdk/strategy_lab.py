@@ -129,6 +129,8 @@ class StrategyRunDTO(BaseModel):
     manifest_json: dict | None = None
     manifest_hash: str | None = None
     engine_version: str | None = None
+    backtest_engine_version: str | None = None
+    experiment_id: str | None = None
     application_version: str | None = None
     git_commit_sha: str | None = None
     strategy_schema_version: str | None = None
@@ -137,6 +139,7 @@ class StrategyRunDTO(BaseModel):
     requested_by: str | None = None
     trigger_type: str | None = None
     correlation_request_id: str | None = None
+    backtest_metrics: dict | None = None
     paper_pnl_gbp: float | None = None
     cumulative_pnl_gbp: float | None = None
     hit: bool | None = None

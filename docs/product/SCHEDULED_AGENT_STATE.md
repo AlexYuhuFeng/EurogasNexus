@@ -2,17 +2,17 @@
 
 ## Current run
 
-- Current milestone: `CR-03 / P2` — Strategy Domain Model, Versioning, and
-  Reproducible Run Contract (implemented; see Tests run below).
-- Last completed milestone before this run: `CR-02 / P1B` (commit `89f166e`).
-  Earlier commits: `065ab73` (CR-01), `764fbdd` (M0-P0).
-- CR-03 commit planned for the end of this run:
-  `feat(strategy): add versioned strategy domain and reproducible run manifests`.
-- Current branch/commit at CR-01 start: `main` @
-  `764fbdd48209f3adbc5d1c0e3fad77153a9a156e`; `origin/main`
-  `399be6aec931849e51379dbb6667c751ece5016a`.
-- Model routing: DSH Pro for the full architecture decision and implementation
-  review; no Flash delegation for navigation/product decisions.
+- Current milestone: `CR-04 / P3` — Scientifically Defensible Backtest Engine
+  and Experiment Framework (in progress; plan below).
+- Last completed milestone: `CR-03 / P2` (commit `77e2168`). Earlier commits:
+  `89f166e` (CR-02), `065ab73` (CR-01), `764fbdd` (M0-P0).
+- CR-04 planned commit:
+  `feat(backtest): add temporally safe reproducible strategy backtesting`.
+- Current branch/commit at CR-04 start: `main` @ `77e2168`.
+- Model routing: DSH Pro owns all temporal-data semantics, backtest
+  methodology, economics, statistics, experiment design, reproducibility and
+  data-integrity decisions. Flash is limited to DTO/type propagation, routine
+  SDK/i18n, mechanical tests, and benchmark harness work.
 
 ## Baseline observed at start
 
@@ -33,6 +33,37 @@
   provenance columns on legacy `strategy_runs`). The runtime PostgreSQL head
   should become `0025_strategy_registry_v1`; live migration was not performed
   because the local environment has no running PostgreSQL service.
+
+## CR-04 implementation plan
+
+1. Verify CR-03 precondition from code, not documents.
+2. Audit all existing backtest/evaluation/PnL/FX/temporal code paths.
+3. Write `docs/product/BACKTEST_ENGINE_SPEC.md` (temporal contract, as-of
+   rules, economics, fill/missing-data policy, events, metrics, experiments,
+   determinism, precision, versioning, performance, limitations).
+4. Add ontology vocabulary for temporal integrity, missing-data/fill-price
+   policies, cost treatments, experiment types, decision clock, and backtest
+   outcome status.
+5. Add domain `backtest` contracts, temporal selection utilities, decision
+   clock, economic model, engine loop, event/series/attribution/metrics.
+6. Add DB models `backtest_experiments`, `backtest_decision_events`,
+   `backtest_series`, `backtest_attribution`; add `backtest_engine_version`
+   and `experiment_id` to `strategy_runs`; migration `0026_backtest_engine_v1`.
+7. Add batched as-of evidence repository over `market_observations`,
+   `market_quotes`, `fx_observations`, `cost_observations`, frozen resource
+   contexts, and a CR-03 strategy data snapshot.
+8. Extend professional `POST /api/strategy-runs` for `run_type=BACKTEST`;
+   add run events/series/attribution endpoints and lightweight
+   `backtest_experiments` endpoints.
+9. Keep legacy `/api/research/backtest` and `/api/strategy-lab/*` paths
+   unchanged and clearly documented as legacy.
+10. Update SDK/Web DTOs and add a minimal persisted-metric readout to the
+    existing Strategy terminal (no illustrative charts).
+11. Add temporal-integrity, economics, reproducibility, metrics, API,
+    adversarial-fixture, and gas-day DST tests.
+12. Add `scripts/ops/backtest_benchmark.py` and record baseline.
+13. Run focused + broad validation, web tests/build, ruff, markdown links,
+    load smoke; update backlog/state; commit one coherent slice.
 
 ## CR-03 implementation plan
 
@@ -111,17 +142,18 @@
 
 - `npm --prefix clients/web run test`: **29 passed**.
 - `npm --prefix clients/web run build`: **passed**.
-- Focused CR-03 Python tests (domain/repository/API): **16 passed**
-  (`tests/unit/test_strategy_registry_domain.py`,
-  `tests/integration/test_strategy_registry_repository.py`,
-  `tests/api/test_strategy_registry_api.py`).
+- Focused CR-04 Python tests: backtest engine **27 passed**
+  (`tests/unit/test_backtest_engine.py`), backtest API **7 passed**
+  (`tests/api/test_backtest_api.py`); CR-03 regression tests stay green.
 - `pytest tests --ignore=tests/contract/test_ontology_grm_parity.py`:
-  **1160 passed, 4 skipped**.
+  **1195 passed, 4 skipped**.
 - `ruff check .`: **passed**.
 - `python scripts/ci/check_markdown_links.py`: **passed**.
-- OpenAPI public surface: **94 paths**, all covered by
+- OpenAPI public surface: **99 paths**, all covered by
   `PINNED_PUBLIC_PATHS` and the route-permission registry.
-- Load smoke: **200 ok / 0 errors** (p50 10.4 ms, p95 58.2 ms, p99 876.9 ms).
+- Load smoke: **200 ok / 0 errors** (p50 6.9 ms, p95 22.8 ms, p99 548.4 ms).
+- `python scripts/ops/backtest_benchmark.py`: 30-day daily run ~0.03 s /
+  30 events; 365-day daily run ~2.33 s / 365 events.
 
 ## Known failures
 
@@ -130,9 +162,9 @@
   gap; no dependency install performed. CI installs declared dependencies.
 - Live GitHub Actions status was not queried; all local gates above are green
   with that one collection exclusion.
-- No browser E2E runner exists in the current test infrastructure; CR-02
-  handoffs and CR-03 terminal provenance are covered by executable
-  pure-function tests, source contract tests, and the production web build.
+- No browser E2E runner exists in the current test infrastructure; backtest
+  temporal/economic/metric behavior is covered by executable domain/API tests,
+  source contract tests, and the production web build.
 
 ## Unresolved architectural decisions
 
@@ -144,15 +176,13 @@
   route aliases are introduced.
 - `strategy_definitions` remains a frozen legacy table and is intentionally not
   migrated into the new `strategies`/`strategy_versions` registry in CR-03.
-- Only `run_type=EVALUATION` executes in CR-03; backtest, scenario, and shadow
-  run types are versioned but not executable. No scheduler or execution
-  semantics are added.
-- The professional registry API is ready but not yet driven by terminal
-  builder/backtest controls; the terminal only displays run provenance.
+- `EVALUATION` and `BACKTEST` execute; `SHADOW` and `SCENARIO` remain
+  versioned but not executable. No scheduler or execution semantics are added.
+- The professional registry API is ready, and the terminal now displays a
+  minimal persisted backtest metric/provenance readout; full Strategy Lab
+  builder/compare UX is CR-05.
 
 ## Next recommended milestone
 
-- `CR-04` — Professional backtest and dataset-snapshot construction: as-of
-  joins, look-ahead-safe observation selection, walk-forward/experiment design,
-  and professional backtest metrics on the immutable CR-03 version/manifest
-  foundation (see `docs/product/STRATEGY_DOMAIN_MODEL.md` section 21).
+- `CR-05` — Professional Strategy Lab: Design → Backtest → Compare UX, with
+  a truthful Shadow shell and no fake production shadow execution.

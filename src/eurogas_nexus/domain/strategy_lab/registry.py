@@ -165,6 +165,7 @@ class StrategyRunManifest(BaseModel):
     fx_observation_refs: list[str] = Field(default_factory=list)
     resource_snapshot_refs: list[str] = Field(default_factory=list)
     engine_version: str = "strategy-lab-evaluator/v1"
+    backtest_engine_version: str | None = None
     application_version: str = "0.5.0"
     git_commit_sha: str | None = None
     deterministic_seed: str | None = None
@@ -210,6 +211,7 @@ class StrategyRunManifest(BaseModel):
             "fx_observation_refs": sorted(set(self.fx_observation_refs)),
             "resource_snapshot_refs": sorted(set(self.resource_snapshot_refs)),
             "engine_version": self.engine_version,
+            "backtest_engine_version": self.backtest_engine_version,
             "application_version": self.application_version,
             "git_commit_sha": self.git_commit_sha,
             "deterministic_seed": self.deterministic_seed,

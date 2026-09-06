@@ -70,6 +70,22 @@ REQUIRED_TABLES: tuple[RequiredTable, ...] = (
         name="strategy_data_snapshots",
         introduced_in="0025_strategy_registry_v1",
     ),
+    RequiredTable(
+        name="backtest_experiments",
+        introduced_in="0026_backtest_engine_v1",
+    ),
+    RequiredTable(
+        name="backtest_decision_events",
+        introduced_in="0026_backtest_engine_v1",
+    ),
+    RequiredTable(
+        name="backtest_series",
+        introduced_in="0026_backtest_engine_v1",
+    ),
+    RequiredTable(
+        name="backtest_attribution",
+        introduced_in="0026_backtest_engine_v1",
+    ),
     RequiredTable(name="strategy_runs", introduced_in="0007_strategy_lab_foundation"),
     RequiredTable(name="strategy_allocation_targets", introduced_in="0007_strategy_lab_foundation"),
     RequiredTable(name="strategy_alerts", introduced_in="0007_strategy_lab_foundation"),

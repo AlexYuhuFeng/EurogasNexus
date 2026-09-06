@@ -181,8 +181,18 @@ def create_strategy_run(
     deterministic_seed: str | None = None,
     trigger_type: str = "MANUAL",
     correlation_request_id: str | None = None,
+    evaluation_period_start_utc: str | None = None,
+    evaluation_period_end_utc: str | None = None,
+    economic_assumptions: dict | None = None,
+    parameter_values: dict | None = None,
+    experiment_id: str | None = None,
 ) -> StrategyRunDTO:
-    """Evaluate one frozen strategy version and persist a reproducible run."""
+    """Evaluate or backtest one frozen strategy version.
+
+    ``BACKTEST`` additionally requires ``evaluation_period_start_utc`` and
+    ``evaluation_period_end_utc``; the backend enforces as-of temporal rules
+    and persists decision events/series/attribution.
+    """
 
     payload: dict = {
         "strategy_version_id": strategy_version_id,
@@ -193,9 +203,172 @@ def create_strategy_run(
         payload["deterministic_seed"] = deterministic_seed
     if correlation_request_id is not None:
         payload["correlation_request_id"] = correlation_request_id
+    if evaluation_period_start_utc is not None:
+        payload["evaluation_period_start_utc"] = evaluation_period_start_utc
+    if evaluation_period_end_utc is not None:
+        payload["evaluation_period_end_utc"] = evaluation_period_end_utc
+    if economic_assumptions is not None:
+        payload["economic_assumptions"] = economic_assumptions
+    if parameter_values is not None:
+        payload["parameter_values"] = parameter_values
+    if experiment_id is not None:
+        payload["experiment_id"] = experiment_id
     response = _http.post(f"{base_url}/api/strategy-runs", json=payload, timeout=30)
     response.raise_for_status()
     return StrategyRunDTO(**response.json()["data"])
+
+
+class BacktestDecisionEventDTO(BaseModel):
+    """Persisted decision event of one backtest run."""
+
+    event_id: str
+    run_id: str
+    experiment_id: str | None = None
+    decision_sequence: int
+    decision_time_utc: str
+    gas_day: str
+    gas_day_start_utc: str
+    gas_day_end_utc: str
+    outcome: str
+    gross_indicative_pnl_gbp: float = 0.0
+    modeled_costs_gbp: float = 0.0
+    net_indicative_pnl_gbp: float = 0.0
+    cumulative_net_indicative_pnl_gbp: float = 0.0
+    ending_exposure_mwh_per_day: float = 0.0
+    allocation_targets: list[dict] = Field(default_factory=list)
+    missing_inputs: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    price_evidence_refs: list[str] = Field(default_factory=list)
+    fx_evidence_refs: list[str] = Field(default_factory=list)
+    cost_evidence_refs: list[str] = Field(default_factory=list)
+    resource_evidence_refs: list[str] = Field(default_factory=list)
+    cost_trace: list[dict] = Field(default_factory=list)
+    attribution: list[dict] = Field(default_factory=list)
+    research_only: bool = True
+    human_review_required: bool = True
+
+
+class BacktestSeriesPointDTO(BaseModel):
+    """Persisted cumulative net PnL/exposure series point."""
+
+    series_point_id: str
+    run_id: str
+    decision_sequence: int
+    decision_time_utc: str
+    gas_day: str
+    gross_indicative_pnl_gbp: float
+    modeled_costs_gbp: float
+    net_indicative_pnl_gbp: float
+    cumulative_net_indicative_pnl_gbp: float
+    ending_exposure_mwh_per_day: float
+    research_only: bool = True
+
+
+class BacktestAttributionDTO(BaseModel):
+    """Persisted backtest attribution row."""
+
+    attribution_id: str
+    run_id: str
+    event_id: str
+    decision_time_utc: str
+    dimension: str
+    key: str
+    gross_indicative_pnl_gbp: float
+    modeled_costs_gbp: float
+    net_indicative_pnl_gbp: float
+    quantity_mwh_per_day: float | None = None
+    source_refs: list[str] = Field(default_factory=list)
+    research_only: bool = True
+
+
+class BacktestExperimentDTO(BaseModel):
+    """Lightweight SINGLE_RUN experiment group."""
+
+    experiment_id: str
+    strategy_id: str
+    base_strategy_version_id: str
+    name: str
+    hypothesis: str = ""
+    experiment_type: str = "SINGLE_RUN"
+    evaluation_period: dict = Field(default_factory=dict)
+    run_ids: list[str] = Field(default_factory=list)
+    status: str = "ACTIVE"
+    created_by: str = "operator"
+    created_at_utc: str
+    updated_at_utc: str
+    research_only: bool = True
+
+
+def create_experiment(
+    base_url: str,
+    *,
+    strategy_id: str,
+    base_strategy_version_id: str,
+    name: str,
+    evaluation_period_start_utc: str,
+    evaluation_period_end_utc: str,
+    hypothesis: str = "",
+    experiment_id: str | None = None,
+) -> BacktestExperimentDTO:
+    """Create a lightweight SINGLE_RUN backtest experiment group."""
+
+    payload: dict = {
+        "strategy_id": strategy_id,
+        "base_strategy_version_id": base_strategy_version_id,
+        "name": name,
+        "hypothesis": hypothesis,
+        "evaluation_period_start_utc": evaluation_period_start_utc,
+        "evaluation_period_end_utc": evaluation_period_end_utc,
+    }
+    if experiment_id:
+        payload["experiment_id"] = experiment_id
+    response = _http.post(f"{base_url}/api/backtest-experiments", json=payload, timeout=15)
+    response.raise_for_status()
+    return BacktestExperimentDTO(**response.json()["data"])
+
+
+def list_experiments(base_url: str) -> list[BacktestExperimentDTO]:
+    """List persisted backtest experiments."""
+
+    response = _http.get(f"{base_url}/api/backtest-experiments", timeout=15)
+    response.raise_for_status()
+    return [BacktestExperimentDTO(**row) for row in response.json()["data"]]
+
+
+def get_experiment(base_url: str, experiment_id: str) -> BacktestExperimentDTO:
+    """Fetch one persisted backtest experiment."""
+
+    response = _http.get(
+        f"{base_url}/api/backtest-experiments/{experiment_id}", timeout=15
+    )
+    response.raise_for_status()
+    return BacktestExperimentDTO(**response.json()["data"])
+
+
+def list_run_events(base_url: str, run_id: str) -> list[BacktestDecisionEventDTO]:
+    """Fetch persisted backtest decision events for one run."""
+
+    response = _http.get(f"{base_url}/api/strategy-runs/{run_id}/events", timeout=15)
+    response.raise_for_status()
+    return [BacktestDecisionEventDTO(**row) for row in response.json()["data"]]
+
+
+def list_run_series(base_url: str, run_id: str) -> list[BacktestSeriesPointDTO]:
+    """Fetch the persisted cumulative net PnL/exposure series."""
+
+    response = _http.get(f"{base_url}/api/strategy-runs/{run_id}/series", timeout=15)
+    response.raise_for_status()
+    return [BacktestSeriesPointDTO(**row) for row in response.json()["data"]]
+
+
+def list_run_attribution(base_url: str, run_id: str) -> list[BacktestAttributionDTO]:
+    """Fetch persisted backtest attribution rows."""
+
+    response = _http.get(
+        f"{base_url}/api/strategy-runs/{run_id}/attribution", timeout=15
+    )
+    response.raise_for_status()
+    return [BacktestAttributionDTO(**row) for row in response.json()["data"]]
 
 
 def list_strategy_runs(

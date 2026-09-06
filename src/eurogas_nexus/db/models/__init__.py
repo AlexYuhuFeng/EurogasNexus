@@ -11,6 +11,12 @@ from eurogas_nexus.db.models.analysis import (
     AnalysisRunRecord,
     GeneratedReportRecord,
 )
+from eurogas_nexus.db.models.backtest import (
+    BacktestAttributionRecord,
+    BacktestDecisionEventRecord,
+    BacktestExperimentRecord,
+    BacktestSeriesRecord,
+)
 from eurogas_nexus.db.models.certification import ProviderCertificationRecord
 from eurogas_nexus.db.models.cost_observation import CostObservationRecord
 from eurogas_nexus.db.models.glossary import GlossaryTermRecord
@@ -87,6 +93,11 @@ class IngestionRunRecord(Base):
 
 
 __all__ = [
+    "BacktestAttributionRecord",
+    "BacktestDecisionEventRecord",
+    "BacktestExperimentRecord",
+    "BacktestSeriesRecord",
+
     "AuditEventRecord",
     "AnalysisRunRecord",
     "CapacityObservationRecord",

@@ -458,6 +458,76 @@ class ParameterType(StrEnum):
     PERCENTAGE = "PERCENTAGE"
 
 
+class TemporalIntegrityStatus(StrEnum):
+    """Historical availability classification for one evidence row."""
+
+    VERIFIED = "VERIFIED"
+    APPROXIMATE = "APPROXIMATE"
+    INSUFFICIENT = "INSUFFICIENT"
+
+
+class BacktestOutcomeStatus(StrEnum):
+    """Research outcome of one backtest decision event."""
+
+    COMPLETED = "COMPLETED"
+    COMPLETED_WITH_WARNINGS = "COMPLETED_WITH_WARNINGS"
+    BLOCKED = "BLOCKED"
+    SKIPPED = "SKIPPED"
+
+
+class BacktestIssueSeverity(StrEnum):
+    """Severity of one data-quality/economic issue."""
+
+    BLOCKER = "BLOCKER"
+    WARNING = "WARNING"
+    INFO = "INFO"
+
+
+class MissingDataPolicy(StrEnum):
+    """Policy for absent required price series at a decision time."""
+
+    FAIL = "FAIL"
+    SKIP_DECISION = "SKIP_DECISION"
+    CARRY_FORWARD_WITH_MAX_AGE = "CARRY_FORWARD_WITH_MAX_AGE"
+    USE_APPROVED_FALLBACK_SOURCE = "USE_APPROVED_FALLBACK_SOURCE"
+
+
+class FillPricePolicy(StrEnum):
+    """Historical price selection policy."""
+
+    MID = "MID"
+    BID = "BID"
+    ASK = "ASK"
+    LAST = "LAST"
+    ASSESSMENT = "ASSESSMENT"
+    NEXT_ELIGIBLE = "NEXT_ELIGIBLE"
+
+
+class CostTreatment(StrEnum):
+    """How one backtest cost component is treated."""
+
+    KNOWN_COST = "KNOWN_COST"
+    MODELED_COST = "MODELED_COST"
+    EXCLUDED = "EXCLUDED"
+    UNAVAILABLE = "UNAVAILABLE"
+    RESOURCE_DEFINED = "RESOURCE_DEFINED"
+
+
+class DecisionClockBasis(StrEnum):
+    """Decision-clock scheduling basis."""
+
+    GAS_DAY = "GAS_DAY"
+    FIXED_UTC = "FIXED_UTC"
+
+
+class ExperimentType(StrEnum):
+    """Research experiment grouping type."""
+
+    SINGLE_RUN = "SINGLE_RUN"
+    PARAMETER_COMPARISON = "PARAMETER_COMPARISON"
+    WALK_FORWARD = "WALK_FORWARD"
+
+
 class StrategyComponentType(StrEnum):
     """Strategy-lab component family."""
 
