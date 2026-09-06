@@ -22,6 +22,7 @@ from eurogas_nexus.domain.ontology.vocabulary import (
     StrategyRunType,
     StrategyVersionStatus,
 )
+from eurogas_nexus.version import APPLICATION_VERSION
 
 __all__ = [
     "ParameterType",
@@ -120,8 +121,7 @@ class StrategyVersionDefinition(BaseModel):
         return {
             "components": [component.model_dump(mode="json") for component in self.components],
             "parameter_definitions": [
-                definition.model_dump(mode="json")
-                for definition in self.parameter_definitions
+                definition.model_dump(mode="json") for definition in self.parameter_definitions
             ],
             "parameter_values": self.parameter_values,
             "risk_controls": self.risk_controls.model_dump(mode="json"),
@@ -170,7 +170,7 @@ class StrategyRunManifest(BaseModel):
     resource_snapshot_refs: list[str] = Field(default_factory=list)
     engine_version: str = "strategy-lab-evaluator/v1"
     backtest_engine_version: str | None = None
-    application_version: str = "0.5.0"
+    application_version: str = APPLICATION_VERSION
     git_commit_sha: str | None = None
     deterministic_seed: str | None = None
     requested_by: str = "operator"
@@ -205,9 +205,7 @@ class StrategyRunManifest(BaseModel):
             "parameter_values": self.parameter_values,
             "economic_assumptions": self.economic_assumptions,
             "evidence": self.evidence,
-            "time_boundary": {
-                "data_cutoff_utc": self.time_boundary.get("data_cutoff_utc")
-            },
+            "time_boundary": {"data_cutoff_utc": self.time_boundary.get("data_cutoff_utc")},
             "context": self.context,
             "data_cutoff_utc": _iso_or_none(self.data_cutoff_utc),
             "dataset_snapshot_id": self.dataset_snapshot_id,

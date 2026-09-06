@@ -16,7 +16,7 @@ def test_release_builds_linux_deb_for_x64_and_arm64() -> None:
         "name: Build desktop client (${{ matrix.artifact_label }})",
         "artifact_label: linux-x64",
         "artifact_label: linux-arm64",
-        "os: ubuntu-latest",
+        "os: ubuntu-24.04",
         "os: ubuntu-24.04-arm",
         "Linux x64 DEB package",
         "Linux ARM64 DEB package",

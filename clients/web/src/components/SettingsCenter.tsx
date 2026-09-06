@@ -2,8 +2,11 @@ import { useEffect, useState } from "react";
 import type {
   CredentialProviderDTO,
   RuntimeDbStatusDTO,
+  RuntimeReleaseDTO,
   SourceSystemDTO,
 } from "@/api/client";
+import type { ReleaseCompatibility } from "@/app/releaseCompatibility";
+import { CLIENT_BUILD_GIT_SHA, CLIENT_BUILD_GIT_REF, CLIENT_RELEASE_CHANNEL, CLIENT_APPLICATION_VERSION } from "@/app/releaseMetadata";
 import {
   clearApiBaseUrl,
   configuredApiBaseUrl,
@@ -47,6 +50,8 @@ interface SettingsCenterProps {
   mode: ThemeMode;
   dataStatus: string;
   runtimeDb: RuntimeDbStatusDTO | null;
+  runtimeRelease: RuntimeReleaseDTO | null;
+  releaseCompatibility: ReleaseCompatibility | null;
   sources: SourceSystemDTO[];
   credentialProviders: CredentialProviderDTO[];
   counts: {
@@ -92,6 +97,8 @@ export function SettingsCenter({
   mode,
   dataStatus,
   runtimeDb,
+  runtimeRelease,
+  releaseCompatibility,
   sources,
   credentialProviders,
   counts,
@@ -172,6 +179,33 @@ export function SettingsCenter({
           <div><span>{t("settings.runtime_api")}</span><strong>{t(`data.${dataStatus}`)}</strong></div>
           <div><span>{t("settings.runtime_db")}</span><strong>{runtimeDb?.connectivity.ok ? "ok" : "n/a"}</strong></div>
         </div>
+      </div>
+
+      <div className="workspace-panel span-3 settings-about-panel">
+        <div className="panel-title-row">
+          <div>
+            <h3>{t("release.about_title")}</h3>
+            <p className="panel-copy">{t("release.about_subtitle")}</p>
+          </div>
+          <span className={`status-badge status-${releaseCompatibility?.state === "compatible" ? "runtime" : "unavailable"}`}>
+            {t(`release.compat_${releaseCompatibility?.state ?? "unknown"}`)}
+          </span>
+        </div>
+        <div className="settings-about-grid">
+          <div><span>{t("release.product")}</span><strong>Eurogas Nexus</strong></div>
+          <div><span>{t("release.client_version")}</span><strong>{CLIENT_APPLICATION_VERSION}</strong></div>
+          <div><span>{t("release.channel")}</span><strong>{CLIENT_RELEASE_CHANNEL}</strong></div>
+          <div><span>{t("release.client_build")}</span><strong>{CLIENT_BUILD_GIT_SHA ?? t("release.not_reported")}</strong></div>
+          <div><span>{t("release.server_version")}</span><strong>{runtimeRelease?.application_version ?? t("release.not_reported")}</strong></div>
+          <div><span>{t("release.api_contract")}</span><strong>{runtimeRelease?.api_contract_version ?? t("release.not_reported")}</strong></div>
+          <div><span>{t("release.db_schema_revision")}</span><strong>{runtimeRelease?.database_schema_revision ?? t("release.not_reported")}</strong></div>
+          <div><span>{t("release.update_status")}</span><strong>{t("release.update_disabled_managed")}</strong></div>
+        </div>
+        {CLIENT_BUILD_GIT_REF && (
+          <p className="settings-backend-message" role="status">
+            {t("release.build_ref")}: {CLIENT_BUILD_GIT_REF}
+          </p>
+        )}
       </div>
 
       <div className="workspace-panel span-3 settings-backend-panel">

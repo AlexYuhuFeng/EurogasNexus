@@ -1,4 +1,6 @@
-# Build-only dependencies required by the pyproject build-system.
-# Kept separate so the runtime image does not carry setuptools/wheel.
+# Build-only dependencies required by the pyproject build-system and by the
+# release dependency-scan job. Kept separate so the runtime image does not
+# carry setuptools/wheel or scanner tooling.
 setuptools>=68
 wheel>=0.42
+pip-audit==2.10.1

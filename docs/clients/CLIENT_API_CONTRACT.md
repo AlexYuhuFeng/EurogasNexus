@@ -97,6 +97,7 @@ both bootstrap and full-envelope responses during transition.
 | Endpoint | Client Use | Status |
 | --- | --- | --- |
 | `GET /api/health` | backend availability | active |
+| `GET /api/runtime/release` | version/channel/commit and client-server-DB compatibility contract | active; clients block incompatible states |
 | `GET /api/runtime/status` | DB/runtime/operator status | planned |
 | `GET /api/reference-network/nodes` | map nodes | active |
 | `GET /api/reference-network/edges` | map corridors/routes | active |

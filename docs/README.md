@@ -146,6 +146,14 @@ Operational procedures and operator-facing guides:
 ## Release, security, and deployment
 
 - [Release readiness](release/RELEASE_READINESS.md)
+- [Release engineering specification](release/RELEASE_ENGINEERING_SPEC.md)
+- [Release channels](release/RELEASE_CHANNELS.md)
+- [GA release gates](release/GA_RELEASE_GATES.md)
+- [Software supply chain](release/SUPPLY_CHAIN.md)
+- [Update policy](release/UPDATE_POLICY.md)
+- [Install Windows](release/INSTALL_WINDOWS.md)
+- [Install Linux](release/INSTALL_LINUX.md)
+- [Third-party notices](../THIRD_PARTY_NOTICES.md)
 - [Security acceptance evidence EN](release/SECURITY_ACCEPTANCE_EVIDENCE.md) /
   [CN](release/SECURITY_ACCEPTANCE_EVIDENCE-CN.md)
 - [Deployment roles EN](deployment/DEPLOYMENT_ROLES-EN.md) /

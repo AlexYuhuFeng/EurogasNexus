@@ -35,7 +35,7 @@ migrations, an HTTPS gateway, or ingestion workers.
 
 Choose release assets by role:
 
-- `Client`: download `Eurogas-Nexus-Client-0.5.0-x64-setup.exe` and connect it to an existing
+- `Client`: download `Eurogas-Nexus-Client-{VERSION}-windows-x64-setup.exe` and connect it to an existing
   reachable HTTPS endpoint ending in `/api`.
 - `Server`: download `Eurogas-Nexus-Server-Windows.zip` and run
   `Deploy-EurogasNexus.ps1 -Role Server`; the desktop installer is not required.
@@ -62,7 +62,7 @@ Run PowerShell as Administrator. Start with a non-destructive preflight:
 ```powershell
 ./Deploy-EurogasNexus.ps1 -Action Preflight -Role Client `
   -ServerApiUrl https://nexus.example.com/api `
-  -ClientInstallerPath ./Eurogas-Nexus_0.5.0_x64-setup.exe
+  -ClientInstallerPath ./Eurogas-Nexus-Client-{VERSION}-windows-x64-setup.exe
 ```
 
 The preflight never installs Docker, starts containers, changes firewall rules,
@@ -130,7 +130,7 @@ Client requires the signed NSIS installer and an existing HTTPS server URL:
 ```powershell
 ./Deploy-EurogasNexus.ps1 -Action Install -Role Client `
   -ServerApiUrl https://nexus.example.com/api `
-  -ClientInstallerPath ./Eurogas-Nexus_0.5.0_x64-setup.exe
+  -ClientInstallerPath ./Eurogas-Nexus-Client-{VERSION}-windows-x64-setup.exe
 ```
 
 The tool validates `/api/health` before installing, runs the signed NSIS package,

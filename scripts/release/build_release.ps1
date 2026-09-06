@@ -4,10 +4,18 @@ param(
     [ValidateSet("nsis", "deb", "appimage", "msi")]
     [string]$Bundle = "nsis",
     [string]$ApiImageArchivePath,
-    [string]$ApiImage = "eurogas-nexus-api:0.5.0"
+    [string]$ApiImage
 )
 
 $ErrorActionPreference = "Stop"
+
+$DesktopManifestPath = Join-Path $PSScriptRoot "..\..\clients\desktop\src-tauri	auri.conf.json"
+$DesktopManifest = Get-Content -LiteralPath $DesktopManifestPath -Raw | ConvertFrom-Json
+$ResolvedVersion = if ($env:EUROGAS_NEXUS_VERSION) { $env:EUROGAS_NEXUS_VERSION } else { [string]$DesktopManifest.version }
+$ReleaseChannel = if ($env:EUROGAS_NEXUS_RELEASE_CHANNEL) { $env:EUROGAS_NEXUS_RELEASE_CHANNEL } else { "preview" }
+if ([string]::IsNullOrWhiteSpace($ApiImage)) {
+    $ApiImage = "eurogas-nexus-api:${ResolvedVersion}-${ReleaseChannel}"
+}
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..\..")
 $WebDir = Join-Path $RepoRoot "clients\web"

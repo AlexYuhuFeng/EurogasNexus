@@ -173,7 +173,10 @@ def test_current_docs_use_public_plan_workflow_and_preview_version() -> None:
     workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(
         encoding="utf-8"
     )
-    assert 'TAG="v0.5-${CHANNEL}-${GITHUB_RUN_NUMBER}-${SHORT_SHA}"' in workflow
+    assert "resolve_release_context.py" in workflow
+    assert "publish-stable:" in workflow and "environment: production" in workflow
+    assert "validate_stable_release.py" in workflow
+    assert "actions/attest-build-provenance@" in workflow
 
 
 def test_resource_pool_contract_defines_home_and_efet_contract_entry() -> None:

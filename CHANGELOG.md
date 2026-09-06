@@ -5,8 +5,9 @@ All notable changes to Eurogas Nexus are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 Application artifacts use package version `0.5.0`; the current public channel is
 `preview` and is not a GA/stable release.
-CI tags use `v0.5-<channel>-<run>-<short-sha>`, independently of the package
-version.
+Release tags use `vX.Y.Z`, `vX.Y.Z-rc.N`, or
+`vX.Y.Z-preview.N.<shortsha>`; legacy `v0.5-preview-<run>-<sha>` tags are
+historical and are no longer generated.
 
 ## Ontology version changes
 
@@ -24,6 +25,19 @@ asserted by `tests/contract/test_ontology_version_alignment.py`.
 
 ## [Unreleased]
 
+- Supply-chain and release hardening (CR-12):
+  - single canonical version contract enforced by
+    `scripts/release/check_version_consistency.py`;
+  - preview/RC/stable channel semantics with tag-only stable promotion;
+  - machine-readable `release-manifest.json`, final `SHA256SUMS`, SPDX SBOMs,
+    dependency vulnerability evidence, and GitHub OIDC attestations;
+  - policy-aware Windows/Linux signing with explicit unsigned-pending state;
+  - tag/version-derived artifact names; immutable container `sha-*` tags and
+    multi-arch digest acceptance;
+  - client/server compatibility contract (`/api/runtime/release`) and a
+    blocking client compatibility screen;
+  - managed/offline desktop update policy (no Tauri updater ships);
+  - pinned runners, toolchains, and GitHub Actions in release/CI workflows.
 - Standardized backend project structure:
   - consolidated research calculations under `src/eurogas_nexus/domain/research`;
   - removed empty source placeholder packages;

@@ -84,6 +84,7 @@ values.
 | --- | --- | --- | --- |
 | `GET` | `/api/health` | backend health | active |
 | `GET` | `/api/runtime/status` | API, DB, Alembic, source posture | planned |
+| `GET` | `/api/runtime/release` | version, channel, commit, API/DB/engine compatibility | active (CR-12) |
 | `GET` | `/api/runtime/readiness` | release/trial readiness | planned |
 
 ### Source And Ingestion

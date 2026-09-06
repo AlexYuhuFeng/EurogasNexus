@@ -7,9 +7,12 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from eurogas_nexus.version import APPLICATION_VERSION, DEFAULT_RELEASE_CHANNEL
+
 ApiProfile = Literal["development", "internal", "release"]
 RuntimeEnvironment = Literal["development", "test", "trial", "release"]
 DeploymentPosture = Literal["private_network_preview", "security_accepted"]
+ReleaseChannel = Literal["preview", "rc", "stable"]
 DEPLOYMENT_POSTURE_ENV = "EUROGAS_NEXUS_DEPLOYMENT_POSTURE"
 SECURITY_ACCEPTANCE_EVIDENCE_ENV = "EUROGAS_NEXUS_SECURITY_ACCEPTANCE_EVIDENCE"
 DB_DSN_ENV_VARS = (
@@ -64,7 +67,12 @@ class Settings(BaseModel):
     """Settings loaded from environment variables without side effects."""
 
     app_name: str = "Eurogas Nexus"
-    app_version: str = Field(default="0.5.0")
+    app_version: str = Field(default=APPLICATION_VERSION)
+    release_channel: ReleaseChannel = Field(default=DEFAULT_RELEASE_CHANNEL)
+    build_git_sha: str | None = None
+    build_git_ref: str | None = None
+    build_run_id: str | None = None
+    build_timestamp: str | None = None
     environment: RuntimeEnvironment = "development"
     api_profile: ApiProfile = "development"
     db: DbRuntimeConfig = Field(default_factory=DbRuntimeConfig)
@@ -86,7 +94,12 @@ class Settings(BaseModel):
                 default=True,
             )
         return cls(
-            app_version=os.getenv("EUROGAS_NEXUS_VERSION", "0.5.0"),
+            app_version=os.getenv("EUROGAS_NEXUS_VERSION", APPLICATION_VERSION),
+            release_channel=os.getenv("EUROGAS_NEXUS_RELEASE_CHANNEL", DEFAULT_RELEASE_CHANNEL),
+            build_git_sha=(os.getenv("EUROGAS_NEXUS_BUILD_GIT_SHA") or "").strip() or None,
+            build_git_ref=(os.getenv("EUROGAS_NEXUS_BUILD_GIT_REF") or "").strip() or None,
+            build_run_id=(os.getenv("EUROGAS_NEXUS_BUILD_RUN_ID") or "").strip() or None,
+            build_timestamp=(os.getenv("EUROGAS_NEXUS_BUILD_TIMESTAMP") or "").strip() or None,
             environment=environment,
             api_profile=os.getenv("EUROGAS_NEXUS_API_PROFILE", "development"),
             db=DbRuntimeConfig(
@@ -98,12 +111,8 @@ class Settings(BaseModel):
                 ),
             ),
             deployment=DeploymentConfig(
-                posture=os.getenv(
-                    DEPLOYMENT_POSTURE_ENV, "private_network_preview"
-                ),
-                security_acceptance_evidence_path=os.getenv(
-                    SECURITY_ACCEPTANCE_EVIDENCE_ENV
-                ),
+                posture=os.getenv(DEPLOYMENT_POSTURE_ENV, "private_network_preview"),
+                security_acceptance_evidence_path=os.getenv(SECURITY_ACCEPTANCE_EVIDENCE_ENV),
             ),
             llm_external_provider_enabled=llm_external_provider_enabled,
         )
@@ -122,12 +131,8 @@ def public_network_deployment_allowed(
     resolved = settings or get_settings()
     posture = resolved.deployment.posture
     if posture != "security_accepted":
-        return False, (
-            f"deployment_posture={posture!r}; expected 'security_accepted'"
-        )
-    evidence_path = (
-        resolved.deployment.security_acceptance_evidence_path or ""
-    ).strip()
+        return False, (f"deployment_posture={posture!r}; expected 'security_accepted'")
+    evidence_path = (resolved.deployment.security_acceptance_evidence_path or "").strip()
     if not evidence_path:
         return False, "security-acceptance evidence path is not configured"
     if not Path(evidence_path).is_file():
@@ -150,7 +155,6 @@ def simulated_sources_allowed() -> bool:
         os.getenv("EUROGAS_NEXUS_ENABLE_SIMULATED_SOURCES"),
         default=True,
     )
-
 
 
 @lru_cache

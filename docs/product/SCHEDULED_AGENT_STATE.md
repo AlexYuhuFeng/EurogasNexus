@@ -2,20 +2,21 @@
 
 ## Current run
 
-- Current milestone: `CR-09 / P8` — Production Data Operations: Ingestion
-  Scheduling, Source Certification, Freshness SLAs, Row-Level Data
-  Entitlements, and Operational Observability.
-- Last completed milestone: `CR-09 / P8` (current `main` HEAD); prior commit `c9e1a06` (CR-08). Earlier commits:
-  `20c0bc2` (CR-07), `69aaaa6` (CR-06), `5517bbe` (CR-05), `a930199` (CR-04).
-- CR-09 commit: current `main` HEAD
-  `feat(dataops): add production ingestion and source governance`.
-- Current branch/commit at CR-09 start: `main` @ `c9e1a06`.
-- Model routing: DSH Pro owns all source-operation architecture, scheduler
-  semantics, retry policies, source certification, freshness policy,
-  entitlement enforcement, licensed-data boundaries, observability model and
-  fail-closed behavior. DSH Flash is limited to repetitive DTO/schema
-  propagation, mechanical observability instrumentation, routine migration
-  implementation, repetitive tests, i18n and low-risk UI wiring.
+- Current milestone: `CR-12 / P11` — Software Supply Chain, Release
+  Engineering, Signing, SBOM, Provenance, Installer/Updater, Version
+  Compatibility, and GA Distribution Hardening.
+- Last completed milestone: `CR-11 / P10` (commit `033df92`). Earlier commits:
+  `f70acbf` (CR-10), `974df43` (CR-09), `c9e1a06` (CR-08).
+- CR-12 commit: the coherent milestone commit recorded after the final
+  validation report below.
+- Current branch/commit at CR-12 start: `main` @ `033df92`.
+- Model routing: DSH Pro owns release-channel architecture, version semantics,
+  artifact trust, code-signing strategy, updater security, provenance,
+  supply-chain policy, compatibility rules, promotion gates and GA decisions.
+  DSH Flash is limited to mechanical workflow refactors, version-propagation
+  changes, checksum/SBOM script implementation, routine packaging tests,
+  documentation formatting, CI test expansion, and low-risk installer metadata
+  changes.
 
 ## Baseline observed at start
 
@@ -36,6 +37,34 @@
   provenance columns on legacy `strategy_runs`). The runtime PostgreSQL head
   should become `0025_strategy_registry_v1`; live migration was not performed
   because the local environment has no running PostgreSQL service.
+
+## CR-12 implementation plan
+
+1. Audit release triggers, channel semantics, version sources, hard-coded
+   versions, tags, artifact naming, permissions, action/toolchain pinning,
+   dependency locks, Docker/desktop packaging, signing, SBOM/provenance and
+   current GitHub Releases.
+2. Write `docs/release/RELEASE_ENGINEERING_SPEC.md` and the channel/gate/
+   supply-chain/update/install documentation before broad implementation.
+3. Establish `pyproject.toml` as the canonical version and add
+   `scripts/release/check_version_consistency.py` plus generated runtime
+   version mirrors.
+4. Add deterministic tag/channel semantics (`vX.Y.Z`, `-rc.N`,
+   `-preview.N.<sha>`) and a tag-only stable trigger.
+5. Add `release-context.json` -> artifact naming, `release-manifest.json`,
+   final `SHA256SUMS`, SPDX SBOMs, THIRD_PARTY_NOTICES, vulnerability scan
+   evidence and policy, signing-state abstraction, stable gate, post-publish
+   verification, and a local release dry-run.
+6. Refactor `release.yml` into resolve/validate/reliability/scan/build/sign/
+   assemble/attest/accept/publish/verify phases with least privilege and full
+   commit-SHA action pinning; pin Python/Node/Rust toolchains.
+7. Add `/api/runtime/release`, client release metadata, About/Diagnostics
+   surface, and a blocking client/server compatibility screen.
+8. Harden Windows packaging metadata, document online vs offline WebView2,
+   keep architecture-specific Linux DEBs, and document the managed/offline
+   update policy (no updater ships).
+9. Run full validation and a complete release dry-run; update
+   RELEASE_READINESS, backlog/state; commit one coherent milestone.
 
 ## CR-11 implementation plan
 
@@ -341,6 +370,27 @@
   p99 2173.9ms, 0 errors (scratch PostgreSQL).
 - CI load smoke: **200 ok / 0 errors** (p50 5.2ms, p95 12.7ms).
 
+## Tests run (CR-12)
+
+- `pytest tests --ignore=tests/contract/test_ontology_grm_parity.py`:
+  **1299 passed, 10 skipped**.
+- PostgreSQL 16 scratch DB `eurogas_nexus_cr12` (head
+  `0030_reliability_indexes`): integration suite **50 passed**.
+- `npm --prefix clients/web run test`: **47 passed**; `npm run build`:
+  **passed**.
+- `ruff check .`: **passed**. Markdown links: 168 files, all resolve.
+- Version consistency gate: **25 surfaces, all agree**.
+- OpenAPI public surface: **141 paths**, pinned and permission-declared.
+- Automated security acceptance: **PASS** (external review remains BLOCKED).
+- Desktop `cargo check --locked`: **passed** (Rust 1.94.0 pinned toolchain).
+- Release dry-run (`--channel preview --with-performance --build-container
+  --container-smoke`): **ok**, 16 steps, final manifest/SHA256SUMS/SPDX SBOMs
+  verified; Windows NSIS bundled, Web/Server bundles packaged, container image
+  built and import-smoked; Linux DEB platforms recorded as CI-only local gaps.
+  Final dry-run duration 34s on the local Windows workstation.
+- Stable gate simulation: fail-closed on missing external evidence and
+  unsigned Windows artifacts (by design).
+
 ## Known failures
 
 - `tests/contract/test_ontology_grm_parity.py` cannot collect locally because
@@ -371,6 +421,7 @@
 
 ## Next recommended milestone
 
-- `CR-12` — Software Supply Chain, Release Engineering, Signing, SBOM,
-  Provenance, Installer/Updater, and GA Distribution Hardening, unless
-  repository evidence reveals a higher-priority reliability/security blocker.
+- `CR-13` — Commercial UAT, Trader Workflow Acceptance, AI/Copilot
+  Evaluation, Accessibility, Final UX Convergence, Documentation, and GA
+  Release-Candidate Stabilization, unless CR-12 evidence reveals a
+  release/security blocker that must be repaired first.

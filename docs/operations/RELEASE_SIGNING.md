@@ -11,7 +11,7 @@ production private keys.
 
 ```bash
 bash scripts/release/sign_release_artifacts.sh \
-  --artifact clients/desktop/src-tauri/target/release/bundle/nsis/Eurogas-Nexus-Client-0.5.0-x64-setup.exe \
+  --artifact release-assets/Eurogas-Nexus-Client-{VERSION}-windows-x64-setup.exe \
   --cert ./test-cert.pfx \
   --password "$TEST_CERT_PASSWORD"
 ```
@@ -64,3 +64,18 @@ Add a release-only job that:
 5. Uploads signatures alongside artifacts.
 
 Private keys must never be checked into the repository.
+
+## CR-12 policy-aware signer
+
+`scripts/release/sign_release_artifacts.py` records one of the following per
+artifact:
+
+- Windows EXE/MSI: `authenticode_verified` (credentials configured, signed,
+  timestamped, and verified) or `unsigned_pending_external` (credentials not
+  configured). Stable publication is blocked for the latter.
+- Linux DEB: `gpg_signed_verified` (key configured and signature verified) or
+  `checksum_attestation_baseline` (SHA-256 + GitHub attestation; no APT
+  repository is published).
+
+Tauri updater signing is a separate trust mechanism and is not enabled in this
+release. Do not confuse updater `.sig` files with Windows Authenticode.

@@ -64,8 +64,25 @@ Then replace Preflight with Install after resolving every blocking item.
 See docs\DEPLOYMENT_ROLES-CN.md or docs\DEPLOYMENT_ROLES-EN.md.
 EOF
 
-# Explicit role assets for operators.
-(cd "${STAGING_ROOT}" && zip -qr "${OUTPUT_DIR}/Eurogas-Nexus-Server-Windows.zip" "$(basename "${SERVER_ROOT}")")
+# Explicit role assets for operators. GitHub Linux runners carry `zip`;
+# local Windows dry-runs fall back to the Python zipfile module so the exact
+# same directory layout is packaged without requiring a native tool.
+if command -v zip >/dev/null 2>&1; then
+  (cd "${STAGING_ROOT}" && zip -qr "${OUTPUT_DIR}/Eurogas-Nexus-Server-Windows.zip" "$(basename "${SERVER_ROOT}")")
+else
+  python - "${OUTPUT_DIR}/Eurogas-Nexus-Server-Windows.zip" "${SERVER_ROOT}" <<'PYEOF'
+import sys
+import zipfile
+from pathlib import Path
+
+archive_path = Path(sys.argv[1])
+source_root = Path(sys.argv[2])
+with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as archive:
+    for path in sorted(source_root.rglob("*")):
+        if path.is_file():
+            archive.write(path, path.relative_to(source_root.parent))
+PYEOF
+fi
 
 printf '%s\n' \
   "${OUTPUT_DIR}/Eurogas-Nexus-Server-Windows.zip"

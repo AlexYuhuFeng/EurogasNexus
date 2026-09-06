@@ -33,7 +33,7 @@ HTTPS 网关或数据采集任务。
 
 应按部署角色选择 Release 产物：
 
-- `Client`：下载 `Eurogas-Nexus-Client-0.5.0-x64-setup.exe`，并连接到一个已经存在、可访问且以 `/api`
+- `Client`：下载 `Eurogas-Nexus-Client-{VERSION}-windows-x64-setup.exe`，并连接到一个已经存在、可访问且以 `/api`
   结尾的 HTTPS 后端地址；
 - `Server`：下载 `Eurogas-Nexus-Server-Windows.zip` 并运行
   `Deploy-EurogasNexus.ps1 -Role Server`，不需要桌面安装包；
@@ -59,7 +59,7 @@ Client-only NSIS 客户端安装包作为独立的 GitHub Release 产物发布�
 ```powershell
 ./Deploy-EurogasNexus.ps1 -Action Preflight -Role Client `
   -ServerApiUrl https://nexus.example.com/api `
-  -ClientInstallerPath ./Eurogas-Nexus_0.5.0_x64-setup.exe
+  -ClientInstallerPath ./Eurogas-Nexus-Client-{VERSION}-windows-x64-setup.exe
 ```
 
 预检不会安装 Docker、启动容器、修改防火墙或写入凭据。
@@ -121,7 +121,7 @@ HTTPS 只保护传输，不能替代用户授权。后端认证和权限控制�
 ```powershell
 ./Deploy-EurogasNexus.ps1 -Action Install -Role Client `
   -ServerApiUrl https://nexus.example.com/api `
-  -ClientInstallerPath ./Eurogas-Nexus_0.5.0_x64-setup.exe
+  -ClientInstallerPath ./Eurogas-Nexus-Client-{VERSION}-windows-x64-setup.exe
 ```
 
 部署工具先验证 `/api/health`，再静默运行签名 NSIS，并只写入如下客户端部署

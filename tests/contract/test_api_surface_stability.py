@@ -102,6 +102,7 @@ PINNED_PUBLIC_PATHS = {
     "/api/route-cost/upstream-contracts",
     "/api/runtime/db",
     "/api/runtime/dependencies",
+    "/api/runtime/release",
     "/api/runtime/pipeline-health",
     "/api/sources",
     "/api/sources/{source_id}",

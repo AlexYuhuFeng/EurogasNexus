@@ -1,5 +1,10 @@
 import { create } from "zustand";
 import {
+  CLIENT_RELEASE_METADATA,
+  ReleaseCompatibility,
+  compatibilityForServer,
+} from "@/app/releaseCompatibility";
+import {
   api,
   AnalysisRequestDTO,
   AnalysisResultDTO,
@@ -35,6 +40,7 @@ import {
   RouteEligibilityDTO,
   RuntimeDbStatusDTO,
   RuntimeDependenciesDTO,
+  RuntimeReleaseDTO,
   ScreenOrderObservationDTO,
   SourceSystemDTO,
   StrategyLabRequestDTO,
@@ -155,6 +161,8 @@ export interface ApiState {
   currentUser: CurrentUserDTO | null;
   runtimeDb: RuntimeDbStatusDTO | null;
   runtimeDependencies: RuntimeDependenciesDTO | null;
+  runtimeRelease: RuntimeReleaseDTO | null;
+  releaseCompatibility: ReleaseCompatibility | null;
   pipelineHealth: PipelineHealthDTO | null;
   endpointMeta: Record<string, ApiMeta>;
   endpointErrors: Record<string, string>;
@@ -383,6 +391,8 @@ export const useApiStore = create<ApiState>((set, get) => ({
   currentUser: null,
   runtimeDb: null,
   runtimeDependencies: null,
+  runtimeRelease: null,
+  releaseCompatibility: null,
   pipelineHealth: null,
   endpointMeta: {},
   endpointErrors: {},
@@ -397,6 +407,19 @@ export const useApiStore = create<ApiState>((set, get) => ({
 
   fetchWorkspace: async () => {
     set({ loading: true, error: null });
+    const releaseOutcome = await loadEndpointWithRetry(api.runtimeRelease);
+    if (releaseOutcome.ok) {
+      const releaseCompatibility = compatibilityForServer(
+        CLIENT_RELEASE_METADATA,
+        releaseOutcome.value.data as RuntimeReleaseDTO,
+      );
+      set({ runtimeRelease: releaseOutcome.value.data as RuntimeReleaseDTO, releaseCompatibility });
+    } else {
+      set({
+        runtimeRelease: null,
+        releaseCompatibility: compatibilityForServer(CLIENT_RELEASE_METADATA, null),
+      });
+    }
     const outcomes = await Promise.all(
       WORKSPACE_LOADERS.map(async ([key, loader]) => ({
         key,
@@ -453,6 +476,8 @@ export const useApiStore = create<ApiState>((set, get) => ({
       glossaryTerms: (slices.glossaryTerms ?? []) as GlossaryTermDTO[],
       runtimeDb: (slices.runtimeDb ?? null) as RuntimeDbStatusDTO | null,
       runtimeDependencies: (slices.runtimeDependencies ?? null) as RuntimeDependenciesDTO | null,
+      runtimeRelease: get().runtimeRelease,
+      releaseCompatibility: get().releaseCompatibility,
       credentialProviders: (slices.credentialProviders ?? []) as CredentialProviderDTO[],
       monitoringAlerts: (slices.monitoringAlerts ?? []) as MonitoringAlertDTO[],
       monitoringSummary: (slices.monitoringSummary ?? DEFAULT_MONITORING_SUMMARY) as MonitoringSummaryDTO,

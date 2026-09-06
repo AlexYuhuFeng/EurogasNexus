@@ -32,6 +32,14 @@ def current_git_sha() -> str | None:
 
 def main() -> int:
     from apps.api.main import app
+    from eurogas_nexus.release.constants import (
+        API_CONTRACT_VERSION,
+        BACKTEST_ENGINE_VERSION,
+        DB_SCHEMA_REVISION,
+        MINIMUM_SUPPORTED_CLIENT_VERSION,
+        MINIMUM_SUPPORTED_SERVER_VERSION,
+        STRATEGY_SCHEMA_VERSION,
+    )
     from eurogas_nexus.security.permissions import permission_for_path
 
     paths = set(app.openapi()["paths"])
@@ -42,6 +50,12 @@ def main() -> int:
         "git_sha": current_git_sha(),
         "public_paths": len(paths),
         "permission_registry": "complete",
+        "api_contract_version": API_CONTRACT_VERSION,
+        "database_schema_revision": DB_SCHEMA_REVISION,
+        "minimum_supported_client": MINIMUM_SUPPORTED_CLIENT_VERSION,
+        "minimum_supported_server": MINIMUM_SUPPORTED_SERVER_VERSION,
+        "backtest_engine_version": BACKTEST_ENGINE_VERSION,
+        "strategy_schema_version": STRATEGY_SCHEMA_VERSION,
     }
     print(json.dumps(manifest, indent=2, sort_keys=True))
     return 0

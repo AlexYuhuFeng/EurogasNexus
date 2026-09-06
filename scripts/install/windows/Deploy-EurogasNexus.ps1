@@ -24,6 +24,27 @@ $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 
 $ServerRuntimeScript = Join-Path $PSScriptRoot "Install-EurogasNexusServerRuntime.ps1"
+$ReleaseConfigPath = Join-Path $PSScriptRoot "..\..\..\clients\desktop\src-tauri	auri.conf.json"
+$TauriReleaseConfig = if (Test-Path -LiteralPath $ReleaseConfigPath) {
+    Get-Content -LiteralPath $ReleaseConfigPath -Raw | ConvertFrom-Json
+}
+else { $null }
+$PackageVersion = if ($env:EUROGAS_NEXUS_VERSION) {
+    $env:EUROGAS_NEXUS_VERSION
+}
+elseif ($TauriReleaseConfig) {
+    [string]$TauriReleaseConfig.version
+}
+else {
+    throw "Cannot resolve Eurogas Nexus package version from environment or tauri.conf.json."
+}
+$ReleaseChannel = if ($env:EUROGAS_NEXUS_RELEASE_CHANNEL) {
+    $env:EUROGAS_NEXUS_RELEASE_CHANNEL
+}
+else {
+    "preview"
+}
+$ReleaseLine = "v${PackageVersion}-${ReleaseChannel}"
 $ClientConfigRoot = Join-Path $env:ProgramData "Eurogas Nexus\Client"
 $ClientConfigFile = Join-Path $ClientConfigRoot "deployment.json"
 
@@ -138,7 +159,7 @@ function Get-Preflight {
         if ($Role -eq "Client") { $apiUrl = Resolve-ApiUrl $ServerApiUrl $true }
         if ($Role -eq "Server") {
             if (-not $PrivateNetworkOnly) {
-                throw "v0.5-preview Server deployments require -PrivateNetworkOnly."
+                throw "${ReleaseLine} Server deployments require -PrivateNetworkOnly."
             }
             if ([string]::IsNullOrWhiteSpace($ServerName)) { throw "ServerName is required for the Server role." }
             if ([string]::IsNullOrWhiteSpace($TlsCertificatePath) -or -not (Test-Path -LiteralPath $TlsCertificatePath)) {

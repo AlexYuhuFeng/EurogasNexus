@@ -16,7 +16,7 @@ param(
     [switch]$PrivateNetworkOnly,
     [string]$TlsCertificatePath,
     [string]$TlsPrivateKeyPath,
-    [string]$ApiImage = "ghcr.io/alexyuhufeng/eurogasnexus-api:0.5-preview",
+    [string]$ApiImage,
     [string]$ApiImageArchivePath,
     [switch]$LocalHttpOnly,
     [switch]$EnableSimulatedPrices,
@@ -27,6 +27,31 @@ param(
 
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
+
+$ReleaseConfigPath = Join-Path $PSScriptRoot "..\..\..\clients\desktop\src-tauri	auri.conf.json"
+$TauriReleaseConfig = if (Test-Path -LiteralPath $ReleaseConfigPath) {
+    Get-Content -LiteralPath $ReleaseConfigPath -Raw | ConvertFrom-Json
+}
+else { $null }
+$PackageVersion = if ($env:EUROGAS_NEXUS_VERSION) {
+    $env:EUROGAS_NEXUS_VERSION
+}
+elseif ($TauriReleaseConfig) {
+    [string]$TauriReleaseConfig.version
+}
+else {
+    throw "Cannot resolve Eurogas Nexus package version from environment or tauri.conf.json."
+}
+$ReleaseChannel = if ($env:EUROGAS_NEXUS_RELEASE_CHANNEL) {
+    $env:EUROGAS_NEXUS_RELEASE_CHANNEL
+}
+else {
+    "preview"
+}
+$ReleaseLine = "v${PackageVersion}-${ReleaseChannel}"
+if ([string]::IsNullOrWhiteSpace($ApiImage)) {
+    $ApiImage = "ghcr.io/alexyuhufeng/eurogasnexus-api:${PackageVersion}-${ReleaseChannel}"
+}
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..\..\..")
 $SourceComposeFile = Join-Path $RepoRoot "deploy\runtime\compose.yaml"
@@ -125,7 +150,7 @@ function Get-PreflightReport {
     }
     elseif ($DeploymentRole -eq "Server") {
         if (-not $PrivateNetworkOnly) {
-            $blocking += "v0.5-preview Server role requires -PrivateNetworkOnly. Public exposure is not supported before authentication is implemented."
+            $blocking += "${ReleaseLine} Server role requires -PrivateNetworkOnly. Public exposure is not supported before authentication is implemented."
         }
         if (-not (Test-LocalBindAddress $HttpsBindAddress)) {
             $blocking += "HttpsBindAddress must be 127.0.0.1 or a specific IP assigned to this device; 0.0.0.0 is refused."
@@ -192,7 +217,8 @@ function Initialize-RuntimeFiles {
     $internalToken = if ($existing.EUROGAS_NEXUS_INTERNAL_API_TOKEN) { $existing.EUROGAS_NEXUS_INTERNAL_API_TOKEN } else { New-HexSecret 32 }
     $lines = @(
         "EUROGAS_NEXUS_API_IMAGE=$ApiImage"
-        "EUROGAS_NEXUS_VERSION=0.5.0"
+        "EUROGAS_NEXUS_VERSION=$PackageVersion"
+        "EUROGAS_NEXUS_RELEASE_CHANNEL=$ReleaseChannel"
         "POSTGRES_DB=eurogas_nexus"
         "POSTGRES_USER=eurogas_runtime"
         "POSTGRES_PASSWORD=$postgresPassword"

@@ -1441,6 +1441,7 @@ export const api = {
 
   runtimeDb: () => get<RuntimeDbStatusDTO>("/runtime/db"),
   runtimeDependencies: () => get<RuntimeDependenciesDTO>("/runtime/dependencies"),
+  runtimeRelease: () => get<RuntimeReleaseDTO>("/runtime/release"),
 
   glossary: (lang: string = "en", params?: { category?: string; q?: string }) =>
     get<GlossaryTermDTO[]>("/glossary", { lang, ...(params ?? {}) }),
@@ -1544,6 +1545,23 @@ export interface RuntimeDependencyStateDTO {
   state: string; detail?: string; checked_at_utc?: string;
   last_heartbeat_at_utc?: string; age_seconds?: number;
   missing_tables?: string[]; configured?: boolean;
+}
+
+export interface RuntimeReleaseDTO {
+  application_version: string;
+  release_channel: "preview" | "rc" | "stable";
+  git_sha: string | null;
+  git_ref: string | null;
+  build_run_id: string | null;
+  build_timestamp: string | null;
+  api_contract_version: string;
+  database_schema_revision: string;
+  minimum_supported_client: string;
+  minimum_supported_server: string;
+  backtest_engine_version: string;
+  strategy_schema_version: string;
+  strategy_run_schema_version: string;
+  solver_version: string;
 }
 
 export interface RuntimeDependenciesDTO {

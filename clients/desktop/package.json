@@ -8,7 +8,8 @@
     "check": "cargo check --manifest-path src-tauri/Cargo.toml",
     "tauri": "tauri",
     "dev": "tauri dev",
-    "build": "tauri build"
+    "build": "tauri build",
+    "build:offline": "tauri build --config src-tauri/tauri.offline.conf.json"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.8.4"

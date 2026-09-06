@@ -37,8 +37,10 @@ Generated output is separate from committed source:
   the configured HTTPS API.
 - Deployment tooling detects Docker/Compose but never installs it silently.
 - Simulated price ingestion is explicit and retains `_Sim` provenance.
-- Every Release publishes a separate Client-only Windows NSIS asset and a Server
-  operator ZIP asset.
+- Every Release publishes a separate Client-only Windows NSIS asset named
+  `Eurogas-Nexus-Client-{release_version}-windows-x64-setup.exe` and a Server
+  operator ZIP asset named
+  `Eurogas-Nexus-Server-{release_version}-Windows.zip`.
 - The Server operator ZIP contains deployment scripts, runtime configuration,
   and operating documentation. It is not a Server NSIS installer and does not
   embed the desktop Client or API image; the target Server supplies its approved
@@ -52,6 +54,8 @@ Generated output is separate from committed source:
 The Client-only Windows NSIS packaging, Server operator ZIP packaging, and
 containerized server runtime are implemented. The Server operator ZIP is an
 operator toolkit, not an embedded desktop/API-image installer.
-Enterprise signing, customer certificate issuance, firewall policy, offline
-image import, backup scheduling, and managed upgrades remain operator-owned
-release gates.
+Enterprise code-signing credentials, customer certificate issuance, firewall
+policy, offline image import, backup scheduling, managed upgrades, and the
+GitHub `production` Environment reviewer configuration remain operator-owned
+release gates. The release pipeline records signing state honestly and blocks
+stable promotion while those credentials are absent.

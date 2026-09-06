@@ -1621,15 +1621,15 @@ def test_release_workflow_publishes_web_windows_and_linux_assets() -> None:
     assert "workflow_dispatch:" in workflow
     assert "contents: write" in workflow
     assert "gh release create" in workflow
-    assert "eurogas-nexus-web-${GITHUB_SHA::7}.tar.gz" in workflow
+    assert "eurogas-nexus-web-${RELEASE_VERSION}.tar.gz" in workflow
     assert "bundle: nsis" in workflow
     assert "bundle: deb" in workflow
     assert "*.exe" in workflow
     assert "*.deb" in workflow
-    assert "docker/setup-qemu-action@v4" in workflow
-    assert "docker/setup-buildx-action@v4" in workflow
-    assert "docker/login-action@v4" in workflow
-    assert "docker/build-push-action@v7" in workflow
+    assert "docker/setup-qemu-action@" in workflow and "# v4.3.0" in workflow
+    assert "docker/setup-buildx-action@" in workflow and "# v4.3.0" in workflow
+    assert "docker/login-action@" in workflow and "# v4.6.0" in workflow
+    assert "docker/build-push-action@" in workflow and "# v7.3.0" in workflow
     assert "pytest -q tests" in workflow
     linux_dependencies = (
         ROOT / "scripts" / "ci" / "install_linux_tauri_dependencies.sh"

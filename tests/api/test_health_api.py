@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 
 from eurogas_nexus.api.app import create_app
 from eurogas_nexus.core.config import Settings
+from eurogas_nexus.version import APPLICATION_VERSION
 
 AUTH_HEADERS = {"X-Eurogas-Api-Key": "test-public-api-token"}
 
@@ -17,7 +18,7 @@ def test_health_route_returns_shell_status() -> None:
     assert response.json() == {
         "status": "ok",
         "service": "eurogas-nexus",
-        "version": "0.5.0",
+        "version": APPLICATION_VERSION,
         "profile": "development",
     }
 

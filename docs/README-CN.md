@@ -109,6 +109,14 @@
 ## 发布、安全与部署
 
 - [发布就绪](release/RELEASE_READINESS.md)
+- [发布工程规范](release/RELEASE_ENGINEERING_SPEC.md)
+- [发布渠道](release/RELEASE_CHANNELS.md)
+- [GA 发布门槛](release/GA_RELEASE_GATES.md)
+- [软件供应链](release/SUPPLY_CHAIN.md)
+- [更新策略](release/UPDATE_POLICY.md)
+- [Windows 安装](release/INSTALL_WINDOWS.md)
+- [Linux 安装](release/INSTALL_LINUX.md)
+- [第三方声明](../THIRD_PARTY_NOTICES.md)
 - [安全验收证据 EN](release/SECURITY_ACCEPTANCE_EVIDENCE.md) /
   [CN](release/SECURITY_ACCEPTANCE_EVIDENCE-CN.md)
 - [部署角色 EN](deployment/DEPLOYMENT_ROLES-EN.md) /

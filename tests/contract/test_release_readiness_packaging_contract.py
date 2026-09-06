@@ -14,10 +14,10 @@ def test_release_readiness_documents_linux_architecture_specific_packages() -> N
     text = RELEASE_READINESS.read_text(encoding="utf-8-sig")
     for phrase in [
         "Linux desktop release packaging is architecture-specific",
-        "release-desktop-linux-x64",
-        "release-desktop-linux-arm64",
+        "Eurogas-Nexus-Client-{release_version}-linux-x64.deb",
+        "Eurogas-Nexus-Client-{release_version}-linux-arm64.deb",
         "Linux DEB package for x64 Linux users",
         "Linux DEB package for ARM64 Linux users",
-        "ARM Linux users do not receive the x64 DEB by mistake",
+        "ARM Linux users must not receive the x64 DEB by mistake",
     ]:
         assert phrase in text

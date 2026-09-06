@@ -4,9 +4,10 @@ from pathlib import Path
 
 from eurogas_nexus.domain.ontology.semantic_kernel import current_ontology_version
 from eurogas_nexus.domain.ontology.vocabulary import GRM_PROCESSES, GRM_ROLES
+from eurogas_nexus.version import APPLICATION_VERSION
 
 ROOT = Path(__file__).resolve().parents[2]
-CANONICAL_VERSION = "0.5.0"
+CANONICAL_VERSION = APPLICATION_VERSION
 
 
 def _read(relative: str) -> str:

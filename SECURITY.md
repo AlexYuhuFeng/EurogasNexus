@@ -33,3 +33,21 @@ provider connectors, multi-tenant SaaS, public signup, and SCIM are out of
 scope. Interactive enterprise OIDC login is delivered in CR-10 for
 single-organization deployments; live enterprise IdP acceptance remains
 deployment-specific.
+
+## Supply Chain
+
+- Release workflows run with least privilege (`contents: read` by default) and
+  publish stable only from a pushed semantic tag in the `production` GitHub
+  Environment.
+- Release actions are pinned to full commit SHAs; Python/Node/Rust dependencies
+  are locked and installed with `--require-hashes` / `npm ci` /
+  `cargo check --locked`.
+- Every distributed artifact is covered by final `SHA256SUMS`; the release
+  bundle carries SPDX SBOMs, a release manifest, and GitHub OIDC attestation
+  where hosted publishing occurs.
+- Windows code signing remains externally pending; unsigned preview/RC assets
+  are labelled as such and stable promotion is blocked until verified signing
+  evidence exists.
+- No Tauri auto-updater ships; managed/offline installation is the only update
+  path. Verify checksums before installation (see
+  `docs/release/SUPPLY_CHAIN.md`).

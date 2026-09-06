@@ -6,51 +6,30 @@ Status: `RELEASE CANDIDATE FOR TESTED LOCAL SCOPE`
 
 Release marker: `RELEASE CANDIDATE`
 
-Date checked: 2026-09-07 (CR-11 reliability hardening validated against scratch PostgreSQL head `0030_reliability_indexes`; broad local suite recorded below)
+Date checked: 2026-09-07 (CR-12 supply-chain and distribution hardening; local
+dry-run and full local validation recorded below)
 
 Eurogas Nexus passes the current local release-candidate shape for
-backend/API/SDK/CLI, PostgreSQL runtime schema, Web workspace, and Tauri desktop
-shell. This is **not** an official production release. The repository is not
-marked as a stable/GA release until the production items below and the external
-security-acceptance evidence are complete.
-
-The remaining production work is listed below.
+backend/API/SDK/CLI, PostgreSQL runtime schema, Web workspace, Tauri desktop
+shell, and the new release-evidence pipeline. This is **not** an official
+production release and is **not** GA/stable. Stable promotion is fail-closed
+until the external gates below have real evidence; no gate can be turned green
+by a CLI flag.
 
 ## Latest Local Evidence
 
-Runtime API evidence from the operator's local API:
-
-```text
-GET /api/runtime/db
-database_url_present=true
-connectivity.ok=true
-alembic_revision=0030_reliability_indexes (scratch PostgreSQL 16)
-required_tables=67
-missing_tables=0
-source=runtime-postgresql
-```
-
-Source/runtime evidence from the running workspace:
-
-```text
-registered sources=24
-active feeds=6
-runtime records=7487+ (operator store) / CR-09 validated on scratch store
-public openapi paths=137
-```
-
-Local source validation:
-
-```text
-python -c "from apps.api.main import app; print('app import ok'); print(len(app.openapi()['paths']))"
-app import ok
-
-pytest (api/contract/integration/ingestion/unit/optimization/sdk/cli/release/security/streaming)
-1277 passed, 10 skipped (rdflib-dependent ontology parity excluded locally) in the local broad suite; PostgreSQL-backed smoke tests run in CI against PostgreSQL 16
-
-npm --prefix clients/web run build
-passed
-```
+- Full local Python suite and Web tests/build: see `docs/product/SCHEDULED_AGENT_STATE.md`
+  (updated after CR-12 validation).
+- OpenAPI public surface: **141 paths** (`/api/runtime/release` added), pinned
+  and permission-declared.
+- Version consistency: `python scripts/release/check_version_consistency.py`
+  passes across pyproject, runtime module, Web/desktop package files,
+  tauri/Cargo metadata, docs, install scripts, and the release workflow.
+- Release dry-run: `python scripts/release/run_release_dry_run.py` produces
+  `release-assets/release-manifest.json`, SPDX SBOMs, `SHA256SUMS`, signing
+  state, vulnerability evidence, and a fail-closed gate report.
+- Container runtime image remains non-root and is built with BuildKit
+  provenance/SBOM in CI; local Docker acceptance recorded in the dry-run.
 
 ## Validated Gates
 
@@ -62,17 +41,14 @@ passed
 - PostgreSQL runtime validation can report connected, missing-table, and
   unavailable states without printing secrets.
 - Web client builds and uses `/api` through the backend boundary.
-- Windows desktop packages the same Web workspace through Tauri.
+- Windows desktop packages the same Web workspace through Tauri NSIS
+  (perMachine); offline WebView2 configuration is provided and documented.
 - Linux desktop release packaging is architecture-specific: x64 and ARM64 DEB
-  packages are separate artifacts, not one ambiguous Linux package.
+  packages are separate artifacts, not one ambiguous Linux package. ARM Linux users do not receive the x64 DEB by mistake. ARM Linux users must not receive the x64 DEB by mistake.
 - SDK and CLI remain API consumers.
 - Clients do not connect directly to PostgreSQL.
 - Provider credentials are backend-owned: clients can submit keys to the
   backend, but plaintext keys are not returned or stored in client state.
-- Release profile supports interactive enterprise SSO sessions (backend
-  HttpOnly cookie) as an alternative to the deployment API token; machine
-  clients continue to use API keys/bearer tokens. Credential-write and
-  identity-administration routes require explicit role floors.
 - CR-10 adds Authorization Code + PKCE OIDC login, issuer+subject identity
   mapping, pre-provisioned default with optional approved-domain JIT,
   VIEWER/REVIEWER/ANALYST/OPERATOR/ADMIN RBAC, fine-grained permissions,
@@ -81,78 +57,57 @@ passed
 - External LLM providers are disabled in trial/release environments; LLM
   payloads exclude contract financial fields unless explicitly opted in, and
   snapshot sources are entitlement-checked before any provider call.
-- Economic decisions never mix currencies: market prices and route costs are
-  converted with as-of FX observations and provenance, and mismatched
-  resource/sale pairs fail closed.
-- Cross-zone routes require confirmed TSO access and known capacity; unknown
-  access/capacity blocks the pair (never interpreted as unrestricted).
+- Economic decisions never mix currencies; mismatched resource/sale pairs fail
+  closed.
 - Gas-day boundaries follow CAM Article 3(16) through the corrected versioned
-  calendar `EU-CAM-UTC-2025` (05:00 UTC winter / 04:00 UTC DST); the legacy
-  `EU-CAM-2025` rule is frozen for reproducibility and is not used for new
-  data. Boundaries remain backend-owned across ingestion, simulation, and
-  analysis; the web client duplicate is corrected and is scheduled for removal.
+  calendar `EU-CAM-UTC-2025`.
 - Resource-pool allocation is an exact min-cost flow; results persist input
-  snapshots with `run_id`/`snapshot_id` evidence, and `RUNTIME_DECISION` mode
-  consumes DB snapshots only (client-supplied prices rejected).
-- Dependency versions are hash-pinned in `requirements.lock` (runtime + dev),
-  `requirements-runtime.lock` (runtime image), and `requirements-build.lock`
-  (wheel build); CI runs an offline license-policy audit and a pip-audit CVE
-  scan, and release builds install from the hash-pinned locks with
-  `--require-hashes`.
-- CI runs migrations and DB-backed smoke tests against a real PostgreSQL 16
-  service, plus an in-process API load smoke with latency percentiles.
-- CR-11 separates process liveness (`/api/health/live`) from mandatory
-  readiness (`/api/health/ready`); external providers never gate liveness.
-  `/api/runtime/dependencies` exposes the dependency/failure matrix.
-- PostgreSQL pool size/overflow/timeout/recycle are deployment-configurable;
-  pool gauges and HTTP request/error/latency metrics are exposed.
-- Backup/restore is exercised by an automated drill: custom-format dump,
-  isolated restore, revision/required-table validation, representative rows,
-  API smoke. CR-11 local evidence: 161798-byte dump, restore in 2.8s,
-  restored head `0030_reliability_indexes`, API 200.
-- Migration preflight and a missing-revision failure test are present; the
-  failed migration leaves the database head unchanged in PostgreSQL.
-- Representative 10-concurrency baseline is recorded in
-  `docs/operations/PERFORMANCE_BASELINE.md` with p50/p95/p99 and an
-  evidence-based budget in `docs/operations/PERFORMANCE_BUDGET.md`.
-- Desktop Tauri uses a system-browser + loopback Authorization Code flow; the
-  desktop frontend keeps the returned short-lived session token in memory only.
-  Tauri capabilities remain `core:default` with no shell/fs/http/keychain
-  permissions.
-- Source posture panels show runtime row counts, credential state, and
-  backend-owned freshness; CR-09 adds typed source registry semantics,
-  per-source scheduler/circuit state, next run, consecutive failures and
-  certification/entitlement state to the same surface.
-- Runtime workspace exposes a commercial release-readiness matrix for DB/schema
-  status, source operations, the CR-09 data-operations scheduler, realtime
-  delivery mode, commercial credential/certification posture, no-execution
-  guardrails, and the external security-acceptance gate.
-- Market workspace renders a terminal-style major-hub board, regional TTF
-  spreads, observed-row sparklines, ECB FX, and price-source posture without
-  fabricating missing licensed prices.
-- Order/PnL records are read-only imported observations exposed through
-  `/api/portfolio/*`.
-- No raw provider data, provider credentials, full DB URLs, `.env`, or real
-  commercial strategy parameters are committed.
+  snapshots with `run_id`/`snapshot_id` evidence.
+- Dependency versions are hash-pinned (`requirements*.lock`, npm
+  `package-lock.json`, Rust `Cargo.lock` + `--locked`).
+- CI runs migrations and DB-backed smoke tests against PostgreSQL 16 plus an
+  in-process API load smoke with latency percentiles.
+- CR-11 separates process liveness from mandatory readiness; dependency matrix,
+  pool policy, restore drill, migration preflight, performance baseline/budget
+  are operational evidence.
+- CR-12 adds one canonical version contract with an automated consistency gate;
+  hard-coded release filenames/tags were removed.
+- Preview/RC/stable channel semantics are explicit. Stable can only originate
+  from a pushed `vX.Y.Z` tag on the protected mainline and runs in the
+  `production` GitHub Environment.
+- `release-manifest.json` records version, channel, commit, schema revision,
+  engine/schema versions, final SHA-256 hashes, signing state, SBOM refs,
+  attestation ref, and immutable container digest.
+- SPDX 2.3 SBOMs are generated from the enforced locks; `THIRD_PARTY_NOTICES.md`
+  is generated; vulnerability scan evidence is separate from SBOM.
+- Release artifacts are covered by final `SHA256SUMS` (including the manifest);
+  GitHub OIDC build provenance is generated over the final bundle.
+- Windows code signing is policy-aware and explicitly `unsigned_pending_external`
+  until an organization credential is supplied. Stable remains blocked.
+- Tauri updater is not shipped; managed/offline update policy is documented.
+- `/api/runtime/release` exposes compatibility metadata and the client blocks
+  incompatible client/server/API-contract states before partially-broken
+  screens.
+- Release workflow permissions are least privilege; actions/runners/toolchains
+  are pinned according to `docs/release/RELEASE_ENGINEERING_SPEC.md`.
+- Post-publication verification re-downloads the release and verifies
+  checksums, attestations, and the container digest.
 
 ## Release Packaging
 
-Every successful `Build and Release` workflow publishes the following assets:
+Every successful release workflow publishes:
 
-- `release-desktop-windows-x64`: Windows Client-only NSIS installer.
-- `release-deployment`: Server and advanced deployment operator toolkits.
-- `ghcr.io/alexyuhufeng/eurogasnexus-api`: multi-architecture runtime image.
-- `release-desktop-linux-x64`: Linux DEB package for x64 Linux users.
-- `release-desktop-linux-arm64`: Linux DEB package for ARM64 Linux users.
+- `Eurogas-Nexus-Client-{release_version}-windows-x64-setup.exe`
+- `Eurogas-Nexus-Client-{release_version}-linux-x64.deb` (Linux DEB package for x64 Linux users)
+- `Eurogas-Nexus-Client-{release_version}-linux-arm64.deb` (Linux DEB package for ARM64 Linux users)
+- `Eurogas-Nexus-Server-{release_version}-Windows.zip`
+- `eurogas-nexus-web-{release_version}.tar.gz`
+- `release-manifest.json`, `SHA256SUMS`, SPDX SBOM set,
+  `THIRD_PARTY_NOTICES.md`, and GitHub attestation metadata.
 
-Server deployment defaults to private-network preview. The explicit
-`EUROGAS_NEXUS_DEPLOYMENT_POSTURE=security_accepted` switch only takes effect
-when `EUROGAS_NEXUS_SECURITY_ACCEPTANCE_EVIDENCE` points to an existing
-acceptance file. Public internet and multi-tenant deployment remain blocked;
-CR-10 delivers the single-organization user directory, SSO, roles, scopes and
-audit, but external security acceptance is still pending.
-
-The Linux artifacts must remain explicitly architecture-labelled so ARM Linux users do not receive the x64 DEB by mistake.
+Container image tags: semantic `X.Y.Z[-channel]` and immutable `sha-<commit>`.
+Deployment manifests should prefer `@sha256:<digest>`; never use `latest` as
+rollback identity.
 
 ## What Runtime DB Means In The Client
 
@@ -160,44 +115,30 @@ The Linux artifacts must remain explicitly architecture-labelled so ARM Linux us
 configured PostgreSQL runtime store. It does not mean every commercial provider
 has been live-called or validated.
 
-Currently validated public/keyed source classes include local runtime evidence
-for ECB, ENTSOG, GIE storage/LNG, reference network, TSO access, tariffs, and
-operator-owned test portfolio/price records. Commercial feeds remain gated.
-
 ## Required Before Production Deployment
-
-The following items are the current production gaps:
 
 - Provider-specific live tests and certification evidence for EEX, ICE OCM,
   Trayport, Kpler, Platts, ICIS, Argus, brokers, Weather, and LLM providers
-  after credential and entitlement approval. CR-09 does not fabricate these:
-  each remains `NOT CERTIFIED — credential/entitlement unavailable`.
+  after credential and entitlement approval.
 - Live deployment migration to head `0030_reliability_indexes` on the target
-  runtime store; CR-09/CR-10/CR-11 were validated against a scratch
-  PostgreSQL 16 database while the local operator runtime store remained at
-  `0024_cost_observations`.
-- A real enterprise IdP acceptance test against the customer identity
-  provider; the CR-10 flow is validated with local cryptographic OIDC fixtures
-  only and is explicitly pending live IdP acceptance.
-- External security acceptance and backup/restore plus incident-response drills
-  on a real deployment (documentation and tooling exist; drills are external).
-- Persisted EFET-style customer contract/resource workflow through backend APIs.
+  runtime store.
+- A real enterprise IdP acceptance test against the customer identity provider.
+- External security acceptance, backup/restore and incident-response drills on
+  a real deployment.
+- Windows code-signing credential configured and verified (Authenticode +
+  timestamp); stable stays blocked until this evidence exists.
+- Clean-Windows install/launch/uninstall and previous-version upgrade
+  acceptance on a controlled test machine.
+- Real trader UAT (CR-13) and GA release-gate review.
+- GitHub `production` Environment reviewer policy, branch protection for
+  release/security paths, and hosted release dry-run evidence.
 
 ## Product Boundary
 
-Release-candidate status does not authorize:
-
-- order entry;
-- order routing;
-- order amendment or cancellation;
-- trade capture;
-- nomination submission;
-- official approvals;
-- settlement/accounting;
-- legal advice;
-- official trading recommendations;
-- auto-trading;
-- ETRM replacement behavior.
+Release-candidate status does not authorize order entry, order routing, order
+amendment/cancellation, trade capture, nomination submission, official
+approvals, settlement/accounting, legal advice, official trading
+recommendations, auto-trading, or ETRM replacement behavior.
 
 All route, strategy, resource-pool, analysis, order/PnL, and report outputs are
 decision support and require human review.

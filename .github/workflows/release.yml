@@ -4,43 +4,77 @@ on:
   workflow_dispatch:
     inputs:
       release_channel:
-        description: Release channel label.
+        description: Preview or RC channel. Stable promotion is tag-only.
         type: choice
         required: true
         default: preview
         options:
           - preview
           - rc
-          - stable
-      prerelease:
-        description: Mark the GitHub Release as a prerelease.
-        type: boolean
-        required: true
-        default: true
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-rc.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-preview.[0-9]+.[0-9a-f]{7,40}'
 
 permissions:
-  contents: write
-  packages: write
+  contents: read
 
 concurrency:
   group: eurogas-nexus-release-${{ github.ref }}
   cancel-in-progress: false
 
 env:
-  NODE_VERSION: "24"
-  PYTHON_VERSION: "3.11"
+  NODE_VERSION: "24.13.1"
+  PYTHON_VERSION: "3.11.12"
+  RUST_TOOLCHAIN: "1.94.0"
 
 jobs:
+  resolve:
+    name: Resolve release metadata
+    runs-on: ubuntu-24.04
+    outputs:
+      channel: ${{ steps.read.outputs.channel }}
+      release_version: ${{ steps.read.outputs.release_version }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Resolve release identity
+        run: python scripts/release/resolve_release_context.py --output release-context.json
+
+      - name: Export release metadata outputs
+        id: read
+        shell: bash
+        run: |
+          echo "channel=$(python -c "import json; print(json.load(open('release-context.json'))['channel'])")" >> "${GITHUB_OUTPUT}"
+          echo "release_version=$(python -c "import json; print(json.load(open('release-context.json'))['release_version'])")" >> "${GITHUB_OUTPUT}"
+
+      - name: Upload release metadata
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-context
+          path: release-context.json
+          if-no-files-found: error
+
   validate:
     name: Validate release candidate
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    needs: resolve
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
@@ -48,6 +82,9 @@ jobs:
         run: |
           python -m pip install --require-hashes -r requirements-build.lock -r requirements.lock
           python -m pip install --no-deps --no-build-isolation -e .
+
+      - name: Version consistency gate
+        run: python scripts/release/check_version_consistency.py
 
       - name: Ruff
         run: ruff check .
@@ -60,7 +97,7 @@ jobs:
 
   reliability:
     name: Reliability and PostgreSQL evidence
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: validate
 
     services:
@@ -83,10 +120,10 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
@@ -104,38 +141,135 @@ jobs:
       - name: In-process load smoke
         run: python scripts/ops/load_smoke.py --requests 200 --concurrency 8 --p95-threshold-ms 1000
 
+      - name: Record PostgreSQL/performance evidence
+        run: |
+          mkdir -p release-evidence
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          Path("release-evidence/postgres-migration.json").write_text(json.dumps({"name":"postgres-migration","status":"PASS","detail":"PostgreSQL 16 migrations and DB-backed smoke passed"}))
+          Path("release-evidence/performance.json").write_text(json.dumps({"name":"performance","status":"PASS","detail":"performance baseline and CI load smoke passed"}))
+          PY
+
+      - name: Upload reliability evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-reliability-evidence
+          path: release-evidence
+          if-no-files-found: error
+
+  dependency-scan:
+    name: Dependency vulnerability scan
+    runs-on: ubuntu-24.04
+    needs: resolve
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            clients/web/package-lock.json
+            clients/desktop/package-lock.json
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
+
+      - name: Install pip-audit from hash-pinned lock
+        run: python -m pip install --require-hashes -r requirements-build.lock
+
+      - name: Download release metadata
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-context
+          path: release-context
+
+      - name: Run Python/Node vulnerability scan
+        run: |
+          CHANNEL=$(python -c "import json; print(json.load(open('release-context/release-context.json'))['channel'])")
+          python scripts/release/scan_vulnerabilities.py --channel "$CHANNEL" --output release-evidence/vulnerability-scan.json
+
+      - name: Run Rust vulnerability scan
+        uses: rustsec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998 # v2.0.0
+        with:
+          token: ${{ github.token }}
+          working-directory: clients/desktop/src-tauri
+
+      - name: Upload scan evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-scan-evidence
+          path: release-evidence
+          if-no-files-found: error
+
   web:
     name: Build Web client
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: validate
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Set up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: clients/web/package-lock.json
 
+      - name: Download release metadata
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-context
+          path: release-context
+
+      - name: Read release metadata
+        id: meta
+        shell: bash
+        run: |
+          CONTEXT=release-context/release-context.json
+          echo "channel=$(python -c "import json; print(json.load(open('$CONTEXT'))['channel'])")" >> "${GITHUB_OUTPUT}"
+          echo "git_sha=$(python -c "import json; print(json.load(open('$CONTEXT'))['git_sha'])")" >> "${GITHUB_OUTPUT}"
+          echo "git_ref=$(python -c "import json; print(json.load(open('$CONTEXT'))['git_ref'])")" >> "${GITHUB_OUTPUT}"
+          echo "run_id=$(python -c "import json; print(json.load(open('$CONTEXT'))['build_run_id'])")" >> "${GITHUB_OUTPUT}"
+
       - name: Install Web dependencies
         working-directory: clients/web
         run: npm ci
 
-      - name: Build Web client
+      - name: Build Web client with release identity
         working-directory: clients/web
+        env:
+          VITE_EUROGAS_RELEASE_CHANNEL: ${{ steps.meta.outputs.channel }}
+          VITE_EUROGAS_BUILD_GIT_SHA: ${{ steps.meta.outputs.git_sha }}
+          VITE_EUROGAS_BUILD_GIT_REF: ${{ steps.meta.outputs.git_ref }}
+          VITE_EUROGAS_BUILD_RUN_ID: ${{ steps.meta.outputs.run_id }}
         run: npm run build
 
       - name: Package Web client
         shell: bash
         run: |
+          RELEASE_VERSION=$(python -c "import json; print(json.load(open('release-context/release-context.json'))['release_version'].lstrip('v'))")
           mkdir -p release-assets
-          tar -czf "release-assets/eurogas-nexus-web-${GITHUB_SHA::7}.tar.gz" -C clients/web/dist .
+          tar -czf "release-assets/eurogas-nexus-web-${RELEASE_VERSION}.tar.gz" -C clients/web/dist .
 
       - name: Upload Web release asset
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: release-web
           path: release-assets/*
@@ -149,14 +283,17 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: windows-latest
+          # Windows x64 NSIS package
+          - os: windows-2025
             bundle: nsis
             artifact_label: windows-x64
             artifact_glob: clients/desktop/src-tauri/target/release/bundle/nsis/*.exe
-          - os: ubuntu-latest
+          # Linux x64 DEB package
+          - os: ubuntu-24.04
             bundle: deb
             artifact_label: linux-x64
             artifact_glob: clients/desktop/src-tauri/target/release/bundle/deb/*.deb
+          # Linux ARM64 DEB package
           - os: ubuntu-24.04-arm
             bundle: deb
             artifact_label: linux-arm64
@@ -164,14 +301,25 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Download release metadata
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-context
+          path: release-context
 
       - name: Install Linux Tauri dependencies
         if: runner.os == 'Linux'
         run: bash scripts/ci/install_linux_tauri_dependencies.sh
 
       - name: Set up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -179,8 +327,8 @@ jobs:
             clients/web/package-lock.json
             clients/desktop/package-lock.json
 
-      - name: Set up Rust
-        run: rustup toolchain install stable --profile minimal
+      - name: Set up Rust (pinned by rust-toolchain.toml)
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
 
       - name: Install Web dependencies
         working-directory: clients/web
@@ -190,28 +338,30 @@ jobs:
         working-directory: clients/desktop
         run: npm ci
 
+      - name: Enforce Cargo.lock
+        working-directory: clients/desktop
+        run: cargo check --manifest-path src-tauri/Cargo.toml --locked
+
       - name: Build desktop bundle
         working-directory: clients/desktop
         run: npm run build -- --bundles ${{ matrix.bundle }}
 
-      - name: Collect Windows Client-only asset
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Path release-assets -Force | Out-Null
-          $source = Get-ChildItem "clients/desktop/src-tauri/target/release/bundle/nsis/*.exe" | Select-Object -First 1
-          if (-not $source) { throw "The Windows Client NSIS installer was not produced." }
-          Copy-Item $source.FullName "release-assets/Eurogas-Nexus-Client-0.5.0-x64-setup.exe"
-
-      - name: Collect Linux desktop asset
-        if: runner.os == 'Linux'
+      - name: Collect and rename desktop asset
         shell: bash
         run: |
+          RELEASE_VERSION=$(python -c "import json; print(json.load(open('release-context/release-context.json'))['release_version'].lstrip('v'))")
           mkdir -p release-assets
-          cp ${{ matrix.artifact_glob }} release-assets/
+          case "${{ matrix.artifact_label }}" in
+            windows-x64)
+              cp ${{ matrix.artifact_glob }} "release-assets/Eurogas-Nexus-Client-${RELEASE_VERSION}-windows-x64-setup.exe" ;;
+            linux-x64)
+              cp ${{ matrix.artifact_glob }} "release-assets/Eurogas-Nexus-Client-${RELEASE_VERSION}-linux-x64.deb" ;;
+            linux-arm64)
+              cp ${{ matrix.artifact_glob }} "release-assets/Eurogas-Nexus-Client-${RELEASE_VERSION}-linux-arm64.deb" ;;
+          esac
 
       - name: Upload desktop release asset
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: release-desktop-${{ matrix.artifact_label }}
           path: release-assets/*
@@ -219,129 +369,528 @@ jobs:
 
   runtime-image:
     name: Build and publish runtime image
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: validate
+    permissions:
+      contents: read
+      packages: write
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Resolve image name
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Download release metadata
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-context
+          path: release-context
+
+      - name: Resolve image tags
         id: image
         shell: bash
-        run: echo "name=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/eurogasnexus-api" >> "${GITHUB_OUTPUT}"
+        run: |
+          CONTEXT=release-context/release-context.json
+          APP_VERSION=$(python -c "import json; print(json.load(open('$CONTEXT'))['app_version'])")
+          CHANNEL=$(python -c "import json; print(json.load(open('$CONTEXT'))['channel'])")
+          NAME=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/eurogasnexus-api
+          if [[ "$CHANNEL" == "stable" ]]; then
+            CHANNEL_TAG="$APP_VERSION"
+          else
+            CHANNEL_TAG="$APP_VERSION-$CHANNEL"
+          fi
+          echo "name=$NAME" >> "${GITHUB_OUTPUT}"
+          echo "channel_tag=$CHANNEL_TAG" >> "${GITHUB_OUTPUT}"
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v4
+        uses: docker/setup-qemu-action@1f40c72289eff860ee54a304f1438e3cff362e0a # v4.3.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v4
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ github.token }}
 
       - name: Build and publish API image
-        uses: docker/build-push-action@v7
+        id: build
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
           file: deploy/runtime/Dockerfile.api
           platforms: linux/amd64,linux/arm64
           push: true
+          provenance: true
+          sbom: true
           tags: |
-            ${{ steps.image.outputs.name }}:0.5-preview
+            ${{ steps.image.outputs.name }}:${{ steps.image.outputs.channel_tag }}
             ${{ steps.image.outputs.name }}:sha-${{ github.sha }}
+
+      - name: Record image digest metadata
+        shell: bash
+        run: |
+          mkdir -p image-metadata
+          cat > image-metadata/image-metadata.json <<EOF
+          {"image": "${{ steps.image.outputs.name }}", "digest": "${{ steps.build.outputs.digest }}"}
+          EOF
+
+      - name: Upload image metadata
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: image-metadata
+          path: image-metadata
+          if-no-files-found: error
 
   deployment:
     name: Package deployment roles
-    runs-on: ubuntu-latest
-    needs: validate
+    runs-on: ubuntu-24.04
+    needs: resolve
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Package dedicated Server operator tooling
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Download release metadata
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-context
+          path: release-context
+
+      - name: Package and rename Server operator bundle
         shell: bash
-        run: bash scripts/release/package_deployment_bundle.sh release-assets
+        run: |
+          RELEASE_VERSION=$(python -c "import json; print(json.load(open('release-context/release-context.json'))['release_version'].lstrip('v'))")
+          bash scripts/release/package_deployment_bundle.sh release-assets
+          mv release-assets/Eurogas-Nexus-Server-Windows.zip \
+             "release-assets/Eurogas-Nexus-Server-${RELEASE_VERSION}-Windows.zip"
 
       - name: Upload deployment release assets
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: release-deployment
           path: release-assets/*
           if-no-files-found: error
 
-  publish:
-    name: Publish GitHub Release
-    runs-on: ubuntu-latest
-    needs:
-      - web
-      - desktop
-      - runtime-image
-      - deployment
-      - reliability
-    if: ${{ always() && needs.web.result == 'success' && needs.runtime-image.result == 'success' && needs.deployment.result == 'success' && needs.desktop.result == 'success' && needs.reliability.result == 'success' }}
+  sign-windows:
+    name: Sign Windows artifacts (policy-aware)
+    runs-on: windows-2025
+    needs: desktop
+    if: ${{ needs.desktop.result == 'success' }}
+    permissions:
+      contents: read
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Download release assets
-        uses: actions/download-artifact@v8
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Download Windows desktop artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-desktop-windows-x64
+          path: release-assets
+
+      - name: Sign or record unsigned_pending_external
+        shell: bash
+        env:
+          EUROGAS_NEXUS_WINDOWS_CODE_SIGNING_ENABLED: ${{ vars.WINDOWS_CODE_SIGNING_ENABLED == 'true' && 'true' || 'false' }}
+          WINDOWS_SIGNING_CERT_PATH: ${{ secrets.WINDOWS_SIGNING_CERT_PATH }}
+          WINDOWS_SIGNING_PASSWORD: ${{ secrets.WINDOWS_SIGNING_PASSWORD }}
+          EUROGAS_NEXUS_SIGNTOOL_PATH: ${{ vars.WINDOWS_SIGNTOOL_PATH }}
+        run: |
+          python scripts/release/sign_release_artifacts.py \
+            --artifacts-dir release-assets \
+            --output signing-state-windows.json
+
+      - name: Upload signed Windows asset and state
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-desktop-windows-signed
+          path: |
+            release-assets/*
+            signing-state-windows.json
+          if-no-files-found: error
+
+  sign-linux:
+    name: Sign Linux artifacts (policy-aware)
+    runs-on: ubuntu-24.04
+    needs: desktop
+    if: ${{ needs.desktop.result == 'success' }}
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Download Linux desktop artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: release-desktop-linux-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: Sign or record Linux baseline
+        shell: bash
+        env:
+          EUROGAS_NEXUS_GPG_SIGNING_ENABLED: ${{ vars.GPG_SIGNING_ENABLED == 'true' && 'true' || 'false' }}
+          EUROGAS_NEXUS_GPG_SIGNING_KEY_ID: ${{ secrets.GPG_SIGNING_KEY_ID }}
+        run: |
+          python scripts/release/sign_release_artifacts.py \
+            --artifacts-dir release-assets \
+            --output signing-state-linux.json
+
+      - name: Upload signed Linux assets and state
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-desktop-linux-signed
+          path: |
+            release-assets/*
+            signing-state-linux.json
+          if-no-files-found: error
+
+  assemble:
+    name: Assemble manifest, SBOM and checksums
+    runs-on: ubuntu-24.04
+    needs:
+      - web
+      - sign-windows
+      - sign-linux
+      - runtime-image
+      - deployment
+      - reliability
+      - dependency-scan
+    if: ${{ always() && needs.web.result == 'success' && needs.sign-windows.result == 'success' && needs.sign-linux.result == 'success' && needs.runtime-image.result == 'success' && needs.deployment.result == 'success' && needs.reliability.result == 'success' && needs.dependency-scan.result == 'success' }}
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Download all release artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: release-*
           path: release-assets
           merge-multiple: true
 
-      - name: Create release metadata
-        id: metadata
+      - name: Merge signing state
         shell: bash
         run: |
-          SHORT_SHA="${GITHUB_SHA::7}"
-          CHANNEL="${{ github.event.inputs.release_channel || 'preview' }}"
-          DESKTOP_INCLUDED="true"
-          TAG="v0.5-${CHANNEL}-${GITHUB_RUN_NUMBER}-${SHORT_SHA}"
-          echo "tag=${TAG}" >> "${GITHUB_OUTPUT}"
-          {
-            echo "# Eurogas Nexus v0.5 preview (${TAG})"
-            echo
-            echo "- Commit: ${GITHUB_SHA}"
-            echo "- Branch: ${GITHUB_REF_NAME}"
-            echo "- Channel: ${CHANNEL}"
-            if [[ "${DESKTOP_INCLUDED}" == "true" ]]; then
-              echo "- Includes: Web build, Windows x64 Client-only NSIS installer, Linux x64 DEB package, Linux ARM64 DEB package, deployment role bundle, and multi-architecture API image."
-            else
-              echo "- Includes: Web build, deployment role bundle, and multi-architecture API image. Desktop packaging was not requested for this run."
-            fi
-            echo "- Runtime image: ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/eurogasnexus-api:sha-${GITHUB_SHA}"
-            echo
-            echo "## Windows assets"
-            echo
-            echo "- Workstation connecting to an existing server: download **Eurogas-Nexus-Client-0.5.0-x64-setup.exe**. It does not install a backend or database."
-            echo "- Dedicated server or managed deployment: use **Eurogas-Nexus-Server-Windows.zip** and follow the operator guide."
-            echo
-            echo "Runtime data remains DB-first through the backend API. Clients do not connect directly to PostgreSQL."
-          } > release-notes.md
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          merged = {}
+          for path in sorted(Path("release-assets").glob("signing-state-*.json")):
+              merged.update(json.loads(path.read_text(encoding="utf-8")))
+              path.unlink()
+          Path("release-assets/signing-state.json").write_text(json.dumps(merged, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          PY
 
-      - name: Publish release
+      - name: Generate SPDX SBOMs and notices
+        shell: bash
+        run: |
+          python scripts/release/generate_sboms.py \
+            --output-dir release-assets/sbom \
+            --notices release-assets/sbom/THIRD_PARTY_NOTICES.md
+
+      - name: Package SBOM set
+        shell: bash
+        run: |
+          RELEASE_VERSION=$(python -c "import json; print(json.load(open('release-assets/release-context.json'))['release_version'].lstrip('v'))")
+          tar -czf "release-assets/eurogas-nexus-sboms-${RELEASE_VERSION}.tar.gz" -C release-assets sbom
+
+      - name: Build checksums, manifest, then final checksums
+        shell: bash
+        run: |
+          CONTEXT=release-assets/release-context.json
+          python scripts/release/build_release_manifest.py \
+            --context "$CONTEXT" \
+            --artifacts-dir release-assets \
+            --sbom-dir release-assets/sbom \
+            --signing-state release-assets/signing-state.json \
+            --image-digest "$(python -c "import json; print(json.load(open('release-assets/image-metadata/image-metadata.json'))['digest'])" 2>/dev/null || true)"
+          python - <<'PY'
+          from scripts.release.release_artifacts import write_checksums
+          write_checksums("release-assets", include_manifest=False)
+          write_checksums("release-assets", include_manifest=True)
+          PY
+
+      - name: Validate complete release bundle
+        shell: bash
+        run: |
+          python scripts/release/validate_release_artifacts.py \
+            --context release-assets/release-context.json \
+            --artifacts-dir release-assets \
+            --sbom-dir release-assets/sbom
+
+      - name: Generate release notes
+        shell: bash
+        run: |
+          python scripts/release/generate_release_notes.py \
+            --context release-assets/release-context.json \
+            --output release-assets/release-notes.md
+
+      - name: Upload final release bundle
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-final
+          path: release-assets/*
+          if-no-files-found: error
+
+  attest:
+    name: Generate GitHub artifact attestations
+    runs-on: ubuntu-24.04
+    needs: assemble
+    if: ${{ needs.assemble.result == 'success' }}
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Download final release bundle
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-final
+          path: release-assets
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: release-assets/**
+
+  container-acceptance:
+    name: Container acceptance by digest
+    runs-on: ubuntu-24.04
+    needs: runtime-image
+    if: ${{ needs.runtime-image.result == 'success' }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Download image metadata
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: image-metadata
+          path: image-metadata
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+
+      - name: Inspect immutable digest and platforms
+        shell: bash
+        run: |
+          IMAGE=$(python -c "import json; print(json.load(open('image-metadata/image-metadata.json'))['image'])")
+          DIGEST=$(python -c "import json; print(json.load(open('image-metadata/image-metadata.json'))['digest'])")
+          docker buildx imagetools inspect "$IMAGE@$DIGEST" > inspect.txt
+          grep -q 'linux/amd64' inspect.txt
+          grep -q 'linux/arm64' inspect.txt
+          mkdir -p release-evidence
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          Path("release-evidence/container-acceptance.json").write_text(json.dumps({"name":"container-acceptance","status":"PASS","detail":"multi-arch digest inspected; amd64 and arm64 present"}))
+          PY
+
+      - name: Upload container acceptance evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-container-evidence
+          path: release-evidence
+          if-no-files-found: error
+
+  publish-preview-rc:
+    name: Publish preview or RC release
+    runs-on: ubuntu-24.04
+    needs: [resolve, assemble, attest, container-acceptance]
+    if: ${{ always() && needs.resolve.result == 'success' && needs.assemble.result == 'success' && needs.attest.result == 'success' && needs.container-acceptance.result == 'success' && needs.resolve.outputs.channel != 'stable' }}
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Download final release bundle
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-final
+          path: release-assets
+
+      - name: Determine channel and guard stable path
+        id: meta
+        shell: bash
+        run: |
+          CONTEXT=release-assets/release-context.json
+          CHANNEL=$(python -c "import json; print(json.load(open('$CONTEXT'))['channel'])")
+          if [[ "$CHANNEL" == "stable" ]]; then
+            echo "Stable releases must use the publish-stable job." >&2
+            exit 1
+          fi
+          TAG=$(python -c "import json; print(json.load(open('$CONTEXT'))['release_version'])")
+          echo "tag=$TAG" >> "${GITHUB_OUTPUT}"
+
+      - name: Publish immutable prerelease
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ steps.meta.outputs.tag }}"
+          if gh release view "$TAG" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            echo "Release $TAG already exists; refusing to overwrite." >&2
+            exit 1
+          fi
+          gh release create "$TAG" \
+            release-assets/*.exe \
+            release-assets/*.deb \
+            release-assets/*.zip \
+            release-assets/*.tar.gz \
+            release-assets/release-manifest.json \
+            release-assets/SHA256SUMS \
+            release-assets/release-notes.md \
+            release-assets/signing-state.json \
+            --repo "${GITHUB_REPOSITORY}" \
+            --target "${{ github.sha }}" \
+            --prerelease \
+            --title "Eurogas Nexus $TAG" \
+            --notes-file release-assets/release-notes.md
+
+  publish-stable:
+    name: Publish stable release (fail-closed)
+    runs-on: ubuntu-24.04
+    needs: [resolve, assemble, attest, container-acceptance]
+    if: ${{ always() && needs.resolve.result == 'success' && needs.assemble.result == 'success' && needs.attest.result == 'success' && needs.container-acceptance.result == 'success' && needs.resolve.outputs.channel == 'stable' }}
+    environment: production
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Download final release bundle
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-final
+          path: release-assets
+
+      - name: Guard stable trigger
         shell: bash
         run: |
-          PRERELEASE="${{ github.event.inputs.prerelease || 'true' }}"
-          RELEASE_FLAGS=()
-          if [[ "${PRERELEASE}" == "true" ]]; then
-            RELEASE_FLAGS+=(--prerelease)
-          else
-            RELEASE_FLAGS+=(--latest)
+          CONTEXT=release-assets/release-context.json
+          CHANNEL=$(python -c "import json; print(json.load(open('$CONTEXT'))['channel'])")
+          if [[ "$CHANNEL" != "stable" ]]; then
+            echo "publish-stable requires a pushed vX.Y.Z tag." >&2
+            exit 1
           fi
-          gh release create "${{ steps.metadata.outputs.tag }}" \
-            release-assets/* \
+
+      - name: Stable promotion gate
+        shell: bash
+        run: |
+          python scripts/release/validate_stable_release.py \
+            --context release-assets/release-context.json \
+            --artifacts-dir release-assets \
+            --sbom-dir release-assets/sbom \
+            --evidence-dir release-assets/release-evidence \
             --repo "${GITHUB_REPOSITORY}" \
-            --title "Eurogas Nexus ${{ steps.metadata.outputs.tag }}" \
-            --notes-file release-notes.md \
-            "${RELEASE_FLAGS[@]}"
+            --reject-existing-tag
+
+      - name: Publish immutable stable release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG=$(python -c "import json; print(json.load(open('release-assets/release-context.json'))['release_version'])")
+          if gh release view "$TAG" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            echo "Stable release $TAG already exists; never overwrite stable artifacts." >&2
+            exit 1
+          fi
+          gh release create "$TAG" \
+            release-assets/*.exe \
+            release-assets/*.deb \
+            release-assets/*.zip \
+            release-assets/*.tar.gz \
+            release-assets/release-manifest.json \
+            release-assets/SHA256SUMS \
+            release-assets/release-notes.md \
+            release-assets/signing-state.json \
+            --repo "${GITHUB_REPOSITORY}" \
+            --target "${{ github.sha }}" \
+            --latest \
+            --title "Eurogas Nexus $TAG" \
+            --notes-file release-assets/release-notes.md
+
+  post-publish-verify:
+    name: Post-publication verification
+    runs-on: ubuntu-24.04
+    needs: [publish-preview-rc, publish-stable]
+    if: ${{ always() && (needs.publish-preview-rc.result == 'success' || needs.publish-stable.result == 'success') }}
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Download release metadata
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-context
+          path: release-context
+
+      - name: Verify published release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python scripts/release/post_publish_verify.py \
+            --context release-context/release-context.json \
+            --repo "${GITHUB_REPOSITORY}" \
+            --verify-attestations

@@ -8388,3 +8388,66 @@ button.glossary-related-chip {
   display: flex;
   margin-top: 10px;
 }
+
+.release-compatibility-blocker {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  background: var(--eg-bg, #0b1016);
+}
+
+.release-compatibility-card {
+  max-width: 680px;
+  padding: 36px;
+  border: 1px solid var(--eg-warning, #d69a2d);
+  border-radius: 12px;
+  background: var(--eg-panel, #111820);
+}
+
+.release-compatibility-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 20px 0;
+}
+
+.release-compatibility-facts div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.release-compatibility-facts dt {
+  opacity: 0.72;
+  font-size: 12px;
+}
+
+.settings-about-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.settings-about-grid div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid var(--eg-border, #263341);
+  border-radius: 8px;
+}
+
+.settings-about-grid span {
+  opacity: 0.72;
+  font-size: 12px;
+}
+
+@media (max-width: 900px) {
+  .settings-about-grid,
+  .release-compatibility-facts {
+    grid-template-columns: 1fr;
+  }
+}

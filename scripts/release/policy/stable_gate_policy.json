@@ -1,0 +1,137 @@
+{
+  "schema_version": 1,
+  "policy": "Mandatory gates are internal and must PASS or NOT_APPLICABLE for their channel. External gates remain PENDING_EXTERNAL until an evidence file referenced by the gate exists and records PASS. Stable publication is fail-closed on any pending external gate.",
+  "code_signing": {
+    "stable": "authenticode_required_for_windows_exe",
+    "preview": "unsigned_pending_external_permitted",
+    "rc": "unsigned_pending_external_permitted"
+  },
+  "gates": [
+    {
+      "id": "G1",
+      "name": "CI workflow",
+      "type": "internal",
+      "required_for": "rc",
+      "evidence": "ci-run.json"
+    },
+    {
+      "id": "G2",
+      "name": "Unit/integration tests",
+      "type": "internal",
+      "required_for": "all",
+      "evidence": "python-tests.json"
+    },
+    {
+      "id": "G3",
+      "name": "PostgreSQL migration",
+      "type": "internal",
+      "required_for": "all",
+      "evidence": "postgres-migration.json"
+    },
+    {
+      "id": "G4",
+      "name": "Frontend build",
+      "type": "internal",
+      "required_for": "all",
+      "evidence": "web-build.json"
+    },
+    {
+      "id": "G5",
+      "name": "Desktop packaging",
+      "type": "internal",
+      "required_for": "all",
+      "evidence": "desktop-packaging.json"
+    },
+    {
+      "id": "G6",
+      "name": "Installer smoke",
+      "type": "internal",
+      "required_for": "stable",
+      "evidence": "windows-installer-smoke.json"
+    },
+    {
+      "id": "G7",
+      "name": "Upgrade smoke",
+      "type": "internal",
+      "required_for": "stable",
+      "evidence": "upgrade-smoke.json"
+    },
+    {
+      "id": "G8",
+      "name": "Security tests",
+      "type": "internal",
+      "required_for": "all",
+      "evidence": "security-tests.json"
+    },
+    {
+      "id": "G9",
+      "name": "Dependency vulnerability",
+      "type": "internal",
+      "required_for": "all",
+      "evidence": "vulnerability-scan.json"
+    },
+    {
+      "id": "G10",
+      "name": "SBOM",
+      "type": "internal",
+      "required_for": "all",
+      "evidence": "sbom.json"
+    },
+    {
+      "id": "G11",
+      "name": "Provenance",
+      "type": "internal",
+      "required_for": "rc",
+      "evidence": "provenance.json"
+    },
+    {
+      "id": "G12",
+      "name": "Checksums",
+      "type": "internal",
+      "required_for": "all",
+      "evidence": "checksums.json"
+    },
+    {
+      "id": "G13",
+      "name": "Backup/restore evidence",
+      "type": "internal",
+      "required_for": "stable",
+      "evidence": "backup-restore.json"
+    },
+    {
+      "id": "G14",
+      "name": "Performance budget",
+      "type": "internal",
+      "required_for": "all",
+      "evidence": "performance.json"
+    },
+    {
+      "id": "G15",
+      "name": "External security acceptance",
+      "type": "external",
+      "required_for": "stable",
+      "evidence": "external-security-acceptance.json"
+    },
+    {
+      "id": "G16",
+      "name": "Commercial provider certification",
+      "type": "external",
+      "required_for": "stable",
+      "evidence": "provider-certification.json"
+    },
+    {
+      "id": "G17",
+      "name": "Windows code signing",
+      "type": "external",
+      "required_for": "stable",
+      "evidence": "code-signing.json"
+    },
+    {
+      "id": "G18",
+      "name": "User acceptance",
+      "type": "external",
+      "required_for": "stable",
+      "evidence": "uat.json"
+    }
+  ]
+}

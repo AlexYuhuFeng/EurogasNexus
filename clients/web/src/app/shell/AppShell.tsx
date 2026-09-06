@@ -2,6 +2,7 @@ import { NetworkWorkspace } from "@/components/NetworkWorkspace";
 import { WorkspaceTopBar } from "@/components/WorkspaceTopBar";
 import type { AppController } from "@/app/hooks/useAppController";
 import { WorkspaceRenderer } from "@/app/workspaces/WorkspaceRenderer";
+import { isBlockingCompatibility } from "@/app/releaseCompatibility";
 
 interface AppShellProps {
   controller: AppController;
@@ -20,6 +21,35 @@ export function AppShell({ controller }: AppShellProps) {
     portfolio,
     sources,
   } = controller;
+
+  const compatibility = api.releaseCompatibility;
+  const blockingCompatibility = compatibility && isBlockingCompatibility(compatibility.state);
+  if (blockingCompatibility && compatibility) {
+    return (
+      <div className="release-compatibility-blocker" role="alert">
+        <div className="release-compatibility-card">
+          <span className="eyebrow">{t("release.compat_blocked_eyebrow")}</span>
+          <h1>{t(compatibility.messageKey)}</h1>
+          <p>{t("release.compat_blocked_body")}</p>
+          <dl className="release-compatibility-facts">
+            <div><dt>{t("release.client_version")}</dt><dd>{compatibility.clientVersion}</dd></div>
+            <div><dt>{t("release.server_version")}</dt><dd>{compatibility.serverVersion}</dd></div>
+            <div>
+              <dt>{t("release.min_supported_client")}</dt>
+              <dd>{compatibility.minimumSupportedClient ?? t("release.not_reported")}</dd>
+            </div>
+            <div>
+              <dt>{t("release.api_contract")}</dt>
+              <dd>{compatibility.apiContractVersion ?? t("release.not_reported")}</dd>
+            </div>
+          </dl>
+          <button type="button" className="primary-button" onClick={() => window.location.reload()}>
+            {t("release.compat_retry")}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`app cockpit-app workspace-${navigation.activeWorkspace}`}>

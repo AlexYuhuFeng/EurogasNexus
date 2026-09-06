@@ -199,6 +199,8 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
           mode={theme.mode}
           dataStatus={api.dataStatus}
           runtimeDb={api.runtimeDb}
+          runtimeRelease={api.runtimeRelease}
+          releaseCompatibility={api.releaseCompatibility}
           sources={api.sources}
           credentialProviders={api.credentialProviders}
           counts={{ nodes: api.nodes.length, edges: api.edges.length, routes: api.routes.length }}

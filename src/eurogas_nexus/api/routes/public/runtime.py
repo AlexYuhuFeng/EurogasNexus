@@ -41,6 +41,7 @@ def runtime_db_status(request: Request) -> dict:
                 engine = get_engine(url)
                 try:
                     from eurogas_nexus.db.registry import list_missing_required_tables
+
                     missing = list(list_missing_required_tables(engine))
                     report["missing_tables"] = missing
                     if missing:
@@ -60,6 +61,54 @@ def runtime_db_status(request: Request) -> dict:
                 "runtime-postgresql" if report["connectivity"]["ok"] else "runtime-unavailable"
             ],
             "warnings": report["warnings"],
+        },
+    }
+
+
+@router.get("/api/runtime/release")
+def runtime_release_metadata(request: Request) -> dict:
+    """Release identity and compatibility metadata (safe, no secrets).
+
+    Application version, channel, and commit are separate fields by design.
+    Clients use this contract to decide client/server compatibility without
+    parsing installer filenames.
+    """
+
+    from eurogas_nexus.core.config import Settings
+    from eurogas_nexus.release.constants import (
+        API_CONTRACT_VERSION,
+        BACKTEST_ENGINE_VERSION,
+        DB_SCHEMA_REVISION,
+        MINIMUM_SUPPORTED_CLIENT_VERSION,
+        MINIMUM_SUPPORTED_SERVER_VERSION,
+        RUN_SCHEMA_VERSION,
+        SOLVER_VERSION,
+        STRATEGY_SCHEMA_VERSION,
+    )
+
+    settings = getattr(request.app.state, "settings", Settings())
+    return {
+        "data": {
+            "application_version": settings.app_version,
+            "release_channel": settings.release_channel,
+            "git_sha": settings.build_git_sha,
+            "git_ref": settings.build_git_ref,
+            "build_run_id": settings.build_run_id,
+            "build_timestamp": settings.build_timestamp,
+            "api_contract_version": API_CONTRACT_VERSION,
+            "database_schema_revision": DB_SCHEMA_REVISION,
+            "minimum_supported_client": MINIMUM_SUPPORTED_CLIENT_VERSION,
+            "minimum_supported_server": MINIMUM_SUPPORTED_SERVER_VERSION,
+            "backtest_engine_version": BACKTEST_ENGINE_VERSION,
+            "strategy_schema_version": STRATEGY_SCHEMA_VERSION,
+            "strategy_run_schema_version": RUN_SCHEMA_VERSION,
+            "solver_version": SOLVER_VERSION,
+        },
+        "meta": {
+            "research_only": False,
+            "human_review_required": False,
+            "source_references": ["build-metadata"],
+            "warnings": [],
         },
     }
 

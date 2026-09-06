@@ -29,7 +29,7 @@ def test_deployment_bundle_defines_exact_device_roles() -> None:
     assert "Get-AuthenticodeSignature" in script
     assert "AllowUnsignedPreview" in script
     assert "PrivateNetworkOnly" in script
-    assert 'network_exposure = if ($Role' in script
+    assert "network_exposure = if ($Role" in script
     assert "A remote client requires an HTTPS ServerApiUrl." in script
 
 
@@ -61,7 +61,7 @@ def test_server_bootstrapper_does_not_install_docker_or_expose_secrets() -> None
     script = read("scripts/install/windows/Install-EurogasNexusServerRuntime.ps1")
     lowered = script.lower()
 
-    assert 'docker_install_attempted = $false' in lowered
+    assert "docker_install_attempted = $false" in lowered
     assert "winget install" not in lowered
     assert "choco install" not in lowered
     assert "docker compose" in lowered

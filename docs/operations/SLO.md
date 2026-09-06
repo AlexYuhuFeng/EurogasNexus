@@ -15,6 +15,8 @@ deployment model, based on the CR-11 baseline. They are not contractual SLAs.
 | Data freshness honesty | 100% of sources evaluated | Source Center backend-owned `freshness_state` (fresh/late/stale/missing/not_expected/unknown/restricted) — never silent `active` for stale data |
 | Audit completeness | 100% of policy decisions recorded when DB available | `audit_events` write/readback in `test_postgres_backed_smoke.py` |
 | Ingestion run bookkeeping | 100% of runs recorded with structured counts/category | `ingestion_runs` + `ingestion_run_issues` + `/api/runtime/source-operations` |
+| Release metadata identity | version/channel/commit reported separately | `/api/runtime/release` + `check_version_consistency.py` |
+| Release integrity evidence | every distributed artifact covered by final SHA-256 | `SHA256SUMS` + `validate_release_artifacts.py` |
 
 ## Measurement
 

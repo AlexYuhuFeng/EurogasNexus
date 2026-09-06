@@ -21,6 +21,8 @@ python -c "from apps.api.main import app; print('app import ok'); print(len(app.
 python scripts/ops/load_smoke.py --requests 200 --concurrency 8 --p95-threshold-ms 1000
 python scripts/ops/migration_preflight.py --json
 python scripts/release/compatibility_check.py
+python scripts/release/check_version_consistency.py
+python scripts/security/run_security_acceptance.py --json
 ```
 
 ## Environment Setup
@@ -66,6 +68,19 @@ Report validation as `PARTIAL` if only a subset of checks can run.
 ```bash
 ./scripts/ops/validate_repo.sh
 ```
+
+## Release Engineering Validation
+
+```bash
+python scripts/release/check_version_consistency.py
+python scripts/release/run_release_dry_run.py --channel preview
+python scripts/release/validate_release_artifacts.py --context release-assets/release-context.json --artifacts-dir release-assets
+python scripts/release/validate_stable_release.py --context release-assets/release-context.json --artifacts-dir release-assets
+python scripts/release/scan_vulnerabilities.py --channel preview
+```
+
+The dry-run builds/assembles the release candidate without publishing. Stable
+validation is deliberately fail-closed while external evidence is pending.
 
 ## Reliability Validation
 
