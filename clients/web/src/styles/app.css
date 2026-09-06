@@ -8480,3 +8480,24 @@ button.glossary-related-chip {
     grid-template-columns: 1fr;
   }
 }
+
+.research-capability-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.research-capability-chip {
+  border: 1px solid var(--eg-hairline);
+  border-radius: var(--eg-pill);
+  background: var(--eg-canvas-soft);
+  color: var(--eg-body);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 8px;
+}
+
+.research-table {
+  margin-top: 12px;
+}

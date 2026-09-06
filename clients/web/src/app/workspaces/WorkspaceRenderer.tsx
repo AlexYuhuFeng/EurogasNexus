@@ -12,6 +12,7 @@ import { PortfolioWorkspace } from "@/components/PortfolioWorkspace";
 import { DecisionWorkspace } from "@/components/DecisionWorkspace";
 import { ReviewWorkspace } from "@/components/ReviewWorkspace";
 import { RuntimeWorkspace } from "@/components/RuntimeWorkspace";
+import { ResearchDataWorkspace } from "@/components/ResearchDataWorkspace";
 import { ScenarioWorkspace } from "@/components/ScenarioWorkspace";
 import { SettingsCenter } from "@/components/SettingsCenter";
 import { SourceCenter } from "@/components/SourceCenter";
@@ -175,6 +176,10 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
 
       {activeWorkspace === "access" && (
         <AccessCenter currentUser={api.currentUser} t={t} />
+      )}
+
+      {activeWorkspace === "research" && (
+        <ResearchDataWorkspace t={t} />
       )}
 
       {activeWorkspace === "runtime" && (

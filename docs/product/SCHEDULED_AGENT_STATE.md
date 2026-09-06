@@ -2,18 +2,48 @@
 
 ## Current run
 
-- Current milestone: `CR-13 / P12` — Commercial UAT, Trader Workflow
-  Acceptance, AI/Copilot Evaluation, Accessibility, Final UX Convergence,
-  Documentation, and GA Release-Candidate Stabilization.
-- Last completed milestone: `CR-12 / P11` (commit `1cdc1ca`).
-- CR-13 commit: the coherent stabilization commit recorded after the final
-  validation report below.
-- Current branch/commit at CR-13 start: `main` @ `1cdc1ca`.
-- Model routing: DSH Pro owns all product-quality judgment, professional
-  workflow assessment, AI evaluation methodology, acceptance criteria, UX
-  convergence decisions, release-blocker classification, and GA readiness
-  decisions. DSH Flash is limited to repetitive defect fixes, i18n parity,
-  routine tests, documentation cleanup, and mechanical accessibility fixes.
+- Current milestone: `CR-14 / P13` — Energy Temporal Data & ML Readiness
+  Architecture: leakage-safe, versioned, provenance-complete multivariate
+  European-energy datasets for current analytics and future forecasting.
+  No model training or GPU infrastructure.
+- Last completed milestone: `CR-13 / P12` (commit `d590fca`).
+- CR-14 commit: the coherent research-data-foundation commit recorded after
+  the final validation report below.
+- Current branch/commit at CR-14 start: `main` @ `d590fca`.
+- Model routing: DSH Pro owns ontology, temporal semantics, feature/target
+  definitions, leakage controls, dataset architecture, and agent boundaries.
+  DSH Flash is limited to mechanical schema/type propagation, migrations,
+  wiring, fixtures, documentation, and i18n.
+- Suggested commit:
+  `feat(research): add temporal ontology and point-in-time dataset architecture`.
+
+## CR-14 implementation plan
+
+1. Audit CR-13 preserved files (`docs/clients/UI_CONTENT_STANDARDS.md`,
+   `output/`, `stash@{0}`) and the existing GRM ontology, backtest temporal
+   utilities, gas-day calendar, and strategy data snapshots.
+2. Add `src/eurogas_nexus/domain/research/` semantic modules: ontology,
+   temporal, series, units, features, targets, resampling, leakage, datasets,
+   export, and MCP-free capability contracts.
+3. Add migration `0031_research_data_foundation` with 13 research tables,
+   SQLAlchemy models, repository CRUD/upserts, and a deterministic catalog
+   seed script (hubs, mappings, series, features, targets, resampling policy,
+   two synthetic weather forecast vintages).
+4. Add `/api/research/features|targets|capabilities|datasets` catalog plus
+   validate/build/detail/quality/export routes while preserving the legacy
+   `/api/research/*` sandbox computation routes.
+5. Add a restrained System > Research catalog UI (datasets/features/targets),
+   client API DTOs, navigation, i18n EN/ZH, and CSS.
+6. Add pyarrow `research` extra, regenerate `requirements.lock --all-extras`,
+   and test Parquet/CSV export.
+7. Add domain, repository, and API tests for ontology, temporal semantics,
+   vintages, leakage, reproducibility, snapshot persistence, and entitlement.
+8. Run migration 0031 on a fresh PostgreSQL 16 scratch DB, seed it, run a
+   representative UAT dataset build with Parquet/CSV artifacts, and record
+   performance evidence.
+9. Write `docs/research/*`, `docs/agents/CAPABILITY_CONTRACT.md`, update
+   release/security evidence, backlog, and scheduled state; commit one
+   coherent milestone.
 
 ## Baseline observed at start
 
@@ -395,7 +425,7 @@
   **passed**.
 - `ruff check .`: **passed**. Markdown links: 168 files, all resolve.
 - Version consistency gate: **25 surfaces, all agree**.
-- OpenAPI public surface: **141 paths**, pinned and permission-declared.
+- OpenAPI public surface: **151 paths**, pinned and permission-declared.
 - Automated security acceptance: **PASS** (external review remains BLOCKED).
 - Desktop `cargo check --locked`: **passed** (Rust 1.94.0 pinned toolchain).
 - Release dry-run (`--channel preview --with-performance --build-container
@@ -458,3 +488,84 @@
   Certification, Release Candidate Burn-In, and GA Go/No-Go, unless CR-13
   evidence reveals an unresolved P0/P1 that requires another stabilization
   run first.
+
+
+## CR-14 final validation report
+
+### Acceptance checklist
+
+1. Canonical entities and point-in-time source mappings — implemented and
+   seeded; ambiguous overlap resolves to None.
+2. Ontology version — `energy-ontology/v1` carried in spec and snapshot.
+3. observed_at/available_at/ingested_at distinction — enforced; ingested_at
+   is never event time.
+4. Forecast vintages — retained and selected by latest availability at
+   cutoff; persisted forecast rows are never overwritten.
+5. ACTUAL/FORECAST/ASSESSMENT/SIMULATED distinction — typed and enforced by
+   the point-in-time policy (`allow_simulated`, `allow_forecast_vintages`).
+6. FeatureDefinition — versioned content hash, dependency closure,
+   availability classes, target-only prohibition.
+7. TargetDefinition — precise label contract; target ids are never features;
+   simulated labels flagged.
+8. ResamplingPolicy — bounded carry-forward; no unlimited global ffill.
+9. DatasetSpec — declarative window/history/coverage/entitlement/split spec
+   with content hash.
+10. Immutable DatasetSnapshot — persisted once with content hash and child
+    dependency/issue/artifact records.
+11. Point-in-time builder — feature inputs selected at each origin; target
+    labels computed only after `origin + horizon`.
+12. Leakage validation — blockers for future availability, future issuance,
+    target-as-feature, and strict temporal violations.
+13. Time splits — `DatasetSplit` with embargo/gap semantics.
+14. Quality report — rows/origins/coverage/missing/temporal integrity.
+15. Parquet export — round-trip tested with null masks and entitlement gate.
+16. Lineage — global and per-row source references persisted.
+17. Entitlement — snapshot envelope persisted; export refuses non-allowed
+    policy with `export_denied_entitlement`.
+18. Reproducibility — same spec + inputs produce identical content hash and
+    snapshot id.
+19. Agent capability contracts — typed, permission-aware, transport-neutral,
+    MCP-free.
+20. No direct DB exposure for agents — capabilities return semantic payloads,
+    not tables/SQL.
+21. No large-model training — no GPU/training jobs; dataset foundation only.
+22. Trader workflows preserved — legacy `/api/research/*` sandbox routes and
+    all primary workspaces remain.
+23. No new top-level workspace — Research Data appears as a restrained System
+    workspace task.
+24. `docs/research/*` — ontology, temporal, feature/target registries, dataset
+    architecture, point-in-time datasets, ML readiness.
+25. `docs/agents/CAPABILITY_CONTRACT.md` — registered capabilities and
+    boundaries.
+26. `docs/research/ML_READINESS.md` — readiness report and CR-15 pointer.
+27. Next milestone — CR-15 Agent-Native Capability Layer unless blockers.
+28. Suggested commit —
+    `feat(research): add temporal ontology and point-in-time dataset architecture`.
+29. Working-tree preservation — `stash@{0}`, `output/`, and unstaged
+    `docs/clients/UI_CONTENT_STANDARDS.md` remain untouched.
+
+### Tests run (CR-14)
+
+- `pytest tests --ignore=tests/contract/test_ontology_grm_parity.py`:
+  **1342 passed, 10 skipped** (CR-13 1316 + 26 CR-14 tests).
+- Fresh PostgreSQL 16 scratch DB `eurogas_nexus_cr14` migrated to head
+  `0031_research_data_foundation`; all 13 research tables present; catalog
+  seed completed (8 entities, 20 mappings, 2 features, 3 targets, 1 policy,
+  2 forecast vintages).
+- UAT `eurogas_nexus_uat` migrated to 0031, seeded, and built
+  `uat-cr14-representative-v3`: 192 rows / 14 columns, coverage 95.31%,
+  zero leakage issues, build ~0.043s, Parquet 5,803 bytes, CSV 36,672 bytes.
+- Web: **50 passed**; production build passed. Desktop `cargo check --locked`:
+  passed.
+- OpenAPI public surface: **151 paths**, all permission-declared; security
+  acceptance PASS (external review still BLOCKED by design).
+- EN/zh-CN key parity: **1,285/1,285** (CR-14 research keys added), no
+  missing static keys.
+- Markdown links: 191 files checked, all local links resolve.
+- Version consistency gate: all 25 surfaces pass; release dry-run re-run with
+  external preview gates remaining PENDING_EXTERNAL as designed.
+
+### Known failures
+
+- `tests/contract/test_ontology_grm_parity.py` remains excluded locally
+  because `rdflib` is not installed in this environment (pre-existing gap).

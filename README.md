@@ -177,6 +177,7 @@ behind `scripts/release/validate_stable_release.py`. Detailed guidance is in
 - [Changelog](CHANGELOG.md)
 - [Documentation index](docs/README.md) — current, normative, runbook, design
   reference, and historical documents.
+- [Research data foundation and ML readiness](docs/research/ML_READINESS.md)
 - [中文文档索引](docs/README-CN.md)
 - [Software supply chain](docs/release/SUPPLY_CHAIN.md)
 - [Commercial UAT plan](docs/uat/COMMERCIAL_UAT_PLAN.md)

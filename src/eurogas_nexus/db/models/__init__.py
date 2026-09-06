@@ -64,6 +64,21 @@ from eurogas_nexus.db.models.reference_network import (
     ReferenceTsoAccessPoint,
     TopologyMarketMapping,
 )
+from eurogas_nexus.db.models.research import (
+    CanonicalEntityRecord,
+    DatasetArtifactRecord,
+    DatasetBuildIssueRecord,
+    DatasetSnapshotDependencyRecord,
+    DatasetSnapshotRecord,
+    DatasetSpecRecord,
+    FeatureDefinitionRecord,
+    ForecastObservationRecord,
+    ObservationTemporalMetadataRecord,
+    ResamplingPolicyRecord,
+    SeriesDefinitionRecord,
+    SourceEntityMappingRecord,
+    TargetDefinitionRecord,
+)
 from eurogas_nexus.db.models.review import ReviewDecisionRecord
 from eurogas_nexus.db.models.route_cost import (
     CapacityProfileRecord,
@@ -137,9 +152,7 @@ class IngestionRunRecord(Base):
     source_id: Mapped[str] = mapped_column(
         String(128), nullable=False, default="", server_default=""
     )
-    dataset: Mapped[str] = mapped_column(
-        String(128), nullable=False, default="", server_default=""
-    )
+    dataset: Mapped[str] = mapped_column(String(128), nullable=False, default="", server_default="")
     trigger_type: Mapped[str] = mapped_column(
         String(32), nullable=False, default="MANUAL", server_default="MANUAL"
     )
@@ -158,9 +171,7 @@ class IngestionRunRecord(Base):
     window_start_utc: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
-    window_end_utc: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    window_end_utc: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     attempt_number: Mapped[int] = mapped_column(
         Integer, nullable=False, default=1, server_default="1"
     )
@@ -213,7 +224,6 @@ __all__ = [
     "BacktestDecisionEventRecord",
     "BacktestExperimentRecord",
     "BacktestSeriesRecord",
-
     "AuditEventRecord",
     "DataOperationsHeartbeatRecord",
     "IngestionRunIssueRecord",
@@ -236,6 +246,19 @@ __all__ = [
     "UserSessionRecord",
     "IntradayOpportunityRecord",
     "LngObservationRecord",
+    "CanonicalEntityRecord",
+    "DatasetArtifactRecord",
+    "DatasetBuildIssueRecord",
+    "DatasetSnapshotDependencyRecord",
+    "DatasetSnapshotRecord",
+    "DatasetSpecRecord",
+    "FeatureDefinitionRecord",
+    "ForecastObservationRecord",
+    "ObservationTemporalMetadataRecord",
+    "ResamplingPolicyRecord",
+    "SeriesDefinitionRecord",
+    "SourceEntityMappingRecord",
+    "TargetDefinitionRecord",
     "CapacityProfileRecord",
     "LiveMarketMarkRecord",
     "MarketObservationRecord",

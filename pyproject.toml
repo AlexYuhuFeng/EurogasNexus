@@ -28,6 +28,9 @@ dev = [
     "rdflib>=7.0,<8.0",
     "ruff>=0.5,<1.0",
 ]
+research = [
+    "pyarrow>=22,<26",
+]
 
 [project.scripts]
 eurogas-nexus = "eurogas_nexus.cli.main:main"

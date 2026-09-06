@@ -48,6 +48,17 @@
   [CN](ontology/OWL_GAS_ROLE_MODEL-CN.md)
 - [天然气主体架构](ontology/europe-natural-gas.md)
 
+### 研究数据基础
+
+- [能源本体](research/ENERGY_ONTOLOGY.md)
+- [时序数据模型](research/TEMPORAL_DATA_MODEL.md)
+- [特征登记](research/FEATURE_REGISTRY.md)
+- [目标登记](research/TARGET_REGISTRY.md)
+- [数据集架构](research/DATASET_ARCHITECTURE.md)
+- [时点数据集](research/POINT_IN_TIME_DATASETS.md)
+- [机器学习就绪度](research/ML_READINESS.md)
+- [智能体能力契约](agents/CAPABILITY_CONTRACT.md)
+
 ### 客户端规范
 
 - [客户端文档索引](clients/README.md)

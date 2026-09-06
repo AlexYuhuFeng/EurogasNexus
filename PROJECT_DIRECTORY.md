@@ -55,6 +55,7 @@ Eurogas Nexus follows a conventional Python/FastAPI + React monorepo layout:
 ## Documentation layout
 
 ```text
+docs/agents/             Agent capability contracts (transport-neutral, MCP-free)
 docs/api/                API surface and path policies
 docs/architecture/       Architecture policies, ADR record, status and queue
 docs/clients/            Client contracts and UI standards
@@ -66,6 +67,7 @@ docs/ontology/           OWL model and natural-gas semantic backbone
 docs/operations/         Operator and development runbooks
 docs/policies/           Product, data, and dependency policies
 docs/release/            Release readiness, security evidence, and backlog
+docs/research/           Energy ontology, temporal model, registries, datasets, ML readiness
 ```
 
 The authoritative navigation order is in

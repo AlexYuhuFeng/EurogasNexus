@@ -51,6 +51,24 @@ _REVIEWED_DOMAIN_STR_ENUMS: set[str] = {
     "eurogas_nexus.domain.dataops.contracts:SourceCalendar",
     "eurogas_nexus.domain.dataops.contracts:SourceClass",
     "eurogas_nexus.domain.operations.errors:OperationalErrorCategory",
+    # CR-14 / P13 research-data ontology review. These enums are part of the
+    # executable research ontology owned by domain/research/ontology.py and
+    # its companion semantic modules. They deliberately use StrEnum so API
+    # and persistence layers can serialize them without implicit casting.
+    "eurogas_nexus.domain.research.capabilities:CapabilityReadWriteClass",
+    "eurogas_nexus.domain.research.capabilities:CapabilitySideEffectClass",
+    "eurogas_nexus.domain.research.datasets:DatasetSplitType",
+    "eurogas_nexus.domain.research.features:FeatureAvailabilityClass",
+    "eurogas_nexus.domain.research.leakage:LeakageSeverity",
+    "eurogas_nexus.domain.research.ontology:CanonicalEntityType",
+    "eurogas_nexus.domain.research.resampling:MissingDataPolicy",
+    "eurogas_nexus.domain.research.resampling:ResamplingAggregation",
+    "eurogas_nexus.domain.research.series:MetricType",
+    "eurogas_nexus.domain.research.series:TemporalSeriesType",
+    "eurogas_nexus.domain.research.targets:TargetKind",
+    "eurogas_nexus.domain.research.temporal:DatasetMode",
+    "eurogas_nexus.domain.research.temporal:ObservationKind",
+    "eurogas_nexus.domain.research.temporal:TemporalIntegrityState",
 }
 
 

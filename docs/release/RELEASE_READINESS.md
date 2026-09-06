@@ -6,8 +6,8 @@ Status: `RELEASE CANDIDATE FOR TESTED LOCAL SCOPE`
 
 Release marker: `RELEASE CANDIDATE`
 
-Date checked: 2026-09-07 (CR-13 commercial UAT convergence; CR-12 supply-chain
-controls re-validated and local dry-run re-run below)
+Date checked: 2026-09-07 (CR-14 research data foundation; CR-13 UAT evidence
+preserved and local release dry-run re-run below)
 
 Eurogas Nexus passes the current local release-candidate shape for
 backend/API/SDK/CLI, PostgreSQL runtime schema, Web workspace, Tauri desktop
@@ -41,9 +41,9 @@ by a CLI flag.
 ## Latest Local Evidence
 
 - Full local Python suite and Web tests/build: see `docs/product/SCHEDULED_AGENT_STATE.md`
-  (updated after CR-12 validation).
-- OpenAPI public surface: **141 paths** (`/api/runtime/release` added), pinned
-  and permission-declared.
+  (updated after CR-14 validation).
+- OpenAPI public surface: **151 paths** (`/api/runtime/release` and the
+  CR-14 research data routes added), pinned and permission-declared.
 - Version consistency: `python scripts/release/check_version_consistency.py`
   passes across pyproject, runtime module, Web/desktop package files,
   tauri/Cargo metadata, docs, install scripts, and the release workflow.
@@ -94,6 +94,10 @@ by a CLI flag.
   are operational evidence.
 - CR-12 adds one canonical version contract with an automated consistency gate;
   hard-coded release filenames/tags were removed.
+- CR-14 adds the research data foundation: executable energy ontology,
+  point-in-time temporal semantics, versioned feature/target registries,
+  bounded resampling, leakage validation, immutable dataset snapshots,
+  Parquet/CSV export, and typed MCP-free agent capability contracts.
 - Preview/RC/stable channel semantics are explicit. Stable can only originate
   from a pushed `vX.Y.Z` tag on the protected mainline and runs in the
   `production` GitHub Environment.
@@ -142,8 +146,8 @@ has been live-called or validated.
 - Provider-specific live tests and certification evidence for EEX, ICE OCM,
   Trayport, Kpler, Platts, ICIS, Argus, brokers, Weather, and LLM providers
   after credential and entitlement approval.
-- Live deployment migration to head `0030_reliability_indexes` on the target
-  runtime store.
+- Live deployment migration to head `0031_research_data_foundation` on the
+  target runtime store.
 - A real enterprise IdP acceptance test against the customer identity provider.
 - External security acceptance, backup/restore and incident-response drills on
   a real deployment.

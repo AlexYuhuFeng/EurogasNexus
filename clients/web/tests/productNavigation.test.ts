@@ -22,7 +22,7 @@ test("every technical workspace resolves to exactly one primary", () => {
       seen.add(page);
     }
   }
-  assert.equal(seen.size, 14);
+  assert.equal(seen.size, 15);
 });
 
 test("primary workspace defaults match the accepted architecture", () => {
@@ -53,6 +53,7 @@ test("old technical workspace ids continue to resolve", () => {
     settings: "system",
     manual: "system",
     glossary: "system",
+    research: "system",
   };
   for (const [page, primary] of Object.entries(expected)) {
     assert.equal(primaryWorkspaceForPage(page as keyof typeof expected).id, primary);
@@ -89,6 +90,7 @@ test("technical page guard helpers preserve all old route ids", () => {
     "runtime",
     "settings",
     "manual",
+    "research",
   ]) {
     assert.equal(isWorkspacePageId(page), true);
   }

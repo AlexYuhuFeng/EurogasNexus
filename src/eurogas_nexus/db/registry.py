@@ -192,6 +192,23 @@ REQUIRED_TABLES: tuple[RequiredTable, ...] = (
         name="oidc_authorization_states",
         introduced_in="0029_enterprise_identity_v1",
     ),
+    RequiredTable(name="canonical_entities", introduced_in="0031_research_data_foundation"),
+    RequiredTable(name="source_entity_mappings", introduced_in="0031_research_data_foundation"),
+    RequiredTable(name="series_definitions", introduced_in="0031_research_data_foundation"),
+    RequiredTable(name="feature_definitions", introduced_in="0031_research_data_foundation"),
+    RequiredTable(name="target_definitions", introduced_in="0031_research_data_foundation"),
+    RequiredTable(name="resampling_policies", introduced_in="0031_research_data_foundation"),
+    RequiredTable(name="dataset_specs", introduced_in="0031_research_data_foundation"),
+    RequiredTable(name="dataset_snapshots", introduced_in="0031_research_data_foundation"),
+    RequiredTable(
+        name="dataset_snapshot_dependencies", introduced_in="0031_research_data_foundation"
+    ),
+    RequiredTable(name="dataset_build_issues", introduced_in="0031_research_data_foundation"),
+    RequiredTable(name="dataset_artifacts", introduced_in="0031_research_data_foundation"),
+    RequiredTable(name="forecast_observations", introduced_in="0031_research_data_foundation"),
+    RequiredTable(
+        name="observation_temporal_metadata", introduced_in="0031_research_data_foundation"
+    ),
 )
 
 

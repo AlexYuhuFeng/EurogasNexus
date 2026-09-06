@@ -69,6 +69,17 @@ behavior.
   [CN](ontology/OWL_GAS_ROLE_MODEL-CN.md)
 - [Natural-gas subject architecture](ontology/europe-natural-gas.md)
 
+### Research data foundation
+
+- [Energy ontology](research/ENERGY_ONTOLOGY.md)
+- [Temporal data model](research/TEMPORAL_DATA_MODEL.md)
+- [Feature registry](research/FEATURE_REGISTRY.md)
+- [Target registry](research/TARGET_REGISTRY.md)
+- [Dataset architecture](research/DATASET_ARCHITECTURE.md)
+- [Point-in-time datasets](research/POINT_IN_TIME_DATASETS.md)
+- [ML readiness](research/ML_READINESS.md)
+- [Agent capability contract](agents/CAPABILITY_CONTRACT.md)
+
 ### Client standards
 
 - [Client documentation index](clients/README.md)

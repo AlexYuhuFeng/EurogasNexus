@@ -133,6 +133,17 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     # GET lists + POST upserts contracts: policy-gated write surface.
     ("/api/route-cost/upstream-contracts", Permission.GOVERNED),
     ("/api/route-cost/resource-pool/options", Permission.READ),
+    # --- research-data catalog is read-only; build/export are governed ---
+    ("/api/research/capabilities", Permission.READ),
+    ("/api/research/features", Permission.READ),
+    ("/api/research/features/{feature_id}", Permission.READ),
+    ("/api/research/targets", Permission.READ),
+    ("/api/research/targets/{target_id}", Permission.READ),
+    ("/api/research/datasets", Permission.READ),
+    ("/api/research/datasets/{dataset_snapshot_id}", Permission.READ),
+    ("/api/research/datasets/{dataset_snapshot_id}/quality", Permission.READ),
+    ("/api/research/datasets/validate", Permission.GOVERNED),
+    ("/api/research/datasets/{dataset_snapshot_id}/export", Permission.GOVERNED),
     # --- compute / persistence families: policy-gated decision support ---
     ("/api/optimization/", Permission.GOVERNED),
     ("/api/research/", Permission.GOVERNED),
@@ -204,9 +215,7 @@ def _pattern_rank(pattern: str) -> int:
 
 def _pattern_regex(pattern: str) -> re.Pattern[str]:
     parts = re.split(r"(\{[^}]+\})", pattern)
-    expression = "".join(
-        "[^/]+" if part.startswith("{") else re.escape(part) for part in parts
-    )
+    expression = "".join("[^/]+" if part.startswith("{") else re.escape(part) for part in parts)
     return re.compile(f"^{expression}$")
 
 

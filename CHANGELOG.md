@@ -25,6 +25,20 @@ asserted by `tests/contract/test_ontology_version_alignment.py`.
 
 ## [Unreleased]
 
+- Research data foundation (CR-14 / P13):
+  - executable `energy-ontology/v1`, canonical entities, and point-in-time
+    source mappings;
+  - observed_at/available_at/ingested_at temporal semantics, forecast
+    vintages, and actual/forecast/assessment/simulated observation kinds;
+  - versioned FeatureDefinition/TargetDefinition/ResamplingPolicy/DatasetSpec
+    registries with bounded carry-forward (no unlimited ffill);
+  - immutable dataset snapshots, point-in-time builder, leakage validation,
+    time splits, quality reports, lineage, and entitlement-gated
+    Parquet/CSV export;
+  - migration `0031_research_data_foundation`, seeded research catalog,
+    restrained System > Research Data UI, and MCP-free agent capability
+    contracts;
+  - 151 OpenAPI paths with legacy `/api/research/*` sandbox routes preserved.
 - Commercial UAT convergence (CR-13):
   - PostgreSQL 16 browser Golden Workflows for Market → Scenario,
     Portfolio → Optimize → Review, and Strategy create/freeze/backtest;

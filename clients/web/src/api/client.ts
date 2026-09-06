@@ -1198,6 +1198,72 @@ export interface AnalysisResultDTO {
 
 // --- API functions ---
 
+export interface ResearchFeatureDTO {
+  feature_id: string;
+  content_hash: string;
+  status: string;
+  definition: {
+    feature_id: string;
+    name: string;
+    description: string;
+    category: string;
+    input_dependencies: string[];
+    output_unit: string;
+    frequency: string;
+    availability_class: string;
+    transformation: string;
+    transformation_version: string;
+    missing_data_policy: string;
+    point_in_time_policy: string;
+    future_knowledge_policy: string;
+  };
+}
+
+export interface ResearchTargetDTO {
+  target_id: string;
+  content_hash: string;
+  status: string;
+  definition: {
+    target_id: string;
+    name: string;
+    description: string;
+    target_type: string;
+    entity_type: string;
+    entity_id: string;
+    metric: string;
+    horizon: string;
+    target_window: string;
+    unit: string;
+    aggregation: string;
+    label_calculation: string;
+    availability_delay: string;
+  };
+}
+
+export interface ResearchDatasetDTO {
+  dataset_snapshot_id: string;
+  dataset_spec_id: string;
+  source_cutoff_utc: string;
+  row_count: number;
+  column_count: number;
+  coverage: number;
+  temporal_integrity: string;
+  status: string;
+  created_at_utc: string;
+}
+
+export interface ResearchCapabilityDTO {
+  name: string;
+  description: string;
+  read_write_class: string;
+  deterministic: boolean;
+  side_effect_class: string;
+  required_permission: string;
+  required_entitlement?: string | null;
+  provenance_behavior: string;
+  timeout_seconds: number;
+}
+
 export const api = {
   health: async () =>
     parseResponse<HealthDTO>(await fetch(apiUrl("/health"), requestInit())),
@@ -1442,6 +1508,14 @@ export const api = {
   runtimeDb: () => get<RuntimeDbStatusDTO>("/runtime/db"),
   runtimeDependencies: () => get<RuntimeDependenciesDTO>("/runtime/dependencies"),
   runtimeRelease: () => get<RuntimeReleaseDTO>("/runtime/release"),
+  researchFeatures: () => get<ResearchFeatureDTO[]>("/research/features"),
+  researchTargets: () => get<ResearchTargetDTO[]>("/research/targets"),
+  researchDatasets: () => get<ResearchDatasetDTO[]>("/research/datasets"),
+  researchCapabilities: () => get<ResearchCapabilityDTO[]>("/research/capabilities"),
+  validateResearchDataset: (spec: Record<string, unknown>) =>
+    post<{ ok: boolean; issues: string[]; spec_hash: string }>("/research/datasets/validate", { dataset_spec: spec }),
+  buildResearchDataset: (spec: Record<string, unknown>) =>
+    post<Record<string, unknown>>("/research/datasets", { dataset_spec: spec, materialize: true }),
 
   glossary: (lang: string = "en", params?: { category?: string; q?: string }) =>
     get<GlossaryTermDTO[]>("/glossary", { lang, ...(params ?? {}) }),

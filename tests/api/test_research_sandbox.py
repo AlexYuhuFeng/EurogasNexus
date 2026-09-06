@@ -48,8 +48,19 @@ def test_every_research_path_declares_sandbox_meta() -> None:
     research_paths = sorted(
         path for path in app.openapi()["paths"] if path.startswith("/api/research/")
     )
-    assert len(research_paths) >= 7
+    assert len(research_paths) >= 17
+    # CR-14 catalog/dataset routes are research data foundation routes, not
+    # sandbox scenario routes. They are exercised with DB-backed coverage in
+    # tests/api/test_research_data_api.py.
+    data_foundation_paths = {
+        "/api/research/datasets",
+        "/api/research/datasets/validate",
+        "/api/research/datasets/{dataset_snapshot_id}/export",
+    }
+    assert data_foundation_paths <= set(research_paths)
     for path in research_paths:
+        if path in data_foundation_paths:
+            continue
         method = "post"
         if method not in app.openapi()["paths"][path]:
             continue
