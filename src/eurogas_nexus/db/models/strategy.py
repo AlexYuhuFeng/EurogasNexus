@@ -4,10 +4,83 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, String, Text
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from eurogas_nexus.db.base import Base
+
+
+class StrategyRecord(Base):
+    """Long-lived versioned strategy research identity."""
+
+    __tablename__ = "strategies"
+
+    strategy_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    name: Mapped[str] = mapped_column(String(256), nullable=False)
+    description: Mapped[str] = mapped_column(Text(), nullable=False, default="")
+    lifecycle_status: Mapped[str] = mapped_column(String(32), nullable=False, default="RESEARCH")
+    current_version_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    created_by: Mapped[str] = mapped_column(String(64), nullable=False, default="operator")
+    created_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    retired_at_utc: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    tags: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    research_only: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
+class StrategyVersionRecord(Base):
+    """Immutable semantic version of a strategy."""
+
+    __tablename__ = "strategy_versions"
+    __table_args__ = (
+        UniqueConstraint("strategy_id", "version_number", name="uq_strategy_version_number"),
+        Index("ix_strategy_versions_strategy_id", "strategy_id"),
+    )
+
+    strategy_version_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    strategy_id: Mapped[str] = mapped_column(
+        String(128), ForeignKey("strategies.strategy_id"), nullable=False
+    )
+    version_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    schema_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="DRAFT")
+    hypothesis: Mapped[str] = mapped_column(Text(), nullable=False, default="")
+    definition_json: Mapped[dict] = mapped_column(JSON, nullable=False)
+    parent_version_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    created_by: Mapped[str] = mapped_column(String(64), nullable=False, default="operator")
+    created_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    frozen_at_utc: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    content_hash: Mapped[str] = mapped_column(String(128), nullable=False)
+    research_only: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
+class StrategyDataSnapshotRecord(Base):
+    """Evidence-bundle reference for reproducible strategy runs."""
+
+    __tablename__ = "strategy_data_snapshots"
+
+    snapshot_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    data_cutoff_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    observation_refs: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    fx_observation_refs: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    resource_snapshot_refs: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    source_systems: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    row_counts: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    quality_state: Mapped[str] = mapped_column(String(32), nullable=False)
+    content_hash: Mapped[str] = mapped_column(String(128), nullable=False)
+    created_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    research_only: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
 
 class StrategyDefinitionRecord(Base):
@@ -35,10 +108,43 @@ class StrategyRunRecord(Base):
 
     run_id: Mapped[str] = mapped_column(String(128), primary_key=True)
     strategy_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    strategy_version_id: Mapped[str | None] = mapped_column(
+        String(128), ForeignKey("strategy_versions.strategy_version_id"), nullable=True
+    )
+    run_type: Mapped[str | None] = mapped_column(String(32), nullable=True, default="EVALUATION")
     run_mode: Mapped[str] = mapped_column(String(32), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
+    requested_at_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     started_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    completed_at_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     finished_at_utc: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    evaluation_start_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    evaluation_end_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    data_cutoff_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    dataset_snapshot_id: Mapped[str | None] = mapped_column(
+        String(128), ForeignKey("strategy_data_snapshots.snapshot_id"), nullable=True
+    )
+    manifest_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    manifest_hash: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    engine_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    application_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    git_commit_sha: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    strategy_schema_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    run_schema_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    deterministic_seed: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    requested_by: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    trigger_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    correlation_request_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     input_snapshot: Mapped[dict] = mapped_column(JSON, nullable=False)
     result_snapshot: Mapped[dict] = mapped_column(JSON, nullable=False)
     source_refs: Mapped[list[str]] = mapped_column(JSON, nullable=False)

@@ -114,10 +114,29 @@ class StrategyRunDTO(BaseModel):
     run_id: str
     strategy_id: str
     strategy_name: str | None = None
+    strategy_version_id: str | None = None
+    run_type: str | None = None
     run_mode: str
     status: str
+    requested_at_utc: str | None = None
     started_at_utc: str
     finished_at_utc: str | None = None
+    completed_at_utc: str | None = None
+    evaluation_start_utc: str | None = None
+    evaluation_end_utc: str | None = None
+    data_cutoff_utc: str | None = None
+    dataset_snapshot_id: str | None = None
+    manifest_json: dict | None = None
+    manifest_hash: str | None = None
+    engine_version: str | None = None
+    application_version: str | None = None
+    git_commit_sha: str | None = None
+    strategy_schema_version: str | None = None
+    run_schema_version: str | None = None
+    deterministic_seed: str | None = None
+    requested_by: str | None = None
+    trigger_type: str | None = None
+    correlation_request_id: str | None = None
     paper_pnl_gbp: float | None = None
     cumulative_pnl_gbp: float | None = None
     hit: bool | None = None

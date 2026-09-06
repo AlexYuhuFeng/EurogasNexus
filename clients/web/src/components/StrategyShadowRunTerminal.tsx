@@ -762,6 +762,26 @@ export function StrategyShadowRunTerminal({
         {activeView === "runs" && (
           <>
             <StrategyPerformancePanel runs={strategyRuns} summary={strategySummary} language={language} t={t} />
+              <section className="workspace-panel strategy-run-provenance">
+                <div className="panel-title-row">
+                  <h3>{t("strategy.run_provenance")}</h3>
+                  {latestPersistedRun?.manifest_hash && <span>{t("strategy.reproducible")}</span>}
+                </div>
+                {latestPersistedRun?.manifest_hash ? (
+                  <div className="metric-grid">
+                    <div><span>{t("strategy.version_id")}</span><strong>{latestPersistedRun.strategy_version_id ?? "n/a"}</strong></div>
+                    <div><span>{t("strategy.run_type")}</span><strong>{latestPersistedRun.run_type ?? "n/a"}</strong></div>
+                    <div><span>{t("strategy.manifest_hash")}</span><strong title={latestPersistedRun.manifest_hash}>{latestPersistedRun.manifest_hash.slice(0, 18)}</strong></div>
+                    <div><span>{t("strategy.data_cutoff")}</span><strong>{formatTimestamp(latestPersistedRun.data_cutoff_utc, language)}</strong></div>
+                    <div><span>{t("strategy.engine_version")}</span><strong>{latestPersistedRun.engine_version ?? "n/a"}</strong></div>
+                    <div><span>{t("strategy.application_version")}</span><strong>{latestPersistedRun.application_version ?? "n/a"}</strong></div>
+                    <div><span>{t("strategy.git_commit")}</span><strong>{latestPersistedRun.git_commit_sha?.slice(0, 12) ?? "n/a"}</strong></div>
+                    <div><span>{t("strategy.dataset_snapshot")}</span><strong title={latestPersistedRun.dataset_snapshot_id ?? undefined}>{latestPersistedRun.dataset_snapshot_id?.slice(0, 20) ?? "n/a"}</strong></div>
+                  </div>
+                ) : (
+                  <p className="muted">{t("strategy.no_registry_provenance")}</p>
+                )}
+              </section>
             <section className="workspace-panel strategy-cumulative-state">
               <h3>{t("strategy.cumulative_state")}</h3>
               <div className="metric-grid">

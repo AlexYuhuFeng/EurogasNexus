@@ -6,6 +6,9 @@ from eurogas_nexus.db.registry import get_metadata, list_required_tables
 def test_strategy_tables_are_in_metadata_and_required_registry() -> None:
     metadata = get_metadata()
     expected = {
+        "strategies",
+        "strategy_versions",
+        "strategy_data_snapshots",
         "strategy_definitions",
         "strategy_runs",
         "strategy_allocation_targets",

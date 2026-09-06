@@ -64,6 +64,12 @@ REQUIRED_TABLES: tuple[RequiredTable, ...] = (
     ),
     RequiredTable(name="glossary_terms", introduced_in="0006_route_cost_decision_support"),
     RequiredTable(name="strategy_definitions", introduced_in="0007_strategy_lab_foundation"),
+    RequiredTable(name="strategies", introduced_in="0025_strategy_registry_v1"),
+    RequiredTable(name="strategy_versions", introduced_in="0025_strategy_registry_v1"),
+    RequiredTable(
+        name="strategy_data_snapshots",
+        introduced_in="0025_strategy_registry_v1",
+    ),
     RequiredTable(name="strategy_runs", introduced_in="0007_strategy_lab_foundation"),
     RequiredTable(name="strategy_allocation_targets", introduced_in="0007_strategy_lab_foundation"),
     RequiredTable(name="strategy_alerts", introduced_in="0007_strategy_lab_foundation"),

@@ -2,10 +2,12 @@
 
 ## Current run
 
-- Current milestone: `CR-03` (recommended next; not started) — Strategy Domain
-  Model, Versioning, and Reproducible Run Contract.
-- Last completed milestone: `CR-02 / P1B` (evidence below; committed in this
-  run). `CR-01` remains committed as `065ab73`; `M0-P0` as `764fbdd`.
+- Current milestone: `CR-03 / P2` — Strategy Domain Model, Versioning, and
+  Reproducible Run Contract (implemented; see Tests run below).
+- Last completed milestone before this run: `CR-02 / P1B` (commit `89f166e`).
+  Earlier commits: `065ab73` (CR-01), `764fbdd` (M0-P0).
+- CR-03 commit planned for the end of this run:
+  `feat(strategy): add versioned strategy domain and reproducible run manifests`.
 - Current branch/commit at CR-01 start: `main` @
   `764fbdd48209f3adbc5d1c0e3fad77153a9a156e`; `origin/main`
   `399be6aec931849e51379dbb6667c751ece5016a`.
@@ -26,8 +28,33 @@
   selection or handoff mechanism existed before CR-02.
 - Runtime API observed previously: development profile, PostgreSQL head
   `0024_cost_observations`, 46/46 required tables, 86 OpenAPI paths.
+- CR-03 adds migration `0025_strategy_registry_v1` (new tables
+  `strategies`, `strategy_versions`, `strategy_data_snapshots`, plus nullable
+  provenance columns on legacy `strategy_runs`). The runtime PostgreSQL head
+  should become `0025_strategy_registry_v1`; live migration was not performed
+  because the local environment has no running PostgreSQL service.
 
-## CR-02 implementation plan
+## CR-03 implementation plan
+
+1. Audit current strategy domain, DB, API, SDK, Web DTOs, and tests.
+2. Perform focused experiment-lineage research and write
+   `docs/product/STRATEGY_DOMAIN_MODEL.md`.
+3. Add typed strategy registry domain module with lifecycle enums, structured
+   version definition, run manifest, and deterministic content hashing.
+4. Add Alembic migration `0025_strategy_registry_v1`: `strategies`,
+   `strategy_versions`, `strategy_data_snapshots`, and provenance columns on
+   legacy `strategy_runs`; preserve legacy rows.
+5. Add repository and application functions for strategy CRUD, draft/frozen
+   version lifecycle, fork-on-edit, immutable manifests, and run persistence.
+6. Add professional API: strategy list/create/get, version list/create/get,
+   freeze, fork, run create/list/get. Only `EVALUATION` run type is executable.
+7. Keep `/api/strategy-lab/*` compatibility path unchanged; extend legacy run
+   payload with new provenance fields.
+8. Update SDK and Web DTOs; minimal Strategy terminal provenance line.
+9. Add domain/repository/API/DB/migration/compatibility tests.
+10. Run focused + broad validation and web build; update backlog/state; commit.
+
+## CR-02 implementation plan (historical)
 
 1. Verify CR-01 navigation landed in current main and audit duplicated context
    state.
@@ -84,13 +111,17 @@
 
 - `npm --prefix clients/web run test`: **29 passed**.
 - `npm --prefix clients/web run build`: **passed**.
-- Focused Python context/navigation contracts: **71 passed**.
+- Focused CR-03 Python tests (domain/repository/API): **16 passed**
+  (`tests/unit/test_strategy_registry_domain.py`,
+  `tests/integration/test_strategy_registry_repository.py`,
+  `tests/api/test_strategy_registry_api.py`).
 - `pytest tests --ignore=tests/contract/test_ontology_grm_parity.py`:
-  **1145 passed, 4 skipped**.
+  **1160 passed, 4 skipped**.
 - `ruff check .`: **passed**.
 - `python scripts/ci/check_markdown_links.py`: **passed**.
-- API import: **86 paths**.
-- Load smoke: **100 ok / 0 errors** (p50 8.4 ms, p95 640.3 ms, p99 660.8 ms).
+- OpenAPI public surface: **94 paths**, all covered by
+  `PINNED_PUBLIC_PATHS` and the route-permission registry.
+- Load smoke: **200 ok / 0 errors** (p50 10.4 ms, p95 58.2 ms, p99 876.9 ms).
 
 ## Known failures
 
@@ -100,19 +131,28 @@
 - Live GitHub Actions status was not queried; all local gates above are green
   with that one collection exclusion.
 - No browser E2E runner exists in the current test infrastructure; CR-02
-  handoffs are covered by executable pure-function tests plus source contract
-  tests rather than browser automation.
+  handoffs and CR-03 terminal provenance are covered by executable
+  pure-function tests, source contract tests, and the production web build.
 
 ## Unresolved architectural decisions
 
 - Glossary remains a full technical workspace under System; inline contextual
   glossary entry points are deferred.
 - Network remains under Market and still contains resource-pool decision rails;
-  whether to split its portfolio content is deferred to CR-02/portfolio work.
+  whether to split its portfolio content is deferred to later portfolio work.
 - URL remains `?workspace=<technical-id>`; no primary-id query parameter or new
-  route aliases are introduced in this milestone.
-- The proposed persistent trader context is documented but not implemented.
+  route aliases are introduced.
+- `strategy_definitions` remains a frozen legacy table and is intentionally not
+  migrated into the new `strategies`/`strategy_versions` registry in CR-03.
+- Only `run_type=EVALUATION` executes in CR-03; backtest, scenario, and shadow
+  run types are versioned but not executable. No scheduler or execution
+  semantics are added.
+- The professional registry API is ready but not yet driven by terminal
+  builder/backtest controls; the terminal only displays run provenance.
 
 ## Next recommended milestone
 
-- `CR-02` — Persistent Trader Context and Cross-Workspace Selection Model.
+- `CR-04` — Professional backtest and dataset-snapshot construction: as-of
+  joins, look-ahead-safe observation selection, walk-forward/experiment design,
+  and professional backtest metrics on the immutable CR-03 version/manifest
+  foundation (see `docs/product/STRATEGY_DOMAIN_MODEL.md` section 21).

@@ -150,12 +150,51 @@ def strategy_run_payload(row: StrategyRunRecord) -> dict:
         "run_id": row.run_id,
         "strategy_id": row.strategy_id,
         "strategy_name": strategy_name,
+        "strategy_version_id": getattr(row, "strategy_version_id", None),
+        "run_type": getattr(row, "run_type", None),
         "run_mode": row.run_mode,
         "status": row.status,
+        "requested_at_utc": (
+            _as_utc(row.requested_at_utc).isoformat()
+            if getattr(row, "requested_at_utc", None)
+            else None
+        ),
         "started_at_utc": _as_utc(row.started_at_utc).isoformat(),
+        "completed_at_utc": (
+            _as_utc(row.completed_at_utc).isoformat()
+            if getattr(row, "completed_at_utc", None)
+            else None
+        ),
         "finished_at_utc": (
             _as_utc(row.finished_at_utc).isoformat() if row.finished_at_utc else None
         ),
+        "evaluation_start_utc": (
+            _as_utc(row.evaluation_start_utc).isoformat()
+            if getattr(row, "evaluation_start_utc", None)
+            else None
+        ),
+        "evaluation_end_utc": (
+            _as_utc(row.evaluation_end_utc).isoformat()
+            if getattr(row, "evaluation_end_utc", None)
+            else None
+        ),
+        "data_cutoff_utc": (
+            _as_utc(row.data_cutoff_utc).isoformat()
+            if getattr(row, "data_cutoff_utc", None)
+            else None
+        ),
+        "dataset_snapshot_id": getattr(row, "dataset_snapshot_id", None),
+        "manifest_json": getattr(row, "manifest_json", None),
+        "manifest_hash": getattr(row, "manifest_hash", None),
+        "engine_version": getattr(row, "engine_version", None),
+        "application_version": getattr(row, "application_version", None),
+        "git_commit_sha": getattr(row, "git_commit_sha", None),
+        "strategy_schema_version": getattr(row, "strategy_schema_version", None),
+        "run_schema_version": getattr(row, "run_schema_version", None),
+        "deterministic_seed": getattr(row, "deterministic_seed", None),
+        "requested_by": getattr(row, "requested_by", None),
+        "trigger_type": getattr(row, "trigger_type", None),
+        "correlation_request_id": getattr(row, "correlation_request_id", None),
         "paper_pnl_gbp": snapshot.get("paper_pnl_gbp"),
         "cumulative_pnl_gbp": snapshot.get("cumulative_pnl_gbp"),
         "hit": snapshot.get("hit"),

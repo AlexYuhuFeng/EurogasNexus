@@ -25,6 +25,7 @@ from eurogas_nexus.api.routes.public.runtime import router as runtime_router
 from eurogas_nexus.api.routes.public.sources import router as sources_router
 from eurogas_nexus.api.routes.public.storage import router as storage_router
 from eurogas_nexus.api.routes.public.strategy_lab import router as strategy_lab_router
+from eurogas_nexus.api.routes.public.strategy_registry import router as strategy_registry_router
 from eurogas_nexus.api.routes.public.streaming import router as streaming_router
 from eurogas_nexus.api.routes.public.weather import router as weather_router
 
@@ -58,6 +59,7 @@ def register_routes(
         app.include_router(route_cost_router)
         app.include_router(optimization_router)
         app.include_router(strategy_lab_router)
+        app.include_router(strategy_registry_router)
         app.include_router(streaming_router)
         app.include_router(runtime_router)
 

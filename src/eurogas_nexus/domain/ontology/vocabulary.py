@@ -413,6 +413,51 @@ class StrategyRunMode(StrEnum):
     LIVE_MONITOR = "LIVE_MONITOR"
 
 
+class StrategyLifecycleStatus(StrEnum):
+    """Lifecycle status of a long-lived strategy research identity."""
+
+    RESEARCH = "RESEARCH"
+    RETIRED = "RETIRED"
+
+
+class StrategyVersionStatus(StrEnum):
+    """Mutability status of one semantic strategy version."""
+
+    DRAFT = "DRAFT"
+    FROZEN = "FROZEN"
+    RETIRED = "RETIRED"
+
+
+class StrategyRunType(StrEnum):
+    """Executable kind of a strategy run."""
+
+    EVALUATION = "EVALUATION"
+    BACKTEST = "BACKTEST"
+    SHADOW = "SHADOW"
+    SCENARIO = "SCENARIO"
+
+
+class StrategyRunStatus(StrEnum):
+    """Execution status of a strategy run."""
+
+    QUEUED = "QUEUED"
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+    CANCELLED = "CANCELLED"
+
+
+class ParameterType(StrEnum):
+    """Primitive type of a strategy parameter."""
+
+    INTEGER = "INTEGER"
+    DECIMAL = "DECIMAL"
+    BOOLEAN = "BOOLEAN"
+    ENUM = "ENUM"
+    DURATION = "DURATION"
+    PERCENTAGE = "PERCENTAGE"
+
+
 class StrategyComponentType(StrEnum):
     """Strategy-lab component family."""
 

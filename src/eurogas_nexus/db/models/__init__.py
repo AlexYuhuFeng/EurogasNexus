@@ -63,8 +63,11 @@ from eurogas_nexus.db.models.storage_nomination import (
 from eurogas_nexus.db.models.strategy import (
     StrategyAlertRecord,
     StrategyAllocationTargetRecord,
+    StrategyDataSnapshotRecord,
     StrategyDefinitionRecord,
+    StrategyRecord,
     StrategyRunRecord,
+    StrategyVersionRecord,
 )
 
 IngestionRunStatus = Literal["queued", "running", "succeeded", "failed"]
@@ -124,6 +127,9 @@ __all__ = [
     "StorageInventoryObservationRecord",
     "StorageObservationRecord",
     "StrategyAlertRecord",
+    "StrategyDataSnapshotRecord",
+    "StrategyRecord",
+    "StrategyVersionRecord",
     "StrategyAllocationTargetRecord",
     "StrategyDefinitionRecord",
     "StrategyRunRecord",

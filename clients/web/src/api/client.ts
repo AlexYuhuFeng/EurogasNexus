@@ -823,8 +823,27 @@ export interface StrategyLabResultDTO {
 
 export interface StrategyRunDTO {
   run_id: string; strategy_id: string; strategy_name?: string | null;
+  strategy_version_id?: string | null;
+  run_type?: string | null;
   run_mode: string; status: string;
+  requested_at_utc?: string | null;
   started_at_utc: string; finished_at_utc: string | null;
+  completed_at_utc?: string | null;
+  evaluation_start_utc?: string | null;
+  evaluation_end_utc?: string | null;
+  data_cutoff_utc?: string | null;
+  dataset_snapshot_id?: string | null;
+  manifest_json?: Record<string, unknown> | null;
+  manifest_hash?: string | null;
+  engine_version?: string | null;
+  application_version?: string | null;
+  git_commit_sha?: string | null;
+  strategy_schema_version?: string | null;
+  run_schema_version?: string | null;
+  deterministic_seed?: string | null;
+  requested_by?: string | null;
+  trigger_type?: string | null;
+  correlation_request_id?: string | null;
   paper_pnl_gbp: number | null; cumulative_pnl_gbp: number | null; hit: boolean | null;
   weighted_score: number | null;
   day_ahead_average_gbp_mwh?: number | null;
@@ -841,6 +860,70 @@ export interface StrategySummaryDTO {
   total_paper_pnl_gbp: number; cumulative_pnl_gbp: number; hit_rate: number;
   max_drawdown_gbp: number; first_started_at_utc: string | null;
   last_started_at_utc: string | null; latest_status: string | null;
+}
+
+export interface StrategyRegistryParameterDTO {
+  parameter_id: string; name: string; type: string; unit?: string | null;
+  description?: string; min_value?: number | null; max_value?: number | null;
+  allowed_values?: string[]; optimization_allowed?: boolean;
+  sensitivity_allowed?: boolean;
+}
+
+export interface StrategyRegistryComponentDTO {
+  component_id: string; component_type: string; role?: string; hubs?: string[];
+  tenors?: string[]; price_basis?: string | null; resource_id?: string | null;
+  parameter_refs?: string[]; required_evidence?: string[];
+  extension_json?: Record<string, unknown>;
+}
+
+export interface StrategyVersionDefinitionDTO {
+  components?: StrategyRegistryComponentDTO[];
+  parameter_definitions?: StrategyRegistryParameterDTO[];
+  parameter_values?: Record<string, unknown>;
+  risk_controls?: Record<string, unknown>;
+  economic_assumptions?: Record<string, unknown>;
+  data_requirements?: Record<string, unknown>;
+  evaluation_windows?: Record<string, unknown>[];
+}
+
+export interface StrategyDTO {
+  strategy_id: string; name: string; description: string;
+  lifecycle_status: string; current_version_id: string | null;
+  created_by: string; created_at_utc: string; updated_at_utc: string;
+  retired_at_utc: string | null; tags: string[]; research_only: boolean;
+}
+
+export interface StrategyVersionDTO {
+  strategy_version_id: string; strategy_id: string; version_number: number;
+  schema_version: string; status: string; hypothesis: string;
+  definition_json: Record<string, unknown>; parent_version_id: string | null;
+  created_by: string; created_at_utc: string; frozen_at_utc: string | null;
+  content_hash: string; research_only: boolean;
+}
+
+export interface StrategyCreateInputDTO {
+  strategy_id?: string; name: string; description?: string; tags?: string[];
+}
+
+export interface StrategyVersionCreateInputDTO {
+  hypothesis?: string; definition: StrategyVersionDefinitionDTO;
+  strategy_name?: string | null;
+  run_mode?: string;
+  resource_contexts?: Record<string, unknown>[];
+  price_observations?: Record<string, unknown>[];
+  existing_shadow_pnl_gbp?: number;
+}
+
+export interface StrategyForkInputDTO {
+  hypothesis?: string | null; definition?: StrategyVersionDefinitionDTO | null;
+}
+
+export interface StrategyRunCreateInputDTO {
+  strategy_version_id: string;
+  run_type?: string;
+  deterministic_seed?: string | null;
+  trigger_type?: string;
+  correlation_request_id?: string | null;
 }
 
 export interface CapacityContractDTO {
@@ -1039,6 +1122,44 @@ export const api = {
       ...(params?.strategy_id ? { strategy_id: params.strategy_id } : {}),
       ...(params?.run_mode ? { run_mode: params.run_mode } : {}),
     }),
+
+  strategies: () => get<StrategyDTO[]>("/strategies"),
+
+  strategy: (strategyId: string) =>
+    get<StrategyDTO>(`/strategies/${encodeURIComponent(strategyId)}`),
+
+  createStrategy: (body: StrategyCreateInputDTO) => post<StrategyDTO>("/strategies", body),
+
+  strategyVersions: (strategyId: string) =>
+    get<StrategyVersionDTO[]>(`/strategies/${encodeURIComponent(strategyId)}/versions`),
+
+  createStrategyVersion: (strategyId: string, body: StrategyVersionCreateInputDTO) =>
+    post<StrategyVersionDTO>(`/strategies/${encodeURIComponent(strategyId)}/versions`, body),
+
+  strategyVersion: (versionId: string) =>
+    get<StrategyVersionDTO>(`/strategy-versions/${encodeURIComponent(versionId)}`),
+
+  freezeStrategyVersion: (versionId: string) =>
+    post<StrategyVersionDTO>(`/strategy-versions/${encodeURIComponent(versionId)}/freeze`, {}),
+
+  forkStrategyVersion: (versionId: string, body?: StrategyForkInputDTO) =>
+    post<StrategyVersionDTO>(`/strategy-versions/${encodeURIComponent(versionId)}/fork`, body ?? {}),
+
+  createStrategyRun: (body: StrategyRunCreateInputDTO) =>
+    post<StrategyRunDTO>("/strategy-runs", body),
+
+  strategyRegistryRuns: (params?: {
+    strategy_id?: string; strategy_version_id?: string; run_type?: string; limit?: number;
+  }) =>
+    get<StrategyRunDTO[]>("/strategy-runs", {
+      ...(params?.strategy_id ? { strategy_id: params.strategy_id } : {}),
+      ...(params?.strategy_version_id ? { strategy_version_id: params.strategy_version_id } : {}),
+      ...(params?.run_type ? { run_type: params.run_type } : {}),
+      ...(params?.limit ? { limit: String(params.limit) } : {}),
+    }),
+
+  strategyRegistryRun: (runId: string) =>
+    get<StrategyRunDTO>(`/strategy-runs/${encodeURIComponent(runId)}`),
 
   capacityContracts: () => get<CapacityContractDTO[]>("/contracts/capacity"),
 
