@@ -203,6 +203,104 @@ absent. Illustrative performance curves are prohibited.
 - Global CSS changes require a focused UI review and MUST avoid Strategy WIP
   selectors.
 
+
+## Evidence-led UI refactor preparation (2026-09-06)
+
+Status: audit evidence collected; visual acceptance is pending human review of
+the local gallery. DOM/source findings below are implementation facts. Image
+appearance, overlap aesthetics, and spacing quality are not claimed from DOM
+metrics or image dimensions.
+
+Evidence:
+
+- Local gallery: `output/ui-audit-2026-09-06/gallery.html` served at
+  `http://127.0.0.1:4173/gallery.html` during review.
+- Capture manifest: `output/ui-audit-2026-09-06/capture-manifest.json`.
+- DOM audit: `output/ui-audit-2026-09-06/audit-dom.json` and
+  `audit-tabs.json`.
+- Screenshots: `output/ui-audit-2026-09-06/*.png`, 1440x900 desktop and
+  390x844 mobile web sizes, captured through the Vite dev server against the
+  running `/api` and PostgreSQL instance. These are web-browser screenshots,
+  not native desktop acceptance.
+
+Page inventory covered: Network, Scenario, Review, Resource Terms, Market,
+Capacity, Market Positioning, Strategy, Glossary, Data Sources, Runtime,
+Settings, Manual. Internal tabs captured for Resource Terms, Capacity,
+Strategy, Data Sources, and Runtime.
+
+DOM/source findings (not visual acceptance):
+
+1. Browser dev-server hydration remains in `LOADING WORKSPACE` on Network and
+   Strategy for at least 15 seconds, even though `/api/sources`,
+   `/api/strategy-lab/runs`, and `/api/strategy-lab/summary` return data
+   directly. Strategy DOM consequently showed zero runs and all price bases
+   unavailable during capture; the production desktop executable does render
+   the two persisted runs. This needs root-cause separation before refactor.
+2. Strategy duplicate performance presentation: `StrategyPerformancePanel` is
+   mounted in both Monitor and Run History (`components/StrategyShadowRunTerminal.tsx`),
+   and Run History also renders a cumulative-performance metric panel below
+   the same chart. Reviewer-reported repetition is source-verified.
+3. Strategy PnL chart has no axis labels or value scale: the SVG contains only
+   grid lines, a zero line, and a polyline (`StrategyShadowRunSections.tsx`).
+   `svgAxisText` count is 0 in DOM audit. Reviewer-reported missing axes is
+   source-verified.
+4. Strategy price context is derived from the current `strategyResult` or the
+   latest persisted run, but the observed browser session rendered unavailable
+   flags for all seven bases and `n/a` price basis metrics. This is either a
+   hydration defect or a real stale-context defect; do not restyle before
+   confirming which.
+5. Mobile DOM overflow/overlap candidates: workspace page tabs overflow on
+   Resource Terms, Market, Capacity, and Market Positioning; data-table rows
+   exceed the 390px viewport on Review, Capacity, Market, and Market
+   Positioning; Source posture/task controls and Strategy task controls
+   extend past the viewport. These are DOM geometry flags, not visual
+   acceptance.
+6. Reusable primitives remain partially adopted: Source Center and Runtime use
+   `WorkspaceTabs`, but Strategy, Capacity, and Resource Terms still have
+   local tab markup; panel headers and metric/status rows still mix
+   `.panel-title-row`, `.section-heading`, `.metric-grid`, and page-specific
+   variants.
+7. Labels and units are inconsistent at presentation boundaries: some values
+   carry `GBP/MWh`, `MWh/d`, or `TWh`, while strategy monitor averages and
+   allocation reference columns omit units; source freshness labels mix local
+   and UTC semantics. These are source/DOM observations awaiting visual and
+   content review.
+
+Ordered refactor plan:
+
+1. Stabilize workspace hydration and loading completion; make failed/slow
+   endpoints observable per endpoint without leaving whole-workspace loading
+   state stuck.
+2. Strategy consolidation: one performance panel owner, axis/time/value labels,
+   persisted-run price basis context, and a clear empty/stale/simulated state.
+3. Mobile containment: page tabs, task tabs, tables, and command decks must
+   scroll locally without page overflow.
+4. Primitive convergence: migrate remaining local tabs, panel headers, metric
+   strips, and status badges onto the shared UI primitives; keep existing CSS
+   class contracts until migration tests pass.
+5. Content/label pass: units on every market/physical/PnL value, UTC/local
+   basis, provenance, simulated/stale/unavailable chips, verified-versus-
+   indicative map legend.
+6. Accessibility pass: keyboard focus, semantic tabs, color-plus-text states,
+   and readable chart axes.
+7. Visual regression baseline: re-capture the gallery only after implementation
+   changes, not before.
+
+Operational-screen brief for GPT Image 2 references:
+
+Advanced, minimal, restrained, professional gas-trader workspace; dense and
+readable; clear hierarchy and legends; shared tokens/components; no overlapping
+text, decorative nested cards, or marketing composition. Show a strategy
+operational screen with: global status and source freshness strip; compact
+strategy identity marked PAPER and no execution; Monitor/Economics/Risk &
+Evidence/Run History tabs; a price-basis board with units, source systems, and
+simulated/stale/unavailable chips; an allocation ladder and risk stack; a PnL
+curve with visible axes, units, time basis, and empty-state behavior; and a
+run-history table with provenance and human-review flags. Use restrained ink,
+gray, link blue, positive/warning/critical state colors, hairline borders,
+8px surfaces, mono labels, and no heavy shadows or gradients.
+
+
 ## References
 
 - [Client documentation index](README.md)
