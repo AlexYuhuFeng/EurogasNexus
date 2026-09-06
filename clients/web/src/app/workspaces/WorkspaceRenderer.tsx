@@ -13,7 +13,8 @@ import { RuntimeWorkspace } from "@/components/RuntimeWorkspace";
 import { ScenarioWorkspace } from "@/components/ScenarioWorkspace";
 import { SettingsCenter } from "@/components/SettingsCenter";
 import { SourceCenter } from "@/components/SourceCenter";
-import { StrategyShadowRunTerminal } from "@/components/StrategyShadowRunTerminal";
+import { StrategyLabWorkspace } from "@/components/strategy/StrategyLabWorkspace";
+import { useStrategyLab } from "@/app/model/useStrategyLab";
 
 interface WorkspaceRendererProps {
   controller: AppController;
@@ -37,6 +38,17 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
   } = controller;
   const activeWorkspace = navigation.activeWorkspace;
   const activePrimaryWorkspace = primaryWorkspaceForPage(activeWorkspace);
+  const strategyLab = useStrategyLab({
+    gasDay: traderContext.gasDay,
+    selection: {
+      strategyId: selection.strategyId,
+      strategyVersionId: selection.strategyVersionId,
+      strategyRunId: selection.strategyRunId,
+      setStrategyId: selection.setStrategyId,
+      setStrategyVersionId: selection.setStrategyVersionId,
+      setStrategyRunId: selection.setStrategyRunId,
+    },
+  });
   const localTabs = activePrimaryWorkspace.pages.map((page) => ({
     id: page,
     label: t(`nav.${page}`),
@@ -146,24 +158,19 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
       )}
 
       {activeWorkspace === "strategy" && (
-        <StrategyShadowRunTerminal
-          strategyScenario={portfolio.strategyScenario}
-          strategyResult={api.strategyResult}
-          strategySummary={portfolio.strategySummary}
-          strategyRuns={portfolio.strategyRuns}
-          portfolioResources={portfolio.portfolioResources}
-          marketObservations={portfolio.contextMarkets}
-          fxRates={api.fxRates}
-          language={i18n.language}
-          loading={api.loading}
-          selectedResourceId={selection.resourceId}
-          contextMismatch={portfolio.strategyContextMismatch}
-          t={t}
-          onEvaluate={portfolio.evaluateStrategyForCurrentContext}
-          onReviewRun={(runId) => {
-            selection.setStrategyRunId(runId);
-            navigation.openWorkspace("review");
+        <StrategyLabWorkspace
+          controller={strategyLab}
+          selection={{
+            strategyId: selection.strategyId,
+            strategyVersionId: selection.strategyVersionId,
+            strategyRunId: selection.strategyRunId,
+            setStrategyId: selection.setStrategyId,
+            setStrategyVersionId: selection.setStrategyVersionId,
+            setStrategyRunId: selection.setStrategyRunId,
           }}
+          gasDay={traderContext.gasDay}
+          language={i18n.language}
+          t={t}
         />
       )}
 

@@ -230,6 +230,24 @@ async function get<T>(path: string, params?: Record<string, string>): Promise<Ap
   return parseResponse<ApiResponse<T>>(res);
 }
 
+async function patch<T>(path: string, body: unknown): Promise<ApiResponse<T>> {
+  const response = await fetch(apiUrl(path), {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(body),
+  });
+  return parseResponse<ApiResponse<T>>(response);
+}
+
+async function put<T>(path: string, body: unknown): Promise<ApiResponse<T>> {
+  const response = await fetch(apiUrl(path), {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(body),
+  });
+  return parseResponse<ApiResponse<T>>(response);
+}
+
 async function post<T>(path: string, body: unknown): Promise<ApiResponse<T>> {
   const res = await fetch(apiUrl(path), {
     method: "POST",
@@ -908,6 +926,10 @@ export interface StrategyCreateInputDTO {
   strategy_id?: string; name: string; description?: string; tags?: string[];
 }
 
+export interface StrategyMetadataUpdateInputDTO {
+  name?: string | null; description?: string | null; tags?: string[] | null;
+}
+
 export interface StrategyVersionCreateInputDTO {
   hypothesis?: string; definition: StrategyVersionDefinitionDTO;
   strategy_name?: string | null;
@@ -992,7 +1014,8 @@ export interface BacktestSeriesPointDTO {
   decision_sequence: number; decision_time_utc: string; gas_day: string;
   gross_indicative_pnl_gbp: number; modeled_costs_gbp: number;
   net_indicative_pnl_gbp: number; cumulative_net_indicative_pnl_gbp: number;
-  ending_exposure_mwh_per_day: number; research_only: boolean;
+  ending_exposure_mwh_per_day: number; drawdown_gbp?: number;
+  research_only: boolean;
 }
 
 export interface BacktestAttributionDTO {
@@ -1222,6 +1245,9 @@ export const api = {
 
   createStrategy: (body: StrategyCreateInputDTO) => post<StrategyDTO>("/strategies", body),
 
+  updateStrategyMetadata: (strategyId: string, body: StrategyMetadataUpdateInputDTO) =>
+    patch<StrategyDTO>(`/strategies/${encodeURIComponent(strategyId)}/metadata`, body),
+
   strategyVersions: (strategyId: string) =>
     get<StrategyVersionDTO[]>(`/strategies/${encodeURIComponent(strategyId)}/versions`),
 
@@ -1230,6 +1256,9 @@ export const api = {
 
   strategyVersion: (versionId: string) =>
     get<StrategyVersionDTO>(`/strategy-versions/${encodeURIComponent(versionId)}`),
+
+  updateStrategyVersionDraft: (versionId: string, body: StrategyVersionCreateInputDTO) =>
+    put<StrategyVersionDTO>(`/strategy-versions/${encodeURIComponent(versionId)}/draft`, body),
 
   freezeStrategyVersion: (versionId: string) =>
     post<StrategyVersionDTO>(`/strategy-versions/${encodeURIComponent(versionId)}/freeze`, {}),

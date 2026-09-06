@@ -49,6 +49,14 @@ class StrategyCreateRequest(BaseModel):
     tags: list[str] = Field(default_factory=list)
 
 
+class StrategyMetadataUpdateRequest(BaseModel):
+    """Update editable metadata for a strategy research identity."""
+
+    name: str | None = Field(default=None, min_length=1, max_length=256)
+    description: str | None = Field(default=None, max_length=4000)
+    tags: list[str] | None = None
+
+
 class StrategyVersionCreateRequest(BaseModel):
     """Create a new draft semantic version for one strategy.
 
@@ -138,6 +146,31 @@ def post_strategy(body: StrategyCreateRequest, request: Request) -> dict:
     return _env(data, request, source="operator-input")
 
 
+@router.patch("/api/strategies/{strategy_id}/metadata")
+def patch_strategy_metadata(
+    strategy_id: str,
+    body: StrategyMetadataUpdateRequest,
+    request: Request,
+) -> dict:
+    """Update strategy metadata; identity and history are never rewritten."""
+
+    with _db_session() as session:
+        from eurogas_nexus.db.repositories import strategy_registry
+
+        if strategy_registry.get_strategy(session, strategy_id) is None:
+            raise HTTPException(status_code=404, detail=f"Unknown strategy: {strategy_id}")
+        row = strategy_registry.update_strategy(
+            session,
+            strategy_id=strategy_id,
+            name=body.name,
+            description=body.description,
+            tags=body.tags,
+            now_utc=datetime.now(UTC),
+        )
+        data = strategy_registry.strategy_record_payload(row)
+    return _env(data, request, source="operator-input")
+
+
 @router.get("/api/strategies/{strategy_id}")
 def get_strategy(strategy_id: str, request: Request) -> dict:
     """Return one strategy identity, or 404."""
@@ -199,6 +232,44 @@ def post_strategy_version(
                 "existing_shadow_pnl_gbp": body.existing_shadow_pnl_gbp,
             },
         )
+        data = strategy_registry.strategy_version_payload(row)
+    return _env(data, request, source="operator-input")
+
+
+@router.put("/api/strategy-versions/{version_id}/draft")
+def put_strategy_version_draft(
+    version_id: str,
+    body: StrategyVersionCreateRequest,
+    request: Request,
+) -> dict:
+    """Replace a DRAFT version definition. Frozen versions are immutable."""
+
+    with _db_session() as session:
+        from eurogas_nexus.db.repositories import strategy_registry
+
+        row = strategy_registry.get_strategy_version(session, version_id)
+        if row is None:
+            raise HTTPException(
+                status_code=404, detail=f"Unknown strategy version: {version_id}"
+            )
+        try:
+            row = strategy_registry.update_draft_version(
+                session,
+                strategy_version_id=version_id,
+                definition=body.definition,
+                hypothesis=body.hypothesis,
+                definition_overrides={
+                    "strategy_name": body.strategy_name or row.definition_json.get("strategy_name"),
+                    "run_mode": body.run_mode.value,
+                    "resource_contexts": body.resource_contexts,
+                    "price_observations": body.price_observations,
+                    "existing_shadow_pnl_gbp": body.existing_shadow_pnl_gbp,
+                },
+                updated_by=_requested_by(request),
+                now_utc=datetime.now(UTC),
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
         data = strategy_registry.strategy_version_payload(row)
     return _env(data, request, source="operator-input")
 

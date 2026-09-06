@@ -236,3 +236,43 @@ def test_unknown_version_and_run_are_404(tmp_path, monkeypatch) -> None:
 
     assert client.get("/api/strategy-versions/missing-version").status_code == 404
     assert client.get("/api/strategy-runs/missing-run").status_code == 404
+
+
+def test_draft_version_is_editable_and_frozen_is_immutable(tmp_path, monkeypatch) -> None:
+    _configure_db(tmp_path, monkeypatch)
+    client = TestClient(create_app())
+    strategy_id = "editable-strategy"
+    assert client.post(
+        "/api/strategies", json={"strategy_id": strategy_id, "name": "Editable"}
+    ).status_code == 200
+    version = client.post(
+        f"/api/strategies/{strategy_id}/versions", json=_definition()
+    )
+    assert version.status_code == 200
+    version_id = version.json()["data"]["strategy_version_id"]
+
+    body = _definition()
+    body["hypothesis"] = "edited hypothesis"
+    body["definition"]["risk_controls"]["max_ocm_allocation_pct"] = 60.0
+    updated = client.put(f"/api/strategy-versions/{version_id}/draft", json=body)
+    assert updated.status_code == 200, updated.text
+    assert updated.json()["data"]["hypothesis"] == "edited hypothesis"
+    assert (
+        updated.json()["data"]["definition_json"]["risk_controls"][
+            "max_ocm_allocation_pct"
+        ]
+        == 60.0
+    )
+
+    metadata = client.patch(
+        f"/api/strategies/{strategy_id}/metadata",
+        json={"description": "updated metadata"},
+    )
+    assert metadata.status_code == 200
+    assert metadata.json()["data"]["description"] == "updated metadata"
+
+    assert client.post(f"/api/strategy-versions/{version_id}/freeze").status_code == 200
+    frozen_edit = client.put(
+        f"/api/strategy-versions/{version_id}/draft", json=_definition()
+    )
+    assert frozen_edit.status_code == 409

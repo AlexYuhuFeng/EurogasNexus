@@ -106,3 +106,15 @@ re-open sources before future UI work depends on a specific claim.
     queued/running/completed/failed/cancelled lifecycle with progress.
 12. Security and release claims require external evidence; no code signing,
     security acceptance, or live-provider certification is claimed without it.
+
+## CR-05 Strategy Lab research notes
+
+Focused professional-workstation review (Trayport Joule public materials,
+institutional portfolio/risk analytics patterns, strategy experiment tracking
+literature, 2026-09 retrieval) found one recurring discipline: the researcher
+always has a persistent experiment identity, a narrow version/run navigator, a
+single primary evidence surface, and a provenance/assumptions rail. Results are
+presented as identity -> KPIs -> series -> drawdown/exposure -> attribution ->
+event detail, and comparison is matrix-first with explicit compatibility
+caveats. These reinforce the local Design/Backtest/Compare/Shadow workflow and
+the rule that higher PnL must not be visually presented as superior.

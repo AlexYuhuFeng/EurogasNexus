@@ -74,6 +74,30 @@ def create_strategy(
     return StrategyDTO(**response.json()["data"])
 
 
+def update_strategy(
+    base_url: str,
+    strategy_id: str,
+    *,
+    name: str | None = None,
+    description: str | None = None,
+    tags: list[str] | None = None,
+) -> StrategyDTO:
+    """Update editable metadata of a strategy research identity."""
+
+    payload: dict = {}
+    if name is not None:
+        payload["name"] = name
+    if description is not None:
+        payload["description"] = description
+    if tags is not None:
+        payload["tags"] = tags
+    response = _http.patch(
+        f"{base_url}/api/strategies/{strategy_id}/metadata", json=payload, timeout=15
+    )
+    response.raise_for_status()
+    return StrategyDTO(**response.json()["data"])
+
+
 def get_strategy(base_url: str, strategy_id: str) -> StrategyDTO:
     """Fetch one strategy identity."""
 
@@ -129,6 +153,35 @@ def create_strategy_version(
         f"{base_url}/api/strategies/{strategy_id}/versions",
         json=payload,
         timeout=15,
+    )
+    response.raise_for_status()
+    return StrategyVersionDTO(**response.json()["data"])
+
+
+def update_draft_version(
+    base_url: str,
+    version_id: str,
+    *,
+    definition: dict,
+    hypothesis: str = "",
+    strategy_name: str | None = None,
+    run_mode: str = "BACKTEST",
+    resource_contexts: list[dict] | None = None,
+    price_observations: list[dict] | None = None,
+) -> StrategyVersionDTO:
+    """Replace a DRAFT version definition. Frozen versions are immutable."""
+
+    payload: dict = {
+        "definition": definition,
+        "hypothesis": hypothesis,
+        "run_mode": run_mode,
+        "resource_contexts": resource_contexts or [],
+        "price_observations": price_observations or [],
+    }
+    if strategy_name is not None:
+        payload["strategy_name"] = strategy_name
+    response = _http.put(
+        f"{base_url}/api/strategy-versions/{version_id}/draft", json=payload, timeout=15
     )
     response.raise_for_status()
     return StrategyVersionDTO(**response.json()["data"])
@@ -261,6 +314,7 @@ class BacktestSeriesPointDTO(BaseModel):
     net_indicative_pnl_gbp: float
     cumulative_net_indicative_pnl_gbp: float
     ending_exposure_mwh_per_day: float
+    drawdown_gbp: float = 0.0
     research_only: bool = True
 
 

@@ -624,18 +624,21 @@ def test_web_client_strategy_page_is_shadow_run_terminal() -> None:
     web_spec = (ROOT / "docs" / "clients" / "WEB_CLIENT_DESIGN_SPEC.md").read_text(encoding="utf-8")
 
     assert (
-        'import { StrategyShadowRunTerminal } from "@/components/StrategyShadowRunTerminal";' in app
+        'import { StrategyLabWorkspace } from "@/components/strategy/StrategyLabWorkspace";'
+        in app
     )
-    assert "<StrategyShadowRunTerminal" in app
-    assert "strategyScenario={portfolio.strategyScenario}" in app
-    assert "strategyResult={api.strategyResult}" in app
-    assert "portfolioResources={portfolio.portfolioResources}" in app
-    assert "marketObservations={portfolio.contextMarkets}" in app
-    assert "fxRates={api.fxRates}" in app
-    assert "language={i18n.language}" in app
-    assert "onEvaluate={portfolio.evaluateStrategyForCurrentContext}" in app
-    assert "api.evaluateStrategyLab({" in app
-    assert "existing_shadow_pnl_gbp: api.strategySummary?.cumulative_pnl_gbp ?? 0" in app
+    assert "<StrategyLabWorkspace" in app
+    assert "controller={strategyLab}" in app
+    assert "useStrategyLab({" in app
+    strategy_model = (
+        ROOT / "clients" / "web" / "src" / "app" / "model" / "strategyLabModel.ts"
+    ).read_text(encoding="utf-8")
+    strategy_lab_model = (
+        ROOT / "clients" / "web" / "src" / "app" / "model" / "useStrategyLab.ts"
+    ).read_text(encoding="utf-8")
+    assert '"design"' in strategy_model
+    assert "runBacktest" in app
+    assert "apiClient.createStrategyRun({" in strategy_lab_model
     assert "strategy-shadow-run-terminal" in strategy_terminal
     assert 'from "@/components/strategy/StrategyShadowRunSections"' in strategy_terminal
     assert "strategy-command-deck" in strategy_terminal

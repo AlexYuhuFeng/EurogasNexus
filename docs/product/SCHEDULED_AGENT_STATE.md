@@ -2,17 +2,17 @@
 
 ## Current run
 
-- Current milestone: `CR-04 / P3` — Scientifically Defensible Backtest Engine
-  and Experiment Framework (in progress; plan below).
-- Last completed milestone: `CR-03 / P2` (commit `77e2168`). Earlier commits:
-  `89f166e` (CR-02), `065ab73` (CR-01), `764fbdd` (M0-P0).
-- CR-04 planned commit:
-  `feat(backtest): add temporally safe reproducible strategy backtesting`.
-- Current branch/commit at CR-04 start: `main` @ `77e2168`.
-- Model routing: DSH Pro owns all temporal-data semantics, backtest
-  methodology, economics, statistics, experiment design, reproducibility and
-  data-integrity decisions. Flash is limited to DTO/type propagation, routine
-  SDK/i18n, mechanical tests, and benchmark harness work.
+- Current milestone: `CR-05 / P4` — Professional Strategy Lab:
+  Design → Backtest → Compare UX (implemented; see Tests run below).
+- Last completed milestone: `CR-04 / P3` (commit `a930199`). Earlier commits:
+  `77e2168` (CR-03), `89f166e` (CR-02), `065ab73` (CR-01), `764fbdd` (M0-P0).
+- CR-05 planned commit:
+  `feat(strategy-ui): rebuild Strategy Lab research workflow`.
+- Current branch/commit at CR-05 start: `main` @ `a930199`.
+- Model routing: DSH Pro owns workflow/IA, Strategy Builder design,
+  professional trading UX, analytics presentation, state ownership and visual
+  design. Flash is limited to React extraction, i18n, TypeScript plumbing,
+  tests, CSS cleanup and API-client wiring.
 
 ## Baseline observed at start
 
@@ -33,6 +33,31 @@
   provenance columns on legacy `strategy_runs`). The runtime PostgreSQL head
   should become `0025_strategy_registry_v1`; live migration was not performed
   because the local environment has no running PostgreSQL service.
+
+## CR-05 implementation plan
+
+1. Verify CR-03/CR-04 persisted identity, versions, runs, manifests, backtest
+   metrics/series/events and evidence state.
+2. Audit legacy `StrategyShadowRunTerminal`; write
+   `docs/product/STRATEGY_LAB_UX_SPEC.md`; update benchmark/UX references.
+3. Extend backend for editable DRAFT versions and strategy metadata without
+   mutating frozen versions (`PATCH .../metadata`, `PUT .../draft`).
+4. Replace legacy monitor/economics/risk/runs terminal with one
+   StrategyLabWorkspace and local Design/Backtest/Compare/Shadow tasks.
+5. Add persistent identity header, strategy/version navigator, structured
+   designer (hypothesis/component/parameters/risk/assumptions/data/resource),
+   preflight validation, backtest configure/result, run history, compare with
+   compatibility classification, and truthful Shadow shell.
+6. Add persisted-series SVG charts with backend drawdown values; no chart
+   dependency, no illustrative data.
+7. Extend selection context with strategy/version ids; keep Review handoff and
+   trader context URL semantics.
+8. Add EN/ZH parity, scoped strategy-lab.css, dense 1440/1920 layout, loading/
+   empty/error states, keyboard tablist behavior.
+9. Add Node tests for task deep-links and comparison semantics; update web
+   release-surface contracts; keep backend tests green.
+10. Run web tests/build, ruff, markdown, load smoke, full backend suite;
+    update docs/backlog/state; commit one coherent slice.
 
 ## CR-04 implementation plan
 
@@ -138,22 +163,19 @@
     tests.
 11. Commit one coherent milestone; do not push unless explicitly authorized.
 
-## Tests run
+## Tests run (CR-05)
 
-- `npm --prefix clients/web run test`: **29 passed**.
+- `npm --prefix clients/web run test`: **34 passed** (including new Strategy
+  Lab task/deep-link/comparison tests).
 - `npm --prefix clients/web run build`: **passed**.
-- Focused CR-04 Python tests: backtest engine **27 passed**
-  (`tests/unit/test_backtest_engine.py`), backtest API **7 passed**
-  (`tests/api/test_backtest_api.py`); CR-03 regression tests stay green.
 - `pytest tests --ignore=tests/contract/test_ontology_grm_parity.py`:
-  **1195 passed, 4 skipped**.
+  **1196 passed, 4 skipped**.
 - `ruff check .`: **passed**.
 - `python scripts/ci/check_markdown_links.py`: **passed**.
-- OpenAPI public surface: **99 paths**, all covered by
+- OpenAPI public surface: **101 paths**, all covered by
   `PINNED_PUBLIC_PATHS` and the route-permission registry.
-- Load smoke: **200 ok / 0 errors** (p50 6.9 ms, p95 22.8 ms, p99 548.4 ms).
-- `python scripts/ops/backtest_benchmark.py`: 30-day daily run ~0.03 s /
-  30 events; 365-day daily run ~2.33 s / 365 events.
+- Load smoke: **200 ok / 0 errors** (p50 6.7 ms, p95 28.8 ms, p99 522.9 ms).
+- CR-04 benchmark remains recorded in `BACKTEST_ENGINE_SPEC.md`.
 
 ## Known failures
 
@@ -184,5 +206,5 @@
 
 ## Next recommended milestone
 
-- `CR-05` — Professional Strategy Lab: Design → Backtest → Compare UX, with
-  a truthful Shadow shell and no fake production shadow execution.
+- `CR-06` — Production-Quality Shadow Run Scheduler, Monitoring, Drift and
+  Alert Lifecycle, consuming the truthful Shadow shell prepared by CR-05.

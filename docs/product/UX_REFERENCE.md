@@ -2,7 +2,8 @@
 
 Status: conceptual reference. GPT Image Gen 2 was not available in this run, so
 no generated raster reference is attached. Accepted visual principles below
-come from the product brief and the repository UI standard.
+come from the product brief, public professional-workstation research, and the
+repository UI standard.
 
 ## Accepted visual concept for the workstation shell
 
@@ -23,6 +24,27 @@ come from the product brief and the repository UI standard.
 - Market workspace active with Network/Market/Capacity local tasks.
 - Strategy Lab and Decision Center follow the same shell rather than bespoke
   navigation.
+
+## CR-05 Strategy Lab references
+
+Accepted principles from the CR-05 research pass:
+
+- three-zone research workstation: narrow navigator, primary evidence/result
+  surface, contextual provenance rail;
+- workflow as local tabs, never four global pages;
+- result hierarchy: identity/provenance -> KPI strip -> time series ->
+  drawdown/exposure -> attribution -> decision-event table;
+- comparison is a matrix/table-first workflow with synchronized series and
+  visible compatibility caveats, not a chart wall;
+- charts are thin, muted, unit-labelled and break on missing data; they never
+  create a smooth illustrative curve;
+- dense 8px grid, hairline borders, tabular numerals, 12–13px body text, no
+  marketing cards or gradients;
+- persistent identity/version/context header in every task.
+
+Sources reviewed include Trayport Joule public material, institutional
+portfolio analytics patterns, and strategy experiment-tracking literature;
+no proprietary design was copied.
 
 ## Implementation note
 

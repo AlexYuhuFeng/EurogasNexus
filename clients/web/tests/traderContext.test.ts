@@ -106,6 +106,8 @@ test("selection context restores from explicit deep-link query values", () => {
     routeId: "route-1",
     resourceId: "res-2",
     strategyRunId: "run-3",
+    strategyId: null,
+    strategyVersionId: null,
   });
 });
 
@@ -115,8 +117,10 @@ test("selection context is empty for legacy workspace-only links", () => {
     routeId: null,
     resourceId: null,
     strategyRunId: null,
+    strategyId: null,
+    strategyVersionId: null,
   });
-  assert.equal(selectionContextKey(selection), "-|-|-");
+  assert.equal(selectionContextKey(selection), "-|-|-|-|-");
 });
 
 test("result context matching detects gas day, product, and hub changes", () => {

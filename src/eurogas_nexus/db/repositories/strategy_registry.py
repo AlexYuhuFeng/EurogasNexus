@@ -60,6 +60,31 @@ def get_strategy(session: Session, strategy_id: str) -> StrategyRecord | None:
     return session.get(StrategyRecord, strategy_id)
 
 
+def update_strategy(
+    session: Session,
+    *,
+    strategy_id: str,
+    name: str | None = None,
+    description: str | None = None,
+    tags: list[str] | None = None,
+    now_utc: datetime | None = None,
+) -> StrategyRecord:
+    """Update editable metadata of a strategy research identity."""
+
+    row = get_strategy(session, strategy_id)
+    if row is None:
+        raise StrategyRegistryError(f"Strategy does not exist: {strategy_id}")
+    if name is not None:
+        row.name = name.strip()
+    if description is not None:
+        row.description = description
+    if tags is not None:
+        row.tags = list(tags)
+    row.updated_at_utc = _as_utc(now_utc or datetime.now(UTC))
+    session.flush()
+    return row
+
+
 def list_strategies(session: Session, *, limit: int = 200) -> list[StrategyRecord]:
     return list(
         session.scalars(
@@ -131,6 +156,42 @@ def create_strategy_version(
         research_only=True,
     )
     session.add(row)
+    session.flush()
+    return row
+
+
+def update_draft_version(
+    session: Session,
+    *,
+    strategy_version_id: str,
+    definition: StrategyVersionDefinition,
+    hypothesis: str,
+    definition_overrides: dict | None = None,
+    updated_by: str,
+    now_utc: datetime,
+) -> StrategyVersionRecord:
+    """Replace a DRAFT version's semantic definition.
+
+    FROZEN versions are immutable: repository truth returns an error rather
+    than mutating a historical run reference.
+    """
+
+    row = get_strategy_version(session, strategy_version_id)
+    if row is None:
+        raise StrategyRegistryError(
+            f"Strategy version does not exist: {strategy_version_id}"
+        )
+    if row.status != "DRAFT":
+        raise StrategyRegistryError(
+            f"Only DRAFT versions can be edited; current status is {row.status}"
+        )
+    stored_definition = definition.model_dump(mode="json")
+    if definition_overrides:
+        stored_definition.update(definition_overrides)
+    row.definition_json = stored_definition
+    row.hypothesis = hypothesis
+    row.content_hash = canonical_content_hash(stored_definition)
+    row.created_by = updated_by
     session.flush()
     return row
 

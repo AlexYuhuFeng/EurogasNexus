@@ -71,6 +71,8 @@ These tests fail CI loudly on contract drift:
 | `POST /api/optimization/nomination-window` | Accepted release contract | assessment-only nomination windows; RUNTIME_DECISION loads DB window masters; no submission action |
 | `GET/POST /api/strategies` | CR-03 | versioned strategy research identities; writes are policy-gated and research-only |
 | `GET/POST /api/strategies/{strategy_id}/versions` | CR-03 | immutable semantic strategy versions; POST creates a new DRAFT only |
+| `PATCH /api/strategies/{strategy_id}/metadata` | CR-05 | update editable strategy metadata; identity/history immutable |
+| `PUT /api/strategy-versions/{strategy_version_id}/draft` | CR-05 | replace a DRAFT definition; FROZEN versions are immutable |
 | `GET /api/strategy-versions/{strategy_version_id}` | CR-03 | read one immutable version and its `definition_json`/`content_hash` |
 | `POST /api/strategy-versions/{strategy_version_id}/freeze` | CR-03 | DRAFT -> FROZEN only; frozen versions are immutable |
 | `POST /api/strategy-versions/{strategy_version_id}/fork` | CR-03 | FROZEN -> new DRAFT with `parent_version_id`; never mutates the source |

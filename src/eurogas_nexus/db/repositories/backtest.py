@@ -297,7 +297,16 @@ def list_backtest_series(session: Session, run_id: str) -> list[dict]:
         .order_by(BacktestSeriesRecord.decision_sequence)
         .all()
     )
-    return [_series_payload(row) for row in rows]
+    peak = 0.0
+    payloads = []
+    for row in rows:
+        payload = _series_payload(row)
+        cumulative = row.cumulative_net_indicative_pnl_gbp
+        if cumulative > peak:
+            peak = cumulative
+        payload["drawdown_gbp"] = round(max(0.0, peak - cumulative), 4)
+        payloads.append(payload)
+    return payloads
 
 
 def list_backtest_attribution(session: Session, run_id: str) -> list[dict]:

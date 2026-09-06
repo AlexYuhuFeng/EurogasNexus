@@ -135,6 +135,7 @@ def run_backtest(
         )
         for event in events
     ]
+    _populate_series_drawdown(series)
     metrics = aggregate_metrics(events)
     temporal_integrity = _pool_temporal_integrity(pool)
     metrics.temporal_integrity = temporal_integrity.value
@@ -949,6 +950,17 @@ def _as_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=UTC)
     return value.astimezone(UTC)
+
+
+def _populate_series_drawdown(series: list[BacktestSeriesPoint]) -> None:
+    """Set backend-owned drawdown values on the persisted series contract."""
+
+    peak = 0.0
+    for point in series:
+        cumulative = point.cumulative_net_indicative_pnl_gbp
+        if cumulative > peak:
+            peak = cumulative
+        point.drawdown_gbp = _round4(max(0.0, peak - cumulative))
 
 
 def _parse_hh_mm(value: str) -> tuple[int, int]:

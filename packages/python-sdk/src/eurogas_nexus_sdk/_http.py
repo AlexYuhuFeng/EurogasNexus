@@ -40,6 +40,40 @@ def auth_headers() -> dict[str, str]:
     return headers
 
 
+def put(
+    url: str,
+    *,
+    json: Any = None,
+    timeout: float = 15.0,
+    headers: dict[str, str] | None = None,
+    **kwargs: Any,
+) -> httpx.Response:
+    """PUT with configured auth headers merged in."""
+
+    merged = {**auth_headers(), **(headers or {})}
+    call_kwargs = dict(kwargs)
+    if merged:
+        call_kwargs["headers"] = merged
+    return httpx.put(url, json=json, timeout=timeout, **call_kwargs)
+
+
+def patch(
+    url: str,
+    *,
+    json: Any = None,
+    timeout: float = 15.0,
+    headers: dict[str, str] | None = None,
+    **kwargs: Any,
+) -> httpx.Response:
+    """PATCH with configured auth headers merged in."""
+
+    merged = {**auth_headers(), **(headers or {})}
+    call_kwargs = dict(kwargs)
+    if merged:
+        call_kwargs["headers"] = merged
+    return httpx.patch(url, json=json, timeout=timeout, **call_kwargs)
+
+
 def get(
     url: str,
     *,

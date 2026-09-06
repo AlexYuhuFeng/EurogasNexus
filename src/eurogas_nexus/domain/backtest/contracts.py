@@ -267,6 +267,7 @@ class BacktestSeriesPoint(BaseModel):
     net_indicative_pnl_gbp: float
     cumulative_net_indicative_pnl_gbp: float
     ending_exposure_mwh_per_day: float
+    drawdown_gbp: float = 0.0
 
 
 class BacktestMetricSet(BaseModel):

@@ -56,6 +56,17 @@ export function useSelectionContext() {
     setSelection((current) => ({ ...current, strategyRunId: normalizeSelectionId(value) }));
   }, []);
 
+  const setStrategyId = useCallback((value: string | null) => {
+    setSelection((current) => ({ ...current, strategyId: normalizeSelectionId(value) }));
+  }, []);
+
+  const setStrategyVersionId = useCallback((value: string | null) => {
+    setSelection((current) => ({
+      ...current,
+      strategyVersionId: normalizeSelectionId(value),
+    }));
+  }, []);
+
   const clearSelection = useCallback(() => {
     setSelection(EMPTY_SELECTION_CONTEXT);
   }, []);
@@ -65,9 +76,13 @@ export function useSelectionContext() {
     routeId: selection.routeId,
     resourceId: selection.resourceId,
     strategyRunId: selection.strategyRunId,
+    strategyId: selection.strategyId,
+    strategyVersionId: selection.strategyVersionId,
     setRouteId,
     setResourceId,
     setStrategyRunId,
+    setStrategyId,
+    setStrategyVersionId,
     clearSelection,
   };
 }
