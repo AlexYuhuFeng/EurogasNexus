@@ -2,95 +2,44 @@
 
 ## Decision
 
-Eurogas Nexus uses grouped workspace navigation rather than a flat list of pages.
-The visible menu should make the product workflow clear before exposing all
-secondary tools.
+Eurogas Nexus exposes five primary professional workspaces in the persistent
+topbar. Each primary workspace owns a compact local task switcher where needed.
+The old grouped-menu/page-tab duplication is removed.
 
 Technical workspace ids remain stable during the compatibility period. In
 particular:
 
 - `contracts` is displayed as `Resource Terms`.
 - `orders` is displayed as `Market Positioning`.
+- `glossary` remains a technical workspace and deep link, re-homed under System.
 
-## Menu Groups
+## Primary workspaces
 
-### Decision Workspace
+| Primary | Children | Default | Purpose |
+|---|---|---|---|
+| Market | Network, Market, Capacity | Network | What is happening physically and financially? |
+| Portfolio | Resource Terms, Market Positioning | Resource Terms | What resources/exposures do we currently have? |
+| Strategy Lab | Strategy | Strategy | What research strategy are we testing/monitoring? |
+| Decision Center | Scenario, Review | Scenario | What scenario/optimization output needs human review? |
+| System | Data Sources, Runtime, Settings, Manual, Glossary | Data Sources | Is the data/application configured and healthy? |
 
-Primary workflow surfaces:
-
-1. Network
-2. Scenario
-3. Review
-
-These pages answer the core workflow questions: what resources exist, what route
-or sale scenario is being tested, and what decision-support output should be
-reviewed by a human.
-
-### Commercial Inputs
-
-Commercial and market-context surfaces:
-
-1. Resource Terms
-2. Market
-3. Capacity
-4. Market Positioning
-
-Resource Terms captures EFET-style resource assumptions for the resource-pool
-optimizer. It is not an ETRM contract master, official booking workflow,
-settlement system, or approval workflow.
-
-Market Positioning displays imported screen observations and portfolio PnL
-snapshots. It is read-only imported context and must not become order entry,
-order routing, trade capture, nomination submission, or execution.
-
-### Analytics
-
-Analysis and explanation surfaces:
-
-1. Strategy
-2. Glossary
-
-Strategy remains a paper/shadow-run and decision-support surface. Glossary
-explains operational terms and DB-derived context.
-
-### Operations
-
-Operator and support surfaces:
-
-1. Data Sources
-2. Runtime
-3. Settings
-4. Manual
-
-These pages support source posture, runtime readiness, local preferences, and
-user guidance. They should not dominate the first-run decision workflow.
+The primary workspace is derived from the technical view id; it is never a
+second URL namespace.
 
 ## Ordering
 
-The visible order is:
+The visible global order is:
 
 ```text
-Decision Workspace
-- Network
-- Scenario
-- Review
-
-Commercial Inputs
-- Resource Terms
-- Market
-- Capacity
-- Market Positioning
-
-Analytics
-- Strategy
-- Glossary
-
-Operations
-- Data Sources
-- Runtime
-- Settings
-- Manual
+Market
+Portfolio
+Strategy Lab
+Decision Center
+System
 ```
+
+Local task order follows the child tables above. Strategy Lab has one child and
+therefore renders no local task switcher until later strategy subviews land.
 
 ## Compatibility
 
@@ -98,18 +47,18 @@ Deep links continue to use existing workspace ids:
 
 ```text
 network
-scenario
-review
-contracts
-market
 capacity
+market
+contracts
 orders
 strategy
-glossary
+scenario
+review
 sources
 runtime
 settings
 manual
+glossary
 ```
 
 A later route-migration milestone may add `resource-terms` and

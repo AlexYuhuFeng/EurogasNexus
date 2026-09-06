@@ -1,4 +1,7 @@
 import type { AppController } from "@/app/hooks/useAppController";
+import { primaryWorkspaceForPage } from "@/app/navigation/productNavigation";
+import { WorkspaceTabs } from "@/components/ui";
+import type { WorkspacePageId } from "@/workspaceNavigation";
 import { CapacityWorkspace } from "@/components/CapacityWorkspace";
 import { ContractWorkbench } from "@/components/ContractWorkbench";
 import { GlossaryWiki } from "@/components/GlossaryWiki";
@@ -11,7 +14,6 @@ import { ScenarioWorkspace } from "@/components/ScenarioWorkspace";
 import { SettingsCenter } from "@/components/SettingsCenter";
 import { SourceCenter } from "@/components/SourceCenter";
 import { StrategyShadowRunTerminal } from "@/components/StrategyShadowRunTerminal";
-import { workspaceGroups } from "@/workspaceNavigation";
 
 interface WorkspaceRendererProps {
   controller: AppController;
@@ -32,29 +34,33 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
     sources,
   } = controller;
   const activeWorkspace = navigation.activeWorkspace;
-  const activeGroup = workspaceGroups.find((group) => group.pages.includes(activeWorkspace));
+  const activePrimaryWorkspace = primaryWorkspaceForPage(activeWorkspace);
+  const localTabs = activePrimaryWorkspace.pages.map((page) => ({
+    id: page,
+    label: t(`nav.${page}`),
+  }));
 
   return (
-    <section className="workspace-page" aria-label={t(`nav.${activeWorkspace}`)}>
+    <section
+      className="workspace-page"
+      id="workspace-active-panel"
+      aria-label={t(`nav.${activeWorkspace}`)}
+    >
       <header className="workspace-page-header">
         <div className="workspace-page-heading">
-          <span className="eyebrow">{activeGroup ? t(activeGroup.labelKey) : t("app.title")}</span>
+          <span className="eyebrow">{t(activePrimaryWorkspace.labelKey)}</span>
           <h1>{t(`nav.${activeWorkspace}`)}</h1>
         </div>
-        {activeGroup && (
-          <nav className="workspace-page-tabs" aria-label={t(activeGroup.labelKey)}>
-            {activeGroup.pages.map((page) => (
-              <button
-                key={`workspace-page-tab-${page}`}
-                type="button"
-                className={page === activeWorkspace ? "workspace-page-tab active" : "workspace-page-tab"}
-                aria-current={page === activeWorkspace ? "page" : undefined}
-                onClick={() => navigation.openWorkspace(page)}
-              >
-                {t(`nav.${page}`)}
-              </button>
-            ))}
-          </nav>
+        {localTabs.length > 1 && (
+          <WorkspaceTabs
+            idPrefix={`${activePrimaryWorkspace.id}-task`}
+            label={t(activePrimaryWorkspace.labelKey)}
+            tabs={localTabs}
+            activeId={activeWorkspace}
+            panelId="workspace-active-panel"
+            className="workspace-page-tabs"
+            onActivate={(page) => navigation.openWorkspace(page as WorkspacePageId)}
+          />
         )}
       </header>
 

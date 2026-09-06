@@ -1,17 +1,20 @@
-import { useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
-import { workspaceGroups } from "../workspaceNavigation";
-import type { WorkspaceGroup, WorkspacePageId } from "../workspaceNavigation";
+import {
+  primaryWorkspaces,
+  type PrimaryWorkspace,
+  type PrimaryWorkspaceId,
+} from "@/app/navigation/productNavigation";
+import { WorkspaceTabs } from "@/components/ui";
+import type { WorkspacePageId } from "@/workspaceNavigation";
 import type { ApiState } from "@/stores/api";
 import { AlertCenter } from "./AlertCenter";
 import "./WorkspaceTopBar.css";
-
-export type { WorkspaceGroup, WorkspacePageId } from "../workspaceNavigation";
 
 type ThemeMode = "light" | "dark" | "system";
 
 interface WorkspaceTopBarProps {
   activeWorkspace: WorkspacePageId;
+  activePrimaryWorkspace: PrimaryWorkspace;
   searchTerm: string;
   dataStatus: string;
   loading: boolean;
@@ -37,10 +40,12 @@ interface WorkspaceTopBarProps {
   onModeChange: (mode: ThemeMode) => void;
   onGasDayChange: (gasDay: string) => void;
   onDeliveryProductChange: (product: string) => void;
+  onOpenPrimaryWorkspace: (primary: PrimaryWorkspaceId) => void;
 }
 
 export function WorkspaceTopBar({
   activeWorkspace,
+  activePrimaryWorkspace,
   searchTerm,
   dataStatus,
   loading,
@@ -58,139 +63,108 @@ export function WorkspaceTopBar({
   onModeChange,
   onGasDayChange,
   onDeliveryProductChange,
+  onOpenPrimaryWorkspace,
 }: WorkspaceTopBarProps) {
-  const [groupedMenuOpen, setGroupedMenuOpen] = useState(false);
   const hasMapSearch = activeWorkspace === "network";
-
-  function openWorkspace(page: WorkspacePageId) {
-    if (typeof window !== "undefined") {
-      const nextUrl = new URL(window.location.href);
-      nextUrl.searchParams.set("workspace", page);
-      window.history.pushState({ workspace: page }, "", nextUrl);
-      window.dispatchEvent(new Event("popstate"));
-    }
-    setGroupedMenuOpen(false);
-  }
+  const primaryTabs = primaryWorkspaces.map((primary) => ({
+    id: primary.id,
+    label: t(primary.labelKey),
+  }));
 
   return (
-    <>
-      <header
-        className={`app-header cockpit-topbar workspace-topbar-only ${hasMapSearch ? "has-map-search" : "workspace-topbar-page"}`}
-      >
-        <button
-          className="workspace-pill workspace-trigger"
-          type="button"
-          aria-label={t("topbar.workspace_menu")}
-          aria-expanded={groupedMenuOpen}
-          onClick={() => setGroupedMenuOpen((current) => !current)}
-        >
-          <span className="topbar-menu-glyph" aria-hidden="true" />
-          <span className="workspace-pill-copy">
-            <span>{t("topbar.workspace_label")}</span>
-            <strong>{t(`nav.${activeWorkspace}`)}</strong>
-          </span>
-        </button>
-        {hasMapSearch && (
-          <input
-            className="topbar-search"
-            value={searchTerm}
-            onChange={(event) => onSearchTermChange(event.target.value)}
-            placeholder={t("map.search")}
-          />
-        )}
-        <div className="topbar-trading-context" aria-label={t("context.title")}>
-          <label>
-            <span>{t("context.gas_day")}</span>
-            <input
-              type="date"
-              value={gasDay}
-              onChange={(event) => onGasDayChange(event.target.value)}
-            />
-          </label>
-          <label>
-            <span>{t("context.product")}</span>
-            <select
-              value={deliveryProduct}
-              onChange={(event) => onDeliveryProductChange(event.target.value)}
-            >
-              <option value="all">{t("context.all_products")}</option>
-              <option value="day-ahead">{t("context.day_ahead")}</option>
-              <option value="within-day">{t("context.within_day")}</option>
-              <option value="month-ahead">{t("context.month_ahead")}</option>
-            </select>
-          </label>
-          <span className={sourceIssueCount > 0 ? "context-freshness issue" : "context-freshness"}>
-            <strong>{sourceIssueCount > 0 ? `${sourceIssueCount} ${t("context.issues")}` : t("context.sources_ready")}</strong>
-            <small>
-              {marketLastUpdatedAtUtc
-                ? `${t("context.updated")} ${new Date(marketLastUpdatedAtUtc).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
-                : t("context.no_market_update")}
-            </small>
-          </span>
-        </div>
-        <div className="header-controls">
-          <AlertCenter
-            alerts={monitoring.monitoringAlerts}
-            summary={monitoring.monitoringSummary}
-            analysisByAlert={monitoring.monitoringAnalysisByAlert}
-            busyAlertId={monitoring.monitoringBusyAlertId}
-            language={language}
-            onAcknowledge={monitoring.acknowledgeMonitoringAlert}
-            onAnalyze={monitoring.analyzeMonitoringAlert}
-          />
-          <span
-            className={`stream-status-badge ${streamingActive ? "stream-live" : "stream-fallback"}`}
-            aria-label={streamingActive ? t("stream.live") : t("stream.polling_fallback")}
-          >
-            {streamingActive ? t("stream.live") : t("stream.polling_fallback")}
-          </span>
-          <span className={`status-badge status-${loading ? "loading" : dataStatus}`} aria-live="polite">
-            {loading ? t("status.loading") : t(`data.${dataStatus}`)}
-          </span>
-          <select
-            aria-label={t("settings.language")}
-            value={language}
-            onChange={(event) => onLanguageChange(event.target.value)}
-          >
-            <option value="en">EN</option>
-            <option value="zh-CN">{t("settings.chinese")}</option>
-          </select>
-          <select
-            aria-label={t("settings.appearance")}
-            value={mode}
-            onChange={(event) => onModeChange(event.target.value as ThemeMode)}
-          >
-            <option value="light">{t("theme.light")}</option>
-            <option value="dark">{t("theme.dark")}</option>
-            <option value="system">{t("theme.system")}</option>
-          </select>
-        </div>
-      </header>
-
-      {groupedMenuOpen && (
-        <nav className="workspace-menu grouped-workspace-menu" aria-label={t("topbar.workspace_menu")}>
-          {workspaceGroups.map((group: WorkspaceGroup) => (
-            <section
-              key={`workspace-group-${group.id}`}
-              className={group.pages.includes(activeWorkspace) ? "workspace-menu-group active" : "workspace-menu-group"}
-            >
-              <span className="workspace-menu-group-title">{t(group.labelKey)}</span>
-              <div className="workspace-menu-group-items">
-                {group.pages.map((page) => (
-                  <button
-                    key={`grouped-menu-${page}`}
-                    type="button"
-                    className={activeWorkspace === page ? "workspace-menu-item active" : "workspace-menu-item"}
-                    onClick={() => openWorkspace(page)}
-                  >
-                    {t(`nav.${page}`)}
-                  </button>
-                ))}
-              </div>
-            </section>
-          ))}
-        </nav>
+    <header
+      className={`app-header cockpit-topbar workspace-topbar-only ${hasMapSearch ? "has-map-search" : "workspace-topbar-page"}`}
+    >
+      <WorkspaceTabs
+        idPrefix="workspace-primary"
+        label={t("topbar.primary_navigation")}
+        tabs={primaryTabs}
+        activeId={activePrimaryWorkspace.id}
+        panelId="workspace-primary-content"
+        className="workspace-primary-tabs"
+        onActivate={(primary) => onOpenPrimaryWorkspace(primary as PrimaryWorkspaceId)}
+      />
+      {hasMapSearch && (
+        <span className="workspace-local-task" aria-label={t("topbar.current_task")}>
+          <span>{t("topbar.task_label")}</span>
+          <strong>{t(`nav.${activeWorkspace}`)}</strong>
+        </span>
       )}
-    </>
+      {hasMapSearch && (
+        <input
+          className="topbar-search"
+          value={searchTerm}
+          onChange={(event) => onSearchTermChange(event.target.value)}
+          placeholder={t("map.search")}
+        />
+      )}
+      <div className="topbar-trading-context" aria-label={t("context.title")}>
+        <label>
+          <span>{t("context.gas_day")}</span>
+          <input
+            type="date"
+            value={gasDay}
+            onChange={(event) => onGasDayChange(event.target.value)}
+          />
+        </label>
+        <label>
+          <span>{t("context.product")}</span>
+          <select
+            value={deliveryProduct}
+            onChange={(event) => onDeliveryProductChange(event.target.value)}
+          >
+            <option value="all">{t("context.all_products")}</option>
+            <option value="day-ahead">{t("context.day_ahead")}</option>
+            <option value="within-day">{t("context.within_day")}</option>
+            <option value="month-ahead">{t("context.month_ahead")}</option>
+          </select>
+        </label>
+        <span className={sourceIssueCount > 0 ? "context-freshness issue" : "context-freshness"}>
+          <strong>{sourceIssueCount > 0 ? `${sourceIssueCount} ${t("context.issues")}` : t("context.sources_ready")}</strong>
+          <small>
+            {marketLastUpdatedAtUtc
+              ? `${t("context.updated")} ${new Date(marketLastUpdatedAtUtc).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+              : t("context.no_market_update")}
+          </small>
+        </span>
+      </div>
+      <div className="header-controls">
+        <AlertCenter
+          alerts={monitoring.monitoringAlerts}
+          summary={monitoring.monitoringSummary}
+          analysisByAlert={monitoring.monitoringAnalysisByAlert}
+          busyAlertId={monitoring.monitoringBusyAlertId}
+          language={language}
+          onAcknowledge={monitoring.acknowledgeMonitoringAlert}
+          onAnalyze={monitoring.analyzeMonitoringAlert}
+        />
+        <span
+          className={`stream-status-badge ${streamingActive ? "stream-live" : "stream-fallback"}`}
+          aria-label={streamingActive ? t("stream.live") : t("stream.polling_fallback")}
+        >
+          {streamingActive ? t("stream.live") : t("stream.polling_fallback")}
+        </span>
+        <span className={`status-badge status-${loading ? "loading" : dataStatus}`} aria-live="polite">
+          {loading ? t("status.loading") : t(`data.${dataStatus}`)}
+        </span>
+        <select
+          aria-label={t("settings.language")}
+          value={language}
+          onChange={(event) => onLanguageChange(event.target.value)}
+        >
+          <option value="en">EN</option>
+          <option value="zh-CN">{t("settings.chinese")}</option>
+        </select>
+        <select
+          aria-label={t("settings.appearance")}
+          value={mode}
+          onChange={(event) => onModeChange(event.target.value as ThemeMode)}
+        >
+          <option value="light">{t("theme.light")}</option>
+          <option value="dark">{t("theme.dark")}</option>
+          <option value="system">{t("theme.system")}</option>
+        </select>
+      </div>
+    </header>
   );
 }

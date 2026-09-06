@@ -18,8 +18,11 @@ visual direction; they have no independent authority.
 ## Information hierarchy
 
 1. Global shell and runtime status stay visible and persistent.
-2. Workspace page header identifies the active group and page.
-3. Local task tabs identify the active view inside the workspace.
+2. Persistent primary workspace navigation identifies the active professional
+   workspace; only five primary workspaces are exposed globally.
+3. The workspace page header identifies the active local task and primary
+   workspace; local task tabs use the shared `WorkspaceTabs` primitive when the
+   primary owns more than one view.
 4. Panel headers summarize the panel's decision or status.
 5. Primary work surface (map, table, editor, or report) gets the most space.
 6. Rails carry context and controls; the decision rail and bottom comparison

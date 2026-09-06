@@ -40,7 +40,7 @@ Eurogas Nexus Web 与 Windows 客户端 UI 遵循下文所述的专业、地图�
 当前 Web 实现应暴露这些结构类名，以便 contract tests 防止回归：
 
 - `cockpit-topbar`
-- `workspace-menu`
+- `workspace-primary-tabs`
 - `scenario-rail`
 - `decision-rail`
 - `trade-result-panel`

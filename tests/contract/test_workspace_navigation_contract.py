@@ -1,7 +1,8 @@
-"""Workspace navigation product-contract tests."""
+"""Workspace navigation product-contract tests for CR-01 / P1A."""
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
@@ -13,30 +14,44 @@ NAVIGATION_HOOK_TS = (
 TOPBAR_TSX = ROOT / "clients" / "web" / "src" / "components" / "WorkspaceTopBar.tsx"
 TOPBAR_CSS = ROOT / "clients" / "web" / "src" / "components" / "WorkspaceTopBar.css"
 WORKSPACE_NAVIGATION_TS = ROOT / "clients" / "web" / "src" / "workspaceNavigation.ts"
-I18N_INDEX = ROOT / "clients" / "web" / "src" / "i18n" / "index.ts"
+PRODUCT_NAVIGATION_TS = (
+    ROOT / "clients" / "web" / "src" / "app" / "navigation" / "productNavigation.ts"
+)
+RENDERER_TSX = ROOT / "clients" / "web" / "src" / "app" / "workspaces" / "WorkspaceRenderer.tsx"
+I18N_EN = ROOT / "clients" / "web" / "src" / "i18n" / "en.json"
+I18N_ZH = ROOT / "clients" / "web" / "src" / "i18n" / "zh.json"
 
-EXPECTED_GROUPS = {
-    "decision": ["network", "scenario", "review"],
-    "commercial": ["contracts", "market", "capacity", "orders"],
-    "analytics": ["strategy", "glossary"],
-    "operations": ["sources", "runtime", "settings", "manual"],
-}
-
-EXPECTED_PAGE_IDS = [
+EXPECTED_PAGES = [
     "network",
-    "scenario",
-    "review",
-    "contracts",
-    "market",
     "capacity",
-    "orders",
+    "market",
+    "scenario",
+    "contracts",
     "strategy",
-    "glossary",
+    "review",
+    "orders",
     "sources",
+    "glossary",
     "runtime",
     "settings",
     "manual",
 ]
+
+EXPECTED_PRIMARY_CHILDREN = {
+    "market": ["network", "market", "capacity"],
+    "portfolio": ["contracts", "orders"],
+    "strategy": ["strategy"],
+    "decision": ["scenario", "review"],
+    "system": ["sources", "runtime", "settings", "manual", "glossary"],
+}
+
+EXPECTED_DEFAULTS = {
+    "market": "network",
+    "portfolio": "contracts",
+    "strategy": "strategy",
+    "decision": "scenario",
+    "system": "sources",
+}
 
 
 def _read(path: Path) -> str:
@@ -47,122 +62,138 @@ def _quoted_values(text: str) -> list[str]:
     return re.findall(r'"([a-z][a-z-]*)"', text)
 
 
-def _navigation_pages(navigation_text: str) -> list[str]:
-    grouped_pages: list[str] = []
-    for group_id, expected_pages in EXPECTED_GROUPS.items():
-        group_match = re.search(
-            rf'id:\s*"{group_id}".*?pages:\s*\[(.*?)\]',
-            navigation_text,
+def _product_children(text: str) -> dict[str, list[str]]:
+    children: dict[str, list[str]] = {}
+    for primary_id, expected_pages in EXPECTED_PRIMARY_CHILDREN.items():
+        match = re.search(
+            rf'id:\s*"{primary_id}".*?pages:\s*\[(.*?)\]',
+            text,
             flags=re.DOTALL,
         )
-        assert group_match, f"Missing workspace group: {group_id}"
-        actual_pages = _quoted_values(group_match.group(1))
+        assert match, f"Missing primary workspace: {primary_id}"
+        actual_pages = _quoted_values(match.group(1))
         assert actual_pages == expected_pages
-        grouped_pages.extend(actual_pages)
-    return grouped_pages
+        children[primary_id] = actual_pages
+    return children
 
 
-def test_workspace_groups_cover_all_workspace_pages_once() -> None:
-    """Grouped navigation is the single route-id source consumed by App.tsx."""
-
-    app_text = _read(APP_TSX)
-    hook_text = _read(NAVIGATION_HOOK_TS)
+def test_technical_page_registry_preserves_all_route_ids() -> None:
     navigation_text = _read(WORKSPACE_NAVIGATION_TS)
-
-    grouped_pages = _navigation_pages(navigation_text)
-
-    assert grouped_pages == EXPECTED_PAGE_IDS
-    assert len(grouped_pages) == len(set(grouped_pages))
-    assert "useAppController" in app_text
-    assert 'from "@/workspaceNavigation"' in hook_text
-    assert "coerceWorkspacePageId(requestedWorkspace, DEFAULT_WORKSPACE_PAGE_ID)" in hook_text
-    assert "const WORKSPACE_PAGES" not in app_text
+    assert 'export const workspacePageIds: WorkspacePageId[] = [' in navigation_text
+    for page in EXPECTED_PAGES:
+        assert f'"{page}"' in navigation_text
+    assert "workspaceGroups" not in navigation_text
 
 
-def test_workspace_page_ids_are_exported_from_navigation_model() -> None:
-    """URL validation should be able to share the same page ids used by menu groups."""
-
-    navigation_text = _read(WORKSPACE_NAVIGATION_TS)
-    grouped_pages = _navigation_pages(navigation_text)
-    assert "export const workspacePageIds" in navigation_text
-    assert "workspaceGroups.flatMap" in navigation_text
-    assert grouped_pages == EXPECTED_PAGE_IDS
-
-
-def test_workspace_route_guard_helpers_exist() -> None:
-    """URL parsing should use shared guard helpers rather than local route-id checks."""
-
+def test_route_guard_helpers_remain_centralized() -> None:
     navigation_text = _read(WORKSPACE_NAVIGATION_TS)
     assert "export function isWorkspacePageId" in navigation_text
     assert "value is WorkspacePageId" in navigation_text
     assert "workspacePageIds.includes" in navigation_text
     assert "export function coerceWorkspacePageId" in navigation_text
     assert "fallback: WorkspacePageId = DEFAULT_WORKSPACE_PAGE_ID" in navigation_text
-
-
-def test_default_workspace_page_id_is_centralized() -> None:
-    """The fallback workspace should be declared once in the shared navigation model."""
-
-    navigation_text = _read(WORKSPACE_NAVIGATION_TS)
     assert 'export const DEFAULT_WORKSPACE_PAGE_ID: WorkspacePageId = "network"' in navigation_text
-    assert 'fallback: WorkspacePageId = DEFAULT_WORKSPACE_PAGE_ID' in navigation_text
 
 
-def test_workspace_group_labels_are_i18n_backed() -> None:
-    """Group headings must be translated through i18n, not CSS language selectors."""
+def test_primary_workspace_model_owns_child_and_default_mapping() -> None:
+    product_text = _read(PRODUCT_NAVIGATION_TS)
+    children = _product_children(product_text)
+    all_children = [page for pages in children.values() for page in pages]
+    assert sorted(all_children) == sorted(EXPECTED_PAGES)
+    for primary, default_page in EXPECTED_DEFAULTS.items():
+        assert f'id: "{primary}"' in product_text
+        assert f'defaultPage: "{default_page}"' in product_text
+    assert "export function primaryWorkspaceForPage" in product_text
+    assert "export function defaultWorkspacePageForPrimary" in product_text
+    assert "export function isPrimaryWorkspaceId" in product_text
 
-    i18n_text = _read(I18N_INDEX)
-    for group_id in EXPECTED_GROUPS:
-        assert f'"nav.group.{group_id}"' in i18n_text
+
+def test_technical_view_to_primary_mapping_is_complete_and_unique() -> None:
+    product_text = _read(PRODUCT_NAVIGATION_TS)
+    mapped = []
+    for primary, pages in EXPECTED_PRIMARY_CHILDREN.items():
+        primary_match = re.search(
+            rf'id:\s*"{primary}".*?defaultPage:',
+            product_text,
+            flags=re.DOTALL,
+        )
+        assert primary_match
+        for page in pages:
+            assert f'"{page}"' in product_text
+        mapped.extend(pages)
+    assert sorted(mapped) == sorted(EXPECTED_PAGES)
+    assert len(mapped) == len(set(mapped))
 
 
-def test_workspace_menu_does_not_use_nth_of_type_grouping() -> None:
-    """The menu must not depend on visual nth-of-type ordering hacks."""
+def test_navigation_hook_derives_primary_and_opens_default_views() -> None:
+    hook_text = _read(NAVIGATION_HOOK_TS)
+    assert "primaryWorkspaceForPage(activeWorkspace)" in hook_text
+    assert "function openPrimaryWorkspace(primary: PrimaryWorkspaceId)" in hook_text
+    assert "defaultWorkspacePageForPrimary(primary)" in hook_text
+    assert "coerceWorkspacePageId(requestedWorkspace, DEFAULT_WORKSPACE_PAGE_ID)" in hook_text
+    assert 'window.addEventListener("popstate", syncWorkspaceFromUrl)' in hook_text
 
+
+def test_topbar_uses_five_primary_tabs_and_no_grouped_dropdown() -> None:
     topbar_text = _read(TOPBAR_TSX)
-    assert "nth-of-type" not in topbar_text
-    assert "html[lang=\"zh-CN\"]" not in topbar_text
+    assert 'import { WorkspaceTabs } from "@/components/ui"' in topbar_text
+    assert "workspace-primary-tabs" in topbar_text
+    assert "workspace-primary" in topbar_text
+    assert "primaryWorkspaces.map" in topbar_text
+    assert "onOpenPrimaryWorkspace" in topbar_text
+    assert "groupedMenuOpen" not in topbar_text
+    assert "workspaceGroups" not in topbar_text
+    assert "workspace-menu" not in topbar_text
 
 
-def test_topbar_owns_menu_state_contract() -> None:
-    """WorkspaceTopBar should not depend on legacy App-owned menu state props."""
-
-    topbar_text = _read(TOPBAR_TSX)
-    props_match = re.search(
-        r"interface\s+WorkspaceTopBarProps\s*\{(.*?)\n\}",
-        topbar_text,
-        flags=re.DOTALL,
-    )
-    assert props_match, "WorkspaceTopBarProps interface must be explicit."
-    props_body = props_match.group(1)
-    assert "workspaceMenuOpen" not in props_body
-    assert "onWorkspaceMenuToggle" not in props_body
-    assert "useState(false)" in topbar_text
-    assert "groupedMenuOpen" in topbar_text
-
-
-def test_topbar_styles_are_externalized() -> None:
-    """Workspace menu styles should live in a CSS file, not an injected style tag."""
-
+def test_topbar_styles_are_externalized_and_keyboard_primitive_owned() -> None:
     topbar_text = _read(TOPBAR_TSX)
     css_text = _read(TOPBAR_CSS)
     assert 'import "./WorkspaceTopBar.css";' in topbar_text
-    assert "groupedWorkspaceMenuCss" not in topbar_text
     assert "<style>" not in topbar_text
-    assert ".workspace-menu" in css_text
-    assert ".workspace-menu-group-title" in css_text
+    assert ".workspace-primary-tabs" in css_text
+    assert ".workspace-local-task" in css_text
+    assert "groupedWorkspaceMenuCss" not in topbar_text
 
 
-def test_workspace_navigation_model_is_shared() -> None:
-    """Navigation structure should live outside the rendering component."""
+def test_workspace_renderer_uses_local_task_tabs_not_group_page_tabs() -> None:
+    renderer_text = _read(RENDERER_TSX)
+    assert "primaryWorkspaceForPage(activeWorkspace)" in renderer_text
+    assert "<WorkspaceTabs" in renderer_text
+    assert "localTabs.length > 1" in renderer_text
+    assert "workspace-page-tabs" in renderer_text
+    assert "workspaceGroups" not in renderer_text
 
-    topbar_text = _read(TOPBAR_TSX)
-    navigation_text = _read(WORKSPACE_NAVIGATION_TS)
-    assert "export const workspaceGroups" in navigation_text
-    assert "export type WorkspacePageId" in navigation_text
-    assert "export const workspacePageIds" in navigation_text
-    assert "export const DEFAULT_WORKSPACE_PAGE_ID" in navigation_text
-    assert "export function isWorkspacePageId" in navigation_text
-    assert "export function coerceWorkspacePageId" in navigation_text
-    assert 'from "../workspaceNavigation"' in topbar_text
-    assert "export const workspaceGroups" not in topbar_text
+
+def test_primary_labels_are_i18n_backed_and_parity_aligned() -> None:
+    en = json.loads(_read(I18N_EN))
+    zh = json.loads(_read(I18N_ZH))
+    for key in [
+        "nav.primary.market",
+        "nav.primary.market.description",
+        "nav.primary.portfolio",
+        "nav.primary.portfolio.description",
+        "nav.primary.strategy",
+        "nav.primary.strategy.description",
+        "nav.primary.decision",
+        "nav.primary.decision.description",
+        "nav.primary.system",
+        "nav.primary.system.description",
+        "topbar.primary_navigation",
+        "topbar.current_task",
+        "topbar.task_label",
+    ]:
+        assert en[key].strip()
+        assert zh[key].strip()
+        assert en[key] != key
+        assert zh[key] != key
+
+
+def test_old_glossary_and_manual_routes_are_rehomed_not_deleted() -> None:
+    product_text = _read(PRODUCT_NAVIGATION_TS)
+    assert '"glossary"' in product_text
+    assert '"manual"' in product_text
+    system_match = re.search(r'id:\s*"system".*?pages:\s*\[(.*?)\]', product_text, flags=re.DOTALL)
+    assert system_match
+    system_pages = _quoted_values(system_match.group(1))
+    assert system_pages == EXPECTED_PRIMARY_CHILDREN["system"]

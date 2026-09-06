@@ -32,6 +32,33 @@ the current source and keep the evidence date.
 | Quantitative research platforms | Design, backtest, compare, and monitor research strategies reproducibly | Experiment tracking with dataset snapshot and git SHA; parameter sweeps/heatmaps; walk-forward/OOS separation; overfitting reporting; deterministic seeds | Strategy definition lifecycle; immutable run metadata; dataset snapshot/as-of integrity; run comparison; drift indicators for shadow runs | Automatic parameter optimization presented as unbiased; illustrative PnL |
 | Institutional risk/portfolio analytics | Understand exposure, PnL attribution, and scenario/stress impact | Position/exposure drill-down; MTM and attribution by component (commodity, FX, transport, capacity, storage); scenario comparison side-by-side | Computed position book and exposure; full PnL attribution; reusable scenario/stress objects; VaR/CVaR and stress results | Settlement/accounting system; ETRM replacement |
 
+## IA-specific research (2026-09-06)
+
+Additional public material reviewed for CR-01:
+
+- [LSEG Workspace library guide](https://soas.libguides.com/c.php?g=705003&p=5231329)
+- [Argus Direct Workspaces](https://www.argusmedia.com/pt/solutions/how-we-deliver/client-portal/argus-direct-workspaces)
+- [ION Lab49 / interop.io trader desktop modernization](https://staging.finadium.com/ions-lab49-and-interop-io-partner-for-trader-desktop-modernization/)
+- [Traders Seek Desktop Harmony](https://www.globaltrading.net/traders-seek-desktop-harmony/)
+
+Principles extracted (not copied):
+
+- Institutional products separate the persistent top-level workspace from
+  local tools/tasks; they do not expose every data module as a peer menu item.
+- Bloomberg/LSEG-style terminals use one persistent shell plus command/context
+  entry, not a proliferation of top-level pages.
+- Interop/desktop-harmony materials emphasize linked widgets and deterministic
+  workspace composition over free-floating windows.
+- Argus Direct workspace material supports saved, task-oriented workspaces with
+  persistent report/data context; the useful pattern is reusable workspace
+  composition, not arbitrary dashboard proliferation.
+- Monitoring/research/review/data-administration are secondary surfaces and
+  should recede visually relative to trader workflows.
+
+These reinforce the five-primary-workspace decision and the CR-02 trader-context
+contract. Retrieval is dated; re-open sources before a future milestone depends
+on a specific vendor claim.
+
 ## Principles accepted for Eurogas Nexus product work
 
 1. One coherent workstation, not one page per backend capability.

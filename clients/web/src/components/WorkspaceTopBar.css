@@ -372,3 +372,86 @@
     display: none;
   }
 }
+
+/* CR-01 primary workspace navigation */
+.workspace-primary-tabs {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 3px;
+  overflow-x: auto;
+  border: 1px solid var(--eg-hairline, var(--border));
+  border-radius: var(--eg-pill, 100px);
+  background: rgb(255 255 255 / 92%);
+  box-shadow: var(--eg-shadow-2, 0 1px 1px rgb(0 0 0 / 4%));
+  padding: 4px;
+  scrollbar-width: none;
+}
+
+.workspace-primary-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.workspace-primary-tabs button {
+  flex: 0 0 auto;
+  min-height: 32px;
+  border: 0;
+  border-radius: var(--eg-pill, 100px);
+  background: transparent;
+  color: var(--eg-muted, var(--muted));
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 16px;
+  padding: 6px 10px;
+  white-space: nowrap;
+}
+
+.workspace-primary-tabs button:hover {
+  color: var(--eg-ink, var(--text));
+}
+
+.workspace-primary-tabs button.active {
+  background: var(--eg-ink, var(--text));
+  color: var(--eg-surface, var(--surface));
+}
+
+.workspace-primary-tabs button:focus-visible {
+  outline: 2px solid var(--eg-link, var(--accent));
+  outline-offset: 2px;
+}
+
+:root.dark .workspace-primary-tabs {
+  background: rgb(17 17 17 / 92%);
+}
+
+.workspace-local-task {
+  display: inline-flex;
+  min-width: 0;
+  height: 40px;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--eg-hairline, var(--border));
+  border-radius: 8px;
+  background: rgb(255 255 255 / 92%);
+  box-shadow: var(--eg-shadow-2, 0 1px 1px rgb(0 0 0 / 4%));
+  color: var(--eg-muted, var(--muted));
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 10px;
+  line-height: 14px;
+  padding: 0 10px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.workspace-local-task strong {
+  overflow: hidden;
+  color: var(--eg-ink, var(--text));
+  font-size: 11px;
+  text-overflow: ellipsis;
+}
+
+:root.dark .workspace-local-task {
+  background: rgb(17 17 17 / 92%);
+}

@@ -64,33 +64,37 @@ Redux unless a later approved milestone changes the tech-stack contract.
 
 ## Navigation
 
-Eurogas Nexus uses grouped workspace navigation, not a flat list of equal pages.
-Technical workspace ids remain stable for compatibility.
+Eurogas Nexus exposes five primary professional workspaces with local task
+switchers, not a flat list of equal pages. Technical workspace ids remain
+stable for compatibility.
 
-### Decision Workspace
+### Market
 
 1. Network
-2. Scenario
-3. Review
-
-### Commercial Inputs
-
-1. Resource Terms, technical id `contracts`
 2. Market
 3. Capacity
-4. Market Positioning, technical id `orders`
 
-### Analytics
+### Portfolio
+
+1. Resource Terms, technical id `contracts`
+2. Market Positioning, technical id `orders`
+
+### Strategy Lab
 
 1. Strategy
-2. Glossary
 
-### Operations
+### Decision Center
+
+1. Scenario
+2. Review
+
+### System
 
 1. Data Sources
 2. Runtime
 3. Settings
 4. Manual
+5. Glossary (help/knowledge)
 
 Every workspace must support a direct URL query entry for release QA, customer
 support, and customer training. The canonical format is `?workspace=<id>`, where

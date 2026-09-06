@@ -352,7 +352,8 @@ def test_app_no_longer_owns_duplicate_workspace_menu() -> None:
     assert "workspaceMenuOpen" not in app
     assert "const WORKSPACE_PAGES" not in app
     assert 'from "@/workspaceNavigation"' in app
-    assert "groupedMenuOpen" in topbar
+    assert "groupedMenuOpen" not in topbar
+    assert "workspace-primary-tabs" in topbar
     assert "[legacyProp: string]" not in topbar
 
 

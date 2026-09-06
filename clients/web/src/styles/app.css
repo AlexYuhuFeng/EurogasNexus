@@ -8160,3 +8160,76 @@ button.glossary-related-chip {
     max-width: calc(100vw - 28px);
   }
 }
+
+/* ============================================================
+   CR-01 / P1A — five-primary-workspace shell
+   Dense topbar primary navigation + local task chip. Existing
+   technical workspace ids and page content remain unchanged.
+   ============================================================ */
+.cockpit-app .cockpit-topbar > .workspace-primary-tabs {
+  grid-area: workspace;
+  min-width: 0;
+}
+
+.cockpit-app .cockpit-topbar > .workspace-local-task {
+  grid-area: task;
+  min-width: 0;
+}
+
+.cockpit-app .cockpit-topbar > .topbar-trading-context {
+  grid-area: context;
+}
+
+.cockpit-app .cockpit-topbar > .header-controls {
+  grid-area: topbar-controls;
+}
+
+@media (min-width: 1101px) {
+  .cockpit-app .workspace-topbar-only.has-map-search {
+    grid-template-areas: "workspace task search context topbar-controls";
+    grid-template-columns: minmax(430px, 520px) auto minmax(140px, 1fr) minmax(240px, auto) auto;
+  }
+
+  .cockpit-app .workspace-topbar-page {
+    grid-template-areas: "workspace context topbar-controls";
+    grid-template-columns: minmax(430px, 520px) minmax(260px, 1fr) auto;
+  }
+}
+
+@media (min-width: 901px) and (max-width: 1100px) {
+  .cockpit-app .workspace-topbar-only.has-map-search {
+    grid-template-areas: "workspace search topbar-controls";
+    grid-template-columns: minmax(320px, 1fr) minmax(180px, 1fr) auto;
+  }
+
+  .cockpit-app .workspace-topbar-only.has-map-search .workspace-local-task,
+  .cockpit-app .workspace-topbar-only.has-map-search .topbar-trading-context {
+    display: none;
+  }
+
+  .cockpit-app .workspace-topbar-page {
+    grid-template-areas: "workspace topbar-controls";
+    grid-template-columns: minmax(320px, 1fr) minmax(0, 1fr);
+  }
+
+  .cockpit-app .workspace-topbar-page .topbar-trading-context {
+    display: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .cockpit-app .workspace-topbar-only.has-map-search {
+    grid-template-areas: "workspace" "task" "search" "topbar-controls";
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .cockpit-app .workspace-topbar-page {
+    grid-template-areas: "workspace" "topbar-controls";
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .cockpit-app .workspace-local-task,
+  .cockpit-app .topbar-trading-context {
+    width: 100%;
+  }
+}

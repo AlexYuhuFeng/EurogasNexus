@@ -1,5 +1,11 @@
 import { useEffect, useState } from "react";
 import {
+  defaultWorkspacePageForPrimary,
+  primaryWorkspaceForPage,
+  type PrimaryWorkspace,
+  type PrimaryWorkspaceId,
+} from "@/app/navigation/productNavigation";
+import {
   coerceWorkspacePageId,
   DEFAULT_WORKSPACE_PAGE_ID,
   type WorkspacePageId,
@@ -13,6 +19,7 @@ export function workspaceFromLocation(): WorkspacePageId {
 
 export function useWorkspaceNavigation() {
   const [activeWorkspace, setActiveWorkspace] = useState<WorkspacePageId>(() => workspaceFromLocation());
+  const activePrimaryWorkspace: PrimaryWorkspace = primaryWorkspaceForPage(activeWorkspace);
 
   useEffect(() => {
     function syncWorkspaceFromUrl() {
@@ -30,5 +37,14 @@ export function useWorkspaceNavigation() {
     window.history.pushState({ workspace: page }, "", nextUrl);
   }
 
-  return { activeWorkspace, openWorkspace };
+  function openPrimaryWorkspace(primary: PrimaryWorkspaceId) {
+    openWorkspace(defaultWorkspacePageForPrimary(primary));
+  }
+
+  return {
+    activeWorkspace,
+    activePrimaryWorkspace,
+    openWorkspace,
+    openPrimaryWorkspace,
+  };
 }

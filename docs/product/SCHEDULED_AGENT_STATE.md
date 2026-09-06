@@ -2,14 +2,15 @@
 
 ## Current run
 
-- Current milestone: `M0-P0` — versioned CAM gas-day correction (no historical
-  rewrite, no execution-boundary change).
-- Last completed milestone: `M0-P0` (evidence below; committed in this run).
-- Current branch/commit: `main`; M0-P0 commit recorded as the current `git log`
-  HEAD (local commit, not pushed). `origin/main` remained
-  `399be6aec931849e51379dbb6667c751ece5016a` at start of run.
-- Model routing: DSH Pro (cross-subsystem domain, schema-adjacent semantics,
-  strategy/data integrity).
+- Current milestone: `CR-02` (recommended next; not started) — Persistent
+  Trader Context and Cross-Workspace Selection Model.
+- Last completed milestone: `CR-01 / P1A` (evidence below; committed in this
+  run). `M0-P0` remains committed as `764fbdd`.
+- Current branch/commit at CR-01 start: `main` @
+  `764fbdd48209f3adbc5d1c0e3fad77153a9a156e`; `origin/main`
+  `399be6aec931849e51379dbb6667c751ece5016a`.
+- Model routing: DSH Pro for the full architecture decision and implementation
+  review; no Flash delegation for navigation/product decisions.
 
 ## Baseline observed at start
 
@@ -17,67 +18,75 @@
   addition, preserved), `?? output/` (assessment evidence, not committed).
 - `stash@{0}` preserved: `codex-strategy-wip-before-9f0652d`.
 - CI config present: `ci.yml`, `ci-manual.yml`, `release.yml`. Live GitHub CI
-  status was not queried this run; local validation gates are run below.
+  status was not queried; local validation gates are run below.
+- Current navigation: 13 technical pages grouped into 4 implementation groups;
+  topbar dropdown menu plus page-group tabs render the hierarchy twice.
 - Runtime API observed previously: development profile, PostgreSQL head
   `0024_cost_observations`, 46/46 required tables, 86 OpenAPI paths.
 
-## Implementation plan for this run
+## CR-01 implementation plan
 
-1. Create and maintain `docs/product/*` governance files.
-2. Add `EU-CAM-UTC-2025` corrected calendar version to
-   `src/eurogas_nexus/domain/market/gas_day.py`; keep `EU-CAM-2025` frozen as a
-   legacy reproducibility version; make corrected version the default for new
-   computations.
-3. Propagate corrected calendar and `calendar_version` metadata into new GIE
-   AGSI/ALSI rows and simulated market rows (metadata only; no migration and no
-   rewrite of historical rows).
-4. Correct `GasDayRef` default and documentation in
-   `src/eurogas_nexus/domain/ontology/semantic_kernel.py`.
-5. Correct the web client duplicate constants in
-   `clients/web/src/app/tradingContext.ts` and compute the displayed gas-day
-   label from the corrected boundary.
-6. Add focused Python and Node tests for legacy compatibility, corrected
-   boundaries, DST anchors, metadata provenance, and client boundary logic.
-7. Add `docs/product/GAS_DAY_CALENDAR_COMPATIBILITY.md` proposal and update
-   normative release docs.
-8. Run focused tests, then the broader Python/Node acceptance gates.
-9. Update this file and backlog evidence; commit only files owned by this
-   milestone. Leave pre-existing dirty `docs/clients/UI_CONTENT_STANDARDS.md`
-   additions and untracked `output/` assessment uncommitted.
+1. Research benchmark IA principles and update
+   `docs/product/INDUSTRY_BENCHMARK.md`.
+2. Write `docs/product/PRODUCT_INFORMATION_ARCHITECTURE.md` before code changes:
+   five primary workspaces, child-view mapping, old-route compatibility,
+   workflow examples, rejected alternatives, next dependencies.
+3. Write `docs/product/TRADER_CONTEXT_SPEC.md` and
+   `docs/product/UX_REFERENCE.md`.
+4. Add typed primary-workspace model
+   `clients/web/src/app/navigation/productNavigation.ts`; keep technical
+   `workspaceNavigation.ts` as the URL/deep-link registry.
+5. Extend `useWorkspaceNavigation` with primary derivation and
+   `openPrimaryWorkspace`.
+6. Replace the topbar grouped dropdown with five primary workspace tabs using
+   the shared `WorkspaceTabs` primitive; keep the map search and trading
+   context; show an active local-task chip for map-first Network.
+7. Replace page-group tabs in `WorkspaceRenderer` with local task tabs under the
+   active primary; render only when a primary owns more than one view.
+8. Update `docs/clients/WORKSPACE_NAVIGATION_SPEC.md`,
+   `docs/product/COMMERCIAL_READINESS_BACKLOG.md`, and docs index.
+9. Add focused Node/Python tests: page->primary mapping, default child mapping,
+   deep-link compatibility, invalid fallback, active state, glossary/manual
+   routes, i18n parity, keyboard primitive reuse.
+10. Run focused tests, web build, ruff/markdown checks, and relevant broader
+    tests.
+11. Commit one coherent milestone; do not push unless explicitly authorized.
 
 ## Tests run
 
-- `pytest -q tests` could not collect because local environment lacks `rdflib`
-  (pre-existing environment gap; no dependency install performed).
-- `pytest -q tests --ignore=tests/contract/test_ontology_grm_parity.py`:
-  **1136 passed, 4 skipped**.
-- Focused calendar/ingestion/ontology tests: **68 passed**.
-- `npm --prefix clients/web run test`: **12 passed**.
+- `npm --prefix clients/web run test`: **18 passed**.
 - `npm --prefix clients/web run build`: **passed**.
+- Focused Python navigation/release contracts: **65 passed**.
+- `pytest tests/contract --ignore=tests/contract/test_ontology_grm_parity.py`:
+  **392 passed**.
+- Broader Python suite
+  `pytest tests --ignore=tests/contract/test_ontology_grm_parity.py`:
+  **1137 passed, 4 skipped**.
 - `ruff check .`: **passed**.
 - `python scripts/ci/check_markdown_links.py`: **passed**.
-- `python scripts/ops/load_smoke.py --requests 100 --concurrency 8 --p95-threshold-ms 1000`: **OK** (p50 6.9 ms, p95 541.2 ms, p99 550.9 ms).
+- API import: **86 paths**.
+- Load smoke: **100 ok / 0 errors** (p50 6.4 ms, p95 594.2 ms, p99 618.1 ms).
 
 ## Known failures
 
 - `tests/contract/test_ontology_grm_parity.py` cannot collect locally because
-  `rdflib` is not installed in this local environment. Not caused by this
-  milestone; CI installs the declared dependencies. Do not install new
-  dependencies in this run.
-- Live GitHub Actions status was not queried; local gates are green with the
-  exclusion above.
+  `rdflib` is not installed in this local environment. Pre-existing environment
+  gap; no dependency install performed. CI installs declared dependencies.
+- Live GitHub Actions status was not queried; all local gates above are green
+  with that one collection exclusion.
+- Visual appearance was not screenshot-verified in this run; the new shell is
+  source- and build-verified and follows `docs/product/UX_REFERENCE.md`.
 
 ## Unresolved architectural decisions
 
-- Whether future persisted rows should carry a first-class `calendar_version`
-  column in addition to `metadata_json` (requires Alembic migration; deliberately
-  deferred until M0 evidence review).
-- Recompute vs annotate policy for historical rows produced with
-  `EU-CAM-2025`; must remain read-only until operator review.
-- ENTSOG timezone contract (M1-P0) remains unproven.
-- Gas-year official boundary (`GasYearRef`) remains unverified.
+- Glossary remains a full technical workspace under System; inline contextual
+  glossary entry points are deferred.
+- Network remains under Market and still contains resource-pool decision rails;
+  whether to split its portfolio content is deferred to CR-02/portfolio work.
+- URL remains `?workspace=<technical-id>`; no primary-id query parameter or new
+  route aliases are introduced in this milestone.
+- The proposed persistent trader context is documented but not implemented.
 
 ## Next recommended milestone
 
-- `M1-P0` — ENTSOG timezone normalization contract and fixtures, then `M2-P1`
-  information-architecture consolidation after acceptance of M0-P0.
+- `CR-02` — Persistent Trader Context and Cross-Workspace Selection Model.

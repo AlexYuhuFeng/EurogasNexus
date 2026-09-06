@@ -23,6 +23,7 @@ export function AppShell({ controller }: AppShellProps) {
     <div className={`app cockpit-app workspace-${navigation.activeWorkspace}`}>
       <WorkspaceTopBar
         activeWorkspace={navigation.activeWorkspace}
+        activePrimaryWorkspace={navigation.activePrimaryWorkspace}
         searchTerm={controls.searchTerm}
         dataStatus={api.dataStatus}
         loading={api.loading}
@@ -40,6 +41,7 @@ export function AppShell({ controller }: AppShellProps) {
         onModeChange={theme.setMode}
         onGasDayChange={controls.setGasDay}
         onDeliveryProductChange={controls.setDeliveryProduct}
+        onOpenPrimaryWorkspace={navigation.openPrimaryWorkspace}
       />
 
       {Object.keys(api.endpointErrors).length > 0 && (
@@ -54,7 +56,12 @@ export function AppShell({ controller }: AppShellProps) {
         </div>
       )}
 
-      <main className="app-main">
+      <main
+        className="app-main"
+        id="workspace-primary-content"
+        role="tabpanel"
+        aria-labelledby={`workspace-primary-${navigation.activePrimaryWorkspace.id}`}
+      >
         {navigation.activeWorkspace === "network" ? (
           <NetworkWorkspace
             t={t}

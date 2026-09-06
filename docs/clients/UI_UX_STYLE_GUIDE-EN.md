@@ -57,7 +57,7 @@ decision-support cockpit direction described below.
 Current Web implementation should expose these structural classes so contract tests can prevent regression:
 
 - `cockpit-topbar`
-- `workspace-menu`
+- `workspace-primary-tabs`
 - `scenario-rail`
 - `decision-rail`
 - `trade-result-panel`

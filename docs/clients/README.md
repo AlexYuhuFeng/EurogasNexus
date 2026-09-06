@@ -68,35 +68,39 @@ Clients must not:
 
 ## Active Client Responsibilities
 
-The Web/Windows workspace uses grouped product navigation rather than a flat
-list of pages. Technical workspace ids remain stable for compatibility.
+The Web/Windows workspace exposes five primary professional workspaces with
+compact local task switchers. Technical workspace ids remain stable for
+compatibility.
 
-### Decision Workspace
+### Market
 
 - Network: map-first resource-pool cockpit with a left resource rail, central
   topology map, tabbed decision rail, and non-overlapping bottom route ladder.
-- Scenario: route-cost, resource-pool, and economics review controls.
-- Review: route allocation, warning, and analysis/report review.
+- Market: terminal-style European gas hub board, regional TTF spreads, ECB FX,
+  and exchange/broker source posture without fabricated prices.
+- Capacity: ENTSOG flow/capacity, TSO access, tariffs, storage, and LNG.
 
-### Commercial Inputs
+### Portfolio
 
 - Resource Terms: task-led `Source`, `Terms`, `Pool impact`, and `Library`
   views; JSON/plain-text draft import; validated PostgreSQL persistence;
   persisted cost/restriction readback; and backend-owned resource-pool refresh.
   PDF/DOCX extraction and minimum-take/take-or-pay modelling are not enabled.
   Technical id: `contracts`.
-- Market: terminal-style European gas hub board, regional TTF spreads, ECB FX,
-  and exchange/broker source posture without fabricated prices.
-- Capacity: ENTSOG flow/capacity, TSO access, tariffs, storage, and LNG.
 - Market Positioning: read-only screen observations and PnL snapshots. Technical
   id: `orders`.
 
-### Analytics
+### Strategy Lab
 
-- Strategy: paper strategy evaluation.
-- Glossary: bilingual operational terms and DB-derived context.
+- Strategy: paper strategy evaluation. Later milestones add Design, Backtest,
+  Compare, and Shadow Run subviews.
 
-### Operations
+### Decision Center
+
+- Scenario: route-cost, resource-pool, and economics review controls.
+- Review: route allocation, warning, and analysis/report review.
+
+### System
 
 - Data Sources: source categories, credentials, freshness, diagnostics, and
   record counts.
@@ -104,6 +108,8 @@ list of pages. Technical workspace ids remain stable for compatibility.
 - Settings: non-sensitive language, theme, unit, currency, session, and
   service-access posture preferences; credential entry remains backend-owned.
 - Manual: customer-facing operating guide.
+- Glossary: bilingual operational terms and DB-derived context (re-homed as
+  help/knowledge).
 
 ## Implementation Rule
 

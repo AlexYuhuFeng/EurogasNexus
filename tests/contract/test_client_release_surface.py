@@ -298,11 +298,11 @@ def test_web_client_matches_design_reference_cockpit() -> None:
     assert "workspace-topbar-page" in topbar
     assert "topbar-icon-button" not in app
     assert "workspace-nav" not in app
-    assert "workspace-menu" in topbar
+    assert "workspace-primary-tabs" in topbar
     assert "workspaceMenuOpen" not in app
-    assert "groupedMenuOpen" in topbar
-    assert "workspace-pill-copy" in app_and_topbar
-    assert "topbar-menu-glyph" in app_and_topbar
+    assert "groupedMenuOpen" not in topbar
+    assert "workspace-local-task" in app_and_topbar
+    assert "topbar-menu-glyph" not in app_and_topbar
     assert "workspace-page" in app
     assert "workspace-page-tabs" in app
     assert 'navigation.activeWorkspace === "network" ? (' in app
