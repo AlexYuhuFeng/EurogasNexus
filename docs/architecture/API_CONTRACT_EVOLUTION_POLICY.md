@@ -84,6 +84,13 @@ These tests fail CI loudly on contract drift:
 | `GET /api/strategy-runs/{run_id}/attribution` | CR-04 | persisted market-bucket/cost attribution |
 | `GET/POST /api/backtest-experiments` | CR-04 | lightweight SINGLE_RUN experiment grouping |
 | `GET /api/backtest-experiments/{experiment_id}` | CR-04 | read one experiment and its run ids |
+| `GET/POST /api/shadow-monitors` | CR-06 | scheduled non-executing shadow research monitors |
+| `GET/POST /api/shadow-monitors/{id}/pause|resume|retire` | CR-06 | monitor lifecycle changes; history and open alerts preserved |
+| `GET /api/shadow-monitors/{id}/evaluations` | CR-06 | immutable evaluation history |
+| `GET /api/shadow-evaluations/{id}` | CR-06 | evaluation evidence/result/risk checks |
+| `GET /api/shadow-monitors/{id}/drift` | CR-06 | interpretable drift snapshots against explicit baseline |
+| `GET /api/shadow-alerts`, `POST /api/shadow-alerts/{id}/acknowledge` | CR-06 | deduplicated alert lifecycle |
+| `GET /api/shadow-runtime/status` | CR-06 | scheduler heartbeat/health |
 
 ## Deprecation Table
 

@@ -164,6 +164,33 @@ def run_backtest(
     )
 
 
+def evaluate_decision_event(
+    *,
+    version: StrategyVersionLike,
+    pool: BacktestEvidencePool,
+    definition: BacktestRunDefinition,
+    run_id: str,
+    requested_by: str,
+    decision_sequence: int,
+    decision_time_utc: datetime,
+    previous_cumulative_net: float,
+    previous_exposure: float,
+) -> BacktestDecisionEvent:
+    """Evaluate one decision with the exact shared shadow/backtest engine."""
+
+    return _evaluate_decision_event(
+        version=version,
+        pool=pool,
+        definition=definition,
+        run_id=run_id,
+        requested_by=requested_by,
+        decision_sequence=decision_sequence,
+        decision_time_utc=decision_time_utc,
+        previous_cumulative_net=previous_cumulative_net,
+        previous_exposure=previous_exposure,
+    )
+
+
 def _evaluate_decision_event(
     *,
     version: StrategyVersionLike,

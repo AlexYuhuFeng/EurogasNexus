@@ -2,17 +2,16 @@
 
 ## Current run
 
-- Current milestone: `CR-05 / P4` — Professional Strategy Lab:
-  Design → Backtest → Compare UX (implemented; see Tests run below).
-- Last completed milestone: `CR-04 / P3` (commit `a930199`). Earlier commits:
-  `77e2168` (CR-03), `89f166e` (CR-02), `065ab73` (CR-01), `764fbdd` (M0-P0).
-- CR-05 planned commit:
-  `feat(strategy-ui): rebuild Strategy Lab research workflow`.
-- Current branch/commit at CR-05 start: `main` @ `a930199`.
-- Model routing: DSH Pro owns workflow/IA, Strategy Builder design,
-  professional trading UX, analytics presentation, state ownership and visual
-  design. Flash is limited to React extraction, i18n, TypeScript plumbing,
-  tests, CSS cleanup and API-client wiring.
+- Current milestone: `CR-06 / P5` — Production-Quality Shadow Run Scheduler,
+  Monitoring, Drift, and Alert Lifecycle (implemented; see Tests run below).
+- Last completed milestone: `CR-05 / P4` (commit `5517bbe`). Earlier commits:
+  `a930199` (CR-04), `77e2168` (CR-03), `89f166e` (CR-02).
+- CR-06 planned commit:
+  `feat(strategy): add production-grade shadow monitoring runtime`.
+- Current branch/commit at CR-06 start: `main` @ `5517bbe`.
+- Model routing: DSH Pro owns scheduling semantics, evidence timing,
+  strategy/backtest parity, failure-state design, drift methodology, alert
+  lifecycle, monitoring architecture and operational reliability.
 
 ## Baseline observed at start
 
@@ -33,6 +32,27 @@
   provenance columns on legacy `strategy_runs`). The runtime PostgreSQL head
   should become `0025_strategy_registry_v1`; live migration was not performed
   because the local environment has no running PostgreSQL service.
+
+## CR-06 implementation plan
+
+1. Verify CR-03/04/05 foundations and audit legacy shadow/research runtime.
+2. Write `docs/product/SHADOW_RUNTIME_SPEC.md`.
+3. Add typed monitor/evaluation/candidate/risk/outcome/alert/drift state and
+   pure schedule calculation.
+4. Add migration `0027_shadow_runtime_v1` with FKs, unique evaluation
+   identity, indexes and scheduler heartbeat.
+5. Add repository/application runtime with SKIP LOCKED claiming, shared
+   CR-04 evaluator, current persisted evidence snapshot, freshness blocking,
+   candidate/risk persistence, mark-to-model outcomes, deduplicated alerts
+   and interpretable drift.
+6. Add public monitor/evaluation/drift/alert/status APIs and internal
+   scheduler tick; register permissions.
+7. Complete Strategy Lab Shadow task with monitor activation, lifecycle
+   actions, current candidate, evaluation history, drift and alerts.
+8. Add scheduler/lifecycle/stale-evidence/alert/no-execution tests and
+   scheduler benchmark.
+9. Run focused + broad validation, web build, ruff, markdown and load smoke;
+   update docs/backlog/state; commit one coherent slice.
 
 ## CR-05 implementation plan
 
@@ -163,19 +183,21 @@
     tests.
 11. Commit one coherent milestone; do not push unless explicitly authorized.
 
-## Tests run (CR-05)
+## Tests run (CR-06)
 
-- `npm --prefix clients/web run test`: **34 passed** (including new Strategy
-  Lab task/deep-link/comparison tests).
+- `npm --prefix clients/web run test`: **34 passed**.
 - `npm --prefix clients/web run build`: **passed**.
+- Focused shadow tests: schedule **5 passed**, runtime/API **8 passed**,
+  no-execution contract **2 passed** (15 focused shadow tests total).
 - `pytest tests --ignore=tests/contract/test_ontology_grm_parity.py`:
-  **1196 passed, 4 skipped**.
+  **1211 passed, 4 skipped**.
 - `ruff check .`: **passed**.
 - `python scripts/ci/check_markdown_links.py`: **passed**.
-- OpenAPI public surface: **101 paths**, all covered by
+- OpenAPI public surface: **112 paths**, all covered by
   `PINNED_PUBLIC_PATHS` and the route-permission registry.
-- Load smoke: **200 ok / 0 errors** (p50 6.7 ms, p95 28.8 ms, p99 522.9 ms).
-- CR-04 benchmark remains recorded in `BACKTEST_ENGINE_SPEC.md`.
+- Load smoke: **200 ok / 0 errors**.
+- Shadow benchmark (SQLite fixture): 10 monitors ~0.13 s scan; 100 monitors
+  ~1.07 s scan; duplicate claims prevented.
 
 ## Known failures
 
@@ -206,5 +228,5 @@
 
 ## Next recommended milestone
 
-- `CR-06` — Production-Quality Shadow Run Scheduler, Monitoring, Drift and
-  Alert Lifecycle, consuming the truthful Shadow shell prepared by CR-05.
+- `CR-07` — Market / Network / Capacity Trader Cockpit Consolidation, unless
+  repository evidence reveals a more urgent production blocker.

@@ -131,13 +131,12 @@ Views:
 
 Higher PnL is never styled as "better".
 
-## 8. SHADOW shell (CR-05)
+## 8. SHADOW task (CR-06)
 
-No production shadow scheduler exists. The task shows a truthful
-`SHADOW_MONITORING_NOT_CONFIGURED` state with prerequisites (CR-06 scheduler,
-pause/resume, freshness blocking, drift). Existing persisted legacy strategy
-runs remain visible in Backtest/Run History and are labelled legacy; no
-simulated live alerts are emitted.
+CR-06 replaces the CR-05 shell with a real persisted shadow runtime UI:
+scheduler health, activation preflight, monitor table, pause/resume/retire,
+current persisted candidate, recent evaluation history, drift snapshots and
+acknowledgeable alerts. No simulated live alerts are emitted.
 
 ## 9. State ownership
 

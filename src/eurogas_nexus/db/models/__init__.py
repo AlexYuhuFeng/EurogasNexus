@@ -61,6 +61,16 @@ from eurogas_nexus.db.models.route_cost import (
     TsoTariffRecord,
     UpstreamResourceContractRecord,
 )
+from eurogas_nexus.db.models.shadow import (
+    StrategyShadowAlertRecord,
+    StrategyShadowCandidateRecord,
+    StrategyShadowDriftSnapshotRecord,
+    StrategyShadowEvaluationRecord,
+    StrategyShadowMonitorRecord,
+    StrategyShadowOutcomeRecord,
+    StrategyShadowRiskCheckRecord,
+    StrategyShadowSchedulerHeartbeatRecord,
+)
 from eurogas_nexus.db.models.storage_nomination import (
     NominationWindowMasterRecord,
     StorageFacilityMasterRecord,
@@ -93,6 +103,14 @@ class IngestionRunRecord(Base):
 
 
 __all__ = [
+    "StrategyShadowAlertRecord",
+    "StrategyShadowCandidateRecord",
+    "StrategyShadowDriftSnapshotRecord",
+    "StrategyShadowEvaluationRecord",
+    "StrategyShadowMonitorRecord",
+    "StrategyShadowOutcomeRecord",
+    "StrategyShadowRiskCheckRecord",
+    "StrategyShadowSchedulerHeartbeatRecord",
     "BacktestAttributionRecord",
     "BacktestDecisionEventRecord",
     "BacktestExperimentRecord",

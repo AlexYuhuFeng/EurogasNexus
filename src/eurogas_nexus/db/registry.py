@@ -86,6 +86,38 @@ REQUIRED_TABLES: tuple[RequiredTable, ...] = (
         name="backtest_attribution",
         introduced_in="0026_backtest_engine_v1",
     ),
+    RequiredTable(
+        name="strategy_shadow_monitors",
+        introduced_in="0027_shadow_runtime_v1",
+    ),
+    RequiredTable(
+        name="strategy_shadow_evaluations",
+        introduced_in="0027_shadow_runtime_v1",
+    ),
+    RequiredTable(
+        name="strategy_shadow_candidates",
+        introduced_in="0027_shadow_runtime_v1",
+    ),
+    RequiredTable(
+        name="strategy_shadow_risk_checks",
+        introduced_in="0027_shadow_runtime_v1",
+    ),
+    RequiredTable(
+        name="strategy_shadow_outcomes",
+        introduced_in="0027_shadow_runtime_v1",
+    ),
+    RequiredTable(
+        name="strategy_shadow_alerts",
+        introduced_in="0027_shadow_runtime_v1",
+    ),
+    RequiredTable(
+        name="strategy_shadow_drift_snapshots",
+        introduced_in="0027_shadow_runtime_v1",
+    ),
+    RequiredTable(
+        name="strategy_shadow_scheduler_heartbeat",
+        introduced_in="0027_shadow_runtime_v1",
+    ),
     RequiredTable(name="strategy_runs", introduced_in="0007_strategy_lab_foundation"),
     RequiredTable(name="strategy_allocation_targets", introduced_in="0007_strategy_lab_foundation"),
     RequiredTable(name="strategy_alerts", introduced_in="0007_strategy_lab_foundation"),

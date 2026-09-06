@@ -92,7 +92,11 @@ export function StrategyLabWorkspace({
               />
             )}
             {controller.task === "shadow" && (
-              <StrategyShadowShell controller={controller} t={t} />
+              <StrategyShadowShell
+                controller={controller}
+                language={language}
+                t={t}
+              />
             )}
           </div>
         </div>

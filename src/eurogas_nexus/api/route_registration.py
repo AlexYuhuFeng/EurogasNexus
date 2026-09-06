@@ -22,6 +22,7 @@ from eurogas_nexus.api.routes.public.research import router as research_router
 from eurogas_nexus.api.routes.public.review import router as review_router
 from eurogas_nexus.api.routes.public.route_cost import router as route_cost_router
 from eurogas_nexus.api.routes.public.runtime import router as runtime_router
+from eurogas_nexus.api.routes.public.shadow import router as shadow_router
 from eurogas_nexus.api.routes.public.sources import router as sources_router
 from eurogas_nexus.api.routes.public.storage import router as storage_router
 from eurogas_nexus.api.routes.public.strategy_lab import router as strategy_lab_router
@@ -62,6 +63,7 @@ def register_routes(
         app.include_router(strategy_registry_router)
         app.include_router(streaming_router)
         app.include_router(runtime_router)
+        app.include_router(shadow_router)
 
     if route_profile.include_internal:
         app.include_router(internal_router)

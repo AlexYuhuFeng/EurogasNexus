@@ -1034,6 +1034,69 @@ export interface BacktestExperimentDTO {
   created_at_utc: string; updated_at_utc: string; research_only: boolean;
 }
 
+export interface ShadowMonitorDTO {
+  shadow_monitor_id: string; strategy_id: string; strategy_version_id: string;
+  baseline_run_id?: string | null; state: string;
+  schedule: Record<string, unknown>; created_by: string;
+  created_at_utc: string; activated_at_utc?: string | null;
+  paused_at_utc?: string | null; retired_at_utc?: string | null;
+  last_evaluation_at_utc?: string | null; next_evaluation_at_utc?: string | null;
+  latest_evaluation_id?: string | null; consecutive_failures: number;
+  health_state: string; cumulative_shadow_pnl_gbp: number;
+  current_exposure_mwh_per_day: number; research_only: boolean;
+}
+
+export interface ShadowMonitorCreateInputDTO {
+  strategy_version_id: string; baseline_run_id?: string | null;
+  schedule: Record<string, unknown>; activate?: boolean;
+}
+
+export interface ShadowEvaluationDTO {
+  shadow_evaluation_id: string; shadow_monitor_id: string;
+  strategy_version_id: string; scheduled_for_utc: string;
+  started_at_utc?: string | null; decision_time_utc?: string | null;
+  completed_at_utc?: string | null; state: string;
+  gas_day?: string | null; gas_day_start_utc?: string | null;
+  gas_day_end_utc?: string | null; snapshot_id?: string | null;
+  candidate_id?: string | null; price_evidence_refs: string[];
+  fx_evidence_refs: string[]; resource_evidence_refs: string[];
+  source_systems: string[]; freshness: Record<string, unknown>[];
+  missing_inputs: string[]; warnings: string[];
+  result?: Record<string, unknown> | null; failure_class?: string | null;
+  retry_count: number; research_only: boolean; human_review_required: boolean;
+  risk_checks?: ShadowRiskCheckDTO[];
+  candidate?: Record<string, unknown> | null;
+}
+
+export interface ShadowRiskCheckDTO {
+  risk_check_id: string; shadow_evaluation_id: string;
+  control_id: string; observed_value?: number | null;
+  limit_value?: number | null; state: string; severity: string; explanation: string;
+}
+
+export interface ShadowAlertDTO {
+  alert_id: string; shadow_monitor_id: string;
+  shadow_evaluation_id?: string | null; alert_type: string; severity: string;
+  state: string; fingerprint: string; summary: string; evidence_refs: string[];
+  first_seen_at_utc: string; last_seen_at_utc: string;
+  occurrence_count: number; acknowledged_at_utc?: string | null;
+  acknowledged_by?: string | null; resolved_at_utc?: string | null;
+  research_only: boolean;
+}
+
+export interface ShadowDriftDTO {
+  drift_snapshot_id: string; shadow_monitor_id: string;
+  baseline_run_id?: string | null; observation_window: Record<string, unknown>;
+  state: string; metrics: Record<string, unknown>[]; sample_size: number;
+  explanation: string; created_at_utc: string;
+}
+
+export interface ShadowRuntimeStatusDTO {
+  scheduler: string; last_heartbeat_at_utc?: string | null;
+  active_monitors: number; pending_evaluations: number;
+  failed_evaluations_24h: number; duplicate_claims_prevented: number;
+}
+
 export interface BacktestExperimentCreateInputDTO {
   experiment_id?: string; strategy_id: string;
   base_strategy_version_id: string; name: string; hypothesis?: string;
@@ -1298,6 +1361,44 @@ export const api = {
 
   backtestExperiment: (experimentId: string) =>
     get<BacktestExperimentDTO>(`/backtest-experiments/${encodeURIComponent(experimentId)}`),
+
+  createShadowMonitor: (body: ShadowMonitorCreateInputDTO) =>
+    post<ShadowMonitorDTO>("/shadow-monitors", body),
+
+  shadowMonitors: () => get<ShadowMonitorDTO[]>("/shadow-monitors"),
+
+  shadowMonitor: (monitorId: string) =>
+    get<ShadowMonitorDTO>(`/shadow-monitors/${encodeURIComponent(monitorId)}`),
+
+  pauseShadowMonitor: (monitorId: string) =>
+    post<ShadowMonitorDTO>(`/shadow-monitors/${encodeURIComponent(monitorId)}/pause`, {}),
+
+  resumeShadowMonitor: (monitorId: string) =>
+    post<ShadowMonitorDTO>(`/shadow-monitors/${encodeURIComponent(monitorId)}/resume`, {}),
+
+  retireShadowMonitor: (monitorId: string) =>
+    post<ShadowMonitorDTO>(`/shadow-monitors/${encodeURIComponent(monitorId)}/retire`, {}),
+
+  shadowEvaluations: (monitorId: string) =>
+    get<ShadowEvaluationDTO[]>(`/shadow-monitors/${encodeURIComponent(monitorId)}/evaluations`),
+
+  shadowEvaluation: (evaluationId: string) =>
+    get<ShadowEvaluationDTO>(`/shadow-evaluations/${encodeURIComponent(evaluationId)}`),
+
+  shadowDrift: (monitorId: string) =>
+    get<ShadowDriftDTO[]>(`/shadow-monitors/${encodeURIComponent(monitorId)}/drift`),
+
+  shadowAlerts: (params?: { state?: string; severity?: string; monitor_id?: string }) =>
+    get<ShadowAlertDTO[]>("/shadow-alerts", {
+      ...(params?.state ? { state: params.state } : {}),
+      ...(params?.severity ? { severity: params.severity } : {}),
+      ...(params?.monitor_id ? { monitor_id: params.monitor_id } : {}),
+    }),
+
+  acknowledgeShadowAlert: (alertId: string) =>
+    post<ShadowAlertDTO>(`/shadow-alerts/${encodeURIComponent(alertId)}/acknowledge`, { actor: "operator" }),
+
+  shadowRuntimeStatus: () => get<ShadowRuntimeStatusDTO>("/shadow-runtime/status"),
 
   capacityContracts: () => get<CapacityContractDTO[]>("/contracts/capacity"),
 

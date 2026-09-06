@@ -86,6 +86,10 @@ class EconomicAssumptions(BaseModel):
     tariff_source: str = "PUBLISHED_OR_OPERATOR"
     missing_data_policy: str = "BLOCK_OR_PARTIAL"
     capacity_policy: str = "UNKNOWN_BLOCKS"
+    fill_price_policy: str = "NEXT_ELIGIBLE"
+    carry_forward_max_age_seconds: int = 86_400
+    fallback_sources: dict[str, str] = Field(default_factory=dict)
+    cost_components: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class DataRequirements(BaseModel):

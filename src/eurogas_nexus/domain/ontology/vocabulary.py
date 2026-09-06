@@ -528,6 +528,114 @@ class ExperimentType(StrEnum):
     WALK_FORWARD = "WALK_FORWARD"
 
 
+class ShadowMonitorState(StrEnum):
+    """Lifecycle state of a scheduled shadow research monitor."""
+
+    DRAFT = "DRAFT"
+    ACTIVE = "ACTIVE"
+    PAUSED = "PAUSED"
+    DEGRADED = "DEGRADED"
+    BLOCKED = "BLOCKED"
+    RETIRED = "RETIRED"
+
+
+class ShadowScheduleType(StrEnum):
+    """Supported typed shadow evaluation schedule."""
+
+    INTERVAL = "INTERVAL"
+    DAILY_AT = "DAILY_AT"
+
+
+class ShadowMissedPolicy(StrEnum):
+    """Policy for evaluations missed while offline."""
+
+    SKIP = "SKIP"
+    RUN_LATEST_ONLY = "RUN_LATEST_ONLY"
+    CATCH_UP_LIMITED = "CATCH_UP_LIMITED"
+
+
+class ShadowEvaluationState(StrEnum):
+    """Execution/outcome state of one shadow evaluation."""
+
+    SCHEDULED = "SCHEDULED"
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    COMPLETED_WITH_WARNINGS = "COMPLETED_WITH_WARNINGS"
+    BLOCKED = "BLOCKED"
+    FAILED = "FAILED"
+    CANCELLED = "CANCELLED"
+
+
+class ShadowFreshness(StrEnum):
+    """Freshness classification of one required evidence family."""
+
+    FRESH = "FRESH"
+    STALE = "STALE"
+    MISSING = "MISSING"
+    RESTRICTED = "RESTRICTED"
+    UNAVAILABLE = "UNAVAILABLE"
+
+
+class ShadowAlertState(StrEnum):
+    """Lifecycle state of a shadow alert."""
+
+    OPEN = "OPEN"
+    ACKNOWLEDGED = "ACKNOWLEDGED"
+    RESOLVED = "RESOLVED"
+
+
+class ShadowAlertSeverity(StrEnum):
+    """Compact shadow alert severity vocabulary."""
+
+    INFO = "INFO"
+    WARNING = "WARNING"
+    CRITICAL = "CRITICAL"
+
+
+class ShadowDriftState(StrEnum):
+    """Interpretable drift classification."""
+
+    NORMAL = "NORMAL"
+    WATCH = "WATCH"
+    MATERIAL = "MATERIAL"
+    INSUFFICIENT_DATA = "INSUFFICIENT_DATA"
+
+
+class ShadowOutcomeState(StrEnum):
+    """Maturation state of one shadow candidate outcome."""
+
+    OPEN = "OPEN"
+    MATURED = "MATURED"
+    UNRESOLVED = "UNRESOLVED"
+    INVALIDATED = "INVALIDATED"
+
+
+class ShadowPnlBasis(StrEnum):
+    """Basis of one shadow indicative PnL outcome."""
+
+    MARK_TO_MODEL = "MARK_TO_MODEL"
+    REALIZED_SHADOW_INDICATIVE = "REALIZED_SHADOW_INDICATIVE"
+    UNRESOLVED = "UNRESOLVED"
+
+
+class ShadowFailureClass(StrEnum):
+    """Failure classification for retry policy."""
+
+    DATA_BLOCKER = "DATA_BLOCKER"
+    DOMAIN_BLOCKER = "DOMAIN_BLOCKER"
+    TRANSIENT_INFRASTRUCTURE = "TRANSIENT_INFRASTRUCTURE"
+    PERMANENT_CONFIGURATION = "PERMANENT_CONFIGURATION"
+    INTERNAL_ERROR = "INTERNAL_ERROR"
+
+
+class ShadowRiskState(StrEnum):
+    """State of one persisted shadow risk check."""
+
+    PASS = "PASS"
+    WARN = "WARN"
+    BLOCK = "BLOCK"
+
+
 class StrategyComponentType(StrEnum):
     """Strategy-lab component family."""
 
