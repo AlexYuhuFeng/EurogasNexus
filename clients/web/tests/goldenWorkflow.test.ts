@@ -78,7 +78,7 @@ test("portfolio optimizer request carries company TSO access to the backend", ()
   assert.equal(request.sale_options[0].required_tso_access[0], "BBL Company");
 });
 
-test("route feasibility never upgrades unknown access into feasible", () => {
+test("route feasibility keeps unknown access unknown and never feasible", () => {
   const route = {
     route_id: "route-1",
     route_name: "TTF -> BBL -> NBP",
@@ -86,5 +86,5 @@ test("route feasibility never upgrades unknown access into feasible", () => {
     target_point_name: "NBP",
     required_tso_access: ["BBL Company"],
   };
-  assert.equal(classifyRouteFeasibility(route, null, null), "BLOCKED");
+  assert.equal(classifyRouteFeasibility(route, null, null), "UNKNOWN");
 });

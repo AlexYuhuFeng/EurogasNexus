@@ -111,3 +111,86 @@ this is a stale snapshot, distinct calculation basis or correctness defect.
 Do not silently restyle away the discrepancy or present it as a proven backend
 calculation error. Scenario execution, Optimize/Review and remaining workflows
 have not yet been accepted.
+
+## Strategy and System screen inventory (2026-09-08 local)
+
+Fresh 1440x900 captures were saved under `output/playwright/` and visually
+inspected. These are initial-screen reviews, not completed transactional UAT.
+
+| Capture suffix in `ux01-<suffix>-before-1440.png` | Review |
+| --- | --- |
+| `strategy-design` | Empty registry; edit form is nevertheless populated with defaults. Single-column fields span almost the entire content width; oversized headings and repeated identity/context reduce useful density. |
+| `strategy-backtest` | Empty registry; run correctly disabled until a frozen version exists. Form fields and run button stretch across the workspace. No persisted run available for result acceptance. |
+| `strategy-compare` | No runs exist, but status says `COMPARABLE`. This is misleading empty-state language; comparison result/chart acceptance remains unavailable. |
+| `strategy-shadow` | Offline scheduler and zero monitors are visible. Empty-version activation form is displayed with an apparently available start button; validation behavior needs an interaction test. Full-width pill status and stacked framed sections are inconsistent with the target density. |
+| `sources` | Source posture and stale labels render. Native-looking System tabs differ sharply from the styled local tabs. Category cards and nested provider metrics consume substantial space. |
+| `runtime` | Live DB readiness is visible, alongside scheduler/certification/external-security blockers. These operational prerequisites must not be hidden or automatically classified as UI defects. |
+| `research` | Duplicate Research Data headings, capability-name chips and generic framed sections dominate an empty dataset catalog. Table headers wrap into multiple grid rows. Dataset detail/build/export workflow is not exposed in the observed screen. |
+| `agents` | Captured during capability loading; rejected as settled-state evidence. Duplicate title and generic full-width panel structure are visible, but artifacts and completed research require recapture and interaction. |
+| `settings` | A literal `RELEASE.COMPAT_COMPATIBLE` label appears. About section labels `0030_reliability_indexes` as DB schema revision, inconsistent with live 0032. Verify whether this is required-schema metadata mislabelled as observed schema before changing semantics. |
+| `manual` | Large framed sections and repeated operational prose; workspace map omits the newer Research and Agent workflows. |
+| `glossary` | Left term list/right definition structure exists. Large term cards reduce list density; date controls show an older fixed interval and lack visible timezone labels. Definition-selection behavior still needs testing. |
+| `access` | Current non-admin principal sees an explicit restricted state, not administration contents. This is one restricted UI check, not entitlement or cross-principal acceptance. |
+
+The Strategy registry is empty following migration; do not invent performance
+curves or count tab visibility as Design-to-Shadow completion. Existing labelled
+test fixtures may be used for later reproducible end-to-end validation, with
+their provenance and mutations recorded. Source/Runtime observations also show
+disabled schedulers and stale providers; they do not establish live pricing.
+
+### Additional settled-screen review
+
+`ux01-market-before-1440.png`, `ux01-capacity-before-1440.png`,
+`ux01-orders-before-1440.png` and `ux01-review-before-1440.png` were captured
+from existing workspace deep links and visually inspected. Market clips quote
+text in a narrow left rail while the map dominates the price-investigation
+view. Capacity shows explicit incomplete/stale evidence, but truncates column
+headings and uses inconsistent control sizes. The legacy `orders` deep link
+opens Portfolio Overview under a Market Positioning heading rather than the
+Exposure task. Review displays persisted allocation and evidence but omits
+option-composition warnings, as Portfolio Overview does.
+
+Source/API investigation identified the blocked-route discrepancy: the frontend
+classifier equates a nonempty `required_tso_access` list with missing access.
+The backend-composed BBL option and allocated resource contain confirmed access.
+This is a P1 false-blocked presentation defect, not proof of incorrect backend
+allocation. A narrow classifier/warning regression fix is assigned separately
+from layout refactoring. Scenario's selected-route economics binding and the
+legacy deep-link task mapping remain separate items to verify/fix.
+
+### Existing executable baseline
+
+The existing `clients/desktop/src-tauri/target/release/eurogas-nexus-desktop.exe`
+was launched and inspected using native window capture and accessibility text.
+It is 9,033,728 bytes with local modification time 2026-09-06 12:26:43. It shows
+the older Workspace menu rather than the current five-primary-workspace shell.
+It loaded Network with expired quote cards and a workspace-loading state.
+A menu click did not produce an observable changed accessibility tree on the
+immediate refresh. This is not a verified menu interaction or current-source
+desktop acceptance. Rebuild the executable from the tested source before
+claiming CR1-15 native parity; do not use this older binary to approve or reject
+current-source layouts. The full native page walkthrough remains pending.
+# Route-status correction verification (2026-09-08)
+
+Reviewed the functional correction against baseline `3bb9ab5` and the running
+PostgreSQL-backed application. Required TSO access alone now yields UNKNOWN;
+positive allocations from SUCCESS/PARTIAL results provide feasibility evidence,
+and explicit route blockers take priority. Diagnostic identity matching is exact,
+not a route-ID prefix match. No access eligibility is recalculated in the UI.
+Portfolio Overview includes deduplicated resource-pool option warnings.
+
+- `npm --prefix clients/web test`: 58 passed, 0 failed.
+- `npm --prefix clients/web run build`: passed (TypeScript and Vite); existing
+  ineffective dynamic-import warning remains.
+- `/api/health/ready`: ready; runtime database and required tables both OK.
+- Edge at 1440x900, existing preview portfolio, gas day 2026-09-07:
+  BBL allocation 2,000 MWh/d and local TTF 8,000 MWh/d display
+  FEASIBLE_WITH_WARNINGS; unallocated IUK displays UNKNOWN.
+- Overview shows one warning: route starts outside the resource pool for IUK.
+- Visually reviewed local evidence:
+  `output/playwright/ux01-portfolio-routes-fixed-1440.png` and
+  `output/playwright/ux01-portfolio-overview-fixed-1440.png`.
+
+These are functional regression observations, not fresh-market certification or
+whole-product visual acceptance. Oversized badges, inconsistent controls and
+table alignment remain open UX01 work. No runtime data was inserted for this check.

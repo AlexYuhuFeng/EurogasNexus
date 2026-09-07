@@ -7,6 +7,7 @@ import { warningLabels } from "@/app/warningLabel";
 import {
   PORTFOLIO_TASKS,
   classifyRouteFeasibility,
+  dedupeWarnings,
   portfolioTaskFromLocation,
   portfolioTaskToSearch,
   type PortfolioTask,
@@ -31,11 +32,12 @@ function PortfolioOverview({ controller }: { controller: AppController }) {
         0,
       ) / Math.max(totalVolume, 1)
     : null;
-  const warnings = [
-    ...(api.resourcePoolResult?.warnings ?? []),
-    ...(api.routeRecommendation?.warnings ?? []),
-    ...(portfolio.poolInputBlockers ?? []),
-  ];
+  const warnings = dedupeWarnings(
+    api.resourcePoolResult?.warnings,
+    api.routeRecommendation?.warnings,
+    api.resourcePoolOptions?.warnings,
+    portfolio.poolInputBlockers,
+  );
 
   return (
     <div className="commercial-overview">
@@ -114,6 +116,7 @@ function PortfolioRoutes({ controller }: { controller: AppController }) {
             route,
             api.routeRecommendation,
             api.resourcePoolResult,
+            api.resourcePoolOptions,
           );
           return (
             <button
