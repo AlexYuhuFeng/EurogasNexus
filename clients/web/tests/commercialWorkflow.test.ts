@@ -10,6 +10,7 @@ import {
   portfolioTaskFromLocation,
   portfolioTaskToSearch,
 } from "../src/app/model/commercialWorkflowModel.ts";
+import { selectScenarioRouteEconomics } from "../src/app/model/scenarioRouteEconomics.ts";
 import { workspaceTaskSearch } from "../src/workspaceNavigation.ts";
 
 function route(overrides: Record<string, unknown> = {}) {
@@ -96,6 +97,189 @@ test("positive SUCCESS allocation proves a route feasible despite required TSO a
   } as Parameters<typeof classifyRouteFeasibility>[2];
 
   assert.equal(classifyRouteFeasibility(candidate, null, optimizer), "FEASIBLE");
+});
+
+function scenarioInputs(overrides: Record<string, unknown> = {}) {
+  return {
+    carriedRouteId: "route-2",
+    selectedResourceId: "resource-1",
+    routeRecommendation: {
+      allocations: [
+        { route_id: "route-1", route_name: "Route 1", allocated_mwh_per_day: 10, route_cost: 1, sale_price: 41 },
+        { route_id: "route-2", route_name: "Route 2", allocated_mwh_per_day: 20, route_cost: 2, sale_price: 52 },
+      ],
+    },
+    resourcePoolResult: null,
+    portfolioResources: [{ resource_id: "resource-1", contract_cost_gbp_mwh: 30 }],
+    saleOptionById: new Map([
+      ["route-1", { option_id: "route-1", route_cost_gbp_mwh: 1 }],
+      ["route-2", { option_id: "route-2", route_cost_gbp_mwh: 2 }],
+    ]),
+    ...overrides,
+  } as Parameters<typeof selectScenarioRouteEconomics>[0];
+}
+
+test("scenario economics selects the second route and its selected resource", () => {
+  const economics = selectScenarioRouteEconomics(scenarioInputs());
+
+  assert.deepEqual(economics, {
+    routeId: "route-2",
+    scope: "selected",
+    source: "route_recommendation",
+    volumeScope: "route",
+    purchasePrice: 30,
+    salePrice: 52,
+    routeCharge: 2,
+    allocatedVolumeMwhPerDay: 20,
+  });
+});
+
+test("scenario economics keeps the first recommendation as the explicit no-selection default", () => {
+  const economics = selectScenarioRouteEconomics(scenarioInputs({ carriedRouteId: null }));
+
+  assert.deepEqual(economics, {
+    routeId: "route-1",
+    scope: "recommended",
+    source: "route_recommendation",
+    volumeScope: "route",
+    purchasePrice: 30,
+    salePrice: 41,
+    routeCharge: 1,
+    allocatedVolumeMwhPerDay: 10,
+  });
+});
+
+test("scenario economics keeps route recommendation fields coherent over pool and input conflicts", () => {
+  const economics = selectScenarioRouteEconomics(scenarioInputs({
+    resourcePoolResult: {
+      allocations: [{
+        resource_id: "resource-1",
+        option_id: "route-2",
+        allocated_quantity_mwh_per_day: 999,
+        gross_sale_price_gbp_mwh: 99,
+      }],
+    },
+    saleOptionById: new Map([
+      ["route-2", { option_id: "route-2", route_cost_gbp_mwh: 77 }],
+    ]),
+  }));
+
+  assert.equal(economics.source, "route_recommendation");
+  assert.equal(economics.volumeScope, "route");
+  assert.equal(economics.salePrice, 52);
+  assert.equal(economics.routeCharge, 2);
+  assert.equal(economics.allocatedVolumeMwhPerDay, 20);
+});
+
+test("scenario economics is unavailable for an unknown selected route", () => {
+  const economics = selectScenarioRouteEconomics(scenarioInputs({ carriedRouteId: "missing-route" }));
+
+  assert.equal(economics.scope, "selected");
+  assert.equal(economics.routeId, "missing-route");
+  assert.equal(economics.source, "unavailable");
+  assert.equal(economics.volumeScope, "unavailable");
+  assert.equal(economics.purchasePrice, null);
+  assert.equal(economics.salePrice, null);
+  assert.equal(economics.routeCharge, null);
+  assert.equal(economics.allocatedVolumeMwhPerDay, null);
+});
+
+test("scenario economics is unavailable when no result identifies a route", () => {
+  const economics = selectScenarioRouteEconomics(scenarioInputs({
+    carriedRouteId: null,
+    routeRecommendation: null,
+    resourcePoolResult: null,
+  }));
+
+  assert.equal(economics.routeId, null);
+  assert.equal(economics.source, "unavailable");
+  assert.equal(economics.volumeScope, "unavailable");
+  assert.equal(economics.purchasePrice, null);
+  assert.equal(economics.salePrice, null);
+  assert.equal(economics.routeCharge, null);
+  assert.equal(economics.allocatedVolumeMwhPerDay, null);
+});
+
+test("scenario economics preserves a zero route cost", () => {
+  const economics = selectScenarioRouteEconomics(scenarioInputs({
+    routeRecommendation: {
+      allocations: [{ route_id: "route-2", route_name: "Route 2", allocated_mwh_per_day: 20, route_cost: 0, sale_price: 52 }],
+    },
+    saleOptionById: new Map(),
+  }));
+
+  assert.equal(economics.source, "route_recommendation");
+  assert.equal(economics.volumeScope, "route");
+  assert.equal(economics.routeCharge, 0);
+});
+
+test("scenario economics uses a coherent pool fallback when route result is absent", () => {
+  const economics = selectScenarioRouteEconomics(scenarioInputs({
+    routeRecommendation: null,
+    resourcePoolResult: {
+      allocations: [{
+        resource_id: "resource-1",
+        option_id: "route-2",
+        allocated_quantity_mwh_per_day: 40,
+        gross_sale_price_gbp_mwh: 61,
+      }],
+    },
+    saleOptionById: new Map([
+      ["route-2", { option_id: "route-2", route_cost_gbp_mwh: 99 }],
+    ]),
+  }));
+
+  assert.deepEqual(economics, {
+    routeId: "route-2",
+    scope: "selected",
+    source: "resource_pool",
+    volumeScope: "resource",
+    purchasePrice: 30,
+    salePrice: 61,
+    routeCharge: null,
+    allocatedVolumeMwhPerDay: 40,
+  });
+});
+
+test("scenario economics does not choose an arbitrary pool allocation without a resource selection", () => {
+  const economics = selectScenarioRouteEconomics(scenarioInputs({
+    selectedResourceId: null,
+    routeRecommendation: null,
+    resourcePoolResult: {
+      allocations: [
+        {
+          resource_id: "resource-1",
+          option_id: "route-2",
+          allocated_quantity_mwh_per_day: 40,
+          gross_sale_price_gbp_mwh: 61,
+        },
+        {
+          resource_id: "resource-2",
+          option_id: "route-2",
+          allocated_quantity_mwh_per_day: 20,
+          gross_sale_price_gbp_mwh: 62,
+        },
+      ],
+    },
+  }));
+
+  assert.deepEqual(economics, {
+    routeId: "route-2",
+    scope: "selected",
+    source: "unavailable",
+    volumeScope: "unavailable",
+    purchasePrice: null,
+    salePrice: null,
+    routeCharge: null,
+    allocatedVolumeMwhPerDay: null,
+  });
+});
+
+test("scenario economics leaves purchase unavailable without a selected resource", () => {
+  const economics = selectScenarioRouteEconomics(scenarioInputs({ selectedResourceId: null }));
+
+  assert.equal(economics.source, "route_recommendation");
+  assert.equal(economics.purchasePrice, null);
 });
 
 test("explicit denied route blockers override a conflicting allocation", () => {

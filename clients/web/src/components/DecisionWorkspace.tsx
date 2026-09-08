@@ -156,9 +156,7 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
         {task === "scenario" && (
           <ScenarioWorkspace
             routeCandidates={api.routeCandidates}
-            purchasePrice={portfolio.purchasePrice}
-            salePrice={portfolio.salePrice}
-            routeCharge={portfolio.routeCharge}
+            routeEconomics={portfolio.scenarioRouteEconomics}
             routeRecommendation={api.routeRecommendation}
             contract={contractEditor.contract}
             canRunPoolOptimizer={portfolio.canRunPoolOptimizer}

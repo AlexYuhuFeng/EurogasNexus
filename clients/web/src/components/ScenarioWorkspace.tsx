@@ -5,15 +5,14 @@ import type {
   RouteRecommendationResultDTO,
 } from "@/api/client";
 import type { ContractDraft } from "@/app/index";
+import type { ScenarioRouteEconomics } from "@/app/model/scenarioRouteEconomics";
 import type { ContractNumberKey } from "@/components/ContractWorkbench";
 
 type Translate = (key: string) => string;
 
 interface ScenarioWorkspaceProps {
   routeCandidates: RouteCandidateDTO[];
-  purchasePrice: number | null;
-  salePrice: number | null;
-  routeCharge: number | null;
+  routeEconomics: ScenarioRouteEconomics;
   routeRecommendation: RouteRecommendationResultDTO | null;
   contract: ContractDraft;
   canRunPoolOptimizer: boolean;
@@ -44,11 +43,15 @@ function moneyPerMwh(value: number | null): string {
   return value === null ? "n/a" : `GBP ${value.toFixed(2)}/MWh`;
 }
 
+function economicsSourceKey(source: ScenarioRouteEconomics["source"]): string {
+  if (source === "route_recommendation") return "result.source_route_recommendation";
+  if (source === "resource_pool") return "result.source_resource_pool";
+  return "result.source_unavailable";
+}
+
 export function ScenarioWorkspace({
   routeCandidates,
-  purchasePrice,
-  salePrice,
-  routeCharge,
+  routeEconomics,
   routeRecommendation,
   contract,
   canRunPoolOptimizer,
@@ -90,12 +93,25 @@ export function ScenarioWorkspace({
         </div>
       </div>
       <div className="workspace-panel">
-        <h2>{t("result.economics_snapshot")}</h2>
+        <h2>
+          {t(routeEconomics.scope === "selected" ? "result.selected_route_economics" : "result.recommended_route_economics")}
+          {routeEconomics.routeId ? ` · ${routeEconomics.routeId}` : ""}
+        </h2>
+        <p className="muted">{t("result.economics_source")}: {t(economicsSourceKey(routeEconomics.source))}</p>
         <div className="metric-grid two-column">
-          <div><span>{t("result.purchase")}</span><strong>{moneyPerMwh(purchasePrice)}</strong></div>
-          <div><span>{t("result.sale")}</span><strong>{moneyPerMwh(salePrice)}</strong></div>
-          <div><span>{t("result.route_cost")}</span><strong>{moneyPerMwh(routeCharge)}</strong></div>
-          <div><span>{t("result.cash_value")}</span><strong>{routeRecommendation ? `${routeRecommendation.total_allocated_mwh_per_day.toLocaleString()} MWh/d` : "n/a"}</strong></div>
+          <div><span>{t("result.purchase")}</span><strong>{moneyPerMwh(routeEconomics.purchasePrice)}</strong></div>
+          <div><span>{t("result.sale")}</span><strong>{moneyPerMwh(routeEconomics.salePrice)}</strong></div>
+          <div><span>{t("result.route_cost")}</span><strong>{moneyPerMwh(routeEconomics.routeCharge)}</strong></div>
+          <div>
+            <span>{t(
+              routeEconomics.volumeScope === "resource"
+                ? "result.resource_allocation_volume"
+                : routeEconomics.scope === "selected"
+                  ? "result.selected_route_volume"
+                  : "result.recommended_route_volume",
+            )}</span>
+            <strong>{routeEconomics.allocatedVolumeMwhPerDay == null ? "n/a" : `${routeEconomics.allocatedVolumeMwhPerDay.toLocaleString()} MWh/d`}</strong>
+          </div>
         </div>
       </div>
       <div className="workspace-panel span-3">

@@ -36,6 +36,7 @@ export function useAppController() {
     deliveryProduct: trader.deliveryProduct,
     hubId: trader.hubId,
     selectedResourceId: selection.resourceId,
+    selectedRouteId: selection.routeId,
     t,
   });
   const review = useReviewAnalysis(i18n.language, portfolio.portfolioResources);

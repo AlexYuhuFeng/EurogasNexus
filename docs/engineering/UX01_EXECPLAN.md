@@ -151,3 +151,50 @@ Do not reset the worktree or rewrite historical calendars/data to simplify UI.
 Keep audit-only changes separate from functional fixes. Runtime startup,
 fixture rights, missing workflow coverage and stale screenshots are explicit
 verification risks, not reasons to weaken final acceptance.
+
+### Native Sky checkpoint (2026-09-09)
+
+The parent launched the clean `9a84f5e` native executable through Sky. Native
+System/Data Sources rendered runtime evidence showing `863032` records, `24`
+sources, `3` workflow-ready items, `21` issues, stale ECB labels, simulated
+labels, and five primary tabs. A screenshot was visually reviewed. Nested
+framing, raw native System tabs, and clipped status labels persist. This is
+startup/render evidence only, not a full native walkthrough or acceptance.
+
+A Market UIA click did not establish navigation. The coordinate attempt failed
+because the reported target bounds were `15x15` despite the full screenshot;
+reselect/activate recovery reported user input detected. No native navigation or
+resize acceptance is claimed. The next native action is one fresh
+`get_window_state` call after the user is no longer interacting; do not repeat
+activation attempts.
+
+Quota status at this checkpoint was `6%` of the five-hour window and `32%` of
+the weekly window. No quota reset was consumed. This checkpoint is
+documentation-only; no other files were changed and no commit was made.
+
+### Agent QA checkpoint (2026-09-09)
+
+The current candidate diff adds `clients/web/src/app/model/scenarioRouteEconomics.ts`
+and wires `ScenarioWorkspace.tsx` through it. The parent visually reviewed
+`output/playwright/ux01-scenario-second-route-1440.png` for
+`public-route-ttf-local`: the source resource-pool allocation showed sale
+`27.05`, resource volume `8000`, and cost `n/a`; the Kant-matched response
+showed `gross_sale=27.0472`, `totalcost=25.0219`, `allocated=8000`, with no
+recommendation response. The parent independently ran
+`npm --prefix clients/web test`: `73 passed, 0 failed`, including explicit
+default and ambiguous-pool cases. No backend/full-acceptance suite pass is claimed.
+
+This closes only the specific wrong-route association functional debt: the
+helper matches a carried route by `route_id` and uses explicit
+`option_id`/resource matching for pool fallback. The browser
+`routeRecommendation` fixture is still absent, so broader browser acceptance,
+degraded-state behavior, and Scenario/layout acceptance remain open.
+
+The candidate `clients/web/src/styles/app.css` also moves the shell toward
+normal-flow grid rows. A reviewed screenshot now shows the context uncut, but
+the state is loading/unavailable rather than populated; the CSS remains
+unaccepted pending populated screenshots and runtime visual review. The
+existing `9a84f5e` native startup/render evidence is the current old baseline
+for interaction acceptance; no native navigation or resize acceptance is
+claimed. The parent commit scope is the Scenario source and these docs; the
+shell CSS remains uncommitted.

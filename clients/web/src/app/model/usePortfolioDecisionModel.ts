@@ -21,6 +21,7 @@ import {
   resolveNetworkGeometryState,
 } from "@/app/index";
 import type { ContractDraft } from "@/app/index";
+import { selectScenarioRouteEconomics } from "@/app/model/scenarioRouteEconomics";
 import type { ApiState } from "@/stores/api";
 
 interface PortfolioDecisionModelParams {
@@ -30,6 +31,7 @@ interface PortfolioDecisionModelParams {
   deliveryProduct: DeliveryProductId;
   hubId: SupportedHubId | null;
   selectedResourceId: string | null;
+  selectedRouteId: string | null;
   t: TFunction;
 }
 
@@ -40,6 +42,7 @@ export function usePortfolioDecisionModel({
   deliveryProduct,
   hubId,
   selectedResourceId,
+  selectedRouteId,
   t,
 }: PortfolioDecisionModelParams) {
   const lastAutoOptimizerSignatureRef = useRef<string | null>(null);
@@ -140,6 +143,24 @@ export function usePortfolioDecisionModel({
     null;
   const purchasePrice = firstPortfolioResource?.contract_cost_gbp_mwh ?? null;
   const routeCharge = firstAllocationOption?.route_cost_gbp_mwh ?? selectedAllocation?.route_cost ?? null;
+  const scenarioRouteEconomics = useMemo(
+    () => selectScenarioRouteEconomics({
+      carriedRouteId: selectedRouteId,
+      selectedResourceId,
+      routeRecommendation: api.routeRecommendation,
+      resourcePoolResult: api.resourcePoolResult,
+      portfolioResources,
+      saleOptionById,
+    }),
+    [
+      api.resourcePoolResult,
+      api.routeRecommendation,
+      portfolioResources,
+      saleOptionById,
+      selectedResourceId,
+      selectedRouteId,
+    ],
+  );
   const firstStrategyTarget = api.strategyResult?.allocation_targets[0];
   const activeWarning = [
     ...(api.strategyResult?.warnings ?? []),
@@ -353,6 +374,7 @@ export function usePortfolioDecisionModel({
     salePrice,
     purchasePrice,
     routeCharge,
+    scenarioRouteEconomics,
     firstStrategyTarget,
     activeWarning,
     latestCapacityRows,
