@@ -1,10 +1,10 @@
 # UI/UX 风格指南 - CN
 
-> 本文是草案 [`PROFESSIONAL_UI_CONSTITUTION.md`](PROFESSIONAL_UI_CONSTITUTION.md)
-> 的中文实现配套文档。在 UX01 RFC 接受前，
-> [`UI_CONTENT_STANDARDS.md`](UI_CONTENT_STANDARDS.md) 仍是过渡性权威标准。
-> RFC 接受后，Constitution 是唯一的视觉权威，
-> [`MOTION_SYSTEM.md`](MOTION_SYSTEM.md) 从属于 Constitution；本文没有独立权威。
+> 本文是已接受的 [`PROFESSIONAL_UI_CONSTITUTION.md`](PROFESSIONAL_UI_CONSTITUTION.md)
+> 的中文非规范实现配套文档，该 Constitution 通过 RFC-0001 于 2026-09-08
+> 采用。 [`MOTION_SYSTEM.md`](MOTION_SYSTEM.md) 从属于 Constitution，
+> [`UI_CONTENT_STANDARDS.md`](UI_CONTENT_STANDARDS.md) 继续负责内容、领域、时间基准、
+> 权利和不执行规则；本文没有独立权威。
 
 Eurogas Nexus Web 与 Windows 客户端 UI 遵循专业的欧洲能源分析工作台方向，其中 Network 工作区采用地图优先布局。
 
@@ -16,7 +16,7 @@ Eurogas Nexus Web 与 Windows 客户端 UI 遵循专业的欧洲能源分析工�
 - 避免装饰性和重阴影。优先使用语义化面和边框，不使用装饰性层叠阴影。
 - UI 正文使用 Inter/system sans；技术标签、来源标签、短小 eyebrow 使用 ui-monospace。
 - 标题使用 sentence case。除短技术 mono 标签外，不使用全大写标题。
-- 草案 Constitution 提议固定字号 `11/12/13/14/18/20px`、间距
+- Constitution 规定固定字号 `11/12/13/14/18/20px`、间距
   `4/8/12/16/24/32px`、控件高度 `28/32/36px`、圆角 `4/6/8px`。
 - RFC 采用后不得使用装饰性 pill、巨型工作区标题或任意局部字号、间距、控件高度、圆角。
 - 配色必须克制：墨黑、灰阶、链接蓝、预警琥珀、错误红，以及有明确数据语义的地图颜色。

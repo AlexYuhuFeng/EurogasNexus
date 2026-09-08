@@ -2,14 +2,12 @@
 
 ## Status
 
-Until the UX01 RFC is accepted and authority is reconciled, this document is
-the transitional authoritative client standard for Eurogas Nexus Web and
-Windows/Linux surfaces. On RFC acceptance, `PROFESSIONAL_UI_CONSTITUTION.md`
-becomes the sole visual and interaction authority, with `MOTION_SYSTEM.md` as
-its subordinate motion specification. This document remains authoritative for
-content, domain, time-basis, provenance, entitlement, no-execution, and client
-boundary rules. Report any conflict and reconcile the documents rather than
-silently choosing a third rule.
+RFC-0001 was accepted and authority was reconciled on 2026-09-08.
+`PROFESSIONAL_UI_CONSTITUTION.md` is now the sole visual and interaction
+authority, with `MOTION_SYSTEM.md` as its subordinate motion specification.
+This document remains authoritative for content, domain, time-basis,
+provenance, entitlement, no-execution, and client-boundary rules. Report any
+conflict and reconcile the documents rather than silently choosing a third rule.
 
 The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD",
 "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this document are to be
@@ -17,8 +15,8 @@ interpreted as described in RFC 2119 and RFC 8174.
 
 The archived `CLIENT_DESIGN_SYSTEM.md` is historical. `UI_UX_STYLE_GUIDE-EN.md`
 and `UI_UX_STYLE_GUIDE-CN.md` remain paired bilingual implementation companions
-with no independent authority. The Constitution and Motion draft status remains
-explicit until the RFC is accepted.
+with no independent authority. Binding contract status does not imply current
+implementation compliance.
 
 ## Information hierarchy
 
@@ -47,12 +45,12 @@ hidden map canvas or inactive map controls.
 
 - Use the existing CSS custom properties in `clients/web/src/styles/app.css`
   for surfaces, text, borders, and state colors.
-- The draft Constitution proposes 4/6/8px radii for controls, panels, and
+- The Constitution defines 4/6/8px radii for controls, panels, and
   ordinary analytical containers; decorative pill controls are prohibited.
 - Use hairline borders and semantic surfaces. Do not use decorative or heavy
   shadows, gradients, orbs, blobs, or stock imagery.
 - Avoid nested cards. Prefer grid rows, rails, and compact panels.
-- Keep the workspace dense but scannable: use the draft Constitution's fixed
+- Keep the workspace dense but scannable: use the Constitution's fixed
   11/12/13/14/18/20px type scale, 4/8/12/16/24/32px spacing scale, and one
   level of emphasis per row.
 - `app.css` is a deliberate global sheet. Scoped UI changes belong in narrowly
@@ -65,7 +63,7 @@ hidden map canvas or inactive map controls.
   compact labels use `ui-monospace`.
 - Headings are sentence case. All-caps is reserved for short technical mono
   labels only.
-- Use the draft Constitution's fixed text tokens of 11/12/13/14/18/20px; the
+- Use the Constitution's fixed text tokens of 11/12/13/14/18/20px; the
   rare page/title token is 20px maximum. Giant workspace titles and arbitrary
   local sizes are prohibited on adoption.
 - Implemented CSS keeps letter spacing at `0`. Font size MUST NOT scale with
@@ -203,8 +201,8 @@ absent. Illustrative performance curves are prohibited.
 
 ## Implementation boundaries
 
-- Shared primitives live under `clients/web/src/components/ui`. The draft
-  Constitution proposes `WorkspaceTabs`, `PanelHeader`, `MetricStrip`, and
+- Shared primitives live under `clients/web/src/components/ui`. The Constitution
+  designates `WorkspaceTabs`, `PanelHeader`, `MetricStrip`, and
   `StatusBadge` as canonical, with only necessary DataTable, form, state,
   evidence, layout, menu, or overlay contracts added when they remove real
   duplication in more than one active workspace.
@@ -212,7 +210,7 @@ absent. Illustrative performance curves are prohibited.
   and keyboard contracts only.
 - No UI framework or new runtime dependency MAY be added for styling.
 - Do not create a third visual token system; consolidate existing semantic
-  token families under the Constitution after RFC acceptance. Motion remains
+  token families under the accepted Constitution. Motion remains
   subordinate to that Constitution.
 - Global CSS changes require a focused UI review and MUST avoid Strategy WIP
   selectors.

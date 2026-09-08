@@ -28,6 +28,7 @@ interpreted as described in RFC 2119 and RFC 8174.
 | ADR-0012 | Product boundary is decision support only | Accepted |
 | ADR-0013 | Documentation index, archive/RFC gates, and shared UI primitives are the baseline | Accepted |
 | ADR-0014 | Public RFC/ExecPlan governance replaces private milestone archives | Accepted |
+| ADR-0015 | Professional workstation UI convergence contract | Accepted |
 
 The numbered sections below are the historical record for these ADRs. ADR-0003
 corresponds to Decision 2A below; subsequent decisions shift by one in the
@@ -284,3 +285,36 @@ Implication:
   2119 and RFC 8174 language in policies, contracts, RFCs, or ADRs.
 - The accepted ADR history above remains unchanged; future changes append or
   supersede rather than silently rewriting an accepted decision.
+
+## Decision 14: Professional Workstation UI Convergence Contract
+
+Decision:
+
+[RFC-0001](../engineering/RFC-0001-UI-CONVERGENCE.md) is accepted on
+2026-09-08 as the binding contract for shared Web/desktop visual and
+interaction convergence. The Professional UI Constitution is the sole visual
+and interaction authority; `MOTION_SYSTEM.md` is subordinate. `UI_CONTENT_STANDARDS.md`
+continues to govern content, domain, time basis, rights, provenance,
+entitlement, no-execution, and client-boundary rules. Architecture and API
+contracts prevail for domain behavior, schemas, endpoint semantics, and
+server/client boundaries. The paired EN/CN guides, `WORKSPACE_LAYOUT_STANDARD.md`,
+and `ACTION_GEOGRAPHY.md` are nonnormative or subordinate implementation
+companions as defined by RFC-0001.
+
+Implication:
+
+- Contract adoption is distinct from implementation acceptance. Screenshots,
+  runtime review, tests, accessibility checks, and visual evidence remain open
+  gates and are not claimed by this decision.
+- The pre-refactor workflow inventory and coverage remain incomplete; its gate
+  stays open.
+- This decision changes no domain, API, numerical, rights, calendar, or
+  execution rule beyond the authority reconciliation recorded in RFC-0001.
+
+Review record:
+
+- The planner reviewed the drafts, diffs, component census, runtime UI audit,
+  and RFC clarifications.
+- Planck independently reviewed the contract direction, and the clarifications
+  were addressed.
+- No human-owner review or implementation acceptance is claimed.

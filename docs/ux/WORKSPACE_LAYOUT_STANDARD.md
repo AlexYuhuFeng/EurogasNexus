@@ -1,6 +1,6 @@
 # Workspace Layout Standard
 
-**Status: proposed implementation contract.** This document records the reviewed layout direction; it is not an implementation or compliance claim. The current authority remains [`UI_CONTENT_STANDARDS.md`](../clients/UI_CONTENT_STANDARDS.md) until the planner resolves the proposal against the reviewed Constitution, Motion, census, and audit.
+**Status: binding subordinate implementation contract under RFC-0001, adopted 2026-09-08.** This document records the accepted layout direction; it is not an implementation or compliance claim. The Professional UI Constitution is the visual/interaction authority, and this document is subordinate to it. `UI_CONTENT_STANDARDS.md` remains authoritative for content, domain, time-basis, rights, provenance, entitlement, no-execution, and client-boundary rules.
 
 ## Scope and fixed decisions
 

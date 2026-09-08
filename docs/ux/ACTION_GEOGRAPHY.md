@@ -1,6 +1,6 @@
 # Action Geography
 
-**Status: proposed implementation contract.** This document defines where actions, filters, and evidence belong. It is not an implementation or compliance claim and does not add a framework, backend capability, domain feature, or execution behavior.
+**Status: binding subordinate implementation contract under RFC-0001, adopted 2026-09-08.** This document defines where actions, filters, and evidence belong. It is not an implementation or compliance claim and does not add a framework, backend capability, domain feature, or execution behavior. The Professional UI Constitution is the visual/interaction authority; `UI_CONTENT_STANDARDS.md` remains authoritative for content, domain, time-basis, rights, provenance, entitlement, no-execution, and client-boundary rules.
 
 ## Ownership rules
 

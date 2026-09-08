@@ -186,9 +186,9 @@ behind `scripts/release/validate_stable_release.py`. Detailed guidance is in
 - [Third-party notices](THIRD_PARTY_NOTICES.md)
 - [Project directory and ownership](PROJECT_DIRECTORY.md)
 - [Architecture decisions](docs/architecture/ARCHITECTURE_DECISION_RECORD.md)
-- [UI and content standards (transitional pending UX01 RFC)](docs/clients/UI_CONTENT_STANDARDS.md)
-- [Professional UI Constitution (draft)](docs/clients/PROFESSIONAL_UI_CONSTITUTION.md)
-- [Motion System (draft, subordinate)](docs/clients/MOTION_SYSTEM.md)
+- [UI and content standards](docs/clients/UI_CONTENT_STANDARDS.md)
+- [Professional UI Constitution (accepted contract)](docs/clients/PROFESSIONAL_UI_CONSTITUTION.md)
+- [Motion System (accepted subordinate contract)](docs/clients/MOTION_SYSTEM.md)
 
 ## Security, contribution, and license
 

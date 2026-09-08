@@ -1,13 +1,12 @@
 # Motion System
 
-Status: **DRAFT - proposed subordinate specification; RFC not accepted; pending final diff review**
+Status: **Accepted binding subordinate contract - RFC-0001 adopted 2026-09-08; implementation acceptance pending**
 
-This is a proposal, not evidence that motion is implemented or compliant. Until
-the RFC is accepted and authority is reconciled, `UI_CONTENT_STANDARDS.md`
-remains the transitional client authority. On acceptance, the Professional UI
-Constitution becomes the sole visual and interaction authority and this document
-remains subordinate for motion. It adds no domain, API, agent, analytics, or
-execution semantics.
+This is a binding motion contract, not evidence that motion is implemented or
+compliant. RFC-0001 was accepted and authority was reconciled on 2026-09-08.
+The Professional UI Constitution is the sole visual and interaction authority
+and this document remains subordinate for motion. It adds no domain, API,
+agent, analytics, or execution semantics.
 
 ## Intent
 
@@ -16,9 +15,9 @@ communicate state, hierarchy, continuity, or direct feedback. It MUST NOT
 entertain, compete with analytical content, obscure evidence, or make a live
 market surface feel unstable.
 
-## Proposed tokens
+## Motion tokens
 
-The proposed duration scale is exactly:
+The duration scale is exactly:
 
 | Token | Duration | Use |
 | --- | ---: | --- |
@@ -173,6 +172,6 @@ prerequisite for binding the contract:
 7. exact test, screenshot, and runtime commands recorded separately from this
    proposal.
 
-Until RFC approval and authority reconciliation, this document remains a draft
-proposal and `UI_CONTENT_STANDARDS.md` remains authoritative. Binding adoption
-does not assert that the product already complies.
+Implementation acceptance remains pending. Binding adoption does not assert
+that the product already complies; screenshots, runtime review, tests,
+accessibility checks, and visual evidence remain separate unchecked gates.

@@ -1,22 +1,21 @@
 # Professional UI Constitution
 
-Status: **DRAFT - proposed normative contract; RFC not accepted; pending final diff review**
+Status: **Accepted binding contract - RFC-0001 adopted 2026-09-08; implementation acceptance pending**
 
-This proposal is not implemented-compliance evidence. Until the RFC is accepted
-and authority is reconciled, `UI_CONTENT_STANDARDS.md` remains the transitional
-client authority. On acceptance, this Constitution becomes the sole visual and
-interaction authority; `MOTION_SYSTEM.md` is its subordinate motion
+This contract is not implemented-compliance evidence. RFC-0001 was accepted and
+authority was reconciled on 2026-09-08. This Constitution is the sole visual
+and interaction authority; `MOTION_SYSTEM.md` is its subordinate motion
 specification. `UI_CONTENT_STANDARDS.md` continues to own content, domain,
 time-basis, provenance, entitlement, no-execution, and client-boundary rules.
 
-## Proposal basis
+## Contract basis
 
-The proposal is based on the UX01 brief, `docs/ux/POST_CR15_UI_AUDIT.md`, and
+The contract is based on the UX01 brief, `docs/ux/POST_CR15_UI_AUDIT.md`, and
 `docs/ux/COMPONENT_CENSUS.md` at the audited baseline. Those documents record
-runtime findings, source counts, and open validation work; this draft does not
+runtime findings, source counts, and open validation work; this contract does not
 turn those observations into claims that the current UI complies.
 
-Planner-approved proposal decisions, pending final diff review:
+Accepted contract decisions:
 
 - fixed type, spacing, control, radius, and motion values below;
 - canonical primitive ownership and migration order;
@@ -72,8 +71,8 @@ Use fixed tokens only. Proposed values:
 | `--text-workspace-title` | 18px | workspace identity |
 | `--text-page-title` | 20px | rare major page/title use only |
 
-The proposed scale is exactly 11/12/13/14/18/20px. Existing 10/10.5/11.5,
-12.5/15/16/17/22/24/32px values are migration inventory, not proposed tokens.
+The fixed scale is exactly 11/12/13/14/18/20px. Existing 10/10.5/11.5,
+12.5/15/16/17/22/24/32px values are migration inventory, not contract tokens.
 Feature-local exceptions require planner review. Use the existing system
 UI font stack and `ui-monospace` for technical labels. Letter spacing is `0`;
 font size MUST NOT scale with viewport width.
@@ -258,7 +257,7 @@ output.
 
 ## 18. Motion
 
-Motion follows the subordinate `MOTION_SYSTEM.md`. The proposed scale is
+Motion follows the subordinate `MOTION_SYSTEM.md`. The fixed subordinate scale is
 0/120/180/240ms,
 using transform/opacity for transient movement and stable layout for data
 surfaces. Frequently updating prices MUST NOT flash, bounce, or animate on each
@@ -274,7 +273,7 @@ invoker.
 
 Do not rely on color alone. Preserve heading/list structure, label fields,
 provide text alternatives for status, and respect reduced motion. Accessibility
-acceptance requires runtime checks; this draft does not claim they pass.
+acceptance requires runtime checks; this contract does not claim they pass.
 
 ## 20. Responsive behavior
 
@@ -312,7 +311,7 @@ execution, new analytics, new domain semantics, or a new top-level workspace.
 ## Canonical primitives and token ownership
 
 The existing shared `WorkspaceTabs`, `PanelHeader`, `MetricStrip`, and
-`StatusBadge` are proposed canonical primitives. Add only the necessary shared
+`StatusBadge` are canonical primitives for migration. Add only the necessary shared
 contracts identified by the census: `DataTable`, `FormSection`,
 `LoadingState`, `EmptyState`, `ErrorState`, `EvidenceBlock`, `SplitWorkspace`,
 `ContextRail`, `Toolbar`, and narrowly justified menu/overlay primitives.
@@ -342,6 +341,6 @@ is not a prerequisite for binding the contract:
 7. contract, Web test, build, visual, and accessibility results recorded
    separately from source implementation claims.
 
-Until RFC approval and authority reconciliation, this document remains a draft
-proposal and `UI_CONTENT_STANDARDS.md` remains authoritative. Binding adoption
-does not assert that the product already complies.
+Implementation acceptance remains pending. Binding adoption does not assert
+that the product already complies; screenshots, runtime review, tests,
+accessibility checks, and visual evidence remain separate unchecked gates.

@@ -1,11 +1,11 @@
 # UI/UX Style Guide - EN
 
-> Bilingual implementation companion to the draft
-> [`PROFESSIONAL_UI_CONSTITUTION.md`](PROFESSIONAL_UI_CONSTITUTION.md). Until
-> the UX01 RFC is accepted, [`UI_CONTENT_STANDARDS.md`](UI_CONTENT_STANDARDS.md)
-> remains transitional authority. On RFC acceptance, the Constitution is the
-> sole visual authority and [`MOTION_SYSTEM.md`](MOTION_SYSTEM.md) is
-> subordinate; this file has no independent authority.
+> Bilingual nonnormative implementation companion to the accepted
+> [`PROFESSIONAL_UI_CONSTITUTION.md`](PROFESSIONAL_UI_CONSTITUTION.md), adopted
+> through RFC-0001 on 2026-09-08. [`MOTION_SYSTEM.md`](MOTION_SYSTEM.md) is
+> subordinate, and [`UI_CONTENT_STANDARDS.md`](UI_CONTENT_STANDARDS.md) remains
+> authoritative for content, domain, time-basis, rights, and no-execution
+> rules. This file has no independent authority.
 
 Eurogas Nexus Web and Windows client UI follows a professional European energy
 analytical workstation direction, with a map-first Network workspace.
@@ -20,7 +20,7 @@ analytical workstation direction, with a map-first Network workspace.
   than ornamental elevation.
 - Use Inter/system sans for UI text and ui-monospace for technical eyebrows, source tags, and compact labels.
 - Use sentence-case headings. Do not use all-caps headings except short technical mono labels.
-- The draft Constitution proposes fixed type `11/12/13/14/18/20px`, spacing
+- The Constitution defines fixed type `11/12/13/14/18/20px`, spacing
   `4/8/12/16/24/32px`, controls `28/32/36px`, and radii `4/6/8px`.
 - Do not use decorative pills, giant workspace titles, or arbitrary local type,
   spacing, control, or radius values on RFC adoption.

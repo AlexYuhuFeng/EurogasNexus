@@ -172,6 +172,26 @@ claiming CR1-15 native parity; do not use this older binary to approve or reject
 current-source layouts. The full native page walkthrough remains pending.
 # Route-status correction verification (2026-09-08)
 
+## Agent research and replay walkthrough at 3dbee3a
+
+Submitted the brief's constrained-UK-capacity/transport-adjusted-NBP-premium
+question through Agent Research, with Strategy IR drafting unchecked. The
+existing deterministic workflow created `agent-run-b0ddb6c39fa04f6f8ed1` and
+returned BLOCKED with six SERIES_UNAVAILABLE diagnostics. Selected the saved
+run in Agent Runs and opened Observable replay: the objective was retained,
+status BLOCKED, tool invocation count zero. This exercises the blocked-data
+path only; no successful findings, strategy, challenge or review-pack is proved.
+
+Visually reviewed `output/playwright/ux01-agent-research-run-before-1440.png`
+and `output/playwright/ux01-agent-replay-before-1440.png`. Findings: repeated raw
+blocker codes omit affected-series context; run-list objective is blank while
+replay has the objective; oversized status pill, clipped model text, unlabelled
+local timestamp basis and nested framed sections remain. Replay presents a
+minimal summary rather than the required governed artifact path. The displayed
+`Hidden chain-of-thought: null` is unnecessary implementation wording, not an
+exposure of hidden reasoning. No expensive model training or strategy drafting
+was requested in this exercise.
+
 ## Navigation correction verification (2026-09-08)
 
 Against 59277a0 plus the navigation patch, parent reran Web tests: 61 passed,
