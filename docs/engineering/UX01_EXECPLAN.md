@@ -152,6 +152,22 @@ Keep audit-only changes separate from functional fixes. Runtime startup,
 fixture rights, missing workflow coverage and stale screenshots are explicit
 verification risks, not reasons to weaken final acceptance.
 
+### Allowance checkpoint (2026-09-09)
+
+At 92% five-hour usage, implementation agents stopped at a preserved checkpoint.
+Last pushed milestone is `ba26fe2`. Uncommitted client reliability work owns
+`clients/web/src/api/client.ts`, `clients/web/src/stores/api.ts`,
+`clients/web/src/stores/workspaceLoading.ts`, and
+`clients/web/tests/workspaceLoading.test.ts`. Workspace deadlines and generation
+guards had 76 passing web tests and a successful build before the latest edits.
+Subsequent market/monitoring coalescing and deadlines have only a whitespace
+check, not test/build acceptance. Next: add periodic-lane tests, filter retry
+keys, verify retry supersession/loading, rerun tests/build, then browser QA.
+The separate shell CSS remains uncommitted. PostgreSQL index proposals are
+read-only; no migration/index/configuration changes have been applied. Do not
+report the latest reliability draft as tested or restart stopped agents without
+reading this checkpoint. No automatic credit/reset action was taken.
+
 ### Native Sky checkpoint (2026-09-09)
 
 The parent launched the clean `9a84f5e` native executable through Sky. Native
@@ -198,3 +214,65 @@ existing `9a84f5e` native startup/render evidence is the current old baseline
 for interaction acceptance; no native navigation or resize acceptance is
 claimed. The parent commit scope is the Scenario source and these docs; the
 shell CSS remains uncommitted.
+
+### Read-only PostgreSQL diagnosis checkpoint (2026-09-09)
+
+The existing local PostgreSQL 16 container was inspected read-only; no query
+was terminated and no restart, migration, configuration change, or write was
+made. `resource-pool/options` performs a global newest-row read of
+`market_observations` plus bounded per-source coverage, then composes route
+prices. Its read-only `EXPLAIN` shows a two-worker parallel sequential scan and
+`Gather Merge` sort over an estimated 713,748 rows, ordered by
+`observed_at_utc DESC, market_venue, product`. The table is approximately
+695 MB and has no index matching that ordering; its observed index is
+`(source_system, observed_at_utc)`. The current route-cost selector then
+applies tenor, licensed-versus-simulated, and source-family precedence; a
+blanket limit or unvalidated latest-per-key rewrite would risk changing that
+behavior and source coverage.
+
+During the bounded snapshot there were 22 database sessions, 18 active, 2
+idle in transaction, 7 active backends waiting on `ClientWrite`, 4 on parallel
+`MessageQueueSend`, and zero blocked lock waiters. `max_connections` was 100.
+Database statistics reported 2,203,614 temporary files and 6,193 GB of
+temporary I/O, with zero deadlocks. Those counters are cumulative since the
+last statistics reset and do not attribute temporary I/O to this single
+request. This supports a spill-heavy shared workload and an ordering-index
+candidate, but does not by itself prove endpoint-exclusive causality.
+
+The exact next implementation proposal is to support the existing ordering
+with a migration-owned PostgreSQL index and add query-plan/result-regression
+coverage before considering a latest-per-key SQL rewrite. Required regression
+cases must preserve source/venue/product/hub identity, temporal newest
+selection, low-frequency source coverage, source entitlement filtering,
+simulated-versus-licensed precedence, freshness/provenance, and route-price
+blockers. No backend implementation or acceptance claim is made in this
+checkpoint.
+
+### Milestone checkpoint (2026-09-09)
+
+Parent reviewed the real endpoint-banner captures
+`ux01-shell-endpoint-banner-1440.png`,
+`ux01-shell-endpoint-banner-1920.png`, and
+`ux01-shell-endpoint-banner-1100.png`. The authenticated runtime settled with
+`loading=false` and identity present. Browser market/spreads reads included a
+12-second `503`, while other market reads timed out; the banner correctly
+listed five affected endpoints rather than reducing the incident to one
+failure. Context-banner content did not overlap. Map markers and four
+indicative route markers rendered, but the base-map tile remained blank;
+nested cards, raw codes, and clipped labels remain open UI debt.
+
+This accepts only the scoped UX01-001 shell structural overlap correction at
+the required 1440, 1920, and 1100 desktop viewports. It does not accept the
+broader UI/token, bilingual, native, populated-state, or whole-product visual
+work. Parent verified `npm --prefix clients/web test` with `84 passed, 0
+failed`, then verified `npm --prefix clients/web run build` with exit 0
+(TypeScript + Vite, 134 modules, 495 ms); the existing build warning remains.
+Startup/retry `/me` generation and auth-fail-closed handling,
+bounded market/monitoring lanes, sign-in/read gates, source-failure recording,
+and cross-lane invalidation are implementation evidence, not full-auth proof.
+User-triggered follow-up read guards remain explicit residual debt. All mocks
+are removed. The PostgreSQL ordering-index proposal remains unapplied.
+
+Two commits are expected, reliability first and shell second; no commit SHA is
+claimed here. Full CR1-15, native, entitlement, and visual acceptance remain
+open.

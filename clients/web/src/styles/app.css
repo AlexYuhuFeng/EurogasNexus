@@ -1355,11 +1355,6 @@ input {
 }
 
 /* R26 trader information architecture */
-.cockpit-app .workspace-topbar-only {
-  grid-template-columns: 238px minmax(280px, 1fr) minmax(410px, auto) auto;
-  min-height: 52px;
-}
-
 .topbar-trading-context {
   display: flex;
   min-width: 0;
@@ -1912,35 +1907,12 @@ input {
 }
 
 @media (min-width: 1800px) {
-  .cockpit-app {
-    --eg-left-rail: 420px;
-    --eg-right-rail: 420px;
-  }
-
   .source-operations-table {
     font-size: 13px;
   }
 }
 
-@media (max-width: 1450px) {
-  .cockpit-app .workspace-topbar-only {
-    grid-template-columns: 220px minmax(220px, 1fr) minmax(300px, auto) auto;
-  }
-
-  .context-freshness {
-    display: none;
-  }
-}
-
 @media (max-width: 1100px) {
-  .topbar-trading-context {
-    display: none;
-  }
-
-  .cockpit-app .workspace-topbar-only {
-    grid-template-columns: 220px minmax(220px, 1fr) auto;
-  }
-
   .source-posture-grid.compact {
     grid-template-columns: repeat(3, minmax(120px, 1fr));
   }
@@ -2425,25 +2397,94 @@ body {
 
 .cockpit-app {
   min-height: 100vh;
-  overflow: hidden;
+  overflow: auto;
   background: var(--eg-canvas-soft);
   color: var(--eg-ink);
 }
 
 .cockpit-app .cockpit-topbar {
-  position: fixed;
-  z-index: 50;
-  top: 16px;
-  right: 16px;
-  left: 16px;
+  position: static;
+  flex: 0 0 auto;
   display: grid;
-  grid-template-columns: 260px minmax(320px, 1fr) auto;
-  min-height: 48px;
+  grid-template-areas: "workspace task search" "context context topbar-controls";
+  grid-template-columns: minmax(360px, 1.35fr) minmax(110px, auto) minmax(160px, 0.8fr);
+  min-height: 0;
   align-items: center;
-  gap: 12px;
-  padding: 0;
-  border: 0;
-  background: transparent;
+  gap: 8px 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--eg-hairline);
+  background: var(--eg-canvas);
+}
+
+.cockpit-app .cockpit-topbar > .workspace-primary-tabs,
+.cockpit-app .cockpit-topbar > .workspace-pill {
+  grid-area: workspace;
+  min-width: 0;
+}
+
+.cockpit-app .cockpit-topbar > .workspace-local-task {
+  grid-area: task;
+  min-width: 0;
+}
+
+.cockpit-app .cockpit-topbar > .topbar-search {
+  grid-area: search;
+  min-width: 0;
+}
+
+.cockpit-app .cockpit-topbar > .topbar-trading-context {
+  grid-area: context;
+  min-width: 0;
+}
+
+.cockpit-app .cockpit-topbar > .header-controls {
+  grid-area: topbar-controls;
+  min-width: 0;
+}
+
+.cockpit-app .workspace-topbar-page {
+  grid-template-areas: "workspace workspace" "context topbar-controls";
+  grid-template-columns: minmax(0, 1fr) minmax(300px, auto);
+}
+
+.endpoint-error-banner {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px 12px;
+  margin: 0 16px 12px;
+  border: 1px solid var(--eg-hairline);
+  border-left: 3px solid var(--eg-danger);
+  border-radius: var(--eg-radius-sm);
+  background: var(--eg-canvas-soft);
+  box-shadow: var(--eg-shadow-1);
+  color: var(--eg-body);
+  padding: 8px 12px;
+}
+
+.endpoint-error-banner span,
+.endpoint-error-banner strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.endpoint-error-banner span {
+  color: var(--eg-muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.endpoint-error-banner strong {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.endpoint-error-banner button {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  white-space: nowrap;
 }
 
 .workspace-pill,
@@ -2549,14 +2590,13 @@ body {
 }
 
 .cockpit-app .app-main {
-  min-height: 100vh;
-  flex: 1;
+  min-height: 0;
+  flex: 1 1 auto;
   background: var(--eg-canvas-soft);
 }
 
 .map-stage {
-  position: fixed;
-  inset: 0;
+  position: relative;
   min-height: 0;
   overflow: hidden;
 }
@@ -2617,26 +2657,12 @@ body {
 
 .scenario-rail,
 .decision-rail {
-  position: fixed;
-  z-index: 40;
-  top: 128px;
-  bottom: 18px;
+  position: static;
   display: flex;
   flex-direction: column;
   gap: 10px;
   overflow-y: auto;
   scrollbar-width: thin;
-}
-
-.scenario-rail {
-  left: 16px;
-  width: 392px;
-}
-
-.decision-rail {
-  top: 88px;
-  right: 16px;
-  width: 392px;
 }
 
 .cockpit-app .panel {
@@ -2866,15 +2892,6 @@ body {
 }
 
 @media (max-width: 1200px) {
-  .cockpit-app .cockpit-topbar {
-    grid-template-columns: 220px minmax(180px, 1fr) auto;
-  }
-
-  .scenario-rail,
-  .decision-rail {
-    width: min(360px, 38vw);
-  }
-
   .cockpit-app .map-price-strip {
     display: none;
   }
@@ -2883,16 +2900,6 @@ body {
 @media (max-width: 900px) {
   .cockpit-app {
     overflow: auto;
-  }
-
-  .cockpit-app .cockpit-topbar {
-    position: sticky;
-    top: 0;
-    right: auto;
-    left: auto;
-    grid-template-columns: 1fr;
-    padding: 12px;
-    background: var(--eg-canvas-soft);
   }
 
   .topbar-search,
@@ -3000,19 +3007,8 @@ body {
 
 /* Multi-page workspace refactor */
 .cockpit-app {
-  --eg-topbar-offset: 16px;
-  --eg-topbar-height: 48px;
-  --eg-nav-top: 76px;
-  --eg-left-rail: clamp(320px, 22vw, 392px);
-  --eg-right-rail: clamp(320px, 22vw, 392px);
-}
-
-.workspace-network .scenario-rail {
-  top: 170px;
-}
-
-.workspace-network .decision-rail {
-  top: 130px;
+  --eg-left-rail: clamp(280px, 20vw, 360px);
+  --eg-right-rail: clamp(280px, 20vw, 360px);
 }
 
 
@@ -3025,12 +3021,7 @@ body {
 }
 
 .cockpit-app:not(.workspace-network) .cockpit-topbar {
-  position: sticky;
-  top: 0;
-  right: auto;
-  left: auto;
-  margin: 12px 16px 0;
-  background: var(--eg-canvas-soft);
+  margin: 0;
 }
 
 .cockpit-app:not(.workspace-network) .map-stage,
@@ -3041,7 +3032,7 @@ body {
 
 .cockpit-app:not(.workspace-network) .app-main {
   display: block;
-  min-height: 100vh;
+  min-height: 0;
   padding: 16px 16px 32px;
 }
 
@@ -5063,7 +5054,7 @@ body {
 
 .glossary-wiki-article {
   position: sticky;
-  top: calc(var(--eg-topbar-height) + 32px);
+  top: 32px;
 }
 
 .glossary-list-toolbar {
@@ -5295,11 +5286,6 @@ button.glossary-related-chip {
 }
 
 @media (max-width: 900px) {
-  .workspace-network .scenario-rail,
-  .workspace-network .decision-rail {
-    top: auto;
-  }
-
   .cockpit-app:not(.workspace-network) .app-main {
     padding: 12px;
   }
@@ -5564,14 +5550,6 @@ button.glossary-related-chip {
   }
 }
 
-.workspace-network .scenario-rail {
-  top: 184px;
-}
-
-.workspace-network .decision-rail {
-  top: 130px;
-}
-
 .cockpit-app .map-alert-stack {
   bottom: 112px;
 }
@@ -5589,16 +5567,6 @@ button.glossary-related-chip {
 @media (max-width: 900px) {
   .cockpit-app {
     overflow: auto;
-  }
-
-  .cockpit-app .cockpit-topbar {
-    position: sticky;
-    top: 0;
-    right: auto;
-    left: auto;
-    grid-template-columns: 1fr;
-    padding: 12px;
-    background: var(--eg-canvas-soft);
   }
 
   .topbar-search,
@@ -5668,19 +5636,6 @@ button.glossary-related-chip {
 }
 
 @media (min-width: 901px) and (max-width: 1100px) {
-  .workspace-network .scenario-rail,
-  .workspace-network .decision-rail {
-    width: 300px;
-  }
-
-  .workspace-network .scenario-rail {
-    top: 184px;
-  }
-
-  .workspace-network .decision-rail {
-    top: 130px;
-  }
-
   .cockpit-app .map-alert-stack,
   .cockpit-app .map-price-strip {
     display: none;
@@ -5871,14 +5826,6 @@ button.glossary-related-chip {
   border-color: var(--accent);
   background: rgb(15 118 110 / 12%);
   color: var(--eg-ink);
-}
-
-.workspace-network .scenario-rail {
-  top: 126px;
-}
-
-.workspace-network .decision-rail {
-  top: 110px;
 }
 
 .cockpit-app .map-toolbar {
@@ -6626,16 +6573,6 @@ button.glossary-related-chip {
   background: rgb(15 118 110 / 12%);
 }
 
-.workspace-network .scenario-rail {
-  top: 126px;
-  bottom: 18px;
-}
-
-.workspace-network .decision-rail {
-  top: 110px;
-  bottom: 18px;
-}
-
 .workspace-network .maplibregl-ctrl-bottom-left {
   bottom: 18px;
   left: calc(16px + var(--eg-left-rail) + 12px);
@@ -6761,22 +6698,6 @@ button.glossary-related-chip {
   isolation: isolate;
 }
 
-.cockpit-app .workspace-topbar-only {
-  grid-template-columns: 260px minmax(360px, 1fr) auto;
-}
-
-.workspace-network .scenario-rail {
-  top: 146px;
-  left: 18px;
-  width: var(--eg-left-rail);
-}
-
-.workspace-network .decision-rail {
-  top: 106px;
-  right: 18px;
-  width: var(--eg-right-rail);
-}
-
 .cockpit-app .map-toolbar {
   top: 84px;
   right: calc(18px + var(--eg-right-rail) + 12px);
@@ -6885,10 +6806,6 @@ button.glossary-related-chip {
 }
 
 @media (max-width: 1200px) {
-  .cockpit-app .workspace-topbar-only {
-    grid-template-columns: 220px minmax(220px, 1fr) auto;
-  }
-
   .cockpit-app .map-toolbar {
     right: calc(18px + min(360px, 38vw) + 12px);
     left: calc(18px + min(360px, 38vw) + 12px);
@@ -6902,10 +6819,6 @@ button.glossary-related-chip {
 }
 
 @media (max-width: 900px) {
-  .cockpit-app .workspace-topbar-only {
-    grid-template-columns: 1fr;
-  }
-
   .cockpit-app .map-toolbar {
     top: 12px;
     right: 12px;
@@ -6926,11 +6839,6 @@ button.glossary-related-chip {
     top: 184px;
   }
 
-  .workspace-network .scenario-rail,
-  .workspace-network .decision-rail {
-    width: auto;
-  }
-
   .workspace-network .maplibregl-ctrl-top-right {
     top: 74px;
     right: 12px;
@@ -6943,11 +6851,6 @@ button.glossary-related-chip {
 }
 
 @media (max-width: 900px) {
-  .cockpit-app .cockpit-topbar {
-    grid-template-columns: minmax(0, 1fr);
-    max-width: 100%;
-  }
-
   .cockpit-app .cockpit-topbar > * {
     min-width: 0;
     max-width: 100%;
@@ -6976,18 +6879,6 @@ button.glossary-related-chip {
    Compact mobile chrome for map-first QA. The topbar uses named grid areas so
    search and controls do not stack into the map or clip resource-path cards. */
 @media (max-width: 640px) {
-  .cockpit-app .cockpit-topbar {
-    top: 8px;
-    right: 8px;
-    left: 8px;
-    grid-template-areas:
-      "workspace"
-      "search"
-      "topbar-controls";
-    grid-template-columns: minmax(0, 1fr);
-    gap: 6px;
-  }
-
   .workspace-pill {
     grid-area: workspace;
     min-height: 38px;
@@ -7061,23 +6952,6 @@ button.glossary-related-chip {
     grid-template-columns: 1fr;
   }
 
-  .workspace-network .scenario-rail,
-  .workspace-network .decision-rail {
-    right: 8px;
-    left: 8px;
-    width: auto;
-    max-height: min(42vh, 360px);
-  }
-
-  .workspace-network .scenario-rail {
-    top: 224px;
-  }
-
-  .workspace-network .decision-rail {
-    top: auto;
-    bottom: 8px;
-  }
-
   .workspace-network .maplibregl-ctrl-top-right {
     top: 174px;
     right: 8px;
@@ -7107,66 +6981,6 @@ button.glossary-related-chip {
     grid-column: 1 / -1;
     min-width: 0;
     padding-right: 24px;
-  }
-}
-
-/* R26 final cascade: trading context stays part of the single top bar. */
-@media (min-width: 1101px) {
-  .cockpit-app .workspace-topbar-only {
-    grid-template-columns: 238px minmax(280px, 1fr) minmax(410px, auto) auto;
-    min-height: 52px;
-  }
-
-  .cockpit-app .workspace-topbar-page {
-    grid-template-columns: 238px minmax(410px, 1fr) auto;
-  }
-}
-
-@media (min-width: 1101px) and (max-width: 1450px) {
-  .cockpit-app .workspace-topbar-only {
-    grid-template-columns: 220px minmax(220px, 1fr) minmax(300px, auto) auto;
-  }
-
-  .cockpit-app .workspace-topbar-page {
-    grid-template-columns: 220px minmax(300px, 1fr) auto;
-  }
-
-  .context-freshness {
-    display: none;
-  }
-}
-
-@media (max-width: 1100px) {
-  .topbar-trading-context {
-    display: none;
-  }
-}
-
-@media (min-width: 641px) and (max-width: 1100px) {
-  .cockpit-app .workspace-topbar-page {
-    grid-template-columns: 220px minmax(0, 1fr);
-  }
-
-  .workspace-topbar-page .header-controls {
-    justify-self: end;
-  }
-}
-
-@media (max-width: 640px) {
-  .cockpit-app .cockpit-topbar.workspace-topbar-page {
-    grid-template-areas:
-      "workspace"
-      "topbar-controls";
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-/* R27: aligned map rails and an operations-first capacity workspace. */
-@media (min-width: 901px) {
-  .workspace-network .scenario-rail,
-  .workspace-network .decision-rail {
-    top: 106px;
-    bottom: 18px;
   }
 }
 
@@ -7704,92 +7518,6 @@ button.glossary-related-chip {
   }
 }
 
-/* ============================================================
-   UI foundation 2026-09-01 EXE audit
-   Shared topbar grid areas, semantic Settings auth rows, and
-   readable Review evidence pack rows. No new datastore or API.
-   ============================================================ */
-
-.cockpit-app .cockpit-topbar > .workspace-pill {
-  grid-area: workspace;
-  min-width: 0;
-}
-
-.cockpit-app .cockpit-topbar > .topbar-search {
-  grid-area: search;
-  min-width: 0;
-}
-
-.cockpit-app .cockpit-topbar > .topbar-trading-context {
-  grid-area: context;
-  min-width: 0;
-}
-
-.cockpit-app .cockpit-topbar > .header-controls {
-  grid-area: topbar-controls;
-  min-width: 0;
-}
-
-@media (min-width: 1101px) {
-  .cockpit-app .workspace-topbar-only {
-    grid-template-areas: "workspace search context topbar-controls";
-    grid-template-columns: minmax(200px, 238px) minmax(200px, 1fr) minmax(280px, auto) auto;
-  }
-
-  .cockpit-app .workspace-topbar-page {
-    grid-template-areas: "workspace context topbar-controls";
-    grid-template-columns: minmax(200px, 260px) minmax(300px, 1fr) auto;
-  }
-}
-
-@media (min-width: 901px) and (max-width: 1100px) {
-  .cockpit-app .workspace-topbar-only {
-    grid-template-areas: "workspace search topbar-controls";
-    grid-template-columns: minmax(180px, 220px) minmax(180px, 1fr) auto;
-  }
-
-  .cockpit-app .workspace-topbar-page {
-    grid-template-areas: "workspace topbar-controls";
-    grid-template-columns: minmax(180px, 220px) minmax(0, 1fr);
-  }
-
-  .cockpit-app .workspace-topbar-page .header-controls {
-    justify-self: end;
-    flex-wrap: wrap;
-  }
-}
-
-@media (max-width: 900px) {
-  .cockpit-app .workspace-topbar-only {
-    grid-template-areas: "workspace" "search" "topbar-controls";
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .cockpit-app .workspace-topbar-page {
-    grid-template-areas: "workspace" "topbar-controls";
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .cockpit-app .header-controls {
-    flex-wrap: wrap;
-  }
-}
-
-@media (max-width: 640px) {
-  .cockpit-app .workspace-topbar-only {
-    grid-template-areas: "workspace" "search" "topbar-controls";
-  }
-
-  .cockpit-app .workspace-topbar-page {
-    grid-template-areas: "workspace" "topbar-controls";
-  }
-
-  .cockpit-app .header-controls {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
 /* Settings authentication semantic grid */
 .settings-auth-form {
   display: grid;
@@ -7908,22 +7636,26 @@ button.glossary-related-chip {
    ============================================================ */
 
 .workspace-network {
-  --network-left-rail: 320px;
-  --network-right-rail: 340px;
-  --network-topbar-reserve: 76px;
+  --network-left-rail: var(--eg-left-rail);
+  --network-right-rail: var(--eg-right-rail);
+}
+
+.cockpit-app.workspace-network {
+  height: 100vh;
+  overflow: hidden;
 }
 
 .workspace-network .network-workspace-shell {
-  position: fixed;
-  z-index: 1;
-  inset: 0;
+  position: relative;
+  flex: 1 1 auto;
   display: grid;
   grid-template-areas: "left map right" "ladder ladder ladder";
   grid-template-columns: var(--network-left-rail) minmax(0, 1fr) var(--network-right-rail);
   grid-template-rows: minmax(0, 1fr) auto;
   gap: 10px;
   min-width: 0;
-  padding: var(--network-topbar-reserve) 16px 12px;
+  min-height: 0;
+  padding: 12px 16px;
 }
 
 .workspace-network .network-resource-rail,
@@ -8091,26 +7823,22 @@ button.glossary-related-chip {
     --network-left-rail: 280px;
     --network-right-rail: 320px;
   }
-
-  .workspace-network .workspace-topbar-only {
-    grid-template-areas: "workspace search topbar-controls";
-    grid-template-columns: minmax(180px, 220px) minmax(180px, 1fr) auto;
-  }
-
-  .workspace-network .topbar-trading-context {
-    display: none;
-  }
 }
 
 @media (min-width: 901px) and (max-width: 1100px) {
+  .cockpit-app.workspace-network {
+    height: auto;
+    min-height: 100vh;
+    overflow: auto;
+  }
+
   .workspace-network .network-workspace-shell {
     position: relative;
-    inset: auto;
     grid-template-areas: "left map" "left right" "ladder ladder";
-    grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+    grid-template-columns: minmax(280px, 320px) minmax(0, 1fr);
     grid-template-rows: minmax(460px, 62vh) auto auto;
-    min-height: 100vh;
-    padding: 76px 16px 12px;
+    min-height: 0;
+    padding: 12px 16px;
   }
 
   .workspace-network .network-resource-rail,
@@ -8129,13 +7857,18 @@ button.glossary-related-chip {
 }
 
 @media (max-width: 900px) {
+  .cockpit-app.workspace-network {
+    height: auto;
+    min-height: 100vh;
+    overflow: auto;
+  }
+
   .workspace-network .network-workspace-shell {
     position: relative;
-    inset: auto;
     grid-template-areas: "map" "ladder" "left" "right";
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: minmax(420px, 58vh) auto auto auto;
-    min-height: auto;
+    min-height: 0;
     padding: 0 12px 12px;
     gap: 10px;
   }
@@ -8190,76 +7923,89 @@ button.glossary-related-chip {
   }
 }
 
-/* ============================================================
-   CR-01 / P1A — five-primary-workspace shell
-   Dense topbar primary navigation + local task chip. Existing
-   technical workspace ids and page content remain unchanged.
-   ============================================================ */
-.cockpit-app .cockpit-topbar > .workspace-primary-tabs {
-  grid-area: workspace;
-  min-width: 0;
-}
-
-.cockpit-app .cockpit-topbar > .workspace-local-task {
-  grid-area: task;
-  min-width: 0;
-}
-
-.cockpit-app .cockpit-topbar > .topbar-trading-context {
-  grid-area: context;
-}
-
-.cockpit-app .cockpit-topbar > .header-controls {
-  grid-area: topbar-controls;
-}
-
 @media (min-width: 1101px) {
   .cockpit-app .workspace-topbar-only.has-map-search {
-    grid-template-areas: "workspace task search context topbar-controls";
-    grid-template-columns: minmax(430px, 520px) auto minmax(140px, 1fr) minmax(240px, auto) auto;
+    grid-template-areas:
+      "workspace task search"
+      "context context topbar-controls";
+    grid-template-columns: minmax(360px, 1.35fr) minmax(110px, auto) minmax(160px, 0.8fr);
   }
 
   .cockpit-app .workspace-topbar-page {
-    grid-template-areas: "workspace context topbar-controls";
-    grid-template-columns: minmax(430px, 520px) minmax(260px, 1fr) auto;
+    grid-template-areas:
+      "workspace workspace"
+      "context topbar-controls";
+    grid-template-columns: minmax(0, 1fr) minmax(300px, auto);
   }
 }
 
 @media (min-width: 901px) and (max-width: 1100px) {
   .cockpit-app .workspace-topbar-only.has-map-search {
-    grid-template-areas: "workspace search topbar-controls";
-    grid-template-columns: minmax(320px, 1fr) minmax(180px, 1fr) auto;
-  }
-
-  .cockpit-app .workspace-topbar-only.has-map-search .workspace-local-task,
-  .cockpit-app .workspace-topbar-only.has-map-search .topbar-trading-context {
-    display: none;
+    grid-template-areas:
+      "workspace search"
+      "task task"
+      "context context"
+      "topbar-controls topbar-controls";
+    grid-template-columns: minmax(280px, 1fr) minmax(180px, 0.8fr);
   }
 
   .cockpit-app .workspace-topbar-page {
-    grid-template-areas: "workspace topbar-controls";
-    grid-template-columns: minmax(320px, 1fr) minmax(0, 1fr);
-  }
-
-  .cockpit-app .workspace-topbar-page .topbar-trading-context {
-    display: none;
+    grid-template-areas:
+      "workspace workspace"
+      "context context"
+      "topbar-controls topbar-controls";
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
 }
 
 @media (max-width: 900px) {
   .cockpit-app .workspace-topbar-only.has-map-search {
-    grid-template-areas: "workspace" "task" "search" "topbar-controls";
+    grid-template-areas: "workspace" "task" "search" "context" "topbar-controls";
     grid-template-columns: minmax(0, 1fr);
+    padding: 12px;
   }
 
   .cockpit-app .workspace-topbar-page {
-    grid-template-areas: "workspace" "topbar-controls";
+    grid-template-areas: "workspace" "context" "topbar-controls";
     grid-template-columns: minmax(0, 1fr);
+    padding: 12px;
   }
 
   .cockpit-app .workspace-local-task,
   .cockpit-app .topbar-trading-context {
     width: 100%;
+  }
+
+  .cockpit-app .topbar-trading-context {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .cockpit-app .context-freshness {
+    grid-column: 1 / -1;
+    border-top: 1px solid var(--eg-hairline);
+    border-left: 0;
+    padding-top: 6px;
+    padding-left: 0;
+  }
+
+  .endpoint-error-banner {
+    grid-template-columns: minmax(0, 1fr);
+    margin: 0 12px 12px;
+  }
+
+  .endpoint-error-banner button {
+    grid-column: 1;
+    grid-row: auto;
+    justify-self: start;
+  }
+}
+
+@media (max-width: 640px) {
+  .cockpit-app .topbar-trading-context {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 

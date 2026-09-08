@@ -52,6 +52,35 @@ hydration bug. Persistent loading must be retested after migration before its
 root cause is assigned. Similarly, an empty map with unavailable backend data
 does not prove that the current geometry implementation is wrong.
 
+## Milestone evidence (2026-09-09)
+
+Parent reviewed the real endpoint-banner captures
+`ux01-shell-endpoint-banner-1440.png`,
+`ux01-shell-endpoint-banner-1920.png`, and
+`ux01-shell-endpoint-banner-1100.png`. The authenticated runtime settled with
+`loading=false` and identity present. Browser market/spreads reads included a
+12-second `503`, while other market reads timed out; the banner listed five
+affected endpoints. This is stronger degraded-state evidence than the earlier
+single-error description, but it is not full runtime or auth acceptance.
+
+The context banner did not overlap content. Map markers and four indicative
+route markers rendered, while the base-map tile remained blank. Nested cards,
+raw codes, and clipped labels remain open. The shell structural correction is
+accepted only for UX01-001 overlap at 1440, 1920, and 1100 desktop viewports;
+broader UI/token, bilingual, native, populated-state, accessibility, and
+whole-product acceptance remain pending.
+
+Parent verified `npm --prefix clients/web test` with `84 passed, 0 failed`,
+then verified `npm --prefix clients/web run build` with exit 0 (TypeScript +
+Vite, 134 modules, 495 ms); the existing build warning remains. Startup/retry
+`/me` generation and auth-fail-closed handling, bounded market/monitoring
+lanes, sign-in/read gates, source-refresh failure recording, and cross-lane
+invalidation are implementation evidence, not full-auth proof.
+User-triggered follow-up read guards remain an explicit residual coverage gap.
+All mocks are removed. The PostgreSQL ordering-index proposal remains
+unapplied. Two commits are expected, reliability first and shell second; no
+commit SHA is asserted.
+
 ## Workflow coverage remaining
 
 | Workspace | Current audit coverage | Required next evidence |
