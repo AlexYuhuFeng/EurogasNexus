@@ -5,7 +5,7 @@ the RFC itself and the accepted contract or ADR carry normative authority.
 
 | ID | Title | Status | Scope | Record |
 | --- | --- | --- | --- | --- |
-| N/A | No public RFCs currently registered | N/A | N/A | N/A |
+| RFC-0001 | Professional workstation UI convergence | Draft | Shared Web/desktop visual and interaction contract | [Proposal](RFC-0001-UI-CONVERGENCE.md) |
 
 Use [RFC_TEMPLATE.md](RFC_TEMPLATE.md) for a new proposal and follow
 [RFC_PROCESS.md](RFC_PROCESS.md). Do not add private milestone plans,

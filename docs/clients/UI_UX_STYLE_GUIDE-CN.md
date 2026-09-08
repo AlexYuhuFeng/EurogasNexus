@@ -1,31 +1,40 @@
 # UI/UX 风格指南 - CN
 
-> 本文是 [`UI_CONTENT_STANDARDS.md`](UI_CONTENT_STANDARDS.md) 的中文视觉配套文档。
-> `UI_CONTENT_STANDARDS.md` 是唯一的 UI/内容权威标准；本文只提供已确认的视觉方向。
-> 如有冲突，以 `UI_CONTENT_STANDARDS.md` 为准。
+> 本文是草案 [`PROFESSIONAL_UI_CONSTITUTION.md`](PROFESSIONAL_UI_CONSTITUTION.md)
+> 的中文实现配套文档。在 UX01 RFC 接受前，
+> [`UI_CONTENT_STANDARDS.md`](UI_CONTENT_STANDARDS.md) 仍是过渡性权威标准。
+> RFC 接受后，Constitution 是唯一的视觉权威，
+> [`MOTION_SYSTEM.md`](MOTION_SYSTEM.md) 从属于 Constitution；本文没有独立权威。
 
-Eurogas Nexus Web 与 Windows 客户端 UI 遵循下文所述的专业、地图优先的欧洲天然气决策支持工作台方向。
+Eurogas Nexus Web 与 Windows 客户端 UI 遵循专业的欧洲能源分析工作台方向，其中 Network 工作区采用地图优先布局。
 
 ## 不可协商的视觉规则
 
-- 使用接近 Vercel 的浅色工程产品语言：页面背景 `#fafafa`，面板 `#ffffff`，内嵌面 `#f5f5f5`。
-- 使用墨黑 `#171717` 作为主文本和主操作颜色。
-- 使用 `#ebebeb` hairline 边框；避免重阴影。卡片只允许细边框和轻微叠加阴影。
+- 当前中性配色仅作为迁移参考：页面背景 `#fafafa`、面板 `#ffffff`、内嵌面
+  `#f5f5f5`、墨黑 `#171717` 和 hairline 边框 `#ebebeb`。实现中的 feature
+  CSS MUST 使用语义 token，不得散落使用原始颜色。
+- 避免装饰性和重阴影。优先使用语义化面和边框，不使用装饰性层叠阴影。
 - UI 正文使用 Inter/system sans；技术标签、来源标签、短小 eyebrow 使用 ui-monospace。
 - 标题使用 sentence case。除短技术 mono 标签外，不使用全大写标题。
-- 应用表面圆角为 8px；pill 控件可以使用 full radius。
+- 草案 Constitution 提议固定字号 `11/12/13/14/18/20px`、间距
+  `4/8/12/16/24/32px`、控件高度 `28/32/36px`、圆角 `4/6/8px`。
+- RFC 采用后不得使用装饰性 pill、巨型工作区标题或任意局部字号、间距、控件高度、圆角。
 - 配色必须克制：墨黑、灰阶、链接蓝、预警琥珀、错误红，以及有明确数据语义的地图颜色。
 - 不使用装饰性光斑、气泡、图库图片或缩小版渐变。
 - 实现 CSS 中 letter spacing 保持 `0`，即使参考视觉中有负字距。
 
 ## Eurogas 驾驶舱适配
 
-- 地图始终是主要工作面，不是背景图。
+- Network 工作区采用地图优先布局。Market quotes、Strategy 及其他分析工作区
+  根据任务使用主要表格、图表、编辑器或报告工作面。
 - 顶部栏是产品/搜索/控制栏，不是营销 hero。
 - 首页左侧栏只承载资源池上下文、推荐路径控制和缺失合同阻断状态。
 - 首页右侧栏只承载决策结果：净 PnL、路线分配阶梯、经济性快照、策略/预警信号。
 - 数据源诊断、运行数据库健康、TSO 准入表、容量汇总、费率表、凭据、术语库和 AI 报告必须放在独立页面，不得重新塞回首页左右栏。
-- 地图上的 workspace pill 和汉堡图标是唯一导航入口；首页不得恢复重复横向导航。
+- 共享 shell 负责五个一级工作区；不得增加竞争性的导航模型或装饰性 pill 触发器。
+  地图局部控件仍归地图局部使用。
+- 共享 shell 统一负责 gas day、delivery product、适用时的 Portfolio、主要市场上下文和运行/数据状态。
+  页面内部不得重复全局上下文选择器。
 - 地图资产搜索框仅在 Network 工作区显示。控件在当前页面无实际作用时不得继续显示。
 - 非地图工作区使用紧凑、无卡片外框的页面标题带，并提供同一业务分组内的本地页签。运行状态只保留在全局顶部栏，不在标题卡中重复。
 - 只挂载当前工作区。非地图页面后方不得继续保留隐藏的地图 canvas、overlay 或可聚焦控件。

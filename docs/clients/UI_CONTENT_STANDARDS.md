@@ -2,23 +2,28 @@
 
 ## Status
 
-This document is the single authoritative UI and content standard for the
-Eurogas Nexus Web and Windows/Linux client surfaces. When another client
-document conflicts with this one, this document wins; report the conflict and
-update the other document.
+Until the UX01 RFC is accepted and authority is reconciled, this document is
+the transitional authoritative client standard for Eurogas Nexus Web and
+Windows/Linux surfaces. On RFC acceptance, `PROFESSIONAL_UI_CONSTITUTION.md`
+becomes the sole visual and interaction authority, with `MOTION_SYSTEM.md` as
+its subordinate motion specification. This document remains authoritative for
+content, domain, time-basis, provenance, entitlement, no-execution, and client
+boundary rules. Report any conflict and reconcile the documents rather than
+silently choosing a third rule.
 
 The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD",
 "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this document are to be
 interpreted as described in RFC 2119 and RFC 8174.
 
 The archived `CLIENT_DESIGN_SYSTEM.md` is historical. `UI_UX_STYLE_GUIDE-EN.md`
-and `UI_UX_STYLE_GUIDE-CN.md` remain bilingual implementation companions for
-visual direction; they have no independent authority.
+and `UI_UX_STYLE_GUIDE-CN.md` remain paired bilingual implementation companions
+with no independent authority. The Constitution and Motion draft status remains
+explicit until the RFC is accepted.
 
 ## Information hierarchy
 
-1. Global shell, compact trader context strip, and runtime status stay visible
-   and persistent.
+1. Global shell, compact trader context strip (gas day, delivery product, and
+   Portfolio where applicable), and runtime status stay visible and persistent.
 2. Persistent primary workspace navigation identifies the active professional
    workspace; only five primary workspaces are exposed globally.
 3. The workspace page header identifies the active local task and primary
@@ -32,20 +37,24 @@ visual direction; they have no independent authority.
    appear inline near the affected result, never only in a hidden popover or
    secondary tab.
 
-Map-first workspaces keep the map dominant. Non-map workspaces use a compact,
-unframed page identity band; they MUST NOT mount a hidden map canvas or
-inactive map controls.
+The Network workspace is map-first and may keep the map dominant. Market
+quotes, Strategy, and other non-map analytical workspaces use the primary
+table, chart, editor, or report surface appropriate to the task. Non-map
+workspaces use a compact, unframed page identity band; they MUST NOT mount a
+hidden map canvas or inactive map controls.
 
 ## Spacing and surfaces
 
 - Use the existing CSS custom properties in `clients/web/src/styles/app.css`
   for surfaces, text, borders, and state colors.
-- Panel radius MUST NOT exceed 8px; pill controls may use full radius.
-- Use hairline borders and small stacked elevation. Do not use heavy shadows,
-  decorative gradients, orbs, blobs, or stock imagery.
+- The draft Constitution proposes 4/6/8px radii for controls, panels, and
+  ordinary analytical containers; decorative pill controls are prohibited.
+- Use hairline borders and semantic surfaces. Do not use decorative or heavy
+  shadows, gradients, orbs, blobs, or stock imagery.
 - Avoid nested cards. Prefer grid rows, rails, and compact panels.
-- Keep the workspace dense but scannable: compact 12px body text, 8px spacing
-  grid increments, and one level of emphasis per row.
+- Keep the workspace dense but scannable: use the draft Constitution's fixed
+  11/12/13/14/18/20px type scale, 4/8/12/16/24/32px spacing scale, and one
+  level of emphasis per row.
 - `app.css` is a deliberate global sheet. Scoped UI changes belong in narrowly
   named component or workspace CSS and MUST NOT collide with Strategy WIP
   selectors.
@@ -56,10 +65,11 @@ inactive map controls.
   compact labels use `ui-monospace`.
 - Headings are sentence case. All-caps is reserved for short technical mono
   labels only.
+- Use the draft Constitution's fixed text tokens of 11/12/13/14/18/20px; the
+  rare page/title token is 20px maximum. Giant workspace titles and arbitrary
+  local sizes are prohibited on adoption.
 - Implemented CSS keeps letter spacing at `0`. Font size MUST NOT scale with
   viewport width.
-- Large display type is reserved for a true product header; workspace screens
-  use practical panel headings.
 - Time and source metadata use compact mono labels with explicit UTC or local
   basis labels.
 
@@ -69,14 +79,11 @@ inactive map controls.
   error red, and domain map colors only where data semantics require them.
 - State color MUST NOT be the only signal. Every colored badge or row also
   needs a text label, icon, pattern, or title.
-- Standard state vocabulary and tones:
-  - `ready` / positive;
-  - `partial` / warning;
-  - `blocked` / critical;
-  - `stale` / warning;
-  - `unavailable` / critical;
-  - `restricted` or entitlement-missing / warning or critical depending on
-    fail-closed impact.
+- Standard freshness vocabulary: `Fresh`, `Late`, `Stale`, and `Missing`.
+- Standard operational/access vocabulary: `Ready`, `Unavailable`, `Restricted`,
+  `Partial`, `Unknown`, `Blocked`, and `Degraded`.
+- `Ready` and `Unavailable` describe operational availability, not freshness;
+  a source MAY be `Ready` and `Late` at the same time.
 - Map legends MUST distinguish verified geometry from indicative corridors and
   simulated from live or licensed data.
 - UI status classes preserve the existing contract names (`source-status`,
@@ -99,7 +106,9 @@ inactive map controls.
 
 ## Responsive behavior
 
-- The shared topbar uses deterministic responsive grid areas.
+- The shell uses structural rows with measured height; a fixed topbar MUST push
+  content below itself and MUST NOT overlap analytical content, controls,
+  warnings, or rails.
 - Workspace tabs MAY scroll horizontally on narrow widths; the active tab and
   focus state MUST remain visible.
 - On small screens navigation, runtime status, warnings, and the primary action
@@ -194,22 +203,28 @@ absent. Illustrative performance curves are prohibited.
 
 ## Implementation boundaries
 
-- Shared primitives live under `clients/web/src/components/ui`. A new primitive
-  MAY be added only when it removes real duplication in more than one active
-  workspace.
+- Shared primitives live under `clients/web/src/components/ui`. The draft
+  Constitution proposes `WorkspaceTabs`, `PanelHeader`, `MetricStrip`, and
+  `StatusBadge` as canonical, with only necessary DataTable, form, state,
+  evidence, layout, menu, or overlay contracts added when they remove real
+  duplication in more than one active workspace.
 - Workspace components own domain rendering and state; primitives own markup
   and keyboard contracts only.
 - No UI framework or new runtime dependency MAY be added for styling.
+- Do not create a third visual token system; consolidate existing semantic
+  token families under the Constitution after RFC acceptance. Motion remains
+  subordinate to that Constitution.
 - Global CSS changes require a focused UI review and MUST avoid Strategy WIP
   selectors.
 
 
-## Evidence-led UI refactor preparation (2026-09-06)
+## Historical evidence-led UI refactor preparation (2026-09-06)
 
-Status: audit evidence collected; visual acceptance is pending human review of
-the local gallery. DOM/source findings below are implementation facts. Image
-appearance, overlap aesthetics, and spacing quality are not claimed from DOM
-metrics or image dimensions.
+Status: **historical evidence only; not current acceptance**. Visual acceptance
+was pending human review of the local gallery at the time. DOM/source findings
+below are implementation facts from that snapshot. Image appearance, overlap
+aesthetics, and spacing quality are not claimed from DOM metrics or image
+dimensions.
 
 Evidence:
 
@@ -228,7 +243,8 @@ Capacity, Market Positioning, Strategy, Glossary, Data Sources, Runtime,
 Settings, Manual. Internal tabs captured for Resource Terms, Capacity,
 Strategy, Data Sources, and Runtime.
 
-DOM/source findings (not visual acceptance):
+DOM/source findings from the historical snapshot (not current visual
+acceptance):
 
 1. Browser dev-server hydration remains in `LOADING WORKSPACE` on Network and
    Strategy for at least 15 seconds, even though `/api/sources`,

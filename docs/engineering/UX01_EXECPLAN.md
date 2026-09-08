@@ -100,6 +100,21 @@ separate external acceptance prerequisites from actual product defect severity.
 
 ## Rollback and risks
 
+### Latest checkpoint (2026-09-08)
+
+- `192cb4a` pushed to origin/main: backend-evidence route classification and
+  resource-pool warning aggregation corrected. Parent verified 58/58 Web tests,
+  production build, API readiness and two 1440x900 browser screenshots.
+- Census is complete and reviewed, pending its documentation commit. Constitution
+  and motion drafts have been reviewed; authority reconciliation is delegated.
+  RFC acceptance and implementation compliance remain separate gates.
+- Remaining primary-workflow audit is active. Resource selection retains its URL
+  identity but does not open the selected record in the Resources editor; the
+  current default draft is a different record. Exposure presents unavailable
+  rows beneath zero summaries. Both need explicit UX/correctness disposition.
+- No broad visual refactor or final acceptance is claimed. Historical checkpoints
+  above are retained as chronology, not current runtime/agent status.
+
 Use coherent independently reviewable commits, preserving existing work.
 Do not reset the worktree or rewrite historical calendars/data to simplify UI.
 Keep audit-only changes separate from functional fixes. Runtime startup,

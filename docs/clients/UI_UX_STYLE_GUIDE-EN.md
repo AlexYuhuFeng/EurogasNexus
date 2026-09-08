@@ -1,28 +1,38 @@
 # UI/UX Style Guide - EN
 
-> Bilingual companion to
-> [`UI_CONTENT_STANDARDS.md`](UI_CONTENT_STANDARDS.md). That document is the
-> single authoritative UI/content standard; this file supplies the agreed
-> visual direction. On conflict, `UI_CONTENT_STANDARDS.md` wins.
+> Bilingual implementation companion to the draft
+> [`PROFESSIONAL_UI_CONSTITUTION.md`](PROFESSIONAL_UI_CONSTITUTION.md). Until
+> the UX01 RFC is accepted, [`UI_CONTENT_STANDARDS.md`](UI_CONTENT_STANDARDS.md)
+> remains transitional authority. On RFC acceptance, the Constitution is the
+> sole visual authority and [`MOTION_SYSTEM.md`](MOTION_SYSTEM.md) is
+> subordinate; this file has no independent authority.
 
-Eurogas Nexus Web and Windows client UI follows the professional map-first gas
-decision-support cockpit direction described below.
+Eurogas Nexus Web and Windows client UI follows a professional European energy
+analytical workstation direction, with a map-first Network workspace.
 
 ## Non-Negotiable Visual Rules
 
-- Use a Vercel-inspired near-white canvas: `#fafafa` page background, `#ffffff` panels, `#f5f5f5` inset surfaces.
-- Use ink black `#171717` for primary text and primary actions.
-- Use hairline borders `#ebebeb`; avoid heavy shadows. Elevation is stacked small shadows plus inset hairline.
+- Treat the current neutral palette as a migration reference: `#fafafa` page
+  background, `#ffffff` panels, `#f5f5f5` inset surfaces, `#171717` ink, and
+  `#ebebeb` hairlines. Implemented feature CSS MUST use semantic tokens rather
+  than scattered raw colors.
+- Avoid decorative and heavy shadows. Use semantic surfaces and borders rather
+  than ornamental elevation.
 - Use Inter/system sans for UI text and ui-monospace for technical eyebrows, source tags, and compact labels.
 - Use sentence-case headings. Do not use all-caps headings except short technical mono labels.
-- Keep card radius at 8px for app surfaces. Pill controls may use full radius.
+- The draft Constitution proposes fixed type `11/12/13/14/18/20px`, spacing
+  `4/8/12/16/24/32px`, controls `28/32/36px`, and radii `4/6/8px`.
+- Do not use decorative pills, giant workspace titles, or arbitrary local type,
+  spacing, control, or radius values on RFC adoption.
 - Keep the palette sparse: ink, gray, link blue, warning amber, error red, and domain map colors only where data semantics require them.
 - Do not use decorative blobs, stock imagery, or miniaturized gradients.
 - Do not use negative letter spacing in implemented CSS, even if the visual reference includes it; this repository keeps letter spacing at `0` for renderer consistency.
 
 ## Eurogas Cockpit Adaptation
 
-- The map remains the dominant work surface.
+- The Network workspace is map-first. Market quotes, Strategy, and other
+  analytical workspaces use the primary table, chart, editor, or report
+  surface appropriate to the task.
 - The top bar is a clean product/search/control bar, not a marketing hero.
 - The home left rail is the resource-pool intake: active portfolio resources,
   route controls, and missing-contract blockers.
@@ -31,8 +41,11 @@ decision-support cockpit direction described below.
 - Data-source diagnostics, runtime DB health, TSO access tables, capacity
   summaries, tariff tables, credentials, glossary, and AI reports live on their
   own pages. Do not add them back to the home rails.
-- The workspace pill plus hamburger glyph is the single navigation trigger on
-  the map. Do not reintroduce a duplicate horizontal nav on the home screen.
+- The shared shell owns the five primary workspaces; do not add a competing
+  navigation model or decorative pill trigger. Map-local controls remain local.
+- The shared shell owns gas day, delivery product, Portfolio where applicable,
+  primary market context, and runtime/data status. Do not duplicate global
+  context selectors inside pages.
 - The map asset search is rendered only in the Network workspace. A control
   must not remain visible on pages where it has no effect.
 - Non-map workspaces use a compact, unframed page identity band with local tabs

@@ -172,6 +172,44 @@ claiming CR1-15 native parity; do not use this older binary to approve or reject
 current-source layouts. The full native page walkthrough remains pending.
 # Route-status correction verification (2026-09-08)
 
+## Additional Portfolio walkthrough at 192cb4a
+
+### Decision handoff defect
+
+On 2026-09-08, clicked Optimize Resource Pool using the existing preview pool,
+then Open in Review. The URL became `workspace=review&task=optimize` with gas-day
+and resource identity retained. The page heading changed to Review while the
+Optimize tab and optimizer content remained active. This is a P1 workflow
+defect: the explicit Review handoff does not reach its intended surface.
+`decisionTaskFromLocation` currently prioritizes `task` over the legacy workspace;
+navigation and mounted task-state synchronization need joint regression coverage,
+including browser history. No claim is made that the click proved a newly
+completed optimization result; request/response identity was not captured.
+
+Visually reviewed `output/playwright/ux01-optimize-before-1440.png` and
+`output/playwright/ux01-optimize-review-handoff-1440.png`. Optimize also shows zero
+warnings while Portfolio exposes an options-layer warning; preserve scope or
+expose the warning rather than implying globally clean evidence. Its handoff is
+below the fold amid oversized framed sections, with PnL row time basis omitted.
+
+At 1440x900 in Edge, clicking the existing preview resource in Overview adds
+`resource=preview-portfolio-contract-ttf-pool-2025` to the URL but leaves the
+overview unchanged, without a clear selected-detail presentation. Clicking
+Resources retains that URL yet opens the default `Operator TTF supply 2025`
+draft. The mismatch needs explicit selected-resource versus editable-draft
+identity and a coherent inspect/edit handoff; do not assume the displayed draft
+is the selected persisted resource. No save/import was performed.
+
+Exposure shows `GBP 0` summary metrics while its screen-observation and PnL
+tables contain unavailable placeholder rows. Distinguish missing evidence from
+a measured zero during convergence. Current page heading remains Resource Terms
+on Exposure, and nested framed sections and inconsistent numeric alignment persist.
+
+Visually reviewed local captures: `output/playwright/ux01-resource-selected-before-1440.png`,
+`output/playwright/ux01-resources-before-1440.png`, and
+`output/playwright/ux01-exposure-before-1440.png`. These checks extend the audit;
+they do not prove the complete resource editing or exposure workflow passes.
+
 Reviewed the functional correction against baseline `3bb9ab5` and the running
 PostgreSQL-backed application. Required TSO access alone now yields UNKNOWN;
 positive allocations from SUCCESS/PARTIAL results provide feasibility evidence,
