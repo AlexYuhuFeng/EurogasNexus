@@ -102,6 +102,26 @@ separate external acceptance prerequisites from actual product defect severity.
 
 ### Latest checkpoint (2026-09-08)
 
+Desktop pre-build verification: no active desktop/cargo/rustc/tauri/msbuild
+process or target lock was detected. Existing release executable remains
+9,033,728 bytes, last written 2026-09-06 04:26:43 UTC, SHA-256
+`236187C7063E722153BD572838263DB22D984F465D8E58DF2585E29C811E3AE1`.
+The documented command is `npm run build` from `clients/desktop`. It has NOT
+been run for this checkpoint: wait for the active resource source patch to
+stabilize, then build and inspect the new native executable. Allowance is
+available again; the source-writer gate, not the old quota observation, is the
+current prerequisite. Origin/main and local HEAD were fetched and match.
+
+Follow-on checkpoint: `b566459` is pushed and adopts RFC-0001, Constitution and
+Motion as binding contracts, not implementation acceptance. `3dbee3a` fixed
+navigation handoffs/history with 61 passing Web tests and parent browser checks.
+Agent blocked-data research/replay and glossary selection have been exercised;
+the audit records exact limitations. The current resource-selection patch is
+uncommitted and NOT accepted: selected record versus draft identity/impact/source
+separation and unsaved-edit protection remain under review. Do not commit it
+based on an earlier test result. Desktop rebuild is deferred at 94% five-hour
+usage; recheck allowance and actual agent/process status before restarting work.
+
 - `192cb4a` pushed to origin/main: backend-evidence route classification and
   resource-pool warning aggregation corrected. Parent verified 58/58 Web tests,
   production build, API readiness and two 1440x900 browser screenshots.

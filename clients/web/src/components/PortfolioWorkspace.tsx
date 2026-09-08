@@ -61,7 +61,10 @@ function PortfolioOverview({ controller }: { controller: AppController }) {
               key={resource.resource_id}
               type="button"
               className={`data-table-row five ${selection.resourceId === resource.resource_id ? "selected" : ""}`}
-              onClick={() => selection.setResourceId(resource.resource_id)}
+              onClick={() => {
+                selection.setResourceId(resource.resource_id);
+                navigation.openWorkspace("contracts", "resources");
+              }}
             >
               <strong>{resource.resource_name}</strong>
               <span>{resource.location_point_name}</span>
@@ -184,6 +187,7 @@ export function PortfolioWorkspace({ controller }: { controller: AppController }
             firstPoolAllocation={portfolio.firstPoolAllocation}
             runtimeDbReady={portfolio.runtimeDbReady}
             loading={api.loading}
+            draftDirty={contractEditor.draftDirty}
             selectedResourceId={selection.resourceId}
             onOpenStrategyForResource={(resourceId) => {
               selection.setResourceId(resourceId);

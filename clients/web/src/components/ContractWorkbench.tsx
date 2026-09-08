@@ -1,6 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ChangeEvent, RefObject } from "react";
 import type { PortfolioResourceDTO, UpstreamContractDTO, UpstreamContractInputDTO } from "@/api/client";
+import {
+  notesRecordFromRecord,
+  sourceReferenceFromRecord,
+  stringFromRecord,
+} from "@/app/contractImport";
 
 export type ContractNumberKey =
   | "delivery_quantity_mwh_per_day"
@@ -92,6 +97,7 @@ interface ContractWorkbenchProps {
   firstPoolAllocation: { early_cash_value_gbp_mwh: number; net_margin_gbp_mwh: number; net_pnl_gbp_per_day: number } | null;
   runtimeDbReady: boolean;
   loading: boolean;
+  draftDirty: boolean;
   selectedResourceId: string | null;
   onOpenStrategyForResource: (resourceId: string) => void;
   contractImportRef: RefObject<HTMLInputElement | null>;
@@ -130,16 +136,43 @@ function formatTimestamp(value: string | undefined): string {
 
 export function ContractWorkbench({
   contract, contractPayload, upstreamContracts, portfolioResources, totalPoolVolume,
-  firstPoolAllocation, runtimeDbReady, loading, selectedResourceId,
+  firstPoolAllocation, runtimeDbReady, loading, draftDirty, selectedResourceId,
   onOpenStrategyForResource, contractImportRef, contractImportMessage,
   contractSaveMessage, t, updateContractText, updateContractNumber, updateContractList,
   saveDraftContract, resetContractDraft, importContractDraftFile, loadPersistedContract,
 }: ContractWorkbenchProps) {
-  const [taskView, setTaskView] = useState<TaskView>("terms");
+  const [taskView, setTaskView] = useState<TaskView>(() => selectedResourceId ? "library" : "terms");
   const [clauseView, setClauseView] = useState<ClauseView>("agreement");
   const persistedTerm = upstreamContracts.find((item) => item.contract_id === contract.contract_id);
+  const selectedResource = selectedResourceId
+    ? portfolioResources.find((item) => item.resource_id === selectedResourceId) ?? null
+    : null;
+  const selectedPersistedTerm = selectedResourceId
+    ? upstreamContracts.find((item) => item.contract_id === selectedResourceId) ?? null
+    : null;
   const persistedResource = portfolioResources.find((item) => item.resource_id === contract.contract_id);
+  const readOnlyLibrary = taskView === "library";
+  const selectedPersistedSourceReference = selectedPersistedTerm
+    ? sourceReferenceFromRecord(selectedPersistedTerm as unknown as Record<string, unknown>)
+    : "";
+  const selectedPersistedNotes = selectedPersistedTerm
+    ? notesRecordFromRecord(selectedPersistedTerm as unknown as Record<string, unknown>)
+    : {};
+  const selectedCounterparty = selectedPersistedTerm
+    ? stringFromRecord(
+        { ...selectedPersistedNotes, ...selectedPersistedTerm },
+        "counterparty",
+        "n/a",
+      )
+    : "n/a";
   const stagedStatus = contract.document_status || "MANUAL_DRAFT";
+  const readOnlySelectedResource = readOnlyLibrary && Boolean(selectedResourceId);
+  const knownSelectedResource = Boolean(selectedResource || selectedPersistedTerm);
+  const selectedReadOnlyName = selectedResource?.resource_name ?? selectedPersistedTerm?.contract_name ?? selectedResourceId;
+
+  useEffect(() => {
+    if (selectedResourceId) setTaskView("library");
+  }, [selectedResourceId]);
 
   const validationIssues = useMemo(() => {
     const issues: string[] = [];
@@ -155,8 +188,10 @@ export function ContractWorkbench({
     return issues;
   }, [contract, t]);
 
-  const canSave = runtimeDbReady && !loading && validationIssues.length === 0;
-  const saveStatus = !runtimeDbReady
+  const canSave = !readOnlyLibrary && runtimeDbReady && !loading && validationIssues.length === 0;
+  const saveStatus = readOnlyLibrary
+    ? readOnlySelectedResource ? knownSelectedResource ? t("contracts.persisted") : t("status.unknown") : t("contracts.library")
+    : !runtimeDbReady
     ? t("home.blocker_runtime_db")
     : validationIssues.length > 0
       ? t("contracts.validation.blocked")
@@ -173,6 +208,7 @@ export function ContractWorkbench({
   ];
 
   function loadTerm(saved: UpstreamContractDTO) {
+    if (draftDirty && !window.confirm(t("contracts.edit_confirm"))) return;
     loadPersistedContract(saved);
     setTaskView("terms");
     setClauseView("agreement");
@@ -182,15 +218,16 @@ export function ContractWorkbench({
     <div className="contract-task-workspace">
       <section className="contract-command-strip" aria-label={t("contracts.command_strip")}>
         <div className="contract-command-identity">
-          <span className="eyebrow">{persistedTerm ? t("contracts.persisted_term") : t("contracts.resource_draft")}</span>
-          <strong>{contract.contract_name || t("contracts.unnamed_draft")}</strong>
-          <span className={`contract-state ${persistedTerm ? "ready" : "draft"}`}>{persistedTerm ? t("contracts.persisted") : stagedStatus}</span>
+          <span className="eyebrow">{readOnlySelectedResource || persistedTerm ? t("contracts.persisted_term") : t("contracts.resource_draft")}</span>
+          <strong>{(readOnlySelectedResource ? selectedReadOnlyName : contract.contract_name) || t("contracts.unnamed_draft")}</strong>
+          <span className={`contract-state ${readOnlySelectedResource ? (knownSelectedResource ? "ready" : "draft") : persistedTerm ? "ready" : "draft"}`}>{readOnlySelectedResource ? (knownSelectedResource ? t("contracts.persisted") : t("status.unknown")) : persistedTerm ? t("contracts.persisted") : stagedStatus}</span>
+          {readOnlySelectedResource && <small>{t("contracts.resource_draft")}: {contract.contract_name || t("contracts.unnamed_draft")}</small>}
         </div>
         <dl className="contract-command-facts">
-          <div><dt>{t("contracts.counterparty")}</dt><dd>{contract.counterparty || "n/a"}</dd></div>
-          <div><dt>{t("status.source")}</dt><dd>{contract.document_name || t("contracts.manual_entry")}</dd></div>
+          <div><dt>{t("contracts.counterparty")}</dt><dd>{readOnlySelectedResource ? selectedCounterparty : contract.counterparty || "n/a"}</dd></div>
+          <div><dt>{t("status.source")}</dt><dd>{readOnlySelectedResource ? selectedResource?.source_refs?.join(", ") || selectedPersistedSourceReference || t("contracts.no_source_reference") : contract.document_name || t("contracts.manual_entry")}</dd></div>
           <div><dt>{t("status.db")}</dt><dd>{runtimeDbReady ? t("data.runtime") : t("data.unavailable")}</dd></div>
-          <div><dt>{t("panel.status")}</dt><dd>{t("settings.human_review")}</dd></div>
+          <div><dt>{t("panel.status")}</dt><dd>{readOnlySelectedResource ? selectedPersistedTerm?.human_review_required === true ? t("settings.human_review") : t("data.unavailable") : t("settings.human_review")}</dd></div>
         </dl>
         <div className="contract-command-actions">
           <button type="button" className="secondary-button" onClick={() => contractImportRef.current?.click()}>{t("contracts.action.import")}</button>
@@ -307,6 +344,29 @@ export function ContractWorkbench({
       {taskView === "library" && (
         <section className="contract-library-view">
           <div className="panel-title-row"><h2>{t("contracts.library")}</h2><span>{upstreamContracts.length} {t("panel.records")}</span></div>
+          {(selectedResource || selectedPersistedTerm) && (
+            <section className="contract-content-band">
+              <div className="section-heading"><span className="eyebrow">{t("contracts.persisted_term")}</span><strong>{selectedResource?.resource_name ?? selectedPersistedTerm?.contract_name}</strong></div>
+              <div className="contract-definition-list">
+                <div><span>{t("contracts.resource_id")}</span><strong>{selectedResource?.resource_id ?? selectedPersistedTerm?.contract_id}</strong></div>
+                <div><span>{t("contracts.delivery_point")}</span><strong>{selectedResource?.location_point_name ?? selectedPersistedTerm?.delivery_point_name ?? "n/a"}</strong></div>
+                <div><span>{t("economics.volume")}</span><strong>{formatQuantity(selectedResource?.available_quantity_mwh_per_day ?? selectedPersistedTerm?.delivery_quantity_mwh_per_day)}</strong></div>
+                <div><span>{t("economics.contract_price")}</span><strong>{formatMoney(selectedResource?.contract_cost_gbp_mwh ?? selectedPersistedTerm?.contract_price_gbp_mwh)}</strong></div>
+                <div><span>{t("contracts.source_reference")}</span><strong>{selectedResource?.source_refs?.join(", ") || selectedPersistedSourceReference || t("contracts.no_source_reference")}</strong></div>
+              </div>
+              {selectedPersistedTerm && (
+                <div className="contract-handoff-row">
+                  <button type="button" className="secondary-button" onClick={() => loadTerm(selectedPersistedTerm)}>{t("contracts.edit")}</button>
+                </div>
+              )}
+            </section>
+          )}
+          {selectedResourceId && !selectedResource && !selectedPersistedTerm && (
+            <section className="contract-content-band" role="status">
+              <div className="section-heading"><span className="eyebrow">{t("contracts.persisted_term")}</span><strong>{selectedResourceId}</strong></div>
+              <p className="panel-copy">{t("contracts.selected_unavailable")}</p>
+            </section>
+          )}
           <div className="contract-library-header" aria-hidden="true"><span>{t("contracts.resource_term")}</span><span>{t("economics.volume")}</span><span>{t("economics.contract_price")}</span><span>{t("panel.status")}</span></div>
           <div className="contract-library-list">{upstreamContracts.map((saved) => {
             const resourceInPool = portfolioResources.some((resource) => resource.resource_id === saved.contract_id);

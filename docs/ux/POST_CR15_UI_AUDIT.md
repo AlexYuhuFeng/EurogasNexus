@@ -172,6 +172,42 @@ claiming CR1-15 native parity; do not use this older binary to approve or reject
 current-source layouts. The full native page walkthrough remains pending.
 # Route-status correction verification (2026-09-08)
 
+## Resource patch browser review (not yet accepted)
+
+Final functional review: clean-base persisted loading and unknown-ID status
+were corrected after the initial review below. Parent reran 64 Web tests, all
+passing; delegate production build passed. The Library Save action is disabled
+for unknown selections; visually reviewed `output/playwright/ux01-resource-missing-1440.png`
+showing Unknown and explicit unavailable text. Final status labels use paired
+English/Chinese translations. This narrow functional fix is accepted; the
+existing large layout, clipped header text and separate broad visual acceptance
+remain open. Persisted edit confirmation cancellation was runtime-tested as
+recorded below; clean-base mapping is supported by source and unit-test review.
+
+Against b566459 plus the in-progress resource patch, Overview selection now
+opens Resources/Library with the selected preview resource identity, 10,000
+MWh/d, 25 GBP/MWh and its source reference. Visually reviewed
+`output/playwright/ux01-resource-library-selected-1440.png`. Edited only the
+browser-local draft name, attempted Edit on the persisted record, dismissed
+the confirmation, and asserted the unsaved draft name was unchanged. No save
+or database contract mutation was performed. Subsequent snapshot showed Terms
+with no open dialog. Unknown-ID status and clean persisted-load mapping still
+require final patch review; these observations do not accept the entire patch.
+
+## Glossary selection walkthrough at b566459
+
+At 1440x900, selected NBP using the shortcut, then Entry Capacity from the left
+term list. The right article heading and content changed to Entry Capacity;
+the two-pane interaction requested by the user exists and should be preserved.
+Visually reviewed `output/playwright/ux01-glossary-nbp-before-1440.png` and
+`output/playwright/ux01-glossary-entry-selected-1440.png`. Large descriptive
+term items, repeated heading bands and pill-heavy states reduce density. Date
+controls retain the May31/June1 range with no explicit timezone basis despite
+the global September7 gas day. Distinguish independently scoped context from
+global context during convergence; do not silently reinterpret timestamps.
+The NBP capture was still loading operational context; it is not proof of
+settled live-data freshness. Static term selection was separately verified.
+
 ## Agent research and replay walkthrough at 3dbee3a
 
 Submitted the brief's constrained-UK-capacity/transport-adjusted-NBP-premium

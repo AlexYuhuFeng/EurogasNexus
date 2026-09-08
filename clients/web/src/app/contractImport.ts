@@ -48,6 +48,15 @@ export function notesRecordFromRecord(record: Record<string, unknown>): Record<s
   }
 }
 
+export function sourceReferenceFromRecord(record: Record<string, unknown>): string {
+  const notes = notesRecordFromRecord(record);
+  const sourceReference = stringFromRecord({ ...notes, ...record }, "source_reference", "");
+  if (sourceReference) return sourceReference;
+  if (typeof record.notes !== "string") return "";
+  const rawNotes = record.notes.trim();
+  return rawNotes.startsWith("{") || rawNotes.startsWith("[") ? "" : rawNotes;
+}
+
 export function contractDraftFromRecord(record: Record<string, unknown>, current: ContractDraft): ContractDraft {
   const mergedRecord = { ...notesRecordFromRecord(record), ...record };
   return {
