@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { WorkspaceTabs } from "@/components/ui";
 import { CapacityWorkspace } from "@/components/CapacityWorkspace";
 import { MarketTerminal } from "@/components/MarketTerminal";
@@ -12,15 +12,8 @@ import {
   MAJOR_MARKET_HUBS as MAJOR_HUBS,
   MARKET_TASKS,
   marketTaskFromLocation,
-  marketTaskToSearch,
   type MarketTask,
 } from "@/app/model/marketCockpitModel";
-
-function writeTask(task: MarketTask): void {
-  const next = new URL(window.location.href);
-  next.search = marketTaskToSearch(window.location.search, task);
-  window.history.pushState({ task }, "", next);
-}
 
 function timestampMs(value: string | null | undefined): number {
   if (!value) return 0;
@@ -231,9 +224,13 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
   const activeWorkspace = navigation.activeWorkspace;
   const [task, setTask] = useState<MarketTask>(() => marketTaskFromLocation(window.location.search, activeWorkspace));
 
+  useEffect(() => {
+    setTask(marketTaskFromLocation(window.location.search, navigation.activeWorkspace));
+  }, [navigation.locationRevision, navigation.activeWorkspace]);
+
   const openTask = (next: MarketTask) => {
     setTask(next);
-    writeTask(next);
+    navigation.openWorkspace("market", next);
   };
 
   const tabs = MARKET_TASKS.map((id) => ({ id, label: t(`market.task.${id}`) }));

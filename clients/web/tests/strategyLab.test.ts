@@ -7,6 +7,7 @@ import {
   strategyTaskFromLocation,
   strategyTaskToSearch,
 } from "../src/app/model/strategyLabModel.ts";
+import { workspaceTaskSearch } from "../src/workspaceNavigation.ts";
 
 function run(overrides: Record<string, unknown> = {}) {
   return {
@@ -33,6 +34,15 @@ test("strategy lab task deep links and safe fallback", () => {
     strategyTaskToSearch("?gasDay=2026-09-07", "compare"),
     "gasDay=2026-09-07&workspace=strategy&task=compare",
   );
+});
+
+test("strategy workspace re-entry clears a stale task from another workspace", () => {
+  const leftStrategy = workspaceTaskSearch(
+    "?gasDay=2026-09-07&workspace=strategy&task=backtest",
+    "market",
+  );
+  const reenteredStrategy = workspaceTaskSearch(leftStrategy, "strategy");
+  assert.equal(strategyTaskFromLocation(reenteredStrategy), "design");
 });
 
 test("comparison classifies different strategy as not meaningful", () => {

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { WorkspaceTabs } from "@/components/ui";
 import { ContractWorkbench } from "@/components/ContractWorkbench";
 import { MarketPositioningWorkspace } from "@/components/MarketPositioningWorkspace";
@@ -9,7 +9,6 @@ import {
   classifyRouteFeasibility,
   dedupeWarnings,
   portfolioTaskFromLocation,
-  portfolioTaskToSearch,
   type PortfolioTask,
 } from "@/app/model/commercialWorkflowModel";
 import "./commercial-workflow.css";
@@ -151,11 +150,13 @@ export function PortfolioWorkspace({ controller }: { controller: AppController }
     portfolioTaskFromLocation(window.location.search),
   );
 
+  useEffect(() => {
+    setTask(portfolioTaskFromLocation(window.location.search));
+  }, [navigation.locationRevision]);
+
   function openTask(next: PortfolioTask) {
     setTask(next);
-    const url = new URL(window.location.href);
-    url.search = portfolioTaskToSearch(window.location.search, next);
-    window.history.pushState({ task: next }, "", url);
+    navigation.openWorkspace("contracts", next);
   }
 
   const tabs = PORTFOLIO_TASKS.map((id) => ({ id, label: t(`portfolio.task.${id}`) }));

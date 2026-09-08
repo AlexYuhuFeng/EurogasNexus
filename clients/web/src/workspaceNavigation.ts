@@ -47,3 +47,18 @@ export function coerceWorkspacePageId(
 ): WorkspacePageId {
   return isWorkspacePageId(value) ? value : fallback;
 }
+
+export function workspaceTaskSearch(
+  search: string,
+  page: WorkspacePageId,
+  task?: string,
+): string {
+  const next = new URLSearchParams(search);
+  next.set("workspace", page);
+  if (page === "scenario" || page === "review" || task) {
+    next.set("task", task ?? page);
+  } else {
+    next.delete("task");
+  }
+  return next.toString();
+}

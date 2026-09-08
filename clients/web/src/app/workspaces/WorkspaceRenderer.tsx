@@ -44,6 +44,7 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
   const activePrimaryWorkspace = primaryWorkspaceForPage(activeWorkspace);
   const strategyLab = useStrategyLab({
     gasDay: traderContext.gasDay,
+    locationRevision: navigation.locationRevision,
     selection: {
       strategyId: selection.strategyId,
       strategyVersionId: selection.strategyVersionId,

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { WorkspaceTabs } from "@/components/ui";
 import { ScenarioWorkspace } from "@/components/ScenarioWorkspace";
 import { ReviewWorkspace } from "@/components/ReviewWorkspace";
@@ -7,7 +7,6 @@ import { warningLabel } from "@/app/warningLabel";
 import {
   DECISION_TASKS,
   decisionTaskFromLocation,
-  decisionTaskToSearch,
   type DecisionTask,
 } from "@/app/model/commercialWorkflowModel";
 import "./commercial-workflow.css";
@@ -126,16 +125,18 @@ function OptimizeWorkspace({ controller }: { controller: AppController }) {
 }
 
 export function DecisionWorkspace({ controller }: { controller: AppController }) {
-  const { t, api, portfolio, review, selection, i18n, contractEditor } = controller;
+  const { t, api, portfolio, review, selection, i18n, contractEditor, navigation } = controller;
   const [task, setTask] = useState<DecisionTask>(() =>
     decisionTaskFromLocation(window.location.search),
   );
 
+  useEffect(() => {
+    setTask(decisionTaskFromLocation(window.location.search));
+  }, [controller.navigation.locationRevision]);
+
   function openTask(next: DecisionTask) {
     setTask(next);
-    const url = new URL(window.location.href);
-    url.search = decisionTaskToSearch(window.location.search, next);
-    window.history.pushState({ task: next }, "", url);
+    navigation.openWorkspace(next === "review" ? "review" : "scenario", next);
   }
 
   const tabs = DECISION_TASKS.map((id) => ({ id, label: t(`decision.task.${id}`) }));

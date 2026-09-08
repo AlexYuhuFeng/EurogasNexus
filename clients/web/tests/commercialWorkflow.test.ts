@@ -10,6 +10,7 @@ import {
   portfolioTaskFromLocation,
   portfolioTaskToSearch,
 } from "../src/app/model/commercialWorkflowModel.ts";
+import { workspaceTaskSearch } from "../src/workspaceNavigation.ts";
 
 function route(overrides: Record<string, unknown> = {}) {
   return {
@@ -33,6 +34,7 @@ test("portfolio and decision task deep links preserve context", () => {
   assert.equal(decisionTaskFromLocation("?task=review"), "review");
   assert.equal(decisionTaskFromLocation("?task=unknown"), "scenario");
   assert.equal(decisionTaskFromLocation("?workspace=review"), "review");
+  assert.equal(decisionTaskFromLocation("?workspace=review&task=optimize"), "review");
   assert.equal(decisionTaskFromLocation("?workspace=scenario"), "scenario");
   assert.equal(
     portfolioTaskToSearch("?gasDay=2026-09-07", "resources"),
@@ -42,6 +44,39 @@ test("portfolio and decision task deep links preserve context", () => {
     decisionTaskToSearch("?gasDay=2026-09-07", "optimize"),
     "gasDay=2026-09-07&workspace=scenario&task=optimize",
   );
+  assert.equal(
+    decisionTaskToSearch("?gasDay=2026-09-07", "review"),
+    "gasDay=2026-09-07&workspace=review&task=review",
+  );
+});
+
+test("workspace handoffs normalize local task and preserve trader context", () => {
+  const search = "?gasDay=2026-09-07&product=day-ahead&hub=NBP&resource=res-1&route=route-1&task=optimize";
+  assert.equal(
+    workspaceTaskSearch(search, "review"),
+    "gasDay=2026-09-07&product=day-ahead&hub=NBP&resource=res-1&route=route-1&task=review&workspace=review",
+  );
+  assert.equal(
+    workspaceTaskSearch(search, "market"),
+    "gasDay=2026-09-07&product=day-ahead&hub=NBP&resource=res-1&route=route-1&workspace=market",
+  );
+  assert.equal(
+    workspaceTaskSearch(search, "scenario", "optimize"),
+    "gasDay=2026-09-07&product=day-ahead&hub=NBP&resource=res-1&route=route-1&task=optimize&workspace=scenario",
+  );
+  const samePageScenario = workspaceTaskSearch(search, "scenario");
+  assert.equal(
+    samePageScenario,
+    "gasDay=2026-09-07&product=day-ahead&hub=NBP&resource=res-1&route=route-1&task=scenario&workspace=scenario",
+  );
+  assert.equal(decisionTaskFromLocation(samePageScenario), "scenario");
+});
+
+test("browser history locations rehydrate matching decision content", () => {
+  const reviewSearch = workspaceTaskSearch("?gasDay=2026-09-07&task=optimize", "review");
+  const optimizeSearch = decisionTaskToSearch(reviewSearch, "optimize");
+  assert.equal(decisionTaskFromLocation(reviewSearch), "review");
+  assert.equal(decisionTaskFromLocation(optimizeSearch), "optimize");
 });
 
 test("route feasibility is conservative and never treats unknown as feasible", () => {

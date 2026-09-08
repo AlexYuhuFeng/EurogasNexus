@@ -20,9 +20,9 @@ export function decisionTaskFromLocation(search: string): DecisionTask {
   const params = new URLSearchParams(search);
   const task = params.get("task");
   const workspace = params.get("workspace");
-  if (task === "optimize" || task === "review") return task;
   // Legacy deep links: ?workspace=review must open Review, not Scenario.
   if (workspace === "review") return "review";
+  if (task === "optimize" || task === "review") return task;
   if (workspace === "optimize") return "optimize";
   return "scenario";
 }
@@ -36,7 +36,7 @@ export function portfolioTaskToSearch(search: string, task: PortfolioTask): stri
 
 export function decisionTaskToSearch(search: string, task: DecisionTask): string {
   const next = new URLSearchParams(search);
-  next.set("workspace", "scenario");
+  next.set("workspace", task === "review" ? "review" : "scenario");
   next.set("task", task);
   return next.toString();
 }

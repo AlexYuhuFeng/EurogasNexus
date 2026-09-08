@@ -12,7 +12,7 @@ test("market to scenario handoff keeps route identity in the decision task", () 
   assert.equal(decisionTaskFromLocation("?workspace=review"), "review");
   assert.equal(
     decisionTaskToSearch("?gasDay=2026-09-07&route=route-1", "review"),
-    "gasDay=2026-09-07&route=route-1&workspace=scenario&task=review",
+    "gasDay=2026-09-07&route=route-1&workspace=review&task=review",
   );
 });
 

@@ -172,6 +172,35 @@ claiming CR1-15 native parity; do not use this older binary to approve or reject
 current-source layouts. The full native page walkthrough remains pending.
 # Route-status correction verification (2026-09-08)
 
+## Navigation correction verification (2026-09-08)
+
+Against 59277a0 plus the navigation patch, parent reran Web tests: 61 passed,
+0 failed. Delegate production build passed. Edge runtime assertions passed for
+Optimize -> Open in Review, Back to Optimize, Forward to Review, same-page
+Decision Center reset to Scenario, and Strategy Backtest -> Decision -> Strategy
+reset to Design. Review URL is now `workspace=review&task=review`, with its
+heading, active tab and Review content aligned. Gas-day context was retained.
+
+Visually reviewed `output/playwright/ux01-review-handoff-fixed-1440.png`: Review
+content is present instead of Optimize. The capture is a loading/empty-data
+state and is not normal-data or whole-product visual acceptance. Existing
+clipping, card density and warning-state issues remain open.
+
+## Research catalog walkthrough at 59277a0
+
+Visited Research Data, then Features and Targets in Edge at 1440x900 against the
+ready PostgreSQL runtime. Both tabs render explicit empty registries; no fixture
+definitions were inserted. Capability names are displayed as non-interactive
+chips. Source inspection confirms catalog rows have no detail interaction and
+there are no dataset build/validate/quality/export controls. Missing records and
+missing UI are separate acceptance gaps, not interchangeable explanations.
+
+Visually reviewed `output/playwright/ux01-research-features-before-1440.png` and
+`output/playwright/ux01-research-targets-before-1440.png`. Seven-column headings
+wrap into two grid rows, task selection lacks clear visible styling, duplicated
+Research Data headings and framed sections consume analytical space. This is
+empty-state inspection only, not populated research workflow acceptance.
+
 ## Additional Portfolio walkthrough at 192cb4a
 
 ### Decision handoff defect

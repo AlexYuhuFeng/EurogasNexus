@@ -36,6 +36,7 @@ export interface StrategyLabSelection {
 interface UseStrategyLabParams {
   selection: StrategyLabSelection;
   gasDay: string;
+  locationRevision: number;
 }
 
 function readTaskFromLocation(): StrategyTaskId {
@@ -49,8 +50,13 @@ function writeTaskToLocation(task: StrategyTaskId): void {
   window.history.pushState({ task }, "", next);
 }
 
-export function useStrategyLab({ selection, gasDay }: UseStrategyLabParams) {
+export function useStrategyLab({ selection, gasDay, locationRevision }: UseStrategyLabParams) {
   const [task, setTask] = useState<StrategyTaskId>(() => readTaskFromLocation());
+
+  useEffect(() => {
+    setTask(readTaskFromLocation());
+  }, [locationRevision]);
+
   const [strategies, setStrategies] = useState<StrategyDTO[]>([]);
   const [versionsByStrategy, setVersionsByStrategy] = useState<
     Record<string, StrategyVersionDTO[]>
