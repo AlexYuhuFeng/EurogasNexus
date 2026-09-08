@@ -102,6 +102,17 @@ separate external acceptance prerequisites from actual product defect severity.
 
 ### Latest checkpoint (2026-09-08)
 
+Current desktop build: at clean `9a84f5e`, delegate ran `npm run build` from
+`clients/desktop`, exit 0. Web TypeScript/Vite and optimized Rust/Tauri build
+succeeded; NSIS x64 installer generated. The native executable is now 9,142,272
+bytes, written 2026-09-08 11:18:12 UTC, SHA-256
+`124A148C6954F7536159F7DFBE413216C7E83F4A37EA203FBF831CCA6EDF41BC`
+(parent independently checked hash). Installer SHA-256 is
+`01A39F6E8173F11174584689261DF9A2EA1C4EEA6B6D489F652DC8E6CBFC5784`.
+Existing Vite ineffective-dynamic-import warning remains non-fatal. No new
+dependency or source edit was needed. Native launch/interaction acceptance is
+still pending; compilation does not prove UI behavior.
+
 Desktop pre-build verification: no active desktop/cargo/rustc/tauri/msbuild
 process or target lock was detected. Existing release executable remains
 9,033,728 bytes, last written 2026-09-06 04:26:43 UTC, SHA-256
