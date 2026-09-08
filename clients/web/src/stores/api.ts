@@ -54,9 +54,32 @@ import {
   UpstreamContractInputDTO,
   openEventStream,
 } from "@/api/client";
+import {
+  DEFAULT_WORKSPACE_READ_TIMEOUT_MS,
+  DEFAULT_LOGOUT_TIMEOUT_MS,
+  commitWorkspaceLoad,
+  identityDeniedWorkspaceReset,
+  loadWorkspaceEndpoint,
+  loadWorkspaceEndpoints,
+  knownWorkspaceLoaders,
+  IdentityReadCoordinator,
+  ReadRefreshCoordinator,
+  resetIdentityScopedCaches,
+  isIdentityDeniedMessage,
+  withAbortTimeout,
+  WorkspaceEndpointFailureCode,
+  type WorkspaceLoaderOutcome,
+  WorkspaceLoadCoordinator,
+  type WorkspaceLoader,
+} from "./workspaceLoading";
 
 let decisionStreamClosers: Array<() => void> = [];
 let marketRefreshSequence = 0;
+const workspaceLoadCoordinator = new WorkspaceLoadCoordinator();
+const readRefreshCoordinator = new ReadRefreshCoordinator();
+const identityReadCoordinator = new IdentityReadCoordinator();
+const MARKET_REFRESH_ERROR_PREFIX = "Market refresh partial:";
+let logoutInProgress = false;
 
 function timestampMs(value: string): number {
   const parsed = Date.parse(value);
@@ -74,6 +97,22 @@ function latestTimestamp(values: Array<string | null | undefined>): string | nul
 function closeDecisionStreams() {
   decisionStreamClosers.forEach((close) => close());
   decisionStreamClosers = [];
+}
+
+function startWorkspaceLoad() {
+  readRefreshCoordinator.beginWorkspaceLoad();
+  return workspaceLoadCoordinator.start();
+}
+
+function invalidateIdentitySession() {
+  identityReadCoordinator.invalidate();
+  readRefreshCoordinator.invalidateLanes();
+  workspaceLoadCoordinator.cancel();
+  closeDecisionStreams();
+}
+
+function isIdentityDenied(error: unknown): boolean {
+  return error instanceof Error && isIdentityDeniedMessage(error.message);
 }
 
 function mergeMarketQuotes(
@@ -166,6 +205,7 @@ export interface ApiState {
   pipelineHealth: PipelineHealthDTO | null;
   endpointMeta: Record<string, ApiMeta>;
   endpointErrors: Record<string, string>;
+  endpointErrorCodes: Record<string, WorkspaceEndpointFailureCode>;
   meta: ApiMeta | null;
   marketLastUpdatedAtUtc: string | null;
   loading: boolean;
@@ -234,9 +274,8 @@ function withoutLegacyFlag<T extends object>(body: T): T {
 }
 
 // ---------------------------------------------------------------------------
-// Independent endpoint loading (audit item: "29 个请求 Promise.all，任一 503
-// 拖垮整个工作区"). Each endpoint loads with its own retry; failures are
-// recorded per endpoint and can be retried without reloading the workspace.
+// Independent endpoint loading. Each endpoint has its own deadline and retry;
+// failures are recorded per endpoint and can be retried without reloading the workspace.
 // ---------------------------------------------------------------------------
 
 type LoaderOutcome<T> = { ok: true; value: T } | { ok: false; error: string };
@@ -256,9 +295,11 @@ async function loadEndpointWithRetry<T>(
 }
 
 /** endpointMeta key -> loader. Keys keep the historical endpointMeta names. */
-const WORKSPACE_LOADERS: Array<[string, () => Promise<{ data: unknown; meta: ApiMeta }>]> = [
-  ["referenceNodes", api.nodes],
-  ["referenceEdges", api.edges],
+type WorkspaceResponse = { data: unknown; meta: ApiMeta };
+type WorkspaceApiLoader = WorkspaceLoader<WorkspaceResponse>;
+const WORKSPACE_LOADERS: Array<[string, WorkspaceApiLoader]> = [
+  ["referenceNodes", (options) => api.nodes(undefined, options)],
+  ["referenceEdges", (options) => api.edges(undefined, options)],
   ["sources", api.sources],
   ["normalizedMarkets", api.normalizedMarketObservations],
   ["marketSpreads", api.marketSpreads],
@@ -272,19 +313,19 @@ const WORKSPACE_LOADERS: Array<[string, () => Promise<{ data: unknown; meta: Api
   ["capacity", api.capacityObservations],
   ["storage", api.storageObservations],
   ["lng", api.lngObservations],
-  ["tsoAccess", api.tsoAccess],
+  ["tsoAccess", (options) => api.tsoAccess(undefined, options)],
   ["routes", api.routeEligibility],
   ["routeCandidates", api.routeCandidates],
   ["tsoTariffs", api.tsoTariffs],
   ["upstreamContracts", api.upstreamContracts],
   ["resourcePoolOptions", api.resourcePoolOptions],
-  ["glossaryTerms", () => api.glossary("en")],
+  ["glossaryTerms", (options) => api.glossary("en", undefined, options)],
   ["runtimeDb", api.runtimeDb],
   ["runtimeDependencies", api.runtimeDependencies],
   ["credentialProviders", api.credentialProviders],
   ["monitoringAlerts", api.monitoringAlerts],
   ["monitoringSummary", api.monitoringSummary],
-  ["reviewDecisions", api.reviewDecisions],
+  ["reviewDecisions", (options) => api.reviewDecisions(undefined, options)],
   ["pipelineHealth", api.pipelineHealth],
   ["me", api.me],
 ];
@@ -396,6 +437,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
   pipelineHealth: null,
   endpointMeta: {},
   endpointErrors: {},
+  endpointErrorCodes: {},
   meta: null,
   marketLastUpdatedAtUtc: null,
   loading: false,
@@ -406,8 +448,17 @@ export const useApiStore = create<ApiState>((set, get) => ({
   dataStatus: "unavailable",
 
   fetchWorkspace: async () => {
+    if (logoutInProgress) return;
+    const load = startWorkspaceLoad();
     set({ loading: true, error: null });
-    const releaseOutcome = await loadEndpointWithRetry(api.runtimeRelease);
+    const releaseOutcome = await loadWorkspaceEndpoint(api.runtimeRelease, {
+      signal: load.signal,
+      timeoutMs: DEFAULT_WORKSPACE_READ_TIMEOUT_MS,
+    });
+    if (!workspaceLoadCoordinator.isCurrent(load.generation, load.signal)) {
+      workspaceLoadCoordinator.finish(load.generation);
+      return;
+    }
     if (releaseOutcome.ok) {
       const releaseCompatibility = compatibilityForServer(
         CLIENT_RELEASE_METADATA,
@@ -420,21 +471,28 @@ export const useApiStore = create<ApiState>((set, get) => ({
         releaseCompatibility: compatibilityForServer(CLIENT_RELEASE_METADATA, null),
       });
     }
-    const outcomes = await Promise.all(
-      WORKSPACE_LOADERS.map(async ([key, loader]) => ({
-        key,
-        outcome: await loadEndpointWithRetry(loader),
-      })),
-    );
-    const endpointErrors: Record<string, string> = {};
+    const outcomes = await loadWorkspaceEndpoints(WORKSPACE_LOADERS, {
+      signal: load.signal,
+      timeoutMs: DEFAULT_WORKSPACE_READ_TIMEOUT_MS,
+    });
+    if (!workspaceLoadCoordinator.isCurrent(load.generation, load.signal)) {
+      workspaceLoadCoordinator.finish(load.generation);
+      return;
+    }
+    const identityReset = identityDeniedWorkspaceReset(outcomes, DEFAULT_MONITORING_SUMMARY);
+    if (identityReset) {
+      invalidateIdentitySession();
+      set(identityReset);
+      return;
+    }
+    const workspaceCommit = commitWorkspaceLoad(outcomes);
+    const { endpointErrors, endpointErrorCodes } = workspaceCommit;
     const endpointMeta: Record<string, ApiMeta> = {};
     const slices: Record<string, unknown> = {};
     for (const { key, outcome } of outcomes) {
       if (outcome.ok) {
         endpointMeta[key] = outcome.value.meta;
         slices[key] = deriveWorkspaceSlice(key, outcome.value);
-      } else {
-        endpointErrors[key] = outcome.error;
       }
     }
     const sourceRefs = Object.values(endpointMeta).flatMap((item) => item.source_references ?? []);
@@ -486,6 +544,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
       currentUser: (slices.me ?? null) as CurrentUserDTO | null,
       endpointMeta,
       endpointErrors,
+      endpointErrorCodes,
       meta: endpointMeta.referenceNodes ?? null,
       marketLastUpdatedAtUtc: latestMarketObservedAt(
         (slices.normalizedMarkets ?? []) as NormalizedMarketObsDTO[],
@@ -493,152 +552,215 @@ export const useApiStore = create<ApiState>((set, get) => ({
         (slices.fxRates ?? []) as FxRateDTO[],
       ),
       dataStatus: resolvedStatus,
-      loading: false,
-      error: allFailed
-        ? `All workspace endpoints failed: ${Object.keys(endpointErrors).join(", ")}`
-        : null,
+      loading: workspaceCommit.loading,
+      error: allFailed ? workspaceCommit.error : null,
     });
     void get().fetchStrategySummary();
     void get().fetchStrategyRuns();
     void get().fetchMe();
     get().subscribeDecisionStreams();
+    workspaceLoadCoordinator.finish(load.generation);
   },
 
   retryFailedWorkspaceEndpoints: async () => {
+    if (logoutInProgress) return;
     const failedKeys = Object.keys(get().endpointErrors);
     if (failedKeys.length === 0) return;
     const loaderByKey = new Map(WORKSPACE_LOADERS);
-    const outcomes = await Promise.all(
-      failedKeys.map(async (key) => ({
-        key,
-        outcome: await loadEndpointWithRetry(loaderByKey.get(key) as () => Promise<{ data: unknown; meta: ApiMeta }>),
-      })),
-    );
-    set((state) => {
-      const endpointErrors = { ...state.endpointErrors };
-      const endpointMeta = { ...state.endpointMeta };
-      const patch: Partial<ApiState> = {};
-      for (const { key, outcome } of outcomes) {
-        if (outcome.ok) {
-          delete endpointErrors[key];
-          endpointMeta[key] = outcome.value.meta;
-          const stateKey = WORKSPACE_STATE_KEYS[key];
-          if (stateKey) {
-            (patch as Record<string, unknown>)[stateKey] = deriveWorkspaceSlice(key, outcome.value);
+    const retryableLoaders = knownWorkspaceLoaders(failedKeys, loaderByKey);
+    if (retryableLoaders.length === 0) return;
+
+    const load = startWorkspaceLoad();
+    set({ loading: true, error: null });
+    try {
+      const outcomes = await loadWorkspaceEndpoints(retryableLoaders, {
+        signal: load.signal,
+        timeoutMs: DEFAULT_WORKSPACE_READ_TIMEOUT_MS,
+      });
+      if (!workspaceLoadCoordinator.isCurrent(load.generation, load.signal)) return;
+      const identityReset = identityDeniedWorkspaceReset(outcomes, DEFAULT_MONITORING_SUMMARY);
+      if (identityReset) {
+        invalidateIdentitySession();
+        set(identityReset);
+        return;
+      }
+      set((state) => {
+        const endpointErrors = { ...state.endpointErrors };
+        const endpointErrorCodes = { ...state.endpointErrorCodes };
+        const endpointMeta = { ...state.endpointMeta };
+        const patch: Partial<ApiState> = {};
+        for (const { key, outcome } of outcomes) {
+          if (outcome.ok) {
+            delete endpointErrors[key];
+            delete endpointErrorCodes[key];
+            endpointMeta[key] = outcome.value.meta;
+            const stateKey = WORKSPACE_STATE_KEYS[key];
+            if (stateKey) {
+              (patch as Record<string, unknown>)[stateKey] = deriveWorkspaceSlice(key, outcome.value);
+            }
+          } else {
+            endpointErrors[key] = outcome.error.message;
+            endpointErrorCodes[key] = outcome.error.code;
           }
         }
-      }
-      return {
-        ...patch,
-        endpointErrors,
-        endpointMeta,
-        error: Object.keys(endpointErrors).length === 0 ? null : state.error,
-        loading: false,
-      };
-    });
+        return {
+          ...patch,
+          endpointErrors,
+          endpointErrorCodes,
+          endpointMeta,
+          error: Object.keys(endpointErrors).length === 0 ? null : state.error,
+          loading: false,
+        };
+      });
+    } finally {
+      const current = workspaceLoadCoordinator.isCurrent(load.generation, load.signal);
+      workspaceLoadCoordinator.finish(load.generation);
+      if (current) set({ loading: false });
+    }
   },
 
   refreshMarketData: async () => {
+    if (logoutInProgress) return;
+    const refresh = readRefreshCoordinator.market.tryStart();
+    if (!refresh) return;
+    const refreshGeneration = readRefreshCoordinator.currentGeneration();
     const refreshSequence = ++marketRefreshSequence;
-    // Market board data must not wait on the slower /api/sources diagnostic
-    // endpoint. Update source posture in the background after live prices land.
-    void api.sources()
-      .then((sources) => {
-        if (refreshSequence !== marketRefreshSequence) return;
+    const options = {
+      signal: refresh.signal,
+      retries: 0,
+      timeoutMs: DEFAULT_WORKSPACE_READ_TIMEOUT_MS,
+    };
+    try {
+      // Keep source posture independent from the market-board commit, but keep
+      // it inside this lane so timer ticks cannot create another source read.
+      const sourcesPromise = loadWorkspaceEndpoint(api.sources, options);
+      const [normalizedResult, spreadResult, quoteResult, opportunityResult, fxResult] =
+        await Promise.all([
+          loadWorkspaceEndpoint(api.normalizedMarketObservations, options),
+          loadWorkspaceEndpoint(api.marketSpreads, options),
+          loadWorkspaceEndpoint(api.marketQuotes, options),
+          loadWorkspaceEndpoint(api.intradayOpportunities, options),
+          loadWorkspaceEndpoint(api.fxRates, options),
+        ]);
+      if (
+        refreshSequence === marketRefreshSequence &&
+        readRefreshCoordinator.isCurrent(refreshGeneration)
+      ) {
+        set((state) => {
+          const endpointMeta = { ...state.endpointMeta };
+          const endpointErrors = { ...state.endpointErrors };
+          const endpointErrorCodes = { ...state.endpointErrorCodes };
+          const recordOutcome = (
+            key: string,
+            outcome: WorkspaceLoaderOutcome<{ data: unknown; meta: ApiMeta }>,
+          ) => {
+            if (outcome.ok) {
+              endpointMeta[key] = outcome.value.meta;
+              delete endpointErrors[key];
+              delete endpointErrorCodes[key];
+            } else {
+              endpointErrors[key] = outcome.error.message;
+              endpointErrorCodes[key] = outcome.error.code;
+            }
+          };
+          recordOutcome("normalizedMarkets", normalizedResult);
+          recordOutcome("marketSpreads", spreadResult);
+          recordOutcome("marketQuotes", quoteResult);
+          recordOutcome("intradayOpportunities", opportunityResult);
+          recordOutcome("fxRates", fxResult);
+
+          const normalizedMarkets = normalizedResult.ok
+            ? normalizedResult.value.data
+            : state.normalizedMarkets;
+          const marketSpreads = spreadResult.ok
+            ? spreadResult.value.data
+            : state.marketSpreads;
+          const marketQuotes = quoteResult.ok
+            ? mergeMarketQuotes(state.marketQuotes, quoteResult.value.data)
+            : state.marketQuotes;
+          const intradayOpportunities = opportunityResult.ok
+            ? mergeIntradayOpportunities(
+              state.intradayOpportunities,
+              opportunityResult.value.data,
+            )
+            : state.intradayOpportunities;
+          const fxRates = fxResult.ok ? fxResult.value.data : state.fxRates;
+          const failedMarketEndpoints = [
+            "normalizedMarkets",
+            "marketSpreads",
+            "marketQuotes",
+            "intradayOpportunities",
+            "fxRates",
+          ].filter((key) => endpointErrors[key]);
+
+          return {
+            normalizedMarkets,
+            marketSpreads,
+            marketQuotes,
+            intradayOpportunities,
+            fxRates,
+            endpointMeta,
+            endpointErrors,
+            endpointErrorCodes,
+            meta: normalizedResult.ok ? normalizedResult.value.meta : state.meta,
+            marketLastUpdatedAtUtc: latestMarketObservedAt(
+              normalizedMarkets,
+              marketQuotes,
+              fxRates,
+            ),
+            error: failedMarketEndpoints.length > 0
+              ? `${MARKET_REFRESH_ERROR_PREFIX} ${failedMarketEndpoints.join(", ")}`
+              : state.error?.startsWith(MARKET_REFRESH_ERROR_PREFIX)
+                ? null
+                : state.error,
+          };
+        });
+      }
+      const sources = await sourcesPromise;
+      if (
+        refreshSequence === marketRefreshSequence &&
+        readRefreshCoordinator.isCurrent(refreshGeneration) &&
+        sources.ok
+      ) {
         set((state) => ({
-          sources: sources.data,
-          endpointMeta: {
-            ...state.endpointMeta,
-            sources: sources.meta,
-          },
+          sources: sources.value.data,
+          endpointMeta: { ...state.endpointMeta, sources: sources.value.meta },
+          endpointErrors: Object.fromEntries(
+            Object.entries(state.endpointErrors).filter(([key]) => key !== "sources"),
+          ),
+          endpointErrorCodes: Object.fromEntries(
+            Object.entries(state.endpointErrorCodes).filter(([key]) => key !== "sources"),
+          ),
         }));
-      })
-      .catch(() => undefined);
-    const [normalizedResult, spreadResult, quoteResult, opportunityResult, fxResult] =
-      await Promise.all([
-        loadEndpointWithRetry(api.normalizedMarketObservations, 0),
-        loadEndpointWithRetry(api.marketSpreads, 0),
-        loadEndpointWithRetry(api.marketQuotes, 0),
-        loadEndpointWithRetry(api.intradayOpportunities, 0),
-        loadEndpointWithRetry(api.fxRates, 0),
-      ]);
-    if (refreshSequence !== marketRefreshSequence) return;
-
-    set((state) => {
-      const endpointMeta = { ...state.endpointMeta };
-      const endpointErrors = { ...state.endpointErrors };
-      const recordOutcome = (
-        key: string,
-        outcome: LoaderOutcome<{ data: unknown; meta: ApiMeta }>,
-      ) => {
-        if (outcome.ok) {
-          endpointMeta[key] = outcome.value.meta;
-          delete endpointErrors[key];
-        } else {
-          endpointErrors[key] = outcome.error;
-        }
-      };
-      recordOutcome("normalizedMarkets", normalizedResult);
-      recordOutcome("marketSpreads", spreadResult);
-      recordOutcome("marketQuotes", quoteResult);
-      recordOutcome("intradayOpportunities", opportunityResult);
-      recordOutcome("fxRates", fxResult);
-
-      const normalizedMarkets = normalizedResult.ok
-        ? normalizedResult.value.data
-        : state.normalizedMarkets;
-      const marketSpreads = spreadResult.ok
-        ? spreadResult.value.data
-        : state.marketSpreads;
-      const marketQuotes = quoteResult.ok
-        ? mergeMarketQuotes(state.marketQuotes, quoteResult.value.data)
-        : state.marketQuotes;
-      const intradayOpportunities = opportunityResult.ok
-        ? mergeIntradayOpportunities(
-          state.intradayOpportunities,
-          opportunityResult.value.data,
-        )
-        : state.intradayOpportunities;
-      const fxRates = fxResult.ok ? fxResult.value.data : state.fxRates;
-      const failedMarketEndpoints = [
-        "normalizedMarkets",
-        "marketSpreads",
-        "marketQuotes",
-        "intradayOpportunities",
-        "fxRates",
-      ].filter((key) => endpointErrors[key]);
-
-      return {
-        normalizedMarkets,
-        marketSpreads,
-        marketQuotes,
-        intradayOpportunities,
-        fxRates,
-        endpointMeta,
-        endpointErrors,
-        meta: normalizedResult.ok ? normalizedResult.value.meta : state.meta,
-        marketLastUpdatedAtUtc: latestMarketObservedAt(
-          normalizedMarkets,
-          marketQuotes,
-          fxRates,
-        ),
-        error: failedMarketEndpoints.length > 0
-          ? `Market refresh partial: ${failedMarketEndpoints.join(", ")}`
-          : null,
-      };
-    });
+      } else if (
+        refreshSequence === marketRefreshSequence &&
+        readRefreshCoordinator.isCurrent(refreshGeneration) &&
+        !sources.ok
+      ) {
+        set((state) => ({
+          endpointErrors: { ...state.endpointErrors, sources: sources.error.message },
+          endpointErrorCodes: { ...state.endpointErrorCodes, sources: sources.error.code },
+        }));
+      }
+    } finally {
+      refresh.release();
+    }
   },
 
   subscribeDecisionStreams: () => {
     closeDecisionStreams();
-    const onStatus = (status: "open" | "error") =>
-      set({ streamingActive: status === "open" });
+    const streamGeneration = identityReadCoordinator.capture();
+    const streamIsCurrent = () => identityReadCoordinator.isCurrent(streamGeneration);
+    const onStatus = (status: "open" | "error") => {
+      if (streamIsCurrent()) set({ streamingActive: status === "open" });
+    };
 
     decisionStreamClosers.push(
       openEventStream(
         "/stream/quotes",
         {
           quotes: (payload) => {
+            if (!streamIsCurrent()) return;
             const quote = payload as MarketQuoteDTO;
             if (!quote || typeof quote !== "object" || !("quote_id" in quote)) return;
             set((state) => ({
@@ -657,6 +779,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
     decisionStreamClosers.push(
       openEventStream("/stream/opportunities", {
         opportunities: (payload) => {
+          if (!streamIsCurrent()) return;
           const opportunity = payload as IntradayOpportunityDTO;
           if (
             !opportunity ||
@@ -678,6 +801,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
     decisionStreamClosers.push(
       openEventStream("/stream/alerts", {
         alerts: (payload) => {
+          if (!streamIsCurrent()) return;
           const alert = payload as MonitoringAlertDTO;
           if (!alert || typeof alert !== "object" || !("alert_id" in alert)) return;
           set((state) => ({
@@ -692,23 +816,47 @@ export const useApiStore = create<ApiState>((set, get) => ({
   },
 
   fetchMe: async () => {
+    if (logoutInProgress) return;
+    const requestGeneration = identityReadCoordinator.capture();
     try {
-      const response = await api.me();
+      const outcome = await loadWorkspaceEndpoint(api.me, {
+        retries: 0,
+        timeoutMs: DEFAULT_WORKSPACE_READ_TIMEOUT_MS,
+      });
+      if (!identityReadCoordinator.isCurrent(requestGeneration)) return;
+      if (!outcome.ok) {
+        if (isIdentityDeniedMessage(outcome.error.message)) {
+          invalidateIdentitySession();
+          set(resetIdentityScopedCaches(DEFAULT_MONITORING_SUMMARY));
+        }
+        return;
+      }
+      const response = outcome.value;
       const csrf = response.data.csrf_token;
       if (csrf) {
         const { setDesktopSessionToken } = await import("@/api/client");
+        if (!identityReadCoordinator.isCurrent(requestGeneration)) return;
         // Browser sessions use the cookie; CSRF token is kept in memory for
         // cookie-authenticated mutations.
         setDesktopSessionToken("", csrf);
       }
       set({ currentUser: response.data });
-    } catch {
-      set({ currentUser: null });
+    } catch (error) {
+      if (!identityReadCoordinator.isCurrent(requestGeneration)) return;
+      if (isIdentityDenied(error)) {
+        invalidateIdentitySession();
+        set(resetIdentityScopedCaches(DEFAULT_MONITORING_SUMMARY));
+      }
     }
   },
 
   signIn: async () => {
+    if (logoutInProgress) return;
+    const signInGeneration = identityReadCoordinator.capture();
+    const signInIsCurrent = () =>
+      !logoutInProgress && identityReadCoordinator.isCurrent(signInGeneration);
     const client = await import("@/api/client");
+    if (!signInIsCurrent()) return;
     const isDesktop =
       "__TAURI_INTERNALS__" in window ||
       window.location.protocol === "tauri:" ||
@@ -734,47 +882,106 @@ export const useApiStore = create<ApiState>((set, get) => ({
     const code = params.get("code") ?? "";
     const state = params.get("state") ?? "";
     if (!code || !state) throw new Error("Desktop login callback was incomplete.");
+    if (!signInIsCurrent()) return;
     const token = await client.api.desktopOidcToken({
       code,
       state,
       code_verifier: verifier,
       redirect_uri: redirectUri,
     });
+    if (!signInIsCurrent()) return;
     client.setDesktopSessionToken(token.data.access_token);
     await get().fetchMe();
   },
 
   signOut: async () => {
+    logoutInProgress = true;
+    invalidateIdentitySession();
+    set(resetIdentityScopedCaches(DEFAULT_MONITORING_SUMMARY));
     try {
-      await api.logout();
+      await withAbortTimeout(
+        (signal) => api.logout({ signal }),
+        DEFAULT_LOGOUT_TIMEOUT_MS,
+      );
     } catch {
       // Server-side session may already be gone; local state is still cleared.
+    } finally {
+      try {
+        const { clearDesktopSession } = await import("@/api/client");
+        clearDesktopSession();
+      } finally {
+        logoutInProgress = false;
+      }
     }
-    const { clearDesktopSession } = await import("@/api/client");
-    clearDesktopSession();
-    set({ currentUser: null });
   },
 
   refreshMonitoring: async () => {
+    if (logoutInProgress) return;
+    const refresh = readRefreshCoordinator.monitoring.tryStart();
+    if (!refresh) return;
+    const refreshGeneration = readRefreshCoordinator.currentGeneration();
     try {
       const [alerts, summary, health] = await Promise.all([
-        api.monitoringAlerts(),
-        api.monitoringSummary(),
-        api.pipelineHealth(),
+        loadWorkspaceEndpoint(api.monitoringAlerts, {
+          signal: refresh.signal,
+          retries: 0,
+          timeoutMs: DEFAULT_WORKSPACE_READ_TIMEOUT_MS,
+        }),
+        loadWorkspaceEndpoint(api.monitoringSummary, {
+          signal: refresh.signal,
+          retries: 0,
+          timeoutMs: DEFAULT_WORKSPACE_READ_TIMEOUT_MS,
+        }),
+        loadWorkspaceEndpoint(api.pipelineHealth, {
+          signal: refresh.signal,
+          retries: 0,
+          timeoutMs: DEFAULT_WORKSPACE_READ_TIMEOUT_MS,
+        }),
       ]);
-      set((state) => ({
-        monitoringAlerts: alerts.data,
-        monitoringSummary: summary.data,
-        pipelineHealth: health.data,
-        endpointMeta: {
-          ...state.endpointMeta,
-          monitoringAlerts: alerts.meta,
-          monitoringSummary: summary.meta,
-          pipelineHealth: health.meta,
-        },
-      }));
-    } catch (e) {
-      set({ error: String(e) });
+      if (!readRefreshCoordinator.isCurrent(refreshGeneration)) return;
+      if (!alerts.ok || !summary.ok || !health.ok) {
+        const failures: Array<{ key: string; message: string; code: WorkspaceEndpointFailureCode }> = [];
+        if (!alerts.ok) failures.push({ key: "monitoringAlerts", ...alerts.error });
+        if (!summary.ok) failures.push({ key: "monitoringSummary", ...summary.error });
+        if (!health.ok) failures.push({ key: "pipelineHealth", ...health.error });
+        set((state) => {
+          const endpointErrors = { ...state.endpointErrors };
+          const endpointErrorCodes = { ...state.endpointErrorCodes };
+          failures.forEach(({ key, message, code }) => {
+            endpointErrors[key] = message;
+            endpointErrorCodes[key] = code;
+          });
+          return {
+            endpointErrors,
+            endpointErrorCodes,
+            error: `Monitoring refresh failed: ${failures.map(({ key }) => key).join(", ")}`,
+          };
+        });
+        return;
+      }
+      set((state) => {
+        const endpointErrors = { ...state.endpointErrors };
+        const endpointErrorCodes = { ...state.endpointErrorCodes };
+        ["monitoringAlerts", "monitoringSummary", "pipelineHealth"].forEach((key) => {
+          delete endpointErrors[key];
+          delete endpointErrorCodes[key];
+        });
+        return {
+          monitoringAlerts: alerts.value.data,
+          monitoringSummary: summary.value.data,
+          pipelineHealth: health.value.data,
+          endpointErrors,
+          endpointErrorCodes,
+          endpointMeta: {
+            ...state.endpointMeta,
+            monitoringAlerts: alerts.value.meta,
+            monitoringSummary: summary.value.meta,
+            pipelineHealth: health.value.meta,
+          },
+        };
+      });
+    } finally {
+      refresh.release();
     }
   },
 
@@ -914,20 +1121,30 @@ export const useApiStore = create<ApiState>((set, get) => ({
   },
 
   fetchStrategySummary: async () => {
+    if (logoutInProgress) return;
+    const requestGeneration = identityReadCoordinator.capture();
     try {
       const result = await api.strategySummary({ strategy_id: DEFAULT_STRATEGY_ID });
+      if (!identityReadCoordinator.isCurrent(requestGeneration) || logoutInProgress) return;
       set({ strategySummary: result.data });
     } catch (e) {
-      set({ strategySummary: null, error: String(e) });
+      if (identityReadCoordinator.isCurrent(requestGeneration) && !logoutInProgress) {
+        set({ strategySummary: null, error: String(e) });
+      }
     }
   },
 
   fetchStrategyRuns: async () => {
+    if (logoutInProgress) return;
+    const requestGeneration = identityReadCoordinator.capture();
     try {
       const result = await api.strategyRuns({ strategy_id: DEFAULT_STRATEGY_ID, limit: 20 });
+      if (!identityReadCoordinator.isCurrent(requestGeneration) || logoutInProgress) return;
       set({ strategyRuns: result.data });
     } catch (e) {
-      set({ strategyRuns: [], error: String(e) });
+      if (identityReadCoordinator.isCurrent(requestGeneration) && !logoutInProgress) {
+        set({ strategyRuns: [], error: String(e) });
+      }
     }
   },
 

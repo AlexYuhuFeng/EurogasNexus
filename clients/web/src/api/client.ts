@@ -70,6 +70,10 @@ export function authHeaders(): Record<string, string> {
   return headers;
 }
 
+export interface ApiRequestOptions {
+  signal?: AbortSignal;
+}
+
 function requestInit(init: RequestInit = {}): RequestInit {
   return {
     ...init,
@@ -243,12 +247,16 @@ export async function testApiBaseUrl(value: string): Promise<HealthDTO> {
   );
 }
 
-async function get<T>(path: string, params?: Record<string, string>): Promise<ApiResponse<T>> {
+async function get<T>(
+  path: string,
+  params?: Record<string, string>,
+  options: ApiRequestOptions = {},
+): Promise<ApiResponse<T>> {
   const url = new URL(apiUrl(path));
   if (params) {
     Object.entries(params).forEach(([k, v]) => { if (v) url.searchParams.set(k, v); });
   }
-  const res = await fetch(url.toString(), requestInit());
+  const res = await fetch(url.toString(), requestInit({ signal: options.signal }));
   return parseResponse<ApiResponse<T>>(res);
 }
 
@@ -270,11 +278,12 @@ async function put<T>(path: string, body: unknown): Promise<ApiResponse<T>> {
   return parseResponse<ApiResponse<T>>(response);
 }
 
-async function post<T>(path: string, body: unknown): Promise<ApiResponse<T>> {
+async function post<T>(path: string, body: unknown, options: ApiRequestOptions = {}): Promise<ApiResponse<T>> {
   const res = await fetch(apiUrl(path), requestInit({
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+    signal: options.signal,
   }));
   return parseResponse<ApiResponse<T>>(res);
 }
@@ -1311,17 +1320,17 @@ export const api = {
   health: async () =>
     parseResponse<HealthDTO>(await fetch(apiUrl("/health"), requestInit())),
 
-  nodes: (params?: { country?: string; node_type?: string }) =>
+  nodes: (params?: { country?: string; node_type?: string }, options?: ApiRequestOptions) =>
     get<NodeDTO[]>("/reference-network/nodes", {
       limit: REFERENCE_NETWORK_READ_LIMIT,
       ...params,
-    }),
+    }, options),
 
-  edges: (params?: { from_node_id?: string; to_node_id?: string }) =>
+  edges: (params?: { from_node_id?: string; to_node_id?: string }, options?: ApiRequestOptions) =>
     get<EdgeDTO[]>("/reference-network/edges", {
       limit: REFERENCE_NETWORK_READ_LIMIT,
       ...params,
-    }),
+    }, options),
 
   facilities: (params?: { facility_type?: string; country?: string }) =>
     get<FacilityDTO[]>("/reference-network/facilities", {
@@ -1335,50 +1344,50 @@ export const api = {
 
   tsoAccess: (params?: {
     point_id?: string; country?: string; operator_key?: string; direction?: string;
-  }) => get<TsoAccessPointDTO[]>("/reference-network/tso-access", {
+  }, options?: ApiRequestOptions) => get<TsoAccessPointDTO[]>("/reference-network/tso-access", {
     limit: REFERENCE_NETWORK_READ_LIMIT,
     ...params,
-  }),
+  }, options),
 
-  sources: () => get<SourceSystemWire[]>("/sources").then(normalizeSourcesResponse),
+  sources: (options?: ApiRequestOptions) => get<SourceSystemWire[]>("/sources", undefined, options).then(normalizeSourcesResponse),
 
   marketObservations: () => get<MarketObsDTO[]>("/market/observations"),
 
-  normalizedMarketObservations: () =>
-    get<NormalizedMarketObsDTO[]>("/market/normalized", { limit: "500" }),
+  normalizedMarketObservations: (options?: ApiRequestOptions) =>
+    get<NormalizedMarketObsDTO[]>("/market/normalized", { limit: "500" }, options),
 
-  marketSpreads: () => get<MarketSpreadDTO[]>("/market/spreads"),
+  marketSpreads: (options?: ApiRequestOptions) => get<MarketSpreadDTO[]>("/market/spreads", undefined, options),
 
-  reviewDecisions: (params?: { entity_type?: string; entity_id?: string; limit?: string }) =>
-    get<ReviewDecisionDTO[]>("/review/decisions", params),
+  reviewDecisions: (params?: { entity_type?: string; entity_id?: string; limit?: string }, options?: ApiRequestOptions) =>
+    get<ReviewDecisionDTO[]>("/review/decisions", params, options),
 
   recordReviewDecision: (body: ReviewDecisionInputDTO) =>
     post<ReviewDecisionDTO>("/review/decisions", body),
 
-  pipelineHealth: () => get<PipelineHealthDTO>("/runtime/pipeline-health"),
+  pipelineHealth: (options?: ApiRequestOptions) => get<PipelineHealthDTO>("/runtime/pipeline-health", undefined, options),
 
-  marketQuotes: () => get<MarketQuoteDTO[]>("/market/quotes", { limit: "500" }),
+  marketQuotes: (options?: ApiRequestOptions) => get<MarketQuoteDTO[]>("/market/quotes", { limit: "500" }, options),
 
-  intradayOpportunities: () =>
-    get<IntradayOpportunityDTO[]>("/market/opportunities", { limit: "100" }),
+  intradayOpportunities: (options?: ApiRequestOptions) =>
+    get<IntradayOpportunityDTO[]>("/market/opportunities", { limit: "100" }, options),
 
-  screenOrders: () => get<ScreenOrderObservationDTO[]>("/portfolio/screen-orders"),
+  screenOrders: (options?: ApiRequestOptions) => get<ScreenOrderObservationDTO[]>("/portfolio/screen-orders", undefined, options),
 
-  pnlSnapshots: () => get<PortfolioPnlSnapshotDTO[]>("/portfolio/pnl-snapshots"),
+  pnlSnapshots: (options?: ApiRequestOptions) => get<PortfolioPnlSnapshotDTO[]>("/portfolio/pnl-snapshots", undefined, options),
 
-  portfolioLiveSummary: () => get<PortfolioLiveSummaryDTO>("/portfolio/live-summary"),
+  portfolioLiveSummary: (options?: ApiRequestOptions) => get<PortfolioLiveSummaryDTO>("/portfolio/live-summary", undefined, options),
 
-  flowObservations: () => get<FlowObsDTO[]>("/physical/flows"),
+  flowObservations: (options?: ApiRequestOptions) => get<FlowObsDTO[]>("/physical/flows", undefined, options),
 
-  capacityObservations: () => get<CapacityObsDTO[]>("/physical/capacity"),
+  capacityObservations: (options?: ApiRequestOptions) => get<CapacityObsDTO[]>("/physical/capacity", undefined, options),
 
-  storageObservations: () => get<StorageObsDTO[]>("/storage/observations"),
+  storageObservations: (options?: ApiRequestOptions) => get<StorageObsDTO[]>("/storage/observations", undefined, options),
 
-  lngObservations: () => get<LngObsDTO[]>("/lng/observations"),
+  lngObservations: (options?: ApiRequestOptions) => get<LngObsDTO[]>("/lng/observations", undefined, options),
 
-  fxRates: () => get<FxRateDTO[]>("/market/fx"),
+  fxRates: (options?: ApiRequestOptions) => get<FxRateDTO[]>("/market/fx", undefined, options),
 
-  credentialProviders: () => get<CredentialProviderDTO[]>("/credentials/providers"),
+  credentialProviders: (options?: ApiRequestOptions) => get<CredentialProviderDTO[]>("/credentials/providers", undefined, options),
 
   saveCredential: (providerId: string, body: { api_key: string; label: string }) =>
     fetch(apiUrl(`/credentials/${providerId}`), requestInit({
@@ -1393,10 +1402,10 @@ export const api = {
       {},
     ),
 
-  monitoringAlerts: () =>
-    get<MonitoringAlertDTO[]>("/monitoring/alerts", { limit: "100" }),
+  monitoringAlerts: (options?: ApiRequestOptions) =>
+    get<MonitoringAlertDTO[]>("/monitoring/alerts", { limit: "100" }, options),
 
-  monitoringSummary: () => get<MonitoringSummaryDTO>("/monitoring/summary"),
+  monitoringSummary: (options?: ApiRequestOptions) => get<MonitoringSummaryDTO>("/monitoring/summary", undefined, options),
 
   acknowledgeMonitoringAlert: (alertId: string) =>
     post<MonitoringAlertDTO>(`/monitoring/alerts/${encodeURIComponent(alertId)}/acknowledge`, {}),
@@ -1409,18 +1418,18 @@ export const api = {
     body,
   ),
 
-  routeEligibility: () => get<RouteEligibilityDTO[]>("/contracts/routes"),
+  routeEligibility: (options?: ApiRequestOptions) => get<RouteEligibilityDTO[]>("/contracts/routes", undefined, options),
 
-  routeCandidates: () => get<{ route_candidates: RouteCandidateDTO[] }>("/route-cost/route-candidates"),
+  routeCandidates: (options?: ApiRequestOptions) => get<{ route_candidates: RouteCandidateDTO[] }>("/route-cost/route-candidates", undefined, options),
 
-  tsoTariffs: () => get<TsoTariffsResultDTO>("/route-cost/tso-tariffs"),
+  tsoTariffs: (options?: ApiRequestOptions) => get<TsoTariffsResultDTO>("/route-cost/tso-tariffs", undefined, options),
 
-  upstreamContracts: () => get<UpstreamContractDTO[]>("/route-cost/upstream-contracts"),
+  upstreamContracts: (options?: ApiRequestOptions) => get<UpstreamContractDTO[]>("/route-cost/upstream-contracts", undefined, options),
 
   saveUpstreamContract: (body: UpstreamContractInputDTO) =>
     post<UpstreamContractDTO>("/route-cost/upstream-contracts", body),
 
-  resourcePoolOptions: () => get<ResourcePoolOptionsDTO>("/route-cost/resource-pool/options"),
+  resourcePoolOptions: (options?: ApiRequestOptions) => get<ResourcePoolOptionsDTO>("/route-cost/resource-pool/options", undefined, options),
 
   recommendRouteAllocation: (body: RouteRecommendationRequestDTO) =>
     post<RouteRecommendationResultDTO>("/route-cost/recommend", body),
@@ -1548,9 +1557,9 @@ export const api = {
 
   capacityContracts: () => get<CapacityContractDTO[]>("/contracts/capacity"),
 
-  runtimeDb: () => get<RuntimeDbStatusDTO>("/runtime/db"),
-  runtimeDependencies: () => get<RuntimeDependenciesDTO>("/runtime/dependencies"),
-  runtimeRelease: () => get<RuntimeReleaseDTO>("/runtime/release"),
+  runtimeDb: (options?: ApiRequestOptions) => get<RuntimeDbStatusDTO>("/runtime/db", undefined, options),
+  runtimeDependencies: (options?: ApiRequestOptions) => get<RuntimeDependenciesDTO>("/runtime/dependencies", undefined, options),
+  runtimeRelease: (options?: ApiRequestOptions) => get<RuntimeReleaseDTO>("/runtime/release", undefined, options),
   researchFeatures: () => get<ResearchFeatureDTO[]>("/research/features"),
   researchTargets: () => get<ResearchTargetDTO[]>("/research/targets"),
   researchDatasets: () => get<ResearchDatasetDTO[]>("/research/datasets"),
@@ -1576,8 +1585,8 @@ export const api = {
   buildResearchDataset: (spec: Record<string, unknown>) =>
     post<Record<string, unknown>>("/research/datasets", { dataset_spec: spec, materialize: true }),
 
-  glossary: (lang: string = "en", params?: { category?: string; q?: string }) =>
-    get<GlossaryTermDTO[]>("/glossary", { lang, ...(params ?? {}) }),
+  glossary: (lang: string = "en", params?: { category?: string; q?: string }, options?: ApiRequestOptions) =>
+    get<GlossaryTermDTO[]>("/glossary", { lang, ...(params ?? {}) }, options),
 
   glossaryContext: (
     term: string,
@@ -1592,9 +1601,9 @@ export const api = {
   routeCost: (body: unknown) => post<unknown>("/research/route-cost", body),
   netback: (body: unknown) => post<unknown>("/research/netback", body),
 
-  me: () => get<CurrentUserDTO>("/me"),
+  me: (options?: ApiRequestOptions) => get<CurrentUserDTO>("/me", undefined, options),
   authStatus: () => get<AuthStatusDTO>("/auth/status"),
-  logout: () => post<{ logged_out: boolean }>("/auth/logout", {}),
+  logout: (options?: ApiRequestOptions) => post<{ logged_out: boolean }>("/auth/logout", {}, options),
   desktopOidcToken: (body: DesktopOidcTokenInputDTO) =>
     post<DesktopOidcTokenDTO>("/auth/oidc/desktop/token", body),
   startDesktopOidcLogin: (body: DesktopOidcLoginInputDTO) =>
