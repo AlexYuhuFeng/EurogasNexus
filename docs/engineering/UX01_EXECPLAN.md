@@ -437,3 +437,36 @@ Residual scope: endpoint latency, source-ready versus unavailable wording,
 explicit visible product/basis presentation (current row titles contain raw
 English metadata), full accessible table semantics, action geography and
 whole-workspace visual convergence. No whole-product or native PASS is claimed.
+
+### Source-summary truthfulness (2026-09-10 Shanghai)
+
+Resumed from clean `8d4da18`, fetched origin with no divergence. Five-hour
+usage had reset to 3%; weekly usage was 86%, so this batch stayed bounded.
+Parent reproduced the false-ready header with a browser-only `/api/sources`
+503 response: `ux01-source-status-before-503.png` shows Sources ready alongside
+the failed-source banner. No database data or server response was changed.
+
+Luna implemented a pure summary state over existing source statistics, loading,
+source endpoint errors and runtime data status. Empty, checking, unavailable,
+unknown and partial states cannot claim readiness. Ready requires populated,
+fully ready statistics. Source read failures override retained counts, and
+unsettled counts are omitted rather than displayed as known zeros. EN/CN copy
+distinguishes unavailable status from an assertion that all sources are down.
+Existing source-statistics and market timestamp semantics remain unchanged.
+
+Parent reviewed the diff and `ux01-source-status-final-503-en.png` plus
+`ux01-source-status-final-503-zh.png` at 1440x900. Both show unavailable status
+without clipping or false counts. The first language selection used `zh`
+instead of the actual `zh-CN` option and failed; the corrected selection and
+replacement capture succeeded. All browser response overrides were removed.
+The requested retry click timed out because its button was no longer present;
+the subsequent real-runtime capture `ux01-source-status-recovery-zh.png` shows
+partial readiness, 3/24 active and 8 issues, with no error banner. This proves
+recovered display, not successful execution of that retry click.
+
+Parent ran `npm.cmd --prefix clients/web test`: 112 passed, 0 failed,
+0 skipped, 944.37 ms. `npm.cmd --prefix clients/web run build`: exit 0,
+136 modules, Vite 510 ms, existing dynamic-import warning. Pure helper tests
+cover empty/loading, retained failure, unknown statuses, partial and ready;
+they are not full mounted-component tests. Other source surfaces, Network
+summary styling, endpoint latency and whole-product acceptance remain open.

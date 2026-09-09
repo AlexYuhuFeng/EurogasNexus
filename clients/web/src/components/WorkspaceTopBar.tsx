@@ -12,6 +12,7 @@ import { WorkspaceTabs } from "@/components/ui";
 import type { WorkspacePageId } from "@/workspaceNavigation";
 import type { ApiState } from "@/stores/api";
 import type { CurrentUserDTO } from "@/api/client";
+import { buildSourceSummary, type SourceStats } from "@/app/workspaceDerivedData";
 import { AlertCenter } from "./AlertCenter";
 import "./WorkspaceTopBar.css";
 
@@ -30,7 +31,8 @@ interface WorkspaceTopBarProps {
   deliveryProduct: string;
   hubId: SupportedHubId | null;
   marketLastUpdatedAtUtc: string | null;
-  sourceIssueCount: number;
+  sourceStats: SourceStats;
+  sourceEndpointError?: string;
   currentUser: CurrentUserDTO | null;
   monitoring: Pick<
     ApiState,
@@ -67,7 +69,8 @@ export function WorkspaceTopBar({
   deliveryProduct,
   hubId,
   marketLastUpdatedAtUtc,
-  sourceIssueCount,
+  sourceStats,
+  sourceEndpointError,
   currentUser,
   monitoring,
   t,
@@ -83,6 +86,11 @@ export function WorkspaceTopBar({
   onOpenAccess,
 }: WorkspaceTopBarProps) {
   const hasMapSearch = activeWorkspace === "network";
+  const sourceSummary = buildSourceSummary(sourceStats, {
+    loading,
+    sourceError: sourceEndpointError,
+    dataStatus,
+  });
   const primaryTabs = primaryWorkspaces.map((primary) => ({
     id: primary.id,
     label: t(primary.labelKey),
@@ -149,8 +157,13 @@ export function WorkspaceTopBar({
             ))}
           </select>
         </label>
-        <span className={sourceIssueCount > 0 ? "context-freshness issue" : "context-freshness"}>
-          <strong>{sourceIssueCount > 0 ? `${sourceIssueCount} ${t("context.issues")}` : t("context.sources_ready")}</strong>
+        <span className={sourceSummary.viewState === "ready" ? "context-freshness" : "context-freshness issue"}>
+          <strong>{t(`context.sources_${sourceSummary.viewState}`)}</strong>
+          {sourceSummary.showCounts && (
+            <small>
+              {sourceSummary.active}/{sourceSummary.total} {t("context.active")} · {sourceSummary.issues} {t("context.issues")}
+            </small>
+          )}
           <small>
             {marketLastUpdatedAtUtc
               ? `${t("context.updated")} ${new Date(marketLastUpdatedAtUtc).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`

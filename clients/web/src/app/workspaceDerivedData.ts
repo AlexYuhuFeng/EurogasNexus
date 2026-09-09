@@ -39,6 +39,35 @@ export const SOURCE_CATEGORY_ORDER = [
 
 export const SOURCE_CATEGORIES = ["all", ...SOURCE_CATEGORY_ORDER];
 
+export interface SourceStats {
+  total: number;
+  active: number;
+  issues: number;
+  records: number;
+  missingCredentials: number;
+}
+
+export type SourceSummaryViewState =
+  | "checking"
+  | "ready"
+  | "partial"
+  | "unavailable"
+  | "unknown";
+
+export interface SourceSummary {
+  viewState: SourceSummaryViewState;
+  showCounts: boolean;
+  total: number;
+  active: number;
+  issues: number;
+}
+
+export interface SourceSummaryStateInput {
+  loading: boolean;
+  sourceError?: string | null;
+  dataStatus?: string | null;
+}
+
 export function latestRows<T>(rows: T[], limit: number): T[] {
   return rows.slice(0, limit);
 }
@@ -63,7 +92,7 @@ export function buildReviewWarnings(
   ];
 }
 
-export function buildSourceStats(sources: SourceLike[]) {
+export function buildSourceStats(sources: SourceLike[]): SourceStats {
   const issueStatuses = new Set<string>(SOURCE_ISSUE_STATUSES);
   return {
     total: sources.length,
@@ -77,6 +106,43 @@ export function buildSourceStats(sources: SourceLike[]) {
     ).length,
     records: sources.reduce((total, source) => total + source.live_record_count, 0),
     missingCredentials: sources.filter((source) => source.credential_state === "missing").length,
+  };
+}
+
+export function buildSourceSummary(
+  sourceStats: Pick<SourceStats, "total" | "active" | "issues">,
+  state: SourceSummaryStateInput,
+): SourceSummary {
+  const dataStatus = state.dataStatus?.trim().toLowerCase();
+  const hasSourceError = Boolean(state.sourceError?.trim());
+  let viewState: SourceSummaryViewState;
+
+  if (hasSourceError) {
+    viewState = "unavailable";
+  } else if (state.loading && sourceStats.total === 0) {
+    viewState = "checking";
+  } else if (dataStatus === "unavailable") {
+    viewState = "unavailable";
+  } else if (state.loading) {
+    viewState = "checking";
+  } else if (sourceStats.total === 0) {
+    viewState = "unknown";
+  } else if (dataStatus === "partial") {
+    viewState = "partial";
+  } else if (dataStatus !== "runtime" && dataStatus !== "delayed") {
+    viewState = "unknown";
+  } else if (sourceStats.active === sourceStats.total && sourceStats.issues === 0) {
+    viewState = "ready";
+  } else {
+    viewState = "partial";
+  }
+
+  return {
+    viewState,
+    showCounts: viewState === "ready" || viewState === "partial",
+    total: sourceStats.total,
+    active: sourceStats.active,
+    issues: sourceStats.issues,
   };
 }
 
