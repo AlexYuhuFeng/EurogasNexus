@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { WorkspaceTabs } from "@/components/ui";
+import { WorkspaceHeader } from "@/components/ui";
 import { ScenarioWorkspace } from "@/components/ScenarioWorkspace";
 import { ReviewWorkspace } from "@/components/ReviewWorkspace";
 import type { AppController } from "@/app/hooks/useAppController";
@@ -143,13 +143,15 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
 
   return (
     <div className="commercial-workspace">
-      <WorkspaceTabs
+      <WorkspaceHeader
+        title={t("nav.primary.decision")}
+        taskLabel={t(`decision.task.${task}`)}
         idPrefix="decision-task"
-        label={t("nav.primary.decision")}
         tabs={tabs}
         activeId={task}
         panelId="decision-task-panel"
-        className="commercial-task-tabs"
+        tabLabel={t("nav.primary.decision")}
+        tabsClassName="commercial-task-tabs"
         onActivate={openTask}
       />
       <div id="decision-task-panel">

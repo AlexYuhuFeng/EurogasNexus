@@ -81,11 +81,30 @@ All mocks are removed. The PostgreSQL ordering-index proposal remains
 unapplied. Two commits are expected, reliability first and shell second; no
 commit SHA is asserted.
 
+## Token/header milestone (2026-09-09)
+
+Parent reviewed the current EN/CN shell captures
+`ux01-token-fresh-1440.png` and `ux01-token-fresh-cn-1440.png`, plus
+`ux01-marketcockpit-cn-1440.png`, `ux01-portfolio-cn-1440.png`, and
+`ux01-decision-optimize-cn-1440.png`. The actual Market workspace is `market`,
+not Network; its single H1 correctly identifies the workspace/task. Reviewed
+shell-token values are 4px for primary tabs, buttons, header select, and
+status; 32px for controls; and 6px for the banner.
+
+Only the shell-token foundation is adopted. Broad panel styles were reverted;
+legacy tokens, headings, spacing, raw-code treatment, density, normal-runtime
+behavior, and full international QA remain open. Parent verified
+`npm --prefix clients/web test` with `90 passed, 0 failed` and
+`npm --prefix clients/web run build` with exit 0 (TypeScript + Vite, 135
+modules, 1.29s); the existing dynamic-import warning remains. This is bounded
+implementation/visual evidence, not full runtime, browser, native,
+entitlement, or whole-product acceptance.
+
 ## Workflow coverage remaining
 
 | Workspace | Current audit coverage | Required next evidence |
 | --- | --- | --- |
-| Market / Network / Capacity | Network degraded and loading states only | Normal overview, curves/spreads, asset/route selection, capacity evidence and Scenario handoff |
+| Market (`market`) / Network / Capacity | Network degraded and loading states only; current Market shell/header review is captured above | Normal Market overview, curves/spreads, asset/route selection, capacity evidence and Scenario handoff |
 | Portfolio | Source inventory in delegated matrix only | Resource, route, economics, exposure, optimization and Review sequence |
 | Decision Center | Source inventory only | Scenario inputs, run, optimization, provenance and Review interactions |
 | Strategy Lab | Source inventory only | Design, version, Backtest, Compare, Shadow and persisted history |

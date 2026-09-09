@@ -60,6 +60,7 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
         id: page,
         label: t(`nav.${page}`),
       }));
+  const usesConsolidatedHeader = ["market", "portfolio", "decision"].includes(activePrimaryWorkspace.id);
 
   return (
     <section
@@ -67,23 +68,25 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
       id="workspace-active-panel"
       aria-label={`${t("app.title")} — ${t(activePrimaryWorkspace.labelKey)}`}
     >
-      <header className="workspace-page-header">
-        <div className="workspace-page-heading">
-          <span className="eyebrow">{t(activePrimaryWorkspace.labelKey)}</span>
-          <h1>{t(`nav.${activeWorkspace}`)}</h1>
-        </div>
-        {localTabs.length > 1 && (
-          <WorkspaceTabs
-            idPrefix={`${activePrimaryWorkspace.id}-task`}
-            label={t(activePrimaryWorkspace.labelKey)}
-            tabs={localTabs}
-            activeId={activeWorkspace}
-            panelId="workspace-active-panel"
-            className="workspace-page-tabs"
-            onActivate={(page) => navigation.openWorkspace(page as WorkspacePageId)}
-          />
-        )}
-      </header>
+      {!usesConsolidatedHeader && (
+        <header className="workspace-page-header">
+          <div className="workspace-page-heading">
+            <span className="eyebrow">{t(activePrimaryWorkspace.labelKey)}</span>
+            <h1>{t(`nav.${activeWorkspace}`)}</h1>
+          </div>
+          {localTabs.length > 1 && (
+            <WorkspaceTabs
+              idPrefix={`${activePrimaryWorkspace.id}-task`}
+              label={t(activePrimaryWorkspace.labelKey)}
+              tabs={localTabs}
+              activeId={activeWorkspace}
+              panelId="workspace-active-panel"
+              className="workspace-page-tabs"
+              onActivate={(page) => navigation.openWorkspace(page as WorkspacePageId)}
+            />
+          )}
+        </header>
+      )}
 
       {activePrimaryWorkspace.id === "market" && (
         <MarketCockpit controller={controller} />

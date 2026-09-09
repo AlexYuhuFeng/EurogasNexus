@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { WorkspaceTabs } from "@/components/ui";
+import { WorkspaceHeader } from "@/components/ui";
 import { CapacityWorkspace } from "@/components/CapacityWorkspace";
 import { MarketTerminal } from "@/components/MarketTerminal";
 import { NetworkWorkspace } from "@/components/NetworkWorkspace";
@@ -237,13 +237,15 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
 
   return (
     <div className="market-cockpit">
-      <WorkspaceTabs
+      <WorkspaceHeader
+        title={t("nav.primary.market")}
+        taskLabel={t(`market.task.${task}`)}
         idPrefix="market-cockpit-task"
-        label={t("nav.primary.market")}
         tabs={tabs}
         activeId={task}
         panelId="market-cockpit-panel"
-        className="market-cockpit-tabs"
+        tabLabel={t("nav.primary.market")}
+        tabsClassName="market-cockpit-tabs"
         onActivate={openTask}
       />
       <div id="market-cockpit-panel">

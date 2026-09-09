@@ -1359,41 +1359,41 @@ input {
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-2);
 }
 
 .topbar-trading-context label {
   display: grid;
   min-width: 104px;
-  gap: 1px;
+  gap: var(--space-1);
 }
 
 .topbar-trading-context label > span,
 .context-freshness small {
   color: var(--eg-muted);
-  font-size: 10px;
+  font-size: var(--text-meta);
   line-height: 12px;
 }
 
 .topbar-trading-context input,
 .topbar-trading-context select {
   width: 100%;
-  min-height: 30px;
-  padding: 3px 8px;
-  font-size: 12px;
+  min-height: var(--control-compact);
+  padding: 0 var(--space-2);
+  font-size: var(--text-body);
 }
 
 .context-freshness {
   display: grid;
   min-width: 118px;
-  gap: 1px;
+  gap: var(--space-1);
   border-left: 1px solid var(--eg-hairline);
-  padding-left: 9px;
+  padding-left: var(--space-2);
 }
 
 .context-freshness strong {
   color: var(--accent);
-  font-size: 11px;
+  font-size: var(--text-meta);
   line-height: 14px;
 }
 
@@ -2336,6 +2336,28 @@ input {
 
 /* Vercel reference cockpit redesign */
 :root {
+  --text-meta: 11px;
+  --text-body: 12px;
+  --text-control: 13px;
+  --text-panel-title: 14px;
+  --text-workspace-title: 18px;
+  --text-page-title: 20px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --control-compact: 28px;
+  --control-standard: 32px;
+  --control-prominent: 36px;
+  --radius-control: 4px;
+  --radius-panel: 6px;
+  --radius-large: 8px;
+  --motion-none: 0ms;
+  --motion-fast: 120ms;
+  --motion-standard: 180ms;
+  --motion-emphasis: 240ms;
   --eg-ink: #171717;
   --eg-on-ink: #ffffff;
   --eg-body: #4d4d4d;
@@ -2410,8 +2432,8 @@ body {
   grid-template-columns: minmax(360px, 1.35fr) minmax(110px, auto) minmax(160px, 0.8fr);
   min-height: 0;
   align-items: center;
-  gap: 8px 12px;
-  padding: 12px 16px;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-3) var(--space-4);
   border-bottom: 1px solid var(--eg-hairline);
   background: var(--eg-canvas);
 }
@@ -2452,15 +2474,15 @@ body {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 4px 12px;
-  margin: 0 16px 12px;
+  gap: var(--space-1) var(--space-3);
+  margin: 0 var(--space-4) var(--space-3);
   border: 1px solid var(--eg-hairline);
   border-left: 3px solid var(--eg-danger);
-  border-radius: var(--eg-radius-sm);
+  border-radius: var(--radius-panel);
   background: var(--eg-canvas-soft);
   box-shadow: var(--eg-shadow-1);
   color: var(--eg-body);
-  padding: 8px 12px;
+  padding: var(--space-2) var(--space-3);
 }
 
 .endpoint-error-banner span,
@@ -2471,13 +2493,13 @@ body {
 
 .endpoint-error-banner span {
   color: var(--eg-muted);
-  font-size: 11px;
+  font-size: var(--text-meta);
   font-weight: 700;
   text-transform: uppercase;
 }
 
 .endpoint-error-banner strong {
-  font-size: 12px;
+  font-size: var(--text-body);
   font-weight: 600;
 }
 
@@ -2488,10 +2510,17 @@ body {
 }
 
 .workspace-pill,
-.topbar-search,
+.topbar-search {
+  min-height: var(--control-prominent);
+  border: 1px solid var(--eg-hairline);
+  background: rgb(255 255 255 / 92%);
+  box-shadow: var(--eg-shadow-2);
+  color: #171717;
+}
+
 .cockpit-app .header-controls select,
 .cockpit-app .status-badge {
-  min-height: 40px;
+  min-height: var(--control-standard);
   border: 1px solid var(--eg-hairline);
   background: rgb(255 255 255 / 92%);
   box-shadow: var(--eg-shadow-2);
@@ -2508,12 +2537,12 @@ body {
 
 .topbar-menu-glyph {
   display: grid;
-  width: 32px;
-  height: 32px;
-  flex: 0 0 32px;
+  width: var(--control-standard);
+  height: var(--control-standard);
+  flex: 0 0 var(--control-standard);
   place-items: center;
   border: 1px solid var(--eg-hairline);
-  border-radius: 9999px;
+  border-radius: var(--radius-control);
   background: rgb(255 255 255 / 72%);
 }
 
@@ -2523,13 +2552,26 @@ body {
   line-height: 1;
 }
 
+.cockpit-app .workspace-primary-tabs {
+  gap: var(--space-1);
+  border-radius: var(--radius-control);
+  padding: var(--space-1);
+}
+
+.cockpit-app .workspace-primary-tabs button {
+  min-height: var(--control-standard);
+  border-radius: var(--radius-control);
+  font-size: var(--text-body);
+  padding: var(--space-1) var(--space-2);
+}
+
 .workspace-pill {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-2);
   min-width: 0;
-  border-radius: var(--eg-pill);
-  padding: 0 16px 0 8px;
+  border-radius: var(--radius-control);
+  padding: 0 var(--space-4) 0 var(--space-2);
 }
 
 .workspace-pill-copy {
@@ -2539,7 +2581,14 @@ body {
 
 .workspace-pill-copy > span,
 .eyebrow,
-.section-heading .eyebrow,
+.section-heading .eyebrow {
+  color: var(--eg-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: var(--text-meta);
+  line-height: 16px;
+  text-transform: uppercase;
+}
+
 .panel-title-row > span {
   color: var(--eg-muted);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
@@ -2552,16 +2601,16 @@ body {
   display: block;
   margin-top: -2px;
   color: var(--eg-ink);
-  font-size: 15px;
+  font-size: var(--text-workspace-title);
   font-weight: 600;
   line-height: 20px;
 }
 
 .topbar-search {
   width: 100%;
-  border-radius: var(--eg-pill);
-  padding: 0 18px;
-  font-size: 14px;
+  border-radius: var(--radius-control);
+  padding: 0 var(--space-4);
+  font-size: var(--text-control);
   outline: none;
 }
 
@@ -2576,16 +2625,16 @@ body {
 }
 
 .cockpit-app .header-controls {
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .cockpit-app .header-controls select {
   min-width: 52px;
-  border-radius: var(--eg-pill);
+  border-radius: var(--radius-control);
 }
 
 .cockpit-app .status-badge {
-  border-radius: var(--eg-pill);
+  border-radius: var(--radius-control);
   color: var(--eg-ink);
 }
 
@@ -5799,26 +5848,26 @@ button.glossary-related-chip {
   display: grid;
   width: min(280px, calc(100vw - 32px));
   max-height: calc(100vh - 96px);
-  gap: 6px;
+  gap: var(--space-1);
   overflow-y: auto;
   border: 1px solid var(--eg-hairline);
-  border-radius: var(--eg-radius-md);
+  border-radius: var(--radius-panel);
   background: rgb(255 255 255 / 94%);
   box-shadow: var(--eg-shadow-3);
-  padding: 10px;
+  padding: var(--space-2);
 }
 
 .workspace-menu-item {
-  min-height: 40px;
+  min-height: var(--control-prominent);
   border: 1px solid transparent;
-  border-radius: var(--eg-radius-sm);
+  border-radius: var(--radius-control);
   background: transparent;
   color: var(--eg-body);
   cursor: pointer;
-  font-size: 14px;
+  font-size: var(--text-panel-title);
   font-weight: 600;
   text-align: left;
-  padding: 0 12px;
+  padding: 0 var(--space-3);
 }
 
 .workspace-menu-item:hover,
@@ -6881,20 +6930,20 @@ button.glossary-related-chip {
 @media (max-width: 640px) {
   .workspace-pill {
     grid-area: workspace;
-    min-height: 38px;
+    min-height: var(--control-prominent);
   }
 
   .topbar-search {
     grid-area: search;
-    min-height: 36px;
-    padding: 0 12px;
+    min-height: var(--control-prominent);
+    padding: 0 var(--space-3);
   }
 
   .cockpit-app .header-controls {
     grid-area: topbar-controls;
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 6px;
+    gap: var(--space-1);
   }
 
   .cockpit-app .header-controls .status-badge {
@@ -6904,9 +6953,9 @@ button.glossary-related-chip {
   .cockpit-app .header-controls select,
   .cockpit-app .status-badge {
     width: 100%;
-    min-height: 34px;
-    padding-right: 6px;
-    padding-left: 6px;
+    min-height: var(--control-standard);
+    padding-right: var(--space-1);
+    padding-left: var(--space-1);
   }
 
   .cockpit-app .map-toolbar {
@@ -7980,20 +8029,20 @@ button.glossary-related-chip {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     align-items: stretch;
-    gap: 8px;
+    gap: var(--space-2);
   }
 
   .cockpit-app .context-freshness {
     grid-column: 1 / -1;
     border-top: 1px solid var(--eg-hairline);
     border-left: 0;
-    padding-top: 6px;
+    padding-top: var(--space-1);
     padding-left: 0;
   }
 
   .endpoint-error-banner {
     grid-template-columns: minmax(0, 1fr);
-    margin: 0 12px 12px;
+    margin: 0 var(--space-3) var(--space-3);
   }
 
   .endpoint-error-banner button {

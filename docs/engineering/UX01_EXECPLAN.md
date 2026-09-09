@@ -276,3 +276,33 @@ are removed. The PostgreSQL ordering-index proposal remains unapplied.
 Two commits are expected, reliability first and shell second; no commit SHA is
 claimed here. Full CR1-15, native, entitlement, and visual acceptance remain
 open.
+
+### Token/header milestone (2026-09-09)
+
+Last pushed ref: `787d938`. Parent reviewed the current EN/CN shell captures
+`ux01-token-fresh-1440.png` and `ux01-token-fresh-cn-1440.png`, plus the three
+CN header captures `ux01-marketcockpit-cn-1440.png`,
+`ux01-portfolio-cn-1440.png`, and `ux01-decision-optimize-cn-1440.png`.
+The actual Market workspace is `market`, not Network; its single H1 correctly
+identifies the workspace/task. The shared H1/header source is implemented for
+Market, Portfolio, and Decision, but normal-runtime and full international QA
+remain open.
+
+The reviewed shell-token foundation computes 4px primary tabs, buttons, header
+select, and status; 32px controls; and a 6px banner. Only that foundation is
+adopted in this checkpoint. Broad panel-style changes were reverted; legacy
+tokens, headings, spacing, raw-code treatment, density, and broader UI/token
+work remain open. Parent verified `npm --prefix clients/web test` with `90
+passed, 0 failed` and `npm --prefix clients/web run build` with exit 0
+(TypeScript + Vite, 135 modules, 1.29s); the existing dynamic-import warning
+remains. These are implementation and bounded visual-review evidence, not a
+full browser, native, entitlement, or CR1-15 pass.
+
+The earlier `72845` snapshot terminal timed out; it did not establish that the
+browser was unavailable. The tab list proved an existing browser was alive.
+Parent read console `ERR_INSUFFICIENT_RESOURCES` while the site returned `GET
+200`, closed only the automated UX01 browser, and reopened Edge operation
+`24588`. Runtime remains partial with many timeouts, so no full-ready claim is
+made. CN and three-header QA remain bounded follow-up assigned to Kant. The
+token/header changes remain an uncommitted draft; no new probes or commit are
+claimed.

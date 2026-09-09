@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { WorkspaceTabs } from "@/components/ui";
+import { WorkspaceHeader } from "@/components/ui";
 import { ContractWorkbench } from "@/components/ContractWorkbench";
 import { MarketPositioningWorkspace } from "@/components/MarketPositioningWorkspace";
 import type { AppController } from "@/app/hooks/useAppController";
@@ -166,13 +166,15 @@ export function PortfolioWorkspace({ controller }: { controller: AppController }
 
   return (
     <div className="commercial-workspace">
-      <WorkspaceTabs
+      <WorkspaceHeader
+        title={t("nav.primary.portfolio")}
+        taskLabel={t(`portfolio.task.${task}`)}
         idPrefix="portfolio-task"
-        label={t("nav.primary.portfolio")}
         tabs={tabs}
         activeId={task}
         panelId="portfolio-task-panel"
-        className="commercial-task-tabs"
+        tabLabel={t("nav.primary.portfolio")}
+        tabsClassName="commercial-task-tabs"
         onActivate={openTask}
       />
       <div id="portfolio-task-panel">

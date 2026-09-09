@@ -6,4 +6,5 @@ export { statusBadgeClass } from "./statusBadgeClass";
 export type { StatusBadgeVariant } from "./statusBadgeClass";
 export { WorkspaceTabs } from "./WorkspaceTabs";
 export type { WorkspaceTabItem } from "./WorkspaceTabs";
+export { WorkspaceHeader } from "./WorkspaceHeader";
 export { getNextWorkspaceTabIndex, workspaceTabButtonId } from "./tabKeyboard";
