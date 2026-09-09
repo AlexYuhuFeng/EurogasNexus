@@ -470,3 +470,32 @@ Parent ran `npm.cmd --prefix clients/web test`: 112 passed, 0 failed,
 cover empty/loading, retained failure, unknown statuses, partial and ready;
 they are not full mounted-component tests. Other source surfaces, Network
 summary styling, endpoint latency and whole-product acceptance remain open.
+
+### Low-allowance profiling checkpoint (2026-09-10 Shanghai)
+
+At clean `6e14270`, usage was 44% of the five-hour window and 93% weekly.
+No new implementation or load test was started. Read-only source inspection
+corrects the interpretation of the earlier endpoint timings:
+
+- `/api/market/observations` calls `_db_market_observations`, which orders and
+  materializes the entire observation table with `.all()`, serializes every
+  row, then applies identity source filtering. Its 15-second timeout is not a
+  measurement of the UI's normalized request.
+- The Web client's normalized request is `/api/market/normalized?limit=500`;
+  no call to the raw `marketObservations()` client method was found in Web
+  source. Profile this actual request before attributing UI delays to the raw
+  endpoint or changing its compatibility contract.
+- `list_normalized_market_view` still reads bounded source coverage (distinct
+  source count plus a partitioned row-number query) and all FX observations,
+  with an ECB fallback. The new global ordering index does not by itself
+  establish that those operations are bounded or fast.
+
+Next bounded work: measure normalized request and constituent reads with
+timeouts and no repeated full-table load; inspect FX selection requirements
+before restricting history; retain daily-source coverage. Any raw-endpoint
+pagination change needs explicit SDK/API compatibility and entitlement tests,
+not a blanket row limit. Also inspect normalized-route entitlement enforcement:
+its handler returns the repository rows directly, unlike the raw handler's
+explicit source filter. Middleware may supply controls; this is an audit target,
+not a proven disclosure finding. Preserve the full UX-01 objective and keep
+heavy work deferred while weekly allowance is low.
