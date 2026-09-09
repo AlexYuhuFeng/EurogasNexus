@@ -53,6 +53,23 @@ separate layout, visual, or acceptance debt.
 
 ## Required implementation scope
 
+### Market overview findings (2026-09-09)
+
+At `eaf68f4`, parent reviewed `ux01-after-index-market-1440.png` against the
+running PostgreSQL-backed application. The quote board is only 190px wide,
+clipping six columns while the map occupies the primary analytical surface.
+This violates the overview hierarchy; Network remains the map-first task.
+The source also confirms a P1 price-basis defect: fallback spreads subtract
+quotes without checking currency, unit, product, or delivery interval and label
+the result GBP/MWh. A last trade is also displayed under a mid-price heading.
+The scoped correction removes the unsafe spread arithmetic and uses matching
+unexpired backend opportunity values with their comparison units. Quote rows
+are primary-width, flat, and readable in parent-reviewed populated EN 1440 and
+1920 captures. Parent verified 104 Web tests and a production build. This
+closes the specific fallback-arithmetic and clipped-board defects, not the
+full Market workflow: visible product/basis, bilingual metadata, accessible
+table semantics, source-state correctness and endpoint latency remain open.
+
 | ID | Screen / workflow | Severity | Description | Reason deferred | Recommended solution |
 | --- | --- | --- | --- | --- | --- |
 | CR14-UI-001 | Research Data -> datasets/features/targets -> dataset/artifact detail | Required implementation | The observed catalog does not expose required dataset detail, build/validate, quality, or export interactions. | Backend routes exist, but the UX01 contract requires the endpoint-to-screen workflow; no accepted thin catalog is permitted. | Expose existing catalog selection, snapshot detail, artifact operations, lineage, rights, freshness, calendar/version, and exact export result without adding domain models. |
@@ -75,6 +92,7 @@ separate layout, visual, or acceptance debt.
   inventory; this file turns repeated gaps into work items.
 - [CR1-15 Regression Matrix](CR1_15_REGRESSION_MATRIX.md) owns capability-level
   implementation/verification status.
-- This register contains no source edits, fixture definitions, test results,
-  visual pass claims, or P2 acceptance decisions. The PostgreSQL ordering-index
-  proposal remains read-only and unapplied.
+- This register records prioritization, not whole-product acceptance. The
+  PostgreSQL ordering index was applied and verified in `eaf68f4`; exact backup,
+  migration, query-plan and 23-test evidence is in `UX01_EXECPLAN.md`.
+  That indexed-query measurement does not close endpoint latency or visual debt.

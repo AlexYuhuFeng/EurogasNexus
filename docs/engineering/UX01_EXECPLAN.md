@@ -375,3 +375,65 @@ tests/release/test_release_engineering.py -q` against PostgreSQL: 23 passed in
 1.95s. Focused Ruff checks passed. API and frontend remain stopped; restarting
 them and measuring real workflow responsiveness is the next acceptance step.
 The full UI, native, accessibility, bilingual, and CR1-15 campaign remains open.
+
+### Resumed runtime endpoint evidence (2026-09-09)
+
+Source ref was `eaf68f4`. Parent started the owned API process (PID 1140) and
+web process (PID 2204); runtime readiness returned 200 with the runtime DB
+available. Parent browser QA was running concurrently, so this is shared-load
+runtime evidence, not a controlled benchmark. Each endpoint below was given
+one bounded GET request with a 15-second deadline; no retries were used and no
+financial rows or response bodies were recorded.
+
+| Endpoint | Status | Elapsed | Payload |
+| --- | ---: | ---: | ---: |
+| `/api/market/observations` | timeout | 15,038 ms | n/a |
+| `/api/route-cost/resource-pool/options` | 200 | 7,809 ms | 3,629 bytes |
+| `/api/sources` | 200 | 8,689 ms | 30,585 bytes |
+| `/api/runtime/pipeline-health` | 200 | 2,368 ms | 842 bytes |
+| `/api/reference-network/edges` | 200 | 2,088 ms | 5,034 bytes |
+| `/api/contracts/routes` | 200 | 2,059 ms | 264 bytes |
+
+The residual slow endpoint is `/api/market/observations`, which exceeded the
+15-second deadline. Market Overview financial and layout fixes remain in
+progress; this runtime snapshot does not claim closure or acceptance.
+
+### Market overview hierarchy and pricing-basis correction (2026-09-09)
+
+Parent reviewed the real populated baseline at 1440x900, then delegated CSS
+and comparison-model changes to separate Luna High workers. The overview now
+gives the quote board the primary width, with a 320px context rail, a bounded
+280px secondary map, flat 36px rows, numeric alignment, and 32px table header.
+The narrow layout stacks the surfaces. Network task geometry and behavior are
+unchanged. Parent rejected the first revision's blank board space, native row
+bevels, clipped ask values and adjacent source/spread text; these were corrected.
+
+The previous fallback subtracted incompatible quotes, labelled the difference
+GBP/MWh, and called last trade a midpoint. The overview no longer synthesizes
+spreads or a TTF zero. It displays only a matching, unexpired backend gross
+opportunity with its quote IDs, direction, delivery/product, units and source
+references. Backend conversion remains backend-owned. Quote midpoint requires
+both bid and ask; shared-unit bid/ask formatting preserves missing sides.
+Expiry invalidation uses a cleaned-up local timeout, measured against wall
+time and bounded to the browser timer range; no network polling was added.
+
+Parent reran `npm.cmd --prefix clients/web test`: 104 passed, 0 failed,
+0 skipped, 1084.53 ms. `npm.cmd --prefix clients/web run build`: exit 0,
+TypeScript plus Vite, 136 modules, 622 ms Vite build; the existing ineffective
+dynamic-import warning remains. One earlier `npm` build invocation exited 1
+without output; the explicit `npm.cmd` reruns succeeded. Tests cover pure
+comparison, expiry scheduling, identity, mismatch and formatting cases, not a
+complete mounted-component or browser expiry acceptance suite.
+
+Parent visually reviewed `ux01-market-final-populated-1440.png` and
+`ux01-market-final-populated-1920.png`: complete bid/ask values and units,
+visible sources/ages, no unjustified spread values, and secondary map framing.
+Retained observations are eight days old, not a fresh-market certification.
+Parent also reviewed the worker's EN/CN 1440x900 and CN 1100x900 loading-state
+captures; final populated bilingual and narrow-state verification remain open.
+Earlier full-page screenshots were not counted as exact viewport acceptance.
+
+Residual scope: endpoint latency, source-ready versus unavailable wording,
+explicit visible product/basis presentation (current row titles contain raw
+English metadata), full accessible table semantics, action geography and
+whole-workspace visual convergence. No whole-product or native PASS is claimed.

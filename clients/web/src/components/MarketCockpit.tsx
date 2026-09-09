@@ -15,6 +15,12 @@ import {
   type MarketTask,
 } from "@/app/model/marketCockpitModel";
 
+import {
+  buildMarketOverviewComparisons,
+  formatQuoteBidAsk,
+  nextMarketOverviewExpiryMs,
+} from "@/app/model/marketOverviewModel";
+
 function timestampMs(value: string | null | undefined): number {
   if (!value) return 0;
   const parsed = Date.parse(value);
@@ -33,13 +39,6 @@ function latestByHub<T extends { hub: string; observed_at_utc?: string | null }>
   return latest;
 }
 
-function quoteMid(quote: { bid_price?: number | null; ask_price?: number | null; last_price?: number | null } | undefined): number | null {
-  if (!quote) return null;
-  if (quote.last_price != null) return quote.last_price;
-  if (quote.bid_price != null && quote.ask_price != null) return (quote.bid_price + quote.ask_price) / 2;
-  return quote.bid_price ?? quote.ask_price ?? null;
-}
-
 function formatAge(value: string | null | undefined): string {
   if (!value) return "n/a";
   const seconds = Math.max((Date.now() - new Date(value).getTime()) / 1000, 0);
@@ -49,8 +48,35 @@ function formatAge(value: string | null | undefined): string {
   return `${Math.round(seconds / 86400)}d`;
 }
 
-function formatPrice(value: number | null | undefined, unit: string): string {
-  return value === null || value === undefined ? "n/a" : `${value.toFixed(2)} ${unit}`;
+function formatPrice(value: number | null | undefined, unit: string | null): string {
+  return value === null || value === undefined || !unit ? "n/a" : `${value.toFixed(2)} ${unit}`;
+}
+
+function formatSpread(value: number | null, unit: string | null): string {
+  if (value === null || !unit) return "n/a";
+  return `${value >= 0 ? "+" : ""}${value.toFixed(2)} ${unit}`;
+}
+
+function observationContextTitle(observation: {
+  product: string;
+  currency: string;
+  unit: string;
+  period_start_utc: string;
+  period_end_utc: string;
+  metadata_json?: Record<string, unknown>;
+} | undefined): string | undefined {
+  if (!observation) return undefined;
+  const metadata = observation.metadata_json ?? {};
+  const basis = ["price_basis", "basis", "price_level", "price_timing"]
+    .map((key) => metadata[key])
+    .find((value): value is string => typeof value === "string" && value.trim().length > 0);
+  return [
+    `product=${observation.product}`,
+    `delivery=${observation.period_start_utc}/${observation.period_end_utc}`,
+    `basis=${basis ?? "unavailable"}`,
+    `price_unit=${observation.currency}/${observation.unit}`,
+    "spread_source=unavailable",
+  ].join("; ");
 }
 
 interface MarketOverviewProps {
@@ -59,12 +85,30 @@ interface MarketOverviewProps {
 }
 
 function MarketOverview({ controller }: MarketOverviewProps) {
-  const { api, portfolio, traderContext, selection, controls, t, navigation, i18n, theme } = controller;
+  const { api, portfolio, traderContext, selection, controls, t, navigation, theme } = controller;
   const markets = api.normalizedMarkets;
   const quotes = api.marketQuotes;
-  const spreads = api.marketSpreads;
+  const [nowMs, setNowMs] = useState(() => Date.now());
+
+  useEffect(() => {
+    const nextExpiryMs = nextMarketOverviewExpiryMs(api.intradayOpportunities, nowMs);
+    if (nextExpiryMs === null) return undefined;
+    const timeoutId = window.setTimeout(
+      () => setNowMs(Date.now()),
+      Math.max(0, Math.min(2_147_483_647, nextExpiryMs - Date.now())),
+    );
+    return () => window.clearTimeout(timeoutId);
+  }, [api.intradayOpportunities, nowMs]);
+
   const latestMarketByHub = useMemo(() => latestByHub(markets), [markets]);
-  const latestQuoteByHub = useMemo(() => latestByHub(quotes), [quotes]);
+  const comparisonRows = useMemo(
+    () => buildMarketOverviewComparisons(MAJOR_HUBS, quotes, api.intradayOpportunities, nowMs),
+    [api.intradayOpportunities, nowMs, quotes],
+  );
+  const comparisonByHub = useMemo(
+    () => new Map(comparisonRows.map((row) => [row.hub, row])),
+    [comparisonRows],
+  );
   const focusedHub = traderContext.hubId;
   const relevantResources = portfolio.portfolioResources.filter(
     (resource) =>
@@ -72,24 +116,6 @@ function MarketOverview({ controller }: MarketOverviewProps) {
       String(resource.location_point_name ?? "").toUpperCase().includes(focusedHub) ||
       String(resource.resource_name ?? "").toUpperCase().includes(focusedHub),
   );
-
-  const spreadRows = useMemo(() => {
-    const rows: Array<{ hub: string; spread: number | null; unit: string }> = [];
-    MAJOR_HUBS.forEach((hub) => {
-      const spread = spreads.find(
-        (row) => row.from_hub?.toUpperCase() === hub && row.to_hub?.toUpperCase() === "TTF",
-      );
-      const quote = latestQuoteByHub.get(hub);
-      const ttf = latestQuoteByHub.get("TTF");
-      const liveSpread = hub === "TTF" ? 0 : quoteMid(quote) !== null && quoteMid(ttf) !== null ? (quoteMid(quote) ?? 0) - (quoteMid(ttf) ?? 0) : null;
-      rows.push({
-        hub,
-        spread: spread?.spread_eur_mwh ?? liveSpread,
-        unit: spread ? "EUR/MWh" : "GBP/MWh",
-      });
-    });
-    return rows;
-  }, [latestQuoteByHub, spreads]);
 
   return (
     <div className="market-cockpit-overview">
@@ -107,13 +133,13 @@ function MarketOverview({ controller }: MarketOverviewProps) {
         <div className="data-table">
           <div className="data-table-row header six">
             <span>{t("market.hub")}</span><span>{t("market.bid_ask")}</span>
-            <span>{t("market.mid")}</span><span>{t("market.spread_to_ttf")}</span>
+            <span>{t("market.price")}</span><span>{t("market.spread_to_ttf")}</span>
             <span>{t("market.source")}</span><span>{t("market.freshness")}</span>
           </div>
           {MAJOR_HUBS.map((hub) => {
             const observation = latestMarketByHub.get(hub);
-            const quote = latestQuoteByHub.get(hub);
-            const spreadRow = spreadRows.find((row) => row.hub === hub);
+            const comparison = comparisonByHub.get(hub);
+            const quote = comparison?.quote;
             const selected = focusedHub === hub;
             return (
               <button
@@ -122,11 +148,12 @@ function MarketOverview({ controller }: MarketOverviewProps) {
                 className={`data-table-row six ${selected ? "selected" : ""}`}
                 onClick={() => traderContext.setHubId(selected ? null : hub)}
                 aria-pressed={selected}
+                title={quote ? comparison?.contextTitle : observationContextTitle(observation) ?? comparison?.contextTitle}
               >
                 <strong>{hub}</strong>
-                <span>{quote ? `${formatPrice(quote.bid_price, quote.currency)} / ${formatPrice(quote.ask_price, quote.currency)}` : "n/a"}</span>
-                <span>{quote ? formatPrice(quoteMid(quote), quote.currency) : formatPrice(observation?.price_gbp_mwh, "GBP/MWh")}</span>
-                <span>{spreadRow?.spread === null || spreadRow?.spread === undefined ? "n/a" : `${spreadRow.spread >= 0 ? "+" : ""}${spreadRow.spread.toFixed(2)}`}</span>
+                <span>{quote ? formatQuoteBidAsk(comparison.bid, comparison.ask, comparison.priceUnit) : "n/a"}</span>
+                <span>{quote ? formatPrice(comparison.mid, comparison.priceUnit) : formatPrice(observation?.price_gbp_mwh, "GBP/MWh")}</span>
+                <span>{formatSpread(comparison?.spread ?? null, comparison?.spreadUnit ?? null)}</span>
                 <span>{quote?.source_system ?? observation?.source_system ?? "n/a"}</span>
                 <span>{formatAge(quote?.observed_at_utc ?? observation?.observed_at_utc)}</span>
               </button>
@@ -208,10 +235,10 @@ function MarketOverview({ controller }: MarketOverviewProps) {
       </aside>
 
       <section className="market-spread-strip" aria-label={t("market.spread_strip")}>
-        {spreadRows.map((row) => (
-          <div key={row.hub}>
+        {comparisonRows.map((row) => (
+          <div key={row.hub} title={row.contextTitle}>
             <span>{row.hub} → TTF</span>
-            <strong>{row.spread === null || row.spread === undefined ? "n/a" : `${row.spread >= 0 ? "+" : ""}${row.spread.toFixed(2)} ${row.unit}`}</strong>
+            <strong>{formatSpread(row.spread, row.spreadUnit)}</strong>
           </div>
         ))}
       </section>
