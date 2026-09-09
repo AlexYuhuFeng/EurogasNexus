@@ -239,14 +239,26 @@ last statistics reset and do not attribute temporary I/O to this single
 request. This supports a spill-heavy shared workload and an ordering-index
 candidate, but does not by itself prove endpoint-exclusive causality.
 
-The exact next implementation proposal is to support the existing ordering
-with a migration-owned PostgreSQL index and add query-plan/result-regression
-coverage before considering a latest-per-key SQL rewrite. Required regression
-cases must preserve source/venue/product/hub identity, temporal newest
-selection, low-frequency source coverage, source entitlement filtering,
-simulated-versus-licensed precedence, freshness/provenance, and route-price
-blockers. No backend implementation or acceptance claim is made in this
-checkpoint.
+The bounded implementation adds only migration `0033_market_obs_order_indexes`
+with `ix_market_observations_observed_venue_product` on
+`(observed_at_utc DESC, market_venue, product)`. The existing source index is
+`(source_system, observed_at_utc)`: related but not an identical duplicate, and
+the source-specific four-column extension is deferred until a measured benefit
+is demonstrated. No latest-per-key rewrite or query change is included.
+
+The query contract preserves global newest ordering and bounded source
+coverage; ties beyond the stated timestamp/venue/product ordering remain
+unspecified, so regression checks compare rowsets where the cutoff does not
+split a timestamp tie. Focused PostgreSQL coverage uses an isolated schema to
+upgrade and downgrade the migration and checks distinct-timestamp source
+coverage parity. It is not SQLite evidence and has not been run against the
+runtime database.
+
+The migration uses the repository's ordinary transactional Alembic pattern,
+not `CREATE INDEX CONCURRENTLY`. Applying it requires a quiesced application,
+backup/rollback confirmation, disk headroom, and an observed build-time impact:
+ordinary index creation can block writes. No runtime migration or data write
+has been performed.
 
 ### Milestone checkpoint (2026-09-09)
 
@@ -303,6 +315,63 @@ browser was unavailable. The tab list proved an existing browser was alive.
 Parent read console `ERR_INSUFFICIENT_RESOURCES` while the site returned `GET
 200`, closed only the automated UX01 browser, and reopened Edge operation
 `24588`. Runtime remains partial with many timeouts, so no full-ready claim is
-made. CN and three-header QA remain bounded follow-up assigned to Kant. The
-token/header changes remain an uncommitted draft; no new probes or commit are
-claimed.
+made. CN and three-header QA remain bounded evidence, not whole-product
+acceptance. The token/header milestone was committed and pushed as `494ccfa`;
+the remote was fetched again on 2026-09-09 and matched local `main`.
+
+### Ordering-index review resumed (2026-09-09)
+
+Parent inspected the pending migration, ORM definition, repository query, and
+test changes. No price-selection, source-quota, time, or licensing semantics
+are changed. Parent ran `python -m pytest
+tests/contract/test_market_observation_indexes.py
+tests/release/test_release_engineering.py -q`: 22 passed in 2.29s.
+Focused Ruff checks passed. The isolated PostgreSQL test is being strengthened
+to cover source retention beyond the global limit and to scope its index
+catalog lookup to its generated schema even after the public index exists.
+
+Runtime application remains pending a fresh disk, backup, writer, and process
+safety assessment. Neither this checkpoint nor the unit results establish a
+runtime performance improvement. Whole-product UX-01 acceptance remains open.
+
+### Ordering-index applied and verified (2026-09-09)
+
+This supersedes the pending-application status above. The test worker briefly
+started and stopped the existing PostgreSQL container for its isolated test;
+the read-only worker observed that transition. Parent then deliberately started
+`eurogas-nexus-db` and left it running. No listeners existed on ports 8000 or
+3000. The database had only the inspection query active, revision 0032, and no
+proposed index. Host free space was 24.14 GiB; Docker reported 951 GiB available
+inside its filesystem (host headroom remains the tighter constraint).
+
+Before applying the migration, parent created a custom-format `pg_dump` at
+`C:\Users\qqshu\AppData\Local\EurogasNexus\backups\ux01-before-0033-20260909.dump`:
+52,522,874 bytes, timestamp 2026-09-09 11:00:46 UTC, SHA256
+`F0E85F3F86345F30A88B467DAA24BEADF816C9B7D4C9B87D3200A7BD06A9E829`.
+`pg_restore --file=/dev/null` successfully decoded the complete archive. This
+is archive validation, not a restore drill. Older backups were retained.
+
+Parent ran `python -m alembic upgrade 0033_market_obs_order_indexes` using the
+existing database credentials in process memory, with 5-second lock and
+120-second statement timeouts. Exit 0; command wall time 3.29s. Public revision
+is now 0033 and the 39 MB index reports both `indisvalid` and `indisready` true.
+Rollback is `alembic downgrade 0032_agent_capability_layer` in a controlled
+maintenance window; it drops only the new index and does not remove observations.
+No runtime downgrade was performed.
+
+`EXPLAIN (ANALYZE, BUFFERS)` of the existing global latest-2000 ordering now
+uses the new index: 2,000 rows, execution 1.598 ms, planning 2.806 ms, 157 shared
+buffer hits and 94 reads. The prior plan used parallel scan/sort, but there is
+no controlled same-load pre/post latency benchmark. The per-source coverage
+query and endpoint/application latency still need measurement; this is not an
+end-to-end performance pass.
+
+Parent reviewed the worker's schema-qualified catalog lookup and expanded
+distinct-timestamp fixture: low-frequency ICIS remains present beyond the
+global newest cutoff. After the public index existed, parent ran `python -m
+pytest tests/integration/test_market_observation_indexes_postgres.py
+tests/contract/test_market_observation_indexes.py
+tests/release/test_release_engineering.py -q` against PostgreSQL: 23 passed in
+1.95s. Focused Ruff checks passed. API and frontend remain stopped; restarting
+them and measuring real workflow responsiveness is the next acceptance step.
+The full UI, native, accessibility, bilingual, and CR1-15 campaign remains open.

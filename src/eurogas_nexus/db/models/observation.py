@@ -7,7 +7,7 @@
 
 from datetime import UTC, datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, Index, String, Text
+from sqlalchemy import JSON, Boolean, DateTime, Float, Index, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from eurogas_nexus.db.base import Base
@@ -21,6 +21,14 @@ class MarketObservationRecord(Base):
     """
 
     __tablename__ = "market_observations"
+    __table_args__ = (
+        Index(
+            "ix_market_observations_observed_venue_product",
+            text("observed_at_utc DESC"),
+            "market_venue",
+            "product",
+        ),
+    )
 
     observation_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     market_venue: Mapped[str] = mapped_column(String(32), nullable=False)
