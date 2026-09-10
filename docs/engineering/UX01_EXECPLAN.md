@@ -499,3 +499,25 @@ its handler returns the repository rows directly, unlike the raw handler's
 explicit source filter. Middleware may supply controls; this is an audit target,
 not a proven disclosure finding. Preserve the full UX-01 objective and keep
 heavy work deferred while weekly allowance is low.
+
+### Actual normalized-request checkpoint (2026-09-10)
+
+After the user resumed, parent fetched origin and found the worktree clean.
+Weekly allowance was 95% used. One read-only request to
+`http://127.0.0.1:8000/api/market/normalized?limit=500`, with a 15-second deadline,
+returned HTTP 200 in 6,315 ms and 510,969 response bytes. No response rows were
+printed. This is a single warm-runtime observation, not a controlled benchmark
+or a claim that the earlier intermittent timeouts are resolved.
+
+Access-control inspection found that the normalized handler returns repository
+rows without the raw-observation handler's `_filter_entitled_rows` call.
+`require_entitlement` returns immediately when no source is supplied; its
+existence alone does not prove row filtering. Existing
+`tests/security/test_identity_row_entitlement.py` covers raw observations and
+legacy-token behavior, not normalized rows. Next priority is a focused
+normalized-endpoint scoped-identity denial test, including restricted rows and
+derived warnings, followed by a minimal correction if reproduced. Use
+PostgreSQL or isolated mocked dependencies, not a new SQLite store. Preserve
+legacy-token compatibility deliberately and inspect router/middleware wiring
+before claiming a full-route disclosure. No code, permissions, database data,
+or runtime configuration was changed in this assessment.
