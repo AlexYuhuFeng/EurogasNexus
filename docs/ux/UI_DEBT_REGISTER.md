@@ -72,10 +72,19 @@ table semantics, source-state correctness and endpoint latency remain open.
 
 | ID | Screen / workflow | Severity | Description | Reason deferred | Recommended solution |
 | --- | --- | --- | --- | --- | --- |
-| CR14-UI-001 | Research Data -> datasets/features/targets -> dataset/artifact detail | Required implementation | The observed catalog does not expose required dataset detail, build/validate, quality, or export interactions. | Backend routes exist, but the UX01 contract requires the endpoint-to-screen workflow; no accepted thin catalog is permitted. | Expose existing catalog selection, snapshot detail, artifact operations, lineage, rights, freshness, calendar/version, and exact export result without adding domain models. |
+| CR14-UI-001 | Research Data -> datasets/features/targets -> dataset/artifact detail | Required implementation | Dataset selection, snapshot detail, quality, lineage, rights and truthful export-reference requests landed in 895e14d with 120 web tests and scoped EN/CN browser evidence. Build/validate UI and actual format-specific artifact delivery remain absent. | Builder exposure requires backend authorization, rights and validation corrections first; partial inspection is not full CR14 acceptance. | Complete governed spec/build workflow and artifact registration, then test the full lifecycle and entitlement negatives. |
 | CR15-UI-001 | Agent Research -> governed research -> Review Pack -> Replay | Required implementation | The observed surface does not establish the complete plan -> findings -> StrategyIR -> validation -> challenge -> review-pack -> confirmation/replay path. | Blocked-data evidence and replay summary are not the required successful governed artifact workflow; backend capability does not waive the UI requirement. | Render existing artifacts and human gates with operation IDs, fixture IDs, lineage, rights, replay identity, and no hidden chain-of-thought or execution semantics. |
 
 ## Acceptance evidence gaps
+
+### Research prerequisite audit (2026-09-14)
+
+| ID | Screen / workflow | Severity | Description | Reason deferred | Recommended solution |
+| --- | --- | --- | --- | --- | --- |
+| CR14-RIGHTS-001 | Dataset build/detail/export | P1 | Runtime evidence is stamped EXPORT_ALLOWED; caller-supplied entitlement_envelope is persisted and subsequently trusted by export. Build source selection is not constrained by the authenticated principal's source grant. | Must be corrected before builder exposure; UI disabling alone is not a security boundary. | Apply existing principal/source policy before reading observations; derive snapshot rights server-side, fail closed on unproven rights, and cover restricted/unknown sources and forged envelopes. |
+| CR14-SEMANTICS-001 | Dataset validate/build | P1 | Validation does not resolve registry IDs; entity_ids is accepted without runtime filtering; resampling chooses the first registry row rather than the requested policy. | Dedicated semantic correction required beyond request bounds and role checks. | Share validate/build resolution, honor entity and policy identity, verify dependencies, and return structured field errors. |
+| CR14-ARTIFACT-001 | Dataset export | P1 | Builds persist no artifacts; export can return HTTP 200 with a null reference and does not match requested format to an artifact. | Current UI explicitly requests references, not downloads; backend lifecycle remains incomplete. | Register verified format-specific artifacts and reject unavailable exports; preserve source rights and audit lineage. |
+| UX-SYSTEM-NARROW-001 | Shared System navigation | P2 | At 390px Chinese System tabs become tall, word-wrapped buttons. | Observed during scoped research QA, not yet redesigned; no whole-product mobile pass. | Reuse shared nonwrapping, keyboard-accessible task navigation with constrained overflow; verify EN/CN and desktop. |
 
 | ID | Screen / workflow | Severity | Description | Reason deferred | Recommended solution |
 | --- | --- | --- | --- | --- | --- |

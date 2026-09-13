@@ -163,6 +163,13 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     ("/api/strategy-lab/evaluate", Permission.GOVERNED),
 )
 
+# A small number of paths expose both read and governed methods. Keep the
+# legacy path registry intact for compatibility, and resolve these overrides
+# only when the caller supplies an HTTP method.
+METHOD_ROUTE_PERMISSIONS: tuple[tuple[str, str, Permission], ...] = (
+    ("POST", "/api/research/datasets", Permission.GOVERNED),
+)
+
 PERMISSION_ENFORCEMENT: dict[Permission, EnforcementStatus] = {
     Permission.PUBLIC: EnforcementStatus.API_TOKEN,
     Permission.READ: EnforcementStatus.API_TOKEN,
@@ -185,7 +192,7 @@ ROLE_REQUIREMENTS: dict[Permission, str] = {
 }
 
 
-def permission_for_path(path: str) -> Permission:
+def permission_for_path(path: str, method: str | None = None) -> Permission:
     """Resolve the permission for a public path.
 
     Matching ranks: literal routes (0) beat templated routes (1) beat prefix
@@ -196,9 +203,15 @@ def permission_for_path(path: str) -> Permission:
     family.
     """
 
+    normalized_method = (method or "").upper()
     best: Permission | None = None
     best_key: tuple[int, int] | None = None
-    for pattern, permission in ROUTE_PERMISSIONS:
+    routes = (
+        (pattern, permission)
+        for route_method, pattern, permission in METHOD_ROUTE_PERMISSIONS
+        if route_method == normalized_method
+    )
+    for pattern, permission in (*routes, *ROUTE_PERMISSIONS):
         rank = _pattern_rank(pattern)
         if rank == 2:
             ok = path.startswith(pattern)

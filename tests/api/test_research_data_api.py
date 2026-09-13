@@ -10,14 +10,20 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from eurogas_nexus.api.app import create_app
+from eurogas_nexus.core.config import Settings
 from eurogas_nexus.db.base import Base
 from eurogas_nexus.db.models import MarketObservationRecord
 from eurogas_nexus.db.repositories import research as repo
+from eurogas_nexus.db.repositories.identity import (
+    create_identity_api_key,
+    create_identity_principal,
+)
 from eurogas_nexus.domain.research.features import FeatureDefinition
 from eurogas_nexus.domain.research.resampling import ResamplingPolicy
 from eurogas_nexus.domain.research.targets import TargetDefinition, TargetKind
 from eurogas_nexus.domain.research.temporal import DatasetMode, TemporalIntegrityState
 from eurogas_nexus.security.permissions import Permission, permission_for_path
+from eurogas_nexus.security.public_api import PUBLIC_API_TOKEN_ENV
 
 
 def _dt(hour: int) -> datetime:
@@ -205,6 +211,77 @@ def test_dataset_validate_reports_semantic_issues_without_persisting(client) -> 
     assert valid.status_code == 200
     assert valid.json()["data"]["ok"] is True
     assert len(valid.json()["data"]["spec_hash"]) == 64
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "error_code"),
+    [
+        ("forecast_origin_frequency", "0h", "frequency_invalid"),
+        ("forecast_origin_frequency", "-1h", "frequency_invalid"),
+        ("forecast_origin_frequency", "15m", "frequency_invalid"),
+        ("forecast_origin_frequency", "9" * 12 + "h", "frequency_invalid"),
+        ("forecast_origin_frequency", "١h", "frequency_invalid"),
+        ("start", _dt(3).isoformat(), "date_bounds_invalid"),
+        (
+            "end",
+            (_dt(0) + timedelta(hours=250_001)).isoformat(),
+            "origin_count_limit",
+        ),
+        ("history_lookback", -86400, "history_lookback_invalid"),
+        ("history_lookback", (3650 + 1) * 86400, "history_lookback_invalid"),
+    ],
+)
+def test_dataset_build_rejects_invalid_bounds_with_safe_structured_422(
+    client, field: str, value, error_code: str
+) -> None:
+    payload = _spec_payload()
+    payload[field] = value
+    response = client.post(
+        "/api/research/datasets",
+        json={"dataset_spec": payload, "materialize": False},
+    )
+
+    assert response.status_code == 422
+    detail = response.json()["detail"]
+    assert detail["error"] == "dataset_spec_invalid"
+    assert detail["issues"][0]["code"] == error_code
+    assert "Value error" not in response.text
+
+
+def test_release_dataset_build_requires_analyst_role(client, monkeypatch) -> None:
+    monkeypatch.setenv(PUBLIC_API_TOKEN_ENV, "test-public-api-token")
+    with Session(client.engine) as session:
+        viewer = create_identity_principal(
+            session,
+            name="research-viewer",
+            display_name="Research Viewer",
+            role="VIEWER",
+        )
+        _, viewer_bearer = create_identity_api_key(session, viewer.principal_id)
+        analyst = create_identity_principal(
+            session,
+            name="research-analyst",
+            display_name="Research Analyst",
+            role="ANALYST",
+        )
+        _, analyst_bearer = create_identity_api_key(session, analyst.principal_id)
+        session.commit()
+
+    release_client = TestClient(create_app(Settings(api_profile="release")))
+    base_headers = {"X-Eurogas-Api-Key": "test-public-api-token"}
+    viewer_response = release_client.post(
+        "/api/research/datasets",
+        headers={**base_headers, "X-Eurogas-Identity": viewer_bearer},
+        json={"dataset_spec": _spec_payload(), "materialize": False},
+    )
+    assert viewer_response.status_code == 403
+
+    analyst_response = release_client.post(
+        "/api/research/datasets",
+        headers={**base_headers, "X-Eurogas-Identity": analyst_bearer},
+        json={"dataset_spec": _spec_payload(), "materialize": False},
+    )
+    assert analyst_response.status_code == 200
 
 
 def test_dataset_build_persists_point_in_time_snapshot_and_supports_export_gate(

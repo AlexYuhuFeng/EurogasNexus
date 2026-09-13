@@ -15,7 +15,7 @@ from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from eurogas_nexus.domain.research.features import FeatureDefinition
 from eurogas_nexus.domain.research.leakage import LeakageValidator
@@ -45,6 +45,17 @@ def _json_safe(value: Any) -> Any:
 
 class DatasetSplitType(StrEnum):
     TIME_SPLIT = "TIME_SPLIT"
+
+
+# These are service-safety ceilings, not training-policy limits. The origin
+# ceiling bounds request work while retaining multi-year hourly histories;
+# the lookback ceiling prevents an accidental unbounded historical query. They
+# do not cap the number of rows returned by the observation query.
+MAX_DATASET_ORIGINS = 250_000
+MAX_DATASET_HISTORY_LOOKBACK = timedelta(days=3650)
+MAX_ORIGIN_FREQUENCY_DIGITS = 11
+MAX_ORIGIN_FREQUENCY_HOURS = 23_999_999_999
+MAX_ORIGIN_FREQUENCY_DAYS = 999_999_999
 
 
 class DatasetSplit(BaseModel):
@@ -86,6 +97,27 @@ class DatasetSpec(BaseModel):
     split_specs: list[DatasetSplit] = Field(default_factory=list)
     output_format: str = "long"
     ontology_version: str = "energy-ontology/v1"
+
+    @model_validator(mode="after")
+    def validate_service_bounds(self) -> DatasetSpec:
+        start = _utc(self.start)
+        end = _utc(self.end)
+        if end <= start:
+            raise ValueError("end must be after start")
+        if self.history_lookback < timedelta(0):
+            raise ValueError("history_lookback must be non-negative")
+        if self.history_lookback > MAX_DATASET_HISTORY_LOOKBACK:
+            raise ValueError(
+                "history_lookback exceeds the service limit of 3650 days"
+            )
+        step = _parse_origin_frequency(self.forecast_origin_frequency)
+        origin_count = _origin_count(start, end, step)
+        if origin_count > MAX_DATASET_ORIGINS:
+            raise ValueError(
+                "forecast origin count exceeds the service limit of "
+                f"{MAX_DATASET_ORIGINS} origins"
+            )
+        return self
 
     def content_hash(self) -> str:
         encoded = json.dumps(self.model_dump(mode="json"), sort_keys=True, default=str).encode(
@@ -168,20 +200,56 @@ def _utc(value: datetime) -> datetime:
     return value.astimezone(UTC)
 
 
+def _parse_origin_frequency(value: str) -> timedelta:
+    """Parse the supported positive hourly/daily origin frequency."""
+
+    if not isinstance(value, str):
+        raise ValueError("forecast_origin_frequency must be a string")
+    normalized = value.strip().lower()
+    if len(normalized) < 2 or normalized[-1] not in {"h", "d"}:
+        raise ValueError(
+            "forecast_origin_frequency must use a positive integer with "
+            "suffix 'h' or 'd' (for example, '1h' or '1d')"
+        )
+    amount_text = normalized[:-1]
+    if (
+        not amount_text
+        or len(amount_text) > MAX_ORIGIN_FREQUENCY_DIGITS
+        or not amount_text.isascii()
+        or not amount_text.isdecimal()
+    ):
+        raise ValueError(
+            "forecast_origin_frequency must be greater than zero and use "
+            "a positive integer with suffix 'h' or 'd'"
+        )
+    amount = int(amount_text)
+    maximum = (
+        MAX_ORIGIN_FREQUENCY_HOURS
+        if normalized.endswith("h")
+        else MAX_ORIGIN_FREQUENCY_DAYS
+    )
+    if amount <= 0 or amount > maximum:
+        raise ValueError("forecast_origin_frequency exceeds the service limit")
+    try:
+        return timedelta(hours=amount) if normalized.endswith("h") else timedelta(days=amount)
+    except OverflowError as exc:
+        raise ValueError("forecast_origin_frequency exceeds the service limit") from exc
+
+
+def _origin_count(start: datetime, end: datetime, step: timedelta) -> int:
+    """Return the number of ``start <= origin < end`` points."""
+
+    window = end - start
+    quotient, remainder = divmod(window, step)
+    return quotient + (1 if remainder else 0)
+
+
 def _origins(spec: DatasetSpec) -> list[datetime]:
     current = _utc(spec.start)
     end = _utc(spec.end)
-    if spec.forecast_origin_frequency.endswith("h"):
-        step = timedelta(hours=int(spec.forecast_origin_frequency[:-1]))
-    elif spec.forecast_origin_frequency.endswith("d"):
-        step = timedelta(days=int(spec.forecast_origin_frequency[:-1]))
-    else:
-        raise ValueError(f"unsupported forecast_origin_frequency: {spec.forecast_origin_frequency}")
-    origins = []
-    while current < end:
-        origins.append(current)
-        current += step
-    return origins
+    step = _parse_origin_frequency(spec.forecast_origin_frequency)
+    origin_count = _origin_count(current, end, step)
+    return [current + (step * index) for index in range(origin_count)]
 
 
 def _records_by_series(

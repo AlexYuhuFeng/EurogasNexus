@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from eurogas_nexus.domain.research.datasets import (
     DatasetBuildResult,
@@ -85,6 +85,60 @@ def _target_payload(row) -> dict[str, Any]:
     }
 
 
+def _dataset_spec_error(exc: ValidationError) -> HTTPException:
+    """Convert DatasetSpec validation into a safe, stable 422 contract."""
+
+    issues: list[dict[str, str]] = []
+    for error in exc.errors():
+        location = ".".join(str(part) for part in error.get("loc", ())) or "dataset_spec"
+        message = str(error.get("msg") or "")
+        if "origin count" in message:
+            code = "origin_count_limit"
+            location = "forecast_origin_frequency"
+            safe_message = "The requested dataset has too many forecast origins."
+        elif location == "forecast_origin_frequency" or "forecast_origin_frequency" in message:
+            code = "frequency_invalid"
+            location = "forecast_origin_frequency"
+            safe_message = (
+                "forecast_origin_frequency must be a positive integer with "
+                "suffix 'h' or 'd'."
+            )
+        elif location in {"start", "end"} or "end must be after start" in message:
+            location = "start/end"
+            code = "date_bounds_invalid"
+            safe_message = "end must be after start."
+        elif location == "history_lookback" or "history_lookback" in message:
+            location = "history_lookback"
+            code = "history_lookback_invalid"
+            safe_message = (
+                "history_lookback must be non-negative and no greater than 3650 days."
+            )
+        else:
+            code = "dataset_field_invalid"
+            safe_message = "The dataset specification contains an invalid field."
+        issues.append({"field": location, "code": code, "message": safe_message})
+    return HTTPException(
+        status_code=422,
+        detail={
+            "error": "dataset_spec_invalid",
+            "message": "Dataset specification failed validation.",
+            "issues": issues,
+        },
+    )
+
+
+def _dataset_build_error() -> HTTPException:
+    """Return a safe 422 for a dataset build rejected by domain validation."""
+
+    return HTTPException(
+        status_code=422,
+        detail={
+            "error": "dataset_build_invalid",
+            "message": "Dataset specification cannot be materialized.",
+        },
+    )
+
+
 @router.get("/api/research/features")
 def list_features(request: Request) -> dict:
     from eurogas_nexus.db.repositories.research import list_feature_definitions
@@ -150,8 +204,8 @@ def validate_dataset_spec(body: DatasetValidateRequest, request: Request) -> dic
             request,
             source="domain-contract",
         )
-    except Exception as exc:
-        return _env({"ok": False, "issues": [str(exc)]}, request, source="domain-contract")
+    except ValidationError as exc:
+        raise _dataset_spec_error(exc) from None
 
 
 @router.get("/api/research/datasets")
@@ -185,11 +239,19 @@ def materialize_dataset(body: DatasetMaterializeRequest, request: Request) -> di
         raise HTTPException(
             status_code=503, detail="Runtime PostgreSQL is required for dataset builds."
         )
-    spec = DatasetSpec.model_validate(body.dataset_spec)
+    try:
+        spec = DatasetSpec.model_validate(body.dataset_spec)
+    except ValidationError as exc:
+        raise _dataset_spec_error(exc) from None
     with _session() as session:
-        result, dependency_rows, issue_rows = _build_from_runtime(
-            session, spec, snapshot_id=body.snapshot_id
-        )
+        try:
+            result, dependency_rows, issue_rows = _build_from_runtime(
+                session, spec, snapshot_id=body.snapshot_id
+            )
+        except HTTPException:
+            raise
+        except (KeyError, TypeError, ValueError) as exc:
+            raise _dataset_build_error() from exc
         if body.materialize:
             from eurogas_nexus.db.repositories.research import persist_dataset_snapshot
 

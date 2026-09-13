@@ -49,6 +49,13 @@ def test_longest_pattern_wins_for_nested_routes() -> None:
     assert permission_for_path("/api/strategy-lab/evaluate") is Permission.GOVERNED
 
 
+def test_research_dataset_permissions_are_method_aware() -> None:
+    assert permission_for_path("/api/research/datasets", "GET") is Permission.READ
+    assert permission_for_path("/api/research/datasets", "POST") is Permission.GOVERNED
+    # Existing path-only callers retain the catalog/read compatibility result.
+    assert permission_for_path("/api/research/datasets") is Permission.READ
+
+
 def test_unknown_path_raises() -> None:
     try:
         permission_for_path("/api/not-registered")

@@ -15,9 +15,11 @@ from eurogas_nexus.domain.research.capabilities import (
     CapabilityReadWriteClass,
 )
 from eurogas_nexus.domain.research.datasets import (
+    MAX_DATASET_ORIGINS,
     DatasetEvidenceRecord,
     DatasetPointInTimePolicy,
     DatasetSpec,
+    _origins,
     build_dataset,
 )
 from eurogas_nexus.domain.research.features import (
@@ -128,6 +130,8 @@ def _spec(
     start: datetime | None = None,
     end: datetime | None = None,
     entity_ids: list[str] | None = None,
+    forecast_origin_frequency: str = "1h",
+    history_lookback: timedelta = timedelta(days=7),
 ) -> DatasetSpec:
     return DatasetSpec(
         dataset_spec_id="spec-test",
@@ -139,7 +143,8 @@ def _spec(
         or ["ent:market_hub:NBP", "ent:market_hub:TTF"],
         start=start or _dt(2026, 1, 1, 0),
         end=end or _dt(2026, 1, 1, 2),
-        forecast_origin_frequency="1h",
+        forecast_origin_frequency=forecast_origin_frequency,
+        history_lookback=history_lookback,
         point_in_time_policy=DatasetPointInTimePolicy(mode=mode),
         minimum_coverage=0.0,
     )
@@ -160,6 +165,49 @@ def _sample_records() -> list[DatasetEvidenceRecord]:
         _record("ttf-02", "market.price.TTF.DAY_AHEAD", _dt(2026, 1, 1, 2),
                 available_at=_dt(2026, 1, 1, 2), value=20.0),
     ]
+
+
+@pytest.mark.parametrize(
+    ("frequency", "start", "end", "history_lookback"),
+    [
+        ("0h", _dt(2026, 1, 1), _dt(2026, 1, 1, 2), timedelta(days=7)),
+        ("-1h", _dt(2026, 1, 1), _dt(2026, 1, 1, 2), timedelta(days=7)),
+        ("15m", _dt(2026, 1, 1), _dt(2026, 1, 1, 2), timedelta(days=7)),
+        ("9" * 12 + "h", _dt(2026, 1, 1), _dt(2026, 1, 1, 2), timedelta(days=7)),
+        ("١h", _dt(2026, 1, 1), _dt(2026, 1, 1, 2), timedelta(days=7)),
+        ("1h", _dt(2026, 1, 1, 2), _dt(2026, 1, 1), timedelta(days=7)),
+        (
+            "1h",
+            _dt(2026, 1, 1),
+            _dt(2026, 1, 1) + timedelta(hours=MAX_DATASET_ORIGINS + 1),
+            timedelta(days=7),
+        ),
+        ("1h", _dt(2026, 1, 1), _dt(2026, 1, 1, 2), timedelta(days=-1)),
+    ],
+)
+def test_dataset_spec_rejects_unbounded_or_invalid_service_inputs(
+    frequency: str,
+    start: datetime,
+    end: datetime,
+    history_lookback: timedelta,
+) -> None:
+    with pytest.raises(ValueError):
+        _spec(
+            features=[],
+            targets=[_target()],
+            start=start,
+            end=end,
+            forecast_origin_frequency=frequency,
+            history_lookback=history_lookback,
+        )
+
+
+def test_origins_near_datetime_max_do_not_increment_past_end() -> None:
+    end = datetime.max.replace(tzinfo=UTC)
+    start = end - timedelta(hours=1)
+    spec = _spec(features=[], targets=[_target()], start=start, end=end)
+
+    assert _origins(spec) == [start]
 
 
 def test_ontology_has_versioned_stable_canonical_identifiers() -> None:

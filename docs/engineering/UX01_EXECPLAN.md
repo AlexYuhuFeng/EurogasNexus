@@ -601,3 +601,44 @@ whole-product accessibility/visual acceptance remain open. Existing backend
 build authorization and source-right derivation need review before exposing a
 builder; schema validation alone must not be presented as readiness to build.
 This is a bounded inspection milestone, not whole-product UX01 acceptance.
+
+### Dataset build authorization and termination prerequisites (2026-09-14)
+
+The prior turn made progress: research inspection was reviewed, tested and
+pushed as 895e14d. Rechecked a clean worktree and fetched origin before this
+prerequisite audit. No new frontend builder is exposed by this commit.
+
+The release permission dependency previously resolved only a path; GET list
+and POST build therefore shared READ permission. It now supplies the HTTP
+method, with POST /api/research/datasets requiring GOVERNED (Analyst or higher)
+while GET and legacy path-only registry callers retain their existing mapping.
+Release-profile tests use real test identity keys: Viewer build is denied and
+Analyst build remains allowed. This establishes role enforcement, not source
+rights enforcement.
+
+DatasetSpec now requires ordered dates, positive hourly/daily frequency,
+non-negative lookback no greater than 3650 days, and at most 250000 origins.
+The parser rejects oversized and non-ASCII numeric inputs without integer or
+timedelta overflow. Origin generation avoids a final unnecessary addition
+past datetime.max. These are termination guards, not a demonstrated workload
+budget: the runtime observation query and per-origin processing still need
+row/work limits and profiling before broad builder exposure.
+
+Invalid specs at validate/build now return HTTP 422 with safe structured issue
+codes instead of raw exception text (validate previously returned HTTP 200
+with ok=false for schema errors). The existing client propagates non-2xx errors;
+the future builder must consume this contract. Domain build rejection receives
+a safe 422; unknown registry IDs, entity filtering, resampling identity and
+dependency closure are still separate semantic gaps in UI_DEBT_REGISTER.md.
+
+Parent independently ran:
+`python -m pytest tests/security/test_permissions_registry.py
+tests/security/test_operator_principal_gate.py tests/security/test_public_api_auth.py
+tests/domain/research/test_research_data_foundation.py
+tests/api/test_research_data_api.py -q --tb=short`: 60 passed in 11.82s.
+Focused Ruff passed. The API tests reuse the repository's pre-existing temporary
+SQLite test fixture; no new datastore or runtime fallback was introduced.
+No PostgreSQL integration, native build, full backend suite or performance
+acceptance is claimed for this role/validation change. Runtime PostgreSQL data
+was not modified. Source grants, server-derived export rights, null artifact
+success and successful governed builder/agent workflows remain open.

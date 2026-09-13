@@ -46,7 +46,7 @@ async def require_route_permission(request: Request) -> None:
     """
 
     try:
-        permission = permission_for_path(request.url.path)
+        permission = permission_for_path(request.url.path, request.method)
     except KeyError as exc:
         # 路径未登记权限：服务端配置缺陷，必须以 500 显式暴露而非静默放行。
         raise HTTPException(
