@@ -28,6 +28,33 @@ a whole-product campaign, not a new-feature program or a single-screen redesign.
 
 ## Work sequence
 
+### Latest user priorities (2026-09-14)
+
+These directions supersede earlier allowance-aware execution checkpoints.
+
+- Stop Codex allowance monitoring and quota-based pauses, deferrals or scope
+  reductions. Do not purchase credits or consume resets automatically.
+- **Next product priority: authentication-first entry.** Show a separate
+  sign-in screen before mounting the terminal or fetching protected data.
+  Unauthenticated or unapproved visitors must not see market/workspace panels,
+  including via deep links, reload, session expiry or browser history. Provide
+  development-only test username/password credentials with backend validation;
+  never ship hardcoded production credentials or client-only access checks.
+  Reuse existing identity and OIDC/SSO integration points for future company
+  SSO. Registration/request-access must not auto-approve terminal access.
+  Review desktop startup, logout, cache clearing, errors and EN/CN layouts.
+- **Next market priority: distinct numeric and map views.** Numeric market
+  analysis and geographic/network inspection should be separate task views,
+  not a mandatory combined dashboard. Let each authenticated user choose and
+  persist the preferred view shown after login; keep switching ergonomic and
+  retain gas-day, product, hub and provenance context between views. Preserve
+  verified/indicative legends, routes and existing numeric semantics. Do not
+  remove the map or imply the map replaces price evidence.
+
+These are queued requirements, not implementation claims. Existing research
+PostgreSQL verification, dataset builder semantics and CR15 workflows remain
+required; the original whole-product acceptance scope is unchanged.
+
 1. **In progress:** establish current repository truth, inspect current docs and
    source, restore existing test runtime, navigate primary workflows, collect
    pre-refactor screenshots and identify P0/P1/P2 defects.
