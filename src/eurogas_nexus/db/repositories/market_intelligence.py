@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import UTC, datetime
 
 from sqlalchemy import func
@@ -113,7 +114,12 @@ def list_intraday_opportunities(
     return serialized[:limit]
 
 
-def list_normalized_market_view(session: Session, *, limit: int = 500) -> dict:
+def list_normalized_market_view(
+    session: Session,
+    *,
+    limit: int = 500,
+    source_filter: Callable[[str], bool] | None = None,
+) -> dict:
     """Compose the backend-normalized market view (FX/tenor/hub owned by backend).
 
     Returns ``{"rows": [...], "warnings": [...]}`` where every row carries the
@@ -121,19 +127,31 @@ def list_normalized_market_view(session: Session, *, limit: int = 500) -> dict:
     ``price_gbp_mwh`` computed by the domain normalization module.
     """
 
+    allowed_market_sources = _allowed_source_systems(
+        session,
+        MarketObservationRecord,
+        source_filter,
+    )
+    allowed_fx_sources = _allowed_source_systems(
+        session,
+        FxObservationRecord,
+        source_filter,
+    )
     observation_rows = list_market_observations_with_source_coverage(
         session,
         limit=limit,
         per_source_limit=40,
+        source_systems=allowed_market_sources,
     )
-    fx_rows = (
-        session.query(FxObservationRecord)
-        .order_by(FxObservationRecord.observed_at_utc.desc(), FxObservationRecord.pair)
-        .all()
-    )
+    fx_query = session.query(FxObservationRecord)
+    if allowed_fx_sources is not None:
+        fx_query = fx_query.filter(FxObservationRecord.source_system.in_(allowed_fx_sources))
+    fx_rows = fx_query.order_by(
+        FxObservationRecord.observed_at_utc.desc(), FxObservationRecord.pair
+    ).all()
     rates = [_fx_rate_input(row) for row in fx_rows]
     if not rates:
-        rates = _ecb_market_fx_inputs(session)
+        rates = _ecb_market_fx_inputs(session, source_systems=allowed_market_sources)
 
     inputs = [
         MarketObservationInput(
@@ -161,11 +179,17 @@ def list_market_observations_with_source_coverage(
     *,
     limit: int,
     per_source_limit: int = 40,
+    source_systems: set[str] | None = None,
 ) -> list:
     """Return recent observations with bounded low-frequency source coverage."""
 
+    newest_query = session.query(MarketObservationRecord)
+    if source_systems is not None:
+        newest_query = newest_query.filter(
+            MarketObservationRecord.source_system.in_(source_systems)
+        )
     newest_rows = (
-        session.query(MarketObservationRecord)
+        newest_query
         .order_by(
             MarketObservationRecord.observed_at_utc.desc(),
             MarketObservationRecord.market_venue,
@@ -179,6 +203,7 @@ def list_market_observations_with_source_coverage(
         newest_rows,
         limit=limit,
         per_source_limit=per_source_limit,
+        source_systems=source_systems,
     )
 
 
@@ -188,6 +213,7 @@ def _with_latest_row_per_gas_source(
     *,
     limit: int,
     per_source_limit: int,
+    source_systems: set[str] | None = None,
 ) -> list:
     """Reserve recent rows for gas sources without exceeding the API limit.
 
@@ -199,33 +225,36 @@ def _with_latest_row_per_gas_source(
 
     if limit <= 0 or not newest_rows:
         return newest_rows
-    source_count = (
-        session.query(func.count(func.distinct(MarketObservationRecord.source_system)))
-        .filter(MarketObservationRecord.unit.ilike("%MWH%"))
-        .scalar()
-        or 0
-    )
+    source_count_query = session.query(
+        func.count(func.distinct(MarketObservationRecord.source_system))
+    ).filter(MarketObservationRecord.unit.ilike("%MWH%"))
+    if source_systems is not None:
+        source_count_query = source_count_query.filter(
+            MarketObservationRecord.source_system.in_(source_systems)
+        )
+    source_count = source_count_query.scalar() or 0
     if source_count == 0:
         return newest_rows[:limit]
 
     source_quota = min(per_source_limit, max(1, limit // source_count))
-    ranked_rows = (
-        session.query(
-            MarketObservationRecord.observation_id.label("observation_id"),
-            func.row_number()
-            .over(
-                partition_by=MarketObservationRecord.source_system,
-                order_by=(
-                    MarketObservationRecord.observed_at_utc.desc(),
-                    MarketObservationRecord.market_venue,
-                    MarketObservationRecord.product,
-                ),
-            )
-            .label("source_rank"),
+    ranked_query = session.query(
+        MarketObservationRecord.observation_id.label("observation_id"),
+        func.row_number()
+        .over(
+            partition_by=MarketObservationRecord.source_system,
+            order_by=(
+                MarketObservationRecord.observed_at_utc.desc(),
+                MarketObservationRecord.market_venue,
+                MarketObservationRecord.product,
+            ),
         )
-        .filter(MarketObservationRecord.unit.ilike("%MWH%"))
-        .subquery()
-    )
+        .label("source_rank"),
+    ).filter(MarketObservationRecord.unit.ilike("%MWH%"))
+    if source_systems is not None:
+        ranked_query = ranked_query.filter(
+            MarketObservationRecord.source_system.in_(source_systems)
+        )
+    ranked_rows = ranked_query.subquery()
     coverage_rows = (
         session.query(MarketObservationRecord)
         .join(
@@ -278,10 +307,18 @@ def _fx_rate_input(row: FxObservationRecord) -> FxRateInput:
     )
 
 
-def _ecb_market_fx_inputs(session: Session) -> list[FxRateInput]:
+def _ecb_market_fx_inputs(
+    session: Session,
+    *,
+    source_systems: set[str] | None = None,
+) -> list[FxRateInput]:
+    ecb_query = session.query(MarketObservationRecord).filter(
+        MarketObservationRecord.source_system == "ECB"
+    )
+    if source_systems is not None:
+        ecb_query = ecb_query.filter(MarketObservationRecord.source_system.in_(source_systems))
     rows = (
-        session.query(MarketObservationRecord)
-        .filter(MarketObservationRecord.source_system == "ECB")
+        ecb_query
         .order_by(MarketObservationRecord.observed_at_utc.desc())
         .all()
     )
@@ -295,6 +332,23 @@ def _ecb_market_fx_inputs(session: Session) -> list[FxRateInput]:
         )
         for row in rows
     ]
+
+
+def _allowed_source_systems(
+    session: Session,
+    model,
+    source_filter: Callable[[str], bool] | None,
+) -> set[str] | None:
+    """Resolve the principal filter to concrete DB source values before reads."""
+
+    if source_filter is None:
+        return None
+    source_rows = session.query(model.source_system).distinct().all()
+    return {
+        source_system
+        for (source_system,) in source_rows
+        if isinstance(source_system, str) and source_filter(source_system)
+    }
 
 
 def _observation_dict(row: MarketObservationRecord) -> dict:

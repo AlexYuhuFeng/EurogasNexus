@@ -152,8 +152,16 @@ def list_normalized_view(
         )
         from eurogas_nexus.db.session import get_session_factory
 
+        identity = getattr(request.state, "identity", legacy_public_token_principal())
         with get_session_factory()() as session:
-            view = list_normalized_market_view(session, limit=limit)
+            view = list_normalized_market_view(
+                session,
+                limit=limit,
+                source_filter=lambda source_system: principal_allows_source_family(
+                    identity,
+                    source_system,
+                ),
+            )
         return _env(
             view["rows"],
             source="runtime-postgresql",

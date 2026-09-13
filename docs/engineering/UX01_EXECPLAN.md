@@ -521,3 +521,39 @@ PostgreSQL or isolated mocked dependencies, not a new SQLite store. Preserve
 legacy-token compatibility deliberately and inspect router/middleware wiring
 before claiming a full-route disclosure. No code, permissions, database data,
 or runtime configuration was changed in this assessment.
+
+### Normalized-market source access correction (2026-09-13)
+
+The delegated release-route regression reproduced the gap (reported baseline:
+3 failed, 1 passed). Release identity/role dependencies do not provide source
+row filtering. The normalized handler now passes the existing principal source
+predicate into the repository. Concrete allowed source values constrain newest
+rows, source quotas and window ranking before the result limit and normalization.
+FX inputs and the ECB fallback are also filtered before derived prices or
+warnings are produced. No new source-family taxonomy or client calculation was
+introduced. Known granted and wildcard/legacy-token source reads remain covered;
+unknown families are denied by the existing predicate, including wildcard calls.
+
+The worker was interrupted by an actual usage-limit error while adding the
+PostgreSQL test. Parent resumed from the preserved changes, started installed
+Docker Desktop (the engine had been unavailable), and used the existing healthy
+PostgreSQL container. Only UUID-named test schemas were written. Parent fixed a
+test lint error and missing FX metadata column; the first live run failed on
+that fixture column and is not counted as a pass.
+
+Parent command, with existing credentials supplied only in process memory:
+`python -m pytest tests/integration/test_market_normalized_entitlement_postgres.py
+tests/integration/test_market_observation_indexes_postgres.py
+tests/security/test_market_normalized_entitlement.py
+tests/api/test_market_normalized_api.py tests/unit/test_normalized_market_view.py
+-q --tb=short`: 19 passed in 4.05s. Focused Ruff and `git diff --check` passed.
+The real PostgreSQL test covers denied recent rows not starving older allowed
+data, denied FX exclusion, no allowed sources, and the ECB fallback. Release
+route tests use mocked identity authentication/repository fixtures; they are
+not an end-to-end identity-key authentication test. Parent confirmed zero
+leftover `ent_`/`idx_` UUID schemas and public revision still 0033.
+
+This closes the scoped normalized-route filtering defect, not all market-route
+entitlements, full authentication acceptance or latency. Runtime API restart,
+current application smoke, broader entitlement suite and profiling remain
+follow-up work; no production deployment or whole-product PASS is claimed.
