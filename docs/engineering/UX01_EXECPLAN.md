@@ -557,3 +557,47 @@ This closes the scoped normalized-route filtering defect, not all market-route
 entitlements, full authentication acceptance or latency. Runtime API restart,
 current application smoke, broader entitlement suite and profiling remain
 follow-up work; no production deployment or whole-product PASS is claimed.
+
+### Research dataset inspection milestone (2026-09-13)
+
+Fetched origin; main matched origin/main at 6946b7d before this milestone.
+Restarted the API and Vite from this worktree and confirmed runtime readiness
+(`runtime_db=ok`, required tables OK). A bounded live normalized-market request
+returned 500 rows, HTTP 200, in 6.856s. This is a smoke result, not a latency
+acceptance pass. PostgreSQL remains the only runtime datastore.
+
+Replaced the Research Data nested catalog panels with a semantic table and
+320px detail rail using existing tokens and tabs. Dataset selection loads the
+existing detail and quality endpoints. The screen exposes provenance, hashes,
+ontology, UTC cutoff, counts, coverage, temporal integrity, rights, warnings
+and artifact references. Features and Targets remain available. Export requests
+return a reference only: the UI does not claim to download a file. Unknown or
+restricted rights disable requests; backend denial errors are safely localized.
+Reads and export requests are bounded without automatic POST retries. Identity
+changes mask/clear prior data; selection changes abort stale export generations.
+Parent review caught and corrected retained cross-identity catalogs, stale
+export updates and a busy state that persisted after changing selection.
+
+Independent validation: `npm test` 120 passed, 0 failed; `npm run build` passed
+(138 modules; existing ineffective dynamic-import warning); diff check passed.
+Tests include real coordinator cancellation and helper behavior, plus source
+contract assertions; they are not full mounted-component/authentication tests.
+Parent inspected the live empty page and browser-only populated fixtures in
+Edge: EN 1440x900 and 1920x1080, CN 1100x900 and 390x844. Fixture checks covered
+detail selection, null counts, backend 403 sanitization, restricted/unknown
+export disabling and no research-container horizontal overflow at 390px.
+Tables intentionally scroll within their container. No fixture records were
+written to PostgreSQL; interception was removed and the real page reloaded.
+Evidence: `output/playwright/ux01-research-after-empty-1440.png`,
+`ux01-research-detail-en-1440.png`, `ux01-research-detail-en-1920.png`,
+`ux01-research-detail-zh-1100.png`, `ux01-research-detail-zh-390.png` in that folder.
+An earlier browser session hung; a fresh session completed these checks.
+
+Remaining: dataset spec/build workflow, actual artifact materialization and
+download capability, richer translated quality/status vocabulary, full browser
+race/authentication coverage, native rebuild and all CR15 workflows. Narrow
+mobile System navigation still wraps awkwardly; shared control styling and
+whole-product accessibility/visual acceptance remain open. Existing backend
+build authorization and source-right derivation need review before exposing a
+builder; schema validation alone must not be presented as readiness to build.
+This is a bounded inspection milestone, not whole-product UX01 acceptance.

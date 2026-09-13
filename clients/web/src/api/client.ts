@@ -1253,12 +1253,43 @@ export interface ResearchDatasetDTO {
   dataset_snapshot_id: string;
   dataset_spec_id: string;
   source_cutoff_utc: string;
-  row_count: number;
-  column_count: number;
-  coverage: number;
+  row_count: number | null;
+  column_count: number | null;
+  coverage: number | null;
   temporal_integrity: string;
   status: string;
   created_at_utc: string;
+}
+
+export interface ResearchDatasetDetailDTO {
+  spec_hash: string;
+  ontology_version: string;
+  content_hash?: string | null;
+  dataset_snapshot_id: string;
+  dataset_spec_id: string;
+  source_cutoff_utc: string;
+  row_count: number | null;
+  column_count: number | null;
+  coverage: number | null;
+  temporal_integrity: string;
+  status: string;
+  entitlement_envelope: Record<string, unknown>;
+  artifact_ref: string | null;
+  metadata: Record<string, unknown>;
+}
+
+export interface ResearchDatasetQualityDTO {
+  dataset_snapshot_id: string;
+  quality_report: Record<string, unknown>;
+  leakage_issues: Array<Record<string, unknown>>;
+  warnings: string[];
+}
+
+export interface ResearchDatasetExportDTO {
+  dataset_snapshot_id: string;
+  format: "parquet" | "csv";
+  artifact_ref: string | null;
+  entitlement_policy: string;
 }
 
 export interface ResearchCapabilityDTO {
@@ -1560,10 +1591,24 @@ export const api = {
   runtimeDb: (options?: ApiRequestOptions) => get<RuntimeDbStatusDTO>("/runtime/db", undefined, options),
   runtimeDependencies: (options?: ApiRequestOptions) => get<RuntimeDependenciesDTO>("/runtime/dependencies", undefined, options),
   runtimeRelease: (options?: ApiRequestOptions) => get<RuntimeReleaseDTO>("/runtime/release", undefined, options),
-  researchFeatures: () => get<ResearchFeatureDTO[]>("/research/features"),
-  researchTargets: () => get<ResearchTargetDTO[]>("/research/targets"),
-  researchDatasets: () => get<ResearchDatasetDTO[]>("/research/datasets"),
+  researchFeatures: (options?: ApiRequestOptions) => get<ResearchFeatureDTO[]>("/research/features", undefined, options),
+  researchTargets: (options?: ApiRequestOptions) => get<ResearchTargetDTO[]>("/research/targets", undefined, options),
+  researchDatasets: (options?: ApiRequestOptions) => get<ResearchDatasetDTO[]>("/research/datasets", undefined, options),
   researchCapabilities: () => get<ResearchCapabilityDTO[]>("/research/capabilities"),
+  researchDataset: (datasetSnapshotId: string, options?: ApiRequestOptions) =>
+    get<ResearchDatasetDetailDTO>(`/research/datasets/${encodeURIComponent(datasetSnapshotId)}`, undefined, options),
+  researchDatasetQuality: (datasetSnapshotId: string, options?: ApiRequestOptions) =>
+    get<ResearchDatasetQualityDTO>(`/research/datasets/${encodeURIComponent(datasetSnapshotId)}/quality`, undefined, options),
+  exportResearchDataset: (
+    datasetSnapshotId: string,
+    body: { format: "parquet" | "csv" },
+    options?: ApiRequestOptions,
+  ) =>
+    post<ResearchDatasetExportDTO>(
+      `/research/datasets/${encodeURIComponent(datasetSnapshotId)}/export`,
+      body,
+      options,
+    ),
   capabilities: (params?: { domain?: string }) =>
     get<CapabilityDTO[]>("/capabilities", params),
   searchCapabilities: (q: string) => get<CapabilityDTO[]>("/capabilities/search", { q }),
