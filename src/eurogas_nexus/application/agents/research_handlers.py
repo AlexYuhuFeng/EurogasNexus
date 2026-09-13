@@ -27,6 +27,8 @@ from eurogas_nexus.domain.backtest.contracts import (
     BacktestPeriod,
     BacktestRunDefinition,
 )
+from eurogas_nexus.security.identity import AuthenticatedPrincipal
+from eurogas_nexus.security.research_entitlement import principal_can_read_snapshot
 
 
 def _result(definition: CapabilityDefinition, data: Any) -> CapabilityResult:
@@ -55,6 +57,19 @@ def _schema(properties: dict[str, Any], *, required: list[str] | None = None) ->
         "required": required or [],
         "additionalProperties": False,
     }
+
+
+def _research_principal(context) -> AuthenticatedPrincipal:
+    return AuthenticatedPrincipal(
+        principal_id=context.principal_id,
+        name=context.principal_id,
+        principal_type="USER",
+        role=context.role,
+        status="ACTIVE",
+        data_scopes=tuple(context.data_scopes),
+        roles=tuple(context.roles or [context.role]),
+        auth_method="identity_key",
+    )
 
 
 def _register(
@@ -145,7 +160,9 @@ def _register_dataset_capabilities(registry) -> None:
             from eurogas_nexus.db.repositories.research import persist_dataset_snapshot
 
             spec = DatasetSpec.model_validate(arguments.get("spec") or {})
-            result, dependencies, issues = _build_from_runtime(session, spec)
+            result, dependencies, issues = _build_from_runtime(
+                session, spec, principal=_research_principal(_context)
+            )
             persist_dataset_snapshot(
                 session,
                 metadata=result.as_metadata(),
@@ -162,7 +179,7 @@ def _register_dataset_capabilities(registry) -> None:
             },
         )
 
-    def inspect_snapshot(arguments, _context):
+    def inspect_snapshot(arguments, context):
         definition = registry.get("dataset.inspect_snapshot")
         with session_scope() as session:
             if session is None:
@@ -180,6 +197,14 @@ def _register_dataset_capabilities(registry) -> None:
                     CapabilityFailureCode.ENTITY_NOT_FOUND,
                     str(arguments["dataset_snapshot_id"]),
                 )
+            if principal_can_read_snapshot(
+                _research_principal(context), row.metadata_json
+            ) is None:
+                return _blocked(
+                    definition,
+                    CapabilityFailureCode.ENTITLEMENT_DENIED,
+                    "Snapshot source provenance is not authorized for this identity",
+                )
             payload = {
                 "dataset_snapshot_id": row.dataset_snapshot_id,
                 "dataset_spec_id": row.dataset_spec_id,
@@ -195,7 +220,7 @@ def _register_dataset_capabilities(registry) -> None:
             }
         return _result(definition, payload)
 
-    def quality_report(arguments, _context):
+    def quality_report(arguments, context):
         definition = registry.get("dataset.get_quality_report")
         with session_scope() as session:
             if session is None:
@@ -213,6 +238,14 @@ def _register_dataset_capabilities(registry) -> None:
                     CapabilityFailureCode.ENTITY_NOT_FOUND,
                     str(arguments["dataset_snapshot_id"]),
                 )
+            if principal_can_read_snapshot(
+                _research_principal(context), row.metadata_json
+            ) is None:
+                return _blocked(
+                    definition,
+                    CapabilityFailureCode.ENTITLEMENT_DENIED,
+                    "Snapshot source provenance is not authorized for this identity",
+                )
             metadata = row.metadata_json or {}
             payload = {
                 "dataset_snapshot_id": row.dataset_snapshot_id,
@@ -222,7 +255,7 @@ def _register_dataset_capabilities(registry) -> None:
             }
         return _result(definition, payload)
 
-    def temporal_report(arguments, _context):
+    def temporal_report(arguments, context):
         definition = registry.get("dataset.temporal_integrity_report")
         with session_scope() as session:
             if session is None:
@@ -239,6 +272,14 @@ def _register_dataset_capabilities(registry) -> None:
                     definition,
                     CapabilityFailureCode.ENTITY_NOT_FOUND,
                     str(arguments["dataset_snapshot_id"]),
+                )
+            if principal_can_read_snapshot(
+                _research_principal(context), row.metadata_json
+            ) is None:
+                return _blocked(
+                    definition,
+                    CapabilityFailureCode.ENTITLEMENT_DENIED,
+                    "Snapshot source provenance is not authorized for this identity",
                 )
             metadata = row.metadata_json or {}
             issues = metadata.get("leakage_issues", [])

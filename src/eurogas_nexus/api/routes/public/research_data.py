@@ -21,6 +21,17 @@ from eurogas_nexus.domain.research.temporal import (
     ObservationKind,
     TemporalIntegrityState,
 )
+from eurogas_nexus.security.identity import (
+    AuthenticatedPrincipal,
+    legacy_public_token_principal,
+)
+from eurogas_nexus.security.research_entitlement import (
+    authorized_source_definitions,
+    definition_for_runtime_source,
+    effective_entitlement_envelope,
+    principal_can_read_snapshot,
+    row_export_policy,
+)
 
 router = APIRouter(tags=["research-data"])
 
@@ -139,6 +150,22 @@ def _dataset_build_error() -> HTTPException:
     )
 
 
+def _request_principal(request: Request) -> AuthenticatedPrincipal:
+    """Return the authenticated principal, preserving dev-token compatibility."""
+
+    return getattr(request.state, "identity", legacy_public_token_principal())
+
+
+def _source_access_denied() -> HTTPException:
+    return HTTPException(
+        status_code=403,
+        detail={
+            "code": "source_entitlement_denied",
+            "message": "The current identity is not entitled to the requested sources.",
+        },
+    )
+
+
 @router.get("/api/research/features")
 def list_features(request: Request) -> dict:
     from eurogas_nexus.db.repositories.research import list_feature_definitions
@@ -212,6 +239,7 @@ def validate_dataset_spec(body: DatasetValidateRequest, request: Request) -> dic
 def list_datasets(request: Request) -> dict:
     from eurogas_nexus.db.repositories.research import list_dataset_snapshots
 
+    principal = _request_principal(request)
     with _session() as session:
         rows = list_dataset_snapshots(session)
     payload = [
@@ -227,6 +255,7 @@ def list_datasets(request: Request) -> dict:
             "created_at_utc": row.created_at_utc.isoformat(),
         }
         for row in rows
+        if principal_can_read_snapshot(principal, row.metadata_json) is not None
     ]
     return _env(payload, request, source="research-catalog")
 
@@ -239,6 +268,7 @@ def materialize_dataset(body: DatasetMaterializeRequest, request: Request) -> di
         raise HTTPException(
             status_code=503, detail="Runtime PostgreSQL is required for dataset builds."
         )
+    principal = _request_principal(request)
     try:
         spec = DatasetSpec.model_validate(body.dataset_spec)
     except ValidationError as exc:
@@ -246,7 +276,7 @@ def materialize_dataset(body: DatasetMaterializeRequest, request: Request) -> di
     with _session() as session:
         try:
             result, dependency_rows, issue_rows = _build_from_runtime(
-                session, spec, snapshot_id=body.snapshot_id
+                session, spec, snapshot_id=body.snapshot_id, principal=principal
             )
         except HTTPException:
             raise
@@ -279,12 +309,15 @@ def materialize_dataset(body: DatasetMaterializeRequest, request: Request) -> di
 def get_dataset(dataset_snapshot_id: str, request: Request) -> dict:
     from eurogas_nexus.db.repositories.research import get_dataset_snapshot
 
+    principal = _request_principal(request)
     with _session() as session:
         row = get_dataset_snapshot(session, dataset_snapshot_id)
         if row is None:
             raise HTTPException(
                 status_code=404, detail=f"Unknown dataset snapshot: {dataset_snapshot_id}"
             )
+        if principal_can_read_snapshot(principal, row.metadata_json) is None:
+            raise _source_access_denied()
         payload = {
             "dataset_snapshot_id": row.dataset_snapshot_id,
             "dataset_spec_id": row.dataset_spec_id,
@@ -307,12 +340,15 @@ def get_dataset(dataset_snapshot_id: str, request: Request) -> dict:
 def get_dataset_quality(dataset_snapshot_id: str, request: Request) -> dict:
     from eurogas_nexus.db.repositories.research import get_dataset_snapshot
 
+    principal = _request_principal(request)
     with _session() as session:
         row = get_dataset_snapshot(session, dataset_snapshot_id)
         if row is None:
             raise HTTPException(
                 status_code=404, detail=f"Unknown dataset snapshot: {dataset_snapshot_id}"
             )
+        if principal_can_read_snapshot(principal, row.metadata_json) is None:
+            raise _source_access_denied()
         metadata = row.metadata_json or {}
         payload = {
             "dataset_snapshot_id": row.dataset_snapshot_id,
@@ -325,22 +361,30 @@ def get_dataset_quality(dataset_snapshot_id: str, request: Request) -> dict:
 
 @router.post("/api/research/datasets/{dataset_snapshot_id}/export")
 def export_dataset(dataset_snapshot_id: str, body: DatasetExportRequest, request: Request) -> dict:
-    """Export a persisted snapshot under its entitlement envelope."""
+    """Return an export reference only when current source policy permits it."""
 
     from eurogas_nexus.db.repositories.research import get_dataset_snapshot
 
+    principal = _request_principal(request)
     with _session() as session:
         row = get_dataset_snapshot(session, dataset_snapshot_id)
         if row is None:
             raise HTTPException(
                 status_code=404, detail=f"Unknown dataset snapshot: {dataset_snapshot_id}"
             )
-        envelope = row.entitlement_envelope or {}
-        policy = str(envelope.get("export_policy") or "UNKNOWN").upper()
+        definitions = principal_can_read_snapshot(principal, row.metadata_json)
+        if definitions is None:
+            raise _source_access_denied()
+        envelope = effective_entitlement_envelope(definitions)
+        policy = envelope["export_policy"]
         if policy != "EXPORT_ALLOWED":
             raise HTTPException(
                 status_code=403,
-                detail={"code": "export_denied_entitlement", "policy": policy},
+                detail={
+                    "code": "export_denied_entitlement",
+                    "message": "Export is not permitted by the canonical source policy.",
+                    "policy": policy,
+                },
             )
         payload = {
             "dataset_snapshot_id": dataset_snapshot_id,
@@ -356,6 +400,7 @@ def _build_from_runtime(
     spec: DatasetSpec,
     *,
     snapshot_id: str | None = None,
+    principal: AuthenticatedPrincipal | None = None,
 ) -> tuple[DatasetBuildResult, list[dict[str, str]], list[dict[str, str]]]:
     """Build one snapshot from runtime observation tables.
 
@@ -375,6 +420,15 @@ def _build_from_runtime(
     from eurogas_nexus.domain.research.resampling import ResamplingPolicy as PolicyDef
     from eurogas_nexus.domain.research.targets import TargetDefinition as TargetDef
 
+    principal = principal or legacy_public_token_principal()
+    authorized_sources = authorized_source_definitions(principal, spec.source_restrictions)
+    if not authorized_sources:
+        raise _source_access_denied()
+    source_systems = [definition.provider for definition in authorized_sources]
+    source_by_system = {
+        definition.provider.casefold(): definition for definition in authorized_sources
+    }
+
     feature_rows = list(session.query(FeatureDefinitionRecord).all())
     target_rows = list(session.query(TargetDefinitionRecord).all())
     policy_rows = list(session.query(ResamplingPolicyRecord).all())
@@ -388,9 +442,6 @@ def _build_from_runtime(
         else ResamplingPolicy(semantic_type="market_price")
     )
 
-    temporal_rows = {
-        row.observation_id: row for row in session.query(ObservationTemporalMetadataRecord).all()
-    }
     records: list[DatasetEvidenceRecord] = []
     history_start = spec.start - spec.history_lookback
     market_query = (
@@ -398,12 +449,30 @@ def _build_from_runtime(
         .filter(MarketObservationRecord.observed_at_utc >= history_start)
         .filter(MarketObservationRecord.observed_at_utc < spec.end)
     )
-    if spec.source_restrictions:
-        market_query = market_query.filter(
-            MarketObservationRecord.source_system.in_(spec.source_restrictions)
-        )
+    market_query = market_query.filter(MarketObservationRecord.source_system.in_(source_systems))
     market_rows = market_query.all()
+    temporal_query = (
+        session.query(ObservationTemporalMetadataRecord)
+        .join(
+            MarketObservationRecord,
+            ObservationTemporalMetadataRecord.observation_id
+            == MarketObservationRecord.observation_id,
+        )
+        .filter(MarketObservationRecord.source_system.in_(source_systems))
+        .filter(MarketObservationRecord.observed_at_utc >= history_start)
+        .filter(MarketObservationRecord.observed_at_utc < spec.end)
+    )
+    temporal_rows = {
+        row.observation_id: row for row in temporal_query.all()
+    }
+    trusted_source_ids: set[str] = set()
     for row in market_rows:
+        source_definition = (
+            source_by_system.get(str(row.source_system).casefold())
+            or definition_for_runtime_source(str(row.source_system))
+        )
+        if source_definition is None:
+            continue
         metadata = row.metadata_json or {}
         hub = str(metadata.get("hub") or row.market_venue).strip().upper()
         tenor = str(metadata.get("tenor") or row.product).strip().lower()
@@ -435,9 +504,10 @@ def _build_from_runtime(
                 ),
                 temporal_integrity=integrity,
                 source_reference=row.source_reference,
-                export_policy="EXPORT_ALLOWED",
+                export_policy=row_export_policy(source_definition),
             )
         )
+        trusted_source_ids.add(source_definition.source_id)
     if not records:
         raise HTTPException(
             status_code=422,
@@ -454,6 +524,14 @@ def _build_from_runtime(
         policy,
         snapshot_id=snapshot_id,
     )
+    trusted_ids = sorted(trusted_source_ids)
+    result.trusted_source_ids = trusted_ids
+    used_definitions = tuple(
+        definition
+        for definition in authorized_sources
+        if definition.source_id in trusted_source_ids
+    )
+    result.effective_entitlement_envelope = effective_entitlement_envelope(used_definitions)
     dependencies = [
         {
             "dependency_id": f"dep:{result.dataset_snapshot_id}:{feature_id}",

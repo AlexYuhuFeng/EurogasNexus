@@ -168,8 +168,15 @@ class DatasetBuildResult:
     lineage: list[str]
     content_hash: str
     warnings: list[str] = field(default_factory=list)
+    trusted_source_ids: list[str] = field(default_factory=list)
+    effective_entitlement_envelope: dict[str, Any] | None = None
 
     def as_metadata(self) -> dict[str, Any]:
+        entitlement_envelope = (
+            self.effective_entitlement_envelope
+            if self.effective_entitlement_envelope is not None
+            else _json_safe(self.spec.entitlement_envelope)
+        )
         return {
             "dataset_snapshot_id": self.dataset_snapshot_id,
             "dataset_spec_id": self.spec.dataset_spec_id,
@@ -184,7 +191,8 @@ class DatasetBuildResult:
             "warnings": self.warnings,
             "temporal_integrity": self.quality_report.get("temporal_integrity"),
             "source_cutoff_utc": _json_safe(self.spec.end),
-            "entitlement_envelope": _json_safe(self.spec.entitlement_envelope),
+            "entitlement_envelope": _json_safe(entitlement_envelope),
+            "trusted_source_ids": list(self.trusted_source_ids),
             "leakage_issues": _json_safe(self.leakage_issues),
         }
 

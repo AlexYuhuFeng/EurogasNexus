@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from eurogas_nexus.api.app import create_app
 from eurogas_nexus.core.config import Settings
 from eurogas_nexus.db.base import Base
-from eurogas_nexus.db.models import MarketObservationRecord
+from eurogas_nexus.db.models import DatasetSnapshotRecord, MarketObservationRecord
 from eurogas_nexus.db.repositories import research as repo
 from eurogas_nexus.db.repositories.identity import (
     create_identity_api_key,
@@ -138,7 +138,7 @@ def client(tmp_path, monkeypatch: pytest.MonkeyPatch):
                         period_start_utc=observed_at,
                         period_end_utc=observed_at + timedelta(hours=1),
                         observed_at_utc=observed_at,
-                        source_system="ICE_OCM_Research",
+                        source_system="ENTSOG",
                         source_reference=f"test:{observation_id}",
                         source_record_id=observation_id,
                         freshness="OBSERVED",
@@ -279,9 +279,38 @@ def test_release_dataset_build_requires_analyst_role(client, monkeypatch) -> Non
     analyst_response = release_client.post(
         "/api/research/datasets",
         headers={**base_headers, "X-Eurogas-Identity": analyst_bearer},
-        json={"dataset_spec": _spec_payload(), "materialize": False},
+        json={"dataset_spec": _spec_payload(), "materialize": True},
     )
     assert analyst_response.status_code == 200
+    authorized_snapshot_id = analyst_response.json()["data"]["dataset_snapshot_id"]
+    authorized_headers = {
+        **base_headers,
+        "X-Eurogas-Identity": analyst_bearer,
+    }
+    assert (
+        release_client.get(
+            f"/api/research/datasets/{authorized_snapshot_id}",
+            headers=authorized_headers,
+        ).status_code
+        == 200
+    )
+    assert (
+        release_client.get(
+            f"/api/research/datasets/{authorized_snapshot_id}/quality",
+            headers=authorized_headers,
+        ).status_code
+        == 200
+    )
+
+    denied_by_client_restriction = release_client.post(
+        "/api/research/datasets",
+        headers={**base_headers, "X-Eurogas-Identity": analyst_bearer},
+        json={
+            "dataset_spec": {**_spec_payload(), "source_restrictions": ["EEX"]},
+            "materialize": False,
+        },
+    )
+    assert denied_by_client_restriction.status_code == 403
 
 
 def test_dataset_build_persists_point_in_time_snapshot_and_supports_export_gate(
@@ -305,8 +334,10 @@ def test_dataset_build_persists_point_in_time_snapshot_and_supports_export_gate(
     detail = client.get(f"/api/research/datasets/{snapshot_id}")
     assert detail.status_code == 200
     assert detail.json()["data"]["entitlement_envelope"] == {
-        "export_policy": "EXPORT_ALLOWED"
+        "export_policy": "EXPORT_RESTRICTED",
+        "policy_source": "dataops",
     }
+    assert detail.json()["data"]["metadata"]["trusted_source_ids"] == ["src-entsog"]
     assert detail.json()["data"]["spec_hash"] == body["dataset_spec_version"].split("@")[-1]
 
     quality = client.get(f"/api/research/datasets/{snapshot_id}/quality")
@@ -317,5 +348,119 @@ def test_dataset_build_persists_point_in_time_snapshot_and_supports_export_gate(
         f"/api/research/datasets/{snapshot_id}/export",
         json={"format": "parquet"},
     )
-    assert export.status_code == 200
-    assert export.json()["data"]["entitlement_policy"] == "EXPORT_ALLOWED"
+    assert export.status_code == 403
+    assert export.json()["detail"]["code"] == "export_denied_entitlement"
+
+
+def test_snapshot_reads_fail_closed_for_unknown_mixed_and_legacy_provenance(
+    client, monkeypatch
+) -> None:
+    monkeypatch.setenv(PUBLIC_API_TOKEN_ENV, "test-public-api-token")
+    now = _dt(0)
+    with Session(client.engine) as session:
+        for snapshot_id, source_ids in (
+            ("snapshot-unknown-source", ["src-not-registered"]),
+            ("snapshot-mixed-source", ["src-entsog", "src-eex"]),
+            ("snapshot-legacy", None),
+        ):
+            metadata = {
+                "quality_report": {"coverage": 1.0, "temporal_integrity": "TEMPORAL_VERIFIED"},
+            }
+            if source_ids is not None:
+                metadata["trusted_source_ids"] = source_ids
+            session.add(
+                DatasetSnapshotRecord(
+                    dataset_snapshot_id=snapshot_id,
+                    dataset_spec_id="spec-fixture",
+                    spec_hash="a" * 64,
+                    ontology_version="energy-ontology/v1",
+                    source_cutoff_utc=now,
+                    row_count=1,
+                    column_count=1,
+                    coverage=1.0,
+                    temporal_integrity="TEMPORAL_VERIFIED",
+                    content_hash="b" * 64,
+                    entitlement_envelope={"export_policy": "EXPORT_ALLOWED"},
+                    metadata_json=metadata,
+                    artifact_ref="artifacts/fixture.parquet",
+                    created_at_utc=now,
+                    created_by="test",
+                    status="COMPLETE",
+                )
+            )
+        principal = create_identity_principal(
+            session,
+            name="entsog-snapshot-reader",
+            display_name="ENTSOG Snapshot Reader",
+            role="ANALYST",
+            data_scopes=["ENTSOG"],
+        )
+        _, bearer = create_identity_api_key(session, principal.principal_id)
+        session.commit()
+
+    release_client = TestClient(create_app(Settings(api_profile="release")))
+    headers = {
+        "X-Eurogas-Api-Key": "test-public-api-token",
+        "X-Eurogas-Identity": bearer,
+    }
+    listed = release_client.get("/api/research/datasets", headers=headers)
+    assert listed.status_code == 200
+    assert "snapshot-legacy" not in {row["dataset_snapshot_id"] for row in listed.json()["data"]}
+    for snapshot_id in (
+        "snapshot-unknown-source",
+        "snapshot-mixed-source",
+        "snapshot-legacy",
+    ):
+        response = release_client.get(
+            f"/api/research/datasets/{snapshot_id}", headers=headers
+        )
+        assert response.status_code == 403
+        quality = release_client.get(
+            f"/api/research/datasets/{snapshot_id}/quality", headers=headers
+        )
+        assert quality.status_code == 403
+        export = release_client.post(
+            f"/api/research/datasets/{snapshot_id}/export",
+            headers=headers,
+            json={"format": "parquet"},
+        )
+        assert export.status_code == 403
+
+
+def test_concrete_simulation_source_is_filtered_and_authorized_by_family(
+    client, monkeypatch
+) -> None:
+    monkeypatch.setenv(PUBLIC_API_TOKEN_ENV, "test-public-api-token")
+    with Session(client.engine) as session:
+        session.query(MarketObservationRecord).update(
+            {MarketObservationRecord.source_system: "EEX_Sim"},
+            synchronize_session=False,
+        )
+        principal = create_identity_principal(
+            session,
+            name="eex-simulation-reader",
+            display_name="EEX Simulation Reader",
+            role="ANALYST",
+            data_scopes=["EEX"],
+        )
+        _, bearer = create_identity_api_key(session, principal.principal_id)
+        session.commit()
+
+    release_client = TestClient(create_app(Settings(api_profile="release")))
+    response = release_client.post(
+        "/api/research/datasets",
+        headers={
+            "X-Eurogas-Api-Key": "test-public-api-token",
+            "X-Eurogas-Identity": bearer,
+        },
+        json={
+            "dataset_spec": {**_spec_payload(), "source_restrictions": ["EEX_Sim"]},
+            "materialize": True,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()["data"]
+    assert payload["row_count"] == 6
+    assert payload["trusted_source_ids"] == ["src-eex-sim"]
+    assert payload["entitlement_envelope"]["export_policy"] == "EXPORT_RESTRICTED"

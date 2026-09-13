@@ -642,3 +642,49 @@ No PostgreSQL integration, native build, full backend suite or performance
 acceptance is claimed for this role/validation change. Runtime PostgreSQL data
 was not modified. Source grants, server-derived export rights, null artifact
 success and successful governed builder/agent workflows remain open.
+
+### Research source authorization and export policy (2026-09-14)
+
+Prior turn was progress: c6e0388 was pushed with request role/bounds fixes.
+Rechecked clean state and fetched origin. Existing API readiness reports
+runtime_db and required_tables OK; that process has not been restarted for
+these code changes and is not evidence of deployment of this revision.
+
+Shared `security/research_entitlement.py` now owns the research-specific
+composition of existing principal source grants, canonical dataops registry
+and governance export checks. No new provider taxonomy or export grants were
+introduced. Exact registered provider names constrain the observation query
+before data is loaded; caller restrictions only narrow that set. Simulation
+sources retain their own canonical IDs (EEX_Sim -> src-eex-sim). Temporal
+metadata joins the same authorized/time-filtered observations instead of
+loading all rows or expanding a large parameter list.
+
+Runtime build records trusted canonical source IDs and server-derived export
+policy. Request envelopes do not authorize export. Snapshot list/detail/quality
+and export check current source grants; agent inspection/quality/temporal
+handlers use the same shared policy and agent builds pass context scopes,
+not a legacy wildcard principal. Snapshots without trusted provenance are
+hidden/denied, including legacy snapshots; no rows were deleted or migrated.
+This compatibility change requires reviewed provenance recovery or rebuilding,
+not automatic trust in old caller-supplied metadata.
+
+The canonical registry currently proves no export clearance. Export therefore
+remains restricted/unknown; successful research access is not redistribution
+permission. Tests verify forged EXPORT_ALLOWED envelopes cannot change this.
+No successful export grant or artifact download is claimed. Domain export
+adapter acceptance and artifact existence/format matching remain separate work.
+
+Parent independent command:
+`python -m pytest tests/api/test_research_data_api.py
+tests/unit/test_agent_capability_runtime.py tests/unit/test_mcp_capability_adapter.py
+tests/domain/research/test_research_data_foundation.py
+tests/domain/research/test_research_export.py tests/security/test_permissions_registry.py
+tests/security/test_identity_row_entitlement.py
+tests/integration/test_research_data_repository.py -q --tb=short`
+returned 78 passed in 13.49s. Focused Ruff passed. API tests exercise actual
+release identity keys against the existing temporary test fixture; capability
+tests invoke the runtime with mocked repository/build seams. These are not live
+PostgreSQL or full MCP-to-database acceptance. No new runtime datastore was added.
+No production observations, source policy grants or legacy snapshots were edited.
+Observation volume, entity/policy/dependency semantics, builder UI, native rebuild
+and full UX01 acceptance remain open.

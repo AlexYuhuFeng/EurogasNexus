@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
+from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
+
 from eurogas_nexus.application.agents.runtime import CapabilityRuntime
 from eurogas_nexus.domain.agents.contracts import (
     AgentInvocationContext,
@@ -10,6 +14,7 @@ from eurogas_nexus.domain.agents.contracts import (
     DeterminismClass,
     SideEffectClass,
 )
+from eurogas_nexus.domain.research.datasets import DatasetBuildResult, DatasetSpec
 
 
 def _runtime():
@@ -117,6 +122,113 @@ def test_entitlement_denial_is_machine_readable() -> None:
         restricted,
     )
     assert result.failure.code == CapabilityFailureCode.ENTITLEMENT_DENIED
+
+
+def test_dataset_inspection_capability_denies_unentitled_snapshot(monkeypatch) -> None:
+    from eurogas_nexus.application.agents import db_bridge
+    from eurogas_nexus.db.repositories import research as research_repo
+
+    class FakeSession:
+        pass
+
+    @contextmanager
+    def fake_session_scope():
+        yield FakeSession()
+
+    monkeypatch.setattr(db_bridge, "session_scope", fake_session_scope)
+    monkeypatch.setattr(
+        research_repo,
+        "get_dataset_snapshot",
+        lambda _session, _snapshot_id: SimpleNamespace(
+            metadata_json={"trusted_source_ids": ["src-eex"]}
+        ),
+    )
+
+    _, runtime = _runtime()
+    result = runtime.invoke(
+        "dataset.inspect_snapshot",
+        {"dataset_snapshot_id": "snapshot-eex"},
+        AgentInvocationContext(
+            principal_id="analyst-without-eex",
+            role="ANALYST",
+            roles=["ANALYST"],
+            data_scopes=[],
+        ),
+    )
+
+    assert result.status == "BLOCKED"
+    assert result.failure.code == CapabilityFailureCode.ENTITLEMENT_DENIED
+
+
+def test_dataset_build_capability_passes_context_scopes_without_wildcard_fallback(
+    monkeypatch,
+) -> None:
+    from eurogas_nexus.api.routes.public import research_data
+    from eurogas_nexus.application.agents import db_bridge
+    from eurogas_nexus.db.repositories import research as research_repo
+
+    class FakeSession:
+        def commit(self) -> None:
+            pass
+
+    @contextmanager
+    def fake_session_scope():
+        yield FakeSession()
+
+    captured = {}
+
+    def fake_build(_session, spec, *, principal=None, snapshot_id=None):
+        captured["principal"] = principal
+        assert principal is not None
+        result = DatasetBuildResult(
+            dataset_snapshot_id="snapshot-agent",
+            spec=spec,
+            rows=[{"value": 1.0}],
+            columns=["value"],
+            quality_report={
+                "coverage": 1.0,
+                "temporal_integrity": "TEMPORAL_VERIFIED",
+            },
+            leakage_issues=[],
+            lineage=[],
+            content_hash="a" * 64,
+        )
+        return result, [], []
+
+    monkeypatch.setattr(db_bridge, "session_scope", fake_session_scope)
+    monkeypatch.setattr(research_data, "_build_from_runtime", fake_build)
+    monkeypatch.setattr(
+        research_repo,
+        "persist_dataset_snapshot",
+        lambda _session, **_kwargs: None,
+    )
+
+    spec = DatasetSpec(
+        dataset_spec_id="spec-agent",
+        name="Agent dataset",
+        description="Agent capability fixture.",
+        target_ids=["target-1"],
+        start=datetime(2026, 1, 1, tzinfo=UTC),
+        end=datetime(2026, 1, 1, 1, tzinfo=UTC),
+        history_lookback=timedelta(days=1),
+    )
+    context = AgentInvocationContext(
+        principal_id="eex-analyst",
+        role="ANALYST",
+        roles=["ANALYST"],
+        data_scopes=["EEX"],
+    )
+    _, runtime = _runtime()
+    result = runtime.invoke(
+        "dataset.build",
+        {"spec": spec.model_dump(mode="json")},
+        context,
+    )
+
+    assert result.status == "SUCCESS"
+    assert captured["principal"].data_scopes == ("EEX",)
+    assert captured["principal"].auth_method == "identity_key"
+    assert "*" not in captured["principal"].data_scopes
 
 
 def test_human_confirmation_and_human_only_policies() -> None:
