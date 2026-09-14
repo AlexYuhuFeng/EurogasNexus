@@ -67,3 +67,36 @@ If a task cannot proceed safely, defer that task and continue other independent 
 
 Human interaction is not part of the normal execution loop.
 
+## STALE HUMAN-GATE RECONCILIATION ? BINDING
+
+A checkpoint created before Full Autonomous Mode may contain:
+- WAITING_HUMAN
+- BLOCKED_HUMAN_REVIEW
+- human approval required
+- proposed ADR awaiting approval
+- wave STOP pending review
+
+These are STALE CONTROL STATES when the matter is now governed by
+AUTONOMOUS_EXECUTION_POLICY.md.
+
+When encountered:
+
+1. reconcile the stale state automatically;
+2. preserve historical evidence;
+3. generate or update the superseding ADR if needed;
+4. update the checkpoint;
+5. continue to the next bounded task in the SAME orchestration turn whenever practical.
+
+Do NOT spend a separate Astra turn merely stating that reconciliation is required.
+
+`action=continue` must not be used only to defer an architecture reconciliation that the autonomous
+policy already authorizes.
+
+After reconciliation, prefer:
+- `delegate` when worker work is ready;
+- `review` when worker evidence is pending review;
+- `complete` when the programme is complete;
+- an external wait/defer state only for genuine external blockers.
+
+Architecture reconciliation itself is not a human gate.
+
