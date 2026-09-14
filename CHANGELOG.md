@@ -25,6 +25,15 @@ asserted by `tests/contract/test_ontology_version_alignment.py`.
 
 ## [Unreleased]
 
+- Governed research runs can be read back: the run replay now returns the ordered
+  artifact chain (research plan, findings, StrategyIR, validation, challenge
+  report, review pack) with each artifact's operation id, producing stage, ids,
+  fixture and replay identity, lineage, entitlement state and timestamps, and an
+  explicit `hidden_chain_of_thought: null`. Absent artifacts report themselves
+  instead of failing the read, and a review pack can now be confirmed through the
+  existing review-decision API (new `agent_review_pack` review kind with a
+  fail-closed resolver).
+
 - The degraded-endpoint surface is now truthful and bounded: it renders
   translated endpoint labels and the safe machine code per failure (at most five
   detail rows plus a "showing N of M" line) instead of raw internal loader keys,

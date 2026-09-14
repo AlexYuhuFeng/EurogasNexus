@@ -1060,3 +1060,41 @@ the MSVC toolchain), so a shared workstation keeps nothing behind after the
 backend session is revoked. Not verified natively: the command's runtime effect
 requires a packaged desktop build, and the CI desktop job only runs on pull
 requests.
+
+### Governed research runs become readable (2026-09-14)
+
+CR15-UI-001's backend half. Every governed stage (plan, findings, StrategyIR,
+validation, challenge report, review pack) was already implemented and persisted;
+what was missing was any way to read it after the run, because the full payload
+existed only in the POST /api/agent/research response.
+
+- `GET /api/agent/runs/{id}/replay` returns an ordered `artifact_chain` plus an
+  `artifacts` object keyed by the six artifact types. Each envelope carries its
+  operation id, producing stage, artifact ids, fixture identity, replay identity
+  (replay id and content hash, marked deterministic), lineage (upstream
+  artifacts, producing invocations, source families, series and snapshot ids,
+  source references, evidence dependencies), entitlement state, timestamps and
+  the payload, with `hidden_chain_of_thought: null` on every envelope and at the
+  top level. Absent artifacts report `present: false` with an empty lineage
+  rather than failing the read, and the run detail gains the same chain summary
+  without bodies.
+- The reads live in repository helpers (`load_run_artifacts`,
+  `artifact_chain_summary`, per-artifact getters), so no route queries the
+  database directly, and the orchestrator and repository now share one
+  agent-research feature catalog.
+- `ReviewEntityType` gained `AGENT_REVIEW_PACK` with a fail-closed
+  `coerce_review_entity_type()`, so a review pack is confirmable through the
+  existing review-decision API (the decision then appears in the replayed
+  `human_confirmation` block) while an unknown kind raises and writes nothing.
+  The GRM TTL renders only the GRM_* vocabulary, so no ontology artifact needed
+  regeneration and the parity contract still passes.
+
+Evidence: ruff clean; the agent, orchestrator, repository, capability and MCP
+suites 65 passed; the full suite **1498 passed / 17 skipped / 0 failed**;
+security acceptance automated PASS with 13/13 checks and no failed checks.
+
+Not claimed: the Product surface still does not render the chain - that is the
+remaining CR15-UI-001 work - and two lineage feeds are resolved at replay time
+(source families and snapshot ids, the latter only when a backtest run exists)
+while the StrategyIR validation issues are recomputed from the persisted spec
+rather than stored; both are labelled in the payload.
