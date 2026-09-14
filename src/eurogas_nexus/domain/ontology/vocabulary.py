@@ -671,3 +671,28 @@ class ReviewEntityType(StrEnum):
     INTRADAY_OPPORTUNITY = "intraday_opportunity"
     STRATEGY_RUN = "strategy_run"
     GENERATED_REPORT = "generated_report"
+    AGENT_REVIEW_PACK = "agent_review_pack"
+
+
+def coerce_review_entity_type(value: str) -> ReviewEntityType:
+    """Resolve one review artifact kind, failing closed on unknown values.
+
+    将评审对象类型解析为受控词表值；未知类型一律拒绝，不做兜底映射。
+
+    Args:
+        value: Candidate review entity kind.
+
+    Returns:
+        The matching :class:`ReviewEntityType` member.
+
+    Raises:
+        ValueError: The value is not a known review artifact kind.
+    """
+
+    try:
+        return ReviewEntityType(value)
+    except ValueError as exc:
+        known = ", ".join(sorted(item.value for item in ReviewEntityType))
+        raise ValueError(
+            f"unknown review entity type {value!r}; expected one of: {known}"
+        ) from exc

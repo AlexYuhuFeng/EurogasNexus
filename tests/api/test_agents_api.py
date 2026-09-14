@@ -16,6 +16,8 @@ from eurogas_nexus.db.models import (
     MarketObservationRecord,
     SeriesDefinitionRecord,
 )
+from eurogas_nexus.db.repositories import agents
+from eurogas_nexus.domain.agents.challenge import ChallengeResult
 from eurogas_nexus.security.permissions import Permission, permission_for_path
 
 
@@ -28,6 +30,11 @@ def client(tmp_path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.delenv("DATABASE_URL", raising=False)
     monkeypatch.delenv("EUROGAS_NEXUS_DB_DSN", raising=False)
     now = datetime.now(UTC)
+    # Observations must stay inside the current UTC day (the orchestrator reads
+    # the current gas day) and occupy distinct timestamps so the pairwise
+    # spread has more than one sample at any wall-clock time.
+    day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    span_microseconds = max(int((now - day_start).total_seconds() * 1_000_000), 6)
     with Session(engine) as session:
         for code in ("NBP", "TTF"):
             session.add(
@@ -59,27 +66,32 @@ def client(tmp_path, monkeypatch: pytest.MonkeyPatch):
                     created_at_utc=now,
                 )
             )
-        for index, (hub, value) in enumerate([("NBP", 30.0), ("TTF", 28.0)]):
-            observed = now - timedelta(hours=1)
-            session.add(
-                MarketObservationRecord(
-                    observation_id=f"obs-{index}",
-                    market_venue=hub,
-                    product="DAY_AHEAD",
-                    price=value,
-                    unit="EUR/MWh",
-                    currency="EUR",
-                    period_start_utc=observed,
-                    period_end_utc=observed + timedelta(hours=1),
-                    observed_at_utc=observed,
-                    source_system="EEX_Sim",
-                    source_reference=f"test:{hub}",
-                    freshness="OBSERVED",
-                    quality_score=1.0,
-                    research_only=True,
-                    metadata_json={"hub": hub, "tenor": "day-ahead"},
+        index = 0
+        for sample in range(5):
+            for hub, base_value in [("NBP", 30.0), ("TTF", 28.0)]:
+                observed = now - timedelta(
+                    microseconds=span_microseconds * (sample + 1) // 8
                 )
-            )
+                session.add(
+                    MarketObservationRecord(
+                        observation_id=f"obs-{index}",
+                        market_venue=hub,
+                        product="DAY_AHEAD",
+                        price=base_value + sample * 0.1,
+                        unit="EUR/MWh",
+                        currency="EUR",
+                        period_start_utc=observed,
+                        period_end_utc=observed + timedelta(hours=1),
+                        observed_at_utc=observed,
+                        source_system="EEX_Sim",
+                        source_reference=f"test:{hub}:{sample}",
+                        freshness="OBSERVED",
+                        quality_score=1.0,
+                        research_only=True,
+                        metadata_json={"hub": hub, "tenor": "day-ahead"},
+                    )
+                )
+                index += 1
         session.commit()
     test_client = TestClient(create_app())
     test_client.engine = engine
@@ -193,3 +205,185 @@ def test_plan_validation_rejects_unknown_entity(client) -> None:
     body = response.json()["data"]
     assert body["ok"] is False
     assert "ENTITY_NOT_FOUND" in body["blockers"]
+
+
+def _run_full_chain_research(client) -> str:
+    """Run one governed research run that produces the complete artifact chain."""
+
+    response = client.post(
+        "/api/agent/research",
+        json={
+            "objective": "Is the NBP premium over TTF persistent today?",
+            "agent_profile": "STRATEGY_RESEARCHER",
+            "strategy_generation_allowed": True,
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["stage"] == "READY_FOR_HUMAN_REVIEW"
+    return data["agent_run_id"]
+
+
+def test_replay_returns_every_persisted_artifact_with_lineage(client) -> None:
+    """One replay request returns plan, findings, StrategyIR, validation,
+    challenge report, and review pack with ids, lineage, rights, and identity."""
+
+    run_id = _run_full_chain_research(client)
+
+    replay = client.get(f"/api/agent/runs/{run_id}/replay")
+    assert replay.status_code == 200
+    data = replay.json()["data"]
+    assert data["hidden_chain_of_thought"] is None
+    assert data["review_entity_type"] == "agent_review_pack"
+
+    chain = data["artifact_chain"]
+    assert chain["complete"] is True
+    assert chain["missing"] == []
+    assert chain["present"] == list(agents.ARTIFACT_CHAIN_ORDER)
+    assert chain["chain_hash"].startswith("sha256:")
+
+    for name in agents.ARTIFACT_CHAIN_ORDER:
+        envelope = data["artifacts"][name]
+        assert envelope["present"] is True, name
+        assert envelope["artifact_type"] == name
+        assert envelope["operation_id"].startswith("agent.research."), name
+        assert envelope["artifact_id"], name
+        assert chain["artifact_ids"][name], name
+        assert envelope["agent_run_id"] == run_id
+        assert envelope["fixture"]["fixture_id"].startswith("fixture-")
+        assert envelope["fixture"]["tool_invocation_ids"]
+        assert envelope["replay_identity"]["replay_id"].startswith("replay-")
+        assert envelope["replay_identity"]["content_hash"].startswith("sha256:")
+        assert envelope["replay_identity"]["deterministic"] is True
+        assert envelope["rights"]["entitlement_state"] == "NOT_APPLICABLE"
+        assert envelope["rights"]["policy_boundary"] == "CapabilityRuntime"
+        assert envelope["timestamps"]["created_at"]
+        assert envelope["timestamps"]["run_started_at"]
+        assert envelope["payload"] is not None
+        assert envelope["hidden_chain_of_thought"] is None
+
+    plan_envelope = data["artifacts"]["research_plan"]
+    plan_id = plan_envelope["artifact_id"]
+    assert plan_envelope["payload"]["research_plan_id"] == plan_id
+    assert plan_envelope["payload"]["status"] == "VALIDATED"
+    assert data["artifacts"]["research_plan"]["lineage"]["source_families"] == ["EEX_Sim"]
+
+    findings = data["artifacts"]["findings"]
+    assert findings["lineage"]["upstream_artifact_ids"] == [plan_id]
+    assert all(item["finding_id"] for item in findings["payload"])
+    assert findings["lineage"]["source_families"] == ["EEX_Sim"]
+
+    strategy_ir = data["artifacts"]["strategy_ir"]
+    assert strategy_ir["payload"]["schema_version"] == "strategy-ir/v1"
+    assert strategy_ir["artifact_id"].startswith("strategy-ir-")
+
+    validation = data["artifacts"]["validation"]["payload"]
+    assert validation["plan_id"] == plan_id
+    assert validation["plan_validation_source"].startswith("persisted:")
+    assert validation["strategy_ir_validation"]["ok"] is True
+    assert validation["strategy_ir_validation_source"] == "recomputed:validate_strategy_ir"
+    assert validation["run_blockers"] == ["HUMAN_CONFIRMATION_REQUIRED"]
+
+    challenge = data["artifacts"]["challenge_report"]["payload"]
+    assert challenge["overall_result"] in {item.value for item in ChallengeResult}
+    assert challenge["challenge_report_id"] == data["artifacts"]["challenge_report"]["artifact_id"]
+
+    pack = data["artifacts"]["review_pack"]
+    assert pack["payload"]["review_pack_id"] == data["final_output_reference"]
+    packed_challenge = pack["payload"]["challenge_report"]
+    assert packed_challenge["challenge_report_id"] == challenge["challenge_report_id"]
+    assert pack["payload"]["human_confirmation"] == {
+        "entity_type": "agent_review_pack",
+        "entity_id": pack["artifact_id"],
+        "decisions": [],
+    }
+
+    # Replay identity is deterministic: a second read returns the same identity.
+    second = client.get(f"/api/agent/runs/{run_id}/replay").json()["data"]
+    assert second["artifact_chain"] == chain
+    assert second["artifacts"] == data["artifacts"]
+
+    detail = client.get(f"/api/agent/runs/{run_id}").json()["data"]
+    assert detail["artifact_chain"]["complete"] is True
+    assert detail["artifact_chain"]["artifact_ids"]["review_pack"] == [pack["artifact_id"]]
+    assert detail["review_entity_type"] == "agent_review_pack"
+
+
+def test_replay_without_artifacts_returns_coherent_empty_shape(client) -> None:
+    with Session(client.engine) as session:
+        agents.create_agent_run(
+            session,
+            agent_run_id="agent-run-empty",
+            principal_id="analyst-1",
+            user_objective="Objective recorded before any artifact was produced.",
+        )
+        session.commit()
+
+    replay = client.get("/api/agent/runs/agent-run-empty/replay")
+    assert replay.status_code == 200
+    data = replay.json()["data"]
+    assert data["hidden_chain_of_thought"] is None
+    assert data["artifact_chain"]["complete"] is False
+    assert data["artifact_chain"]["missing"] == list(agents.ARTIFACT_CHAIN_ORDER)
+    assert set(data["artifacts"]) == set(agents.ARTIFACT_CHAIN_ORDER)
+    for name, envelope in data["artifacts"].items():
+        assert envelope["present"] is False, name
+        assert envelope["artifact_id"] is None
+        assert envelope["artifact_ids"] == []
+        assert envelope["payload"] is None
+        assert envelope["lineage"]["source_families"] == []
+        assert envelope["lineage"]["snapshot_ids"] == []
+        assert envelope["rights"]["entitlement_state"] == "NOT_APPLICABLE"
+        assert envelope["replay_identity"]["replay_id"].startswith("replay-")
+    assert data["fixture"]["fixture_id"].startswith("fixture-")
+
+    detail = client.get("/api/agent/runs/agent-run-empty").json()["data"]
+    assert detail["artifact_chain"]["complete"] is False
+    assert detail["artifact_chain"]["present"] == []
+
+
+def test_review_pack_confirmation_is_recorded_and_replayed(client) -> None:
+    run_id = _run_full_chain_research(client)
+    replay = client.get(f"/api/agent/runs/{run_id}/replay").json()["data"]
+    pack_id = replay["artifacts"]["review_pack"]["artifact_id"]
+
+    decision = client.post(
+        "/api/review/decisions",
+        json={
+            "entity_type": "agent_review_pack",
+            "entity_id": pack_id,
+            "actor": "trader-a",
+            "decision": "accepted",
+            "note": "evidence pack reviewed",
+        },
+    )
+    assert decision.status_code == 200
+    body = decision.json()["data"]
+    assert body["entity_type"] == "agent_review_pack"
+    assert body["entity_id"] == pack_id
+
+    listed = client.get(
+        "/api/review/decisions",
+        params={"entity_type": "agent_review_pack", "entity_id": pack_id},
+    )
+    assert listed.status_code == 200
+    assert [row["decision_id"] for row in listed.json()["data"]] == [body["decision_id"]]
+
+    confirmed = client.get(f"/api/agent/runs/{run_id}/replay").json()["data"]
+    confirmation = confirmed["artifacts"]["review_pack"]["payload"]["human_confirmation"]
+    assert confirmation["entity_type"] == "agent_review_pack"
+    assert [row["decision"] for row in confirmation["decisions"]] == ["accepted"]
+    assert confirmation["decisions"][0]["actor"] == "trader-a"
+
+
+def test_review_decision_rejects_unknown_entity_kind(client) -> None:
+    response = client.post(
+        "/api/review/decisions",
+        json={
+            "entity_type": "agent_replay",
+            "entity_id": "agent-run-whatever",
+            "actor": "trader-a",
+            "decision": "accepted",
+        },
+    )
+    assert response.status_code == 422

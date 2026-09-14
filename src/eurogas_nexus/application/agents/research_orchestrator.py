@@ -42,6 +42,7 @@ from eurogas_nexus.domain.agents.research_plan import (
 from eurogas_nexus.domain.agents.review_pack import ReviewPack
 from eurogas_nexus.domain.agents.strategy_ir import (
     StrategyIR,
+    agent_research_feature_catalog,
     example_strategy_ir,
     validate_strategy_ir,
 )
@@ -401,9 +402,7 @@ class GovernedResearchOrchestrator:
         )
         validation = validate_strategy_ir(
             strategy,
-            feature_catalog={
-                "NBP_TTF_DA_SPREAD": {"output_unit": "EUR/MWh", "feature_version": "v1"}
-            },
+            feature_catalog=agent_research_feature_catalog(),
         )
         return strategy if validation.ok else None
 

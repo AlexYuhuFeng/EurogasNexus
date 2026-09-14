@@ -46,7 +46,9 @@ class ReviewDecisionInput(BaseModel):
 
     # 决策枚举由后端审计契约钉死：用 Literal 让非法取值在序列化前
     # 就在客户端失败，而不是等后端返回 422。
-    entity_type: Literal["strategy_run", "intraday_opportunity", "generated_report"]
+    entity_type: Literal[
+        "strategy_run", "intraday_opportunity", "generated_report", "agent_review_pack"
+    ]
     entity_id: str
     actor: str
     decision: Literal["accepted", "rejected", "needs_attention"]

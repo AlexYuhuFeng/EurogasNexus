@@ -28,6 +28,9 @@ from eurogas_nexus.domain.strategy_lab.registry import (
 
 STRATEGY_IR_SCHEMA_VERSION = "strategy-ir/v1"
 
+#: Identifier of the feature catalog used to validate agent-drafted IR.
+AGENT_RESEARCH_FEATURE_CATALOG_ID = "agent-research/nbp-ttf-da-spread/v1"
+
 _SUPPORTED_COMPONENT_TYPES = {item.value for item in StrategyComponentType}
 _SUPPORTED_PRODUCTS = frozenset(
     {"DAY_AHEAD", "WITHIN_DAY", "MONTH_AHEAD", "WEEKEND", "BALANCE_OF_MONTH"}
@@ -256,6 +259,16 @@ def validate_strategy_ir(
             "risk_controls",
         )
     return result
+
+
+def agent_research_feature_catalog() -> dict[str, dict[str, Any]]:
+    """Feature catalog used to validate governed-research StrategyIR payloads.
+
+    Kept in the domain module so the drafting orchestrator and every later
+    read-only re-validation share exactly one catalog definition.
+    """
+
+    return {"NBP_TTF_DA_SPREAD": {"output_unit": "EUR/MWh", "feature_version": "v1"}}
 
 
 def compile_strategy_ir(strategy_ir: StrategyIR) -> StrategyVersionDefinition:

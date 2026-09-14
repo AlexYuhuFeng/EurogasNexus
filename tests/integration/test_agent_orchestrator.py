@@ -5,9 +5,11 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
+from eurogas_nexus.api.app import create_app
 from eurogas_nexus.application.agents.research_orchestrator import (
     GovernedResearchOrchestrator,
 )
@@ -18,12 +20,18 @@ from eurogas_nexus.db.models import (
     MarketObservationRecord,
     SeriesDefinitionRecord,
 )
+from eurogas_nexus.db.repositories import agents
 from eurogas_nexus.domain.agents.contracts import AgentInvocationContext
 
 
 @pytest.fixture()
-def session():
-    engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
+def database_url(tmp_path) -> str:
+    return f"sqlite+pysqlite:///{(tmp_path / 'agent-orchestrator.sqlite').as_posix()}"
+
+
+@pytest.fixture()
+def session(database_url):
+    engine = create_engine(database_url, future=True)
     Base.metadata.create_all(engine)
     with Session(engine) as session:
         now = datetime.now(UTC)
@@ -140,3 +148,94 @@ def test_budget_is_created_and_replay_safe(session) -> None:
     replay = agents.replay_payload(session, agents.get_agent_run(session, outcome.run_id))
     assert replay["hidden_chain_of_thought"] is None
     assert replay["tool_invocations"]
+
+
+def test_persisted_artifact_chain_survives_a_fresh_session(session) -> None:
+    outcome = _run(session, strategy_generation_allowed=True)
+    assert outcome.status.value == "READY_FOR_HUMAN_REVIEW"
+    session.commit()
+
+    with Session(session.get_bind()) as fresh_session:
+        row = agents.get_agent_run(fresh_session, outcome.run_id)
+        assert row is not None
+        replay = agents.replay_payload(fresh_session, row)
+        summary = agents.artifact_chain_summary(fresh_session, row)
+
+    assert replay["hidden_chain_of_thought"] is None
+    assert replay["artifact_chain"]["complete"] is True
+    assert summary["complete"] is True
+    assert summary["artifact_ids"]["research_plan"] == [outcome.plan.research_plan_id]
+    assert summary["artifact_ids"]["review_pack"] == [outcome.review_pack_id]
+
+    artifacts = replay["artifacts"]
+    assert artifacts["research_plan"]["artifact_id"] == outcome.plan.research_plan_id
+    assert artifacts["research_plan"]["payload"]["question"] == outcome.plan.question
+    assert len(artifacts["findings"]["artifact_ids"]) == len(outcome.findings)
+    assert artifacts["strategy_ir"]["payload"]["schema_version"] == "strategy-ir/v1"
+    assert artifacts["validation"]["payload"]["strategy_ir_validation"]["ok"] is True
+    assert artifacts["challenge_report"]["payload"]["challenge_report_id"]
+    assert artifacts["review_pack"]["artifact_id"] == outcome.review_pack_id
+    for envelope in artifacts.values():
+        assert envelope["fixture"]["fixture_id"].startswith("fixture-")
+        assert envelope["replay_identity"]["replay_id"].startswith("replay-")
+        assert envelope["rights"]["principal_id"] == "analyst-1"
+        assert envelope["timestamps"]["created_at"]
+
+
+def test_review_pack_confirmation_through_review_decision_api(
+    database_url, session, monkeypatch
+) -> None:
+    """A persisted review pack is confirmed through the existing review API."""
+
+    outcome = _run(session, strategy_generation_allowed=True)
+    assert outcome.review_pack_id
+    session.commit()
+
+    monkeypatch.setenv("RUNTIME_STORE_DATABASE_URL", database_url)
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("EUROGAS_NEXUS_DB_DSN", raising=False)
+    client = TestClient(create_app())
+
+    decision = client.post(
+        "/api/review/decisions",
+        json={
+            "entity_type": "agent_review_pack",
+            "entity_id": outcome.review_pack_id,
+            "actor": "trader-a",
+            "decision": "accepted",
+            "note": "review pack confirmed",
+        },
+    )
+    assert decision.status_code == 200
+    assert decision.json()["data"]["entity_type"] == "agent_review_pack"
+
+    replay = client.get(f"/api/agent/runs/{outcome.run_id}/replay")
+    assert replay.status_code == 200
+    payload = replay.json()["data"]
+    confirmation = payload["artifacts"]["review_pack"]["payload"]["human_confirmation"]
+    assert confirmation["entity_id"] == outcome.review_pack_id
+    assert [row["decision"] for row in confirmation["decisions"]] == ["accepted"]
+
+    rejected = client.post(
+        "/api/review/decisions",
+        json={
+            "entity_type": "agent_replay",
+            "entity_id": outcome.review_pack_id,
+            "actor": "trader-a",
+            "decision": "accepted",
+        },
+    )
+    assert rejected.status_code == 422
+
+
+def test_unknown_review_entity_kind_fails_closed_below_the_api(session) -> None:
+    from eurogas_nexus.db.repositories.review import record_review_decision
+
+    with pytest.raises(ValueError, match="unknown review entity type"):
+        record_review_decision(
+            session,
+            entity_type="agent_replay",
+            entity_id="agent-run-1",
+            actor="trader-a",
+            decision="accepted",
+        )

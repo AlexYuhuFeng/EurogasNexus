@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from eurogas_nexus.db.models import ReviewDecisionRecord
 from eurogas_nexus.db.repositories.audit import record_audit_event
 from eurogas_nexus.domain.identity.principal import normalize_principal
+from eurogas_nexus.domain.ontology.vocabulary import coerce_review_entity_type
 
 
 def record_review_decision(
@@ -22,13 +23,32 @@ def record_review_decision(
     note: str | None = None,
     now_utc: datetime | None = None,
 ) -> dict:
-    """Persist one review decision together with its audit event."""
+    """Persist one review decision together with its audit event.
 
+    评审对象类型必须来自受控词表；未知类型直接拒绝，不写审计、不落库。
+
+    Args:
+        session: Active SQLAlchemy session.
+        entity_type: Review artifact kind; must be a known controlled value.
+        entity_id: Identifier of the reviewed artifact.
+        actor: Reviewing principal.
+        decision: Recorded verdict.
+        note: Optional free-text justification.
+        now_utc: Optional injected decision timestamp.
+
+    Returns:
+        The persisted review decision payload.
+
+    Raises:
+        ValueError: ``entity_type`` is not a known review artifact kind.
+    """
+
+    resolved_type = coerce_review_entity_type(entity_type).value
     now = _as_utc(now_utc or datetime.now(UTC))
     principal = normalize_principal(actor)
     row = ReviewDecisionRecord(
         decision_id=f"review-{uuid4().hex[:24]}",
-        entity_type=entity_type,
+        entity_type=resolved_type,
         entity_id=entity_id,
         actor=principal,
         decision=decision,
@@ -38,10 +58,10 @@ def record_review_decision(
     session.add(row)
     record_audit_event(
         session,
-        event_type=f"review.{entity_type}",
+        event_type=f"review.{resolved_type}",
         principal=principal,
         action=f"review_{decision}",
-        resource=f"{entity_type}:{entity_id}",
+        resource=f"{resolved_type}:{entity_id}",
         outcome=decision,
         severity="warning" if decision == "rejected" else "info",
         detail=note or "",

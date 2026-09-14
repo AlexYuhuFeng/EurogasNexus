@@ -254,6 +254,10 @@ def get_agent_run(agent_run_id: str, request: Request) -> dict:
             "final_output_reference": row.final_output_reference,
             "started_at": row.started_at_utc.isoformat(),
             "completed_at": row.completed_at_utc.isoformat() if row.completed_at_utc else None,
+            # Presence/identity of every persisted CR-15 artifact; the full
+            # artifact bodies are returned by the replay route below.
+            "artifact_chain": agents.artifact_chain_summary(session, row),
+            "review_entity_type": agents.REVIEW_PACK_ENTITY_TYPE,
         }
     return _env(data, request, source="runtime-postgresql")
 
