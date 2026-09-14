@@ -25,6 +25,14 @@ asserted by `tests/contract/test_ontology_version_alignment.py`.
 
 ## [Unreleased]
 
+- A user-triggered follow-up read can no longer outlive the identity that asked
+  for it. Glossary context, analysis, portfolio report and monitoring-alert
+  analysis answers are now dropped when the session signs out or changes while
+  the request is in flight, on both the success and the failure path. Previously
+  such an answer was written into the store regardless, so the next sign-in -
+  including one as a different principal - rendered the previous identity's
+  answer; reproduced live with a delayed, marked response before the fix.
+
 - The Agents workspace now renders the governed artifact chain that the replay
   endpoint returns: ordered entries with present/missing state, operation id and
   producing stage, replay identity (id, content hash, determinism), fixture

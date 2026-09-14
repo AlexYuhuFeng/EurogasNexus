@@ -1207,3 +1207,50 @@ Next in the queue: the four remaining user-triggered follow-up reads in
 `analyzeMonitoringAlert`) still run outside the identity-generation coordinator,
 so a sign-out landing mid-request can surface that response into a signed-out
 shell. They are named in RELIABILITY-READ-001 and are the next item to land.
+
+### Follow-up reads stop outliving their identity (2026-09-14)
+
+RELIABILITY-READ-001, closed by reproducing the defect rather than reasoning
+about it.
+
+The four user-triggered follow-up reads wrote their answer straight into the
+store. A response that landed after a sign-out was therefore committed into a
+shell that no longer represented the principal that asked for it, and the next
+sign-in - including a sign-in as someone else - inherited it.
+
+- Each read captures the identity generation before it starts, refuses to start
+  while a sign-out is in progress, and drops a late answer on both the success and
+  the failure path. The failure path matters as much as the success path: a late
+  rejection is as capable of writing a stale error into a signed-out shell as a
+  late success is of writing stale data. One shared helper holds the condition so
+  a new follow-up read cannot re-open the hole by copying an older action.
+- `clients/web/tests/identityReadGuards.test.ts` fails if any post-await write in
+  those actions is not behind a currency check, if the logout guard is missing or
+  follows the first write, or if the captured generation is not the one
+  invalidation bumps. It also asserts every identity invalidation is followed by
+  an identity-scoped reset, which is what clears `loading` - otherwise a dropped
+  answer would strand a spinner.
+
+Evidence, and the reason this is claimed as reproduced: the local evidence proxy
+was extended to hold `POST /api/analysis/query` for five seconds and to mark the
+response body in the fields the surface actually renders (`answer_en`, not the
+unrendered `narrative` - the first probe attempt marked a field nothing displays
+and produced a false negative). Signing out while that request was in flight and
+signing back in rendered the marked answer - an answer the backend produced after
+the previous session was revoked - into the new session, with `.analysis-result`
+present. With the guard in place the marker is absent and the panel does not
+render. The same proxy without a sign-out does render the marker, so the probe
+can see a leak rather than merely failing to find one. The Web suite is 208 passed
+/ 0 failed and the build is clean.
+
+Scope of the claim: the live A/B was run on `askAnalysis`; the other three reads
+share the helper and are covered by the test above, not by their own live run.
+The remaining mutation actions (provider credentials, review decisions, route and
+pool optimization, contract save) still write without a currency check and are
+named in the register as the follow-up rather than silently included here.
+
+Observation recorded, not changed: these four actions still format their error
+with `String(e)`, which prefixes `Error: ` onto the message. It is display-only
+prose on these surfaces - every deny/expiry classifier in the client reads
+`error.message` or a loader outcome, never `state.error` - so it is left alone
+rather than mixed into an identity fix.
