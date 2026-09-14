@@ -33,4 +33,6 @@ assert meta["source_references"] == ["runtime-postgresql"], meta
 print("db-backed api smoke ok: tso-tariffs served from runtime-postgresql")
 PY
 
-python -m pytest -q tests/integration/test_postgres_backed_smoke.py
+python -m pytest -q \
+  tests/integration/test_postgres_backed_smoke.py \
+  tests/integration/test_research_entitlement_postgres.py
