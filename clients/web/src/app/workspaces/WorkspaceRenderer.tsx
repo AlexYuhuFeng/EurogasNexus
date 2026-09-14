@@ -188,7 +188,7 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
       )}
 
       {activeWorkspace === "agents" && (
-        <AgentsWorkspace t={t} />
+        <AgentsWorkspace t={t} principalId={api.currentUser?.principal_id ?? null} />
       )}
 
       {activeWorkspace === "runtime" && (

@@ -5,7 +5,16 @@ import {
   CapabilityDTO,
   api,
 } from "@/api/client";
-import { PanelHeader, WorkspaceTabs } from "@/components/ui";
+import {
+  agentReviewDecisionInput,
+  agentReviewGate,
+  nextAgentConfirmationState,
+  type AgentConfirmationState,
+  type AgentReviewDecisionValue,
+} from "@/app/model/agentReplayModel";
+import { AgentArtifactChain } from "@/components/agents/AgentArtifactChain";
+import { AgentReviewGate } from "@/components/agents/AgentReviewGate";
+import { MetricStrip, PanelHeader, WorkspaceTabs } from "@/components/ui";
 
 type Translate = (key: string) => string;
 type AgentsViewId = "capabilities" | "research" | "runs";
@@ -14,9 +23,11 @@ const VIEWS: AgentsViewId[] = ["capabilities", "research", "runs"];
 
 interface AgentsWorkspaceProps {
   t: Translate;
+  /** Authenticated principal recorded as the reviewer of a review pack. */
+  principalId?: string | null;
 }
 
-export function AgentsWorkspace({ t }: AgentsWorkspaceProps) {
+export function AgentsWorkspace({ t, principalId = null }: AgentsWorkspaceProps) {
   const [activeView, setActiveView] = useState<AgentsViewId>("capabilities");
   const [capabilities, setCapabilities] = useState<CapabilityDTO[]>([]);
   const [runs, setRuns] = useState<AgentRunDTO[]>([]);
@@ -25,6 +36,7 @@ export function AgentsWorkspace({ t }: AgentsWorkspaceProps) {
   const [allowStrategy, setAllowStrategy] = useState(false);
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<Record<string, unknown> | null>(null);
+  const [confirmation, setConfirmation] = useState<AgentConfirmationState>({ status: "idle" });
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -44,6 +56,12 @@ export function AgentsWorkspace({ t }: AgentsWorkspaceProps) {
   const tabs = useMemo(
     () => VIEWS.map((id) => ({ id, label: t(`agents.tab.${id}`) })),
     [t],
+  );
+
+  const reviewerIdentity = (principalId ?? "").trim();
+  const gate = useMemo(
+    () => agentReviewGate(selectedRun, reviewerIdentity),
+    [selectedRun, reviewerIdentity],
   );
 
   async function runResearch() {
@@ -71,8 +89,55 @@ export function AgentsWorkspace({ t }: AgentsWorkspaceProps) {
     try {
       const response = await api.agentReplay(run.agent_run_id);
       setSelectedRun(response.data);
+      setConfirmation({ status: "idle" });
     } catch (reason) {
       setError(String(reason));
+    }
+  }
+
+  async function confirmReviewPack(decision: AgentReviewDecisionValue, note: string) {
+    const body = agentReviewDecisionInput(gate, reviewerIdentity, decision, note);
+    if (!body) {
+      setConfirmation((current) =>
+        nextAgentConfirmationState(current, { type: "refused", httpStatus: 422 }),
+      );
+      return;
+    }
+    setError(null);
+    setConfirmation((current) => nextAgentConfirmationState(current, { type: "submit", decision }));
+    try {
+      const outcome = await api.recordReviewDecisionOutcome(body);
+      if (!outcome.ok) {
+        setConfirmation((current) =>
+          nextAgentConfirmationState(current, {
+            type: "refused",
+            httpStatus: outcome.failure.status,
+          }),
+        );
+        return;
+      }
+      setConfirmation((current) =>
+        nextAgentConfirmationState(current, {
+          type: "recorded",
+          decision,
+          decisionId: outcome.data.decision_id,
+        }),
+      );
+      // Re-read the replay so the recorded decision is shown from the backend,
+      // never from the optimistic client state alone.
+      if (selectedRun) {
+        try {
+          const refreshed = await api.agentReplay(selectedRun.agent_run_id);
+          setSelectedRun(refreshed.data);
+        } catch (reason) {
+          setError(String(reason));
+        }
+      }
+    } catch (reason) {
+      setError(String(reason));
+      setConfirmation((current) =>
+        nextAgentConfirmationState(current, { type: "refused", httpStatus: 0 }),
+      );
     }
   }
 
@@ -98,7 +163,12 @@ export function AgentsWorkspace({ t }: AgentsWorkspaceProps) {
       {error && <div className="workspace-panel span-3 alert">{error}</div>}
 
       {activeView === "capabilities" && (
-        <div className="workspace-panel span-3">
+        <div
+          className="workspace-panel span-3"
+          id="agents-task-panel"
+          role="tabpanel"
+          aria-labelledby={`agents-task-${activeView}`}
+        >
           <div className="research-table data-table">
             <div className="data-table-row header five">
               <span>{t("agents.capability")}</span>
@@ -124,7 +194,12 @@ export function AgentsWorkspace({ t }: AgentsWorkspaceProps) {
       )}
 
       {activeView === "research" && (
-        <div className="workspace-panel span-3">
+        <div
+          className="workspace-panel span-3"
+          id="agents-task-panel"
+          role="tabpanel"
+          aria-labelledby={`agents-task-${activeView}`}
+        >
           <label className="field-label" htmlFor="agents-objective">
             {t("agents.objective")}
           </label>
@@ -165,7 +240,12 @@ export function AgentsWorkspace({ t }: AgentsWorkspaceProps) {
       )}
 
       {activeView === "runs" && (
-        <div className="workspace-panel span-3">
+        <div
+          className="workspace-panel span-3"
+          id="agents-task-panel"
+          role="tabpanel"
+          aria-labelledby={`agents-task-${activeView}`}
+        >
           <div className="research-table data-table">
             <div className="data-table-row header six">
               <span>{t("agents.time")}</span>
@@ -193,15 +273,78 @@ export function AgentsWorkspace({ t }: AgentsWorkspaceProps) {
               <div className="data-table-row"><span>{t("agents.no_runs")}</span></div>
             )}
           </div>
+
           {selectedRun && (
-            <div className="agents-result-panel">
+            <div className="agents-result-panel agents-replay-panel">
               <PanelHeader title={t("agents.replay")} meta={selectedRun.agent_run_id} />
-              <p>{t("agents.objective")}: {selectedRun.user_objective}</p>
-              <p>{t("agents.status")}: {selectedRun.status} / {selectedRun.current_stage}</p>
-              <p>{t("agents.warnings")}: {selectedRun.warnings.join(", ")}</p>
-              <p>{t("agents.blockers")}: {selectedRun.blockers.join(", ")}</p>
-              <p>{t("agents.invocations")}: {selectedRun.tool_invocations.length}</p>
-              <p>{t("agents.hidden_cot")}: {String(selectedRun.hidden_chain_of_thought)}</p>
+              <MetricStrip
+                className="metric-grid agents-replay-metrics"
+                items={[
+                  { label: t("agents.status"), value: selectedRun.status || t("agents.value_absent") },
+                  {
+                    label: t("agents.stage"),
+                    value: selectedRun.current_stage || t("agents.value_absent"),
+                  },
+                  {
+                    label: t("agents.invocations"),
+                    value: String(selectedRun.tool_invocations.length),
+                  },
+                  { label: t("agents.warnings"), value: String(selectedRun.warnings.length) },
+                  { label: t("agents.blockers"), value: String(selectedRun.blockers.length) },
+                  {
+                    label: t("agents.evidence_deps"),
+                    value: String(selectedRun.evidence_dependencies.length),
+                  },
+                ]}
+              />
+              <div className="agents-fact-grid">
+                <div className="agents-fact">
+                  <span className="agents-fact-key">{t("agents.objective")}</span>
+                  <span className="agents-fact-value">{selectedRun.user_objective}</span>
+                </div>
+                <div className="agents-fact">
+                  <span className="agents-fact-key">{t("agents.profile")}</span>
+                  <span className="agents-fact-value">{selectedRun.agent_profile}</span>
+                </div>
+                <div className="agents-fact">
+                  <span className="agents-fact-key">{t("agents.model")}</span>
+                  <span className="agents-fact-value">
+                    {selectedRun.model_provider}/{selectedRun.model_id}
+                  </span>
+                </div>
+                <div className="agents-fact">
+                  <span className="agents-fact-key">{t("agents.run_started_at")}</span>
+                  <span className="agents-fact-value">{selectedRun.started_at}</span>
+                </div>
+                <div className="agents-fact">
+                  <span className="agents-fact-key">{t("agents.blockers")}</span>
+                  <span className="agents-fact-value">
+                    {selectedRun.blockers.length > 0
+                      ? selectedRun.blockers.join(", ")
+                      : t("agents.value_absent")}
+                  </span>
+                </div>
+                <div className="agents-fact">
+                  <span className="agents-fact-key">{t("agents.warnings")}</span>
+                  <span className="agents-fact-value">
+                    {selectedRun.warnings.length > 0
+                      ? selectedRun.warnings.join(", ")
+                      : t("agents.value_absent")}
+                  </span>
+                </div>
+              </div>
+
+              <AgentArtifactChain replay={selectedRun} t={t} />
+
+              <AgentReviewGate
+                gate={gate}
+                state={confirmation}
+                reviewerIdentity={reviewerIdentity}
+                t={t}
+                onConfirm={(decision, note) => {
+                  void confirmReviewPack(decision, note);
+                }}
+              />
             </div>
           )}
         </div>

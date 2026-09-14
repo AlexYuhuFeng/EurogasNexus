@@ -207,7 +207,10 @@ export function SourceCenter({
           title={activeView === "attention" ? t("sources.attention_queue") : activeView === "access" ? t("sources.access_queue") : t("sources.registered_feeds")}
           meta={`${displayedSources.length} / ${sources.length} · ${sourceStats.missingCredentials} ${t("sources.missing_credentials")}`}
         />
-        <div className="source-operations-table-wrap">
+        {/* Scrollable region: focusable so keyboard users can scroll the wide
+            operations table, including in locales whose labels overflow it
+            (axe: scrollable-region-focusable). */}
+        <div className="source-operations-table-wrap" tabIndex={0} role="region" aria-label={t("sources.title")}>
           <table className="source-operations-table">
             <thead>
               <tr>

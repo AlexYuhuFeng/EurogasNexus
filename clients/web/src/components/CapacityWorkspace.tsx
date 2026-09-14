@@ -380,12 +380,20 @@ export function CapacityWorkspace({
               <div><h2>{t("capacity.operating_board")}</h2><p>{t("capacity.operating_board_note")}</p></div>
               <span>{filteredRows.length} / {operatingRows.length}</span>
             </div>
-            <div className="capacity-operating-table" role="table">
-              <div className="capacity-operating-row header" role="row">
+            {/* The rows are select buttons, so the container is a labelled group
+                rather than a table: claiming role="table" with button children
+                is invalid ARIA (axe: aria-required-children) and misleads
+                assistive technology. Selection is exposed with aria-pressed. */}
+            <div
+              className="capacity-operating-table"
+              role="group"
+              aria-label={t("capacity.operating_board")}
+            >
+              <div className="capacity-operating-row header">
                 <span>{t("panel.point")}</span><span>{t("panel.direction")}</span><span>{t("capacity.flow")}</span><span>{t("capacity.technical")}</span><span>{t("capacity.utilization")}</span><span>{t("capacity.booked")}</span><span>{t("capacity.headroom_short")}</span><span>{t("capacity.posture")}</span>
               </div>
               {visibleRows.map((row) => (
-                <button key={row.key} type="button" className={selected?.key === row.key ? "capacity-operating-row active" : "capacity-operating-row"} onClick={() => setSelectedKey(row.key)}>
+                <button key={row.key} type="button" aria-pressed={selected?.key === row.key} className={selected?.key === row.key ? "capacity-operating-row active" : "capacity-operating-row"} onClick={() => setSelectedKey(row.key)}>
                   <span><strong>{row.pointName}</strong><small>{row.country} · {row.operator}</small></span>
                   <span>{row.direction}</span>
                   <span>{formatNumber(row.flowMcmD)}</span>

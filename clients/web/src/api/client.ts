@@ -703,7 +703,11 @@ export interface ReviewDecisionDTO {
 }
 
 export interface ReviewDecisionInputDTO {
-  entity_type: "intraday_opportunity" | "strategy_run" | "generated_report";
+  entity_type:
+    | "intraday_opportunity"
+    | "strategy_run"
+    | "generated_report"
+    | "agent_review_pack";
   entity_id: string; actor: string;
   decision: "accepted" | "rejected" | "needs_attention";
   note?: string | null;
@@ -1505,10 +1509,311 @@ export interface AgentRunDetailDTO extends AgentRunDTO {
   warnings: string[];
   blockers: string[];
   final_output_reference: string | null;
+  /** Presence/identity summary only; the replay read carries the artifact bodies. */
+  artifact_chain?: AgentArtifactChainSummaryDTO;
+  /** Review artifact kind a human decision is recorded against. */
+  review_entity_type?: string;
 }
+
+/** Ordered CR-15 governed research artifact chain, exactly as persisted. */
+export type AgentArtifactType =
+  | "research_plan"
+  | "findings"
+  | "strategy_ir"
+  | "validation"
+  | "challenge_report"
+  | "review_pack";
+
+/** Frozen run inputs one persisted agent run was produced from. */
+export interface AgentFixtureDTO {
+  fixture_id: string;
+  fixture_kind: string;
+  evidence_refs: string[];
+  tool_invocation_ids: string[];
+  deterministic_model: { model_provider: string; model_id: string };
+}
+
+/** Deterministic replay identity of one artifact or chain. */
+export interface AgentReplayIdentityDTO {
+  replay_id: string;
+  content_hash: string;
+  deterministic: boolean;
+}
+
+/** Which persisted artifacts, invocations and sources produced an artifact. */
+export interface AgentArtifactLineageDTO {
+  upstream_artifact_ids: string[];
+  producing_invocation_ids: string[];
+  source_families: string[];
+  series_ids: string[];
+  snapshot_ids: string[];
+  source_references: string[];
+  evidence_dependencies: string[];
+}
+
+/** Entitlement state observed while producing an artifact (fails closed). */
+export interface AgentArtifactRightsDTO {
+  entitlement_state: string;
+  entitlement_states: string[];
+  principal_id: string;
+  evaluated_invocation_ids: string[];
+  policy_boundary: string;
+}
+
+export interface AgentArtifactTimestampsDTO {
+  created_at: string | null;
+  run_started_at: string | null;
+  run_completed_at: string | null;
+}
+
+export interface AgentArtifactChainSummaryDTO {
+  order: string[];
+  present: string[];
+  missing: string[];
+  complete: boolean;
+  artifact_ids: Record<string, string[]>;
+  /** Returned by the replay read only; the detail read carries the summary alone. */
+  chain_hash?: string;
+}
+
+export interface AgentEvidenceRequirementDTO {
+  series_id: string;
+  required?: boolean;
+  max_source_age_seconds?: number | null;
+  temporal_integrity_min?: string | null;
+  unit?: string | null;
+}
+
+export interface AgentResearchPlanStepDTO {
+  analysis_id: string;
+  analysis_type: string;
+  input_series: string[];
+  parameters: Record<string, unknown>;
+}
+
+/** Persisted research plan row as returned in the plan artifact payload. */
+export interface AgentResearchPlanPayloadDTO {
+  research_plan_id: string;
+  agent_run_id: string | null;
+  objective: string;
+  question: string;
+  market_scope: string[];
+  entities: string[];
+  product: string;
+  horizon: string;
+  hypotheses_to_test: string[];
+  required_evidence: AgentEvidenceRequirementDTO[];
+  analyses: AgentResearchPlanStepDTO[];
+  data_quality_requirements: Record<string, unknown>;
+  statistical_requirements: Record<string, unknown>;
+  strategy_generation_allowed: boolean;
+  stopping_conditions: string[];
+  status: string;
+  created_by: string;
+  created_at: string;
+}
+
+/** One persisted research finding row. */
+export interface AgentResearchFindingPayloadDTO {
+  finding_id: string;
+  research_plan_id: string | null;
+  agent_run_id: string | null;
+  question: string;
+  statistic: string;
+  value: string | null;
+  unit: string | null;
+  sample: string;
+  period: string;
+  methodology: string;
+  evidence: string[];
+  limitations: string[];
+  quality_state: string;
+  created_at: string;
+}
+
+export interface AgentStrategyIRConditionDTO {
+  feature_id: string;
+  operator: string;
+  value: number;
+  unit: string;
+}
+
+export interface AgentStrategyIRComponentDTO {
+  component_id: string;
+  component_type: string;
+  weight: number;
+  conditions: AgentStrategyIRConditionDTO[];
+}
+
+export interface AgentStrategyIRParameterDTO {
+  parameter_id: string;
+  name?: string;
+  parameter_type: string;
+  unit?: string | null;
+  default_value?: unknown;
+  min_value?: number | null;
+  max_value?: number | null;
+  allowed_values?: string[];
+  optimization_allowed?: boolean;
+  sensitivity_allowed?: boolean;
+}
+
+/** Persisted StrategyIR specification (the reviewed strategy artifact). */
+export interface AgentStrategyIRPayloadDTO {
+  schema_version?: string;
+  hypothesis: string;
+  universe: {
+    origin_hub: string;
+    destination_hub: string;
+    product: string;
+    currency: string;
+  };
+  components: AgentStrategyIRComponentDTO[];
+  parameters: AgentStrategyIRParameterDTO[];
+  sizing: {
+    method: string;
+    max_pct: number;
+    max_quantity_mwh_per_day?: number | null;
+  };
+  risk_controls: Record<string, unknown>;
+  economic_assumptions: Record<string, unknown>;
+  data_requirements: Record<string, unknown>;
+  evaluation_windows?: Array<Record<string, unknown>>;
+}
+
+export interface AgentPlanValidationIssueDTO {
+  code: string;
+  detail: string;
+  evidence?: string | null;
+}
+
+export interface AgentStrategyIRValidationIssueDTO {
+  code: string;
+  detail: string;
+  field?: string | null;
+}
+
+export interface AgentStrategyIRValidationDTO {
+  ok: boolean;
+  issues: AgentStrategyIRValidationIssueDTO[];
+}
+
+/** Persisted plan validation plus the recomputed StrategyIR validation view. */
+export interface AgentValidationPayloadDTO {
+  plan_id: string | null;
+  plan_status: string | null;
+  plan_validation_issues: AgentPlanValidationIssueDTO[];
+  plan_validation_source: string;
+  strategy_ir_validation: AgentStrategyIRValidationDTO | null;
+  strategy_ir_validation_source: string;
+  feature_catalog_id: string;
+  run_blockers: string[];
+  run_warnings: string[];
+}
+
+export interface AgentChallengeItemDTO {
+  challenge: string;
+  severity: string;
+  evidence: Record<string, unknown>;
+  result: string;
+  recommended_follow_up?: string;
+}
+
+/** Persisted challenge report row. */
+export interface AgentChallengeReportPayloadDTO {
+  challenge_report_id: string;
+  agent_run_id: string | null;
+  strategy_version_id: string | null;
+  backtest_run_id: string | null;
+  items: AgentChallengeItemDTO[];
+  overall_result: string;
+  recommended_follow_up: string;
+  created_at: string;
+}
+
+/** Human decisions recorded against the review pack through /review/decisions. */
+export interface AgentReviewPackConfirmationDTO {
+  entity_type: string;
+  entity_id: string;
+  decisions: ReviewDecisionDTO[];
+}
+
+/** Persisted review pack row plus its recorded human confirmation. */
+export interface AgentReviewPackPayloadDTO {
+  review_pack_id: string;
+  agent_run_id: string | null;
+  objective: string;
+  research_plan: Record<string, unknown>;
+  key_findings: unknown[];
+  strategy_specification: Record<string, unknown> | null;
+  backtest: Record<string, unknown> | null;
+  robustness: Record<string, unknown>;
+  challenge_report: Record<string, unknown> | null;
+  data_provenance: string[];
+  warnings: string[];
+  known_limitations: string[];
+  alternative_hypotheses: string[];
+  status: string;
+  created_at: string;
+  human_confirmation?: AgentReviewPackConfirmationDTO;
+}
+
+interface AgentArtifactEnvelopeBaseDTO {
+  operation_id: string;
+  stage: string;
+  present: boolean;
+  artifact_id: string | null;
+  artifact_ids: string[];
+  agent_run_id: string;
+  fixture: AgentFixtureDTO;
+  replay_identity: AgentReplayIdentityDTO;
+  lineage: AgentArtifactLineageDTO;
+  rights: AgentArtifactRightsDTO;
+  timestamps: AgentArtifactTimestampsDTO;
+  /** Persisted null: no reasoning text is stored or returned for any artifact. */
+  hidden_chain_of_thought: null;
+}
+
+/**
+ * One chain artifact with its payload narrowed by artifact kind.
+ *
+ * The discriminated union lets a renderer switch on ``artifact_type`` and read a
+ * typed payload; an absent artifact keeps ``payload: null`` instead of failing.
+ */
+export type AgentArtifactEnvelopeDTO =
+  | (AgentArtifactEnvelopeBaseDTO & {
+      artifact_type: "research_plan";
+      payload: AgentResearchPlanPayloadDTO | null;
+    })
+  | (AgentArtifactEnvelopeBaseDTO & {
+      artifact_type: "findings";
+      payload: AgentResearchFindingPayloadDTO[] | null;
+    })
+  | (AgentArtifactEnvelopeBaseDTO & {
+      artifact_type: "strategy_ir";
+      payload: AgentStrategyIRPayloadDTO | null;
+    })
+  | (AgentArtifactEnvelopeBaseDTO & {
+      artifact_type: "validation";
+      payload: AgentValidationPayloadDTO | null;
+    })
+  | (AgentArtifactEnvelopeBaseDTO & {
+      artifact_type: "challenge_report";
+      payload: AgentChallengeReportPayloadDTO | null;
+    })
+  | (AgentArtifactEnvelopeBaseDTO & {
+      artifact_type: "review_pack";
+      payload: AgentReviewPackPayloadDTO | null;
+    });
+
+export type AgentArtifactsDTO = Record<AgentArtifactType, AgentArtifactEnvelopeDTO>;
 
 export interface AgentReplayDTO extends AgentRunDetailDTO {
   started_at: string;
+  review_entity_type: string;
+  fixture: AgentFixtureDTO;
+  artifact_chain: AgentArtifactChainSummaryDTO;
+  artifacts: AgentArtifactsDTO;
   tool_invocations: unknown[];
   hidden_chain_of_thought: null;
 }
@@ -1560,6 +1865,17 @@ export const api = {
 
   recordReviewDecision: (body: ReviewDecisionInputDTO) =>
     post<ReviewDecisionDTO>("/review/decisions", body),
+
+  /**
+   * Record one review decision while keeping a governed refusal inspectable.
+   *
+   * Browser sessions are cookie-authenticated, so the mutation rides the shared
+   * ``X-Eurogas-CSRF`` header already carried by :func:`authHeaders`. A refusal
+   * resolves as a failure instead of throwing, because the caller has to explain
+   * the exact status: 422 unknown review artifact kind, 403 identity refused.
+   */
+  recordReviewDecisionOutcome: (body: ReviewDecisionInputDTO) =>
+    apiOutcome(() => post<ReviewDecisionDTO>("/review/decisions", body)),
 
   pipelineHealth: (options?: ApiRequestOptions) => get<PipelineHealthDTO>("/runtime/pipeline-health", undefined, options),
 

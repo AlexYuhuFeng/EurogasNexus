@@ -513,7 +513,9 @@ function DatasetCatalog({ t, datasets, loading, error, selectedId, onSelect }: {
     <section className="research-catalog" aria-labelledby="research-dataset-table-title">
       <PanelHeader title={<span id="research-dataset-table-title">{t("research.dataset_snapshots")}</span>} meta={t("research.dataset_snapshots_help")} />
       {error && <div className="research-catalog-error" role="alert">{error}</div>}
-      <div className="research-table-wrap">
+      {/* Scrollable region: focusable so keyboard users can scroll a wide table
+          (axe: scrollable-region-focusable). */}
+      <div className="research-table-wrap" tabIndex={0} role="region" aria-labelledby="research-dataset-table-title">
         <table className="research-semantic-table" aria-busy={loading}>
           <caption className="visually-hidden">{t("research.dataset_snapshots")}</caption>
           <thead><tr><th scope="col">{t("research.name")}</th><th scope="col">{t("research.rows")}</th><th scope="col">{t("research.columns")}</th><th scope="col">{t("research.coverage")}</th><th scope="col">{t("research.temporal_integrity")}</th><th scope="col">{t("research.created")}</th><th scope="col">{t("research.status")}</th></tr></thead>

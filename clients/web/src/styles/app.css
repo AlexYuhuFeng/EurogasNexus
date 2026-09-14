@@ -1665,7 +1665,9 @@ input {
 .source-row-select small,
 .source-operations-table td small {
   display: block;
-  color: var(--eg-muted);
+  /* The muted token fails contrast at 10px on the selected row's tint; the body
+     token keeps the secondary hierarchy readable (axe: color-contrast). */
+  color: var(--eg-body);
   font-size: 10px;
 }
 
@@ -8430,4 +8432,168 @@ button.glossary-related-chip {
 
 .agents-page .link-row:hover {
   background: var(--row-hover, #f3f6f9);
+}
+
+/* CR-15 replay evidence: ordered artifact chain and the human review gate.
+   The layout is a compact fact grid so one artifact's identity, lineage,
+   rights and timestamps stay readable without hiding any persisted field. */
+.agents-replay-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.agents-chain-metrics,
+.agents-replay-metrics {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.agents-cot-note {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px dashed var(--line-soft, #d8dee6);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--eg-muted);
+}
+
+.agents-chain-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.agents-chain-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line-soft, #d8dee6);
+  border-radius: 8px;
+  background: var(--panel-soft, transparent);
+}
+
+.agents-chain-entry.is-absent {
+  border-style: dashed;
+  opacity: 0.85;
+}
+
+.agents-chain-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.agents-chain-position {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--row-hover, #eef2f6);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.agents-chain-absent {
+  margin: 0;
+  font-size: 12px;
+  color: var(--eg-muted);
+}
+
+.agents-fact-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 4px 14px;
+}
+
+.agents-fact {
+  display: grid;
+  grid-template-columns: minmax(96px, 0.4fr) minmax(0, 1fr);
+  gap: 8px;
+  padding: 2px 0;
+  font-size: 12px;
+  border-bottom: 1px dotted var(--line-soft, #e6ebf1);
+}
+
+.agents-fact-key {
+  color: var(--eg-muted);
+}
+
+.agents-fact-value {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.agents-payload-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--line-soft, #e6ebf1);
+}
+
+.agents-payload {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 2px 14px;
+}
+
+.agents-payload-list {
+  margin: 0;
+  padding-left: 16px;
+  font-size: 12px;
+}
+
+.agents-findings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  list-style: none;
+  padding-left: 0;
+}
+
+.agents-finding-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.agents-gate {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line-soft, #e6ebf1);
+}
+
+.agents-gate-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.agents-gate-notice {
+  min-height: 18px;
+  font-size: 12px;
+}
+
+.agents-gate-decisions {
+  margin-top: 4px;
+}
+
+.agents-page .source-status-present {
+  background: var(--success-bg, #e7f6ec);
+  color: var(--success-fg, #1b6b3a);
+}
+
+.agents-page .source-status-missing {
+  background: var(--warn-bg, #fdf3e3);
+  color: var(--warn-fg, #8a5a12);
 }
