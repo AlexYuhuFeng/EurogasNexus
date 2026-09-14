@@ -25,6 +25,19 @@ asserted by `tests/contract/test_ontology_version_alignment.py`.
 
 ## [Unreleased]
 
+- Authentication-first entry (UX-01 priority): an unauthenticated visit no
+  longer reaches the terminal. `GET /api/me` answers 401 when no credential is
+  presented (the verified static deployment token keeps its legacy SDK/CLI
+  principal), the Web client resolves identity before any protected read, and a
+  dedicated sign-in screen - company SSO plus a development-only credential form
+  - stands in front of the workspace until authentication succeeds. Deep links,
+  reload, session expiry, browser history, logout and desktop startup all honour
+  the gate, and the development credential login exists only in the development
+  route profile.
+- Just-in-time SSO provisioning no longer grants access: a first login for an
+  unknown approved-domain identity registers a `PENDING` principal and is
+  rejected with `identity_pending_approval` until an administrator activates it.
+
 - Client contract tests re-aligned with the current Web client (generic
   `loadWorkspaceEndpoint` store loaders, `workspaceTaskSearch` URL sync, current
   shell/topbar grid rows, plain glossary sticky offset, `ApiRequestOptions`

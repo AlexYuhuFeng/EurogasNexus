@@ -715,3 +715,103 @@ PostgreSQL or full MCP-to-database acceptance. No new runtime datastore was adde
 No production observations, source policy grants or legacy snapshots were edited.
 Observation volume, entity/policy/dependency semantics, builder UI, native rebuild
 and full UX01 acceptance remain open.
+
+### Authentication-first entry (2026-09-14)
+
+The first queued priority from the 2026-09-14 list is implemented and locally
+verified. Whole-product UX-01 acceptance, browser positive-path coverage and the
+remaining priorities stay open.
+
+Why the client alone could not enforce it: `/api/me` answered 200 with the legacy
+single-trust-domain OPERATOR principal and `data_scopes=("*",)` whenever no
+credential was presented, and the Web mount issued roughly thirty parallel
+workspace reads - including the protected market endpoints - in the same batch
+as identity. "Unauthenticated" was therefore not representable, so a client-only
+gate would have been both wrong and ineffective.
+
+Backend (server-enforced):
+
+- `GET /api/me` answers 401 `{"error":"unauthenticated"}` when no credential was
+  presented. The verified static deployment token keeps its legacy SDK/CLI
+  principal, and `require_identity` now records credential presence in
+  `request.state.identity_authenticated`; `require_identity_for_route` gives the
+  development and internal profiles the same distinction.
+- `POST /api/dev/auth/login` exists only under the development route profile
+  (`include_dev`); it validates operator-configured
+  `EUROGAS_NEXUS_DEV_LOGIN_USERNAME`/`_PASSWORD` with a constant-time compare,
+  resolves an EXISTING `ACTIVE` principal (creating and elevating nothing) and
+  issues the same backend session and cookie contract as the OIDC flow. It is
+  absent from the internal and release profiles and answers 503
+  `dev_login_disabled` when unconfigured.
+- Just-in-time SSO provisioning registers a `PENDING` principal and rejects the
+  first login with `identity_pending_approval`, so registration no longer
+  auto-approves terminal access. The rejected attempt commits that pending
+  registration before failing closed, so an administrator can see and activate
+  the identity; any other OIDC validation failure still rolls back.
+- The origin/CSRF guard exempts the login entry points only, so a stale session
+  cookie cannot block sign-in while every other mutation stays guarded.
+- `GET /api/auth/status` advertises `dev_login` so the client offers the
+  development form only where the deployment provides it.
+
+Client and desktop:
+
+- `authState` (`unknown`/`unauthenticated`/`authenticated`) with
+  `bootstrapIdentity()` resolving `/api/me` and `/api/auth/status` first;
+  `["me", api.me]` left the workspace batch and every loader, poll and decision
+  stream is gated, so no protected read can precede authentication.
+- A dedicated sign-in screen replaces the workspace for every non-authenticated
+  state (company SSO plus the development form when advertised); `AppShell`
+  returns it after the release-compatibility blocker and before any panel.
+- Deep links and `popstate` stay gated, and logout clears the client-stored
+  credentials, resets identity-scoped state, revokes the backend session and
+  rewrites the URL so Back cannot restore a protected view.
+- The desktop shell keeps its splashscreen until the Web app reports identity
+  resolution (`window.__EUROGAS_IDENTITY__` / `eurogas:identity`, bridged to the
+  `notify_client_ready` command) with a 15-second fallback, so an unreachable
+  backend reveals the sign-in screen rather than the terminal.
+
+Evidence (repository root):
+
+- `npm.cmd --prefix clients/web test` -> 143 passed, 0 failed.
+- `npm.cmd --prefix clients/web run build` -> exit 0, 142 modules.
+- `python -m pytest -q tests` -> one run reported 1446 passed / 13 skipped and a
+  repeat reported 1438 passed / 13 skipped / 9 failed. Every failure is the same
+  sandbox limitation: `subprocess` cannot create captured-output pipes here
+  (`subprocess.py:1431`, `OSError WinError 6`), raised before any assertion. All
+  nine behaviours were verified directly instead: `import apps.api.main` leaves
+  `eurogas_nexus.db` and `sqlalchemy` out of `sys.modules`;
+  `seed_preview_runtime_data.py` exits 2 with "Runtime DB URL missing"; the UAT
+  fixture gate exits 2 for missing acknowledgement, for trial/release, and for a
+  missing DB URL; `resolve_release_context` rejects stable dispatch and a
+  mismatched tag; `sign_release_artifacts.py` records
+  `unsigned_pending_external`; `generate_sboms.py` produced its SPDX documents
+  and notices. CI runs the same suite on Linux, where the previous run was green.
+- `python -m ruff check .` -> clean. `python scripts/ci/check_markdown_links.py`
+  -> 211 files resolve.
+- `python scripts/security/run_security_acceptance.py --json` -> automated PASS,
+  `failed_checks` empty; public surface is now 163 paths.
+- `python scripts/uat/check_i18n_parity.py` -> 1384/1384 keys, none missing.
+- Unauthenticated entry captured against the built client with the deep link
+  `?workspace=market` at 1440x900 and 1920x1080
+  (`output/playwright/ux01-auth-gate-1440.png`, `ux01-auth-gate-1920.png`): the
+  rendered text is the sign-in screen only, no market or workspace panel, and an
+  unreachable backend renders the retry copy instead of data.
+- Desktop: `cargo +stable-x86_64-pc-windows-msvc check --manifest-path
+  clients/desktop/src-tauri/Cargo.toml --locked` -> finished clean.
+
+Open and explicitly not claimed:
+
+- The captured images have not been visually reviewed; the reviewing model has no
+  image input, so a human check is required.
+- No browser harness exists in CI, so mount/unmount, history rewriting and the
+  authenticated path rest on pure-predicate and source-text tests. The
+  authenticated pass still needs a seeded PostgreSQL runtime.
+- The desktop shell was type-checked with the machine's MSVC toolchain because
+  the repository-pinned GNU toolchain lacks `dlltool` locally; the CI desktop job
+  runs on pull requests only and was not triggered by this push.
+- The development credential is gated by the route profile and by credential
+  presence; a development profile that is pointed at production data while
+  setting those variables would still serve it. Treat the variables as
+  development-only.
+- WebView browsing-data clearing on logout was not added; the backend session is
+  revoked and client-stored credentials are cleared instead.
