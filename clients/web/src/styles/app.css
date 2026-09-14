@@ -3127,7 +3127,29 @@ body {
   display: none;
 }
 
-.workspace-page-tab {
+/* Local task tabs are plain buttons inside the shared navigation primitive. The
+   single-class rules that used to live here (.workspace-page-tab) never matched
+   them, so the labels fell back to UA styling and wrapped per glyph on narrow
+   viewports - visible with space-less Mandarin labels at 390px. Keep every label
+   on one line and let the scrollable container carry the overflow. */
+.access-view-tabs,
+.agents-task-tabs {
+  display: flex;
+  min-width: 0;
+  align-items: flex-end;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.access-view-tabs::-webkit-scrollbar,
+.agents-task-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.workspace-page-tabs button,
+.access-view-tabs button,
+.agents-task-tabs button {
   flex: 0 0 auto;
   min-height: 32px;
   border: 0;
@@ -3138,18 +3160,25 @@ body {
   font-size: 12px;
   font-weight: 650;
   padding: 5px 9px;
+  white-space: nowrap;
 }
 
-.workspace-page-tab:hover {
+.workspace-page-tabs button:hover,
+.access-view-tabs button:hover,
+.agents-task-tabs button:hover {
   color: var(--eg-ink);
 }
 
-.workspace-page-tab.active {
+.workspace-page-tabs button.active,
+.access-view-tabs button.active,
+.agents-task-tabs button.active {
   border-bottom-color: var(--eg-ink);
   color: var(--eg-ink);
 }
 
-.workspace-page-tab:focus-visible {
+.workspace-page-tabs button:focus-visible,
+.access-view-tabs button:focus-visible,
+.agents-task-tabs button:focus-visible {
   border-color: var(--eg-link);
   outline: 2px solid rgb(0 112 243 / 18%);
   outline-offset: 2px;
