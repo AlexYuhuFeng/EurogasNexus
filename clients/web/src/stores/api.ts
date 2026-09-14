@@ -57,8 +57,10 @@ import {
 import {
   DEFAULT_WORKSPACE_READ_TIMEOUT_MS,
   DEFAULT_LOGOUT_TIMEOUT_MS,
+  AUTHENTICATED_AUTH_STATE,
   commitWorkspaceLoad,
   identityDeniedWorkspaceReset,
+  isIdentityGateOpen,
   loadWorkspaceEndpoint,
   loadWorkspaceEndpoints,
   knownWorkspaceLoaders,
@@ -66,12 +68,27 @@ import {
   ReadRefreshCoordinator,
   resetIdentityScopedCaches,
   isIdentityDeniedMessage,
+  UNRESOLVED_AUTH_STATE,
+  UNAUTHENTICATED_AUTH_STATE,
   withAbortTimeout,
   WorkspaceEndpointFailureCode,
+  type AuthState,
   type WorkspaceLoaderOutcome,
   WorkspaceLoadCoordinator,
   type WorkspaceLoader,
 } from "./workspaceLoading";
+import {
+  SESSION_EXPIRED_KEY,
+  UNKNOWN_AUTH_STATUS,
+  authStatusSnapshot,
+  bootstrapStartState,
+  devLoginCurrentUser,
+  devLoginErrorKey,
+  identityFailureKey,
+  oidcSignInErrorKey,
+  resolveIdentity,
+  type AuthStatusSnapshot,
+} from "./authGate";
 
 let decisionStreamClosers: Array<() => void> = [];
 let marketRefreshSequence = 0;
@@ -161,6 +178,12 @@ function latestMarketObservedAt(
 }
 
 export interface ApiState {
+  authState: AuthState;
+  authStatus: AuthStatusSnapshot;
+  /** i18n key of the last authentication failure, localised by the sign-in screen. */
+  authErrorKey: string | null;
+  authNoticeKey: string | null;
+  authBusy: boolean;
   nodes: NodeDTO[];
   edges: EdgeDTO[];
   sources: SourceSystemDTO[];
@@ -214,6 +237,8 @@ export interface ApiState {
   credentialMessage: string | null;
   contractSaveMessage: string | null;
   dataStatus: "runtime" | "delayed" | "partial" | "unavailable";
+  bootstrapIdentity: () => Promise<void>;
+  login: (username: string, password: string) => Promise<void>;
   fetchWorkspace: () => Promise<void>;
   retryFailedWorkspaceEndpoints: () => Promise<void>;
   refreshMarketData: () => Promise<void>;
@@ -294,7 +319,11 @@ async function loadEndpointWithRetry<T>(
   }
 }
 
-/** endpointMeta key -> loader. Keys keep the historical endpointMeta names. */
+/**
+ * endpointMeta key -> loader. Keys keep the historical endpointMeta names.
+ * Identity (`/me`) is deliberately NOT part of this batch: it is resolved by
+ * `bootstrapIdentity()` before any protected endpoint may be requested.
+ */
 type WorkspaceResponse = { data: unknown; meta: ApiMeta };
 type WorkspaceApiLoader = WorkspaceLoader<WorkspaceResponse>;
 const WORKSPACE_LOADERS: Array<[string, WorkspaceApiLoader]> = [
@@ -327,7 +356,6 @@ const WORKSPACE_LOADERS: Array<[string, WorkspaceApiLoader]> = [
   ["monitoringSummary", api.monitoringSummary],
   ["reviewDecisions", (options) => api.reviewDecisions(undefined, options)],
   ["pipelineHealth", api.pipelineHealth],
-  ["me", api.me],
 ];
 
 /** endpointMeta key -> ApiState slice key. */
@@ -361,7 +389,6 @@ const WORKSPACE_STATE_KEYS: Record<string, keyof ApiState> = {
   monitoringSummary: "monitoringSummary",
   reviewDecisions: "reviewDecisions",
   pipelineHealth: "pipelineHealth",
-  me: "currentUser",
 };
 
 function deriveWorkspaceSlice(key: string, response: { data: unknown }): unknown {
@@ -385,6 +412,11 @@ const DEFAULT_MONITORING_SUMMARY = {
 };
 
 export const useApiStore = create<ApiState>((set, get) => ({
+  authState: UNRESOLVED_AUTH_STATE,
+  authStatus: UNKNOWN_AUTH_STATUS,
+  authErrorKey: null,
+  authNoticeKey: null,
+  authBusy: false,
   nodes: [],
   edges: [],
   sources: [],
@@ -447,8 +479,87 @@ export const useApiStore = create<ApiState>((set, get) => ({
   contractSaveMessage: null,
   dataStatus: "unavailable",
 
+  bootstrapIdentity: async () => {
+    // Identity first: no workspace, market, monitoring or stream request may be
+    // issued before this resolves to an authenticated session.
+    const requestGeneration = identityReadCoordinator.capture();
+    set((state) => ({
+      authState: bootstrapStartState(state.authState),
+      authErrorKey: null,
+      authNoticeKey: null,
+    }));
+    closeDecisionStreams();
+    const [meOutcome, statusResult] = await Promise.all([
+      loadWorkspaceEndpoint(api.me, {
+        retries: 0,
+        timeoutMs: DEFAULT_WORKSPACE_READ_TIMEOUT_MS,
+      }),
+      loadWorkspaceEndpoint(api.authStatus, {
+        retries: 0,
+        timeoutMs: DEFAULT_WORKSPACE_READ_TIMEOUT_MS,
+      }),
+    ]);
+    if (!identityReadCoordinator.isCurrent(requestGeneration)) return;
+    const authStatus = statusResult.ok
+      ? authStatusSnapshot(statusResult.value.data)
+      : get().authStatus;
+    const identity = resolveIdentity(meOutcome);
+    if (!meOutcome.ok) {
+      invalidateIdentitySession();
+      set({
+        ...resetIdentityScopedCaches(DEFAULT_MONITORING_SUMMARY),
+        authStatus,
+        authErrorKey: identityFailureKey(identity.failureReason),
+      });
+      return;
+    }
+    const csrf = meOutcome.value.data.csrf_token;
+    if (csrf) {
+      const { setDesktopSessionToken } = await import("@/api/client");
+      if (!identityReadCoordinator.isCurrent(requestGeneration)) return;
+      // Browser sessions use the cookie; CSRF token is kept in memory for
+      // cookie-authenticated mutations.
+      setDesktopSessionToken("", csrf);
+    }
+    set({
+      authState: AUTHENTICATED_AUTH_STATE,
+      authStatus,
+      authErrorKey: null,
+      currentUser: meOutcome.value.data,
+    });
+  },
+
+  login: async (username, password) => {
+    if (logoutInProgress) return;
+    const requestGeneration = identityReadCoordinator.capture();
+    set({ authBusy: true, authErrorKey: null, authNoticeKey: null });
+    try {
+      // The backend validates the credential and sets the HttpOnly session
+      // cookie; this response is never treated as an access decision.
+      const response = await api.login(username, password);
+      if (!identityReadCoordinator.isCurrent(requestGeneration) || logoutInProgress) return;
+      set({
+        authState: AUTHENTICATED_AUTH_STATE,
+        authBusy: false,
+        authErrorKey: null,
+        currentUser: devLoginCurrentUser(response.data),
+      });
+      // Replace the provisional projection with the authoritative identity read.
+      await get().fetchMe();
+    } catch (error) {
+      if (!identityReadCoordinator.isCurrent(requestGeneration)) return;
+      invalidateIdentitySession();
+      set({
+        ...resetIdentityScopedCaches(DEFAULT_MONITORING_SUMMARY),
+        authBusy: false,
+        authErrorKey: devLoginErrorKey(String(error)),
+      });
+    }
+  },
+
   fetchWorkspace: async () => {
     if (logoutInProgress) return;
+    if (!isIdentityGateOpen(get().authState)) return;
     const load = startWorkspaceLoad();
     set({ loading: true, error: null });
     const releaseOutcome = await loadWorkspaceEndpoint(api.runtimeRelease, {
@@ -482,7 +593,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
     const identityReset = identityDeniedWorkspaceReset(outcomes, DEFAULT_MONITORING_SUMMARY);
     if (identityReset) {
       invalidateIdentitySession();
-      set(identityReset);
+      set({ ...identityReset, authErrorKey: SESSION_EXPIRED_KEY });
       return;
     }
     const workspaceCommit = commitWorkspaceLoad(outcomes);
@@ -541,7 +652,8 @@ export const useApiStore = create<ApiState>((set, get) => ({
       monitoringSummary: (slices.monitoringSummary ?? DEFAULT_MONITORING_SUMMARY) as MonitoringSummaryDTO,
       reviewDecisions: (slices.reviewDecisions ?? []) as ReviewDecisionDTO[],
       pipelineHealth: (slices.pipelineHealth ?? null) as PipelineHealthDTO | null,
-      currentUser: (slices.me ?? null) as CurrentUserDTO | null,
+      // currentUser is owned by the identity reads (bootstrapIdentity/fetchMe);
+      // a workspace batch must never rewrite identity.
       endpointMeta,
       endpointErrors,
       endpointErrorCodes,
@@ -564,6 +676,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
 
   retryFailedWorkspaceEndpoints: async () => {
     if (logoutInProgress) return;
+    if (!isIdentityGateOpen(get().authState)) return;
     const failedKeys = Object.keys(get().endpointErrors);
     if (failedKeys.length === 0) return;
     const loaderByKey = new Map(WORKSPACE_LOADERS);
@@ -581,7 +694,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
       const identityReset = identityDeniedWorkspaceReset(outcomes, DEFAULT_MONITORING_SUMMARY);
       if (identityReset) {
         invalidateIdentitySession();
-        set(identityReset);
+        set({ ...identityReset, authErrorKey: SESSION_EXPIRED_KEY });
         return;
       }
       set((state) => {
@@ -621,6 +734,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
 
   refreshMarketData: async () => {
     if (logoutInProgress) return;
+    if (!isIdentityGateOpen(get().authState)) return;
     const refresh = readRefreshCoordinator.market.tryStart();
     if (!refresh) return;
     const refreshGeneration = readRefreshCoordinator.currentGeneration();
@@ -748,6 +862,9 @@ export const useApiStore = create<ApiState>((set, get) => ({
   },
 
   subscribeDecisionStreams: () => {
+    // Streams carry protected market and monitoring payloads, so they open only
+    // for an authenticated session and are closed by every identity change.
+    if (!isIdentityGateOpen(get().authState)) return;
     closeDecisionStreams();
     const streamGeneration = identityReadCoordinator.capture();
     const streamIsCurrent = () => identityReadCoordinator.isCurrent(streamGeneration);
@@ -825,10 +942,12 @@ export const useApiStore = create<ApiState>((set, get) => ({
       });
       if (!identityReadCoordinator.isCurrent(requestGeneration)) return;
       if (!outcome.ok) {
-        if (isIdentityDeniedMessage(outcome.error.message)) {
-          invalidateIdentitySession();
-          set(resetIdentityScopedCaches(DEFAULT_MONITORING_SUMMARY));
-        }
+        const identity = resolveIdentity(outcome);
+        invalidateIdentitySession();
+        set({
+          ...resetIdentityScopedCaches(DEFAULT_MONITORING_SUMMARY),
+          authErrorKey: identityFailureKey(identity.failureReason),
+        });
         return;
       }
       const response = outcome.value;
@@ -840,12 +959,15 @@ export const useApiStore = create<ApiState>((set, get) => ({
         // cookie-authenticated mutations.
         setDesktopSessionToken("", csrf);
       }
-      set({ currentUser: response.data });
+      set({ authState: AUTHENTICATED_AUTH_STATE, authErrorKey: null, currentUser: response.data });
     } catch (error) {
       if (!identityReadCoordinator.isCurrent(requestGeneration)) return;
       if (isIdentityDenied(error)) {
         invalidateIdentitySession();
-        set(resetIdentityScopedCaches(DEFAULT_MONITORING_SUMMARY));
+        set({
+          ...resetIdentityScopedCaches(DEFAULT_MONITORING_SUMMARY),
+          authErrorKey: SESSION_EXPIRED_KEY,
+        });
       }
     }
   },
@@ -855,6 +977,14 @@ export const useApiStore = create<ApiState>((set, get) => ({
     const signInGeneration = identityReadCoordinator.capture();
     const signInIsCurrent = () =>
       !logoutInProgress && identityReadCoordinator.isCurrent(signInGeneration);
+    const failSignIn = (error: unknown) => {
+      set({
+        authState: UNAUTHENTICATED_AUTH_STATE,
+        authBusy: false,
+        authErrorKey: oidcSignInErrorKey(String(error)),
+      });
+    };
+    set({ authBusy: true, authErrorKey: null, authNoticeKey: null });
     const client = await import("@/api/client");
     if (!signInIsCurrent()) return;
     const isDesktop =
@@ -862,43 +992,57 @@ export const useApiStore = create<ApiState>((set, get) => ({
       window.location.protocol === "tauri:" ||
       window.location.hostname === "tauri.localhost";
     if (!isDesktop) {
+      // Browser SSO leaves the client; the callback re-enters through /me.
       window.location.assign(`${client.configuredApiBaseUrl()}/auth/oidc/login`);
       return;
     }
-    const { invoke } = await import("@tauri-apps/api/core");
-    const redirectUri = await invoke<string>("start_loopback_auth");
-    const verifier = generatePkceVerifier();
-    const challenge = await generatePkceChallenge(verifier);
-    const started = await client.api.startDesktopOidcLogin({
-      code_challenge: challenge,
-      code_verifier: verifier,
-      redirect_uri: redirectUri,
-    });
-    const query = await invoke<string>("open_browser_login_and_wait", {
-      authorizationUrl: started.data.authorization_url,
-      expectedRedirectUri: redirectUri,
-    });
-    const params = new URLSearchParams(query);
-    const code = params.get("code") ?? "";
-    const state = params.get("state") ?? "";
-    if (!code || !state) throw new Error("Desktop login callback was incomplete.");
-    if (!signInIsCurrent()) return;
-    const token = await client.api.desktopOidcToken({
-      code,
-      state,
-      code_verifier: verifier,
-      redirect_uri: redirectUri,
-    });
-    if (!signInIsCurrent()) return;
-    client.setDesktopSessionToken(token.data.access_token);
-    await get().fetchMe();
+    try {
+      const { invoke } = await import("@tauri-apps/api/core");
+      const redirectUri = await invoke<string>("start_loopback_auth");
+      const verifier = generatePkceVerifier();
+      const challenge = await generatePkceChallenge(verifier);
+      const started = await client.api.startDesktopOidcLogin({
+        code_challenge: challenge,
+        code_verifier: verifier,
+        redirect_uri: redirectUri,
+      });
+      const query = await invoke<string>("open_browser_login_and_wait", {
+        authorizationUrl: started.data.authorization_url,
+        expectedRedirectUri: redirectUri,
+      });
+      const params = new URLSearchParams(query);
+      const code = params.get("code") ?? "";
+      const state = params.get("state") ?? "";
+      if (!code || !state) throw new Error("Desktop login callback was incomplete.");
+      if (!signInIsCurrent()) return;
+      const token = await client.api.desktopOidcToken({
+        code,
+        state,
+        code_verifier: verifier,
+        redirect_uri: redirectUri,
+      });
+      if (!signInIsCurrent()) return;
+      client.setDesktopSessionToken(token.data.access_token);
+      await get().fetchMe();
+      if (signInIsCurrent()) set({ authBusy: false });
+    } catch (error) {
+      if (signInIsCurrent()) failSignIn(error);
+    }
   },
 
   signOut: async () => {
     logoutInProgress = true;
+    // Fail closed first: the terminal unmounts and every identity-scoped slice
+    // is cleared before the (best-effort) server-side revocation runs.
     invalidateIdentitySession();
-    set(resetIdentityScopedCaches(DEFAULT_MONITORING_SUMMARY));
+    set({
+      ...resetIdentityScopedCaches(DEFAULT_MONITORING_SUMMARY),
+      authNoticeKey: "auth.notice_signed_out",
+      authErrorKey: null,
+    });
     try {
+      // The logout route needs a valid credential, so client-stored auth is
+      // cleared only after the revocation attempt.
       await withAbortTimeout(
         (signal) => api.logout({ signal }),
         DEFAULT_LOGOUT_TIMEOUT_MS,
@@ -907,8 +1051,9 @@ export const useApiStore = create<ApiState>((set, get) => ({
       // Server-side session may already be gone; local state is still cleared.
     } finally {
       try {
-        const { clearDesktopSession } = await import("@/api/client");
-        clearDesktopSession();
+        const { clearStoredAuth } = await import("@/api/client");
+        clearStoredAuth();
+        set({ authState: UNAUTHENTICATED_AUTH_STATE, authBusy: false });
       } finally {
         logoutInProgress = false;
       }
@@ -917,6 +1062,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
 
   refreshMonitoring: async () => {
     if (logoutInProgress) return;
+    if (!isIdentityGateOpen(get().authState)) return;
     const refresh = readRefreshCoordinator.monitoring.tryStart();
     if (!refresh) return;
     const refreshGeneration = readRefreshCoordinator.currentGeneration();

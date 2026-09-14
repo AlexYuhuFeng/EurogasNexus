@@ -60,6 +60,21 @@ export function saveApiAuth(token: string, principal: string): void {
   }
 }
 
+/**
+ * Drop every client-held credential: the stored API token, the stored operator
+ * principal and the in-memory desktop session/CSRF token. Preferences without
+ * secrets (theme, language, map tiles, API base URL) are deliberately kept.
+ */
+export function clearStoredAuth(): void {
+  clearDesktopSession();
+  try {
+    localStorage.removeItem(API_TOKEN_STORAGE_KEY);
+    localStorage.removeItem(PRINCIPAL_STORAGE_KEY);
+  } catch {
+    // storage unavailable: nothing stored can survive this call
+  }
+}
+
 export function authHeaders(): Record<string, string> {
   const headers: Record<string, string> = {};
   const token = desktopSessionToken || configuredApiToken();
@@ -148,6 +163,31 @@ export async function hydrateApiBaseUrlFromDesktopDeployment(): Promise<string> 
   }
 }
 
+export function desktopShellDetected(): boolean {
+  /** Whether the workspace runs inside the Tauri desktop shell. */
+
+  return isDesktopShell;
+}
+
+export async function notifyDesktopClientReady(): Promise<void> {
+  /**
+   * Tell the desktop shell that identity resolution finished, so it can reveal
+   * the main window. The shell keeps its splashscreen until then, which keeps
+   * the terminal hidden from an unauthenticated visitor during startup.
+   *
+   * Browser deployments and shells without the command are ignored: the Web
+   * workspace must stay usable when the native side is absent.
+   */
+
+  if (!isDesktopShell) return;
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    await invoke("notify_client_ready");
+  } catch {
+    // No shell, or a shell that predates the command: nothing to report.
+  }
+}
+
 function apiUrl(path: string): string {
   return apiUrlForBase(configuredApiBaseUrl(), path);
 }
@@ -211,9 +251,20 @@ function errorDetail(payload: unknown, fallback: string): string {
   const detail = (payload as { detail: unknown }).detail;
   if (typeof detail === "string") return detail;
   if (detail && typeof detail === "object") {
-    const structured = detail as { message?: unknown; code?: unknown };
-    if (typeof structured.message === "string") return structured.message;
-    if (typeof structured.code === "string") return structured.code;
+    // The backend error envelope carries a machine code and a human message; the
+    // code is surfaced first so the UI can localise it, the message stays visible
+    // as the explanation. Auth failures report the code under `error`.
+    const structured = detail as { message?: unknown; code?: unknown; error?: unknown };
+    const message = typeof structured.message === "string" ? structured.message : "";
+    const code =
+      typeof structured.code === "string"
+        ? structured.code
+        : typeof structured.error === "string"
+          ? structured.error
+          : "";
+    if (code && message) return `${code} — ${message}`;
+    if (code) return code;
+    if (message) return message;
   }
   return fallback;
 }
@@ -1648,6 +1699,9 @@ export const api = {
 
   me: (options?: ApiRequestOptions) => get<CurrentUserDTO>("/me", undefined, options),
   authStatus: () => get<AuthStatusDTO>("/auth/status"),
+  /** Development-only credential login; the backend sets the session cookie. */
+  login: (username: string, password: string) =>
+    post<DevLoginIdentityDTO>("/dev/auth/login", { username, password }),
   logout: (options?: ApiRequestOptions) => post<{ logged_out: boolean }>("/auth/logout", {}, options),
   desktopOidcToken: (body: DesktopOidcTokenInputDTO) =>
     post<DesktopOidcTokenDTO>("/auth/oidc/desktop/token", body),
@@ -1678,7 +1732,24 @@ export interface CurrentUserDTO {
 
 export interface AuthStatusDTO {
   oidc_configured: boolean; session_cookie: boolean;
-  profile: Record<string, unknown> | null;
+  /** Presence-only descriptor of the configured OIDC profile; never a secret. */
+  profile: string | Record<string, unknown> | null;
+  /** True only when the deployment advertises development credential login. */
+  dev_login: boolean;
+}
+
+export interface DevCredentialLoginInputDTO {
+  username: string; password: string;
+}
+
+/**
+ * Successful `POST /api/dev/auth/login` payload. Development deployments only -
+ * the credential is validated by the backend and the session cookie it returns
+ * is what carries authority, never this response.
+ */
+export interface DevLoginIdentityDTO {
+  authenticated: boolean; principal_id: string; display_name: string;
+  role: string; permissions: string[];
 }
 
 export interface DesktopOidcLoginInputDTO {

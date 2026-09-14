@@ -1,4 +1,5 @@
 import { NetworkWorkspace } from "@/components/NetworkWorkspace";
+import { SignInScreen } from "@/components/SignInScreen";
 import { WorkspaceTopBar } from "@/components/WorkspaceTopBar";
 import type { AppController } from "@/app/hooks/useAppController";
 import { WorkspaceRenderer } from "@/app/workspaces/WorkspaceRenderer";
@@ -48,6 +49,28 @@ export function AppShell({ controller }: AppShellProps) {
           </button>
         </div>
       </div>
+    );
+  }
+
+  // Authentication-first entry: the terminal, its panels and every protected
+  // read stay unmounted until the backend confirms the identity. This holds on
+  // reload, on deep links and after history navigation, because the store's
+  // authState - not the URL - decides what may mount.
+  if (api.authState !== "authenticated") {
+    return (
+      <SignInScreen
+        t={t}
+        authState={api.authState}
+        authStatus={api.authStatus}
+        authErrorKey={api.authErrorKey}
+        authNoticeKey={api.authNoticeKey}
+        authBusy={api.authBusy}
+        language={i18n.language}
+        onLanguageChange={(language) => void i18n.changeLanguage(language)}
+        onOidcSignIn={() => void api.signIn()}
+        onDevLogin={(username, password) => void api.login(username, password)}
+        onRetryIdentity={() => void api.bootstrapIdentity()}
+      />
     );
   }
 

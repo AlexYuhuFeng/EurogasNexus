@@ -6,6 +6,7 @@ import { usePortfolioDecisionModel } from "@/app/model/usePortfolioDecisionModel
 import { useCockpitControls } from "./useCockpitControls";
 import { useContractEditor } from "./useContractEditor";
 import { useGlossaryExplorer } from "./useGlossaryExplorer";
+import { useIdentitySignal } from "./useIdentitySignal";
 import { useReviewAnalysis } from "./useReviewAnalysis";
 import { useSourceCenterController } from "./useSourceCenterController";
 import { useWorkspaceNavigation } from "./useWorkspaceNavigation";
@@ -21,9 +22,14 @@ export function useAppController() {
   const controls = useCockpitControls();
   const contractEditor = useContractEditor(t);
 
+  // Identity resolution is published for the desktop shell (window signal).
+  useIdentitySignal(api.authState, api.currentUser?.principal_id ?? null);
+
   useWorkspaceRuntime({
+    authState: api.authState,
     activeWorkspace: navigation.activeWorkspace,
     streamingActive: api.streamingActive,
+    bootstrapIdentity: api.bootstrapIdentity,
     fetchWorkspace: api.fetchWorkspace,
     refreshMarketData: api.refreshMarketData,
     refreshMonitoring: api.refreshMonitoring,

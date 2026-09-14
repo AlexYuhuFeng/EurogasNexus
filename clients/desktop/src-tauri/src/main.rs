@@ -6,6 +6,7 @@ use std::{
     net::TcpListener,
     path::PathBuf,
     process::Command,
+    sync::mpsc::{self, Sender},
     sync::Mutex,
     thread,
     time::Duration,
@@ -13,6 +14,11 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 use tauri::Manager;
+
+/// Upper bound for waiting on the Web workspace readiness signal. A backend that
+/// cannot be reached must still reveal the sign-in screen instead of trapping the
+/// user on the splashscreen.
+const CLIENT_READY_FALLBACK: Duration = Duration::from_secs(15);
 
 #[derive(Debug, Deserialize, Serialize)]
 struct DeploymentConfig {
@@ -60,6 +66,30 @@ fn read_deployment_config() -> Result<Option<DeploymentConfig>, String> {
 struct LoopbackAuthState {
     listener: Mutex<Option<TcpListener>>,
     redirect_uri: Mutex<Option<String>>,
+}
+
+/// One-shot readiness signal from the shared Web workspace.
+///
+/// The desktop shell keeps the splashscreen in front until the Web app reports
+/// that it has resolved identity - which includes rendering the sign-in screen -
+/// so the terminal and its protected panels are never shown to an unauthenticated
+/// visitor during startup.
+#[derive(Default)]
+struct ClientReadiness {
+    sender: Mutex<Option<Sender<()>>>,
+}
+
+#[tauri::command]
+fn notify_client_ready(state: tauri::State<'_, ClientReadiness>) -> Result<(), String> {
+    let guard = state
+        .sender
+        .lock()
+        .map_err(|error| format!("client readiness lock poisoned: {error}"))?;
+    if let Some(sender) = guard.as_ref() {
+        // A closed receiver means the fallback already revealed the window.
+        let _ = sender.send(());
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -167,10 +197,12 @@ Connection: close
 fn main() {
     tauri::Builder::default()
         .manage(LoopbackAuthState::default())
+        .manage(ClientReadiness::default())
         .invoke_handler(tauri::generate_handler![
             read_deployment_config,
             start_loopback_auth,
-            open_browser_login_and_wait
+            open_browser_login_and_wait,
+            notify_client_ready
         ])
         .setup(|app| {
             let main_window = app
@@ -178,10 +210,19 @@ fn main() {
                 .expect("main window is configured");
             let splashscreen = app
                 .get_webview_window("splashscreen")
-                .expect("splashscreen window is configured");
+                .expect("splashscreen is configured");
+
+            let (sender, receiver) = mpsc::channel::<()>();
+            *app.state::<ClientReadiness>()
+                .sender
+                .lock()
+                .expect("client readiness state is available") = Some(sender);
 
             tauri::async_runtime::spawn(async move {
-                thread::sleep(Duration::from_millis(1200));
+                // Wait for the Web workspace to report identity resolution (the
+                // sign-in screen counts), then reveal it. The bounded fallback keeps
+                // an unreachable backend from trapping the user on the splashscreen.
+                let _ = receiver.recv_timeout(CLIENT_READY_FALLBACK);
                 let _ = main_window.show();
                 let _ = main_window.set_focus();
                 let _ = splashscreen.close();

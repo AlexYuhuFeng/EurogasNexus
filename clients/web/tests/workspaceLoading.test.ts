@@ -1,15 +1,20 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  AUTHENTICATED_AUTH_STATE,
   commitWorkspaceLoad,
   IdentityReadCoordinator,
   identityDeniedWorkspaceReset,
   isIdentityDeniedMessage,
+  isIdentityGateOpen,
+  isIdentitySessionLostMessage,
   loadWorkspaceEndpoint,
   loadWorkspaceEndpoints,
   ReadRefreshLane,
   ReadRefreshCoordinator,
   resetIdentityScopedCaches,
+  UNAUTHENTICATED_AUTH_STATE,
+  UNRESOLVED_AUTH_STATE,
   withAbortTimeout,
   workspaceLoadHasIdentityDenial,
   WorkspaceLoadCoordinator,
@@ -129,6 +134,7 @@ test("identity reset clears rendered data and returns to unavailable loading sta
   assert.equal(reset.currentUser, null);
   assert.equal(reset.loading, false);
   assert.equal(reset.dataStatus, "unavailable");
+  assert.equal(reset.authState, UNAUTHENTICATED_AUTH_STATE);
 });
 
 test("workspace commit clears loading and retains successful runtime and identity slices", () => {
@@ -193,4 +199,52 @@ test("normal endpoint success and one retry remain supported", async () => {
 
   assert.deepEqual(outcome, { ok: true, value: "ok" });
   assert.equal(attempts, 2);
+});
+
+test("the identity gate opens only for a backend-confirmed session", () => {
+  assert.equal(isIdentityGateOpen(UNRESOLVED_AUTH_STATE), false);
+  assert.equal(isIdentityGateOpen(UNAUTHENTICATED_AUTH_STATE), false);
+  assert.equal(isIdentityGateOpen(AUTHENTICATED_AUTH_STATE), true);
+});
+
+test("a 401 fails the session closed while a scope-only 403 keeps it", () => {
+  assert.equal(isIdentitySessionLostMessage("API 401: unauthenticated"), true);
+  assert.equal(isIdentitySessionLostMessage("API 403: forbidden"), false);
+  assert.equal(isIdentityDeniedMessage("API 403: forbidden"), true);
+
+  assert.equal(
+    identityDeniedWorkspaceReset(
+      [
+        {
+          key: "glossaryTerms",
+          outcome: { ok: false, error: { code: "request", message: "API 401: unauthenticated" } },
+        },
+      ],
+      { open_count: 0 },
+    )?.authState,
+    UNAUTHENTICATED_AUTH_STATE,
+  );
+  assert.equal(
+    identityDeniedWorkspaceReset(
+      [
+        {
+          key: "glossaryTerms",
+          outcome: { ok: false, error: { code: "request", message: "API 403: forbidden" } },
+        },
+      ],
+      { open_count: 0 },
+    ),
+    null,
+  );
+});
+
+test("the identity denial transition keeps the historical /me outcome behaviour", () => {
+  assert.equal(workspaceLoadHasIdentityDenial([
+    { key: "referenceNodes", outcome: { ok: true, value: "retained" } },
+    { key: "me", outcome: { ok: false, error: { code: "timeout", message: "Workspace endpoint timed out after 10ms." } } },
+  ]), false);
+  assert.equal(identityDeniedWorkspaceReset([
+    { key: "referenceNodes", outcome: { ok: true, value: "retained" } },
+    { key: "me", outcome: { ok: false, error: { code: "request", message: "API 401: session expired" } } },
+  ], { open_count: 0 })?.authState, UNAUTHENTICATED_AUTH_STATE);
 });

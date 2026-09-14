@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useApiStore } from "@/stores/api";
+import { isIdentityGateOpen } from "@/stores/workspaceLoading";
 import {
   readSelectionContextUrl,
   resolveSelectionContext,
@@ -7,24 +9,41 @@ import {
 import {
   EMPTY_SELECTION_CONTEXT,
   normalizeSelectionId,
+  selectionContextKey,
   type SelectionContext,
 } from "./selectionContext.ts";
 
-function initialSelectionContext(): SelectionContext {
+/**
+ * Route/resource/strategy selection is workspace state: it is restored from the
+ * URL only inside an authenticated session, and reset while identity is
+ * unresolved or denied so a deep link cannot pre-select a protected view.
+ */
+function selectionFromLocation(): SelectionContext {
   if (typeof window === "undefined") return EMPTY_SELECTION_CONTEXT;
+  if (!isIdentityGateOpen(useApiStore.getState().authState)) return EMPTY_SELECTION_CONTEXT;
   return resolveSelectionContext(readSelectionContextUrl(window.location.search));
 }
 
 export function useSelectionContext() {
-  const [selection, setSelection] = useState<SelectionContext>(initialSelectionContext);
+  const authState = useApiStore((state) => state.authState);
+  const [selection, setSelection] = useState<SelectionContext>(
+    () => selectionFromLocation(),
+  );
   const initialUrlSyncRef = useRef(true);
   const skipNextUrlSyncRef = useRef(false);
+  const gateOpen = isIdentityGateOpen(authState);
 
   useEffect(() => {
-    if (skipNextUrlSyncRef.current) {
-      skipNextUrlSyncRef.current = false;
-      return;
-    }
+    const nextSelection = selectionFromLocation();
+    setSelection((current) =>
+      selectionContextKey(current) === selectionContextKey(nextSelection) ? current : nextSelection,
+    );
+  }, [authState]);
+
+  useEffect(() => {
+    const skipUrlWrite = skipNextUrlSyncRef.current;
+    skipNextUrlSyncRef.current = false;
+    if (!gateOpen || skipUrlWrite) return;
     const nextUrl = new URL(window.location.href);
     nextUrl.search = selectionContextToSearchParams(window.location.search, selection);
     if (initialUrlSyncRef.current) {
@@ -33,16 +52,16 @@ export function useSelectionContext() {
     } else {
       window.history.pushState({ selection }, "", nextUrl);
     }
-  }, [selection]);
+  }, [selection, gateOpen]);
 
   useEffect(() => {
     function syncFromUrl() {
       skipNextUrlSyncRef.current = true;
-      setSelection(resolveSelectionContext(readSelectionContextUrl(window.location.search)));
+      setSelection(selectionFromLocation());
     }
     window.addEventListener("popstate", syncFromUrl);
     return () => window.removeEventListener("popstate", syncFromUrl);
-  }, []);
+  }, [authState]);
 
   const setRouteId = useCallback((value: string | null) => {
     setSelection((current) => ({ ...current, routeId: normalizeSelectionId(value) }));

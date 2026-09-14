@@ -5,6 +5,40 @@ export function isIdentityDeniedMessage(message: string): boolean {
   return /^API (401|403)\b/.test(message);
 }
 
+/**
+ * A 401 means no credential reached the backend, so the session itself is gone.
+ * A 403 means the credential is valid but the scope is not, which must not sign
+ * an operator out of an otherwise healthy session.
+ */
+export function isIdentitySessionLostMessage(message: string): boolean {
+  return /^API 401\b/.test(message);
+}
+
+/** Authentication-first entry vocabulary. */
+export type AuthState = "unknown" | "unauthenticated" | "authenticated";
+
+export const UNRESOLVED_AUTH_STATE: AuthState = "unknown";
+export const UNAUTHENTICATED_AUTH_STATE: AuthState = "unauthenticated";
+export const AUTHENTICATED_AUTH_STATE: AuthState = "authenticated";
+
+/**
+ * Identity gate for protected reads. Only a backend-confirmed authenticated
+ * session may issue a workspace, market, monitoring or stream request; unknown
+ * and unauthenticated both fail closed so nothing can race the identity read.
+ */
+export function isIdentityGateOpen(authState: AuthState): boolean {
+  return authState === AUTHENTICATED_AUTH_STATE;
+}
+
+/**
+ * True only once identity resolution finished with a denial. `unknown` means the
+ * backend is still being asked, so a deep link is left untouched (and unmounted)
+ * until the answer arrives.
+ */
+export function isUnauthenticated(authState: AuthState): boolean {
+  return authState === UNAUTHENTICATED_AUTH_STATE;
+}
+
 export type WorkspaceEndpointFailureCode = "timeout" | "aborted" | "request";
 
 export interface WorkspaceEndpointFailure {
@@ -30,8 +64,15 @@ export interface WorkspaceLoadCommit<T> {
   error: string | null;
 }
 
+/**
+ * Clears every identity-scoped slice and returns the session to the sign-in
+ * screen: losing an identity always means "unauthenticated", never "authenticated".
+ * Preferences without secrets (theme, language, map tiles, API base URL) are not
+ * part of this reset.
+ */
 export function resetIdentityScopedCaches<T>(monitoringSummary: T) {
   return {
+    authState: UNAUTHENTICATED_AUTH_STATE,
     nodes: [],
     edges: [],
     sources: [],
@@ -211,7 +252,14 @@ export function workspaceLoadHasIdentityDenial<T>(
   outcomes: Array<{ key: string; outcome: WorkspaceLoaderOutcome<T> }>,
 ): boolean {
   const meOutcome = outcomes.find(({ key }) => key === "me")?.outcome;
-  return Boolean(meOutcome && !meOutcome.ok && isIdentityDeniedMessage(meOutcome.error.message));
+  if (meOutcome && !meOutcome.ok && isIdentityDeniedMessage(meOutcome.error.message)) {
+    return true;
+  }
+  // Identity now resolves before any workspace batch, so a 401 inside a batch
+  // means the session expired mid-session and the client must fail closed.
+  return outcomes.some(
+    ({ outcome }) => !outcome.ok && isIdentitySessionLostMessage(outcome.error.message),
+  );
 }
 
 export function identityDeniedWorkspaceReset<T, S>(

@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useApiStore } from "@/stores/api";
+import { isIdentityGateOpen } from "@/stores/workspaceLoading";
 import { readPersistedTraderContext, writePersistedTraderContext } from "./contextPersistence.ts";
 import {
   readTraderContextUrl,
@@ -10,13 +12,21 @@ import {
   normalizeDeliveryProduct,
   normalizeGasDay,
   normalizeHubId,
+  traderContextKey,
   type DeliveryProductId,
   type SupportedHubId,
   type TraderContext,
 } from "./traderContext.ts";
 
-function initialTraderContext(): TraderContext {
+/**
+ * Trader context mirrors what the operator is looking at, so it may only be
+ * restored from the URL inside an authenticated session. While identity is
+ * unresolved or denied the context resets to defaults and nothing is written
+ * back to history.
+ */
+function contextFromLocation(): TraderContext {
   if (typeof window === "undefined") return DEFAULT_TRADER_CONTEXT;
+  if (!isIdentityGateOpen(useApiStore.getState().authState)) return DEFAULT_TRADER_CONTEXT;
   return resolveTraderContext(
     readTraderContextUrl(window.location.search),
     readPersistedTraderContext(),
@@ -24,16 +34,24 @@ function initialTraderContext(): TraderContext {
 }
 
 export function useTraderContext() {
-  const [context, setContext] = useState<TraderContext>(initialTraderContext);
+  const authState = useApiStore((state) => state.authState);
+  const [context, setContext] = useState<TraderContext>(() => contextFromLocation());
   const initialUrlSyncRef = useRef(true);
   const skipNextUrlSyncRef = useRef(false);
+  const gateOpen = isIdentityGateOpen(authState);
 
   useEffect(() => {
+    const nextContext = contextFromLocation();
+    setContext((current) =>
+      traderContextKey(current) === traderContextKey(nextContext) ? current : nextContext,
+    );
+  }, [authState]);
+
+  useEffect(() => {
+    const skipUrlWrite = skipNextUrlSyncRef.current;
+    skipNextUrlSyncRef.current = false;
+    if (!gateOpen || skipUrlWrite) return;
     writePersistedTraderContext(context);
-    if (skipNextUrlSyncRef.current) {
-      skipNextUrlSyncRef.current = false;
-      return;
-    }
     const nextUrl = new URL(window.location.href);
     nextUrl.search = traderContextToSearchParams(window.location.search, context);
     if (initialUrlSyncRef.current) {
@@ -42,21 +60,16 @@ export function useTraderContext() {
     } else {
       window.history.pushState({ traderContext: context }, "", nextUrl);
     }
-  }, [context]);
+  }, [context, gateOpen]);
 
   useEffect(() => {
     function syncFromUrl() {
       skipNextUrlSyncRef.current = true;
-      setContext(
-        resolveTraderContext(
-          readTraderContextUrl(window.location.search),
-          readPersistedTraderContext(),
-        ),
-      );
+      setContext(contextFromLocation());
     }
     window.addEventListener("popstate", syncFromUrl);
     return () => window.removeEventListener("popstate", syncFromUrl);
-  }, []);
+  }, [authState]);
 
   const setGasDay = useCallback((value: string) => {
     setContext((current) => ({
