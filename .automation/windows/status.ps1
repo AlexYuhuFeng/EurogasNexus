@@ -1,0 +1,1 @@
+$Repo=(Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path;python (Join-Path $Repo '.automation\scripts\status.py');Get-ScheduledTask -TaskName 'EurogasNexus-Codex-Autonomous' -ErrorAction SilentlyContinue|Format-List TaskName,State
