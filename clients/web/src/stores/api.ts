@@ -132,6 +132,17 @@ function isIdentityDenied(error: unknown): boolean {
   return error instanceof Error && isIdentityDeniedMessage(error.message);
 }
 
+/**
+ * User-triggered follow-up reads answer a question asked by one identity, so a
+ * response may only be written back while that identity is still the current
+ * one. A sign-out or a sign-in as another principal invalidates the generation;
+ * a late response from the previous generation is dropped rather than written
+ * into a shell that no longer represents it.
+ */
+function followUpReadIsCurrent(generation: number): boolean {
+  return !logoutInProgress && identityReadCoordinator.isCurrent(generation);
+}
+
 function mergeMarketQuotes(
   current: MarketQuoteDTO[],
   incoming: MarketQuoteDTO[],
@@ -1205,6 +1216,8 @@ export const useApiStore = create<ApiState>((set, get) => ({
   },
 
   analyzeMonitoringAlert: async (alertId, question, language) => {
+    if (logoutInProgress) return;
+    const requestGeneration = identityReadCoordinator.capture();
     set({ monitoringBusyAlertId: alertId });
     try {
       const result = await api.analyzeMonitoringAlert(alertId, {
@@ -1212,6 +1225,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
         language,
         model: "deepseek-v4-flash",
       });
+      if (!followUpReadIsCurrent(requestGeneration)) return;
       set((state) => ({
         monitoringAnalysisByAlert: {
           ...state.monitoringAnalysisByAlert,
@@ -1220,6 +1234,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
         monitoringBusyAlertId: null,
       }));
     } catch (e) {
+      if (!followUpReadIsCurrent(requestGeneration)) return;
       set({ error: String(e), monitoringBusyAlertId: null });
     }
   },
@@ -1319,32 +1334,47 @@ export const useApiStore = create<ApiState>((set, get) => ({
   },
 
   fetchGlossaryContext: async (term, params) => {
+    if (logoutInProgress) return;
+    const requestGeneration = identityReadCoordinator.capture();
     set({ loading: true, error: null });
     try {
       const result = await api.glossaryContext(term, params);
+      if (!followUpReadIsCurrent(requestGeneration)) return;
       set({ glossaryContext: result.data, meta: result.meta, loading: false });
     } catch (e) {
-      set({ error: String(e), loading: false });
+      if (followUpReadIsCurrent(requestGeneration)) {
+        set({ error: String(e), loading: false });
+      }
     }
   },
 
   askAnalysis: async (body) => {
+    if (logoutInProgress) return;
+    const requestGeneration = identityReadCoordinator.capture();
     set({ loading: true, error: null });
     try {
       const result = await api.analysisQuery(body);
+      if (!followUpReadIsCurrent(requestGeneration)) return;
       set({ analysisResult: result.data, meta: result.meta, loading: false });
     } catch (e) {
-      set({ error: String(e), loading: false });
+      if (followUpReadIsCurrent(requestGeneration)) {
+        set({ error: String(e), loading: false });
+      }
     }
   },
 
   generatePortfolioReport: async (body) => {
+    if (logoutInProgress) return;
+    const requestGeneration = identityReadCoordinator.capture();
     set({ loading: true, error: null });
     try {
       const result = await api.portfolioReport(body);
+      if (!followUpReadIsCurrent(requestGeneration)) return;
       set({ analysisResult: result.data, meta: result.meta, loading: false });
     } catch (e) {
-      set({ error: String(e), loading: false });
+      if (followUpReadIsCurrent(requestGeneration)) {
+        set({ error: String(e), loading: false });
+      }
     }
   },
 }));
