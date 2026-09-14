@@ -24,6 +24,13 @@ import {
   saveMapTileProvider,
   saveMapTileToken,
 } from "@/app/mapTileProviders";
+import {
+  DEFAULT_MARKET_VIEW_PREFERENCE,
+  normalizeMarketViewPreference,
+  readMarketViewPreference,
+  writeMarketViewPreference,
+  type MarketViewPreferenceId,
+} from "@/app/context";
 import type { ThemeMode } from "@/stores/theme";
 
 type Translate = (key: string) => string;
@@ -38,6 +45,12 @@ interface SettingsPreferences {
   session_timezone: string;
   map_density: string;
   refresh_profile: string;
+  /**
+   * Per-user default market view (numeric `curves` or map `network`). The
+   * principal-scoped store in app/context/viewPreference.ts stays authoritative;
+   * this field keeps the settings preference object complete and explicit.
+   */
+  market_default_view: string;
 }
 
 type ApiConnectionState =
@@ -48,6 +61,8 @@ interface SettingsCenterProps {
   t: Translate;
   language: string;
   mode: ThemeMode;
+  /** Authenticated principal whose market view preference is being edited. */
+  principalId: string | null;
   dataStatus: string;
   runtimeDb: RuntimeDbStatusDTO | null;
   runtimeRelease: RuntimeReleaseDTO | null;
@@ -73,6 +88,7 @@ const defaultPreferences: SettingsPreferences = {
   session_timezone: "Europe/London",
   map_density: "balanced",
   refresh_profile: "manual_review",
+  market_default_view: DEFAULT_MARKET_VIEW_PREFERENCE,
 };
 
 function readStoredPreferences(): SettingsPreferences {
@@ -95,6 +111,7 @@ export function SettingsCenter({
   t,
   language,
   mode,
+  principalId,
   dataStatus,
   runtimeDb,
   runtimeRelease,
@@ -108,6 +125,9 @@ export function SettingsCenter({
   onBackendBaseChanged,
 }: SettingsCenterProps) {
   const [preferences, setPreferences] = useState<SettingsPreferences>(() => readStoredPreferences());
+  const [marketView, setMarketView] = useState<MarketViewPreferenceId>(
+    () => readMarketViewPreference(principalId) ?? DEFAULT_MARKET_VIEW_PREFERENCE,
+  );
   const [apiBaseUrl, setApiBaseUrl] = useState(() => configuredApiBaseUrl());
   const [apiToken, setApiToken] = useState(() => configuredApiToken());
   const [operatorPrincipal, setOperatorPrincipal] = useState(() => configuredOperatorPrincipal());
@@ -126,8 +146,27 @@ export function SettingsCenter({
     setApiBaseUrl(configuredApiBaseUrl());
   }, [dataStatus]);
 
+  // The principal-scoped view preference is authoritative; mirror it into the
+  // settings preference object so the two never drift.
+  useEffect(() => {
+    const stored = readMarketViewPreference(principalId) ?? DEFAULT_MARKET_VIEW_PREFERENCE;
+    setMarketView(stored);
+    setPreferences((current) =>
+      current.market_default_view === stored
+        ? current
+        : { ...current, market_default_view: stored },
+    );
+  }, [principalId]);
+
   const updatePreference = (key: keyof SettingsPreferences, value: string) => {
     setPreferences((current) => ({ ...current, [key]: value }));
+  };
+
+  const updateMarketView = (value: string) => {
+    const view = normalizeMarketViewPreference(value);
+    setMarketView(view);
+    writeMarketViewPreference(principalId, view);
+    updatePreference("market_default_view", view);
   };
 
   const configuredCredentials = credentialProviders.filter((provider) => provider.configured).length;
@@ -374,6 +413,14 @@ export function SettingsCenter({
             <option value="within_day">{t("settings.price_basis_within_day")}</option>
             <option value="month_ahead">{t("settings.price_basis_month_ahead")}</option>
           </select>
+        </label>
+        <label>
+          {t("settings.market_default_view")}
+          <select value={marketView} onChange={(event) => updateMarketView(event.target.value)}>
+            <option value="curves">{t("market.view.numeric")}</option>
+            <option value="network">{t("market.view.map")}</option>
+          </select>
+          <small>{t("settings.market_default_view_help")}</small>
         </label>
       </div>
 

@@ -211,6 +211,7 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
           t={t}
           language={i18n.language}
           mode={theme.mode}
+          principalId={api.currentUser?.principal_id ?? null}
           dataStatus={api.dataStatus}
           runtimeDb={api.runtimeDb}
           runtimeRelease={api.runtimeRelease}

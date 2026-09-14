@@ -25,8 +25,12 @@ test("consolidated headers expose the primary workspace and actual task labels",
 });
 
 test("initial, deep-link, and history task locations resolve the labels used by headers", () => {
-  assert.equal(marketTaskFromLocation("", "market"), "overview");
+  // The market primary lands on the numeric view; `overview` needs `?task=`.
+  assert.equal(marketTaskFromLocation("", "market"), "curves");
+  assert.equal(marketTaskFromLocation("?workspace=market", "market"), "curves");
+  assert.equal(marketTaskFromLocation("?workspace=market&task=overview", "market"), "overview");
   assert.equal(marketTaskFromLocation("?workspace=market&task=network", "market"), "network");
+  assert.equal(marketTaskFromLocation("?workspace=network", "network"), "network");
   assert.equal(portfolioTaskFromLocation(""), "overview");
   assert.equal(portfolioTaskFromLocation("?workspace=contracts&task=exposure"), "exposure");
   assert.equal(decisionTaskFromLocation("?workspace=scenario&task=optimize"), "optimize");

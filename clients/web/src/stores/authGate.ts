@@ -199,6 +199,28 @@ export function credentialFreeEntryUrl(href: string): string {
   return next.toString();
 }
 
+/**
+ * Whether an unauthenticated entry must drop its protected context.
+ *
+ * Only a finished denial qualifies: an explicit sign-out (notice) or a session
+ * that was lost while in use (error). A plain anonymous visit keeps its
+ * `?workspace=`/`?task=` because nothing is mounted while the gate is closed,
+ * and the requested deep link is then honoured once sign-in succeeds instead of
+ * silently dropping the visitor on the default landing page.
+ */
+export function shouldScrubEntryUrl(
+  authState: AuthState,
+  authErrorKey: string | null,
+  authNoticeKey: string | null,
+): boolean {
+  if (isIdentityGateOpen(authState)) return false;
+  if (authState === UNAUTHENTICATED_AUTH_STATE) {
+    return Boolean(authErrorKey || authNoticeKey);
+  }
+  // Unresolved identity: still checking, so nothing has been denied yet.
+  return false;
+}
+
 export const IDENTITY_SIGNAL_NAME = "eurogas:identity";
 
 /**

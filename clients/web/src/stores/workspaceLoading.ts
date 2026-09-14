@@ -159,6 +159,19 @@ function isAbortError(error: unknown): boolean {
     : error instanceof Error && error.name === "AbortError";
 }
 
+/**
+ * Message of a failed endpoint read.
+ *
+ * `String(error)` prefixes an Error with "Error: ", which breaks every consumer
+ * that classifies the message by its "API <status>:" prefix - the identity gate
+ * reads a 401 as an unreachable backend instead of an anonymous visit. Use the
+ * error's own message and fall back to the string form only for non-Errors.
+ */
+function loadErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return String(error);
+}
+
 export async function loadWorkspaceEndpoint<T>(
   loader: WorkspaceLoader<T>,
   { signal: parentSignal, retries = 1, timeoutMs = DEFAULT_WORKSPACE_READ_TIMEOUT_MS }: WorkspaceLoadOptions = {},
@@ -191,7 +204,7 @@ export async function loadWorkspaceEndpoint<T>(
         return { ok: false, error: { code: "aborted", message: "Workspace load was superseded." } };
       }
       if (attempt >= retries) {
-        return { ok: false, error: { code: "request", message: String(error) } };
+        return { ok: false, error: { code: "request", message: loadErrorMessage(error) } };
       }
       await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)));
     } finally {

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { WorkspaceHeader } from "@/components/ui";
+import { useMarketViewPreference } from "@/app/context";
 import { CapacityWorkspace } from "@/components/CapacityWorkspace";
 import { MarketTerminal } from "@/components/MarketTerminal";
 import { NetworkWorkspace } from "@/components/NetworkWorkspace";
@@ -11,7 +12,6 @@ import "./market-cockpit.css";
 import {
   MAJOR_MARKET_HUBS as MAJOR_HUBS,
   MARKET_TASKS,
-  marketTaskFromLocation,
   type MarketTask,
 } from "@/app/model/marketCockpitModel";
 
@@ -249,14 +249,21 @@ function MarketOverview({ controller }: MarketOverviewProps) {
 export function MarketCockpit({ controller }: { controller: AppController }) {
   const { navigation, t, api, theme, portfolio, traderContext, controls, selection } = controller;
   const activeWorkspace = navigation.activeWorkspace;
-  const [task, setTask] = useState<MarketTask>(() => marketTaskFromLocation(window.location.search, activeWorkspace));
-
-  useEffect(() => {
-    setTask(marketTaskFromLocation(window.location.search, navigation.activeWorkspace));
-  }, [navigation.locationRevision, navigation.activeWorkspace]);
+  // The landing task is the authenticated user's persisted view preference:
+  // URL task > persisted view > numeric default. The numeric (`curves`) and map
+  // (`network`) views stay separate tasks, the fused `overview` dashboard is
+  // only ever reached by an explicit URL task or tab choice, and switching
+  // between the two views keeps gas-day, product, hub and selection context
+  // because every switch is a workspace/task URL update that preserves the
+  // other query keys.
+  const { task, rememberTask } = useMarketViewPreference({
+    search: window.location.search,
+    activeWorkspace,
+    principalId: api.currentUser?.principal_id,
+  });
 
   const openTask = (next: MarketTask) => {
-    setTask(next);
+    rememberTask(next);
     navigation.openWorkspace("market", next);
   };
 

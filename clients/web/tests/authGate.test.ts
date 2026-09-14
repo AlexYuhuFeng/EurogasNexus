@@ -7,8 +7,10 @@ import {
   UNAUTHENTICATED_AUTH_STATE,
   UNRESOLVED_AUTH_STATE,
   identityDeniedWorkspaceReset,
+  isIdentityDeniedMessage,
   isIdentityGateOpen,
   isUnauthenticated,
+  loadWorkspaceEndpoint,
   resetIdentityScopedCaches,
   workspaceLoadHasIdentityDenial,
 } from "../src/stores/workspaceLoading.ts";
@@ -25,6 +27,7 @@ import {
   identitySignalPayload,
   oidcSignInErrorKey,
   resolveIdentity,
+  shouldScrubEntryUrl,
 } from "../src/stores/authGate.ts";
 import {
   SELECTION_CONTEXT_QUERY_KEYS,
@@ -271,6 +274,66 @@ test("an unauthenticated entry URL is rewritten without protected context", () =
   assert.equal(new URL(scrubbed).pathname, "/terminal");
 });
 
+test("a cold anonymous visit keeps its deep link while a lost session drops it", () => {
+  // A plain anonymous visit: no error, no notice - the URL must survive so the
+  // requested deep link is honoured after sign-in.
+  assert.equal(shouldScrubEntryUrl(UNAUTHENTICATED_AUTH_STATE, null, null), false);
+  // A session that was lost while in use, and an explicit sign-out, both scrub.
+  assert.equal(
+    shouldScrubEntryUrl(UNAUTHENTICATED_AUTH_STATE, "auth.error_session_expired", null),
+    true,
+  );
+  assert.equal(
+    shouldScrubEntryUrl(UNAUTHENTICATED_AUTH_STATE, null, "auth.notice_signed_out"),
+    true,
+  );
+  // An authenticated session and an unresolved check never scrub.
+  assert.equal(shouldScrubEntryUrl(AUTHENTICATED_AUTH_STATE, null, null), false);
+  assert.equal(shouldScrubEntryUrl(UNRESOLVED_AUTH_STATE, null, null), false);
+
+  // The navigation hook must use that decision rather than scrubbing on any
+  // unauthenticated state.
+  const navigation = source("app/hooks/useWorkspaceNavigation.ts");
+  assert.match(navigation, /shouldScrubEntryUrl\(authState, authErrorKey, authNoticeKey\)/);
+});
+
+test("a real 401 through the endpoint loader reads as an anonymous visit", async () => {
+  // Regression guard: the loader used to build its message with String(error),
+  // which prefixes "Error: " and made every "API 401:" classifier miss - a cold
+  // visit was then reported as an unreachable backend instead of a plain
+  // sign-in, and the entry URL lost its deep link.
+  const denied = await loadWorkspaceEndpoint<never>(
+    () => {
+      throw new Error("API 401: unauthenticated — No authenticated identity was presented.");
+    },
+    { retries: 0 },
+  );
+
+  assert.equal(denied.ok, false);
+  assert.ok(!denied.ok);
+  assert.match(denied.error.message, /^API 401\b/);
+  assert.equal(isIdentityDeniedMessage(denied.error.message), true);
+  assert.deepEqual(resolveIdentity(denied), {
+    authState: UNAUTHENTICATED_AUTH_STATE,
+    failureReason: "identity_absent",
+  });
+  // A cold anonymous visit therefore shows no error banner and keeps its URL.
+  assert.equal(identityFailureKey("identity_absent"), null);
+  assert.equal(shouldScrubEntryUrl(UNAUTHENTICATED_AUTH_STATE, null, null), false);
+
+  const unreachable = await loadWorkspaceEndpoint<never>(
+    () => {
+      throw new TypeError("Failed to fetch");
+    },
+    { retries: 0 },
+  );
+  assert.ok(!unreachable.ok);
+  assert.deepEqual(resolveIdentity(unreachable), {
+    authState: UNAUTHENTICATED_AUTH_STATE,
+    failureReason: "identity_unreachable",
+  });
+});
+
 test("the scrubbed entry URL covers workspace, trader and selection context keys", () => {
   const covered = new Set(PROTECTED_CONTEXT_QUERY_KEYS);
   for (const key of Object.values(TRADER_CONTEXT_QUERY_KEYS)) assert.equal(covered.has(key), true, key);
@@ -361,7 +424,7 @@ test("navigation and context restore nothing protected while unauthenticated", (
 
   assert.match(navigation, /export function workspaceFromLocation\(\): WorkspacePageId \{/);
   assert.match(navigation, /if \(!isIdentityGateOpen\(useApiStore\.getState\(\)\.authState\)\)/);
-  assert.match(navigation, /if \(!isUnauthenticated\(authState\)\) return;/);
+  assert.match(navigation, /if \(!shouldScrubEntryUrl\(authState, authErrorKey, authNoticeKey\)\) return;/);
   assert.match(navigation, /credentialFreeEntryUrl\(window\.location\.href\)/);
   assert.match(navigation, /window\.history\.replaceState\(window\.history\.state, "", nextUrl\)/);
   assert.match(trader, /export function useTraderContext\(\) \{/);
