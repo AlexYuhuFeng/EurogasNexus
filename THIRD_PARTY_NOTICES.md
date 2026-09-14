@@ -459,15 +459,15 @@ machine-readable license expression for that package.
 
 ## python-runtime
 
-- alembic 1.19.1 (NOASSERTION)
+- alembic 1.20.0 (NOASSERTION)
 - annotated-doc 0.0.5 (NOASSERTION)
 - annotated-types 0.8.0 (NOASSERTION)
-- anyio 4.15.0 (NOASSERTION)
+- anyio 4.15.1 (NOASSERTION)
 - asn1crypto 1.5.1 (NOASSERTION)
 - certifi 2026.7.22 (NOASSERTION)
 - cffi 2.1.1 (NOASSERTION)
 - click 8.5.0 (NOASSERTION)
-- cryptography 45.0.7 (NOASSERTION)
+- cryptography 50.0.1 (NOASSERTION)
 - fastapi 0.141.1 (NOASSERTION)
 - greenlet 3.5.5 (NOASSERTION)
 - h11 0.16.0 (NOASSERTION)
@@ -487,7 +487,7 @@ machine-readable license expression for that package.
 - starlette 1.6.0 (NOASSERTION)
 - typing-extensions 4.16.0 (NOASSERTION)
 - typing-inspection 0.4.4 (NOASSERTION)
-- tzdata 2026.3 (NOASSERTION)
+- tzdata 2026.4 (NOASSERTION)
 - uvicorn 0.52.4 (NOASSERTION)
 
 ## web-node
