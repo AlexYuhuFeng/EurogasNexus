@@ -17,6 +17,48 @@ PostgreSQL identities and service API keys remain supported.
 | Legacy deployment | `X-Eurogas-Api-Key` without identity header remains an OPERATOR service principal |
 | Private-network posture | Unchanged until security acceptance |
 
+## Unauthenticated is a real state
+
+`GET /api/me` returns 401 `unauthenticated` when the request presented no
+credential at all (no `X-Eurogas-Identity`, no `X-Eurogas-Oidc-Access-Token`,
+no `eurogas_session` cookie). The legacy OPERATOR service principal is still
+attached for SDK/CLI compatibility when the release profile verified the static
+deployment API token, and for any validated identity key, OIDC token, or
+backend session, so existing integrations are unaffected.
+
+## Development credential login (development profile only)
+
+`POST /api/dev/auth/login` exists **only** in the development route profile; the
+internal and release profiles do not register the route, so it cannot be reached
+there. `GET /api/auth/status` reports `dev_login` as true only when the route is
+mounted *and* the credential pair is configured.
+
+```text
+EUROGAS_NEXUS_DEV_LOGIN_USERNAME=<existing ACTIVE principal name or email>
+EUROGAS_NEXUS_DEV_LOGIN_PASSWORD=<development-only secret>
+```
+
+- Unset credentials: 503 `dev_login_disabled` (fail-closed).
+- Wrong username or password: 401 `invalid_credentials` (constant-time compare).
+- Credentials match but no ACTIVE local principal has that username/email:
+  403 `identity_not_provisioned`.
+- Success: the same backend `eurogas_session` cookie as the OIDC flow, plus an
+  `authenticated: true` capability envelope.
+
+This endpoint never creates, approves, or elevates a principal, and never grants
+a role or data scope of its own. Never set these variables in a trial or release
+deployment.
+
+## Registration never auto-approves
+
+Just-in-time provisioning (`EUROGAS_NEXUS_OIDC_PROVISIONING_MODE=approved_domain`)
+registers an unknown approved-domain identity with status `PENDING`; the first
+SSO login is rejected with `identity_pending_approval` instead of receiving a
+session. An administrator must activate the principal (`status = "ACTIVE"`)
+before that identity can authenticate. Pre-provisioned identities that are
+already `ACTIVE` are unaffected. Registration is therefore never approval: no
+first login auto-grants terminal access.
+
 ## Internal administration
 
 All routes below require `X-Eurogas-Internal-Token` and a valid
@@ -82,7 +124,9 @@ python scripts/ops/prune_audit_events.py --retention-days 365 --commit
 
 ## Remaining scope
 
-- SAML and password lifecycle remain out of scope.
+- SAML and a production password lifecycle remain out of scope. The
+  development credential login stores no password in the database and is not a
+  substitute for SSO.
 - Live enterprise IdP acceptance is deployment-specific and not claimed from
   local cryptographic fixtures.
 - Security acceptance and removal of the private-network/VPN-only posture.

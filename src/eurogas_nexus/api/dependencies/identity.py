@@ -1,10 +1,16 @@
 """FastAPI dependency that resolves the authenticated R32 identity.
 
 Release profile only. ``X-Eurogas-Identity`` carries a DB-backed bearer key.
-When the header is absent, the already-verified public API token maps to the
-legacy single-trust-domain service principal so existing SDK/Web deployments
-do not break. The resolved principal is attached to ``request.state.identity``
-for route-permission and row-entitlement enforcement.
+When no credential at all is presented (no identity header, no OIDC access
+token, no session cookie), the already-verified public API token maps to the
+legacy single-trust-domain service principal so existing SDK/Web deployments do
+not break, but the request is explicitly marked
+``request.state.identity_authenticated = False``: attaching a compatibility
+principal is not the same thing as authenticating a caller. Routes that must
+distinguish the two (``GET /api/me``) read that flag.
+
+The resolved principal is attached to ``request.state.identity`` for
+route-permission and row-entitlement enforcement.
 """
 
 from __future__ import annotations
@@ -24,31 +30,62 @@ from eurogas_nexus.security.oidc import (
 )
 
 OIDC_ACCESS_TOKEN_HEADER = "X-Eurogas-Oidc-Access-Token"
+SESSION_COOKIE = "eurogas_session"
+# Set by ``require_public_api_auth`` once the static deployment token verified.
+PUBLIC_TOKEN_VERIFIED_FLAG = "public_api_token_verified"
+IDENTITY_AUTHENTICATED_FLAG = "identity_authenticated"
 
 
 async def require_identity(request: Request) -> None:
-    """Resolve and attach the authenticated principal for this request."""
+    """Resolve and attach the authenticated principal for this request.
+
+    ``request.state.identity_authenticated`` records whether a *real*
+    credential (DB identity key, OIDC access token, or backend session cookie)
+    was presented and validated. It stays ``False`` when no credential at all
+    is presented, even though the legacy service principal is still attached
+    for SDK/CLI compatibility.
+    """
 
     bearer = request.headers.get(IDENTITY_HEADER)
     oidc_token = request.headers.get(OIDC_ACCESS_TOKEN_HEADER)
-    session_cookie = request.cookies.get("eurogas_session", "")
+    session_cookie = request.cookies.get(SESSION_COOKIE, "")
     if not (bearer or "").strip() and not (oidc_token or "").strip() and not session_cookie:
         request.state.identity = legacy_public_token_principal()
+        request.state.identity_authenticated = False
         return
 
     if (bearer or "").strip():
         request.state.identity = _authenticate_identity_key(bearer)
+        request.state.identity_authenticated = True
         return
 
     if (oidc_token or "").strip():
         request.state.identity = _authenticate_oidc(oidc_token)
+        request.state.identity_authenticated = True
         return
 
     if session_cookie:
         request.state.identity = _authenticate_session_cookie(request, session_cookie)
+        request.state.identity_authenticated = True
         return
 
     request.state.identity = _authenticate_identity_key(bearer)
+    request.state.identity_authenticated = True
+
+
+async def require_identity_for_route(request: Request) -> None:
+    """Resolve a presented credential for one route that needs the distinction.
+
+    The release profile installs ``require_identity`` application-wide, but the
+    development and internal profiles install no auth dependency at all. A route
+    that must still tell "authenticated" from "anonymous" (``GET /api/me``)
+    depends on this thin wrapper, which is a no-op once an identity is already
+    attached.
+    """
+
+    if getattr(request.state, "identity", None) is not None:
+        return
+    await require_identity(request)
 
 
 def _authenticate_identity_key(bearer: str) -> AuthenticatedPrincipal:

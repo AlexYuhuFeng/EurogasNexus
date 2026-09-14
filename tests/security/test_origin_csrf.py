@@ -3,16 +3,23 @@
 from __future__ import annotations
 
 import hashlib
+import secrets
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from eurogas_nexus.api.app import create_app
-from eurogas_nexus.core.config import Settings
+from eurogas_nexus.core.config import (
+    DEV_LOGIN_PASSWORD_ENV,
+    DEV_LOGIN_USERNAME_ENV,
+    Settings,
+)
 from eurogas_nexus.db.base import Base
 from eurogas_nexus.db.repositories import identity as identity_repository
 from eurogas_nexus.db.repositories.security import create_session
+from eurogas_nexus.security import rate_limit as rate_limit_module
 
 
 def _setup(tmp_path, monkeypatch):
@@ -75,3 +82,56 @@ def test_api_key_mutations_are_not_cookie_guarded(tmp_path, monkeypatch) -> None
     )
     # No cookie -> no origin guard; the route itself is permitted.
     assert response.status_code == 200
+
+
+@pytest.fixture(autouse=True)
+def _reset_auth_rate_limit():
+    """Keep auth-throttle windows from leaking between tests."""
+
+    rate_limit_module._WINDOWS.clear()
+    yield
+    rate_limit_module._WINDOWS.clear()
+
+
+def test_login_paths_are_csrf_exempt_even_with_a_stale_session_cookie(
+    tmp_path, monkeypatch,
+) -> None:
+    """A stale cookie must not block the login POST; other writes stay guarded."""
+
+    token = _setup(tmp_path, monkeypatch)
+    username = f"dev-{secrets.token_hex(6)}"
+    password = secrets.token_urlsafe(24)
+    monkeypatch.setenv(DEV_LOGIN_USERNAME_ENV, username)
+    monkeypatch.setenv(DEV_LOGIN_PASSWORD_ENV, password)
+    database_url = f"sqlite+pysqlite:///{(tmp_path / 'csrf.sqlite').as_posix()}"
+    engine = create_engine(database_url, future=True)
+    with Session(engine) as session:
+        identity_repository.create_identity_principal(
+            session,
+            name=username,
+            display_name="CSRF Dev Operator",
+            role="OPERATOR",
+            data_scopes=[],
+        )
+        session.commit()
+    client = TestClient(create_app(Settings(api_profile="development")))
+    stale = {"Cookie": f"eurogas_session={token}"}
+
+    login = client.post(
+        "/api/dev/auth/login",
+        headers=stale,
+        json={"username": username, "password": password},
+    )
+
+    assert login.status_code == 200, login.text
+    assert "eurogas_session=" in login.headers["set-cookie"]
+
+    # An unrelated mutating route is still origin+CSRF guarded.
+    blocked = client.post("/api/route-cost/recommend", headers=stale, json={})
+    assert blocked.status_code == 403
+    assert blocked.json()["error"] == "origin_not_allowed"
+
+    # Logout (same cookie, same profile) stays guarded as well.
+    logout = client.post("/api/auth/logout", headers=stale)
+    assert logout.status_code == 403
+    assert logout.json()["error"] == "origin_not_allowed"

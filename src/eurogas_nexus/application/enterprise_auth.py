@@ -3,6 +3,19 @@
 Authorization-code + PKCE login resolves issuer+subject to a local principal,
 creates a backend session, and never returns OIDC tokens to the browser. The
 desktop flow returns one short-lived opaque session token for in-memory use.
+
+Deliberate fail-closed behaviour change (authentication-first entry):
+just-in-time provisioning under ``approved_domain`` mode no longer grants
+access. A first SSO login for an unknown, approved-domain identity registers
+the issuer+subject mapping and a principal whose status is ``PENDING``
+(``PENDING_IDENTITY_STATUS``), and ``_principal_for_identity`` then rejects the
+login with ``identity_pending_approval``. Only an administrator activating that
+principal can complete the login. Pre-provisioned identities that are already
+``ACTIVE`` are unaffected.
+
+The same session-creation path (``create_principal_session``) is shared by the
+OIDC flows and the development-only credential login, so every interactive
+login issues an equivalent opaque backend session.
 """
 
 from __future__ import annotations
@@ -47,6 +60,9 @@ from eurogas_nexus.security.oidc import (
 
 SESSION_COOKIE = "eurogas_session"
 OIDC_VERIFIER_COOKIE = "eurogas_oidc_verifier"
+# Status of a principal created by just-in-time provisioning: registered but
+# not approved. It never authenticates until an administrator activates it.
+PENDING_IDENTITY_STATUS = "PENDING"
 
 
 class LoginStart:
@@ -148,6 +164,37 @@ def start_desktop_login(
     return LoginStart(state=state, verifier=code_verifier, url=url)
 
 
+def create_principal_session(
+    session: Session,
+    *,
+    principal: IdentityPrincipalRecord,
+    client_type: str = "browser",
+    client_label: str | None = None,
+    now_utc: datetime | None = None,
+) -> LoginResult:
+    """Issue one backend session for an already-resolved principal.
+
+    Shared by the OIDC browser/desktop flows and the development credential
+    login so every interactive login produces the same opaque session record
+    and the same cookie contract (``SESSION_COOKIE``).
+    """
+
+    token = secrets.token_urlsafe(32)
+    create_session(
+        session,
+        principal_id=principal.principal_id,
+        token=token,
+        client_type=client_type,
+        client_label=client_label,
+        now_utc=now_utc,
+    )
+    return LoginResult(
+        principal_id=principal.principal_id,
+        session_token=token,
+        principal_name=principal.name,
+    )
+
+
 def complete_browser_login(
     session: Session,
     *,
@@ -169,19 +216,12 @@ def complete_browser_login(
         http_post=http_post,
         now_utc=now_utc,
     )
-    token = secrets.token_urlsafe(32)
     principal = _principal_for_identity(session, identity, now_utc=now_utc)
-    create_session(
+    return create_principal_session(
         session,
-        principal_id=principal.principal_id,
-        token=token,
+        principal=principal,
         client_type="browser",
         now_utc=now_utc,
-    )
-    return LoginResult(
-        principal_id=principal.principal_id,
-        session_token=token,
-        principal_name=principal.name,
     )
 
 
@@ -206,19 +246,12 @@ def complete_desktop_login(
         http_post=http_post,
         now_utc=now_utc,
     )
-    token = secrets.token_urlsafe(32)
     principal = _principal_for_identity(session, identity, now_utc=now_utc)
-    create_session(
+    return create_principal_session(
         session,
-        principal_id=principal.principal_id,
-        token=token,
+        principal=principal,
         client_type="desktop",
         now_utc=now_utc,
-    )
-    return LoginResult(
-        principal_id=principal.principal_id,
-        session_token=token,
-        principal_name=principal.name,
     )
 
 
@@ -285,26 +318,23 @@ def _principal_for_identity(
     external = find_external_identity(session, identity.issuer, identity.subject)
     if external is None:
         principal = _provision_identity(session, identity, now_utc=now)
-    else:
-        principal = session.get(IdentityPrincipalRecord, external.principal_id)
-    if principal is None or principal.status != "ACTIVE":
-        raise OidcValidationError(
-            code="identity_principal_not_active",
-            status_code=403,
-            message="Local identity is missing or not active.",
-        )
-    email = _email_from(identity)
-    if external is None:
+        # Register issuer+subject before the activation check: a rejected first
+        # login must stay bound to exactly the principal that was registered,
+        # so an administrator can activate it instead of the next attempt
+        # silently registering a second principal.
         create_external_identity(
             session,
             principal_id=principal.principal_id,
             issuer=identity.issuer,
             subject=identity.subject,
             provider_id="oidc",
-            email=email,
+            email=_email_from(identity),
             display_name=identity.name,
             now_utc=now,
         )
+    else:
+        principal = session.get(IdentityPrincipalRecord, external.principal_id)
+    _require_active_principal(principal)
     principal.last_login_at_utc = now
     principal.updated_at_utc = now
     from eurogas_nexus.db.repositories.audit import record_audit_event
@@ -325,6 +355,32 @@ def _principal_for_identity(
     )
     session.flush()
     return principal
+
+
+def _require_active_principal(principal: IdentityPrincipalRecord | None) -> None:
+    """Fail closed unless the resolved local principal is ACTIVE.
+
+    A JIT-provisioned principal is registered as ``PENDING`` (never ``ACTIVE``),
+    so first SSO login cannot grant terminal access: it is rejected with
+    ``identity_pending_approval`` until an administrator activates it.
+    """
+
+    if principal is not None and principal.status == "ACTIVE":
+        return
+    if principal is not None and principal.status == PENDING_IDENTITY_STATUS:
+        raise OidcValidationError(
+            code="identity_pending_approval",
+            status_code=403,
+            message=(
+                "Local identity is registered but pending administrator "
+                "approval; just-in-time provisioning never auto-approves access."
+            ),
+        )
+    raise OidcValidationError(
+        code="identity_principal_not_active",
+        status_code=403,
+        message="Local identity is missing or not active.",
+    )
 
 
 def _provision_identity(
@@ -377,6 +433,10 @@ def _provision_identity(
     principal.role = max(principal.roles, key=rank.index)
     principal.email = email or None
     principal.identity_source = "OIDC"
+    # Registration is not approval: the principal stays PENDING and cannot
+    # authenticate until an administrator activates it.
+    principal.status = PENDING_IDENTITY_STATUS
+    principal.updated_at_utc = now
     session.flush()
     return principal
 

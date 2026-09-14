@@ -59,3 +59,7 @@ async def require_public_api_auth(request: Request) -> None:
             status_code=exc.status_code,
             detail={"error": exc.code, "message": exc.message},
         ) from exc
+    # The static deployment token is a verified credential: routes that ask
+    # "was anything authenticated?" treat this as the legacy compatibility
+    # case (SDK/CLI) rather than as an anonymous caller.
+    request.state.public_api_token_verified = True

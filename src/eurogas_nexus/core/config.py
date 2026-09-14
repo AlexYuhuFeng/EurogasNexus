@@ -20,6 +20,8 @@ DB_DSN_ENV_VARS = (
     "DATABASE_URL",
     "EUROGAS_NEXUS_DB_DSN",
 )
+DEV_LOGIN_USERNAME_ENV = "EUROGAS_NEXUS_DEV_LOGIN_USERNAME"
+DEV_LOGIN_PASSWORD_ENV = "EUROGAS_NEXUS_DEV_LOGIN_PASSWORD"
 
 
 class DeploymentConfig(BaseModel):
@@ -78,6 +80,10 @@ class Settings(BaseModel):
     db: DbRuntimeConfig = Field(default_factory=DbRuntimeConfig)
     deployment: DeploymentConfig = Field(default_factory=DeploymentConfig)
     llm_external_provider_enabled: bool = True
+    # Development-only credential login (mounted by the development route
+    # profile only). Both must be set; the value is never defaulted in source.
+    dev_login_username: str | None = None
+    dev_login_password: str | None = None
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -115,7 +121,30 @@ class Settings(BaseModel):
                 security_acceptance_evidence_path=os.getenv(SECURITY_ACCEPTANCE_EVIDENCE_ENV),
             ),
             llm_external_provider_enabled=llm_external_provider_enabled,
+            dev_login_username=(os.getenv(DEV_LOGIN_USERNAME_ENV) or "").strip() or None,
+            dev_login_password=(os.getenv(DEV_LOGIN_PASSWORD_ENV) or "").strip() or None,
         )
+
+
+def resolve_dev_login_credentials_from_env() -> tuple[str, str] | None:
+    """Return the development-only login credentials, or ``None`` when unset.
+
+    Both ``EUROGAS_NEXUS_DEV_LOGIN_USERNAME`` and
+    ``EUROGAS_NEXUS_DEV_LOGIN_PASSWORD`` must be non-blank. The development
+    credential login is disabled (fail-closed) whenever either is missing, and
+    it is only ever mounted by the development route profile. No credential
+    value is defaulted in source.
+
+    Settings are read from the current process environment on every call so an
+    operator can rotate the development credential without a code change.
+    """
+
+    settings = Settings.from_env()
+    username = settings.dev_login_username or ""
+    password = settings.dev_login_password or ""
+    if not username or not password:
+        return None
+    return username, password
 
 
 def public_network_deployment_allowed(

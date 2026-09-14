@@ -249,9 +249,15 @@ def test_wrong_pkce_or_state_fails_closed(env_db, monkeypatch, signing_key) -> N
         assert exc.value.code == "oidc_state_invalid"
 
 
-def test_jit_provisioning_defaults_to_minimal_access(
+def test_jit_provisioning_registers_pending_and_never_auto_approves(
     env_db, monkeypatch, signing_key,
 ) -> None:
+    """JIT registers a PENDING identity; only an admin activation logs it in.
+
+    Replaces the previous assertion that an approved-domain first login was
+    immediately usable (deliberate fail-closed behaviour change).
+    """
+
     engine, _ = env_db
     _configure(
         monkeypatch,
@@ -279,21 +285,66 @@ def test_jit_provisioning_defaults_to_minimal_access(
         groups=["nexus-analysts"],
     )
     with Session(engine) as session:
-        result = complete_browser_login(
-            session,
-            code="code-1",
-            state=start.state,
-            verifier=start.verifier,
-            redirect_uri="https://nexus.test/api/auth/oidc/callback",
-            http_get=_fake_get(discovery, jwks),
-            http_post=_fake_post(token),
+        with pytest.raises(OidcValidationError) as exc:
+            complete_browser_login(
+                session,
+                code="code-1",
+                state=start.state,
+                verifier=start.verifier,
+                redirect_uri="https://nexus.test/api/auth/oidc/callback",
+                http_get=_fake_get(discovery, jwks),
+                http_post=_fake_post(token),
+            )
+        assert exc.value.code == "identity_pending_approval"
+        principal = (
+            session.query(IdentityPrincipalRecord)
+            .filter(IdentityPrincipalRecord.email == "alice@example.test")
+            .one()
         )
-        session.commit()
-    with Session(engine) as session:
-        principal = session.get(IdentityPrincipalRecord, result.principal_id)
+        assert principal.status == "PENDING"
         assert principal.role == "ANALYST"
         assert principal.data_scopes == ["EEX"]
         assert principal.identity_source == "OIDC"
+        # No session was issued for the unapproved identity.
+        assert session.query(UserSessionRecord).count() == 0
+        principal_id = principal.principal_id
+        # Administrator approval, then the registered identity may log in.
+        principal.status = "ACTIVE"
+        session.commit()
+
+    with Session(engine) as session:
+        approved_start = start_browser_login(
+            session,
+            redirect_uri="https://nexus.test/api/auth/oidc/callback",
+            http_get=_fake_get(discovery, jwks),
+        )
+        from eurogas_nexus.db.models import OidcAuthorizationStateRecord
+
+        approved_nonce = session.get(
+            OidcAuthorizationStateRecord, approved_start.state
+        ).nonce
+        session.commit()
+    approved_token = _token(
+        private_key,
+        nonce=approved_nonce,
+        subject="new-user",
+        email="alice@example.test",
+        groups=["nexus-analysts"],
+    )
+    with Session(engine) as session:
+        result = complete_browser_login(
+            session,
+            code="code-2",
+            state=approved_start.state,
+            verifier=approved_start.verifier,
+            redirect_uri="https://nexus.test/api/auth/oidc/callback",
+            http_get=_fake_get(discovery, jwks),
+            http_post=_fake_post(approved_token),
+        )
+        session.commit()
+    assert result.principal_id == principal_id
+    with Session(engine) as session:
+        assert session.query(UserSessionRecord).count() == 1
 
 
 def test_unknown_external_identity_is_denied_in_preprovisioned_mode(
@@ -329,8 +380,28 @@ def test_unknown_external_identity_is_denied_in_preprovisioned_mode(
 
 def test_desktop_login_exchanges_loopback_code(env_db, monkeypatch, signing_key) -> None:
     engine, _ = env_db
-    _configure(monkeypatch, mode="approved_domain", domains="example.test")
+    _configure(monkeypatch)
     private_key, _jwk, discovery, jwks = signing_key
+    with Session(engine) as session:
+        # Pre-provisioned identity: JIT no longer grants a session on first
+        # login, so this test seeds the approved identity and its link.
+        principal = identity_repository.create_identity_principal(
+            session,
+            name="desk-user",
+            display_name="Desk User",
+            role="VIEWER",
+            data_scopes=[],
+        )
+        create_external_identity(
+            session,
+            principal_id=principal.principal_id,
+            issuer=ISSUER,
+            subject="desk-user",
+            provider_id="oidc",
+            email="desk@example.test",
+            display_name="Desk User",
+        )
+        session.commit()
     verifier = "desktop-verifier-desktop-verifier-desktop-verifier-123"
     challenge = __import__("hashlib").sha256(verifier.encode()).hexdigest()
     with Session(engine) as session:

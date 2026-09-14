@@ -56,7 +56,9 @@ def _checks() -> list[dict]:
         not any(path.startswith("/api/workflows/") for path in paths),
         f"public paths={len(paths)}",
     )
-    check("public_surface_bounded", len(paths) == 162, f"public paths={len(paths)}")
+    # Bound includes the development-only credential login
+    # (/api/dev/auth/login); the internal and release profiles never mount it.
+    check("public_surface_bounded", len(paths) == 163, f"public paths={len(paths)}")
 
     from eurogas_nexus.security.permissions import permission_for_path
 

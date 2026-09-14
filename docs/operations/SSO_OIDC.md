@@ -39,6 +39,9 @@ The provider must register the backend callback URI (default
 - `oidc_nonce_invalid`: token reuse/wrong token type.
 - `external_identity_not_provisioned`: correct by linking issuer+subject in
   `identity_external_ids` or by enabling approved-domain JIT.
+- `identity_pending_approval`: approved-domain JIT registered the identity with
+  status `PENDING`; an administrator must activate the principal. JIT never
+  auto-approves, so the first SSO login cannot grant access.
 
 ## Safe recovery
 

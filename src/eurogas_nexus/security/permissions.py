@@ -41,6 +41,9 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     ("/api/health/live", Permission.PUBLIC),
     ("/api/health/ready", Permission.PUBLIC),
     ("/api/dev/health", Permission.PUBLIC),
+    # Development-only credential login; the route profile gates mounting, and
+    # the credential store gating happens inside the handler.
+    ("/api/dev/auth/login", Permission.PUBLIC),
     ("/api/auth/status", Permission.PUBLIC),
     ("/api/auth/oidc/login", Permission.PUBLIC),
     ("/api/auth/oidc/callback", Permission.PUBLIC),

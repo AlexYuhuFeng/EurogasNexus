@@ -4,6 +4,11 @@ The browser flow uses Authorization Code + PKCE and a backend HttpOnly session
 cookie. The desktop flow exchanges its system-browser authorization code for a
 short-lived opaque session token held in desktop memory. No OIDC token is
 returned to the browser.
+
+``GET /api/me`` fails closed with 401 for a caller that presented no
+credential at all; the legacy service principal is only returned when a
+credential was actually validated, or when the release profile verified the
+static deployment API token (SDK/CLI compatibility).
 """
 
 from __future__ import annotations
@@ -14,6 +19,13 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel, Field
 
+from eurogas_nexus.api.dependencies.identity import (
+    IDENTITY_AUTHENTICATED_FLAG,
+    PUBLIC_TOKEN_VERIFIED_FLAG,
+    require_identity_for_route,
+)
+from eurogas_nexus.api.route_profiles import get_route_profile
+from eurogas_nexus.core.config import resolve_dev_login_credentials_from_env
 from eurogas_nexus.security.identity import legacy_public_token_principal
 from eurogas_nexus.security.oidc import (
     OidcValidationError,
@@ -69,9 +81,29 @@ def auth_status(request: Request) -> dict:
             "oidc_configured": oidc_configured(),
             "session_cookie": bool(request.cookies.get(SESSION_COOKIE)),
             "profile": configured_oidc_profile() if oidc_configured() else None,
+            "dev_login": _dev_login_available(request),
         },
         "meta": {"research_only": False, "human_review_required": False},
     }
+
+
+def _dev_login_available(request: Request) -> bool:
+    """True only when the dev routes are mounted and their credentials exist.
+
+    The development credential login is never registered by the internal or
+    release route profiles, so this flag cannot be true outside the
+    development profile even when the environment variables are set.
+    """
+
+    profile = getattr(request.app.state, "route_profile", None)
+    if profile is None:
+        settings = getattr(request.app.state, "settings", None)
+        if settings is None:
+            return False
+        profile = get_route_profile(settings.api_profile)
+    if not bool(getattr(profile, "include_dev", False)):
+        return False
+    return resolve_dev_login_credentials_from_env() is not None
 
 
 @router.get("/api/auth/oidc/login")
@@ -132,13 +164,16 @@ def oidc_callback(
     sqlalchemy_error = _sqlalchemy_error_type()
     try:
         with _session() as session:
-            result = complete_browser_login(
-                session,
-                code=code or "",
-                state=state or "",
-                verifier=verifier,
-                redirect_uri=redirect_uri,
-            )
+            try:
+                result = complete_browser_login(
+                    session,
+                    code=code or "",
+                    state=state or "",
+                    verifier=verifier,
+                    redirect_uri=redirect_uri,
+                )
+            except OidcValidationError as exc:
+                _keep_pending_registration(session, exc)
             session.commit()
     except OidcValidationError as exc:
         raise _oidc_error(exc) from exc
@@ -202,13 +237,16 @@ def oidc_desktop_token(
     sqlalchemy_error = _sqlalchemy_error_type()
     try:
         with _session() as session:
-            result = complete_desktop_login(
-                session,
-                code=body.code,
-                state=body.state,
-                verifier=body.code_verifier,
-                redirect_uri=body.redirect_uri,
-            )
+            try:
+                result = complete_desktop_login(
+                    session,
+                    code=body.code,
+                    state=body.state,
+                    verifier=body.code_verifier,
+                    redirect_uri=body.redirect_uri,
+                )
+            except OidcValidationError as exc:
+                _keep_pending_registration(session, exc)
             session.commit()
     except OidcValidationError as exc:
         raise _oidc_error(exc) from exc
@@ -231,9 +269,27 @@ def oidc_desktop_token(
 
 
 @router.get("/api/me")
-def get_me(request: Request) -> dict:
-    """Return safe current-user capability information."""
+def get_me(
+    request: Request,
+    _identity: None = Depends(require_identity_for_route),
+) -> dict:
+    """Return safe current-user capability information.
 
+    Anonymous callers get 401 ``unauthenticated``: attaching the legacy
+    service principal for SDK/CLI compatibility is not an authentication. The
+    legacy principal is still returned when the release profile verified the
+    static deployment API token, when a DB identity key or OIDC access token
+    validated, or when a backend session cookie resolved.
+    """
+
+    if not _credential_authenticated(request):
+        raise HTTPException(
+            status_code=401,
+            detail={
+                "error": "unauthenticated",
+                "message": "No authenticated identity was presented.",
+            },
+        )
     principal = getattr(request.state, "identity", legacy_public_token_principal())
     session_token = request.cookies.get(SESSION_COOKIE, "")
     csrf_token = (
@@ -266,6 +322,16 @@ def get_me(request: Request) -> dict:
             "warnings": [],
         },
     }
+
+
+def _credential_authenticated(request: Request) -> bool:
+    """Whether this request presented a credential the backend validated."""
+
+    if getattr(request.state, IDENTITY_AUTHENTICATED_FLAG, False):
+        return True
+    # Release profile: ``require_public_api_auth`` verified the static
+    # deployment token before this route ran (the legacy compatibility case).
+    return bool(getattr(request.state, PUBLIC_TOKEN_VERIFIED_FLAG, False))
 
 
 @router.post("/api/auth/logout")
@@ -337,6 +403,24 @@ def _db_unavailable(exc: Exception) -> HTTPException:
             "error_class": exc.__class__.__name__,
         },
     )
+
+
+PENDING_APPROVAL_CODE = "identity_pending_approval"
+
+
+def _keep_pending_registration(session, exc: OidcValidationError) -> None:
+    """Persist a just-in-time registration that was rejected for approval.
+
+    Registration is not approval: the ``PENDING`` principal and its
+    issuer+subject link are committed so an administrator can see and activate
+    the identity, while this login attempt still fails closed. Any other
+    validation error is re-raised untouched, so its transaction rolls back.
+    """
+
+    if exc.code != PENDING_APPROVAL_CODE:
+        raise exc
+    session.commit()
+    raise _oidc_error(exc) from exc
 
 
 def _oidc_error(exc: OidcValidationError) -> HTTPException:

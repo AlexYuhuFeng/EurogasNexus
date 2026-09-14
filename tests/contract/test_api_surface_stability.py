@@ -32,6 +32,7 @@ PINNED_PUBLIC_PATHS = {
     "/api/credentials/{provider_id}/local-validation",
     "/api/credentials/{provider_id}/rotate",
     "/api/credentials/{provider_id}/status",
+    "/api/dev/auth/login",
     "/api/dev/health",
     "/api/glossary",
     "/api/glossary/{term}",

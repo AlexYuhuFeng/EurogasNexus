@@ -42,8 +42,9 @@ by a CLI flag.
 
 - Full local Python suite and Web tests/build: see `docs/product/SCHEDULED_AGENT_STATE.md`
   (updated after CR-15 validation).
-- OpenAPI public surface: **162 paths** (`/api/runtime/release`, CR-14 research data
-  routes, and CR-15 agent/capability routes added), pinned and permission-declared.
+- OpenAPI public surface: **163 paths** (`/api/runtime/release`, CR-14 research data
+  routes, CR-15 agent/capability routes, and the development-only
+  `/api/dev/auth/login` added), pinned and permission-declared.
 - Version consistency: `python scripts/release/check_version_consistency.py`
   passes across pyproject, runtime module, Web/desktop package files,
   tauri/Cargo metadata, docs, install scripts, and the release workflow.
@@ -69,6 +70,12 @@ by a CLI flag.
   packages are separate artifacts, not one ambiguous Linux package. ARM Linux users do not receive the x64 DEB by mistake. ARM Linux users must not receive the x64 DEB by mistake.
 - SDK and CLI remain API consumers.
 - Clients do not connect directly to PostgreSQL.
+- Authentication-first entry: the terminal no longer mounts before
+  authentication. `/api/me` answers 401 when no credential is presented, the Web
+  workspace resolves identity before any protected read and otherwise renders a
+  dedicated sign-in screen, deep links/reload/session expiry/history stay gated,
+  and just-in-time SSO provisioning registers a `PENDING` identity instead of
+  granting access.
 - Provider credentials are backend-owned: clients can submit keys to the
   backend, but plaintext keys are not returned or stored in client state.
 - CR-10 adds Authorization Code + PKCE OIDC login, issuer+subject identity

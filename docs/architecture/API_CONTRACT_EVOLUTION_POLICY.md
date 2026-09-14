@@ -91,6 +91,7 @@ These tests fail CI loudly on contract drift:
 | `GET /api/shadow-monitors/{id}/drift` | CR-06 | interpretable drift snapshots against explicit baseline |
 | `GET /api/shadow-alerts`, `POST /api/shadow-alerts/{id}/acknowledge` | CR-06 | deduplicated alert lifecycle |
 | `GET /api/shadow-runtime/status` | CR-06 | scheduler heartbeat/health |
+| `POST /api/dev/auth/login` | UX-01 authentication-first entry | development-profile-only credential login mounted with `include_dev`; absent from internal/release; validates operator-configured dev credentials server-side and issues the same backend session as OIDC; never creates or elevates a principal |
 
 ## Deprecation Table
 

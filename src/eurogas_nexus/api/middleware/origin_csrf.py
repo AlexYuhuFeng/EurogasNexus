@@ -7,8 +7,12 @@ this guard. Cookie-authenticated mutations require:
 2. origin allowed for the deployment (same-origin or explicit CORS list);
 3. ``X-Eurogas-CSRF`` matching the session-bound token returned by /api/me.
 
-GET/HEAD/OPTIONS and the OIDC callback/login paths are exempt from the CSRF
-header but not from authentication and entitlement checks.
+GET/HEAD/OPTIONS and the login entry points (the OIDC flow under
+``/api/auth/oidc/``, ``/api/auth/login``, and the development
+``/api/dev/auth/login``) are exempt from the CSRF header but not from
+authentication and entitlement checks: a browser arriving at a login form with
+a stale or foreign session cookie must still be able to sign in. Every other
+mutating route stays guarded.
 """
 
 from __future__ import annotations
@@ -22,7 +26,13 @@ SESSION_COOKIE = "eurogas_session"
 CSRF_HEADER = "x-eurogas-csrf"
 ALLOWED_ORIGINS_ENV = "EUROGAS_NEXUS_CORS_ORIGINS"
 
-_ALWAYS_ALLOWED = {
+# Login entry points that must accept a POST even when the browser still holds
+# a stale session cookie. Logout and every other mutation keep the guard.
+CSRF_EXEMPT_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+CSRF_EXEMPT_PATH_PREFIXES = ("/api/auth/oidc/",)
+CSRF_EXEMPT_PATHS = frozenset({"/api/auth/login", "/api/dev/auth/login"})
+
+_ALLOWED_ORIGINS = {
     "http://localhost",
     "http://127.0.0.1",
     "http://tauri.localhost",
@@ -36,7 +46,17 @@ def _allowed_origins() -> set[str]:
         for value in os.environ.get(ALLOWED_ORIGINS_ENV, "").split(",")
         if value.strip()
     }
-    return configured | _ALWAYS_ALLOWED
+    return configured | _ALLOWED_ORIGINS
+
+
+def _csrf_exempt(method: str, path: str) -> bool:
+    """Whether this method/path pair skips the cookie origin+CSRF check."""
+
+    if method in CSRF_EXEMPT_METHODS:
+        return True
+    if path.startswith(CSRF_EXEMPT_PATH_PREFIXES):
+        return True
+    return (path.rstrip("/") or "/") in CSRF_EXEMPT_PATHS
 
 
 def _csrf_for_session(token: str) -> str:
@@ -63,7 +83,7 @@ class OriginCsrfGuardMiddleware:
         }
         cookies = headers.get(b"cookie", b"").decode("latin-1", errors="ignore")
         session_token = _cookie_value(cookies, SESSION_COOKIE)
-        is_safe = method in {"GET", "HEAD", "OPTIONS"} or path.startswith("/api/auth/oidc/")
+        is_safe = _csrf_exempt(method, path)
         if not session_token or is_safe:
             await self.app(scope, receive, send)
             return
