@@ -1254,3 +1254,33 @@ with `String(e)`, which prefixes `Error: ` onto the message. It is display-only
 prose on these surfaces - every deny/expiry classifier in the client reads
 `error.message` or a loader outcome, never `state.error` - so it is left alone
 rather than mixed into an identity fix.
+
+### Mutation identity guards and local refresh (2026-09-14)
+
+The authoritative local main was fast-forwarded to `58c2cfe`. Earlier auth and
+strategy work remains in two named Git stashes, not restored over upstream.
+Only one registered worktree exists.
+
+Six mutation handlers now reuse the existing identity-generation contract:
+provider credential save/test, contract save, review decision, route allocation,
+and resource-pool optimization. They refuse work during logout, discard stale
+success/error writes, and check identity before starting post-mutation readbacks.
+This does not cancel, retry, or roll back server mutations.
+
+Parent review and verification:
+- `npm test` in `clients/web`: 211 passed, 0 failed. The three new tests combine
+  source-contract assertions with coordinator race exercises; they do not execute
+  the actual store actions against a live API. Live cross-account mutation
+  coverage remains open.
+- Before this patch, the upstream frontend suite passed 208 tests and its
+  production build passed; targeted authentication/security tests passed 30.
+- Restarted the local development API from current source, with PostgreSQL only
+  and the existing provisioned test identity. PostgreSQL container was healthy.
+- Real browser sign-out hid the terminal and the current development credential
+  endpoint accepted sign-in. Parent reviewed the 1440x900 signed-out capture at
+  `output/playwright/current-58c2cfe-signin.png` (local ignored evidence).
+- The entry screen remains too verbose; an unconfigured SSO button remains
+  enabled and visually competes with the available login action. These are open
+  design issues, not a visual acceptance pass.
+- Subsequent CLI navigation and snapshot timed out. No numeric/map walkthrough,
+  native desktop acceptance, or whole-product acceptance is claimed here.

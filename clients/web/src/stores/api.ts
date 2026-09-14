@@ -1167,24 +1167,33 @@ export const useApiStore = create<ApiState>((set, get) => ({
   },
 
   saveProviderCredential: async (providerId, apiKey, label) => {
+    if (logoutInProgress) return;
+    const requestGeneration = identityReadCoordinator.capture();
     set({ credentialMessage: null });
     try {
       await api.saveCredential(providerId, { api_key: apiKey, label });
+      if (!followUpReadIsCurrent(requestGeneration)) return;
       const credentialProviders = await api.credentialProviders();
+      if (!followUpReadIsCurrent(requestGeneration)) return;
       set({
         credentialProviders: credentialProviders.data,
         credentialMessage: `${providerId} credential saved.`,
       });
     } catch (e) {
+      if (!followUpReadIsCurrent(requestGeneration)) return;
       set({ credentialMessage: String(e) });
     }
   },
 
   testProviderConnection: async (providerId) => {
+    if (logoutInProgress) return;
+    const requestGeneration = identityReadCoordinator.capture();
     set({ credentialMessage: null });
     try {
       const result = await api.testCredentialConnection(providerId);
+      if (!followUpReadIsCurrent(requestGeneration)) return;
       const credentialProviders = await api.credentialProviders();
+      if (!followUpReadIsCurrent(requestGeneration)) return;
       set({
         credentialProviders: credentialProviders.data,
         credentialMessage: result.data.connection_status === "success"
@@ -1192,6 +1201,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
           : `${providerId} live connection failed: ${result.data.connection_error_code ?? result.data.connection_status}`,
       });
     } catch (e) {
+      if (!followUpReadIsCurrent(requestGeneration)) return;
       set({ credentialMessage: String(e) });
       throw e;
     }
@@ -1240,13 +1250,17 @@ export const useApiStore = create<ApiState>((set, get) => ({
   },
 
   saveDraftContract: async (contract) => {
+    if (logoutInProgress) return;
+    const requestGeneration = identityReadCoordinator.capture();
     set({ contractSaveMessage: null, loading: true, error: null });
     try {
       const saved = await api.saveUpstreamContract(contract);
+      if (!followUpReadIsCurrent(requestGeneration)) return;
       const [upstreamContracts, resourcePoolOptions] = await Promise.all([
         api.upstreamContracts(),
         api.resourcePoolOptions(),
       ]);
+      if (!followUpReadIsCurrent(requestGeneration)) return;
       set({
         upstreamContracts: upstreamContracts.data,
         resourcePoolOptions: resourcePoolOptions.data,
@@ -1255,40 +1269,54 @@ export const useApiStore = create<ApiState>((set, get) => ({
         loading: false,
       });
     } catch (e) {
+      if (!followUpReadIsCurrent(requestGeneration)) return;
       set({ error: String(e), contractSaveMessage: String(e), loading: false });
     }
   },
 
   recordReviewDecision: async (body) => {
+    if (logoutInProgress) return;
+    const requestGeneration = identityReadCoordinator.capture();
     set({ reviewMessage: null });
     try {
       const saved = await api.recordReviewDecision(body);
+      if (!followUpReadIsCurrent(requestGeneration)) return;
       const list = await api.reviewDecisions();
+      if (!followUpReadIsCurrent(requestGeneration)) return;
       set({
         reviewDecisions: list.data,
         reviewMessage: `${saved.data.decision_id} recorded for ${saved.data.entity_type}:${saved.data.entity_id}.`,
       });
     } catch (e) {
+      if (!followUpReadIsCurrent(requestGeneration)) return;
       set({ reviewMessage: String(e) });
     }
   },
 
   recommendRouteAllocation: async (request) => {
+    if (logoutInProgress) return;
+    const requestGeneration = identityReadCoordinator.capture();
     set({ loading: true, error: null });
     try {
       const result = await api.recommendRouteAllocation(request);
+      if (!followUpReadIsCurrent(requestGeneration)) return;
       set({ routeRecommendation: result.data, meta: result.meta, loading: false });
     } catch (e) {
+      if (!followUpReadIsCurrent(requestGeneration)) return;
       set({ error: String(e), loading: false });
     }
   },
 
   optimizeResourcePool: async (request) => {
+    if (logoutInProgress) return;
+    const requestGeneration = identityReadCoordinator.capture();
     set({ loading: true, error: null });
     try {
       const result = await api.optimizeResourcePool(withoutLegacyFlag(request));
+      if (!followUpReadIsCurrent(requestGeneration)) return;
       set({ resourcePoolResult: result.data, meta: result.meta, loading: false });
     } catch (e) {
+      if (!followUpReadIsCurrent(requestGeneration)) return;
       set({ error: String(e), loading: false });
     }
   },
