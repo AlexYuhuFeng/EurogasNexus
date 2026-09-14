@@ -19,6 +19,7 @@ npm --prefix clients/web run test
 npm --prefix clients/web run build
 python -c "from apps.api.main import app; print('app import ok'); print(len(app.openapi()['paths']))"
 python scripts/ops/load_smoke.py --requests 200 --concurrency 8 --p95-threshold-ms 1000
+bash scripts/ops/run_served_load_smoke.sh
 python scripts/ops/migration_preflight.py --json
 python scripts/release/compatibility_check.py
 python scripts/release/check_version_consistency.py
@@ -104,6 +105,21 @@ python scripts/ops/performance_baseline.py --requests 200 --concurrency 10 --jso
 python scripts/ops/backup_restore_drill.py --target-database-url <isolated-target-dsn>
 python scripts/ops/recover_stale_jobs.py --commit
 ```
+
+## Served-instance Load Smoke
+
+The in-process smoke drives the ASGI app through httpx without opening a socket.
+The served smoke starts a real uvicorn process, waits for `/api/health/live`,
+and sends the same workload over HTTP, so server startup, sockets, and middleware
+order are exercised too:
+
+```bash
+bash scripts/ops/run_served_load_smoke.sh
+```
+
+`SERVED_LOAD_SMOKE_PORT` selects the port (default `8765`). Set
+`RUNTIME_STORE_DATABASE_URL` to smoke a PostgreSQL-backed instance; without it
+the server runs DB-less like the in-process CI job.
 
 ## Runtime DB Validation
 

@@ -37,6 +37,9 @@ jobs:
       - name: API load smoke (in-process, no server)
         run: python scripts/ops/load_smoke.py --requests 200 --concurrency 8 --p95-threshold-ms 1000
 
+      - name: API load smoke (served instance over HTTP)
+        run: bash scripts/ops/run_served_load_smoke.sh
+
       - name: MCP server handshake smoke
         run: echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | python -m eurogas_nexus.mcp.server | grep -q 'protocolVersion'
 

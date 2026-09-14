@@ -7,6 +7,13 @@ latency/error regressions in CI without standing up a server.
 Usage:
     python scripts/ops/load_smoke.py [--requests N] [--concurrency C]
         [--p95-threshold-ms 500] [--error-rate-threshold 0.05]
+        [--base-url http://127.0.0.1:8765]
+
+Without ``--base-url`` the smoke drives the in-process ASGI app. With it, the
+same workload goes over real HTTP to a running server, which additionally
+exercises the served stack (uvicorn, sockets, middleware order) that the
+in-process transport cannot reach. `scripts/ops/run_served_load_smoke.sh`
+starts such a server for CI.
 """
 
 from __future__ import annotations
@@ -50,8 +57,13 @@ def run_requests(
     paths: tuple[str, ...],
     *,
     transport: Callable[[], httpx.ASGITransport] = _app_transport,
+    base_url: str | None = None,
 ) -> tuple[list[float], list[str]]:
-    """Fire ``total`` GETs across the smoke paths; return (latencies, errors)."""
+    """Fire ``total`` GETs across the smoke paths; return (latencies, errors).
+
+    ``base_url`` selects a real HTTP target and bypasses the in-process
+    transport. When it is omitted, the in-process behavior is unchanged.
+    """
 
     async def runner() -> tuple[list[float], list[str]]:
         semaphore = asyncio.Semaphore(concurrency)
@@ -61,13 +73,16 @@ def run_requests(
 
         async def one(index: int) -> None:
             async with semaphore:
-                client = httpx.AsyncClient(transport=transport(), timeout=30.0)
+                client = httpx.AsyncClient(
+                    transport=None if base_url else transport(),
+                    base_url=base_url or "http://loadtest.local",
+                    timeout=30.0,
+                )
                 try:
                     path = paths[index % len(paths)]
-                    url = f"http://loadtest.local{path}"
                     started = time.perf_counter()
                     try:
-                        response = await client.get(url)
+                        response = await client.get(path)
                         elapsed_ms = (time.perf_counter() - started) * 1000.0
                         if response.status_code >= 500:
                             async with lock:
@@ -104,6 +119,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--concurrency", type=int, default=8)
     parser.add_argument("--p95-threshold-ms", type=float, default=500.0)
     parser.add_argument("--error-rate-threshold", type=float, default=0.05)
+    parser.add_argument(
+        "--base-url",
+        default=None,
+        help="Target a running server over real HTTP instead of the in-process ASGI app.",
+    )
     parsed = parser.parse_args(args)
 
     started = time.perf_counter()
@@ -111,6 +131,7 @@ def main(argv: list[str] | None = None) -> int:
         parsed.requests,
         parsed.concurrency,
         SMOKE_PATHS,
+        base_url=parsed.base_url,
     )
     elapsed_s = time.perf_counter() - started
     error_rate = len(errors) / parsed.requests if parsed.requests else 0.0
@@ -119,7 +140,8 @@ def main(argv: list[str] | None = None) -> int:
 
     print(
         f"load smoke: {len(latencies)} ok / {len(errors)} errors "
-        f"in {elapsed_s:.1f}s (concurrency={parsed.concurrency})"
+        f"in {elapsed_s:.1f}s (concurrency={parsed.concurrency}, "
+        f"target={parsed.base_url or 'in-process ASGI'})"
     )
     if latencies:
         print(

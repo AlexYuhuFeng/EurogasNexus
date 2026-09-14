@@ -25,6 +25,12 @@ asserted by `tests/contract/test_ontology_version_alignment.py`.
 
 ## [Unreleased]
 
+- Served-instance load smoke: `scripts/ops/load_smoke.py` accepts `--base-url`
+  to send the smoke workload over real HTTP, and
+  `scripts/ops/run_served_load_smoke.sh` starts a uvicorn process, waits for
+  `/api/health/live`, and runs the smoke against it in CI alongside the
+  in-process smoke.
+
 - Agent-native capability layer (CR-15 / P14):
   - first-class Capability Registry with 68 versioned semantic capabilities
     (determinism, side effects, permissions, entitlement, provenance,

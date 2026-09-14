@@ -29,3 +29,13 @@ def test_run_requests_in_process_returns_latencies_and_no_errors() -> None:
     assert len(latencies) == 20
     assert errors == []
     assert all(latency > 0 for latency in latencies)
+
+
+def test_run_requests_with_base_url_uses_real_http() -> None:
+    # Port 9 (discard) refuses connections. The in-process transport answers
+    # these paths successfully, so connection errors prove the request left the
+    # process instead of being served by the ASGI app.
+    latencies, errors = run_requests(2, 1, ("/api/health",), base_url="http://127.0.0.1:9")
+    assert latencies == []
+    assert len(errors) == 2
+    assert all(error.startswith("/api/health:") for error in errors)
