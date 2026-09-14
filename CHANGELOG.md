@@ -25,6 +25,23 @@ asserted by `tests/contract/test_ontology_version_alignment.py`.
 
 ## [Unreleased]
 
+- Research datasets: builds register a format-specific artifact (CSV always,
+  Parquet when the optional adapter is installed) with a sha256 under a
+  configurable artifact root, and export now matches the requested format
+  against a stored artifact instead of answering 200 with a null reference; an
+  unavailable format fails closed with `artifact_not_available` and the list of
+  available formats. The declared `dataset.export` capability gained its missing
+  handler, reusing the same server-derived entitlement policy.
+- Research dataset validation and build share one registry resolver: unknown
+  feature/target/source/entity/policy ids now fail at validation time with
+  structured `{field, code, message}` issues, `entity_ids` actually filters the
+  built rows, and the requested resampling policy is applied through the bounded
+  resampler (recorded in snapshot metadata) instead of being silently ignored in
+  favour of the first registry row.
+- Shared task-tab strips no longer wrap their labels per glyph on narrow
+  viewports: the rules now target the buttons the navigation primitive actually
+  renders, so Mandarin labels stay on one line and the strip scrolls.
+
 - Market views: the combined `overview` dashboard is no longer the mandatory
   landing task. The numeric analysis (`curves`) and the map/network inspection
   (`network`) are separate task views, and each authenticated user's preferred

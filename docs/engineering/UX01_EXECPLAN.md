@@ -916,3 +916,60 @@ orders-without-evidence, populated, multi-snapshot and measured-zero cases;
 cases; the SDK test covers null tolerance. `python -m pytest -q tests` reports
 1446 passed / 13 skipped with the nine sandbox subprocess-pipe failures noted
 above; ruff is clean.
+
+### CR14 research data debt: artifacts, registry semantics and the export gap (2026-09-14)
+
+Three P1 register items were closed together because they share one backend
+surface (`api/routes/public/research_data.py`, `application/agents/research_handlers.py`,
+`db/repositories/research.py`, `domain/research/*`). The audit corrected the
+original scoping: `dataset_artifacts` already existed, so no migration was
+needed, and fixing only the registry lookup would have changed nothing
+observable because the resampler had no production caller at all.
+
+- Artifacts: both build callers now write a CSV artifact (Parquet only when the
+  optional `pyarrow` adapter imports), hash it, persist it before the snapshot
+  and set the snapshot `artifact_ref`. The root is configurable through
+  `EUROGAS_NEXUS_RESEARCH_ARTIFACT_ROOT`, defaults to the git-ignored
+  `data/snapshots`, stores relative references so no host path leaks, and fails
+  closed with 503 `artifact_store_unavailable` when unusable. Export matches the
+  requested format against a STORED artifact and answers 409
+  `artifact_not_available` (`FORMAT_NOT_REGISTERED` or `FILE_MISSING`, with
+  `available_formats`) instead of the old 200-with-null.
+- Semantics: validate and build share one registry resolver that reports
+  structured `{field, code, message}` issues; unknown feature/target/source/
+  entity/policy ids fail at validation; `entity_ids` filters the built rows;
+  series values are produced through `bounded_resample` under the resolved
+  policy, which is recorded in the snapshot metadata. The old behaviour
+  (`policy_rows[0]`, no filtering, unused `resampling_policy` argument) is gone.
+  INTERPOLATE and mean-aggregation policies are rejected with a structured error
+  rather than silently ignored.
+- Rights: the declared-but-unhandled `dataset.export` capability now has a
+  handler that reuses the same server-derived entitlement policy as the route
+  and refuses on unknown or restricted rights, including forged envelopes.
+
+Evidence: `python -m ruff check .` clean; the focused research set 254 passed
+with one pre-existing pyarrow skip; `python -m pytest -q tests` **1481 passed /
+13 skipped / 0 failed**; `python scripts/security/run_security_acceptance.py
+--json` reports automated PASS with no failed checks. No new public route and no
+migration were introduced.
+
+Open and not claimed: no live-PostgreSQL run, and the Parquet branch is covered
+by unit tests only because `pyarrow` is not installed locally. A failed commit
+after an artifact write can leave an orphan file keyed by the snapshot id. The
+Web Research Data workspace still has no build/validate form or artifact
+download (register row `CR14-UI-001`).
+
+### Narrow-viewport task tabs (2026-09-14)
+
+`UX-SYSTEM-NARROW-001` was a CSS defect rather than a component defect: the
+shared task-tab primitive renders plain buttons, while the rules that were meant
+to style them targeted a class it never emits, so labels fell back to UA styling
+and wrapped per glyph with space-less Mandarin text. The rules now target the
+buttons inside the container (and inside the Access and Agents tab strips, which
+had the same gap) with `flex: 0 0 auto` and `white-space: nowrap`, leaving the
+existing horizontal scroll to carry the overflow.
+
+Evidence: measured live at 390x844 in Mandarin after sign-in - all eight System
+task tabs render at 32px height with `white-space: nowrap` and the container
+scrolls horizontally; capture `output/playwright/ux01-system-tabs-390-zh.png`.
+The image itself has not been visually reviewed.

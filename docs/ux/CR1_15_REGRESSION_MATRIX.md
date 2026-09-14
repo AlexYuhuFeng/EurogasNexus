@@ -136,9 +136,11 @@ sidecar.
    they do not render the full application or assert DOM geometry, overflow,
    focus management, chart/map visibility, or network error states.
 4. **Research UI scope is narrower than backend scope.** The backend exposes
-   dataset validation/build/detail/quality/export, but the current
-   `ResearchDataWorkspace.tsx` only lists datasets, features, targets, and
-   capabilities. Detail/export/build acceptance is therefore not established.
+   dataset validation/build/detail/quality/export, and since 895e14d
+   `ResearchDataWorkspace.tsx` renders dataset detail, quality, provenance,
+   rights and export references. The build/validate surface and artifact
+   delivery remain absent, so full lifecycle and entitlement-negative acceptance
+   is not established.
 5. **Agent UI scope is narrower than CR-15 artifact scope.** The current
    `AgentsWorkspace.tsx` submits research and displays run/replay summaries;
    current source evidence does not establish a full rendered review-pack,
