@@ -975,6 +975,37 @@ with those structured issues until the registry is seeded. The preview seed
 script does not populate it; treat "seed the research registry" as a prerequisite
 for exercising or exposing the governed builder.
 
+Live entitlement coverage added the same day:
+`tests/integration/test_research_entitlement_postgres.py` runs four tests against
+PostgreSQL 16 at head 0033 inside a per-test isolated schema (dedicated engine
+with a `search_path` connect hook, 86 tables created inside the schema, `DROP
+SCHEMA CASCADE` in a `finally`), and is wired into `scripts/ci/run_postgres_ci.sh`
+so CI's PostgreSQL job exercises it while the validate job skips it cleanly
+without a database. It proves grant-based filtering (an ENTSOG-only principal
+sees one of six snapshots, EEX-only three, wildcard four, unknown/legacy none),
+identity-negative 403 `source_entitlement_denied` on rows that exist, export
+denial for unknown/legacy and restricted provenance with a forged
+`EXPORT_ALLOWED` envelope both at rest and in the body, the per-format artifact
+read path with `FORMAT_NOT_REGISTERED` versus `FILE_MISSING` versus an empty
+inventory, and builder row-level filtering proven by a value switch while the
+denied rows stay in the table. Isolation was re-checked afterwards: no `ent_`
+schema left behind, public schema untouched, no seeded rows in public tables.
+
+Two harness notes worth keeping: pg8000's implicit transaction means a
+`search_path` set in a connect hook must be followed by `dbapi_connection.commit()`
+or a reused pooled connection silently falls back to `public` after its first
+rollback; and SQLAlchemy orders mappers by relationship rather than by a bare
+foreign key, so snapshot plus artifact rows need an explicit flush while seeding.
+
+Blocking product decision recorded, not worked around: the export route's
+`EXPORT_ALLOWED` branch is unreachable today because the governance layer never
+yields a PUBLIC scope and no source definition sets `export_allowed`, so the
+resolver only produces `EXPORT_RESTRICTED`/`UNKNOWN` and the route answers 403
+before the artifact lookup. Serving an artifact therefore needs a licensing
+decision about which canonical source carries export clearance and on what terms;
+until then the fail-closed 403 stands and the export route must not be presented
+as a delivery path.
+
 ### Narrow-viewport task tabs (2026-09-14)
 
 `UX-SYSTEM-NARROW-001` was a CSS defect rather than a component defect: the
