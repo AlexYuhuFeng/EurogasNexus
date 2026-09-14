@@ -21,9 +21,10 @@ def prompt(root,ctx):return (root/'.automation'/'prompts'/'orchestrator_slice.md
 
 def run_astra(root,cfg,control,text):
     c=cfg['codex'];rd=root/'.automation'/'runtime'/'astra_runs';rd.mkdir(parents=True,exist_ok=True);stamp=time.strftime('%Y%m%d-%H%M%S');events=rd/(stamp+'.jsonl');errp=rd/(stamp+'.stderr.log');final=rd/(stamp+'.final.json');tid=control.get('astra_thread_id');resume=bool(c['resume_session'] and tid and control.get('astra_resume_count',0)<c['max_resumes_per_session'])
-    exe=resolve_executable(c['binary'])\n    if resume:cmd=[exe,'exec','resume',tid,'--json','--color','never','-c',f'sandbox_mode="{c["sandbox_mode"]}"','-c',f'approval_policy="{c["approval_policy"]}"','-c',f'model_reasoning_effort="{c["reasoning_effort"]}"','-c','features.plugins=false','--output-schema',str(root/'.automation'/'schemas'/'orchestrator_output.schema.json'),'-o',str(final),text]
+    exe=resolve_executable(c['binary'])
+    if resume:cmd=[exe,'exec','--json','--color','never','-c',f'sandbox_mode="{c["sandbox_mode"]}"','-c',f'approval_policy="{c["approval_policy"]}"','-c',f'model_reasoning_effort="{c["reasoning_effort"]}"','-c','features.plugins=false','--output-schema',str(root/'.automation'/'schemas'/'orchestrator_output.schema.json'),'-o',str(final),'resume',tid,text]
     else:cmd=[exe,'exec','--json','--color','never','--sandbox',c['sandbox_mode'],'-C',str(root),'-m',c['model'],'-c',f'approval_policy="{c["approval_policy"]}"','-c',f'model_reasoning_effort="{c["reasoning_effort"]}"','-c','features.plugins=false','--output-schema',str(root/'.automation'/'schemas'/'orchestrator_output.schema.json'),'-o',str(final),text]
-    flags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name=='nt' else 0;proc=subprocess.Popen(cmd,cwd=root,stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,creationflags=flags,start_new_session=(os.name!='nt'))
+    flags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name=='nt' else 0;proc=subprocess.Popen(cmd,cwd=root,stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,encoding='utf-8',errors='replace',creationflags=flags,start_new_session=(os.name!='nt'))
     try:out,err=proc.communicate(timeout=int(c['turn_timeout_seconds']))
     except subprocess.TimeoutExpired:kill_process_tree(proc);out,err=proc.communicate();err+='\nASTRA_TURN_TIMEOUT\n'
     events.write_text(out,encoding='utf-8');errp.write_text(err,encoding='utf-8');new=extract_thread_id(out)
@@ -36,7 +37,7 @@ def run_astra(root,cfg,control,text):
     return classify_output(out+'\n'+err,proc.returncode),proc.returncode,out,err,result,str(events.relative_to(root)),str(final.relative_to(root)) if final.exists() else None
 
 def allowance_probe(root,cfg):
-    c=cfg['codex'];exe=resolve_executable(c['binary']);p=subprocess.run([exe,'exec','--color','never','--sandbox','read-only','-C',str(root),'-m',c['model'],'-c','approval_policy="never"','-c',f'model_reasoning_effort="{c["reasoning_effort"]}"','-c','features.plugins=false','Do not read or modify files. Reply exactly READY.'],cwd=root,stdin=subprocess.DEVNULL,text=True,capture_output=True,timeout=900);t=(p.stdout or '')+'\n'+(p.stderr or '');return p.returncode==0 and 'READY' in t and classify_output(t,p.returncode)!='allowance',t
+    c=cfg['codex'];exe=resolve_executable(c['binary']);p=subprocess.run([exe,'exec','--color','never','--sandbox','read-only','-C',str(root),'-m',c['model'],'-c','approval_policy="never"','-c',f'model_reasoning_effort="{c["reasoning_effort"]}"','-c','features.plugins=false','Do not read or modify files. Reply exactly READY.'],cwd=root,stdin=subprocess.DEVNULL,text=True,encoding='utf-8',errors='replace',capture_output=True,timeout=900);t=(p.stdout or '')+'\n'+(p.stderr or '');return p.returncode==0 and 'READY' in t and classify_output(t,p.returncode)!='allowance',t
 
 def wait_allowance(root,cfg,text,once):
     if once:log(root,'Allowance hit in --once mode; exiting.');return False
@@ -50,7 +51,7 @@ def wait_allowance(root,cfg,text,once):
         log(root,'Allowance still unavailable.');time.sleep(a['probe_interval_seconds'])
 
 def run_worker(root,tf):
-    p=subprocess.run([sys.executable,str(root/'.automation'/'scripts'/'deepseek_worker.py'),'--task-file',str(tf.relative_to(root))],cwd=root,stdin=subprocess.DEVNULL,text=True,capture_output=True);meta=None
+    p=subprocess.run([sys.executable,str(root/'.automation'/'scripts'/'deepseek_worker.py'),'--task-file',str(tf.relative_to(root))],cwd=root,stdin=subprocess.DEVNULL,text=True,encoding='utf-8',errors='replace',capture_output=True);meta=None
     for line in reversed((p.stdout or '').splitlines()):
         try:o=json.loads(line);meta=o if 'meta' in o else meta
         except Exception:pass

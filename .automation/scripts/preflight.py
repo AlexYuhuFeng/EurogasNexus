@@ -11,7 +11,7 @@ def probe_worker(root,cfg):
          '-c','approval_policy="never"','-c',f'model_reasoning_effort="{wc["reasoning_effort"]}"','-c','agents.enabled=false',
          '-c','features.plugins=false',f'Do not read or modify repository files. Reply exactly {marker}.']
     try:
-        p=subprocess.run(cmd,cwd=root,env=env,stdin=subprocess.DEVNULL,text=True,capture_output=True,timeout=900)
+        p=subprocess.run(cmd,cwd=root,env=env,stdin=subprocess.DEVNULL,text=True,encoding='utf-8',errors='replace',capture_output=True,timeout=900)
     except Exception as e:
         return False,f'worker probe failed to launch: {e}'
     stdout=(p.stdout or '')

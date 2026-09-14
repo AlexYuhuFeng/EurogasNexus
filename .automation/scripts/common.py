@@ -11,7 +11,7 @@ TRANSIENT_PATTERNS=["timed out","timeout","connection reset","temporarily unavai
 def repo_root():
     candidate=Path(__file__).resolve().parents[2]
     try:
-        out=subprocess.check_output(['git','-C',str(candidate),'rev-parse','--show-toplevel'],text=True,stderr=subprocess.DEVNULL).strip(); return Path(out).resolve()
+        out=subprocess.check_output(['git','-C',str(candidate),'rev-parse','--show-toplevel'],text=True,encoding='utf-8',errors='replace',stderr=subprocess.DEVNULL).strip(); return Path(out).resolve()
     except Exception:return candidate.resolve()
 
 def load_toml(path):
@@ -43,7 +43,7 @@ def resolve_executable(binary='codex'):
 
 def codex_version(binary='codex'):
     exe=resolve_executable(binary)
-    try:out=subprocess.check_output([exe,'--version'],text=True,stderr=subprocess.STDOUT,timeout=20)
+    try:out=subprocess.check_output([exe,'--version'],text=True,encoding='utf-8',errors='replace',stderr=subprocess.STDOUT,timeout=20)
     except Exception:return None,''
     m=re.search(r'(\d+)\.(\d+)\.(\d+)',out); return (tuple(map(int,m.groups())) if m else None),out.strip()
 
@@ -106,7 +106,7 @@ def extract_thread_id(jsonl):
         if o.get('type')=='thread.started' and o.get('thread_id'):return o['thread_id']
     return None
 
-def git(args,root,check=True):return subprocess.run(['git','-C',str(root),*args],text=True,capture_output=True,check=check)
+def git(args,root,check=True):return subprocess.run(['git','-C',str(root),*args],text=True,encoding='utf-8',errors='replace',capture_output=True,check=check)
 
 def kill_process_tree(proc):
     if proc.poll() is not None:return
