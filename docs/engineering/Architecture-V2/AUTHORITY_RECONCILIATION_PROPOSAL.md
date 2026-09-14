@@ -49,3 +49,24 @@ authorise mass UI conversion. Existing behavior remains the baseline.
 Each task requires a separate DeepSeek brief and Astra evidence review. No task
 has been dispatched. No API, schema, permissions, numerical behavior, release
 or desktop behavior has changed.
+
+## Autonomous programme resolution
+
+Status: AUTO-RESOLVED under `AUTONOMOUS_EXECUTION_POLICY.md`.
+
+The Architecture V2 programme resolves this authority conflict as follows:
+
+- Product Experience Architecture governs task flows, shell composition,
+  workspace patterns, navigation, Inspector and interaction grammar.
+- Professional UI Constitution governs typography, density, spacing,
+  visual component styling and motion.
+- UI Content Standards retain authority for content, time basis, rights,
+  provenance, entitlement and no-execution rules.
+- Domain, API, data and security contracts retain their respective authority.
+
+A superseding ADR SHALL be generated through the repository's ADR/RFC process.
+
+This decision requires no human approval under Full Autonomous Mode.
+
+Proceed with W0-01.
+

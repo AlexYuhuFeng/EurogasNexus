@@ -1,8 +1,8 @@
 # Architecture V2 Execution State
 
 Last updated: 2026-09-14
-Repository HEAD: 334c882d5de5fe7e4c955ee1d3cc2af1781f8829
-Working tree: pre-existing edits in .automation/scripts/{common,deepseek_worker,preflight,supervisor}.py preserved; this slice updates this checkpoint and adds the authority reconciliation proposal.
+Repository HEAD: d6059d320e27abb6ef6dda15671d743e94df349c
+Working tree: clean at resume inspection; this slice updates only this checkpoint. Prior automation edits and the proposed authority reconciliation are now committed in d6059d3.
 V2 pack version: 2026-09 autonomous runner
 Current wave: Wave 0
 Wave status: BLOCKED_HUMAN_REVIEW — UI authority conflict with accepted ADR Decision 14
@@ -41,6 +41,9 @@ Wave status: BLOCKED_HUMAN_REVIEW — UI authority conflict with accepted ADR De
 
 ## Validation evidence
 
+- Resume audit on 2026-09-14: HEAD advanced by d6059d3 (runner stabilization), containing the four previously inspected automation edits, checkpoint and proposal. ADR Decision 14 is unchanged; proposal remains PROPOSED. No human approval was found in the conversation or inspected authority records; committing a proposal does not accept it.
+- Runtime control at resume reports WAITING_ALLOWANCE with last_worker_result null. No supervisor or worker launched; return wait_human so the external supervisor can retain the architecture gate. Historical RUNNING observation below is from the previous slice.
+- Resume checkpoint whitespace validation: git diff --check -- docs/engineering/ARCHITECTURE_V2_EXECUTION_STATE.md passed.
 - git status --short and git rev-parse HEAD inspected; four pre-existing automation modifications are outside this slice and not accepted or reverted.
 - git diff -- .automation/scripts inspected: UTF-8 subprocess decoding and supervisor command/syntax edits; no tests run or acceptance claimed for them.
 - Existing React App -> AppShell seam and productNavigation registry inspected; existing tests/contract/test_workspace_navigation_contract.py identified, not executed.

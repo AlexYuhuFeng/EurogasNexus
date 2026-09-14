@@ -9,8 +9,8 @@ model = "gpt-6-astra"
 reasoning_effort = "low"
 sandbox_mode = "workspace-write"
 approval_policy = "never"
-resume_session = true
-max_resumes_per_session = 24
+resume_session = false
+max_resumes_per_session = 0
 turn_timeout_seconds = 10800
 
 [worker]

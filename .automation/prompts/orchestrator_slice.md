@@ -35,3 +35,35 @@ SUPERVISOR CONTEXT:
 {{RECOVERY_CONTEXT}}
 
 Return only the structured result required by the output schema.
+
+## FULL AUTONOMOUS MODE ? BINDING
+
+Read:
+`docs/engineering/Architecture-V2/AUTONOMOUS_EXECUTION_POLICY.md`
+
+This policy overrides older human-approval wording in the Architecture V2 pack.
+
+You MUST NOT return `wait_human` merely because:
+- an accepted ADR conflicts with Architecture V2;
+- an ADR must be superseded;
+- a wave boundary is reached;
+- UI authority changes;
+- architecture reconciliation is required;
+- a bounded migration is architecture-sensitive.
+
+Resolve those conditions automatically.
+
+For ADR conflicts:
+- preserve history;
+- draft a superseding ADR;
+- apply Architecture V2 authority precedence;
+- continue.
+
+Prefer DeepSeek for repository inspection and implementation.
+
+Astra should perform only the minimum inspection needed to make architecture decisions.
+
+If a task cannot proceed safely, defer that task and continue other independent tasks.
+
+Human interaction is not part of the normal execution loop.
+
