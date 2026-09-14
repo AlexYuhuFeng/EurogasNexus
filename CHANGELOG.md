@@ -25,6 +25,22 @@ asserted by `tests/contract/test_ontology_version_alignment.py`.
 
 ## [Unreleased]
 
+- The degraded-endpoint surface is now truthful and bounded: it renders
+  translated endpoint labels and the safe machine code per failure (at most five
+  detail rows plus a "showing N of M" line) instead of raw internal loader keys,
+  the retry control reports its attempt count and last attempt time, disables
+  itself and marks `aria-busy` while a retry is in flight, and the release-blocker
+  list in the runtime workspace no longer prints loader keys.
+- Accessibility defects found by an axe audit of the current surfaces are fixed:
+  the market sparkline's empty state exposed an `aria-label` on an element
+  without a role, and the simulated-source pill's accent-on-tint text measured
+  about 4.16:1 against the 4.5:1 required for its 11px label. The sign-in screen
+  (EN and zh-CN), the market numeric view and the 390px Mandarin System
+  workspace now report zero axe violations.
+- The desktop shell drops its WebView cookies, caches and local storage after a
+  sign-out (`clear_client_session_data`), so a shared workstation keeps no
+  session material behind once the backend session has been revoked.
+
 - Research datasets: builds register a format-specific artifact (CSV always,
   Parquet when the optional adapter is installed) with a sha256 under a
   configurable artifact root, and export now matches the requested format

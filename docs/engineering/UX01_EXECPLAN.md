@@ -959,6 +959,22 @@ after an artifact write can leave an orphan file keyed by the snapshot id. The
 Web Research Data workspace still has no build/validate form or artifact
 download (register row `CR14-UI-001`).
 
+Live end-to-end confirmation (2026-09-14, PostgreSQL 16 at head 0033 through the
+running API - note that a long-running uvicorn process must be restarted to pick
+up this code): `POST /api/research/datasets/validate` with unknown feature,
+target and policy ids answers 200 `ok:false` with structured issues
+(`unknown_feature_id`, `unknown_target_id`, `unknown_resampling_policy_id`, each
+`{field, code, message}`) and `registry_resolution: RESOLVED`, and the matching
+build answers 422 `dataset_registry_invalid` with the same issue objects - the
+resolver really runs against the database rather than only in the fixtures.
+
+Operational prerequisite observed during that run: a freshly migrated runtime has
+an empty research registry (`feature_definitions`, `target_definitions` and
+`resampling_policies` are all zero rows), so every dataset build fails closed
+with those structured issues until the registry is seeded. The preview seed
+script does not populate it; treat "seed the research registry" as a prerequisite
+for exercising or exposing the governed builder.
+
 ### Narrow-viewport task tabs (2026-09-14)
 
 `UX-SYSTEM-NARROW-001` was a CSS defect rather than a component defect: the
@@ -973,3 +989,43 @@ Evidence: measured live at 390x844 in Mandarin after sign-in - all eight System
 task tabs render at 32px height with `white-space: nowrap` and the container
 scrolls horizontally; capture `output/playwright/ux01-system-tabs-390-zh.png`.
 The image itself has not been visually reviewed.
+
+### Degraded-endpoint surface and an axe pass over the current surfaces (2026-09-14)
+
+`UX01-002` is closed on browser evidence. The failure surface rendered raw
+internal loader keys and never read the safe machine codes the store already
+recorded for every failure.
+
+- A pure model (`app/model/endpointFailures.ts`) maps the 29 loader keys the
+  workspace, market and monitoring lanes can write to translated labels, keeps a
+  generic fallback for anything unknown, maps the four failure codes to safe
+  messages, and bounds the surface to five detail rows plus a "showing N of M"
+  line. The banner renders that summary, and the retry control now has an
+  authoritative busy guard, an attempt counter, a last-attempt time and
+  `aria-busy`. The runtime workspace's release-blocker list reuses the same
+  label mapping instead of printing loader keys.
+- Verified live with route interception (a hanging `/market/spreads` and 503s
+  elsewhere): six affected endpoints, five rendered rows, no leak of loader
+  keys, i18n key names, backend prose or status codes; a forced second retry
+  click did not increment the counter; the surface never became a success; and
+  geometry at 1440/1024/800/600 showed no overlap, clipping or horizontal
+  overflow. Web tests 176 passed, build clean, EN/CN parity 1427/1427.
+
+An axe-core pass (the repository's own CR-13 standard) over the surfaces this
+campaign touched found two serious violations on the market numeric view, both
+of which are fixed here:
+
+1. the market sparkline's empty state put `aria-label` on a `div` with no role
+   (13 nodes) - it now carries `role="img"`, matching the populated branch;
+2. the simulated-source pill measured about 4.16:1 for its 11px label - the
+   identity stays in the blue border and tint while the text uses the ink token.
+
+After the fixes the sign-in screen (EN and zh-CN), the market numeric view and
+the 390x844 Mandarin System workspace all report **zero axe violations**.
+
+Also in this batch: the desktop shell now drops its WebView cookies, caches and
+local storage on sign-out (`clear_client_session_data`, verified to compile with
+the MSVC toolchain), so a shared workstation keeps nothing behind after the
+backend session is revoked. Not verified natively: the command's runtime effect
+requires a packaged desktop build, and the CI desktop job only runs on pull
+requests.
