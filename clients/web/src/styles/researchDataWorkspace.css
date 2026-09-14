@@ -36,7 +36,9 @@
 .research-semantic-table tr:focus-visible,
 .research-text-button:focus-visible,
 .research-export-controls select:focus-visible,
-.research-export-controls button:focus-visible {
+.research-export-controls button:focus-visible,
+.research-spec-grid input:focus-visible,
+.research-spec-actions button:focus-visible {
   outline: 2px solid var(--eg-link, var(--accent));
   outline-offset: 2px;
 }
@@ -323,6 +325,150 @@
 .research-detail-error strong,
 .research-detail-error span {
   color: var(--eg-danger, var(--danger));
+}
+
+.research-spec-panel {
+  min-width: 0;
+  margin-bottom: var(--space-5);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--eg-hairline);
+}
+
+.research-spec-fieldset {
+  margin: var(--space-3) 0 0;
+  border: 1px solid var(--eg-hairline);
+  border-radius: var(--radius-panel, var(--radius-control));
+  padding: var(--space-3);
+}
+
+.research-spec-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-3);
+}
+
+.research-spec-grid label {
+  display: grid;
+  gap: var(--space-1);
+  font-size: var(--text-control);
+  color: var(--eg-muted);
+}
+
+.research-spec-grid label.span-2 {
+  grid-column: 1 / -1;
+}
+
+.research-spec-grid input {
+  min-height: var(--control-standard);
+  width: 100%;
+  border: 1px solid var(--eg-hairline);
+  border-radius: var(--radius-control);
+  background: var(--eg-canvas);
+  color: var(--eg-body);
+  padding: 0 var(--space-2);
+}
+
+.research-spec-required {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-2) 0 0;
+  color: var(--eg-muted);
+  font-size: var(--text-body);
+}
+
+.research-spec-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.research-spec-actions .research-muted {
+  flex: 1 1 240px;
+  margin: 0;
+}
+
+.research-run-result {
+  margin-top: var(--space-4);
+}
+
+.research-run-result h3 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-panel-title);
+}
+
+.research-run-metrics {
+  margin-top: var(--space-2);
+}
+
+.research-issue-block {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.research-issue-groups {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.research-issue-field {
+  display: block;
+  font-weight: 600;
+  color: var(--eg-ink);
+}
+
+.research-issue-code {
+  display: inline-block;
+  margin-right: var(--space-2);
+  border-radius: var(--radius-control);
+  background: var(--eg-canvas);
+  padding: 1px var(--space-1);
+  font-size: var(--text-control);
+  overflow-wrap: anywhere;
+}
+
+.research-issue-message {
+  overflow-wrap: anywhere;
+}
+
+.research-format-block {
+  display: grid;
+  gap: var(--space-1);
+  margin-top: var(--space-3);
+  font-size: var(--text-body);
+}
+
+.research-format-list {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.research-format-list li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.research-format-name {
+  font-family: var(--font-mono, monospace);
+}
+
+.research-format-state {
+  color: var(--eg-muted);
+}
+
+.research-format-registered {
+  color: var(--eg-positive, var(--accent));
 }
 
 .research-data-page .visually-hidden {

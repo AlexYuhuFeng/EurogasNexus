@@ -286,6 +286,59 @@ function errorDetail(payload: unknown, fallback: string): string {
   return fallback;
 }
 
+/**
+ * An HTTP error envelope: the status plus the machine-readable ``detail`` body.
+ *
+ * The message stays byte-identical to the previous plain ``Error`` (callers and
+ * the identity gate classify it by its ``API <status>:`` prefix), while the raw
+ * ``detail`` is retained so a governed surface can render the backend's own
+ * structured issues instead of re-parsing the flattened message.
+ */
+export class ApiError extends Error {
+  readonly status: number;
+  readonly detail: unknown;
+
+  constructor(message: string, status: number, detail: unknown) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.detail = detail;
+  }
+}
+
+/** Structured failure of one transport call: status plus the parsed detail body. */
+export interface ApiFailureDTO {
+  status: number;
+  detail: unknown;
+  message: string;
+}
+
+/**
+ * Outcome of a governed request that is expected to fail closed.
+ *
+ * Resolves instead of throwing for HTTP error responses so the caller keeps the
+ * structured envelope (issues, codes, available formats). Transport-level
+ * failures (abort, timeout, no response) still reject, because those are not
+ * server answers.
+ */
+export type ApiOutcomeDTO<T> = { ok: true; data: T } | { ok: false; failure: ApiFailureDTO };
+
+export async function apiOutcome<T>(
+  operation: () => Promise<ApiResponse<T>>,
+): Promise<ApiOutcomeDTO<T>> {
+  try {
+    return { ok: true, data: (await operation()).data };
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return {
+        ok: false,
+        failure: { status: error.status, detail: error.detail, message: error.message },
+      };
+    }
+    throw error;
+  }
+}
+
 async function parseResponse<T>(res: Response): Promise<T> {
   const body = await res.text();
   const contentType = res.headers.get("content-type") ?? "";
@@ -295,15 +348,25 @@ async function parseResponse<T>(res: Response): Promise<T> {
     try {
       payload = JSON.parse(body);
     } catch {
-      throw new Error(`API ${res.status}: invalid JSON response.`);
+      throw new ApiError(`API ${res.status}: invalid JSON response.`, res.status, null);
     }
   }
   if (!res.ok) {
     const detail = errorDetail(payload, res.statusText || "request failed");
-    throw new Error(`API ${res.status}: ${detail}`);
+    throw new ApiError(
+      `API ${res.status}: ${detail}`,
+      res.status,
+      payload && typeof payload === "object" && "detail" in payload
+        ? (payload as { detail: unknown }).detail
+        : payload,
+    );
   }
   if (!looksJson || payload === null) {
-    throw new Error(`API ${res.status}: expected JSON but received ${contentType || "an unknown content type"}.`);
+    throw new ApiError(
+      `API ${res.status}: expected JSON but received ${contentType || "an unknown content type"}.`,
+      res.status,
+      null,
+    );
   }
   return payload as T;
 }
@@ -1357,7 +1420,42 @@ export interface ResearchDatasetExportDTO {
   dataset_snapshot_id: string;
   format: "parquet" | "csv";
   artifact_ref: string | null;
+  /** Registered artifact identity and digest of the referenced file. */
+  artifact_id?: string | null;
+  artifact_sha256?: string | null;
+  /** Formats the backend has registered for this snapshot. Server-reported only. */
+  available_formats?: string[];
   entitlement_policy: string;
+}
+
+/** One structured dataset-registry/validation issue: ``{field, code, message}``. */
+export interface ResearchDatasetIssueDTO {
+  field: string;
+  code: string;
+  message: string;
+}
+
+export interface ResearchDatasetValidationDTO {
+  ok: boolean;
+  issues: ResearchDatasetIssueDTO[];
+  spec_hash: string;
+  registry_resolution: string;
+}
+
+/**
+ * Build reply: the snapshot metadata the materialize route returns. It carries
+ * no artifact list, so available formats stay "not reported" until a server
+ * answer names them.
+ */
+export interface ResearchDatasetBuildDTO extends Record<string, unknown> {
+  dataset_snapshot_id: string;
+  dataset_spec_id: string;
+  dataset_spec_version: string;
+  spec_hash?: string;
+  row_count: number | null;
+  column_count: number | null;
+  artifact_ref?: string | null;
+  entitlement_envelope?: Record<string, unknown>;
 }
 
 export interface ResearchCapabilityDTO {
@@ -1693,17 +1791,14 @@ export const api = {
     get<AgentReplayDTO>(`/agent/runs/${encodeURIComponent(agentRunId)}/replay`),
   runAgentResearch: (body: { objective: string; agent_profile?: string; strategy_generation_allowed?: boolean }) =>
     post<Record<string, unknown>>("/agent/research", body),
-  validateResearchDataset: (spec: Record<string, unknown>) =>
-    post<{
-      ok: boolean;
-      // Structured registry/validation issues; the backend reports
-      // {field, code, message} objects, not bare strings.
-      issues: { field: string; code: string; message: string }[];
-      spec_hash: string;
-      registry_resolution?: Record<string, unknown>;
-    }>("/research/datasets/validate", { dataset_spec: spec }),
-  buildResearchDataset: (spec: Record<string, unknown>) =>
-    post<Record<string, unknown>>("/research/datasets", { dataset_spec: spec, materialize: true }),
+  validateResearchDataset: (spec: Record<string, unknown>, options?: ApiRequestOptions) =>
+    post<ResearchDatasetValidationDTO>("/research/datasets/validate", { dataset_spec: spec }, options),
+  buildResearchDataset: (spec: Record<string, unknown>, options?: ApiRequestOptions) =>
+    post<ResearchDatasetBuildDTO>(
+      "/research/datasets",
+      { dataset_spec: spec, materialize: true },
+      options,
+    ),
 
   glossary: (lang: string = "en", params?: { category?: string; q?: string }, options?: ApiRequestOptions) =>
     get<GlossaryTermDTO[]>("/glossary", { lang, ...(params ?? {}) }, options),

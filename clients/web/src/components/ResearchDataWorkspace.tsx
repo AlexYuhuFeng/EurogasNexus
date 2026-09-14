@@ -2,13 +2,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ResearchDatasetDTO,
   ResearchDatasetDetailDTO,
-  ResearchDatasetExportDTO,
   ResearchDatasetQualityDTO,
   ResearchFeatureDTO,
   ResearchTargetDTO,
   api,
+  apiOutcome,
 } from "@/api/client";
-import { StatusBadge, WorkspaceTabs } from "@/components/ui";
+import { MetricStrip, PanelHeader, StatusBadge, WorkspaceTabs } from "@/components/ui";
 import {
   DEFAULT_WORKSPACE_READ_TIMEOUT_MS,
   WorkspaceLoadCoordinator,
@@ -16,10 +16,35 @@ import {
 } from "@/stores/workspaceLoading";
 import { useApiStore } from "@/stores/api";
 import {
+  EMPTY_RESEARCH_SPEC_DRAFT,
+  RESEARCH_EXPORT_FORMATS,
+  ResearchBuildGate,
+  ResearchBuildSummary,
+  ResearchExportState,
+  ResearchIssue,
+  ResearchIssueGroup,
+  ResearchSpecDraft,
+  ResearchValidationOutcome,
+  groupResearchIssues,
   isCurrentResearchSelection,
   isResearchDetailForSelection,
+  researchAnswerCode,
+  researchBuildGate,
+  researchBuildSummary,
   researchDisplayValue,
+  researchExportCanRequest,
   researchExportDecision,
+  researchExportStateFromAnswer,
+  researchFormatOptions,
+  researchFormatRows,
+  researchHttpStatus,
+  researchIssueTotal,
+  researchIssuesFromAnswer,
+  researchRequestErrorMessage,
+  researchSpecFingerprint,
+  researchSpecFromDraft,
+  researchSpecMissingInputs,
+  researchValidationOutcome,
   safeResearchErrorMessage,
 } from "@/app/model/researchDataModel";
 import "@/styles/researchDataWorkspace.css";
@@ -40,12 +65,77 @@ type DetailState =
   | { status: "ready"; detail: ResearchDatasetDetailDTO; quality: ResearchDatasetQualityDTO }
   | { status: "error"; message: string };
 
+type ValidationState =
+  | { status: "idle" }
+  | { status: "busy" }
+  | { status: "ready"; outcome: ResearchValidationOutcome; fingerprint: string }
+  | { status: "error"; message: string };
+
+type BuildState =
+  | { status: "idle" }
+  | { status: "busy" }
+  | { status: "created"; summary: ResearchBuildSummary }
+  | { status: "rejected"; code: string; issues: ResearchIssue[]; message: string }
+  | { status: "error"; message: string };
+
 const genericErrorMessages = (t: Translate) => ({
   generic: t("research.request_error"),
   unauthorized: t("research.unauthorized_error"),
   forbidden: t("research.forbidden_error"),
   exportDenied: t("research.export_denied_backend"),
 });
+
+const specRequestMessages = (t: Translate) => ({
+  generic: t("research.request_error"),
+  unauthorized: t("research.unauthorized_error"),
+  forbidden: t("research.build_forbidden"),
+});
+
+/** Field labels are declared once so the required-input hint can name them. */
+const SPEC_FIELD_LABELS: Record<keyof ResearchSpecDraft, string> = {
+  datasetSpecId: "research.spec_dataset_spec_id",
+  name: "research.spec_name",
+  description: "research.spec_description",
+  featureIds: "research.spec_feature_ids",
+  targetIds: "research.spec_target_ids",
+  entityIds: "research.spec_entity_ids",
+  start: "research.spec_start",
+  end: "research.spec_end",
+  historyLookback: "research.spec_history_lookback",
+  forecastOriginFrequency: "research.spec_forecast_origin_frequency",
+  resamplingPolicyId: "research.spec_resampling_policy_id",
+  outputFormat: "research.spec_output_format",
+};
+
+interface SpecFieldSpec {
+  key: keyof ResearchSpecDraft;
+  placeholderKey: string;
+  multiline?: boolean;
+}
+
+const SPEC_TEXT_FIELDS: readonly SpecFieldSpec[] = [
+  { key: "datasetSpecId", placeholderKey: "research.spec_placeholder_spec_id" },
+  { key: "name", placeholderKey: "research.spec_placeholder_name" },
+  { key: "description", placeholderKey: "research.spec_placeholder_description" },
+  { key: "targetIds", placeholderKey: "research.spec_placeholder_list" },
+  { key: "featureIds", placeholderKey: "research.spec_placeholder_list" },
+  { key: "entityIds", placeholderKey: "research.spec_placeholder_list" },
+  { key: "start", placeholderKey: "research.spec_placeholder_timestamp" },
+  { key: "end", placeholderKey: "research.spec_placeholder_timestamp" },
+  { key: "historyLookback", placeholderKey: "research.spec_placeholder_duration" },
+  { key: "forecastOriginFrequency", placeholderKey: "research.spec_placeholder_frequency" },
+  { key: "resamplingPolicyId", placeholderKey: "research.spec_placeholder_policy" },
+  { key: "outputFormat", placeholderKey: "research.spec_placeholder_output_format" },
+];
+
+const SPEC_REQUIRED_KEYS: ReadonlyArray<keyof ResearchSpecDraft> = [
+  "datasetSpecId",
+  "name",
+  "description",
+  "targetIds",
+  "start",
+  "end",
+];
 
 function formatDate(value: string | null | undefined, unknownLabel: string): string {
   if (!value) return unknownLabel;
@@ -72,6 +162,245 @@ function DetailValue({ label, value }: { label: string; value: string }) {
   return <div className="research-detail-value"><dt>{label}</dt><dd>{value}</dd></div>;
 }
 
+function ResearchIssueList({ t, groups }: { t: Translate; groups: ResearchIssueGroup[] }) {
+  return (
+    <div className="research-issue-block">
+      <strong>{t("research.validation_issues")}</strong>
+      <ul className="research-issue-groups">
+        {groups.map((group) => (
+          <li key={group.field || "unassigned"}>
+            <span className="research-issue-field">{group.field || t("research.issue_field_unassigned")}</span>
+            <ul className="research-detail-list">
+              {group.issues.map((issue) => (
+                <li key={`${issue.code}-${issue.message}`}>
+                  <code className="research-issue-code">{issue.code || t("research.issue_code_unknown")}</code>
+                  {issue.message ? <span className="research-issue-message">{issue.message}</span> : null}
+                </li>
+              ))}
+            </ul>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function ResearchSpecPanel({
+  t,
+  draft,
+  onDraftChange,
+  missingInputs,
+  validationState,
+  buildState,
+  gate,
+  createdDetail,
+  onValidate,
+  onBuild,
+}: {
+  t: Translate;
+  draft: ResearchSpecDraft;
+  onDraftChange: (key: keyof ResearchSpecDraft, value: string) => void;
+  missingInputs: Array<keyof ResearchSpecDraft>;
+  validationState: ValidationState;
+  buildState: BuildState;
+  gate: ResearchBuildGate;
+  createdDetail: ResearchDatasetDetailDTO | null;
+  onValidate: () => void;
+  onBuild: () => void;
+}) {
+  const busy = validationState.status === "busy" || buildState.status === "busy";
+  const ready = missingInputs.length === 0;
+  const outcome = validationState.status === "ready" ? validationState.outcome : null;
+  const issueGroups = outcome ? groupResearchIssues(outcome.issues) : [];
+  const buildGroups = buildState.status === "rejected" ? groupResearchIssues(buildState.issues) : [];
+
+  return (
+    <section className="research-spec-panel" aria-labelledby="research-spec-title">
+      <PanelHeader title={<span id="research-spec-title">{t("research.spec_build_title")}</span>} meta={t("research.spec_build_help")} />
+      <p className="research-muted">{t("research.spec_build_note")}</p>
+      <fieldset className="research-spec-fieldset" disabled={busy}>
+        <legend className="visually-hidden">{t("research.spec_build_title")}</legend>
+        <div className="research-spec-grid">
+          {SPEC_TEXT_FIELDS.map((field) => (
+            <label key={field.key} className={field.key === "description" ? "span-2" : undefined}>
+              {t(SPEC_FIELD_LABELS[field.key])}
+              {SPEC_REQUIRED_KEYS.includes(field.key) ? <span aria-hidden="true"> *</span> : null}
+              <input
+                type="text"
+                value={draft[field.key]}
+                placeholder={t(field.placeholderKey)}
+                onChange={(event) => onDraftChange(field.key, event.target.value)}
+              />
+            </label>
+          ))}
+        </div>
+      </fieldset>
+      <p className="research-muted">{t("research.spec_required_note")}</p>
+      {missingInputs.length > 0 && (
+        <p className="research-spec-required" role="status">
+          <strong>{t("research.spec_required_fields")}</strong>
+          <span>{missingInputs.map((key) => t(SPEC_FIELD_LABELS[key])).join(", ")}</span>
+        </p>
+      )}
+      <div className="research-spec-actions">
+        <button type="button" className="button" onClick={onValidate} disabled={busy || !ready}>{validationState.status === "busy" ? t("status.loading") : t("research.validate_action")}</button>
+        <button type="button" className="button primary" onClick={onBuild} disabled={busy || !gate.canBuild}>{buildState.status === "busy" ? t("status.loading") : t("research.build_action")}</button>
+        <span className="research-muted" role="status">{gate.reason === "not_validated" ? t("research.build_locked_not_validated") : gate.reason === "spec_changed" ? t("research.build_locked_spec_changed") : gate.reason === "validation_failed" ? t("research.build_locked_validation_failed") : t("research.build_unlocked")}</span>
+      </div>
+
+      <section className="research-run-result" aria-labelledby="research-validation-result">
+        <h3 id="research-validation-result">{t("research.validation_result")}</h3>
+        {validationState.status === "idle" && <p className="research-muted">{t("research.validation_not_run")}</p>}
+        {validationState.status === "busy" && <p className="research-muted" aria-busy="true">{t("status.loading")}</p>}
+        {validationState.status === "error" && <p className="research-export-error" role="alert">{validationState.message}</p>}
+        {outcome && (
+          <>
+            <MetricStrip
+              className="metric-grid research-run-metrics"
+              items={[
+                { label: t("research.validation_status"), value: <StatusBadge variant="pipeline" status={outcome.ok ? "succeeded" : "failed"}>{outcome.ok ? t("research.validation_ok") : t("research.validation_failed")}</StatusBadge> },
+                { label: t("research.spec_hash"), value: researchDisplayValue(outcome.specHash, t("research.unknown")) },
+                { label: t("research.registry_resolution"), value: researchDisplayValue(outcome.registryResolution, t("research.unknown")) },
+                { label: t("research.validation_issue_count"), value: researchIssueTotal(issueGroups) },
+              ]}
+            />
+            {outcome.code && <p className="research-muted"><strong>{t("research.issue_code")}</strong> <code className="research-issue-code">{outcome.code}</code></p>}
+            {issueGroups.length > 0
+              ? <ResearchIssueList t={t} groups={issueGroups} />
+              : <p className="research-muted">{t("research.validation_no_issues")}</p>}
+          </>
+        )}
+      </section>
+
+      <section className="research-run-result" aria-labelledby="research-build-result">
+        <h3 id="research-build-result">{t("research.build_result")}</h3>
+        {buildState.status === "idle" && <p className="research-muted">{t("research.build_not_run")}</p>}
+        {buildState.status === "busy" && <p className="research-muted" aria-busy="true">{t("status.loading")}</p>}
+        {buildState.status === "error" && <p className="research-export-error" role="alert">{buildState.message}</p>}
+        {buildState.status === "rejected" && (
+          <>
+            <p className="research-export-error" role="alert"><strong>{t("research.build_rejected")}</strong> {buildState.message}</p>
+            {buildState.code && <p className="research-muted"><strong>{t("research.issue_code")}</strong> <code className="research-issue-code">{buildState.code}</code></p>}
+            {buildGroups.length > 0 && <ResearchIssueList t={t} groups={buildGroups} />}
+          </>
+        )}
+        {buildState.status === "created" && (
+          <>
+            <p className="research-artifact-result" role="status"><strong>{t("research.build_created")}</strong> {buildState.summary.datasetSnapshotId}</p>
+            <p className="research-muted">{t("research.build_created_help")}</p>
+            <dl className="research-detail-grid">
+              <DetailValue label={t("research.name")} value={researchDisplayValue(buildState.summary.datasetSpecId, t("research.unknown"))} />
+              <DetailValue label={t("research.spec_hash")} value={researchDisplayValue(buildState.summary.specHash, t("research.unknown"))} />
+              <DetailValue label={t("research.rows")} value={researchDisplayValue(buildState.summary.rowCount, t("research.unknown"))} />
+              <DetailValue label={t("research.columns")} value={researchDisplayValue(buildState.summary.columnCount, t("research.unknown"))} />
+              <DetailValue
+                label={t("research.artifact_reference")}
+                value={researchDisplayValue(createdDetail?.artifact_ref ?? buildState.summary.artifactRef, t("research.unknown"))}
+              />
+            </dl>
+            <div className="research-format-block">
+              <strong>{t("research.format_availability")}</strong>
+              <ul className="research-format-list">
+                {researchFormatRows(buildState.summary.availableFormats).map((row) => (
+                  <li key={row.format}><span className="research-format-name">{row.format}</span><span className={`research-format-state research-format-${row.availability}`}>{row.availability === "registered" ? t("research.format_registered") : row.availability === "unregistered" ? t("research.format_unregistered") : t("research.format_unknown")}</span></li>
+                ))}
+              </ul>
+              <p className="research-muted">{buildState.summary.availableFormats === null ? t("research.build_formats_unreported") : t("research.build_formats_reported")}</p>
+            </div>
+          </>
+        )}
+      </section>
+    </section>
+  );
+}
+
+function ArtifactDeliverySection({
+  t,
+  decision,
+  exportState,
+  exportError,
+  exportFormat,
+  onExportFormatChange,
+  onExport,
+  exportBusy,
+}: {
+  t: Translate;
+  decision: ReturnType<typeof researchExportDecision>;
+  exportState: ResearchExportState;
+  exportError: string | null;
+  exportFormat: ExportFormat;
+  onExportFormatChange: (format: ExportFormat) => void;
+  onExport: () => void;
+  exportBusy: boolean;
+}) {
+  // The route only accepts parquet/csv, so the control can offer nothing else;
+  // once the backend reports its registered formats, only those are offered so
+  // a refused format is never requested twice.
+  const requestableFormats = researchFormatOptions(exportState.availableFormats)
+    .filter((format): format is ExportFormat => (RESEARCH_EXPORT_FORMATS as readonly string[]).includes(format));
+  const canRequest = researchExportCanRequest(decision) && exportState.status !== "restricted";
+  const showControl = canRequest && requestableFormats.length > 0;
+  const formatRows = researchFormatRows(exportState.availableFormats);
+  const formatStateLabel = (availability: string) => availability === "registered"
+    ? t("research.format_registered")
+    : availability === "unregistered"
+      ? t("research.format_unregistered")
+      : t("research.format_unknown");
+
+  return (
+    <section className="research-detail-section research-export-section" aria-labelledby="research-export">
+      <h3 id="research-export">{t("research.export_reference")}</h3>
+      <p className="research-muted">{t("research.export_reference_help")}</p>
+      <p className="research-policy-note" role="status">
+        <strong>{t("research.entitlement_state")}</strong>{" "}
+        {decision === "allowed" ? t("research.entitlement_allowed") : decision === "unknown" ? t("research.entitlement_unknown") : t("research.entitlement_restricted")}
+      </p>
+      {decision === "unknown" && <p className="research-policy-note">{t("research.export_unknown_policy")} {t("research.export_unknown_explanation")}</p>}
+      {decision === "restricted" && <p className="research-policy-note">{t("research.export_restricted_policy")} {t("research.export_restricted_explanation")}</p>}
+      <div className="research-format-block">
+        <strong>{t("research.format_availability")}</strong>
+        <ul className="research-format-list">
+          {formatRows.map((row) => (
+            <li key={row.format}><span className="research-format-name">{row.format}</span><span className={`research-format-state research-format-${row.availability}`}>{formatStateLabel(row.availability)}</span></li>
+          ))}
+        </ul>
+      </div>
+      {showControl && (
+        <div className="research-export-controls">
+          <label htmlFor="research-export-format">{t("research.format")}</label>
+          <select id="research-export-format" value={exportFormat} onChange={(event) => onExportFormatChange(event.target.value as ExportFormat)}>{requestableFormats.map((format) => <option key={format} value={format}>{format.toUpperCase()}</option>)}</select>
+          <button type="button" className="button primary" onClick={onExport} disabled={exportBusy}>{exportBusy ? t("status.loading") : t("research.request_artifact_reference")}</button>
+        </div>
+      )}
+      {canRequest && requestableFormats.length === 0 && <p className="research-policy-note">{t("research.export_no_registered_format")}</p>}
+      {exportState.status === "restricted" && <p className="research-policy-note" role="status">{t("research.export_answer_restricted")}</p>}
+      {exportState.status === "format_unregistered" && (
+        <div className="research-policy-note" role="status">
+          <p>{t("research.export_answer_format_unregistered")}</p>
+          <p><strong>{t("research.export_answer_available_formats")}</strong> {exportState.availableFormats && exportState.availableFormats.length ? exportState.availableFormats.join(", ") : t("research.export_answer_no_formats")}</p>
+        </div>
+      )}
+      {exportState.status === "file_missing" && <p className="research-policy-note" role="status">{t("research.export_answer_file_missing")}</p>}
+      {exportState.status === "unavailable" && (
+        <p className="research-policy-note" role="status">{t("research.export_answer_unavailable")} {exportState.code ? <code className="research-issue-code">{exportState.code}</code> : null}</p>
+      )}
+      {exportState.status === "granted" && (
+        <>
+          <dl className="research-detail-grid">
+            <DetailValue label={t("research.artifact_reference")} value={researchDisplayValue(exportState.artifactRef, t("research.unknown"))} />
+            <DetailValue label={t("research.artifact_id")} value={researchDisplayValue(exportState.artifactId, t("research.unknown"))} />
+            <DetailValue label={t("research.artifact_sha256")} value={researchDisplayValue(exportState.artifactSha256, t("research.unknown"))} />
+            <DetailValue label={t("research.format")} value={researchDisplayValue(exportState.format, t("research.unknown"))} />
+            <DetailValue label={t("research.entitlement_state")} value={researchDisplayValue(exportState.entitlementPolicy, t("research.unknown"))} />
+          </dl>
+          <p className="research-artifact-result" role="status"><strong>{t("research.artifact_reference")}</strong> {researchDisplayValue(exportState.artifactRef, t("research.unknown"))} {t("research.export_reference_only")}</p>
+        </>
+      )}
+      {exportError && <p className="research-export-error" role="alert">{exportError}</p>}
+    </section>
+  );
+}
+
 function DatasetDetailRail({
   t,
   selectedId,
@@ -81,7 +410,7 @@ function DatasetDetailRail({
   exportFormat,
   onExportFormatChange,
   exportBusy,
-  exportResult,
+  exportState,
   exportError,
 }: {
   t: Translate;
@@ -92,7 +421,7 @@ function DatasetDetailRail({
   exportFormat: ExportFormat;
   onExportFormatChange: (format: ExportFormat) => void;
   exportBusy: boolean;
-  exportResult: ResearchDatasetExportDTO | null;
+  exportState: ResearchExportState;
   exportError: string | null;
 }) {
   if (!selectedId) {
@@ -158,18 +487,16 @@ function DatasetDetailRail({
         {!Object.keys(qualityReport).length && !quality.leakage_issues.length && !warnings.length && <p className="research-muted">{t("research.unknown")}</p>}
       </section>
 
-      <section className="research-detail-section research-export-section" aria-labelledby="research-export">
-        <h3 id="research-export">{t("research.export_reference")}</h3>
-        <p className="research-muted">{t("research.export_reference_help")}</p>
-        <div className="research-export-controls">
-          <label htmlFor="research-export-format">{t("research.format")}</label>
-          <select id="research-export-format" value={exportFormat} onChange={(event) => onExportFormatChange(event.target.value as ExportFormat)}><option value="parquet">Parquet</option><option value="csv">CSV</option></select>
-          <button type="button" className="button primary" onClick={onExport} disabled={exportBusy || exportDecision !== "allowed"}>{exportBusy ? t("status.loading") : t("research.request_artifact_reference")}</button>
-        </div>
-        {exportDecision !== "allowed" && <p className="research-policy-note" role="status">{exportDecision === "unknown" ? t("research.export_unknown_policy") : t("research.export_restricted_policy")}</p>}
-        {exportError && <p className="research-export-error" role="alert">{exportError}</p>}
-        {exportResult && <p className="research-artifact-result" role="status"><strong>{t("research.artifact_reference")}</strong> {researchDisplayValue(exportResult.artifact_ref, t("research.unknown"))}</p>}
-      </section>
+      <ArtifactDeliverySection
+        t={t}
+        decision={exportDecision}
+        exportState={exportState}
+        exportError={exportError}
+        exportFormat={exportFormat}
+        onExportFormatChange={onExportFormatChange}
+        onExport={onExport}
+        exportBusy={exportBusy}
+      />
     </aside>
   );
 }
@@ -184,7 +511,7 @@ function DatasetCatalog({ t, datasets, loading, error, selectedId, onSelect }: {
 }) {
   return (
     <section className="research-catalog" aria-labelledby="research-dataset-table-title">
-      <div className="research-surface-heading"><h2 id="research-dataset-table-title">{t("research.dataset_snapshots")}</h2><span>{t("research.dataset_snapshots_help")}</span></div>
+      <PanelHeader title={<span id="research-dataset-table-title">{t("research.dataset_snapshots")}</span>} meta={t("research.dataset_snapshots_help")} />
       {error && <div className="research-catalog-error" role="alert">{error}</div>}
       <div className="research-table-wrap">
         <table className="research-semantic-table" aria-busy={loading}>
@@ -217,17 +544,37 @@ export function ResearchDataWorkspace({ t }: ResearchDataWorkspaceProps) {
   const [catalogIdentityKey, setCatalogIdentityKey] = useState<string | null>(null);
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [catalogLoading, setCatalogLoading] = useState(true);
+  const [catalogReloadKey, setCatalogReloadKey] = useState(0);
   const [selectedDatasetId, setSelectedDatasetId] = useState<string | null>(null);
   const [detailState, setDetailState] = useState<DetailState>({ status: "idle" });
   const [detailRetryKey, setDetailRetryKey] = useState(0);
   const [exportFormat, setExportFormat] = useState<ExportFormat>("parquet");
   const [exportBusy, setExportBusy] = useState(false);
-  const [exportResult, setExportResult] = useState<ResearchDatasetExportDTO | null>(null);
+  const [exportState, setExportState] = useState<ResearchExportState>(() => researchExportStateFromAnswer(null));
   const [exportError, setExportError] = useState<string | null>(null);
+  const [specDraft, setSpecDraft] = useState<ResearchSpecDraft>(EMPTY_RESEARCH_SPEC_DRAFT);
+  const [validationState, setValidationState] = useState<ValidationState>({ status: "idle" });
+  const [buildState, setBuildState] = useState<BuildState>({ status: "idle" });
   const catalogCoordinator = useRef(new WorkspaceLoadCoordinator()).current;
   const detailCoordinator = useRef(new WorkspaceLoadCoordinator()).current;
   const exportCoordinator = useRef(new WorkspaceLoadCoordinator()).current;
+  const validateCoordinator = useRef(new WorkspaceLoadCoordinator()).current;
+  const buildCoordinator = useRef(new WorkspaceLoadCoordinator()).current;
   const selectedDatasetIdRef = useRef<string | null>(null);
+  const pendingSnapshotRef = useRef<string | null>(null);
+
+  const spec = useMemo(() => researchSpecFromDraft(specDraft), [specDraft]);
+  const specFingerprint = useMemo(() => researchSpecFingerprint(spec), [spec]);
+  const missingInputs = useMemo(() => researchSpecMissingInputs(specDraft), [specDraft]);
+  const lastValidation = validationState.status === "ready"
+    ? { fingerprint: validationState.fingerprint, ok: validationState.outcome.ok }
+    : null;
+  const buildGate = researchBuildGate(lastValidation, specFingerprint);
+  const specFingerprintRef = useRef(specFingerprint);
+
+  useEffect(() => {
+    specFingerprintRef.current = specFingerprint;
+  }, [specFingerprint]);
 
   useEffect(() => {
     selectedDatasetIdRef.current = selectedDatasetId;
@@ -237,7 +584,10 @@ export function ResearchDataWorkspace({ t }: ResearchDataWorkspaceProps) {
     catalogCoordinator.cancel();
     detailCoordinator.cancel();
     exportCoordinator.cancel();
+    validateCoordinator.cancel();
+    buildCoordinator.cancel();
     selectedDatasetIdRef.current = null;
+    pendingSnapshotRef.current = null;
     setFeatures([]);
     setTargets([]);
     setDatasets([]);
@@ -247,9 +597,14 @@ export function ResearchDataWorkspace({ t }: ResearchDataWorkspaceProps) {
     setCatalogLoading(true);
     setDetailState({ status: "idle" });
     setExportBusy(false);
-    setExportResult(null);
+    setExportState(researchExportStateFromAnswer(null));
     setExportError(null);
-  }, [catalogCoordinator, detailCoordinator, exportCoordinator, identityKey]);
+    // Validation and build answers are identity-scoped evidence, so they are
+    // dropped with the session. The typed spec draft is the operator's own
+    // input and is deliberately kept.
+    setValidationState({ status: "idle" });
+    setBuildState({ status: "idle" });
+  }, [buildCoordinator, catalogCoordinator, detailCoordinator, exportCoordinator, identityKey, validateCoordinator]);
 
   useEffect(() => {
     const load = catalogCoordinator.start();
@@ -268,6 +623,18 @@ export function ResearchDataWorkspace({ t }: ResearchDataWorkspaceProps) {
       if (datasetResult.ok) setDatasets(datasetResult.value.data);
       setCatalogIdentityKey(requestedIdentity);
       setCatalogError(failures.length ? t("research.catalog_error") : null);
+      // A freshly built snapshot is selected only once the refreshed catalog
+      // contains it, so the selection guard cannot drop it as unknown.
+      const pendingSnapshotId = pendingSnapshotRef.current;
+      if (
+        pendingSnapshotId
+        && datasetResult.ok
+        && datasetResult.value.data.some((dataset) => dataset.dataset_snapshot_id === pendingSnapshotId)
+      ) {
+        pendingSnapshotRef.current = null;
+        selectedDatasetIdRef.current = pendingSnapshotId;
+        setSelectedDatasetId(pendingSnapshotId);
+      }
     }).catch(() => {
       const liveIdentity = useApiStore.getState().currentUser?.principal_id ?? "anonymous";
       if (catalogCoordinator.isCurrent(load.generation, load.signal) && liveIdentity === requestedIdentity) setCatalogError(t("research.catalog_error"));
@@ -276,7 +643,7 @@ export function ResearchDataWorkspace({ t }: ResearchDataWorkspaceProps) {
       if (catalogCoordinator.isCurrent(load.generation, load.signal) && liveIdentity === requestedIdentity) { setCatalogLoading(false); catalogCoordinator.finish(load.generation); }
     });
     return () => catalogCoordinator.cancel();
-  }, [catalogCoordinator, identityKey, t]);
+  }, [catalogCoordinator, catalogReloadKey, identityKey, t]);
 
   useEffect(() => {
     if (selectedDatasetId && !datasets.some((dataset) => dataset.dataset_snapshot_id === selectedDatasetId)) {
@@ -286,12 +653,12 @@ export function ResearchDataWorkspace({ t }: ResearchDataWorkspaceProps) {
   }, [datasets, selectedDatasetId]);
 
   useEffect(() => {
-    if (!selectedDatasetId) { detailCoordinator.cancel(); setDetailState({ status: "idle" }); setExportResult(null); setExportError(null); return; }
+    if (!selectedDatasetId) { detailCoordinator.cancel(); setDetailState({ status: "idle" }); setExportState(researchExportStateFromAnswer(null)); setExportError(null); return; }
     const requestedDatasetId = selectedDatasetId;
     const requestedIdentity = identityKey;
     const load = detailCoordinator.start();
     setDetailState({ status: "loading" });
-    setExportResult(null);
+    setExportState(researchExportStateFromAnswer(null));
     setExportError(null);
     void Promise.all([
       loadWorkspaceEndpoint((options) => api.researchDataset(requestedDatasetId, options), { signal: load.signal, retries: 0, timeoutMs: DEFAULT_WORKSPACE_READ_TIMEOUT_MS }),
@@ -311,9 +678,15 @@ export function ResearchDataWorkspace({ t }: ResearchDataWorkspaceProps) {
   useEffect(() => {
     exportCoordinator.cancel();
     setExportBusy(false);
-    setExportResult(null);
+    setExportState(researchExportStateFromAnswer(null));
     setExportError(null);
   }, [exportCoordinator, identityKey, selectedDatasetId]);
+
+  useEffect(() => () => {
+    exportCoordinator.cancel();
+    validateCoordinator.cancel();
+    buildCoordinator.cancel();
+  }, [buildCoordinator, exportCoordinator, validateCoordinator]);
 
   const tabs = useMemo(() => VIEWS.map((id) => ({ id, label: t(`research.tab.${id}`) })), [t]);
   const catalogVisible = catalogIdentityKey === identityKey;
@@ -321,24 +694,109 @@ export function ResearchDataWorkspace({ t }: ResearchDataWorkspaceProps) {
   const visibleFeatures = catalogVisible ? features : [];
   const visibleTargets = catalogVisible ? targets : [];
   const visibleSelectedDatasetId = catalogVisible ? selectedDatasetId : null;
+  const createdDetail = buildState.status === "created"
+    && detailState.status === "ready"
+    && detailState.detail.dataset_snapshot_id === buildState.summary.datasetSnapshotId
+    ? detailState.detail
+    : null;
+
+  async function validateSpecDraft() {
+    const requestedSpec = spec;
+    const requestedFingerprint = specFingerprint;
+    const requestedIdentity = identityKey;
+    const load = validateCoordinator.start();
+    setValidationState({ status: "busy" });
+    const result = await loadWorkspaceEndpoint(
+      (options) => apiOutcome(() => api.validateResearchDataset(requestedSpec, options)),
+      { signal: load.signal, retries: 0, timeoutMs: DEFAULT_WORKSPACE_READ_TIMEOUT_MS },
+    );
+    const liveIdentity = useApiStore.getState().currentUser?.principal_id ?? "anonymous";
+    if (!validateCoordinator.isCurrent(load.generation, load.signal) || liveIdentity !== requestedIdentity) return;
+    validateCoordinator.finish(load.generation);
+    if (!result.ok) {
+      setValidationState({ status: "error", message: safeResearchErrorMessage(result.error.message, genericErrorMessages(t)) });
+      return;
+    }
+    const answer = result.value.ok ? result.value.data : result.value.failure;
+    setValidationState({
+      status: "ready",
+      outcome: researchValidationOutcome(answer),
+      fingerprint: requestedFingerprint,
+    });
+  }
+
+  async function buildSnapshot() {
+    if (!buildGate.canBuild) return;
+    const requestedSpec = spec;
+    const requestedIdentity = identityKey;
+    const load = buildCoordinator.start();
+    setBuildState({ status: "busy" });
+    const result = await loadWorkspaceEndpoint(
+      (options) => apiOutcome(() => api.buildResearchDataset(requestedSpec, options)),
+      { signal: load.signal, retries: 0, timeoutMs: DEFAULT_WORKSPACE_READ_TIMEOUT_MS },
+    );
+    const liveIdentity = useApiStore.getState().currentUser?.principal_id ?? "anonymous";
+    if (!buildCoordinator.isCurrent(load.generation, load.signal) || liveIdentity !== requestedIdentity) return;
+    buildCoordinator.finish(load.generation);
+    if (!result.ok) {
+      setBuildState({ status: "error", message: t("research.build_error") });
+      return;
+    }
+    if (!result.value.ok) {
+      const failure = result.value.failure;
+      const status = researchHttpStatus(failure);
+      setBuildState({
+        status: "rejected",
+        code: researchAnswerCode(failure),
+        issues: researchIssuesFromAnswer(failure),
+        // A 401/403 is an identity refusal, not a spec problem: the structured
+        // issues (when any) stay the authoritative reason for everything else.
+        message: status === 401 || status === 403
+          ? researchRequestErrorMessage(failure, specRequestMessages(t))
+          : t("research.build_rejected_help"),
+      });
+      return;
+    }
+    const summary = researchBuildSummary(result.value.data);
+    if (!summary) {
+      setBuildState({ status: "error", message: t("research.build_error") });
+      return;
+    }
+    setBuildState({ status: "created", summary });
+    pendingSnapshotRef.current = summary.datasetSnapshotId;
+    setCatalogReloadKey((value) => value + 1);
+  }
 
   async function requestArtifactReference() {
     if (!selectedDatasetId || detailState.status !== "ready") return;
-    if (researchExportDecision(detailState.detail.entitlement_envelope?.export_policy) !== "allowed") return;
+    const policy = detailState.detail.entitlement_envelope?.export_policy;
+    if (!researchExportCanRequest(researchExportDecision(policy))) return;
     const requestedDatasetId = selectedDatasetId;
     const requestedIdentity = identityKey;
     const load = exportCoordinator.start();
-    setExportBusy(true); setExportError(null); setExportResult(null);
+    setExportBusy(true);
+    setExportState(researchExportStateFromAnswer(null));
+    setExportError(null);
     void loadWorkspaceEndpoint(
-      (options) => api.exportResearchDataset(requestedDatasetId, { format: exportFormat }, options),
+      (options) => apiOutcome(() => api.exportResearchDataset(requestedDatasetId, { format: exportFormat }, options)),
       { signal: load.signal, retries: 0, timeoutMs: DEFAULT_WORKSPACE_READ_TIMEOUT_MS },
     ).then((result) => {
       const liveIdentity = useApiStore.getState().currentUser?.principal_id ?? "anonymous";
       const current = exportCoordinator.isCurrent(load.generation, load.signal)
         && isCurrentResearchSelection(selectedDatasetIdRef.current, requestedDatasetId, liveIdentity, requestedIdentity);
       if (!current) return;
-      if (result.ok) setExportResult(result.value.data);
-      else setExportError(safeResearchErrorMessage(result.error.message, genericErrorMessages(t)));
+      if (!result.ok) {
+        setExportError(safeResearchErrorMessage(result.error.message, genericErrorMessages(t)));
+        return;
+      }
+      const answer = result.value.ok ? result.value.data : result.value.failure;
+      const answerState = researchExportStateFromAnswer(answer);
+      setExportState(answerState);
+      // A server-reported format list is authoritative: never leave a refused
+      // format selected while offering only the formats the backend registered.
+      const options = researchFormatOptions(answerState.availableFormats)
+        .filter((format): format is ExportFormat => (RESEARCH_EXPORT_FORMATS as readonly string[]).includes(format));
+      if (options.length && !options.includes(exportFormat)) setExportFormat(options[0]);
     }).catch((reason) => {
       const liveIdentity = useApiStore.getState().currentUser?.principal_id ?? "anonymous";
       if (exportCoordinator.isCurrent(load.generation, load.signal) && isCurrentResearchSelection(selectedDatasetIdRef.current, requestedDatasetId, liveIdentity, requestedIdentity)) {
@@ -353,11 +811,10 @@ export function ResearchDataWorkspace({ t }: ResearchDataWorkspaceProps) {
     });
   }
 
-  useEffect(() => () => exportCoordinator.cancel(), [exportCoordinator]);
-
   return <div className={`research-data-page research-view-${activeView}`}>
     <div className="research-task-tabs-wrap"><WorkspaceTabs idPrefix="research-task" label={t("research.title")} tabs={tabs} activeId={activeView} panelId="research-task-panel" className="research-task-tabs" onActivate={(view) => setActiveView(view as ResearchViewId)} /></div>
-    {activeView === "datasets" && <div className="research-master-detail" id="research-task-panel" role="tabpanel" aria-label={t("research.tab.datasets")}><DatasetCatalog t={t} datasets={visibleDatasets} loading={catalogLoading} error={catalogError} selectedId={visibleSelectedDatasetId} onSelect={(datasetId) => { selectedDatasetIdRef.current = datasetId; setSelectedDatasetId(datasetId); }} /><DatasetDetailRail t={t} selectedId={visibleSelectedDatasetId} detailState={detailState} onRetry={() => setDetailRetryKey((value) => value + 1)} onExport={() => void requestArtifactReference()} exportFormat={exportFormat} onExportFormatChange={setExportFormat} exportBusy={exportBusy} exportResult={exportResult} exportError={exportError} /></div>}
+    {activeView === "datasets" && <ResearchSpecPanel t={t} draft={specDraft} onDraftChange={(key, value) => setSpecDraft((current) => ({ ...current, [key]: value }))} missingInputs={missingInputs} validationState={validationState} buildState={buildState} gate={buildGate} createdDetail={createdDetail} onValidate={() => void validateSpecDraft()} onBuild={() => void buildSnapshot()} />}
+    {activeView === "datasets" && <div className="research-master-detail" id="research-task-panel" role="tabpanel" aria-label={t("research.tab.datasets")}><DatasetCatalog t={t} datasets={visibleDatasets} loading={catalogLoading} error={catalogError} selectedId={visibleSelectedDatasetId} onSelect={(datasetId) => { selectedDatasetIdRef.current = datasetId; setSelectedDatasetId(datasetId); }} /><DatasetDetailRail t={t} selectedId={visibleSelectedDatasetId} detailState={detailState} onRetry={() => setDetailRetryKey((value) => value + 1)} onExport={() => void requestArtifactReference()} exportFormat={exportFormat} onExportFormatChange={setExportFormat} exportBusy={exportBusy} exportState={exportState} exportError={exportError} /></div>}
     {activeView !== "datasets" && <RegistryTable t={t} type={activeView} features={visibleFeatures} targets={visibleTargets} loading={catalogLoading} error={catalogError} />}
   </div>;
 }
