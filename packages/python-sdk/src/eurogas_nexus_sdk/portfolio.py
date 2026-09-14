@@ -115,14 +115,21 @@ class PortfolioPnlSnapshot(BaseModel):
 class PortfolioLiveSummary(BaseModel):
     """Live cockpit summary for one portfolio.
 
+    The four valuation totals are ``float | None``: ``None`` means the backend
+    had no valuation evidence to aggregate (unconfigured/degraded runtime read
+    or an empty portfolio), which is *not* the same as a measured ``0.0``
+    (audit ``UX01-EXPOSURE-001``). Consumers must render Unknown/Missing for
+    ``None`` rather than defaulting to zero, and should check
+    ``latest_valuation_time_utc`` and ``warnings`` for lineage.
+
     Attributes:
         portfolio_id: Identifier of the portfolio.
         latest_valuation_time_utc: UTC time of the newest snapshot; None when
             no snapshot exists yet.
-        total_realized_pnl_gbp: Total realized PnL in GBP.
-        total_unrealized_pnl_gbp: Total unrealized PnL in GBP.
-        total_indicative_pnl_gbp: Total indicative PnL in GBP.
-        total_cash_value_gbp: Total cash value in GBP.
+        total_realized_pnl_gbp: Total realized PnL in GBP, or None when unknown.
+        total_unrealized_pnl_gbp: Total unrealized PnL in GBP, or None when unknown.
+        total_indicative_pnl_gbp: Total indicative PnL in GBP, or None when unknown.
+        total_cash_value_gbp: Total cash value in GBP, or None when unknown.
         open_order_count: Number of open screen orders.
         filled_order_count: Number of filled screen orders.
         warnings: Human-readable summary warnings.
@@ -132,10 +139,10 @@ class PortfolioLiveSummary(BaseModel):
 
     portfolio_id: str
     latest_valuation_time_utc: str | None
-    total_realized_pnl_gbp: float
-    total_unrealized_pnl_gbp: float
-    total_indicative_pnl_gbp: float
-    total_cash_value_gbp: float
+    total_realized_pnl_gbp: float | None
+    total_unrealized_pnl_gbp: float | None
+    total_indicative_pnl_gbp: float | None
+    total_cash_value_gbp: float | None
     open_order_count: int
     filled_order_count: int
     warnings: list[str] = Field(default_factory=list)

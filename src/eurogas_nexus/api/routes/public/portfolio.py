@@ -69,17 +69,28 @@ def get_live_summary(
     snapshots, pnl_source, pnl_warnings = _load_pnl_snapshots()
     if portfolio_id:
         snapshots = [snapshot for snapshot in snapshots if snapshot.portfolio_id == portfolio_id]
+    # No snapshot evidence (unconfigured runtime, degraded read, empty table, or
+    # a filter that matched nothing) is carried through as an explicit unknown:
+    # summarize_portfolio returns None aggregates plus VALUATION_EVIDENCE_MISSING
+    # and latest_valuation_time_utc=None. The route must not fill those in with 0,
+    # which would present a missing measurement as a measured zero
+    # (UX01-EXPOSURE-001, "never fabricate evidence").
     summary = summarize_portfolio(orders, snapshots)
     source = (
         "runtime-postgresql"
         if {order_source, pnl_source} == {"runtime-postgresql"}
         else "runtime-db-not-configured"
     )
+    # The summary's own warnings (notably VALUATION_EVIDENCE_MISSING) are
+    # domain facts about the returned data, so they are surfaced in the envelope
+    # meta alongside the loader warnings instead of being dropped. This informs
+    # consumers why the GBP totals are null; it never substitutes a number for
+    # the missing evidence.
     return _env(
         summary.model_dump(mode="json"),
         request,
         source=source,
-        warnings=[*order_warnings, *pnl_warnings],
+        warnings=[*order_warnings, *pnl_warnings, *summary.warnings],
     )
 
 

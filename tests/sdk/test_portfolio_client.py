@@ -84,6 +84,41 @@ def test_portfolio_sdk_targets_live_summary_endpoint(monkeypatch) -> None:
     assert result.total_cash_value_gbp == 1800
 
 
+def test_portfolio_sdk_keeps_unknown_live_summary_totals_as_none(monkeypatch) -> None:
+    """``null`` totals from a degraded read stay None; the SDK never injects 0."""
+
+    def fake_get(url: str, timeout: int) -> httpx.Response:
+        return httpx.Response(
+            200,
+            request=httpx.Request("GET", url),
+            json={
+                "data": {
+                    "portfolio_id": "unknown-portfolio",
+                    "latest_valuation_time_utc": None,
+                    "total_realized_pnl_gbp": None,
+                    "total_unrealized_pnl_gbp": None,
+                    "total_indicative_pnl_gbp": None,
+                    "total_cash_value_gbp": None,
+                    "open_order_count": 0,
+                    "filled_order_count": 0,
+                    "warnings": ["RUNTIME_DB_NOT_CONFIGURED", "VALUATION_EVIDENCE_MISSING"],
+                    "research_only": True,
+                    "human_review_required": True,
+                }
+            },
+        )
+
+    monkeypatch.setattr(httpx, "get", fake_get)
+
+    result = fetch_live_summary("http://testserver")
+
+    assert result.latest_valuation_time_utc is None
+    assert result.total_realized_pnl_gbp is None
+    assert result.total_unrealized_pnl_gbp is None
+    assert result.total_indicative_pnl_gbp is None
+    assert result.total_cash_value_gbp is None
+
+
 def _screen_order_payload() -> dict:
     return {
         "order_observation_id": "ord-1",

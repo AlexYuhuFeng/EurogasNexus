@@ -696,8 +696,8 @@ export interface PortfolioPnlSnapshotDTO {
 
 export interface PortfolioLiveSummaryDTO {
   portfolio_id: string; latest_valuation_time_utc?: string | null;
-  total_realized_pnl_gbp: number; total_unrealized_pnl_gbp: number;
-  total_indicative_pnl_gbp: number; total_cash_value_gbp: number;
+  total_realized_pnl_gbp: number | null; total_unrealized_pnl_gbp: number | null;
+  total_indicative_pnl_gbp: number | null; total_cash_value_gbp: number | null;
   open_order_count: number; filled_order_count: number; warnings: string[];
   research_only: boolean; human_review_required: boolean;
 }

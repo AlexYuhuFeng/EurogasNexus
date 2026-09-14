@@ -6,6 +6,21 @@ import type {
 
 type Translate = (key: string) => string;
 
+/**
+ * Render a summary total without inventing evidence.
+ *
+ * The backend reports `null` when there is no valuation evidence to aggregate
+ * (empty or degraded read) and a real `0` when the measured total is genuinely
+ * zero. Only the latter may be printed as `GBP 0`; the former must stay an
+ * explicit unknown.
+ */
+function formatGbpTotal(value: number | null | undefined, t: Translate): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return t("status.unknown");
+  }
+  return `GBP ${Math.round(value).toLocaleString()}`;
+}
+
 interface MarketPositioningWorkspaceProps {
   portfolioSummary: PortfolioLiveSummaryDTO | null;
   screenOrders: ScreenOrderObservationDTO[];
@@ -30,8 +45,8 @@ export function MarketPositioningWorkspace({
         </div>
         <p className="panel-copy">{t("orders.subtitle")}</p>
         <div className="metric-grid four-column">
-          <div><span>{t("portfolio.indicative_pnl")}</span><strong>{portfolioSummary ? `GBP ${Math.round(portfolioSummary.total_indicative_pnl_gbp).toLocaleString()}` : "n/a"}</strong></div>
-          <div><span>{t("portfolio.cash_value")}</span><strong>{portfolioSummary ? `GBP ${Math.round(portfolioSummary.total_cash_value_gbp).toLocaleString()}` : "n/a"}</strong></div>
+          <div><span>{t("portfolio.indicative_pnl")}</span><strong>{formatGbpTotal(portfolioSummary?.total_indicative_pnl_gbp, t)}</strong></div>
+          <div><span>{t("portfolio.cash_value")}</span><strong>{formatGbpTotal(portfolioSummary?.total_cash_value_gbp, t)}</strong></div>
           <div><span>{t("portfolio.open_orders")}</span><strong>{portfolioSummary?.open_order_count ?? screenOrders.length}</strong></div>
           <div><span>{t("orders.filled_orders")}</span><strong>{portfolioSummary?.filled_order_count ?? "n/a"}</strong></div>
         </div>
@@ -46,7 +61,7 @@ export function MarketPositioningWorkspace({
             </div>
           ))}
           {screenOrders.length === 0 && (
-            <div className="data-table-row six"><span>n/a</span><span>n/a</span><span>n/a</span><strong>0 MWh</strong><span>n/a</span><span>{t("data.unavailable")}</span></div>
+            <div className="data-table-row six"><span>n/a</span><span>n/a</span><span>n/a</span><strong>{t("status.unknown")}</strong><span>n/a</span><span>{t("data.unavailable")}</span></div>
           )}
         </div>
       </div>
@@ -65,7 +80,7 @@ export function MarketPositioningWorkspace({
             </div>
           ))}
           {pnlSnapshots.length === 0 && (
-            <div className="data-table-row six"><strong>n/a</strong><span>n/a</span><span>0 MWh</span><span>n/a</span><span>n/a</span><span>{t("data.unavailable")}</span></div>
+            <div className="data-table-row six"><strong>n/a</strong><span>n/a</span><span>{t("status.unknown")}</span><span>n/a</span><span>n/a</span><span>{t("data.unavailable")}</span></div>
           )}
         </div>
       </div>
