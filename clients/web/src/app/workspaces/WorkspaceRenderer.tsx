@@ -1,4 +1,5 @@
 import type { AppController } from "@/app/hooks/useAppController";
+import { changeAppLanguage } from "@/i18n";
 import { AccessCenter } from "@/components/AccessCenter";
 import { AgentsWorkspace } from "@/components/AgentsWorkspace";
 import { primaryWorkspaceForPage } from "@/app/navigation/productNavigation";
@@ -219,7 +220,7 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
           sources={api.sources}
           credentialProviders={api.credentialProviders}
           counts={{ nodes: api.nodes.length, edges: api.edges.length, routes: api.routes.length }}
-          onLanguageChange={(language) => void i18n.changeLanguage(language)}
+          onLanguageChange={(language) => void changeAppLanguage(language)}
           onModeChange={theme.setMode}
           onOpenSources={() => navigation.openWorkspace("sources")}
           onBackendBaseChanged={api.fetchWorkspace}

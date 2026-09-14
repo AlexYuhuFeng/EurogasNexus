@@ -8,6 +8,7 @@ import {
 } from "@/app/model/endpointFailures";
 import { WorkspaceRenderer } from "@/app/workspaces/WorkspaceRenderer";
 import { isBlockingCompatibility } from "@/app/releaseCompatibility";
+import { changeAppLanguage } from "@/i18n";
 
 interface AppShellProps {
   controller: AppController;
@@ -70,7 +71,7 @@ export function AppShell({ controller }: AppShellProps) {
         authNoticeKey={api.authNoticeKey}
         authBusy={api.authBusy}
         language={i18n.language}
-        onLanguageChange={(language) => void i18n.changeLanguage(language)}
+        onLanguageChange={(language) => void changeAppLanguage(language)}
         onOidcSignIn={() => void api.signIn()}
         onDevLogin={(username, password) => void api.login(username, password)}
         onRetryIdentity={() => void api.bootstrapIdentity()}
@@ -102,7 +103,6 @@ export function AppShell({ controller }: AppShellProps) {
         loading={api.loading}
         streamingActive={api.streamingActive}
         language={i18n.language}
-        mode={theme.mode}
         gasDay={traderContext.gasDay}
         deliveryProduct={traderContext.deliveryProduct}
         hubId={traderContext.hubId}
@@ -113,8 +113,6 @@ export function AppShell({ controller }: AppShellProps) {
         monitoring={api}
         t={t}
         onSearchTermChange={controls.setSearchTerm}
-        onLanguageChange={(language) => void i18n.changeLanguage(language)}
-        onModeChange={theme.setMode}
         onGasDayChange={traderContext.setGasDay}
         onDeliveryProductChange={traderContext.setDeliveryProduct}
         onHubChange={traderContext.setHubId}

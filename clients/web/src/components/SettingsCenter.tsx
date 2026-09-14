@@ -32,6 +32,8 @@ import {
   type MarketViewPreferenceId,
 } from "@/app/context";
 import type { ThemeMode } from "@/stores/theme";
+import { dataPlaneLabelKey, dataPlaneState } from "@/app/model/dataPlaneStatus";
+import { StatusBadge } from "@/components/ui";
 
 type Translate = (key: string) => string;
 
@@ -215,7 +217,7 @@ export function SettingsCenter({
         <div className="metric-grid four-column settings-status-strip">
           <div><span>{t("settings.active_sources")}</span><strong>{activeSources}</strong></div>
           <div><span>{t("settings.api_services")}</span><strong>{credentialProviders.length}</strong></div>
-          <div><span>{t("settings.runtime_api")}</span><strong>{t(`data.${dataStatus}`)}</strong></div>
+          <div><span>{t("settings.runtime_api")}</span><strong>{t(dataPlaneLabelKey(dataPlaneState(dataStatus)))}</strong></div>
           <div><span>{t("settings.runtime_db")}</span><strong>{runtimeDb?.connectivity.ok ? "ok" : "n/a"}</strong></div>
         </div>
       </div>
@@ -253,7 +255,13 @@ export function SettingsCenter({
             <h2>{t("settings.backend_api")}</h2>
             <p className="panel-copy">{t("settings.backend_api_help")}</p>
           </div>
-          <span className={`status-badge status-${dataStatus}`}>{t(`data.${dataStatus}`)}</span>
+          <StatusBadge
+            variant="runtime-readiness-state"
+            status={dataPlaneState(dataStatus)}
+            title={t("data.runtime_detail")}
+          >
+            {t(dataPlaneLabelKey(dataPlaneState(dataStatus)))}
+          </StatusBadge>
         </div>
         <div className="settings-backend-form">
           <label>

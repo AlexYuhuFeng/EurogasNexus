@@ -75,14 +75,16 @@ test("the market overview renders the data status as a translated label", () => 
 
   // The overview printed the store's enum value verbatim, so both locales showed
   // the internal token ("runtime") next to a translated label, and the zh
-  // surface carried an untranslated English word.
+  // surface carried an untranslated English word. It now shares the shell's
+  // mapping, so the header, settings and this strip say the same words.
   assert.equal(cockpit.includes("<strong>{api.dataStatus}</strong>"), false);
-  assert.match(cockpit, /t\(`data\.\$\{api\.dataStatus\}`\)/);
+  assert.match(cockpit, /dataPlaneState\(api\.dataStatus\)/);
+  assert.match(cockpit, /t\(dataPlaneLabelKey\(/);
 
-  // Every value the store can produce must stay translatable.
-  for (const status of ["runtime", "delayed", "partial", "unavailable"]) {
-    assert.equal(typeof en[`data.${status}`], "string", `en data.${status}`);
-    assert.equal(typeof zh[`data.${status}`], "string", `zh data.${status}`);
+  // Every state the mapping can produce must stay translatable in both locales.
+  for (const state of ["ready", "partial", "unavailable"]) {
+    assert.equal(typeof en[`data.${state}`], "string", `en data.${state}`);
+    assert.equal(typeof zh[`data.${state}`], "string", `zh data.${state}`);
   }
 });
 

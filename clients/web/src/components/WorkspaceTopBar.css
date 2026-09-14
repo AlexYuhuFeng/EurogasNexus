@@ -115,6 +115,21 @@
   white-space: nowrap;
 }
 
+/*
+ * Data-plane state chip. It is state, not a control: intrinsic width, aligned to
+ * the control row, and it must never stretch the way the selects beside it do at
+ * narrow widths - that is what made it read as a dropdown. The controls row is a
+ * flex row on wide viewports and a two-column grid on narrow ones, so both the
+ * flex and the grid sizing have to be pinned.
+ */
+.topbar-data-status {
+  align-self: center;
+  flex: 0 0 auto;
+  justify-self: start;
+  width: fit-content;
+  white-space: nowrap;
+}
+
 .alert-trigger {
   display: inline-flex;
   height: 40px;

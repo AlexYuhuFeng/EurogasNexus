@@ -7,6 +7,7 @@ import { NetworkWorkspace } from "@/components/NetworkWorkspace";
 import { GasNetworkMap } from "@/components/GasNetworkMap";
 import { IntradayDecisionFeed } from "@/components/IntradayDecisionFeed";
 import type { AppController } from "@/app/hooks/useAppController";
+import { dataPlaneLabelKey, dataPlaneState } from "@/app/model/dataPlaneStatus";
 import "./market-cockpit.css";
 
 import {
@@ -124,7 +125,8 @@ function MarketOverview({ controller }: MarketOverviewProps) {
         <span><small>{t("context.product")}</small><strong>{traderContext.deliveryProduct}</strong></span>
         <span><small>{t("context.hub")}</small><strong>{focusedHub ?? t("context.all_hubs")}</strong></span>
         <span className={api.dataStatus === "runtime" ? "ready" : "issue"}>
-          <small>{t("context.source_posture")}</small><strong>{t(`data.${api.dataStatus}`)}</strong>
+          <small>{t("context.source_posture")}</small>
+          <strong>{t(dataPlaneLabelKey(dataPlaneState(api.dataStatus)))}</strong>
         </span>
         <button type="button" onClick={() => void api.refreshMarketData()}>{t("market.refresh")}</button>
       </section>

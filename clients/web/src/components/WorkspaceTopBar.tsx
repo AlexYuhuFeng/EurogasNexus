@@ -8,15 +8,14 @@ import {
   type PrimaryWorkspace,
   type PrimaryWorkspaceId,
 } from "@/app/navigation/productNavigation";
-import { WorkspaceTabs } from "@/components/ui";
+import { StatusBadge, WorkspaceTabs } from "@/components/ui";
 import type { WorkspacePageId } from "@/workspaceNavigation";
 import type { ApiState } from "@/stores/api";
 import type { CurrentUserDTO } from "@/api/client";
 import { buildSourceSummary, type SourceStats } from "@/app/workspaceDerivedData";
+import { dataPlaneLabelKey, dataPlaneState } from "@/app/model/dataPlaneStatus";
 import { AlertCenter } from "./AlertCenter";
 import "./WorkspaceTopBar.css";
-
-type ThemeMode = "light" | "dark" | "system";
 
 interface WorkspaceTopBarProps {
   activeWorkspace: WorkspacePageId;
@@ -25,8 +24,12 @@ interface WorkspaceTopBarProps {
   dataStatus: string;
   loading: boolean;
   streamingActive: boolean;
+  /**
+   * Current interface language. The header no longer offers a language control -
+   * preferences live in the settings workspace - but the alert centre formats
+   * times with it, so it stays part of the data contract.
+   */
   language: string;
-  mode: ThemeMode;
   gasDay: string;
   deliveryProduct: string;
   hubId: SupportedHubId | null;
@@ -45,8 +48,6 @@ interface WorkspaceTopBarProps {
   >;
   t: (key: string) => string;
   onSearchTermChange: Dispatch<SetStateAction<string>>;
-  onLanguageChange: (language: string) => void;
-  onModeChange: (mode: ThemeMode) => void;
   onGasDayChange: (gasDay: string) => void;
   onDeliveryProductChange: (product: string) => void;
   onHubChange: (hubId: string | null) => void;
@@ -64,7 +65,6 @@ export function WorkspaceTopBar({
   loading,
   streamingActive,
   language,
-  mode,
   gasDay,
   deliveryProduct,
   hubId,
@@ -75,8 +75,6 @@ export function WorkspaceTopBar({
   monitoring,
   t,
   onSearchTermChange,
-  onLanguageChange,
-  onModeChange,
   onGasDayChange,
   onDeliveryProductChange,
   onHubChange,
@@ -187,26 +185,25 @@ export function WorkspaceTopBar({
         >
           {streamingActive ? t("stream.live") : t("stream.polling_fallback")}
         </span>
-        <span className={`status-badge status-${loading ? "loading" : dataStatus}`} aria-live="polite">
-          {loading ? t("status.loading") : t(`data.${dataStatus}`)}
-        </span>
-        <select
-          aria-label={t("settings.language")}
-          value={language}
-          onChange={(event) => onLanguageChange(event.target.value)}
-        >
-          <option value="en">EN</option>
-          <option value="zh-CN">{t("settings.chinese")}</option>
-        </select>
-        <select
-          aria-label={t("settings.appearance")}
-          value={mode}
-          onChange={(event) => onModeChange(event.target.value as ThemeMode)}
-        >
-          <option value="light">{t("theme.light")}</option>
-          <option value="dark">{t("theme.dark")}</option>
-          <option value="system">{t("theme.system")}</option>
-        </select>
+        {/*
+          The shell owns runtime/data status, so the badge stays - but it speaks
+          the constitution's operational vocabulary (Ready / Partial /
+          Unavailable) rather than the store's name, and it is the canonical
+          StatusBadge, which reads as state instead of as a control beside the
+          context selects. It is absent while loading: the source-posture block
+          beside it already says "checking", and a badge that flipped to red
+          mid-load would report a failure that has not happened.
+        */}
+        {!loading && (
+          <StatusBadge
+            variant="runtime-readiness-state"
+            status={dataPlaneState(dataStatus)}
+            className="topbar-data-status"
+            title={t("data.runtime_detail")}
+          >
+            {t(dataPlaneLabelKey(dataPlaneState(dataStatus)))}
+          </StatusBadge>
+        )}
         <div className="topbar-user-menu">
           {currentUser ? (
             <>

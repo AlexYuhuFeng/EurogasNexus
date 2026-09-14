@@ -37,8 +37,8 @@
   "contracts.open_in_strategy": "在策略实验室打开",
   "contracts.open_in_strategy_unavailable": "请先将该资源保存到资源池，再打开策略实验室",
   "data.live": "实时",
-  "data.runtime": "运行数据库",
-  "data.delayed": "延迟",
+  "data.ready": "就绪",
+  "data.runtime_detail": "数据来自运行时 PostgreSQL 存储。",
   "data.partial": "部分可用",
   "data.unavailable": "不可用",
   "status.decision_support": "决策支持",
@@ -1478,7 +1478,6 @@
   "agents.gate.decision_note": "备注",
   "agents.gate.no_decisions": "该复核包尚未记录任何人工决策。",
   "agents.gate.no_note": "无备注",
-
   "research.title": "研究数据",
   "research.subtitle": "面向未来模型研究的语义化、时点正确的数据集与特征/目标目录。此处不进行模型训练。",
   "research.tab.datasets": "数据集",

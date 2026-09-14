@@ -37,8 +37,8 @@
   "contracts.open_in_strategy": "Open in Strategy Lab",
   "contracts.open_in_strategy_unavailable": "Save this resource to the pool before opening Strategy Lab",
   "data.live": "Live",
-  "data.runtime": "Runtime DB",
-  "data.delayed": "Delayed",
+  "data.ready": "Ready",
+  "data.runtime_detail": "Data is served from the runtime PostgreSQL store.",
   "data.partial": "Partial",
   "data.unavailable": "Unavailable",
   "status.decision_support": "Decision Support",
@@ -1478,7 +1478,6 @@
   "agents.gate.decision_note": "Note",
   "agents.gate.no_decisions": "No human decision is recorded for this review pack yet.",
   "agents.gate.no_note": "No note",
-
   "research.title": "Research Data",
   "research.subtitle": "Semantic, point-in-time dataset and feature/target catalog for future model research. No model training runs here.",
   "research.tab.datasets": "Datasets",

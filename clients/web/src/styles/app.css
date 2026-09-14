@@ -7046,12 +7046,10 @@ button.glossary-related-chip {
     gap: var(--space-1);
   }
 
-  .cockpit-app .header-controls .status-badge {
-    grid-column: 1 / -1;
-  }
-
-  .cockpit-app .header-controls select,
-  .cockpit-app .status-badge {
+  /* The header's data-plane badge is now the canonical StatusBadge
+     (`runtime-readiness-state`), so it keeps its intrinsic chip size here
+     instead of stretching to the full row the way a select does. */
+  .cockpit-app .header-controls select {
     width: 100%;
     min-height: var(--control-standard);
     padding-right: var(--space-1);

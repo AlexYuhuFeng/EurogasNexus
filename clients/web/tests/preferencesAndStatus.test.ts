@@ -1,0 +1,135 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import test from "node:test";
+import {
+  DEFAULT_LANGUAGE,
+  LANGUAGE_STORAGE_KEY,
+  normalizeLanguage,
+  readStoredLanguage,
+  storeLanguage,
+  SUPPORTED_LANGUAGES,
+} from "../src/i18n/language.ts";
+import { dataPlaneLabelKey, dataPlaneState } from "../src/app/model/dataPlaneStatus.ts";
+
+function readWebSource(relativePath: string): string {
+  return readFileSync(new URL(`../src/${relativePath}`, import.meta.url), "utf8");
+}
+
+/** Minimal storage double: the module only needs getItem/setItem. */
+function memoryStorage(initial: Record<string, string> = {}) {
+  const values = new Map(Object.entries(initial));
+  return {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => void values.set(key, value),
+    snapshot: () => Object.fromEntries(values),
+  };
+}
+
+test("the language preference survives a reload through its own storage key", () => {
+  const storage = memoryStorage();
+  assert.equal(readStoredLanguage(storage), DEFAULT_LANGUAGE);
+
+  assert.equal(storeLanguage("zh-CN", storage), "zh-CN");
+  assert.equal(storage.snapshot()[LANGUAGE_STORAGE_KEY], "zh-CN");
+  // A later load reads the stored value rather than the shipped default.
+  assert.equal(readStoredLanguage(storage), "zh-CN");
+});
+
+test("language reads are coerced and hostile values cannot leave the supported set", () => {
+  assert.deepEqual([...SUPPORTED_LANGUAGES], ["en", "zh-CN"]);
+  // i18next tags and case variants map onto the supported set.
+  assert.equal(normalizeLanguage("zh"), "zh-CN");
+  assert.equal(normalizeLanguage("zh-Hans"), "zh-CN");
+  assert.equal(normalizeLanguage("en-GB"), "en");
+  assert.equal(normalizeLanguage("EN"), "en");
+  // Anything else - junk, a hostile string, or nothing - falls back to English.
+  for (const value of [null, undefined, "", "fr", "<script>", 42, {}]) {
+    assert.equal(normalizeLanguage(value), "en");
+  }
+  assert.equal(readStoredLanguage(memoryStorage({ [LANGUAGE_STORAGE_KEY]: "klingon" })), "en");
+});
+
+test("a broken storage never breaks the language switch", () => {
+  const throwing = {
+    getItem: () => {
+      throw new Error("private mode");
+    },
+    setItem: () => {
+      throw new Error("quota exceeded");
+    },
+  };
+  assert.equal(readStoredLanguage(throwing), "en");
+  // The switch still reports what it applied even when it cannot persist.
+  assert.equal(storeLanguage("zh-CN", throwing), "zh-CN");
+  assert.equal(storeLanguage("nonsense", throwing), "en");
+});
+
+test("the i18n entry point applies the stored language and owns the switch", () => {
+  const i18n = readWebSource("i18n/index.ts");
+  assert.match(i18n, /lng: readStoredLanguage\(\)/);
+  // One writer: surfaces must go through changeAppLanguage, which persists first.
+  assert.match(i18n, /export async function changeAppLanguage\(language: string\)/);
+  assert.match(i18n, /const normalized = storeLanguage\(language\)/);
+  for (const source of [
+    "app/shell/AppShell.tsx",
+    "app/workspaces/WorkspaceRenderer.tsx",
+  ]) {
+    const file = readWebSource(source);
+    assert.equal(file.includes("i18n.changeLanguage"), false, `${source} must use changeAppLanguage`);
+    assert.ok(file.includes("changeAppLanguage("), `${source} must switch through changeAppLanguage`);
+  }
+});
+
+test("the settings workspace is the one post-authentication home for preferences", () => {
+  const bar = readWebSource("components/WorkspaceTopBar.tsx");
+  const settings = readWebSource("components/SettingsCenter.tsx");
+  const signIn = readWebSource("components/SignInScreen.tsx");
+
+  // The header keeps global context and state; language and appearance are
+  // option sets, which the constitution sends to the settings surface. Equal
+  // toolbar weight for them is a prohibited pattern.
+  assert.equal(bar.includes('t("settings.language")'), false);
+  assert.equal(bar.includes('t("settings.appearance")'), false);
+  assert.equal(bar.includes("onLanguageChange"), false);
+  assert.equal(bar.includes("onModeChange"), false);
+  // The language value stays: the alert centre formats times with it.
+  assert.match(bar, /language=\{language\}/);
+
+  // Both controls still exist, in the settings workspace.
+  assert.match(settings, /t\("settings\.language"\)/);
+  assert.match(settings, /t\("settings\.appearance"\)/);
+  // And the sign-in screen keeps language, because settings need an identity.
+  assert.match(signIn, /aria-label=\{t\("settings\.language"\)\}/);
+});
+
+test("the data-plane badge speaks the operational vocabulary, not the store name", () => {
+  const bar = readWebSource("components/WorkspaceTopBar.tsx");
+  const settings = readWebSource("components/SettingsCenter.tsx");
+  const en = JSON.parse(readWebSource("i18n/en.json")) as Record<string, string>;
+  const zh = JSON.parse(readWebSource("i18n/zh.json")) as Record<string, string>;
+
+  assert.equal(dataPlaneState("runtime"), "ready");
+  assert.equal(dataPlaneState("partial"), "partial");
+  // Fail-closed: an unknown or unmodelled state must not read as healthy.
+  for (const value of ["unavailable", "delayed", "loading", "", null, undefined, "mystery"]) {
+    assert.equal(dataPlaneState(value), "unavailable", String(value));
+  }
+  assert.equal(dataPlaneLabelKey("ready"), "data.ready");
+
+  // One vocabulary in both surfaces, both locales. The store name survives only
+  // as the badge's title detail (`data.runtime_detail`), never as the status.
+  for (const file of [bar, settings]) {
+    assert.match(file, /dataPlaneState\(/);
+    assert.match(file, /dataPlaneLabelKey\(/);
+    assert.equal(file.includes('"data.runtime"'), false);
+    assert.equal(file.includes("`data.${"), false);
+  }
+  for (const [locale, translations] of [["en", en], ["zh", zh]] as const) {
+    for (const key of ["data.ready", "data.partial", "data.unavailable", "data.runtime_detail"]) {
+      assert.equal(typeof translations[key], "string", `${locale} ${key}`);
+    }
+    // The store name is no longer a status label in either language.
+    assert.equal("data.runtime" in translations, false, locale);
+    assert.equal("data.delayed" in translations, false, locale);
+  }
+});

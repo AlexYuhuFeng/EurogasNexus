@@ -2,6 +2,7 @@ import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 import en from "./en.json";
 import zh from "./zh.json";
+import { readStoredLanguage, storeLanguage } from "./language";
 
 const resources = {
   en: {
@@ -76,12 +77,25 @@ function syncDocumentLanguage(language: string) {
 
 i18n.use(initReactI18next).init({
   resources,
-  lng: "en",
+  // The stored preference wins; English remains the shipped-complete fallback.
+  // Before this, every reload reset the interface to English even after the user
+  // picked Mandarin in settings.
+  lng: readStoredLanguage(),
   fallbackLng: "en",
   interpolation: { escapeValue: false },
 });
 
 syncDocumentLanguage(i18n.language);
 i18n.on("languageChanged", syncDocumentLanguage);
+
+/**
+ * The single way a surface switches language: persist the choice, then apply it.
+ * Callers must not call `i18n.changeLanguage` directly, or the choice dies on the
+ * next load.
+ */
+export async function changeAppLanguage(language: string): Promise<void> {
+  const normalized = storeLanguage(language);
+  if (i18n.language !== normalized) await i18n.changeLanguage(normalized);
+}
 
 export default i18n;
