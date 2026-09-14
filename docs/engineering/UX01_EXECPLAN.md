@@ -1098,3 +1098,53 @@ remaining CR15-UI-001 work - and two lineage feeds are resolved at replay time
 (source families and snapshot ids, the latter only when a backtest run exists)
 while the StrategyIR validation issues are recomputed from the persisted spec
 rather than stored; both are labelled in the payload.
+
+### Governed research dataset build surface (2026-09-14)
+
+CR14-UI-001's remaining gap, closed on live validation evidence. The backend had
+validation, build, artifact registration and fail-closed export, but the
+workspace could only inspect datasets: there was no way to author, validate or
+build a spec, and the export affordance was not driven by what the server
+answers.
+
+- The spec form is typed and small; empty fields are omitted and no defaults are
+  invented, so a submitted spec never implies data that does not exist. Validate
+  renders the registry resolution, the spec hash, the issue count and every issue
+  grouped by field with its safe code and the server's message.
+- Build is locked to the exact validated spec fingerprint and re-locks on any
+  edit or after a failed validation, so a rejected spec cannot be built by
+  accident; a build rejection reuses the same structured issue list and an
+  identity failure is localised rather than shown as prose.
+- Artifact delivery is derived from the answer: a restricted answer removes the
+  request control and explains the governed state, an unregistered format is
+  dropped from the available formats, a missing file is distinguished from an
+  unregistered format, and a granted answer renders the reference, artifact id
+  and sha256 with no download link. For this deployment that means the control
+  never appears, which is the honest rendering of "governance grants no export
+  clearance" recorded in the CR14-RIGHTS-001 row.
+
+Evidence: the Web suite 191 passed, the build clean at 145 modules, EN/CN parity
+1501/1501, and the four client contract modules 56 passed. Live against the
+running runtime, validate rendered a real rejected spec with four `unknown_*`
+issues, build stayed locked with the honest note, and editing re-locked it.
+
+Not verified live: the build success path (the runtime research registry is
+empty, so validation cannot pass there) and the granted-export branch (never
+granted). Both rest on model tests and on payloads shaped from the verified route
+contract, and the register row says so.
+
+One integration defect was found and fixed while verifying this batch: the
+review-decision request model is fed by `ReviewEntityType`, so the new
+`agent_review_pack` kind is accepted through the API as well - a stale local API
+process initially made it look like a 422, which is the same stale-server trap
+recorded earlier in this file. The CSRF-protected mutation path was exercised
+end to end for the first time during that check (dev login, `GET /api/me` for the
+CSRF token, then a mutation through the same-origin preview proxy), and it
+required fixing the local evidence proxy to preserve the `Host` header so the API
+origin guard does not treat the request as cross-origin.
+
+Observation recorded, not changed: `POST /api/review/decisions` accepts a decision
+for an artifact id that does not exist (the pre-existing contract for the other
+review kinds behaves the same way). Adding existence validation would change that
+contract for every review kind, so it is a deliberate follow-up decision rather
+than part of this item.

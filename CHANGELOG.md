@@ -25,6 +25,15 @@ asserted by `tests/contract/test_ontology_version_alignment.py`.
 
 ## [Unreleased]
 
+- The Research Data workspace gained the governed dataset spec and build surface:
+  a typed spec form (empty fields omitted, no invented defaults), validation that
+  renders the registry resolution, spec hash and every structured issue grouped by
+  field with its safe code, a build action locked to the exact validated spec
+  fingerprint, a created-snapshot card, and artifact delivery derived from the
+  server's answer - a restricted answer removes the request control and explains
+  the governed state, an unregistered format is dropped from the available
+  formats, and a granted answer renders the reference without a download link.
+
 - Governed research runs can be read back: the run replay now returns the ordered
   artifact chain (research plan, findings, StrategyIR, validation, challenge
   report, review pack) with each artifact's operation id, producing stage, ids,
