@@ -1371,3 +1371,59 @@ judgement still need a person, and no long-session, populated research/agent or
 rights-negative state was captured at all. The review also cannot see motion,
 focus order or announcements, which stay with the automated sweep and the
 screen-reader work already recorded in the register.
+
+### Two shell decisions taken from the UI constitution (2026-09-14)
+
+The reviewer asked whether the language and day/night controls belong in a
+settings system rather than stacked on the home surface, and what a "RUNTIME DB"
+badge is actually for. Both were decided against the project's own constitution
+rather than general taste, because the constitution answers both directly.
+
+Language and appearance leave the header.
+
+- §9 lists what the shell's global region owns - gas day, delivery product,
+  portfolio and market context, runtime/data status - and preferences are not on
+  that list. §13 sends option sets to menus and settings forms. §22 prohibits
+  equal-weight toolbar overload, which is what two preference dropdowns beside the
+  context filters and the status chips were. The System -> Settings workspace
+  already owned both, so nothing had to be built; the sign-in screen keeps its
+  language control because §21 needs the entry screen readable before an identity
+  exists.
+- Removing them exposed a real defect behind the move: the language was never
+  persisted (`lng: "en"` hard-coded), so a choice made in settings died on every
+  reload. It now persists the way theme already did, through one module that owns
+  the key, the supported set and the coercion, with `changeAppLanguage` as the
+  single writer. A storage that throws degrades to the in-session choice.
+- Deferred rather than forgotten: §13 and §14 sanction a menu for option sets
+  ("Menu for command grouping with keyboard navigation and focus return"), but
+  §14 also states no new overlay dependency is proposed and the census puts
+  menus/overlays last in the migration order. Adding one now would land a shared
+  primitive ahead of that order, so it is recorded as UX-PREF-MENU-001.
+
+The data-plane badge keeps its slot and loses the store's name.
+
+- §9 requires the shell to own runtime/data status, so deleting the badge would
+  have contradicted the constitution. The problem was its wording and its shape:
+  it rendered the store's name ("Runtime DB") as if it were a state, outside the
+  operational vocabulary §15 mandates, as a white pill identical to the selects
+  beside it, which §13 and §22 both speak against.
+- It is now the canonical `StatusBadge` primitive showing Ready / Partial /
+  Unavailable, with the store named in the title - §15 explicitly allows a title
+  as the second signal. The mapping sits in one place because three surfaces
+  render this value, and the market overview had been printing the raw enum.
+  Fail-closed: an unrecognised state reads as Unavailable, including the
+  `delayed` slot the store type still carries with no producer.
+- Sizing needed pinning twice: the header controls row is a flex row on wide
+  viewports and a two-column grid on narrow ones, and the first fix covered only
+  the flex case, leaving the chip at half the row on a phone. Measured before and
+  after: 181px to 38px at 390x844.
+
+Evidence: Web suite 221 passed / 0 failed after rebasing onto upstream's sign-in
+and mutation-guard commits; `npm --prefix clients/web run build` exit 0; markdown
+link gate clean. Live through the dev server: header 121px at 1440 with the two
+context selects and none in the controls cluster, badge "Ready" at 54px with the
+store in its title, 328px and a 38px badge at 390x844 in Mandarin, and a language
+chosen in settings still Mandarin after a reload with `eurogas.language.v1`
+holding `zh-CN`. The one local contract-test failure in that run is the known
+sandbox subprocess-pipe limitation (a spawn-based seeding test unrelated to these
+changes), not a regression.

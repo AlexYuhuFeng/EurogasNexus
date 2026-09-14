@@ -25,6 +25,24 @@ asserted by `tests/contract/test_ontology_version_alignment.py`.
 
 ## [Unreleased]
 
+- The header no longer carries the language and appearance controls, and the
+  interface language now persists. Preferences are not part of the shell's global
+  context (gas day, product, hub, runtime/data status), they are option sets, and
+  two dropdowns beside the context filters gave them equal toolbar weight; the
+  System workspace's settings page already owned both, and the sign-in screen
+  keeps its language control because settings need an identity. Because language
+  was hard-coded to English at start-up, a choice made in settings used to die on
+  every reload - it now persists through a single module with a single writer, and
+  a storage that throws degrades to the in-session choice.
+- The header's data-plane badge states a state instead of naming the store. It
+  read "Runtime DB" whenever the data plane was healthy - the subsystem's name,
+  outside the shared operational vocabulary, in a white pill identical to the
+  selects beside it. It is now the canonical badge primitive showing Ready /
+  Partial / Unavailable, with the store named in its title, and it no longer
+  stretches to half the row on a phone (measured 181px to 38px at 390x844). The
+  same mapping backs the header, the settings page and the market overview strip,
+  which had been printing the raw internal value.
+
 - The signed-in identity in the header no longer renders as one glued token. The
   container class the markup uses had no CSS rule at all, so the display name and
   the role appeared as `dev.analystANALYST` at every width and in both locales.
