@@ -118,6 +118,10 @@ export function resetIdentityScopedCaches<T>(monitoringSummary: T) {
     endpointMeta: {},
     endpointErrors: {},
     endpointErrorCodes: {},
+    // Retry bookkeeping belongs to the session that produced the failures.
+    endpointRetryBusy: false,
+    endpointRetryAttempts: 0,
+    endpointRetryLastAttemptAtUtc: null,
     meta: null,
     marketLastUpdatedAtUtc: null,
     loading: false,

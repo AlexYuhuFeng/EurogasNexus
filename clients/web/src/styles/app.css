@@ -2473,7 +2473,7 @@ body {
   flex: 0 0 auto;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
+  align-items: start;
   gap: var(--space-1) var(--space-3);
   margin: 0 var(--space-4) var(--space-3);
   border: 1px solid var(--eg-hairline);
@@ -2492,10 +2492,7 @@ body {
 }
 
 .endpoint-error-banner span {
-  color: var(--eg-muted);
   font-size: var(--text-meta);
-  font-weight: 700;
-  text-transform: uppercase;
 }
 
 .endpoint-error-banner strong {
@@ -2503,10 +2500,79 @@ body {
   font-weight: 600;
 }
 
-.endpoint-error-banner button {
-  grid-column: 2;
-  grid-row: 1 / span 2;
+.endpoint-error-banner .endpoint-error-summary {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.endpoint-error-banner .endpoint-error-eyebrow {
+  color: var(--eg-muted);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.endpoint-error-banner .endpoint-error-detail-list {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.endpoint-error-banner .endpoint-error-detail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+  min-width: 0;
+}
+
+.endpoint-error-banner .endpoint-error-detail-label {
+  color: var(--eg-body);
+  font-weight: 600;
+}
+
+.endpoint-error-banner .endpoint-error-detail-code {
+  border: 1px solid var(--eg-hairline);
+  border-radius: var(--radius-control);
+  background: var(--eg-canvas);
+  color: var(--eg-negative);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: var(--text-meta);
+  padding: 0 var(--space-1);
+  text-transform: none;
+}
+
+.endpoint-error-banner .endpoint-error-detail-message,
+.endpoint-error-banner .endpoint-error-overflow {
+  color: var(--eg-muted);
+}
+
+.endpoint-error-banner .endpoint-error-overflow {
+  margin: 0;
+}
+
+.endpoint-error-banner .endpoint-error-actions {
+  display: grid;
+  gap: var(--space-1);
+  align-content: start;
+  justify-items: end;
+}
+
+.endpoint-error-banner .endpoint-error-actions button {
   white-space: nowrap;
+}
+
+.endpoint-error-banner .endpoint-error-actions button[disabled] {
+  cursor: progress;
+  opacity: 0.65;
+}
+
+.endpoint-error-banner .endpoint-error-retry-meta {
+  color: var(--eg-muted);
+  text-align: right;
 }
 
 .workspace-pill,
@@ -4048,7 +4114,10 @@ body {
 .market-source-pill.simulated {
   border-color: rgb(0 112 243 / 28%);
   background: rgb(0 112 243 / 10%);
-  color: var(--eg-link);
+  /* The accent blue on this pale tint measures ~4.16:1, below the 4.5:1 the
+     11px label needs. The identity stays in the border and tint; the text uses
+     the ink token, which is compliant in both themes. */
+  color: var(--eg-ink);
 }
 
 .market-curve-lanes {
@@ -8074,10 +8143,8 @@ button.glossary-related-chip {
     margin: 0 var(--space-3) var(--space-3);
   }
 
-  .endpoint-error-banner button {
-    grid-column: 1;
-    grid-row: auto;
-    justify-self: start;
+  .endpoint-error-banner .endpoint-error-actions {
+    justify-items: start;
   }
 }
 

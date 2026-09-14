@@ -2,6 +2,10 @@ import { NetworkWorkspace } from "@/components/NetworkWorkspace";
 import { SignInScreen } from "@/components/SignInScreen";
 import { WorkspaceTopBar } from "@/components/WorkspaceTopBar";
 import type { AppController } from "@/app/hooks/useAppController";
+import {
+  describeEndpointFailures,
+  describeEndpointRetry,
+} from "@/app/model/endpointFailures";
 import { WorkspaceRenderer } from "@/app/workspaces/WorkspaceRenderer";
 import { isBlockingCompatibility } from "@/app/releaseCompatibility";
 
@@ -74,6 +78,20 @@ export function AppShell({ controller }: AppShellProps) {
     );
   }
 
+  // The one bounded failure surface. Loader keys and backend messages stay in
+  // the store: only translated endpoint labels, safe failure codes and one
+  // "showing N of M" summary are rendered, so the banner cannot leak internals
+  // and cannot grow past five detail rows however much fails.
+  const endpointFailures = describeEndpointFailures(api.endpointErrors, api.endpointErrorCodes, t);
+  const endpointRetry = describeEndpointRetry(
+    {
+      busy: api.endpointRetryBusy,
+      attempts: api.endpointRetryAttempts,
+      lastAttemptAtUtc: api.endpointRetryLastAttemptAtUtc,
+    },
+    t,
+  );
+
   return (
     <div className={`app cockpit-app workspace-${navigation.activeWorkspace}`}>
       <WorkspaceTopBar
@@ -106,15 +124,44 @@ export function AppShell({ controller }: AppShellProps) {
         onOpenAccess={() => navigation.openWorkspace("access")}
       />
 
-      {Object.keys(api.endpointErrors).length > 0 && (
-        <div className="endpoint-error-banner" role="status" aria-live="polite">
-          <span>{t("workspace.partial_load")}</span>
-          <strong>
-            {t("workspace.failed_endpoints")}: {Object.keys(api.endpointErrors).join(", ")}
-          </strong>
-          <button type="button" onClick={() => void api.retryFailedWorkspaceEndpoints()}>
-            {t("workspace.retry_failed")}
-          </button>
+      {endpointFailures.total > 0 && (
+        <div
+          className="endpoint-error-banner"
+          role="status"
+          aria-live="polite"
+          aria-busy={endpointRetry.busy}
+        >
+          <div className="endpoint-error-summary">
+            <span className="endpoint-error-eyebrow">{t("workspace.partial_load")}</span>
+            <strong>{endpointFailures.summary}</strong>
+            <ul className="endpoint-error-detail-list">
+              {endpointFailures.entries.map((entry) => (
+                <li className="endpoint-error-detail" key={entry.key}>
+                  <span className="endpoint-error-detail-label">{entry.label}</span>
+                  <code className="endpoint-error-detail-code">{entry.code}</code>
+                  <span className="endpoint-error-detail-message">{entry.message}</span>
+                </li>
+              ))}
+            </ul>
+            {endpointFailures.truncatedSummary && (
+              <p className="endpoint-error-overflow">{endpointFailures.truncatedSummary}</p>
+            )}
+          </div>
+          <div className="endpoint-error-actions">
+            <button
+              type="button"
+              disabled={endpointRetry.disabled}
+              aria-busy={endpointRetry.busy}
+              onClick={() => void api.retryFailedWorkspaceEndpoints()}
+            >
+              {t("workspace.retry_failed")}
+            </button>
+            <span className="endpoint-error-retry-meta">
+              {endpointRetry.attemptsLabel}
+              {endpointRetry.lastAttemptLabel ? ` · ${endpointRetry.lastAttemptLabel}` : ""}
+              {endpointRetry.runningLabel ? ` · ${endpointRetry.runningLabel}` : ""}
+            </span>
+          </div>
         </div>
       )}
 

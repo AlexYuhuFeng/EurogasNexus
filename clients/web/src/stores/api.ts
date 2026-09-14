@@ -229,6 +229,12 @@ export interface ApiState {
   endpointMeta: Record<string, ApiMeta>;
   endpointErrors: Record<string, string>;
   endpointErrorCodes: Record<string, WorkspaceEndpointFailureCode>;
+  /** True while a failed-endpoint retry pass is in flight: one attempt at a time. */
+  endpointRetryBusy: boolean;
+  /** Bounded retry attempts started in this session, surfaced by the banner. */
+  endpointRetryAttempts: number;
+  /** Start time (UTC ISO) of the last retry attempt, or null before the first. */
+  endpointRetryLastAttemptAtUtc: string | null;
   meta: ApiMeta | null;
   marketLastUpdatedAtUtc: string | null;
   loading: boolean;
@@ -470,6 +476,9 @@ export const useApiStore = create<ApiState>((set, get) => ({
   endpointMeta: {},
   endpointErrors: {},
   endpointErrorCodes: {},
+  endpointRetryBusy: false,
+  endpointRetryAttempts: 0,
+  endpointRetryLastAttemptAtUtc: null,
   meta: null,
   marketLastUpdatedAtUtc: null,
   loading: false,
@@ -677,6 +686,10 @@ export const useApiStore = create<ApiState>((set, get) => ({
   retryFailedWorkspaceEndpoints: async () => {
     if (logoutInProgress) return;
     if (!isIdentityGateOpen(get().authState)) return;
+    // One bounded attempt at a time. The control is also disabled while an
+    // attempt runs, but the refusal is authoritative here so a second caller
+    // can never stack another pass with its own timeout budget.
+    if (get().endpointRetryBusy) return;
     const failedKeys = Object.keys(get().endpointErrors);
     if (failedKeys.length === 0) return;
     const loaderByKey = new Map(WORKSPACE_LOADERS);
@@ -684,7 +697,13 @@ export const useApiStore = create<ApiState>((set, get) => ({
     if (retryableLoaders.length === 0) return;
 
     const load = startWorkspaceLoad();
-    set({ loading: true, error: null });
+    set((state) => ({
+      loading: true,
+      error: null,
+      endpointRetryBusy: true,
+      endpointRetryAttempts: state.endpointRetryAttempts + 1,
+      endpointRetryLastAttemptAtUtc: new Date().toISOString(),
+    }));
     try {
       const outcomes = await loadWorkspaceEndpoints(retryableLoaders, {
         signal: load.signal,
@@ -728,7 +747,9 @@ export const useApiStore = create<ApiState>((set, get) => ({
     } finally {
       const current = workspaceLoadCoordinator.isCurrent(load.generation, load.signal);
       workspaceLoadCoordinator.finish(load.generation);
-      if (current) set({ loading: false });
+      // The attempt owns the busy flag: it clears even when a newer workspace
+      // load superseded this pass, so the retry control cannot stay disabled.
+      set(current ? { loading: false, endpointRetryBusy: false } : { endpointRetryBusy: false });
     }
   },
 
@@ -1051,8 +1072,11 @@ export const useApiStore = create<ApiState>((set, get) => ({
       // Server-side session may already be gone; local state is still cleared.
     } finally {
       try {
-        const { clearStoredAuth } = await import("@/api/client");
+        const { clearStoredAuth, clearDesktopSessionData } = await import("@/api/client");
         clearStoredAuth();
+        // Desktop shells additionally drop the WebView's cookies, caches and
+        // local storage, so a shared workstation keeps nothing behind.
+        await clearDesktopSessionData();
         set({ authState: UNAUTHENTICATED_AUTH_STATE, authBusy: false });
       } finally {
         logoutInProgress = false;

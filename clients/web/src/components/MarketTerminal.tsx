@@ -161,7 +161,9 @@ const sortNewestFirst = (left: NormalizedMarketObsDTO, right: NormalizedMarketOb
 
 function MarketSparkline({ values, label }: { values: number[]; label: string }) {
   if (values.length < 2) {
-    return <div className="market-sparkline empty" aria-label={label} />;
+    // `role="img"` keeps the label permitted on a non-interactive element and
+    // matches the populated branch below (axe: aria-prohibited-attr).
+    return <div className="market-sparkline empty" role="img" aria-label={label} />;
   }
 
   const min = Math.min(...values);

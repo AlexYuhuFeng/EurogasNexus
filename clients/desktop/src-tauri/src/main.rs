@@ -92,6 +92,19 @@ fn notify_client_ready(state: tauri::State<'_, ClientReadiness>) -> Result<(), S
     Ok(())
 }
 
+/// Drop the WebView's cookies, caches and local storage after a sign-out.
+///
+/// The backend session is revoked and the client clears its stored credentials
+/// before this runs, so this only removes what the shared workspace kept on the
+/// workstation. Non-secret preferences (theme, language, map tiles) are cleared
+/// with it, which is the intended behaviour on a shared machine.
+#[tauri::command]
+fn clear_client_session_data(window: tauri::WebviewWindow) -> Result<(), String> {
+    window
+        .clear_all_browsing_data()
+        .map_err(|error| format!("cannot clear WebView browsing data: {error}"))
+}
+
 #[tauri::command]
 fn start_loopback_auth(state: tauri::State<'_, LoopbackAuthState>) -> Result<String, String> {
     let listener = TcpListener::bind("127.0.0.1:0")
@@ -202,7 +215,8 @@ fn main() {
             read_deployment_config,
             start_loopback_auth,
             open_browser_login_and_wait,
-            notify_client_ready
+            notify_client_ready,
+            clear_client_session_data
         ])
         .setup(|app| {
             let main_window = app

@@ -188,6 +188,23 @@ export async function notifyDesktopClientReady(): Promise<void> {
   }
 }
 
+export async function clearDesktopSessionData(): Promise<void> {
+  /**
+   * Ask the desktop shell to drop its WebView cookies, caches and local storage
+   * after a sign-out, so a shared workstation does not keep the previous
+   * operator's session material. The caller revokes the backend session and
+   * clears the client-stored credentials first; browser deployments are a no-op.
+   */
+
+  if (!isDesktopShell) return;
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    await invoke("clear_client_session_data");
+  } catch {
+    // Best effort: a shell without the command still has its credentials cleared.
+  }
+}
+
 function apiUrl(path: string): string {
   return apiUrlForBase(configuredApiBaseUrl(), path);
 }

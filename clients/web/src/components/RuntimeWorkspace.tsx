@@ -7,6 +7,10 @@ import type {
 } from "@/api/client";
 import { useState } from "react";
 import {
+  ENDPOINT_FAILURE_LABEL_KEYS,
+  UNKNOWN_ENDPOINT_FAILURE_LABEL_KEY,
+} from "@/app/model/endpointFailures";
+import {
   MetricStrip,
   PanelHeader,
   StatusBadge,
@@ -218,7 +222,14 @@ export function RuntimeWorkspace({
     ...(!dbReady ? [t("runtime.runtime_schema_blocked_detail")] : []),
     ...(sources.length === 0 ? [t("runtime.no_sources")] : []),
     ...(commercialSourceRows.length === 0 ? [t("runtime.commercial_source_blocked_detail")] : []),
-    ...Object.keys(endpointErrors).map((key) => `${t("runtime.endpoint_failures")}: ${key}`),
+    ...Object.keys(endpointErrors).map(
+      // Render the shared endpoint label, never the internal loader key: the
+      // release-blocker list is user-facing text.
+      (key) =>
+        `${t("runtime.endpoint_failures")}: ${t(
+          ENDPOINT_FAILURE_LABEL_KEYS[key] ?? UNKNOWN_ENDPOINT_FAILURE_LABEL_KEY,
+        )}`,
+    ),
     ...credentialBlockers.map((source) => `${t("runtime.credential_blockers")}: ${source.source_system}`),
     ...certificationBlockers.map((source) => `${t("runtime.certification_blockers")}: ${source.source_system}`),
     t("runtime.security_acceptance_detail"),
