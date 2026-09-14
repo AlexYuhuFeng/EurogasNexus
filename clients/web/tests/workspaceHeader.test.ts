@@ -49,3 +49,28 @@ test("only WorkspaceHeader owns the consolidated primary h1 and shared tab seman
   assert.match(renderer, /!usesConsolidatedHeader/);
   assert.match(renderer, /!usesConsolidatedHeader\s*&&\s*\(\s*<header/);
 });
+
+test("the top bar identity cluster keeps the display name and role apart", () => {
+  const bar = readWebSource("components/WorkspaceTopBar.tsx");
+  const css = readWebSource("components/WorkspaceTopBar.css");
+
+  // The markup wraps the display name and the role in one container and JSX
+  // drops the whitespace between them, so a missing container rule rendered
+  // them as a single glued token ("dev.analystANALYST") in every locale and at
+  // every width. A visual review caught it; axe cannot see missing whitespace.
+  assert.match(bar, /className="topbar-user-menu"/);
+
+  const container = /\.topbar-user-menu \{[^}]*\}/.exec(css)?.[0] ?? "";
+  assert.notEqual(container, "", "the class the markup uses must have a rule");
+  assert.match(container, /display: flex;/);
+  assert.match(container, /gap: 8px;/);
+
+  // The name is the only flexible field, so a long one ellipsises rather than
+  // pushing the sign-out control out of the row.
+  const name = /\.topbar-user-menu > span \{[^}]*\}/.exec(css)?.[0] ?? "";
+  assert.match(name, /text-overflow: ellipsis;/);
+  assert.match(name, /white-space: nowrap;/);
+  const role = /\.topbar-user-menu > small \{[^}]*\}/.exec(css)?.[0] ?? "";
+  assert.match(role, /white-space: nowrap;/);
+});
+

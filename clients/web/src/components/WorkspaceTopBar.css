@@ -85,6 +85,36 @@
   position: relative;
 }
 
+/*
+ * The identity cluster is a flex row, not a run of inline elements: without the
+ * container rule the display name and the role rendered as one glued token
+ * ("dev.analystANALYST") at every width and in both locales, because JSX drops
+ * the whitespace between them. The name is the flexible part, so a long one
+ * ellipsises instead of pushing the sign-out control off the row.
+ */
+.topbar-user-menu {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.topbar-user-menu > span {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topbar-user-menu > small {
+  color: var(--eg-muted, var(--muted));
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
 .alert-trigger {
   display: inline-flex;
   height: 40px;
