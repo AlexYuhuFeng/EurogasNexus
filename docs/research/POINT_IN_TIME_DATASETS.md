@@ -19,6 +19,25 @@ This document is the operator/analyst-facing companion to
    `POST /api/research/datasets/{dataset_snapshot_id}/export`
    (`parquet` or `csv`).
 
+## Artifacts and export (CR14-ARTIFACT-001)
+
+- A materialized build writes format-specific artifacts beneath the research
+  artifact root: `EUROGAS_NEXUS_RESEARCH_ARTIFACT_ROOT`, defaulting to the
+  git-ignored `data/snapshots/` directory of the checkout. Each
+  `dataset_artifacts` row stores a path relative to that root plus the artifact
+  SHA-256, and `dataset_snapshots.artifact_ref` points at the primary artifact,
+  so no absolute host path is ever exposed.
+- CSV is always written; Parquet is written only when the optional `research`
+  extra (pyarrow) is installed. Without it a Parquet export request fails closed
+  with `409 artifact_not_available` (`FORMAT_NOT_REGISTERED`) instead of
+  returning a null reference.
+- Export returns a governed *reference*, never dataset rows, and only when the
+  canonical source provenance resolves to `EXPORT_ALLOWED`.
+- Validation and build resolve feature/target/entity/source/policy ids through
+  one shared resolver: unknown ids fail validation with structured field issues
+  (`field`/`code`/`message`), and a resampling policy the builder cannot honour
+  exactly is rejected rather than silently ignored.
+
 ## Eligibility pseudocode
 
 For each `forecast_origin`:

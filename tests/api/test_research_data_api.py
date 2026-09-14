@@ -100,6 +100,11 @@ def client(tmp_path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("RUNTIME_STORE_DATABASE_URL", database_url)
     monkeypatch.delenv("DATABASE_URL", raising=False)
     monkeypatch.delenv("EUROGAS_NEXUS_DB_DSN", raising=False)
+    # CR14-ARTIFACT-001: artifacts go to the configurable research artifact root;
+    # tests redirect it so nothing is written into the checkout.
+    monkeypatch.setenv(
+        "EUROGAS_NEXUS_RESEARCH_ARTIFACT_ROOT", str(tmp_path / "research-artifacts")
+    )
     with Session(engine) as session:
         feature = _feature()
         target = _target()
@@ -115,6 +120,20 @@ def client(tmp_path, monkeypatch: pytest.MonkeyPatch):
             definition_json=target.model_dump(mode="json"),
             content_hash=target.content_hash(),
         )
+        for entity_type, code, display_name in (
+            ("market_hub", "NBP", "NBP Virtual Trading Point"),
+            ("market_hub", "TTF", "TTF Virtual Trading Point"),
+        ):
+            repo.upsert_canonical_entity(
+                session,
+                canonical_entity_id=f"ent:{entity_type}:{code}",
+                entity_type=entity_type,
+                canonical_code=code,
+                display_name=display_name,
+            )
+        # Row 0 stays the permissive default policy; the bounded and unsupported
+        # rows exist to prove the requested resampling_policy_id is resolved
+        # instead of the first registry row.
         repo.upsert_resampling_policy(
             session,
             policy_id="resampling/v1",
@@ -122,6 +141,27 @@ def client(tmp_path, monkeypatch: pytest.MonkeyPatch):
                 mode="json"
             ),
             content_hash="0" * 64,
+        )
+        repo.upsert_resampling_policy(
+            session,
+            policy_id="resampling/bounded",
+            definition_json=ResamplingPolicy(
+                policy_id="resampling/bounded",
+                semantic_type="market_price",
+                maximum_carry_seconds=1800,
+            ).model_dump(mode="json"),
+            content_hash="1" * 64,
+        )
+        repo.upsert_resampling_policy(
+            session,
+            policy_id="resampling/unsupported",
+            definition_json=ResamplingPolicy(
+                policy_id="resampling/unsupported",
+                semantic_type="market_price",
+                aggregation="mean",
+                maximum_carry_seconds=3600,
+            ).model_dump(mode="json"),
+            content_hash="2" * 64,
         )
         for hour in range(4):
             for hub, value, currency in (("NBP", 20.0 + hour, "GBP"), ("TTF", 18.0 + hour, "EUR")):
@@ -202,7 +242,15 @@ def test_dataset_validate_reports_semantic_issues_without_persisting(client) -> 
     assert response.status_code == 200
     body = response.json()
     assert body["data"]["ok"] is False
-    assert "at least one target_id is required" in body["data"]["issues"]
+    # Issues are structured field-level objects (field/code/message), matching the
+    # 422 envelope used by the build route.
+    assert body["data"]["issues"] == [
+        {
+            "field": "target_ids",
+            "code": "target_required",
+            "message": "at least one target_id is required",
+        }
+    ]
 
     valid = client.post(
         "/api/research/datasets/validate",
@@ -210,7 +258,70 @@ def test_dataset_validate_reports_semantic_issues_without_persisting(client) -> 
     )
     assert valid.status_code == 200
     assert valid.json()["data"]["ok"] is True
+    assert valid.json()["data"]["issues"] == []
+    assert valid.json()["data"]["registry_resolution"] == "RESOLVED"
     assert len(valid.json()["data"]["spec_hash"]) == 64
+
+
+@pytest.mark.parametrize(
+    ("override", "field", "code"),
+    [
+        ({"feature_ids": ["MISSING_FEATURE"]}, "feature_ids", "unknown_feature_id"),
+        ({"target_ids": ["MISSING_TARGET"]}, "target_ids", "unknown_target_id"),
+        ({"entity_ids": ["ent:market_hub:THE"]}, "entity_ids", "unknown_entity_id"),
+        (
+            {"source_restrictions": ["NOT_A_SOURCE"]},
+            "source_restrictions",
+            "unknown_source_id",
+        ),
+        (
+            {"resampling_policy_id": "resampling/missing"},
+            "resampling_policy_id",
+            "unknown_resampling_policy_id",
+        ),
+        (
+            {"resampling_policy_id": "resampling/unsupported"},
+            "resampling_policy_id",
+            "resampling_policy_unsupported",
+        ),
+    ],
+)
+def test_dataset_validate_resolves_registry_ids(client, override, field, code) -> None:
+    """CR14-SEMANTICS-001: unknown ids fail at VALIDATE time, not silently."""
+
+    response = client.post(
+        "/api/research/datasets/validate",
+        json={"dataset_spec": {**_spec_payload(), **override}},
+    )
+
+    assert response.status_code == 200
+    body = response.json()["data"]
+    assert body["ok"] is False
+    issue = body["issues"][0]
+    assert issue["field"] == field
+    assert issue["code"] == code
+    assert issue["message"]
+
+
+def test_dataset_build_rejects_unresolvable_registry_ids_with_structured_422(
+    client,
+) -> None:
+    response = client.post(
+        "/api/research/datasets",
+        json={
+            "dataset_spec": {
+                **_spec_payload(),
+                "resampling_policy_id": "resampling/unsupported",
+            },
+            "materialize": False,
+        },
+    )
+
+    assert response.status_code == 422
+    detail = response.json()["detail"]
+    assert detail["error"] == "dataset_registry_invalid"
+    assert detail["issues"][0]["field"] == "resampling_policy_id"
+    assert detail["issues"][0]["code"] == "resampling_policy_unsupported"
 
 
 @pytest.mark.parametrize(
@@ -464,3 +575,199 @@ def test_concrete_simulation_source_is_filtered_and_authorized_by_family(
     assert payload["row_count"] == 6
     assert payload["trusted_source_ids"] == ["src-eex-sim"]
     assert payload["entitlement_envelope"]["export_policy"] == "EXPORT_RESTRICTED"
+
+
+def _build_materialized(client, spec: dict | None = None) -> dict:
+    response = client.post(
+        "/api/research/datasets",
+        json={"dataset_spec": spec or _spec_payload(), "materialize": True},
+    )
+    assert response.status_code == 200
+    return response.json()["data"]
+
+
+def test_dataset_build_registers_format_specific_artifact(client, tmp_path) -> None:
+    """CR14-ARTIFACT-001: a materialized build persists a real artifact."""
+
+    body = _build_materialized(client)
+    snapshot_id = body["dataset_snapshot_id"]
+
+    with Session(client.engine) as session:
+        artifacts = repo.list_dataset_artifacts(session, snapshot_id)
+        stored = repo.get_dataset_snapshot(session, snapshot_id)
+        parquet = repo.get_dataset_artifact(session, snapshot_id, "parquet")
+        assert stored is not None
+        # pyarrow is an optional extra; CSV is always available in this environment.
+        assert [artifact.format for artifact in artifacts] == ["csv"]
+        artifact = artifacts[0]
+        assert artifact.sha256 and len(artifact.sha256) == 64
+        assert stored.artifact_ref == artifact.artifact_path
+        assert parquet is None
+        artifact_path = artifact.artifact_path
+        artifact_sha256 = artifact.sha256
+
+    written = tmp_path / "research-artifacts" / artifact_path
+    assert written.is_file()
+    import hashlib
+
+    assert hashlib.sha256(written.read_bytes()).hexdigest() == artifact_sha256
+
+    detail = client.get(f"/api/research/datasets/{snapshot_id}")
+    assert detail.status_code == 200
+    assert detail.json()["data"]["artifact_ref"] == artifact_path
+    assert str(tmp_path) not in artifact_path
+
+
+def test_dataset_export_matches_requested_format_or_fails_closed(
+    client, monkeypatch
+) -> None:
+    """Export resolves a STORED artifact; an unregistered format never returns 200.
+
+    ``effective_entitlement_envelope`` is overridden to EXPORT_ALLOWED because the
+    canonical registry policy is fail-closed by construction (no registered source
+    family maps to the PUBLIC scope), so the success path is otherwise unreachable;
+    the entitlement gate itself is covered by the 403 tests above.
+    """
+
+    from eurogas_nexus.api.routes.public import research_data
+
+    body = _build_materialized(client)
+    snapshot_id = body["dataset_snapshot_id"]
+
+    denied = client.post(
+        f"/api/research/datasets/{snapshot_id}/export", json={"format": "csv"}
+    )
+    assert denied.status_code == 403
+    assert denied.json()["detail"]["code"] == "export_denied_entitlement"
+
+    monkeypatch.setattr(
+        research_data,
+        "effective_entitlement_envelope",
+        lambda _definitions: {"export_policy": "EXPORT_ALLOWED", "policy_source": "test"},
+    )
+
+    # parquet was never registered for this snapshot: fail closed, no null ref.
+    unavailable = client.post(
+        f"/api/research/datasets/{snapshot_id}/export", json={"format": "parquet"}
+    )
+    assert unavailable.status_code == 409
+    detail = unavailable.json()["detail"]
+    assert detail["code"] == "artifact_not_available"
+    assert detail["reason"] == "FORMAT_NOT_REGISTERED"
+    assert detail["format"] == "parquet"
+    assert detail["available_formats"] == ["csv"]
+    assert "artifact_ref" not in detail
+
+    with Session(client.engine) as session:
+        stored = repo.get_dataset_artifact(session, snapshot_id, "csv")
+    assert stored is not None
+
+    allowed = client.post(
+        f"/api/research/datasets/{snapshot_id}/export", json={"format": "csv"}
+    )
+    assert allowed.status_code == 200
+    payload = allowed.json()["data"]
+    assert payload["format"] == "csv"
+    assert payload["artifact_ref"] == stored.artifact_path
+    assert payload["artifact_ref"] is not None
+    assert payload["artifact_id"] == stored.artifact_id
+    assert payload["available_formats"] == ["csv"]
+    assert payload["entitlement_policy"] == "EXPORT_ALLOWED"
+    assert allowed.json()["meta"]["research_only"] is True
+    assert any("EXPORT_REFERENCE_ONLY" in item for item in allowed.json()["meta"]["warnings"])
+
+
+def test_dataset_export_fails_closed_when_registered_file_is_gone(
+    client, monkeypatch, tmp_path
+) -> None:
+    from eurogas_nexus.api.routes.public import research_data
+
+    body = _build_materialized(client)
+    snapshot_id = body["dataset_snapshot_id"]
+    with Session(client.engine) as session:
+        artifact = repo.get_dataset_artifact(session, snapshot_id, "csv")
+    assert artifact is not None
+    (tmp_path / "research-artifacts" / artifact.artifact_path).unlink()
+    monkeypatch.setattr(
+        research_data,
+        "effective_entitlement_envelope",
+        lambda _definitions: {"export_policy": "EXPORT_ALLOWED", "policy_source": "test"},
+    )
+
+    response = client.post(
+        f"/api/research/datasets/{snapshot_id}/export", json={"format": "csv"}
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"]["code"] == "artifact_not_available"
+    assert response.json()["detail"]["reason"] == "FILE_MISSING"
+
+
+def test_dataset_build_entity_ids_filter_the_built_rows(client) -> None:
+    """CR14-SEMANTICS-001: spec.entity_ids actually filters the built dataset."""
+
+    both = _build_materialized(client)
+    assert both["row_count"] == 6
+    assert both["quality_report"]["coverage"] == 0.8333
+
+    nbp_only = _build_materialized(
+        client,
+        {
+            **_spec_payload(),
+            "dataset_spec_id": "spec-api-nbp-only",
+            "entity_ids": ["ent:market_hub:NBP"],
+        },
+    )
+
+    assert nbp_only["row_count"] == 6  # rows are per origin/feature/target
+    # Only the NBP observations may enter the build: the NBP/TTF spread feature
+    # can no longer resolve, and the TTF source references disappear from lineage.
+    assert nbp_only["quality_report"]["coverage"] == 0.3333
+    assert all(row["value"] is None for row in nbp_only["rows"] if row.get("feature_id"))
+    assert not any("TTF" in ref for ref in nbp_only["lineage"])
+    assert any("NBP" in ref for ref in nbp_only["lineage"])
+
+
+def test_dataset_build_uses_requested_resampling_policy(client) -> None:
+    """CR14-SEMANTICS-001: the requested registry row, not row 0, drives the build."""
+
+    with Session(client.engine) as session:
+        session.query(MarketObservationRecord).filter(
+            MarketObservationRecord.observation_id.in_(["obs-NBP-1", "obs-TTF-1"])
+        ).delete(synchronize_session=False)
+        session.commit()
+
+    permissive = _build_materialized(client)
+    assert permissive["resampling_policy"]["policy_id"] == "resampling/v1"
+    # Unbounded carry-forward: the hour-0 value still resolves the hour-1 origin.
+    assert permissive["quality_report"]["coverage"] == 0.8333
+
+    bounded = _build_materialized(
+        client,
+        {
+            **_spec_payload(),
+            "dataset_spec_id": "spec-api-bounded",
+            "resampling_policy_id": "resampling/bounded",
+        },
+    )
+    assert bounded["resampling_policy"]["policy_id"] == "resampling/bounded"
+    assert bounded["resampling_policy"]["supported"] is True
+    # The requested bounded policy drops the stale hour-0 value at the hour-1
+    # origin, which the permissive default policy silently carried forward.
+    assert bounded["quality_report"]["coverage"] == 0.6667
+    assert bounded["quality_report"]["observed_values"] == (
+        permissive["quality_report"]["observed_values"] - 1
+    )
+    hour_one = [
+        row
+        for row in bounded["rows"]
+        if row.get("feature_id") and row["forecast_origin"].startswith("2026-01-01T01:00")
+    ]
+    assert hour_one and hour_one[0]["value"] is None
+
+    detail = client.get(f"/api/research/datasets/{bounded['dataset_snapshot_id']}")
+    assert detail.status_code == 200
+    assert (
+        detail.json()["data"]["metadata"]["resampling_policy"]["policy_id"]
+        == "resampling/bounded"
+    )

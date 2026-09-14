@@ -128,24 +128,49 @@ def register_research_capabilities(registry) -> None:
 
 def _register_dataset_capabilities(registry) -> None:
     from eurogas_nexus.application.agents.db_bridge import session_scope
+    from eurogas_nexus.application.research_artifacts import (
+        ArtifactStoreUnavailable,
+        write_dataset_artifacts,
+    )
+    from eurogas_nexus.application.research_registry import (
+        DatasetRegistryError,
+        resolve_dataset_registry,
+    )
     from eurogas_nexus.domain.research.datasets import DatasetSpec
 
     def validate_spec(arguments, _context):
         definition = registry.get("dataset.validate_spec")
         try:
             spec = DatasetSpec.model_validate(arguments.get("spec") or {})
-            issues = [] if spec.target_ids else ["at least one target_id is required"]
-            return _result(
-                definition,
-                {
-                    "ok": not issues,
-                    "issues": issues,
-                    "spec_hash": spec.content_hash(),
-                    "qualified_version": spec.qualified_version(),
-                },
-            )
         except Exception as exc:
             return _result(definition, {"ok": False, "issues": [str(exc)]})
+        # Same shared resolver as the build path, so an agent cannot receive a
+        # different verdict at validate time than at build time.
+        registry_status = "RESOLVED"
+        with session_scope() as session:
+            if session is None:
+                registry_status = "UNAVAILABLE"
+                issues: list[dict[str, str]] = [
+                    {
+                        "field": "dataset_spec",
+                        "code": "registry_unavailable",
+                        "message": (
+                            "Runtime PostgreSQL is required to resolve dataset registry ids."
+                        ),
+                    }
+                ]
+            else:
+                issues = resolve_dataset_registry(session, spec).issue_list()
+        return _result(
+            definition,
+            {
+                "ok": not issues,
+                "issues": issues,
+                "spec_hash": spec.content_hash(),
+                "qualified_version": spec.qualified_version(),
+                "registry_resolution": registry_status,
+            },
+        )
 
     def build(arguments, _context):
         definition = registry.get("dataset.build")
@@ -160,15 +185,32 @@ def _register_dataset_capabilities(registry) -> None:
             from eurogas_nexus.db.repositories.research import persist_dataset_snapshot
 
             spec = DatasetSpec.model_validate(arguments.get("spec") or {})
-            result, dependencies, issues = _build_from_runtime(
-                session, spec, principal=_research_principal(_context)
-            )
+            try:
+                result, dependencies, issues = _build_from_runtime(
+                    session, spec, principal=_research_principal(_context)
+                )
+            except DatasetRegistryError as exc:
+                return _blocked(
+                    definition,
+                    CapabilityFailureCode.ENTITY_NOT_FOUND,
+                    "; ".join(item["message"] for item in exc.issues),
+                )
+            try:
+                # CR14-ARTIFACT-001: the agent build path registers the same
+                # format-specific artifacts as the HTTP build path.
+                artifacts = write_dataset_artifacts(result)
+            except ArtifactStoreUnavailable as exc:
+                return _blocked(
+                    definition,
+                    CapabilityFailureCode.DATA_MISSING,
+                    f"Research artifact store is unavailable: {exc.detail}",
+                )
             persist_dataset_snapshot(
                 session,
                 metadata=result.as_metadata(),
                 dependencies=dependencies,
                 issues=issues,
-                artifacts=[],
+                artifacts=artifacts,
             )
             session.commit()
         return _result(
@@ -176,8 +218,83 @@ def _register_dataset_capabilities(registry) -> None:
             {
                 **result.as_metadata(),
                 "rows": result.rows[:50],
+                "artifacts": artifacts,
             },
         )
+
+    def export_dataset(arguments, context):
+        definition = registry.get("dataset.export")
+        with session_scope() as session:
+            if session is None:
+                return _blocked(
+                    definition,
+                    CapabilityFailureCode.DATA_MISSING,
+                    "Runtime PostgreSQL is not configured",
+                )
+            from eurogas_nexus.db.repositories.research import (
+                get_dataset_snapshot,
+                list_dataset_artifacts,
+            )
+            from eurogas_nexus.security.research_entitlement import (
+                effective_entitlement_envelope,
+            )
+
+            snapshot_id = str(arguments["dataset_snapshot_id"])
+            artifact_format = str(arguments.get("format") or "parquet")
+            row = get_dataset_snapshot(session, snapshot_id)
+            if row is None:
+                return _blocked(
+                    definition, CapabilityFailureCode.ENTITY_NOT_FOUND, snapshot_id
+                )
+            # Rights come from persisted canonical provenance and current grants
+            # only: a request envelope (including any entitlement_envelope or
+            # export_policy field) can never authorize an export.
+            definitions = principal_can_read_snapshot(
+                _research_principal(context), row.metadata_json
+            )
+            if definitions is None:
+                return _blocked(
+                    definition,
+                    CapabilityFailureCode.ENTITLEMENT_DENIED,
+                    "Snapshot source provenance is not authorized for this identity",
+                )
+            policy = effective_entitlement_envelope(definitions)["export_policy"]
+            if policy != "EXPORT_ALLOWED":
+                code = (
+                    "EXPORT_DENIED_UNKNOWN_POLICY"
+                    if policy == "UNKNOWN"
+                    else "EXPORT_DENIED_ENTITLEMENT"
+                )
+                return _blocked(
+                    definition,
+                    CapabilityFailureCode.ENTITLEMENT_DENIED,
+                    f"{code}: canonical export policy is {policy}",
+                )
+            artifacts = list_dataset_artifacts(session, snapshot_id)
+            available_formats = sorted({artifact.format for artifact in artifacts})
+            artifact = next(
+                (item for item in artifacts if item.format == artifact_format), None
+            )
+            if artifact is None:
+                # Fail closed: never return a reference for an artifact that was
+                # not registered, and never fabricate one.
+                return _blocked(
+                    definition,
+                    CapabilityFailureCode.DATA_MISSING,
+                    "EXPORT_DENIED_ARTIFACT_UNAVAILABLE: no stored "
+                    f"{artifact_format} artifact; available formats: {available_formats}",
+                )
+            payload = {
+                "dataset_snapshot_id": snapshot_id,
+                "artifact_id": artifact.artifact_id,
+                "format": artifact.format,
+                "artifact_ref": artifact.artifact_path,
+                "sha256": artifact.sha256,
+                "entitlement_policy": policy,
+                "research_only": True,
+                "human_review_required": True,
+            }
+        return _result(definition, payload)
 
     def inspect_snapshot(arguments, context):
         definition = registry.get("dataset.inspect_snapshot")
@@ -355,6 +472,30 @@ def _register_dataset_capabilities(registry) -> None:
         output_schema={"type": "object"},
         handler=temporal_report,
         mcp_name="get_dataset_temporal_integrity",
+    )
+    _register(
+        registry,
+        capability_id="dataset.export",
+        name="Export dataset snapshot",
+        domain=CapabilityDomain.DATASET,
+        description=(
+            "Return the governed reference of a stored format-specific dataset "
+            "artifact; denied unless the canonical source policy allows export."
+        ),
+        input_schema=_schema(
+            {
+                "dataset_snapshot_id": {"type": "string"},
+                "format": {"type": "string", "enum": ["parquet", "csv"]},
+            },
+            required=["dataset_snapshot_id"],
+        ),
+        output_schema={"type": "object"},
+        handler=export_dataset,
+        # Serving a stored artifact is not a new persist side effect; the
+        # entitlement and registry checks inside the handler are the gate.
+        side_effect_class=SideEffectClass.READ_ONLY,
+        action_policy=ActionPolicy.AGENT_ALLOWED_WITHIN_RESEARCH,
+        mcp_name="export_dataset_snapshot",
     )
 
 

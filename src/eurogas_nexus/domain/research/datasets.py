@@ -19,7 +19,11 @@ from pydantic import BaseModel, Field, model_validator
 
 from eurogas_nexus.domain.research.features import FeatureDefinition
 from eurogas_nexus.domain.research.leakage import LeakageValidator
-from eurogas_nexus.domain.research.resampling import ResamplingPolicy
+from eurogas_nexus.domain.research.resampling import (
+    ResampledValue,
+    ResamplingPolicy,
+    bounded_resample,
+)
 from eurogas_nexus.domain.research.targets import TargetDefinition
 from eurogas_nexus.domain.research.temporal import (
     DatasetMode,
@@ -170,6 +174,7 @@ class DatasetBuildResult:
     warnings: list[str] = field(default_factory=list)
     trusted_source_ids: list[str] = field(default_factory=list)
     effective_entitlement_envelope: dict[str, Any] | None = None
+    resampling_policy: dict[str, Any] | None = None
 
     def as_metadata(self) -> dict[str, Any]:
         entitlement_envelope = (
@@ -194,6 +199,10 @@ class DatasetBuildResult:
             "entitlement_envelope": _json_safe(entitlement_envelope),
             "trusted_source_ids": list(self.trusted_source_ids),
             "leakage_issues": _json_safe(self.leakage_issues),
+            # Which resolved resampling policy actually produced these rows.
+            # Recorded for lineage because the requested policy id alone does not
+            # prove which registered definition was applied.
+            "resampling_policy": _json_safe(self.resampling_policy),
         }
 
 
@@ -260,36 +269,122 @@ def _origins(spec: DatasetSpec) -> list[datetime]:
     return [current + (step * index) for index in range(origin_count)]
 
 
+def _as_of_candidates(
+    records: list[DatasetEvidenceRecord], origin: datetime, *, spec: DatasetSpec
+) -> dict[str, list[DatasetEvidenceRecord]]:
+    """Group the point-in-time eligible records per series at one origin.
+
+    This is the leakage gate: only records already available at the origin (and
+    permitted by the versioned point-in-time policy) are ever offered to the
+    resampling step.
+    """
+
+    grouped: dict[str, list[DatasetEvidenceRecord]] = {}
+    for record in records:
+        if not as_of_eligible(record, origin, policy=spec.point_in_time_policy)[0]:
+            continue
+        if (
+            not spec.point_in_time_policy.allow_simulated
+            and record.observation_kind is ObservationKind.SIMULATED
+        ):
+            continue
+        grouped.setdefault(record.series_id, []).append(record)
+    return grouped
+
+
 def _records_by_series(
     records: list[DatasetEvidenceRecord], origin: datetime, *, spec: DatasetSpec
 ) -> dict[str, DatasetEvidenceRecord | None]:
-    grouped: dict[str, list[DatasetEvidenceRecord]] = {}
-    for record in records:
-        grouped.setdefault(record.series_id, []).append(record)
+    """Select one eligible record per series without applying resampling.
+
+    Retained for callers that only need the point-in-time gate; the builder
+    itself resolves values through ``_select_series_values`` so the resolved
+    resampling policy has runtime effect.
+    """
+
     selected: dict[str, DatasetEvidenceRecord | None] = {}
-    for series_id, candidates in grouped.items():
-        eligible = [
-            record
-            for record in candidates
-            if as_of_eligible(record, origin, policy=spec.point_in_time_policy)[0]
-            and (
-                spec.point_in_time_policy.allow_simulated
-                or record.observation_kind is not ObservationKind.SIMULATED
-            )
-        ]
-        if not eligible:
-            selected[series_id] = None
-            continue
+    for series_id, candidates in _as_of_candidates(records, origin, spec=spec).items():
         forecasts = [
             record
-            for record in eligible
+            for record in candidates
             if record.observation_kind is ObservationKind.FORECAST
             and spec.point_in_time_policy.allow_forecast_vintages
         ]
         if forecasts:
             selected[series_id] = forecast_vintage_at(forecasts=forecasts, cutoff=origin)
         else:
-            selected[series_id] = max(eligible, key=lambda item: _utc(item.observed_at))
+            selected[series_id] = max(
+                candidates, key=lambda item: _utc(item.observed_at)
+            )
+    return selected
+
+
+def _select_series_values(
+    records: list[DatasetEvidenceRecord],
+    origin: datetime,
+    *,
+    spec: DatasetSpec,
+    resampling_policy: ResamplingPolicy,
+) -> dict[str, DatasetEvidenceRecord | None]:
+    """Resolve one value per series at ``origin`` under the resolved policy.
+
+    Forecast vintages keep their versioned latest-available-at-origin semantics
+    (the policy's ``forecast_vintage_selection`` is validated by the caller).
+    Everything else is resolved by ``bounded_resample``, so
+    ``maximum_carry_seconds``, the carry-forward choice, and the missing-data
+    policy have real effect: a value older than the declared bound is masked
+    instead of silently carried into the dataset.
+    """
+
+    selected: dict[str, DatasetEvidenceRecord | None] = {}
+    for series_id, candidates in _as_of_candidates(records, origin, spec=spec).items():
+        forecasts = [
+            record
+            for record in candidates
+            if record.observation_kind is ObservationKind.FORECAST
+            and spec.point_in_time_policy.allow_forecast_vintages
+        ]
+        if forecasts:
+            selected[series_id] = forecast_vintage_at(forecasts=forecasts, cutoff=origin)
+            continue
+        resampled = bounded_resample(
+            [
+                ResampledValue(
+                    timestamp=record.observed_at,
+                    value=record.value,
+                    is_observed=record.is_observed and not record.is_imputed,
+                    quality_state=record.quality_state,
+                )
+                for record in candidates
+            ],
+            [origin],
+            resampling_policy,
+        )[0]
+        if resampled is None:
+            selected[series_id] = None
+            continue
+        by_timestamp = {_utc(record.observed_at): record for record in candidates}
+        source_record = by_timestamp.get(_utc(resampled.timestamp)) or max(
+            candidates, key=lambda item: _utc(item.observed_at)
+        )
+        selected[series_id] = source_record.model_copy(
+            update={
+                "value": resampled.value,
+                "observed_at": resampled.timestamp,
+                "is_observed": resampled.is_observed,
+                "is_imputed": resampled.is_imputed,
+                "imputation_method": resampled.imputation_method,
+                "quality_state": resampled.quality_state,
+                # A value produced by bounded carry-forward is available at the
+                # origin but was not observed at it, so it can never claim
+                # verified temporal integrity.
+                "temporal_integrity": (
+                    TemporalIntegrityState.TEMPORAL_APPROXIMATE
+                    if resampled.is_imputed
+                    else source_record.temporal_integrity
+                ),
+            }
+        )
     return selected
 
 
@@ -451,7 +546,9 @@ def build_dataset(
     computers = feature_computers or {}
 
     for origin in origins:
-        selected = _records_by_series(records, origin, spec=spec)
+        selected = _select_series_values(
+            records, origin, spec=spec, resampling_policy=resampling_policy
+        )
         series_values: dict[str, list[float | None]] = {}
         for series_id, record in selected.items():
             series_values.setdefault(series_id, []).append(
@@ -535,6 +632,12 @@ def build_dataset(
         leakage_issues=leakage_issues,
         lineage=list(dict.fromkeys(lineage)),
         content_hash=content_hash,
+        resampling_policy={
+            "policy_id": resampling_policy.policy_id,
+            "content_hash": resampling_policy.content_hash(),
+            "qualified_version": resampling_policy.qualified_version(),
+            "supported": True,
+        },
         warnings=[
             f"EXPLORATORY_DATASET:{spec.point_in_time_policy.mode.value}"
             if spec.point_in_time_policy.mode is DatasetMode.EXPLORATORY

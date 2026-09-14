@@ -11,12 +11,12 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field, ValidationError
 
+from eurogas_nexus.application.research_registry import DatasetRegistryError
 from eurogas_nexus.domain.research.datasets import (
     DatasetBuildResult,
     DatasetEvidenceRecord,
     DatasetSpec,
 )
-from eurogas_nexus.domain.research.resampling import ResamplingPolicy
 from eurogas_nexus.domain.research.temporal import (
     ObservationKind,
     TemporalIntegrityState,
@@ -150,6 +150,32 @@ def _dataset_build_error() -> HTTPException:
     )
 
 
+def _registry_error(exc: DatasetRegistryError) -> HTTPException:
+    """Return a safe, field-level 422 for unresolvable registry ids."""
+
+    return HTTPException(
+        status_code=422,
+        detail={
+            "error": exc.error_code,
+            "message": "Dataset specification references unavailable registry ids.",
+            "issues": exc.issues,
+        },
+    )
+
+
+def _artifact_store_error(detail: str) -> HTTPException:
+    """Return a safe 503 when research artifacts cannot be stored."""
+
+    return HTTPException(
+        status_code=503,
+        detail={
+            "code": "artifact_store_unavailable",
+            "message": "Research artifact storage is not available.",
+            "detail": detail[:256],
+        },
+    )
+
+
 def _request_principal(request: Request) -> AuthenticatedPrincipal:
     """Return the authenticated principal, preserving dev-token compatibility."""
 
@@ -221,18 +247,49 @@ def list_research_capabilities(request: Request) -> dict:
 
 @router.post("/api/research/datasets/validate")
 def validate_dataset_spec(body: DatasetValidateRequest, request: Request) -> dict:
+    """Validate a spec against the canonical registry, without building it.
+
+    CR14-SEMANTICS-001: validation resolves feature/target/entity/source/policy
+    ids through the same resolver the build path uses, so an unknown or
+    unhonourable id fails here with a structured field issue instead of
+    surfacing later as an opaque build failure. ``issues`` entries are
+    ``{field, code, message}`` objects; the envelope keys are unchanged.
+    """
+
     try:
         spec = DatasetSpec.model_validate(body.dataset_spec)
-        issues = []
-        if not spec.target_ids:
-            issues.append("at least one target_id is required")
-        return _env(
-            {"ok": not issues, "issues": issues, "spec_hash": spec.content_hash()},
-            request,
-            source="domain-contract",
-        )
     except ValidationError as exc:
         raise _dataset_spec_error(exc) from None
+    registry_status = "RESOLVED"
+    if _db_configured():
+        from eurogas_nexus.application.research_registry import (
+            resolve_dataset_registry,
+        )
+
+        with _session() as session:
+            resolution = resolve_dataset_registry(session, spec)
+        issues = resolution.issue_list()
+    else:
+        # Fail closed: without the registry the spec cannot be proven valid, so
+        # validation reports a blocker instead of claiming success.
+        registry_status = "UNAVAILABLE"
+        issues = [
+            {
+                "field": "dataset_spec",
+                "code": "registry_unavailable",
+                "message": "Runtime PostgreSQL is required to resolve dataset registry ids.",
+            }
+        ]
+    return _env(
+        {
+            "ok": not issues,
+            "issues": issues,
+            "spec_hash": spec.content_hash(),
+            "registry_resolution": registry_status,
+        },
+        request,
+        source="domain-contract",
+    )
 
 
 @router.get("/api/research/datasets")
@@ -280,17 +337,28 @@ def materialize_dataset(body: DatasetMaterializeRequest, request: Request) -> di
             )
         except HTTPException:
             raise
+        except DatasetRegistryError as exc:
+            raise _registry_error(exc) from exc
         except (KeyError, TypeError, ValueError) as exc:
             raise _dataset_build_error() from exc
         if body.materialize:
+            from eurogas_nexus.application import research_artifacts
             from eurogas_nexus.db.repositories.research import persist_dataset_snapshot
 
+            try:
+                # CR14-ARTIFACT-001: materialize the format-specific artifacts
+                # this deployment can produce before persisting the snapshot, so
+                # a snapshot can never reference an artifact that was not
+                # written, and an unusable store fails closed.
+                artifacts = research_artifacts.write_dataset_artifacts(result)
+            except research_artifacts.ArtifactStoreUnavailable as exc:
+                raise _artifact_store_error(exc.detail) from exc
             persist_dataset_snapshot(
                 session,
                 metadata=result.as_metadata(),
                 dependencies=dependency_rows,
                 issues=issue_rows,
-                artifacts=[],
+                artifacts=artifacts,
             )
             session.commit()
     return _env(
@@ -361,9 +429,20 @@ def get_dataset_quality(dataset_snapshot_id: str, request: Request) -> dict:
 
 @router.post("/api/research/datasets/{dataset_snapshot_id}/export")
 def export_dataset(dataset_snapshot_id: str, body: DatasetExportRequest, request: Request) -> dict:
-    """Return an export reference only when current source policy permits it."""
+    """Return a reference to the stored artifact of the requested format.
 
-    from eurogas_nexus.db.repositories.research import get_dataset_snapshot
+    CR14-ARTIFACT-001: the requested format is matched against the snapshot's
+    persisted ``dataset_artifacts`` rows. Rights are derived server-side from
+    canonical provenance (a request envelope never authorizes an export), and the
+    call fails closed with a structured error when no artifact of that format was
+    registered -- it never returns HTTP 200 with a null reference.
+    """
+
+    from eurogas_nexus.application import research_artifacts
+    from eurogas_nexus.db.repositories.research import (
+        get_dataset_snapshot,
+        list_dataset_artifacts,
+    )
 
     principal = _request_principal(request)
     with _session() as session:
@@ -386,13 +465,60 @@ def export_dataset(dataset_snapshot_id: str, body: DatasetExportRequest, request
                     "policy": policy,
                 },
             )
+        artifacts = list_dataset_artifacts(session, dataset_snapshot_id)
+        available_formats = sorted({artifact.format for artifact in artifacts})
+        artifact = next(
+            (item for item in artifacts if item.format == body.format), None
+        )
+        if artifact is None:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": "artifact_not_available",
+                    "message": (
+                        "No stored artifact matches the requested format for this snapshot."
+                    ),
+                    "format": body.format,
+                    "available_formats": available_formats,
+                    "reason": "FORMAT_NOT_REGISTERED",
+                },
+            )
+        file_present = True
+        try:
+            file_present = research_artifacts.resolve_artifact_file(
+                artifact.artifact_path
+            ).is_file()
+        except research_artifacts.ArtifactStoreUnavailable:
+            file_present = False
+        if not file_present:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": "artifact_not_available",
+                    "message": "The registered artifact is no longer present in storage.",
+                    "format": body.format,
+                    "available_formats": available_formats,
+                    "reason": "FILE_MISSING",
+                },
+            )
         payload = {
             "dataset_snapshot_id": dataset_snapshot_id,
             "format": body.format,
-            "artifact_ref": row.artifact_ref,
+            "artifact_ref": artifact.artifact_path,
+            "artifact_id": artifact.artifact_id,
+            "artifact_sha256": artifact.sha256,
+            "available_formats": available_formats,
             "entitlement_policy": policy,
         }
-    return _env(payload, request, source="runtime-postgresql")
+    return _env(
+        payload,
+        request,
+        source="runtime-postgresql",
+        warnings=[
+            "EXPORT_REFERENCE_ONLY: the artifact stays server-side; this response "
+            "returns a governed reference, not dataset rows."
+        ],
+    )
 
 
 def _build_from_runtime(
@@ -407,20 +533,26 @@ def _build_from_runtime(
     Market observations are mapped through their metadata (hub/tenor) into
     canonical series. Temporal metadata is consulted when present; otherwise
     the source is TEMPORAL_APPROXIMATE and STRICT builds fail.
+
+    CR14-SEMANTICS-001: the spec's registry ids are resolved through the same
+    shared resolver used by validation (raising ``DatasetRegistryError`` with
+    field-level issues when they cannot be resolved), records are filtered by
+    ``spec.entity_ids``, and the resolved ``spec.resampling_policy_id`` is the
+    policy actually applied by the builder.
     """
 
+    from eurogas_nexus.application.research_registry import require_dataset_registry
     from eurogas_nexus.db.models import (
-        FeatureDefinitionRecord,
         MarketObservationRecord,
         ObservationTemporalMetadataRecord,
-        ResamplingPolicyRecord,
-        TargetDefinitionRecord,
     )
-    from eurogas_nexus.domain.research.features import FeatureDefinition as FeatureDef
-    from eurogas_nexus.domain.research.resampling import ResamplingPolicy as PolicyDef
-    from eurogas_nexus.domain.research.targets import TargetDefinition as TargetDef
+    from eurogas_nexus.domain.research.ontology import (
+        CanonicalEntityType,
+        canonical_entity_id,
+    )
 
     principal = principal or legacy_public_token_principal()
+    resolution = require_dataset_registry(session, spec)
     authorized_sources = authorized_source_definitions(principal, spec.source_restrictions)
     if not authorized_sources:
         raise _source_access_denied()
@@ -429,18 +561,20 @@ def _build_from_runtime(
         definition.provider.casefold(): definition for definition in authorized_sources
     }
 
-    feature_rows = list(session.query(FeatureDefinitionRecord).all())
-    target_rows = list(session.query(TargetDefinitionRecord).all())
-    policy_rows = list(session.query(ResamplingPolicyRecord).all())
-    features = {
-        row.feature_id: FeatureDef.model_validate(row.definition_json) for row in feature_rows
-    }
-    targets = {row.target_id: TargetDef.model_validate(row.definition_json) for row in target_rows}
-    policy = (
-        PolicyDef.model_validate(policy_rows[0].definition_json)
-        if policy_rows
-        else ResamplingPolicy(semantic_type="market_price")
-    )
+    features = resolution.features
+    targets = resolution.targets
+    policy = resolution.resampling_policy
+    if policy is None:  # pragma: no cover - guarded by require_dataset_registry
+        raise DatasetRegistryError(
+            [
+                {
+                    "field": "resampling_policy_id",
+                    "code": "unknown_resampling_policy_id",
+                    "message": "resampling policy could not be resolved",
+                }
+            ]
+        )
+    requested_entity_ids = set(resolution.entity_ids)
 
     records: list[DatasetEvidenceRecord] = []
     history_start = spec.start - spec.history_lookback
@@ -478,6 +612,11 @@ def _build_from_runtime(
         tenor = str(metadata.get("tenor") or row.product).strip().lower()
         if hub not in {"NBP", "TTF"}:
             continue
+        entity_id = canonical_entity_id(CanonicalEntityType.MARKET_HUB, hub)
+        # An empty entity_ids list means "no entity restriction"; otherwise the
+        # requested canonical entities are the only rows that may enter the build.
+        if requested_entity_ids and entity_id not in requested_entity_ids:
+            continue
         series_id = f"market.price.{hub}.{tenor.upper().replace('-', '_')}"
         temporal = temporal_rows.get(row.observation_id)
         if temporal is not None and temporal.available_at_utc is not None:
@@ -490,7 +629,7 @@ def _build_from_runtime(
             DatasetEvidenceRecord(
                 record_id=row.observation_id,
                 series_id=series_id,
-                entity_id=f"ent:market_hub:{hub}",
+                entity_id=entity_id,
                 observed_at=row.observed_at_utc,
                 available_at=available_at,
                 ingested_at=temporal.ingested_at_utc if temporal else None,

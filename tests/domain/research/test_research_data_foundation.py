@@ -39,6 +39,7 @@ from eurogas_nexus.domain.research.resampling import (
     ResamplingAggregation,
     ResamplingPolicy,
     bounded_resample,
+    builder_support_issues,
 )
 from eurogas_nexus.domain.research.series import series_id_for
 from eurogas_nexus.domain.research.targets import TargetDefinition, TargetKind
@@ -589,3 +590,131 @@ def test_export_metadata_contract_includes_lineage_and_entitlement() -> None:
     assert "test:nbp-00" in metadata["lineage"]
     assert isinstance(metadata["content_hash"], str)
     assert len(metadata["content_hash"]) == 64
+    assert metadata["resampling_policy"]["policy_id"] == "resampling/v1"
+    assert metadata["resampling_policy"]["supported"] is True
+
+
+def test_build_dataset_applies_the_resolved_resampling_policy() -> None:
+    """CR14-SEMANTICS-001: the policy argument has real runtime effect."""
+
+    feature = _feature(
+        "NBP_TTF_DA_SPREAD",
+        ["market.price.NBP.DAY_AHEAD", "market.price.TTF.DAY_AHEAD"],
+    )
+    target = _target()
+    spec = _spec(features=[feature], targets=[target])
+    records = [
+        record
+        for record in _sample_records()
+        if not (record.observed_at.hour == 1)
+    ]
+
+    permissive = build_dataset(
+        spec,
+        records,
+        {feature.feature_id: feature},
+        {target.target_id: target},
+        ResamplingPolicy(policy_id="resampling/default", semantic_type="market_price"),
+    )
+    bounded = build_dataset(
+        spec,
+        records,
+        {feature.feature_id: feature},
+        {target.target_id: target},
+        ResamplingPolicy(
+            policy_id="resampling/bounded",
+            semantic_type="market_price",
+            maximum_carry_seconds=1800,
+        ),
+    )
+
+    def feature_values(result):
+        return [row["value"] for row in result.rows if row.get("feature_id")]
+
+    # Both policies see the same point-in-time eligible inputs; only the bounded
+    # one drops the hour-0 value at the hour-1 origin.
+    assert feature_values(permissive) == [2.0, 2.0]
+    assert feature_values(bounded) == [2.0, None]
+    assert bounded.as_metadata()["resampling_policy"]["policy_id"] == "resampling/bounded"
+    assert bounded.content_hash != permissive.content_hash
+
+
+def test_build_dataset_records_bounded_carry_forward(tmp_path) -> None:
+    """A carried value is marked imputed and never claims verified integrity."""
+
+    feature = _feature(
+        "NBP_TTF_DA_SPREAD",
+        ["market.price.NBP.DAY_AHEAD", "market.price.TTF.DAY_AHEAD"],
+    )
+    target = _target()
+    spec = _spec(features=[feature], targets=[target])
+    records = [
+        _record(
+            "nbp-00",
+            "market.price.NBP.DAY_AHEAD",
+            _dt(2026, 1, 1, 0),
+            available_at=_dt(2026, 1, 1, 0),
+            value=20.0,
+        ).model_copy(update={"is_observed": False, "quality_state": "MISSING"}),
+        _record(
+            "ttf-00",
+            "market.price.TTF.DAY_AHEAD",
+            _dt(2026, 1, 1, 0),
+            available_at=_dt(2026, 1, 1, 0),
+            value=18.0,
+        ).model_copy(update={"is_observed": False, "quality_state": "MISSING"}),
+    ]
+    policy = ResamplingPolicy(
+        semantic_type="market_price",
+        carry_forward_policy=MissingDataPolicy.CARRY_FORWARD,
+        missing_data_policy=MissingDataPolicy.CARRY_FORWARD,
+        maximum_carry_seconds=3600,
+    )
+
+    result = build_dataset(
+        spec, records, {feature.feature_id: feature}, {target.target_id: target}, policy
+    )
+
+    feature_rows = [row for row in result.rows if row.get("feature_id")]
+    assert [row["value"] for row in feature_rows] == [2.0, 2.0]
+    # A carried-forward value is available but not observed at the origin.
+    assert all(row["temporal_integrity"] == "TEMPORAL_APPROXIMATE" for row in feature_rows)
+
+
+def test_builder_rejects_resampling_policies_it_cannot_honour() -> None:
+    """Unhonourable policy choices are reported, never silently ignored."""
+
+    assert builder_support_issues(ResamplingPolicy(semantic_type="market_price")) == []
+    assert builder_support_issues(
+        ResamplingPolicy(
+            semantic_type="market_price",
+            missing_data_policy=MissingDataPolicy.FAIL,
+        )
+    ) == []
+
+    aggregation = builder_support_issues(
+        ResamplingPolicy(semantic_type="market_price", aggregation="mean")
+    )
+    assert any("aggregation" in reason for reason in aggregation)
+
+    interpolation = builder_support_issues(
+        ResamplingPolicy(
+            semantic_type="market_price", interpolation_policy=MissingDataPolicy.INTERPOLATE
+        )
+    )
+    assert any("interpolation" in reason for reason in interpolation)
+
+    unbounded_carry = builder_support_issues(
+        ResamplingPolicy(
+            semantic_type="market_price",
+            carry_forward_policy=MissingDataPolicy.CARRY_FORWARD,
+            missing_data_policy=MissingDataPolicy.CARRY_FORWARD,
+            maximum_carry_seconds=0,
+        )
+    )
+    assert any("maximum_carry_seconds" in reason for reason in unbounded_carry)
+
+    timezone = builder_support_issues(
+        ResamplingPolicy(semantic_type="market_price", alignment_timezone="Europe/Berlin")
+    )
+    assert any("alignment_timezone" in reason for reason in timezone)

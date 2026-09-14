@@ -164,6 +164,7 @@ def test_dataset_build_capability_passes_context_scopes_without_wildcard_fallbac
     monkeypatch,
 ) -> None:
     from eurogas_nexus.api.routes.public import research_data
+    from eurogas_nexus.application import research_artifacts
     from eurogas_nexus.application.agents import db_bridge
     from eurogas_nexus.db.repositories import research as research_repo
 
@@ -202,6 +203,9 @@ def test_dataset_build_capability_passes_context_scopes_without_wildcard_fallbac
         "persist_dataset_snapshot",
         lambda _session, **_kwargs: None,
     )
+    # The build handler now materializes artifacts; stub the writer so this unit
+    # test never touches the configured artifact root.
+    monkeypatch.setattr(research_artifacts, "write_dataset_artifacts", lambda _result: [])
 
     spec = DatasetSpec(
         dataset_spec_id="spec-agent",
@@ -351,3 +355,152 @@ def test_strategy_ir_validation_has_no_arbitrary_code() -> None:
         _analyst(),
     )
     assert result.data["ok"] is False
+
+
+def _export_fixture(monkeypatch, *, metadata_json: dict, artifacts: list) -> None:
+    """Wire the dataset.export handler to a fake session and stored rows."""
+
+    from eurogas_nexus.application.agents import db_bridge
+    from eurogas_nexus.db.repositories import research as research_repo
+
+    class FakeSession:
+        pass
+
+    @contextmanager
+    def fake_session_scope():
+        yield FakeSession()
+
+    monkeypatch.setattr(db_bridge, "session_scope", fake_session_scope)
+    monkeypatch.setattr(
+        research_repo,
+        "get_dataset_snapshot",
+        lambda _session, _snapshot_id: SimpleNamespace(metadata_json=metadata_json),
+    )
+    monkeypatch.setattr(
+        research_repo, "list_dataset_artifacts", lambda _session, _snapshot_id: artifacts
+    )
+
+
+def test_dataset_export_capability_denies_restricted_rights(monkeypatch) -> None:
+    """CR14-RIGHTS-001: the export adapter fails closed on current grants."""
+
+    _export_fixture(
+        monkeypatch,
+        metadata_json={
+            "trusted_source_ids": ["src-entsog"],
+            # A stored/forged envelope must never authorize an export.
+            "entitlement_envelope": {"export_policy": "EXPORT_ALLOWED"},
+        },
+        artifacts=[
+            SimpleNamespace(
+                artifact_id="artifact:csv:1",
+                format="csv",
+                artifact_path="snapshot-entsog/dataset.csv",
+                sha256="c" * 64,
+            )
+        ],
+    )
+
+    _, runtime = _runtime()
+    result = runtime.invoke(
+        "dataset.export",
+        {"dataset_snapshot_id": "snapshot-entsog", "format": "csv"},
+        _analyst(),
+    )
+
+    assert result.status == "BLOCKED"
+    assert result.failure.code == CapabilityFailureCode.ENTITLEMENT_DENIED
+    assert "EXPORT_DENIED_ENTITLEMENT" in result.failure.detail
+
+
+def test_dataset_export_capability_denies_unknown_provenance(monkeypatch) -> None:
+    _export_fixture(
+        monkeypatch,
+        metadata_json={"entitlement_envelope": {"export_policy": "EXPORT_ALLOWED"}},
+        artifacts=[],
+    )
+
+    _, runtime = _runtime()
+    result = runtime.invoke(
+        "dataset.export",
+        {"dataset_snapshot_id": "snapshot-legacy", "format": "csv"},
+        _analyst(),
+    )
+
+    assert result.status == "BLOCKED"
+    assert result.failure.code == CapabilityFailureCode.ENTITLEMENT_DENIED
+
+
+def test_dataset_export_capability_fails_closed_without_stored_artifact(
+    monkeypatch,
+) -> None:
+    from eurogas_nexus.security import research_entitlement
+
+    _export_fixture(
+        monkeypatch,
+        metadata_json={"trusted_source_ids": ["src-entsog"]},
+        artifacts=[
+            SimpleNamespace(
+                artifact_id="artifact:csv:1",
+                format="csv",
+                artifact_path="snapshot-entsog/dataset.csv",
+                sha256="c" * 64,
+            )
+        ],
+    )
+    monkeypatch.setattr(
+        research_entitlement,
+        "effective_entitlement_envelope",
+        lambda _definitions: {"export_policy": "EXPORT_ALLOWED", "policy_source": "test"},
+    )
+
+    _, runtime = _runtime()
+    result = runtime.invoke(
+        "dataset.export",
+        {"dataset_snapshot_id": "snapshot-entsog", "format": "parquet"},
+        _analyst(),
+    )
+
+    assert result.status == "BLOCKED"
+    assert result.failure.code == CapabilityFailureCode.DATA_MISSING
+    assert "EXPORT_DENIED_ARTIFACT_UNAVAILABLE" in result.failure.detail
+
+
+def test_dataset_export_capability_returns_stored_artifact_reference(
+    monkeypatch,
+) -> None:
+    from eurogas_nexus.security import research_entitlement
+
+    _export_fixture(
+        monkeypatch,
+        metadata_json={"trusted_source_ids": ["src-entsog"]},
+        artifacts=[
+            SimpleNamespace(
+                artifact_id="artifact:csv:1",
+                format="csv",
+                artifact_path="snapshot-entsog/dataset.csv",
+                sha256="c" * 64,
+            )
+        ],
+    )
+    monkeypatch.setattr(
+        research_entitlement,
+        "effective_entitlement_envelope",
+        lambda _definitions: {"export_policy": "EXPORT_ALLOWED", "policy_source": "test"},
+    )
+
+    _, runtime = _runtime()
+    result = runtime.invoke(
+        "dataset.export",
+        {"dataset_snapshot_id": "snapshot-entsog", "format": "csv"},
+        _analyst(),
+    )
+
+    assert result.status == "SUCCESS"
+    assert result.data["format"] == "csv"
+    assert result.data["artifact_ref"] == "snapshot-entsog/dataset.csv"
+    assert result.data["artifact_id"] == "artifact:csv:1"
+    assert result.data["sha256"] == "c" * 64
+    assert result.data["entitlement_policy"] == "EXPORT_ALLOWED"
+    assert result.data["research_only"] is True
+    assert result.data["human_review_required"] is True

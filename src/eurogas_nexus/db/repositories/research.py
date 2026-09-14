@@ -348,6 +348,39 @@ def get_dataset_snapshot(
     return session.get(DatasetSnapshotRecord, dataset_snapshot_id)
 
 
+def list_dataset_artifacts(
+    session: Session, dataset_snapshot_id: str
+) -> list[DatasetArtifactRecord]:
+    """Return the stored artifacts of one snapshot, deterministically ordered."""
+
+    statement = (
+        select(DatasetArtifactRecord)
+        .where(DatasetArtifactRecord.dataset_snapshot_id == dataset_snapshot_id)
+        .order_by(DatasetArtifactRecord.format)
+    )
+    return list(session.scalars(statement).all())
+
+
+def get_dataset_artifact(
+    session: Session, dataset_snapshot_id: str, artifact_format: str
+) -> DatasetArtifactRecord | None:
+    """Return the stored artifact of one snapshot in one format, else None.
+
+    A missing row is the only correct answer for an unregistered format: the
+    export path fails closed on it instead of returning a null reference.
+    """
+
+    statement = (
+        select(DatasetArtifactRecord)
+        .where(
+            DatasetArtifactRecord.dataset_snapshot_id == dataset_snapshot_id,
+            DatasetArtifactRecord.format == artifact_format,
+        )
+        .order_by(DatasetArtifactRecord.created_at_utc.desc())
+    )
+    return session.scalars(statement).first()
+
+
 def upsert_forecast_observation(
     session: Session,
     *,

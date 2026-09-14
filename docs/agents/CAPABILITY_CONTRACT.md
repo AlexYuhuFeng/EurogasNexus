@@ -51,7 +51,13 @@ freshness/provenance behavior, timeout seconds, and documented error codes.
 
 ## CR-15 runtime registry
 
-See [CAPABILITY_REGISTRY.md](CAPABILITY_REGISTRY.md). The runtime exposes 68
+See [CAPABILITY_REGISTRY.md](CAPABILITY_REGISTRY.md). The runtime exposes 69
 active capabilities with versioned metadata, discovery, permission/
 entitlement gates, and MCP tool names. Capability version is recorded on
 every ToolInvocation and AgentRun replay.
+
+`dataset.export` is registered as of CR14-RIGHTS-001: it returns the governed
+reference of a stored format-specific dataset artifact and is denied unless the
+canonical source provenance and current grants allow export. It never trusts a
+request envelope, and an unregistered format fails closed with
+`EXPORT_DENIED_ARTIFACT_UNAVAILABLE` instead of a null reference.

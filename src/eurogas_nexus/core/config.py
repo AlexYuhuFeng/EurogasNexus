@@ -22,6 +22,15 @@ DB_DSN_ENV_VARS = (
 )
 DEV_LOGIN_USERNAME_ENV = "EUROGAS_NEXUS_DEV_LOGIN_USERNAME"
 DEV_LOGIN_PASSWORD_ENV = "EUROGAS_NEXUS_DEV_LOGIN_PASSWORD"
+RESEARCH_ARTIFACT_ROOT_ENV = "EUROGAS_NEXUS_RESEARCH_ARTIFACT_ROOT"
+# Repository default for the CR-14 research artifact root. ``data/snapshots/``
+# already exists as a git-ignored generated-output directory (see .gitignore and
+# docs/policies/DATA_POLICY.md: local files may hold generated reports and
+# snapshots). PostgreSQL remains the runtime source of truth for ingested data;
+# artifacts are derived research output, never a fallback source of business
+# data.
+REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
+DEFAULT_RESEARCH_ARTIFACT_ROOT = REPOSITORY_ROOT / "data" / "snapshots"
 
 
 class DeploymentConfig(BaseModel):
@@ -29,6 +38,30 @@ class DeploymentConfig(BaseModel):
 
     posture: DeploymentPosture = "private_network_preview"
     security_acceptance_evidence_path: str | None = None
+
+
+class ResearchArtifactConfig(BaseModel):
+    """Server-side storage root for materialized research dataset artifacts.
+
+    CR14-ARTIFACT-001 storage decision: dataset artifacts are written beneath one
+    operator-configurable root (``EUROGAS_NEXUS_RESEARCH_ARTIFACT_ROOT``) that
+    defaults to the git-ignored ``data/snapshots/`` directory of the deployment
+    checkout. Rationale:
+
+    - DATA_POLICY permits local files for generated reports and snapshots while
+      PostgreSQL stays the source of truth for ingested runtime data;
+    - that directory is already ignored by Git, so restricted or licensed
+      research rows can never be committed by accident;
+    - a single root keeps the persisted snapshot ``artifact_ref`` a short
+      relative reference instead of an absolute server path that would leak
+      host layout.
+
+    Only a filesystem path is configured here; no credential or secret is read.
+    An unusable root fails closed at write time rather than silently dropping an
+    artifact.
+    """
+
+    root: str = str(DEFAULT_RESEARCH_ARTIFACT_ROOT)
 
 
 class DbRuntimeConfig(BaseModel):
@@ -79,6 +112,7 @@ class Settings(BaseModel):
     api_profile: ApiProfile = "development"
     db: DbRuntimeConfig = Field(default_factory=DbRuntimeConfig)
     deployment: DeploymentConfig = Field(default_factory=DeploymentConfig)
+    research_artifacts: ResearchArtifactConfig = Field(default_factory=ResearchArtifactConfig)
     llm_external_provider_enabled: bool = True
     # Development-only credential login (mounted by the development route
     # profile only). Both must be set; the value is never defaulted in source.
@@ -120,10 +154,28 @@ class Settings(BaseModel):
                 posture=os.getenv(DEPLOYMENT_POSTURE_ENV, "private_network_preview"),
                 security_acceptance_evidence_path=os.getenv(SECURITY_ACCEPTANCE_EVIDENCE_ENV),
             ),
+            research_artifacts=ResearchArtifactConfig(
+                root=str(resolve_research_artifact_root()),
+            ),
             llm_external_provider_enabled=llm_external_provider_enabled,
             dev_login_username=(os.getenv(DEV_LOGIN_USERNAME_ENV) or "").strip() or None,
             dev_login_password=(os.getenv(DEV_LOGIN_PASSWORD_ENV) or "").strip() or None,
         )
+
+
+def resolve_research_artifact_root() -> Path:
+    """Return the configured research artifact root, else the documented default.
+
+    Read from the process environment on every call so an operator can relocate
+    artifact storage (or a test can redirect it) without a code change. The
+    returned path is not created or validated here: the artifact writer fails
+    closed with a structured error when the root cannot be used.
+    """
+
+    raw = (os.getenv(RESEARCH_ARTIFACT_ROOT_ENV) or "").strip()
+    if not raw:
+        return DEFAULT_RESEARCH_ARTIFACT_ROOT
+    return Path(raw)
 
 
 def resolve_dev_login_credentials_from_env() -> tuple[str, str] | None:

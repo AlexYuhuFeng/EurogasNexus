@@ -1677,7 +1677,14 @@ export const api = {
   runAgentResearch: (body: { objective: string; agent_profile?: string; strategy_generation_allowed?: boolean }) =>
     post<Record<string, unknown>>("/agent/research", body),
   validateResearchDataset: (spec: Record<string, unknown>) =>
-    post<{ ok: boolean; issues: string[]; spec_hash: string }>("/research/datasets/validate", { dataset_spec: spec }),
+    post<{
+      ok: boolean;
+      // Structured registry/validation issues; the backend reports
+      // {field, code, message} objects, not bare strings.
+      issues: { field: string; code: string; message: string }[];
+      spec_hash: string;
+      registry_resolution?: Record<string, unknown>;
+    }>("/research/datasets/validate", { dataset_spec: spec }),
   buildResearchDataset: (spec: Record<string, unknown>) =>
     post<Record<string, unknown>>("/research/datasets", { dataset_spec: spec, materialize: true }),
 

@@ -310,6 +310,152 @@ def test_dataset_snapshot_persistence_is_immutable_and_linked(session) -> None:
 
 
 
+def test_dataset_artifact_read_path_is_format_specific(session) -> None:
+    """CR14-ARTIFACT-001 read path: format lookup, never a fabricated reference."""
+
+    metadata, _spec = _build_metadata()
+    snapshot_id = metadata["dataset_snapshot_id"]
+    row = repo.persist_dataset_snapshot(
+        session,
+        metadata=metadata,
+        dependencies=[],
+        issues=[],
+        artifacts=[
+            {
+                "artifact_id": "artifact:csv:1",
+                "format": "csv",
+                "artifact_path": f"{snapshot_id}/dataset.csv",
+                "sha256": "f" * 64,
+            }
+        ],
+    )
+    session.flush()
+
+    assert row.artifact_ref == f"{snapshot_id}/dataset.csv"
+    assert [item.format for item in repo.list_dataset_artifacts(session, snapshot_id)] == ["csv"]
+    stored = repo.get_dataset_artifact(session, snapshot_id, "csv")
+    assert stored is not None
+    assert stored.artifact_path == f"{snapshot_id}/dataset.csv"
+    assert stored.sha256 == "f" * 64
+    # An unregistered format resolves to None, which is what the export path
+    # turns into a structured fail-closed error.
+    assert repo.get_dataset_artifact(session, snapshot_id, "parquet") is None
+    assert repo.list_dataset_artifacts(session, "missing-snapshot") == []
+
+
+def test_shared_registry_resolution_resolves_ids_and_reports_issues(session) -> None:
+    """CR14-SEMANTICS-001: one resolver serves validate and build."""
+
+    from eurogas_nexus.application.research_registry import (
+        DatasetRegistryError,
+        require_dataset_registry,
+        resolve_dataset_registry,
+    )
+
+    _metadata, spec = _build_metadata()
+
+    repo.upsert_feature_definition(
+        session,
+        feature_id="NBP_TTF_DA_SPREAD",
+        definition_json=FeatureDefinition(
+            feature_id="NBP_TTF_DA_SPREAD",
+            name="NBP-TTF day-ahead spread",
+            description="Integration fixture feature.",
+            category="market",
+            input_dependencies=[
+                "market.price.NBP.DAY_AHEAD",
+                "market.price.TTF.DAY_AHEAD",
+            ],
+            output_unit="GBP/MWh",
+            frequency="1h",
+            availability_class="DERIVED_AS_OF",
+            transformation="builtin:NBP_TTF_DA_SPREAD",
+            transformation_version="v1",
+            missing_data_policy="mask",
+        ).model_dump(mode="json"),
+        content_hash="a" * 64,
+    )
+    repo.upsert_target_definition(
+        session,
+        target_id="NBP_DA_PRICE_D1",
+        definition_json=TargetDefinition(
+            target_id="NBP_DA_PRICE_D1",
+            name="NBP day-ahead price",
+            description="Integration fixture target.",
+            target_type=TargetKind.PRICE,
+            entity_type="market_hub",
+            entity_id="NBP",
+            metric="NBP_DA_PRICE_D1",
+            horizon="H1",
+            target_window="1h",
+            unit="GBP/MWh",
+            aggregation="first",
+            label_calculation="first_observation_at_or_after_origin_plus_horizon",
+        ).model_dump(mode="json"),
+        content_hash="b" * 64,
+    )
+    repo.upsert_resampling_policy(
+        session,
+        policy_id="resampling/v1",
+        definition_json={"policy_id": "resampling/v1", "semantic_type": "market_price"},
+        content_hash="c" * 64,
+    )
+    repo.upsert_resampling_policy(
+        session,
+        policy_id="resampling/bounded",
+        definition_json={
+            # The stored definition deliberately omits policy_id: the registry row
+            # key is the authoritative identity.
+            "semantic_type": "market_price",
+            "maximum_carry_seconds": 1800,
+        },
+        content_hash="d" * 64,
+    )
+    for code in ("NBP", "TTF"):
+        repo.upsert_canonical_entity(
+            session,
+            canonical_entity_id=f"ent:market_hub:{code}",
+            entity_type="market_hub",
+            canonical_code=code,
+            display_name=f"{code} hub",
+        )
+    session.flush()
+
+    resolution = resolve_dataset_registry(session, spec)
+    assert resolution.ok, resolution.issues
+    assert set(resolution.features) == {"NBP_TTF_DA_SPREAD"}
+    assert set(resolution.targets) == {"NBP_DA_PRICE_D1"}
+    assert resolution.entity_ids == ("ent:market_hub:NBP", "ent:market_hub:TTF")
+    assert resolution.resampling_policy is not None
+    assert resolution.resampling_policy.policy_id == "resampling/v1"
+
+    requested = spec.model_copy(update={"resampling_policy_id": "resampling/bounded"})
+    bounded = require_dataset_registry(session, requested)
+    # The requested registry row is honoured, not the first row in the table.
+    assert bounded.resampling_policy is not None
+    assert bounded.resampling_policy.policy_id == "resampling/bounded"
+    assert bounded.resampling_policy.maximum_carry_seconds == 1800
+
+    unknown = spec.model_copy(
+        update={
+            "feature_ids": ["MISSING"],
+            "entity_ids": ["ent:market_hub:THE"],
+            "source_restrictions": ["NOT_A_SOURCE"],
+            "resampling_policy_id": "resampling/missing",
+        }
+    )
+    issues = resolve_dataset_registry(session, unknown).issues
+    assert {issue["code"] for issue in issues} == {
+        "unknown_feature_id",
+        "unknown_entity_id",
+        "unknown_source_id",
+        "unknown_resampling_policy_id",
+    }
+    assert all(issue["field"] and issue["message"] for issue in issues)
+    with pytest.raises(DatasetRegistryError):
+        require_dataset_registry(session, unknown)
+
+
 def test_forecast_observation_and_temporal_metadata_upserts(session) -> None:
     forecast = repo.upsert_forecast_observation(
         session,

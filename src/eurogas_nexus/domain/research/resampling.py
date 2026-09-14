@@ -69,6 +69,70 @@ class ResamplingPolicy(BaseModel):
         return f"{self.policy_id}@{self.content_hash()[:8]}"
 
 
+# The point-in-time dataset builder resolves one series value per forecast origin
+# through ``bounded_resample``. These are the policy choices that function can
+# honour exactly; anything else is rejected with a structured field error rather
+# than silently ignored, because a dataset built under a policy it does not
+# actually apply would misrepresent its own provenance.
+BUILDER_SUPPORTED_AGGREGATIONS: frozenset[ResamplingAggregation] = frozenset(
+    {ResamplingAggregation.LAST}
+)
+BUILDER_SUPPORTED_MISSING_POLICIES: frozenset[MissingDataPolicy] = frozenset(
+    {
+        MissingDataPolicy.DROP,
+        MissingDataPolicy.FAIL,
+        MissingDataPolicy.CARRY_FORWARD,
+    }
+)
+BUILDER_SUPPORTED_ALIGNMENT_TIMEZONE = "UTC"
+BUILDER_SUPPORTED_FORECAST_VINTAGE_SELECTION = "latest_available_at_origin"
+
+
+def builder_support_issues(policy: ResamplingPolicy) -> list[str]:
+    """Return why the point-in-time builder cannot honour this policy exactly."""
+
+    reasons: list[str] = []
+    if policy.aggregation not in BUILDER_SUPPORTED_AGGREGATIONS:
+        reasons.append(
+            f"aggregation {policy.aggregation.value!r} is not supported; the "
+            "builder resolves one point-in-time value per origin and supports "
+            "'last' only"
+        )
+    if policy.missing_data_policy not in BUILDER_SUPPORTED_MISSING_POLICIES:
+        reasons.append(
+            f"missing_data_policy {policy.missing_data_policy.value!r} is not supported"
+        )
+    if (
+        policy.missing_data_policy is MissingDataPolicy.CARRY_FORWARD
+        and policy.carry_forward_policy is not MissingDataPolicy.CARRY_FORWARD
+    ):
+        reasons.append(
+            "missing_data_policy 'CARRY_FORWARD' requires carry_forward_policy "
+            "'CARRY_FORWARD'"
+        )
+    if policy.interpolation_policy is not MissingDataPolicy.DROP:
+        reasons.append("interpolation is not supported by the point-in-time builder")
+    if policy.maximum_interpolation_seconds > 0:
+        reasons.append(
+            "maximum_interpolation_seconds is set but interpolation is not supported"
+        )
+    if (
+        policy.carry_forward_policy is MissingDataPolicy.CARRY_FORWARD
+        and policy.maximum_carry_seconds <= 0
+    ):
+        reasons.append(
+            "carry_forward_policy 'CARRY_FORWARD' requires a positive "
+            "maximum_carry_seconds bound"
+        )
+    if policy.alignment_timezone != BUILDER_SUPPORTED_ALIGNMENT_TIMEZONE:
+        reasons.append(f"alignment_timezone {policy.alignment_timezone!r} is not supported")
+    if policy.forecast_vintage_selection != BUILDER_SUPPORTED_FORECAST_VINTAGE_SELECTION:
+        reasons.append(
+            f"forecast_vintage_selection {policy.forecast_vintage_selection!r} is not supported"
+        )
+    return reasons
+
+
 def bounded_resample(
     records: list[ResampledValue],
     target_timestamps: list[datetime],
