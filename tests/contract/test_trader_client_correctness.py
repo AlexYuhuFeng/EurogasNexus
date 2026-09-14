@@ -37,9 +37,9 @@ def test_strategy_prices_consume_backend_normalized_market_view() -> None:
 
     # the store consumes the backend-normalized view and backend spreads
     assert '["normalizedMarkets", api.normalizedMarketObservations]' in store
-    assert "loadEndpointWithRetry(api.normalizedMarketObservations, 0)" in store
+    assert "loadWorkspaceEndpoint(api.normalizedMarketObservations" in store
     assert '["marketSpreads", api.marketSpreads]' in store
-    assert "loadEndpointWithRetry(api.marketSpreads, 0)" in store
+    assert "loadWorkspaceEndpoint(api.marketSpreads" in store
 
     # scenario assembly reads backend-owned fields only (no FX math)
     assert "observation.price_gbp_mwh" in scenario
@@ -103,7 +103,7 @@ def test_runtime_workspace_shows_pipeline_health_and_stream_mode() -> None:
     zh = json.loads(_read(WEB / "i18n" / "zh.json"))
 
     assert 'get<PipelineHealthDTO>("/runtime/pipeline-health"' in client
-    assert "api.pipelineHealth()" in store
+    assert "loadWorkspaceEndpoint(api.pipelineHealth" in store
     assert "pipelineHealth" in runtime_workspace
     assert "quote_freshness" in runtime_workspace
     assert "consecutive_failures" in runtime_workspace

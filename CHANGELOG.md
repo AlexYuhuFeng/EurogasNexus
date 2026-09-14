@@ -25,6 +25,12 @@ asserted by `tests/contract/test_ontology_version_alignment.py`.
 
 ## [Unreleased]
 
+- Client contract tests re-aligned with the current Web client (generic
+  `loadWorkspaceEndpoint` store loaders, `workspaceTaskSearch` URL sync, current
+  shell/topbar grid rows, plain glossary sticky offset, `ApiRequestOptions`
+  client methods). The `contracts.edit_confirm` English confirmation was
+  rephrased to satisfy the translation quality gate.
+
 - Served-instance load smoke: `scripts/ops/load_smoke.py` accepts `--base-url`
   to send the smoke workload over real HTTP, and
   `scripts/ops/run_served_load_smoke.sh` starts a uvicorn process, waits for

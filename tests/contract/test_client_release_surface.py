@@ -494,7 +494,7 @@ def test_web_client_separates_market_capacity_orders_and_review_pages() -> None:
     assert 'new URLSearchParams(window.location.search).get("workspace")' in app
     assert "coerceWorkspacePageId(requestedWorkspace, DEFAULT_WORKSPACE_PAGE_ID)" in app
     assert "const WORKSPACE_PAGES" not in app
-    assert 'nextUrl.searchParams.set("workspace", page)' in app
+    assert "nextUrl.search = workspaceTaskSearch(window.location.search, page, task)" in app
     assert 'window.history.pushState({ workspace: page }, "", nextUrl)' in app
     assert 'window.addEventListener("popstate", syncWorkspaceFromUrl)' in app
     assert (
@@ -563,9 +563,9 @@ def test_web_client_market_page_is_trader_terminal_surface() -> None:
     assert "MARKET_REFRESH_INTERVAL_MS" in app
     assert "marketLastUpdatedAtUtc: string | null" in store
     assert "refreshMarketData: () => Promise<void>" in store
-    assert "loadEndpointWithRetry(api.normalizedMarketObservations" in store
-    assert "loadEndpointWithRetry(api.marketSpreads" in store
-    assert "loadEndpointWithRetry(api.fxRates" in store
+    assert "loadWorkspaceEndpoint(api.normalizedMarketObservations" in store
+    assert "loadWorkspaceEndpoint(api.marketSpreads" in store
+    assert "loadWorkspaceEndpoint(api.fxRates" in store
     assert "market-terminal-board" in market_terminal
     assert "market-price-ticker" in market_terminal
     assert "market-region-comparison" in market_terminal
@@ -1018,8 +1018,8 @@ def test_network_workspace_is_map_first_with_non_overlapping_rails_and_ladder() 
     assert ".network-route-ladder .resource-pool-map-overlay" in css
     assert "position: static" in css
     assert "grid-auto-flow: column" in css
-    assert '.workspace-network .workspace-topbar-only' in css
-    assert 'grid-template-areas: "workspace search topbar-controls"' in css
+    assert ".cockpit-app .workspace-topbar-only.has-map-search" in css
+    assert 'grid-template-areas: "workspace task search" "context context topbar-controls"' in css
     assert "const visiblePaths = paths;" in overlay
     assert "paths.slice(0, 3)" not in overlay
     assert en["network.map_column_label"] == "European gas map"
@@ -1210,7 +1210,7 @@ def test_web_client_glossary_keeps_article_visible_while_browsing_terms() -> Non
     assert "max-height: calc(100vh - 150px)" in css
     assert "overflow-y: auto" in css
     assert "position: sticky" in css
-    assert "top: calc(var(--eg-topbar-height) + 32px)" in css
+    assert "top: 32px" in css
     assert "@media (max-width: 1200px)" in css
     assert ".glossary-wiki-shell {" in css
     assert ("grid-template-columns: minmax(300px, 0.78fr) minmax(520px, 1.42fr)") in css
@@ -1353,7 +1353,8 @@ def test_web_client_sources_page_is_categorized_source_center() -> None:
     assert "normalizeSourceSystem" in api_client
     assert "SOURCE_CATEGORY_BY_SYSTEM" in api_client
     assert (
-        'sources: () => get<SourceSystemWire[]>("/sources").then(normalizeSourcesResponse)'
+        "sources: (options?: ApiRequestOptions) => "
+        'get<SourceSystemWire[]>("/sources", undefined, options).then(normalizeSourcesResponse)'
         in api_client
     )
     assert "source-center" in css
@@ -1501,8 +1502,8 @@ def test_web_client_mobile_topbar_constrains_controls_to_viewport() -> None:
     assert "min-width: 0" in css
     assert "flex-wrap: wrap" in css
     assert "minmax(0, 1fr)" in css
-    assert "grid-template-areas: \"workspace\" \"topbar-controls\"" in css
-    assert "grid-template-areas: \"workspace\" \"search\" \"topbar-controls\"" in css
+    assert 'grid-template-areas: "workspace" "context" "topbar-controls"' in css
+    assert 'grid-template-areas: "workspace" "task" "search" "context" "topbar-controls"' in css
 
 
 def test_web_client_resource_pool_options_are_backend_owned() -> None:
@@ -1526,8 +1527,8 @@ def test_web_client_resource_pool_options_are_backend_owned() -> None:
     )
 
     assert (
-        "resourcePoolOptions: () => get<ResourcePoolOptionsDTO>"
-        '("/route-cost/resource-pool/options")'
+        "resourcePoolOptions: (options?: ApiRequestOptions) => "
+        'get<ResourcePoolOptionsDTO>("/route-cost/resource-pool/options", undefined, options)'
     ) in api_client
     assert "resourcePoolOptions: ResourcePoolOptionsDTO | null" in store
     assert "resourcePoolOptions?.sale_options ?? []" in app

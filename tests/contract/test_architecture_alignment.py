@@ -105,7 +105,8 @@ def test_client_design_docs_are_ready_for_current_client_runtime() -> None:
     assert "The SDK is a required product surface" in sdk
     assert "The CLI is the operator and automation command surface" in cli
     assert "CLI -> Python SDK -> backend /api" in cli
-    assert "single authoritative UI and content standard" in ui_standard
+    assert "`PROFESSIONAL_UI_CONSTITUTION.md` is now the sole visual and interaction" in ui_standard
+    assert "This document remains authoritative for content, domain" in ui_standard
     assert "Top status bar" in web
     assert "Web UI -> web API client -> backend /api" in web
     assert "Tauri" in windows
