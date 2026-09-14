@@ -18,12 +18,6 @@ interface SignInScreenProps {
   onRetryIdentity: () => void;
 }
 
-/**
- * Pre-terminal entry surface. It renders no workspace, market or monitoring
- * content and makes no access decision: the development credential form appears
- * only when the deployment's own `/api/auth/status` advertises `dev_login`, and
- * the backend validates every credential. No credential is ever hardcoded here.
- */
 export function SignInScreen({
   t,
   authState,
@@ -81,25 +75,27 @@ export function SignInScreen({
           </div>
         ) : (
           <>
-            <div className="sign-in-block">
-              <span className="sign-in-block-title">{t("auth.sso_title")}</span>
-              <button
-                type="button"
-                className="sign-in-primary"
-                onClick={onOidcSignIn}
-                disabled={authBusy}
-              >
-                {t("auth.sso_button")}
-              </button>
-              {!authStatus.oidcConfigured && (
-                <p className="sign-in-hint">{t("auth.sso_unavailable")}</p>
-              )}
-            </div>
+            {authStatus.oidcConfigured ? (
+              <div className="sign-in-block">
+                <span className="sign-in-block-title">{t("auth.sso_title")}</span>
+                <button
+                  type="button"
+                  className="sign-in-primary"
+                  onClick={onOidcSignIn}
+                  disabled={authBusy}
+                >
+                  {t("auth.sso_button")}
+                </button>
+              </div>
+            ) : (
+              <p className="sign-in-status" role="status">
+                {t(devLoginAvailable ? "auth.sso_unavailable" : "auth.no_methods")}
+              </p>
+            )}
 
             {devLoginAvailable && (
               <form className="sign-in-block sign-in-dev-form" onSubmit={handleDevLoginSubmit}>
                 <span className="sign-in-block-title">{t("auth.dev_title")}</span>
-                <p className="sign-in-hint">{t("auth.dev_hint")}</p>
                 <label htmlFor="sign-in-username">{t("auth.dev_username")}</label>
                 <input
                   id="sign-in-username"
@@ -120,7 +116,11 @@ export function SignInScreen({
                   onChange={(event) => setPassword(event.target.value)}
                   required
                 />
-                <button type="submit" className="sign-in-primary" disabled={authBusy}>
+                <button
+                  type="submit"
+                  className={authStatus.oidcConfigured ? "sign-in-secondary" : "sign-in-primary"}
+                  disabled={authBusy}
+                >
                   {authBusy ? t("auth.dev_submitting") : t("auth.dev_submit")}
                 </button>
               </form>
@@ -132,7 +132,6 @@ export function SignInScreen({
           </>
         )}
 
-        <p className="sign-in-boundary">{t("auth.boundary_note")}</p>
       </section>
     </div>
   );

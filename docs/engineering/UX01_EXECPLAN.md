@@ -1284,3 +1284,33 @@ Parent review and verification:
   design issues, not a visual acceptance pass.
 - Subsequent CLI navigation and snapshot timed out. No numeric/map walkthrough,
   native desktop acceptance, or whole-product acceptance is claimed here.
+
+### Sign-in visual convergence (2026-09-14)
+
+Following the actual signed-out capture above, the entry screen now uses the
+existing type, spacing, radius, control, surface and accent tokens. EN/CN copy
+states approved-user access without explaining internal security mechanics.
+Unconfigured SSO is a status, not a clickable action. SSO takes primary emphasis
+when configured; the development form remains explicitly labelled and becomes
+secondary when both methods are offered. With neither method available, the
+screen directs the user to an administrator. Backend authentication is unchanged.
+
+Parent verification on the patch based on `f91a170`:
+- `npm test` in `clients/web`: 213 passed, 0 failed.
+- `npm run build` in `clients/web`: exit 0, 148 modules; existing ineffective
+  dynamic-import warning remains.
+- `python scripts/uat/check_i18n_parity.py`: 1643 keys per locale, no missing
+  referenced keys. Existing identical-copy flags elsewhere remain open.
+- Real Edge browser captures in EN and Mandarin at 1440x900, 1920x1080 and
+  390x844: no horizontal document overflow, terminal absent, one enabled primary
+  action in this development-only configuration. Form height is 444.5px on
+  desktop and 428.5px at narrow width. Parent visually inspected all six layouts
+  through the capture iterations; no clipping or overlapping controls observed.
+- Local ignored evidence: `output/playwright/signin-converged-*.png` and
+  `output/playwright/signin-convergence-qa.js`. An invalid-password browser check
+  before the visual patch failed closed. Configured-SSO and no-method branches
+  have source-contract checks, not a real identity-provider integration test.
+
+This closes the specific verbosity and unavailable-action findings above, not
+the overall auth/desktop acceptance item. Dark theme, packaged desktop behavior,
+full accessibility and the remaining workstation workflows are still pending.
