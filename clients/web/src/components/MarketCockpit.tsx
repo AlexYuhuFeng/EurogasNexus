@@ -124,7 +124,7 @@ function MarketOverview({ controller }: MarketOverviewProps) {
         <span><small>{t("context.product")}</small><strong>{traderContext.deliveryProduct}</strong></span>
         <span><small>{t("context.hub")}</small><strong>{focusedHub ?? t("context.all_hubs")}</strong></span>
         <span className={api.dataStatus === "runtime" ? "ready" : "issue"}>
-          <small>{t("context.source_posture")}</small><strong>{api.dataStatus}</strong>
+          <small>{t("context.source_posture")}</small><strong>{t(`data.${api.dataStatus}`)}</strong>
         </span>
         <button type="button" onClick={() => void api.refreshMarketData()}>{t("market.refresh")}</button>
       </section>

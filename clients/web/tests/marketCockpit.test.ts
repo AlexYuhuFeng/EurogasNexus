@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   DEFAULT_MARKET_TASK,
@@ -9,6 +10,10 @@ import {
   marketTaskFromSearch,
   marketTaskToSearch,
 } from "../src/app/model/marketCockpitModel.ts";
+
+function readWebSource(relativePath: string): string {
+  return readFileSync(new URL(`../src/${relativePath}`, import.meta.url), "utf8");
+}
 
 test("market cockpit has four linked analysis tasks", () => {
   assert.deepEqual(MARKET_TASKS, ["overview", "curves", "network", "capacity"]);
@@ -62,3 +67,22 @@ test("task navigation preserves unrelated trader context query keys", () => {
 test("supported major hubs are explicit and finite", () => {
   assert.deepEqual(MAJOR_MARKET_HUBS, ["TTF", "NBP", "ZTP", "THE", "PEG", "PSV"]);
 });
+
+test("the market overview renders the data status as a translated label", () => {
+  const cockpit = readWebSource("components/MarketCockpit.tsx");
+  const en = JSON.parse(readWebSource("i18n/en.json")) as Record<string, string>;
+  const zh = JSON.parse(readWebSource("i18n/zh.json")) as Record<string, string>;
+
+  // The overview printed the store's enum value verbatim, so both locales showed
+  // the internal token ("runtime") next to a translated label, and the zh
+  // surface carried an untranslated English word.
+  assert.equal(cockpit.includes("<strong>{api.dataStatus}</strong>"), false);
+  assert.match(cockpit, /t\(`data\.\$\{api\.dataStatus\}`\)/);
+
+  // Every value the store can produce must stay translatable.
+  for (const status of ["runtime", "delayed", "partial", "unavailable"]) {
+    assert.equal(typeof en[`data.${status}`], "string", `en data.${status}`);
+    assert.equal(typeof zh[`data.${status}`], "string", `zh data.${status}`);
+  }
+});
+
