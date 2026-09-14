@@ -238,9 +238,26 @@ def test_route_overlay_is_compact_by_default_and_details_are_accessible() -> Non
 def test_topbar_controls_and_source_credentials_have_accessible_names() -> None:
     topbar = _read(WEB / "components" / "WorkspaceTopBar.tsx")
     source_center = _read(WEB / "components" / "SourceCenter.tsx")
+    settings = _read(WEB / "components" / "SettingsCenter.tsx")
+    sign_in = _read(WEB / "components" / "SignInScreen.tsx")
 
-    assert 'aria-label={t("settings.language")}' in topbar
-    assert 'aria-label={t("settings.appearance")}' in topbar
+    # The shell's global region owns context filters and runtime/data status, not
+    # preferences (UI constitution §9/§13), so the language and appearance
+    # controls live in the settings workspace - and on the sign-in screen, which
+    # has to be readable before an identity exists (§21). Wherever they appear
+    # they keep an accessible name.
+    assert 'aria-label={t("settings.language")}' not in topbar
+    assert 'aria-label={t("settings.appearance")}' not in topbar
+    # The settings page labels both controls with a wrapping <label>; the sign-in
+    # screen has room only for an accessible name.
+    assert 't("settings.language")' in settings
+    assert 't("settings.appearance")' in settings
+    assert 'aria-label={t("settings.language")}' in sign_in
+
+    # The controls the header does keep are still named.
+    assert 'aria-label={t("context.title")}' in topbar
+    assert 'label={t("topbar.primary_navigation")}' in topbar
+
     assert 'aria-label={t("panel.credentials")}' in source_center
     assert 'aria-label={t("credentials.api_key")}' in source_center
 

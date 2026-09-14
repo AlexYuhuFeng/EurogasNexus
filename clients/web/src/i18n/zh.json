@@ -38,6 +38,7 @@
   "contracts.open_in_strategy_unavailable": "请先将该资源保存到资源池，再打开策略实验室",
   "data.live": "实时",
   "data.ready": "就绪",
+  "data.runtime_store": "运行时数据库",
   "data.runtime_detail": "数据来自运行时 PostgreSQL 存储。",
   "data.partial": "部分可用",
   "data.unavailable": "不可用",

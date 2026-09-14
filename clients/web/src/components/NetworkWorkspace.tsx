@@ -285,7 +285,7 @@ export function NetworkWorkspace({
             <span className="eyebrow">{t("map.topology_status")}</span>
             <strong>
               {networkGeometryState === "loaded"
-                ? t("data.runtime")
+                ? t("data.ready")
                 : ["corridors_only", "unverified_geometry"].includes(networkGeometryState)
                   ? t("data.partial")
                   : t("data.unavailable")}

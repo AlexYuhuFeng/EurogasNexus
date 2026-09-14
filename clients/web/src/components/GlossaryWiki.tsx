@@ -168,7 +168,7 @@ export function GlossaryWiki({
             onChange={(event) => onQueryChange(event.target.value)}
             placeholder={t("glossary.search")}
           />
-          <span className="status-badge">{loading ? t("status.loading") : t("data.runtime")}</span>
+          <span className="status-badge">{loading ? t("status.loading") : t("data.ready")}</span>
         </div>
         <div className="glossary-category-tabs" aria-label={t("glossary.category")}>
           <button
@@ -311,7 +311,7 @@ export function GlossaryWiki({
               <strong>{t("glossary.operational_context")}</strong>
               <span>{matchingContext?.context_type ?? t("data.partial")}</span>
             </div>
-            <span>{matchingContext?.data_quality.runtime_db ? t("data.runtime") : t("data.partial")}</span>
+            <span>{matchingContext?.data_quality.runtime_db ? t("data.ready") : t("data.partial")}</span>
           </div>
 
           {matchingContext ? (

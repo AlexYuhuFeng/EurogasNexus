@@ -226,7 +226,7 @@ export function ContractWorkbench({
         <dl className="contract-command-facts">
           <div><dt>{t("contracts.counterparty")}</dt><dd>{readOnlySelectedResource ? selectedCounterparty : contract.counterparty || "n/a"}</dd></div>
           <div><dt>{t("status.source")}</dt><dd>{readOnlySelectedResource ? selectedResource?.source_refs?.join(", ") || selectedPersistedSourceReference || t("contracts.no_source_reference") : contract.document_name || t("contracts.manual_entry")}</dd></div>
-          <div><dt>{t("status.db")}</dt><dd>{runtimeDbReady ? t("data.runtime") : t("data.unavailable")}</dd></div>
+          <div><dt>{t("status.db")}</dt><dd>{runtimeDbReady ? t("data.ready") : t("data.unavailable")}</dd></div>
           <div><dt>{t("panel.status")}</dt><dd>{readOnlySelectedResource ? selectedPersistedTerm?.human_review_required === true ? t("settings.human_review") : t("data.unavailable") : t("settings.human_review")}</dd></div>
         </dl>
         <div className="contract-command-actions">

@@ -38,6 +38,7 @@
   "contracts.open_in_strategy_unavailable": "Save this resource to the pool before opening Strategy Lab",
   "data.live": "Live",
   "data.ready": "Ready",
+  "data.runtime_store": "Runtime DB",
   "data.runtime_detail": "Data is served from the runtime PostgreSQL store.",
   "data.partial": "Partial",
   "data.unavailable": "Unavailable",

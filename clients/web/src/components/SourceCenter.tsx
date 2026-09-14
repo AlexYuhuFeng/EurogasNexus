@@ -415,7 +415,10 @@ export function SourceCenter({
       {activeView === "infrastructure" && (
       <div id="source-active-panel" role="tabpanel" aria-labelledby="source-tab-infrastructure" className="workspace-panel span-3 source-runtime-panel">
         <div className="section-heading">
-          <span className="eyebrow">{t("data.runtime")}</span>
+          {/* Provenance label, not a status: these panels list rows served from
+              the runtime store, so the store's name belongs here (§16) while the
+              operational state uses the shared vocabulary (§15). */}
+          <span className="eyebrow">{t("data.runtime_store")}</span>
           <strong>{t("panel.infrastructure")}</strong>
         </div>
         <div className="metric-grid six-column source-kpi-grid">

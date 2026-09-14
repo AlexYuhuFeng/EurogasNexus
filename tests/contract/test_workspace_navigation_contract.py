@@ -148,7 +148,10 @@ def test_navigation_hook_derives_primary_and_opens_default_views() -> None:
 
 def test_topbar_uses_five_primary_tabs_and_no_grouped_dropdown() -> None:
     topbar_text = _read(TOPBAR_TSX)
-    assert 'import { WorkspaceTabs } from "@/components/ui"' in topbar_text
+    # The tablist stays owned by the shared primitive; the import may carry other
+    # primitives from the same barrel (the status badge joined it for the
+    # data-plane state, which §13 of the UI constitution keeps as a badge).
+    assert re.search(r'import \{[^}]*\bWorkspaceTabs\b[^}]*\} from "@/components/ui"', topbar_text)
     assert "workspace-primary-tabs" in topbar_text
     assert "workspace-primary" in topbar_text
     assert "primaryWorkspaces.map" in topbar_text
