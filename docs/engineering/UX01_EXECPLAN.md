@@ -1148,3 +1148,62 @@ for an artifact id that does not exist (the pre-existing contract for the other
 review kinds behaves the same way). Adding existence validation would change that
 contract for every review kind, so it is a deliberate follow-up decision rather
 than part of this item.
+
+### The artifact chain reaches the workspace, with a bilingual accessibility sweep (2026-09-14)
+
+CR15-UI-001's Product half, plus the first whole-product automated accessibility
+pass. The backend already returned the governed chain; nothing rendered it.
+
+- `agentReplayModel.ts` normalises the replayed payload defensively: an unknown
+  artifact kind is reported as unrecognised rather than silently dropped, absent
+  artifacts render as "not persisted" with their operation id and producing stage
+  intact, and lineage sections that the server resolves at replay time are
+  labelled as such instead of being presented as stored fact.
+- `AgentArtifactChain.tsx` renders the ordered chain with present/missing state,
+  replay identity (id, content hash, determinism), fixture identity, lineage,
+  entitlement state and per-artifact payload, and states plainly that no hidden
+  reasoning is stored instead of showing an empty reasoning field.
+- `AgentReviewGate.tsx` records a verdict through the existing review-decision
+  endpoint, disables its controls while the request is in flight, localises a
+  refusal instead of echoing prose, and re-reads the run so the confirmation shown
+  comes from the backend rather than from the click.
+
+Two defects found while verifying, both fixed here:
+
+- Sign-out left the desktop WebView holding cached application data, so the next
+  launch could render a signed-out shell from cache. `clear_client_session_data`
+  now clears browsing data after the session is dropped (Tauri command, check-only
+  verified with the pinned stable MSVC toolchain, because this machine's GNU
+  toolchain has no `dlltool`).
+- The accessibility sweep found real contrast and semantics defects rather than
+  noise: the simulated-source pill used the link colour (~4.16:1 on its
+  background), a source-row secondary line was below the body-text contrast, the
+  market empty sparkline was an unlabelled image, the capacity board was a bare
+  set of toggles with no group or pressed state, and three Agents view containers
+  had no `tabpanel` relationship. All are fixed in `app.css` and the affected
+  components; scrollable regions gained keyboard focus with a label.
+
+Evidence: Web suite **205 passed / 0 failed**; `npm run build` exit 0 at 148
+modules; EN/CN parity 1644/1644; the four client contract modules 56 passed;
+backend full suite 1498 passed / 17 skipped (9 further local failures are the
+sandbox subprocess-pipe limitation, and CI on Linux passes the same tests); ruff
+clean. The automated axe sweep now runs signed-in over all 16 workspaces at
+1440x900 and reports **0 violations in English and 0 in Mandarin**, with the
+sign-in screen, the numeric market view and the System workspace audited
+separately at 390x844. The 390px Mandarin System tabs measure 32 px and single
+line.
+
+Not verified: no human has reviewed the captured images, so this is
+accessibility-tree evidence and not visual sign-off; 1920x1080, long-session,
+populated research/agent workflows and rights negatives remain unaudited; and the
+sweep harness is local scratch rather than a CI job, so nothing enforces it yet.
+The chain rendering is verified against contract-shaped payloads and a real
+confirmation POST, but this runtime has no orchestrator-produced run, so the
+end-to-end chain for a real run is still unproven. Both statements are carried in
+the register rows rather than implied by the numbers above.
+
+Next in the queue: the four remaining user-triggered follow-up reads in
+`stores/api.ts` (`fetchGlossaryContext`, `askAnalysis`, `generatePortfolioReport`,
+`analyzeMonitoringAlert`) still run outside the identity-generation coordinator,
+so a sign-out landing mid-request can surface that response into a signed-out
+shell. They are named in RELIABILITY-READ-001 and are the next item to land.

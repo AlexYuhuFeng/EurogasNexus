@@ -25,6 +25,18 @@ asserted by `tests/contract/test_ontology_version_alignment.py`.
 
 ## [Unreleased]
 
+- The Agents workspace now renders the governed artifact chain that the replay
+  endpoint returns: ordered entries with present/missing state, operation id and
+  producing stage, replay identity (id, content hash, determinism), fixture
+  identity, lineage, entitlement state and each artifact's payload, with absent
+  artifacts shown as "not persisted" and lineage the server resolves at replay
+  time labelled as such. Unknown artifact kinds are reported rather than dropped,
+  and the absence of hidden reasoning is stated instead of rendered as an empty
+  field. A human gate records a verdict through the existing review-decision
+  endpoint, disables its controls while the request is in flight, localises a
+  refusal instead of echoing server prose, and re-reads the run so the displayed
+  confirmation comes from the backend.
+
 - The Research Data workspace gained the governed dataset spec and build surface:
   a typed spec form (empty fields omitted, no invented defaults), validation that
   renders the registry resolution, spec hash and every structured issue grouped by
@@ -51,10 +63,20 @@ asserted by `tests/contract/test_ontology_version_alignment.py`.
   list in the runtime workspace no longer prints loader keys.
 - Accessibility defects found by an axe audit of the current surfaces are fixed:
   the market sparkline's empty state exposed an `aria-label` on an element
-  without a role, and the simulated-source pill's accent-on-tint text measured
-  about 4.16:1 against the 4.5:1 required for its 11px label. The sign-in screen
-  (EN and zh-CN), the market numeric view and the 390px Mandarin System
-  workspace now report zero axe violations.
+  without a role, the simulated-source pill's accent-on-tint text measured
+  about 4.16:1 against the 4.5:1 required for its 11px label, a source-row
+  secondary line was below the body-text contrast, the capacity board exposed
+  bare toggles with no group or pressed state, three Agents view containers had
+  no `tabpanel` relationship, and scrollable source and research regions were
+  unreachable by keyboard. A signed-in automated sweep of all 16 workspaces at
+  1440x900 now reports zero violations in English and zero in Mandarin, with the
+  sign-in screen, the numeric market view and the 390x844 System workspace
+  audited separately. These are accessibility-tree results, not visual review.
+- The narrow-viewport task tabs no longer wrap per glyph in Mandarin: the shared
+  navigation primitive's tab buttons (System, Access and Agents strips) are now
+  styled through the element the primitive actually emits, with `flex: 0 0 auto`
+  and `white-space: nowrap`. At 390x844 all eight System tabs measure 32px on a
+  single line with the container scrolling horizontally.
 - The desktop shell drops its WebView cookies, caches and local storage after a
   sign-out (`clear_client_session_data`), so a shared workstation keeps no
   session material behind once the backend session has been revoked.
