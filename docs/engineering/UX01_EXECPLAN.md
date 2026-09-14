@@ -785,17 +785,25 @@ Evidence (repository root):
   missing DB URL; `resolve_release_context` rejects stable dispatch and a
   mismatched tag; `sign_release_artifacts.py` records
   `unsigned_pending_external`; `generate_sboms.py` produced its SPDX documents
-  and notices. CI runs the same suite on Linux, where the previous run was green.
+  and notices.
+- CI on the pushed commits (run 34803685198): the `validate` job passed with
+  **1447 passed / 13 skipped** and Ruff clean, both load smokes inside threshold,
+  `web-client-build` 143 tests passed, and the dependency and PostgreSQL
+  integration jobs succeeded. The nine local failures above are therefore a local
+  sandbox artifact rather than a suite defect.
 - `python -m ruff check .` -> clean. `python scripts/ci/check_markdown_links.py`
   -> 211 files resolve.
 - `python scripts/security/run_security_acceptance.py --json` -> automated PASS,
   `failed_checks` empty; public surface is now 163 paths.
 - `python scripts/uat/check_i18n_parity.py` -> 1384/1384 keys, none missing.
 - Unauthenticated entry captured against the built client with the deep link
-  `?workspace=market` at 1440x900 and 1920x1080
-  (`output/playwright/ux01-auth-gate-1440.png`, `ux01-auth-gate-1920.png`): the
-  rendered text is the sign-in screen only, no market or workspace panel, and an
-  unreachable backend renders the retry copy instead of data.
+  `?workspace=market` at 1440x900 and 1920x1080 in both locales
+  (`output/playwright/ux01-auth-gate-{1440,1920}.png` and `...-{1440,1920}-zh.png`):
+  the rendered text is the sign-in screen only, no market or workspace panel, and
+  an unreachable backend renders the retry copy instead of data. The Mandarin
+  rendering also carries the boundary statement "只有经后端验证的身份才能进入终端。
+  本页面不进行任何客户端准入判断。" (only a backend-verified identity enters the
+  terminal; this page makes no client-side admission decision).
 - Desktop: `cargo +stable-x86_64-pc-windows-msvc check --manifest-path
   clients/desktop/src-tauri/Cargo.toml --locked` -> finished clean.
 
@@ -815,3 +823,96 @@ Open and explicitly not claimed:
   development-only.
 - WebView browsing-data clearing on logout was not added; the backend session is
   revoked and client-stored credentials are cleared instead.
+
+### Distinct numeric and map market views (2026-09-14)
+
+The second queued priority is implemented and verified against a live local
+runtime. The audit found that the two task views already existed - `curves`
+renders the numeric terminal and `network` the map-first workspace - and that the
+defect was the fused `overview` dashboard being the mandatory landing task.
+
+Implemented:
+
+- `app/context/viewPreference.ts` owns the preference: a per-principal browser
+  record (`eurogas.marketView.v1`), validation that rejects unknown/legacy values,
+  and the resolution order URL task > persisted view > numeric default. Only the
+  two separate views are persistable; `overview` and `capacity` stay transient so
+  an explicit opt-in never overwrites a stored view.
+- The market shell takes its task from that preference, and switching tasks
+  writes it back for the current principal. `SettingsCenter` exposes the same
+  choice deliberately, per principal.
+- Landing resolution is strict: an explicit `?workspace=`/`?task=` always wins;
+  otherwise a stored preference decides; otherwise the declared default stands.
+  `productNavigation.ts`, `defaultWorkspacePageForPrimary` and the accepted
+  information architecture are untouched. A stored preference lands on the market
+  shell rather than the standalone `network` page, because that page has no task
+  tabs and would strand a map-preferring user with no in-UI way back to the
+  numeric view; `?workspace=network` remains a working deep link.
+- `market.map_context_note` was reworded in both locales so the map is presented
+  as a first-class inspection view rather than a footnote to it, with no
+  implication that it replaces price evidence. Map geometry, verified/indicative
+  legends and the numeric semantics were not touched.
+
+Two defects were found by exercising the built client against the live API rather
+than by unit tests, and are fixed here:
+
+1. A real `GET /api/me` 401 was classified as an **unreachable backend**, so a
+   cold visitor saw an error banner instead of a plain sign-in screen. The
+   endpoint loader built its message with `String(error)`, which prefixes
+   `Error: ` and made every `^API <status>:` classifier miss. The loader now uses
+   the error's own message, and a regression test feeds a real `Error` through
+   `loadWorkspaceEndpoint` - the path the earlier tests had bypassed by passing
+   synthetic messages.
+2. Because of the same misclassification, an anonymous visit had its entry URL
+   scrubbed and lost the requested deep link. Scrubbing is now a predicate
+   (`shouldScrubEntryUrl`): an explicit sign-out or a session lost during use
+   still scrubs, while a plain anonymous visit keeps `?workspace=`/`?task=` so the
+   deep link is honoured once sign-in succeeds.
+
+Evidence (live local runtime: PostgreSQL 16 at head 0033, API on 127.0.0.1:8000
+with a development credential identity, the built client served same-origin with
+an `/api` proxy so the session cookie applies):
+
+- `npm.cmd --prefix clients/web test` -> 166 passed / 0 failed.
+- `npm.cmd --prefix clients/web run build` -> exit 0.
+- `python scripts/uat/check_i18n_parity.py` -> ok, 1388/1388 keys.
+- Browser, 1440x900: a cold `?workspace=market` visit keeps its URL, shows no
+  error banner, and issues only `401 /api/me` plus `200 /api/auth/status` (no
+  protected read); after sign-in it lands on the numeric terminal with the deep
+  link intact. Switching to the map task mounts the map and records the
+  preference; a bare entry then lands on the map view, and switching back to the
+  numeric task lands on the numeric view after a reload. Gas day and hub survive
+  every switch (`contextRetained: true`).
+- Captures: `output/playwright/ux01-auth-signed-in-market-1440.png`,
+  `ux01-market-map-task-1440.png`, `ux01-market-preference-map-1440.png`,
+  `ux01-market-preference-numeric-1440.png`.
+
+Open and not claimed: the longer bilingual copy and the new settings control have
+not been visually reviewed (the reviewing model has no image input); the
+standalone `network` page still has no task tabs of its own; there is no browser
+harness in CI, so this pass is manual evidence rather than an automated gate.
+
+### Portfolio exposure no longer reports a false zero (2026-09-14)
+
+UX01-EXPOSURE-001's P1 trigger was met on evidence: `summarize_portfolio` summed
+an empty snapshot list to `0`, and the DTO fields were non-nullable, so the API
+could not express "unknown" and the workspace printed `GBP 0` beside unavailable
+placeholder rows.
+
+- The four totals (`total_realized_pnl_gbp`, `total_unrealized_pnl_gbp`,
+  `total_indicative_pnl_gbp`, `total_cash_value_gbp`) are now `float | None` in
+  the domain model, the API payload and the Python SDK mirror - the SDK would
+  otherwise have rejected the new payload outright.
+- An empty or degraded read returns `null` plus a `VALUATION_EVIDENCE_MISSING`
+  warning in both `data.warnings` and `meta.warnings`, and the route no longer
+  drops the summary warnings. A populated portfolio whose measured total is
+  genuinely `0.0` still reports `0.0`.
+- The Web client types the totals as nullable and renders an explicit unknown
+  instead of coercing to zero; the placeholder rows no longer hardcode `0 MWh`.
+
+Verified: `tests/unit/test_market_positioning_summary.py` (new) covers empty,
+orders-without-evidence, populated, multi-snapshot and measured-zero cases;
+`tests/api/test_portfolio_api.py` covers the configured-but-empty and no-DB
+cases; the SDK test covers null tolerance. `python -m pytest -q tests` reports
+1446 passed / 13 skipped with the nine sandbox subprocess-pipe failures noted
+above; ruff is clean.

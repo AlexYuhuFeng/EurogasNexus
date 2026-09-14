@@ -25,6 +25,22 @@ asserted by `tests/contract/test_ontology_version_alignment.py`.
 
 ## [Unreleased]
 
+- Market views: the combined `overview` dashboard is no longer the mandatory
+  landing task. The numeric analysis (`curves`) and the map/network inspection
+  (`network`) are separate task views, and each authenticated user's preferred
+  view is remembered per principal and shown again after sign-in, with gas day,
+  product and hub context retained across the switch. `overview` remains
+  available as an explicit opt-in task.
+- Portfolio exposure no longer reports a false `GBP 0`: the summary totals are
+  nullable, an empty or degraded read returns an explicit unknown with a
+  `VALUATION_EVIDENCE_MISSING` warning, and a genuinely measured zero still
+  reports zero.
+- Fixed a cold-visit misclassification: a real `401` from `/api/me` was read as
+  an unreachable backend, which showed an error banner and discarded the
+  requested deep link. A plain anonymous visit now keeps its `?workspace=` link
+  until sign-in succeeds, while an explicit sign-out or a session lost during
+  use still scrubs the protected context from the entry URL.
+
 - Authentication-first entry (UX-01 priority): an unauthenticated visit no
   longer reaches the terminal. `GET /api/me` answers 401 when no credential is
   presented (the verified static deployment token keeps its legacy SDK/CLI
