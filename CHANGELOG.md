@@ -25,6 +25,15 @@ asserted by `tests/contract/test_ontology_version_alignment.py`.
 
 ## [Unreleased]
 
+- The signed-in identity in the header no longer renders as one glued token. The
+  container class the markup uses had no CSS rule at all, so the display name and
+  the role appeared as `dev.analystANALYST` at every width and in both locales.
+  The cluster is now a flex row with an 8px gap, the name is the only flexible
+  field (so a long one ellipsises instead of pushing sign-out off the row), the
+  role stays on one line, and a client test fails if the markup class loses its
+  rule. Found by reviewing the captured screens as images rather than inferring
+  from the DOM, which cannot see missing whitespace.
+
 - A user-triggered follow-up read can no longer outlive the identity that asked
   for it. Glossary context, analysis, portfolio report and monitoring-alert
   analysis answers are now dropped when the session signs out or changes while

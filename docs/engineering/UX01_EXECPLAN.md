@@ -1314,3 +1314,60 @@ Parent verification on the patch based on `f91a170`:
 This closes the specific verbosity and unavailable-action findings above, not
 the overall auth/desktop acceptance item. Dark theme, packaged desktop behavior,
 full accessibility and the remaining workstation workflows are still pending.
+### The reviewer gets image input, and uses it on the captures (2026-09-14)
+
+Every earlier UI item in this file ended with the same caveat: the captures were
+taken but never looked at, because the reviewing model declared no image input.
+That gate turned out to be a catalog declaration rather than a provider limit.
+
+- The provider reads images on the flash route even though the stock harness
+  catalog advertises `deepseek-v4-flash` as text-only: a real screenshot posted
+  straight to the API comes back with the image counted in `prompt_tokens` and
+  its contents described, while `deepseek-v4-pro` answers "[Unsupported Image]"
+  with the image missing from its token count. There is no `deepseek-v4.1` model
+  id - the provider's own error lists `deepseek-flash` and `deepseek-v4-pro` as
+  the only names it accepts.
+- The profile now carries an id-targeted `llm-deepseek` override stating what the
+  routes actually accept (flash and the official vision route declare
+  `text+image`, pro stays text-only). It was validated with the plugin's own
+  exported config schema before being written, and it needed a harness restart to
+  take effect - the live patch reload picks up plugin mounts, not config
+  overrides, which the preview panel returning only after the desktop's own
+  restart demonstrated.
+
+What the visual pass found, on a fresh 2x capture set rather than the older
+downscaled files:
+
+- A real defect, fixed: the header identity cluster rendered the signed-in user
+  as one token, `dev.analystANALYST`, because `.topbar-user-menu` was used in the
+  markup but had no CSS rule anywhere, so the container never became a flex row
+  and JSX dropped the whitespace between the fields. An axe sweep cannot see
+  missing whitespace. The container now declares `display: flex; gap: 8px`, the
+  name is the only flexible field, and `workspaceHeader.test.ts` fails if the
+  class loses its rule. Verified by re-capture: 8px between name and role and
+  between role and button, English at 1440 and Mandarin at 390.
+- Two suspected defects disproved by checking instead of squinting: the market
+  snapshot sentence is grammatical ("...are shown when sourced from EEX...") and
+  every source-matrix row reads "Simulated source" in English. Both looked wrong
+  only in a downscaled preview of a wider capture, which is why this review moved
+  to element-level 2x captures.
+- UX-SYSTEM-NARROW-001 is now closed on measurement *and* sight: eight System
+  task tabs at 32px, `white-space: nowrap`, `flex: 0 0 auto`, strip
+  `scrollWidth` 556 against `clientWidth` 358 at 390x844 in Mandarin, single line
+  in the capture, and no scrolling needed at 1440.
+- One observation was withdrawn after measuring: the identity cluster is not
+  flush against the right edge, it sits on the header's 16px padding, so the
+  tight right edge seen in an element screenshot was the crop, not the layout.
+- Five smaller findings and one cosmetic one are recorded rather than patched,
+  because each is a design decision rather than a defect: the runtime-DB health
+  badge is styled like the selects beside it, the empty map explains itself
+  outside the map, simulated provenance is plain grey in the source matrix, the
+  narrow alerts trigger shows only a dot and a count to sighted users, the narrow
+  header fills about half the first screen, and the sign-in retry control sits
+  below the form it retries.
+
+Not claimed: this was a model review, not a human one. Wording and visual
+judgement still need a person, and no long-session, populated research/agent or
+rights-negative state was captured at all. The review also cannot see motion,
+focus order or announcements, which stay with the automated sweep and the
+screen-reader work already recorded in the register.
