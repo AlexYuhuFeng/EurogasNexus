@@ -13,6 +13,9 @@ model_catalog_json = "{(home/'models.json').as_posix()}"
 approval_policy = "never"
 sandbox_mode = "workspace-write"
 
+[windows]
+sandbox = "unelevated"
+
 [model_providers.deepseek]
 name = "deepseek"
 base_url = "https://api.deepseek.com/"

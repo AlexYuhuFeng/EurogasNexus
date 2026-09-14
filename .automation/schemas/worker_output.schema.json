@@ -36,7 +36,31 @@
     },
     "compatibility": {
       "type": "object",
-      "additionalProperties": true
+      "additionalProperties": false,
+      "required": [
+        "api",
+        "db",
+        "client",
+        "security",
+        "release"
+      ],
+      "properties": {
+        "api": {
+          "type": "string"
+        },
+        "db": {
+          "type": "string"
+        },
+        "client": {
+          "type": "string"
+        },
+        "security": {
+          "type": "string"
+        },
+        "release": {
+          "type": "string"
+        }
+      }
     },
     "unresolved": {
       "type": "array",

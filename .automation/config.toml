@@ -15,7 +15,7 @@ turn_timeout_seconds = 10800
 
 [worker]
 model = "deepseek-v4-flash"
-reasoning_effort = "high"
+reasoning_effort = "max"
 sandbox_mode = "workspace-write"
 approval_policy = "never"
 turn_timeout_seconds = 10800

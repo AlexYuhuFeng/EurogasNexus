@@ -10,3 +10,30 @@ class T(unittest.TestCase):
     def test_time_only(self):self.assertIsNotNone(parse_reset_epoch('try again at 7:11 PM'))
     def test_unknown_reset(self):self.assertIsNone(parse_reset_epoch('usage limit reached; wait for reset'))
 if __name__=='__main__':unittest.main()
+
+def test_success_exit_wins_over_words_inside_normal_output():
+    assert classify_output(
+        "The policy says unauthorized access is forbidden.",
+        0,
+    ) == "success"
+
+
+def test_auth_is_classified_when_process_actually_failed():
+    assert classify_output(
+        "Error: unauthorized",
+        1,
+    ) == "auth"
+
+
+def test_allowance_is_classified_when_process_failed():
+    assert classify_output(
+        "You've hit your usage limit. Try again at 23:00.",
+        1,
+    ) == "allowance"
+
+
+def test_transient_is_classified_when_process_failed():
+    assert classify_output(
+        "503 temporarily unavailable",
+        1,
+    ) == "transient"

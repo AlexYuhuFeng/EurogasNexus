@@ -48,11 +48,22 @@ def codex_version(binary='codex'):
     m=re.search(r'(\d+)\.(\d+)\.(\d+)',out); return (tuple(map(int,m.groups())) if m else None),out.strip()
 
 def classify_output(text,returncode):
+    # A successful process exit is authoritative.
+    # Codex JSONL stdout contains agent text, repository contents and command
+    # output, so words such as "forbidden" or "unauthorized" may legitimately
+    # appear in successful analytical work and must not be treated as transport
+    # or authentication failures.
+    if returncode == 0:
+        return 'success'
+
     low=text.lower()
-    if any(p in low for p in USAGE_PATTERNS):return 'allowance'
-    if any(p in low for p in AUTH_PATTERNS):return 'auth'
-    if any(p in low for p in TRANSIENT_PATTERNS):return 'transient'
-    return 'success' if returncode==0 else 'fatal'
+    if any(p in low for p in USAGE_PATTERNS):
+        return 'allowance'
+    if any(p in low for p in AUTH_PATTERNS):
+        return 'auth'
+    if any(p in low for p in TRANSIENT_PATTERNS):
+        return 'transient'
+    return 'fatal'
 
 def parse_reset_epoch(text):
     """Best-effort parser for common Codex allowance reset messages.
