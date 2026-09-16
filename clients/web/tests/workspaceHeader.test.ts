@@ -58,6 +58,39 @@ test("the narrow alert trigger keeps a visible text label", () => {
   assert.equal(css.includes(".alert-trigger span:not(.alert-trigger-mark)"), false);
 });
 
+test("the header preferences menu owns preference and lifecycle actions with keyboard return", () => {
+  const menu = readWebSource("components/HeaderPreferencesMenu.tsx");
+  const bar = readWebSource("components/WorkspaceTopBar.tsx");
+
+  assert.match(bar, /<HeaderPreferencesMenu/);
+  assert.match(menu, /aria-haspopup="menu"/);
+  assert.match(menu, /role="menu"/);
+  assert.match(menu, /role="menuitemradio"/);
+  assert.match(menu, /role="menuitem"/);
+  assert.match(menu, /event\.key === "Escape"/);
+  assert.match(menu, /event\.key === "ArrowDown"/);
+  assert.match(menu, /event\.key === "ArrowUp"/);
+  assert.match(menu, /triggerRef\.current\?\.focus\(\)/);
+  assert.match(menu, /onLanguageChange\("en"\)/);
+  assert.match(menu, /onLanguageChange\("zh-CN"\)/);
+  assert.match(menu, /onModeChange\(themeMode\)/);
+  assert.match(menu, /onOpenSettings/);
+  assert.match(menu, /onSignOut/);
+});
+
+test("the narrow header collapses context and status behind one disclosure", () => {
+  const bar = readWebSource("components/WorkspaceTopBar.tsx");
+  const css = readWebSource("styles/app.css");
+
+  assert.match(bar, /matchMedia\("\(max-width: 900px\)"\)/);
+  assert.match(bar, /className="topbar-context-disclosure"/);
+  assert.match(bar, /<summary aria-label=\{t\("topbar\.context_status"\)\}>/);
+  assert.match(bar, /\(!narrowHeader \|\| contextDisclosureOpen\)/);
+  assert.match(css, /grid-template-areas: "workspace" "context-disclosure";/);
+  assert.match(css, /grid-template-areas: "workspace" "task" "search" "context-disclosure";/);
+  assert.match(css, /\.topbar-context-disclosure-content[\s\S]*?display: grid;/);
+});
+
 test("the top bar identity cluster keeps the display name and role apart", () => {
   const bar = readWebSource("components/WorkspaceTopBar.tsx");
   const css = readWebSource("components/WorkspaceTopBar.css");
