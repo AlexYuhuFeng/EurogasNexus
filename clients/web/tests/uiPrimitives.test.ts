@@ -75,7 +75,7 @@ test("Capacity, Network rail, and Strategy shadow delegate tab semantics to Work
 
   for (const [path, prefix] of cases) {
     const source = readWebSource(path);
-    assert.match(source, /import \{ WorkspaceTabs \} from "@\/components\/ui"/);
+    assert.match(source, /import \{[^}]*WorkspaceTabs[^}]*\} from "@\/components\/ui"/s);
     assert.match(source, /<WorkspaceTabs/);
     assert.match(source, new RegExp(`idPrefix="${prefix}"`));
     assert.doesNotMatch(source, /<button[\s\S]*?role="tab"/);
