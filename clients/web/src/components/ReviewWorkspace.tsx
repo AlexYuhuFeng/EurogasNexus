@@ -108,7 +108,7 @@ export function ReviewWorkspace({
           <strong>{t("review.title")}</strong>
         </div>
         <p className="panel-copy">{t("review.subtitle")}</p>
-        <div className="data-table">
+        <div className="data-table" tabIndex={0}>
           <div className="data-table-row header four"><span>{t("result.optimal")}</span><span>{t("home.allocated")}</span><span>{t("result.route_cost")}</span><span>PnL</span></div>
           {allocations.map((allocation) => {
             const option = saleOptionById.get(allocation.option_id);
@@ -267,7 +267,7 @@ export function ReviewWorkspace({
           <span className="eyebrow">{t("nav.review")}</span>
           <strong>{t("review.decision_history")}</strong>
         </div>
-        <div className="data-table">
+        <div className="data-table" tabIndex={0}>
           <div className="data-table-row header three"><span>{t("review.entity_id")}</span><span>{t("review.decision")}</span><span>{t("review.decision_time")}</span></div>
           {reviewDecisions.slice(0, 12).map((row) => (
             <div key={`review-history-${row.decision_id}`} className="data-table-row three">

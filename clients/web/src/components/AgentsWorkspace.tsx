@@ -207,7 +207,7 @@ export function AgentsWorkspace({ t, principalId = null }: AgentsWorkspaceProps)
           role="tabpanel"
           aria-labelledby={`agents-task-${activeView}`}
         >
-          <div className="research-table data-table">
+          <div className="research-table data-table" tabIndex={0}>
             <div className="data-table-row header five">
               <span>{t("agents.capability")}</span>
               <span>{t("agents.domain")}</span>
@@ -297,7 +297,7 @@ export function AgentsWorkspace({ t, principalId = null }: AgentsWorkspaceProps)
           role="tabpanel"
           aria-labelledby={`agents-task-${activeView}`}
         >
-          <div className="research-table data-table">
+          <div className="research-table data-table" tabIndex={0}>
             <div className="data-table-row header six">
               <span>{t("agents.time")}</span>
               <span>{t("agents.objective")}</span>

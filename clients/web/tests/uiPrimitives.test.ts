@@ -85,6 +85,23 @@ test("Capacity, Network rail, and Strategy shadow delegate tab semantics to Work
   assert.doesNotMatch(strategy, /handleViewKeyDown/);
 });
 
+test("narrow scroll regions are explicitly keyboard focusable", () => {
+  const cases = [
+    ["components/CapacityWorkspace.tsx", /className="capacity-operating-table"[\s\S]*?tabIndex=\{0\}/],
+    ["components/MarketTerminal.tsx", /className="data-table market-fx-table" tabIndex=\{0\}/],
+    ["components/ContractWorkbench.tsx", /className="contract-command-actions" tabIndex=\{0\}/],
+    ["components/ContractWorkbench.tsx", /className="contract-clause-nav"[\s\S]*?tabIndex=\{0\}/],
+    ["components/ReviewWorkspace.tsx", /className="data-table" tabIndex=\{0\}/],
+    ["components/MarketPositioningWorkspace.tsx", /className="data-table orders-table" tabIndex=\{0\}/],
+    ["components/AccessCenter.tsx", /className="data-table" tabIndex=\{0\}/],
+    ["components/AgentsWorkspace.tsx", /className="research-table data-table" tabIndex=\{0\}/],
+  ] as const;
+
+  for (const [path, pattern] of cases) {
+    assert.match(readWebSource(path), pattern, path);
+  }
+});
+
 test("WorkspaceTabs forwards its role prop and defaults to tablist", () => {
   const component = readWebSource("components/ui/WorkspaceTabs.tsx");
   assert.match(component, /role\?: "tablist"/);

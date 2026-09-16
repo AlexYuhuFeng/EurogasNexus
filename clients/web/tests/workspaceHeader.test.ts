@@ -50,6 +50,16 @@ test("only WorkspaceHeader owns the consolidated primary h1 and shared tab seman
   assert.match(renderer, /!usesConsolidatedHeader\s*&&\s*\(\s*<header/);
 });
 
+test("the direct map-first Network route keeps one semantic main heading", () => {
+  const shell = readWebSource("app/shell/AppShell.tsx");
+  const css = readWebSource("styles/app.css");
+
+  assert.match(shell, /navigation\.activeWorkspace === "network"/);
+  assert.match(shell, /<h1 className="network-main-title">\{t\("nav\.network"\)\}<\/h1>/);
+  assert.match(css, /\.network-main-title \{/);
+  assert.match(css, /clip-path: inset\(50%\);/);
+});
+
 test("the narrow alert trigger keeps a visible text label", () => {
   const alertCenter = readWebSource("components/AlertCenter.tsx");
   const css = readWebSource("components/WorkspaceTopBar.css");
@@ -71,6 +81,7 @@ test("the header preferences menu owns preference and lifecycle actions with key
   assert.match(menu, /event\.key === "ArrowDown"/);
   assert.match(menu, /event\.key === "ArrowUp"/);
   assert.match(menu, /triggerRef\.current\?\.focus\(\)/);
+  assert.match(menu, /requestAnimationFrame\(\(\) => triggerRef\.current\?\.focus\(\)\)/);
   assert.match(menu, /onLanguageChange\("en"\)/);
   assert.match(menu, /onLanguageChange\("zh-CN"\)/);
   assert.match(menu, /onModeChange\(themeMode\)/);
