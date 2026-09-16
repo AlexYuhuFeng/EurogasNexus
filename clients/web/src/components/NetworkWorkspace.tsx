@@ -179,6 +179,14 @@ export function NetworkWorkspace({
   const indicativeRouteCount = visibleMapLines.filter(
     (line) => line.displayKind === "indicative_route",
   ).length;
+  const mapHasVisibleEvidence =
+    displayedNetworkCount +
+      displayedLngCount +
+      displayedIpCount +
+      displayedHubCount +
+      verifiedPipelineCount +
+      indicativeRouteCount >
+    0;
   const [activeRailView, setActiveRailView] = useState<DecisionRailView>("decision");
 
   return (
@@ -347,6 +355,13 @@ export function NetworkWorkspace({
             t={t}
             highlightedRoute={highlightedRoute}
           />
+          {!mapHasVisibleEvidence && (
+            <div className="map-empty-state" role="status">
+              <strong>{t("map.empty_title")}</strong>
+              <span>{t(geometryMessageKey(networkGeometryState))}</span>
+              <small>{t("map.empty_help")}</small>
+            </div>
+          )}
           <div className="map-visual-legend" aria-label={t("map.visual_legend")}>
             <span><i className="node-swatch network" />{t("map.layer.network")}<strong>{displayedNetworkCount}</strong></span>
             <span><i className="node-swatch lng" />{t("map.layer.lng")}<strong>{displayedLngCount}</strong></span>

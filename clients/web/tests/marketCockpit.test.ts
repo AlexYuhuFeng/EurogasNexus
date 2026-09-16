@@ -80,6 +80,22 @@ test("intraday candidate language stays inside the decision-support boundary", (
   assert.match(zh["intraday.human_review"], /复核/);
 });
 
+test("the network map explains an evidence-empty state inside the map", () => {
+  const network = readWebSource("components/NetworkWorkspace.tsx");
+  const en = JSON.parse(readWebSource("i18n/en.json")) as Record<string, string>;
+  const zh = JSON.parse(readWebSource("i18n/zh.json")) as Record<string, string>;
+
+  assert.match(network, /!mapHasVisibleEvidence/);
+  assert.match(network, /className="map-empty-state"/);
+  assert.match(network, /map\.empty_title/);
+  assert.match(network, /geometryMessageKey\(networkGeometryState\)/);
+  assert.match(network, /map\.empty_help/);
+  for (const key of ["map.empty_title", "map.empty_help"]) {
+    assert.equal(typeof en[key], "string", `en ${key}`);
+    assert.equal(typeof zh[key], "string", `zh ${key}`);
+  }
+});
+
 test("the market overview renders the data status as a translated label", () => {
   const cockpit = readWebSource("components/MarketCockpit.tsx");
   const en = JSON.parse(readWebSource("i18n/en.json")) as Record<string, string>;

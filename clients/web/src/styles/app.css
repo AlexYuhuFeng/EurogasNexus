@@ -6137,6 +6137,41 @@ button.glossary-related-chip {
   font-size: 12px;
 }
 
+.map-empty-state {
+  position: absolute;
+  z-index: 38;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  width: min(420px, calc(100% - 48px));
+  gap: 6px;
+  padding: 14px 16px;
+  border: 1px solid var(--eg-hairline);
+  border-radius: var(--eg-radius-md);
+  background: rgb(255 255 255 / 94%);
+  box-shadow: var(--eg-shadow-2);
+  color: var(--eg-body);
+  text-align: left;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.map-empty-state strong {
+  color: var(--eg-ink);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.map-empty-state span,
+.map-empty-state small {
+  font-size: 12px;
+  line-height: 18px;
+}
+
+:root.dark .map-empty-state {
+  background: rgb(19 27 39 / 94%);
+}
+
 .map-visual-legend {
   position: absolute;
   z-index: 39;

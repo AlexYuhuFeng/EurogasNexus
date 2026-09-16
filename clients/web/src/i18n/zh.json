@@ -118,6 +118,8 @@
   "map.indicative_route_warning": "指示性示意走廊；不是实测或官方管线几何。",
   "map.gas_network_map": "天然气管网地图",
   "map.loading_network_layers": "正在加载管网图层",
+  "map.empty_title": "暂无可显示的受治理管网证据",
+  "map.empty_help": "请加载受治理的参考网络节点、已验证几何或路线证据以填充地图。底图仍会显示，但 Eurogas Nexus 不会伪造管网要素。",
   "map.node_popup_source": "数据源",
   "map.node_popup_coordinate_quality": "坐标质量",
   "map.node_popup_approximate_coordinate": "近似显示坐标，不是实测 WGS84 几何。",
