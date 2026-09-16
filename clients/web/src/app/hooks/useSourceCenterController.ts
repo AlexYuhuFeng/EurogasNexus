@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import type { TFunction } from "i18next";
+import { formatUtcTimestamp } from "@/app/model/evidencePresentation";
 import type {
   CredentialProviderDTO,
   SourceCategoryPostureDTO,
@@ -126,13 +127,7 @@ export function useSourceCenterController({
   }
 
   function formatSourceTimestamp(value: string | null | undefined) {
-    if (!value) return "n/a";
-    return new Intl.DateTimeFormat(language, {
-      month: "short",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(new Date(value));
+    return formatUtcTimestamp(value);
   }
 
   return {
