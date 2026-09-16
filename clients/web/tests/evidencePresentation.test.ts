@@ -31,6 +31,9 @@ test("evidence-heavy workspaces use the shared block and explicit time basis", (
   const strategy = readWebSource("components/StrategyShadowRunTerminal.tsx");
   const review = readWebSource("components/ReviewWorkspace.tsx");
   const glossary = readWebSource("components/GlossaryWiki.tsx");
+  const market = readWebSource("components/MarketTerminal.tsx");
+  const runtime = readWebSource("components/RuntimeWorkspace.tsx");
+  const topbar = readWebSource("components/WorkspaceTopBar.tsx");
 
   assert.match(sourceController, /formatUtcTimestamp\(value\)/);
   assert.match(sources, /<EvidenceBlock/);
@@ -43,6 +46,11 @@ test("evidence-heavy workspaces use the shared block and explicit time basis", (
   assert.match(review, /formatUtcTimestamp\(value, value\)/);
   assert.match(glossary, /t\("evidence\.time_basis"\)/);
   assert.match(glossary, /t\("evidence\.utc"\)/);
+  assert.match(market, /formatUtcTimestamp\(value\)/);
+  assert.match(runtime, /formatUtcTimestamp\(value\)/);
+  assert.match(topbar, /formatUtcTimestamp\(marketLastUpdatedAtUtc\)/);
+  assert.doesNotMatch(market, /toLocaleTimeString/);
+  assert.doesNotMatch(runtime, /toLocaleTimeString/);
 });
 
 test("evidence labels remain paired across English and Mandarin", () => {
