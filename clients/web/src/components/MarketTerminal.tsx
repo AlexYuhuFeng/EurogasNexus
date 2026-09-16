@@ -563,13 +563,17 @@ export function MarketTerminal({
           </div>
           {sourceMatrixRows.map((row) => (
             <div key={`source-matrix-${row.sourceSystem}`} className="market-source-matrix-row" role="row">
-              <strong role="rowheader">{row.sourceSystem}</strong>
+              <strong role="rowheader" className="market-source-identity">
+                <span>{row.sourceSystem}</span>
+                {row.simulated && (
+                  <span className="market-source-pill simulated matrix-simulation-marker">
+                    {t("market.simulated_source")}
+                  </span>
+                )}
+              </strong>
               <span role="cell">{row.priceTiming}</span>
               <span role="cell">{row.hubs.length > 0 ? row.hubs.join(" / ") : "n/a"}</span>
-              <span role="cell">
-                {formatCadence(row.updateIntervalSeconds)}
-                {row.simulated ? ` / ${t("market.simulated_source")}` : ""}
-              </span>
+              <span role="cell">{formatCadence(row.updateIntervalSeconds)}</span>
             </div>
           ))}
           {sourceMatrixRows.length === 0 && (

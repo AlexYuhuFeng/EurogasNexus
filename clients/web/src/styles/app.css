@@ -4210,6 +4210,25 @@ body {
   white-space: nowrap;
 }
 
+.market-source-identity {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.market-source-identity > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.market-source-identity .matrix-simulation-marker {
+  flex: 0 0 auto;
+  padding: 1px 5px;
+  font-size: 10px;
+  line-height: 14px;
+}
+
 .market-source-matrix-row.header {
   min-height: 32px;
   background: var(--eg-canvas-soft-2);

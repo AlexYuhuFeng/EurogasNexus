@@ -80,6 +80,15 @@ test("intraday candidate language stays inside the decision-support boundary", (
   assert.match(zh["intraday.human_review"], /复核/);
 });
 
+test("the market source matrix marks simulated provenance at the source identity", () => {
+  const terminal = readWebSource("components/MarketTerminal.tsx");
+
+  assert.match(terminal, /className="market-source-identity"/);
+  assert.match(terminal, /market-source-pill simulated matrix-simulation-marker/);
+  assert.match(terminal, /t\("market\.simulated_source"\)/);
+  assert.equal(terminal.includes(' ? ` / ${t("market.simulated_source")}` : ""'), false);
+});
+
 test("the network map explains an evidence-empty state inside the map", () => {
   const network = readWebSource("components/NetworkWorkspace.tsx");
   const en = JSON.parse(readWebSource("i18n/en.json")) as Record<string, string>;
