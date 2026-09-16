@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { WorkspaceHeader } from "@/components/ui";
+import { PanelHeader, WorkspaceHeader } from "@/components/ui";
 import { ContractWorkbench } from "@/components/ContractWorkbench";
 import { MarketPositioningWorkspace } from "@/components/MarketPositioningWorkspace";
 import type { AppController } from "@/app/hooks/useAppController";
@@ -43,7 +43,10 @@ function PortfolioOverview({ controller }: { controller: AppController }) {
         <span><small>{t("portfolio.warnings")}</small><strong>{diagnostics.length}</strong></span>
       </section>
       <section className="workspace-panel">
-        <h2>{t("portfolio.resource_pool")}</h2>
+        <PanelHeader
+          title={t("portfolio.resource_pool")}
+          meta={`${resources.length} ${t("home.resources")}`}
+        />
         <div className="data-table">
           <div className="data-table-row header five">
             <span>{t("portfolio.resource")}</span><span>{t("portfolio.zone")}</span>
@@ -70,7 +73,10 @@ function PortfolioOverview({ controller }: { controller: AppController }) {
         </div>
       </section>
       <section className="workspace-panel">
-        <h2>{t("portfolio.review_warnings")}</h2>
+        <PanelHeader
+          title={t("portfolio.review_warnings")}
+          meta={String(diagnostics.length)}
+        />
         <CommercialWarningList
           items={diagnostics}
           t={t}
@@ -79,7 +85,7 @@ function PortfolioOverview({ controller }: { controller: AppController }) {
         />
       </section>
       <section className="workspace-panel">
-        <h2>{t("portfolio.handoffs")}</h2>
+        <PanelHeader title={t("portfolio.handoffs")} />
         <div className="commercial-handoff-actions">
           <button type="button" onClick={() => navigation.openWorkspace("market")}>{t("portfolio.show_market_context")}</button>
           <button type="button" onClick={() => navigation.openWorkspace("strategy")}>{t("portfolio.inspect_strategy")}</button>
@@ -95,10 +101,10 @@ function PortfolioRoutes({ controller }: { controller: AppController }) {
   const routes = api.routeCandidates;
   return (
     <section className="workspace-panel commercial-routes-panel">
-      <div className="section-heading">
-        <span className="eyebrow">{t("panel.routes")}</span>
-        <strong>{t("portfolio.route_comparison")}</strong>
-      </div>
+      <PanelHeader
+        title={t("portfolio.route_comparison")}
+        meta={`${routes.length} ${t("panel.routes")}`}
+      />
       <div className="data-table commercial-route-table">
         <div className="data-table-row header six">
           <span>{t("portfolio.route")}</span><span>{t("portfolio.path")}</span>
