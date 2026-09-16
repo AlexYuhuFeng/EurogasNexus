@@ -1,3 +1,5 @@
+export { EvidenceBlock } from "./EvidenceBlock";
+export type { EvidenceBlockItem } from "./EvidenceBlock";
 export { MetricStrip } from "./MetricStrip";
 export type { MetricStripItem } from "./MetricStrip";
 export { PanelHeader } from "./PanelHeader";
