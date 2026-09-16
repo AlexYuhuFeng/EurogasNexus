@@ -339,12 +339,8 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
             strategyResult={api.strategyResult}
             activeWarning={portfolio.activeWarning}
             reviewEvidenceItems={portfolio.reviewEvidenceItems}
-            gasDay={traderContext.gasDay}
-            deliveryProduct={traderContext.deliveryProduct}
-            hubId={traderContext.hubId}
             marketLastUpdatedAtUtc={api.marketLastUpdatedAtUtc}
             intradayOpportunities={api.intradayOpportunities}
-            sourceStats={controller.sources.sourceStats}
             optimizerContextMismatch={portfolio.optimizerContextMismatch}
             onResetSearch={() => controls.setSearchTerm("")}
             onToggleLayer={controls.toggleLayer}
