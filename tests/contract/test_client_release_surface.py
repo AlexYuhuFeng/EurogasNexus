@@ -665,13 +665,21 @@ def test_web_client_strategy_page_is_shadow_run_terminal() -> None:
         'const STRATEGY_VIEWS: StrategyViewId[] = '
         '["monitor", "economics", "risk", "runs"]'
     ) in strategy_terminal
-    assert 'role="tablist"' in strategy_terminal
+    workspace_tabs = (
+        ROOT / "clients" / "web" / "src" / "components" / "ui" / "WorkspaceTabs.tsx"
+    ).read_text(encoding="utf-8")
+    tab_keyboard = (
+        ROOT / "clients" / "web" / "src" / "components" / "ui" / "tabKeyboard.ts"
+    ).read_text(encoding="utf-8")
+    assert "<WorkspaceTabs" in strategy_terminal
+    assert 'idPrefix="strategy-tab"' in strategy_terminal
     assert 'role="tabpanel"' in strategy_terminal
-    assert 'aria-selected={activeView === view}' in strategy_terminal
-    assert 'event.key === "ArrowRight"' in strategy_terminal
-    assert 'event.key === "ArrowLeft"' in strategy_terminal
-    assert 'event.key === "Home"' in strategy_terminal
-    assert 'event.key === "End"' in strategy_terminal
+    assert 'role="tablist"' in workspace_tabs
+    assert 'aria-selected={isActive}' in workspace_tabs
+    assert '"ArrowRight"' in tab_keyboard
+    assert '"ArrowLeft"' in tab_keyboard
+    assert '"Home"' in tab_keyboard
+    assert '"End"' in tab_keyboard
     assert 'activeView === "monitor"' in strategy_terminal
     assert 'activeView === "economics"' in strategy_terminal
     assert 'activeView === "risk"' in strategy_terminal
@@ -1003,8 +1011,13 @@ def test_network_workspace_is_map_first_with_non_overlapping_rails_and_ladder() 
     assert "network-route-ladder" in network_workspace
     assert "network-rail-tabs" in network_workspace
     assert "network-rail-view" in network_workspace
-    assert 'role="tablist"' in network_workspace
-    assert 'aria-selected={activeRailView === view}' in network_workspace
+    workspace_tabs = (
+        ROOT / "clients" / "web" / "src" / "components" / "ui" / "WorkspaceTabs.tsx"
+    ).read_text(encoding="utf-8")
+    assert "<WorkspaceTabs" in network_workspace
+    assert 'idPrefix="network-rail-tab"' in network_workspace
+    assert 'role="tablist"' in workspace_tabs
+    assert 'aria-selected={isActive}' in workspace_tabs
     assert 'activeRailView === "decision"' in network_workspace
     assert 'activeRailView === "pnl"' in network_workspace
     assert 'activeRailView === "warnings"' in network_workspace
@@ -1502,8 +1515,9 @@ def test_web_client_mobile_topbar_constrains_controls_to_viewport() -> None:
     assert "min-width: 0" in css
     assert "flex-wrap: wrap" in css
     assert "minmax(0, 1fr)" in css
-    assert 'grid-template-areas: "workspace" "context" "topbar-controls"' in css
-    assert 'grid-template-areas: "workspace" "task" "search" "context" "topbar-controls"' in css
+    assert 'grid-template-areas: "workspace" "context-disclosure"' in css
+    assert 'grid-template-areas: "workspace" "task" "search" "context-disclosure"' in css
+    assert ".topbar-context-disclosure" in css
 
 
 def test_web_client_resource_pool_options_are_backend_owned() -> None:
