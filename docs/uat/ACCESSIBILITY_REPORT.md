@@ -1,46 +1,95 @@
-# Accessibility Report — CR-13
+# Accessibility and Browser Acceptance Report
 
-## Method
+## Current CI evidence
 
-- axe-core 4.x automated scan on 13 workspace URLs at 1440×900 (Playwright
-  Chromium headless).
-- Manual keyboard workflow checks for Market, Strategy Design/Backtest, and
-  Review (focus path, activation, no focus loss).
-- DOM heuristic audit for unlabeled controls, positive tabindex, overflow,
-  heading structure.
+The current whole-product Web acceptance is enforced by GitHub Actions, not by
+an ad-hoc local sweep.
 
-## Automated result
+- Ref: `6eb1c43b4a66cfe4886e5ee13a1753d1e1d647b0`
+- Workflow run: `35069273729`
+- Browser job: **success**
+- Matrix: 16 declared workspaces × 2 locales × 3 viewports = **96 checks**
+- Locales: English and Mandarin (`zh-CN`)
+- Viewports: 1440×900, 1920×1080, and 390×844
+- Browser tooling: Playwright Chromium 1.55.0 and axe-core 4.10.3
+- Runtime: migrated PostgreSQL test database with deterministic preview/UAT
+  data and an authenticated development/test-only UAT principal
 
-After CR-13 fixes, axe reports **0 violations across network, market,
-portfolio, scenario, strategy, review, orders, sources, glossary, runtime,
-settings, manual, and access**.
+Each rendered check requires all of the following:
 
-## Fixed critical/serious findings
+1. zero WCAG 2A/AA/2.1 A/AA axe violations;
+2. exactly one `h1` inside the main landmark;
+3. the expected document language;
+4. no fallback to the sign-in screen after authentication; and
+5. no document-level horizontal overflow.
 
-- `label` critical: Review analysis textarea had no accessible name.
-- `color-contrast` serious: 50+ muted/status nodes failed AA. Corrected
-  `--eg-muted` to `#6f6f6f`, added `--eg-positive`/`--eg-warn`/
-  `--eg-negative` tokens, dark-mode overrides, and active-row contrast.
-- `heading-order` moderate: 88 panel `<h3>` elements now follow the correct
-  `h1 -> h2` hierarchy after the workspace heading.
-- `landmark-one-main`/`region`: `<main>` no longer overrides its role with
-  `tabpanel`; page content is inside the main landmark.
-- `scrollable-region-focusable`: resource path list and network resource rail
-  are keyboard-focusable.
+The run completed with `ok: true`, `checks: 96`, and `failures: []`.
+Every recorded surface reported `axeViolations: 0`.
 
-## Manual keyboard result
+The same workflow run also passed the Web build/tests, Python validation suite,
+PostgreSQL integration job, and dependency-license/CVE audit. Desktop bundle
+jobs remain pull-request-only and were therefore skipped on this `main` push.
 
-- Market: topbar context controls and hub board are reachable/operable by
-  keyboard; workspace tabs use roving/arrow semantics.
-- Strategy: create-strategy form, save draft, freeze, and run backtest are
-  keyboard-operable in sequence.
-- Review: decision recorder controls are keyboard-operable and disabled until
-  an entity id is present.
-- No unexpected focus loss was observed.
+## Interaction checks
 
-## Remaining limitations
+The CI browser job additionally verifies two shell interactions that previously
+had acceptance debt:
 
-- Automated axe PASS is not a substitute for an external accessibility review
-  by users of assistive technology; that review remains PENDING_EXTERNAL.
-- Map and chart text alternatives are structural; assistive-technology
-  validation with NVDA/VoiceOver is deployment acceptance.
+- the grouped Preferences menu opens, supports keyboard movement, closes with
+  Escape, and returns focus to its invoker; and
+- at 390×844 the global Context & status disclosure starts collapsed and can be
+  expanded without losing the workspace.
+
+Scrollable narrow-layout regions found by the first CI sweep were corrected
+with explicit keyboard focusability. The standalone map-first Network route
+also carries one semantic main heading while retaining its visual map-first
+layout.
+
+## Evidence artifact
+
+The workflow uploads screenshots, browser logs and `summary.json` even when
+the browser step fails.
+
+For the passing run:
+
+- Artifact: `eurogas-nexus-browser-acceptance`
+- Artifact ID: `10435537571`
+- Size: 11,022,745 bytes
+- SHA-256 digest:
+  `9e7d343c5f14fd5896e8ba98e584ec051a7ea9651a05cf2bd3516d8a89e3c30b`
+- Retention configured by the workflow: 7 days
+
+The harness lives at `scripts/uat/browser_workflow_smoke.mjs`; the guarded
+browser identity seed is `scripts/uat/seed_browser_identity.py`.
+
+## Earlier CR-13 fixes retained
+
+The original CR-13 accessibility pass corrected, among other issues:
+
+- accessible naming for the Review analysis textarea;
+- critical/serious color-contrast failures;
+- heading-order defects;
+- main-landmark semantics; and
+- keyboard reachability for the original resource-path and Network rail
+  scrollers.
+
+Those corrections remain regression-tested; the current CI matrix supersedes
+the old 13-workspace/1440-only automated evidence statement.
+
+## Boundaries and remaining evidence
+
+A green automated browser matrix is not equivalent to every form of product
+acceptance. The following remain intentionally separate:
+
+- native Tauri/WebView interaction and packaged-desktop accessibility
+  (`EVID-DESKTOP-001`);
+- assistive-technology validation with NVDA/VoiceOver and human bilingual copy
+  judgement;
+- long-session/endurance behavior;
+- a successful real orchestrator-produced Agent replay/review-pack chain
+  (`CR15-UI-001`); and
+- licensed-data/export-rights acceptance where commercial redistribution terms
+  are required (`CR14-RIGHTS-001`).
+
+Missing evidence in those categories must remain explicit and must not be
+inferred from the simulated browser UAT fixture.
