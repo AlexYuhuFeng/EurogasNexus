@@ -93,6 +93,12 @@ export function SignInScreen({
               </p>
             )}
 
+            <div className="sign-in-retry-row">
+              <button type="button" className="sign-in-retry" onClick={onRetryIdentity} disabled={authBusy}>
+                {t("auth.retry_identity")}
+              </button>
+            </div>
+
             {devLoginAvailable && (
               <form className="sign-in-block sign-in-dev-form" onSubmit={handleDevLoginSubmit}>
                 <span className="sign-in-block-title">{t("auth.dev_title")}</span>
@@ -126,9 +132,6 @@ export function SignInScreen({
               </form>
             )}
 
-            <button type="button" className="sign-in-retry" onClick={onRetryIdentity} disabled={authBusy}>
-              {t("auth.retry_identity")}
-            </button>
           </>
         )}
 
