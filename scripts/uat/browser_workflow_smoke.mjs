@@ -347,8 +347,10 @@ async function agentResearchE2E(page, failures) {
       JSON.stringify(evidence, null, 2),
       "utf8",
     );
+    return evidence;
   } catch (error) {
     recordFailure(failures, scope, error);
+    return null;
   }
 }
 
@@ -405,6 +407,7 @@ export async function runWorkflowSmoke() {
   const failures = [];
   const pageErrors = [];
   const results = [];
+  let agentResearch = null;
   let currentScope = "startup";
 
   page.on("pageerror", (error) => {
@@ -440,7 +443,7 @@ export async function runWorkflowSmoke() {
     await interactionChecks(page, failures);
 
     currentScope = "interaction/agent-research-review";
-    await agentResearchE2E(page, failures);
+    agentResearch = await agentResearchE2E(page, failures);
   } finally {
     await context.close();
     await browser.close();
@@ -457,6 +460,7 @@ export async function runWorkflowSmoke() {
     languages: LANGUAGES.map((language) => language.id),
     viewports: VIEWPORTS,
     checks: results.length,
+    agentResearch,
     results,
     failures,
   };
