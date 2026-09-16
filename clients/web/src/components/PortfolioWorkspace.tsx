@@ -47,7 +47,7 @@ function PortfolioOverview({ controller }: { controller: AppController }) {
           title={t("portfolio.resource_pool")}
           meta={`${resources.length} ${t("home.resources")}`}
         />
-        <div className="data-table">
+        <div className="data-table" tabIndex={0}>
           <div className="data-table-row header five">
             <span>{t("portfolio.resource")}</span><span>{t("portfolio.zone")}</span>
             <span>{t("portfolio.quantity")}</span><span>{t("portfolio.all_in_cost")}</span>
@@ -105,7 +105,7 @@ function PortfolioRoutes({ controller }: { controller: AppController }) {
         title={t("portfolio.route_comparison")}
         meta={`${routes.length} ${t("panel.routes")}`}
       />
-      <div className="data-table commercial-route-table">
+      <div className="data-table commercial-route-table" tabIndex={0}>
         <div className="data-table-row header six">
           <span>{t("portfolio.route")}</span><span>{t("portfolio.path")}</span>
           <span>{t("portfolio.access")}</span><span>{t("portfolio.feasibility")}</span>
