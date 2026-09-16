@@ -291,6 +291,9 @@ export function GlossaryWiki({
               onChange={(event) => onDurationEndChange(event.target.value)}
             />
           </label>
+          <small className="glossary-time-basis">
+            {t("evidence.time_basis")}: {t("evidence.utc")}
+          </small>
         </div>
         <div className="context-shortcuts">
           {shortcutTerms.map((term) => (
