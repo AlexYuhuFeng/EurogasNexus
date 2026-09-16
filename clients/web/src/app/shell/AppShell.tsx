@@ -176,6 +176,7 @@ export function AppShell({ controller }: AppShellProps) {
             highlightedRoute={portfolio.highlightedRoute}
             resourcePoolMapPaths={portfolio.resourcePoolMapPaths}
             poolInputBlockers={portfolio.poolInputBlockers}
+            commercialDiagnostics={portfolio.commercialDiagnostics}
             error={api.error}
             loading={api.loading}
             saleOptions={portfolio.saleOptions}
