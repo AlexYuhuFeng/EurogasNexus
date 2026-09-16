@@ -721,7 +721,7 @@ def test_web_client_strategy_page_is_shadow_run_terminal() -> None:
     assert "isSimulatedSource" in strategy_terminal
     assert "isStaleObservation" in strategy_terminal
     assert "language: string" in strategy_terminal
-    assert "Intl.DateTimeFormat(language.startsWith" in strategy_terminal
+    assert "formatUtcTimestamp(value)" in strategy_terminal
     assert "fxRates" in strategy_terminal
     assert "WITHIN_DAY" in strategy_terminal
     assert "DAY_AHEAD" in strategy_terminal
