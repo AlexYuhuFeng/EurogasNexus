@@ -1,5 +1,6 @@
 import { type FormEventHandler, useState } from "react";
 import {
+  EvidenceBlock,
   MetricStrip,
   PanelHeader,
   StatusBadge,
@@ -292,28 +293,41 @@ export function SourceCenter({
         {selectedSource && (
           <>
             <p>{selectedSource.description}</p>
+            <EvidenceBlock
+              className="source-evidence-block"
+              ariaLabel={t("sources.title")}
+              items={[
+                {
+                  label: t("sources.effective_source"),
+                  value: selectedSource.effective_source_system,
+                  detail: sourceLabel("sources.status", selectedSource.operational_status),
+                },
+                {
+                  label: t("sources.freshness_state"),
+                  value: sourceLabel(
+                    "sources.freshness_state",
+                    selectedSource.freshness_state ?? selectedSource.freshness_status ?? "unknown",
+                  ),
+                  detail: `${t("sources.last_success")}: ${formatSourceTimestamp(selectedSource.effective_last_success_at_utc)}`,
+                },
+                {
+                  label: t("sources.entitlement"),
+                  value: selectedSource.entitlement_scope,
+                  detail: selectedSource.credential_requirements.length > 0
+                    ? sourceLabel("sources.certification", selectedSource.certification_stage)
+                    : t("credentials.not_required"),
+                },
+              ]}
+            />
             <div className="metric-grid two-column source-detail-metrics">
               <div><span>{t("sources.category_label")}</span><strong>{sourceLabel("sources.category", selectedSource.category)}</strong></div>
-              <div><span>{t("sources.entitlement")}</span><strong>{selectedSource.entitlement_scope}</strong></div>
               <div><span>{t("sources.native_status")}</span><strong>{sourceLabel("sources.status", selectedSource.connectivity_status)}</strong></div>
-              <div><span>{t("sources.effective_source")}</span><strong>{selectedSource.effective_source_system}</strong></div>
               <div><span>{t("sources.credential_state")}</span><strong>{sourceLabel("sources.credential", selectedSource.credential_state)}</strong></div>
               <div><span>{t("sources.freshness")}</span><strong>{selectedSource.freshness_expectation_minutes ? `${selectedSource.freshness_expectation_minutes}m` : "n/a"}</strong></div>
-              <div><span>{t("sources.last_success")}</span><strong>{formatSourceTimestamp(selectedSource.effective_last_success_at_utc)}</strong></div>
               <div><span>{t("sources.last_failure")}</span><strong>{formatSourceTimestamp(selectedSource.last_failure_at_utc)}</strong></div>
               <div><span>{t("sources.next_run")}</span><strong>{selectedSource.scheduler_enabled ? formatSourceTimestamp(selectedSource.next_run_at_utc) : t("sources.scheduler_disabled")}</strong></div>
               <div><span>{t("sources.circuit_state")}</span><strong>{selectedSource.circuit_state ?? "n/a"}</strong></div>
-              <div><span>{t("sources.freshness_state")}</span><strong>{selectedSource.freshness_state ?? selectedSource.freshness_status ?? "n/a"}</strong></div>
               <div><span>{t("sources.consecutive_failures")}</span><strong>{selectedSource.consecutive_failures}</strong></div>
-              {selectedSource.credential_requirements.length > 0 && (
-                <div>
-                  <span>{t("sources.certification")}</span>
-                  <strong>
-                    {sourceLabel("sources.certification", selectedSource.certification_stage)}
-                    {selectedSource.certification_allows_live ? ` / ${t("sources.certified_live")}` : ""}
-                  </strong>
-                </div>
-              )}
             </div>
             <div className="source-datasets">
               <span>{t("panel.datasets")}</span>
