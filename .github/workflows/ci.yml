@@ -140,6 +140,120 @@ jobs:
           path: clients/web/dist
           if-no-files-found: error
 
+  browser-acceptance:
+    name: Browser acceptance (EN/ZH, 3 viewports)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: nexus
+          POSTGRES_PASSWORD: nexus
+          POSTGRES_DB: nexus_uat
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U nexus"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      RUNTIME_STORE_DATABASE_URL: postgresql+pg8000://nexus:nexus@127.0.0.1:5432/nexus_uat
+      EUROGAS_NEXUS_ENV: test
+      EUROGAS_NEXUS_API_PROFILE: development
+      EUROGAS_NEXUS_UAT_FIXTURE_ALLOWED: "1"
+      EUROGAS_NEXUS_DEV_LOGIN_USERNAME: eurogas-uat-admin
+      EUROGAS_NEXUS_DEV_LOGIN_PASSWORD: uat-password
+      EUROGAS_NEXUS_LLM_EXTERNAL_PROVIDER_ENABLED: "false"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.11.12"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: "24.13.1"
+          cache: npm
+          cache-dependency-path: clients/web/package-lock.json
+
+      - name: Install application dependencies
+        run: python -m pip install -e ".[dev]"
+
+      - name: Install Web dependencies
+        working-directory: clients/web
+        run: npm ci
+
+      - name: Install pinned browser acceptance tools
+        run: |
+          mkdir -p /tmp/eurogas-uat
+          npm install --prefix /tmp/eurogas-uat --no-package-lock --no-save playwright@1.55.0 axe-core@4.10.3
+          node /tmp/eurogas-uat/node_modules/playwright/cli.js install --with-deps chromium
+
+      - name: Migrate and seed deterministic UAT runtime
+        run: |
+          alembic upgrade head
+          python scripts/ops/seed_preview_runtime_data.py
+          python scripts/uat/seed_uat_fixture.py
+          python scripts/uat/seed_browser_identity.py
+
+      - name: Start API and Web servers
+        run: |
+          mkdir -p artifacts/uat-browser
+          python -m uvicorn apps.api.main:app --host 127.0.0.1 --port 8000 > artifacts/uat-browser/api.log 2>&1 &
+          echo $! > /tmp/eurogas-api.pid
+          npm --prefix clients/web run dev -- --host 127.0.0.1 > artifacts/uat-browser/vite.log 2>&1 &
+          echo $! > /tmp/eurogas-vite.pid
+
+          api_ready=0
+          for _ in {1..60}; do
+            if curl --fail --silent --show-error http://127.0.0.1:8000/api/health >/dev/null; then
+              api_ready=1
+              break
+            fi
+            sleep 1
+          done
+          test "$api_ready" = "1"
+
+          web_ready=0
+          for _ in {1..60}; do
+            if curl --fail --silent --show-error http://127.0.0.1:3000 >/dev/null; then
+              web_ready=1
+              break
+            fi
+            sleep 1
+          done
+          test "$web_ready" = "1"
+
+      - name: Run whole-product browser acceptance
+        env:
+          EUROGAS_UAT_PLAYWRIGHT_PATH: /tmp/eurogas-uat/node_modules/playwright/index.js
+          EUROGAS_UAT_AXE_PATH: /tmp/eurogas-uat/node_modules/axe-core/axe.min.js
+          EUROGAS_UAT_OUTPUT_DIR: artifacts/uat-browser
+        run: node scripts/uat/browser_workflow_smoke.mjs
+
+      - name: Stop UAT servers
+        if: always()
+        run: |
+          if test -f /tmp/eurogas-vite.pid; then kill "$(cat /tmp/eurogas-vite.pid)" || true; fi
+          if test -f /tmp/eurogas-api.pid; then kill "$(cat /tmp/eurogas-api.pid)" || true; fi
+
+      - name: Upload browser acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: eurogas-nexus-browser-acceptance
+          path: artifacts/uat-browser
+          if-no-files-found: warn
+          retention-days: 7
+
   desktop-client-build:
     name: Build desktop client (${{ matrix.artifact_label }})
     if: github.event_name == 'pull_request'
