@@ -242,7 +242,8 @@ async function agentResearchE2E(page, failures) {
       if (!response.ok) throw new Error(`agent runs HTTP ${response.status}`);
       const body = await response.json();
       const run = (body.data || []).find(
-        (item) => item.user_objective === wantedObjective,
+        (item) =>
+          (item.user_objective ?? item.objective) === wantedObjective,
       );
       if (!run) throw new Error("new governed agent run not found");
       const replayResponse = await fetch(

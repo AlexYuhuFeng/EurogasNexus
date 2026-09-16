@@ -162,6 +162,19 @@ def test_human_confirmation_gate_via_api(client) -> None:
     assert confirmed.json()["data"]["status"] == "BLOCKED"
 
 
+def test_agent_run_list_matches_web_dto_objective_vocabulary(client) -> None:
+    run_id = _run_full_chain_research(client)
+    listed = client.get("/api/agent/runs", params={"limit": 50})
+    assert listed.status_code == 200
+    run = next(
+        item for item in listed.json()["data"]
+        if item["agent_run_id"] == run_id
+    )
+    assert run["user_objective"] == "Is the NBP premium over TTF persistent today?"
+    # Historical clients may still read the alias; both values must stay equal.
+    assert run["objective"] == run["user_objective"]
+
+
 def test_research_run_creates_replay_without_hidden_cot(client) -> None:
     response = client.post(
         "/api/agent/research",

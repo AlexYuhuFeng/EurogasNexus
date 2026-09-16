@@ -213,7 +213,10 @@ def list_agent_runs(
             {
                 "agent_run_id": row.agent_run_id,
                 "principal_id": row.principal_id,
+                # Keep the historical objective alias for compatibility,
+                # while matching the Web AgentRunDTO/replay vocabulary.
                 "objective": row.user_objective,
+                "user_objective": row.user_objective,
                 "agent_profile": row.agent_profile,
                 "status": row.status,
                 "current_stage": row.current_stage,
