@@ -674,7 +674,8 @@ def test_web_client_strategy_page_is_shadow_run_terminal() -> None:
     assert "<WorkspaceTabs" in strategy_terminal
     assert 'idPrefix="strategy-tab"' in strategy_terminal
     assert 'role="tabpanel"' in strategy_terminal
-    assert 'role="tablist"' in workspace_tabs
+    assert 'role = "tablist"' in workspace_tabs
+    assert "role={role}" in workspace_tabs
     assert 'aria-selected={isActive}' in workspace_tabs
     assert '"ArrowRight"' in tab_keyboard
     assert '"ArrowLeft"' in tab_keyboard
@@ -1016,7 +1017,8 @@ def test_network_workspace_is_map_first_with_non_overlapping_rails_and_ladder() 
     ).read_text(encoding="utf-8")
     assert "<WorkspaceTabs" in network_workspace
     assert 'idPrefix="network-rail-tab"' in network_workspace
-    assert 'role="tablist"' in workspace_tabs
+    assert 'role = "tablist"' in workspace_tabs
+    assert "role={role}" in workspace_tabs
     assert 'aria-selected={isActive}' in workspace_tabs
     assert 'activeRailView === "decision"' in network_workspace
     assert 'activeRailView === "pnl"' in network_workspace
