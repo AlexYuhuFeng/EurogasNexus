@@ -76,8 +76,10 @@ test("intraday candidate language stays inside the decision-support boundary", (
   assert.equal(zh["intraday.title"], "价差候选（供复核）");
   assert.equal(en["intraday.title"].toLowerCase().includes("executable"), false);
   assert.equal(zh["intraday.title"].includes("可执行"), false);
-  assert.match(en["intraday.human_review"], /review/i);
-  assert.match(zh["intraday.human_review"], /复核/);
+  assert.match(en["intraday.human_review"], /decision support only/i);
+  assert.match(en["intraday.human_review"], /before any external action/i);
+  assert.match(zh["intraday.human_review"], /仅用于决策支持/);
+  assert.match(zh["intraday.human_review"], /任何外部操作前/);
 });
 
 test("the market source matrix marks simulated provenance at the source identity", () => {
