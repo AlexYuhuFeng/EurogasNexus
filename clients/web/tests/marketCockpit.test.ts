@@ -68,6 +68,18 @@ test("supported major hubs are explicit and finite", () => {
   assert.deepEqual(MAJOR_MARKET_HUBS, ["TTF", "NBP", "ZTP", "THE", "PEG", "PSV"]);
 });
 
+test("intraday candidate language stays inside the decision-support boundary", () => {
+  const en = JSON.parse(readWebSource("i18n/en.json")) as Record<string, string>;
+  const zh = JSON.parse(readWebSource("i18n/zh.json")) as Record<string, string>;
+
+  assert.equal(en["intraday.title"], "Spread candidates for review");
+  assert.equal(zh["intraday.title"], "价差候选（供复核）");
+  assert.equal(en["intraday.title"].toLowerCase().includes("executable"), false);
+  assert.equal(zh["intraday.title"].includes("可执行"), false);
+  assert.match(en["intraday.human_review"], /review/i);
+  assert.match(zh["intraday.human_review"], /复核/);
+});
+
 test("the market overview renders the data status as a translated label", () => {
   const cockpit = readWebSource("components/MarketCockpit.tsx");
   const en = JSON.parse(readWebSource("i18n/en.json")) as Record<string, string>;

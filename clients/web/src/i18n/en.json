@@ -1185,7 +1185,7 @@
   "panel.route": "Route",
   "panel.warning": "Warning",
   "intraday.eyebrow": "Intraday decision feed",
-  "intraday.title": "Executable spread candidates",
+  "intraday.title": "Spread candidates for review",
   "intraday.active": "active",
   "intraday.monitoring": "Monitoring live quote pairs",
   "intraday.no_candidates": "No positive route-adjusted spread candidate in the latest backend scan.",

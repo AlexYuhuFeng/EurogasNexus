@@ -1185,7 +1185,7 @@
   "sources.diagnostic.failed": "最近入库失败",
   "result.route_alpha": "路径收益阶梯",
   "intraday.eyebrow": "日内决策流",
-  "intraday.title": "可执行价差候选",
+  "intraday.title": "价差候选（供复核）",
   "intraday.active": "个活跃",
   "intraday.monitoring": "正在监控实时买卖盘",
   "intraday.no_candidates": "最新后端扫描中没有净路径成本为正的价差候选。",
