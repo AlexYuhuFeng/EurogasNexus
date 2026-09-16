@@ -23,7 +23,8 @@ import type {
   StrategyPriceBasisRow,
 } from "@/components/strategy/StrategyShadowRunSections";
 import { useMemo, useState } from "react";
-import { WorkspaceTabs } from "@/components/ui";
+import { EvidenceBlock, WorkspaceTabs } from "@/components/ui";
+import { formatUtcTimestamp } from "@/app/model/evidencePresentation";
 
 type Translate = (key: string) => string;
 
@@ -89,16 +90,8 @@ function formatSignedMoney(value: number | null | undefined): string {
   return `${sign}${Math.round(value).toLocaleString()}`;
 }
 
-function formatTimestamp(value: string | null | undefined, language: string): string {
-  if (!value) return "n/a";
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return "n/a";
-  return new Intl.DateTimeFormat(language.startsWith("zh") ? "zh-CN" : "en-GB", {
-    month: "short",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(parsed);
+function formatTimestamp(value: string | null | undefined, _language: string): string {
+  return formatUtcTimestamp(value);
 }
 
 function riskValue(riskControl: Record<string, unknown> | undefined, key: string): string {
@@ -731,10 +724,30 @@ export function StrategyShadowRunTerminal({
             {warningPanel}
             <section className="workspace-panel span-2 strategy-source-evidence">
               <h2>{t("strategy.source_evidence")}</h2>
-              <div className="source-chip-list">
-                {source_refs.slice(0, 12).map((source) => <span key={`strategy-source-${source}`}>{source}</span>)}
-                {source_refs.length === 0 && <span>{t("data.partial")}</span>}
-              </div>
+              <EvidenceBlock
+                items={[
+                  {
+                    label: t("evidence.lineage"),
+                    value: source_refs.length > 0 ? source_refs.slice(0, 12).join(" · ") : t("data.partial"),
+                    wide: true,
+                  },
+                  {
+                    label: t("evidence.observed"),
+                    value: formatTimestamp(priceTape[0]?.observed_at_utc, language),
+                  },
+                  {
+                    label: t("evidence.freshness"),
+                    value: staleBasisCount > 0 ? t("data.stale") : t("data.ready"),
+                    detail: `${staleBasisCount} ${t("strategy.stale_data")} · ${simulatedBasisCount} ${t("strategy.simulated_data")}`,
+                  },
+                  {
+                    label: t("evidence.review_boundary"),
+                    value: persistedHumanReviewRequired
+                      ? t("strategy.warning.human_review_required")
+                      : t("strategy.no_execution"),
+                  },
+                ]}
+              />
             </section>
           </>
         )}
