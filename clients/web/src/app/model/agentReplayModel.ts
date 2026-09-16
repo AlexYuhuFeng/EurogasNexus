@@ -459,6 +459,7 @@ export function agentIssueLabelKey(code: string): string {
   const known: Record<string, string> = {
     DATA_MISSING: "agents.issue.data_missing",
     SERIES_UNAVAILABLE: "agents.issue.series_unavailable",
+    MISSING_SERIES: "agents.issue.series_unavailable",
     ENTITLEMENT_MISSING: "agents.issue.entitlement_missing",
     INSUFFICIENT_HISTORY: "agents.issue.insufficient_history",
     TEMPORAL_PROVENANCE_INSUFFICIENT: "agents.issue.temporal_provenance_insufficient",

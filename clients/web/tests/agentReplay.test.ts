@@ -423,13 +423,17 @@ test("a chain that declares an artifact present without a body never claims a pa
 
 test("agent issue presentation preserves raw codes and attaches persisted evidence context", () => {
   const replay = replayFixture();
-  replay.blockers = ["SERIES_UNAVAILABLE"];
+  // The fixture intentionally carries the older MISSING_SERIES validation
+  // vocabulary. Replay presentation must enrich historical persisted runs too,
+  // rather than only matching the current SERIES_UNAVAILABLE spelling.
+  replay.blockers = ["MISSING_SERIES"];
   replay.warnings = ["BACKTEST_DEFERRED: no period/frozen version evidence"];
 
   const blockers = agentReplayIssueRows(replay, "blocker");
-  assert.equal(blockers[0]?.code, "SERIES_UNAVAILABLE");
-  assert.match(blockers[0]?.detail ?? "", /series/i);
-  assert.notEqual(blockers[0]?.evidence, "");
+  assert.equal(blockers[0]?.code, "MISSING_SERIES");
+  assert.equal(blockers[0]?.detail, "series not registered");
+  assert.equal(blockers[0]?.evidence, "nbp.da.d1");
+  assert.equal(agentIssueLabelKey("MISSING_SERIES"), "agents.issue.series_unavailable");
   assert.equal(agentIssueLabelKey("SERIES_UNAVAILABLE"), "agents.issue.series_unavailable");
 
   const warning = agentIssueRowFromText(replay.warnings[0] ?? "");
