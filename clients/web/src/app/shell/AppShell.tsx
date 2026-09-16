@@ -103,6 +103,7 @@ export function AppShell({ controller }: AppShellProps) {
         loading={api.loading}
         streamingActive={api.streamingActive}
         language={i18n.language}
+        mode={theme.mode}
         gasDay={traderContext.gasDay}
         deliveryProduct={traderContext.deliveryProduct}
         hubId={traderContext.hubId}
@@ -120,6 +121,9 @@ export function AppShell({ controller }: AppShellProps) {
         onSignIn={() => void api.signIn()}
         onSignOut={() => void api.signOut()}
         onOpenAccess={() => navigation.openWorkspace("access")}
+        onOpenSettings={() => navigation.openWorkspace("settings")}
+        onLanguageChange={(language) => void changeAppLanguage(language)}
+        onModeChange={theme.setMode}
       />
 
       {endpointFailures.total > 0 && (
