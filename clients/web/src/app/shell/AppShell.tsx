@@ -206,12 +206,8 @@ export function AppShell({ controller }: AppShellProps) {
             strategyResult={api.strategyResult}
             activeWarning={portfolio.activeWarning}
             reviewEvidenceItems={portfolio.reviewEvidenceItems}
-            gasDay={traderContext.gasDay}
-            deliveryProduct={traderContext.deliveryProduct}
-            hubId={traderContext.hubId}
             marketLastUpdatedAtUtc={api.marketLastUpdatedAtUtc}
             intradayOpportunities={api.intradayOpportunities}
-            sourceStats={sources.sourceStats}
             optimizerContextMismatch={portfolio.optimizerContextMismatch}
             onResetSearch={() => controls.setSearchTerm("")}
             onToggleLayer={controls.toggleLayer}
