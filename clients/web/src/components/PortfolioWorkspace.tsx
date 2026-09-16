@@ -3,11 +3,10 @@ import { WorkspaceHeader } from "@/components/ui";
 import { ContractWorkbench } from "@/components/ContractWorkbench";
 import { MarketPositioningWorkspace } from "@/components/MarketPositioningWorkspace";
 import type { AppController } from "@/app/hooks/useAppController";
-import { warningLabels } from "@/app/warningLabel";
+import { CommercialWarningList } from "@/components/CommercialWarningList";
 import {
   PORTFOLIO_TASKS,
   classifyRouteFeasibility,
-  dedupeWarnings,
   portfolioTaskFromLocation,
   type PortfolioTask,
 } from "@/app/model/commercialWorkflowModel";
@@ -31,12 +30,7 @@ function PortfolioOverview({ controller }: { controller: AppController }) {
         0,
       ) / Math.max(totalVolume, 1)
     : null;
-  const warnings = dedupeWarnings(
-    api.resourcePoolResult?.warnings,
-    api.routeRecommendation?.warnings,
-    api.resourcePoolOptions?.warnings,
-    portfolio.poolInputBlockers,
-  );
+  const diagnostics = portfolio.commercialDiagnostics;
 
   return (
     <div className="commercial-overview">
@@ -46,7 +40,7 @@ function PortfolioOverview({ controller }: { controller: AppController }) {
         <span><small>{t("portfolio.allocated")}</small><strong>{api.resourcePoolResult?.total_allocated_mwh_per_day?.toLocaleString() ?? "n/a"} MWh/d</strong></span>
         <span><small>{t("portfolio.unallocated")}</small><strong>{api.resourcePoolResult?.total_unallocated_mwh_per_day?.toLocaleString() ?? "n/a"} MWh/d</strong></span>
         <span><small>{t("portfolio.net_indicative")}</small><strong>{money(api.resourcePoolResult?.total_net_pnl_gbp_per_day, "/d")}</strong></span>
-        <span><small>{t("portfolio.warnings")}</small><strong>{warnings.length}</strong></span>
+        <span><small>{t("portfolio.warnings")}</small><strong>{diagnostics.length}</strong></span>
       </section>
       <section className="workspace-panel">
         <h2>{t("portfolio.resource_pool")}</h2>
@@ -77,11 +71,12 @@ function PortfolioOverview({ controller }: { controller: AppController }) {
       </section>
       <section className="workspace-panel">
         <h2>{t("portfolio.review_warnings")}</h2>
-        {warnings.length === 0 ? <p className="muted">{t("review.no_warnings")}</p> : (
-          <ul className="commercial-warning-list">
-            {warningLabels(warnings, t).slice(0, 8).map((warning) => <li key={warning}>{warning}</li>)}
-          </ul>
-        )}
+        <CommercialWarningList
+          items={diagnostics}
+          t={t}
+          limit={8}
+          emptyLabel={t("review.no_warnings")}
+        />
       </section>
       <section className="workspace-panel">
         <h2>{t("portfolio.handoffs")}</h2>

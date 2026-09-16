@@ -11,6 +11,7 @@ import {
   portfolioTaskToSearch,
 } from "../src/app/model/commercialWorkflowModel.ts";
 import { selectScenarioRouteEconomics } from "../src/app/model/scenarioRouteEconomics.ts";
+import { buildCommercialDiagnostics } from "../src/app/model/commercialWarnings.ts";
 import { workspaceTaskSearch } from "../src/workspaceNavigation.ts";
 
 function route(overrides: Record<string, unknown> = {}) {
@@ -362,6 +363,111 @@ test("matching option warnings affect only the allocated route", () => {
     classifyRouteFeasibility(route({ route_id: "route10" }), null, optimizer, options),
     "UNKNOWN",
   );
+});
+
+test("commercial diagnostics preserve affected object and sale-option evidence", () => {
+  const items = buildCommercialDiagnostics({
+    poolInputBlockers: [],
+    options: {
+      scope: "portfolio",
+      data_source: "runtime-postgresql",
+      portfolio_resources: [{
+        resource_id: "res-1",
+        resource_name: "Resource 1",
+        resource_type: "PIPELINE_IMPORT",
+        delivery_mode: "PHYSICAL_ENTRY_DELIVERY",
+        location_point_name: "TTF",
+        available_quantity_mwh_per_day: 100,
+        contract_cost_gbp_mwh: 20,
+        source_refs: ["contract:res-1"],
+      }],
+      sale_options: [{
+        option_id: "route-1",
+        label: "TTF -> NBP",
+        delivery_mode: "VIRTUAL_HUB_SALE",
+        target_point_name: "NBP",
+        sale_price_gbp_mwh: 30,
+        sale_price_source_system: "ICE_OCM_Sim",
+        sale_price_source_reference: "quote:1",
+        sale_price_observed_at_utc: "2026-09-16T10:00:00Z",
+        sale_price_freshness: "simulated_live",
+        sale_price_simulated: true,
+        source_refs: ["route:1"],
+      }],
+      blockers: [],
+      warnings: [],
+    },
+    optimizer: {
+      portfolio_id: "p1",
+      status: "PARTIAL",
+      algorithm: "test",
+      optimality: "partial",
+      total_allocated_mwh_per_day: 10,
+      total_unallocated_mwh_per_day: 90,
+      total_net_pnl_gbp_per_day: 100,
+      allocations: [{
+        resource_id: "res-1",
+        option_id: "route-1",
+        allocated_quantity_mwh_per_day: 10,
+        gross_sale_price_gbp_mwh: 30,
+        total_cost_gbp_mwh: 21,
+        early_cash_value_gbp_mwh: 0,
+        net_margin_gbp_mwh: 9,
+        net_pnl_gbp_per_day: 90,
+        warnings: ["PRICE_COST_CURRENCY_MISMATCH:res-1:route-1"],
+      }],
+      missing_inputs: [],
+      assumptions: [],
+      warnings: [],
+      source_refs: ["optimizer:1"],
+      research_only: true,
+      human_review_required: true,
+    },
+    recommendation: null,
+  });
+  assert.equal(items.length, 1);
+  assert.equal(items[0]?.affectedResourceId, "res-1");
+  assert.equal(items[0]?.affectedRouteId, "route-1");
+  assert.equal(items[0]?.sourceSystem, "ICE_OCM_Sim");
+  assert.equal(items[0]?.sourceReference, "quote:1");
+  assert.equal(items[0]?.observedAtUtc, "2026-09-16T10:00:00Z");
+  assert.equal(items[0]?.freshness, "simulated_live");
+  assert.equal(items[0]?.simulated, true);
+  assert.deepEqual(items[0]?.sourceRefs, ["optimizer:1", "contract:res-1", "route:1"]);
+});
+
+test("commercial diagnostics match identifiers exactly and merge duplicate origins", () => {
+  const items = buildCommercialDiagnostics({
+    poolInputBlockers: ["ROUTE_CAPACITY_UNKNOWN:route1"],
+    options: {
+      scope: "portfolio",
+      data_source: "runtime",
+      portfolio_resources: [],
+      sale_options: [
+        { option_id: "route1", label: "r1", delivery_mode: "VIRTUAL_HUB_SALE", target_point_name: "NBP", sale_price_gbp_mwh: 30 },
+        { option_id: "route10", label: "r10", delivery_mode: "VIRTUAL_HUB_SALE", target_point_name: "NBP", sale_price_gbp_mwh: 31 },
+      ],
+      blockers: ["ROUTE_CAPACITY_UNKNOWN:route1"],
+      warnings: [],
+    },
+    optimizer: null,
+    recommendation: null,
+  });
+  assert.equal(items.length, 1);
+  assert.equal(items[0]?.affectedRouteId, "route1");
+  assert.deepEqual(items[0]?.origins, ["preflight", "pool_options"]);
+});
+
+test("commercial diagnostics preserve human preflight text without inventing a machine code", () => {
+  const items = buildCommercialDiagnostics({
+    poolInputBlockers: ["Runtime database unavailable"],
+    options: null,
+    optimizer: null,
+    recommendation: null,
+  });
+  assert.equal(items[0]?.code, null);
+  assert.equal(items[0]?.detail, "Runtime database unavailable");
+  assert.equal(items[0]?.level, "blocker");
 });
 
 test("warning aggregation preserves order and removes duplicates", () => {

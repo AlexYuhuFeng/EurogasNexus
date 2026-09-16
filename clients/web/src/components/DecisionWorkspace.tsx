@@ -4,6 +4,7 @@ import { ScenarioWorkspace } from "@/components/ScenarioWorkspace";
 import { ReviewWorkspace } from "@/components/ReviewWorkspace";
 import type { AppController } from "@/app/hooks/useAppController";
 import { warningLabel } from "@/app/warningLabel";
+import { CommercialWarningList } from "@/components/CommercialWarningList";
 import {
   DECISION_TASKS,
   decisionTaskFromLocation,
@@ -81,27 +82,11 @@ function OptimizeWorkspace({ controller }: { controller: AppController }) {
       </section>
       <section className="workspace-panel">
         <h2>{t("decision.binding_constraints")}</h2>
-        <div className="data-table">
-          <div className="data-table-row header three">
-            <span>{t("decision.constraint")}</span><span>{t("decision.state")}</span><span>{t("decision.evidence")}</span>
-          </div>
-          {blockers.map((blocker) => (
-            <div key={blocker} className="data-table-row three">
-              <strong>{blocker}</strong><span>BLOCKED</span><span>{blocker}</span>
-            </div>
-          ))}
-          {(result?.warnings ?? []).map((warning) => {
-            const label = warningLabel(warning, t);
-            return (
-              <div key={warning} className="data-table-row three">
-                <strong>{label}</strong><span>WARN</span><span>{label}</span>
-              </div>
-            );
-          })}
-          {blockers.length === 0 && (result?.warnings.length ?? 0) === 0 && (
-            <div className="data-table-row three"><span>{t("decision.no_binding")}</span><span>—</span><span>—</span></div>
-          )}
-        </div>
+        <CommercialWarningList
+          items={portfolio.commercialDiagnostics}
+          t={t}
+          emptyLabel={t("decision.no_binding")}
+        />
       </section>
       <section className="workspace-panel">
         <h2>{t("decision.unallocated_reasons")}</h2>

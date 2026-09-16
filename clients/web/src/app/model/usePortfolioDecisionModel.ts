@@ -22,6 +22,7 @@ import {
 } from "@/app/index";
 import type { ContractDraft } from "@/app/index";
 import { selectScenarioRouteEconomics } from "@/app/model/scenarioRouteEconomics";
+import { buildCommercialDiagnostics } from "@/app/model/commercialWarnings";
 import type { ApiState } from "@/stores/api";
 
 interface PortfolioDecisionModelParams {
@@ -218,6 +219,15 @@ export function usePortfolioDecisionModel({
     blockers.push(...(api.resourcePoolOptions?.blockers ?? []));
     return blockers;
   }, [api.resourcePoolOptions, runtimeDbReady, t]);
+  const commercialDiagnostics = useMemo(
+    () => buildCommercialDiagnostics({
+      poolInputBlockers,
+      options: api.resourcePoolOptions,
+      optimizer: api.resourcePoolResult,
+      recommendation: api.routeRecommendation,
+    }),
+    [api.resourcePoolOptions, api.resourcePoolResult, api.routeRecommendation, poolInputBlockers],
+  );
   const autoOptimizerSignature = useMemo(
     () => JSON.stringify({
       resources: portfolioResources.map((resource) => [
@@ -382,6 +392,7 @@ export function usePortfolioDecisionModel({
     runtimeDbReady,
     canRunPoolOptimizer,
     poolInputBlockers,
+    commercialDiagnostics,
     resourcePoolMapPaths,
     highlightedRoute,
     reviewEvidenceItems,

@@ -19,6 +19,8 @@ import {
 } from "@/app/workspaceDerivedData";
 import { GasNetworkMap } from "@/components/GasNetworkMap";
 import { IntradayDecisionFeed } from "@/components/IntradayDecisionFeed";
+import { CommercialWarningList } from "@/components/CommercialWarningList";
+import type { CommercialDiagnosticItem } from "@/app/model/commercialWarnings";
 import { WorkspaceTabs } from "@/components/ui";
 import {
   ResourcePoolPathOverlay,
@@ -58,6 +60,7 @@ interface NetworkWorkspaceProps {
   highlightedRoute: ComponentProps<typeof GasNetworkMap>["highlightedRoute"];
   resourcePoolMapPaths: ResourcePoolMapPath[];
   poolInputBlockers: string[];
+  commercialDiagnostics: CommercialDiagnosticItem[];
   error: string | null;
   loading: boolean;
   saleOptions: SaleOption[];
@@ -117,6 +120,7 @@ export function NetworkWorkspace({
   highlightedRoute,
   resourcePoolMapPaths,
   poolInputBlockers,
+  commercialDiagnostics,
   error,
   loading,
   saleOptions,
@@ -506,20 +510,12 @@ export function NetworkWorkspace({
                 <span>{t("home.warning")}</span>
                 <strong>{activeWarning ? warningLabel(activeWarning, t) : t("home.warning_clear")}</strong>
               </div>
-              {poolInputBlockers.length > 0 && (
-                <div className="runtime-blocker-list">
-                  <strong>{t("home.optimizer_blocked")}</strong>
-                  {poolInputBlockers.map((blocker) => <span key={`rail-blocker-${blocker}`}>{blocker}</span>)}
-                </div>
-              )}
-              {poolAllocations.flatMap((allocation) => allocation.warnings).length > 0 && (
-                <div className="runtime-blocker-list">
-                  <strong>{t("home.warning")}</strong>
-                  {poolAllocations.flatMap((allocation) => allocation.warnings).map((warning) => (
-                    <span key={`rail-allocation-${warning}`}>{warningLabel(warning, t)}</span>
-                  ))}
-                </div>
-              )}
+              <CommercialWarningList
+                items={commercialDiagnostics}
+                t={t}
+                limit={8}
+                emptyLabel={t("home.warning_clear")}
+              />
               {error && <div className="panel alert">{error}</div>}
               {loading && <div className="panel">{t("status.loading")}</div>}
             </div>
