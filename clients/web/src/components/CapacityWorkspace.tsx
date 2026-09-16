@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { WorkspaceTabs } from "@/components/ui";
 import type {
   CapacityObsDTO,
   FlowObsDTO,
@@ -304,13 +305,18 @@ export function CapacityWorkspace({
             <strong>{t("capacity.title")}</strong>
             <p>{t("capacity.subtitle")}</p>
           </div>
-          <div className="segmented-control capacity-view-control" role="tablist" aria-label={t("capacity.views")}>
-            {(["network", "storage", "lng"] as CapacityView[]).map((view) => (
-              <button key={view} type="button" role="tab" aria-selected={activeView === view} className={activeView === view ? "active" : ""} onClick={() => setActiveView(view)}>
-                {t(`capacity.view_${view}`)}
-              </button>
-            ))}
-          </div>
+          <WorkspaceTabs
+            idPrefix="capacity-view"
+            label={t("capacity.views")}
+            tabs={(["network", "storage", "lng"] as CapacityView[]).map((view) => ({
+              id: view,
+              label: t(`capacity.view_${view}`),
+            }))}
+            activeId={activeView}
+            panelId="capacity-active-panel"
+            className="segmented-control capacity-view-control"
+            onActivate={setActiveView}
+          />
         </div>
 
         {activeView === "network" && (
@@ -373,6 +379,11 @@ export function CapacityWorkspace({
         )}
       </section>
 
+      <div
+        id="capacity-active-panel"
+        role="tabpanel"
+        aria-labelledby={`capacity-view-${activeView}`}
+      >
       {activeView === "network" && (
         <div className="capacity-network-layout">
           <section className="workspace-panel capacity-board-panel">
@@ -485,6 +496,7 @@ export function CapacityWorkspace({
           </div>
         </section>
       )}
+      </div>
     </div>
   );
 }

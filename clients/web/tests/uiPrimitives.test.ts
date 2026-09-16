@@ -66,6 +66,25 @@ test("Runtime delegates tablist semantics to WorkspaceTabs", () => {
   assert.doesNotMatch(source, /StatusBadge owns/);
 });
 
+test("Capacity, Network rail, and Strategy shadow delegate tab semantics to WorkspaceTabs", () => {
+  const cases = [
+    ["components/CapacityWorkspace.tsx", "capacity-view"],
+    ["components/NetworkWorkspace.tsx", "network-rail-tab"],
+    ["components/StrategyShadowRunTerminal.tsx", "strategy-tab"],
+  ] as const;
+
+  for (const [path, prefix] of cases) {
+    const source = readWebSource(path);
+    assert.match(source, /import \{ WorkspaceTabs \} from "@\/components\/ui"/);
+    assert.match(source, /<WorkspaceTabs/);
+    assert.match(source, new RegExp(`idPrefix="${prefix}"`));
+    assert.doesNotMatch(source, /<button[\s\S]*?role="tab"/);
+  }
+
+  const strategy = readWebSource("components/StrategyShadowRunTerminal.tsx");
+  assert.doesNotMatch(strategy, /handleViewKeyDown/);
+});
+
 test("WorkspaceTabs forwards its role prop and defaults to tablist", () => {
   const component = readWebSource("components/ui/WorkspaceTabs.tsx");
   assert.match(component, /role\?: "tablist"/);

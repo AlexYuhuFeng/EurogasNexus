@@ -19,6 +19,7 @@ import {
 } from "@/app/workspaceDerivedData";
 import { GasNetworkMap } from "@/components/GasNetworkMap";
 import { IntradayDecisionFeed } from "@/components/IntradayDecisionFeed";
+import { WorkspaceTabs } from "@/components/ui";
 import {
   ResourcePoolPathOverlay,
   type ResourcePoolMapPath,
@@ -374,21 +375,24 @@ export function NetworkWorkspace({
       </section>
 
       <aside className="decision-rail network-decision-rail" aria-label={t("network.rail_tabs")}>
-        <div className="network-rail-tabs" role="tablist" aria-label={t("network.rail_tabs")}>
-          {(["decision", "pnl", "warnings", "evidence"] as DecisionRailView[]).map((view) => (
-            <button
-              key={`network-rail-${view}`}
-              type="button"
-              role="tab"
-              className={activeRailView === view ? "network-rail-tab active" : "network-rail-tab"}
-              aria-selected={activeRailView === view}
-              onClick={() => setActiveRailView(view)}
-            >
-              {t(`network.rail_${view}`)}
-            </button>
-          ))}
-        </div>
-        <div className="network-rail-view">
+        <WorkspaceTabs
+          idPrefix="network-rail-tab"
+          label={t("network.rail_tabs")}
+          tabs={(["decision", "pnl", "warnings", "evidence"] as DecisionRailView[]).map((view) => ({
+            id: view,
+            label: t(`network.rail_${view}`),
+          }))}
+          activeId={activeRailView}
+          panelId="network-rail-panel"
+          className="network-rail-tabs"
+          onActivate={setActiveRailView}
+        />
+        <div
+          id="network-rail-panel"
+          className="network-rail-view"
+          role="tabpanel"
+          aria-labelledby={`network-rail-tab-${activeRailView}`}
+        >
           {activeRailView === "decision" && (
             <>
               <div className="panel intraday-home-panel">

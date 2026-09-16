@@ -22,7 +22,8 @@ import type {
   StrategyPnlCurveRow,
   StrategyPriceBasisRow,
 } from "@/components/strategy/StrategyShadowRunSections";
-import { type KeyboardEvent, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { WorkspaceTabs } from "@/components/ui";
 
 type Translate = (key: string) => string;
 
@@ -250,22 +251,6 @@ export function StrategyShadowRunTerminal({
   });
   const updateRiskOverride = (key: string, value: string) =>
     setRiskOverrides((prev) => ({ ...prev, [key]: value }));
-  const handleViewKeyDown = (
-    event: KeyboardEvent<HTMLButtonElement>,
-    currentView: StrategyViewId,
-  ) => {
-    const currentIndex = STRATEGY_VIEWS.indexOf(currentView);
-    let nextIndex: number | null = null;
-    if (event.key === "ArrowRight") nextIndex = (currentIndex + 1) % STRATEGY_VIEWS.length;
-    if (event.key === "ArrowLeft") nextIndex = (currentIndex - 1 + STRATEGY_VIEWS.length) % STRATEGY_VIEWS.length;
-    if (event.key === "Home") nextIndex = 0;
-    if (event.key === "End") nextIndex = STRATEGY_VIEWS.length - 1;
-    if (nextIndex === null) return;
-    event.preventDefault();
-    const nextView = STRATEGY_VIEWS[nextIndex];
-    setActiveView(nextView);
-    window.requestAnimationFrame(() => document.getElementById(`strategy-tab-${nextView}`)?.focus());
-  };
   const buildRiskOverrides = (): Record<string, unknown> => {
     const out: Record<string, unknown> = {};
     const numericKeys = [
@@ -602,23 +587,18 @@ export function StrategyShadowRunTerminal({
         </div>
       </section>
 
-      <nav className="strategy-view-tabs" role="tablist" aria-label={t("strategy.workspace_views")}>
-        {STRATEGY_VIEWS.map((view) => (
-          <button
-            key={`strategy-view-${view}`}
-            id={`strategy-tab-${view}`}
-            type="button"
-            role="tab"
-            aria-selected={activeView === view}
-            aria-controls="strategy-active-panel"
-            className={activeView === view ? "active" : ""}
-            onClick={() => setActiveView(view)}
-            onKeyDown={(event) => handleViewKeyDown(event, view)}
-          >
-            {t(`strategy.view.${view}`)}
-          </button>
-        ))}
-      </nav>
+      <WorkspaceTabs
+        idPrefix="strategy-tab"
+        label={t("strategy.workspace_views")}
+        tabs={STRATEGY_VIEWS.map((view) => ({
+          id: view,
+          label: t(`strategy.view.${view}`),
+        }))}
+        activeId={activeView}
+        panelId="strategy-active-panel"
+        className="strategy-view-tabs"
+        onActivate={setActiveView}
+      />
 
       <div
         id="strategy-active-panel"
