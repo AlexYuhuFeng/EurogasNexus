@@ -213,9 +213,27 @@ async function agentResearchE2E(page, failures) {
     );
     if (!(await allowStrategy.isChecked())) await allowStrategy.check();
 
+    const researchResponsePromise = page.waitForResponse(
+      (response) =>
+        response.url().includes("/api/agent/research") &&
+        response.request().method() === "POST",
+      { timeout: 30_000 },
+    );
     await page.locator(".agents-view-research button.button.primary").click();
+    const researchResponse = await researchResponsePromise;
+    const researchBody = await researchResponse.json().catch(() => null);
+    if (!researchResponse.ok()) {
+      throw new Error(
+        `agent research HTTP ${researchResponse.status()}: ${JSON.stringify(researchBody)}`,
+      );
+    }
+    if (researchBody?.data?.stage !== "READY_FOR_HUMAN_REVIEW") {
+      throw new Error(
+        `agent research did not reach review gate: ${JSON.stringify(researchBody?.data ?? researchBody)}`,
+      );
+    }
     const resultPanel = page.locator(".agents-result-panel").first();
-    await resultPanel.waitFor({ state: "visible", timeout: 30_000 });
+    await resultPanel.waitFor({ state: "visible", timeout: 10_000 });
 
     const runEnvelope = await page.evaluate(async (wantedObjective) => {
       const response = await fetch("/api/agent/runs?limit=50", {
