@@ -1,4 +1,4 @@
-import type { Dispatch, SetStateAction } from "react";
+import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 import {
   SUPPORTED_HUB_IDS,
   type SupportedHubId,
@@ -11,10 +11,12 @@ import {
 import { StatusBadge, WorkspaceTabs } from "@/components/ui";
 import type { WorkspacePageId } from "@/workspaceNavigation";
 import type { ApiState } from "@/stores/api";
+import type { ThemeMode } from "@/stores/theme";
 import type { CurrentUserDTO } from "@/api/client";
 import { buildSourceSummary, type SourceStats } from "@/app/workspaceDerivedData";
 import { dataPlaneLabelKey, dataPlaneState } from "@/app/model/dataPlaneStatus";
 import { AlertCenter } from "./AlertCenter";
+import { HeaderPreferencesMenu } from "./HeaderPreferencesMenu";
 import "./WorkspaceTopBar.css";
 
 interface WorkspaceTopBarProps {
@@ -24,12 +26,9 @@ interface WorkspaceTopBarProps {
   dataStatus: string;
   loading: boolean;
   streamingActive: boolean;
-  /**
-   * Current interface language. The header no longer offers a language control -
-   * preferences live in the settings workspace - but the alert centre formats
-   * times with it, so it stays part of the data contract.
-   */
+  /** Current interface language; persisted by the shared language writer. */
   language: string;
+  mode: ThemeMode;
   gasDay: string;
   deliveryProduct: string;
   hubId: SupportedHubId | null;
@@ -55,6 +54,9 @@ interface WorkspaceTopBarProps {
   onSignIn: () => void;
   onSignOut: () => void;
   onOpenAccess: () => void;
+  onOpenSettings: () => void;
+  onLanguageChange: (language: string) => void;
+  onModeChange: (mode: ThemeMode) => void;
 }
 
 export function WorkspaceTopBar({
@@ -65,6 +67,7 @@ export function WorkspaceTopBar({
   loading,
   streamingActive,
   language,
+  mode,
   gasDay,
   deliveryProduct,
   hubId,
@@ -82,6 +85,9 @@ export function WorkspaceTopBar({
   onSignIn,
   onSignOut,
   onOpenAccess,
+  onOpenSettings,
+  onLanguageChange,
+  onModeChange,
 }: WorkspaceTopBarProps) {
   const hasMapSearch = activeWorkspace === "network";
   const sourceSummary = buildSourceSummary(sourceStats, {
@@ -93,6 +99,28 @@ export function WorkspaceTopBar({
     id: primary.id,
     label: t(primary.labelKey),
   }));
+
+  const [narrowHeader, setNarrowHeader] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(max-width: 900px)").matches,
+  );
+  const [contextDisclosureOpen, setContextDisclosureOpen] = useState(false);
+
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 900px)");
+    const update = () => setNarrowHeader(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+
+  const productLabel =
+    deliveryProduct === "day-ahead"
+      ? t("context.day_ahead")
+      : deliveryProduct === "within-day"
+        ? t("context.within_day")
+        : deliveryProduct === "month-ahead"
+          ? t("context.month_ahead")
+          : t("context.all_products");
 
   return (
     <header
@@ -121,104 +149,127 @@ export function WorkspaceTopBar({
           placeholder={t("map.search")}
         />
       )}
-      <div className="topbar-trading-context" aria-label={t("context.title")}>
-        <label>
-          <span>{t("context.gas_day")}</span>
-          <input
-            type="date"
-            value={gasDay}
-            onChange={(event) => onGasDayChange(event.target.value)}
-          />
-        </label>
-        <label>
-          <span>{t("context.product")}</span>
-          <select
-            value={deliveryProduct}
-            onChange={(event) => onDeliveryProductChange(event.target.value)}
-          >
-            <option value="all">{t("context.all_products")}</option>
-            <option value="day-ahead">{t("context.day_ahead")}</option>
-            <option value="within-day">{t("context.within_day")}</option>
-            <option value="month-ahead">{t("context.month_ahead")}</option>
-          </select>
-        </label>
-        <label>
-          <span>{t("context.hub")}</span>
-          <select
-            aria-label={t("context.hub")}
-            value={hubId ?? ""}
-            onChange={(event) => onHubChange(event.target.value || null)}
-          >
-            <option value="">{t("context.no_hub_focus")}</option>
-            {SUPPORTED_HUB_IDS.map((hub) => (
-              <option key={`context-hub-${hub}`} value={hub}>{hub}</option>
-            ))}
-          </select>
-        </label>
-        <span className={sourceSummary.viewState === "ready" ? "context-freshness" : "context-freshness issue"}>
-          <strong>{t(`context.sources_${sourceSummary.viewState}`)}</strong>
-          {sourceSummary.showCounts && (
+      <details
+        className="topbar-context-disclosure"
+        open={!narrowHeader || contextDisclosureOpen}
+        onToggle={(event) => {
+          if (narrowHeader) setContextDisclosureOpen(event.currentTarget.open);
+        }}
+      >
+        <summary aria-label={t("topbar.context_status")}>
+          <strong>{t("topbar.context_status")}</strong>
+          <span>{gasDay} · {productLabel} · {hubId ?? t("context.no_hub_focus")}</span>
+        </summary>
+        {(!narrowHeader || contextDisclosureOpen) && (
+          <div className="topbar-context-disclosure-content">
+        <div className="topbar-trading-context" aria-label={t("context.title")}>
+          <label>
+            <span>{t("context.gas_day")}</span>
+            <input
+              type="date"
+              value={gasDay}
+              onChange={(event) => onGasDayChange(event.target.value)}
+            />
+          </label>
+          <label>
+            <span>{t("context.product")}</span>
+            <select
+              value={deliveryProduct}
+              onChange={(event) => onDeliveryProductChange(event.target.value)}
+            >
+              <option value="all">{t("context.all_products")}</option>
+              <option value="day-ahead">{t("context.day_ahead")}</option>
+              <option value="within-day">{t("context.within_day")}</option>
+              <option value="month-ahead">{t("context.month_ahead")}</option>
+            </select>
+          </label>
+          <label>
+            <span>{t("context.hub")}</span>
+            <select
+              aria-label={t("context.hub")}
+              value={hubId ?? ""}
+              onChange={(event) => onHubChange(event.target.value || null)}
+            >
+              <option value="">{t("context.no_hub_focus")}</option>
+              {SUPPORTED_HUB_IDS.map((hub) => (
+                <option key={`context-hub-${hub}`} value={hub}>{hub}</option>
+              ))}
+            </select>
+          </label>
+          <span className={sourceSummary.viewState === "ready" ? "context-freshness" : "context-freshness issue"}>
+            <strong>{t(`context.sources_${sourceSummary.viewState}`)}</strong>
+            {sourceSummary.showCounts && (
+              <small>
+                {sourceSummary.active}/{sourceSummary.total} {t("context.active")} · {sourceSummary.issues} {t("context.issues")}
+              </small>
+            )}
             <small>
-              {sourceSummary.active}/{sourceSummary.total} {t("context.active")} · {sourceSummary.issues} {t("context.issues")}
+              {marketLastUpdatedAtUtc
+                ? `${t("context.updated")} ${new Date(marketLastUpdatedAtUtc).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+                : t("context.no_market_update")}
             </small>
-          )}
-          <small>
-            {marketLastUpdatedAtUtc
-              ? `${t("context.updated")} ${new Date(marketLastUpdatedAtUtc).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
-              : t("context.no_market_update")}
-          </small>
-        </span>
-      </div>
-      <div className="header-controls">
-        <AlertCenter
-          alerts={monitoring.monitoringAlerts}
-          summary={monitoring.monitoringSummary}
-          analysisByAlert={monitoring.monitoringAnalysisByAlert}
-          busyAlertId={monitoring.monitoringBusyAlertId}
-          language={language}
-          onAcknowledge={monitoring.acknowledgeMonitoringAlert}
-          onAnalyze={monitoring.analyzeMonitoringAlert}
-        />
-        <span
-          className={`stream-status-badge ${streamingActive ? "stream-live" : "stream-fallback"}`}
-          aria-label={streamingActive ? t("stream.live") : t("stream.polling_fallback")}
-        >
-          {streamingActive ? t("stream.live") : t("stream.polling_fallback")}
-        </span>
-        {/*
-          The shell owns runtime/data status, so the badge stays - but it speaks
-          the constitution's operational vocabulary (Ready / Partial /
-          Unavailable) rather than the store's name, and it is the canonical
-          StatusBadge, which reads as state instead of as a control beside the
-          context selects. It is absent while loading: the source-posture block
-          beside it already says "checking", and a badge that flipped to red
-          mid-load would report a failure that has not happened.
-        */}
-        {!loading && (
-          <StatusBadge
-            variant="runtime-readiness-state"
-            status={dataPlaneState(dataStatus)}
-            className="topbar-data-status"
-            title={t("data.runtime_detail")}
-          >
-            {t(dataPlaneLabelKey(dataPlaneState(dataStatus)))}
-          </StatusBadge>
-        )}
-        <div className="topbar-user-menu">
-          {currentUser ? (
-            <>
-              <span title={currentUser.name}>{currentUser.display_name ?? currentUser.name}</span>
-              <small>{currentUser.role}</small>
-              {currentUser.permissions.includes("identity.manage") && (
-                <button type="button" onClick={onOpenAccess}>{t("topbar.access_identity")}</button>
-              )}
-              <button type="button" onClick={onSignOut}>{t("topbar.sign_out")}</button>
-            </>
-          ) : (
-            <button type="button" onClick={onSignIn}>{t("topbar.sign_in")}</button>
-          )}
+          </span>
         </div>
-      </div>
-    </header>
+          <div className="header-controls">
+          <AlertCenter
+            alerts={monitoring.monitoringAlerts}
+            summary={monitoring.monitoringSummary}
+            analysisByAlert={monitoring.monitoringAnalysisByAlert}
+            busyAlertId={monitoring.monitoringBusyAlertId}
+            language={language}
+            onAcknowledge={monitoring.acknowledgeMonitoringAlert}
+            onAnalyze={monitoring.analyzeMonitoringAlert}
+          />
+          <span
+            className={`stream-status-badge ${streamingActive ? "stream-live" : "stream-fallback"}`}
+            aria-label={streamingActive ? t("stream.live") : t("stream.polling_fallback")}
+          >
+            {streamingActive ? t("stream.live") : t("stream.polling_fallback")}
+          </span>
+          {/*
+            The shell owns runtime/data status, so the badge stays - but it speaks
+            the constitution's operational vocabulary (Ready / Partial /
+            Unavailable) rather than the store's name, and it is the canonical
+            StatusBadge, which reads as state instead of as a control beside the
+            context selects. It is absent while loading: the source-posture block
+            beside it already says "checking", and a badge that flipped to red
+            mid-load would report a failure that has not happened.
+          */}
+          {!loading && (
+            <StatusBadge
+              variant="runtime-readiness-state"
+              status={dataPlaneState(dataStatus)}
+              className="topbar-data-status"
+              title={t("data.runtime_detail")}
+            >
+              {t(dataPlaneLabelKey(dataPlaneState(dataStatus)))}
+            </StatusBadge>
+          )}
+          <div className="topbar-user-menu">
+            {currentUser ? (
+              <>
+                <span title={currentUser.name}>{currentUser.display_name ?? currentUser.name}</span>
+                <small>{currentUser.role}</small>
+                <HeaderPreferencesMenu
+                  currentUser={currentUser}
+                  language={language}
+                  mode={mode}
+                  t={t}
+                  onLanguageChange={onLanguageChange}
+                  onModeChange={onModeChange}
+                  onOpenSettings={onOpenSettings}
+                  onOpenAccess={onOpenAccess}
+                  onSignOut={onSignOut}
+                />
+              </>
+            ) : (
+              <button type="button" onClick={onSignIn}>{t("topbar.sign_in")}</button>
+            )}
+          </div>
+        </div>
+  
+          </div>
+        )}
+      </details>    </header>
   );
 }
