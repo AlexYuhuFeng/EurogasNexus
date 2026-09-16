@@ -96,7 +96,10 @@ export function StrategyCompareWorkspace({
       <section className="workspace-panel">
         <h2>{t("strategy_lab.select_runs")} (2–5)</h2>
         {runs.length === 0 ? (
-          <p className="muted">{t("strategy_lab.no_runs")}</p>
+          <div className="empty-state" role="status">
+            <strong>{t("strategy_lab.compare_not_ready")}</strong>
+            <p className="muted">{t("strategy_lab.compare_need_runs")}</p>
+          </div>
         ) : (
           <div className="strategy-compare-selector">
             {runs.map((run) => (
@@ -115,8 +118,17 @@ export function StrategyCompareWorkspace({
         )}
         <p>
           {t("strategy_lab.compatibility")}:{" "}
-          <strong className={`status-badge status-${status.toLowerCase().replaceAll("_", "-")}`}>{status}</strong>
+          {status === "NOT_READY" ? (
+            <strong className="status-badge status-not-ready">
+              {t("strategy_lab.compare_not_ready")}
+            </strong>
+          ) : (
+            <strong className={`status-badge status-${status.toLowerCase().replaceAll("_", "-")}`}>{status}</strong>
+          )}
         </p>
+        {runs.length > 0 && status === "NOT_READY" && (
+          <p className="muted">{t("strategy_lab.compare_select_two")}</p>
+        )}
       </section>
 
       {selectedRuns.length >= 2 && (

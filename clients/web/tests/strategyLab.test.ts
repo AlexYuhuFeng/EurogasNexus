@@ -45,6 +45,11 @@ test("strategy workspace re-entry clears a stale task from another workspace", (
   assert.equal(strategyTaskFromLocation(reenteredStrategy), "design");
 });
 
+test("comparison is not ready until at least two persisted runs are selected", () => {
+  assert.equal(classifyRunCompatibility([]), "NOT_READY");
+  assert.equal(classifyRunCompatibility([run()]), "NOT_READY");
+});
+
 test("comparison classifies different strategy as not meaningful", () => {
   const a = run({ run_id: "a", strategy_id: "strategy-a" });
   const b = run({ run_id: "b", strategy_id: "strategy-b" });

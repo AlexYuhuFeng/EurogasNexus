@@ -29,6 +29,7 @@ export function strategyTaskToSearch(
 }
 
 export type RunCompatibility =
+  | "NOT_READY"
   | "COMPARABLE"
   | "COMPARABLE_WITH_CAVEATS"
   | "NOT_MEANINGFULLY_COMPARABLE";
@@ -36,7 +37,7 @@ export type RunCompatibility =
 export function classifyRunCompatibility(
   runs: StrategyRunDTO[],
 ): RunCompatibility {
-  if (runs.length < 2) return "COMPARABLE";
+  if (runs.length < 2) return "NOT_READY";
   const strategyIds = new Set(runs.map((run) => run.strategy_id));
   if (strategyIds.size > 1) return "NOT_MEANINGFULLY_COMPARABLE";
   const engines = new Set(runs.map((run) => run.backtest_engine_version));
