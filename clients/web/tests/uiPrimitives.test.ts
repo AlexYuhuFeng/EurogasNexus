@@ -66,6 +66,42 @@ test("Runtime delegates tablist semantics to WorkspaceTabs", () => {
   assert.doesNotMatch(source, /StatusBadge owns/);
 });
 
+test("Capacity, Network rail, and Strategy shadow delegate tab semantics to WorkspaceTabs", () => {
+  const cases = [
+    ["components/CapacityWorkspace.tsx", "capacity-view"],
+    ["components/NetworkWorkspace.tsx", "network-rail-tab"],
+    ["components/StrategyShadowRunTerminal.tsx", "strategy-tab"],
+  ] as const;
+
+  for (const [path, prefix] of cases) {
+    const source = readWebSource(path);
+    assert.match(source, /import \{[^}]*WorkspaceTabs[^}]*\} from "@\/components\/ui"/s);
+    assert.match(source, /<WorkspaceTabs/);
+    assert.match(source, new RegExp(`idPrefix="${prefix}"`));
+    assert.doesNotMatch(source, /<button[\s\S]*?role="tab"/);
+  }
+
+  const strategy = readWebSource("components/StrategyShadowRunTerminal.tsx");
+  assert.doesNotMatch(strategy, /handleViewKeyDown/);
+});
+
+test("narrow scroll regions are explicitly keyboard focusable", () => {
+  const cases = [
+    ["components/CapacityWorkspace.tsx", /className="capacity-operating-table"[\s\S]*?tabIndex=\{0\}/],
+    ["components/MarketTerminal.tsx", /className="data-table market-fx-table" tabIndex=\{0\}/],
+    ["components/ContractWorkbench.tsx", /className="contract-command-actions" tabIndex=\{0\}/],
+    ["components/ContractWorkbench.tsx", /className="contract-clause-nav"[\s\S]*?tabIndex=\{0\}/],
+    ["components/ReviewWorkspace.tsx", /className="data-table" tabIndex=\{0\}/],
+    ["components/MarketPositioningWorkspace.tsx", /className="data-table orders-table" tabIndex=\{0\}/],
+    ["components/AccessCenter.tsx", /className="data-table" tabIndex=\{0\}/],
+    ["components/AgentsWorkspace.tsx", /className="research-table data-table" tabIndex=\{0\}/],
+  ] as const;
+
+  for (const [path, pattern] of cases) {
+    assert.match(readWebSource(path), pattern, path);
+  }
+});
+
 test("WorkspaceTabs forwards its role prop and defaults to tablist", () => {
   const component = readWebSource("components/ui/WorkspaceTabs.tsx");
   assert.match(component, /role\?: "tablist"/);

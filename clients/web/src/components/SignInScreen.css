@@ -119,8 +119,20 @@
   font-weight: 600;
 }
 
+.sign-in-retry-row {
+  display: flex;
+  justify-content: flex-start;
+}
+
 .sign-in-retry {
-  width: 100%;
+  min-height: auto;
+  width: auto;
+  border: 0;
+  background: transparent;
+  color: var(--eg-link);
+  padding: var(--space-1) 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .sign-in-primary:disabled,

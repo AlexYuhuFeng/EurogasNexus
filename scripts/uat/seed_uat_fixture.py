@@ -22,8 +22,10 @@ for path in (ROOT, SRC):
         sys.path.insert(0, str(path))
 
 from eurogas_nexus.db.models import (  # noqa: E402
+    CanonicalEntityRecord,
     FxObservationRecord,
     MarketObservationRecord,
+    SeriesDefinitionRecord,
 )
 from eurogas_nexus.db.session import (  # noqa: E402
     get_session_factory,
@@ -111,6 +113,116 @@ def main() -> int:
                 )
             )
             inserted += 1
+
+        # CR-15 deterministic research semantics. These are schema/identity
+        # fixtures only; no licensed vendor data is introduced.
+        for code in ("NBP", "TTF"):
+            session.merge(
+                CanonicalEntityRecord(
+                    canonical_entity_id=f"ent:market_hub:{code}",
+                    entity_type="market_hub",
+                    canonical_code=code,
+                    display_name=f"{code} UAT hub",
+                    description="Deterministic UAT canonical hub.",
+                    metadata_json={"simulated": True, "fixture": "browser-uat"},
+                    created_at_utc=now,
+                )
+            )
+
+        series = (
+            SeriesDefinitionRecord(
+                series_id="market.price.NBP.DAY_AHEAD",
+                name="NBP Day-Ahead UAT",
+                metric_type="price",
+                entity_type="market_hub",
+                entity_id="ent:market_hub:NBP",
+                product_id="DAY_AHEAD",
+                direction=None,
+                source_class="EEX_Sim",
+                native_frequency="1h",
+                native_unit="EUR/MWh",
+                currency="EUR",
+                temporal_type="OBSERVED",
+                availability_semantics="available_at_required",
+                created_at_utc=now,
+            ),
+            SeriesDefinitionRecord(
+                series_id="market.price.TTF.DAY_AHEAD",
+                name="TTF Day-Ahead UAT",
+                metric_type="price",
+                entity_type="market_hub",
+                entity_id="ent:market_hub:TTF",
+                product_id="DAY_AHEAD",
+                direction=None,
+                source_class="EEX_Sim",
+                native_frequency="1h",
+                native_unit="EUR/MWh",
+                currency="EUR",
+                temporal_type="OBSERVED",
+                availability_semantics="available_at_required",
+                created_at_utc=now,
+            ),
+            SeriesDefinitionRecord(
+                series_id="market.fx.EUR.GBP",
+                name="EUR/GBP UAT",
+                metric_type="fx",
+                entity_type="currency_pair",
+                entity_id="EURGBP",
+                product_id=None,
+                direction=None,
+                source_class="ECB_UAT_Sim",
+                native_frequency="1d",
+                native_unit="GBP/EUR",
+                currency="GBP",
+                temporal_type="OBSERVED",
+                availability_semantics="available_at_required",
+                created_at_utc=now,
+            ),
+        )
+        for item in series:
+            session.merge(item)
+
+        # The orchestrator deliberately reads the current UTC day. Add several
+        # distinct paired observations inside that day so the browser UAT can
+        # produce findings and a complete StrategyIR/review-pack chain at any
+        # wall-clock time without depending on an external feed.
+        day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        available_microseconds = max(
+            int((now - day_start).total_seconds() * 1_000_000),
+            6,
+        )
+        for sample in range(5):
+            observed = now - timedelta(
+                microseconds=available_microseconds * (sample + 1) // 8
+            )
+            for hub, base_value in (("NBP", 33.0), ("TTF", 31.0)):
+                session.merge(
+                    MarketObservationRecord(
+                        observation_id=f"uat-agent-{hub.lower()}-{sample}",
+                        market_venue=hub,
+                        product="DAY_AHEAD",
+                        price=base_value + sample * 0.1,
+                        unit="EUR/MWh",
+                        currency="EUR",
+                        period_start_utc=observed,
+                        period_end_utc=observed + timedelta(hours=1),
+                        observed_at_utc=observed,
+                        source_system="EEX_Sim",
+                        source_reference=f"uat-sim:agent:{hub}:{sample}",
+                        source_record_id=None,
+                        freshness="simulated_live",
+                        quality_score=0.8,
+                        research_only=True,
+                        metadata_json={
+                            "hub": hub,
+                            "tenor": "day-ahead",
+                            "simulated": True,
+                            "fixture": "browser-uat",
+                        },
+                    )
+                )
+                inserted += 1
+
         session.commit()
     print(
         f"Seeded {inserted} simulated UAT market observations across "

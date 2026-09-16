@@ -215,18 +215,12 @@ export function agentFieldRows(value: unknown): AgentFieldRow[] {
     .sort((left, right) => left.key.localeCompare(right.key));
 }
 
-/** Locale timestamp of a persisted ISO value, or an empty string when unusable. */
+/** Explicit UTC timestamp of a persisted ISO value, or an empty string when unusable. */
 export function formatAgentTimestamp(value: string | null | undefined): string {
   if (!value) return "";
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return "";
-  return parsed.toLocaleString([], {
-    year: "numeric",
-    month: "short",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return `${parsed.toISOString().slice(0, 19).replace("T", " ")} UTC`;
 }
 
 export function formatAgentCount(value: number): string {
@@ -452,6 +446,68 @@ export function agentValidationView(payload: AgentValidationPayloadDTO | null): 
     runBlockers: agentValueList(payload.run_blockers),
     runWarnings: agentValueList(payload.run_warnings),
   };
+}
+
+export interface AgentIssueDisplayRow {
+  code: string;
+  detail: string;
+  evidence: string;
+}
+
+export function agentIssueLabelKey(code: string): string {
+  const normalized = code.trim().toUpperCase();
+  const known: Record<string, string> = {
+    DATA_MISSING: "agents.issue.data_missing",
+    SERIES_UNAVAILABLE: "agents.issue.series_unavailable",
+    MISSING_SERIES: "agents.issue.series_unavailable",
+    ENTITLEMENT_MISSING: "agents.issue.entitlement_missing",
+    INSUFFICIENT_HISTORY: "agents.issue.insufficient_history",
+    TEMPORAL_PROVENANCE_INSUFFICIENT: "agents.issue.temporal_provenance_insufficient",
+    HUMAN_CONFIRMATION_REQUIRED: "agents.issue.human_confirmation_required",
+    STRATEGY_GENERATION_NOT_REQUESTED: "agents.issue.strategy_generation_not_requested",
+    BACKTEST_DEFERRED: "agents.issue.backtest_deferred",
+  };
+  return known[normalized] ?? "agents.issue.generic";
+}
+
+export function agentIssueRowFromText(value: string): AgentIssueDisplayRow {
+  const raw = String(value ?? "").trim();
+  const separator = raw.indexOf(":");
+  if (separator < 0) {
+    return { code: raw, detail: "", evidence: "" };
+  }
+  return {
+    code: raw.slice(0, separator).trim(),
+    detail: raw.slice(separator + 1).trim(),
+    evidence: "",
+  };
+}
+
+export function agentReplayIssueRows(
+  replay: AgentReplayDTO,
+  kind: "blocker" | "warning",
+): AgentIssueDisplayRow[] {
+  const raw = kind === "blocker" ? replay.blockers : replay.warnings;
+  const validationEnvelope = replay.artifacts?.validation;
+  const validation = validationEnvelope?.artifact_type === "validation"
+    ? agentValidationView(validationEnvelope.payload)
+    : null;
+  const validationIssues = [
+    ...(validation?.planIssues ?? []),
+    ...(validation?.strategyIssues ?? []),
+  ];
+
+  return raw.map((value) => {
+    const parsed = agentIssueRowFromText(value);
+    const matched = validationIssues.find(
+      (issue) => issue.code.trim().toUpperCase() === parsed.code.trim().toUpperCase(),
+    );
+    return {
+      code: parsed.code,
+      detail: matched?.detail || parsed.detail,
+      evidence: matched?.evidence || matched?.field || "",
+    };
+  });
 }
 
 export interface AgentChallengeItemRow {

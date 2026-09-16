@@ -68,6 +68,45 @@ test("supported major hubs are explicit and finite", () => {
   assert.deepEqual(MAJOR_MARKET_HUBS, ["TTF", "NBP", "ZTP", "THE", "PEG", "PSV"]);
 });
 
+test("intraday candidate language stays inside the decision-support boundary", () => {
+  const en = JSON.parse(readWebSource("i18n/en.json")) as Record<string, string>;
+  const zh = JSON.parse(readWebSource("i18n/zh.json")) as Record<string, string>;
+
+  assert.equal(en["intraday.title"], "Spread candidates for review");
+  assert.equal(zh["intraday.title"], "价差候选（供复核）");
+  assert.equal(en["intraday.title"].toLowerCase().includes("executable"), false);
+  assert.equal(zh["intraday.title"].includes("可执行"), false);
+  assert.match(en["intraday.human_review"], /decision support only/i);
+  assert.match(en["intraday.human_review"], /before any external action/i);
+  assert.match(zh["intraday.human_review"], /仅用于决策支持/);
+  assert.match(zh["intraday.human_review"], /任何外部操作前/);
+});
+
+test("the market source matrix marks simulated provenance at the source identity", () => {
+  const terminal = readWebSource("components/MarketTerminal.tsx");
+
+  assert.match(terminal, /className="market-source-identity"/);
+  assert.match(terminal, /market-source-pill simulated matrix-simulation-marker/);
+  assert.match(terminal, /t\("market\.simulated_source"\)/);
+  assert.equal(terminal.includes(' ? ` / ${t("market.simulated_source")}` : ""'), false);
+});
+
+test("the network map explains an evidence-empty state inside the map", () => {
+  const network = readWebSource("components/NetworkWorkspace.tsx");
+  const en = JSON.parse(readWebSource("i18n/en.json")) as Record<string, string>;
+  const zh = JSON.parse(readWebSource("i18n/zh.json")) as Record<string, string>;
+
+  assert.match(network, /!mapHasVisibleEvidence/);
+  assert.match(network, /className="map-empty-state"/);
+  assert.match(network, /map\.empty_title/);
+  assert.match(network, /geometryMessageKey\(networkGeometryState\)/);
+  assert.match(network, /map\.empty_help/);
+  for (const key of ["map.empty_title", "map.empty_help"]) {
+    assert.equal(typeof en[key], "string", `en ${key}`);
+    assert.equal(typeof zh[key], "string", `zh ${key}`);
+  }
+});
+
 test("the market overview renders the data status as a translated label", () => {
   const cockpit = readWebSource("components/MarketCockpit.tsx");
   const en = JSON.parse(readWebSource("i18n/en.json")) as Record<string, string>;

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { formatUtcTimestamp } from "@/app/model/evidencePresentation";
 import type {
   FxRateDTO,
   IntradayOpportunityDTO,
@@ -127,12 +128,8 @@ const tenorLabel = (tenor: string, t: Translate): string => {
   return t("market.tenor_day_ahead");
 };
 
-const formatTimestamp = (value: string | null | undefined): string => {
-  if (!value) return "n/a";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-};
+const formatTimestamp = (value: string | null | undefined): string =>
+  formatUtcTimestamp(value);
 
 const formatCadence = (seconds: number | null): string => {
   if (seconds == null) return "n/a";
@@ -563,13 +560,17 @@ export function MarketTerminal({
           </div>
           {sourceMatrixRows.map((row) => (
             <div key={`source-matrix-${row.sourceSystem}`} className="market-source-matrix-row" role="row">
-              <strong role="rowheader">{row.sourceSystem}</strong>
+              <strong role="rowheader" className="market-source-identity">
+                <span>{row.sourceSystem}</span>
+                {row.simulated && (
+                  <span className="market-source-pill simulated matrix-simulation-marker">
+                    {t("market.simulated_source")}
+                  </span>
+                )}
+              </strong>
               <span role="cell">{row.priceTiming}</span>
               <span role="cell">{row.hubs.length > 0 ? row.hubs.join(" / ") : "n/a"}</span>
-              <span role="cell">
-                {formatCadence(row.updateIntervalSeconds)}
-                {row.simulated ? ` / ${t("market.simulated_source")}` : ""}
-              </span>
+              <span role="cell">{formatCadence(row.updateIntervalSeconds)}</span>
             </div>
           ))}
           {sourceMatrixRows.length === 0 && (
@@ -696,7 +697,7 @@ export function MarketTerminal({
 
       <div className="workspace-panel">
         <h2>{t("market.fx")}</h2>
-        <div className="data-table market-fx-table">
+        <div className="data-table market-fx-table" tabIndex={0}>
           <div className="data-table-row header"><span>{t("market.pair")}</span><span>{t("market.rate")}</span><span>{t("market.observed")}</span><span>{t("panel.source")}</span></div>
           {fxRates.slice(0, 6).map((rate) => (
             <div key={`fx-row-${rate.pair}-${rate.observed_at_utc}`} className="data-table-row">

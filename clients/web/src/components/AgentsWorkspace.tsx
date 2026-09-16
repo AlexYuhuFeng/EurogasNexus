@@ -6,10 +6,15 @@ import {
   api,
 } from "@/api/client";
 import {
+  agentIssueLabelKey,
+  agentIssueRowFromText,
+  agentReplayIssueRows,
   agentReviewDecisionInput,
   agentReviewGate,
+  formatAgentTimestamp,
   nextAgentConfirmationState,
   type AgentConfirmationState,
+  type AgentIssueDisplayRow,
   type AgentReviewDecisionValue,
 } from "@/app/model/agentReplayModel";
 import { AgentArtifactChain } from "@/components/agents/AgentArtifactChain";
@@ -25,6 +30,30 @@ interface AgentsWorkspaceProps {
   t: Translate;
   /** Authenticated principal recorded as the reviewer of a review pack. */
   principalId?: string | null;
+}
+
+function AgentIssueList({
+  rows,
+  t,
+}: {
+  rows: AgentIssueDisplayRow[];
+  t: Translate;
+}) {
+  if (rows.length === 0) return null;
+  return (
+    <ul className="agents-issue-list">
+      {rows.map((row, index) => (
+        <li key={`${row.code}-${row.evidence}-${index}`}>
+          <span>
+            <strong>{t(agentIssueLabelKey(row.code))}</strong>
+            {row.detail && <span>{row.detail}</span>}
+            {row.evidence && <small>{t("agents.issue.affected_evidence")}: {row.evidence}</small>}
+          </span>
+          <code>{row.code || t("agents.issue.unknown_code")}</code>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 export function AgentsWorkspace({ t, principalId = null }: AgentsWorkspaceProps) {
@@ -62,6 +91,15 @@ export function AgentsWorkspace({ t, principalId = null }: AgentsWorkspaceProps)
   const gate = useMemo(
     () => agentReviewGate(selectedRun, reviewerIdentity),
     [selectedRun, reviewerIdentity],
+  );
+
+  const selectedBlockers = useMemo(
+    () => (selectedRun ? agentReplayIssueRows(selectedRun, "blocker") : []),
+    [selectedRun],
+  );
+  const selectedWarnings = useMemo(
+    () => (selectedRun ? agentReplayIssueRows(selectedRun, "warning") : []),
+    [selectedRun],
   );
 
   async function runResearch() {
@@ -169,7 +207,7 @@ export function AgentsWorkspace({ t, principalId = null }: AgentsWorkspaceProps)
           role="tabpanel"
           aria-labelledby={`agents-task-${activeView}`}
         >
-          <div className="research-table data-table">
+          <div className="research-table data-table" tabIndex={0}>
             <div className="data-table-row header five">
               <span>{t("agents.capability")}</span>
               <span>{t("agents.domain")}</span>
@@ -227,12 +265,25 @@ export function AgentsWorkspace({ t, principalId = null }: AgentsWorkspaceProps)
             <div className="agents-result-panel">
               <PanelHeader title={t("agents.result")} meta={String(result.stage ?? "")} />
               <p>{t("agents.run_id")}: {String(result.agent_run_id)}</p>
+              <p>{t("agents.objective")}: {objective.trim()}</p>
               <p>{t("agents.status")}: {String(result.status)}</p>
               {Array.isArray(result.blockers) && (result.blockers as string[]).length > 0 && (
-                <p className="alert">{t("agents.blockers")}: {String(result.blockers)}</p>
+                <div className="agents-result-issues alert">
+                  <strong>{t("agents.blockers")}</strong>
+                  <AgentIssueList
+                    rows={(result.blockers as string[]).map(agentIssueRowFromText)}
+                    t={t}
+                  />
+                </div>
               )}
               {Array.isArray(result.warnings) && (result.warnings as string[]).length > 0 && (
-                <p className="muted">{t("agents.warnings")}: {String(result.warnings)}</p>
+                <div className="agents-result-issues">
+                  <strong>{t("agents.warnings")}</strong>
+                  <AgentIssueList
+                    rows={(result.warnings as string[]).map(agentIssueRowFromText)}
+                    t={t}
+                  />
+                </div>
               )}
             </div>
           )}
@@ -246,7 +297,7 @@ export function AgentsWorkspace({ t, principalId = null }: AgentsWorkspaceProps)
           role="tabpanel"
           aria-labelledby={`agents-task-${activeView}`}
         >
-          <div className="research-table data-table">
+          <div className="research-table data-table" tabIndex={0}>
             <div className="data-table-row header six">
               <span>{t("agents.time")}</span>
               <span>{t("agents.objective")}</span>
@@ -261,12 +312,12 @@ export function AgentsWorkspace({ t, principalId = null }: AgentsWorkspaceProps)
                 className="data-table-row six link-row"
                 onClick={() => openRun(run)}
               >
-                <span>{new Date(run.created_at).toLocaleString()}</span>
-                <span>{run.user_objective}</span>
+                <span>{formatAgentTimestamp(run.created_at) || t("agents.value_absent")}</span>
+                <span className="agents-run-objective">{run.user_objective}</span>
                 <span>{run.agent_profile}</span>
                 <span className="status-badge">{run.status}</span>
                 <span>{run.artifacts_created.join(", ")}</span>
-                <span>{run.model_provider}/{run.model_id}</span>
+                <span className="agents-run-model">{run.model_provider}/{run.model_id}</span>
               </button>
             ))}
             {runs.length === 0 && (
@@ -314,21 +365,23 @@ export function AgentsWorkspace({ t, principalId = null }: AgentsWorkspaceProps)
                 </div>
                 <div className="agents-fact">
                   <span className="agents-fact-key">{t("agents.run_started_at")}</span>
-                  <span className="agents-fact-value">{selectedRun.started_at}</span>
+                  <span className="agents-fact-value">
+                    {formatAgentTimestamp(selectedRun.started_at) || t("agents.value_absent")}
+                  </span>
                 </div>
-                <div className="agents-fact">
+                <div className="agents-fact agents-fact-wide">
                   <span className="agents-fact-key">{t("agents.blockers")}</span>
                   <span className="agents-fact-value">
-                    {selectedRun.blockers.length > 0
-                      ? selectedRun.blockers.join(", ")
+                    {selectedBlockers.length > 0
+                      ? <AgentIssueList rows={selectedBlockers} t={t} />
                       : t("agents.value_absent")}
                   </span>
                 </div>
-                <div className="agents-fact">
+                <div className="agents-fact agents-fact-wide">
                   <span className="agents-fact-key">{t("agents.warnings")}</span>
                   <span className="agents-fact-value">
-                    {selectedRun.warnings.length > 0
-                      ? selectedRun.warnings.join(", ")
+                    {selectedWarnings.length > 0
+                      ? <AgentIssueList rows={selectedWarnings} t={t} />
                       : t("agents.value_absent")}
                   </span>
                 </div>

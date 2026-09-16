@@ -229,7 +229,7 @@ export function ContractWorkbench({
           <div><dt>{t("status.db")}</dt><dd>{runtimeDbReady ? t("data.ready") : t("data.unavailable")}</dd></div>
           <div><dt>{t("panel.status")}</dt><dd>{readOnlySelectedResource ? selectedPersistedTerm?.human_review_required === true ? t("settings.human_review") : t("data.unavailable") : t("settings.human_review")}</dd></div>
         </dl>
-        <div className="contract-command-actions">
+        <div className="contract-command-actions" tabIndex={0}>
           <button type="button" className="secondary-button" onClick={() => contractImportRef.current?.click()}>{t("contracts.action.import")}</button>
           <button type="button" className="secondary-button" onClick={resetContractDraft}>{t("contracts.action.new")}</button>
           <button type="button" disabled={!canSave} title={saveStatus} onClick={() => canSave && saveDraftContract(contractPayload)}>{t("contracts.action.save")}</button>
@@ -264,7 +264,7 @@ export function ContractWorkbench({
 
       {taskView === "terms" && (
         <div className="contract-terms-layout">
-          <nav className="contract-clause-nav" aria-label={t("contracts.clause_sections")}>
+          <nav className="contract-clause-nav" aria-label={t("contracts.clause_sections")} tabIndex={0}>
             {clauseTabs.map(([key, label], index) => <button key={key} type="button" className={clauseView === key ? "active" : ""} onClick={() => setClauseView(key)}><span>{String(index + 1).padStart(2, "0")}</span>{label}</button>)}
           </nav>
           <section className="contract-clause-editor">

@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { EvidenceBlock, WorkspaceTabs } from "@/components/ui";
+import { formatUtcTimestamp } from "@/app/model/evidencePresentation";
 import type {
   CapacityObsDTO,
   FlowObsDTO,
@@ -62,7 +64,7 @@ function formatNumber(value: number | null | undefined, digits = 2): string {
 }
 
 function formatTimestamp(value: string | null): string {
-  return value ? new Date(value).toLocaleString() : "n/a";
+  return formatUtcTimestamp(value);
 }
 
 function isStale(timestamp: string | null): boolean {
@@ -304,13 +306,18 @@ export function CapacityWorkspace({
             <strong>{t("capacity.title")}</strong>
             <p>{t("capacity.subtitle")}</p>
           </div>
-          <div className="segmented-control capacity-view-control" role="tablist" aria-label={t("capacity.views")}>
-            {(["network", "storage", "lng"] as CapacityView[]).map((view) => (
-              <button key={view} type="button" role="tab" aria-selected={activeView === view} className={activeView === view ? "active" : ""} onClick={() => setActiveView(view)}>
-                {t(`capacity.view_${view}`)}
-              </button>
-            ))}
-          </div>
+          <WorkspaceTabs
+            idPrefix="capacity-view"
+            label={t("capacity.views")}
+            tabs={(["network", "storage", "lng"] as CapacityView[]).map((view) => ({
+              id: view,
+              label: t(`capacity.view_${view}`),
+            }))}
+            activeId={activeView}
+            panelId="capacity-active-panel"
+            className="segmented-control capacity-view-control"
+            onActivate={setActiveView}
+          />
         </div>
 
         {activeView === "network" && (
@@ -373,6 +380,11 @@ export function CapacityWorkspace({
         )}
       </section>
 
+      <div
+        id="capacity-active-panel"
+        role="tabpanel"
+        aria-labelledby={`capacity-view-${activeView}`}
+      >
       {activeView === "network" && (
         <div className="capacity-network-layout">
           <section className="workspace-panel capacity-board-panel">
@@ -386,6 +398,7 @@ export function CapacityWorkspace({
                 assistive technology. Selection is exposed with aria-pressed. */}
             <div
               className="capacity-operating-table"
+              tabIndex={0}
               role="group"
               aria-label={t("capacity.operating_board")}
             >
@@ -442,7 +455,25 @@ export function CapacityWorkspace({
                   <div><dt>{t("capacity.physical_headroom")}</dt><dd>{formatNumber(selected.physicalHeadroomMcmD)} mcm/d</dd></div>
                   <div><dt>{t("capacity.products")}</dt><dd>{selectedAccess.length}</dd></div>
                 </dl>
-                <div className="capacity-evidence-line"><span>{t("capacity.source_record")}</span><strong>{selected.sourceReference ?? "ENTSOG"}</strong></div>
+                <EvidenceBlock
+                  className="capacity-evidence-block"
+                  ariaLabel={t("capacity.source_record")}
+                  items={[
+                    {
+                      label: t("capacity.source_record"),
+                      value: selected.sourceReference ?? t("data.unavailable"),
+                    },
+                    {
+                      label: t("capacity.latest_update"),
+                      value: formatTimestamp(selected.observedAtUtc),
+                    },
+                    {
+                      label: t("capacity.posture"),
+                      value: t(`capacity.${selected.posture}`),
+                      detail: t(`capacity.readiness_${selected.posture}`),
+                    },
+                  ]}
+                />
                 <div className="capacity-inspector-section">
                   <span>{t("capacity.booking_products")}</span>
                   {selectedAccess.slice(0, 5).map((row) => (
@@ -469,7 +500,7 @@ export function CapacityWorkspace({
       {activeView === "storage" && (
         <section className="workspace-panel capacity-assets-panel">
           <div className="panel-title-row"><div><h2>{t("capacity.storage_title")}</h2><p>{t("capacity.storage_note")}</p></div><span>GIE AGSI</span></div>
-          <div className="data-table capacity-asset-table">
+          <div className="data-table capacity-asset-table" tabIndex={0}>
             <div className="data-table-row header five"><span>{t("panel.storage")}</span><span>{t("panel.country")}</span><span>{t("capacity.fill")}</span><span>{t("capacity.inventory")}</span><span>{t("capacity.net_cycle")}</span></div>
             {latestStorage.map((row) => <div key={row.observation_id} className="data-table-row five"><strong>{row.facility_name}</strong><span>{row.country ?? "n/a"}</span><span>{formatNumber(row.fill_pct, 1)}%</span><span>{formatNumber(row.inventory_twh)} TWh</span><span>{formatNumber((row.injection_twh_d ?? 0) - (row.withdrawal_twh_d ?? 0))} TWh/d</span></div>)}
           </div>
@@ -479,12 +510,13 @@ export function CapacityWorkspace({
       {activeView === "lng" && (
         <section className="workspace-panel capacity-assets-panel">
           <div className="panel-title-row"><div><h2>{t("capacity.lng_title")}</h2><p>{t("capacity.lng_note")}</p></div><span>GIE ALSI</span></div>
-          <div className="data-table capacity-asset-table">
+          <div className="data-table capacity-asset-table" tabIndex={0}>
             <div className="data-table-row header five"><span>{t("panel.lng")}</span><span>{t("panel.country")}</span><span>{t("capacity.inventory")}</span><span>{t("capacity.send_out")}</span><span>DTMI TWh</span></div>
             {latestLng.map((row) => <div key={row.observation_id} className="data-table-row five"><strong>{row.terminal_name}</strong><span>{row.country ?? "n/a"}</span><span>{formatNumber(row.inventory_twh)} TWh</span><span>{formatNumber(row.send_out_twh_d)} TWh/d</span><span>{formatNumber(row.dtmi_twh)} TWh</span></div>)}
           </div>
         </section>
       )}
+      </div>
     </div>
   );
 }

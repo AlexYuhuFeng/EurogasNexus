@@ -6,6 +6,7 @@ import type {
   SourceSystemDTO,
 } from "@/api/client";
 import { useState } from "react";
+import { formatUtcTimestamp } from "@/app/model/evidencePresentation";
 import {
   ENDPOINT_FAILURE_LABEL_KEYS,
   UNKNOWN_ENDPOINT_FAILURE_LABEL_KEY,
@@ -45,10 +46,7 @@ interface RuntimeWorkspaceProps {
 }
 
 function formatHealthTime(value: string | null | undefined): string {
-  if (!value) return "n/a";
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return value;
-  return parsed.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  return formatUtcTimestamp(value);
 }
 
 function readinessStateLabel(state: ReadinessState, t: Translate): string {

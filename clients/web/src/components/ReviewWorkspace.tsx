@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { warningLabel } from "@/app/warningLabel";
+import { formatUtcTimestamp } from "@/app/model/evidencePresentation";
+import { EvidenceBlock } from "@/components/ui";
 import type {
   AnalysisResultDTO,
   PortfolioOptimizationResultDTO,
@@ -44,14 +46,7 @@ const REVIEW_ENTITY_TYPES: ReviewDecisionInputDTO["entity_type"][] = [
 ];
 
 function formatDecisionTime(value: string): string {
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return value;
-  return parsed.toLocaleString([], {
-    month: "short",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return formatUtcTimestamp(value, value);
 }
 
 export function ReviewWorkspace({
@@ -113,7 +108,7 @@ export function ReviewWorkspace({
           <strong>{t("review.title")}</strong>
         </div>
         <p className="panel-copy">{t("review.subtitle")}</p>
-        <div className="data-table">
+        <div className="data-table" tabIndex={0}>
           <div className="data-table-row header four"><span>{t("result.optimal")}</span><span>{t("home.allocated")}</span><span>{t("result.route_cost")}</span><span>PnL</span></div>
           {allocations.map((allocation) => {
             const option = saleOptionById.get(allocation.option_id);
@@ -180,12 +175,31 @@ export function ReviewWorkspace({
               </ul>
             </div>
             <div className="review-evidence-row review-evidence-row-full">
-              <span className="review-evidence-key">{t("review.source_refs")}</span>
-              <ul className="review-evidence-list">
-                {resourcePoolResult.source_refs.length > 0
-                  ? resourcePoolResult.source_refs.slice(0, 8).map((ref) => <li className="review-evidence-item" key={`ref-${ref}`}>{ref}</li>)
-                  : <li className="review-evidence-item">{t("review.none")}</li>}
-              </ul>
+              <EvidenceBlock
+                className="review-governance-evidence"
+                ariaLabel={t("review.evidence_pack")}
+                items={[
+                  {
+                    label: t("evidence.lineage"),
+                    value: resourcePoolResult.source_refs.length > 0
+                      ? resourcePoolResult.source_refs.slice(0, 8).join(" · ")
+                      : t("review.none"),
+                    wide: true,
+                  },
+                  {
+                    label: t("evidence.review_boundary"),
+                    value: resourcePoolResult.human_review_required
+                      ? t("settings.human_review")
+                      : t("review.none"),
+                  },
+                  {
+                    label: t("evidence.research_boundary"),
+                    value: resourcePoolResult.research_only
+                      ? t("settings.decision_support_only")
+                      : t("review.none"),
+                  },
+                ]}
+              />
             </div>
           </div>
         ) : (
@@ -253,7 +267,7 @@ export function ReviewWorkspace({
           <span className="eyebrow">{t("nav.review")}</span>
           <strong>{t("review.decision_history")}</strong>
         </div>
-        <div className="data-table">
+        <div className="data-table" tabIndex={0}>
           <div className="data-table-row header three"><span>{t("review.entity_id")}</span><span>{t("review.decision")}</span><span>{t("review.decision_time")}</span></div>
           {reviewDecisions.slice(0, 12).map((row) => (
             <div key={`review-history-${row.decision_id}`} className="data-table-row three">

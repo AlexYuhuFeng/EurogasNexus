@@ -122,6 +122,103 @@
  * flex row on wide viewports and a two-column grid on narrow ones, so both the
  * flex and the grid sizing have to be pinned.
  */
+.topbar-preferences-menu {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.topbar-preferences-trigger {
+  min-height: 32px;
+  border: 1px solid var(--eg-hairline, var(--border));
+  border-radius: 6px;
+  background: var(--eg-surface, var(--surface));
+  color: var(--eg-ink, var(--text));
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 5px 8px;
+}
+
+.topbar-preferences-trigger[aria-expanded="true"] {
+  border-color: var(--eg-link, var(--accent));
+}
+
+.topbar-preferences-popover {
+  position: absolute;
+  z-index: 95;
+  top: calc(100% + 6px);
+  right: 0;
+  display: grid;
+  width: min(280px, calc(100vw - 24px));
+  gap: 7px;
+  border: 1px solid var(--eg-hairline, var(--border));
+  border-radius: 8px;
+  background: var(--eg-surface, var(--surface));
+  box-shadow: var(--eg-shadow-3, 0 12px 28px rgb(24 32 38 / 16%));
+  padding: 8px;
+}
+
+.topbar-menu-identity {
+  display: grid;
+  gap: 2px;
+  border-bottom: 1px solid var(--eg-hairline, var(--border));
+  padding: 4px 6px 8px;
+}
+
+.topbar-menu-identity strong {
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+
+.topbar-menu-identity span,
+.topbar-menu-group-label {
+  color: var(--eg-muted, var(--muted));
+  font-size: 10px;
+}
+
+.topbar-menu-group {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.topbar-menu-group.lifecycle {
+  grid-template-columns: 1fr;
+  border-top: 1px solid var(--eg-hairline, var(--border));
+  padding-top: 7px;
+}
+
+.topbar-menu-group-label {
+  grid-column: 1 / -1;
+  padding: 1px 4px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.topbar-menu-group button {
+  min-height: 30px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--eg-ink, var(--text));
+  cursor: pointer;
+  font-size: 11px;
+  padding: 5px 7px;
+  text-align: left;
+}
+
+.topbar-menu-group button:hover,
+.topbar-menu-group button:focus-visible {
+  border-color: var(--eg-hairline, var(--border));
+  background: var(--eg-canvas-soft, var(--surface-strong));
+}
+
+.topbar-menu-group button[role="menuitemradio"][aria-checked="true"] {
+  border-color: var(--eg-link, var(--accent));
+  background: var(--eg-canvas-soft, var(--surface-strong));
+  font-weight: 700;
+}
+
 .topbar-data-status {
   align-self: center;
   flex: 0 0 auto;
@@ -413,9 +510,6 @@
     max-height: calc(100vh - 80px);
   }
 
-  .alert-trigger span:not(.alert-trigger-mark) {
-    display: none;
-  }
 }
 
 /* CR-01 primary workspace navigation */

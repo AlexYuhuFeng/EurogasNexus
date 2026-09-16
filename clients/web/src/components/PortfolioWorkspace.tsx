@@ -1,13 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { WorkspaceHeader } from "@/components/ui";
+import { PanelHeader, WorkspaceHeader } from "@/components/ui";
 import { ContractWorkbench } from "@/components/ContractWorkbench";
 import { MarketPositioningWorkspace } from "@/components/MarketPositioningWorkspace";
 import type { AppController } from "@/app/hooks/useAppController";
-import { warningLabels } from "@/app/warningLabel";
+import { CommercialWarningList } from "@/components/CommercialWarningList";
 import {
   PORTFOLIO_TASKS,
   classifyRouteFeasibility,
-  dedupeWarnings,
   portfolioTaskFromLocation,
   type PortfolioTask,
 } from "@/app/model/commercialWorkflowModel";
@@ -31,12 +30,7 @@ function PortfolioOverview({ controller }: { controller: AppController }) {
         0,
       ) / Math.max(totalVolume, 1)
     : null;
-  const warnings = dedupeWarnings(
-    api.resourcePoolResult?.warnings,
-    api.routeRecommendation?.warnings,
-    api.resourcePoolOptions?.warnings,
-    portfolio.poolInputBlockers,
-  );
+  const diagnostics = portfolio.commercialDiagnostics;
 
   return (
     <div className="commercial-overview">
@@ -46,11 +40,14 @@ function PortfolioOverview({ controller }: { controller: AppController }) {
         <span><small>{t("portfolio.allocated")}</small><strong>{api.resourcePoolResult?.total_allocated_mwh_per_day?.toLocaleString() ?? "n/a"} MWh/d</strong></span>
         <span><small>{t("portfolio.unallocated")}</small><strong>{api.resourcePoolResult?.total_unallocated_mwh_per_day?.toLocaleString() ?? "n/a"} MWh/d</strong></span>
         <span><small>{t("portfolio.net_indicative")}</small><strong>{money(api.resourcePoolResult?.total_net_pnl_gbp_per_day, "/d")}</strong></span>
-        <span><small>{t("portfolio.warnings")}</small><strong>{warnings.length}</strong></span>
+        <span><small>{t("portfolio.warnings")}</small><strong>{diagnostics.length}</strong></span>
       </section>
       <section className="workspace-panel">
-        <h2>{t("portfolio.resource_pool")}</h2>
-        <div className="data-table">
+        <PanelHeader
+          title={t("portfolio.resource_pool")}
+          meta={`${resources.length} ${t("home.resources")}`}
+        />
+        <div className="data-table" tabIndex={0}>
           <div className="data-table-row header five">
             <span>{t("portfolio.resource")}</span><span>{t("portfolio.zone")}</span>
             <span>{t("portfolio.quantity")}</span><span>{t("portfolio.all_in_cost")}</span>
@@ -76,15 +73,19 @@ function PortfolioOverview({ controller }: { controller: AppController }) {
         </div>
       </section>
       <section className="workspace-panel">
-        <h2>{t("portfolio.review_warnings")}</h2>
-        {warnings.length === 0 ? <p className="muted">{t("review.no_warnings")}</p> : (
-          <ul className="commercial-warning-list">
-            {warningLabels(warnings, t).slice(0, 8).map((warning) => <li key={warning}>{warning}</li>)}
-          </ul>
-        )}
+        <PanelHeader
+          title={t("portfolio.review_warnings")}
+          meta={String(diagnostics.length)}
+        />
+        <CommercialWarningList
+          items={diagnostics}
+          t={t}
+          limit={8}
+          emptyLabel={t("review.no_warnings")}
+        />
       </section>
       <section className="workspace-panel">
-        <h2>{t("portfolio.handoffs")}</h2>
+        <PanelHeader title={t("portfolio.handoffs")} />
         <div className="commercial-handoff-actions">
           <button type="button" onClick={() => navigation.openWorkspace("market")}>{t("portfolio.show_market_context")}</button>
           <button type="button" onClick={() => navigation.openWorkspace("strategy")}>{t("portfolio.inspect_strategy")}</button>
@@ -100,11 +101,11 @@ function PortfolioRoutes({ controller }: { controller: AppController }) {
   const routes = api.routeCandidates;
   return (
     <section className="workspace-panel commercial-routes-panel">
-      <div className="section-heading">
-        <span className="eyebrow">{t("panel.routes")}</span>
-        <strong>{t("portfolio.route_comparison")}</strong>
-      </div>
-      <div className="data-table commercial-route-table">
+      <PanelHeader
+        title={t("portfolio.route_comparison")}
+        meta={`${routes.length} ${t("panel.routes")}`}
+      />
+      <div className="data-table commercial-route-table" tabIndex={0}>
         <div className="data-table-row header six">
           <span>{t("portfolio.route")}</span><span>{t("portfolio.path")}</span>
           <span>{t("portfolio.access")}</span><span>{t("portfolio.feasibility")}</span>

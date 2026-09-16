@@ -2456,12 +2456,21 @@ body {
   min-width: 0;
 }
 
-.cockpit-app .cockpit-topbar > .topbar-trading-context {
+.topbar-context-disclosure,
+.topbar-context-disclosure-content {
+  display: contents;
+}
+
+.topbar-context-disclosure > summary {
+  display: none;
+}
+
+.cockpit-app .topbar-context-disclosure-content > .topbar-trading-context {
   grid-area: context;
   min-width: 0;
 }
 
-.cockpit-app .cockpit-topbar > .header-controls {
+.cockpit-app .topbar-context-disclosure-content > .header-controls {
   grid-area: topbar-controls;
   min-width: 0;
 }
@@ -4208,6 +4217,25 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.market-source-identity {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.market-source-identity > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.market-source-identity .matrix-simulation-marker {
+  flex: 0 0 auto;
+  padding: 1px 5px;
+  font-size: 10px;
+  line-height: 14px;
 }
 
 .market-source-matrix-row.header {
@@ -6137,6 +6165,41 @@ button.glossary-related-chip {
   font-size: 12px;
 }
 
+.map-empty-state {
+  position: absolute;
+  z-index: 38;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  width: min(420px, calc(100% - 48px));
+  gap: 6px;
+  padding: 14px 16px;
+  border: 1px solid var(--eg-hairline);
+  border-radius: var(--eg-radius-md);
+  background: rgb(255 255 255 / 94%);
+  box-shadow: var(--eg-shadow-2);
+  color: var(--eg-body);
+  text-align: left;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.map-empty-state strong {
+  color: var(--eg-ink);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.map-empty-state span,
+.map-empty-state small {
+  font-size: 12px;
+  line-height: 18px;
+}
+
+:root.dark .map-empty-state {
+  background: rgb(19 27 39 / 94%);
+}
+
 .map-visual-legend {
   position: absolute;
   z-index: 39;
@@ -7792,6 +7855,17 @@ button.glossary-related-chip {
   overflow: hidden;
 }
 
+.network-main-title {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 .workspace-network .network-workspace-shell {
   position: relative;
   flex: 1 1 auto;
@@ -8107,15 +8181,63 @@ button.glossary-related-chip {
 
 @media (max-width: 900px) {
   .cockpit-app .workspace-topbar-only.has-map-search {
-    grid-template-areas: "workspace" "task" "search" "context" "topbar-controls";
+    grid-template-areas: "workspace" "task" "search" "context-disclosure";
     grid-template-columns: minmax(0, 1fr);
     padding: 12px;
   }
 
   .cockpit-app .workspace-topbar-page {
-    grid-template-areas: "workspace" "context" "topbar-controls";
+    grid-template-areas: "workspace" "context-disclosure";
     grid-template-columns: minmax(0, 1fr);
     padding: 12px;
+  }
+
+  .cockpit-app .topbar-context-disclosure {
+    display: block;
+    grid-area: context-disclosure;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .cockpit-app .topbar-context-disclosure > summary {
+    display: grid;
+    min-height: 40px;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: var(--space-2);
+    border: 1px solid var(--eg-hairline);
+    border-radius: var(--radius-control);
+    background: var(--eg-canvas);
+    color: var(--eg-ink);
+    cursor: pointer;
+    padding: 6px 9px;
+  }
+
+  .cockpit-app .topbar-context-disclosure > summary strong {
+    font-size: 11px;
+    white-space: nowrap;
+  }
+
+  .cockpit-app .topbar-context-disclosure > summary span {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--eg-muted);
+    font-size: 10.5px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .cockpit-app .topbar-context-disclosure-content {
+    display: grid;
+    gap: var(--space-2);
+    padding-top: var(--space-2);
+  }
+
+  .cockpit-app .topbar-context-disclosure-content > .topbar-trading-context,
+  .cockpit-app .topbar-context-disclosure-content > .header-controls {
+    grid-area: auto;
+    width: 100%;
+    min-width: 0;
   }
 
   .cockpit-app .workspace-local-task,
@@ -8439,6 +8561,66 @@ button.glossary-related-chip {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  margin-top: var(--space-3);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+}
+
+.agents-page .agents-run-objective,
+.agents-page .agents-run-model {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.agents-result-issues {
+  display: grid;
+  gap: 6px;
+}
+
+.agents-issue-list {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.agents-issue-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: start;
+  padding: 5px 0;
+  border-bottom: 1px dotted var(--line-soft, #e6ebf1);
+}
+
+.agents-issue-list li:last-child {
+  border-bottom: 0;
+}
+
+.agents-issue-list li > span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.agents-issue-list li span,
+.agents-issue-list li small {
+  overflow-wrap: anywhere;
+}
+
+.agents-issue-list code {
+  max-width: 220px;
+  overflow-wrap: anywhere;
+  color: var(--eg-muted);
+  font-size: 10px;
+}
+
+.agents-fact-wide {
+  grid-column: 1 / -1;
 }
 
 .agents-chain-metrics,

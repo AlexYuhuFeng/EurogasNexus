@@ -12,7 +12,10 @@ test("sign-in actions reflect server-advertised capabilities", () => {
   assert.match(screen, /authStatus\.oidcConfigured \? "sign-in-secondary" : "sign-in-primary"/);
   assert.match(screen, /auth\.no_methods/);
   assert.doesNotMatch(screen, /auth\.dev_hint/);
-  assert.match(screen, /onRetryIdentity/);
+  assert.match(screen, /className="sign-in-retry-row"/);
+  assert.match(screen, /className="sign-in-retry" onClick=\{onRetryIdentity\}/);
+  assert.match(css, /\.sign-in-retry \{[\s\S]*?width: auto;/);
+  assert.doesNotMatch(css, /\.sign-in-retry \{[\s\S]*?width: 100%;/);
   assert.doesNotMatch(screen, /auth\.boundary_note/);
 });
 

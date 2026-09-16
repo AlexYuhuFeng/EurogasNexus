@@ -22,6 +22,9 @@ import {
   agentStrategyIRView,
   agentValidationView,
   agentValueList,
+  agentIssueLabelKey,
+  agentIssueRowFromText,
+  agentReplayIssueRows,
   formatAgentTimestamp,
   nextAgentConfirmationState,
   type AgentConfirmationState,
@@ -418,6 +421,27 @@ test("a chain that declares an artifact present without a body never claims a pa
   assert.ok(chain.missing.includes("findings"));
 });
 
+test("agent issue presentation preserves raw codes and attaches persisted evidence context", () => {
+  const replay = replayFixture();
+  // The fixture intentionally carries the older MISSING_SERIES validation
+  // vocabulary. Replay presentation must enrich historical persisted runs too,
+  // rather than only matching the current SERIES_UNAVAILABLE spelling.
+  replay.blockers = ["MISSING_SERIES"];
+  replay.warnings = ["BACKTEST_DEFERRED: no period/frozen version evidence"];
+
+  const blockers = agentReplayIssueRows(replay, "blocker");
+  assert.equal(blockers[0]?.code, "MISSING_SERIES");
+  assert.equal(blockers[0]?.detail, "series not registered");
+  assert.equal(blockers[0]?.evidence, "nbp.da.d1");
+  assert.equal(agentIssueLabelKey("MISSING_SERIES"), "agents.issue.series_unavailable");
+  assert.equal(agentIssueLabelKey("SERIES_UNAVAILABLE"), "agents.issue.series_unavailable");
+
+  const warning = agentIssueRowFromText(replay.warnings[0] ?? "");
+  assert.equal(warning.code, "BACKTEST_DEFERRED");
+  assert.equal(warning.detail, "no period/frozen version evidence");
+  assert.equal(agentIssueLabelKey("UNKNOWN_CODE"), "agents.issue.generic");
+});
+
 test("artifact payloads render compact rows without inventing values", () => {
   const plan = agentPlanView(planPayload());
   assert.equal(plan?.status, "VALIDATED");
@@ -476,10 +500,13 @@ test("bounded value lists and field rows never invent text", () => {
   assert.equal(agentValueList([1, 2]).values.join(", "), "1, 2");
 });
 
-test("timestamps render only when the persisted value is usable", () => {
+test("timestamps render only when usable and always name the UTC basis", () => {
   assert.equal(formatAgentTimestamp(null), "");
   assert.equal(formatAgentTimestamp("not-a-timestamp"), "");
-  assert.notEqual(formatAgentTimestamp("2026-02-01T10:04:00+00:00"), "");
+  assert.equal(
+    formatAgentTimestamp("2026-02-01T10:04:00+00:00"),
+    "2026-02-01 10:04:00 UTC",
+  );
 });
 
 test("the review gate is offered only for a present review pack with an id and a reviewer", () => {
@@ -601,6 +628,23 @@ test("confirmation transitions hold one in-flight decision and explain refusals"
   assert.deepEqual(idle, { status: "idle" });
 });
 
+test("the agents surface renders objectives, explicit UTC timestamps, and contextual issues without clipping", () => {
+  const workspace = readWebFile("components/AgentsWorkspace.tsx");
+  const css = readWebFile("styles/app.css");
+
+  assert.match(workspace, /t\("agents\.objective"\).*objective\.trim\(\)/s);
+  assert.match(workspace, /formatAgentTimestamp\(run\.created_at\)/);
+  assert.match(workspace, /formatAgentTimestamp\(selectedRun\.started_at\)/);
+  assert.match(workspace, /agentReplayIssueRows\(selectedRun, "blocker"\)/);
+  assert.match(workspace, /<AgentIssueList rows=\{selectedBlockers\} t=\{t\} \/>/);
+  assert.match(workspace, /className="agents-run-objective"/);
+  assert.match(workspace, /className="agents-run-model"/);
+
+  assert.match(css, /\.agents-page \.agents-run-objective,[\s\S]*?white-space: normal;/);
+  assert.match(css, /\.agents-replay-panel \{[\s\S]*?border: 0;/);
+  assert.match(css, /\.agents-issue-list/);
+});
+
 test("the agents surface renders the chain and the gate through shared primitives", () => {
   const workspace = readWebFile("components/AgentsWorkspace.tsx");
   const chain = readWebFile("components/agents/AgentArtifactChain.tsx");
@@ -677,6 +721,17 @@ test("every new agent string exists in both locales without placeholder characte
   const en = JSON.parse(readWebFile("i18n/en.json")) as Record<string, string>;
   const zh = JSON.parse(readWebFile("i18n/zh.json")) as Record<string, string>;
   const added = [
+    "agents.issue.data_missing",
+    "agents.issue.series_unavailable",
+    "agents.issue.entitlement_missing",
+    "agents.issue.insufficient_history",
+    "agents.issue.temporal_provenance_insufficient",
+    "agents.issue.human_confirmation_required",
+    "agents.issue.strategy_generation_not_requested",
+    "agents.issue.backtest_deferred",
+    "agents.issue.generic",
+    "agents.issue.affected_evidence",
+    "agents.issue.unknown_code",
     "agents.chain",
     "agents.chain_help",
     "agents.chain_progress",

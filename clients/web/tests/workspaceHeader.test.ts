@@ -50,6 +50,58 @@ test("only WorkspaceHeader owns the consolidated primary h1 and shared tab seman
   assert.match(renderer, /!usesConsolidatedHeader\s*&&\s*\(\s*<header/);
 });
 
+test("the direct map-first Network route keeps one semantic main heading", () => {
+  const shell = readWebSource("app/shell/AppShell.tsx");
+  const css = readWebSource("styles/app.css");
+
+  assert.match(shell, /navigation\.activeWorkspace === "network"/);
+  assert.match(shell, /<h1 className="network-main-title">\{t\("nav\.network"\)\}<\/h1>/);
+  assert.match(css, /\.network-main-title \{/);
+  assert.match(css, /clip-path: inset\(50%\);/);
+});
+
+test("the narrow alert trigger keeps a visible text label", () => {
+  const alertCenter = readWebSource("components/AlertCenter.tsx");
+  const css = readWebSource("components/WorkspaceTopBar.css");
+
+  assert.match(alertCenter, /<span>\{isChinese \? "告警" : "Alerts"\}<\/span>/);
+  assert.equal(css.includes(".alert-trigger span:not(.alert-trigger-mark)"), false);
+});
+
+test("the header preferences menu owns preference and lifecycle actions with keyboard return", () => {
+  const menu = readWebSource("components/HeaderPreferencesMenu.tsx");
+  const bar = readWebSource("components/WorkspaceTopBar.tsx");
+
+  assert.match(bar, /<HeaderPreferencesMenu/);
+  assert.match(menu, /aria-haspopup="menu"/);
+  assert.match(menu, /role="menu"/);
+  assert.match(menu, /role="menuitemradio"/);
+  assert.match(menu, /role="menuitem"/);
+  assert.match(menu, /event\.key === "Escape"/);
+  assert.match(menu, /event\.key === "ArrowDown"/);
+  assert.match(menu, /event\.key === "ArrowUp"/);
+  assert.match(menu, /triggerRef\.current\?\.focus\(\)/);
+  assert.match(menu, /requestAnimationFrame\(\(\) => triggerRef\.current\?\.focus\(\)\)/);
+  assert.match(menu, /onLanguageChange\("en"\)/);
+  assert.match(menu, /onLanguageChange\("zh-CN"\)/);
+  assert.match(menu, /onModeChange\(themeMode\)/);
+  assert.match(menu, /onOpenSettings/);
+  assert.match(menu, /onSignOut/);
+});
+
+test("the narrow header collapses context and status behind one disclosure", () => {
+  const bar = readWebSource("components/WorkspaceTopBar.tsx");
+  const css = readWebSource("styles/app.css");
+
+  assert.match(bar, /matchMedia\("\(max-width: 900px\)"\)/);
+  assert.match(bar, /className="topbar-context-disclosure"/);
+  assert.match(bar, /<summary aria-label=\{t\("topbar\.context_status"\)\}>/);
+  assert.match(bar, /\(!narrowHeader \|\| contextDisclosureOpen\)/);
+  assert.match(css, /grid-template-areas: "workspace" "context-disclosure";/);
+  assert.match(css, /grid-template-areas: "workspace" "task" "search" "context-disclosure";/);
+  assert.match(css, /\.topbar-context-disclosure-content[\s\S]*?display: grid;/);
+});
+
 test("the top bar identity cluster keeps the display name and role apart", () => {
   const bar = readWebSource("components/WorkspaceTopBar.tsx");
   const css = readWebSource("components/WorkspaceTopBar.css");

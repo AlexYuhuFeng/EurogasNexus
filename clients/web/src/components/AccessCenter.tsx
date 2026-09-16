@@ -107,7 +107,7 @@ export function AccessCenter({ currentUser, t }: AccessCenterProps) {
 
       {activeView === "users" && (
         <div id="access-active-panel" role="tabpanel" aria-labelledby="access-tab-users" className="workspace-panel span-3">
-          <div className="data-table">
+          <div className="data-table" tabIndex={0}>
             <div className="data-table-row header six">
               <span>{t("access.user")}</span>
               <span>{t("access.identity_source")}</span>
@@ -142,7 +142,7 @@ export function AccessCenter({ currentUser, t }: AccessCenterProps) {
 
       {activeView === "api_keys" && (
         <div id="access-active-panel" role="tabpanel" aria-labelledby="access-tab-api_keys" className="workspace-panel span-3">
-          <div className="data-table">
+          <div className="data-table" tabIndex={0}>
             <div className="data-table-row header five">
               <span>{t("access.key_label")}</span>
               <span>{t("access.key_owner")}</span>
@@ -165,7 +165,7 @@ export function AccessCenter({ currentUser, t }: AccessCenterProps) {
 
       {activeView === "audit" && (
         <div id="access-active-panel" role="tabpanel" aria-labelledby="access-tab-audit" className="workspace-panel span-3">
-          <div className="data-table">
+          <div className="data-table" tabIndex={0}>
             <div className="data-table-row header six">
               <span>{t("access.audit_time")}</span>
               <span>{t("access.audit_actor")}</span>

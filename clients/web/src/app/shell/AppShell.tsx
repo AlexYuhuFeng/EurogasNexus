@@ -103,6 +103,7 @@ export function AppShell({ controller }: AppShellProps) {
         loading={api.loading}
         streamingActive={api.streamingActive}
         language={i18n.language}
+        mode={theme.mode}
         gasDay={traderContext.gasDay}
         deliveryProduct={traderContext.deliveryProduct}
         hubId={traderContext.hubId}
@@ -120,6 +121,9 @@ export function AppShell({ controller }: AppShellProps) {
         onSignIn={() => void api.signIn()}
         onSignOut={() => void api.signOut()}
         onOpenAccess={() => navigation.openWorkspace("access")}
+        onOpenSettings={() => navigation.openWorkspace("settings")}
+        onLanguageChange={(language) => void changeAppLanguage(language)}
+        onModeChange={theme.setMode}
       />
 
       {endpointFailures.total > 0 && (
@@ -165,7 +169,9 @@ export function AppShell({ controller }: AppShellProps) {
 
       <main className="app-main" id="workspace-primary-content" data-shell-region="primary-workspace">
         {navigation.activeWorkspace === "network" ? (
-          <NetworkWorkspace
+          <>
+            <h1 className="network-main-title">{t("nav.network")}</h1>
+            <NetworkWorkspace
             t={t}
             nodes={api.nodes}
             edges={api.edges}
@@ -176,6 +182,7 @@ export function AppShell({ controller }: AppShellProps) {
             highlightedRoute={portfolio.highlightedRoute}
             resourcePoolMapPaths={portfolio.resourcePoolMapPaths}
             poolInputBlockers={portfolio.poolInputBlockers}
+            commercialDiagnostics={portfolio.commercialDiagnostics}
             error={api.error}
             loading={api.loading}
             saleOptions={portfolio.saleOptions}
@@ -201,12 +208,8 @@ export function AppShell({ controller }: AppShellProps) {
             strategyResult={api.strategyResult}
             activeWarning={portfolio.activeWarning}
             reviewEvidenceItems={portfolio.reviewEvidenceItems}
-            gasDay={traderContext.gasDay}
-            deliveryProduct={traderContext.deliveryProduct}
-            hubId={traderContext.hubId}
             marketLastUpdatedAtUtc={api.marketLastUpdatedAtUtc}
             intradayOpportunities={api.intradayOpportunities}
-            sourceStats={sources.sourceStats}
             optimizerContextMismatch={portfolio.optimizerContextMismatch}
             onResetSearch={() => controls.setSearchTerm("")}
             onToggleLayer={controls.toggleLayer}
@@ -221,6 +224,7 @@ export function AppShell({ controller }: AppShellProps) {
               navigation.openWorkspace("scenario");
             }}
           />
+          </>
         ) : (
           <WorkspaceRenderer controller={controller} />
         )}
