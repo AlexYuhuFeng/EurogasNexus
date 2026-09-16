@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { WorkspaceTabs } from "@/components/ui";
+import { EvidenceBlock, WorkspaceTabs } from "@/components/ui";
+import { formatUtcTimestamp } from "@/app/model/evidencePresentation";
 import type {
   CapacityObsDTO,
   FlowObsDTO,
@@ -63,7 +64,7 @@ function formatNumber(value: number | null | undefined, digits = 2): string {
 }
 
 function formatTimestamp(value: string | null): string {
-  return value ? new Date(value).toLocaleString() : "n/a";
+  return formatUtcTimestamp(value);
 }
 
 function isStale(timestamp: string | null): boolean {
@@ -453,7 +454,25 @@ export function CapacityWorkspace({
                   <div><dt>{t("capacity.physical_headroom")}</dt><dd>{formatNumber(selected.physicalHeadroomMcmD)} mcm/d</dd></div>
                   <div><dt>{t("capacity.products")}</dt><dd>{selectedAccess.length}</dd></div>
                 </dl>
-                <div className="capacity-evidence-line"><span>{t("capacity.source_record")}</span><strong>{selected.sourceReference ?? "ENTSOG"}</strong></div>
+                <EvidenceBlock
+                  className="capacity-evidence-block"
+                  ariaLabel={t("capacity.source_record")}
+                  items={[
+                    {
+                      label: t("capacity.source_record"),
+                      value: selected.sourceReference ?? t("data.unavailable"),
+                    },
+                    {
+                      label: t("capacity.latest_update"),
+                      value: formatTimestamp(selected.observedAtUtc),
+                    },
+                    {
+                      label: t("capacity.posture"),
+                      value: t(`capacity.${selected.posture}`),
+                      detail: t(`capacity.readiness_${selected.posture}`),
+                    },
+                  ]}
+                />
                 <div className="capacity-inspector-section">
                   <span>{t("capacity.booking_products")}</span>
                   {selectedAccess.slice(0, 5).map((row) => (
