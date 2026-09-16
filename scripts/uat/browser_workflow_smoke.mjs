@@ -195,6 +195,144 @@ async function inspectWorkspace(page, language, viewport, workspace, failures) {
   };
 }
 
+async function agentResearchE2E(page, failures) {
+  const scope = "interaction/agent-research-review";
+  const objective =
+    "Assess whether the seeded NBP-TTF day-ahead spread is persistent enough for governed UAT research.";
+
+  try {
+    await setLanguage(page, "en");
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(`${BASE}/?workspace=agents`, { waitUntil: "domcontentloaded" });
+    await page.waitForTimeout(400);
+
+    await page.locator("#agents-task-research").click();
+    await page.locator("#agents-objective").fill(objective);
+    const allowStrategy = page.locator(
+      '.agents-view-research label.field-inline input[type="checkbox"]',
+    );
+    if (!(await allowStrategy.isChecked())) await allowStrategy.check();
+
+    await page.locator(".agents-view-research button.button.primary").click();
+    const resultPanel = page.locator(".agents-result-panel").first();
+    await resultPanel.waitFor({ state: "visible", timeout: 30_000 });
+
+    const runEnvelope = await page.evaluate(async (wantedObjective) => {
+      const response = await fetch("/api/agent/runs?limit=50", {
+        credentials: "include",
+      });
+      if (!response.ok) throw new Error(`agent runs HTTP ${response.status}`);
+      const body = await response.json();
+      const run = (body.data || []).find(
+        (item) => item.user_objective === wantedObjective,
+      );
+      if (!run) throw new Error("new governed agent run not found");
+      const replayResponse = await fetch(
+        `/api/agent/runs/${encodeURIComponent(run.agent_run_id)}/replay`,
+        { credentials: "include" },
+      );
+      if (!replayResponse.ok) {
+        throw new Error(`agent replay HTTP ${replayResponse.status}`);
+      }
+      return { run, replay: (await replayResponse.json()).data };
+    }, objective);
+
+    if (runEnvelope.run.status !== "READY_FOR_HUMAN_REVIEW") {
+      recordFailure(
+        failures,
+        scope,
+        `unexpected run status: ${runEnvelope.run.status}`,
+      );
+    }
+    if (runEnvelope.replay.artifact_chain?.complete !== true) {
+      recordFailure(
+        failures,
+        scope,
+        `artifact chain incomplete: ${JSON.stringify(runEnvelope.replay.artifact_chain)}`,
+      );
+    }
+    if ((runEnvelope.replay.tool_invocations || []).length === 0) {
+      recordFailure(failures, scope, "governed run persisted no tool invocations");
+    }
+
+    await page.locator("#agents-task-runs").click();
+    const runRow = page
+      .locator("button.data-table-row.link-row")
+      .filter({ hasText: objective })
+      .first();
+    await runRow.waitFor({ state: "visible", timeout: 10_000 });
+    await runRow.click();
+
+    const replayPanel = page.locator(".agents-replay-panel");
+    await replayPanel.waitFor({ state: "visible", timeout: 10_000 });
+    const presentArtifacts = await replayPanel.locator(
+      ".agents-chain-entry:not(.is-absent)",
+    ).count();
+    if (presentArtifacts !== 6) {
+      recordFailure(
+        failures,
+        scope,
+        `replay rendered ${presentArtifacts}/6 persisted artifacts`,
+      );
+    }
+
+    const accept = replayPanel.locator(".review-decision-accepted");
+    await accept.waitFor({ state: "visible", timeout: 10_000 });
+    if (await accept.isDisabled()) {
+      recordFailure(failures, scope, "review-pack accept action is disabled");
+    } else {
+      await accept.click();
+      await page.waitForFunction(
+        async (runId) => {
+          const response = await fetch(
+            `/api/agent/runs/${encodeURIComponent(runId)}/replay`,
+            { credentials: "include" },
+          );
+          if (!response.ok) return false;
+          const replay = (await response.json()).data;
+          const decisions =
+            replay?.artifacts?.review_pack?.payload?.human_confirmation?.decisions || [];
+          return decisions.some((item) => item.decision === "accepted");
+        },
+        runEnvelope.run.agent_run_id,
+        { timeout: 15_000 },
+      );
+    }
+
+    const confirmedReplay = await page.evaluate(async (runId) => {
+      const response = await fetch(
+        `/api/agent/runs/${encodeURIComponent(runId)}/replay`,
+        { credentials: "include" },
+      );
+      if (!response.ok) throw new Error(`agent replay HTTP ${response.status}`);
+      return (await response.json()).data;
+    }, runEnvelope.run.agent_run_id);
+    const decisions =
+      confirmedReplay?.artifacts?.review_pack?.payload?.human_confirmation?.decisions || [];
+    if (!decisions.some((item) => item.decision === "accepted")) {
+      recordFailure(failures, scope, "accepted review decision was not replayed from PostgreSQL");
+    }
+
+    const evidence = {
+      runId: runEnvelope.run.agent_run_id,
+      status: runEnvelope.run.status,
+      chainComplete: confirmedReplay.artifact_chain?.complete === true,
+      presentArtifacts: confirmedReplay.artifact_chain?.present || [],
+      invocationCount: (confirmedReplay.tool_invocations || []).length,
+      reviewPackId: confirmedReplay.artifacts?.review_pack?.artifact_id || null,
+      reviewDecisions: decisions,
+      fixture: confirmedReplay.fixture || null,
+    };
+    writeFileSync(
+      path.join(OUTPUT_DIR, "agent-research-e2e.json"),
+      JSON.stringify(evidence, null, 2),
+      "utf8",
+    );
+  } catch (error) {
+    recordFailure(failures, scope, error);
+  }
+}
+
 async function interactionChecks(page, failures) {
   await setLanguage(page, "en");
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -281,6 +419,9 @@ export async function runWorkflowSmoke() {
 
     currentScope = "interaction-checks";
     await interactionChecks(page, failures);
+
+    currentScope = "interaction/agent-research-review";
+    await agentResearchE2E(page, failures);
   } finally {
     await context.close();
     await browser.close();
