@@ -50,6 +50,14 @@ test("only WorkspaceHeader owns the consolidated primary h1 and shared tab seman
   assert.match(renderer, /!usesConsolidatedHeader\s*&&\s*\(\s*<header/);
 });
 
+test("the narrow alert trigger keeps a visible text label", () => {
+  const alertCenter = readWebSource("components/AlertCenter.tsx");
+  const css = readWebSource("components/WorkspaceTopBar.css");
+
+  assert.match(alertCenter, /<span>\{isChinese \? "告警" : "Alerts"\}<\/span>/);
+  assert.equal(css.includes(".alert-trigger span:not(.alert-trigger-mark)"), false);
+});
+
 test("the top bar identity cluster keeps the display name and role apart", () => {
   const bar = readWebSource("components/WorkspaceTopBar.tsx");
   const css = readWebSource("components/WorkspaceTopBar.css");

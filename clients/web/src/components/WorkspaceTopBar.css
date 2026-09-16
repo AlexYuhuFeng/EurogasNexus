@@ -413,9 +413,6 @@
     max-height: calc(100vh - 80px);
   }
 
-  .alert-trigger span:not(.alert-trigger-mark) {
-    display: none;
-  }
 }
 
 /* CR-01 primary workspace navigation */
