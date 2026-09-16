@@ -1,8 +1,8 @@
 # Architecture V2 Execution State
 
 Last updated: 2026-09-15
-Repository HEAD: dd1abe143cec7b6bd9a1c90090b210b59b5fe0ba (branch `architecture-v2-autonomous`)
-Working tree: Wave 0 closure and Wave 1 delivery are committed on this branch and fast-forwarded to `main`. Pre-existing modifications to `.automation/prompts/orchestrator_slice.md`, `.automation/scripts/deepseek_worker.py` and `.automation/scripts/supervisor.py` remain uncommitted and are **not** accepted or reverted by this slice; they are outside its scope.
+Repository HEAD: f12f8f5 (merge of `origin/main` into `main`: Wave 0/1 delivery `ec60d35` plus the 68 commits main had advanced by since `c7f3010`)
+Working tree: Wave 0 closure and Wave 1 delivery are committed on `main` and pushed to `origin/main`. Pre-existing modifications to `.automation/prompts/orchestrator_slice.md`, `.automation/scripts/deepseek_worker.py` and `.automation/scripts/supervisor.py` remain uncommitted and are **not** accepted or reverted by this slice; they are outside its scope.
 V2 pack version: 2026-09 autonomous runner
 Current wave: Wave 1 delivered on top of a passed Wave 0 gate; Wave 2 not entered.
 Wave status: WAVE_0_GATE_PASSED; WAVE_1_DELIVERED; WAVE_2_GATED (see risks).
@@ -60,11 +60,12 @@ Wave status: WAVE_0_GATE_PASSED; WAVE_1_DELIVERED; WAVE_2_GATED (see risks).
 
 ## Validation evidence
 
-- `clients/web`: `npm run build` (`tsc && vite build`) — exit 0 (`152 modules transformed`, `built in 0.5s`); the only warning is the pre-existing ineffective-dynamic-import notice for `src/api/client.ts`.
-- `clients/web`: `node --test "tests/*.test.ts"` — **236 tests, 236 pass, 0 fail** (221 pre-existing + 15 new experience-architecture tests). This includes the full baseline suite after the seam migrations.
-- `python -m pytest tests -q --ignore=tests/integration` — **1469 passed, 1 skipped, 0 failed** (contract, api, security, release, unit, sdk, cli, domain, optimization, ingestion, streaming, workflow, evals, uat).
+- `clients/web`: `npm run build` (`tsc && vite build`) — exit 0 (`152 modules transformed`); the only warning is the pre-existing ineffective-dynamic-import notice for `src/api/client.ts`.
+- `clients/web`: `node --test "tests/*.test.ts"` — **256 tests, 256 pass, 0 fail** (221 pre-existing, 15 new experience-architecture tests, 20 from the upstream `main` merge). This includes the full baseline suite after the seam migrations.
+- `python -m pytest tests -q --ignore=tests/integration` — **1470 passed, 1 skipped, 0 failed** (contract, api, security, release, unit, sdk, cli, domain, optimization, ingestion, streaming, workflow, evals, uat).
 - `python -m pytest tests/contract/test_architecture_v2_fitness.py -q` — 28 passed (new static fitness tests, FF1-FF10 coverage; result table in `W0-03_FITNESS_GAPS.md`).
 - `python -m pytest tests/contract/test_markdown_links.py -q` — pass; every new internal Markdown link resolves.
+- Integration with upstream `main`: `git merge origin/main` merged the 68 commits main had advanced by since `c7f3010` with no conflicts; the i18n resources merged to 1730 keys per locale with the 38 new `experience.*` keys intact on both sides, and `clients/web/package.json` was unchanged (no dependency install required). Merged tree re-validated with the numbers above.
 - Three pinned source-text contract tests were updated in the same change because the code they pin moved (`tests/contract/test_client_release_surface.py`, `tests/release/test_deployment_roles.py`, `clients/web/tests/uiPrimitives.test.ts`), plus `clients/web/tests/authGate.test.ts`. Each keeps its original guarantee asserted against the new single owner; none was weakened or deleted.
 - `git diff --check` — no whitespace errors introduced.
 - Citation and scope checks in `W0-01`/`W0-02` were performed against `dd1abe1`; `git diff --name-only d42e71b dd1abe1` shows only `.automation/*` drift, so client line references remain valid.
