@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   DECISION_TASKS,
@@ -14,6 +15,10 @@ import { selectScenarioRouteEconomics } from "../src/app/model/scenarioRouteEcon
 import { buildCommercialDiagnostics } from "../src/app/model/commercialWarnings.ts";
 import { workspaceTaskSearch } from "../src/workspaceNavigation.ts";
 
+function readWebSource(relativePath: string): string {
+  return readFileSync(new URL(`../src/${relativePath}`, import.meta.url), "utf8");
+}
+
 function route(overrides: Record<string, unknown> = {}) {
   return {
     route_id: "route-1",
@@ -24,6 +29,40 @@ function route(overrides: Record<string, unknown> = {}) {
     ...overrides,
   } as Parameters<typeof classifyRouteFeasibility>[0];
 }
+
+test("commercial workspaces use shared panel hierarchy and canonical tokens", () => {
+  const portfolio = readWebSource("components/PortfolioWorkspace.tsx");
+  const decision = readWebSource("components/DecisionWorkspace.tsx");
+  const css = readWebSource("components/commercial-workflow.css");
+
+  assert.match(portfolio, /import \{ PanelHeader, WorkspaceHeader \}/);
+  assert.match(decision, /import \{ PanelHeader, WorkspaceHeader \}/);
+  assert.ok((portfolio.match(/<PanelHeader/g) ?? []).length >= 4);
+  assert.ok((decision.match(/<PanelHeader/g) ?? []).length >= 5);
+  for (const legacy of [
+    "var(--border",
+    "var(--text-muted",
+    "var(--accent",
+    "var(--panel",
+    "var(--selection",
+  ]) {
+    assert.equal(css.includes(legacy), false, `legacy token: ${legacy}`);
+  }
+  for (const canonical of ["--eg-hairline", "--eg-muted", "--eg-ink", "--eg-link", "--space-2"]) {
+    assert.ok(css.includes(canonical), `missing canonical token: ${canonical}`);
+  }
+});
+
+test("network rail does not duplicate shell-owned gas day product hub or source posture", () => {
+  const network = readWebSource("components/NetworkWorkspace.tsx");
+
+  assert.doesNotMatch(network, /gasDay: string/);
+  assert.doesNotMatch(network, /deliveryProduct: string/);
+  assert.doesNotMatch(network, /hubId: string \| null/);
+  assert.doesNotMatch(network, /sourceStats: SourceStats/);
+  assert.doesNotMatch(network, /className="home-context-strip"/);
+  assert.doesNotMatch(network, /className="panel scenario-intro"/);
+});
 
 test("portfolio tasks are overview resources routes exposure", () => {
   assert.deepEqual(PORTFOLIO_TASKS, ["overview", "resources", "routes", "exposure"]);
