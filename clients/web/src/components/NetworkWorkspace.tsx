@@ -41,14 +41,6 @@ interface ReviewEvidenceItem {
 
 type DecisionRailView = "decision" | "pnl" | "warnings" | "evidence";
 
-interface SourceStats {
-  total: number;
-  active: number;
-  issues: number;
-  records: number;
-  missingCredentials: number;
-}
-
 interface NetworkWorkspaceProps {
   t: Translate;
   nodes: NodeDTO[];
@@ -86,12 +78,8 @@ interface NetworkWorkspaceProps {
   strategyResult: StrategyLabResultDTO | null;
   activeWarning: string | null;
   reviewEvidenceItems: ReviewEvidenceItem[];
-  gasDay: string;
-  deliveryProduct: string;
-  hubId: string | null;
   marketLastUpdatedAtUtc: string | null;
   intradayOpportunities: IntradayOpportunityDTO[];
-  sourceStats: SourceStats;
   optimizerContextMismatch: boolean;
   onResetSearch: () => void;
   onToggleLayer: (layer: string) => void;
@@ -146,12 +134,8 @@ export function NetworkWorkspace({
   strategyResult,
   activeWarning,
   reviewEvidenceItems,
-  gasDay,
-  deliveryProduct,
-  hubId,
   marketLastUpdatedAtUtc,
   intradayOpportunities,
-  sourceStats,
   optimizerContextMismatch,
   onResetSearch,
   onToggleLayer,
@@ -199,34 +183,6 @@ export function NetworkWorkspace({
       <aside className="scenario-rail network-resource-rail" aria-label={t("home.resource_pool")} tabIndex={0}>
         {error && <div className="panel alert">{error}</div>}
         {loading && <div className="panel">{t("status.loading")}</div>}
-
-        <div className="panel scenario-intro">
-          <span className="eyebrow">{t("home.resource_pool")}</span>
-          <h2>{t("home.pool_cockpit")}</h2>
-          <p>{t("home.pool_description")}</p>
-          <div className="home-context-strip">
-            <span><small>{t("context.gas_day")}</small><strong>{gasDay}</strong></span>
-            <span>
-              <small>{t("context.product")}</small>
-              <strong>{deliveryProduct === "all" ? t("context.all_products") : t(`context.${deliveryProduct.replaceAll("-", "_")}`)}</strong>
-            </span>
-            {hubId && (
-              <span><small>{t("context.hub")}</small><strong>{hubId}</strong></span>
-            )}
-            <span className={sourceStats.issues > 0 ? "issue" : "ready"}>
-              <small>{t("context.source_posture")}</small>
-              <strong>{sourceStats.active}/{sourceStats.total} {t("context.active")}</strong>
-            </span>
-          </div>
-          <div className="home-freshness-line">
-            <span className={marketLastUpdatedAtUtc ? "freshness-dot ready" : "freshness-dot issue"} />
-            <span>
-              {marketLastUpdatedAtUtc
-                ? `${t("context.market_updated")} ${new Date(marketLastUpdatedAtUtc).toLocaleString()}`
-                : t("context.no_market_update")}
-            </span>
-          </div>
-        </div>
 
         <div className="panel home-portfolio-panel">
           <div className="section-heading">
