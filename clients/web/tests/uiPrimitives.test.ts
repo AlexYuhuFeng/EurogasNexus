@@ -70,5 +70,11 @@ test("WorkspaceTabs forwards its role prop and defaults to tablist", () => {
   const component = readWebSource("components/ui/WorkspaceTabs.tsx");
   assert.match(component, /role\?: "tablist"/);
   assert.match(component, /role = "tablist"/);
-  assert.match(component, /<nav className=\{className} role=\{role} aria-label=\{label}>/);
+  // The nav keeps the same role/aria contract; the optional Architecture V2
+  // shell-region marker only adds a data attribute when a caller passes one.
+  assert.match(
+    component,
+    /<nav className=\{className} role=\{role\} aria-label=\{label\} data-shell-region=\{shellRegion\}>/,
+  );
+  assert.match(component, /shellRegion\?: ShellRegionMarker;/);
 });

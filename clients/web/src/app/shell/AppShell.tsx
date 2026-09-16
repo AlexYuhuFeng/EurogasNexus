@@ -163,7 +163,7 @@ export function AppShell({ controller }: AppShellProps) {
         </div>
       )}
 
-      <main className="app-main" id="workspace-primary-content">
+      <main className="app-main" id="workspace-primary-content" data-shell-region="primary-workspace">
         {navigation.activeWorkspace === "network" ? (
           <NetworkWorkspace
             t={t}

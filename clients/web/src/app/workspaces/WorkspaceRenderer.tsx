@@ -3,6 +3,7 @@ import { changeAppLanguage } from "@/i18n";
 import { AccessCenter } from "@/components/AccessCenter";
 import { AgentsWorkspace } from "@/components/AgentsWorkspace";
 import { primaryWorkspaceForPage } from "@/app/navigation/productNavigation";
+import { headerModeForPage } from "@/app/experience/workspacePatterns";
 import { WorkspaceTabs } from "@/components/ui";
 import type { WorkspacePageId } from "@/workspaceNavigation";
 import { ContractWorkbench } from "@/components/ContractWorkbench";
@@ -55,13 +56,16 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
       setStrategyRunId: selection.setStrategyRunId,
     },
   });
-  const localTabs = ["market", "portfolio", "decision"].includes(activePrimaryWorkspace.id)
+  // Header composition is read from the Architecture V2 workspace-pattern
+  // registry instead of a local list of primary ids, so the composition rule has
+  // exactly one owner (docs/engineering/Architecture-V2/W1-02_*.md).
+  const usesConsolidatedHeader = headerModeForPage(activeWorkspace) === "consolidated";
+  const localTabs = usesConsolidatedHeader
     ? []
     : activePrimaryWorkspace.pages.map((page) => ({
         id: page,
         label: t(`nav.${page}`),
       }));
-  const usesConsolidatedHeader = ["market", "portfolio", "decision"].includes(activePrimaryWorkspace.id);
 
   return (
     <section

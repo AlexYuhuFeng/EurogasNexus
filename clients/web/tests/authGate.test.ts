@@ -530,14 +530,21 @@ test("error keys produced by the gate are translation-backed", () => {
 test("the desktop shell is only told to reveal the window after identity resolves", () => {
   const signal = source("app/hooks/useIdentitySignal.ts");
   const client = source("api/client.ts");
+  const host = source("app/host/hostCapabilities.ts");
 
   // The signal hook stays silent while identity is unresolved, then reports once.
   assert.match(signal, /if \(authState !== "unknown"\)/);
   assert.match(signal, /notifyDesktopClientReady\(\)/);
 
-  // The bridge lives in the transport layer, is desktop-only and fails soft.
+  // The transport keeps the exported bridge, is desktop-only and fails soft...
   assert.match(client, /export async function notifyDesktopClientReady/);
   assert.match(client, /if \(!isDesktopShell\) return;/);
-  assert.match(client, /invoke\("notify_client_ready"\)/);
-  assert.match(client, /catch \{[\s\S]*?\}\n\}/);
+  assert.match(client, /tryHostCommand\(HOST_COMMANDS\.notifyClientReady\)/);
+
+  // ...while the native command name, the desktop detection and the fail-soft
+  // behaviour live in the single HostCapabilities boundary (Architecture V2).
+  assert.match(host, /notifyClientReady: "notify_client_ready"/);
+  assert.match(host, /"__TAURI_INTERNALS__" in window/);
+  assert.match(host, /if \(kind !== "desktop" \|\| !isHostCommand\(command\)\) return null;/);
+  assert.match(host, /catch \{\s*return null;\s*\}/);
 });

@@ -7,6 +7,22 @@ export interface WorkspaceTabItem<T extends string> {
   controls?: string;
 }
 
+/**
+ * Canonical shell region marker (Architecture V2 Wave 1).
+ *
+ * The union is declared here so a leaf UI primitive keeps importing nothing from
+ * `app/`; `clients/web/tests/experienceArchitecture.test.ts` asserts it stays equal
+ * to the shell vocabulary in `app/experience/vocabulary.ts`. Passing the marker only
+ * adds a `data-shell-region` attribute - it changes no rendering, keyboard or
+ * accessibility behaviour.
+ */
+export type ShellRegionMarker =
+  | "global-context"
+  | "navigation"
+  | "primary-workspace"
+  | "inspector"
+  | "activity";
+
 interface WorkspaceTabsProps<T extends string> {
   idPrefix: string;
   label: string;
@@ -15,6 +31,7 @@ interface WorkspaceTabsProps<T extends string> {
   panelId: string;
   role?: "tablist";
   className?: string;
+  shellRegion?: ShellRegionMarker;
   onActivate: (id: T) => void;
 }
 
@@ -26,6 +43,7 @@ export function WorkspaceTabs<T extends string>({
   panelId,
   role = "tablist",
   className,
+  shellRegion,
   onActivate,
 }: WorkspaceTabsProps<T>) {
   const focusTab = (id: T) => {
@@ -46,7 +64,7 @@ export function WorkspaceTabs<T extends string>({
   };
 
   return (
-    <nav className={className} role={role} aria-label={label}>
+    <nav className={className} role={role} aria-label={label} data-shell-region={shellRegion}>
       {tabs.map((tab) => {
         const isActive = tab.id === activeId;
         return (

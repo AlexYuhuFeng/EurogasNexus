@@ -69,6 +69,31 @@ behavior.
   [CN](ontology/OWL_GAS_ROLE_MODEL-CN.md)
 - [Natural-gas subject architecture](ontology/europe-natural-gas.md)
 
+### Architecture V2 programme
+
+Architecture V2 is the binding target architecture and product-experience interaction authority
+(ADR-0016). Start at the entrypoint; the programme state is the checkpoint.
+
+- [Codex entrypoint](engineering/Architecture-V2/CODEX_ENTRYPOINT.md) — single entrypoint for the
+  autonomous programme.
+- [Autonomous execution policy](engineering/Architecture-V2/AUTONOMOUS_EXECUTION_POLICY.md) —
+  highest operational authority for the programme.
+- [Target platform architecture](engineering/Architecture-V2/03_TARGET_PLATFORM_ARCHITECTURE.md),
+  [product experience architecture](engineering/Architecture-V2/04_PRODUCT_EXPERIENCE_ARCHITECTURE.md),
+  [current-to-target gap matrix](engineering/Architecture-V2/11_CURRENT_TO_TARGET_GAP_MATRIX.md),
+  [migration roadmap](engineering/Architecture-V2/12_MIGRATION_ROADMAP.md).
+- [Execution state and checkpoint](engineering/ARCHITECTURE_V2_EXECUTION_STATE.md) — resumable
+  programme state.
+- Wave 0 evidence: [client inventory](engineering/Architecture-V2/W0-01_CLIENT_INVENTORY.md),
+  [backend access inventory](engineering/Architecture-V2/W0-02_BACKEND_ACCESS_INVENTORY.md),
+  [reconciliation and gate](engineering/Architecture-V2/W0-03_ARCHITECTURE_RECONCILIATION.md),
+  [architecture fitness gaps](engineering/Architecture-V2/W0-03_FITNESS_GAPS.md).
+- Wave 1 contracts: [shell and Active Context](engineering/Architecture-V2/W1-01_SHELL_AND_ACTIVE_CONTEXT_CONTRACT.md),
+  [workspace patterns and panels](engineering/Architecture-V2/W1-02_WORKSPACE_PATTERN_AND_PANEL_REGISTRY.md),
+  [Inspector, AI actions and command palette](engineering/Architecture-V2/W1-03_INSPECTOR_AI_AND_COMMAND_CONTRACT.md),
+  [HostCapabilities](engineering/Architecture-V2/W1-04_HOST_CAPABILITIES_CONTRACT.md),
+  [canonical experience specifications](engineering/Architecture-V2/W1-05_CANONICAL_EXPERIENCE_SPECS.md).
+
 ### Research data foundation
 
 - [Energy ontology](research/ENERGY_ONTOLOGY.md)

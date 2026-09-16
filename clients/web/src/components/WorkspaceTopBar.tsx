@@ -97,6 +97,7 @@ export function WorkspaceTopBar({
   return (
     <header
       className={`app-header cockpit-topbar workspace-topbar-only ${hasMapSearch ? "has-map-search" : "workspace-topbar-page"}`}
+      data-shell-region="global-context"
     >
       <WorkspaceTabs
         idPrefix="workspace-primary"
@@ -105,6 +106,7 @@ export function WorkspaceTopBar({
         activeId={activePrimaryWorkspace.id}
         panelId="workspace-primary-content"
         className="workspace-primary-tabs"
+        shellRegion="navigation"
         onActivate={(primary) => onOpenPrimaryWorkspace(primary as PrimaryWorkspaceId)}
       />
       {hasMapSearch && (

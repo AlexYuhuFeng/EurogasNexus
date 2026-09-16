@@ -2,6 +2,15 @@
 
 Status: `accepted contract - adopted 2026-09-08; implementation acceptance pending`
 
+Authority note (2026-09-15): the "sole visual/interaction authority" clause of the authority matrix
+below is superseded for the **interaction** half by
+[ADR-0016 / Decision 15](../architecture/ARCHITECTURE_DECISION_RECORD.md#decision-15-architecture-v2-programme-authority-and-product-experience-interaction-authority),
+which makes the Architecture V2 Product Experience Architecture the interaction authority. The
+Professional UI Constitution keeps visual authority (typography, density, spacing, component styling
+and motion) and stays subordinate where the two overlap. Every other part of this RFC — the delivery
+constraints, the rights-validation matrix, the canonical acceptance cases and the open acceptance
+gates — remains in force unchanged.
+
 Owner: UI architecture and review lead
 
 Reviewers: Web/desktop, domain-interface, accessibility and test owners

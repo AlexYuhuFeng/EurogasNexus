@@ -91,3 +91,36 @@ See:
 
 The V2 architecture remains authoritative; these files define how to execute it economically and
 resumably.
+
+## 5. Programme artefacts delivered
+
+The pack above is the target architecture. The programme's own evidence and contracts are recorded
+alongside it, and the resumable state lives in the execution checkpoint.
+
+- [Autonomous execution policy](AUTONOMOUS_EXECUTION_POLICY.md) — highest operational authority.
+- [Authority reconciliation proposal](AUTHORITY_RECONCILIATION_PROPOSAL.md) — historical; superseded
+  by ADR-0016.
+- [Execution state and checkpoint](../ARCHITECTURE_V2_EXECUTION_STATE.md) — resumable programme
+  state; read this before planning work.
+
+Wave 0 (baseline and architecture freeze):
+
+- [W0-01 client inventory](W0-01_CLIENT_INVENTORY.md) — routes, workspaces, panels, navigation and
+  client API dependencies, accepted after repair.
+- [W0-02 backend access inventory](W0-02_BACKEND_ACCESS_INVENTORY.md) — identity, capability,
+  entitlement, provider and control-plane current behaviour.
+- [W0-03 architecture reconciliation](W0-03_ARCHITECTURE_RECONCILIATION.md) — conflict register,
+  current-to-target map and the Wave 0 gate.
+- [W0-03 fitness gaps](W0-03_FITNESS_GAPS.md) — coverage of the V2 architecture fitness functions.
+
+Wave 1 (product experience architecture foundation):
+
+- [W1-01 shell and Active Context contract](W1-01_SHELL_AND_ACTIVE_CONTEXT_CONTRACT.md)
+- [W1-02 workspace pattern and panel registry](W1-02_WORKSPACE_PATTERN_AND_PANEL_REGISTRY.md)
+- [W1-03 Inspector, AI actions and command palette](W1-03_INSPECTOR_AI_AND_COMMAND_CONTRACT.md)
+- [W1-04 HostCapabilities contract](W1-04_HOST_CAPABILITIES_CONTRACT.md)
+- [W1-05 canonical experience specifications](W1-05_CANONICAL_EXPERIENCE_SPECS.md)
+
+Machine-readable form of the Wave 1 contracts: `clients/web/src/app/experience/` and
+`clients/web/src/app/host/`, with focused checks in
+`clients/web/tests/experienceArchitecture.test.ts`.

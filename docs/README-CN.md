@@ -95,6 +95,27 @@
 - [数据政策](policies/DATA_POLICY.md)
 - [依赖政策](policies/DEPENDENCY_POLICY.md)
 
+### Architecture V2 计划
+
+Architecture V2 是绑定的目标架构与产品体验交互权威（ADR-0016）。请从入口文档开始，计划状态记录在检查点中。
+
+- [Codex 入口](engineering/Architecture-V2/CODEX_ENTRYPOINT.md) — 自主计划唯一入口。
+- [自主执行政策](engineering/Architecture-V2/AUTONOMOUS_EXECUTION_POLICY.md) — 计划的最高运行权威。
+- [目标平台架构](engineering/Architecture-V2/03_TARGET_PLATFORM_ARCHITECTURE.md)、
+  [产品体验架构](engineering/Architecture-V2/04_PRODUCT_EXPERIENCE_ARCHITECTURE.md)、
+  [现状到目标差距矩阵](engineering/Architecture-V2/11_CURRENT_TO_TARGET_GAP_MATRIX.md)、
+  [迁移路线图](engineering/Architecture-V2/12_MIGRATION_ROADMAP.md)。
+- [执行状态与检查点](engineering/ARCHITECTURE_V2_EXECUTION_STATE.md) — 可恢复的计划状态。
+- Wave 0 证据：[客户端清单](engineering/Architecture-V2/W0-01_CLIENT_INVENTORY.md)、
+  [后端访问清单](engineering/Architecture-V2/W0-02_BACKEND_ACCESS_INVENTORY.md)、
+  [冲突协调与门禁](engineering/Architecture-V2/W0-03_ARCHITECTURE_RECONCILIATION.md)、
+  [架构适应度缺口](engineering/Architecture-V2/W0-03_FITNESS_GAPS.md)。
+- Wave 1 合同：[外壳与活动上下文](engineering/Architecture-V2/W1-01_SHELL_AND_ACTIVE_CONTEXT_CONTRACT.md)、
+  [工作区模式与面板](engineering/Architecture-V2/W1-02_WORKSPACE_PATTERN_AND_PANEL_REGISTRY.md)、
+  [检查器、AI 动作与命令面板](engineering/Architecture-V2/W1-03_INSPECTOR_AI_AND_COMMAND_CONTRACT.md)、
+  [HostCapabilities](engineering/Architecture-V2/W1-04_HOST_CAPABILITIES_CONTRACT.md)、
+  [规范化体验规格](engineering/Architecture-V2/W1-05_CANONICAL_EXPERIENCE_SPECS.md)。
+
 ## 当前运维手册
 
 - [本地开发](operations/LOCAL_DEVELOPMENT.md)

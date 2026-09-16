@@ -5,6 +5,11 @@ import {
   compatibilityForServer,
 } from "@/app/releaseCompatibility";
 import {
+  HOST_COMMANDS,
+  isDesktopHost,
+  requireHostCommand,
+} from "@/app/host/hostCapabilities";
+import {
   api,
   AnalysisRequestDTO,
   AnalysisResultDTO,
@@ -1019,18 +1024,16 @@ export const useApiStore = create<ApiState>((set, get) => ({
     set({ authBusy: true, authErrorKey: null, authNoticeKey: null });
     const client = await import("@/api/client");
     if (!signInIsCurrent()) return;
-    const isDesktop =
-      "__TAURI_INTERNALS__" in window ||
-      window.location.protocol === "tauri:" ||
-      window.location.hostname === "tauri.localhost";
+    // Desktop detection and native calls belong to the single HostCapabilities
+    // boundary (Architecture V2 rule 50); this store must not re-implement them.
+    const isDesktop = isDesktopHost();
     if (!isDesktop) {
       // Browser SSO leaves the client; the callback re-enters through /me.
       window.location.assign(`${client.configuredApiBaseUrl()}/auth/oidc/login`);
       return;
     }
     try {
-      const { invoke } = await import("@tauri-apps/api/core");
-      const redirectUri = await invoke<string>("start_loopback_auth");
+      const redirectUri = await requireHostCommand<string>(HOST_COMMANDS.startLoopbackAuth);
       const verifier = generatePkceVerifier();
       const challenge = await generatePkceChallenge(verifier);
       const started = await client.api.startDesktopOidcLogin({
@@ -1038,7 +1041,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
         code_verifier: verifier,
         redirect_uri: redirectUri,
       });
-      const query = await invoke<string>("open_browser_login_and_wait", {
+      const query = await requireHostCommand<string>(HOST_COMMANDS.openBrowserLoginAndWait, {
         authorizationUrl: started.data.authorization_url,
         expectedRedirectUri: redirectUri,
       });

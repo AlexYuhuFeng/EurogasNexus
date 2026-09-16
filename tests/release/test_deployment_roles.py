@@ -74,11 +74,16 @@ def test_server_bootstrapper_does_not_install_docker_or_expose_secrets() -> None
 def test_desktop_reads_managed_api_endpoint_without_db_configuration() -> None:
     rust = read("clients/desktop/src-tauri/src/main.rs")
     client = read("clients/web/src/api/client.ts")
+    host = read("clients/web/src/app/host/hostCapabilities.ts")
 
     assert "read_deployment_config" in rust
     assert 'join("deployment.json")' in rust
     assert "hydrateApiBaseUrlFromDesktopDeployment" in client
-    assert 'invoke<DesktopDeploymentConfig | null>("read_deployment_config")' in client
+    # The managed endpoint is read through the single HostCapabilities boundary, so
+    # the command name and the allowlist live there (Architecture V2 rule 50).
+    assert "tryHostCommand<DesktopDeploymentConfig>" in client
+    assert "HOST_COMMANDS.readDeploymentConfig" in client
+    assert 'readDeploymentConfig: "read_deployment_config"' in host
     assert "postgresql" not in rust.lower()
 
 

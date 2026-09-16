@@ -208,9 +208,23 @@ def test_web_client_uses_api_only_and_supports_mandarin_theme() -> None:
 
     assert "VITE_EUROGAS_API_BASE_URL" in api_client
 
-    assert "__TAURI_INTERNALS__" in api_client
+    # Host detection lives in the single HostCapabilities boundary (Architecture
+    # V2 rule 50): the transport and the store read the resolved kind from there.
+    host_capabilities = (
+        ROOT / "clients" / "web" / "src" / "app" / "host" / "hostCapabilities.ts"
+    ).read_text(encoding="utf-8")
 
-    assert "tauri.localhost" in api_client
+    assert "__TAURI_INTERNALS__" in host_capabilities
+
+    assert "tauri.localhost" in host_capabilities
+
+    assert "resolveHostKind" in api_client
+
+    assert "__TAURI_INTERNALS__" not in api_client
+
+    assert "__TAURI_INTERNALS__" not in (
+        ROOT / "clients" / "web" / "src" / "stores" / "api.ts"
+    ).read_text(encoding="utf-8")
 
     assert "VITE_EUROGAS_API_BASE_URL" in vite_env
 

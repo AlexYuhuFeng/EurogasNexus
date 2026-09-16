@@ -1,5 +1,7 @@
 /** Typed API client for /api. All data flows through backend API only. */
 
+import { HOST_COMMANDS, resolveHostKind, tryHostCommand } from "@/app/host/hostCapabilities";
+
 const DEFAULT_BROWSER_BASE = "/api";
 const DEFAULT_DESKTOP_BASE = "http://127.0.0.1:8000/api";
 const REFERENCE_NETWORK_READ_LIMIT = "2000";
@@ -7,10 +9,10 @@ export const API_BASE_STORAGE_KEY = "eurogas.settings.api_base_url";
 export const API_TOKEN_STORAGE_KEY = "eurogas.settings.api_token";
 export const PRINCIPAL_STORAGE_KEY = "eurogas.settings.operator_principal";
 const envBase = import.meta.env.VITE_EUROGAS_API_BASE_URL as string | undefined;
-const isDesktopShell =
-  "__TAURI_INTERNALS__" in window ||
-  window.location.protocol === "tauri:" ||
-  window.location.hostname === "tauri.localhost";
+// Platform detection has exactly one owner: the Architecture V2 HostCapabilities
+// boundary (`clients/web/src/app/host/hostCapabilities.ts`). This module only reads
+// the resolved kind, so the marker checks cannot drift between call sites.
+const isDesktopShell = resolveHostKind() === "desktop";
 
 let desktopSessionToken = "";
 let currentCsrfToken = "";
@@ -154,13 +156,12 @@ export async function hydrateApiBaseUrlFromDesktopDeployment(): Promise<string> 
   if (!isDesktopShell || localStorage.getItem(API_BASE_STORAGE_KEY)) {
     return configuredApiBaseUrl();
   }
-  try {
-    const { invoke } = await import("@tauri-apps/api/core");
-    const config = await invoke<DesktopDeploymentConfig | null>("read_deployment_config");
-    return config?.api_base_url ? saveApiBaseUrl(config.api_base_url) : configuredApiBaseUrl();
-  } catch {
-    return configuredApiBaseUrl();
-  }
+  // Best effort through the host boundary: a browser, or a shell that predates the
+  // command, simply keeps the configured base URL.
+  const config = await tryHostCommand<DesktopDeploymentConfig>(
+    HOST_COMMANDS.readDeploymentConfig,
+  );
+  return config?.api_base_url ? saveApiBaseUrl(config.api_base_url) : configuredApiBaseUrl();
 }
 
 export function desktopShellDetected(): boolean {
@@ -176,16 +177,12 @@ export async function notifyDesktopClientReady(): Promise<void> {
    * the terminal hidden from an unauthenticated visitor during startup.
    *
    * Browser deployments and shells without the command are ignored: the Web
-   * workspace must stay usable when the native side is absent.
+   * workspace must stay usable when the native side is absent. The call goes
+   * through the single HostCapabilities boundary, which owns the command allowlist.
    */
 
   if (!isDesktopShell) return;
-  try {
-    const { invoke } = await import("@tauri-apps/api/core");
-    await invoke("notify_client_ready");
-  } catch {
-    // No shell, or a shell that predates the command: nothing to report.
-  }
+  await tryHostCommand(HOST_COMMANDS.notifyClientReady);
 }
 
 export async function clearDesktopSessionData(): Promise<void> {
@@ -197,12 +194,7 @@ export async function clearDesktopSessionData(): Promise<void> {
    */
 
   if (!isDesktopShell) return;
-  try {
-    const { invoke } = await import("@tauri-apps/api/core");
-    await invoke("clear_client_session_data");
-  } catch {
-    // Best effort: a shell without the command still has its credentials cleared.
-  }
+  await tryHostCommand(HOST_COMMANDS.clearSessionData);
 }
 
 function apiUrl(path: string): string {
