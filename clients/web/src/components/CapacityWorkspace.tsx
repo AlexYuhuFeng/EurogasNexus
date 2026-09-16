@@ -398,6 +398,7 @@ export function CapacityWorkspace({
                 assistive technology. Selection is exposed with aria-pressed. */}
             <div
               className="capacity-operating-table"
+              tabIndex={0}
               role="group"
               aria-label={t("capacity.operating_board")}
             >
@@ -499,7 +500,7 @@ export function CapacityWorkspace({
       {activeView === "storage" && (
         <section className="workspace-panel capacity-assets-panel">
           <div className="panel-title-row"><div><h2>{t("capacity.storage_title")}</h2><p>{t("capacity.storage_note")}</p></div><span>GIE AGSI</span></div>
-          <div className="data-table capacity-asset-table">
+          <div className="data-table capacity-asset-table" tabIndex={0}>
             <div className="data-table-row header five"><span>{t("panel.storage")}</span><span>{t("panel.country")}</span><span>{t("capacity.fill")}</span><span>{t("capacity.inventory")}</span><span>{t("capacity.net_cycle")}</span></div>
             {latestStorage.map((row) => <div key={row.observation_id} className="data-table-row five"><strong>{row.facility_name}</strong><span>{row.country ?? "n/a"}</span><span>{formatNumber(row.fill_pct, 1)}%</span><span>{formatNumber(row.inventory_twh)} TWh</span><span>{formatNumber((row.injection_twh_d ?? 0) - (row.withdrawal_twh_d ?? 0))} TWh/d</span></div>)}
           </div>
@@ -509,7 +510,7 @@ export function CapacityWorkspace({
       {activeView === "lng" && (
         <section className="workspace-panel capacity-assets-panel">
           <div className="panel-title-row"><div><h2>{t("capacity.lng_title")}</h2><p>{t("capacity.lng_note")}</p></div><span>GIE ALSI</span></div>
-          <div className="data-table capacity-asset-table">
+          <div className="data-table capacity-asset-table" tabIndex={0}>
             <div className="data-table-row header five"><span>{t("panel.lng")}</span><span>{t("panel.country")}</span><span>{t("capacity.inventory")}</span><span>{t("capacity.send_out")}</span><span>DTMI TWh</span></div>
             {latestLng.map((row) => <div key={row.observation_id} className="data-table-row five"><strong>{row.terminal_name}</strong><span>{row.country ?? "n/a"}</span><span>{formatNumber(row.inventory_twh)} TWh</span><span>{formatNumber(row.send_out_twh_d)} TWh/d</span><span>{formatNumber(row.dtmi_twh)} TWh</span></div>)}
           </div>

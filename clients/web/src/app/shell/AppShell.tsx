@@ -169,7 +169,9 @@ export function AppShell({ controller }: AppShellProps) {
 
       <main className="app-main" id="workspace-primary-content">
         {navigation.activeWorkspace === "network" ? (
-          <NetworkWorkspace
+          <>
+            <h1 className="network-main-title">{t("nav.network")}</h1>
+            <NetworkWorkspace
             t={t}
             nodes={api.nodes}
             edges={api.edges}
@@ -222,6 +224,7 @@ export function AppShell({ controller }: AppShellProps) {
               navigation.openWorkspace("scenario");
             }}
           />
+          </>
         ) : (
           <WorkspaceRenderer controller={controller} />
         )}

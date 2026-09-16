@@ -41,7 +41,7 @@ export function HeaderPreferencesMenu({
 
   const closeAndReturnFocus = () => {
     setOpen(false);
-    triggerRef.current?.focus();
+    window.requestAnimationFrame(() => triggerRef.current?.focus());
   };
 
   const select = (action: () => void) => {

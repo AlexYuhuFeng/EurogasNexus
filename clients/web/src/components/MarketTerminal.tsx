@@ -697,7 +697,7 @@ export function MarketTerminal({
 
       <div className="workspace-panel">
         <h2>{t("market.fx")}</h2>
-        <div className="data-table market-fx-table">
+        <div className="data-table market-fx-table" tabIndex={0}>
           <div className="data-table-row header"><span>{t("market.pair")}</span><span>{t("market.rate")}</span><span>{t("market.observed")}</span><span>{t("panel.source")}</span></div>
           {fxRates.slice(0, 6).map((rate) => (
             <div key={`fx-row-${rate.pair}-${rate.observed_at_utc}`} className="data-table-row">
