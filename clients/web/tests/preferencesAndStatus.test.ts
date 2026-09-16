@@ -80,25 +80,26 @@ test("the i18n entry point applies the stored language and owns the switch", () 
   }
 });
 
-test("the settings workspace is the one post-authentication home for preferences", () => {
+test("settings remains the full preferences surface while the header uses one grouped menu", () => {
   const bar = readWebSource("components/WorkspaceTopBar.tsx");
+  const menu = readWebSource("components/HeaderPreferencesMenu.tsx");
   const settings = readWebSource("components/SettingsCenter.tsx");
   const signIn = readWebSource("components/SignInScreen.tsx");
 
-  // The header keeps global context and state; language and appearance are
-  // option sets, which the constitution sends to the settings surface. Equal
-  // toolbar weight for them is a prohibited pattern.
-  assert.equal(bar.includes('t("settings.language")'), false);
-  assert.equal(bar.includes('t("settings.appearance")'), false);
-  assert.equal(bar.includes("onLanguageChange"), false);
-  assert.equal(bar.includes("onModeChange"), false);
-  // The language value stays: the alert centre formats times with it.
-  assert.match(bar, /language=\{language\}/);
+  // Preference option sets are not restored as peer toolbar controls. The
+  // header owns one grouped menu and delegates persistence to the existing
+  // language/theme writers.
+  assert.match(bar, /<HeaderPreferencesMenu/);
+  assert.match(bar, /onLanguageChange=\{onLanguageChange\}/);
+  assert.match(bar, /onModeChange=\{onModeChange\}/);
+  assert.match(menu, /t\("settings\.language"\)/);
+  assert.match(menu, /t\("settings\.appearance"\)/);
+  assert.match(menu, /role="menuitemradio"/);
 
-  // Both controls still exist, in the settings workspace.
+  // The complete controls still exist in Settings, and sign-in retains its
+  // pre-authentication language switch.
   assert.match(settings, /t\("settings\.language"\)/);
   assert.match(settings, /t\("settings\.appearance"\)/);
-  // And the sign-in screen keeps language, because settings need an identity.
   assert.match(signIn, /aria-label=\{t\("settings\.language"\)\}/);
 });
 
