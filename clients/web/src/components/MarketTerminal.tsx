@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { formatUtcTimestamp } from "@/app/model/evidencePresentation";
 import type {
   FxRateDTO,
   IntradayOpportunityDTO,
@@ -127,12 +128,8 @@ const tenorLabel = (tenor: string, t: Translate): string => {
   return t("market.tenor_day_ahead");
 };
 
-const formatTimestamp = (value: string | null | undefined): string => {
-  if (!value) return "n/a";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-};
+const formatTimestamp = (value: string | null | undefined): string =>
+  formatUtcTimestamp(value);
 
 const formatCadence = (seconds: number | null): string => {
   if (seconds == null) return "n/a";
