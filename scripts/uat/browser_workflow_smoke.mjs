@@ -112,6 +112,9 @@ async function axeViolations(page) {
       impact: violation.impact,
       nodes: violation.nodes.length,
       help: violation.help,
+      targets: violation.nodes.slice(0, 4).map((node) => node.target),
+      html: violation.nodes.slice(0, 2).map((node) => node.html),
+      failureSummary: violation.nodes.slice(0, 2).map((node) => node.failureSummary),
     }));
   });
 }
