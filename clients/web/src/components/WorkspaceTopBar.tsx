@@ -15,6 +15,7 @@ import type { ThemeMode } from "@/stores/theme";
 import type { CurrentUserDTO } from "@/api/client";
 import { buildSourceSummary, type SourceStats } from "@/app/workspaceDerivedData";
 import { dataPlaneLabelKey, dataPlaneState } from "@/app/model/dataPlaneStatus";
+import { formatUtcTimestamp } from "@/app/model/evidencePresentation";
 import { AlertCenter } from "./AlertCenter";
 import { HeaderPreferencesMenu } from "./HeaderPreferencesMenu";
 import "./WorkspaceTopBar.css";
@@ -205,7 +206,7 @@ export function WorkspaceTopBar({
             )}
             <small>
               {marketLastUpdatedAtUtc
-                ? `${t("context.updated")} ${new Date(marketLastUpdatedAtUtc).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+                ? `${t("context.updated")} ${formatUtcTimestamp(marketLastUpdatedAtUtc)}`
                 : t("context.no_market_update")}
             </small>
           </span>
