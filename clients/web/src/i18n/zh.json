@@ -1844,7 +1844,7 @@
   "decision_case.title": "决策案例",
   "decision_case.subtitle": "目标、背景、证据与人工决策记录",
   "decision_case.objective": "目标",
-  "decision_case.objective_placeholder": "需要做出什么决策，截止何时？",
+  "decision_case.objective_placeholder": "描述需要做出的决策及其截止时间",
   "decision_case.create": "新建案例",
   "decision_case.view.open": "进行中",
   "decision_case.view.decided": "已决策",

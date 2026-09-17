@@ -1844,7 +1844,7 @@
   "decision_case.title": "Decision cases",
   "decision_case.subtitle": "Objective, context, evidence and the human decision record",
   "decision_case.objective": "Objective",
-  "decision_case.objective_placeholder": "What decision is being taken, and by when?",
+  "decision_case.objective_placeholder": "Describe the decision and its deadline",
   "decision_case.create": "Open case",
   "decision_case.view.open": "Open",
   "decision_case.view.decided": "Decided",
