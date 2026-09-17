@@ -92,6 +92,36 @@ Shutdown policy:
 - Strategy/backtest RUNNING records are not auto-completed; they are surfaced
   in diagnostics for operator review (they may be long legitimate backtests).
 
+## 6a. Job record retention
+
+The unified job model (Architecture V2 Wave 8) writes one row per tracked run, so
+the table grows with use and needs a supported way to be bounded.
+
+```bash
+python scripts/ops/prune_job_records.py --retention-days 180
+python scripts/ops/prune_job_records.py --retention-days 180 --commit
+```
+
+- **Dry-run is the default.** Nothing is deleted without `--commit`.
+- **The window is required; there is no default.** Unlike audit retention (365
+  days, from the stated R32 policy), no retention window for job records has been
+  agreed, so the operator states one. Supported values are 1–3650 days; anything
+  else is refused rather than rounded into a policy.
+- **Only terminal rows are eligible.** A `QUEUED`, `RUNNING` or
+  `WAITING_FOR_INPUT` row is never pruned, whatever its age: it is work that has
+  not finished, and that row is what `POST /api/jobs/{job_id}/cancel` acts on.
+  Rows older than the window that are still active are counted and reported, with
+  `scripts/ops/recover_stale_jobs.py` named as the path to resolve them.
+- **Pruning removes bookkeeping, never work.** A job's output references, and the
+  reports, strategy runs, dataset snapshots and agent runs they name, are separate
+  records that the prune does not touch.
+- The pass prints what it did: rows deleted, rows eligible, active rows retained
+  and the oldest instant still represented in the table.
+- No route exposes this: bounding operational bookkeeping is an operator action on
+  the deployment, not a served endpoint. The audit-export/prune endpoints exist
+  because an auditor needs a served, audited path; mirroring that for jobs can be
+  done deliberately if an operator asks for it.
+
 ## 7. Timeout policy
 
 | Scope | Default | Configurable |

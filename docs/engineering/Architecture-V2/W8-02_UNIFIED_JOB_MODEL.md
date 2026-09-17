@@ -69,9 +69,35 @@ reports whether it stored the report. A configured store that refuses the write 
 runtime store at all is a declared posture (the envelope already reports
 `runtime-db-not-configured`), not a failed write, so it adds no warning and invents no job.
 
-## 6. Deferred
+## 6. Retention: bounded, operator-controlled, and never automatic
 
-- Job *replay* and retention policy (how long records are kept) are future operations decisions. The
+The job table grows one row per tracked run, so Wave 8 owes a supported way to bound it. The
+mechanism follows the audit-retention pattern, and the *policy* stays the operator's:
+
+- `application/job_retention.py` holds `prune_expired_job_records(session, retention_days=...,
+  dry_run=True)`. There is deliberately **no default window**: audit retention has one because a
+  stated policy set it (R32, 365 days), and no equivalent decision exists for job records, so the
+  caller states one. The bounds (1–3650 days) only reject values that cannot be meant.
+- **Only terminal rows are eligible**, whatever their age. A `QUEUED`, `RUNNING` or
+  `WAITING_FOR_INPUT` row is work that has not finished, and it is the row
+  `POST /api/jobs/{job_id}/cancel` acts on. Rows past the window that are still active are
+  **counted and reported**, with `scripts/ops/recover_stale_jobs.py` named as the path to resolve
+  them - a retention pass is not the place to decide that a long backtest is dead.
+- **Pruning removes bookkeeping, never work.** The reports, strategy runs, dataset snapshots and
+  agent runs a job's output references name are separate records the prune does not touch.
+- `scripts/ops/prune_job_records.py` is dry-run by default, requires `--retention-days`, and prints
+  rows deleted, rows eligible, active rows retained and the oldest instant still represented.
+- No route exposes it. Bounding operational bookkeeping is an operator action on the deployment;
+  the audit endpoints are served because an auditor needs a served, audited path, and mirroring
+  that for jobs is a deliberate step if an operator asks for it.
+
+Job *replay* stays deferred: re-running a recorded job is not a retention question, and it needs
+its own answer about authority and idempotence before any surface offers it.
+
+## 7. Deferred
+
+- Job *replay* (re-running a recorded job) is a future operations decision: it needs an authority
+  and idempotence answer before a surface offers it. Retention is delivered - see section 6. The
   activity list shows the most recent 25 records and refreshes on demand.
 
 Every run family V2 names is now tracked: ingestion, dataset builds, optimisation, backtests,
@@ -86,6 +112,11 @@ because a missing job row is an operational gap while a skipped ingestion is los
 - `tests/unit/test_job_contract.py` — the state/kind vocabularies, the success path with duration,
   terminal immutability, monotonic progress, cancellation bounds, the required failure code, the
   waiting-job transition rules and the telemetry payload shape.
+- `tests/unit/test_job_retention.py` — retention as a bounded operator action: a dry run counts and
+  changes nothing, only terminal rows past the window are deleted, active rows survive however old
+  they are and are reported, the pass is idempotent and leaves the work its rows referenced, the
+  window is required with nonsense refused, and the script refuses to run without a window or a
+  database and reports the stale active rows it kept.
 - `tests/api/test_jobs_api.py` — a tracked job records outcome, deduplicated outputs, input hash and
   correlation id; a failing tracked job stores the stable code and re-raises; cancellation is refused
   for a finished job and accepted for a running one; 404 for an unknown job; authentication required.
