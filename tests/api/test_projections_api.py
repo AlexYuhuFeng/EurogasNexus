@@ -423,7 +423,17 @@ def test_portfolio_snapshot_reports_summary_and_unknown_totals(tmp_path, monkeyp
     assert slices["pnl_snapshots"]["freshness"]["last_observed_at_utc"] == (
         AS_OF - timedelta(minutes=5)
     ).isoformat()
-    assert slices["resources"]["payload"]["available"] is False
+    # The resources slice is composed, not deferred: it reports the same block
+    # GET /api/route-cost/resource-pool/options returns, and here it honestly
+    # names the inputs this empty runtime database cannot supply.
+    resources = slices["resources"]
+    assert resources["available"] is True
+    assert resources["payload"]["scope"] == "RESOURCE_POOL_ROUTE_OPTIONS"
+    assert resources["payload"]["blockers"] == [
+        "UPSTREAM_CONTRACTS_MISSING",
+        "ROUTE_CANDIDATES_MISSING",
+    ]
+    assert resources["rows"] == []
 
 
 def test_review_context_returns_decisions_and_resolved_evidence(tmp_path, monkeypatch) -> None:

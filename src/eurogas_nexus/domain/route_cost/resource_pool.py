@@ -161,6 +161,10 @@ class PortfolioOptimizationScenario(BaseModel):
         annual_financing_rate_pct: Annual financing rate for early-cash
             valuation (default 6.0).
         objective: Objective key (only ``MAX_DAILY_PNL`` is implemented).
+        analysis_snapshot_id: Optional Analysis Snapshot this run was computed
+            against. When supplied the caller asserts the reproducibility
+            reference; the result carries it so the produced allocation can be
+            reproduced from the same input versions.
         research_only: Compatibility flag; the result is always research-only.
     """
 
@@ -169,6 +173,7 @@ class PortfolioOptimizationScenario(BaseModel):
     sale_options: list[PortfolioSaleOption]
     annual_financing_rate_pct: float = 6.0
     objective: str = "MAX_DAILY_PNL"
+    analysis_snapshot_id: str | None = None
     research_only: bool = True
 
 
@@ -214,6 +219,9 @@ class PortfolioOptimizationResult(BaseModel):
         assumptions: Explicit modelling assumptions.
         warnings: Aggregated warnings across the run.
         source_refs: Provenance of all inputs used.
+        analysis_snapshot_id: The Analysis Snapshot this result was computed
+            against, echoed from the scenario; ``None`` when the caller supplied
+            no reproducibility reference.
         research_only: Always True — decision support only.
         human_review_required: Always True — never auto-executes anything.
     """
@@ -230,6 +238,7 @@ class PortfolioOptimizationResult(BaseModel):
     assumptions: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     source_refs: list[str] = Field(default_factory=list)
+    analysis_snapshot_id: str | None = None
     research_only: bool = True
     human_review_required: bool = True
 
@@ -403,6 +412,7 @@ def optimize_resource_pool(
         ],
         warnings=_unique(warnings),
         source_refs=_unique(source_refs),
+        analysis_snapshot_id=scenario.analysis_snapshot_id,
         research_only=True,
         human_review_required=True,
     )

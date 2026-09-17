@@ -20,6 +20,15 @@ Two properties are preserved deliberately:
   (``filter_entitled_rows``). The underlying portfolio routes apply no row
   filter, so the projection is strictly narrower than they are - never wider.
   The filter that ran is recorded per slice in ``entitlement``.
+
+The ``resources`` slice composes portfolio resources and executable sale options
+through :mod:`eurogas_nexus.application.resource_pool`, the same code
+``GET /api/route-cost/resource-pool/options`` calls, so the slice is a
+composition over the endpoint instead of a second implementation of it. A sale
+option is a derivative of a route candidate and a market observation, so the
+slice re-applies both declared fail-closed filters (``derived_result_access`` for
+candidates, the source-family row filter for observations) and reports what it
+removed; it is therefore strictly narrower than the route, never wider.
 """
 
 from __future__ import annotations
@@ -66,6 +75,11 @@ from eurogas_nexus.application.projections.portfolio_reads import (
     pnl_snapshots,
     screen_orders,
 )
+from eurogas_nexus.application.resource_pool import (
+    compose_resource_pool_options,
+    narrow_resource_pool_inputs,
+    read_resource_pool_inputs,
+)
 from eurogas_nexus.domain.market_positioning import summarize_portfolio
 from eurogas_nexus.security.identity import AuthenticatedPrincipal
 
@@ -73,25 +87,37 @@ PROJECTION_ID = "portfolio-snapshot"
 PROJECTION_VERSION = "portfolio-snapshot.v1"
 
 #: Canonical tables the payload is composed from (reported as meta lineage).
-TABLE_LINEAGE: tuple[str, ...] = (*PORTFOLIO_TABLE_LINEAGE, "upstream_contracts")
+TABLE_LINEAGE: tuple[str, ...] = (
+    *PORTFOLIO_TABLE_LINEAGE,
+    "upstream_resource_contracts",
+    # The resources slice composes the same read as
+    # GET /api/route-cost/resource-pool/options (Wave 5 follow-up).
+    "route_candidates",
+    "tso_tariffs",
+    "market_observations",
+    "fx_observations",
+    "company_tso_access",
+)
 
 _ORDER_TIME_KEYS = ("observed_at_utc",)
 _VALUATION_TIME_KEYS = ("valuation_time_utc",)
+_SALE_PRICE_TIME_KEYS = ("sale_price_observed_at_utc",)
 _NO_CONTEXT_FIELD_RULE = (
     "portfolio reads carry no hub/product dimension, so the declared context is "
     "reported but not applied"
 )
 _DEGRADED_RULE = "not evaluated: no runtime database read was possible"
 
-#: Why the resource-pool slice is declared but not composed here.
-RESOURCE_POOL_FOLLOW_UP = (
-    "Portfolio resources and executable sale options are composed by "
-    "api/routes/public/route_cost.py::_compose_resource_pool_options (contracts, "
-    "candidates, tariffs, market rows, FX, company TSO access). Reusing it needs "
-    "that composition extracted into the application layer first; until then the "
-    "projection reports the slice as unavailable instead of duplicating it. "
-    "ScenarioContext delivers the cheap, DB-backed parts of the same context."
-)
+#: The data block the resource-pool route returns when no runtime DB is configured.
+#: The projection reports the identical block, so both surfaces say the same thing.
+RESOURCE_POOL_DB_NOT_CONFIGURED: dict[str, Any] = {
+    "scope": "RESOURCE_POOL_ROUTE_OPTIONS",
+    "data_source": "runtime-db-not-configured",
+    "portfolio_resources": [],
+    "sale_options": [],
+    "blockers": ["RUNTIME_DB_NOT_CONFIGURED"],
+    "warnings": [],
+}
 
 
 def build_portfolio_snapshot(
@@ -179,7 +205,19 @@ def _populated_portfolio_snapshot(
     snapshot_rows = [snapshot.model_dump(mode="json") for snapshot in entitled_snapshots]
 
     summary = summarize_portfolio(entitled_orders, entitled_snapshots)
-    contracts = _upstream_contracts(session)[:contract_limit]
+
+    # The resources slice composes exactly what
+    # GET /api/route-cost/resource-pool/options returns, through the shared
+    # application-layer composition, over inputs narrowed by the platform's own
+    # fail-closed entitlement rules. The contracts read is shared with the
+    # ``contracts`` slice, so the whole payload is measured against one read.
+    pool_inputs, pool_entitlement = narrow_resource_pool_inputs(
+        principal,
+        read_resource_pool_inputs(session),
+    )
+    resource_pool = compose_resource_pool_options(**pool_inputs)
+    sale_options = resource_pool["sale_options"]
+    contracts = pool_inputs["contracts"][:contract_limit]
 
     data_source_rows = source_provenance_rows(
         {
@@ -271,29 +309,56 @@ def _populated_portfolio_snapshot(
         ),
         "resources": projection_slice(
             source=SOURCE_RUNTIME_POSTGRESQL,
-            rows=[],
+            rows=sale_options,
             payload={
-                "available": False,
-                "unavailable_reason": "RESOURCE_POOL_COMPOSITION_IS_ROUTE_LOCAL",
-                "follow_up": RESOURCE_POOL_FOLLOW_UP,
-                "served_by": "/api/route-cost/resource-pool/options",
+                "scope": resource_pool["scope"],
+                "data_source": resource_pool["data_source"],
+                "portfolio_resources": resource_pool["portfolio_resources"],
+                "blockers": resource_pool["blockers"],
+                "warnings": resource_pool["warnings"],
+                "counts": {
+                    "portfolio_resources": len(resource_pool["portfolio_resources"]),
+                    "sale_options": len(sale_options),
+                },
             },
             freshness=freshness_block(
-                row_count=0,
-                last_observed_at_utc=None,
-                expectation_minutes=None,
+                row_count=len(sale_options),
+                last_observed_at_utc=latest_iso_for_keys(
+                    sale_options, _SALE_PRICE_TIME_KEYS
+                ),
+                expectation_minutes=strictest_expectation(
+                    option.get("sale_price_source_system") for option in sale_options
+                ),
                 now_utc=context.as_of_utc,
+                derived_from="route_candidates+market_observations",
             ),
             entitlement=entitlement_block(
-                applied=False,
-                filtered_out=0,
-                reason="no rows are composed by this slice",
+                applied=pool_entitlement.applied,
+                filtered_out=pool_entitlement.filtered_out,
+                reason=pool_entitlement.rule,
             ),
             context_filter=context_filter_block(applied=[], rule=_NO_CONTEXT_FIELD_RULE),
+            limits=None,
+            warnings=resource_pool["warnings"],
             notes=[
-                "Declared follow-up: portfolio resources/sale options stay on "
-                "/api/route-cost/resource-pool/options until that composition is "
-                "extracted.",
+                "Portfolio resources and executable sale options, composed by "
+                "application.resource_pool - the same code "
+                "GET /api/route-cost/resource-pool/options calls (Wave 5 follow-up).",
+                "A sale option is a derivative of a route candidate and a market "
+                "observation, so both contributing reads are entitlement-filtered "
+                "here; the underlying route applies no row filter, so this slice is "
+                "strictly narrower than it.",
+                "Entitlement filtering runs before the composition, so a *_MISSING "
+                "blocker can mean an input the caller is not entitled to rather than "
+                "one the runtime store does not hold; the entitlement block above "
+                "reports how many inputs were removed.",
+                "A blocker is a statement about missing or unverifiable inputs ("
+                "missing price, unknown capacity, absent FX, unconfirmed TSO access) "
+                "and is never approximated away.",
+                "Not bounded by the caller: the market-observation read is internally "
+                "bounded to 2000 rows, exactly as the route bounds it. The source "
+                "systems behind these options are reported per option; the "
+                "data_sources slice stays scoped to the portfolio order/PnL reads.",
             ],
         ),
         "data_sources": projection_slice(
@@ -328,7 +393,10 @@ def _populated_portfolio_snapshot(
         ),
     }
 
-    warnings = _payload_warnings(slices, summary.warnings)
+    warnings = _payload_warnings(
+        slices,
+        [*summary.warnings, *resource_pool["warnings"]],
+    )
     return projection_envelope(
         {
             "projection": PROJECTION_ID,
@@ -391,15 +459,15 @@ def _unavailable_portfolio_snapshot(
     slices["resources"] = projection_slice(
         source=SOURCE_RUNTIME_DB_NOT_CONFIGURED,
         rows=[],
-        payload={
-            "available": False,
-            "unavailable_reason": "RESOURCE_POOL_COMPOSITION_IS_ROUTE_LOCAL",
-            "follow_up": RESOURCE_POOL_FOLLOW_UP,
-            "served_by": "/api/route-cost/resource-pool/options",
-        },
+        payload={**RESOURCE_POOL_DB_NOT_CONFIGURED},
         freshness=empty_freshness,
         entitlement=entitlement_block(applied=False, filtered_out=0, reason=_DEGRADED_RULE),
         context_filter=context_filter_block(applied=[], rule=_DEGRADED_RULE),
+        notes=[
+            "Resource-pool options require the runtime PostgreSQL database; this is "
+            "the identical block GET /api/route-cost/resource-pool/options returns "
+            "without one, never a fabricated empty resource list.",
+        ],
     )
     warnings = dedupe([WARNING_RUNTIME_DB_NOT_CONFIGURED, *summary.warnings])
     return projection_envelope(
@@ -423,14 +491,6 @@ def _unavailable_portfolio_snapshot(
         warnings=warnings,
         table_lineage=TABLE_LINEAGE,
     )
-
-
-def _upstream_contracts(session: Session) -> list[dict[str, Any]]:
-    """Read the operator-owned upstream resource contracts."""
-
-    from eurogas_nexus.db.repositories.route_cost import list_upstream_contracts
-
-    return list_upstream_contracts(session)
 
 
 def _filter_models(

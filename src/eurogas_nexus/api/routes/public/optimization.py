@@ -1050,15 +1050,18 @@ def _runtime_resource_pool(body: ResourcePoolOptimizationRequest) -> dict:
     except _sqlalchemy_error_type() as exc:
         raise _db_unavailable(exc) from exc
 
-    from eurogas_nexus.api.routes.public import route_cost as route_cost_module
+    from eurogas_nexus.application.resource_pool import (
+        active_company_tsos,
+        compose_resource_pool_options,
+    )
 
-    composed = route_cost_module._compose_resource_pool_options(
+    composed = compose_resource_pool_options(
         contracts=contracts,
         candidates=candidates,
         tariffs=tariffs,
         market_rows=market_rows,
         fx_rows=fx_rows,
-        company_accessible_tsos=route_cost_module._active_company_tsos(access_rows),
+        company_accessible_tsos=active_company_tsos(access_rows),
     )
     blockers = list(composed["blockers"])
     warnings = list(composed["warnings"])

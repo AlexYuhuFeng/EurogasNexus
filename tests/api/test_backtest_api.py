@@ -7,8 +7,12 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from eurogas_nexus.api.app import create_app
+from eurogas_nexus.core.config import Settings
 from eurogas_nexus.db.base import Base
 from eurogas_nexus.db.models import MarketObservationRecord
+
+PUBLIC_TOKEN = "test-public-api-token"
+HEADERS = {"X-Eurogas-Api-Key": PUBLIC_TOKEN}
 
 
 def _configure_db(tmp_path, monkeypatch) -> str:
@@ -320,3 +324,104 @@ def test_legacy_evaluation_path_still_works(tmp_path, monkeypatch) -> None:
 
     assert evaluation.status_code == 200
     assert evaluation.json()["data"]["run_type"] == "EVALUATION"
+
+
+# ---------------------------------------------------------------------------
+# Analysis Snapshot citation on the strategy backtest run (Wave 4 scope)
+# ---------------------------------------------------------------------------
+
+
+def test_backtest_run_echoes_the_snapshot_it_was_computed_against(
+    tmp_path, monkeypatch
+) -> None:
+    database_url = _configure_db(tmp_path, monkeypatch)
+    client = TestClient(create_app())
+    version_id = _create_frozen_version(client)
+    _seed_observations(tmp_path, monkeypatch, database_url)
+    snapshot_id = client.post("/api/analysis-snapshots", json={}).json()["data"]["snapshot_id"]
+
+    run = client.post(
+        "/api/strategy-runs",
+        json=_backtest_payload(version_id, analysis_snapshot_id=snapshot_id),
+    )
+
+    assert run.status_code == 200, run.text
+    data = run.json()["data"]
+    assert data["analysis_snapshot_id"] == snapshot_id
+    # The citation is an echo, not a second computation: the run is unchanged.
+    assert data["backtest_metrics"]["evaluation_count"] == 2
+    assert data["backtest_metrics"]["net_indicative_pnl_gbp"] == 1750.0
+
+
+def test_backtest_run_refuses_an_unknown_snapshot_reference(tmp_path, monkeypatch) -> None:
+    database_url = _configure_db(tmp_path, monkeypatch)
+    client = TestClient(create_app())
+    version_id = _create_frozen_version(client)
+    _seed_observations(tmp_path, monkeypatch, database_url)
+
+    refused = client.post(
+        "/api/strategy-runs",
+        json=_backtest_payload(version_id, analysis_snapshot_id="asnap-missing"),
+    )
+
+    assert refused.status_code == 422
+    assert refused.json()["detail"]["code"] == "analysis_snapshot_not_found"
+    # Verified before the run: no run row and no job were created.
+    jobs = TestClient(create_app(Settings(api_profile="release"))).get(
+        "/api/jobs", params={"kind": "BACKTEST"}, headers=HEADERS
+    )
+    assert jobs.json()["data"] == []
+
+
+# ---------------------------------------------------------------------------
+# Unified job tracking on the strategy backtest run (Wave 8 scope)
+# ---------------------------------------------------------------------------
+
+
+def test_backtest_run_is_tracked_as_a_job_with_its_persisted_run(tmp_path, monkeypatch) -> None:
+    database_url = _configure_db(tmp_path, monkeypatch)
+    client = TestClient(create_app())
+    version_id = _create_frozen_version(client)
+    _seed_observations(tmp_path, monkeypatch, database_url)
+
+    run = client.post("/api/strategy-runs", json=_backtest_payload(version_id))
+    assert run.status_code == 200, run.text
+    data = run.json()["data"]
+    # No reproducibility reference was cited: the additive field is absent, so
+    # the previous payload is byte-identical for that caller.
+    assert "analysis_snapshot_id" not in data
+
+    jobs = TestClient(create_app(Settings(api_profile="release"))).get(
+        "/api/jobs", params={"kind": "BACKTEST"}, headers=HEADERS
+    )
+    assert jobs.status_code == 200
+    rows = jobs.json()["data"]
+    assert len(rows) == 1
+    assert rows[0]["status"] == "SUCCEEDED"
+    # The artefact is the persisted run the endpoint returned.
+    assert rows[0]["output_refs"] == [f"strategy_run:{data['run_id']}"]
+    assert rows[0]["scope_refs"] == [f"STRATEGY_VERSION:{version_id}"]
+    assert rows[0]["provenance"] == ["strategy-registry"]
+    assert rows[0]["input_hash"]
+
+
+def test_backtest_run_job_commits_the_snapshot_it_cited(tmp_path, monkeypatch) -> None:
+    database_url = _configure_db(tmp_path, monkeypatch)
+    client = TestClient(create_app())
+    version_id = _create_frozen_version(client)
+    _seed_observations(tmp_path, monkeypatch, database_url)
+    snapshot_id = client.post("/api/analysis-snapshots", json={}).json()["data"]["snapshot_id"]
+
+    run = client.post(
+        "/api/strategy-runs",
+        json=_backtest_payload(version_id, analysis_snapshot_id=snapshot_id),
+    )
+    assert run.status_code == 200, run.text
+
+    jobs = TestClient(create_app(Settings(api_profile="release"))).get(
+        "/api/jobs", params={"kind": "BACKTEST"}, headers=HEADERS
+    )
+    rows = jobs.json()["data"]
+    assert len(rows) == 1
+    assert rows[0]["snapshot_id"] == snapshot_id
+    assert rows[0]["output_refs"] == [f"strategy_run:{run.json()['data']['run_id']}"]

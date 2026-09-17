@@ -17,6 +17,9 @@ from uuid import uuid4
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
+from eurogas_nexus.api.dependencies.analysis_snapshot import (
+    require_known_analysis_snapshot,
+)
 from eurogas_nexus.domain.backtest.contracts import (
     BacktestDecisionSchedule,
     BacktestEconomicAssumptions,
@@ -82,7 +85,14 @@ class StrategyForkRequest(BaseModel):
 
 
 class StrategyRunCreateRequest(BaseModel):
-    """Request one reproducible strategy evaluation or backtest."""
+    """Request one reproducible strategy evaluation or backtest.
+
+    ``analysis_snapshot_id`` is the optional Architecture V2 Wave 4
+    reproducibility reference: when supplied it is verified against persisted
+    Analysis Snapshots before the run and echoed on the response, so a produced
+    run cites the version set it was computed against. A caller that supplies no
+    reference keeps the previous payload exactly.
+    """
 
     strategy_version_id: str = Field(min_length=1, max_length=128)
     run_type: StrategyRunType = StrategyRunType.EVALUATION
@@ -95,6 +105,7 @@ class StrategyRunCreateRequest(BaseModel):
     economic_assumptions: BacktestEconomicAssumptions | None = None
     parameter_values: dict[str, Any] = Field(default_factory=dict)
     experiment_id: str | None = Field(default=None, max_length=128)
+    analysis_snapshot_id: str | None = Field(default=None, max_length=128)
 
 
 class BacktestExperimentCreateRequest(BaseModel):
@@ -452,8 +463,15 @@ def _post_backtest_run(
             detail={"code": "backtest_request_invalid", "message": str(exc)},
         ) from exc
 
+    # Architecture V2 Wave 4: a run that cites a reproducibility reference must
+    # cite one the platform recorded. Verified before the run, echoed after it.
+    require_known_analysis_snapshot(
+        body.analysis_snapshot_id, resource="strategy-registry"
+    )
+
     with _db_session() as session:
         from eurogas_nexus.application.backtest_service import execute_backtest_run
+        from eurogas_nexus.application.jobs import track_job
         from eurogas_nexus.db.repositories import strategy_registry
         from eurogas_nexus.db.repositories.strategy import strategy_run_payload
 
@@ -467,21 +485,41 @@ def _post_backtest_run(
             )
         if version.status != "FROZEN":
             _raise_version_not_frozen(version.status, version.strategy_version_id)
-        try:
-            row = execute_backtest_run(
-                session,
-                version=version,
-                definition=definition,
-                requested_by=_requested_by(request),
-                run_id=None,
-                requested_at_utc=None,
-            )
-        except ValueError as exc:
-            raise HTTPException(
-                status_code=422,
-                detail={"code": "backtest_request_invalid", "message": str(exc)},
-            ) from exc
+        # Architecture V2 Wave 8: the backtest is tracked under the shared job
+        # lifecycle, so /api/jobs shows the run, the persisted run artefact it
+        # produced and a stable code when it fails. The job row commits in this
+        # session, with the run rows it describes.
+        with track_job(
+            session,
+            kind="BACKTEST",
+            principal=_requested_by(request),
+            scope_refs=(f"STRATEGY_VERSION:{body.strategy_version_id}",),
+            snapshot_id=body.analysis_snapshot_id or "",
+            inputs=definition.model_dump(mode="json"),
+            correlation_id=(
+                body.correlation_request_id
+                or getattr(request.state, "request_id", None)
+            ),
+            provenance=("strategy-registry",),
+        ) as job:
+            try:
+                row = execute_backtest_run(
+                    session,
+                    version=version,
+                    definition=definition,
+                    requested_by=_requested_by(request),
+                    run_id=None,
+                    requested_at_utc=None,
+                )
+            except ValueError as exc:
+                raise HTTPException(
+                    status_code=422,
+                    detail={"code": "backtest_request_invalid", "message": str(exc)},
+                ) from exc
+            job.add_output(f"strategy_run:{row.run_id}")
         data = strategy_run_payload(row)
+    if body.analysis_snapshot_id:
+        data["analysis_snapshot_id"] = body.analysis_snapshot_id
     return _env(data, request, source="runtime-postgresql")
 
 

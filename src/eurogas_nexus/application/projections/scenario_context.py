@@ -15,10 +15,10 @@ projections to read models, so this projection deliberately does **not** re-run
 or cache any of them: ``data.not_included`` names each surface and the reason.
 
 The portfolio resource-pool composition behind
-``GET /api/route-cost/resource-pool/options`` lives inside the route module
-(``route_cost.py::_compose_resource_pool_options``) and is therefore declared as
-a bounded follow-up rather than duplicated here (see
-:data:`~eurogas_nexus.application.projections.portfolio_snapshot.RESOURCE_POOL_FOLLOW_UP`).
+``GET /api/route-cost/resource-pool/options`` lives in the application layer
+(``application/resource_pool.py``) and is delivered by the PortfolioSnapshot
+``resources`` slice, so this projection references it under ``data.not_included``
+instead of serving a second copy of the same context.
 """
 
 from __future__ import annotations
@@ -101,11 +101,12 @@ NOT_INCLUDED: tuple[dict[str, str], ...] = (
     },
     {
         "surface": "GET /api/route-cost/resource-pool/options",
-        "reason": "RESOURCE_POOL_COMPOSITION_IS_ROUTE_LOCAL",
+        "reason": "RESOURCE_POOL_OPTIONS_ARE_DELIVERED_BY_THE_PORTFOLIO_PROJECTION",
         "detail": (
-            "The portfolio resource/sale-option composition is private to the route "
-            "module; extracting it into the application layer is the bounded "
-            "follow-up that would let this slice be delivered."
+            "The portfolio resource/sale-option composition now lives in "
+            "application/resource_pool.py and is delivered by "
+            "PortfolioSnapshot.slices.resources, so this projection does not "
+            "duplicate it."
         ),
     },
     {

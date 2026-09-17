@@ -198,3 +198,120 @@ def test_the_payload_is_telemetry_safe() -> None:
     assert payload["job_version"] == "job/v1"
     assert payload["correlation_id"] == "corr-1"
     assert payload["input_hash"] == "abc"
+
+
+# ---------------------------------------------------------------------------
+# run_tracked_job: the seam for work that has no session of its own
+# ---------------------------------------------------------------------------
+
+
+def _runtime_store(tmp_path, monkeypatch, name: str, *, with_jobs: bool = True) -> str:
+    """Point the runtime store at a SQLite database, optionally without jobs."""
+
+    from sqlalchemy import create_engine
+
+    from eurogas_nexus.db.base import Base
+
+    database_url = f"sqlite+pysqlite:///{(tmp_path / name).as_posix()}"
+    engine = create_engine(database_url, future=True)
+    tables = None
+    if not with_jobs:
+        tables = [table for table in Base.metadata.sorted_tables if table.name != "job_records"]
+    Base.metadata.create_all(engine, tables=tables)
+    monkeypatch.setenv("RUNTIME_STORE_DATABASE_URL", database_url)
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("EUROGAS_NEXUS_DB_DSN", raising=False)
+    return database_url
+
+
+def test_run_tracked_job_records_a_successful_computation(tmp_path, monkeypatch) -> None:
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+
+    from eurogas_nexus.application.jobs import run_tracked_job
+    from eurogas_nexus.db.repositories.jobs import list_jobs
+
+    database_url = _runtime_store(tmp_path, monkeypatch, "tracked.sqlite")
+
+    result = run_tracked_job(
+        lambda handle: {"allocated": 6000},
+        kind="OPTIMISATION",
+        principal="analyst.one",
+        scope_refs=("PORTFOLIO:pool-1",),
+        snapshot_id="asnap-1",
+        inputs={"portfolio_id": "pool-1"},
+        correlation_id="corr-7",
+        provenance=("route-cost-resource-pool",),
+    )
+
+    assert result == {"allocated": 6000}
+    with Session(create_engine(database_url, future=True)) as session:
+        rows = list_jobs(session, kind="OPTIMISATION")
+    assert len(rows) == 1
+    assert rows[0]["status"] == "SUCCEEDED"
+    assert rows[0]["scope_refs"] == ["PORTFOLIO:pool-1"]
+    assert rows[0]["snapshot_id"] == "asnap-1"
+    assert rows[0]["correlation_id"] == "corr-7"
+    assert rows[0]["provenance"] == ["route-cost-resource-pool"]
+
+
+def test_run_tracked_job_commits_a_failure_and_reraises(tmp_path, monkeypatch) -> None:
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+
+    from eurogas_nexus.application.jobs import run_tracked_job
+    from eurogas_nexus.db.repositories.jobs import list_jobs
+
+    database_url = _runtime_store(tmp_path, monkeypatch, "tracked-failed.sqlite")
+
+    class Boom(RuntimeError):
+        code = "OPTIMIZATION_INFEASIBLE"
+
+    def _work(handle) -> None:
+        raise Boom("no feasible allocation")
+
+    with pytest.raises(Boom):
+        run_tracked_job(_work, kind="OPTIMISATION", principal="analyst.one")
+
+    with Session(create_engine(database_url, future=True)) as session:
+        rows = list_jobs(session, kind="OPTIMISATION")
+    assert len(rows) == 1
+    assert rows[0]["status"] == "FAILED"
+    assert rows[0]["error_code"] == "OPTIMIZATION_INFEASIBLE"
+    assert rows[0]["error_message"] == "Boom"
+
+
+def test_run_tracked_job_runs_untracked_without_a_runtime_store(monkeypatch) -> None:
+    from eurogas_nexus.application.jobs import run_tracked_job
+
+    monkeypatch.delenv("RUNTIME_STORE_DATABASE_URL", raising=False)
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("EUROGAS_NEXUS_DB_DSN", raising=False)
+
+    seen: list[str] = []
+    result = run_tracked_job(
+        lambda handle: seen.append(handle.job_id) or "done",
+        kind="OPTIMISATION",
+        principal="analyst.one",
+    )
+
+    assert result == "done"
+    assert seen == [""]
+
+
+def test_run_tracked_job_runs_untracked_when_the_store_cannot_accept_the_job(
+    tmp_path, monkeypatch
+) -> None:
+    from eurogas_nexus.application.jobs import run_tracked_job
+
+    # The store is configured but carries no job table: tracking is skipped
+    # rather than turning a computation into a failure.
+    _runtime_store(tmp_path, monkeypatch, "no-jobs.sqlite", with_jobs=False)
+
+    result = run_tracked_job(
+        lambda handle: "computed",
+        kind="OPTIMISATION",
+        principal="analyst.one",
+    )
+
+    assert result == "computed"

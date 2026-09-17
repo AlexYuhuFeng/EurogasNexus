@@ -2,12 +2,19 @@
 
 from __future__ import annotations
 
-import json
-from datetime import UTC, date, datetime
-
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field
 
+from eurogas_nexus.api.dependencies.analysis_snapshot import (
+    require_known_analysis_snapshot,
+)
+from eurogas_nexus.application.resource_pool import (
+    active_company_tsos,
+    compose_resource_pool_options,
+    latest_market_price_by_point,
+    read_resource_pool_inputs,
+    value_in_gbp,
+)
 from eurogas_nexus.domain.route_cost.enums import SourceResourceType
 from eurogas_nexus.domain.route_cost.lng_regas import (
     LngRegasScenario,
@@ -22,7 +29,7 @@ from eurogas_nexus.domain.route_cost.route_optimizer import (
     RouteRecommendationRequest,
     recommend_route_allocation,
 )
-from eurogas_nexus.domain.route_cost.schemas import RouteCostScenario, RouteTariffLeg
+from eurogas_nexus.domain.route_cost.schemas import RouteCostScenario
 
 router = APIRouter(tags=["route-cost"])
 
@@ -208,6 +215,11 @@ def get_resource_pool_options(request: Request) -> dict:
 
     This endpoint is intentionally read-only. It exists so clients do not
     fabricate route options locally when the runtime DB is missing inputs.
+
+    The composition itself lives in
+    :mod:`eurogas_nexus.application.resource_pool`, so the Wave 5
+    ``PortfolioSnapshot`` projection composes the identical payload from the same
+    read instead of duplicating it (Architecture V2 Wave 5 follow-up).
     """
 
     if not _db_is_configured():
@@ -228,45 +240,10 @@ def get_resource_pool_options(request: Request) -> dict:
 
     sqlalchemy_error = _sqlalchemy_error_type()
     try:
-        from eurogas_nexus.db.models import (
-            CompanyTsoAccessRecord,
-            FxObservationRecord,
-        )
-        from eurogas_nexus.db.repositories.market_intelligence import (
-            list_market_observations_with_source_coverage,
-        )
-        from eurogas_nexus.db.repositories.route_cost import (
-            list_route_candidates,
-            list_tso_tariffs,
-            list_upstream_contracts,
-        )
         from eurogas_nexus.db.session import get_session_factory
 
         with get_session_factory()() as session:
-            contracts = list_upstream_contracts(session)
-            candidates = list_route_candidates(session)
-            tariffs = list_tso_tariffs(session)
-            market_rows = list_market_observations_with_source_coverage(
-                session,
-                limit=2000,
-            )
-            fx_rows = (
-                session.query(FxObservationRecord)
-                .order_by(FxObservationRecord.observed_at_utc.desc())
-                .all()
-            )
-            access_rows = (
-                session.query(CompanyTsoAccessRecord).order_by(CompanyTsoAccessRecord.tso).all()
-            )
-
-        data = _compose_resource_pool_options(
-            contracts=contracts,
-            candidates=candidates,
-            tariffs=tariffs,
-            market_rows=market_rows,
-            fx_rows=fx_rows,
-            company_accessible_tsos=_active_company_tsos(access_rows),
-        )
+            data = compose_resource_pool_options(**read_resource_pool_inputs(session))
         return _env(data, request, source="runtime-postgresql", warnings=data["warnings"])
     except sqlalchemy_error as exc:
         raise _db_unavailable(exc) from exc
@@ -325,63 +302,66 @@ def post_resource_pool_optimization(
     body: PortfolioOptimizationScenario,
     request: Request,
 ) -> dict:
-    """Optimize multi-upstream resource-pool allocation across selling options."""
+    """Optimize multi-upstream resource-pool allocation across selling options.
 
-    result = optimize_resource_pool(body)
+    When the caller supplies an ``analysis_snapshot_id`` (Architecture V2 Wave 4)
+    the reference is verified against persisted Analysis Snapshots before the run
+    and echoed on the result, so a produced allocation cites the version set it
+    was computed against instead of carrying an unverified string.
+
+    Architecture V2 Wave 8: the run is tracked under the shared job lifecycle, so
+    ``/api/jobs`` shows what the deployment actually optimised, against which
+    snapshot, and with a stable code when it fails. Tracking never changes what
+    this handler returns or raises.
+    """
+
+    _require_known_analysis_snapshot(body.analysis_snapshot_id)
+
+    from eurogas_nexus.api.dependencies.row_entitlement import current_principal
+    from eurogas_nexus.application.jobs import run_tracked_job
+
+    def _optimize(handle) -> dict:
+        # A pure computation persists no artefact, so the job records the
+        # snapshot it cites and its inputs; there is no output reference to
+        # invent. ``add_output`` is the seam the day this result is persisted.
+        result = optimize_resource_pool(body)
+        payload = result.model_dump(mode="json")
+        if body.analysis_snapshot_id:
+            payload["analysis_snapshot_id"] = body.analysis_snapshot_id
+        else:
+            # A caller that cites no snapshot keeps the previous payload exactly:
+            # the reference is additive and appears only when it carries a value.
+            payload.pop("analysis_snapshot_id")
+        return payload
+
+    payload = run_tracked_job(
+        _optimize,
+        kind="OPTIMISATION",
+        principal=current_principal(request).name,
+        scope_refs=(f"PORTFOLIO:{body.portfolio_id}",),
+        snapshot_id=body.analysis_snapshot_id or "",
+        inputs=body.model_dump(mode="json"),
+        correlation_id=getattr(request.state, "request_id", None),
+        provenance=("route-cost-resource-pool",),
+    )
     return _env(
-        result.model_dump(mode="json"),
+        payload,
         request,
         source="operator-input",
-        warnings=result.warnings,
+        warnings=payload["warnings"],
     )
 
 
 def _require_known_analysis_snapshot(snapshot_id: str | None) -> None:
-    """Fail closed when a supplied Analysis Snapshot reference does not exist.
+    """Verify a supplied Analysis Snapshot reference (compatibility alias).
 
-    Architecture V2 Wave 4: a result that claims a reproducibility reference must
-    cite one the platform actually recorded. A caller that supplies no reference
-    is unaffected (the field is optional and additive).
-
-    Raises:
-        HTTPException: 503 ``runtime_db_not_configured`` when a reference was
-            supplied but no runtime database can verify it; 503
-            ``runtime_db_unavailable`` on a failed read; 422
-            ``analysis_snapshot_not_found`` when no snapshot carries the id.
+    The check itself lives in
+    :mod:`eurogas_nexus.api.dependencies.analysis_snapshot`, so every run path
+    that accepts an optional ``analysis_snapshot_id`` refuses an unknown
+    reference with the same status codes and error codes.
     """
 
-    if not snapshot_id:
-        return
-    if not _db_is_configured():
-        raise HTTPException(
-            status_code=503,
-            detail={
-                "code": "runtime_db_not_configured",
-                "message": (
-                    "An Analysis Snapshot reference cannot be verified without a "
-                    "runtime database."
-                ),
-                "analysis_snapshot_id": snapshot_id,
-            },
-        )
-    sqlalchemy_error = _sqlalchemy_error_type()
-    try:
-        from eurogas_nexus.db.repositories.data_platform import get_analysis_snapshot
-        from eurogas_nexus.db.session import get_session_factory
-
-        with get_session_factory()() as session:
-            known = get_analysis_snapshot(session, snapshot_id)
-    except sqlalchemy_error as exc:
-        raise _db_unavailable(exc) from exc
-    if known is None:
-        raise HTTPException(
-            status_code=422,
-            detail={
-                "code": "analysis_snapshot_not_found",
-                "message": f"No Analysis Snapshot is recorded for {snapshot_id!r}.",
-                "analysis_snapshot_id": snapshot_id,
-            },
-        )
+    require_known_analysis_snapshot(snapshot_id)
 
 
 def _load_tariffs():
@@ -421,6 +401,16 @@ def _load_route_candidates() -> tuple[list[dict], str, list[str]]:
         raise _db_unavailable(exc) from exc
 
 
+# --- Application-layer seams (Architecture V2 Wave 5 follow-up) -------------
+#
+# The composition below now lives in
+# ``eurogas_nexus.application.resource_pool``, so the PortfolioSnapshot
+# projection's ``resources`` slice composes the identical payload from the same
+# read instead of duplicating it. The private names stay as compatibility
+# aliases for the repository's existing test seams, exactly as ``market.py``
+# keeps ``_market_row`` / ``_fx_row``.
+
+
 def _compose_resource_pool_options(
     *,
     contracts: list[dict],
@@ -430,567 +420,40 @@ def _compose_resource_pool_options(
     fx_rows: list,
     company_accessible_tsos: list[str] | None = None,
 ) -> dict:
-    blockers: list[str] = []
-    warnings: list[str] = []
-    if not contracts:
-        blockers.append("UPSTREAM_CONTRACTS_MISSING")
-    if not candidates:
-        blockers.append("ROUTE_CANDIDATES_MISSING")
+    """Compose portfolio resources and sale options (compatibility alias)."""
 
-    price_by_point = _latest_market_price_by_point(market_rows)
-    resources = [
-        _portfolio_resource_from_contract(contract, company_accessible_tsos=company_accessible_tsos)
-        for contract in contracts
-    ]
-    sale_options = []
-    for candidate in candidates:
-        target = str(candidate["target_point_name"]).strip().upper()
-        start = str(candidate["start_point_name"]).strip().upper()
-        route_topology_kind = _route_topology_kind(candidate)
-        market_price = price_by_point.get(target)
-        if market_price is None:
-            blockers.append(f"MARKET_PRICE_MISSING:{target}")
-            continue
-
-        start_contracts = [
-            contract
-            for contract in contracts
-            if str(contract.get("delivery_point_name") or "").strip().upper() == start
-        ]
-        if contracts and not start_contracts:
-            warnings.append(f"ROUTE_START_NOT_IN_RESOURCE_POOL:{candidate['route_id']}")
-            continue
-        eligible_contracts = [
-            contract
-            for contract in start_contracts
-            if target == start
-            or target
-            in {
-                str(point).strip().upper()
-                for point in contract.get("allowed_exit_points", [])
-                if str(point).strip()
-            }
-        ]
-        if contracts and not eligible_contracts:
-            warnings.append(f"ROUTE_TARGET_NOT_ALLOWED_BY_CONTRACT:{candidate['route_id']}")
-            continue
-
-        route_cost, cost_currency, cost_unit, cost_warnings, cost_blockers = _candidate_route_cost(
-            candidate,
-            tariffs,
-            price_currency=market_price["currency"],
-            price_unit=market_price["unit"],
-            company_accessible_tsos=company_accessible_tsos,
-        )
-        warnings.extend(cost_warnings)
-        blockers.extend(cost_blockers)
-        if cost_blockers:
-            continue
-
-        capacity_limit = _route_capacity_limit(candidate)
-        is_cross_zone = (
-            str(candidate.get("business_model") or "").upper()
-            in {"CROSS_BORDER_TRANSFER", "BORDER_TRANSFER"}
-            or start != target
-        )
-        if capacity_limit is None and is_cross_zone:
-            # Cross-zone route with no known capacity: fail closed. Only a
-            # same-point sale (NOT_REQUIRED) may proceed without capacity.
-            blockers.append(f"ROUTE_CAPACITY_UNKNOWN:{candidate['route_id']}")
-            continue
-        capacity_status = "KNOWN" if capacity_limit is not None else "NOT_REQUIRED"
-
-        observed_at_iso = market_price["observed_at_utc"]
-        asof_date = _date_from_iso(observed_at_iso)
-
-        sale_price_gbp, sale_fx_info, sale_fx_warning = _value_in_gbp(
-            market_price["price"],
-            market_price["currency"],
-            market_price["unit"],
-            asof_date,
-            fx_rows,
-        )
-        if sale_price_gbp is None:
-            blockers.append(
-                f"MARKET_PRICE_FX_UNAVAILABLE:{target} ({market_price['currency']}->GBP)"
-            )
-            continue
-        if sale_fx_warning:
-            warnings.append(f"{sale_fx_warning}:{target}")
-
-        route_cost_gbp, route_fx_info, route_fx_warning = _value_in_gbp(
-            route_cost,
-            cost_currency,
-            cost_unit,
-            asof_date,
-            fx_rows,
-        )
-        if route_cost_gbp is None:
-            blockers.append(
-                f"ROUTE_COST_FX_UNAVAILABLE:{candidate['route_id']} ({cost_currency}->GBP)"
-            )
-            continue
-        if route_fx_warning:
-            warnings.append(f"{route_fx_warning}:{candidate['route_id']}")
-
-        sale_options.append(
-            {
-                "option_id": candidate["route_id"],
-                "label": candidate["route_name"],
-                "delivery_mode": "VIRTUAL_HUB_SALE",
-                "target_point_name": candidate["target_point_name"],
-                "route_topology_kind": route_topology_kind,
-                "sale_price_gbp_mwh": sale_price_gbp,
-                "sale_price_currency": "GBP",
-                "sale_price_unit": "GBP/MWh",
-                "sale_price_source_system": market_price["source_system"],
-                "sale_price_source_reference": market_price["source_reference"],
-                "sale_price_observed_at_utc": observed_at_iso,
-                "sale_price_freshness": market_price["freshness"],
-                "sale_price_quality_score": market_price["quality_score"],
-                "sale_price_simulated": market_price["simulated"],
-                "sale_price_source_family": market_price["source_family"],
-                "sale_price_original_currency": market_price["currency"],
-                "sale_price_original_unit": market_price["unit"],
-                **sale_fx_info,
-                "route_cost_gbp_mwh": route_cost_gbp,
-                "route_cost_currency": "GBP",
-                "route_cost_unit": "GBP/MWh",
-                **route_fx_info,
-                "capacity_limit_mwh_per_day": capacity_limit,
-                "capacity_status": capacity_status,
-                "screen_sale_cash_lag_days": _screen_cash_lag_days(eligible_contracts),
-                "eligible_resource_ids": [
-                    contract["contract_id"] for contract in eligible_contracts
-                ],
-                "required_tso_access": candidate["required_tso_access"],
-                "source_refs": [
-                    f"route_candidate:{candidate['route_id']}",
-                    market_price["source_reference"],
-                    *candidate.get("source_systems", []),
-                ],
-            }
-        )
-
-    return {
-        "scope": "RESOURCE_POOL_ROUTE_OPTIONS",
-        "data_source": "runtime-postgresql",
-        "portfolio_resources": resources,
-        "sale_options": sale_options,
-        "blockers": _unique(blockers),
-        "warnings": _unique(warnings),
-    }
+    return compose_resource_pool_options(
+        contracts=contracts,
+        candidates=candidates,
+        tariffs=tariffs,
+        market_rows=market_rows,
+        fx_rows=fx_rows,
+        company_accessible_tsos=company_accessible_tsos,
+    )
 
 
 def _latest_market_price_by_point(market_rows: list) -> dict[str, dict]:
-    prices: dict[str, dict] = {}
-    for row in market_rows:
-        keys = _market_price_keys(row)
-        for key in keys:
-            source_system = getattr(row, "source_system", None)
-            metadata = row.metadata_json or {}
-            simulated = _is_simulated_market_price(row)
-            candidate = {
-                "price": row.price,
-                "currency": row.currency,
-                "unit": row.unit,
-                "source_reference": f"market_observation:{row.observation_id}",
-                "source_system": source_system,
-                "observed_at_utc": _iso_or_none(getattr(row, "observed_at_utc", None)),
-                "freshness": getattr(row, "freshness", None),
-                "quality_score": getattr(row, "quality_score", None),
-                "simulated": simulated,
-                "source_family": _market_price_source_family(source_system, metadata),
-                "selection_priority": _market_price_selection_priority(row),
-            }
-            current = prices.get(key)
-            if current is None or candidate["selection_priority"] < current["selection_priority"]:
-                prices[key] = candidate
-    for price in prices.values():
-        price.pop("selection_priority", None)
-    return prices
+    """Return the selected market price per point (compatibility alias)."""
 
-
-def _market_price_keys(row) -> list[str]:
-    keys = [row.market_venue, row.product]
-    metadata = row.metadata_json or {}
-    for field in ("hub", "point_name", "market_area"):
-        value = metadata.get(field)
-        if isinstance(value, str):
-            keys.append(value)
-    return [value.strip().upper() for value in keys if isinstance(value, str) and value.strip()]
-
-
-def _market_price_basis_priority(row) -> int:
-    metadata = row.metadata_json or {}
-    tenor = metadata.get("tenor")
-    if not isinstance(tenor, str):
-        product = row.product.lower()
-        if "within" in product:
-            tenor = "within-day"
-        elif "day" in product:
-            tenor = "day-ahead"
-        elif "month" in product:
-            tenor = "month-ahead"
-        else:
-            tenor = ""
-    normalized = tenor.strip().lower()
-    if normalized in {"day-ahead", "within-day"}:
-        return 0
-    if normalized in {"weekend", "balance-of-week"}:
-        return 1
-    if normalized in {"month-ahead", "front-month"}:
-        return 2
-    return 3
-
-
-def _market_price_selection_priority(row) -> tuple[int, int, int]:
-    """Rank rows for spot-like resource-pool pricing.
-
-    The query already orders newest rows first. This priority keeps that order
-    for equal candidates while making the two business rules explicit:
-    preferred tenors first, licensed/source-provided rows before simulated
-    rows, and exchange observations before broker or assessment sources when
-    otherwise tied. The source precedence removes dependence on database row
-    order for simulator ticks emitted at the same instant.
-    """
-
-    return (
-        _market_price_basis_priority(row),
-        1 if _is_simulated_market_price(row) else 0,
-        _market_price_source_priority(getattr(row, "source_system", None)),
-    )
-
-
-def _market_price_source_priority(source_system: str | None) -> int:
-    family = (source_system or "").removesuffix("_Sim").upper()
-    return {
-        "EEX": 0,
-        "ICE_OCM": 0,
-        "TRAYPORT": 1,
-        "ICIS": 2,
-    }.get(family, 3)
-
-
-def _is_simulated_market_price(row) -> bool:
-    metadata = row.metadata_json or {}
-    if metadata.get("simulated") is True:
-        return True
-    source_system = getattr(row, "source_system", None)
-    return isinstance(source_system, str) and source_system.endswith("_Sim")
-
-
-def _market_price_source_family(
-    source_system: str | None,
-    metadata: dict,
-) -> str | None:
-    source_family = metadata.get("source_family")
-    if isinstance(source_family, str) and source_family.strip():
-        return source_family.strip()
-    if isinstance(source_system, str) and source_system.endswith("_Sim"):
-        return source_system.removesuffix("_Sim")
-    return source_system
-
-
-def _iso_or_none(value) -> str | None:
-    return value.isoformat() if hasattr(value, "isoformat") else value
-
-
-def _portfolio_resource_from_contract(
-    contract: dict, *, company_accessible_tsos: list[str] | None = None
-) -> dict:
-    resource_type = contract["resource_type"]
-    notes = _contract_notes_payload(contract.get("notes"))
-    variable_cost = _non_negative_number(
-        contract.get("variable_cost_gbp_mwh", notes.get("variable_cost_gbp_mwh"))
-    )
-    regas_fee = _non_negative_number(
-        contract.get("regas_fee_gbp_mwh", notes.get("regas_fee_gbp_mwh"))
-    )
-    fuel_loss = _non_negative_number(
-        contract.get("fuel_loss_allowance_pct", notes.get("fuel_loss_allowance_pct"))
-    )
-    return {
-        "resource_id": contract["contract_id"],
-        "resource_name": contract["contract_name"],
-        "resource_type": resource_type,
-        "delivery_mode": (
-            "TERMINAL_TITLE_TRANSFER" if resource_type == "LNG_REGAS" else "PHYSICAL_ENTRY_DELIVERY"
-        ),
-        "location_point_name": contract["delivery_point_name"],
-        "available_quantity_mwh_per_day": contract["delivery_quantity_mwh_per_day"],
-        "contract_cost_gbp_mwh": contract["contract_price_gbp_mwh"],
-        "variable_cost_gbp_mwh": round(variable_cost + regas_fee, 4),
-        "fuel_loss_allowance_pct": fuel_loss,
-        "delivery_tolerance_pct": contract["delivery_tolerance_pct"],
-        "nomination_tolerance_pct": contract["nomination_tolerance_pct"],
-        "tolerance_risk_allowance_gbp_mwh": contract.get("tolerance_risk_allowance_gbp_mwh") or 0.0,
-        "upstream_payment_lag_days": contract["upstream_payment_lag_days"],
-        "screen_sale_cash_lag_days": contract["screen_sale_cash_lag_days"],
-        "settlement_frequency": contract["settlement_frequency"],
-        "required_tso_access": [],
-        "accessible_tsos": list(company_accessible_tsos or []) or None,
-        "pricing_method": _pricing_method(notes.get("index_basis")),
-        "source_refs": _unique(
-            [
-                f"upstream_resource_contract:{contract['contract_id']}",
-                *([str(notes["source_reference"])] if notes.get("source_reference") else []),
-            ]
-        ),
-    }
-
-
-def _route_topology_kind(candidate: dict) -> str:
-    """Separate non-spatial local sales from network transport routes."""
-
-    start = str(candidate.get("start_point_name") or "").strip().upper()
-    target = str(candidate.get("target_point_name") or "").strip().upper()
-    if start and start == target and not candidate.get("route_legs"):
-        return "LOCAL_MARKET_DISPOSITION"
-    return "NETWORK_ROUTE"
-
-
-def _contract_notes_payload(value: object) -> dict:
-    if isinstance(value, dict):
-        return value
-    if not isinstance(value, str) or not value.strip():
-        return {}
-    try:
-        parsed = json.loads(value)
-    except (TypeError, ValueError):
-        return {}
-    return parsed if isinstance(parsed, dict) else {}
-
-
-def _non_negative_number(value: object) -> float:
-    if not isinstance(value, int | float) or isinstance(value, bool):
-        return 0.0
-    return max(float(value), 0.0)
-
-
-def _pricing_method(value: object) -> str:
-    normalized = str(value or "").strip().upper()
-    if "DAY-AHEAD" in normalized or "DAY AHEAD" in normalized:
-        return "DAILY_INDEX"
-    if "MONTH" in normalized:
-        return "MONTHLY_INDEX"
-    if "FIXED" in normalized:
-        return "FIXED_PRICE"
-    return "OPERATOR_CONTRACT"
-
-
-def _candidate_route_cost(
-    candidate: dict,
-    tariffs: list,
-    *,
-    price_currency: str,
-    price_unit: str,
-    company_accessible_tsos: list[str] | None = None,
-) -> tuple[float | None, str | None, str | None, list[str], list[str]]:
-    if not candidate["route_legs"]:
-        return 0.0, None, None, [], []
-
-    try:
-        legs = [RouteTariffLeg.model_validate(leg) for leg in candidate["route_legs"]]
-    except ValidationError:
-        return 0.0, None, None, [], [f"ROUTE_LEG_INVALID:{candidate['route_id']}"]
-
-    scenario = RouteCostScenario(
-        scenario_id=f"resource-pool-options:{candidate['route_id']}",
-        source_resource_type="PIPELINE_IMPORT",
-        start_point_id=candidate["start_point_name"],
-        target_hub_or_point_id=candidate["target_point_name"],
-        business_model="CROSS_BORDER_TRANSFER",
-        delivery_mode="BORDER_TRANSFER",
-        gas_year=legs[0].gas_year or "2025+",
-        capacity_product=legs[0].capacity_product or "ANNUAL",
-        firmness=legs[0].firmness or "FIRM",
-        required_tso_access=candidate["required_tso_access"],
-        company_accessible_tsos=(
-            company_accessible_tsos if candidate["required_tso_access"] else None
-        ),
-        tariff_legs=legs,
-    )
-    result = calculate_route_cost(scenario, tariffs)
-    blockers = [
-        *[f"ROUTE_COST_MISSING:{candidate['route_id']}:{item}" for item in result.missing_inputs],
-        *[
-            f"ROUTE_COST_MISSING:{candidate['route_id']}:{warning}"
-            for warning in result.warnings
-            if warning == "UNIT_CONVERSION_NOT_IMPLEMENTED"
-        ],
-    ]
-    if result.total_cost is None:
-        blockers.append(f"ROUTE_COST_MISSING:{candidate['route_id']}")
-        return 0.0, result.currency, result.unit, result.warnings, blockers
-    # Currency/unit harmonisation happens downstream in _value_in_gbp, which
-    # converts both sale price and route cost to GBP/MWh with as-of FX and
-    # fails closed when conversion is unavailable.
-    return result.total_cost, result.currency, result.unit, result.warnings, blockers
+    return latest_market_price_by_point(market_rows)
 
 
 def _value_in_gbp(
     value: float | None,
     currency: str | None,
     unit: str | None,
-    asof_date: date | None,
+    asof_date,
     fx_rows: list,
 ) -> tuple[float | None, dict, str | None]:
-    """Convert a value to GBP/MWh with as-of FX provenance (P0-3).
+    """Convert a value to GBP/MWh with as-of FX provenance (compatibility alias)."""
 
-    Values already in GBP pass through unchanged. Non-GBP values are converted
-    with FX observations whose value date is not later than ``asof_date``
-    (valuation-date as-of join); when no as-of rate exists, the latest rate is
-    used and ``fx_as_of_approximated`` is set. Conversion failure returns None
-    so callers fail closed.
-    """
-
-    if value is None:
-        return None, {}, None
-    currency_code = (currency or "").strip().upper()
-    unit_code = (unit or "").strip().upper()
-    if currency_code == "" and value == 0.0:
-        # A zero cost carries no currency risk.
-        return round(value, 4), {}, None
-    if currency_code == "GBP":
-        return round(value, 4), {}, None
-    if unit_code and not unit_code.endswith("/MWH"):
-        return None, {}, None
-
-    asof_rates = _fx_rows_as_of(fx_rows, asof_date)
-    converted = _convert_with_rows(value, currency_code, "GBP", asof_rates)
-    approximated = converted is None
-    if approximated:
-        converted = _convert_with_rows(value, currency_code, "GBP", fx_rows)
-    if converted is None:
-        return None, {}, None
-
-    rate_row = _direct_fx_row(fx_rows, currency_code, "GBP", asof_date)
-    provenance = {
-        "fx_converted_from": currency_code,
-        "fx_rate_used": rate_row.rate if rate_row is not None else None,
-        "fx_observation_id": rate_row.observation_id if rate_row is not None else None,
-        "fx_value_date": rate_row.value_date if rate_row is not None else None,
-        "fx_as_of_approximated": approximated,
-    }
-    warning = f"FX_AS_OF_APPROXIMATED:{currency_code}->GBP" if approximated else None
-    return round(converted, 4), provenance, warning
-
-
-def _convert_with_rows(value: float, base: str, quote: str, fx_rows: list) -> float | None:
-    """Convert ``value`` from ``base`` to ``quote`` using FX rows as rates.
-
-    Rows are turned into ``FxRateInput`` with ``observed_at_utc`` taken from
-    the row's value date, so the shared latest-rate graph picks the latest
-    value date within the supplied (already as-of filtered) set.
-    """
-
-    from eurogas_nexus.domain.market_intelligence.normalized_view import (
-        FxRateInput,
-        convert_currency,
-    )
-
-    rates = [
-        FxRateInput(
-            pair=row.pair,
-            base_currency=row.base_currency,
-            quote_currency=row.quote_currency,
-            rate=row.rate,
-            observed_at_utc=(row.value_date + "T00:00:00+00:00"),
-        )
-        for row in fx_rows
-        if isinstance(row.rate, int | float) and row.rate > 0
-    ]
-    return convert_currency(value, base, quote, rates)
-
-
-def _fx_rows_as_of(fx_rows: list, asof_date: date | None) -> list:
-    """Keep FX rows whose value date is not later than ``asof_date``."""
-
-    if asof_date is None:
-        return list(fx_rows)
-    return [
-        row
-        for row in fx_rows
-        if _fx_value_date(row) is not None and _fx_value_date(row) <= asof_date
-    ]
-
-
-def _direct_fx_row(fx_rows: list, base: str, quote: str, asof_date: date | None):
-    """Return the latest FX row for a direct currency pair (as-of when given)."""
-
-    matches = []
-    for row in fx_rows:
-        row_base = str(getattr(row, "base_currency", "") or "").strip().upper()
-        row_quote = str(getattr(row, "quote_currency", "") or "").strip().upper()
-        pair = str(getattr(row, "pair", "") or "").upper()
-        if (row_base == base and row_quote == quote) or pair == f"{base}{quote}":
-            row_date = _fx_value_date(row)
-            if asof_date is None or (row_date is not None and row_date <= asof_date):
-                matches.append(row)
-    if not matches:
-        return None
-    return max(matches, key=lambda row: _fx_value_date(row) or date.min)
-
-
-def _fx_value_date(row) -> date | None:
-    value = getattr(row, "value_date", None)
-    if isinstance(value, str):
-        return _date_from_iso(value)
-    return None
-
-
-def _date_from_iso(value: str | None) -> date | None:
-    if not value:
-        return None
-    try:
-        return date.fromisoformat(str(value)[:10])
-    except ValueError:
-        return None
-
-
-def _route_capacity_limit(candidate: dict) -> float | None:
-    capacities = [
-        float(leg["available_capacity_mwh_per_day"])
-        for leg in candidate.get("route_legs", [])
-        if isinstance(leg, dict)
-        and isinstance(leg.get("available_capacity_mwh_per_day"), int | float)
-    ]
-    return min(capacities) if capacities else None
-
-
-def _screen_cash_lag_days(contracts: list[dict]) -> int:
-    lags = [
-        int(contract["screen_sale_cash_lag_days"])
-        for contract in contracts
-        if isinstance(contract.get("screen_sale_cash_lag_days"), int)
-    ]
-    return min(lags) if lags else 1
+    return value_in_gbp(value, currency, unit, asof_date, fx_rows)
 
 
 def _active_company_tsos(rows: list) -> list[str]:
-    """Return currently active company TSO access names."""
+    """Return currently active company TSO access names (compatibility alias)."""
 
-    now = datetime.now(UTC)
-    active: list[str] = []
-    for row in rows:
-        valid_from = row.valid_from_utc
-        if valid_from.tzinfo is None:
-            valid_from = valid_from.replace(tzinfo=UTC)
-        valid_to = row.valid_to_utc
-        if valid_to is not None and valid_to.tzinfo is None:
-            valid_to = valid_to.replace(tzinfo=UTC)
-        if valid_from > now:
-            continue
-        if valid_to is not None and valid_to < now:
-            continue
-        if str(row.status).strip().upper() in {"ACTIVE", "CONFIRMED"}:
-            active.append(str(row.tso).strip())
-    return active
-
-
-def _unique(values: list[str]) -> list[str]:
-    return list(dict.fromkeys(values))
+    return active_company_tsos(rows)
 
 
 def _db_is_configured() -> bool:

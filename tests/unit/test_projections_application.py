@@ -30,6 +30,7 @@ from eurogas_nexus.application.projections import (
 )
 from eurogas_nexus.db.base import Base
 from eurogas_nexus.db.models import (
+    FxObservationRecord,
     GeneratedReportRecord,
     IntradayOpportunityRecord,
     MarketObservationRecord,
@@ -37,8 +38,10 @@ from eurogas_nexus.db.models import (
     MonitoringAlertRecord,
     PortfolioPnlSnapshotRecord,
     ReviewDecisionRecord,
+    RouteCandidateRecord,
     ScreenOrderObservationRecord,
     StrategyRunRecord,
+    UpstreamResourceContractRecord,
 )
 from eurogas_nexus.security.identity import AuthenticatedPrincipal
 
@@ -557,11 +560,21 @@ def test_portfolio_snapshot_keeps_unknown_totals_and_per_slice_freshness(tmp_pat
     assert slices["pnl_snapshots"]["freshness"]["last_observed_at_utc"] == (
         AS_OF - timedelta(minutes=5)
     ).isoformat()
-    # Portfolio resources are a declared follow-up, not a fabricated empty list.
-    assert slices["resources"]["payload"]["available"] is False
-    assert slices["resources"]["payload"]["unavailable_reason"] == (
-        "RESOURCE_POOL_COMPOSITION_IS_ROUTE_LOCAL"
-    )
+    # Portfolio resources are composed by the same application-layer code
+    # GET /api/route-cost/resource-pool/options calls (Wave 5 follow-up). This
+    # session holds no contract and no candidate, so the slice is honest about
+    # the missing inputs instead of fabricating an empty resource list.
+    resources = slices["resources"]
+    assert resources["available"] is True
+    assert resources["payload"]["scope"] == "RESOURCE_POOL_ROUTE_OPTIONS"
+    assert resources["payload"]["data_source"] == "runtime-postgresql"
+    assert resources["payload"]["portfolio_resources"] == []
+    assert resources["payload"]["counts"] == {"portfolio_resources": 0, "sale_options": 0}
+    assert resources["payload"]["blockers"] == [
+        "UPSTREAM_CONTRACTS_MISSING",
+        "ROUTE_CANDIDATES_MISSING",
+    ]
+    assert resources["rows"] == []
 
 
 def test_portfolio_snapshot_without_valuation_evidence_keeps_unknown_not_zero(tmp_path) -> None:
@@ -611,6 +624,175 @@ def test_portfolio_snapshot_entitlement_is_never_wider_than_the_portfolio_route(
     assert slice_["rows"] == []
     assert slice_["entitlement"]["row_filter_applied"] is True
     assert slice_["entitlement"]["filtered_out"] == 1
+
+
+def _seed_resource_pool_inputs(session: Session) -> None:
+    """Seed the runtime rows the resource-pool composition is built from."""
+
+    session.add_all(
+        [
+            UpstreamResourceContractRecord(
+                contract_id="pool-ttf-2025",
+                contract_name="Resource pool TTF supply 2025",
+                resource_type="PIPELINE_IMPORT",
+                delivery_point_name="TTF",
+                gas_year="2025+",
+                delivery_quantity_mwh_per_day=100.0,
+                contract_price_gbp_mwh=30.0,
+                settlement_frequency="monthly",
+                upstream_payment_lag_days=20,
+                screen_sale_cash_lag_days=1,
+                delivery_tolerance_pct=2.0,
+                nomination_tolerance_pct=1.0,
+                tolerance_risk_allowance_gbp_mwh=0.1,
+                annual_financing_rate_pct=6.0,
+                owned_entry_capacity_mwh_per_day=None,
+                owned_exit_capacity_mwh_per_day=None,
+                allowed_exit_points=["NBP", "TTF"],
+                eligible_sale_modes=["TARGET_MARKET_SALE", "LOCAL_MARKET_SALE"],
+                notes="test_fixture:not_customer_data",
+                created_at_utc=AS_OF,
+                updated_at_utc=AS_OF,
+            ),
+            RouteCandidateRecord(
+                route_id="route-ttf-local",
+                route_name="Sell locally at TTF",
+                start_point_name="TTF",
+                target_point_name="TTF",
+                business_model="VIRTUAL_HUB_SALE",
+                route_legs=[],
+                required_entry_point_name=None,
+                required_exit_point_name=None,
+                required_tso_access=[],
+                source_systems=["public_route_template"],
+                active=True,
+                created_at_utc=AS_OF,
+            ),
+            FxObservationRecord(
+                observation_id="fx-eur-gbp",
+                pair="EURGBP",
+                base_currency="EUR",
+                quote_currency="GBP",
+                rate=0.85,
+                rate_type="reference",
+                value_date=GAS_DAY,
+                observed_at_utc=AS_OF,
+                source_system="ECB",
+                source_reference="ecb-eurofxref-daily",
+                source_record_id="2026-06-01-GBP",
+                freshness="live",
+                research_only=True,
+                metadata_json={"dataset": "eurofxref-daily"},
+            ),
+            MarketObservationRecord(
+                observation_id="obs-ttf-eex-sim",
+                market_venue="EEX",
+                product="TTF day-ahead",
+                price=31.0,
+                unit="EUR/MWh",
+                currency="EUR",
+                period_start_utc=AS_OF,
+                period_end_utc=AS_OF + timedelta(days=1),
+                observed_at_utc=AS_OF - timedelta(minutes=5),
+                source_system="EEX_Sim",
+                source_reference="fixture:EEX_Sim",
+                source_record_id="eex-ttf-1",
+                freshness="simulated_live",
+                quality_score=0.62,
+                research_only=True,
+                metadata_json={
+                    "hub": "TTF",
+                    "tenor": "day-ahead",
+                    "simulated": True,
+                    "source_family": "EEX",
+                },
+            ),
+        ]
+    )
+    session.commit()
+
+
+def test_portfolio_snapshot_resources_slice_composes_the_same_payload_as_the_route(
+    tmp_path,
+) -> None:
+    """The slice is real: it composes what the route composes, from one read."""
+
+    with _session(tmp_path, "portfolio-resources.sqlite") as session:
+        _seed_resource_pool_inputs(session)
+        payload = build_portfolio_snapshot(
+            _legacy_principal(), session=session, as_of_utc=AS_OF
+        )
+
+    resources = payload["data"]["slices"]["resources"]
+    assert resources["available"] is True
+    assert set(resources) == SLICE_KEYS
+    assert resources["row_count"] == 1
+    assert resources["payload"]["scope"] == "RESOURCE_POOL_ROUTE_OPTIONS"
+    assert resources["payload"]["data_source"] == "runtime-postgresql"
+    assert resources["payload"]["counts"] == {"portfolio_resources": 1, "sale_options": 1}
+
+    resource = resources["payload"]["portfolio_resources"][0]
+    assert resource["resource_id"] == "pool-ttf-2025"
+    assert resource["location_point_name"] == "TTF"
+
+    option = resources["rows"][0]
+    assert option["option_id"] == "route-ttf-local"
+    assert option["route_topology_kind"] == "LOCAL_MARKET_DISPOSITION"
+    assert option["eligible_resource_ids"] == ["pool-ttf-2025"]
+    # The EUR price is converted with as-of FX and carries its provenance.
+    assert option["sale_price_currency"] == "GBP"
+    assert option["sale_price_original_currency"] == "EUR"
+    assert option["fx_rate_used"] == 0.85
+    assert option["sale_price_gbp_mwh"] == round(31.0 * 0.85, 4)
+    # No blocker survived: every input the composition needs was present.
+    assert resources["payload"]["blockers"] == []
+    # Freshness is measured from the observation that priced the option.
+    assert resources["freshness"]["last_observed_at_utc"] == (
+        AS_OF - timedelta(minutes=5)
+    ).isoformat()
+    assert resources["freshness"]["derived_from"] == (
+        "route_candidates+market_observations"
+    )
+    assert resources["entitlement"]["row_filter_applied"] is False
+    assert resources["entitlement"]["filtered_out"] == 0
+
+
+def test_portfolio_snapshot_resources_slice_is_never_wider_than_the_route(tmp_path) -> None:
+    """A scoped principal cannot reach a licensed price through the slice."""
+
+    with _session(tmp_path, "portfolio-resources-scoped.sqlite") as session:
+        _seed_resource_pool_inputs(session)
+        payload = build_portfolio_snapshot(
+            _principal(scopes=("ENTSOG",)), session=session, as_of_utc=AS_OF
+        )
+
+    resources = payload["data"]["slices"]["resources"]
+    assert resources["available"] is True
+    assert resources["rows"] == []
+    assert resources["entitlement"]["row_filter_applied"] is True
+    # Both the EEX-priced candidate and its market observation were removed.
+    assert resources["entitlement"]["filtered_out"] == 2
+    # Operator-owned contract facts are not licensed rows and stay visible.
+    assert resources["payload"]["counts"]["portfolio_resources"] == 1
+    # The restricted source family is absent from the whole slice.
+    assert "EEX" not in str(resources)
+
+
+def test_portfolio_snapshot_resources_slice_without_runtime_db_matches_the_route() -> None:
+    payload = build_portfolio_snapshot(_legacy_principal(), session=None, as_of_utc=AS_OF)
+
+    resources = payload["data"]["slices"]["resources"]
+    assert resources["available"] is False
+    # The identical block GET /api/route-cost/resource-pool/options returns.
+    assert resources["payload"] == {
+        "scope": "RESOURCE_POOL_ROUTE_OPTIONS",
+        "data_source": "runtime-db-not-configured",
+        "portfolio_resources": [],
+        "sale_options": [],
+        "blockers": ["RUNTIME_DB_NOT_CONFIGURED"],
+        "warnings": [],
+    }
+    assert resources["rows"] == []
 
 
 def test_portfolio_snapshot_without_runtime_db_is_an_explicit_unknown() -> None:

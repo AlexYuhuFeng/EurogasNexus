@@ -108,6 +108,18 @@ These tests fail CI loudly on contract drift:
 | `GET /api/jobs/{job_id}` | Architecture V2 Wave 8 | read one job with its progress, output references, correlation id and, on failure, the stable error code from the product taxonomy; 404 when the job is not tracked |
 | `POST /api/jobs/{job_id}/cancel` | Architecture V2 Wave 8 | GOVERNED-floor (ANALYST) cancellation of a cancellable, non-terminal job. A finished job answers 409 `job_already_finished` and a protected one 409 `job_not_cancellable`, so the surface never claims to have stopped work it did not stop |
 
+## Additive Field Declarations
+
+Field-level additions to existing paths. They introduce no new path, relax no
+floor and change no status code; a caller that does not send the optional field
+keeps its previous behaviour.
+
+| Path | Field | Contract |
+|---|---|---|
+| `POST /api/route-cost/recommend` | `analysis_snapshot_id` (request, optional; echoed on `data`) | Architecture V2 Wave 4: the reproducibility reference a produced recommendation cites. Verified against persisted Analysis Snapshots before the run — `422 analysis_snapshot_not_found` when the reference is unknown, `503 runtime_db_not_configured` when no runtime database can verify it |
+| `POST /api/route-cost/resource-pool/optimize` | `analysis_snapshot_id` (request, optional; echoed on `data`) | Architecture V2 Wave 4 scope extended to this run path in the Wave 5 follow-up: same verification and the same refusal codes as the recommendation path. The field is absent from `data` when the caller cites no snapshot, so such a caller's payload is unchanged |
+| `POST /api/strategy-runs` (`run_type=BACKTEST`) | `analysis_snapshot_id` (request, optional; echoed on `data`) | Architecture V2 Wave 4 scope extended to the strategy backtest run: verified against persisted Analysis Snapshots before the run (no run row and no job are created when it is refused), echoed on the response, and absent when the caller cites nothing |
+
 ## Deprecation Table
 
 | Surface | Deprecated since | Removal planned | Status |
