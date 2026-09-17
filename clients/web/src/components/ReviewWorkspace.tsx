@@ -9,6 +9,7 @@ import type { AiActionKind } from "@/app/experience/vocabulary";
 import { EvidenceBlock } from "@/components/ui";
 import type {
   AnalysisResultDTO,
+  AnalysisSnapshotDTO,
   PortfolioOptimizationResultDTO,
   PortfolioSaleOptionDTO,
   ReviewContextProjectionDTO,
@@ -31,6 +32,15 @@ interface ReviewWorkspaceProps {
   reviewMessage: string | null;
   latestStrategyRunId: string | null;
   carriedStrategyRunId: string | null;
+  /**
+   * The reproducibility references the deployment recorded (Architecture V2 Wave 4) and the
+   * one the next report run cites. The surface offers the deployment's own list; it never
+   * invents a reference, and citing nothing is the default.
+   */
+  analysisSnapshots: AnalysisSnapshotDTO[];
+  analysisSnapshotSource: string | null;
+  reviewSnapshotId: string | null;
+  onSelectSnapshot: (snapshotId: string | null) => void;
   t: Translate;
   onGenerateReport: () => void;
   onRecordDecision: (body: ReviewDecisionInputDTO) => Promise<void>;
@@ -65,6 +75,10 @@ export function ReviewWorkspace({
   reviewMessage,
   latestStrategyRunId,
   carriedStrategyRunId,
+  analysisSnapshots,
+  analysisSnapshotSource,
+  reviewSnapshotId,
+  onSelectSnapshot,
   t,
   onGenerateReport,
   onRecordDecision,
@@ -311,6 +325,31 @@ export function ReviewWorkspace({
       <div className="workspace-panel span-3 analysis-panel review-report-panel">
         <h2>{t("analysis.report")}</h2>
         <p className="panel-copy">{t("review.report_help")}</p>
+        {/* Wave 4: a run may cite the reproducibility reference it was computed against. The
+            choices are the snapshots the deployment recorded; with none recorded (or none
+            listable in this deployment) the report still runs and cites nothing. */}
+        <label className="field-label" htmlFor="review-snapshot">
+          {t("review.snapshot.label")}
+        </label>
+        <select
+          id="review-snapshot"
+          value={reviewSnapshotId ?? ""}
+          onChange={(event) => onSelectSnapshot(event.target.value || null)}
+        >
+          <option value="">{t("review.snapshot.none")}</option>
+          {analysisSnapshots.map((snapshot) => (
+            <option key={snapshot.snapshot_id} value={snapshot.snapshot_id}>
+              {snapshot.snapshot_id} · {snapshot.gas_day} · {snapshot.as_of_utc}
+            </option>
+          ))}
+        </select>
+        <p className="panel-copy">
+          {analysisSnapshots.length === 0
+            ? analysisSnapshotSource === "runtime-db-not-configured"
+              ? t("review.snapshot.not_configured")
+              : t("review.snapshot.empty")
+            : t("review.snapshot.help")}
+        </p>
         <div className="action-row">
           <button type="button" onClick={onGenerateReport}>{t("analysis.report")}</button>
         </div>
@@ -318,6 +357,13 @@ export function ReviewWorkspace({
           <div className="analysis-result">
             <strong>{analysisResult.provider_id}: {analysisResult.provider_status}</strong>
             <p>{language.startsWith("zh") ? analysisResult.answer_zh_cn : analysisResult.answer_en}</p>
+            {/* The citation is shown from the response, not from the picker: a run that cited
+                nothing shows nothing, and a refused reference never reaches a result. */}
+            {analysisResult.analysis_snapshot_id && (
+              <p className="analysis-citation">
+                {t("review.report_citation")}: <code>{analysisResult.analysis_snapshot_id}</code>
+              </p>
+            )}
           </div>
         )}
       </div>

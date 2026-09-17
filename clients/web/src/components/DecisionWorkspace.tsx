@@ -130,6 +130,9 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
   useEffect(() => {
     if (task !== "review") return;
     void api.fetchReviewContext();
+    // The reproducibility references a report can cite are only needed here, so the read is
+    // task-scoped rather than part of the workspace startup batch.
+    void api.fetchAnalysisSnapshots();
   }, [api, task]);
 
   function openTask(next: DecisionTask) {
@@ -204,6 +207,10 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
             reviewMessage={api.reviewMessage}
             latestStrategyRunId={api.strategyRuns[0]?.run_id ?? null}
             carriedStrategyRunId={selection.strategyRunId}
+            analysisSnapshots={api.analysisSnapshots}
+            analysisSnapshotSource={api.analysisSnapshotSource}
+            reviewSnapshotId={api.reviewSnapshotId}
+            onSelectSnapshot={api.setReviewSnapshotId}
             t={t}
             onGenerateReport={() => api.generatePortfolioReport(review.analysisPayload)}
             onRecordDecision={api.recordReviewDecision}

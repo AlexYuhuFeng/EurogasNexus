@@ -160,9 +160,20 @@ Two things this follow-up deliberately states rather than implies:
   references are unchanged, and the citation lives on the tracked run; adding a column is a
   migration, not something to imply. The analysis record needs no such column because the
   citation travels inside the result it already persists.
-- **No client surface sends a citation yet.** The platform accepts and carries it; the surfaces
-  that run an analysis or a report have no snapshot picker, so the field stays unused by the Web
-  client until one exists. That is recorded here as open rather than presented as delivered.
+- **The Web client now cites a reference.** The client half of this item was open - it could not
+  even list the snapshots a deployment recorded. The review task reads
+  `GET /api/analysis-snapshots` (task-scoped, identity-gated, bounded to 25) and offers the
+  deployment's own references in its report panel; the chosen id travels in the report payload
+  as `analysis_snapshot_id`, and the citation is rendered from the *response* rather than from
+  the picker, so a run that cited nothing shows nothing. Citing nothing is the default and
+  leaves the payload byte-identical, an empty list is explained by what the deployment said
+  (`runtime-db-not-configured` reads as "this deployment cannot list snapshots", not "none were
+  ever recorded"), and no id is ever composed on the client.
+
+- **What remains open:** the client reads and cites snapshots but does not *record* one - there
+  is no "freeze this context" action yet, so a user can only cite a snapshot some other caller
+  recorded. The Data Product catalogue (`GET /api/data-products`) likewise still has no client
+  surface.
 
 ## 7. Access path (07 §7)
 

@@ -1588,6 +1588,12 @@ export interface AnalysisResultDTO {
   answer_en: string; answer_zh_cn: string; citations: string[];
   sections: Array<{ section_id: string; title: string; content: string; citations: string[]; warnings: string[] }>;
   missing_inputs: string[]; warnings: string[]; snapshot_id: string;
+  /**
+   * The Analysis Snapshot the run cited (Architecture V2 Wave 4). Absent from the payload
+   * when the caller cited nothing, which is why it is optional rather than nullable: a run
+   * that cites no reference does not carry a null one.
+   */
+  analysis_snapshot_id?: string;
   created_at_utc: string; research_only: boolean; human_review_required: boolean;
 }
 
@@ -1752,6 +1758,23 @@ export interface AgentRunDTO {
   artifacts_created: string[];
   created_at: string;
   completed_at: string | null;
+}
+
+/**
+ * One Analysis Snapshot descriptor (Architecture V2 Wave 4).
+ *
+ * Only the fields a caller needs to identify a reference are declared: the id it cites, when
+ * the snapshot was taken and against which gas day, and who recorded it. The version blocks
+ * the descriptor also carries are lineage detail for the platform, not for a picker.
+ */
+export interface AnalysisSnapshotDTO {
+  snapshot_id: string;
+  as_of_utc: string;
+  gas_day: string;
+  gas_day_calendar?: string;
+  time_basis?: string;
+  created_at_utc?: string;
+  created_by?: string;
 }
 
 export interface AgentRunDetailDTO extends AgentRunDTO {
@@ -2455,6 +2478,20 @@ export const api = {
   invokeCapability: (capabilityId: string, argumentsBody: Record<string, unknown>) =>
     post<Record<string, unknown>>(`/capabilities/${encodeURIComponent(capabilityId)}/invoke`, { arguments: argumentsBody }),
   agentProfiles: () => get<Record<string, unknown>[]>("/agent/profiles"),
+  /**
+   * Recent Analysis Snapshots, newest first (Architecture V2 Wave 4).
+   *
+   * A snapshot descriptor is lineage metadata: it names the version set a run can cite as its
+   * reproducibility reference. A deployment without a runtime database returns an empty list
+   * with a warning rather than an error, so the surface can say "none recorded" honestly
+   * instead of showing a failure.
+   */
+  analysisSnapshots: (params?: { limit?: number }, options?: ApiRequestOptions) =>
+    get<AnalysisSnapshotDTO[]>(
+      "/analysis-snapshots",
+      params ? { limit: String(params.limit) } : undefined,
+      options,
+    ),
   agentRuns: (params?: { limit?: number }) =>
     get<AgentRunDTO[]>("/agent/runs", params ? { limit: String(params.limit) } : undefined),
   agentRun: (agentRunId: string) =>

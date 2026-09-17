@@ -45,7 +45,11 @@ export function useAppController() {
     selectedRouteId: selection.routeId,
     t,
   });
-  const review = useReviewAnalysis(i18n.language, portfolio.portfolioResources);
+  const review = useReviewAnalysis(
+    i18n.language,
+    portfolio.portfolioResources,
+    api.reviewSnapshotId,
+  );
   const glossary = useGlossaryExplorer({
     glossaryTerms: api.glossaryTerms,
     fetchGlossaryContext: api.fetchGlossaryContext,

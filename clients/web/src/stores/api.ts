@@ -29,6 +29,7 @@ import {
   api,
   AnalysisRequestDTO,
   AnalysisResultDTO,
+  AnalysisSnapshotDTO,
   ApiMeta,
   CapacityObsDTO,
   CredentialProviderDTO,
@@ -120,6 +121,8 @@ const workspaceLoadCoordinator = new WorkspaceLoadCoordinator();
 const readRefreshCoordinator = new ReadRefreshCoordinator();
 const identityReadCoordinator = new IdentityReadCoordinator();
 const MARKET_REFRESH_ERROR_PREFIX = "Market refresh partial:";
+/** How many recent Analysis Snapshots the reproducibility picker offers. */
+const SNAPSHOT_PICKER_LIMIT = 25;
 let logoutInProgress = false;
 
 function timestampMs(value: string): number {
@@ -388,6 +391,18 @@ export interface ApiState {
   /** Start time (UTC ISO) of the last retry attempt, or null before the first. */
   endpointRetryLastAttemptAtUtc: string | null;
   meta: ApiMeta | null;
+  /**
+   * Recent Analysis Snapshots (Architecture V2 Wave 4), read when the review task opens.
+   *
+   * The list is the deployment's own record of reproducibility references, so a surface may
+   * offer a choice among them but never invent one. `analysisSnapshotSource` records what the
+   * backend cited as the read's origin, so an empty list caused by a deployment without a
+   * runtime database is not read as "nothing was ever recorded".
+   */
+  analysisSnapshots: AnalysisSnapshotDTO[];
+  analysisSnapshotSource: string | null;
+  /** The reproducibility reference the next report run cites, or null for none. */
+  reviewSnapshotId: string | null;
   marketLastUpdatedAtUtc: string | null;
   loading: boolean;
   streamingActive: boolean;
@@ -408,6 +423,8 @@ export interface ApiState {
    * workspace batch, because resolving evidence is per-entity work.
    */
   fetchReviewContext: () => Promise<void>;
+  fetchAnalysisSnapshots: () => Promise<void>;
+  setReviewSnapshotId: (snapshotId: string | null) => void;
   fetchMe: () => Promise<void>;
   signIn: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -655,6 +672,9 @@ export const useApiStore = create<ApiState>((set, get) => ({
   endpointRetryAttempts: 0,
   endpointRetryLastAttemptAtUtc: null,
   meta: null,
+  analysisSnapshots: [],
+  analysisSnapshotSource: null,
+  reviewSnapshotId: null,
   marketLastUpdatedAtUtc: null,
   loading: false,
   streamingActive: false,
@@ -1361,6 +1381,37 @@ export const useApiStore = create<ApiState>((set, get) => ({
     } finally {
       refresh.release();
     }
+  },
+
+  /**
+   * Read the deployment's recent Analysis Snapshots for the reproducibility picker.
+   *
+   * This is a task-scoped read rather than part of the startup batch: the reference list is
+   * only needed by a surface that can cite one. A failed read leaves the picker empty and says
+   * so; the source the backend cited is kept so an empty list caused by a deployment without a
+   * runtime database is not mistaken for "nothing was ever recorded".
+   */
+  fetchAnalysisSnapshots: async () => {
+    if (logoutInProgress) return;
+    if (!isIdentityGateOpen(get().authState)) return;
+    const requestGeneration = identityReadCoordinator.capture();
+    try {
+      const result = await api.analysisSnapshots({ limit: SNAPSHOT_PICKER_LIMIT });
+      if (!followUpReadIsCurrent(requestGeneration)) return;
+      set({
+        analysisSnapshots: result.data,
+        analysisSnapshotSource: result.meta.source_references[0] ?? null,
+      });
+    } catch (e) {
+      if (!followUpReadIsCurrent(requestGeneration)) return;
+      set({ analysisSnapshots: [], analysisSnapshotSource: null, error: String(e) });
+    }
+  },
+
+  setReviewSnapshotId: (snapshotId) => {
+    // The selection is a choice among references the deployment recorded; clearing it means
+    // the next run cites nothing and its payload stays exactly as it was.
+    set({ reviewSnapshotId: snapshotId });
   },
 
   saveProviderCredential: async (providerId, apiKey, label) => {

@@ -12,10 +12,25 @@ import { buildAnalysisPayload } from "@/app/index";
  */
 const REPORT_QUESTION = "Summarize current portfolio PnL, route, market, and strategy status.";
 
-export function useReviewAnalysis(language: string, portfolioResources: PortfolioResourceDTO[]) {
+export function useReviewAnalysis(
+  language: string,
+  portfolioResources: PortfolioResourceDTO[],
+  /**
+   * The reproducibility reference the next report run cites (Architecture V2 Wave 4), chosen
+   * from the snapshots the deployment recorded. Null cites nothing.
+   */
+  analysisSnapshotId: string | null = null,
+) {
   const analysisPayload = useMemo(
-    () => buildAnalysisPayload(REPORT_QUESTION, false, language, portfolioResources),
-    [language, portfolioResources],
+    () =>
+      buildAnalysisPayload(
+        REPORT_QUESTION,
+        false,
+        language,
+        portfolioResources,
+        analysisSnapshotId,
+      ),
+    [language, portfolioResources, analysisSnapshotId],
   );
 
   return { analysisPayload };

@@ -86,8 +86,14 @@ test("the review surface converged its own AI panel onto the canonical actions",
   // The report it can generate is the deterministic backend run, and its question is no
   // longer user-typed: an AI-drafted document is the `draft` action's job.
   assert.match(review, /onGenerateReport/);
-  assert.match(hook, /buildAnalysisPayload\(REPORT_QUESTION, false, language, portfolioResources\)/);
+  assert.match(
+    hook,
+    /buildAnalysisPayload\(\s*REPORT_QUESTION,\s*false,\s*language,\s*portfolioResources,\s*analysisSnapshotId,\s*\)/s,
+  );
   assert.equal(hook.includes("useState"), false);
+  // The citation the report may carry is a reproducibility reference chosen from the
+  // deployment's own snapshots, not a second AI input: the question stays fixed.
+  assert.match(hook, /analysisSnapshotId: string \| null = null/);
   assert.match(decision, /api\.generatePortfolioReport\(review\.analysisPayload\)/);
   assert.equal(decision.includes("review.setAnalysisQuestion"), false);
   assert.equal(decision.includes("api.askAnalysis(review.analysisPayload)"), false);
