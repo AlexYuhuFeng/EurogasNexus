@@ -156,6 +156,13 @@ Wave 6 (Decision Case):
   for objective, context, assumptions, alternatives, evidence and human review, and
   the record that is evidence rather than execution approval.
 
+Wave 7 (research/AI convergence):
+
+- [W7-01 canonical AI actions](W7-01_CANONICAL_AI_ACTIONS.md) — the five declared AI
+  actions as a real cross-workspace surface: evidence-gated, run over the existing
+  analysis route, qualified as interpretation with no numeric authority, and
+  mounted inside the command palette rather than a new page.
+
 Wave 8 (product operations):
 
 - [W8-01 product error taxonomy](W8-01_ERROR_TAXONOMY.md) — ten families, stable

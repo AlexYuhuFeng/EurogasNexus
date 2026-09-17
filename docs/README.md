@@ -98,6 +98,7 @@ Architecture V2 is the binding target architecture and product-experience intera
 - Wave 4 contracts: [unified data platform: Data Products and Analysis Snapshot](engineering/Architecture-V2/W4-01_UNIFIED_DATA_PLATFORM.md).
 - Wave 5 contracts: [application projections](engineering/Architecture-V2/W5-01_APPLICATION_PROJECTIONS.md).
 - Wave 6 contracts: [Decision Case and Decision Record](engineering/Architecture-V2/W6-01_DECISION_CASE.md).
+- Wave 7 contracts: [canonical AI actions as product surface](engineering/Architecture-V2/W7-01_CANONICAL_AI_ACTIONS.md).
 - Wave 8 contracts: [product error taxonomy](engineering/Architecture-V2/W8-01_ERROR_TAXONOMY.md) /
   [unified job model](engineering/Architecture-V2/W8-02_UNIFIED_JOB_MODEL.md).
 - Wave 9 contracts: [shell surfaces: Inspector and command palette](engineering/Architecture-V2/W9-01_SHELL_SURFACES_INSPECTOR_AND_PALETTE.md).

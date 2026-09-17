@@ -24,7 +24,7 @@ import {
 } from "../navigation/productNavigation.ts";
 import { workspacePageIds, type WorkspacePageId } from "../../workspaceNavigation.ts";
 import { actionPlacement, detailPlacement, type ActionConsequence } from "./actionGeography.ts";
-import { aiActions } from "./aiActions.ts";
+import { aiActionIsAvailable, aiActions } from "./aiActions.ts";
 import type {
   ActionPlacement,
   AiActionKind,
@@ -149,6 +149,14 @@ export interface PaletteAvailability {
   readonly capabilities: readonly string[];
   /** Whether the Active Context carries the identifiers a command needs. */
   readonly activeContextComplete: boolean;
+  /**
+   * Evidence references the Active Context holds, when the caller can supply them.
+   * Wave 7 added this additively: an AI command is then gated by the same rule the
+   * Copilot surface applies (`aiActionIsAvailable`), so a command is never offered
+   * while the action it would invoke is withheld. Callers that do not pass it keep
+   * the previous behaviour, where the AI gate is capability plus context.
+   */
+  readonly evidenceRefCount?: number;
 }
 
 const AI_ACTION_CAPABILITY: Readonly<Record<AiActionKind, string>> = {
@@ -170,7 +178,12 @@ export function paletteCommandAvailable(
 ): boolean {
   if (command.target.aiAction) {
     const capability = AI_ACTION_CAPABILITY[command.target.aiAction];
-    return availability.capabilities.includes(capability) && availability.activeContextComplete;
+    if (!availability.capabilities.includes(capability)) return false;
+    if (availability.evidenceRefCount === undefined) return availability.activeContextComplete;
+    return aiActionIsAvailable(command.target.aiAction, {
+      activeContextComplete: availability.activeContextComplete,
+      evidenceRefCount: availability.evidenceRefCount,
+    });
   }
   if (command.target.utility === "access-identity") {
     return availability.capabilities.includes("access.manage");
@@ -185,9 +198,11 @@ export function paletteUnavailableReasonKey(
 ): string | null {
   if (paletteCommandAvailable(command, availability)) return null;
   if (command.target.aiAction) {
-    return availability.capabilities.includes(AI_ACTION_CAPABILITY[command.target.aiAction])
-      ? "experience.palette.unavailable_context"
-      : "experience.palette.unavailable_capability";
+    if (!availability.capabilities.includes(AI_ACTION_CAPABILITY[command.target.aiAction])) {
+      return "experience.palette.unavailable_capability";
+    }
+    if (!availability.activeContextComplete) return "experience.palette.unavailable_context";
+    return "experience.palette.unavailable_evidence";
   }
   return "experience.palette.unavailable_capability";
 }

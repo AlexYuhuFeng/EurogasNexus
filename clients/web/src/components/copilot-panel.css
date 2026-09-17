@@ -1,0 +1,272 @@
+/* Copilot surface (Architecture V2 Wave 7).
+   The cross-workspace invocation surface for the five canonical AI actions. It is
+   hosted by the command palette overlay, so it introduces no new colour, type or
+   motion family and no new layout region: every value below reuses the existing
+   surface tokens with the same fallbacks the shell already ships. */
+
+.copilot-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px 18px;
+  overflow-y: auto;
+  font-size: 13px;
+}
+
+.copilot-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.copilot-panel-header h2 {
+  margin: 2px 0 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.copilot-panel-header-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.copilot-boundary {
+  margin: 0;
+  padding: 8px 10px;
+  border-left: 3px solid var(--border, #d8dde5);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-muted, #5b6472);
+}
+
+.copilot-panel h3 {
+  margin: 0 0 6px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted, #5b6472);
+}
+
+.copilot-panel h4 {
+  margin: 0 0 4px;
+  font-size: 12px;
+}
+
+.copilot-context-facts,
+.copilot-record-facts,
+.copilot-result-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.copilot-context-facts dt,
+.copilot-record-facts dt,
+.copilot-result-facts dt {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted, #5b6472);
+}
+
+.copilot-context-facts dd,
+.copilot-record-facts dd,
+.copilot-result-facts dd {
+  margin: 2px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.copilot-context-state,
+.copilot-context-note,
+.copilot-question-note {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-muted, #5b6472);
+}
+
+.copilot-context-missing,
+.copilot-context-gaps {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  font-size: 12px;
+  color: var(--text-muted, #5b6472);
+}
+
+.copilot-evidence-list,
+.copilot-action-list,
+.copilot-result-block ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.copilot-evidence-list li {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 3px 0;
+}
+
+.copilot-evidence-kind {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted, #5b6472);
+}
+
+.copilot-evidence-empty {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-muted, #5b6472);
+}
+
+.copilot-action-list {
+  display: grid;
+  gap: 8px;
+}
+
+.copilot-action {
+  padding: 8px 10px;
+  border: 1px solid var(--border, #d8dde5);
+  border-radius: 6px;
+}
+
+.copilot-action.selected {
+  border-color: var(--focus, #2b6cb0);
+}
+
+.copilot-action.withheld {
+  opacity: 0.7;
+}
+
+.copilot-action button {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.copilot-action button[disabled] {
+  cursor: not-allowed;
+}
+
+.copilot-action-posture {
+  font-size: 11px;
+  color: var(--text-muted, #5b6472);
+}
+
+.copilot-action-produces,
+.copilot-action-carries,
+.copilot-action-withheld-reason {
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-muted, #5b6472);
+}
+
+.copilot-action-carries code {
+  margin-left: 6px;
+}
+
+.copilot-question {
+  display: block;
+}
+
+.copilot-question span {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted, #5b6472);
+}
+
+.copilot-question textarea {
+  width: 100%;
+  margin-top: 4px;
+  padding: 8px 10px;
+  border: 1px solid var(--border, #d8dde5);
+  border-radius: 6px;
+  font: inherit;
+  background: transparent;
+  color: inherit;
+  resize: vertical;
+}
+
+.copilot-invoke-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.copilot-invoke-route {
+  font-size: 11px;
+  color: var(--text-muted, #5b6472);
+}
+
+.copilot-record-facts pre {
+  margin: 2px 0 0;
+  padding: 6px 8px;
+  border: 1px solid var(--border, #d8dde5);
+  border-radius: 6px;
+  font-size: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.copilot-result-interpretation,
+.copilot-result-authority,
+.copilot-result-provider {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-muted, #5b6472);
+}
+
+.copilot-result-answer {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border, #d8dde5);
+  border-radius: 6px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.copilot-result-block {
+  margin-top: 8px;
+}
+
+.copilot-result-block li {
+  padding: 2px 0;
+  overflow-wrap: anywhere;
+}
+
+.copilot-error {
+  padding: 8px 10px;
+  border: 1px solid var(--border, #d8dde5);
+  border-left: 3px solid var(--focus, #2b6cb0);
+  border-radius: 6px;
+}
+
+.copilot-error p {
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.copilot-error-code {
+  display: flex;
+  gap: 8px;
+}

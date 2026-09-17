@@ -26,6 +26,7 @@ import {
   type PaletteCommand,
 } from "@/app/experience/commandPalette";
 import type { InspectorSubjectKind } from "@/app/experience/vocabulary";
+import { copilotEvidenceRefs, type CopilotEvidenceRef } from "@/app/model/copilotModel";
 import type { WorkspacePageId } from "@/workspaceNavigation";
 
 const GROUP_ORDER = ["navigate", "inspect", "ai", "utility"] as const;
@@ -41,11 +42,19 @@ export interface CommandPaletteOptions {
   capabilities: readonly string[];
   activeContextComplete: boolean;
   /**
-   * Canonical AI actions are part of the contract, but their invocation surface is
-   * Wave 7 work. Until then the palette omits them rather than shipping commands
-   * that do nothing when chosen.
+   * Canonical AI actions are part of the contract and, since Wave 7, they have an
+   * invocation surface: either the Copilot this palette mounts itself, or a handler
+   * the host supplies through `onAiAction`. They are therefore offered by default,
+   * so no command is offered that would do nothing when chosen; `false` remains the
+   * explicit opt-out.
    */
   includeAiActions?: boolean;
+  /**
+   * Evidence references the Active Context holds. Defaults to the selection the
+   * shell already passed, so the AI commands are gated by the same rule the Copilot
+   * surface applies instead of being offered for an action that would be withheld.
+   */
+  evidenceRefs?: readonly CopilotEvidenceRef[];
   labels: (command: PaletteCommand) => string;
   onNavigate: (command: PaletteCommand) => void;
   onInspect: (kind: InspectorSubjectKind, ref: string) => void;
@@ -71,19 +80,32 @@ export function useCommandPalette(options: CommandPaletteOptions): CommandPalett
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
 
+  const offersAiCommands = options.includeAiActions !== false;
+
   const commands = useMemo(
     () => [
       ...buildPaletteCommands().filter(
         (command) =>
           command.group === "navigate" ||
           command.group === "utility" ||
-          (options.includeAiActions === true && command.group === "ai"),
+          (offersAiCommands && command.group === "ai"),
       ),
       ...inspectionCommands(options.context, options.activeWorkspace),
     ],
     [
+      offersAiCommands,
       options.activeWorkspace,
-      options.includeAiActions,
+      options.context.routeId,
+      options.context.resourceId,
+      options.context.strategyVersionId,
+      options.context.strategyRunId,
+    ],
+  );
+
+  const evidenceRefs = useMemo(
+    () => options.evidenceRefs ?? copilotEvidenceRefs(options.context),
+    [
+      options.evidenceRefs,
       options.context.routeId,
       options.context.resourceId,
       options.context.strategyVersionId,
@@ -95,8 +117,9 @@ export function useCommandPalette(options: CommandPaletteOptions): CommandPalett
     () => ({
       capabilities: options.capabilities,
       activeContextComplete: options.activeContextComplete,
+      evidenceRefCount: evidenceRefs.length,
     }),
-    [options.capabilities, options.activeContextComplete],
+    [options.capabilities, options.activeContextComplete, evidenceRefs],
   );
 
   const results = useMemo(() => {

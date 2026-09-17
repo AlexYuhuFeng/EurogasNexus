@@ -1,5 +1,6 @@
-/* Command palette and Inspector (Architecture V2 Wave 9).
-   Both are shell surfaces: bounded, keyboard reachable, and consistent with the
+/* Command palette, its Wave 7 Copilot surface, and the Inspector
+   (Architecture V2 Waves 9 and 7).
+   All three are shell surfaces: bounded, keyboard reachable, and consistent with the
    existing workstation density. No new colour or type family is introduced. */
 
 .command-palette-backdrop {
@@ -23,6 +24,14 @@
   border-radius: 8px;
   background: var(--surface, #fff);
   box-shadow: 0 18px 48px rgba(11, 15, 22, 0.28);
+}
+
+/* Wave 7: the same overlay also hosts the Copilot surface. It carries more content
+   than a command list, so it is wider and taller - still one bounded shell element,
+   not a second region - and it scrolls inside itself instead of pushing the page. */
+.command-palette.copilot {
+  width: min(760px, 100%);
+  max-height: 84vh;
 }
 
 .command-palette-input {

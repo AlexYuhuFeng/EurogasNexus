@@ -162,9 +162,12 @@ test("the palette controller keeps the contract's keyboard and ranking model", (
   assert.match(hook, /isPaletteDismissKey\(event\)/);
   assert.match(hook, /filterPaletteCommands\(/);
   assert.match(hook, /inspectionCommands\(options\.context, options\.activeWorkspace\)/);
-  // AI commands stay out of the runtime palette until their invocation surface
-  // exists (Wave 7), so no command is offered that does nothing when chosen.
-  assert.match(hook, /options\.includeAiActions === true && command\.group === "ai"/);
+  // AI commands are offered in the runtime palette now that their invocation
+  // surface exists: Wave 7's Copilot, mounted by this palette, or a host handler
+  // supplied through `onAiAction`. `includeAiActions: false` is the explicit opt-out,
+  // so no command is offered that does nothing when chosen.
+  assert.match(hook, /const offersAiCommands = options\.includeAiActions !== false;/);
+  assert.match(hook, /\(offersAiCommands && command\.group === "ai"\)/);
 
   assert.match(component, /role="dialog"/);
   assert.match(component, /aria-modal="true"/);
