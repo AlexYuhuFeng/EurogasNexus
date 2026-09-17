@@ -5,6 +5,7 @@ import { ReviewWorkspace } from "@/components/ReviewWorkspace";
 import type { AppController } from "@/app/hooks/useAppController";
 import { warningLabel } from "@/app/warningLabel";
 import { CommercialWarningList } from "@/components/CommercialWarningList";
+import { DecisionCasePanel } from "@/components/DecisionCasePanel";
 import {
   DECISION_TASKS,
   decisionTaskFromLocation,
@@ -116,7 +117,7 @@ function OptimizeWorkspace({ controller }: { controller: AppController }) {
 }
 
 export function DecisionWorkspace({ controller }: { controller: AppController }) {
-  const { t, api, portfolio, review, selection, i18n, contractEditor, navigation } = controller;
+  const { t, api, portfolio, review, selection, i18n, contractEditor, navigation, traderContext } = controller;
   const [task, setTask] = useState<DecisionTask>(() =>
     decisionTaskFromLocation(window.location.search),
   );
@@ -186,6 +187,16 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
             onAnalyze={() => api.askAnalysis(review.analysisPayload)}
             onGenerateReport={() => api.generatePortfolioReport(review.analysisPayload)}
             onRecordDecision={api.recordReviewDecision}
+          />
+        )}
+        {task === "review" && (
+          <DecisionCasePanel
+            gasDay={traderContext.gasDay}
+            deliveryProduct={traderContext.deliveryProduct}
+            hubId={traderContext.hubId}
+            routeId={selection.routeId}
+            strategyRunId={selection.strategyRunId ?? api.strategyRuns[0]?.run_id ?? null}
+            t={t}
           />
         )}
       </div>

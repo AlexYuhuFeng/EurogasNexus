@@ -1,4 +1,4 @@
-.commercial-workspace {
+﻿.commercial-workspace {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
@@ -167,4 +167,82 @@
 .commercial-diagnostic-more {
   color: var(--eg-muted);
   font-size: 11px;
+}
+/* Architecture V2 Decision Case panel (Wave 6). Composition only: it lists the
+   cases the deployment tracked, the evidence attached to the selected one and the
+   records a named human made - never a control that implies execution. */
+.decision-case-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2, 8px);
+  margin-top: var(--space-4, 16px);
+}
+
+.decision-case-create,
+.decision-case-attach,
+.decision-case-record {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-2, 8px);
+}
+
+.decision-case-create label,
+.decision-case-attach label,
+.decision-case-record label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1, 4px);
+  font-size: 12px;
+  min-width: 220px;
+}
+
+.decision-case-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1, 4px);
+}
+
+.decision-case-list button {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto;
+  gap: var(--space-2, 8px);
+  align-items: baseline;
+  text-align: left;
+  padding: var(--space-1, 4px) var(--space-2, 8px);
+}
+
+.decision-case-list button.active {
+  outline: 2px solid var(--eg-link);
+}
+
+.decision-case-empty,
+.decision-case-boundary,
+.decision-case-error {
+  margin: 0;
+  font-size: 12px;
+  color: var(--eg-muted);
+}
+
+.decision-case-error {
+  color: var(--eg-negative);
+}
+
+.decision-case-facts,
+.decision-case-evidence,
+.decision-case-blockers,
+.decision-case-history {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+}
+
+.decision-case-blockers {
+  color: var(--eg-warn);
+}
+
+.decision-case-actions {
+  display: flex;
+  gap: var(--space-1, 4px);
+  flex-wrap: wrap;
 }

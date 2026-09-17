@@ -1,6 +1,6 @@
 # W6-01 — Decision Case and Decision Record
 
-Status: **delivered (Wave 6, domain + persistence + API)**. Authority:
+Status: **delivered (Wave 6, domain + persistence + API + product surface)**. Authority:
 [08_DECISION_APPLICATION_AI.md](08_DECISION_APPLICATION_AI.md) section 1,
 [03_TARGET_PLATFORM_ARCHITECTURE.md](03_TARGET_PLATFORM_ARCHITECTURE.md) section 3, and
 [02_ARCHITECTURE_CONSTITUTION.md](02_ARCHITECTURE_CONSTITUTION.md) rules 3-4, 32-33 and 43.
@@ -35,6 +35,7 @@ Two rules are structural, enforced in code rather than documented only:
 | Persistence | `db/models/decision.py`, `db/repositories/decision.py`, `alembic/versions/0035_decision_cases.py` | Two tables (`decision_cases`, `decision_case_records`), expand-only and non-destructive; records are separate rows because they are the audit-relevant part and a case may be reopened without losing history |
 | API | `api/routes/public/decision_cases.py` | `GET/POST /api/decision-cases`, `GET /api/decision-cases/{case_id}`, `POST …/evidence`, `POST …/decisions`, `POST …/reopen` |
 | Client contract | `clients/web/src/api/client.ts` | DTOs plus `createDecisionCase`, `attachDecisionCaseEvidence`, `recordDecisionCaseDecision(Outcome)`, `reopenDecisionCase`, `decisionCase(s)` |
+| Product surface | `clients/web/src/components/DecisionCasePanel.tsx`, `clients/web/src/app/model/decisionCaseModel.ts` | The panel mounted on the Decision primary's review task: open a case from the Active Context, attach evidence, record or reopen a decision, and read the history. Availability comes from the payload (`decidable`, `blockers`), the actor stays with the backend, failures render through the product error taxonomy, and the no-execution boundary is stated on the surface |
 
 Authorisation follows the existing registry: opening a case and attaching evidence are `GOVERNED`
 (ANALYST floor), recording or reopening a decision is `REVIEW` (reviewer floor), reading a case keeps
@@ -63,8 +64,8 @@ the `READ` floor — the same treatment as `/api/review/decisions`.
   drift again.
 - No permission widening: the commercial boundary, role floors and entitlement filtering are
   unchanged.
-- Nothing in the client UI consumes the new endpoints yet; the Review workspace migration onto the
-  Decision Case is the next bounded step, and the client API surface is in place for it.
+- The panel is additive on the review task; the existing review-decision flow is untouched, and the
+  two coexist until the older evidence list is folded into the case container.
 
 ## 5. Verification
 
@@ -73,5 +74,10 @@ the `READ` floor — the same treatment as `/api/review/decisions`.
 - `tests/api/test_decision_cases_api.py` — 409 before evidence with blockers, evidence → decision →
   reopen flow, evidence deduplication, the actor coming from the identity rather than the body,
   404/422 behaviour, and the migration actually applying on SQLite.
-- Full suites: `python -m pytest tests -q --ignore=tests/integration` (green); the migration contract
-  and release tests pin the new head.
+- `clients/web/tests/decisionCaseSurface.test.ts` — availability only when the payload says
+  decidable, reproducibility and decidedness read from the payload, list splitting, stable label keys
+  for unknown blockers, Active-Context-suggested references, the actor never being sent, failures
+  rendered through the taxonomy, the stated no-execution boundary and bilingual vocabulary.
+- Full suites: `python -m pytest tests -q --ignore=tests/integration` (green) and
+  `node --test "tests/*.test.ts"` in `clients/web` (286 passed); the migration contract and release
+  tests pin the schema head.
