@@ -22,7 +22,7 @@ Wave status: DELIVERED_AND_VALIDATED for every slice listed under "Completed tas
 - [x] **Wave 1** — shell, Active Context, workspace-pattern and panel registries, action geography, canonical AI actions, Inspector contract, command model, HostCapabilities; machine-readable under `clients/web/src/app/experience/` and `clients/web/src/app/host/`.
 - [x] **Wave 2** — capability catalogue and `ExperienceProfile` (`security/capabilities.py`, served in `GET /api/me`), platform-administration/commercial-data separation, client composition parsing (`W2-01`).
 - [x] **Wave 3** — capability-gated Administration surface, restricted control-plane notice, preserved deep links (`W3-01`).
-- [x] **Wave 4** — Data Product catalogue, Analysis Snapshot v1 (`0034_analysis_snapshots`), and the snapshot citation carried by the route-cost recommendation (`W4-01`).
+- [x] **Wave 4** — Data Product catalogue, Analysis Snapshot v1 (`0034_analysis_snapshots`), and the snapshot citation carried by the route-cost recommendation (`W4-01`); the citation now reaches every run path a client surface actually runs — the resource-pool optimisation, the strategy backtest, and (this stretch) the analysis query and the portfolio report, each verifying the reference before it does any work, echoing it only when one was supplied, and recording it durably (the analysis record's own output snapshot, the tracked `REPORT` job). The analysis path verifies before loading its snapshot and before any provider call, so an unverifiable citation cannot be paid for with an external request.
 - [x] **Wave 5** — application projections: MarketContext, PortfolioSnapshot, ReviewContext, ScenarioContext under `/api/projections/*`, with the market and portfolio read layers extracted so routes and projections call one implementation (`W5-01`).
 - [x] **Wave 5, client half** — the market lane reads `GET /projections/market-context`, the workspace batch reads `GET /projections/portfolio-snapshot` once (filling `portfolioSummary`, `screenOrders`, `pnlSnapshots` and `resourcePoolOptions` from its slices), and the review task reads `GET /projections/review-context` on demand through a dedicated, identity-gated and coalesced review lane. `app/model/projectionModel.ts` owns one definition of a slice reading; `ProjectionContextStrip` renders it for all three surfaces. Retried projections re-derive every field they feed through `PROJECTION_LANE_APPLIERS`, and market query parameters are sent with the snake_case names the routes declare. `ScenarioContext` is deliberately available but unconsumed (its read inputs already arrive in the batch, and the scenario surface is driven by the deterministic run endpoints).
 - [x] **Wave 5, resource-pool follow-up** — the pool composition moved to `application/resource_pool.py`; the route and the `resources` slice call it, byte-identity was measured against the pre-change module, and the slice filters entitlement before composing so it stays strictly narrower than the route.
@@ -38,7 +38,7 @@ Wave status: DELIVERED_AND_VALIDATED for every slice listed under "Completed tas
 
 ## Validation evidence (combined tree)
 
-- `python -m pytest -q` — **1714 passed, 17 skipped, 0 failed**.
+- `python -m pytest -q` — **1726 passed, 17 skipped, 0 failed**.
 - `clients/web`: `node --test "tests/*.test.ts"` — **382 passed**; `npx tsc --noEmit` exit 0; `npm run build` exit 0.
 - `python scripts/security/run_security_acceptance.py` — all automated checks PASS (`api_import_safe`, `public_surface_bounded` 178, `permission_registry_complete` 178, token/identity/OIDC fail-closed, posture retained); external review items remain BLOCKED as before.
 - Documentation gates: `tests/contract/test_markdown_links.py` and `tests/contract/test_docstring_policy.py` pass, including the new wave records.
@@ -58,7 +58,7 @@ Wave status: DELIVERED_AND_VALIDATED for every slice listed under "Completed tas
 
 ## Compatibility
 
-- API: additive only. No new public path in this stretch; three optional request fields with a conditional echo, recorded in both the English and Chinese contract-evolution policy.
+- API: additive only. No new public path in this stretch; five optional request fields with a conditional echo (`analysis_snapshot_id` on the analysis-query and portfolio-report paths, plus the three recorded earlier), declared in both the English and Chinese contract-evolution policy.
 - DB: no new migration; the Alembic head remains `0036_job_records` and the release-metadata test still pins it.
 - Client: projections replace client-side joins; the market lane reads the projection through the same bounded loader, and the portfolio lane derives its pool block from the projection instead of a second route call.
 - Security: one deliberate narrowing (AI invocation now requires the caller's own analysis capability) and no widening; the compatibility deployment token keeps its posture.

@@ -46,6 +46,9 @@ class AnalysisRequest(BaseModel):
         duration_end_utc: Window end; None = unbounded.
         include_sections: Section ids the client wants.
         language: Output language hint (``en`` or ``zh-CN``).
+        analysis_snapshot_id: Optional Analysis Snapshot this query was run
+            against (Architecture V2 Wave 4). Verified to exist and echoed on the
+            result; the client never cites a reference the platform did not record.
     """
 
     question: str = Field(min_length=1, max_length=4096)
@@ -61,6 +64,7 @@ class AnalysisRequest(BaseModel):
     duration_end_utc: datetime | None = None
     include_sections: list[str] = Field(default_factory=list)
     language: str = "en"
+    analysis_snapshot_id: str | None = Field(default=None, max_length=128)
 
 
 class PortfolioReportRequest(BaseModel):
@@ -79,6 +83,9 @@ class PortfolioReportRequest(BaseModel):
         duration_start_utc: Window start; None = unbounded.
         duration_end_utc: Window end; None = unbounded.
         language: Output language hint.
+        analysis_snapshot_id: Optional Analysis Snapshot this report was run
+            against (Architecture V2 Wave 4). Verified to exist, echoed on the
+            result and recorded on the tracked report run.
     """
 
     title: str = "Portfolio decision-support report"
@@ -93,6 +100,7 @@ class PortfolioReportRequest(BaseModel):
     duration_start_utc: datetime | None = None
     duration_end_utc: datetime | None = None
     language: str = "en"
+    analysis_snapshot_id: str | None = Field(default=None, max_length=128)
 
 
 class AnalysisSnapshot(BaseModel):
@@ -164,6 +172,10 @@ class AnalysisResult(BaseModel):
         missing_inputs: Inputs absent from the snapshot for this task.
         warnings: Aggregated warnings.
         snapshot_id: Snapshot the result was built from.
+        analysis_snapshot_id: The Analysis Snapshot the caller cited as the
+            reproducibility reference, echoed only when one was supplied. Distinct
+            from ``snapshot_id``: that one names the input the builder read, this one
+            names the recorded reference the caller asserted.
         created_at_utc: Result creation time.
         research_only: Always True — decision support only.
         human_review_required: Always True — never auto-acts.
@@ -180,6 +192,7 @@ class AnalysisResult(BaseModel):
     missing_inputs: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     snapshot_id: str
+    analysis_snapshot_id: str | None = None
     created_at_utc: datetime
     research_only: bool = True
     human_review_required: bool = True

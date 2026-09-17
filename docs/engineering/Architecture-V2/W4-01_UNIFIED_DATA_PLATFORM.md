@@ -137,6 +137,33 @@ additive: callers that supply no reference are unchanged.
 Still to wire (recorded, not forced): the resource-pool optimisation run, the
 strategy/backtest run manifest, generated reports and agent evidence.
 
+### Follow-up: the citation reaches every run path the product runs
+
+The follow-ups above were delivered incrementally - the resource-pool optimisation run and the
+strategy backtest then, and the analysis and report paths in this stretch - so every run path a
+client surface actually runs now accepts, verifies and echoes the reference:
+
+| Run path | Verified before the work | Echoed | Durable where |
+|---|---|---|---|
+| `POST /api/route-cost/recommend` | yes | `data.analysis_snapshot_id` | response only |
+| `POST /api/route-cost/resource-pool/optimize` | yes | on the result | the tracked run's `snapshot_id` |
+| `POST /api/strategy-runs` (`run_type=BACKTEST`) | yes - no run row or job is created when refused | on the result | the strategy run and its job |
+| `POST /api/analysis/query` | yes - before the input snapshot is loaded and before any provider call | on the result, absent when nothing was cited | the persisted analysis record's output snapshot |
+| `POST /api/reports/portfolio` | yes | on the report, absent when nothing was cited | the tracked `REPORT` job's `snapshot_id` |
+
+Two things this follow-up deliberately states rather than implies:
+
+- **Verification comes first on the analysis path** because that path can call an external
+  provider. An unverifiable citation is refused before the call, so a bad reference cannot be
+  paid for with a request to a third party.
+- **The stored report record has no column for a cited reference.** Its sections and source
+  references are unchanged, and the citation lives on the tracked run; adding a column is a
+  migration, not something to imply. The analysis record needs no such column because the
+  citation travels inside the result it already persists.
+- **No client surface sends a citation yet.** The platform accepts and carries it; the surfaces
+  that run an analysis or a report have no snapshot picker, so the field stays unused by the Web
+  client until one exists. That is recorded here as open rather than presented as delivered.
+
 ## 7. Access path (07 §7)
 
 The allowed path is preserved: `Application API → Data Product/semantic service →

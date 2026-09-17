@@ -73,6 +73,8 @@ Windows/Linux 桌面外壳和双语运营文档。所有消费方都是同一契
 | `POST /api/route-cost/recommend` | `analysis_snapshot_id`（请求可选，`data` 回显） | Architecture V2 Wave 4：产出建议所引用的可复现引用。运行前对持久化的 Analysis Snapshot 校验——未知引用返回 `422 analysis_snapshot_not_found`，无法校验时返回 `503 runtime_db_not_configured` |
 | `POST /api/route-cost/resource-pool/optimize` | `analysis_snapshot_id`（请求可选，`data` 回显） | Wave 5 后续把 Wave 4 的范围扩展到该运行路径：校验方式与拒绝码同建议路径一致；未引用快照时 `data` 中不出现该字段，因此此类调用方的载荷保持不变 |
 | `POST /api/strategy-runs`（`run_type=BACKTEST`） | `analysis_snapshot_id`（请求可选，`data` 回显） | Wave 4 范围扩展到策略回测运行：运行前对持久化的 Analysis Snapshot 校验（被拒绝时不创建运行行、不创建作业），并在响应中回显；未引用时不出现 |
+| `POST /api/analysis/query` | `analysis_snapshot_id`（请求可选，`data` 回显） | Wave 4 范围扩展到分析（AI 证据）路径：在加载输入快照之前、且在调用任何 provider 之前完成校验，因此无法校验的引用绝不会以一次外部请求作为代价。拒绝码与其他路径一致；未引用时 `data` 中不出现该字段，且该引用随分析记录一并持久化 |
+| `POST /api/reports/portfolio` | `analysis_snapshot_id`（请求可选，`data` 回显） | Wave 4 范围扩展到组合报告：运行前校验，在报告中回显，并作为该报告所依据的快照记入受跟踪的 `REPORT` 作业（未引用时记录为空引用）。已存储的报告记录仅保留其章节与来源引用，没有存放被引用快照的列——此处如实记录，不作暗示 |
 
 ## 弃用表
 

@@ -48,6 +48,13 @@ def post_analysis_query(body: AnalysisRequest, request: Request) -> dict:
     执行分析查询：加载快照 → （可选）调用 LLM provider → 组装确定性
     结果 → 审计与持久化。provider 仅在请求显式开启且密钥可用时调用。
 
+    A caller may cite an ``analysis_snapshot_id`` (Architecture V2 Wave 4). The
+    reference is verified *before* anything else happens - before the input
+    snapshot is loaded and before any provider call - so an unverifiable
+    citation can never be paid for with an external request, and the result
+    echoes it only when one was supplied. The citation is part of the persisted
+    analysis record, so re-reading the analysis does not lose it.
+
     Args:
         body: Analysis request (question/task/context selections).
         request: Incoming FastAPI request (request-id context).
@@ -57,8 +64,12 @@ def post_analysis_query(body: AnalysisRequest, request: Request) -> dict:
 
     Raises:
         HTTPException: 403 ``llm_provider_denied`` when provider invocation
-            is requested without a configured provider key.
+            is requested without a configured provider key; the Analysis
+            Snapshot refusal contract (503/422) when a citation cannot be
+            verified.
     """
+
+    _require_known_analysis_snapshot(body.analysis_snapshot_id, resource="analysis_query")
 
     snapshot = _load_snapshot(
         duration_start_utc=body.duration_start_utc,
@@ -91,12 +102,13 @@ def post_analysis_query(body: AnalysisRequest, request: Request) -> dict:
         provider_text=provider_text,
         provider_status=provider_status,
     )
+    result.analysis_snapshot_id = body.analysis_snapshot_id
     if body.invoke_provider and not body.include_contract_prices:
         # 未授权合约价格参与 LLM 载荷：显式过滤并告警（fail-closed）。
         result.warnings = _unique([*result.warnings, "LLM_PAYLOAD_FILTERED:contract_prices"])
     _persist_analysis_if_db(body, snapshot, result)
     return _env(
-        result.model_dump(mode="json"),
+        _cited_payload(result),
         request,
         source=snapshot.source,
         warnings=result.warnings,
@@ -109,6 +121,12 @@ def post_portfolio_report(body: PortfolioReportRequest, request: Request) -> dic
 
     生成组合决策支持报告（复用分析构建器，任务类型为 PORTFOLIO_REPORT）。
 
+    A caller may cite an ``analysis_snapshot_id`` (Architecture V2 Wave 4). The
+    reference is verified before the snapshot is loaded and before any provider
+    call, the generated report echoes it only when one was supplied, and the
+    tracked report run records it as the snapshot it was computed against - so a
+    report that cites nothing keeps its previous payload and job inputs exactly.
+
     Args:
         body: Portfolio report request.
         request: Incoming FastAPI request (request-id context).
@@ -116,6 +134,8 @@ def post_portfolio_report(body: PortfolioReportRequest, request: Request) -> dic
     Returns:
         Enveloped AnalysisResult for the portfolio report.
     """
+
+    _require_known_analysis_snapshot(body.analysis_snapshot_id, resource="portfolio_report")
 
     snapshot = _load_snapshot(
         duration_start_utc=body.duration_start_utc,
@@ -186,6 +206,7 @@ def post_portfolio_report(body: PortfolioReportRequest, request: Request) -> dic
         provider_text=provider_text,
         provider_status=provider_status,
     )
+    result.analysis_snapshot_id = body.analysis_snapshot_id
     if body.invoke_provider and not body.include_contract_prices:
         result.warnings = _unique([*result.warnings, "LLM_PAYLOAD_FILTERED:contract_prices"])
     persisted, store_configured = _persist_report_if_db(body, snapshot, result)
@@ -211,7 +232,7 @@ def post_portfolio_report(body: PortfolioReportRequest, request: Request) -> dic
         request_id=request_id,
     )
     return _env(
-        result.model_dump(mode="json"),
+        _cited_payload(result),
         request,
         source=snapshot.source,
         warnings=result.warnings,
@@ -672,6 +693,44 @@ def _snapshot_entitlement_blocker(snapshot: AnalysisSnapshot) -> str | None:
     return None
 
 
+def _require_known_analysis_snapshot(snapshot_id: str | None, *, resource: str) -> None:
+    """Fail closed when a supplied Analysis Snapshot reference does not exist.
+
+    The check itself lives in
+    :mod:`eurogas_nexus.api.dependencies.analysis_snapshot`, so every run path
+    that accepts an optional ``analysis_snapshot_id`` refuses an unknown
+    reference with the same status codes and the same error codes.
+
+    Args:
+        snapshot_id: The caller-supplied reproducibility reference, or ``None``.
+        resource: Surface label used in the 503 message.
+
+    Raises:
+        HTTPException: 503 or 422, per the dependency's contract.
+    """
+
+    from eurogas_nexus.api.dependencies.analysis_snapshot import (
+        require_known_analysis_snapshot,
+    )
+
+    require_known_analysis_snapshot(snapshot_id, resource=resource)
+
+
+def _cited_payload(result: AnalysisResult) -> dict:
+    """Serialise a result, carrying the cited reference only when one was given.
+
+    An analysis result always has an input ``snapshot_id``, but the Wave 4
+    reproducibility reference is optional and additive: a caller that cites
+    nothing keeps the previous payload exactly, so the field is dropped rather
+    than sent as a null it never asked for.
+    """
+
+    payload = result.model_dump(mode="json")
+    if not result.analysis_snapshot_id:
+        payload.pop("analysis_snapshot_id", None)
+    return payload
+
+
 def _persist_analysis_if_db(
     body: AnalysisRequest,
     snapshot: AnalysisSnapshot,
@@ -793,9 +852,13 @@ def _track_report_run(
             "duration_start_utc": _iso_or_none(body.duration_start_utc),
             "duration_end_utc": _iso_or_none(body.duration_end_utc),
             "provider_invoked": bool(body.invoke_provider),
+            "analysis_snapshot_id": body.analysis_snapshot_id or "",
         },
         correlation_id=request_id,
         provenance=("analysis", "portfolio-report"),
+        # The Analysis Snapshot the report cites is the reference the run was computed
+        # against; a report that cited none records an empty reference rather than a guess.
+        snapshot_id=body.analysis_snapshot_id or "",
     )
 
 
