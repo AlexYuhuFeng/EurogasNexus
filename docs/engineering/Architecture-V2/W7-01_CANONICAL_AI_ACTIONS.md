@@ -180,9 +180,9 @@ is not attached to it.
 
 ## 11. What this slice does not claim
 
-- **No per-workspace dock.** The palette is the cross-workspace entry point; a workspace that wants
-  the surface inline mounts `CopilotPanel` with its own `useCopilot` controller. Until a shell passes
-  its own context, the container resolves it from the canonical sources (section 7).
+- **The review surface is not converged yet.** Its own analysis panel still carries a question box
+  beside the canonical actions; replacing it with the Copilot is follow-up work in the file that owns
+  it.
 - **No dedicated backend task kind per action.** That would be a backend contract change; the five
   actions run `DB_INQUIRY` today.
 - **No convergence of the `/agent/*` research surfaces.** Those remain untouched; converging them is
@@ -207,5 +207,22 @@ reference could still be sent to a model. It now runs the declared **`ask`** act
 This pairs with the backend half of finding C8: the alert-analysis route now re-authorises the
 invocation against the caller's own `analysis.query` capability, so the surface and the route agree
 about whose authority an alert question runs under.
+
+## 13. The Copilot gets a workspace home
+
+The palette was the only entry point, which made the Copilot a shell facility rather than part of the
+work. The market cockpit's context rail now carries the five canonical actions:
+
+- they come from the one registry (`copilotOffers`), so no sixth action can appear and no label can
+  drift from the contract;
+- the context and evidence come from the canonical sources the palette uses
+  (`useCopilotSources` with the selection the surface already holds), so a run started here carries
+  what the panel shows rather than a second reading of the Active Context;
+- each action is gated by the offer the contract produced, and a withheld action explains itself on
+  the control instead of opening a panel that refuses it;
+- choosing one mounts the hosted Copilot, which owns the transport; the cockpit names no endpoint.
+
+A workspace that wants the surface inline follows the same pattern, and the review surface's own
+analysis panel is the remaining convergence.
 - **No conversation, thread or history model.** A run is one action on one context; the backend
   persists the analysis it produced, and the surface shows the run record it composed.
