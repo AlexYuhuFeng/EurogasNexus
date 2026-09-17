@@ -95,6 +95,10 @@ Architecture V2 is the binding target architecture and product-experience intera
   [canonical experience specifications](engineering/Architecture-V2/W1-05_CANONICAL_EXPERIENCE_SPECS.md).
 - Wave 2 contracts: [effective access and the ExperienceProfile](engineering/Architecture-V2/W2-01_EFFECTIVE_ACCESS_AND_EXPERIENCE_PROFILE.md).
 - Wave 3 contracts: [control plane separation](engineering/Architecture-V2/W3-01_CONTROL_PLANE_SEPARATION.md).
+- Wave 4 contracts: [unified data platform: Data Products and Analysis Snapshot](engineering/Architecture-V2/W4-01_UNIFIED_DATA_PLATFORM.md).
+- Wave 5 contracts: [application projections](engineering/Architecture-V2/W5-01_APPLICATION_PROJECTIONS.md).
+- Wave 6 contracts: [Decision Case and Decision Record](engineering/Architecture-V2/W6-01_DECISION_CASE.md).
+- Wave 8 contracts: [product error taxonomy](engineering/Architecture-V2/W8-01_ERROR_TAXONOMY.md).
 - Wave 9 contracts: [shell surfaces: Inspector and command palette](engineering/Architecture-V2/W9-01_SHELL_SURFACES_INSPECTOR_AND_PALETTE.md).
 
 ### Research data foundation

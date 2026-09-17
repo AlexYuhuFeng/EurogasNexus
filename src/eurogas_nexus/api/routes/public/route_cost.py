@@ -288,8 +288,15 @@ def post_route_cost_calculation(body: RouteCostScenario, request: Request) -> di
 
 @router.post("/api/route-cost/recommend")
 def post_route_recommendation(body: RouteRecommendationRequest, request: Request) -> dict:
-    """Recommend route and sale-market allocation using runtime tariff rows."""
+    """Recommend route and sale-market allocation using runtime tariff rows.
 
+    When the caller supplies an ``analysis_snapshot_id`` (Architecture V2 Wave 4)
+    the reference is verified against persisted Analysis Snapshots before the run
+    and echoed on the result, so a produced recommendation cites the snapshot it
+    was computed against instead of carrying an unverified string.
+    """
+
+    _require_known_analysis_snapshot(body.analysis_snapshot_id)
     tariffs, source, warnings = _load_tariffs()
     recommendation = recommend_route_allocation(body, tariffs)
     return _env(
@@ -329,6 +336,54 @@ def post_resource_pool_optimization(
     )
 
 
+def _require_known_analysis_snapshot(snapshot_id: str | None) -> None:
+    """Fail closed when a supplied Analysis Snapshot reference does not exist.
+
+    Architecture V2 Wave 4: a result that claims a reproducibility reference must
+    cite one the platform actually recorded. A caller that supplies no reference
+    is unaffected (the field is optional and additive).
+
+    Raises:
+        HTTPException: 503 ``runtime_db_not_configured`` when a reference was
+            supplied but no runtime database can verify it; 503
+            ``runtime_db_unavailable`` on a failed read; 422
+            ``analysis_snapshot_not_found`` when no snapshot carries the id.
+    """
+
+    if not snapshot_id:
+        return
+    if not _db_is_configured():
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "code": "runtime_db_not_configured",
+                "message": (
+                    "An Analysis Snapshot reference cannot be verified without a "
+                    "runtime database."
+                ),
+                "analysis_snapshot_id": snapshot_id,
+            },
+        )
+    sqlalchemy_error = _sqlalchemy_error_type()
+    try:
+        from eurogas_nexus.db.repositories.data_platform import get_analysis_snapshot
+        from eurogas_nexus.db.session import get_session_factory
+
+        with get_session_factory()() as session:
+            known = get_analysis_snapshot(session, snapshot_id)
+    except sqlalchemy_error as exc:
+        raise _db_unavailable(exc) from exc
+    if known is None:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "analysis_snapshot_not_found",
+                "message": f"No Analysis Snapshot is recorded for {snapshot_id!r}.",
+                "analysis_snapshot_id": snapshot_id,
+            },
+        )
+
+
 def _load_tariffs():
     if not _db_is_configured():
         return (
@@ -336,7 +391,6 @@ def _load_tariffs():
             "runtime-db-not-configured",
             ["No runtime DB configured; European TSO tariff rows are unavailable."],
         )
-
     sqlalchemy_error = _sqlalchemy_error_type()
     try:
         from eurogas_nexus.db.repositories.route_cost import list_tso_tariffs

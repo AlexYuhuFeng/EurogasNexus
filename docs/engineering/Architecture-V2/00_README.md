@@ -137,6 +137,30 @@ Wave 3 (control plane separation):
   capability-gated Administration surface, the restricted control-plane notice and
   the preserved deep links.
 
+Wave 4 (unified data platform):
+
+- [W4-01 unified data platform surface](W4-01_UNIFIED_DATA_PLATFORM.md) — the
+  declared business-facing Data Product catalogue with its per-principal
+  entitlement and freshness posture, and Analysis Snapshot v1 as the persisted
+  reproducibility reference cited by produced results.
+
+Wave 5 (application projections):
+
+- [W5-01 application projections](W5-01_APPLICATION_PROJECTIONS.md) — MarketContext,
+  PortfolioSnapshot, ReviewContext and ScenarioContext, with the market/portfolio
+  read layer extracted so a projection cannot diverge from the route it composes.
+
+Wave 6 (Decision Case):
+
+- [W6-01 Decision Case and Decision Record](W6-01_DECISION_CASE.md) — the container
+  for objective, context, assumptions, alternatives, evidence and human review, and
+  the record that is evidence rather than execution approval.
+
+Wave 8 (product operations):
+
+- [W8-01 product error taxonomy](W8-01_ERROR_TAXONOMY.md) — ten families, stable
+  codes, severity and recoverability, correlation ids, and operator-only detail.
+
 Wave 9 (UI implementation convergence):
 
 - [W9-01 shell surfaces](W9-01_SHELL_SURFACES_INSPECTOR_AND_PALETTE.md) — the

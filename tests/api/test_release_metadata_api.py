@@ -4,7 +4,9 @@ from fastapi.testclient import TestClient
 
 from eurogas_nexus.api.app import create_app
 from eurogas_nexus.core.config import Settings
+from eurogas_nexus.release.constants import DB_SCHEMA_REVISION
 from eurogas_nexus.version import APPLICATION_VERSION
+from scripts.release.release_metadata import latest_alembic_revision
 
 AUTH_HEADERS = {"X-Eurogas-Api-Key": "test-public-api-token"}
 
@@ -25,7 +27,11 @@ def test_release_metadata_separates_version_channel_and_commit() -> None:
     assert data["release_channel"] == "preview"
     assert data["git_sha"] == "033df92a856e8820dd0f4d2a02367b21a285664d"
     assert data["api_contract_version"] == "api-contract/v1"
-    assert data["database_schema_revision"] == "0030_reliability_indexes"
+    # The reported schema revision is the release compatibility contract, so it
+    # must be the constant the release manifest uses AND the real migration head:
+    # a stale constant may not claim a schema the deployment has moved past.
+    assert data["database_schema_revision"] == DB_SCHEMA_REVISION
+    assert DB_SCHEMA_REVISION == latest_alembic_revision()
     assert data["minimum_supported_client"] == APPLICATION_VERSION
     assert data["minimum_supported_server"] == APPLICATION_VERSION
     assert data["backtest_engine_version"] == "backtest-engine/1"

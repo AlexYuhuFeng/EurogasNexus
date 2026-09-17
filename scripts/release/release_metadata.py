@@ -7,6 +7,7 @@ file's location, never from the current working directory.
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import tomllib
 from datetime import UTC, datetime
@@ -24,6 +25,13 @@ ROOT = Path(__file__).resolve().parents[2]
 PRODUCT_NAME = "Eurogas Nexus"
 PACKAGE_NAME = "eurogas-nexus"
 
+# A migration declares its identifier as a module-level assignment, with or
+# without a type annotation. Prose that merely starts with the word "revision"
+# must not be mistaken for it.
+_REVISION_ASSIGNMENT = re.compile(
+    r"""^revision(?:\s*:\s*[^=]+)?\s*=\s*["'](?P<value>[^"']+)["']""",
+)
+
 
 def load_pyproject() -> dict[str, Any]:
     return tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
@@ -40,17 +48,17 @@ def latest_alembic_revision() -> str:
     if not versions:
         raise RuntimeError("No Alembic migration files found.")
     # Migration filenames use a zero-padded monotonic prefix; the highest
-    # prefix is the head of the expand-only chain.
+    # prefix is the head of the expand-only chain. Match the module-level
+    # assignment only: prose in a docstring may start with the word "revision".
     revisions: list[tuple[str, str]] = []
     for path in versions:
         if path.name == "__init__.py":
             continue
         text = path.read_text(encoding="utf-8")
         for line in text.splitlines():
-            stripped = line.strip()
-            if stripped.startswith("revision"):
-                _, raw = stripped.split("=", 1)
-                revisions.append((path.name, raw.strip().strip("\"' ,").replace('"', "")))
+            match = _REVISION_ASSIGNMENT.match(line.strip())
+            if match:
+                revisions.append((path.name, match.group(1)))
                 break
     if not revisions:
         raise RuntimeError("No Alembic revision identifiers found.")

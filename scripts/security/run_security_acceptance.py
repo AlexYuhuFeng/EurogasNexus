@@ -58,7 +58,13 @@ def _checks() -> list[dict]:
     )
     # Bound includes the development-only credential login
     # (/api/dev/auth/login); the internal and release profiles never mount it.
-    check("public_surface_bounded", len(paths) == 163, f"public paths={len(paths)}")
+    # 175 paths at Architecture V2 Waves 4-6: the Data Platform surface
+    # (/api/data-products, /api/analysis-snapshots*), the Decision Case surface
+    # (/api/decision-cases*) and the application projections (/api/projections/*)
+    # joined the surface. The count is a deliberate pin: a new public path must be
+    # declared in tests/contract/test_api_surface_stability.py and recorded in the
+    # API contract evolution policy in the same change.
+    check("public_surface_bounded", len(paths) == 175, f"public paths={len(paths)}")
 
     from eurogas_nexus.security.permissions import permission_for_path
 

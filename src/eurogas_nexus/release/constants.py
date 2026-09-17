@@ -10,7 +10,7 @@ from eurogas_nexus.domain.strategy_lab.registry import (
 from eurogas_nexus.version import APPLICATION_VERSION
 
 API_CONTRACT_VERSION = "api-contract/v1"
-DB_SCHEMA_REVISION = "0030_reliability_indexes"
+DB_SCHEMA_REVISION = "0035_decision_cases"
 MINIMUM_SUPPORTED_CLIENT_VERSION = APPLICATION_VERSION
 MINIMUM_SUPPORTED_SERVER_VERSION = APPLICATION_VERSION
 SOLVER_VERSION = "min-cost-flow/v1"

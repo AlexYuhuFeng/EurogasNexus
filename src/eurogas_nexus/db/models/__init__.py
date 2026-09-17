@@ -28,6 +28,11 @@ from eurogas_nexus.db.models.backtest import (
 )
 from eurogas_nexus.db.models.certification import ProviderCertificationRecord
 from eurogas_nexus.db.models.cost_observation import CostObservationRecord
+from eurogas_nexus.db.models.data_platform import AnalysisSnapshotRecord
+from eurogas_nexus.db.models.decision import (
+    DecisionCaseDecisionRecord,
+    DecisionCaseRecord,
+)
 from eurogas_nexus.db.models.dataops import (
     DataOperationsHeartbeatRecord,
     IngestionRunIssueRecord,
@@ -238,6 +243,9 @@ __all__ = [
     "IngestionRunIssueRecord",
     "SourceRuntimeStateRecord",
     "AnalysisRunRecord",
+    "AnalysisSnapshotRecord",
+    "DecisionCaseDecisionRecord",
+    "DecisionCaseRecord",
     "CapacityObservationRecord",
     "CompanyTsoAccessRecord",
     "CostObservationRecord",

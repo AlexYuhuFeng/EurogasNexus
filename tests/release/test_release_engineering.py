@@ -96,8 +96,34 @@ def test_stable_dispatch_is_rejected_and_tag_mismatch_is_rejected() -> None:
         )
 
 
-def test_latest_alembic_revision_is_head_0033() -> None:
-    assert latest_alembic_revision() == "0033_market_obs_order_indexes"
+def test_latest_alembic_revision_is_head_0035() -> None:
+    assert latest_alembic_revision() == "0035_decision_cases"
+
+
+def test_revision_resolution_ignores_prose_that_starts_with_revision(tmp_path, monkeypatch) -> None:
+    """A docstring word must never be mistaken for the revision assignment.
+
+    The release metadata parser scans migration text line by line; before this
+    regression test, a wrapped docstring line beginning with "revision." raised
+    ValueError and broke release metadata generation.
+    """
+
+    import scripts.release.release_metadata as release_metadata
+
+    versions = tmp_path / "alembic" / "versions"
+    versions.mkdir(parents=True)
+    (versions / "0001_example.py").write_text(
+        '"""A migration whose docstring wraps onto a line that starts with\n'
+        'revision. This must not be read as the revision identifier.\n'
+        '"""\n\n'
+        'from __future__ import annotations\n\n'
+        'revision: str = "0001_example"\n'
+        'down_revision: str | None = None\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(release_metadata, "ROOT", tmp_path)
+
+    assert release_metadata.latest_alembic_revision() == "0001_example"
 
 
 # ---------------------------------------------------------------------------

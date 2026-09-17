@@ -114,6 +114,36 @@ def list_intraday_opportunities(
     return serialized[:limit]
 
 
+def get_intraday_opportunity(
+    session: Session,
+    opportunity_id: str,
+    *,
+    now_utc: datetime | None = None,
+) -> dict | None:
+    """Return one intraday opportunity payload by id (None when absent).
+
+    Reuses the same serializer as :func:`list_intraday_opportunities`, so the
+    expiry rewrite (``EXPIRED`` + ``OPPORTUNITY_EXPIRED``) is identical whether a
+    caller reads the list or one row - the review workflow needs one row by id
+    and must not re-implement that rule.
+
+    Args:
+        session: DB session.
+        opportunity_id: Opportunity id to read.
+        now_utc: Evaluation clock for the validity check, or None.
+
+    Returns:
+        The opportunity payload, or None when no row carries that id.
+    """
+
+    from eurogas_nexus.db.models import IntradayOpportunityRecord
+
+    row = session.get(IntradayOpportunityRecord, opportunity_id)
+    if row is None:
+        return None
+    return _opportunity_dict(row, now_utc=now_utc)
+
+
 def list_normalized_market_view(
     session: Session,
     *,

@@ -117,6 +117,10 @@ Architecture V2 是绑定的目标架构与产品体验交互权威（ADR-0016�
   [规范化体验规格](engineering/Architecture-V2/W1-05_CANONICAL_EXPERIENCE_SPECS.md)。
 - Wave 2 合同：[有效访问与 ExperienceProfile](engineering/Architecture-V2/W2-01_EFFECTIVE_ACCESS_AND_EXPERIENCE_PROFILE.md)。
 - Wave 3 合同：[控制平面分离](engineering/Architecture-V2/W3-01_CONTROL_PLANE_SEPARATION.md)。
+- Wave 4 合同：[统一数据平台：Data Product 与 Analysis Snapshot](engineering/Architecture-V2/W4-01_UNIFIED_DATA_PLATFORM.md)。
+- Wave 5 合同：[应用投影](engineering/Architecture-V2/W5-01_APPLICATION_PROJECTIONS.md)。
+- Wave 6 合同：[决策案例与决策记录](engineering/Architecture-V2/W6-01_DECISION_CASE.md)。
+- Wave 8 合同：[产品错误分类法](engineering/Architecture-V2/W8-01_ERROR_TAXONOMY.md)。
 - Wave 9 合同：[外壳界面：检查器与命令面板](engineering/Architecture-V2/W9-01_SHELL_SURFACES_INSPECTOR_AND_PALETTE.md)。
 
 ## 当前运维手册

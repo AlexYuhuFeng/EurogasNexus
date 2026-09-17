@@ -152,6 +152,16 @@ export {
 } from "./experienceProfile.ts";
 
 export {
+  describeApiError,
+  errorFamilyIds,
+  isRetryable,
+  requiresUserAction,
+  type ApiErrorBody,
+  type ErrorFamilyId,
+  type ErrorPresentation,
+} from "./errorPresentation.ts";
+
+export {
   DEFAULT_PALETTE_LIMIT,
   aiCommands,
   buildPaletteCommands,

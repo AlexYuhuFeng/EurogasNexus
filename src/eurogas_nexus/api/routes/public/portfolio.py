@@ -1,9 +1,22 @@
-"""Read-only portfolio, screen-order, and PnL observation routes."""
+"""Read-only portfolio, screen-order, and PnL observation routes.
+
+The loading and shaping code lives in
+``eurogas_nexus.application.projections.portfolio_reads`` so the Wave 5
+PortfolioSnapshot projection composes exactly these reads instead of
+re-implementing them. This module keeps the HTTP concerns: the runtime-database
+guard, the ``503 runtime_db_unavailable`` translation and the response envelope.
+Every response field of every endpoint below is unchanged.
+"""
 
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
+from eurogas_nexus.application.projections.market_reads import runtime_db_configured
+from eurogas_nexus.application.projections.portfolio_reads import (
+    pnl_snapshots,
+    screen_orders,
+)
 from eurogas_nexus.domain.market_positioning import (
     PortfolioPnlSnapshot,
     ScreenOrderObservation,
@@ -104,15 +117,10 @@ def _load_screen_orders() -> tuple[list[ScreenOrderObservation], str, list[str]]
 
     sqlalchemy_error = _sqlalchemy_error_type()
     try:
-        from eurogas_nexus.db.models import ScreenOrderObservationRecord
         from eurogas_nexus.db.session import get_session_factory
 
         with get_session_factory()() as session:
-            rows = session.query(ScreenOrderObservationRecord).order_by(
-                ScreenOrderObservationRecord.observed_at_utc.desc(),
-                ScreenOrderObservationRecord.venue,
-            )
-            return [_screen_order_from_row(row) for row in rows.all()], "runtime-postgresql", []
+            return screen_orders(session), "runtime-postgresql", []
     except sqlalchemy_error as exc:
         raise _db_unavailable(exc) from exc
 
@@ -127,76 +135,16 @@ def _load_pnl_snapshots() -> tuple[list[PortfolioPnlSnapshot], str, list[str]]:
 
     sqlalchemy_error = _sqlalchemy_error_type()
     try:
-        from eurogas_nexus.db.models import PortfolioPnlSnapshotRecord
         from eurogas_nexus.db.session import get_session_factory
 
         with get_session_factory()() as session:
-            rows = session.query(PortfolioPnlSnapshotRecord).order_by(
-                PortfolioPnlSnapshotRecord.valuation_time_utc.desc(),
-                PortfolioPnlSnapshotRecord.portfolio_id,
-            )
-            return [_pnl_snapshot_from_row(row) for row in rows.all()], "runtime-postgresql", []
+            return pnl_snapshots(session), "runtime-postgresql", []
     except sqlalchemy_error as exc:
         raise _db_unavailable(exc) from exc
 
 
-def _screen_order_from_row(row) -> ScreenOrderObservation:
-    return ScreenOrderObservation(
-        order_observation_id=row.order_observation_id,
-        provider_id=row.provider_id,
-        venue=row.venue,
-        account_label=row.account_label,
-        external_order_id=row.external_order_id,
-        side=row.side,
-        order_type=row.order_type,
-        hub=row.hub,
-        product=row.product,
-        contract_code=row.contract_code,
-        delivery_start_utc=row.delivery_start_utc.isoformat(),
-        delivery_end_utc=row.delivery_end_utc.isoformat(),
-        price=row.price,
-        currency=row.currency,
-        unit=row.unit,
-        quantity_mwh=row.quantity_mwh,
-        filled_quantity_mwh=row.filled_quantity_mwh,
-        remaining_quantity_mwh=row.remaining_quantity_mwh,
-        status=row.status,
-        observed_at_utc=row.observed_at_utc.isoformat(),
-        source_system=row.source_system,
-        source_reference=row.source_reference,
-        linked_strategy_id=row.linked_strategy_id,
-        linked_resource_id=row.linked_resource_id,
-        research_only=row.research_only,
-        human_review_required=row.human_review_required,
-    )
-
-
-def _pnl_snapshot_from_row(row) -> PortfolioPnlSnapshot:
-    return PortfolioPnlSnapshot(
-        pnl_snapshot_id=row.pnl_snapshot_id,
-        portfolio_id=row.portfolio_id,
-        resource_id=row.resource_id,
-        strategy_id=row.strategy_id,
-        valuation_time_utc=row.valuation_time_utc.isoformat(),
-        realized_pnl_gbp=row.realized_pnl_gbp,
-        unrealized_pnl_gbp=row.unrealized_pnl_gbp,
-        indicative_pnl_gbp=row.indicative_pnl_gbp,
-        cash_value_gbp=row.cash_value_gbp,
-        market_value_gbp=row.market_value_gbp,
-        quantity_mwh=row.quantity_mwh,
-        valuation_basis=row.valuation_basis,
-        source_system=row.source_system,
-        source_reference=row.source_reference,
-        warnings=row.warnings,
-        research_only=row.research_only,
-        human_review_required=row.human_review_required,
-    )
-
-
 def _db_is_configured() -> bool:
-    from eurogas_nexus.db.session import resolve_database_url
-
-    return resolve_database_url() is not None
+    return runtime_db_configured()
 
 
 def _sqlalchemy_error_type():

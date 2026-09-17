@@ -1,10 +1,28 @@
-"""Read-only /api/market routes."""
+"""Read-only /api/market routes.
+
+The loading and shaping code for every slice lives in
+``eurogas_nexus.application.projections.market_reads`` so the Wave 5
+MarketContext projection composes exactly these reads instead of re-implementing
+them. This module keeps the HTTP concerns: the runtime-database guard, the
+``503 runtime_db_unavailable`` translation and the response envelope. Every
+response field of every endpoint below is unchanged.
+"""
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
-from eurogas_nexus.security.identity import (
-    legacy_public_token_principal,
-    principal_allows_source_family,
+from eurogas_nexus.api.dependencies.row_entitlement import current_principal
+from eurogas_nexus.application.projections.market_reads import (
+    derive_intraday_spreads,
+    filter_entitled_rows,
+    fx_observation_row,
+    fx_observations,
+    fx_row_from_market_observation,
+    intraday_opportunities,
+    market_observation_row,
+    market_observations,
+    market_quotes,
+    normalized_market_view,
+    source_family_filter,
 )
 
 router = APIRouter(tags=["market"])
@@ -17,7 +35,7 @@ def list_observations(request: Request) -> dict:
     返回市场观测列表；DB 未配置时降级为空并告警（fail-closed）。
 
     Args:
-        request: Incoming FastAPI request (unused except wiring).
+        request: Incoming FastAPI request (used for row entitlement).
 
     Returns:
         Enveloped observation rows or an empty enveloped response.
@@ -26,18 +44,25 @@ def list_observations(request: Request) -> dict:
         HTTPException: 503 ``runtime_db_unavailable`` on DB read failure.
     """
 
-    observations = _db_market_observations()
-    if observations is not None:
+    if not _db_is_configured():
         return _env(
-            _filter_entitled_rows(request, observations, source_key="source_system"),
-            source="runtime-postgresql",
+            [],
+            source="runtime-db-not-configured",
+            warnings=["Runtime DB is not configured; market observations are unavailable."],
         )
 
-    return _env(
-        [],
-        source="runtime-db-not-configured",
-        warnings=["Runtime DB is not configured; market observations are unavailable."],
-    )
+    sqlalchemy_error = _sqlalchemy_error_type()
+    try:
+        from eurogas_nexus.db.session import get_session_factory
+
+        with get_session_factory()() as session:
+            rows = market_observations(session)
+        return _env(
+            _filter_entitled_rows(request, rows, source_key="source_system"),
+            source="runtime-postgresql",
+        )
+    except sqlalchemy_error as exc:
+        raise _db_unavailable(exc) from exc
 
 
 @router.get("/api/market/fx")
@@ -56,15 +81,22 @@ def list_fx(request: Request) -> dict:
         HTTPException: 503 ``runtime_db_unavailable`` on DB read failure.
     """
 
-    fx_rows = _db_fx_observations()
-    if fx_rows is not None:
-        return _env(fx_rows, source="runtime-postgresql")
+    if not _db_is_configured():
+        return _env(
+            [],
+            source="runtime-db-not-configured",
+            warnings=["Runtime DB is not configured; ECB FX observations are unavailable."],
+        )
 
-    return _env(
-        [],
-        source="runtime-db-not-configured",
-        warnings=["Runtime DB is not configured; ECB FX observations are unavailable."],
-    )
+    sqlalchemy_error = _sqlalchemy_error_type()
+    try:
+        from eurogas_nexus.db.session import get_session_factory
+
+        with get_session_factory()() as session:
+            rows = fx_observations(session)
+        return _env(rows, source="runtime-postgresql")
+    except sqlalchemy_error as exc:
+        raise _db_unavailable(exc) from exc
 
 
 @router.get("/api/market/quotes")
@@ -85,11 +117,10 @@ def list_quotes(
         )
     sqlalchemy_error = _sqlalchemy_error_type()
     try:
-        from eurogas_nexus.db.repositories.market_intelligence import list_market_quotes
         from eurogas_nexus.db.session import get_session_factory
 
         with get_session_factory()() as session:
-            rows = list_market_quotes(
+            rows = market_quotes(
                 session,
                 hub=hub,
                 product=product,
@@ -120,13 +151,10 @@ def list_opportunities(
         )
     sqlalchemy_error = _sqlalchemy_error_type()
     try:
-        from eurogas_nexus.db.repositories.market_intelligence import (
-            list_intraday_opportunities,
-        )
         from eurogas_nexus.db.session import get_session_factory
 
         with get_session_factory()() as session:
-            rows = list_intraday_opportunities(session, status=status, limit=limit)
+            rows = intraday_opportunities(session, status=status, limit=limit)
         return _env(rows, source="runtime-postgresql")
     except sqlalchemy_error as exc:
         raise _db_unavailable(exc) from exc
@@ -147,20 +175,14 @@ def list_normalized_view(
         )
     sqlalchemy_error = _sqlalchemy_error_type()
     try:
-        from eurogas_nexus.db.repositories.market_intelligence import (
-            list_normalized_market_view,
-        )
         from eurogas_nexus.db.session import get_session_factory
 
-        identity = getattr(request.state, "identity", legacy_public_token_principal())
+        identity = current_principal(request)
         with get_session_factory()() as session:
-            view = list_normalized_market_view(
+            view = normalized_market_view(
                 session,
                 limit=limit,
-                source_filter=lambda source_system: principal_allows_source_family(
-                    identity,
-                    source_system,
-                ),
+                source_filter=source_family_filter(identity),
             )
         return _env(
             view["rows"],
@@ -196,27 +218,11 @@ def list_spreads(request: Request) -> dict:
         )
     sqlalchemy_error = _sqlalchemy_error_type()
     try:
-        from eurogas_nexus.db.repositories.market_intelligence import (
-            list_intraday_opportunities,
-        )
         from eurogas_nexus.db.session import get_session_factory
 
         with get_session_factory()() as session:
-            opportunities = list_intraday_opportunities(session, limit=100)
-        rows = [
-            {
-                "spread_id": row["opportunity_id"],
-                "name": f"{row['buy_hub']} -> {row['sell_hub']} {row['product']}",
-                "from_venue": row["buy_venue"],
-                "to_venue": row["sell_venue"],
-                "from_hub": row["buy_hub"],
-                "to_hub": row["sell_hub"],
-                "spread_eur_mwh": row["gross_spread"],
-                "period": row["product"],
-            }
-            for row in opportunities
-        ]
-        return _env(rows, source="runtime-postgresql")
+            opportunities = intraday_opportunities(session, limit=100)
+        return _env(derive_intraday_spreads(opportunities), source="runtime-postgresql")
     except sqlalchemy_error as exc:
         raise _db_unavailable(exc) from exc
 
@@ -227,126 +233,31 @@ def _filter_entitled_rows(request: Request, rows: list[dict], *, source_key: str
     Legacy public-token deployments retain the single-trust-domain view. A
     DB-backed identity sees only rows whose source family is in its data
     scopes (public baseline families remain visible to all).
+
+    The rule itself lives in the application layer
+    (:func:`eurogas_nexus.application.projections.market_reads.filter_entitled_rows`)
+    so the MarketContext projection applies exactly the same filter.
     """
 
-    identity = getattr(request.state, "identity", legacy_public_token_principal())
-    if identity.auth_method == "legacy_public_token":
-        return rows
-    return [
-        row
-        for row in rows
-        if principal_allows_source_family(identity, row.get(source_key) or "")
-    ]
+    return filter_entitled_rows(current_principal(request), rows, source_key=source_key)
 
 
-def _db_market_observations() -> list[dict] | None:
-    if not _db_is_configured():
-        return None
+def _market_row(row):
+    """Shape one market observation row (compatibility alias, see market_reads)."""
 
-    sqlalchemy_error = _sqlalchemy_error_type()
-    try:
-        from eurogas_nexus.db.models import MarketObservationRecord
-        from eurogas_nexus.db.session import get_session_factory
-
-        with get_session_factory()() as session:
-            rows = session.query(MarketObservationRecord).order_by(
-                MarketObservationRecord.observed_at_utc.desc(),
-                MarketObservationRecord.market_venue,
-                MarketObservationRecord.product,
-            )
-            return [_market_row(row) for row in rows.all()]
-    except sqlalchemy_error as exc:
-        raise _db_unavailable(exc) from exc
+    return market_observation_row(row)
 
 
-def _db_fx_observations() -> list[dict] | None:
-    if not _db_is_configured():
-        return None
+def _fx_row(row):
+    """Shape one FX observation row (compatibility alias, see market_reads)."""
 
-    sqlalchemy_error = _sqlalchemy_error_type()
-    try:
-        from eurogas_nexus.db.models import FxObservationRecord, MarketObservationRecord
-        from eurogas_nexus.db.session import get_session_factory
-
-        with get_session_factory()() as session:
-            rows = session.query(FxObservationRecord).order_by(
-                FxObservationRecord.observed_at_utc.desc(),
-                FxObservationRecord.pair,
-            ).all()
-            if rows:
-                return [_fx_row(row) for row in rows]
-            market_rows = session.query(MarketObservationRecord).filter(
-                MarketObservationRecord.source_system == "ECB"
-            ).order_by(MarketObservationRecord.observed_at_utc.desc())
-            return [_fx_row_from_market_observation(row) for row in market_rows.all()]
-    except sqlalchemy_error as exc:
-        raise _db_unavailable(exc) from exc
+    return fx_observation_row(row)
 
 
-def _market_row(row) -> dict:
-    from eurogas_nexus.governance.entitlement import entitlement_scope_for_source
+def _fx_row_from_market_observation(row):
+    """Shape one ECB market observation as FX (compatibility alias)."""
 
-    return {
-        "observation_id": row.observation_id,
-        "market_venue": row.market_venue,
-        "product": row.product,
-        "price": row.price,
-        "unit": row.unit,
-        "currency": row.currency,
-        "period_start_utc": row.period_start_utc.isoformat(),
-        "period_end_utc": row.period_end_utc.isoformat(),
-        "observed_at_utc": row.observed_at_utc.isoformat(),
-        "source_system": row.source_system,
-        "source_reference": row.source_reference,
-        "source_record_id": row.source_record_id,
-        "freshness": row.freshness,
-        "quality_score": row.quality_score,
-        "entitlement_scope": entitlement_scope_for_source(row.source_system),
-        "research_only": row.research_only,
-        "metadata_json": row.metadata_json or {},
-    }
-
-
-def _fx_row(row) -> dict:
-    from eurogas_nexus.governance.entitlement import entitlement_scope_for_source
-
-    return {
-        "observation_id": row.observation_id,
-        "pair": row.pair,
-        "base_currency": row.base_currency,
-        "quote_currency": row.quote_currency,
-        "rate": row.rate,
-        "rate_type": row.rate_type,
-        "value_date": row.value_date,
-        "observed_at_utc": row.observed_at_utc.isoformat(),
-        "source_system": row.source_system,
-        "source_reference": row.source_reference,
-        "freshness": row.freshness,
-        "entitlement_scope": entitlement_scope_for_source(row.source_system),
-        "research_only": row.research_only,
-    }
-
-
-def _fx_row_from_market_observation(row) -> dict:
-    from eurogas_nexus.governance.entitlement import entitlement_scope_for_source
-
-    quote = row.currency
-    pair = row.product.replace("/", "")
-    return {
-        "observation_id": row.observation_id,
-        "pair": pair,
-        "base_currency": "EUR",
-        "quote_currency": quote,
-        "rate": row.price,
-        "rate_type": "reference",
-        "value_date": row.period_start_utc.date().isoformat(),
-        "observed_at_utc": row.observed_at_utc.isoformat(),
-        "source_system": row.source_system,
-        "source_reference": row.source_reference,
-        "freshness": row.freshness,
-        "entitlement_scope": entitlement_scope_for_source(row.source_system),
-        "research_only": row.research_only,
-    }
+    return fx_row_from_market_observation(row)
 
 
 def _db_is_configured() -> bool:

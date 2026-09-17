@@ -705,6 +705,75 @@ export interface ReviewDecisionInputDTO {
   note?: string | null;
 }
 
+export interface DecisionCaseAssumptionDTO {
+  key: string; value: string; source: string; note: string;
+}
+
+export interface DecisionCaseAlternativeDTO {
+  alternative_id: string; label: string; description: string;
+  economics_ref: string; warnings: string[];
+}
+
+export interface DecisionCaseEvidenceDTO {
+  kind: string; ref: string; label: string; as_of_utc: string; snapshot_id: string;
+}
+
+export interface DecisionCaseRecordDTO {
+  outcome: "accepted" | "rejected" | "needs_attention";
+  actor: string; note: string; evidence_refs: string[]; recorded_at_utc: string;
+}
+
+/** Full decision-case payload (`GET /api/decision-cases/{case_id}`). */
+export interface DecisionCaseDTO {
+  case_id: string; objective: string; status: string;
+  created_by: string; created_at_utc: string;
+  gas_day: string; delivery_product: string; hub_id: string;
+  portfolio_ref: string; snapshot_id: string; reproducible: boolean;
+  assumptions: DecisionCaseAssumptionDTO[];
+  alternatives: DecisionCaseAlternativeDTO[];
+  evidence: DecisionCaseEvidenceDTO[];
+  ai_findings: string[]; warnings: string[];
+  records: DecisionCaseRecordDTO[];
+  /** Whether the case may accept a decision yet, with the blockers when it may not. */
+  decidable: boolean; blockers: string[];
+}
+
+/** Compact list row (`GET /api/decision-cases`). */
+export interface DecisionCaseSummaryDTO {
+  case_id: string; objective: string; status: string;
+  gas_day: string; delivery_product: string; hub_id: string;
+  evidence_count: number; alternative_count: number; assumption_count: number;
+  record_count: number; reproducible: boolean;
+  last_record: { outcome: string; actor: string; recorded_at_utc: string } | null;
+}
+
+export interface DecisionCaseCreateInputDTO {
+  objective: string;
+  gas_day?: string; delivery_product?: string; hub_id?: string;
+  portfolio_ref?: string; snapshot_id?: string;
+}
+
+export interface DecisionCaseEvidenceInputDTO {
+  kind:
+    | "MARKET_CONTEXT"
+    | "PORTFOLIO_SNAPSHOT"
+    | "SCENARIO"
+    | "OPTIMIZATION"
+    | "ROUTE_RECOMMENDATION"
+    | "BACKTEST"
+    | "STRATEGY_RUN"
+    | "RESEARCH_DATASET"
+    | "AGENT_RUN"
+    | "REVIEW_CONTEXT"
+    | "MANUAL";
+  ref: string; label?: string; as_of_utc?: string; snapshot_id?: string;
+}
+
+export interface DecisionCaseDecisionInputDTO {
+  outcome: "accepted" | "rejected" | "needs_attention";
+  note?: string;
+}
+
 export interface PipelineHealthSourceDTO {
   source_name: string; status: string;
   started_at_utc: string; finished_at_utc: string | null;
@@ -1854,6 +1923,39 @@ export const api = {
 
   reviewDecisions: (params?: { entity_type?: string; entity_id?: string; limit?: string }, options?: ApiRequestOptions) =>
     get<ReviewDecisionDTO[]>("/review/decisions", params, options),
+
+  /**
+   * Architecture V2 Decision Cases: the container that turns analysis into
+   * reviewable, human-owned decision evidence. A Decision Record is evidence and
+   * rationale, never approval to execute anything.
+   */
+  decisionCases: (params?: { status?: string; limit?: string }, options?: ApiRequestOptions) =>
+    get<DecisionCaseSummaryDTO[]>("/decision-cases", params, options),
+
+  decisionCase: (caseId: string, options?: ApiRequestOptions) =>
+    get<DecisionCaseDTO>(`/decision-cases/${encodeURIComponent(caseId)}`, undefined, options),
+
+  createDecisionCase: (body: DecisionCaseCreateInputDTO) =>
+    post<DecisionCaseDTO>("/decision-cases", body),
+
+  attachDecisionCaseEvidence: (caseId: string, body: DecisionCaseEvidenceInputDTO) =>
+    post<DecisionCaseDTO>(`/decision-cases/${encodeURIComponent(caseId)}/evidence`, body),
+
+  recordDecisionCaseDecision: (caseId: string, body: DecisionCaseDecisionInputDTO) =>
+    post<DecisionCaseDTO>(`/decision-cases/${encodeURIComponent(caseId)}/decisions`, body),
+
+  /**
+   * A refusal here is a governed outcome, not an exception: 409
+   * ``case_not_decidable`` carries the blockers, so the caller can explain why a
+   * case cannot be decided yet instead of showing a generic failure.
+   */
+  recordDecisionCaseDecisionOutcome: (
+    caseId: string,
+    body: DecisionCaseDecisionInputDTO,
+  ) => apiOutcome(() => post<DecisionCaseDTO>(`/decision-cases/${encodeURIComponent(caseId)}/decisions`, body)),
+
+  reopenDecisionCase: (caseId: string) =>
+    post<DecisionCaseDTO>(`/decision-cases/${encodeURIComponent(caseId)}/reopen`, {}),
 
   recordReviewDecision: (body: ReviewDecisionInputDTO) =>
     post<ReviewDecisionDTO>("/review/decisions", body),

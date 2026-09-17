@@ -60,6 +60,9 @@ Windows/Linux 桌面外壳和双语运营文档。所有消费方都是同一契
 | `POST /api/optimization/portfolio-network` | 已接受的发布合同 | 仅 DB `RUNTIME_DECISION`；只接受决策元数据，绝不接受客户端网络/费率/管容/价格事实 |
 | `POST /api/optimization/storage-dispatch` | 已接受的发布合同 | 仅评估的储气调度；RUNTIME_DECISION 组装 PostgreSQL master/观测 |
 | `POST /api/optimization/nomination-window` | 已接受的发布合同 | 仅评估的提名窗口；RUNTIME_DECISION 读取 DB 窗口 master；无提交动作 |
+| `GET /api/data-products` | Architecture V2 Wave 4（统一数据平台） | READ 级别的 Data Product 目录声明：产品 id、业务名称、可用状态、时间基准、声明的来源/授权族与今日服务端点，外加按主体的授权判定与新鲜度/溯源摘要。绝不返回 API 密钥、密钥值、调度器内部或重试轨迹；调用方无权访问的产品标记为 `restricted` 且不返回溯源块，既不省略也不显示为 0 |
+| `GET/POST /api/analysis-snapshots` | Architecture V2 Wave 4（统一数据平台） | `POST`（GOVERNED，ANALYST 门槛）按当前 Active Context 记录 Analysis Snapshot 描述符；`GET` 列出最近的描述符。`GET` 保持 READ 门槛，因为描述符是血缘/溯源元数据、不含商业数值；其引用的每个数值仍在各自的商业端点之后 |
+| `GET /api/analysis-snapshots/{snapshot_id}` | Architecture V2 Wave 4（统一数据平台） | 按可复现引用读取单个 Analysis Snapshot；未知引用返回 404 |
 
 ## 弃用表
 

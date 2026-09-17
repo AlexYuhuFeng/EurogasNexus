@@ -124,6 +124,15 @@ CHECKED_MODULES = [
     "mcp/server.py",
     "cli/commands.py",
     "cli/main.py",
+    # 第七轮：Architecture V2 Wave 4 统一数据平台模块
+    "domain/data_platform/__init__.py",
+    "domain/data_platform/products.py",
+    "domain/data_platform/snapshots.py",
+    "application/data_products.py",
+    "application/data_platform_snapshots.py",
+    "db/models/data_platform.py",
+    "db/repositories/data_platform.py",
+    "api/routes/public/data_platform.py",
 ]
 
 

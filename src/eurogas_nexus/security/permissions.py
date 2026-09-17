@@ -136,6 +136,43 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     # GET lists + POST upserts contracts: policy-gated write surface.
     ("/api/route-cost/upstream-contracts", Permission.GOVERNED),
     ("/api/route-cost/resource-pool/options", Permission.READ),
+    # --- unified data platform (Architecture V2 Wave 4) ---
+    # The data product catalogue is a governed *declaration*: it names products,
+    # their time basis, availability state and per-principal entitlement
+    # posture, and returns values only through each product's own surface. It
+    # stays outside the commercial boundary for the same reason the capability
+    # catalogue does - a caller must be able to see that a product exists and
+    # that its own entitlement is limited, which is the point of the surface.
+    ("/api/data-products", Permission.READ),
+    # Recording an Analysis Snapshot is analysed decision evidence (GOVERNED,
+    # ANALYST floor). Reading a descriptor is lineage/provenance metadata with no
+    # commercial values in it, so it keeps the READ floor - the same treatment as
+    # /api/ingestion-runs - and every value the snapshot points at stays behind
+    # its own commercial endpoint.
+    ("/api/analysis-snapshots", Permission.READ),
+    ("/api/analysis-snapshots/{snapshot_id}", Permission.READ),
+    # --- Architecture V2 Decision Cases ---
+    # Reading a case is decision evidence (READ floor: any authenticated caller who
+    # may read review evidence may read the container). Opening a case and
+    # attaching evidence are analysis work (GOVERNED, ANALYST floor). Recording or
+    # reopening a decision is reviewer-gated (REVIEW), matching the existing
+    # /api/review/decisions rule and the decision.review capability.
+    ("/api/decision-cases", Permission.READ),
+    ("/api/decision-cases/{case_id}", Permission.READ),
+    ("/api/decision-cases/{case_id}/evidence", Permission.GOVERNED),
+    ("/api/decision-cases/{case_id}/decisions", Permission.REVIEW),
+    ("/api/decision-cases/{case_id}/reopen", Permission.REVIEW),
+    # --- Architecture V2 application projections ---
+    # Projections are read models over the same material as the endpoints they
+    # compose, so their floors match: market, portfolio and review reads stay at
+    # the READ floor, while scenario/economics content keeps the GOVERNED
+    # (ANALYST) floor its underlying route already declares - a projection must
+    # never widen what a principal can see. They also sit inside the commercial
+    # boundary (COMMERCIAL_DATA_PREFIXES).
+    ("/api/projections/market-context", Permission.READ),
+    ("/api/projections/portfolio-snapshot", Permission.READ),
+    ("/api/projections/review-context", Permission.READ),
+    ("/api/projections/scenario-context", Permission.GOVERNED),
     # --- agent-native capability layer (CR-15) ---
     ("/api/capabilities", Permission.READ),
     ("/api/capabilities/search", Permission.READ),
@@ -171,6 +208,8 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
 # only when the caller supplies an HTTP method.
 METHOD_ROUTE_PERMISSIONS: tuple[tuple[str, str, Permission], ...] = (
     ("POST", "/api/research/datasets", Permission.GOVERNED),
+    ("POST", "/api/analysis-snapshots", Permission.GOVERNED),
+    ("POST", "/api/decision-cases", Permission.GOVERNED),
 )
 
 PERMISSION_ENFORCEMENT: dict[Permission, EnforcementStatus] = {
@@ -211,6 +250,7 @@ ROLE_REQUIREMENTS: dict[Permission, str] = {
 COMMERCIAL_DATA_PREFIXES: tuple[str, ...] = (
     "/api/market/",
     "/api/monitoring/",
+    "/api/projections/",
     "/api/stream/",
     "/api/cost-observations/",
     "/api/portfolio/",

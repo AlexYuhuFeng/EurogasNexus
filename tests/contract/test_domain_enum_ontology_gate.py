@@ -83,6 +83,28 @@ _REVIEWED_DOMAIN_STR_ENUMS: set[str] = {
     "eurogas_nexus.domain.agents.contracts:OrchestrationStage",
     "eurogas_nexus.domain.agents.contracts:SideEffectClass",
     "eurogas_nexus.domain.agents.strategy_ir:StrategyIROperator",
+    # Architecture V2 Wave 4 / Unified Data Platform ontology review. These are
+    # data-contract posture vocabularies, not gas-market semantics, so they stay
+    # beside their contract instead of entering the GRM ontology: availability
+    # and confidence describe how much of a declared Data Product exists today,
+    # SurfaceKind names where a product is served, AvailabilityState says whether
+    # one Analysis Snapshot descriptor field could be resolved, and TimeBasis
+    # names the basis a data product's values are expressed in. The gas-day part
+    # of TimeBasis is owned by domain/market/gas_day.py, whose GasDayCalendar is
+    # allowlisted here for the same reason, and the time-basis vocabulary is the
+    # data-contract companion of the allowlisted
+    # domain.monitoring.freshness:FreshnessStatus.
+    "eurogas_nexus.domain.data_platform.products:DataProductAvailability",
+    "eurogas_nexus.domain.data_platform.products:DataProductConfidence",
+    "eurogas_nexus.domain.data_platform.products:SurfaceKind",
+    "eurogas_nexus.domain.data_platform.products:TimeBasis",
+    "eurogas_nexus.domain.data_platform.snapshots:AvailabilityState",
+    # Architecture V2 Wave 8 product error taxonomy. These are failure families and
+    # response metadata, not gas-market vocabulary, so they stay in their own
+    # operations module instead of entering the market ontology.
+    "eurogas_nexus.domain.operations.error_taxonomy:ErrorFamily",
+    "eurogas_nexus.domain.operations.error_taxonomy:ErrorSeverity",
+    "eurogas_nexus.domain.operations.error_taxonomy:Recoverability",
 }
 
 

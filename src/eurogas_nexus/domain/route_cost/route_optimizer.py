@@ -97,6 +97,10 @@ class RouteRecommendationRequest(BaseModel):
         firmness: Firmness requested.
         company_accessible_tsos: Company's accessible TSOs, or None.
         candidates: Candidate routes/sale options to evaluate.
+        analysis_snapshot_id: Optional Analysis Snapshot this run was computed
+            against. When supplied the caller asserts the reproducibility
+            reference; the result carries it so the produced recommendation can
+            be reproduced from the same input versions.
     """
 
     request_id: str
@@ -108,6 +112,7 @@ class RouteRecommendationRequest(BaseModel):
     firmness: Firmness
     company_accessible_tsos: list[str] | None = None
     candidates: list[RouteOptionCandidate] = Field(default_factory=list)
+    analysis_snapshot_id: str | None = None
 
 
 class RouteAllocation(BaseModel):
@@ -171,6 +176,9 @@ class RouteRecommendationResult(BaseModel):
         excluded_routes: Candidates excluded with reasons.
         warnings: Aggregated warnings.
         assumptions: Explicit modelling assumptions.
+        analysis_snapshot_id: The Analysis Snapshot this result was computed
+            against, echoed from the request; ``None`` when the caller supplied
+            no reproducibility reference.
         research_only: Always True — decision support only.
         human_review_required: Always True — never auto-acts.
     """
@@ -184,6 +192,7 @@ class RouteRecommendationResult(BaseModel):
     excluded_routes: list[ExcludedRoute] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     assumptions: list[str] = Field(default_factory=list)
+    analysis_snapshot_id: str | None = None
     research_only: bool = True
     human_review_required: bool = True
 
@@ -339,6 +348,7 @@ def recommend_route_allocation(
             "Candidates without sale prices are ranked by lowest route cost.",
             "The result is decision support only; it does not execute trades or nominations.",
         ],
+        analysis_snapshot_id=request.analysis_snapshot_id,
         research_only=True,
         human_review_required=True,
     )
