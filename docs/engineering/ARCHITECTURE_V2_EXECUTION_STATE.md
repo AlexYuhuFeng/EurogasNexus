@@ -1,11 +1,11 @@
 # Architecture V2 Execution State
 
-Last updated: 2026-09-16
-Repository HEAD: `main` (Waves 0-9 slices below are committed and pushed; see the git log for the exact head)
+Last updated: 2026-09-17
+Repository HEAD: `main` (see the git log for the exact head; every slice below is committed and pushed)
 Working tree: clean except pre-existing `.automation/*` edits from the earlier autonomous harness, which are neither accepted nor reverted.
 V2 pack version: 2026-09 autonomous runner
-Current wave: Waves 0-6, 8 and the first Wave 9 slice are delivered; Wave 5's client half, the remaining Wave 9 workspace migration, Wave 7 and Wave 10 are open.
-Wave status: DELIVERED_AND_VALIDATED for the waves listed above.
+Current wave: Waves 0-10 have delivered slices. Wave 11 (RC/GA readiness) has not started.
+Wave status: DELIVERED_AND_VALIDATED for every slice listed under "Completed tasks"; the open halves are named under "Deferred / known gaps".
 
 ## Accepted architecture decisions
 
@@ -14,59 +14,61 @@ Wave status: DELIVERED_AND_VALIDATED for the waves listed above.
 - **ADR-0016 (Decision 15)**: Architecture V2 is the binding target architecture and the product-experience interaction authority; the Professional UI Constitution keeps visual authority. RFC-0001 and Decision 14 history preserved.
 - Functional assignment and work mode never grant backend authority; composition is not permission.
 - Platform administration is not commercial-data access: `ROLE_PERMISSIONS[ADMIN]` is the platform bundle and `api/dependencies/commercial_access.py` enforces the boundary per request.
+- **AI runs under the caller's own authority** (rule 22): `api/dependencies/ai_authority.py` re-authorises every direct provider invocation, and the capability runtime keeps re-authorising registry invocations.
+- A projection is never wider than the endpoint it composes, and a client reads one projection instead of joining endpoints.
 
 ## Completed tasks
 
-- [x] **Wave 0** — client inventory (accepted after repair), backend access inventory, conflict register, Wave 0 gate (passed), ADR-0016, architecture fitness tests (`tests/contract/test_architecture_v2_fitness.py`, 28 cases).
+- [x] **Wave 0** — client inventory (accepted after repair), backend access inventory, conflict register, Wave 0 gate (passed), ADR-0016, architecture fitness tests.
 - [x] **Wave 1** — shell, Active Context, workspace-pattern and panel registries, action geography, canonical AI actions, Inspector contract, command model, HostCapabilities; machine-readable under `clients/web/src/app/experience/` and `clients/web/src/app/host/`.
-- [x] **Wave 2** — capability catalogue and `ExperienceProfile` (`src/eurogas_nexus/security/capabilities.py`, served in `GET /api/me`), platform-administration/commercial-data separation, client composition parsing.
+- [x] **Wave 2** — capability catalogue and `ExperienceProfile` (`security/capabilities.py`, served in `GET /api/me`), platform-administration/commercial-data separation, client composition parsing (`W2-01`).
 - [x] **Wave 3** — capability-gated Administration surface, restricted control-plane notice, preserved deep links (`W3-01`).
-- [x] **Wave 4** — Data Product catalogue (`GET /api/data-products`), Analysis Snapshot v1 (`0034_analysis_snapshots`, `POST/GET /api/analysis-snapshots`), snapshot reference carried by the route-cost recommendation (`W4-01`).
-- [x] **Wave 5** — application projections: MarketContext, PortfolioSnapshot, ReviewContext, ScenarioContext (`/api/projections/*`), with the market and portfolio read layers extracted into `application/projections/` so both the existing routes and the projections call one implementation (`W5-01`).
-- [x] **Wave 6** — Decision Case domain, persistence (`0035_decision_cases`), API, client contract **and product surface**: the panel on the Decision primary's review task opens a case from the Active Context, attaches evidence, records or reopens a decision and shows the blockers the backend refused on. A case cannot be decided without evidence, and the actor is the authenticated identity (`W6-01`).
-- [x] **Wave 8 (taxonomy, presentation and jobs)** — product error taxonomy with ten families, severity, recoverability, correlation ids and operator-only detail; the additive API error envelope on every `HTTPException`; and the **unified Job model** (`job_records`, `0036_job_records`) with `track_job()` as the adoption seam, wired into the dataset-build path (`W8-01`, `W8-02`).
-- [x] **Wave 9 (first slice)** — canonical Inspector region and mounted command palette; every declared shell region is now rendered (`W9-01`).
-- [x] Release/security plumbing kept honest: `DB_SCHEMA_REVISION` now reports the real Alembic head and the release-metadata test asserts it equals that head; the security acceptance surface bound moved to 175 paths with the reason recorded.
+- [x] **Wave 4** — Data Product catalogue, Analysis Snapshot v1 (`0034_analysis_snapshots`), and the snapshot citation carried by the route-cost recommendation (`W4-01`).
+- [x] **Wave 5** — application projections: MarketContext, PortfolioSnapshot, ReviewContext, ScenarioContext under `/api/projections/*`, with the market and portfolio read layers extracted so routes and projections call one implementation (`W5-01`).
+- [x] **Wave 5, client half** — the market lane reads `GET /projections/market-context` and the workspace batch reads `GET /projections/portfolio-snapshot` once, filling `portfolioSummary`, `screenOrders`, `pnlSnapshots` and `resourcePoolOptions` from its slices. `app/model/projectionModel.ts` owns one definition of a slice reading; `ProjectionContextStrip` renders it for both surfaces. Retried projections re-derive every field they feed through `PROJECTION_LANE_APPLIERS`, and market query parameters are sent with the snake_case names the routes declare.
+- [x] **Wave 5, resource-pool follow-up** — the pool composition moved to `application/resource_pool.py`; the route and the `resources` slice call it, byte-identity was measured against the pre-change module, and the slice filters entitlement before composing so it stays strictly narrower than the route.
+- [x] **Wave 6** — Decision Case domain, persistence (`0035_decision_cases`), API, client contract and product surface; a case cannot be decided without evidence and the actor is the authenticated identity (`W6-01`).
+- [x] **Wave 7, first slice** — the five canonical AI actions (Ask, Explain, Compare, Challenge, Draft) became real product surface: a Copilot reachable from the mounted command palette, gated by `aiActionIsAvailable`, carrying its posture, evidence references and the decision-support markers, running over the existing analysis route, and recorded as an observable run with no hidden-reasoning field (`W7-01`).
+- [x] **Wave 8** — product error taxonomy with the additive API error envelope; the unified Job model (`0036_job_records`) with `track_job()`/`run_tracked_job()` adopted by the dataset build, the resource-pool optimisation and the strategy backtest (`W8-01`, `W8-02`).
+- [x] **Wave 9, first and second slices** — the canonical Inspector region and the mounted command palette, then real Inspector detail: `app/model/inspectorDetail.ts` resolves facts and provenance from data the identity already received, presents rather than computes, treats absence honestly, and refuses a hand-over the page's composition does not declare. The market cockpit is the first migrated consumer (`W9-01`).
+- [x] **Wave 10, contract slice** — the desktop workstation contract: window profiles that are layouts rather than authorities, capability-gated windows with a documented fallback plan, a notification payload that structurally cannot carry a commercial value, deep links that refuse authority parameters, an unambiguous shortcut model and an allowlisted diagnostics bundle (`W10-01`).
+- [x] **Security finding C8, direct-LLM half** — every direct provider invocation is re-authorised against the caller's own `analysis.query` capability (403 `ai_authority_not_granted`), the alert-analysis path is policy-gated rather than READ, the analysis provider path fails closed with an audit record, and the alert run is attributed to the identity it ran under.
 
-## Current / next task
+## Validation evidence (combined tree)
 
-- Task ID: **Wave 5 client migration** (highest value next).
-- Objective: point the market cockpit and portfolio views at `MarketContext`/`PortfolioSnapshot` and delete the multi-endpoint joins, timestamp arithmetic and client-side reconstruction the W0-01 inventory recorded.
-- Relevant contracts: `W5-01_APPLICATION_PROJECTIONS.md`, `W0-01_CLIENT_INVENTORY.md` section 6, `W1-02_WORKSPACE_PATTERN_AND_PANEL_REGISTRY.md`.
-- Focused validation: the existing `clients/web` suite (which pins the current join behaviour) plus new tests proving the projection path carries one as-of and one freshness basis.
+- `python -m pytest tests -q --ignore=tests/integration` — **1632 passed, 1 skipped, 0 failed**.
+- `clients/web`: `node --test "tests/*.test.ts"` — **331 passed**; `npx tsc --noEmit` exit 0; `npm run build` exit 0.
+- `python scripts/security/run_security_acceptance.py` — all automated checks PASS (`api_import_safe`, `public_surface_bounded` 178, `permission_registry_complete` 178, token/identity/OIDC fail-closed, posture retained); external review items remain BLOCKED as before.
+- Documentation gates: `tests/contract/test_markdown_links.py` and `tests/contract/test_docstring_policy.py` pass, including the new wave records.
+- Bilingual parity: `clients/web/src/i18n/{en,zh}.json` hold the same 2082 keys, no value carries a question mark or a replacement character, and the new vocabulary is distinct per locale.
+- Not run and not claimed: `tests/integration` (live PostgreSQL), any Tauri/Rust build, packaging/installer evidence, visual/accessibility/UAT review, provider and licence validation, and lint (`ruff` is not installed).
 
 ## Deferred / known gaps
 
-- **Wave 5 client half**: no UI reads the projections yet. Also `PortfolioSnapshot.resources` is declared unavailable (`RESOURCE_POOL_COMPOSITION_IS_ROUTE_LOCAL`) until `_compose_resource_pool_options` is extracted from `route_cost.py`.
-- **Wave 8**: the unified Job model exists and one path uses it; wiring the remaining long-running paths (resource-pool optimisation, backtests, reports, agent runs, ingestion runs) onto `track_job()` is incremental. Unhandled exceptions still use the framework default rather than a system-fault envelope.
-- **Wave 9**: workspaces are not yet migrated onto the Inspector and the panel taxonomy; the palette is mounted but AI actions stay out of it until Wave 7 gives them an invocation surface.
-- **Wave 7** (research/AI convergence) and **Wave 10** (desktop workstation) are not started.
-- Security findings C5-C8 from `W0-03_ARCHITECTURE_RECONCILIATION.md` remain open for the authority work: the legacy-principal entitlement behaviour, MCP's environment pseudo-principal, the two direct LLM routes that do not re-authorise against user authority, and the separation-of-duties question (C6b) for entitlement grants.
+- **Wave 5** — the review surface has not migrated onto `ReviewContext`, deliberately: that projection resolves evidence per review entity and reads the monitoring posture, so it belongs on the review surface's own open path rather than on every workspace load.
+- **Wave 7** — no per-workspace inline Copilot mount and no shell-supplied context yet; `AlertCenter` still carries an ad-hoc "Ask DeepSeek" action that is not one of the five canonical actions; the Copilot output is not yet attached as Decision Case evidence; all five actions deliberately run the same backend task kind.
+- **Wave 8** — the portfolio report path is not tracked, because its persistence is best-effort and swallows failures, so a REPORT job could claim an artefact that does not exist; agent-research runs are not tracked; unhandled exceptions still use the framework default rather than a system-fault envelope.
+- **Wave 9** — the panel taxonomy and the action geography are declared but not applied across every workspace; only the market cockpit hands a subject to the Inspector; the `system`-area views are still not URL-addressable; conflict register entries C9 and C10 stay open.
+- **Wave 10** — the native implementation is deferred and unverified: no Rust toolchain exists in this environment, so window creation, multi-monitor restore, notification delivery, protocol registration, tray and file dialogs are unimplemented; auto-update and signing belong to Wave 11; diagnostics export has no consumer surface yet.
+- **Security** — C5 (development/internal profiles install no app-wide authentication dependency and the compatibility principal is unrestricted) stays open and deliberate; C6b (an administrator may grant their own data scopes) needs a policy ADR; C7 (`require_entitlement`, `EntitlementScope.LICENSED` and `Permission.WRITE` are unreachable) not wired; the C8 MCP half (environment pseudo-principal, default `*` scopes, legacy tools bypassing the capability runtime) is unchanged.
 - Organisation, portfolio, market and region scope still do not exist; `ExperienceProfile.unsupported_scope_kinds` reports that honestly.
-- `ruff` is not installed in this environment, so lint is unverified; the Python suites and `clients/web` build/tests are the evidence used here.
+- `W0-01`…`W10-01` wave records are registered in `docs/README.md`, `docs/README-CN.md` and the pack's `00_README.md`.
 
 ## Compatibility
 
-- API: additive only. 12 new public paths across Waves 4-6, each declared in the permission registry, pinned in `tests/contract/test_api_surface_stability.py`, recorded in `docs/architecture/API_CONTRACT_EVOLUTION_POLICY.md` and counted in the security acceptance bound (175).
-- DB: two expand-only migrations (`0034_analysis_snapshots`, `0035_decision_cases`); no destructive or incompatible change, no new datastore.
-- Client: behaviour preserved; the Wave 1/3/9 changes are seam extractions, and the new i18n vocabulary is bilingual.
-- Security: one deliberate narrowing (platform administration is not commercial access) and no widening; the commercial boundary now also covers `/api/projections/`.
-- Numerics/release/DR: unchanged; release metadata now reports the true schema head.
-
-## Validation evidence
-
-- `python -m pytest tests -q --ignore=tests/integration` — **1608 passed, 1 skipped, 0 failed**.
-- `clients/web`: `node --test "tests/*.test.ts"` — **293 passed**; `npx tsc --noEmit` clean; `npm run build` exit 0.
-- `python scripts/security/run_security_acceptance.py` — all automated checks PASS (`api_import_safe`, `public_surface_bounded` 178, `permission_registry_complete` 178, token/identity/OIDC fail-closed, posture retained); external review items remain BLOCKED as before.
-- Not run and not claimed: `tests/integration` (live PostgreSQL), packaging/installer evidence, visual/accessibility/UAT review, provider and licence validation, and lint.
+- API: additive only. No new public path in this stretch; three optional request fields with a conditional echo, recorded in both the English and Chinese contract-evolution policy.
+- DB: no new migration; the Alembic head remains `0036_job_records` and the release-metadata test still pins it.
+- Client: projections replace client-side joins; the market lane reads the projection through the same bounded loader, and the portfolio lane derives its pool block from the projection instead of a second route call.
+- Security: one deliberate narrowing (AI invocation now requires the caller's own analysis capability) and no widening; the compatibility deployment token keeps its posture.
+- Numerics/release/DR: unchanged.
 
 ## Risks / STOP CONDITIONS
 
 - No STOP condition from `CODEX_ENTRYPOINT.md` was triggered: no commercial-data access broadened, no security control weakened, no destructive migration, no new infrastructure, no Web/Desktop divergence, and no scope crossing into execution, nomination or settlement.
-- The Wave 1 interaction contracts, the Wave 2 capability model and the Wave 3 control-plane boundary are now normative. Work that contradicts them (a new top-level page for an object, a second global context owner, an AI button outside the five canonical actions, a client-side reconstruction of commercial state) is an architecture violation, not a style preference.
-- Concurrency note: Waves 4-6 were developed in parallel by three workstreams in one working tree; the integrator verified the combined tree (`pytest --ignore=tests/integration`, the client suite, the security acceptance script) rather than each stream's isolated claim.
+- The Wave 1 interaction contracts, the Wave 2 capability model, the Wave 3 control-plane boundary and the new AI-authority dependency are normative. Work that contradicts them (a new top-level page for an object, a second global context owner, an AI button outside the five canonical actions, a client-side reconstruction of commercial state, an AI invocation without the caller's authority) is an architecture violation, not a style preference.
+- Concurrency note: this stretch was developed by three workstreams in one working tree (client Wave 5/9/10, client Wave 7, backend Wave 4/8). The integrator verified the combined tree — full Python suite, client suite, type check, production build, security acceptance and the documentation gates — rather than each stream's isolated claim, and reconciled the pinned gates the earlier slices had left red.
 
 ## Resume instruction
 
-Read `CODEX_ENTRYPOINT.md`, the wave records `W0-01`…`W9-01` and this checkpoint; verify the tree is clean and the suites are green.
-Continue with the next task named above (Wave 5 client migration), then the remaining halves of Wave 8 (error-handler wiring, unified jobs) and Wave 9 (workspace migration onto the Inspector and panel taxonomy), then Waves 7 and 10.
+Read `CODEX_ENTRYPOINT.md`, the wave records `W0-01`…`W10-01` and this checkpoint; verify the tree is clean and the suites are green.
+Continue with the highest-value open item: the review-surface `ReviewContext` migration (Wave 5), the per-workspace Inspector and panel-taxonomy migration (Wave 9), the report/agent job paths (Wave 8), the remaining Wave 7 convergence, or the native desktop implementation (Wave 10) on a machine with the Rust toolchain.
