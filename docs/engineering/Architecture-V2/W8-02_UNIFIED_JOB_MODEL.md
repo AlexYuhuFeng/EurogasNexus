@@ -48,15 +48,33 @@ user, an operator, the job telemetry and the error surface all read the same thi
 - The dataset-build endpoint keeps its payload, status codes and validation; the only behaviour change
   is that a validate-only build now commits its job record (nothing else is written on that path).
 
-## 5. Deferred
+## 5. Adopted run paths
 
-- Wiring the remaining long-running paths onto `track_job()`: resource-pool optimisation, strategy
-  backtests, report generation, agent runs and ingestion runs. The seam is ready; each is a small
-  bounded change.
+The seam only earns its keep when existing work registers into it, so the paths V2 names now do:
+
+| Path | Seam | Artefact it cites |
+|---|---|---|
+| Dataset build (`POST /api/research/datasets`) | `track_job()` in the handler's own session | the dataset snapshot it built |
+| Resource-pool optimisation (`POST /api/route-cost/resource-pool/optimize`) | `run_tracked_job()` (the work has no session of its own) | none: the run persists no artefact, so its `output_refs` are honestly empty rather than invented |
+| Strategy backtest (`POST /api/strategy-runs`, `run_type=BACKTEST`) | `track_job()` inside the existing `_db_session()` | `strategy_run:<run_id>`, committed with the run rows it describes |
+| Portfolio report (`POST /api/reports/portfolio`) | `run_tracked_job()` | `generated_report:<report_id>`, and **only** when the report really was persisted |
+
+The report path needed one honesty fix before it could be tracked: `_persist_report_if_db` swallowed
+every failure, so a job would have cited a report the store does not hold. Persistence is still
+best-effort - a store that refuses the write must not fail a report the user asked for - but it now
+reports whether it stored the report. A configured store that refuses the write adds
+`REPORT_NOT_PERSISTED` to the response warnings and the job records no artefact; a deployment with no
+runtime store at all is a declared posture (the envelope already reports
+`runtime-db-not-configured`), not a failed write, so it adds no warning and invents no job.
+
+## 6. Deferred
+
+- Agent-research runs and ingestion runs are still untracked; each is a small bounded change once its
+  path has a session (or a `run_tracked_job()` seam) to record into.
 - Job *replay* and retention policy (how long records are kept) are future operations decisions. The
   activity list shows the most recent 25 records and refreshes on demand.
 
-## 6. Verification
+## 7. Verification
 
 - `tests/unit/test_job_contract.py` — the state/kind vocabularies, the success path with duration,
   terminal immutability, monotonic progress, cancellation bounds, the required failure code, the
@@ -69,5 +87,10 @@ user, an operator, the job telemetry and the error surface all read the same thi
   counts, stable label keys, the shared badge primitive (including that the existing variants are
   unchanged), the mount on the administration surface, failure explanation through the taxonomy, and
   bilingual vocabulary.
+- `tests/api/test_report_jobs_api.py` — a stored report registers a `REPORT` job that cites the report
+  under its stored id; a configured store that refuses the write warns `REPORT_NOT_PERSISTED` and the
+  job cites no artefact; a deployment without a store adds no warning and invents no job.
+- `tests/api/test_projections_api.py`, `tests/api/test_route_cost_adjacent_api.py` and
+  `tests/api/test_backtest_api.py` — the adopted paths' own behaviour is unchanged by tracking.
 - Full suites: `python -m pytest tests -q --ignore=tests/integration` and the client suite; results are
   recorded in the execution checkpoint.

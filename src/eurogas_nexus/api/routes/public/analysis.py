@@ -124,6 +124,7 @@ def post_portfolio_report(body: PortfolioReportRequest, request: Request) -> dic
     request_id = getattr(request.state, "request_id", None)
     from eurogas_nexus.api.dependencies.row_entitlement import require_derived_access
 
+    caller = ai_caller(request)
     require_derived_access(
         request,
         _snapshot_source_systems(snapshot),
@@ -171,7 +172,7 @@ def post_portfolio_report(body: PortfolioReportRequest, request: Request) -> dic
         analysis_request,
         snapshot,
         request_id=request_id,
-        principal=ai_caller(request),
+        principal=caller,
     )
     _audit_llm_decision(
         body=analysis_request,
@@ -187,7 +188,18 @@ def post_portfolio_report(body: PortfolioReportRequest, request: Request) -> dic
     )
     if body.invoke_provider and not body.include_contract_prices:
         result.warnings = _unique([*result.warnings, "LLM_PAYLOAD_FILTERED:contract_prices"])
-    _persist_report_if_db(body, snapshot, result)
+    persisted, store_configured = _persist_report_if_db(body, snapshot, result)
+    if store_configured and not persisted:
+        # A configured store that refused the write must not be silent: the caller is told
+        # the report was generated but not stored, so nobody treats it as filed.
+        result.warnings = _unique([*result.warnings, "REPORT_NOT_PERSISTED"])
+    _track_report_run(
+        body=body,
+        result=result,
+        persisted=persisted,
+        principal=caller,
+        request_id=request_id,
+    )
     _record_audit(
         event_type="governance.action",
         action="report.generated",
@@ -697,9 +709,22 @@ def _persist_report_if_db(
     body: PortfolioReportRequest,
     snapshot: AnalysisSnapshot,
     result: AnalysisResult,
-) -> None:
+) -> tuple[bool, bool]:
+    """Persist the generated report, reporting whether it really was stored.
+
+    Persistence stays best-effort - a report is decision support and a store that
+    refuses the write must not fail the run - but it is no longer silent: the caller
+    learns whether the artefact exists, so a run cannot cite a report the store does
+    not hold (Architecture V2 Wave 8 job tracking).
+
+    Returns:
+        ``(persisted, store_configured)``. A deployment without a runtime store reports
+        ``(False, False)``: that is a documented posture the envelope already declares,
+        not a failed write.
+    """
+
     if not _db_is_configured():
-        return
+        return (False, False)
     try:
         from eurogas_nexus.db.models import GeneratedReportRecord
         from eurogas_nexus.db.session import get_session_factory
@@ -723,8 +748,61 @@ def _persist_report_if_db(
                 )
             )
             session.commit()
-    except Exception:
-        return
+        return (True, True)
+    except Exception:  # noqa: BLE001 - a refused write must not fail the run
+        return (False, True)
+
+
+def _track_report_run(
+    *,
+    body: PortfolioReportRequest,
+    result: AnalysisResult,
+    persisted: bool,
+    principal,
+    request_id: str | None,
+) -> None:
+    """Register a generated report into the unified job model (Architecture V2 Wave 8).
+
+    Report generation is synchronous inside the request, so the tracker records the
+    outcome that already happened: the job row carries the same request id, the inputs it
+    ran with and - only when the report really was persisted - the report as its output
+    reference. A run that could not be stored therefore appears in ``/api/jobs`` with an
+    honest, empty artefact list instead of citing a report the store does not hold.
+
+    Tracking never changes the response: an unreachable store or a store without
+    ``job_records`` leaves the generated report exactly as it is.
+    """
+
+    from eurogas_nexus.application.jobs import run_tracked_job
+
+    def _record(handle) -> None:
+        if persisted:
+            handle.add_output(f"generated_report:{result.analysis_id}")
+
+    run_tracked_job(
+        _record,
+        kind="REPORT",
+        # The job model records the acting principal's name, as the dataset-build and
+        # optimisation paths do: the compatibility deployment token's identifier is not
+        # expressible in the principal vocabulary, its name is.
+        principal=principal.name,
+        scope_refs=tuple(str(item) for item in (body.selected_resources or [])),
+        inputs={
+            "title": body.title,
+            "report_id": result.analysis_id,
+            "duration_start_utc": _iso_or_none(body.duration_start_utc),
+            "duration_end_utc": _iso_or_none(body.duration_end_utc),
+            "provider_invoked": bool(body.invoke_provider),
+        },
+        correlation_id=request_id,
+        provenance=("analysis", "portfolio-report"),
+    )
+
+
+def _iso_or_none(value) -> str | None:
+    """Format an optional datetime for a job input hash."""
+
+    return value.isoformat() if hasattr(value, "isoformat") else None
 
 
 def _market_row(row) -> dict:
