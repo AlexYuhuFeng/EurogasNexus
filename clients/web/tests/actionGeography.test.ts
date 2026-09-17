@@ -1,0 +1,143 @@
+/**
+ * Action geography enforcement (Architecture V2 Wave 9).
+ *
+ * `app/experience/actionGeography.ts` states the rule, and the Wave 1 conformance test
+ * already checks the rule itself. What nothing checked was the *application*: whether a
+ * surface puts a lifecycle or destructive action where the geography forbids it, whether a
+ * workspace has grown a second primary affordance, and whether shell utilities have leaked
+ * into a workspace.
+ *
+ * These checks read the sources, so a violation fails here rather than in review. They are
+ * deliberately conservative: they name the verbs the geography guards and the exact
+ * affordances it constrains, and they say what they cannot see.
+ */
+
+import assert from "node:assert/strict";
+import { readdirSync, readFileSync } from "node:fs";
+import test from "node:test";
+
+import {
+  ACTION_CONSEQUENCES,
+  actionGeography,
+  mayOccupyPrimarySlot,
+} from "../src/app/experience/actionGeography.ts";
+
+function readWebSource(relativePath: string): string {
+  return readFileSync(new URL(`../src/${relativePath}`, import.meta.url), "utf8");
+}
+
+/** Every surface source under `src`, so a new workspace is covered without being listed. */
+function surfaceSources(): Array<{ path: string; source: string }> {
+  const entries: Array<{ path: string; source: string }> = [];
+  for (const directory of ["components", "app/shell", "app/workspaces"]) {
+    const walk = (relative: string): void => {
+      for (const item of readdirSync(new URL(`../src/${relative}/`, import.meta.url), {
+        withFileTypes: true,
+      })) {
+        const next = `${relative}/${item.name}`;
+        if (item.isDirectory()) {
+          walk(next);
+          continue;
+        }
+        if (!/\.tsx$/.test(item.name)) continue;
+        entries.push({ path: next, source: readWebSource(next) });
+      }
+    };
+    walk(directory);
+  }
+  return entries;
+}
+
+/** Verbs whose consequence the geography guards: they may never be a primary affordance. */
+const GUARDED_VERBS = [
+  "retire",
+  "freeze",
+  "delete",
+  "remove",
+  "revoke",
+  "pause",
+  "resume",
+  "demote",
+  "cancel",
+  "acknowledge_hard",
+];
+
+/** Classes that present an affordance as the primary one. */
+const PRIMARY_AFFORDANCE = /className="[^"]*primary[^"]*"/;
+
+test("no guarded action is presented as a primary affordance", () => {
+  const offenders: string[] = [];
+
+  for (const { path, source } of surfaceSources()) {
+    // Buttons rendered with a primary class...
+    for (const match of source.matchAll(/<button[^>]*>([\s\S]{0,200}?)<\/button>/g)) {
+      const [element, body] = [match[0], match[1]];
+      if (!PRIMARY_AFFORDANCE.test(element)) continue;
+      for (const key of body.matchAll(/t\("([^"]+)"\)/g)) {
+        const label = key[1].toLowerCase();
+        if (GUARDED_VERBS.some((verb) => label.includes(verb))) {
+          offenders.push(`${path}: ${key[1]}`);
+        }
+      }
+    }
+  }
+
+  assert.deepEqual(offenders, [], "a guarded action was presented as the primary affordance");
+});
+
+test("a workspace header declares at most one primary action, and only a permitted one", () => {
+  const surfaces = surfaceSources().map((entry) => entry.path);
+  const passing = surfaces.filter((path) => readWebSource(path).includes("primaryAction="));
+
+  // The inventory is asserted so the slot's use cannot grow silently. A surface that starts
+  // passing one belongs in this list *with* a `compute` or `persist` action.
+  assert.deepEqual(passing.sort(), ["components/DecisionWorkspace.tsx"]);
+
+  const decision = readWebSource("components/DecisionWorkspace.tsx");
+  // Exactly one `primaryAction=` binding, so the header cannot end up with two.
+  assert.equal((decision.match(/primaryAction=\{/g) ?? []).length, 1);
+  // The action it passes is the optimiser run: a `compute` consequence, which the geography
+  // permits in the primary slot, and the button is disabled while its inputs are blocked.
+  assert.match(decision, /const primaryAction =[\s\S]*?task === "optimize" \? \(/);
+  assert.match(decision, /onClick=\{portfolio\.optimizeResourcePoolForCurrentContext\}/);
+  assert.match(decision, /disabled=\{!portfolio\.canRunPoolOptimizer\}/);
+  assert.equal(mayOccupyPrimarySlot("compute"), true);
+  assert.equal(mayOccupyPrimarySlot("lifecycle"), false);
+  // The panel reports the run; it no longer starts it.
+  assert.equal(decision.includes("home.optimize_pool"), true);
+  assert.equal(
+    (decision.match(/home\.optimize_pool/g) ?? []).length,
+    1,
+    "the primary action exists once",
+  );
+});
+
+test("shell utilities stay in the shell", () => {
+  const offenders: string[] = [];
+  const utilityCalls = ["signOut", "changeAppLanguage", "theme.setMode"];
+
+  // Surfaces only. The composition layer (`app/workspaces/`) is what wires the settings
+  // page to the shell's preference controls, and the settings page is where they belong;
+  // a *workspace* growing its own sign-out, language or theme control is the violation.
+  for (const { path, source } of surfaceSources()) {
+    if (!path.startsWith("components/")) continue;
+    for (const call of utilityCalls) {
+      if (source.includes(call)) offenders.push(`${path}: ${call}`);
+    }
+  }
+
+  assert.deepEqual(offenders, [], "a workspace reached for a shell utility");
+});
+
+test("every consequence the geography names has a rule, and the guarded ones stay guarded", () => {
+  // The rules themselves are the Wave 1 contract; this pins that the enforcement above
+  // matches them rather than inventing a second list.
+  assert.equal(actionGeography.length, ACTION_CONSEQUENCES.length);
+  for (const consequence of ACTION_CONSEQUENCES) {
+    const rule = actionGeography.find((item) => item.consequence === consequence);
+    assert.ok(rule, consequence);
+  }
+  for (const guarded of ["lifecycle", "destructive"] as const) {
+    assert.equal(mayOccupyPrimarySlot(guarded), false, guarded);
+  }
+});

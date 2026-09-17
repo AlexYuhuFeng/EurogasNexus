@@ -445,6 +445,7 @@
   "decision.open_review": "Open in Review",
   "decision.optimize": "Optimizer",
   "decision.preflight": "Preflight",
+  "decision.preflight_help": "The optimiser runs from the workspace's primary action; this panel reports what the run needs first and what it produced.",
   "decision.ready": "Ready",
   "decision.state": "State",
   "decision.task.optimize": "Optimize",

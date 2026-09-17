@@ -47,6 +47,7 @@ function OptimizeWorkspace({ controller }: { controller: AppController }) {
           title={t("decision.preflight")}
           meta={blockers.length === 0 ? t("decision.ready") : `${blockers.length} ${t("portfolio.warnings")}`}
         />
+        <p className="panel-copy">{t("decision.preflight_help")}</p>
         {blockers.length === 0 ? (
           <span className="status-badge status-complete">{t("decision.ready")}</span>
         ) : (
@@ -54,13 +55,6 @@ function OptimizeWorkspace({ controller }: { controller: AppController }) {
             {blockers.map((blocker) => <li key={blocker}>{warningLabel(blocker, t)}</li>)}
           </ul>
         )}
-        <button
-          type="button"
-          disabled={!portfolio.canRunPoolOptimizer}
-          onClick={portfolio.optimizeResourcePoolForCurrentContext}
-        >
-          {t("home.optimize_pool")}
-        </button>
       </section>
       <section className="workspace-panel">
         <PanelHeader title={t("decision.allocations")} meta={String(allocations.length)} />
@@ -145,6 +139,22 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
 
   const tabs = DECISION_TASKS.map((id) => ({ id, label: t(`decision.task.${id}`) }));
 
+  // Action geography (`app/experience/actionGeography.ts`): running the pool optimiser is the
+  // primary act of the Optimize task - a `compute` consequence - so it sits in the
+  // workspace's single primary slot instead of inside the panel it reports on. The panel
+  // keeps the preflight verdict and the allocations the run produced; the action that
+  // starts a run is not panel furniture.
+  const primaryAction =
+    task === "optimize" ? (
+      <button
+        type="button"
+        disabled={!portfolio.canRunPoolOptimizer}
+        onClick={portfolio.optimizeResourcePoolForCurrentContext}
+      >
+        {t("home.optimize_pool")}
+      </button>
+    ) : undefined;
+
   return (
     <div className="commercial-workspace">
       <WorkspaceHeader
@@ -156,6 +166,7 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
         panelId="decision-task-panel"
         tabLabel={t("nav.primary.decision")}
         tabsClassName="commercial-task-tabs"
+        primaryAction={primaryAction}
         onActivate={openTask}
       />
       <div id="decision-task-panel">

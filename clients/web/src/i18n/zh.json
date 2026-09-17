@@ -445,6 +445,7 @@
   "decision.open_review": "在复核中打开",
   "decision.optimize": "优化器",
   "decision.preflight": "预检",
+  "decision.preflight_help": "优化由工作区的主操作触发；本面板说明运行所需的前置条件以及运行结果。",
   "decision.ready": "就绪",
   "decision.state": "状态",
   "decision.task.optimize": "优化",
