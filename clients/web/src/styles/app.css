@@ -8865,6 +8865,54 @@ button.glossary-related-chip {
   gap: 12px;
 }
 
+/* Diagnostics bundle (Wave 10 consumer surface): the preview is the same data that would
+   leave the machine, so it is laid out as field/value rows rather than prose. */
+.diagnostics-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.diagnostics-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.diagnostics-guarantee,
+.diagnostics-note,
+.diagnostics-message {
+  margin: 0;
+  color: var(--text-muted, #5b6673);
+}
+
+.diagnostics-fields {
+  margin: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.diagnostics-fields > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.diagnostics-fields dt {
+  min-width: 12rem;
+}
+
+.diagnostics-fields dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.diagnostics-unavailable ul {
+  margin: 4px 0 0;
+  padding-left: 1.1rem;
+}
+
 .job-timeline-list {
   margin: 0;
   padding: 0;

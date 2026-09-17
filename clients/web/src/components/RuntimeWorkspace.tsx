@@ -18,6 +18,7 @@ import {
   WorkspaceTabs,
 } from "@/components/ui";
 import { JobTimeline } from "@/components/JobTimeline";
+import { DiagnosticsPanel } from "@/components/DiagnosticsPanel";
 
 type Translate = (key: string) => string;
 type ReadinessState = "ready" | "partial" | "blocked";
@@ -363,6 +364,9 @@ export function RuntimeWorkspace({
       </div>
       <div className="workspace-panel span-3 job-timeline-panel">
         <JobTimeline t={t} />
+      </div>
+      <div className="workspace-panel span-3 diagnostics-panel-wrapper">
+        <DiagnosticsPanel t={t} />
       </div>
       </>
       )}

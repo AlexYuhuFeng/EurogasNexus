@@ -99,6 +99,31 @@ rather than a property of the current code path, and a field that appears in bot
 is a hard error instead of a silent leak. A diagnostics bundle is support evidence, not
 a data export.
 
+### The bundle has a consumer
+
+A contract with no consumer is a claim, so the bundle is now composed and handed over by a
+real surface, and the rules that make it safe are structural rather than conventional:
+
+- `app/host/diagnosticsBundle.ts` composes the bundle from facts the client already holds -
+  the server version and schema revision from the deployment's own release metadata, the
+  compatibility state, the host kind and its capability map, the language, the data-plane
+  status, the endpoint failure codes, the degraded projection slices as `lane:slice:STATE`,
+  the job status counts, and the composition instant - and returns the bundle plus the
+  declared fields it had no fact for. A field with no fact is **omitted and reported as
+  unavailable**: a zero would read like a measurement.
+- It composes *through* `buildDiagnosticsBundle` rather than assembling an object, so the
+  allowlist stays enforced in one place, and it takes named facts rather than a bag, so a
+  caller holding more than it may export cannot widen the bundle.
+- The file name reads an ISO-8601 instant and nothing else; any other string produces the
+  unnamed fallback, so a principal or deployment identifier cannot end up in a file name.
+- The handover is a download from the WebView in both hosts. The desktop host declares
+  `diagnosticsExport` but no allowlisted command implements a native save, so the surface says
+  exactly that instead of offering a control with nothing behind it - and adding that command
+  means declaring its capability class in `HOST_COMMAND_CAPABILITIES` first.
+- `clients/web/src/components/DiagnosticsPanel.tsx` shows what would leave before it leaves -
+  every field with its value, and every field that could not be reported - beside the activity
+  timeline on the runtime readiness surface, which is where an operator already looks.
+
 ## 6. Shortcut model
 
 `WORKSTATION_SHORTCUTS` declares the canonical bindings (command palette, Inspector
@@ -127,6 +152,11 @@ the same as "commands stay within HostCapabilities").
   notification allowlist (a price, a volume, a PnL and a note never reach the payload),
   severity floors, deep-link refusal of page, scheme and authority parameters, the
   shortcut conflict model, and the diagnostics allowlist with its forbidden names.
+- `clients/web/tests/diagnosticsBundle.test.ts` — the bundle's consumer: reported plus
+  unavailable is the whole contract, a missing fact is omitted rather than sent as a zero, a
+  caller holding extra fields (a job row, a token, a price) cannot widen the bundle, the host
+  that composed it is recorded, the handover says what it cannot do, the file name reads only
+  an instant, and every string exists and is translated in both locales.
 - Client suites: `node --test "tests/*.test.ts"`, `npx tsc --noEmit` and
   `npm run build` in `clients/web`; results are recorded in the execution checkpoint.
 - Not verified and not claimed: any Tauri/Rust build, packaging, installer or
