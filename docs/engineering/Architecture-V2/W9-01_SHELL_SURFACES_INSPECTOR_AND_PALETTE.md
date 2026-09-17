@@ -94,6 +94,15 @@ detail panes. The second slice makes the Inspector worth handing a subject to.
   and not only inside the resolver, and `marketObservationSubject` delegates to it. The
   workbench's library row hands a saved contract over from an Inspect action beside its
   existing Strategy Lab hand-off, so object detail did not become a third pane.
+- The network map is the third: its node popup stays the quick map context and carries an
+  Inspect action that hands the node to the Inspector. `GasNetworkMap` renders that action
+  only when a surface passes `onInspectNode`, and the callback is part of the click
+  handler's effect dependencies, so the market cockpit's overview map (whose page declares
+  no node subject) offers nothing it cannot honour.
+- The strategy backtest is the fourth: the selected run is handed over from the result
+  strip, while the KPI strip and charts stay on the surface. The migration replaces
+  duplication rather than capability - the run's facts and provenance live in the one
+  Inspector, and the workspace keeps the analysis it exists to do.
 
 ## 5. What this slice does not claim
 
@@ -101,8 +110,9 @@ Wave 9 in the roadmap is larger than its delivered slices. Still open:
 
 - migrating each workspace's panels onto the panel taxonomy, and replacing the
   per-surface rails, drawers and master-detail panes with the Inspector as the
-  default detail pattern (the market cockpit now hands over one subject kind; the
-  network, contracts, strategy and review surfaces still show detail locally);
+  default detail pattern (four surfaces now hand subjects over: the market cockpit, the
+  contract workbench, the network map and the strategy backtest; the review, capacity,
+  data and administration surfaces still show detail locally);
 - applying the action geography to every header (the contract and resolver exist;
   `WorkspaceHeader` already owns the primary-action slot);
 - the remaining `system`-area views that are not URL-addressable.
