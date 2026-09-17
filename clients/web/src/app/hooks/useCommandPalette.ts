@@ -23,6 +23,7 @@ import {
   isPaletteDismissKey,
   isPaletteShortcut,
   paletteCommandAvailable,
+  type PaletteAvailability,
   type PaletteCommand,
 } from "@/app/experience/commandPalette";
 import type { InspectorSubjectKind } from "@/app/experience/vocabulary";
@@ -68,6 +69,12 @@ export interface CommandPaletteController {
   results: PaletteCommand[];
   activeIndex: number;
   unavailable: ReadonlySet<string>;
+  /**
+   * The availability the controller gated on, evidence count included. The shell explains
+   * a withheld command from *this* object rather than rebuilding one, so the reason a user
+   * reads is the reason the command was actually withheld.
+   */
+  availability: PaletteAvailability;
   setQuery: (value: string) => void;
   setOpen: (value: boolean) => void;
   move: (delta: number) => void;
@@ -113,7 +120,7 @@ export function useCommandPalette(options: CommandPaletteOptions): CommandPalett
     ],
   );
 
-  const availability = useMemo(
+  const availability = useMemo<PaletteAvailability>(
     () => ({
       capabilities: options.capabilities,
       activeContextComplete: options.activeContextComplete,
@@ -206,6 +213,7 @@ export function useCommandPalette(options: CommandPaletteOptions): CommandPalett
     results,
     activeIndex,
     unavailable,
+    availability,
     setQuery,
     setOpen,
     move,

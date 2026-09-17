@@ -185,6 +185,21 @@ test("the palette controller keeps the contract's keyboard and ranking model", (
   assert.match(shell, /useCommandPalette\(\{/);
   assert.match(shell, /<CommandPalette/);
   assert.match(shell, /useInspectorStore\(\)/);
+
+  // One availability object decides and explains: the controller returns what it gated
+  // on, evidence count included, and the shell explains a withheld command from that
+  // object instead of rebuilding one that could disagree with it.
+  assert.match(hook, /availability: PaletteAvailability;/);
+  assert.match(hook, /const availability = useMemo<PaletteAvailability>\(/);
+  assert.match(hook, /evidenceRefCount: evidenceRefs\.length,/);
+  assert.match(shell, /paletteUnavailableReasonKey\(command, palette\.availability\)/);
+  // The shell supplies the inputs once and rebuilds nothing: a single availability object
+  // exists, the one the controller returned.
+  assert.equal(
+    (shell.match(/activeContextComplete:/g) ?? []).length,
+    1,
+    "the active-context input is passed once, to the controller",
+  );
 });
 
 test("inspector selection state follows the pure reducer", () => {
@@ -224,6 +239,7 @@ test("palette and inspector vocabulary is bilingual and bounded", () => {
     "experience.palette.group.utility",
     "experience.palette.unavailable_capability",
     "experience.palette.unavailable_context",
+    "experience.palette.unavailable_evidence",
   ];
   for (const key of keys) {
     assert.ok(en[key]?.trim(), key);

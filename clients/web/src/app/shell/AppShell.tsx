@@ -246,12 +246,7 @@ export function AppShell({ controller }: AppShellProps) {
         activeIndex={palette.activeIndex}
         unavailable={palette.unavailable}
         labelFor={(command) => t(command.labelKey)}
-        reasonFor={(command) =>
-          paletteUnavailableReasonKey(command, {
-            capabilities: composition.effectiveCapabilities,
-            activeContextComplete: Boolean(composition.available),
-          })
-        }
+        reasonFor={(command) => paletteUnavailableReasonKey(command, palette.availability)}
         t={t}
         onQueryChange={palette.setQuery}
         onMove={palette.move}
