@@ -409,6 +409,26 @@ export function researchBuildGate(
   return { canBuild: true, reason: "ready" };
 }
 
+/**
+ * The translation key explaining a gate reason.
+ *
+ * The gate lives here, so the sentence that explains it does too: the workspace's primary action
+ * and the panel that reports the verdict both read this one mapping, and a new reason cannot be
+ * added without a key to explain it.
+ */
+export function researchBuildGateLockKey(reason: ResearchBuildGateReason): string {
+  switch (reason) {
+    case "not_validated":
+      return "research.build_locked_not_validated";
+    case "spec_changed":
+      return "research.build_locked_spec_changed";
+    case "validation_failed":
+      return "research.build_locked_validation_failed";
+    default:
+      return "research.build_unlocked";
+  }
+}
+
 export interface ResearchBuildSummary {
   datasetSnapshotId: string;
   datasetSpecId: string;

@@ -95,6 +95,7 @@ test("a workspace header declares at most one primary action, and only a permitt
     "components/AgentsWorkspace.tsx",
     "components/DecisionWorkspace.tsx",
     "components/PortfolioWorkspace.tsx",
+    "components/ResearchDataWorkspace.tsx",
     "components/strategy/StrategyLabWorkspace.tsx",
   ]);
 
@@ -169,6 +170,25 @@ test("a workspace header declares at most one primary action, and only a permitt
   );
   assert.equal(
     (strategy.match(/strategy_lab\.run_backtest"/g) ?? []).length,
+    1,
+    "the primary action exists once",
+  );
+
+  const research = readWebSource("components/ResearchDataWorkspace.tsx");
+  assert.equal((research.match(/primaryAction=\{/g) ?? []).length, 1);
+  // The action it passes is building a dataset snapshot: the research surface's `persist`
+  // consequence, disabled by the build gate the panel reports (a spec that has not been
+  // validated, or that changed after validation, locks it).
+  assert.match(research, /activeView === "datasets" \? \(/);
+  assert.match(research, /disabled=\{buildBusy \|\| !buildGate\.canBuild\}/);
+  assert.match(research, /onClick=\{\(\) => void buildSnapshot\(\)\}/);
+  assert.equal(mayOccupyPrimarySlot("persist"), true);
+  // The panel keeps the specification, the validate step and the sentence that explains the
+  // lock; it no longer renders a second build control.
+  assert.equal(research.includes('className="button primary" onClick={onBuild}'), false);
+  assert.match(research, /researchBuildGateLockKey\(gate\.reason\)/);
+  assert.equal(
+    (research.match(/research\.build_action"/g) ?? []).length,
     1,
     "the primary action exists once",
   );

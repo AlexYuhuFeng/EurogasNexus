@@ -8,7 +8,7 @@ import {
   api,
   apiOutcome,
 } from "@/api/client";
-import { MetricStrip, PanelHeader, StatusBadge, WorkspaceTabs } from "@/components/ui";
+import { MetricStrip, PanelHeader, StatusBadge, WorkspaceHeader } from "@/components/ui";
 import { DataProductCatalogue } from "@/components/DataProductCatalogue";
 import {
   DEFAULT_WORKSPACE_READ_TIMEOUT_MS,
@@ -31,6 +31,7 @@ import {
   isResearchDetailForSelection,
   researchAnswerCode,
   researchBuildGate,
+  researchBuildGateLockKey,
   researchBuildSummary,
   researchDisplayValue,
   researchExportCanRequest,
@@ -196,7 +197,6 @@ function ResearchSpecPanel({
   gate,
   createdDetail,
   onValidate,
-  onBuild,
 }: {
   t: Translate;
   draft: ResearchSpecDraft;
@@ -207,7 +207,6 @@ function ResearchSpecPanel({
   gate: ResearchBuildGate;
   createdDetail: ResearchDatasetDetailDTO | null;
   onValidate: () => void;
-  onBuild: () => void;
 }) {
   const busy = validationState.status === "busy" || buildState.status === "busy";
   const ready = missingInputs.length === 0;
@@ -245,8 +244,8 @@ function ResearchSpecPanel({
       )}
       <div className="research-spec-actions">
         <button type="button" className="button" onClick={onValidate} disabled={busy || !ready}>{validationState.status === "busy" ? t("status.loading") : t("research.validate_action")}</button>
-        <button type="button" className="button primary" onClick={onBuild} disabled={busy || !gate.canBuild}>{buildState.status === "busy" ? t("status.loading") : t("research.build_action")}</button>
-        <span className="research-muted" role="status">{gate.reason === "not_validated" ? t("research.build_locked_not_validated") : gate.reason === "spec_changed" ? t("research.build_locked_spec_changed") : gate.reason === "validation_failed" ? t("research.build_locked_validation_failed") : t("research.build_unlocked")}</span>
+        {/* The build is the workspace's primary action; this line reports what locks it. */}
+        <span className="research-muted" role="status">{t(researchBuildGateLockKey(gate.reason))}</span>
       </div>
 
       <section className="research-run-result" aria-labelledby="research-validation-result">
@@ -573,6 +572,9 @@ export function ResearchDataWorkspace({ t }: ResearchDataWorkspaceProps) {
     ? { fingerprint: validationState.fingerprint, ok: validationState.outcome.ok }
     : null;
   const buildGate = researchBuildGate(lastValidation, specFingerprint);
+  // The primary action is disabled while either step of the dataset pipeline is running, so it
+  // cannot queue a second build behind the one in flight.
+  const buildBusy = validationState.status === "busy" || buildState.status === "busy";
   const specFingerprintRef = useRef(specFingerprint);
 
   useEffect(() => {
@@ -814,9 +816,40 @@ export function ResearchDataWorkspace({ t }: ResearchDataWorkspaceProps) {
     });
   }
 
+  // Action geography (Wave 9): building a dataset snapshot is the research surface's `persist`
+  // act, so it occupies the workspace's single primary slot instead of the configuration
+  // panel's own action row. The panel keeps the specification, the validate step and the
+  // preflight reason that locks this action.
+  const primaryAction =
+    activeView === "datasets" ? (
+      <button
+        type="button"
+        disabled={buildBusy || !buildGate.canBuild}
+        title={
+          buildGate.canBuild
+            ? t("research.build_hint")
+            : t(researchBuildGateLockKey(buildGate.reason))
+        }
+        onClick={() => void buildSnapshot()}
+      >
+        {t("research.build_action")}
+      </button>
+    ) : undefined;
+
   return <div className={`research-data-page research-view-${activeView}`}>
-    <div className="research-task-tabs-wrap"><WorkspaceTabs idPrefix="research-task" label={t("research.title")} tabs={tabs} activeId={activeView} panelId="research-task-panel" className="research-task-tabs" onActivate={(view) => setActiveView(view as ResearchViewId)} /></div>
-    {activeView === "datasets" && <ResearchSpecPanel t={t} draft={specDraft} onDraftChange={(key, value) => setSpecDraft((current) => ({ ...current, [key]: value }))} missingInputs={missingInputs} validationState={validationState} buildState={buildState} gate={buildGate} createdDetail={createdDetail} onValidate={() => void validateSpecDraft()} onBuild={() => void buildSnapshot()} />}
+    <WorkspaceHeader
+      title={t("research.title")}
+      taskLabel={t(`research.tab.${activeView}`)}
+      idPrefix="research-task"
+      tabs={tabs}
+      activeId={activeView}
+      panelId="research-task-panel"
+      tabLabel={t("research.title")}
+      tabsClassName="research-task-tabs"
+      primaryAction={primaryAction}
+      onActivate={(view) => setActiveView(view as ResearchViewId)}
+    />
+    {activeView === "datasets" && <ResearchSpecPanel t={t} draft={specDraft} onDraftChange={(key, value) => setSpecDraft((current) => ({ ...current, [key]: value }))} missingInputs={missingInputs} validationState={validationState} buildState={buildState} gate={buildGate} createdDetail={createdDetail} onValidate={() => void validateSpecDraft()} />}
     {activeView === "datasets" && <div className="research-master-detail" id="research-task-panel" role="tabpanel" aria-label={t("research.tab.datasets")}><DatasetCatalog t={t} datasets={visibleDatasets} loading={catalogLoading} error={catalogError} selectedId={visibleSelectedDatasetId} onSelect={(datasetId) => { selectedDatasetIdRef.current = datasetId; setSelectedDatasetId(datasetId); }} /><DatasetDetailRail t={t} selectedId={visibleSelectedDatasetId} detailState={detailState} onRetry={() => setDetailRetryKey((value) => value + 1)} onExport={() => void requestArtifactReference()} exportFormat={exportFormat} onExportFormatChange={setExportFormat} exportBusy={exportBusy} exportState={exportState} exportError={exportError} /></div>}
     {activeView === "products" && <DataProductCatalogue t={t} />}
     {activeView !== "datasets" && activeView !== "products" && <RegistryTable t={t} type={activeView} features={visibleFeatures} targets={visibleTargets} loading={catalogLoading} error={catalogError} />}

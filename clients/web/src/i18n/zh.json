@@ -1702,6 +1702,7 @@
   "research.spec_required_fields": "仍需填写",
   "research.validate_action": "校验规格",
   "research.build_action": "构建快照",
+  "research.build_hint": "构建该校验后规格所描述的数据集快照，并记录本次运行。",
   "research.build_locked_not_validated": "仅当该规格通过校验后才可构建。",
   "research.build_locked_spec_changed": "校验之后规格已修改，请重新校验以解锁构建。",
   "research.build_locked_validation_failed": "校验仍报告问题时无法构建。",

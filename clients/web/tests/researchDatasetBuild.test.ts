@@ -319,7 +319,10 @@ test("the workspace wires the governed surface and gates the artifact control on
   assert.match(workspace, /validateResearchDataset\(requestedSpec, options\)/);
   assert.match(workspace, /buildResearchDataset\(requestedSpec, options\)/);
   assert.match(workspace, /researchBuildGate\(lastValidation, specFingerprint\)/);
-  assert.match(workspace, /disabled=\{busy \|\| !gate\.canBuild\}/);
+  // Wave 9: the build is the workspace's primary action, gated by that same rule; the panel
+  // reports what locks it and keeps the validate step.
+  assert.match(workspace, /disabled=\{buildBusy \|\| !buildGate\.canBuild\}/);
+  assert.match(workspace, /researchBuildGateLockKey\(buildGate\.reason\)/);
   assert.match(workspace, /researchValidationOutcome\(answer\)/);
   assert.match(workspace, /researchIssuesFromAnswer\(failure\)/);
   assert.match(workspace, /researchExportStateFromAnswer\(/);
@@ -332,7 +335,7 @@ test("the workspace wires the governed surface and gates the artifact control on
   assert.match(workspace, /<PanelHeader/);
   assert.match(workspace, /<MetricStrip/);
   assert.match(workspace, /<StatusBadge/);
-  assert.match(workspace, /<WorkspaceTabs/);
+  assert.match(workspace, /<WorkspaceHeader/);
   assert.doesNotMatch(workspace, /<button[^>]*role="tab"/);
 });
 

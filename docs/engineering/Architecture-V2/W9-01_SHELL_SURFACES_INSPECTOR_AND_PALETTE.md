@@ -233,6 +233,16 @@ entry point among several rather than the predictable one.
   disagree about what would run. The panel's configure/result switch stays local: it is a read
   consequence, not the run.
 
+- **Fifth application (persist).** The research surface puts building a dataset snapshot in that
+  slot - the act that records a governed artefact and is tracked as a `DATASET_BUILD` job - and
+  its tab row became a `WorkspaceHeader`. This one was almost entirely presentational, because
+  the workspace already owned the state: the specification draft, the validation outcome and
+  `researchBuildGate` all live above the panel, so the lift was to stop rendering a *second*
+  build control inside the panel and gate the header action on the same gate. The gate's
+  sentence moved into the model (`researchBuildGateLockKey`), so the reason a build is locked has
+  one owner rather than an inline ternary in the panel, and the panel keeps the specification,
+  the validate step and the line that explains the lock.
+
 ## 7. Fifth slice — the panel taxonomy's disclosure rule, applied and audited
 
 The panel taxonomy states which disclosures a panel owes when it presents a material value:

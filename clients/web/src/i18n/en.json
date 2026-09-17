@@ -1702,6 +1702,7 @@
   "research.spec_required_fields": "Still required",
   "research.validate_action": "Validate spec",
   "research.build_action": "Build snapshot",
+  "research.build_hint": "Builds the dataset snapshot this validated spec describes and records the run.",
   "research.build_locked_not_validated": "Build stays locked until this exact spec passes validation.",
   "research.build_locked_spec_changed": "The spec changed after validation. Validate it again to unlock build.",
   "research.build_locked_validation_failed": "Build stays locked while validation reports issues.",
