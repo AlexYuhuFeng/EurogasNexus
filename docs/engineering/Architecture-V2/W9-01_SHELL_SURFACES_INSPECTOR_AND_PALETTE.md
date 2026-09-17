@@ -188,6 +188,17 @@ written" is the failure mode the geography exists to prevent.
   persists its own rows. The disabled action explains itself with the first blocker, and the
   panel carries the full readiness list and the run's disclosures.
 
+- **Fourth application (compute).** The Strategy Lab's backtest task puts running a backtest in
+  that slot, and its tab row likewise became a `WorkspaceHeader`. This one needed the draft
+  lifted rather than only the rule: the frozen-version requirement, the evaluation period and
+  the economic assumptions were all panel state, so the workspace now owns the draft and
+  `app/model/strategyBacktestModel.ts` owns the rule (`strategyBacktestReadiness`,
+  `strategyBacktestRequest`). The panel renders the fields, reports the preflight blockers from
+  the keys it is handed, and no longer starts anything; the header action is disabled by the
+  same computation and sends the request the rule composed, so the action and the panel cannot
+  disagree about what would run. The panel's configure/result switch stays local: it is a read
+  consequence, not the run.
+
 ## 7. Fifth slice — the panel taxonomy's disclosure rule, applied and audited
 
 The panel taxonomy states which disclosures a panel owes when it presents a material value:
@@ -223,8 +234,9 @@ Wave 9 in the roadmap is larger than its delivered slices. Still open:
   and the capacity point panel; the data, administration, glossary and runtime surfaces
   still show detail locally);
 - applying the action geography to every header (the contract and resolver exist;
-  `WorkspaceHeader` already owns the primary-action slot, and two consequences are applied:
-  the Optimize task's run and the portfolio's contract save);
+  `WorkspaceHeader` already owns the primary-action slot, and three consequences are applied:
+  the Optimize task's run, the portfolio's contract save and the research run, plus the
+  Strategy Lab's backtest);
 - the remaining `system`-area views that are not URL-addressable.
 
 These are incremental, file-scoped migrations with their own evidence; none of them
@@ -256,6 +268,10 @@ requires a new contract.
   preconditions, the request's deliberate omissions (no client-chosen profile, no invented
   period evidence), the strategy-generation disclosure in both states, and every reported key
   present and translated in both locales.
+- `clients/web/tests/strategyBacktestAction.test.ts` — the backtest run rule and its wiring:
+  the frozen-version precondition, a period asserted to be a real interval at its boundaries, a
+  modeled cost that must parse while an unmodeled one is never read, the in-flight blocker, the
+  composed request, and the panel that reports without starting.
 - `clients/web/tests/experienceArchitecture.test.ts` — updated shell-region
   honesty check: every rendered region carries its marker and nothing remains
   `planned`.

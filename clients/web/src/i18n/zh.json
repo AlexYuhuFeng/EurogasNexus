@@ -648,6 +648,8 @@
   "strategy_lab.risk_controls": "风控条件",
   "strategy_lab.run": "运行",
   "strategy_lab.run_backtest": "运行回测",
+  "strategy_lab.run_backtest_hint": "在已冻结版本上运行所配置的回测，并记录该次运行。",
+  "strategy_lab.blocker.in_flight": "已有策略运行正在进行中。",
   "strategy_lab.inspect_run": "查看运行详情",
   "strategy_lab.run_history": "运行历史",
   "strategy_lab.save_draft": "保存草稿",

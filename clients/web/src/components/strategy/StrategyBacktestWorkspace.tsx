@@ -1,6 +1,12 @@
 import { useMemo, useState } from "react";
 import type { StrategyLabController, StrategyLabSelection } from "@/app/model/useStrategyLab";
 import { inspectorSubjectFor } from "@/app/model/inspectorDetail";
+import {
+  MISSING_DATA_POLICIES,
+  TRANSACTION_COST_TREATMENTS,
+  type StrategyBacktestDraft,
+  type StrategyBacktestReadiness,
+} from "@/app/model/strategyBacktestModel";
 import { useInspectorStore } from "@/stores/inspector";
 import { StrategyLineChart } from "./StrategyLabCharts";
 
@@ -11,6 +17,14 @@ interface StrategyBacktestWorkspaceProps {
   selection: StrategyLabSelection;
   gasDay: string;
   language: string;
+  /**
+   * The run configuration and its readiness, owned by the workspace that hosts the run action
+   * (Wave 9 action geography). This panel renders the fields and the preflight verdict; it no
+   * longer decides whether a run is allowed, and it no longer starts one.
+   */
+  draft: StrategyBacktestDraft;
+  readiness: StrategyBacktestReadiness;
+  onDraftChange: (draft: StrategyBacktestDraft) => void;
   t: Translate;
 }
 
@@ -36,33 +50,23 @@ export function StrategyBacktestWorkspace({
   controller,
   gasDay,
   language,
+  draft,
+  readiness,
+  onDraftChange,
   t,
 }: StrategyBacktestWorkspaceProps) {
   // Wave 9: the selected run's own record belongs to the canonical Inspector. The KPI
   // strip and the charts stay here - they are this surface's analysis - while the run's
   // facts and provenance are handed over rather than duplicated.
   const inspector = useInspectorStore();
-  const [start, setStart] = useState(controller.defaultPeriod.start);
-  const [end, setEnd] = useState(controller.defaultPeriod.end);
-  const [missingPolicy, setMissingPolicy] = useState("FAIL");
-  const [transactionTreatment, setTransactionTreatment] = useState("UNAVAILABLE");
-  const [transactionCost, setTransactionCost] = useState("");
   const [mode, setMode] = useState<"configure" | "result">("configure");
 
   const run = controller.selectedRun;
   const metrics = run?.backtest_metrics ?? null;
   const details = run ? controller.detailsByRun[run.run_id] : undefined;
-  const frozen = controller.selectedVersion?.status === "FROZEN";
 
-  const blockers = useMemo(() => {
-    const result: string[] = [];
-    if (!frozen) result.push(t("strategy_lab.blocker.frozen_required"));
-    if (!start || !end || start >= end) result.push(t("strategy_lab.blocker.period"));
-    if (transactionTreatment === "MODELED_COST" && Number.isNaN(Number(transactionCost))) {
-      result.push(t("strategy_lab.blocker.transaction_cost"));
-    }
-    return result;
-  }, [end, frozen, start, t, transactionCost, transactionTreatment]);
+  const updateDraft = (patch: Partial<StrategyBacktestDraft>) =>
+    onDraftChange({ ...draft, ...patch });
 
   const seriesPoints = useMemo(
     () =>
@@ -100,60 +104,55 @@ export function StrategyBacktestWorkspace({
               <input value={controller.selectedVersion ? `v${controller.selectedVersion.version_number} · ${controller.selectedVersion.status}` : ""} readOnly />
             </label>
             <label>{t("strategy_lab.period_start")}
-              <input type="date" value={start} onChange={(event) => setStart(event.target.value)} />
+              <input type="date" value={draft.start} onChange={(event) => updateDraft({ start: event.target.value })} />
             </label>
             <label>{t("strategy_lab.period_end")}
-              <input type="date" value={end} onChange={(event) => setEnd(event.target.value)} />
+              <input type="date" value={draft.end} onChange={(event) => updateDraft({ end: event.target.value })} />
             </label>
             <label>{t("strategy_lab.gas_day_context")}
               <input value={gasDay} readOnly />
             </label>
             <label>{t("strategy_lab.missing_data_policy")}
-              <select value={missingPolicy} onChange={(event) => setMissingPolicy(event.target.value)}>
-                <option>FAIL</option><option>SKIP_DECISION</option><option>CARRY_FORWARD_WITH_MAX_AGE</option>
+              <select
+                value={draft.missingDataPolicy}
+                onChange={(event) =>
+                  updateDraft({ missingDataPolicy: event.target.value as StrategyBacktestDraft["missingDataPolicy"] })
+                }
+              >
+                {MISSING_DATA_POLICIES.map((policy) => <option key={policy}>{policy}</option>)}
               </select>
             </label>
             <label>{t("strategy_lab.transaction_cost_treatment")}
-              <select value={transactionTreatment} onChange={(event) => setTransactionTreatment(event.target.value)}>
-                <option>UNAVAILABLE</option><option>MODELED_COST</option><option>EXCLUDED</option>
+              <select
+                value={draft.transactionCostTreatment}
+                onChange={(event) =>
+                  updateDraft({
+                    transactionCostTreatment: event.target.value as StrategyBacktestDraft["transactionCostTreatment"],
+                  })
+                }
+              >
+                {TRANSACTION_COST_TREATMENTS.map((treatment) => <option key={treatment}>{treatment}</option>)}
               </select>
             </label>
             <label>{t("strategy_lab.transaction_cost")} GBP/MWh
-              <input type="number" step="0.01" value={transactionCost} onChange={(event) => setTransactionCost(event.target.value)} />
+              <input
+                type="number"
+                step="0.01"
+                value={draft.transactionCost}
+                onChange={(event) => updateDraft({ transactionCost: event.target.value })}
+              />
             </label>
           </div>
+          {/* The panel reports the verdict; the run itself is the workspace's primary action,
+              disabled by this same rule. */}
           <div className="strategy-preflight">
             <strong>{t("strategy_lab.preflight")}</strong>
-            {blockers.length === 0 ? (
+            {readiness.blockerKeys.length === 0 ? (
               <span className="status-badge status-complete">{t("strategy_lab.ready")}</span>
             ) : (
-              blockers.map((blocker) => <span key={blocker} className="status-badge status-blocked">{blocker}</span>)
+              readiness.blockerKeys.map((key) => <span key={key} className="status-badge status-blocked">{t(key)}</span>)
             )}
           </div>
-          <button
-            type="button"
-            disabled={blockers.length > 0 || controller.loading}
-            onClick={() =>
-              void controller.runBacktest({
-                strategy_version_id: controller.selectedVersion?.strategy_version_id,
-                evaluation_period_start_utc: `${start}T00:00:00Z`,
-                evaluation_period_end_utc: `${end}T00:00:00Z`,
-                economic_assumptions: {
-                  missing_data_policy: missingPolicy,
-                  fill_price_policy: "NEXT_ELIGIBLE",
-                  cost_components: [
-                    {
-                      code: "TRANSACTION_COST",
-                      treatment: transactionTreatment,
-                      amount_gbp_mwh: transactionTreatment === "MODELED_COST" ? Number(transactionCost) : null,
-                    },
-                  ],
-                },
-              })
-            }
-          >
-            {t("strategy_lab.run_backtest")}
-          </button>
         </section>
       )}
 

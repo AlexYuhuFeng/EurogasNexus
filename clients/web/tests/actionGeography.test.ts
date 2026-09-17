@@ -95,6 +95,7 @@ test("a workspace header declares at most one primary action, and only a permitt
     "components/AgentsWorkspace.tsx",
     "components/DecisionWorkspace.tsx",
     "components/PortfolioWorkspace.tsx",
+    "components/strategy/StrategyLabWorkspace.tsx",
   ]);
 
   const decision = readWebSource("components/DecisionWorkspace.tsx");
@@ -146,6 +147,28 @@ test("a workspace header declares at most one primary action, and only a permitt
   assert.match(agents, /agentRunReadiness\(\{ objective, runtimeDbReady, running \}\)/);
   assert.equal(
     (agents.match(/agents\.run_research"/g) ?? []).length,
+    1,
+    "the primary action exists once",
+  );
+
+  const strategy = readWebSource("components/strategy/StrategyLabWorkspace.tsx");
+  assert.equal((strategy.match(/primaryAction=\{/g) ?? []).length, 1);
+  // The action it passes is running a backtest: a `compute` consequence, disabled by the rule
+  // the panel reports and explained by the first blocker.
+  assert.match(strategy, /const primaryAction =\s*controller\.task === "backtest" \? \(/);
+  assert.match(strategy, /disabled=\{!backtestReadiness\.canRun\}/);
+  assert.match(strategy, /const request = strategyBacktestRequest\(/);
+  assert.equal(mayOccupyPrimarySlot("compute"), true);
+  // The panel configures the run and reports the verdict; it no longer starts one.
+  assert.match(strategy, /readiness=\{backtestReadiness\}/);
+  assert.equal(
+    readWebSource("components/strategy/StrategyBacktestWorkspace.tsx").includes(
+      'controller.runBacktest',
+    ),
+    false,
+  );
+  assert.equal(
+    (strategy.match(/strategy_lab\.run_backtest"/g) ?? []).length,
     1,
     "the primary action exists once",
   );

@@ -1,7 +1,12 @@
-import { useMemo } from "react";
-import { WorkspaceTabs } from "@/components/ui";
+import { useMemo, useState } from "react";
+import { WorkspaceHeader } from "@/components/ui";
 import type { StrategyLabController, StrategyTaskId } from "@/app/model/useStrategyLab";
 import type { StrategyLabSelection } from "@/app/model/useStrategyLab";
+import {
+  strategyBacktestReadiness,
+  strategyBacktestRequest,
+  type StrategyBacktestDraft,
+} from "@/app/model/strategyBacktestModel";
 import { StrategyDesignWorkspace } from "./StrategyDesignWorkspace";
 import { StrategyBacktestWorkspace } from "./StrategyBacktestWorkspace";
 import { StrategyCompareWorkspace } from "./StrategyCompareWorkspace";
@@ -43,15 +48,58 @@ export function StrategyLabWorkspace({
     [t],
   );
 
+  // Action geography (`app/experience/actionGeography.ts`): running a backtest is a `compute`
+  // consequence, so it occupies this workspace's single primary slot instead of sitting inside
+  // the panel that configures it. The draft therefore lives here - one owner for the facts the
+  // action needs - while the panel renders the fields and reports the preflight verdict.
+  const [backtestDraft, setBacktestDraft] = useState<StrategyBacktestDraft>(() => ({
+    start: controller.defaultPeriod.start,
+    end: controller.defaultPeriod.end,
+    missingDataPolicy: "FAIL",
+    transactionCostTreatment: "UNAVAILABLE",
+    transactionCost: "",
+  }));
+  const backtestReadiness = strategyBacktestReadiness({
+    draft: backtestDraft,
+    frozen: controller.selectedVersion?.status === "FROZEN",
+    running: controller.loading,
+  });
+  const primaryAction =
+    controller.task === "backtest" ? (
+      <button
+        type="button"
+        disabled={!backtestReadiness.canRun}
+        title={
+          backtestReadiness.firstBlockerKey
+            ? t(backtestReadiness.firstBlockerKey)
+            : t("strategy_lab.run_backtest_hint")
+        }
+        onClick={() => {
+          const request = strategyBacktestRequest(
+            backtestDraft,
+            controller.selectedVersion?.strategy_version_id,
+          );
+          // The rule produced the request, so this can only be null if the version vanished
+          // between the render and the click; refusing then is the honest answer.
+          if (request) void controller.runBacktest(request);
+        }}
+      >
+        {t("strategy_lab.run_backtest")}
+      </button>
+    ) : undefined;
+
   return (
     <div className="strategy-lab-workspace">
-      <WorkspaceTabs
+      <WorkspaceHeader
+        title={t("nav.strategy")}
+        taskLabel={t(TASK_LABEL_KEYS[controller.task])}
         idPrefix="strategy-lab-task"
-        label={t("nav.strategy")}
         tabs={tabs}
         activeId={controller.task}
         panelId="strategy-lab-panel"
-        className="strategy-lab-task-tabs"
+        tabLabel={t("nav.strategy")}
+        tabsClassName="strategy-lab-task-tabs"
+        primaryAction={primaryAction}
         onActivate={controller.openTask}
       />
       <div className="strategy-lab-grid" id="strategy-lab-panel">
@@ -81,6 +129,9 @@ export function StrategyLabWorkspace({
                 selection={selection}
                 gasDay={gasDay}
                 language={language}
+                draft={backtestDraft}
+                readiness={backtestReadiness}
+                onDraftChange={setBacktestDraft}
                 t={t}
               />
             )}

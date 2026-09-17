@@ -648,6 +648,8 @@
   "strategy_lab.risk_controls": "Risk controls",
   "strategy_lab.run": "Run",
   "strategy_lab.run_backtest": "Run backtest",
+  "strategy_lab.run_backtest_hint": "Runs the configured backtest over the frozen version and records the run.",
+  "strategy_lab.blocker.in_flight": "A strategy run is already in flight.",
   "strategy_lab.inspect_run": "Inspect run",
   "strategy_lab.run_history": "Run history",
   "strategy_lab.save_draft": "Save draft",
