@@ -364,6 +364,24 @@ export function resolvableInspectorKinds(): InspectorSubjectKind[] {
 }
 
 /**
+ * Build a subject for a hand-over, or `null` when the page may not hand that kind over.
+ *
+ * Every surface uses this rather than constructing a subject literal, so the Wave 1
+ * composition rule (a page may only inspect the subject kinds it declares) is enforced
+ * at the hand-over itself and not only inside the resolver.
+ */
+export function inspectorSubjectFor(
+  kind: InspectorSubjectKind,
+  ref: string | null | undefined,
+  label: string,
+  originPage: InspectorSubject["originPage"],
+): InspectorSubject | null {
+  if (!ref) return null;
+  if (!canOpenInspector(kind, originPage)) return null;
+  return { kind, ref, label, originPage };
+}
+
+/**
  * Build a `market-observation` subject for a hub observation. Returns `null` when the
  * page may not hand that kind over, so a surface cannot promise detail it has no
  * contract for (the Wave 1 rule).
@@ -373,8 +391,10 @@ export function marketObservationSubject(
   originPage: InspectorSubject["originPage"],
   label: string,
 ): InspectorSubject | null {
-  const ref = observation?.observation_id ?? observation?.quote_id ?? null;
-  if (!ref) return null;
-  if (!canOpenInspector("market-observation", originPage)) return null;
-  return { kind: "market-observation", ref, label, originPage };
+  return inspectorSubjectFor(
+    "market-observation",
+    observation?.observation_id ?? observation?.quote_id ?? null,
+    label,
+    originPage,
+  );
 }

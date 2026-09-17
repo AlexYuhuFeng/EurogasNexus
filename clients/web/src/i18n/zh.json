@@ -35,6 +35,7 @@
   "strategy.review_decision": "复核决策",
   "review.carried_strategy_run": "已携带策略运行",
   "contracts.open_in_strategy": "在策略实验室打开",
+  "contracts.inspect": "查看合同详情",
   "contracts.open_in_strategy_unavailable": "请先将该资源保存到资源池，再打开策略实验室",
   "data.live": "实时",
   "data.ready": "就绪",

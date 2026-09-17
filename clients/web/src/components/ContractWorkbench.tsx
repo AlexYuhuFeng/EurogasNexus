@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ChangeEvent, RefObject } from "react";
 import type { PortfolioResourceDTO, UpstreamContractDTO, UpstreamContractInputDTO } from "@/api/client";
+import { inspectorSubjectFor } from "@/app/model/inspectorDetail";
+import { useInspectorStore } from "@/stores/inspector";
 import {
   notesRecordFromRecord,
   sourceReferenceFromRecord,
@@ -141,6 +143,9 @@ export function ContractWorkbench({
   contractSaveMessage, t, updateContractText, updateContractNumber, updateContractList,
   saveDraftContract, resetContractDraft, importContractDraftFile, loadPersistedContract,
 }: ContractWorkbenchProps) {
+  // Wave 9: object detail goes to the canonical Inspector instead of growing a third
+  // detail pane inside this workbench. The selection stays local; only the detail moves.
+  const inspector = useInspectorStore();
   const [taskView, setTaskView] = useState<TaskView>(() => selectedResourceId ? "library" : "terms");
   const [clauseView, setClauseView] = useState<ClauseView>("agreement");
   const persistedTerm = upstreamContracts.find((item) => item.contract_id === contract.contract_id);
@@ -387,6 +392,21 @@ export function ContractWorkbench({
                   onClick={() => onOpenStrategyForResource(saved.contract_id)}
                 >
                   {t("contracts.open_in_strategy")}
+                </button>
+                <button
+                  type="button"
+                  className="contract-library-handoff"
+                  onClick={() => {
+                    const subject = inspectorSubjectFor(
+                      "contract",
+                      saved.contract_id,
+                      saved.contract_name,
+                      "contracts",
+                    );
+                    if (subject) inspector.open(subject);
+                  }}
+                >
+                  {t("contracts.inspect")}
                 </button>
               </div>
             );

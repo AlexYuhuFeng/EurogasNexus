@@ -14,6 +14,7 @@ import test from "node:test";
 
 import {
   inspectorDetailFor,
+  inspectorSubjectFor,
   marketObservationSubject,
   resolvableInspectorKinds,
   type InspectorDetailSource,
@@ -247,6 +248,32 @@ test("a market hand-over builds a subject only when the page may inspect it", ()
   assert.equal(marketObservationSubject({}, "market", "TTF"), null);
   // The network page does not declare market observations as an inspectable subject.
   assert.equal(marketObservationSubject(quote, "network", "TTF"), null);
+});
+
+test("every hand-over goes through one composition-checked builder", () => {
+  // The contracts page declares contracts and resources; the market page does not.
+  assert.deepEqual(inspectorSubjectFor("contract", "contract-1", "Gate term", "contracts"), {
+    kind: "contract",
+    ref: "contract-1",
+    label: "Gate term",
+    originPage: "contracts",
+  });
+  assert.equal(inspectorSubjectFor("contract", "contract-1", "Gate term", "market"), null);
+  assert.equal(inspectorSubjectFor("contract", "", "Gate term", "contracts"), null);
+  assert.equal(inspectorSubjectFor("contract", null, "Gate term", "contracts"), null);
+  assert.equal(inspectorSubjectFor("resource", "resource-1", "Gate slot", "contracts")?.kind, "resource");
+
+  // The contract workbench hands a saved contract over rather than growing a third
+  // detail pane, and it resolves detail from data the surface already received.
+  const workbench = readWebSource("components/ContractWorkbench.tsx");
+  assert.match(workbench, /import \{ inspectorSubjectFor \} from "@\/app\/model\/inspectorDetail"/);
+  assert.match(workbench, /const inspector = useInspectorStore\(\);/);
+  assert.match(
+    workbench,
+    /const subject = inspectorSubjectFor\(\s*"contract",\s*saved\.contract_id,\s*saved\.contract_name,\s*"contracts",\s*\);/s,
+  );
+  assert.match(workbench, /if \(subject\) inspector\.open\(subject\);/);
+  assert.equal(workbench.includes("fetch("), false);
 });
 
 test("the panel renders resolved facts and never resolves detail itself", () => {
