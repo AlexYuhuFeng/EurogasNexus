@@ -12,4 +12,9 @@ class HealthResponse(BaseModel):
     service: str = "eurogas-nexus"
     version: str
     profile: str
+    #: Whether this profile installs app-wide authentication (architecture finding C5).
+    #: `not_installed` is a documented posture of the development and internal profiles, not
+    #: an error - but it is the difference between a deployment that identifies its callers
+    #: and one that trusts the network, so it is reported rather than assumed.
+    authentication: Literal["enforced", "not_installed"] = "not_installed"
 

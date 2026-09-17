@@ -53,3 +53,17 @@ def get_route_profile(name: str | ApiProfileName) -> ApiRouteProfile:
     profile_name = ApiProfileName(name)
     return API_ROUTE_PROFILES[profile_name]
 
+
+def authentication_posture(name: str | ApiProfileName) -> str:
+    """Whether a profile installs app-wide authentication.
+
+    Architecture finding C5: the ``development`` and ``internal`` profiles deliberately
+    install none, so a caller that presents no identity resolves to the documented
+    single-trust-domain compatibility principal and receives its unrestricted row filtering.
+    That is a posture, not an accident - and publishing it on the health payload makes it
+    visible to whoever operates the deployment instead of only to whoever reads the conflict
+    register.
+    """
+
+    return "enforced" if get_route_profile(name).require_auth else "not_installed"
+
