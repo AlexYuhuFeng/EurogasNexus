@@ -144,7 +144,29 @@ resource-pool path ladder, the highlighted route, the network geometry gate, the
 warning/evidence stack and the network-extracted-from-the-shell guarantee now read the
 composing surface, and the shell assertions assert the stronger fact - it mounts no page.
 
-## 6. What this slice does not claim
+## 6. Fourth slice — the action geography, applied and enforced
+
+Wave 1 declared the action geography (`app/experience/actionGeography.ts`) and Wave 9 mounted
+the shell surfaces, but the geography was applied nowhere: `WorkspaceHeader` had a
+primary-action slot that no surface used, so "a compute or persist action belongs in the
+workspace's single primary slot" lived only in prose and in its own unit test.
+
+- **First application.** The Optimize task now puts running the pool optimiser in that slot -
+  a `compute` consequence the geography permits there - instead of inside the panel it
+  reports on. The panel keeps the preflight verdict and the allocations the run produced, and
+  says in its own copy that the run starts from the workspace's primary action.
+- **Enforcement.** `clients/web/tests/actionGeography.test.ts` walks every surface source and
+  fails on a guarded verb (retire, freeze, delete, remove, revoke, pause, resume, cancel)
+  rendered with a primary class, on a surface passing more than one primary action, on a
+  surface that starts passing one without appearing in the asserted inventory, and on a
+  workspace reaching for a shell utility (sign-out, language, theme). It reads sources, so it
+  checks placement rather than behaviour - and says so in the file.
+
+The remaining surfaces still keep their primary actions inside panels; each needs its
+handler and blocked-state lifted to the component that owns the header, which is a
+per-surface change rather than a shared one.
+
+## 7. What this slice does not claim
 
 Wave 9 in the roadmap is larger than its delivered slices. Still open:
 
@@ -161,14 +183,14 @@ Wave 9 in the roadmap is larger than its delivered slices. Still open:
 These are incremental, file-scoped migrations with their own evidence; none of them
 requires a new contract.
 
-## 7. Compatibility
+## 8. Compatibility
 
 - No route, deep link, page id or workspace composition changed in these slices.
 - No API, schema, permission, numerical, release or DR behaviour changed.
 - New user-visible vocabulary is bilingual (`en`, `zh-CN`), and the shell surfaces
   add no new colour, type or motion family.
 
-## 8. Verification
+## 9. Verification
 
 - `clients/web/tests/shellSurfaces.test.ts` — inspector region rendered and
   fetch-free, command derivation from the registries, inspection commands from the
