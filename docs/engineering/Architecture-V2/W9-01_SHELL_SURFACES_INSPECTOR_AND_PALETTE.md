@@ -166,7 +166,31 @@ The remaining surfaces still keep their primary actions inside panels; each need
 handler and blocked-state lifted to the component that owns the header, which is a
 per-surface change rather than a shared one.
 
-## 7. What this slice does not claim
+## 7. Fifth slice — the panel taxonomy's disclosure rule, applied and audited
+
+The panel taxonomy states which disclosures a panel owes when it presents a material value:
+a figure without its time basis, units, provenance or entitlement state is not decision
+evidence. Nothing checked whether the panels that claim to exist could carry them - and the
+shared metric strip could not. It rendered a label, a value and a detail, so a unit or an
+as-of could only be smuggled into free text by whichever caller remembered.
+
+- The primitive now carries the slots its kind owes: a per-item unit and a strip-level as-of
+  and time basis, rendered in a footer that marks each one, and omitted entirely rather than
+  invented when a surface does not have them. Items stay the strip's direct children, so
+  existing metric-grid layouts and their child selectors are unaffected.
+- The agents replay strip is the first caller to use them: it showed run counts with no
+  instant, which is exactly the case the taxonomy names, and now reports when the numbers
+  were taken.
+- `clients/web/tests/panelDisclosures.test.ts` audits the rest instead of assuming it: for
+  every panel kind, each owed disclosure must be either carried by a named slot in its owning
+  primitive - matched live against that file, so a claim cannot rot into aspiration - or
+  recorded as the caller's duty with the reason. A disclosure that is neither fails, and so
+  does a claim whose marker has disappeared.
+
+The remaining panel kinds owe their disclosures to their callers, which the audit now states
+explicitly per kind rather than leaving implicit.
+
+## 8. What this slice does not claim
 
 Wave 9 in the roadmap is larger than its delivered slices. Still open:
 
@@ -183,14 +207,14 @@ Wave 9 in the roadmap is larger than its delivered slices. Still open:
 These are incremental, file-scoped migrations with their own evidence; none of them
 requires a new contract.
 
-## 8. Compatibility
+## 9. Compatibility
 
 - No route, deep link, page id or workspace composition changed in these slices.
 - No API, schema, permission, numerical, release or DR behaviour changed.
 - New user-visible vocabulary is bilingual (`en`, `zh-CN`), and the shell surfaces
   add no new colour, type or motion family.
 
-## 9. Verification
+## 10. Verification
 
 - `clients/web/tests/shellSurfaces.test.ts` — inspector region rendered and
   fetch-free, command derivation from the registries, inspection commands from the
