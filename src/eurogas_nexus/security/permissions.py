@@ -69,6 +69,11 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     # --- analysis / reports: policy-gated (entitlement, export, LLM) ---
     ("/api/analysis/query", Permission.GOVERNED),
     ("/api/reports/portfolio", Permission.GOVERNED),
+    # Live provider analysis of one alert: it spends a provider credential and returns
+    # model output composed from commercial evidence, so it is policy-gated (LLM) and
+    # re-authorised per call against the caller's own analysis capability
+    # (api/dependencies/ai_authority.py, finding C8).
+    ("/api/monitoring/alerts/{alert_id}/analysis", Permission.GOVERNED),
     ("/api/analysis/ontology", Permission.READ),
     ("/api/review/decisions", Permission.REVIEW),
     ("/api/ingestion-runs", Permission.READ),

@@ -8,6 +8,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Request
 
+from eurogas_nexus.api.dependencies.ai_authority import ai_caller, ai_authority_denial
 from eurogas_nexus.domain.analysis import (
     AnalysisRequest,
     AnalysisResult,
@@ -76,6 +77,7 @@ def post_analysis_query(body: AnalysisRequest, request: Request) -> dict:
         body,
         snapshot,
         request_id=request_id,
+        principal=ai_caller(request),
     )
     _audit_llm_decision(
         body=body,
@@ -169,6 +171,7 @@ def post_portfolio_report(body: PortfolioReportRequest, request: Request) -> dic
         analysis_request,
         snapshot,
         request_id=request_id,
+        principal=ai_caller(request),
     )
     _audit_llm_decision(
         body=analysis_request,
@@ -360,6 +363,7 @@ def _maybe_invoke_provider(
     snapshot: AnalysisSnapshot,
     *,
     request_id: str | None = None,
+    principal: AuthenticatedPrincipal | None = None,
 ) -> tuple[str | None, str]:
     if not body.invoke_provider:
         return None, "not_invoked"
@@ -369,6 +373,23 @@ def _maybe_invoke_provider(
     if not get_settings().llm_external_provider_enabled:
         # P0-2: trial/release profiles never call external LLM providers.
         return None, "LLM_PROVIDER_DISABLED_IN_PROFILE"
+
+    # AI runs under the caller's own authority (Architecture V2 rule 22): the
+    # entitlement gate below protects the *payload*, this protects the *invocation*.
+    if principal is not None:
+        authority_denial = ai_authority_denial(principal)
+        if authority_denial:
+            _record_audit(
+                event_type="governance.policy",
+                action="ai.authority",
+                resource="analysis_query",
+                outcome="denied",
+                severity="warning",
+                detail=f"LLM invocation blocked; {authority_denial}",
+                source_system="analysis",
+                request_id=request_id,
+            )
+            return None, "AI_AUTHORITY_DENIED"
 
     entitlement_blocker = _snapshot_entitlement_blocker(snapshot)
     if entitlement_blocker is not None:

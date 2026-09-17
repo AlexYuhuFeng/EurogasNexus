@@ -7,9 +7,10 @@ from datetime import UTC, datetime
 from typing import Literal
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
+from eurogas_nexus.api.dependencies.ai_authority import require_ai_authority
 from eurogas_nexus.llm import invoke_deepseek
 from eurogas_nexus.security.provider_keys import load_provider_api_key
 
@@ -116,8 +117,15 @@ def acknowledge_alert(alert_id: str) -> dict:
 
 
 @router.post("/api/monitoring/alerts/{alert_id}/analysis")
-def analyze_alert(alert_id: str, payload: AlertAnalysisRequest) -> dict:
-    """Ask live DeepSeek about one alert without exposing the API credential."""
+def analyze_alert(alert_id: str, payload: AlertAnalysisRequest, request: Request) -> dict:
+    """Ask live DeepSeek about one alert without exposing the API credential.
+
+    AI inherits the caller's authority (Architecture V2 rule 22), so the invocation is
+    re-authorised against the calling identity before any provider credential is loaded
+    or any model output is produced, and the run is attributed to that identity.
+    """
+
+    principal = require_ai_authority(request)
 
     from eurogas_nexus.db.repositories.monitoring import (
         get_monitoring_alert,
@@ -174,6 +182,12 @@ def analyze_alert(alert_id: str, payload: AlertAnalysisRequest) -> dict:
         request=payload,
         alert_snapshot=alert_snapshot,
         result=data,
+        actor={
+            "principal_id": principal.principal_id,
+            "role": principal.role,
+            "roles": list(principal.roles),
+            "auth_method": principal.auth_method,
+        },
     )
     return _env(data, warnings=data["warnings"])
 
@@ -219,7 +233,17 @@ def _persist_analysis_run(
     request: AlertAnalysisRequest,
     alert_snapshot: dict,
     result: dict,
+    actor: dict | None = None,
 ) -> None:
+    """Persist the run, attributed to the identity it ran under.
+
+    AI runs are observable actions rather than hidden reasoning (Architecture V2
+    ``08_DECISION_APPLICATION_AI.md`` section 4), so the acting principal is recorded
+    with the prompt snapshot. The run record keeps its existing columns; the actor
+    travels inside the snapshot because attribution is evidence about the call, not a
+    new schema requirement.
+    """
+
     try:
         from eurogas_nexus.db.models import AnalysisRunRecord
         from eurogas_nexus.db.session import get_session_factory
@@ -235,6 +259,7 @@ def _persist_analysis_run(
                         "question": request.question,
                         "language": request.language,
                         "model": request.model,
+                        **({"actor": actor} if actor else {}),
                     },
                     input_snapshot=alert_snapshot,
                     output_snapshot=result,
