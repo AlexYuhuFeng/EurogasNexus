@@ -91,7 +91,10 @@ test("a workspace header declares at most one primary action, and only a permitt
 
   // The inventory is asserted so the slot's use cannot grow silently. A surface that starts
   // passing one belongs in this list *with* a `compute` or `persist` action.
-  assert.deepEqual(passing.sort(), ["components/DecisionWorkspace.tsx"]);
+  assert.deepEqual(passing.sort(), [
+    "components/DecisionWorkspace.tsx",
+    "components/PortfolioWorkspace.tsx",
+  ]);
 
   const decision = readWebSource("components/DecisionWorkspace.tsx");
   // Exactly one `primaryAction=` binding, so the header cannot end up with two.
@@ -107,6 +110,23 @@ test("a workspace header declares at most one primary action, and only a permitt
   assert.equal(decision.includes("home.optimize_pool"), true);
   assert.equal(
     (decision.match(/home\.optimize_pool/g) ?? []).length,
+    1,
+    "the primary action exists once",
+  );
+
+  const portfolio = readWebSource("components/PortfolioWorkspace.tsx");
+  assert.equal((portfolio.match(/primaryAction=\{/g) ?? []).length, 1);
+  // The action it passes is writing a reviewed contract draft: a `persist` consequence,
+  // permitted in the primary slot, and disabled by the shared save rule rather than by a
+  // second opinion computed in the header.
+  assert.match(portfolio, /const primaryAction =\s*task === "resources" \? \(/);
+  assert.match(portfolio, /onClick=\{\(\) =>\s*contractSaveStateForDraft\.canSave/);
+  assert.match(portfolio, /disabled=\{!contractSaveStateForDraft\.canSave\}/);
+  assert.equal(mayOccupyPrimarySlot("persist"), true);
+  // The panel reports the validation verdict and the save outcome; it no longer saves.
+  assert.equal(readWebSource("components/ContractWorkbench.tsx").includes("contracts.action.save"), false);
+  assert.equal(
+    (portfolio.match(/contracts\.action\.save/g) ?? []).length,
     1,
     "the primary action exists once",
   );

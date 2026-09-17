@@ -1285,11 +1285,16 @@ def test_web_client_contracts_page_is_task_led_resource_terms_workbench() -> Non
     portfolio_workspace = (
         ROOT / "clients" / "web" / "src" / "components" / "PortfolioWorkspace.tsx"
     ).read_text(encoding="utf-8")
-    assert (
-        'import { ContractWorkbench } from "@/components/ContractWorkbench";'
-        in portfolio_workspace
-    )
+    assert 'import { ContractWorkbench' in portfolio_workspace
+    assert 'from "@/components/ContractWorkbench";' in portfolio_workspace
     assert "<ContractWorkbench" in portfolio_workspace
+    # Wave 9 action geography: writing the reviewed draft is a `persist` consequence, so the
+    # workspace header owns the action and the panel only renders and reports it.
+    assert "primaryAction={primaryAction}" in portfolio_workspace
+    assert 'const primaryAction =\n    task === "resources" ? (' in portfolio_workspace
+    assert "api.saveDraftContract(contractEditor.contractPayload)" in portfolio_workspace
+    assert 't("contracts.action.save")' in portfolio_workspace
+    assert 't("contracts.action.save")' not in workbench
     assert 'import type { ContractDraft } from "@/app/index";' in app
     app_and_workbench = app + workbench + portfolio_workspace
     assert "counterparty" in app_and_workbench
@@ -1319,7 +1324,6 @@ def test_web_client_contracts_page_is_task_led_resource_terms_workbench() -> Non
         "contractImportRef",
         "importContractDraftFile",
         "loadTerm",
-        "saveDraftContract(contractPayload)",
         ".json,.txt,application/json,text/plain",
         't("contracts.upload_contract")',
         't("contracts.beach_delivery_point")',
@@ -1586,10 +1590,14 @@ def test_web_client_resource_pool_options_are_backend_owned() -> None:
     assert 'sale_price_simulated ? t("market.simulated_source")' in network_workspace
     assert "saveUpstreamContract" in api_client
     assert "saveDraftContract" in store
-    assert "saveDraftContract(contractPayload)" in app_and_contracts
     portfolio_workspace_source = (
         ROOT / "clients" / "web" / "src" / "components" / "PortfolioWorkspace.tsx"
     ).read_text(encoding="utf-8")
+    # Wave 9 action geography: the workspace header performs the save through the shared
+    # save rule, so the panel it acts on no longer carries the payload or the call.
+    assert "api.saveDraftContract(contractEditor.contractPayload)" in portfolio_workspace_source
+    assert "contractSaveStateForDraft.canSave" in portfolio_workspace_source
+    assert "saveDraftContract(contractPayload)" not in app_and_contracts
     assert "contractSaveMessage" in portfolio_workspace_source
     assert "contract-library-view" in app_and_contracts
     assert "contract-library-row" in app_and_contracts

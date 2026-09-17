@@ -1,4 +1,4 @@
-import type { ContractDraft as ContractDraftModel } from "@/components/ContractWorkbench";
+import type { ContractDraft as ContractDraftModel } from "./model/contractDraftModel";
 
 export type ContractDraft = ContractDraftModel;
 

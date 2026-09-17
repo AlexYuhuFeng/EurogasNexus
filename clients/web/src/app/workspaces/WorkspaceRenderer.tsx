@@ -6,7 +6,6 @@ import { primaryWorkspaceForPage } from "@/app/navigation/productNavigation";
 import { headerModeForPage } from "@/app/experience/workspacePatterns";
 import { WorkspaceTabs } from "@/components/ui";
 import type { WorkspacePageId } from "@/workspaceNavigation";
-import { ContractWorkbench } from "@/components/ContractWorkbench";
 import { GlossaryWiki } from "@/components/GlossaryWiki";
 import { ManualWorkspace } from "@/components/ManualWorkspace";
 import { MarketPositioningWorkspace } from "@/components/MarketPositioningWorkspace";

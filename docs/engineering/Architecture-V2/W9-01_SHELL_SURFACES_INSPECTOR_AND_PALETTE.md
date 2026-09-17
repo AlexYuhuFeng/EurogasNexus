@@ -162,9 +162,23 @@ workspace's single primary slot" lived only in prose and in its own unit test.
   workspace reaching for a shell utility (sign-out, language, theme). It reads sources, so it
   checks placement rather than behaviour - and says so in the file.
 
-The remaining surfaces still keep their primary actions inside panels; each needs its
-handler and blocked-state lifted to the component that owns the header, which is a
-per-surface change rather than a shared one.
+- **Second application (persist).** The Portfolio `resources` task now puts saving a reviewed
+  contract draft in that slot - the geography's `persist` consequence - instead of among the
+  panel's local controls. This one needed a shared rule first: the panel decided
+  `canSave`/`saveStatus` from its own `validationIssues`, and its read-only state came from
+  panel-local `taskView` state, so a header could only have guessed. The rule now lives in
+  `app/model/contractDraftModel.ts` as pure functions (`contractValidationIssueKeys`,
+  `contractViewFacts`, `contractSaveState`), the sub-view state is owned by the workspace that
+  hosts the action, and the panel receives `taskView`/`viewFacts`/`saveState` as props: it
+  renders the sub-views, the translated issue list and the save outcome, and no longer
+  evaluates the rule, holds the payload or renders a save control. The action's blocked state
+  and its explanation key therefore come from the same computation the panel reports.
+
+The remaining surfaces still keep their primary actions inside panels; each needs its handler
+and blocked-state lifted to the component that owns the header, which is a per-surface change
+rather than a shared one. The contract workbench is the first of those lifts: the rule was
+extracted to a model rather than copied into the header, because a second copy of "may this be
+written" is the failure mode the geography exists to prevent.
 
 ## 7. Fifth slice — the panel taxonomy's disclosure rule, applied and audited
 
@@ -201,7 +215,8 @@ Wave 9 in the roadmap is larger than its delivered slices. Still open:
   and the capacity point panel; the data, administration, glossary and runtime surfaces
   still show detail locally);
 - applying the action geography to every header (the contract and resolver exist;
-  `WorkspaceHeader` already owns the primary-action slot);
+  `WorkspaceHeader` already owns the primary-action slot, and two consequences are applied:
+  the Optimize task's run and the portfolio's contract save);
 - the remaining `system`-area views that are not URL-addressable.
 
 These are incremental, file-scoped migrations with their own evidence; none of them
@@ -224,6 +239,10 @@ requires a new contract.
   record shape, absent-is-not-zero, timestamp formatting, the page composition gate,
   explicit non-resolution for unknown refs and kinds, the market hand-over, and the
   panel/shell wiring that keeps the panel free of lookups and fetches.
+- `clients/web/tests/contractDraftModel.test.ts` — the contract draft rule as a rule: issue
+  keys and their order, the volume/price/cost/fuel-loss thresholds, read-only-library,
+  runtime-not-ready and read-in-flight blocking, the view facts' "known" resolution, and the
+  wiring that keeps the panel reporting while the header acts.
 - `clients/web/tests/experienceArchitecture.test.ts` — updated shell-region
   honesty check: every rendered region carries its marker and nothing remains
   `planned`.

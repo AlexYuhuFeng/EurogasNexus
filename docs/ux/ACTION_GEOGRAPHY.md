@@ -7,7 +7,7 @@
 | Scope | Location | Owner or status |
 | --- | --- | --- |
 | Global navigation, global context, data/source status | Structural shell rows | [`AppShell`](../../clients/web/src/app/shell/AppShell.tsx) and [`WorkspaceTopBar`](../../clients/web/src/components/WorkspaceTopBar.tsx) are the current source owners |
-| Workspace identity and primary action | Upper-right of the workspace header | Header action slot is proposed; a dedicated `WorkspaceHeader` primitive is absent from current exports |
+| Workspace identity and primary action | Upper-right of the workspace header | [`WorkspaceHeader`](../../clients/web/src/components/ui/WorkspaceHeader.tsx) owns the identity area and the primary-action slot; two consequences are placed in it today (the Optimize task's pool run and the Portfolio resources task's contract save) |
 | Local filters and view modes | Immediately above the surface they modify | Workspace-local state; never a second global context owner |
 | Task/workspace navigation | Local tab row | Existing [`WorkspaceTabs`](../../clients/web/src/components/ui/WorkspaceTabs.tsx) |
 | Row actions | In the affected row or its local action region | Surface-local implementation; do not move row actions into global chrome |
@@ -18,7 +18,9 @@
 
 Each workspace presents one identity area. Its primary action is in the upper-right, has one clear label, and acts on the current workspace scope. Secondary actions may sit beside it; lifecycle or destructive actions stay secondary or in a bounded overflow. The proposed header must not duplicate global context selectors.
 
-The current [`WorkspaceRenderer`](../../clients/web/src/app/workspaces/WorkspaceRenderer.tsx) owns page identity and local-tab placement, while [`PanelHeader`](../../clients/web/src/components/ui/PanelHeader.tsx) currently owns only title and metadata. Do not imply that `PanelHeader` already has an action slot; adding a shared header/action primitive is a separate proposal.
+The current [`WorkspaceRenderer`](../../clients/web/src/app/workspaces/WorkspaceRenderer.tsx) owns page identity and local-tab placement, while [`PanelHeader`](../../clients/web/src/components/ui/PanelHeader.tsx) currently owns only title and metadata. `PanelHeader` does not have an action slot, and adding one is a separate proposal; a workspace action belongs in the `WorkspaceHeader` primary-action slot instead.
+
+Placement is presentation, never authority: a header action is disabled by the same rule the panel it acts on reports, and every mutating call is re-authorised by the backend.
 
 ## Local filters and data actions
 
@@ -39,7 +41,7 @@ Form controls are bounded to `240–420px` when the field is not intrinsically f
 
 ## Primitive boundary
 
-Actual shared primitives and owners are recorded in [`WORKSPACE_LAYOUT_STANDARD.md`](WORKSPACE_LAYOUT_STANDARD.md): `WorkspaceTabs`, `PanelHeader`, `MetricStrip`, and `StatusBadge` are current shared exports with their existing scopes. `WorkspaceHeader`, `DataTable`, `FormSection`, `Toolbar`, state surfaces, evidence, split-workspace, context-rail, and menu/overlay primitives are proposed only because they are absent from the current shared exports. Their proposed geography must not be described as current implementation.
+Actual shared primitives and owners are recorded in [`WORKSPACE_LAYOUT_STANDARD.md`](WORKSPACE_LAYOUT_STANDARD.md): `WorkspaceTabs`, `WorkspaceHeader`, `PanelHeader`, `MetricStrip`, and `StatusBadge` are current shared exports with their existing scopes. `DataTable`, `FormSection`, `Toolbar`, state surfaces, evidence, split-workspace, context-rail, and menu/overlay primitives are proposed only because they are absent from the current shared exports. Their proposed geography must not be described as current implementation.
 
 ## References
 

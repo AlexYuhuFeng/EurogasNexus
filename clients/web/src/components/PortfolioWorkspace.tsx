@@ -1,10 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { PanelHeader, WorkspaceHeader } from "@/components/ui";
-import { ContractWorkbench } from "@/components/ContractWorkbench";
+import { ContractWorkbench, type ContractTaskView } from "@/components/ContractWorkbench";
 import { MarketPositioningWorkspace } from "@/components/MarketPositioningWorkspace";
 import { PortfolioContextStrip } from "@/components/PortfolioContextStrip";
 import type { AppController } from "@/app/hooks/useAppController";
 import { CommercialWarningList } from "@/components/CommercialWarningList";
+import {
+  contractSaveState,
+  contractViewFacts,
+} from "@/app/model/contractDraftModel";
 import {
   PORTFOLIO_TASKS,
   classifyRouteFeasibility,
@@ -154,10 +158,20 @@ export function PortfolioWorkspace({ controller }: { controller: AppController }
   const [task, setTask] = useState<PortfolioTask>(() =>
     portfolioTaskFromLocation(window.location.search),
   );
+  // The resource sub-view is one fact with one owner: this workspace decides it, the panel
+  // renders it, and the header's save action is derived from it. Keeping it here is what
+  // lets the action and the panel it acts on agree without either re-deriving the other.
+  const [contractView, setContractView] = useState<ContractTaskView>(() =>
+    selection.resourceId ? "library" : "terms",
+  );
 
   useEffect(() => {
     setTask(portfolioTaskFromLocation(window.location.search));
   }, [navigation.locationRevision]);
+
+  useEffect(() => {
+    if (selection.resourceId) setContractView("library");
+  }, [selection.resourceId]);
 
   function openTask(next: PortfolioTask) {
     setTask(next);
@@ -165,6 +179,36 @@ export function PortfolioWorkspace({ controller }: { controller: AppController }
   }
 
   const tabs = PORTFOLIO_TASKS.map((id) => ({ id, label: t(`portfolio.task.${id}`) }));
+
+  // Action geography (`app/experience/actionGeography.ts`): writing a reviewed contract
+  // draft is a `persist` consequence, so it occupies this workspace's single primary slot
+  // instead of sitting among the panel's local controls. The panel keeps reporting the
+  // validation verdict and the save outcome; the act that writes to PostgreSQL is here.
+  const contractViewFactsForSelection = contractViewFacts({
+    selectedResourceId: selection.resourceId,
+    readOnlyLibrary: contractView === "library",
+    resourceIds: portfolio.portfolioResources.map((resource) => resource.resource_id),
+    contractIds: api.upstreamContracts.map((item) => item.contract_id),
+  });
+  const contractSaveStateForDraft = contractSaveState({
+    contract: contractEditor.contract,
+    runtimeDbReady: portfolio.runtimeDbReady,
+    loading: api.loading,
+    viewFacts: contractViewFactsForSelection,
+  });
+  const primaryAction =
+    task === "resources" ? (
+      <button
+        type="button"
+        disabled={!contractSaveStateForDraft.canSave}
+        title={t(contractSaveStateForDraft.statusKey)}
+        onClick={() =>
+          contractSaveStateForDraft.canSave && api.saveDraftContract(contractEditor.contractPayload)
+        }
+      >
+        {t("contracts.action.save")}
+      </button>
+    ) : undefined;
 
   return (
     <div className="commercial-workspace">
@@ -177,6 +221,7 @@ export function PortfolioWorkspace({ controller }: { controller: AppController }
         panelId="portfolio-task-panel"
         tabLabel={t("nav.primary.portfolio")}
         tabsClassName="commercial-task-tabs"
+        primaryAction={primaryAction}
         onActivate={openTask}
       />
       <div id="portfolio-task-panel">
@@ -185,7 +230,6 @@ export function PortfolioWorkspace({ controller }: { controller: AppController }
         {task === "resources" && (
           <ContractWorkbench
             contract={contractEditor.contract}
-            contractPayload={contractEditor.contractPayload}
             upstreamContracts={api.upstreamContracts}
             portfolioResources={portfolio.portfolioResources}
             totalPoolVolume={portfolio.totalPoolVolume}
@@ -194,6 +238,10 @@ export function PortfolioWorkspace({ controller }: { controller: AppController }
             loading={api.loading}
             draftDirty={contractEditor.draftDirty}
             selectedResourceId={selection.resourceId}
+            taskView={contractView}
+            onTaskViewChange={setContractView}
+            viewFacts={contractViewFactsForSelection}
+            saveState={contractSaveStateForDraft}
             onOpenStrategyForResource={(resourceId) => {
               selection.setResourceId(resourceId);
               navigation.openWorkspace("strategy");
@@ -205,7 +253,6 @@ export function PortfolioWorkspace({ controller }: { controller: AppController }
             updateContractText={contractEditor.updateContractText}
             updateContractNumber={contractEditor.updateContractNumber}
             updateContractList={contractEditor.updateContractList}
-            saveDraftContract={api.saveDraftContract}
             resetContractDraft={contractEditor.resetContractDraft}
             importContractDraftFile={contractEditor.importContractDraftFile}
             loadPersistedContract={contractEditor.loadPersistedContract}

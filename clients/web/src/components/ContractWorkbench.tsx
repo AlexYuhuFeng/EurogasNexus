@@ -1,7 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import type { ChangeEvent, RefObject } from "react";
-import type { PortfolioResourceDTO, UpstreamContractDTO, UpstreamContractInputDTO } from "@/api/client";
+import type { PortfolioResourceDTO, UpstreamContractDTO } from "@/api/client";
 import { inspectorSubjectFor } from "@/app/model/inspectorDetail";
+import {
+  contractValidationIssueKeys,
+  type ContractDraft,
+  type ContractSaveState,
+  type ContractViewFacts,
+} from "@/app/model/contractDraftModel";
 import { useInspectorStore } from "@/stores/inspector";
 import {
   notesRecordFromRecord,
@@ -48,51 +54,19 @@ export type ContractTextKey =
 
 export type ContractListKey = "allowed_exit_points" | "eligible_sale_modes";
 
-export interface ContractDraft {
-  contract_id: string;
-  contract_name: string;
-  resource_type: string;
-  counterparty: string;
-  contract_type: string;
-  delivery_point_name: string;
-  gas_year: string;
-  delivery_quantity_mwh_per_day: number;
-  contract_price_gbp_mwh: number;
-  nbp_sale_price_gbp_mwh: number;
-  physical_exit_sale_price_gbp_mwh: number;
-  physical_exit_point_name: string;
-  title_transfer_point: string;
-  beach_delivery_point: string;
-  index_basis: string;
-  terminal_access: string;
-  capacity_expiry: string;
-  document_name: string;
-  document_status: string;
-  source_reference: string;
-  governing_law: string;
-  delivery_tolerance_pct: number;
-  nomination_tolerance_pct: number;
-  tolerance_risk_allowance_gbp_mwh: number;
-  variable_cost_gbp_mwh: number;
-  regas_fee_gbp_mwh: number;
-  fuel_loss_allowance_pct: number;
-  settlement_frequency: string;
-  upstream_payment_lag_days: number;
-  screen_sale_cash_lag_days: number;
-  annual_financing_rate_pct: number;
-  owned_entry_capacity_mwh_per_day: number | null;
-  owned_exit_capacity_mwh_per_day: number | null;
-  allowed_exit_points: string[];
-  eligible_sale_modes: string[];
-}
+/**
+ * Re-exported for existing callers. The draft shape is owned by
+ * `app/model/contractDraftModel.ts` so that the save rule and the form cannot drift apart.
+ */
+export type { ContractDraft };
 
 type Translate = (key: string) => string;
-type TaskView = "source" | "terms" | "impact" | "library";
+/** The resource-contract sub-views. Owned by the workspace, which also hosts the save action. */
+export type ContractTaskView = "source" | "terms" | "impact" | "library";
 type ClauseView = "agreement" | "product" | "delivery" | "quantity" | "costs" | "capacity" | "settlement" | "restrictions";
 
 interface ContractWorkbenchProps {
   contract: ContractDraft;
-  contractPayload: UpstreamContractInputDTO;
   upstreamContracts: UpstreamContractDTO[];
   portfolioResources: PortfolioResourceDTO[];
   totalPoolVolume: number;
@@ -101,6 +75,17 @@ interface ContractWorkbenchProps {
   loading: boolean;
   draftDirty: boolean;
   selectedResourceId: string | null;
+  /**
+   * Action geography (`app/experience/actionGeography.ts`): writing a reviewed draft is a
+   * `persist` consequence, so the save action lives in the workspace's single primary slot
+   * and this panel only reports it. The sub-view and the readiness facts therefore arrive as
+   * props instead of being re-derived here, so the header's action and this report cannot
+   * disagree about whether the draft may be written.
+   */
+  taskView: ContractTaskView;
+  onTaskViewChange: (view: ContractTaskView) => void;
+  viewFacts: ContractViewFacts;
+  saveState: ContractSaveState;
   onOpenStrategyForResource: (resourceId: string) => void;
   contractImportRef: RefObject<HTMLInputElement | null>;
   contractImportMessage: string | null;
@@ -109,7 +94,6 @@ interface ContractWorkbenchProps {
   updateContractText: (key: ContractTextKey, value: string) => void;
   updateContractNumber: (key: ContractNumberKey, value: string) => void;
   updateContractList: (key: ContractListKey, value: string) => void;
-  saveDraftContract: (contract: UpstreamContractInputDTO) => void;
   resetContractDraft: () => void;
   importContractDraftFile: (event: ChangeEvent<HTMLInputElement>) => void;
   loadPersistedContract: (saved: UpstreamContractDTO) => void;
@@ -137,16 +121,16 @@ function formatTimestamp(value: string | undefined): string {
 }
 
 export function ContractWorkbench({
-  contract, contractPayload, upstreamContracts, portfolioResources, totalPoolVolume,
+  contract, upstreamContracts, portfolioResources, totalPoolVolume,
   firstPoolAllocation, runtimeDbReady, loading, draftDirty, selectedResourceId,
+  taskView, onTaskViewChange, viewFacts, saveState,
   onOpenStrategyForResource, contractImportRef, contractImportMessage,
   contractSaveMessage, t, updateContractText, updateContractNumber, updateContractList,
-  saveDraftContract, resetContractDraft, importContractDraftFile, loadPersistedContract,
+  resetContractDraft, importContractDraftFile, loadPersistedContract,
 }: ContractWorkbenchProps) {
   // Wave 9: object detail goes to the canonical Inspector instead of growing a third
   // detail pane inside this workbench. The selection stays local; only the detail moves.
   const inspector = useInspectorStore();
-  const [taskView, setTaskView] = useState<TaskView>(() => selectedResourceId ? "library" : "terms");
   const [clauseView, setClauseView] = useState<ClauseView>("agreement");
   const persistedTerm = upstreamContracts.find((item) => item.contract_id === contract.contract_id);
   const selectedResource = selectedResourceId
@@ -156,7 +140,7 @@ export function ContractWorkbench({
     ? upstreamContracts.find((item) => item.contract_id === selectedResourceId) ?? null
     : null;
   const persistedResource = portfolioResources.find((item) => item.resource_id === contract.contract_id);
-  const readOnlyLibrary = taskView === "library";
+  const { readOnlySelectedResource, knownSelectedResource } = viewFacts;
   const selectedPersistedSourceReference = selectedPersistedTerm
     ? sourceReferenceFromRecord(selectedPersistedTerm as unknown as Record<string, unknown>)
     : "";
@@ -171,37 +155,16 @@ export function ContractWorkbench({
       )
     : "n/a";
   const stagedStatus = contract.document_status || "MANUAL_DRAFT";
-  const readOnlySelectedResource = readOnlyLibrary && Boolean(selectedResourceId);
-  const knownSelectedResource = Boolean(selectedResource || selectedPersistedTerm);
   const selectedReadOnlyName = selectedResource?.resource_name ?? selectedPersistedTerm?.contract_name ?? selectedResourceId;
 
-  useEffect(() => {
-    if (selectedResourceId) setTaskView("library");
-  }, [selectedResourceId]);
+  const validationIssues = useMemo(
+    () => contractValidationIssueKeys(contract).map((key) => t(key)),
+    [contract, t],
+  );
 
-  const validationIssues = useMemo(() => {
-    const issues: string[] = [];
-    if (!contract.contract_id.trim()) issues.push(t("contracts.validation.contract_id"));
-    if (!contract.contract_name.trim()) issues.push(t("contracts.validation.contract_name"));
-    if (!contract.counterparty.trim()) issues.push(t("contracts.validation.counterparty"));
-    if (!contract.delivery_point_name.trim()) issues.push(t("contracts.validation.delivery_point"));
-    if (!contract.gas_year.trim()) issues.push(t("contracts.validation.gas_year"));
-    if (contract.delivery_quantity_mwh_per_day <= 0) issues.push(t("contracts.validation.volume"));
-    if (contract.contract_price_gbp_mwh < 0) issues.push(t("contracts.validation.price"));
-    if (contract.variable_cost_gbp_mwh < 0 || contract.regas_fee_gbp_mwh < 0) issues.push(t("contracts.validation.costs"));
-    if (contract.fuel_loss_allowance_pct < 0 || contract.fuel_loss_allowance_pct >= 100) issues.push(t("contracts.validation.fuel_loss"));
-    return issues;
-  }, [contract, t]);
-
-  const canSave = !readOnlyLibrary && runtimeDbReady && !loading && validationIssues.length === 0;
-  const saveStatus = readOnlyLibrary
-    ? readOnlySelectedResource ? knownSelectedResource ? t("contracts.persisted") : t("status.unknown") : t("contracts.library")
-    : !runtimeDbReady
-    ? t("home.blocker_runtime_db")
-    : validationIssues.length > 0
-      ? t("contracts.validation.blocked")
-      : t("contracts.validation.ready");
-  const taskTabs: Array<[TaskView, string]> = [
+  // Reported, not decided: the save rule is evaluated where the action lives.
+  const saveStatus = t(saveState.statusKey);
+  const taskTabs: Array<[ContractTaskView, string]> = [
     ["source", t("contracts.view.source")], ["terms", t("contracts.view.terms")],
     ["impact", t("contracts.view.impact")], ["library", t("contracts.view.library")],
   ];
@@ -215,7 +178,7 @@ export function ContractWorkbench({
   function loadTerm(saved: UpstreamContractDTO) {
     if (draftDirty && !window.confirm(t("contracts.edit_confirm"))) return;
     loadPersistedContract(saved);
-    setTaskView("terms");
+    onTaskViewChange("terms");
     setClauseView("agreement");
   }
 
@@ -237,14 +200,13 @@ export function ContractWorkbench({
         <div className="contract-command-actions" tabIndex={0}>
           <button type="button" className="secondary-button" onClick={() => contractImportRef.current?.click()}>{t("contracts.action.import")}</button>
           <button type="button" className="secondary-button" onClick={resetContractDraft}>{t("contracts.action.new")}</button>
-          <button type="button" disabled={!canSave} title={saveStatus} onClick={() => canSave && saveDraftContract(contractPayload)}>{t("contracts.action.save")}</button>
           <input ref={contractImportRef} className="contract-import-input" type="file" accept=".json,.txt,application/json,text/plain" hidden onChange={importContractDraftFile} />
         </div>
       </section>
 
       <div className="contract-feedback" role="status" aria-live="polite"><strong>{saveStatus}</strong><span>{contractSaveMessage ?? contractImportMessage ?? t("contracts.save_hint")}</span></div>
       <nav className="contract-task-tabs" aria-label={t("contracts.workspace_views")}>
-        {taskTabs.map(([key, label]) => <button key={key} type="button" className={taskView === key ? "active" : ""} onClick={() => setTaskView(key)}>{label}</button>)}
+        {taskTabs.map(([key, label]) => <button key={key} type="button" className={taskView === key ? "active" : ""} onClick={() => onTaskViewChange(key)}>{label}</button>)}
       </nav>
 
       {taskView === "source" && (
