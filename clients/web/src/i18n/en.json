@@ -1372,6 +1372,7 @@
   "agents.run_research": "Run research",
   "agents.result": "Result",
   "agents.run_id": "Run",
+  "agents.run_as_of": "Recorded {value}",
   "agents.status": "Status",
   "agents.blockers": "Blockers",
   "agents.issue.data_missing": "Required data is missing",

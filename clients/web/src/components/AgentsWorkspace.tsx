@@ -347,6 +347,13 @@ export function AgentsWorkspace({ t, principalId = null }: AgentsWorkspaceProps)
                     value: String(selectedRun.evidence_dependencies.length),
                   },
                 ]}
+                // A replay's headline numbers are evidence only with the instant they were
+                // taken: the run's own creation time is reported under the strip.
+                asOf={
+                  selectedRun.created_at
+                    ? `${t("agents.run_as_of")} ${formatAgentTimestamp(selectedRun.created_at)}`
+                    : undefined
+                }
               />
               <div className="agents-fact-grid">
                 <div className="agents-fact">
