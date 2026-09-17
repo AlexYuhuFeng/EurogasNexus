@@ -63,11 +63,14 @@ export const shellRegions: readonly ShellRegionContract[] = [
   },
   {
     region: "inspector",
-    implementation: "planned",
-    owners: ["clients/web/src/app/experience/inspectorContract.ts"],
+    implementation: "present",
+    owners: [
+      "clients/web/src/components/InspectorPanel.tsx",
+      "clients/web/src/stores/inspector.ts",
+    ],
     purpose:
-      "Canonical object detail (route, contract, capacity, observation, strategy version, evidence) instead of a new top-level page per object kind.",
-    markupMarker: null,
+      "Canonical object detail (route, contract, capacity, observation, strategy version, evidence) instead of a new top-level page per object kind. Docked as a right-hand drawer in Wave 9; dockable/detachable panels are Wave 10 work.",
+    markupMarker: "inspector",
   },
   {
     region: "activity",

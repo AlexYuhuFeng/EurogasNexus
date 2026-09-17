@@ -105,7 +105,8 @@ test("the shell hides the administrative primary and refuses its deep links", ()
 
   // A deep link into a control-plane page cannot mount the workspace.
   assert.match(shell, /isControlPlanePage\(navigation\.activeWorkspace\)/);
-  assert.match(shell, /compositionSeesAdministration\(compositionFromProfile\(api\.currentUser\?\.experience\)\)/);
+  assert.match(shell, /const composition = compositionFromProfile\(api\.currentUser\?\.experience\);/);
+  assert.match(shell, /!compositionSeesAdministration\(composition\)/);
   assert.match(shell, /controlPlaneRestricted \? \(\s*<RestrictedSurface t=\{t\} \/>/);
 
   // The restricted notice is presentation only: no control, no data, one h1.

@@ -136,3 +136,9 @@ Wave 3 (control plane separation):
 - [W3-01 control plane separation](W3-01_CONTROL_PLANE_SEPARATION.md) — the
   capability-gated Administration surface, the restricted control-plane notice and
   the preserved deep links.
+
+Wave 9 (UI implementation convergence):
+
+- [W9-01 shell surfaces](W9-01_SHELL_SURFACES_INSPECTOR_AND_PALETTE.md) — the
+  canonical Inspector region and the mounted command palette, with the remaining
+  page migrations named explicitly.

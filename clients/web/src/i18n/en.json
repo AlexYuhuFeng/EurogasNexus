@@ -1734,5 +1734,20 @@
   "restricted.eyebrow": "Restricted",
   "restricted.title": "Administration is not available to this identity",
   "restricted.body": "Administration covers access control, provider connections and runtime operations. This identity can read source and runtime status from the business workspace, but it holds no administration capability.",
-  "restricted.note": "Presentation only: the backend refuses the same requests independently."
+  "restricted.note": "Presentation only: the backend refuses the same requests independently.",
+  "experience.inspect.route": "Route",
+  "experience.inspect.resource": "Resource",
+  "experience.inspect.strategy-version": "Strategy version",
+  "experience.inspect.strategy-run": "Strategy run",
+  "experience.inspector.back": "Back",
+  "experience.inspector.close": "Close detail",
+  "experience.inspector.ref": "Reference",
+  "experience.inspector.origin": "Selected on",
+  "experience.inspector.note": "Detail view of the current selection. Values, provenance and restrictions stay with the surface that produced them.",
+  "experience.palette.group.navigate": "Go to",
+  "experience.palette.group.inspect": "Inspect",
+  "experience.palette.group.ai": "AI",
+  "experience.palette.group.utility": "Session",
+  "experience.palette.unavailable_capability": "Not available for this identity",
+  "experience.palette.unavailable_context": "Select an object in the workspace first"
 }

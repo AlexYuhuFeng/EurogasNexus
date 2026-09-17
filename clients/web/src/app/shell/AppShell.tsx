@@ -1,8 +1,11 @@
 import { NetworkWorkspace } from "@/components/NetworkWorkspace";
+import { CommandPalette } from "@/components/CommandPalette";
+import { InspectorPanel } from "@/components/InspectorPanel";
 import { RestrictedSurface } from "@/components/RestrictedSurface";
 import { SignInScreen } from "@/components/SignInScreen";
 import { WorkspaceTopBar } from "@/components/WorkspaceTopBar";
 import type { AppController } from "@/app/hooks/useAppController";
+import { useCommandPalette } from "@/app/hooks/useCommandPalette";
 import {
   describeEndpointFailures,
   describeEndpointRetry,
@@ -11,7 +14,10 @@ import {
   compositionFromProfile,
   compositionSeesAdministration,
 } from "@/app/experience/experienceProfile";
+import type { PaletteCommand } from "@/app/experience/commandPalette";
+import { paletteUnavailableReasonKey } from "@/app/experience/commandPalette";
 import { isControlPlanePage } from "@/app/navigation/productNavigation";
+import { useInspectorStore } from "@/stores/inspector";
 import { WorkspaceRenderer } from "@/app/workspaces/WorkspaceRenderer";
 import { isBlockingCompatibility } from "@/app/releaseCompatibility";
 import { changeAppLanguage } from "@/i18n";
@@ -103,9 +109,41 @@ export function AppShell({ controller }: AppShellProps) {
   // administration surface is refused for an identity without an administration
   // capability, instead of mounting a surface whose requests the backend will
   // reject. Navigation is not a security boundary; this is honest presentation.
+  const composition = compositionFromProfile(api.currentUser?.experience);
   const controlPlaneRestricted =
     isControlPlanePage(navigation.activeWorkspace) &&
-    !compositionSeesAdministration(compositionFromProfile(api.currentUser?.experience));
+    !compositionSeesAdministration(composition);
+
+  // Wave 9 shell surfaces: the canonical Inspector (object detail in one place)
+  // and the command palette (one keyboard entry point to the derived command set).
+  const inspector = useInspectorStore();
+  const palette = useCommandPalette({
+    activeWorkspace: navigation.activeWorkspace,
+    context: {
+      routeId: selection.routeId,
+      resourceId: selection.resourceId,
+      strategyVersionId: selection.strategyVersionId,
+      strategyRunId: selection.strategyRunId,
+    },
+    capabilities: composition.effectiveCapabilities,
+    activeContextComplete: Boolean(composition.available),
+    labels: (command: PaletteCommand) => t(command.labelKey),
+    onNavigate: (command: PaletteCommand) => {
+      const page = command.target.page;
+      if (page) navigation.openWorkspace(page);
+    },
+    onInspect: (kind, ref) =>
+      inspector.open({
+        kind,
+        ref,
+        label: ref,
+        originPage: navigation.activeWorkspace,
+      }),
+    onUtility: (utility) => {
+      if (utility === "access-identity") navigation.openWorkspace("access");
+      else void api.signOut();
+    },
+  });
 
   return (
     <div className={`app cockpit-app workspace-${navigation.activeWorkspace}`}>
@@ -245,6 +283,37 @@ export function AppShell({ controller }: AppShellProps) {
           <WorkspaceRenderer controller={controller} />
         )}
       </main>
+
+      {inspector.subject && (
+        <InspectorPanel
+          subject={inspector.subject}
+          canGoBack={inspector.history.length > 0}
+          t={t}
+          onClose={inspector.close}
+          onBack={inspector.back}
+        />
+      )}
+
+      <CommandPalette
+        open={palette.open}
+        query={palette.query}
+        results={palette.results}
+        activeIndex={palette.activeIndex}
+        unavailable={palette.unavailable}
+        labelFor={(command) => t(command.labelKey)}
+        reasonFor={(command) =>
+          paletteUnavailableReasonKey(command, {
+            capabilities: composition.effectiveCapabilities,
+            activeContextComplete: Boolean(composition.available),
+          })
+        }
+        t={t}
+        onQueryChange={palette.setQuery}
+        onMove={palette.move}
+        onRunActive={palette.runActive}
+        onRun={palette.run}
+        onClose={() => palette.setOpen(false)}
+      />
     </div>
   );
 }

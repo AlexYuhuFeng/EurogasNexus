@@ -55,6 +55,7 @@ import {
   requiredDisclosures,
   requiresDeliberateStep,
   shellRegionContract,
+  shellRegionCoverage,
   shellRegions,
   taskPatternFor,
   taskPatterns,
@@ -148,7 +149,8 @@ test("every declared shell region has a contract and the markup tells the truth"
   const shell = readWebSource("app/shell/AppShell.tsx");
   const topBar = readWebSource("components/WorkspaceTopBar.tsx");
   const renderer = readWebSource("app/workspaces/WorkspaceRenderer.tsx");
-  const combined = shell + topBar + renderer;
+  const inspector = readWebSource("components/InspectorPanel.tsx");
+  const combined = shell + topBar + renderer + inspector;
 
   // A "present" region must actually be marked in the rendered shell; a "planned"
   // one must not pretend to be.
@@ -161,8 +163,9 @@ test("every declared shell region has a contract and the markup tells the truth"
       `${region} declares markup marker '${marker}' that no shell component renders`,
     );
   }
-  assert.deepEqual(plannedShellRegions(), ["inspector"]);
-  assert.equal(combined.includes('data-shell-region="inspector"'), false);
+  // Every declared region is now rendered: nothing is left in the planned state.
+  assert.deepEqual(plannedShellRegions(), []);
+  assert.deepEqual(shellRegionCoverage().partial, ["activity"]);
 });
 
 test("the workspace-pattern registry covers every page exactly once and owns one primary", () => {

@@ -95,6 +95,7 @@ Architecture V2 is the binding target architecture and product-experience intera
   [canonical experience specifications](engineering/Architecture-V2/W1-05_CANONICAL_EXPERIENCE_SPECS.md).
 - Wave 2 contracts: [effective access and the ExperienceProfile](engineering/Architecture-V2/W2-01_EFFECTIVE_ACCESS_AND_EXPERIENCE_PROFILE.md).
 - Wave 3 contracts: [control plane separation](engineering/Architecture-V2/W3-01_CONTROL_PLANE_SEPARATION.md).
+- Wave 9 contracts: [shell surfaces: Inspector and command palette](engineering/Architecture-V2/W9-01_SHELL_SURFACES_INSPECTOR_AND_PALETTE.md).
 
 ### Research data foundation
 

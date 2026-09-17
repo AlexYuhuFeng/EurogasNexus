@@ -1734,5 +1734,20 @@
   "restricted.eyebrow": "访问受限",
   "restricted.title": "当前身份无法访问管理功能",
   "restricted.body": "管理功能涵盖访问控制、供应商连接与运行运维。当前身份可在业务工作区查看数据源与运行状态，但不具备管理能力。",
-  "restricted.note": "此提示仅用于呈现：后端同样会独立拒绝相应请求。"
+  "restricted.note": "此提示仅用于呈现：后端同样会独立拒绝相应请求。",
+  "experience.inspect.route": "路线",
+  "experience.inspect.resource": "资源",
+  "experience.inspect.strategy-version": "策略版本",
+  "experience.inspect.strategy-run": "策略运行",
+  "experience.inspector.back": "返回",
+  "experience.inspector.close": "关闭明细",
+  "experience.inspector.ref": "标识",
+  "experience.inspector.origin": "选择位置",
+  "experience.inspector.note": "当前所选对象的明细视图。数值、来源与限制仍由产生它的界面负责展示。",
+  "experience.palette.group.navigate": "前往",
+  "experience.palette.group.inspect": "查看",
+  "experience.palette.group.ai": "AI",
+  "experience.palette.group.utility": "会话",
+  "experience.palette.unavailable_capability": "当前身份无权使用",
+  "experience.palette.unavailable_context": "请先在工作区中选择对象"
 }

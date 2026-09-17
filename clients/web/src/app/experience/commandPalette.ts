@@ -23,11 +23,15 @@ import {
   type PrimaryWorkspaceId,
 } from "../navigation/productNavigation.ts";
 import { workspacePageIds, type WorkspacePageId } from "../../workspaceNavigation.ts";
-import { actionPlacement, type ActionConsequence } from "./actionGeography.ts";
+import { actionPlacement, detailPlacement, type ActionConsequence } from "./actionGeography.ts";
 import { aiActions } from "./aiActions.ts";
-import type { ActionPlacement, AiActionKind } from "./vocabulary.ts";
+import type {
+  ActionPlacement,
+  AiActionKind,
+  InspectorSubjectKind,
+} from "./vocabulary.ts";
 
-export type PaletteCommandGroup = "navigate" | "ai" | "utility";
+export type PaletteCommandGroup = "navigate" | "inspect" | "ai" | "utility";
 
 export interface PaletteCommand {
   readonly id: string;
@@ -40,6 +44,7 @@ export interface PaletteCommand {
     readonly page?: WorkspacePageId;
     readonly primary?: PrimaryWorkspaceId;
     readonly aiAction?: AiActionKind;
+    readonly inspector?: InspectorSubjectKind;
     readonly utility?: "access-identity" | "sign-out";
   };
 }
@@ -104,6 +109,87 @@ export function utilityCommands(): PaletteCommand[] {
 
 export function buildPaletteCommands(): PaletteCommand[] {
   return [...navigationCommands(), ...aiCommands(), ...utilityCommands()];
+}
+
+/**
+ * Inspector commands for the objects the Active Context currently holds. Object
+ * detail belongs in the canonical Inspector (V2 04 section 6), so the palette is
+ * the one entry point that does not require redesigning a surface first.
+ */
+export function inspectionCommands(
+  context: {
+    routeId?: string | null;
+    resourceId?: string | null;
+    strategyVersionId?: string | null;
+    strategyRunId?: string | null;
+  },
+  originPage: WorkspacePageId,
+): PaletteCommand[] {
+  const candidates: Array<[InspectorSubjectKind, string | null | undefined]> = [
+    ["route", context.routeId],
+    ["resource", context.resourceId],
+    ["strategy-version", context.strategyVersionId],
+    ["strategy-run", context.strategyRunId],
+  ];
+  return candidates
+    .filter(([, ref]) => Boolean(ref))
+    .map(([kind]) => ({
+      id: `inspect.${kind}`,
+      group: "inspect" as const,
+      labelKey: `experience.inspect.${kind}`,
+      consequence: "read" as const,
+      placement: detailPlacement(),
+      target: { inspector: kind, page: originPage },
+    }));
+}
+
+/** What the client knows when deciding whether a command may be offered. */
+export interface PaletteAvailability {
+  /** Capability names from the ExperienceProfile composition. */
+  readonly capabilities: readonly string[];
+  /** Whether the Active Context carries the identifiers a command needs. */
+  readonly activeContextComplete: boolean;
+}
+
+const AI_ACTION_CAPABILITY: Readonly<Record<AiActionKind, string>> = {
+  ask: "research.query",
+  explain: "research.query",
+  compare: "research.query",
+  challenge: "research.query",
+  draft: "strategy.design",
+};
+
+/**
+ * Whether a command may be offered. Unavailability is shown, never hidden
+ * silently: the palette explains what is missing. This is presentation - the
+ * backend still authorises the corresponding request.
+ */
+export function paletteCommandAvailable(
+  command: PaletteCommand,
+  availability: PaletteAvailability,
+): boolean {
+  if (command.target.aiAction) {
+    const capability = AI_ACTION_CAPABILITY[command.target.aiAction];
+    return availability.capabilities.includes(capability) && availability.activeContextComplete;
+  }
+  if (command.target.utility === "access-identity") {
+    return availability.capabilities.includes("access.manage");
+  }
+  return true;
+}
+
+/** Reason key explaining why a command is unavailable (empty when it is available). */
+export function paletteUnavailableReasonKey(
+  command: PaletteCommand,
+  availability: PaletteAvailability,
+): string | null {
+  if (paletteCommandAvailable(command, availability)) return null;
+  if (command.target.aiAction) {
+    return availability.capabilities.includes(AI_ACTION_CAPABILITY[command.target.aiAction])
+      ? "experience.palette.unavailable_context"
+      : "experience.palette.unavailable_capability";
+  }
+  return "experience.palette.unavailable_capability";
 }
 
 export const DEFAULT_PALETTE_LIMIT = 8;
