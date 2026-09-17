@@ -30,7 +30,11 @@ def test_web_and_runtime_surface_monitoring_without_client_db_access() -> None:
     )
 
     assert "/monitoring/alerts" in client
-    assert "Ask DeepSeek" in topbar
+    # The alert surface still offers the live AI interaction, now as the canonical `ask`
+    # action (Architecture V2 Wave 7 convergence) rather than a provider-branded button,
+    # and it still runs it through the API client: no database access in the Web client.
+    assert 't("experience.ai.ask")' in topbar
+    assert "onAnalyze" in topbar
     assert "monitoring-worker:" in compose
     assert "RUNTIME_STORE_DATABASE_URL" not in topbar
     assert "sqlalchemy" not in topbar.lower()
