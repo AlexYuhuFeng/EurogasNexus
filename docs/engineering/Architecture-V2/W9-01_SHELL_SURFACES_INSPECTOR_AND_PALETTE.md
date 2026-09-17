@@ -112,6 +112,13 @@ detail panes. The second slice makes the Inspector worth handing a subject to.
   A resolver's artifact has its own shape, so its flat fields are presented under their
   own names - `InspectorFact` therefore carries an optional raw `label` beside its
   translation key, because inventing product copy for data keys would misdescribe them.
+- The capacity point panel is the sixth: it keeps its aggregate analysis (utilisation,
+  booking, headroom, access products and tariffs) and hands the point's own observation
+  record over, only when the runtime actually served one. The resolver needed a small
+  extension here - a capacity observation and a market observation are both keyed by
+  `observation_id`, so the record's field map follows the subject kind where it must
+  (`FIELDS_BY_KIND`), and a test pins that a capacity record never renders with
+  market-observation labels.
 
 ## 5. What this slice does not claim
 
@@ -119,9 +126,10 @@ Wave 9 in the roadmap is larger than its delivered slices. Still open:
 
 - migrating each workspace's panels onto the panel taxonomy, and replacing the
   per-surface rails, drawers and master-detail panes with the Inspector as the
-  default detail pattern (four surfaces now hand subjects over: the market cockpit, the
-  contract workbench, the network map and the strategy backtest; the review, capacity,
-  data and administration surfaces still show detail locally);
+  default detail pattern (six surfaces now hand subjects over: the market cockpit, the
+  contract workbench, the network map, the strategy backtest, the review decision history
+  and the capacity point panel; the data, administration, glossary and runtime surfaces
+  still show detail locally);
 - applying the action geography to every header (the contract and resolver exist;
   `WorkspaceHeader` already owns the primary-action slot);
 - the remaining `system`-area views that are not URL-addressable.
