@@ -319,8 +319,13 @@ def test_web_client_matches_design_reference_cockpit() -> None:
     assert "topbar-menu-glyph" not in app_and_topbar
     assert "workspace-page" in app
     assert "workspace-page-tabs" in app
-    assert 'navigation.activeWorkspace === "network" ? (' in app
-    assert "<WorkspaceRenderer controller={controller} />" in app
+    # The shell composes every page through the workspace renderer and intercepts none of
+    # them (conflicting register C9). The task resolver keeps naming the network page - it
+    # is the composition that decides what a page shows, not the shell.
+    shell_source = (WEB_SRC / "app" / "shell" / "AppShell.tsx").read_text(encoding="utf-8")
+    assert "<WorkspaceRenderer controller={controller} />" in shell_source
+    assert 'activeWorkspace === "network"' not in shell_source
+    assert 'activeWorkspace === "network"' in app
     market_cockpit_for_contract = (
         ROOT / "clients" / "web" / "src" / "components" / "MarketCockpit.tsx"
     ).read_text(encoding="utf-8")
@@ -881,6 +886,11 @@ def test_web_client_settings_page_is_trader_preference_center() -> None:
 
 def test_web_client_network_page_shows_complete_resource_pool_path_ladder() -> None:
     app = _read_application_source()
+    # The network surface is composed by the market primary, so the path ladder is wired
+    # where the composition lives rather than in the shell (conflicting register C9).
+    market_cockpit = (
+        ROOT / "clients" / "web" / "src" / "components" / "MarketCockpit.tsx"
+    ).read_text(encoding="utf-8")
     network_workspace = (
         ROOT / "clients" / "web" / "src" / "components" / "NetworkWorkspace.tsx"
     ).read_text(encoding="utf-8")
@@ -902,10 +912,11 @@ def test_web_client_network_page_shows_complete_resource_pool_path_ladder() -> N
     web_spec = (ROOT / "docs" / "clients" / "WEB_CLIENT_DESIGN_SPEC.md").read_text(encoding="utf-8")
 
     assert "ResourcePoolPathOverlay," in network_workspace
+    # The builder lives in the portfolio model, the wiring in the composing surface.
     assert "buildResourcePoolMapPaths" in app
     assert "<ResourcePoolPathOverlay" in network_workspace
-    assert "resourcePoolMapPaths" in app
-    assert "highlightedRoute={portfolio.highlightedRoute}" in app
+    assert "resourcePoolMapPaths" in market_cockpit
+    assert "highlightedRoute={portfolio.highlightedRoute}" in market_cockpit
     assert "highlightedRoute={highlightedRoute}" in network_workspace
     assert "resource-pool-map-overlay" in overlay
     assert "resource-path-geometry-notice" in overlay

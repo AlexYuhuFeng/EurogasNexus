@@ -72,6 +72,11 @@ test("portfolio tasks are overview resources routes exposure", () => {
 test("portfolio and decision task deep links preserve context", () => {
   assert.equal(portfolioTaskFromLocation("?task=routes"), "routes");
   assert.equal(portfolioTaskFromLocation("?task=unknown"), "overview");
+  // Conflicting register C10: the legacy `orders` page id names the market-positioning
+  // view, so a bare deep link to it opens that view instead of the overview.
+  assert.equal(portfolioTaskFromLocation("?workspace=orders"), "exposure");
+  assert.equal(portfolioTaskFromLocation("?workspace=orders&task=routes"), "routes");
+  assert.equal(portfolioTaskFromLocation("?workspace=contracts"), "overview");
   assert.equal(decisionTaskFromLocation("?task=review"), "review");
   assert.equal(decisionTaskFromLocation("?task=unknown"), "scenario");
   assert.equal(decisionTaskFromLocation("?workspace=review"), "review");

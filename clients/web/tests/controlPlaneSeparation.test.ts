@@ -107,7 +107,13 @@ test("the shell hides the administrative primary and refuses its deep links", ()
   assert.match(shell, /isControlPlanePage\(navigation\.activeWorkspace\)/);
   assert.match(shell, /const composition = compositionFromProfile\(api\.currentUser\?\.experience\);/);
   assert.match(shell, /!compositionSeesAdministration\(composition\)/);
-  assert.match(shell, /controlPlaneRestricted \? \(\s*<RestrictedSurface t=\{t\} \/>/);
+  // ...and the refusal is the only branch the shell keeps: every page it does not refuse
+  // composes through the workspace renderer (conflicting register C9).
+  assert.match(
+    shell,
+    /controlPlaneRestricted \? <RestrictedSurface t=\{t\} \/> : <WorkspaceRenderer controller=\{controller\} \/>/,
+  );
+  assert.equal(shell.includes("activeWorkspace === "), false);
 
   // The restricted notice is presentation only: no control, no data, one h1.
   assert.equal(restricted.includes("<button"), false);

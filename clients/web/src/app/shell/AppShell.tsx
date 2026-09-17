@@ -1,4 +1,3 @@
-import { NetworkWorkspace } from "@/components/NetworkWorkspace";
 import { CommandPalette } from "@/components/CommandPalette";
 import { InspectorPanel } from "@/components/InspectorPanel";
 import { RestrictedSurface } from "@/components/RestrictedSurface";
@@ -221,68 +220,12 @@ export function AppShell({ controller }: AppShellProps) {
       )}
 
       <main className="app-main" id="workspace-primary-content" data-shell-region="primary-workspace">
-        {controlPlaneRestricted ? (
-          <RestrictedSurface t={t} />
-        ) : navigation.activeWorkspace === "network" ? (
-          <>
-            <h1 className="network-main-title">{t("nav.network")}</h1>
-            <NetworkWorkspace
-            t={t}
-            nodes={api.nodes}
-            edges={api.edges}
-            routes={api.routes}
-            mode={theme.mode}
-            activeLayers={controls.activeLayers}
-            searchTerm={controls.searchTerm}
-            highlightedRoute={portfolio.highlightedRoute}
-            resourcePoolMapPaths={portfolio.resourcePoolMapPaths}
-            poolInputBlockers={portfolio.poolInputBlockers}
-            commercialDiagnostics={portfolio.commercialDiagnostics}
-            error={api.error}
-            loading={api.loading}
-            saleOptions={portfolio.saleOptions}
-            canRunPoolOptimizer={portfolio.canRunPoolOptimizer}
-            portfolioResources={portfolio.portfolioResources}
-            totalPoolVolume={portfolio.totalPoolVolume}
-            portfolioSummary={api.portfolioSummary}
-            screenOrderCount={api.screenOrders.length}
-            upstreamContractCount={api.upstreamContracts.length}
-            networkGeometryState={portfolio.networkGeometryState}
-            routeRecommendation={api.routeRecommendation}
-            decisionPnl={portfolio.decisionPnl}
-            resourcePoolResult={api.resourcePoolResult}
-            poolAllocations={portfolio.poolAllocations}
-            saleOptionById={portfolio.saleOptionById}
-            hasPortfolioResources={portfolio.hasPortfolioResources}
-            selectedAllocation={portfolio.selectedAllocation}
-            purchasePrice={portfolio.purchasePrice}
-            salePrice={portfolio.salePrice}
-            routeCharge={portfolio.routeCharge}
-            firstPoolAllocation={portfolio.firstPoolAllocation}
-            firstStrategyTarget={portfolio.firstStrategyTarget}
-            strategyResult={api.strategyResult}
-            activeWarning={portfolio.activeWarning}
-            reviewEvidenceItems={portfolio.reviewEvidenceItems}
-            marketLastUpdatedAtUtc={api.marketLastUpdatedAtUtc}
-            intradayOpportunities={api.intradayOpportunities}
-            optimizerContextMismatch={portfolio.optimizerContextMismatch}
-            onResetSearch={() => controls.setSearchTerm("")}
-            onToggleLayer={controls.toggleLayer}
-            onOptimizePool={portfolio.optimizeResourcePoolForCurrentContext}
-            onOpenReview={() => navigation.openWorkspace("review")}
-            onOpenScenario={() => {
-              const routeId =
-                portfolio.selectedAllocation?.route_id ??
-                portfolio.highlightedRoute?.routeId ??
-                null;
-              if (routeId) selection.setRouteId(routeId);
-              navigation.openWorkspace("scenario");
-            }}
-          />
-          </>
-        ) : (
-          <WorkspaceRenderer controller={controller} />
-        )}
+        {/* One composition path for every page: the shell owns the regions, the workspace
+            composition owns its pages. The map-first network route used to be intercepted
+            here, which meant its surface was mounted outside the registry that declares it;
+            it is now composed by the market primary like every other page of that primary
+            (conflicting register C9). */}
+        {controlPlaneRestricted ? <RestrictedSurface t={t} /> : <WorkspaceRenderer controller={controller} />}
       </main>
 
       {inspector.subject && (

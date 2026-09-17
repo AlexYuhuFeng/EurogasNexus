@@ -375,8 +375,10 @@ test("the shell mounts no workspace surface before the backend confirms identity
     shell.indexOf("isBlockingCompatibility") < shell.indexOf('api.authState !== "authenticated"'),
   );
   assert.ok(shell.indexOf("<SignInScreen") < shell.indexOf("<WorkspaceTopBar"));
-  assert.ok(shell.indexOf("<SignInScreen") < shell.indexOf("<NetworkWorkspace"));
   assert.ok(shell.indexOf("<SignInScreen") < shell.indexOf("<WorkspaceRenderer"));
+  // The shell mounts no surface of its own any more: every page composes through the
+  // renderer, which sits behind the gate (conflicting register C9).
+  assert.equal(shell.includes("<NetworkWorkspace"), false);
   // The sign-in screen is wired to store actions only.
   assert.match(shell, /onOidcSignIn=\{\(\) => void api\.signIn\(\)\}/);
   assert.match(shell, /onDevLogin=\{\(username, password\) => void api\.login\(username, password\)\}/);

@@ -26,12 +26,14 @@ def test_source_center_and_topbar_are_extracted_from_app() -> None:
 
 def test_network_cockpit_exposes_warning_evidence_stack() -> None:
     model = PORTFOLIO_MODEL.read_text(encoding="utf-8")
-    shell = APP_SHELL.read_text(encoding="utf-8")
+    # The network surface and its evidence stack are wired by the market primary, which
+    # composes the route, rather than by the shell (conflicting register C9).
+    market_cockpit = (WEB_SRC / "components" / "MarketCockpit.tsx").read_text(encoding="utf-8")
     en = (WEB_SRC / "i18n" / "en.json").read_text(encoding="utf-8")
     zh = (WEB_SRC / "i18n" / "zh.json").read_text(encoding="utf-8")
 
     assert "reviewEvidenceItems" in model
-    assert "reviewEvidenceItems={portfolio.reviewEvidenceItems}" in shell
+    assert "reviewEvidenceItems={portfolio.reviewEvidenceItems}" in market_cockpit
     assert "home.evidence_stack" in en
     assert "home.evidence_stack" in zh
     assert "home.review_warnings" in en

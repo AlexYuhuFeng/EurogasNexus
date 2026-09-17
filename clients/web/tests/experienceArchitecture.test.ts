@@ -223,7 +223,9 @@ test("task patterns cover the vocabularies the live resolvers can return", () =>
   for (const task of marketTasks) assert.doesNotThrow(() => taskPatternFor("market", task));
 
   const portfolioTasks = new Set(
-    ["", "?task=resources", "?task=routes", "?task=exposure"].map(portfolioTaskFromLocation),
+    ["", "?workspace=orders", "?task=resources", "?task=routes", "?task=exposure"].map(
+      portfolioTaskFromLocation,
+    ),
   );
   for (const task of portfolioTasks) assert.doesNotThrow(() => taskPatternFor("portfolio", task));
 

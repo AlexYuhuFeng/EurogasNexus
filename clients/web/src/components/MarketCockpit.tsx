@@ -372,7 +372,17 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
             onToggleLayer={controls.toggleLayer}
             onOptimizePool={portfolio.optimizeResourcePoolForCurrentContext}
             onOpenReview={() => navigation.openWorkspace("review")}
-            onOpenScenario={() => navigation.openWorkspace("scenario")}
+            onOpenScenario={() => {
+              // Carried from the shell when the map-first network route moved into this
+              // composition: the hand-off keeps the selected or highlighted route, so the
+              // scenario workspace opens on the route the user was looking at.
+              const routeId =
+                portfolio.selectedAllocation?.route_id ??
+                portfolio.highlightedRoute?.routeId ??
+                null;
+              if (routeId) selection.setRouteId(routeId);
+              navigation.openWorkspace("scenario");
+            }}
           />
         )}
         {task === "capacity" && (

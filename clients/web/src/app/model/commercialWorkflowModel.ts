@@ -12,8 +12,14 @@ export const PORTFOLIO_TASKS: PortfolioTask[] = ["overview", "resources", "route
 export const DECISION_TASKS: DecisionTask[] = ["scenario", "optimize", "review"];
 
 export function portfolioTaskFromLocation(search: string): PortfolioTask {
-  const value = new URLSearchParams(search).get("task");
-  return value === "resources" || value === "routes" || value === "exposure" ? value : "overview";
+  const params = new URLSearchParams(search);
+  const value = params.get("task");
+  if (value === "resources" || value === "routes" || value === "exposure") return value;
+  // Conflicting register C10: the legacy `orders` page id is kept for deep-link
+  // compatibility, and it names the market-positioning view. A bare link to it opens that
+  // view rather than the overview, so the page and the surface it names agree.
+  if (params.get("workspace") === "orders") return "exposure";
+  return "overview";
 }
 
 export function decisionTaskFromLocation(search: string): DecisionTask {

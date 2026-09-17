@@ -50,14 +50,28 @@ test("only WorkspaceHeader owns the consolidated primary h1 and shared tab seman
   assert.match(renderer, /!usesConsolidatedHeader\s*&&\s*\(\s*<header/);
 });
 
-test("the direct map-first Network route keeps one semantic main heading", () => {
+test("the direct map-first Network route is composed, not intercepted", () => {
   const shell = readWebSource("app/shell/AppShell.tsx");
-  const css = readWebSource("styles/app.css");
+  const cockpit = readWebSource("components/MarketCockpit.tsx");
+  const model = readWebSource("app/model/marketCockpitModel.ts");
 
-  assert.match(shell, /navigation\.activeWorkspace === "network"/);
-  assert.match(shell, /<h1 className="network-main-title">\{t\("nav\.network"\)\}<\/h1>/);
-  assert.match(css, /\.network-main-title \{/);
-  assert.match(css, /clip-path: inset\(50%\);/);
+  // Conflicting register C9: the shell used to mount its own page-level heading and the
+  // network surface for this route. It now composes every page through the workspace
+  // renderer, and the market primary owns the page's single heading through
+  // WorkspaceHeader, which is the only component that renders an <h1> for a page.
+  assert.equal(shell.includes('activeWorkspace === "network"'), false);
+  assert.equal(shell.includes("network-main-title"), false);
+  assert.match(shell, /<WorkspaceRenderer controller=\{controller\} \/>/);
+
+  // The route still lands on the map: the task resolves from the page id itself, so no
+  // URL change is needed for the map-first entry to keep working.
+  assert.match(model, /if \(activeWorkspace === "network"\) return "network";/);
+  assert.match(cockpit, /\{task === "network" && \(/);
+
+  // The hand-off the shell used to own moved with the mount, so the route carried into
+  // the scenario workspace is unchanged.
+  assert.match(cockpit, /const routeId =\s*portfolio\.selectedAllocation\?\.route_id \?\?/s);
+  assert.match(cockpit, /if \(routeId\) selection\.setRouteId\(routeId\);/);
 });
 
 test("the narrow alert trigger keeps a visible text label", () => {

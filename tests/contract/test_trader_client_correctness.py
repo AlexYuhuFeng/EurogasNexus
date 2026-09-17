@@ -358,7 +358,9 @@ def test_network_geometry_does_not_overstate_route_corridor_coverage() -> None:
     assert "unmatchedRouteLegsWarning" in resource_pool_paths
     assert 't("map.unmatched_route_legs_warning", { count })' in resource_pool_paths
     assert 't("map.source_derived_leg_sequence_warning")' in resource_pool_paths
-    assert "<NetworkWorkspace" in app
+    # The network surface is composed by the market primary rather than mounted by the
+    # shell (conflicting register C9).
+    assert "<NetworkWorkspace" in _read(WEB / "components" / "MarketCockpit.tsx")
     assert "MAJOR_HUB_PRIORITY" in map_component
     assert "map-node-label" in map_component
     assert "cluster: true" in map_component
@@ -412,9 +414,13 @@ def test_source_credentials_follow_selected_public_source() -> None:
 
 def test_network_workspace_is_extracted_from_app_shell() -> None:
     app = _read_application()
+    market_cockpit = _read(WEB / "components" / "MarketCockpit.tsx")
     network_workspace = _read(WEB / "components" / "NetworkWorkspace.tsx")
 
-    assert "<NetworkWorkspace" in app
+    # The shell mounts no page of its own: the map-first network route is composed by the
+    # market primary, which is one step further than extracting the component (C9).
+    assert "<NetworkWorkspace" not in app
+    assert "<NetworkWorkspace" in market_cockpit
     assert "scenario-rail" not in app
     assert "decision-rail" not in app
     assert "scenario-rail" in network_workspace
