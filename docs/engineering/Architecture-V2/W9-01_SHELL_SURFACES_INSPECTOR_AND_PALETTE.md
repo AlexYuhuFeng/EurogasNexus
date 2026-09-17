@@ -120,7 +120,31 @@ detail panes. The second slice makes the Inspector worth handing a subject to.
   (`FIELDS_BY_KIND`), and a test pins that a capacity record never renders with
   market-observation labels.
 
-## 5. What this slice does not claim
+## 5. Third slice — the shell composes pages, it does not intercept them
+
+Wave 9's remaining navigation work was two conflicting-register items, both of the same
+shape: a page and the surface it names disagreed.
+
+- **C9.** The shell branched on the active workspace being the network page and mounted the
+  map-first surface itself, with its own screen-reader heading and forty hand-wired props.
+  No page is special to the shell any more: it renders the control-plane refusal or
+  `WorkspaceRenderer`, and nothing else. The route is composed by the market primary, which
+  already resolved that page to its network task, so no URL changed and the surface keeps
+  its resource-pool path ladder, its evidence stack and its Inspector hand-over. The
+  scenario hand-off moved with the mount, so the selected or highlighted route is still
+  carried, and the page's single heading comes from `WorkspaceHeader` - the one component
+  that renders an `<h1>` for a page - rather than from a shell-only element.
+- **C10.** A bare `?workspace=orders` deep link landed on the portfolio overview even though
+  the `orders` page id names the market-positioning view. It now resolves to that view; an
+  explicit `?task=` still wins and every other portfolio page still resolves to the
+  overview, so the change adds no second owner for the URL.
+
+Five pinned source-text contracts moved with the mount rather than being weakened: the
+resource-pool path ladder, the highlighted route, the network geometry gate, the
+warning/evidence stack and the network-extracted-from-the-shell guarantee now read the
+composing surface, and the shell assertions assert the stronger fact - it mounts no page.
+
+## 6. What this slice does not claim
 
 Wave 9 in the roadmap is larger than its delivered slices. Still open:
 
@@ -137,14 +161,14 @@ Wave 9 in the roadmap is larger than its delivered slices. Still open:
 These are incremental, file-scoped migrations with their own evidence; none of them
 requires a new contract.
 
-## 6. Compatibility
+## 7. Compatibility
 
 - No route, deep link, page id or workspace composition changed in these slices.
 - No API, schema, permission, numerical, release or DR behaviour changed.
 - New user-visible vocabulary is bilingual (`en`, `zh-CN`), and the shell surfaces
   add no new colour, type or motion family.
 
-## 7. Verification
+## 8. Verification
 
 - `clients/web/tests/shellSurfaces.test.ts` — inspector region rendered and
   fetch-free, command derivation from the registries, inspection commands from the
