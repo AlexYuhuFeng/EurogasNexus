@@ -2,6 +2,10 @@ import { useEffect, useState } from "react";
 import { warningLabel } from "@/app/warningLabel";
 import { formatUtcTimestamp } from "@/app/model/evidencePresentation";
 import { reviewEvidenceFor } from "@/app/model/reviewContextModel";
+import { copilotOffers } from "@/app/model/copilotModel";
+import { useCopilotSources } from "@/app/hooks/useCopilot";
+import { CopilotHost } from "@/components/CopilotPanel";
+import type { AiActionKind } from "@/app/experience/vocabulary";
 import { EvidenceBlock } from "@/components/ui";
 import type {
   AnalysisResultDTO,
@@ -19,8 +23,6 @@ interface ReviewWorkspaceProps {
   saleOptionById: Map<string, PortfolioSaleOptionDTO>;
   reviewWarnings: string[];
   resourcePoolResult: PortfolioOptimizationResultDTO | null;
-  analysisQuestion: string;
-  invokeDeepSeek: boolean;
   analysisResult: AnalysisResultDTO | null;
   language: string;
   reviewDecisions: ReviewDecisionDTO[];
@@ -30,9 +32,6 @@ interface ReviewWorkspaceProps {
   latestStrategyRunId: string | null;
   carriedStrategyRunId: string | null;
   t: Translate;
-  onAnalysisQuestionChange: (value: string) => void;
-  onInvokeDeepSeekChange: (value: boolean) => void;
-  onAnalyze: () => void;
   onGenerateReport: () => void;
   onRecordDecision: (body: ReviewDecisionInputDTO) => Promise<void>;
   onInspectEvidence: (ref: string, label: string) => void;
@@ -59,8 +58,6 @@ export function ReviewWorkspace({
   saleOptionById,
   reviewWarnings,
   resourcePoolResult,
-  analysisQuestion,
-  invokeDeepSeek,
   analysisResult,
   language,
   reviewDecisions,
@@ -69,9 +66,6 @@ export function ReviewWorkspace({
   latestStrategyRunId,
   carriedStrategyRunId,
   t,
-  onAnalysisQuestionChange,
-  onInvokeDeepSeekChange,
-  onAnalyze,
   onGenerateReport,
   onRecordDecision,
   onInspectEvidence,
@@ -80,6 +74,10 @@ export function ReviewWorkspace({
   const [entityType, setEntityType] = useState<ReviewDecisionInputDTO["entity_type"]>("strategy_run");
   const [entityId, setEntityId] = useState(carriedStrategyRunId ?? latestStrategyRunId ?? "");
   const [note, setNote] = useState("");
+  // The Copilot reads the canonical sources the shell and the palette use, so an action
+  // offered here carries the context and evidence a run would actually use.
+  const [aiAction, setAiAction] = useState<AiActionKind | null>(null);
+  const copilotSources = useCopilotSources();
 
   useEffect(() => {
     if (carriedStrategyRunId) {
@@ -311,14 +309,9 @@ export function ReviewWorkspace({
         </div>
       </div>
       <div className="workspace-panel span-3 analysis-panel review-report-panel">
-        <h2>{t("panel.analysis")}</h2>
-        <textarea aria-label={t("analysis.question")} value={analysisQuestion} onChange={(event) => onAnalysisQuestionChange(event.target.value)} rows={4} />
-        <label className="checkbox-row">
-          <input type="checkbox" checked={invokeDeepSeek} onChange={(event) => onInvokeDeepSeekChange(event.target.checked)} />
-          {t("analysis.invoke_deepseek")}
-        </label>
+        <h2>{t("analysis.report")}</h2>
+        <p className="panel-copy">{t("review.report_help")}</p>
         <div className="action-row">
-          <button type="button" onClick={onAnalyze}>{t("analysis.ask")}</button>
           <button type="button" onClick={onGenerateReport}>{t("analysis.report")}</button>
         </div>
         {analysisResult && (
@@ -328,6 +321,36 @@ export function ReviewWorkspace({
           </div>
         )}
       </div>
+      <div className="workspace-panel span-3 review-copilot-panel" aria-label={t("experience.copilot.title")}>
+        <h2>{t("experience.copilot.title")}</h2>
+        <p className="panel-copy">{t("experience.copilot.subtitle")}</p>
+        {/* Wave 7 convergence: this panel used to carry its own question box and an
+            "invoke the provider" switch, which made a sixth AI entry point beside the
+            canonical five. The five declared actions are offered here instead, gated by the
+            offer the contract produced; AI drafting is the `draft` action, and the report
+            above is the deterministic backend run it always was. */}
+        <div className="action-row">
+          {copilotOffers(copilotSources.context, copilotSources.evidenceRefs).map((offer) => (
+            <button
+              key={offer.action}
+              type="button"
+              disabled={!offer.available}
+              title={offer.withheldReasonKey ? t(offer.withheldReasonKey) : undefined}
+              onClick={() => setAiAction(offer.action)}
+            >
+              {t(offer.labelKey)}
+            </button>
+          ))}
+        </div>
+      </div>
+      {aiAction && (
+        <CopilotHost
+          action={aiAction}
+          t={t}
+          onClose={() => setAiAction(null)}
+          onSelectAction={setAiAction}
+        />
+      )}
     </div>
   );
 }

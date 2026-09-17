@@ -882,6 +882,7 @@
   "analysis.invoke_deepseek": "如后端已配置凭据则调用 DeepSeek",
   "analysis.ask": "分析快照",
   "analysis.report": "生成报告",
+  "review.report_help": "基于当前身份有权查看的数据生成组合报告。报告是后端的确定性运行；由 AI 起草的文档属于 Copilot 的“起草”操作。",
   "portfolio.indicative_pnl": "指示性 PnL",
   "portfolio.cash_value": "提前回款价值",
   "portfolio.open_orders": "未完成屏幕观察",

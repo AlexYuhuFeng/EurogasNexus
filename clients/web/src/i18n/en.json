@@ -1099,6 +1099,7 @@
   "analysis.invoke_deepseek": "Invoke DeepSeek if backend credential is configured",
   "analysis.ask": "Analyze Snapshot",
   "analysis.report": "Generate Report",
+  "review.report_help": "Build the portfolio report from the data this identity is entitled to see. The report is a deterministic backend run; an AI-drafted document is the copilot's Draft action.",
   "portfolio.indicative_pnl": "Indicative PnL",
   "portfolio.cash_value": "Early cash value",
   "portfolio.open_orders": "Open screen observations",

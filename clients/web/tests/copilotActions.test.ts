@@ -65,6 +65,34 @@ function readLocale(name: "en" | "zh"): Record<string, string> {
   return JSON.parse(readWebSource(`i18n/${name}.json`)) as Record<string, string>;
 }
 
+test("the review surface converged its own AI panel onto the canonical actions", () => {
+  const review = readWebSource("components/ReviewWorkspace.tsx");
+  const hook = readWebSource("app/hooks/useReviewAnalysis.ts");
+  const decision = readWebSource("components/DecisionWorkspace.tsx");
+
+  // The review panel used to carry a question box and an "invoke the provider" switch,
+  // which made a sixth AI entry point beside the declared five.
+  assert.equal(review.includes("analysis.invoke_deepseek"), false);
+  assert.equal(review.includes("analysis.question"), false);
+  assert.equal(review.includes("onAnalyze"), false);
+
+  // It now offers the canonical actions, gated by the offer the contract produced, and
+  // mounts the hosted Copilot whose transport is the only one in play.
+  assert.match(review, /copilotOffers\(copilotSources\.context, copilotSources\.evidenceRefs\)\.map/);
+  assert.match(review, /disabled=\{!offer\.available\}/);
+  assert.match(review, /<CopilotHost\s+action=\{aiAction\}/s);
+  assert.match(review, /const copilotSources = useCopilotSources\(\);/);
+
+  // The report it can generate is the deterministic backend run, and its question is no
+  // longer user-typed: an AI-drafted document is the `draft` action's job.
+  assert.match(review, /onGenerateReport/);
+  assert.match(hook, /buildAnalysisPayload\(REPORT_QUESTION, false, language, portfolioResources\)/);
+  assert.equal(hook.includes("useState"), false);
+  assert.match(decision, /api\.generatePortfolioReport\(review\.analysisPayload\)/);
+  assert.equal(decision.includes("review.setAnalysisQuestion"), false);
+  assert.equal(decision.includes("api.askAnalysis(review.analysisPayload)"), false);
+});
+
 test("a workspace mounts the Copilot with the same rule the palette applies", () => {
   const cockpit = readWebSource("components/MarketCockpit.tsx");
 

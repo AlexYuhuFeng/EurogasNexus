@@ -186,8 +186,6 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
             saleOptionById={portfolio.saleOptionById}
             reviewWarnings={portfolio.reviewWarnings}
             resourcePoolResult={api.resourcePoolResult}
-            analysisQuestion={review.analysisQuestion}
-            invokeDeepSeek={review.invokeDeepSeek}
             analysisResult={api.analysisResult}
             language={i18n.language}
             reviewDecisions={api.reviewDecisions}
@@ -196,9 +194,6 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
             latestStrategyRunId={api.strategyRuns[0]?.run_id ?? null}
             carriedStrategyRunId={selection.strategyRunId}
             t={t}
-            onAnalysisQuestionChange={review.setAnalysisQuestion}
-            onInvokeDeepSeekChange={review.setInvokeDeepSeek}
-            onAnalyze={() => api.askAnalysis(review.analysisPayload)}
             onGenerateReport={() => api.generatePortfolioReport(review.analysisPayload)}
             onRecordDecision={api.recordReviewDecision}
             onInspectEvidence={(ref, label) => {
