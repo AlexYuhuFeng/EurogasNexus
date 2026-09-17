@@ -112,6 +112,26 @@ test("a workspace header declares at most one primary action, and only a permitt
   );
 });
 
+test("a primary action is moved into the header, not copied beside it", () => {
+  // The failure mode this guards is quiet: apply the geography by adding the action to the
+  // header while leaving the panel's copy in place, and the surface ends up with two
+  // primaries for one act. Moving it means the label appears exactly once in the file.
+  const passing = surfaceSources().filter((entry) => entry.source.includes("primaryAction="));
+  assert.ok(passing.length > 0, "no surface passes a primary action, so this check proves nothing");
+
+  for (const { path, source } of passing) {
+    const start = source.indexOf("const primaryAction");
+    assert.ok(start > 0, path);
+    const expression = source.slice(start, source.indexOf("\n\n", start));
+    const labelKeys = [...expression.matchAll(/t\("([^"]+)"\)/g)].map((match) => match[1]);
+    assert.ok(labelKeys.length > 0, `${path}: the primary action declares no label`);
+    for (const key of labelKeys) {
+      const occurrences = source.split(`t("${key}")`).length - 1;
+      assert.equal(occurrences, 1, `${path}: '${key}' is rendered ${occurrences} times`);
+    }
+  }
+});
+
 test("shell utilities stay in the shell", () => {
   const offenders: string[] = [];
   const utilityCalls = ["signOut", "changeAppLanguage", "theme.setMode"];
