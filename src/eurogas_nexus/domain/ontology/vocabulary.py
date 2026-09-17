@@ -674,6 +674,48 @@ class ReviewEntityType(StrEnum):
     AGENT_REVIEW_PACK = "agent_review_pack"
 
 
+class DecisionCaseStatus(StrEnum):
+    """Lifecycle of an Architecture V2 Decision Case.
+
+    A case collects objective, context, assumptions, alternatives, evidence and
+    human review, and ends in a Decision Record. The record is evidence and
+    rationale, never approval to execute anything.
+    """
+
+    DRAFT = "DRAFT"
+    OPEN = "OPEN"
+    UNDER_REVIEW = "UNDER_REVIEW"
+    DECIDED = "DECIDED"
+    REOPENED = "REOPENED"
+    RETIRED = "RETIRED"
+
+
+class DecisionEvidenceKind(StrEnum):
+    """Product artefacts a Decision Case may cite as evidence."""
+
+    MARKET_CONTEXT = "MARKET_CONTEXT"
+    PORTFOLIO_SNAPSHOT = "PORTFOLIO_SNAPSHOT"
+    SCENARIO = "SCENARIO"
+    OPTIMIZATION = "OPTIMIZATION"
+    ROUTE_RECOMMENDATION = "ROUTE_RECOMMENDATION"
+    BACKTEST = "BACKTEST"
+    STRATEGY_RUN = "STRATEGY_RUN"
+    RESEARCH_DATASET = "RESEARCH_DATASET"
+    AGENT_RUN = "AGENT_RUN"
+    REVIEW_CONTEXT = "REVIEW_CONTEXT"
+    MANUAL = "MANUAL"
+
+
+class DecisionAssumptionSource(StrEnum):
+    """Where a Decision Case assumption came from, so a reader can weigh it."""
+
+    BACKEND = "BACKEND"
+    MARKET_DATA = "MARKET_DATA"
+    CONTRACT = "CONTRACT"
+    MANUAL = "MANUAL"
+    AI_DRAFT = "AI_DRAFT"
+
+
 def coerce_review_entity_type(value: str) -> ReviewEntityType:
     """Resolve one review artifact kind, failing closed on unknown values.
 
