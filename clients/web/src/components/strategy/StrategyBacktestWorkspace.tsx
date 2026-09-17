@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
 import type { StrategyLabController, StrategyLabSelection } from "@/app/model/useStrategyLab";
+import { inspectorSubjectFor } from "@/app/model/inspectorDetail";
+import { useInspectorStore } from "@/stores/inspector";
 import { StrategyLineChart } from "./StrategyLabCharts";
 
 type Translate = (key: string) => string;
@@ -36,6 +38,10 @@ export function StrategyBacktestWorkspace({
   language,
   t,
 }: StrategyBacktestWorkspaceProps) {
+  // Wave 9: the selected run's own record belongs to the canonical Inspector. The KPI
+  // strip and the charts stay here - they are this surface's analysis - while the run's
+  // facts and provenance are handed over rather than duplicated.
+  const inspector = useInspectorStore();
   const [start, setStart] = useState(controller.defaultPeriod.start);
   const [end, setEnd] = useState(controller.defaultPeriod.end);
   const [missingPolicy, setMissingPolicy] = useState("FAIL");
@@ -159,6 +165,21 @@ export function StrategyBacktestWorkspace({
             <span>{formatTimestamp(run.started_at_utc, language)}</span>
             <span>{run.backtest_engine_version ?? "n/a"}</span>
             <span>{metrics?.temporal_integrity ?? "n/a"}</span>
+            <button
+              type="button"
+              className="text-action"
+              onClick={() => {
+                const subject = inspectorSubjectFor(
+                  "strategy-run",
+                  run.run_id,
+                  run.strategy_name ?? run.run_id,
+                  "strategy",
+                );
+                if (subject) inspector.open(subject);
+              }}
+            >
+              {t("strategy_lab.inspect_run")}
+            </button>
           </section>
           {metrics && (
             <section className="workspace-panel strategy-kpi-strip">

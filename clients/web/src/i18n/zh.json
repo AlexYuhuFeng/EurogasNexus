@@ -646,6 +646,7 @@
   "strategy_lab.risk_controls": "风控条件",
   "strategy_lab.run": "运行",
   "strategy_lab.run_backtest": "运行回测",
+  "strategy_lab.inspect_run": "查看运行详情",
   "strategy_lab.run_history": "运行历史",
   "strategy_lab.save_draft": "保存草稿",
   "strategy_lab.saved": "已保存草稿",

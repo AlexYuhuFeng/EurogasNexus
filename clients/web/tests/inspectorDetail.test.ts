@@ -267,6 +267,13 @@ test("every hand-over goes through one composition-checked builder", () => {
   assert.equal(inspectorSubjectFor("network-node", "node-1", "Zeebrugge", "network")?.kind, "network-node");
   assert.equal(inspectorSubjectFor("network-node", "node-1", "Zeebrugge", "market"), null);
 
+  // The strategy page declares strategy-version and strategy-run.
+  assert.equal(
+    inspectorSubjectFor("strategy-run", "run-1", "TTF carry", "strategy")?.kind,
+    "strategy-run",
+  );
+  assert.equal(inspectorSubjectFor("strategy-run", "run-1", "TTF carry", "market"), null);
+
   // The contract workbench hands a saved contract over rather than growing a third
   // detail pane, and it resolves detail from data the surface already received.
   const workbench = readWebSource("components/ContractWorkbench.tsx");
@@ -312,6 +319,27 @@ test("the network map hands a clicked node over instead of only popup detail", (
     assert.ok(zh[key]?.trim(), `zh ${key}`);
     assert.notEqual(en[key], zh[key], key);
   }
+});
+
+test("the strategy backtest hands the selected run over instead of duplicating it", () => {
+  const backtest = readWebSource("components/strategy/StrategyBacktestWorkspace.tsx");
+
+  assert.match(backtest, /import \{ inspectorSubjectFor \} from "@\/app\/model\/inspectorDetail"/);
+  assert.match(backtest, /const inspector = useInspectorStore\(\);/);
+  assert.match(
+    backtest,
+    /const subject = inspectorSubjectFor\(\s*"strategy-run",\s*run\.run_id,\s*run\.strategy_name \?\? run\.run_id,\s*"strategy",\s*\);/s,
+  );
+  assert.match(backtest, /if \(subject\) inspector\.open\(subject\);/);
+  // The surface keeps its own analysis (KPIs, charts) and fetches nothing for the detail.
+  assert.match(backtest, /strategy-kpi-strip/);
+  assert.equal(backtest.includes("fetch("), false);
+
+  const en = JSON.parse(readWebSource("i18n/en.json")) as Record<string, string>;
+  const zh = JSON.parse(readWebSource("i18n/zh.json")) as Record<string, string>;
+  assert.ok(en["strategy_lab.inspect_run"]?.trim());
+  assert.ok(zh["strategy_lab.inspect_run"]?.trim());
+  assert.notEqual(en["strategy_lab.inspect_run"], zh["strategy_lab.inspect_run"]);
 });
 
 test("the panel renders resolved facts and never resolves detail itself", () => {

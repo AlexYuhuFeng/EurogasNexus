@@ -646,6 +646,7 @@
   "strategy_lab.risk_controls": "Risk controls",
   "strategy_lab.run": "Run",
   "strategy_lab.run_backtest": "Run backtest",
+  "strategy_lab.inspect_run": "Inspect run",
   "strategy_lab.run_history": "Run history",
   "strategy_lab.save_draft": "Save draft",
   "strategy_lab.saved": "Saved draft",
