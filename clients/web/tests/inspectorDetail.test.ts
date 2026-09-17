@@ -486,6 +486,83 @@ test("the review surface hands its evidence over only when it was resolved", () 
   }
 });
 
+test("a capacity observation resolves by kind, not by its id field alone", () => {
+  // A capacity observation and a market observation are both keyed by `observation_id`
+  // but carry different fields, so the record shape follows the subject kind.
+  const detail = inspectorDetailFor(
+    source({
+      capacity: [
+        {
+          observation_id: "cap-1",
+          point_id: "point-ttf",
+          point_name: "TTF entry",
+          direction: "ENTRY",
+          capacity_type: "technical",
+          capacity_mcm_d: 45.5,
+          original_value: 480,
+          original_unit: "GWh/d",
+          period_start_utc: "2026-09-16T04:00:00+00:00",
+          period_end_utc: "2026-09-17T04:00:00+00:00",
+          observed_at_utc: "2026-09-16T05:00:00+00:00",
+          source_system: "ENTSOG",
+          source_reference: "ENTSOG:cap:ttf",
+          freshness: "live",
+        },
+      ] as never,
+    }),
+    { kind: "capacity", ref: "cap-1", label: "TTF entry", originPage: "capacity" },
+  );
+
+  assert.equal(detail.resolved, true);
+  assert.equal(detail.label, "TTF entry");
+  const byKey = new Map(detail.facts.map((fact) => [fact.labelKey, fact.value]));
+  assert.equal(byKey.get("experience.inspector.fact.capacity_type"), "technical");
+  assert.equal(byKey.get("experience.inspector.fact.capacity_mcm"), "45.5");
+  assert.equal(byKey.get("experience.inspector.fact.original_unit"), "GWh/d");
+  assert.equal(byKey.get("experience.inspector.fact.direction"), "ENTRY");
+  // A capacity record is not rendered with market-observation labels.
+  assert.equal(byKey.has("experience.inspector.fact.tenor"), false);
+  assert.deepEqual(detail.evidenceRefs, ["ENTSOG:cap:ttf", "ENTSOG"]);
+
+  // The capacity page declares the kind; another page does not.
+  assert.equal(inspectorSubjectFor("capacity", "cap-1", "TTF entry", "capacity")?.kind, "capacity");
+  assert.equal(inspectorSubjectFor("capacity", "cap-1", "TTF entry", "market"), null);
+});
+
+test("the capacity surface keeps its analysis and hands the record over", () => {
+  const workspace = readWebSource("components/CapacityWorkspace.tsx");
+
+  assert.match(workspace, /import \{ inspectorSubjectFor \} from "@\/app\/model\/inspectorDetail"/);
+  assert.match(workspace, /const inspector = useInspectorStore\(\);/);
+  assert.match(workspace, /capacityObservationId: representative\?\.observation_id \?\? null,/);
+  assert.match(
+    workspace,
+    /const subject = inspectorSubjectFor\(\s*"capacity",\s*selected\.capacityObservationId,\s*selected\.pointName,\s*"capacity",\s*\);/s,
+  );
+  assert.match(workspace, /if \(subject\) inspector\.open\(subject\);/);
+  // The hand-over appears only when the runtime served an observation to point at, and
+  // the panel keeps the aggregate analysis it exists to do.
+  assert.match(workspace, /\{selected\?\.capacityObservationId && \(/);
+  assert.match(workspace, /capacity-stack/);
+  assert.equal(workspace.includes("fetch("), false);
+
+  const en = JSON.parse(readWebSource("i18n/en.json")) as Record<string, string>;
+  const zh = JSON.parse(readWebSource("i18n/zh.json")) as Record<string, string>;
+  for (const key of [
+    "capacity.inspect_point",
+    "experience.inspector.fact.point_ref",
+    "experience.inspector.fact.direction",
+    "experience.inspector.fact.capacity_type",
+    "experience.inspector.fact.capacity_mcm",
+    "experience.inspector.fact.original_value",
+    "experience.inspector.fact.original_unit",
+  ]) {
+    assert.ok(en[key]?.trim(), `en ${key}`);
+    assert.ok(zh[key]?.trim(), `zh ${key}`);
+    assert.notEqual(en[key], zh[key], key);
+  }
+});
+
 test("the panel renders resolved facts and never resolves detail itself", () => {
   const panel = readWebSource("components/InspectorPanel.tsx");
   const shell = readWebSource("app/shell/AppShell.tsx");

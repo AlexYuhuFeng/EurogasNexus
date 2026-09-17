@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 import { EvidenceBlock, WorkspaceTabs } from "@/components/ui";
 import { formatUtcTimestamp } from "@/app/model/evidencePresentation";
+import { inspectorSubjectFor } from "@/app/model/inspectorDetail";
+import { useInspectorStore } from "@/stores/inspector";
 import type {
   CapacityObsDTO,
   FlowObsDTO,
@@ -41,6 +43,7 @@ interface OperatingRow {
   physicalHeadroomMcmD: number | null;
   observedAtUtc: string | null;
   sourceReference: string | null;
+  capacityObservationId: string | null;
   posture: Exclude<CapacityPosture, "all">;
 }
 
@@ -161,6 +164,9 @@ function buildOperatingRows(
         : null,
       observedAtUtc,
       sourceReference: flow?.source_reference ?? technical?.source_reference ?? null,
+      // The observation the point's figures were read from, when the runtime served one:
+      // the Inspector needs a reference, not the derived row.
+      capacityObservationId: representative?.observation_id ?? null,
       posture,
     };
   });
@@ -223,6 +229,7 @@ export function CapacityWorkspace({
   lng,
   t,
 }: CapacityWorkspaceProps) {
+  const inspector = useInspectorStore();
   const [activeView, setActiveView] = useState<CapacityView>("network");
   const [query, setQuery] = useState("");
   const [country, setCountry] = useState("all");
@@ -435,7 +442,30 @@ export function CapacityWorkspace({
           </section>
 
           <aside className="workspace-panel capacity-point-inspector">
-            <div className="panel-title-row"><h2>{t("capacity.point_inspector")}</h2><span>{selected ? formatTimestamp(selected.observedAtUtc) : "n/a"}</span></div>
+            <div className="panel-title-row">
+              <h2>{t("capacity.point_inspector")}</h2>
+              <span>{selected ? formatTimestamp(selected.observedAtUtc) : "n/a"}</span>
+              {/* Wave 9: the panel keeps its aggregate analysis (utilisation, booking,
+                  headroom, access and tariffs); the point's own observation record is
+                  handed to the canonical Inspector rather than shown a second time. */}
+              {selected?.capacityObservationId && (
+                <button
+                  type="button"
+                  className="text-action"
+                  onClick={() => {
+                    const subject = inspectorSubjectFor(
+                      "capacity",
+                      selected.capacityObservationId,
+                      selected.pointName,
+                      "capacity",
+                    );
+                    if (subject) inspector.open(subject);
+                  }}
+                >
+                  {t("capacity.inspect_point")}
+                </button>
+              )}
+            </div>
             {selected ? (
               <>
                 <div className="capacity-point-heading">

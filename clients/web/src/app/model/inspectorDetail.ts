@@ -20,6 +20,7 @@
  */
 
 import type {
+  CapacityObsDTO,
   IntradayOpportunityDTO,
   MarketQuoteDTO,
   MonitoringAlertDTO,
@@ -48,6 +49,8 @@ export interface InspectorDetailSource {
   readonly routeCandidates: readonly RouteCandidateDTO[];
   readonly resourcePoolOptions: ResourcePoolOptionsDTO | null;
   readonly strategyRuns: readonly StrategyRunDTO[];
+  /** Capacity observations, for a selected network point. */
+  readonly capacity?: readonly CapacityObsDTO[];
   /** The review projection, for evidence a review decision was taken on. */
   readonly reviewContext?: ReviewContextProjectionDTO | null;
 }
@@ -126,6 +129,8 @@ function candidatesFor(
       return collect([byId(source.strategyRuns, "run_id")]);
     case "network-node":
       return collect([byId(source.nodes, "id")]);
+    case "capacity":
+      return collect([byId(source.capacity ?? [], "observation_id")]);
     default:
       return [];
   }
@@ -245,6 +250,21 @@ const NODE_FIELDS: readonly FieldSpec[] = [
   { field: "data_quality", labelKey: "experience.inspector.fact.data_quality" },
 ];
 
+const CAPACITY_FIELDS: readonly FieldSpec[] = [
+  { field: "point_id", labelKey: "experience.inspector.fact.point_ref" },
+  { field: "direction", labelKey: "experience.inspector.fact.direction" },
+  { field: "capacity_type", labelKey: "experience.inspector.fact.capacity_type" },
+  { field: "capacity_mcm_d", labelKey: "experience.inspector.fact.capacity_mcm" },
+  { field: "original_value", labelKey: "experience.inspector.fact.original_value" },
+  { field: "original_unit", labelKey: "experience.inspector.fact.original_unit" },
+  { field: "period_start_utc", labelKey: "experience.inspector.fact.period_start", format: "timestamp" },
+  { field: "period_end_utc", labelKey: "experience.inspector.fact.period_end", format: "timestamp" },
+  { field: "observed_at_utc", labelKey: "experience.inspector.fact.observed_at", format: "timestamp" },
+  { field: "source_system", labelKey: "experience.inspector.fact.source" },
+  { field: "source_reference", labelKey: "experience.inspector.fact.source_reference" },
+  { field: "freshness", labelKey: "experience.inspector.fact.freshness" },
+];
+
 /**
  * Field specs per kind. A kind with several record shapes (an alert reads as an
  * alert, a quote as a quote) declares its specs per recognised shape, keyed by the
@@ -262,6 +282,16 @@ const FIELDS_BY_ID_FIELD: Readonly<Record<string, readonly FieldSpec[]>> = {
   id: NODE_FIELDS,
 };
 
+/**
+ * Kinds whose record shape is chosen by the kind rather than by the id field it carries.
+ *
+ * A capacity observation and a market observation are both keyed by `observation_id` but
+ * carry different fields, so the shape cannot be inferred from the key alone.
+ */
+const FIELDS_BY_KIND: Partial<Record<InspectorSubjectKind, readonly FieldSpec[]>> = {
+  capacity: CAPACITY_FIELDS,
+};
+
 /** The ref fields a kind is looked up by, in the order the resolver tries them. */
 const ID_FIELDS_BY_KIND: Partial<Record<InspectorSubjectKind, readonly string[]>> = {
   "market-observation": ["quote_id", "observation_id", "alert_id", "opportunity_id"],
@@ -270,6 +300,7 @@ const ID_FIELDS_BY_KIND: Partial<Record<InspectorSubjectKind, readonly string[]>
   resource: ["resource_id"],
   "strategy-run": ["run_id"],
   "network-node": ["id"],
+  capacity: ["observation_id"],
 };
 
 /**
@@ -282,6 +313,7 @@ const LABEL_BY_ID_FIELD: Readonly<
 > = {
   quote_id: (record) => joinParts([stringField(record, "hub"), stringField(record, "product")]),
   observation_id: (record) =>
+    stringField(record, "point_name") ??
     joinParts([stringField(record, "hub"), stringField(record, "tenor")]),
   alert_id: (record) =>
     joinParts([stringField(record, "category"), stringField(record, "alert_type")]),
@@ -358,7 +390,7 @@ export function inspectorDetailFor(
     const record = asRecord(candidate.rows[0]);
     const idField = idFields.find((field) => record[field] === subject.ref);
     if (!idField) continue;
-    const specs = FIELDS_BY_ID_FIELD[idField] ?? [];
+    const specs = FIELDS_BY_KIND[subject.kind] ?? FIELDS_BY_ID_FIELD[idField] ?? [];
     const facts: InspectorFact[] = [];
     for (const spec of specs) {
       const value = formatValue(record[spec.field], spec.format);
