@@ -243,6 +243,14 @@ entry point among several rather than the predictable one.
   one owner rather than an inline ternary in the panel, and the panel keeps the specification,
   the validate step and the line that explains the lock.
 
+- **Sixth application (compute).** The Scenario task puts the route comparison in the slot - the
+  other `compute` act the Decision workspace owns - so one workspace now declares a primary action
+  per task it runs rather than for only one of them: the optimiser run for Optimize, the
+  comparison for Scenario. The panel keeps the sandbox economics, the preflight blockers and the
+  economics the comparison produced, and says in its own copy where the comparison starts. The
+  cross-surface guard was extended to this act at the same time, so the comparison cannot be
+  re-copied into a panel the way the optimiser run had been.
+
 ## 7. Fifth slice — the panel taxonomy's disclosure rule, applied and audited
 
 The panel taxonomy states which disclosures a panel owes when it presents a material value:

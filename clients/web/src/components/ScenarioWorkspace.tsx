@@ -16,11 +16,11 @@ interface ScenarioWorkspaceProps {
   routeRecommendation: RouteRecommendationResultDTO | null;
   contract: ContractDraft;
   /**
-   * The pool-optimiser run is the Decision workspace's primary action, not this panel's: it is
-   * one `compute` consequence and it has one control. This panel configures the sandbox
-   * economics, reports the preflight blockers and shows the allocation the run produced.
+   * The pool-optimiser run and the route comparison are the Decision workspace's primary
+   * actions, not this panel's: each is one `compute` consequence and each has one control. This
+   * panel configures the sandbox economics, reports the preflight blockers and shows the
+   * allocation the runs produced.
    */
-  canCompareRoutes: boolean;
   poolInputBlockers: string[];
   resourcePoolResult: PortfolioOptimizationResultDTO | null;
   saleOptionById: Map<string, PortfolioSaleOptionDTO>;
@@ -28,7 +28,6 @@ interface ScenarioWorkspaceProps {
   contextMismatch: boolean;
   t: Translate;
   updateContractNumber: (key: ContractNumberKey, value: string) => void;
-  onCompare: () => void;
 }
 
 const ECONOMIC_INPUTS: Array<{ key: ContractNumberKey; label: string }> = [
@@ -57,7 +56,6 @@ export function ScenarioWorkspace({
   routeEconomics,
   routeRecommendation,
   contract,
-  canCompareRoutes,
   poolInputBlockers,
   resourcePoolResult,
   saleOptionById,
@@ -65,7 +63,6 @@ export function ScenarioWorkspace({
   contextMismatch,
   t,
   updateContractNumber,
-  onCompare,
 }: ScenarioWorkspaceProps) {
   return (
     <div className="workspace-grid scenario-page">
@@ -122,9 +119,7 @@ export function ScenarioWorkspace({
             <label key={key}>{t(label)}<input type="number" value={contract[key] ?? ""} onChange={(event) => updateContractNumber(key, event.target.value)} /></label>
           ))}
         </div>
-        <div className="action-row">
-          <button type="button" disabled={!canCompareRoutes} onClick={onCompare}>{t("economics.compare")}</button>
-        </div>
+        <p className="panel-copy">{t("scenario.compare_location")}</p>
         <p className="panel-copy">{t("scenario.optimizer_location")}</p>
         {poolInputBlockers.length > 0 && (
           <div className="runtime-blocker-list compact">

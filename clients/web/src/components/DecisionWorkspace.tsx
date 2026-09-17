@@ -147,10 +147,13 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
   const tabs = DECISION_TASKS.map((id) => ({ id, label: t(`decision.task.${id}`) }));
 
   // Action geography (`app/experience/actionGeography.ts`): running the pool optimiser is the
-  // primary act of the Optimize task - a `compute` consequence - so it sits in the
-  // workspace's single primary slot instead of inside the panel it reports on. The panel
-  // keeps the preflight verdict and the allocations the run produced; the action that
-  // starts a run is not panel furniture.
+  // primary act of the Optimize task and comparing route options is the primary act of the
+  // Scenario task - both `compute` consequences - so each occupies the workspace's single
+  // primary slot instead of sitting inside the panel it reports on. The panels keep the
+  // preflight verdicts and the results the runs produced; the actions that start a run are not
+  // panel furniture.
+  const canCompareRoutes =
+    portfolio.hasPortfolioResources && portfolio.saleOptions.length > 0;
   const primaryAction =
     task === "optimize" ? (
       <button
@@ -159,6 +162,15 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
         onClick={portfolio.optimizeResourcePoolForCurrentContext}
       >
         {t("home.optimize_pool")}
+      </button>
+    ) : task === "scenario" ? (
+      <button
+        type="button"
+        disabled={!canCompareRoutes}
+        title={canCompareRoutes ? t("economics.compare_hint") : t("economics.compare_blocked")}
+        onClick={portfolio.recommendRouteAllocationForCurrentContext}
+      >
+        {t("economics.compare")}
       </button>
     ) : undefined;
 
@@ -184,7 +196,6 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
             routeEconomics={portfolio.scenarioRouteEconomics}
             routeRecommendation={api.routeRecommendation}
             contract={contractEditor.contract}
-            canCompareRoutes={portfolio.hasPortfolioResources && portfolio.saleOptions.length > 0}
             poolInputBlockers={portfolio.poolInputBlockers}
             resourcePoolResult={api.resourcePoolResult}
             saleOptionById={portfolio.saleOptionById}
@@ -192,7 +203,6 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
             contextMismatch={portfolio.optimizerContextMismatch}
             t={t}
             updateContractNumber={contractEditor.updateContractNumber}
-            onCompare={portfolio.recommendRouteAllocationForCurrentContext}
           />
         )}
         {task === "optimize" && <OptimizeWorkspace controller={controller} />}

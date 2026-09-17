@@ -100,6 +100,16 @@ test("a workspace header declares at most one primary action, and only a permitt
   ]);
 
   const decision = readWebSource("components/DecisionWorkspace.tsx");
+  // Two tasks in this workspace each own a `compute` act, and each is in the slot for its own
+  // task: the optimiser run for Optimize, the route comparison for Scenario.
+  assert.match(decision, /task === "optimize" \? \([\s\S]*?\) : task === "scenario" \? \(/);
+  assert.match(decision, /onClick=\{portfolio\.recommendRouteAllocationForCurrentContext\}/);
+  assert.match(decision, /disabled=\{!canCompareRoutes\}/);
+  assert.equal(
+    (decision.match(/economics\.compare"/g) ?? []).length,
+    1,
+    "the primary action exists once",
+  );
   // Exactly one `primaryAction=` binding, so the header cannot end up with two.
   assert.equal((decision.match(/primaryAction=\{/g) ?? []).length, 1);
   // The action it passes is the optimiser run: a `compute` consequence, which the geography
@@ -219,16 +229,23 @@ test("one compute act has one control, across surfaces and not only inside a fil
   // optimiser run was reachable from three separate buttons - the Decision workspace's primary
   // action, the Scenario panel and the network panel over the map - so a user had to relearn
   // where "run" lives depending on which tab they were standing in, which is exactly what the
-  // geography exists to prevent.
+  // geography exists to prevent. The same check covers the route comparison, the other compute
+  // act this workspace owns.
+  const acts = {
+    optimizeResourcePoolForCurrentContext: "runs the pool optimiser",
+    recommendRouteAllocationForCurrentContext: "compares route options",
+  };
   const offenders: string[] = [];
   for (const { path, source } of surfaceSources()) {
     if (path === "components/DecisionWorkspace.tsx") continue;
-    if (source.includes("optimizeResourcePoolForCurrentContext")) offenders.push(path);
+    for (const [handler, description] of Object.entries(acts)) {
+      if (source.includes(handler)) offenders.push(`${path}: ${description}`);
+    }
   }
   assert.deepEqual(
     offenders,
     [],
-    "a surface other than the Decision workspace runs the pool optimiser",
+    "a surface other than the Decision workspace starts a Decision-workspace run",
   );
   // The workspace that hands over says so in its own copy rather than leaving the user to guess.
   assert.match(
