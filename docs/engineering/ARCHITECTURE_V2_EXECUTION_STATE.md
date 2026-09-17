@@ -4,7 +4,7 @@ Last updated: 2026-09-16
 Repository HEAD: `main` (Waves 0-9 slices below are committed and pushed; see the git log for the exact head)
 Working tree: clean except pre-existing `.automation/*` edits from the earlier autonomous harness, which are neither accepted nor reverted.
 V2 pack version: 2026-09 autonomous runner
-Current wave: Waves 0, 1, 2, 3, 4, 5, 6, 8 (taxonomy/presentation layer) and the first Wave 9 slice are delivered. Waves 7 and 10 are not started; the remaining halves of Waves 5, 8 and 9 are named below.
+Current wave: Waves 0-6, 8 and the first Wave 9 slice are delivered; Wave 5's client half, the remaining Wave 9 workspace migration, Wave 7 and Wave 10 are open.
 Wave status: DELIVERED_AND_VALIDATED for the waves listed above.
 
 ## Accepted architecture decisions
@@ -55,9 +55,9 @@ Wave status: DELIVERED_AND_VALIDATED for the waves listed above.
 
 ## Validation evidence
 
-- `python -m pytest tests -q --ignore=tests/integration` — **1589 passed, 1 skipped, 0 failed**.
-- `clients/web`: `node --test "tests/*.test.ts"` — **279 passed**; `npx tsc --noEmit` clean; `npm run build` exit 0.
-- `python scripts/security/run_security_acceptance.py` — all automated checks PASS (`api_import_safe`, `public_surface_bounded` 175, `permission_registry_complete` 175, token/identity/OIDC fail-closed, posture retained); external review items remain BLOCKED as before.
+- `python -m pytest tests -q --ignore=tests/integration` — **1608 passed, 1 skipped, 0 failed**.
+- `clients/web`: `node --test "tests/*.test.ts"` — **293 passed**; `npx tsc --noEmit` clean; `npm run build` exit 0.
+- `python scripts/security/run_security_acceptance.py` — all automated checks PASS (`api_import_safe`, `public_surface_bounded` 178, `permission_registry_complete` 178, token/identity/OIDC fail-closed, posture retained); external review items remain BLOCKED as before.
 - Not run and not claimed: `tests/integration` (live PostgreSQL), packaging/installer evidence, visual/accessibility/UAT review, provider and licence validation, and lint.
 
 ## Risks / STOP CONDITIONS
