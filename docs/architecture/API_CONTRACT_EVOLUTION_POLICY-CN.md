@@ -64,6 +64,16 @@ Windows/Linux 桌面外壳和双语运营文档。所有消费方都是同一契
 | `GET/POST /api/analysis-snapshots` | Architecture V2 Wave 4（统一数据平台） | `POST`（GOVERNED，ANALYST 门槛）按当前 Active Context 记录 Analysis Snapshot 描述符；`GET` 列出最近的描述符。`GET` 保持 READ 门槛，因为描述符是血缘/溯源元数据、不含商业数值；其引用的每个数值仍在各自的商业端点之后 |
 | `GET /api/analysis-snapshots/{snapshot_id}` | Architecture V2 Wave 4（统一数据平台） | 按可复现引用读取单个 Analysis Snapshot；未知引用返回 404 |
 
+## 已声明的附加字段
+
+对既有路径的字段级新增。它们不引入新路径、不放松门槛、不改变状态码；未发送该可选字段的调用方保持原有行为。
+
+| 路径 | 字段 | 契约 |
+|---|---|---|
+| `POST /api/route-cost/recommend` | `analysis_snapshot_id`（请求可选，`data` 回显） | Architecture V2 Wave 4：产出建议所引用的可复现引用。运行前对持久化的 Analysis Snapshot 校验——未知引用返回 `422 analysis_snapshot_not_found`，无法校验时返回 `503 runtime_db_not_configured` |
+| `POST /api/route-cost/resource-pool/optimize` | `analysis_snapshot_id`（请求可选，`data` 回显） | Wave 5 后续把 Wave 4 的范围扩展到该运行路径：校验方式与拒绝码同建议路径一致；未引用快照时 `data` 中不出现该字段，因此此类调用方的载荷保持不变 |
+| `POST /api/strategy-runs`（`run_type=BACKTEST`） | `analysis_snapshot_id`（请求可选，`data` 回显） | Wave 4 范围扩展到策略回测运行：运行前对持久化的 Analysis Snapshot 校验（被拒绝时不创建运行行、不创建作业），并在响应中回显；未引用时不出现 |
+
 ## 弃用表
 
 | 表面 | 弃用起始 | 计划移除 | 状态 |
