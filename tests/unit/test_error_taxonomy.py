@@ -84,6 +84,44 @@ def test_an_unknown_code_fails_closed_to_system() -> None:
     assert error_family("") is ErrorFamily.SYSTEM
 
 
+def test_an_uncatalogued_code_keeps_its_name_and_gains_an_inferred_family() -> None:
+    """The API raises dozens of specific codes; the envelope still classifies them."""
+
+    cases = {
+        "runtime_db_not_configured": ErrorFamily.CONFIGURATION,
+        "analysis_snapshot_not_found": ErrorFamily.VALIDATION,
+        "gas_day_invalid": ErrorFamily.VALIDATION,
+        "case_not_decidable": ErrorFamily.VALIDATION,
+        "manual_assumptions_too_many": ErrorFamily.VALIDATION,
+        "optimization_input_invalid": ErrorFamily.VALIDATION,
+        "registry_unavailable": ErrorFamily.DEPENDENCY,
+        "artifact_store_unavailable": ErrorFamily.DEPENDENCY,
+        "export_denied_entitlement": ErrorFamily.ENTITLEMENT,
+        "capability_not_registered": ErrorFamily.AGENT,
+    }
+    assert not (set(cases) & set(ERROR_CATALOGUE)), "these cases are meant to be uncatalogued"
+    for code, family in cases.items():
+        definition = error_definition(code)
+        assert definition.code == code, code
+        assert definition.family is family, code
+        # An uncatalogued code takes family-level keys, so a client always has text.
+        assert definition.message_key == f"errors.family.{family.value}.title", code
+        assert definition.action_key == f"errors.family.{family.value}.action", code
+
+    # Catalogued codes keep their own keys and family.
+    assert error_family("credential_store_not_configured") is ErrorFamily.CONFIGURATION
+    assert error_family("llm_provider_denied") is ErrorFamily.ENTITLEMENT
+    assert (
+        error_definition("credential_store_not_configured").message_key
+        == "errors.credential_store_not_configured.message"
+    )
+
+    payload = error_payload("analysis_snapshot_not_found", correlation_id="c-2")
+    assert payload["error"] == "analysis_snapshot_not_found"
+    assert payload["family"] == "VALIDATION"
+    assert payload["message_key"] == "errors.family.VALIDATION.title"
+
+
 def test_the_payload_carries_the_v2_fields_and_the_correlation_id() -> None:
     payload = error_payload("entitlement_denied", correlation_id="corr-9")
 
@@ -98,15 +136,17 @@ def test_the_payload_carries_the_v2_fields_and_the_correlation_id() -> None:
 
 
 def test_operator_detail_never_reaches_a_business_user() -> None:
-    business = error_payload("runtime_db_unavailable", detail="dsn=postgresql://secret")
-    assert "detail" not in business
+    business = error_payload("runtime_db_unavailable", operator_detail="dsn=postgresql://secret")
+    assert "operator_detail" not in business
 
-    operator = error_payload("runtime_db_unavailable", detail="dsn=postgresql://secret", operator=True)
-    assert operator["detail"] == "dsn=postgresql://secret"
+    operator = error_payload(
+        "runtime_db_unavailable", operator_detail="dsn=postgresql://secret", operator=True
+    )
+    assert operator["operator_detail"] == "dsn=postgresql://secret"
 
     # Even on an operator surface, an informational code carries no detail.
-    informational = error_payload("JOB_CANCELLED", detail="stack", operator=True)
-    assert "detail" not in informational
+    informational = error_payload("JOB_CANCELLED", operator_detail="stack", operator=True)
+    assert "operator_detail" not in informational
 
 
 def test_a_safe_message_override_is_allowed_and_keeps_the_keys() -> None:

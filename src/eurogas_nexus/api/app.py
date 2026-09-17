@@ -7,6 +7,7 @@ from eurogas_nexus.api.dependencies.commercial_access import require_commercial_
 from eurogas_nexus.api.dependencies.identity import require_identity
 from eurogas_nexus.api.dependencies.public_auth import require_public_api_auth
 from eurogas_nexus.api.dependencies.route_permission import require_route_permission
+from eurogas_nexus.api.error_handlers import register_error_handlers
 from eurogas_nexus.api.middleware.observability import HttpObservabilityMiddleware
 from eurogas_nexus.api.middleware.origin_csrf import OriginCsrfGuardMiddleware
 from eurogas_nexus.api.middleware.request_id import RequestIdMiddleware
@@ -46,6 +47,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.settings = resolved_settings
 
     app.state.route_profile = route_profile
+
+    # Architecture V2 error envelope: every HTTPException keeps its original
+    # ``detail`` and gains the stable code, family, severity, recoverability and
+    # correlation id alongside it.
+    register_error_handlers(app)
 
     app.add_middleware(RequestIdMiddleware)
     app.add_middleware(HttpObservabilityMiddleware)

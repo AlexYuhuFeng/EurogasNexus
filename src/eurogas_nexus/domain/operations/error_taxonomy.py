@@ -129,6 +129,14 @@ ERROR_CATALOGUE: dict[str, ErrorDefinition] = {
         # --- validation ---
         _definition("dataset_spec_invalid", ErrorFamily.VALIDATION, recoverability=Recoverability.AFTER_USER_ACTION),
         _definition("dataset_build_invalid", ErrorFamily.VALIDATION, recoverability=Recoverability.AFTER_USER_ACTION),
+        # Generic HTTP failures an endpoint may raise without a domain code. They
+        # exist so the error envelope never has to label a plain 404 or 409 as an
+        # unclassified SYSTEM fault.
+        _definition("not_found", ErrorFamily.VALIDATION, severity=ErrorSeverity.WARNING, recoverability=Recoverability.PERMANENT),
+        _definition("conflict", ErrorFamily.VALIDATION, severity=ErrorSeverity.WARNING, recoverability=Recoverability.AFTER_USER_ACTION),
+        _definition("validation_failed", ErrorFamily.VALIDATION, recoverability=Recoverability.AFTER_USER_ACTION),
+        _definition("service_unavailable", ErrorFamily.DEPENDENCY, recoverability=Recoverability.RETRY),
+        _definition("rate_limited", ErrorFamily.DEPENDENCY, severity=ErrorSeverity.WARNING, recoverability=Recoverability.RETRY),
         # --- data ---
         _definition("DATA_STALE", ErrorFamily.DATA, severity=ErrorSeverity.WARNING, recoverability=Recoverability.RETRY),
         _definition("DATA_MISSING", ErrorFamily.DATA, severity=ErrorSeverity.WARNING),
@@ -146,6 +154,12 @@ ERROR_CATALOGUE: dict[str, ErrorDefinition] = {
         _definition("JOB_CANCELLED", ErrorFamily.JOB, severity=ErrorSeverity.INFO, recoverability=Recoverability.AFTER_USER_ACTION),
         _definition("AGENT_BUDGET_EXCEEDED", ErrorFamily.AGENT, severity=ErrorSeverity.WARNING, recoverability=Recoverability.AFTER_USER_ACTION),
         _definition("AGENT_CAPABILITY_UNAVAILABLE", ErrorFamily.AGENT, recoverability=Recoverability.RETRY),
+        # --- configuration and secrets ---
+        _definition("public_api_token_not_configured", ErrorFamily.CONFIGURATION, severity=ErrorSeverity.CRITICAL, operator_only=True),
+        _definition("internal_api_token_not_configured", ErrorFamily.CONFIGURATION, severity=ErrorSeverity.CRITICAL, operator_only=True),
+        _definition("credential_store_not_configured", ErrorFamily.CONFIGURATION, operator_only=True),
+        _definition("llm_provider_denied", ErrorFamily.ENTITLEMENT, recoverability=Recoverability.AFTER_USER_ACTION),
+        _definition("oidc_login_error", ErrorFamily.AUTH, recoverability=Recoverability.RETRY),
         # --- system ---
         _definition("internal", ErrorFamily.SYSTEM, severity=ErrorSeverity.CRITICAL, operator_only=True),
     )
@@ -163,11 +177,91 @@ _SYSTEM_FALLBACK = ErrorDefinition(
     operator_only=False,
 )
 
+# Suffix/prefix rules for a code that is not catalogued. They exist because the API
+# legitimately raises dozens of specific codes (``analysis_snapshot_not_found``,
+# ``runtime_db_not_configured``, ``registry_unavailable`` …): the envelope should
+# still classify those sensibly instead of dumping every one into SYSTEM, while the
+# code string itself is reported unchanged so operators see the real thing.
+_FAMILY_RULES: tuple[tuple[tuple[str, ...], ErrorFamily], ...] = (
+    # Most specific first: a malformed *request* is VALIDATION even when the subject
+    # is an optimisation, and a missing configuration is CONFIGURATION.
+    (("not_configured",), ErrorFamily.CONFIGURATION),
+    (
+        (
+            "_not_found",
+            "_invalid",
+            "_required",
+            "_unsupported",
+            "_not_applicable",
+            "_not_supported",
+            "_too_long",
+            "_too_many",
+            "not_decidable",
+            "not_found",
+            "invalid",
+            "unsupported",
+            "conflict",
+            "validation",
+        ),
+        ErrorFamily.VALIDATION,
+    ),
+    (("_unavailable", "unavailable"), ErrorFamily.DEPENDENCY),
+    (("denied", "entitlement", "export", "commercial_access"), ErrorFamily.ENTITLEMENT),
+    (
+        (
+            "credential",
+            "authenticated",
+            "unauthenticated",
+            "oidc",
+            "session",
+            "principal",
+            "identity_role",
+        ),
+        ErrorFamily.AUTH,
+    ),
+    (("_stale", "data_", "snapshot_expired", "missing_data"), ErrorFamily.DATA),
+    (("optimization", "route_", "infeasible", "calculation"), ErrorFamily.CALCULATION),
+    (("job_", "backfill"), ErrorFamily.JOB),
+    (("agent_", "capability_"), ErrorFamily.AGENT),
+)
+
+
+def _infer_family(code: str) -> ErrorFamily | None:
+    """Family inferred from a code shape, or ``None`` when nothing matches."""
+
+    normalized = code.casefold()
+    for markers, family in _FAMILY_RULES:
+        if any(marker in normalized for marker in markers):
+            return family
+    return None
+
 
 def error_definition(code: str) -> ErrorDefinition:
-    """Look up a code, failing closed to a safe SYSTEM definition when unknown."""
+    """Look up a code, falling back to a family inference and then to SYSTEM.
 
-    return ERROR_CATALOGUE.get((code or "").strip(), _SYSTEM_FALLBACK)
+    An uncatalogued code keeps its own identifier - operators need the real string -
+    but takes the family-level translation keys, so a client always has text to
+    render instead of a missing-key placeholder.
+    """
+
+    normalized = (code or "").strip()
+    catalogued = ERROR_CATALOGUE.get(normalized)
+    if catalogued is not None:
+        return catalogued
+
+    family = _infer_family(normalized) if normalized else None
+    if family is None:
+        return _SYSTEM_FALLBACK
+
+    return ErrorDefinition(
+        code=normalized,
+        family=family,
+        severity=ErrorSeverity.ERROR,
+        recoverability=Recoverability.UNKNOWN,
+        message_key=f"errors.family.{family.value}.title",
+        action_key=f"errors.family.{family.value}.action",
+        operator_only=False,
+    )
 
 
 def error_family(code: str) -> ErrorFamily:
@@ -181,15 +275,16 @@ def error_payload(
     *,
     correlation_id: str | None = None,
     message: str | None = None,
-    detail: str | None = None,
+    operator_detail: str | None = None,
     operator: bool = False,
 ) -> dict[str, object]:
     """Build the V2 error body.
 
     ``message`` overrides the translation key with an already-safe message.
-    ``detail`` is operator-only: it is dropped unless ``operator`` is true and the
-    definition allows an operator surface, so an internal cause can never leak to
-    a business user.
+    ``operator_detail`` is operator-only: it is dropped unless ``operator`` is true
+    and the code is not merely informational, so an internal cause can never leak to
+    a business user. The field is named distinctly from ``detail`` so it cannot be
+    confused with the endpoint's own ``detail`` payload.
     """
 
     definition = error_definition(code)
@@ -204,8 +299,8 @@ def error_payload(
     }
     if message:
         payload["message"] = message
-    if operator and detail and not definition.severity == ErrorSeverity.INFO:
-        payload["detail"] = detail
+    if operator and operator_detail and definition.severity != ErrorSeverity.INFO:
+        payload["operator_detail"] = operator_detail
     return payload
 
 
@@ -230,6 +325,27 @@ def family_for_operational_category(category: OperationalErrorCategory) -> Error
     """Bridge the infrastructure taxonomy onto the product families."""
 
     return _OPERATIONAL_FAMILY.get(category, ErrorFamily.SYSTEM)
+
+
+# Fallback codes for an HTTP failure raised without a domain code, used by the API
+# error envelope. A status without a catalogued meaning stays unclassified rather
+# than being mislabelled.
+_STATUS_FALLBACK_CODES: dict[int, str] = {
+    400: "validation_failed",
+    401: "unauthenticated",
+    403: "permission_denied",
+    404: "not_found",
+    409: "conflict",
+    422: "validation_failed",
+    429: "rate_limited",
+    503: "service_unavailable",
+}
+
+
+def code_for_status(status_code: int) -> str:
+    """Best-effort code for an HTTP failure raised without one."""
+
+    return _STATUS_FALLBACK_CODES.get(status_code, UNKNOWN_ERROR_CODE)
 
 
 def catalogue_by_family() -> dict[ErrorFamily, tuple[str, ...]]:

@@ -16,17 +16,20 @@ whatever string arrives.
 
 | Layer | Module | Content |
 |---|---|---|
-| Catalogue | `src/eurogas_nexus/domain/operations/error_taxonomy.py` | Ten families (`AUTH`, `ENTITLEMENT`, `VALIDATION`, `DATA`, `CALCULATION`, `DEPENDENCY`, `CONFIGURATION`, `JOB`, `AGENT`, `SYSTEM`), severity, recoverability, translation keys per code, and `error_payload()` |
+| Catalogue | `src/eurogas_nexus/domain/operations/error_taxonomy.py` | Ten families (`AUTH`, `ENTITLEMENT`, `VALIDATION`, `DATA`, `CALCULATION`, `DEPENDENCY`, `CONFIGURATION`, `JOB`, `AGENT`, `SYSTEM`), severity, recoverability, translation keys per code, family inference for uncatalogued codes, and `error_payload()` |
 | Bridge | same module | `family_for_operational_category()` maps the pre-existing infrastructure taxonomy (`operations/errors.py`) onto the product families, so the two vocabularies do not compete |
+| API envelope | `src/eurogas_nexus/api/error_handlers.py`, wired in `api/app.py` | Every `HTTPException` keeps the `detail` the endpoint raised — a string stays a string, a dict keeps every key — and gains `error`, `family`, `severity`, `recoverability`, `message_key`, `action_key` and `correlation_id` (the same value as the `X-Request-Id` header) alongside it, plus `operator_detail` only for an operator identity |
 | Client presentation | `clients/web/src/app/experience/errorPresentation.ts` | `describeApiError()` turns a payload into the four questions; `isRetryable()` / `requiresUserAction()` let a surface decide whether to offer a retry |
-| Vocabulary | `clients/web/src/i18n/{en,zh-CN}.json` | `errors.<code>.message`, `errors.<code>.action`, `errors.family.<FAMILY>.{impact,cause,action}` and the specific cause keys the presentation can emit |
+| Vocabulary | `clients/web/src/i18n/{en,zh-CN}.json` | `errors.<code>.message`, `errors.<code>.action`, `errors.family.<FAMILY>.{title,impact,cause,action}` and the specific cause keys the presentation can emit |
 
 Coverage: the catalogue explains every code the repository already returns
 (`unauthenticated`, `entitlement_denied`, `permission_not_declared`, `runtime_db_unavailable`,
-`dataset_spec_invalid`, …) plus the failure modes Architecture V2 names
-(`DATA_STALE`, `DATA_MISSING`, `PORTFOLIO_INCOMPLETE`, `SNAPSHOT_EXPIRED`, `ROUTE_INFEASIBLE`,
+`dataset_spec_invalid`, `public_api_token_not_configured`, …) plus the failure modes Architecture V2
+names (`DATA_STALE`, `DATA_MISSING`, `PORTFOLIO_INCOMPLETE`, `SNAPSHOT_EXPIRED`, `ROUTE_INFEASIBLE`,
 `OPTIMIZATION_INFEASIBLE`, `PROVIDER_UNAVAILABLE`, `AGENT_BUDGET_EXCEEDED`,
-`commercial_access_not_granted`, `JOB_FAILED`, …).
+`commercial_access_not_granted`, `JOB_FAILED`, …). The API raises several dozen more specific codes;
+those keep their own identifier and gain a family inferred from the code shape, with family-level
+translation keys, so a client always has text to render instead of a missing-key placeholder.
 
 ## 3. Rules
 
@@ -45,10 +48,10 @@ Coverage: the catalogue explains every code the repository already returns
 
 ## 4. Deferred (explicit)
 
-- **Middleware wiring.** The API still raises `HTTPException` with hand-built `detail` objects. Wiring
-  the handler/middleware so every error response carries the taxonomy payload (family, severity,
-  recoverability, correlation id, operator-only detail) is the next bounded step; the catalogue and
-  the client presentation are the prerequisites and are in place.
+- **Unhandled-exception handler.** `HTTPException` is enveloped; an unhandled exception still uses the
+  framework default (a 500 with no taxonomy body). Turning that into a system-fault envelope with
+  always-on correlation and log capture is a separate bounded step, because it changes behaviour
+  tests and operators rely on today. The client already renders an unclassified failure safely.
 - **Unified Job model.** `JOB_FAILED`/`JOB_CANCELLED` are catalogued, but a shared job lifecycle
   (`QUEUED`…`EXPIRED` with progress, retries, cancellation) is not implemented. That is the other
   half of Wave 8 and needs its own schema decision.
@@ -57,9 +60,14 @@ Coverage: the catalogue explains every code the repository already returns
 ## 5. Verification
 
 - `tests/unit/test_error_taxonomy.py` — catalogue completeness and typing, coverage of the codes the
-  API already returns, the V2-named failure modes, fail-closed unknown handling, payload shape with
-  correlation id, operator-detail suppression, safe-message override, the infrastructure bridge, and
-  stable grouping.
+  API already returns, the V2-named failure modes, family inference for uncatalogued codes,
+  fail-closed unknown handling, payload shape with correlation id, operator-detail suppression,
+  safe-message override, the infrastructure bridge, and stable grouping.
+- `tests/api/test_error_envelope.py` — a declared code keeps its `detail` and gains the taxonomy; the
+  commercial refusal is an ENTITLEMENT failure; a string detail stays a string; an uncatalogued
+  endpoint code is still classified; a missing API token is a CONFIGURATION failure; and
+  `operator_detail` appears only for an operator identity. The correlation id equals the
+  `X-Request-Id` header.
 - `clients/web/tests/errorPresentation.test.ts` — the four questions for a catalogued failure, the
   administration-versus-commercial refusal, retry/user-action classification, fail-closed behaviour
   for unknown, missing and malformed payloads, message trimming, and bilingual key coverage.
