@@ -16,7 +16,7 @@ from __future__ import annotations
 import json
 import sys
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 PROTOCOL_VERSION = "2024-11-05"
@@ -49,12 +49,23 @@ class MCPTool:
         description: Human-readable description for clients.
         input_schema: JSON Schema of the tool arguments.
         handler: Callable mapping arguments to a result.
+        posture: How the tool is authorised. ``runtime-authorised`` means it invokes a
+            registry capability through ``CapabilityRuntime``, which re-authorises the
+            principal's permission and entitlement per call. ``deployment-principal``
+            means it calls the SDK directly as the deployment's API principal, so it does
+            **not** re-authorise per user (finding C8); such a call is audited as running
+            outside the capability runtime so an operator can see the bypass in use.
     """
 
     name: str
     description: str
     input_schema: dict[str, Any]
     handler: Callable[[dict[str, Any]], Any]
+    posture: str = "runtime-authorised"
+
+
+#: The two postures a tool may declare. Anything else is a programming error.
+TOOL_POSTURES: frozenset[str] = frozenset({"runtime-authorised", "deployment-principal"})
 
 
 def _tool_list_sources(arguments: dict[str, Any]) -> Any:
@@ -271,7 +282,7 @@ def _tool_optimize_route_sandbox(arguments: dict[str, Any]) -> Any:
     return result.data.model_dump()
 
 
-_LEGACY_TOOLS: tuple[MCPTool, ...] = (
+_LEGACY_TOOLS_RAW: tuple[MCPTool, ...] = (
     MCPTool(
         name="list_sources",
         description="List registered data sources with runtime posture and freshness.",
@@ -534,6 +545,14 @@ _LEGACY_TOOLS: tuple[MCPTool, ...] = (
     ),
 )
 
+#: Every legacy tool runs as the deployment's API principal through the SDK, so it does not
+#: re-authorise permission or entitlement per user (architecture finding C8). The posture is
+#: declared rather than implied: it is published in ``tools/list`` and every call is audited
+#: as running outside the capability runtime.
+_LEGACY_TOOLS: tuple[MCPTool, ...] = tuple(
+    replace(tool, posture="deployment-principal") for tool in _LEGACY_TOOLS_RAW
+)
+
 _CAPABILITY_TOOLS: tuple[MCPTool, ...] = ()
 _LEGACY_NAMES = {tool.name for tool in _CAPABILITY_TOOLS}
 _LEGACY_COMPAT_TOOLS = tuple(tool for tool in _LEGACY_TOOLS if tool.name not in _LEGACY_NAMES)
@@ -544,6 +563,51 @@ TOOLS_BY_NAME: dict[str, MCPTool] = {tool.name: tool for tool in TOOLS}
 # ---------------------------------------------------------------------------
 # Registry-driven capability tools (CR-15)
 # ---------------------------------------------------------------------------
+
+
+def _published_description(tool: MCPTool) -> str:
+    """The description a client sees, with the tool's authorisation posture stated.
+
+    A client cannot infer from a name whether a tool re-authorises per user, so the posture
+    is published twice: as a structured field and in the prose a human reads first.
+    """
+
+    if tool.posture == "deployment-principal":
+        return (
+            f"{tool.description} Runs as the deployment's API principal through the SDK: it "
+            "does not re-authorise permission or entitlement per user, and every call is "
+            "audited as running outside the capability runtime."
+        )
+    return f"{tool.description} Invokes a registry capability, which re-authorises the caller per call."
+
+
+def _audit_deployment_principal_call(tool: MCPTool) -> None:
+    """Record a call that ran outside the capability runtime (finding C8).
+
+    Best-effort by construction: the audit service already swallows an unavailable store,
+    and an audit failure must never change what the tool returns.
+    """
+
+    if tool.posture != "deployment-principal":
+        return
+    try:
+        from eurogas_nexus.application.audit_service import record_audit_event
+
+        record_audit_event(
+            event_type="governance.access",
+            action="mcp.tool.invoked",
+            resource=f"mcp_tool:{tool.name}",
+            principal="service:mcp",
+            outcome="outside_capability_runtime",
+            severity="warning",
+            detail=(
+                "deployment-principal tool invoked through the SDK; it does not "
+                "re-authorise permission or entitlement per user"
+            ),
+            source_system="mcp",
+        )
+    except Exception:  # noqa: BLE001 - auditing must never break the tool call
+        return
 
 
 def _agent_context():
@@ -672,8 +736,11 @@ def handle_jsonrpc_line(line: str) -> str | None:
                     "tools": [
                         {
                             "name": tool.name,
-                            "description": tool.description,
+                            "description": _published_description(tool),
                             "inputSchema": tool.input_schema,
+                            # Published so a client can see how a tool is authorised rather
+                            # than assuming every tool re-authorises per user (finding C8).
+                            "posture": tool.posture,
                         }
                         for tool in TOOLS
                     ]
@@ -690,6 +757,7 @@ def handle_jsonrpc_line(line: str) -> str | None:
         if not isinstance(arguments, dict):
             return _error(request_id, -32602, "arguments must be an object")
         try:
+            _audit_deployment_principal_call(tool)
             result = tool.handler(arguments)
         except Exception as exc:  # tool failures are reported, not fatal
             return json.dumps(

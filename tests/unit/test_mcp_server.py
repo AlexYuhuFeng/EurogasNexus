@@ -3,8 +3,10 @@
 import json
 
 from eurogas_nexus.mcp.server import (
+    TOOL_POSTURES,
     TOOLS,
     TOOLS_BY_NAME,
+    _published_description,
     handle_jsonrpc_line,
 )
 
@@ -169,3 +171,81 @@ def test_tools_call_capacity_sandbox_rejects_runtime_decision() -> None:
     )
     assert result["result"]["isError"] is True
     assert "RUNTIME_DECISION" in result["result"]["content"][0]["text"]
+
+
+def test_every_tool_declares_how_it_is_authorised() -> None:
+    """Finding C8: a client can see whether a tool re-authorises per user.
+
+    Registry-backed tools invoke a capability, which re-authorises permission and
+    entitlement per call. The legacy read/sandbox tools call the SDK as the deployment's
+    API principal and therefore do not; that posture is published rather than implied.
+    """
+
+    assert TOOLS, "no tools registered"
+    for tool in TOOLS:
+        assert tool.posture in TOOL_POSTURES, tool.name
+
+    legacy = [tool for tool in TOOLS if tool.posture == "deployment-principal"]
+    runtime = [tool for tool in TOOLS if tool.posture == "runtime-authorised"]
+    assert legacy, "the legacy tools must declare their posture"
+    assert runtime, "registry capabilities must be present"
+
+    # The posture reaches a client twice: structurally and in the prose.
+    listing = _send({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
+    by_name = {tool["name"]: tool for tool in listing["result"]["tools"]}
+    assert by_name["list_sources"]["posture"] == "deployment-principal"
+    assert "does not re-authorise" in by_name["list_sources"]["description"]
+    assert by_name["compute_hub_spread"]["posture"] == "runtime-authorised"
+    assert "re-authorises the caller per call" in by_name["compute_hub_spread"]["description"]
+    # Every published description carries one of the two statements, so no tool is silent.
+    for tool in listing["result"]["tools"]:
+        assert "re-authorise" in tool["description"], tool["name"]
+
+    assert _published_description(TOOLS_BY_NAME["get_fx_rates"]).startswith(
+        TOOLS_BY_NAME["get_fx_rates"].description
+    )
+
+
+def test_a_deployment_principal_call_is_audited_as_running_outside_the_runtime(monkeypatch) -> None:
+    """The bypass is visible to an operator instead of being silent."""
+
+    recorded: list[dict] = []
+
+    def _record(**kwargs):
+        recorded.append(kwargs)
+        return "audit-1"
+
+    monkeypatch.setattr(
+        "eurogas_nexus.application.audit_service.record_audit_event",
+        _record,
+    )
+    # A registry-backed tool does not record the bypass event...
+    _send(
+        {
+            "jsonrpc": "2.0",
+            "id": 21,
+            "method": "tools/call",
+            "params": {
+                "name": "compute_distribution",
+                "arguments": {"values": [1, 2, 3]},
+            },
+        }
+    )
+    assert recorded == []
+
+    # ...and a legacy tool does, naming itself and the posture it ran under.
+    _send(
+        {
+            "jsonrpc": "2.0",
+            "id": 22,
+            "method": "tools/call",
+            "params": {"name": "get_business_ontology", "arguments": {}},
+        }
+    )
+    assert len(recorded) == 1
+    event = recorded[0]
+    assert event["action"] == "mcp.tool.invoked"
+    assert event["resource"] == "mcp_tool:get_business_ontology"
+    assert event["outcome"] == "outside_capability_runtime"
+    assert event["severity"] == "warning"
+    assert "re-authorise" in event["detail"]
