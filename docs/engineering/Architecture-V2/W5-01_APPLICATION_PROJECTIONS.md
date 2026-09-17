@@ -74,13 +74,31 @@ The wave's real content is the extraction, not the four new routes:
 - The projections import no `eurogas_nexus.api` module and keep SQLAlchemy behind `TYPE_CHECKING`,
   so "API import must not load the DB layer" still holds.
 
-## 6. Deferred (honest gaps, declared in the payload)
+## 6. The resource-pool extraction (delivered follow-up)
 
-- The portfolio `resources` slice reports `RESOURCE_POOL_COMPOSITION_IS_ROUTE_LOCAL`: composing
-  resource-pool options is still private to `route_cost.py`. Extracting
-  `_compose_resource_pool_options` (with its tariff, market, FX and access reads) into the
-  application layer is the bounded next step, after which both the existing route and the
-  `resources` slice call it.
+The portfolio `resources` slice is no longer declared unavailable. The whole route-private
+composition - contracts, route candidates, TSO tariffs, market observations, FX and company TSO
+access, with its shaping, FX-as-of handling and blockers - now lives in
+`application/resource_pool.py`, and both `GET /api/route-cost/resource-pool/options` and
+`PortfolioSnapshot.slices.resources` call it. `route_cost.py` keeps its previous private names as
+compatibility aliases so its existing unit tests keep asserting the same behaviour, and byte-identity
+was measured rather than assumed: the pre-change module was loaded from `git HEAD` and its output
+compared against the extracted one across the route's unit cases (13 comparisons, 0 mismatches),
+with the DB-backed integration test passing too.
+
+The slice filters entitlement **before** composing: `derived_result_access` on the route candidates
+(the `/api/route-cost/route-candidates` rule) and the source-family row filter on the market
+observations (the `/api/market/*` rule). It is therefore strictly narrower than the route, which
+applies no row filter, and the entitlement block plus a slice note say so - a `*_MISSING` blocker can
+mean an input the caller is not entitled to rather than one the runtime store does not hold. Only the
+documented single-trust-domain deployment token sees the unfiltered composition, exactly as before.
+
+`ScenarioContext` no longer lists the pool as a missing input: its `not_included` entry was corrected
+to `RESOURCE_POOL_OPTIONS_ARE_DELIVERED_BY_THE_PORTFOLIO_PROJECTION`, so the read model stops
+claiming a gap it no longer has.
+
+## 7. Still deferred (honest gaps, declared in the payload)
+
 - Scenario results are deliberately never synthesised; the endpoints that produce them are listed
   in `data.not_included`.
 - The review surface has not migrated onto `ReviewContext`, deliberately: that projection resolves
@@ -89,7 +107,7 @@ The wave's real content is the extraction, not the four new routes:
   surface needs. The intended shape is the same as the market lane - fetch `ReviewContext` when the
   review surface opens, not in the workspace batch - and it is the bounded next step for this wave.
 
-## 7. Client migration onto the projections
+## 8. Client migration onto the projections
 
 The market and portfolio lanes are the migrated consumers, and they demonstrate the rule that a
 projection is only worth its cost when the client deletes a join rather than adding a fifth read.
@@ -134,7 +152,7 @@ Honesty rules the client keeps:
 4. A payload the backend could not serve leaves the projection empty and the strip unmounted rather
    than implying a coherent read that never happened.
 
-## 8. Verification
+## 9. Verification
 
 - `tests/api/test_projections_api.py` (10 tests) and `tests/unit/test_projections_application.py`
   (21 tests): coherent single time basis, per-slice freshness, entitlement at least as strict as the

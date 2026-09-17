@@ -87,7 +87,7 @@ function projection(
         available: false,
         rows: null,
         payload: null,
-        notes: ["RESOURCE_POOL_COMPOSITION_IS_ROUTE_LOCAL"],
+        notes: ["Portfolio resources require the runtime PostgreSQL database."],
       }),
       data_sources: slice({ row_count: 4, rows: [] }),
       ...overrides,
@@ -141,14 +141,26 @@ test("a summary the backend could not measure is null, never a zero", () => {
   );
 });
 
-test("the resource-pool slice is declared, not approximated", () => {
-  const payload = projection();
+test("an unavailable resource-pool slice is declared, not approximated", () => {
+  // The backend composes the pool from the same application code the route calls; when
+  // the runtime store cannot serve it, the slice reports the route's identical degraded
+  // block and explains itself instead of the client inventing an empty pool.
+  const payload = projection({
+    resources: slice({
+      available: false,
+      rows: null,
+      payload: { scope: "RESOURCE_POOL_ROUTE_OPTIONS", data_source: "runtime-db-not-configured" },
+      notes: ["Resource-pool options require the runtime PostgreSQL database."],
+    }),
+  });
 
-  // Composing executable sale options is a route-local read today; the projection
-  // says so and the client surfaces the declaration instead of a zero.
   const reading = portfolioReadings(payload).find((item) => item.key === "resources");
   assert.equal(reading?.available, false);
-  assert.equal(snapshotResourceNote(payload), "RESOURCE_POOL_COMPOSITION_IS_ROUTE_LOCAL");
+  assert.equal(snapshotResourceNote(payload), "Resource-pool options require the runtime PostgreSQL database.");
+  // The pool block is not rebuilt from a degraded slice, so the surface keeps the
+  // options it already had rather than showing an empty pool.
+  assert.equal(snapshotResourcePoolOptions(payload), null);
+  // The rest of the snapshot is still usable: only the pool block is withheld.
   assert.equal(snapshotIsUsable(payload), true);
 });
 

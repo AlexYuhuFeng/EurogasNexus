@@ -188,9 +188,13 @@ export function snapshotResourcePoolOptions(
 }
 
 /**
- * Why the resource-pool slice is not part of this read, when the backend says so.
- * The slice is declared rather than approximated: composing executable sale options
- * is a route-local read today, and a projection must not invent it.
+ * What the backend says about the resource-pool slice it served.
+ *
+ * The slice is composed for real by the same application code the route calls, so the
+ * note explains the slice's own boundaries: that entitlement filtering runs before the
+ * composition, that a `*_MISSING` blocker may therefore mean "not entitled" rather than
+ * "absent", and - when the runtime store could not serve it - that the block is the
+ * route's identical degraded answer rather than a fabricated empty resource list.
  */
 export function snapshotResourceNote(
   projection: PortfolioSnapshotProjectionDTO | null | undefined,
