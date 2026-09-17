@@ -174,23 +174,46 @@ def run_research(body: ResearchRunRequest, request: Request) -> dict:
     from eurogas_nexus.application.agents.research_orchestrator import (
         GovernedResearchOrchestrator,
     )
+    from eurogas_nexus.application.jobs import track_job
 
     principal = _principal(request)
     run_id = f"agent-run-{uuid4().hex[:20]}"
     with _session() as session:
-        orchestrator = GovernedResearchOrchestrator()
-        outcome = orchestrator.run_research(
+        # Wave 8: the governed research run registers into the unified job model, in the
+        # same session that persists the run's own rows, so the job commits with the work
+        # it describes (and is rolled back with it when the run fails).
+        with track_job(
             session,
-            run_id=run_id,
-            principal=principal,
-            objective=body.objective,
-            agent_profile=body.agent_profile,
-            strategy_generation_allowed=body.strategy_generation_allowed,
-            strategy_ir_payload=body.strategy_ir,
-            frozen_strategy_version_id=body.frozen_strategy_version_id,
-            period_start_utc=body.period_start_utc,
-            period_end_utc=body.period_end_utc,
-        )
+            kind="AGENT_RUN",
+            principal=_job_principal(request),
+            scope_refs=(f"AGENT_PROFILE:{body.agent_profile}",),
+            inputs={
+                "objective": body.objective,
+                "agent_profile": body.agent_profile,
+                "strategy_generation_allowed": bool(body.strategy_generation_allowed),
+                "frozen_strategy_version_id": body.frozen_strategy_version_id or "",
+                "period_start_utc": _iso_or_none(body.period_start_utc),
+                "period_end_utc": _iso_or_none(body.period_end_utc),
+            },
+            correlation_id=getattr(request.state, "request_id", None),
+            provenance=("agent-runtime", "governed-research"),
+        ) as job:
+            orchestrator = GovernedResearchOrchestrator()
+            outcome = orchestrator.run_research(
+                session,
+                run_id=run_id,
+                principal=principal,
+                objective=body.objective,
+                agent_profile=body.agent_profile,
+                strategy_generation_allowed=body.strategy_generation_allowed,
+                strategy_ir_payload=body.strategy_ir,
+                frozen_strategy_version_id=body.frozen_strategy_version_id,
+                period_start_utc=body.period_start_utc,
+                period_end_utc=body.period_end_utc,
+            )
+            _record_agent_artifacts(job, run_id, outcome)
+        # Commit after the tracker has written the terminal outcome, so the job row and
+        # the run rows it describes land in one transaction.
         session.commit()
     return _env(
         outcome.payload(),
@@ -198,6 +221,42 @@ def run_research(body: ResearchRunRequest, request: Request) -> dict:
         source="agent-runtime",
         warnings=outcome.warnings,
     )
+
+
+def _job_principal(request: Request) -> str:
+    """The principal a tracked run is attributed to.
+
+    The compatibility deployment token's identifier is not expressible in the principal
+    vocabulary, so the job records the acting principal's name - the convention the
+    dataset-build, optimisation and report paths already follow.
+    """
+
+    identity = getattr(request.state, "identity", None)
+    return identity.name if identity is not None else "public-api"
+
+
+def _record_agent_artifacts(job, run_id: str, outcome) -> None:
+    """Record only artefacts that really exist, under references that identify them.
+
+    The orchestrator's ``artifacts`` list also carries bare labels ("StrategyIR") which
+    name a kind of artefact rather than a stored object. A job cites what it produced, so
+    the run itself and every artefact that has an id are recorded, and a label is not
+    dressed up as a reference.
+    """
+
+    job.add_output(f"agent_run:{run_id}")
+    if outcome.strategy_version_id:
+        job.add_output(f"strategy_version:{outcome.strategy_version_id}")
+    if outcome.backtest_run_id:
+        job.add_output(f"backtest:{outcome.backtest_run_id}")
+    if outcome.review_pack_id:
+        job.add_output(f"review-pack:{outcome.review_pack_id}")
+
+
+def _iso_or_none(value) -> str | None:
+    """Format an optional datetime for a job input hash."""
+
+    return value.isoformat() if hasattr(value, "isoformat") else None
 
 
 @router.get("/api/agent/runs")

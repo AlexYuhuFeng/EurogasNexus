@@ -200,6 +200,46 @@ def test_research_run_creates_replay_without_hidden_cot(client) -> None:
     assert replay_data["model_provider"] == "DETERMINISTIC"
 
 
+def test_a_governed_research_run_registers_a_job_with_its_artefacts(client, monkeypatch) -> None:
+    """Wave 8: the agent run appears in the unified job model, citing what it produced."""
+
+    import os
+
+    from sqlalchemy import create_engine, select
+    from sqlalchemy.orm import Session as SyncSession
+
+    from eurogas_nexus.db.models import JobRecord
+
+    response = client.post(
+        "/api/agent/research",
+        json={
+            "objective": "Is the NBP premium over TTF persistent today?",
+            "agent_profile": "STRATEGY_RESEARCHER",
+        },
+    )
+    assert response.status_code == 200
+    run_id = response.json()["data"]["agent_run_id"]
+    strategy_version_id = response.json()["data"]["strategy_version_id"]
+
+    database_url = os.environ["RUNTIME_STORE_DATABASE_URL"]
+    with SyncSession(create_engine(database_url, future=True)) as session:
+        jobs = session.execute(select(JobRecord)).scalars().all()
+
+    assert len(jobs) == 1
+    job = jobs[0]
+    assert job.kind == "AGENT_RUN"
+    assert job.status == "SUCCEEDED"
+    # The job is attributed to a principal the identity vocabulary accepts, and cites the
+    # run plus every artefact that really carries an id - no bare artefact label.
+    assert job.principal == "public-api"
+    assert f"agent_run:{run_id}" in list(job.output_refs_json)
+    if strategy_version_id:
+        assert f"strategy_version:{strategy_version_id}" in list(job.output_refs_json)
+    assert all(":" in reference for reference in job.output_refs_json)
+    assert job.input_hash
+    assert "governed-research" in list(job.provenance_json)
+
+
 def test_plan_validation_rejects_unknown_entity(client) -> None:
     response = client.post(
         "/api/agent/plans/validate",

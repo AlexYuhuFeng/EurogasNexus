@@ -58,6 +58,7 @@ The seam only earns its keep when existing work registers into it, so the paths 
 | Resource-pool optimisation (`POST /api/route-cost/resource-pool/optimize`) | `run_tracked_job()` (the work has no session of its own) | none: the run persists no artefact, so its `output_refs` are honestly empty rather than invented |
 | Strategy backtest (`POST /api/strategy-runs`, `run_type=BACKTEST`) | `track_job()` inside the existing `_db_session()` | `strategy_run:<run_id>`, committed with the run rows it describes |
 | Portfolio report (`POST /api/reports/portfolio`) | `run_tracked_job()` | `generated_report:<report_id>`, and **only** when the report really was persisted |
+| Governed agent research (`POST /api/agent/research`) | `track_job()` in the run's own session, committed after the tracker wrote the terminal outcome | `agent_run:<run_id>` plus every artefact that carries an id (`strategy_version:`, `backtest:`, `review-pack:`); the orchestrator's bare artefact labels are not dressed up as references |
 
 The report path needed one honesty fix before it could be tracked: `_persist_report_if_db` swallowed
 every failure, so a job would have cited a report the store does not hold. Persistence is still
@@ -69,8 +70,8 @@ runtime store at all is a declared posture (the envelope already reports
 
 ## 6. Deferred
 
-- Agent-research runs and ingestion runs are still untracked; each is a small bounded change once its
-  path has a session (or a `run_tracked_job()` seam) to record into.
+- Ingestion runs are still untracked; the crawl/ingestion worker has its own scheduling path, so
+  adopting the model there is a worker-side change rather than a request-path one.
 - Job *replay* and retention policy (how long records are kept) are future operations decisions. The
   activity list shows the most recent 25 records and refreshes on demand.
 
@@ -90,6 +91,9 @@ runtime store at all is a declared posture (the envelope already reports
 - `tests/api/test_report_jobs_api.py` — a stored report registers a `REPORT` job that cites the report
   under its stored id; a configured store that refuses the write warns `REPORT_NOT_PERSISTED` and the
   job cites no artefact; a deployment without a store adds no warning and invents no job.
+- `tests/api/test_agents_api.py` — a governed research run registers an `AGENT_RUN` job attributed to a
+  principal the identity vocabulary accepts, citing the run and every id-bearing artefact, with no bare
+  artefact label among its output references.
 - `tests/api/test_projections_api.py`, `tests/api/test_route_cost_adjacent_api.py` and
   `tests/api/test_backtest_api.py` — the adopted paths' own behaviour is unchanged by tracking.
 - Full suites: `python -m pytest tests -q --ignore=tests/integration` and the client suite; results are
