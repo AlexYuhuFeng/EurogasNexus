@@ -5,6 +5,25 @@ to enforce fail-closed entitlement policy.
 
 本模块是数据治理闸门的统一入口：凡提供受治理数据（商业数据源）的路由
 必须挂载此依赖；未知来源一律 403（fail-closed），绝不允许"未评估即放行"。
+
+Decision record (architecture conflict register C7). This dependency is **deliberately
+unwired today**, and that is a decision rather than an oversight:
+
+- the enforced control on the governed read routes is the **row-level** filter
+  (``api/dependencies/row_entitlement.py`` and ``security/identity.principal_allows_source_family``),
+  which is per-family *and* per-row, so a principal entitled to one source family keeps
+  receiving exactly the rows it may see;
+- this dependency is a **route-level** gate on one declared family. Mounting it on a
+  route that composes several families would refuse the whole route to a partially
+  entitled principal - a coarser and *wrong* answer where the row filter already gives
+  the right one;
+- wiring it therefore belongs with the first-class entitlement service V2
+  ``07_DATA_GOVERNANCE_AND_RESEARCH.md`` asks for, which models per-dataset licences
+  (``EntitlementScope.LICENSED``) rather than one family per route.
+
+Until then it stays tested rather than dead by neglect: ``tests/security/test_entitlement_dependency.py``
+pins its fail-closed behaviour, so the day it is mounted it is already known to refuse
+an unknown family, an unentitled principal and an unavailable governance module.
 """
 
 from fastapi import HTTPException, Request
