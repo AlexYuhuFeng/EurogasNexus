@@ -195,6 +195,25 @@ The action-geography enforcement asserts the *inventory* of surfaces that pass a
 so a surface that starts passing one fails the test until its consequence is declared. This
 table is the complement: it states which surfaces may not, and why.
 
+**One act, one control - across surfaces, not only inside a file.** The per-file guard above could
+not see the failure mode that had actually accumulated: running the pool optimiser was reachable
+from **three** buttons - the Decision workspace's primary action, the Scenario panel's own
+`optimize pool` control, and the network panel over the market map - all calling the same handler
+with the same request. A user had to relearn where "run" lived depending on which tab they stood
+in, which is precisely what the geography exists to prevent, and it left the primary slot as one
+entry point among several rather than the predictable one.
+
+- The Scenario panel now configures the sandbox economics, reports the preflight blockers and
+  shows the allocation the run produced, and says in its own copy that the run starts from the
+  workspace's primary action - the same treatment the Optimize task's panel already received.
+- The network panel hands the user over to the Decision workspace rather than running a second
+  copy of the act from the map. It already had a hand-over control, so nothing was lost, and the
+  map keeps the preflight verdict and the result.
+- `actionGeography.test.ts` gains a **cross-surface** guard: no surface other than
+  `DecisionWorkspace` may reference the pool-run handler, and each surface that hands over must
+  name where the run lives. A per-file uniqueness check would not have caught this, so the check
+  now spans the surface inventory.
+
 - **Third application (compute).** The agent research surface now puts starting a governed
   research run in that slot, with the same shape as the first: the run is a `compute`
   consequence, the surface's own tab row became a `WorkspaceHeader`, and the action is disabled

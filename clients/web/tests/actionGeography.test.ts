@@ -194,6 +194,39 @@ test("a primary action is moved into the header, not copied beside it", () => {
   }
 });
 
+test("one compute act has one control, across surfaces and not only inside a file", () => {
+  // The per-file checks above cannot see the failure mode that actually happened: the pool
+  // optimiser run was reachable from three separate buttons - the Decision workspace's primary
+  // action, the Scenario panel and the network panel over the map - so a user had to relearn
+  // where "run" lives depending on which tab they were standing in, which is exactly what the
+  // geography exists to prevent.
+  const offenders: string[] = [];
+  for (const { path, source } of surfaceSources()) {
+    if (path === "components/DecisionWorkspace.tsx") continue;
+    if (source.includes("optimizeResourcePoolForCurrentContext")) offenders.push(path);
+  }
+  assert.deepEqual(
+    offenders,
+    [],
+    "a surface other than the Decision workspace runs the pool optimiser",
+  );
+  // The workspace that hands over says so in its own copy rather than leaving the user to guess.
+  assert.match(
+    readWebSource("components/NetworkWorkspace.tsx"),
+    /t\("network\.optimizer_location"\)/,
+  );
+  assert.match(
+    readWebSource("components/ScenarioWorkspace.tsx"),
+    /t\("scenario\.optimizer_location"\)/,
+  );
+  // The panels keep the preflight verdict and the result; only the run control moved.
+  assert.match(readWebSource("components/ScenarioWorkspace.tsx"), /poolInputBlockers/);
+  assert.equal(
+    readWebSource("components/NetworkWorkspace.tsx").includes('t("home.optimize_pool")'),
+    false,
+  );
+});
+
 test("shell utilities stay in the shell", () => {
   const offenders: string[] = [];
   const utilityCalls = ["signOut", "changeAppLanguage", "theme.setMode"];

@@ -58,7 +58,7 @@ interface NetworkWorkspaceProps {
   error: string | null;
   loading: boolean;
   saleOptions: SaleOption[];
-  canRunPoolOptimizer: boolean;
+  /** The pool-optimiser run belongs to the Decision workspace's primary action; see below. */
   portfolioResources: PortfolioResourceDTO[];
   totalPoolVolume: number;
   portfolioSummary: PortfolioLiveSummaryDTO | null;
@@ -85,7 +85,6 @@ interface NetworkWorkspaceProps {
   optimizerContextMismatch: boolean;
   onResetSearch: () => void;
   onToggleLayer: (layer: string) => void;
-  onOptimizePool: () => void;
   onOpenReview: () => void;
   onOpenScenario: () => void;
 }
@@ -114,7 +113,6 @@ export function NetworkWorkspace({
   error,
   loading,
   saleOptions,
-  canRunPoolOptimizer,
   portfolioResources,
   totalPoolVolume,
   portfolioSummary,
@@ -141,7 +139,6 @@ export function NetworkWorkspace({
   optimizerContextMismatch,
   onResetSearch,
   onToggleLayer,
-  onOptimizePool,
   onOpenReview,
   onOpenScenario,
 }: NetworkWorkspaceProps) {
@@ -238,13 +235,14 @@ export function NetworkWorkspace({
           </div>
           <p className="panel-copy">{t("home.optimization_scope")}</p>
           <div className="action-row">
-            <button type="button" disabled={!canRunPoolOptimizer} onClick={onOptimizePool}>
-              {t("home.optimize_pool")}
-            </button>
             <button type="button" className="secondary-button" disabled={!hasPortfolioResources} onClick={onOpenScenario}>
               {t("network.open_in_scenario")}
             </button>
           </div>
+          {/* One `compute` consequence, one control: the pool optimiser runs from the Decision
+              workspace's primary action, so this panel hands the user over instead of running a
+              second copy of the same act from the map. */}
+          <p className="panel-copy">{t("network.optimizer_location")}</p>
           {optimizerContextMismatch && (
             <div className="runtime-blocker-list compact">
               <strong>{t("context.result_mismatch")}</strong>

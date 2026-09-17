@@ -15,7 +15,11 @@ interface ScenarioWorkspaceProps {
   routeEconomics: ScenarioRouteEconomics;
   routeRecommendation: RouteRecommendationResultDTO | null;
   contract: ContractDraft;
-  canRunPoolOptimizer: boolean;
+  /**
+   * The pool-optimiser run is the Decision workspace's primary action, not this panel's: it is
+   * one `compute` consequence and it has one control. This panel configures the sandbox
+   * economics, reports the preflight blockers and shows the allocation the run produced.
+   */
   canCompareRoutes: boolean;
   poolInputBlockers: string[];
   resourcePoolResult: PortfolioOptimizationResultDTO | null;
@@ -24,7 +28,6 @@ interface ScenarioWorkspaceProps {
   contextMismatch: boolean;
   t: Translate;
   updateContractNumber: (key: ContractNumberKey, value: string) => void;
-  onOptimize: () => void;
   onCompare: () => void;
 }
 
@@ -54,7 +57,6 @@ export function ScenarioWorkspace({
   routeEconomics,
   routeRecommendation,
   contract,
-  canRunPoolOptimizer,
   canCompareRoutes,
   poolInputBlockers,
   resourcePoolResult,
@@ -63,7 +65,6 @@ export function ScenarioWorkspace({
   contextMismatch,
   t,
   updateContractNumber,
-  onOptimize,
   onCompare,
 }: ScenarioWorkspaceProps) {
   return (
@@ -122,9 +123,9 @@ export function ScenarioWorkspace({
           ))}
         </div>
         <div className="action-row">
-          <button type="button" disabled={!canRunPoolOptimizer} onClick={onOptimize}>{t("home.optimize_pool")}</button>
           <button type="button" disabled={!canCompareRoutes} onClick={onCompare}>{t("economics.compare")}</button>
         </div>
+        <p className="panel-copy">{t("scenario.optimizer_location")}</p>
         {poolInputBlockers.length > 0 && (
           <div className="runtime-blocker-list compact">
             <strong>{t("home.optimizer_blocked")}</strong>

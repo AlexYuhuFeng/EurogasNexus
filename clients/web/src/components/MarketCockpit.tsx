@@ -386,7 +386,6 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
             error={api.error}
             loading={api.loading}
             saleOptions={portfolio.saleOptions}
-            canRunPoolOptimizer={portfolio.canRunPoolOptimizer}
             portfolioResources={portfolio.portfolioResources}
             totalPoolVolume={portfolio.totalPoolVolume}
             portfolioSummary={api.portfolioSummary}
@@ -413,7 +412,6 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
             optimizerContextMismatch={portfolio.optimizerContextMismatch}
             onResetSearch={() => controls.setSearchTerm("")}
             onToggleLayer={controls.toggleLayer}
-            onOptimizePool={portfolio.optimizeResourcePoolForCurrentContext}
             onOpenReview={() => navigation.openWorkspace("review")}
             onOpenScenario={() => {
               // Carried from the shell when the map-first network route moved into this

@@ -184,7 +184,6 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
             routeEconomics={portfolio.scenarioRouteEconomics}
             routeRecommendation={api.routeRecommendation}
             contract={contractEditor.contract}
-            canRunPoolOptimizer={portfolio.canRunPoolOptimizer}
             canCompareRoutes={portfolio.hasPortfolioResources && portfolio.saleOptions.length > 0}
             poolInputBlockers={portfolio.poolInputBlockers}
             resourcePoolResult={api.resourcePoolResult}
@@ -193,7 +192,6 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
             contextMismatch={portfolio.optimizerContextMismatch}
             t={t}
             updateContractNumber={contractEditor.updateContractNumber}
-            onOptimize={portfolio.optimizeResourcePoolForCurrentContext}
             onCompare={portfolio.recommendRouteAllocationForCurrentContext}
           />
         )}
