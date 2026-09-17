@@ -663,13 +663,17 @@ export type AgentConfirmationState =
 /**
  * Build the review-decision body for one gate.
  *
- * Returns null when the gate is unavailable or the server reported an entity
- * kind outside the controlled vocabulary this surface may post, so an unknown
- * kind can never be invented client-side.
+ * The body names no actor: the platform records the authenticated identity as the actor
+ * (W0-03 C13), so a client-supplied name could only ever be an unverified claim. The reviewer
+ * identity still decides whether the gate is *available* - that is a UI question about who may
+ * confirm - but it is not what the decision is filed under.
+ *
+ * Returns null when the gate is unavailable or the server reported an entity kind outside the
+ * controlled vocabulary this surface may post, so an unknown kind can never be invented
+ * client-side.
  */
 export function agentReviewDecisionInput(
   gate: AgentReviewGate,
-  actor: string,
   decision: AgentReviewDecisionValue,
   note: string,
 ): ReviewDecisionInputDTO | null {
@@ -679,7 +683,6 @@ export function agentReviewDecisionInput(
   return {
     entity_type: AGENT_REVIEW_PACK_ENTITY_TYPE,
     entity_id: gate.entityId,
-    actor,
     decision,
     note: trimmedNote === "" ? null : trimmedNote,
   };

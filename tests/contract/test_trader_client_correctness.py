@@ -72,7 +72,7 @@ def test_strategy_prices_consume_backend_normalized_market_view() -> None:
     assert "api.fxRates" in market_cockpit
 
 
-def test_review_workspace_records_persisted_decisions_with_page_memory_actor() -> None:
+def test_review_workspace_records_persisted_decisions_with_the_identity_as_actor() -> None:
     review_workspace = _read(WEB / "components" / "ReviewWorkspace.tsx")
     client = _read(WEB / "api" / "client.ts")
     store = _read(WEB / "stores" / "api.ts")
@@ -83,8 +83,12 @@ def test_review_workspace_records_persisted_decisions_with_page_memory_actor() -
     assert 'post<ReviewDecisionDTO>("/review/decisions"' in client
     assert "reviewDecisions" in store
     assert "recordReviewDecision: async" in store
-    # actor identity is page-memory only, never persisted in the browser
-    assert 'useState("operator")' in review_workspace
+    # W0-03 C13: the platform records the authenticated identity as the actor, so this page
+    # holds no actor at all - neither typed here nor persisted in the browser. The old pin
+    # asserted a page-memory actor field; the stronger fact is that no actor is claimed.
+    assert 'useState("operator")' not in review_workspace
+    assert "setActor" not in review_workspace
+    assert "review.actor_authenticated" in review_workspace
     assert "localStorage" not in review_workspace
     decision_workspace = _read(WEB / "components" / "DecisionWorkspace.tsx")
     assert "onRecordDecision={api.recordReviewDecision}" in decision_workspace

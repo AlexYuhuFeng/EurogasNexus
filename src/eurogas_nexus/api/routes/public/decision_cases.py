@@ -18,9 +18,10 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
+from eurogas_nexus.api.dependencies.acting_actor import acting_actor
 from eurogas_nexus.domain.decision import DecisionAssumptionSource, DecisionEvidenceKind
 from eurogas_nexus.domain.ontology.vocabulary import ReviewDecisionValue
-from eurogas_nexus.security.identity import AuthenticatedPrincipal, legacy_public_token_principal
+from eurogas_nexus.security.identity import AuthenticatedPrincipal
 
 router = APIRouter(tags=["decision"])
 
@@ -242,12 +243,13 @@ def post_decision_case_reopen(case_id: str, request: Request) -> dict:
 
 
 def _actor(request: Request) -> AuthenticatedPrincipal:
-    """The authenticated identity, never a caller-supplied actor string."""
+    """The authenticated identity, never a caller-supplied actor string.
 
-    identity = getattr(request.state, "identity", None)
-    if isinstance(identity, AuthenticatedPrincipal):
-        return identity
-    return legacy_public_token_principal()
+    The rule lives in :mod:`eurogas_nexus.api.dependencies.acting_actor` so the review-decision
+    path records the same answer this one does; this wrapper keeps the local call sites.
+    """
+
+    return acting_actor(request)
 
 
 def _validation_error(reason: str) -> HTTPException:

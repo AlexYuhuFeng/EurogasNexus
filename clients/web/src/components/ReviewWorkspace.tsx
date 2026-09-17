@@ -84,7 +84,6 @@ export function ReviewWorkspace({
   onRecordDecision,
   onInspectEvidence,
 }: ReviewWorkspaceProps) {
-  const [actor, setActor] = useState("operator");
   const [entityType, setEntityType] = useState<ReviewDecisionInputDTO["entity_type"]>("strategy_run");
   const [entityId, setEntityId] = useState(carriedStrategyRunId ?? latestStrategyRunId ?? "");
   const [note, setNote] = useState("");
@@ -105,10 +104,11 @@ export function ReviewWorkspace({
   const submitDecision = (decision: ReviewDecisionInputDTO["decision"]) => {
     const trimmedId = entityId.trim();
     if (!trimmedId) return;
+    // No actor is sent: the platform records the authenticated identity (W0-03 C13), and a
+    // client that named one could only ever be repeating an unverified claim.
     void onRecordDecision({
       entity_type: entityType,
       entity_id: trimmedId,
-      actor: actor.trim() || "operator",
       decision,
       note: note.trim() ? note.trim() : null,
     });
@@ -230,7 +230,7 @@ export function ReviewWorkspace({
           <span className="eyebrow">{t("nav.review")}</span>
           <strong>{t("review.decision_recorder")}</strong>
         </div>
-        <p className="panel-copy">{t("review.actor_not_authenticated")}</p>
+        <p className="panel-copy">{t("review.actor_authenticated")}</p>
         <div className="review-decision-form">
           <label>
             <span>{t("review.entity_type")}</span>
@@ -249,14 +249,6 @@ export function ReviewWorkspace({
               value={entityId}
               placeholder={t("review.entity_id_placeholder")}
               onChange={(event) => setEntityId(event.target.value)}
-            />
-          </label>
-          <label>
-            <span>{t("review.actor")}</span>
-            <input
-              value={actor}
-              maxLength={64}
-              onChange={(event) => setActor(event.target.value)}
             />
           </label>
         </div>

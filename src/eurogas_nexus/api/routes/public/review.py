@@ -1,10 +1,19 @@
-"""Trader-review decision endpoints (persisted + audited)."""
+"""Trader-review decision endpoints (persisted + audited).
+
+A trader review decision is a governance act, so the record and the audit event name the
+actor. That actor is the **authenticated identity**, never the request body: W0-03 C13 found
+this path taking its actor from a free-text field and repeating it as the audit event's
+principal, so a caller could attribute a decision to somebody who never made it. The rule now
+lives in :mod:`eurogas_nexus.api.dependencies.acting_actor`, and a caller that still sends an
+``actor`` is told its claim was not used rather than silently overruled.
+"""
 
 from __future__ import annotations
 
 from fastapi import APIRouter, Query, Request
 from pydantic import BaseModel, Field
 
+from eurogas_nexus.api.dependencies.acting_actor import acting_actor
 from eurogas_nexus.domain.ontology.vocabulary import ReviewDecisionValue, ReviewEntityType
 
 router = APIRouter(tags=["review"])
@@ -16,23 +25,37 @@ class ReviewDecisionRequest(BaseModel):
     Attributes:
         entity_type: Artifact kind under review.
         entity_id: Artifact id (1-128 chars).
-        actor: Reviewing operator principal (1-64 chars).
+        actor: Retained for backward compatibility with callers that still send it.
+            The platform records the authenticated identity instead and never uses
+            this field as the actor; a value that disagrees is reported as a warning
+            (``ACTOR_CLAIM_IGNORED``) rather than believed.
         decision: ACCEPTED / REJECTED / NEEDS_ATTENTION.
         note: Optional review note (max 2000 chars).
     """
 
     entity_type: ReviewEntityType
     entity_id: str = Field(min_length=1, max_length=128)
-    actor: str = Field(min_length=1, max_length=64)
+    actor: str | None = Field(default=None, max_length=64)
     decision: ReviewDecisionValue
     note: str | None = Field(default=None, max_length=2000)
 
 
 @router.post("/api/review/decisions")
 def post_review_decision(body: ReviewDecisionRequest, request: Request) -> dict:
-    """Record a trader review decision (persisted and audited)."""
+    """Record a trader review decision (persisted and audited).
+
+    The decision and its audit event are attributed to the authenticated identity. A body
+    that claims a different actor is recorded under the identity, and the envelope carries a
+    warning naming the ignored claim, so a caller learns the decision is not filed under the
+    name it typed.
+    """
 
     warnings: list[str] = []
+    claimed_actor = (body.actor or "").strip()
+    actor = acting_actor(request).name
+    if claimed_actor and claimed_actor != actor:
+        warnings.append(f"ACTOR_CLAIM_IGNORED:{claimed_actor}")
+
     data: dict | None = None
     if not _db_is_configured():
         warnings.append("RUNTIME_DB_NOT_CONFIGURED")
@@ -46,7 +69,7 @@ def post_review_decision(body: ReviewDecisionRequest, request: Request) -> dict:
                     session,
                     entity_type=body.entity_type.value,
                     entity_id=body.entity_id,
-                    actor=body.actor,
+                    actor=actor,
                     decision=body.decision.value,
                     note=body.note,
                 )
@@ -56,6 +79,7 @@ def post_review_decision(body: ReviewDecisionRequest, request: Request) -> dict:
 
     _record_audit_decision(
         body=body,
+        actor=actor,
         persisted=data is not None,
         request_id=getattr(request.state, "request_id", None),
     )
@@ -102,10 +126,11 @@ def _db_is_configured() -> bool:
 def _record_audit_decision(
     *,
     body: ReviewDecisionRequest,
+    actor: str,
     persisted: bool,
     request_id: str | None,
 ) -> None:
-    """Append a review-decision audit event (best-effort)."""
+    """Append a review-decision audit event under the acting identity (best-effort)."""
 
     from eurogas_nexus.application.audit_service import record_audit_event
 
@@ -113,7 +138,7 @@ def _record_audit_decision(
         event_type="governance.action",
         action="review.decision.record",
         resource=f"{body.entity_type.value}:{body.entity_id}",
-        principal=body.actor,
+        principal=actor,
         outcome=body.decision.value,
         severity="info",
         detail=f"persisted={persisted}; note={bool(body.note)}",

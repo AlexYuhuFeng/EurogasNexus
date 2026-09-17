@@ -715,7 +715,7 @@
   "review.entity_id": "Entity id",
   "review.entity_id_placeholder": "e.g. strategy run id or opportunity id",
   "review.actor": "Actor",
-  "review.actor_not_authenticated": "Actor is entered on this page and is not SSO-authenticated yet; it is recorded verbatim on the decision and its audit event.",
+  "review.actor_authenticated": "The decision is recorded against your authenticated identity; no name is typed here, and a caller that claims one is told its claim was ignored.",
   "review.note_placeholder": "Optional note for the decision trail",
   "review.decision": "Decision",
   "review.decision_time": "When",

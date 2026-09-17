@@ -847,7 +847,13 @@ export interface ReviewDecisionInputDTO {
     | "strategy_run"
     | "generated_report"
     | "agent_review_pack";
-  entity_id: string; actor: string;
+  entity_id: string;
+  /**
+   * Deprecated: the platform records the authenticated identity as the actor (W0-03 C13) and
+   * never uses this field. It is accepted only for compatibility, and a value that disagrees
+   * with the identity comes back as an `ACTOR_CLAIM_IGNORED` envelope warning.
+   */
+  actor?: string;
   decision: "accepted" | "rejected" | "needs_attention";
   note?: string | null;
 }

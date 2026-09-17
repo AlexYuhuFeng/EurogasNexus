@@ -715,7 +715,7 @@
   "review.entity_id": "对象 ID",
   "review.entity_id_placeholder": "例如策略运行 ID 或机会 ID",
   "review.actor": "操作者",
-  "review.actor_not_authenticated": "操作者在本页面输入，尚未经 SSO 认证；其原样记录在决策及其审计事件上。",
+  "review.actor_authenticated": "该决策记录在您已认证的身份之下；此处不输入姓名，若调用方自行声明操作者，平台会告知其声明已被忽略。",
   "review.note_placeholder": "可选备注，写入决策留痕",
   "review.decision": "决策",
   "review.decision_time": "时间",

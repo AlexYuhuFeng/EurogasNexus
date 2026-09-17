@@ -414,6 +414,11 @@ def test_review_pack_confirmation_is_recorded_and_replayed(client) -> None:
     body = decision.json()["data"]
     assert body["entity_type"] == "agent_review_pack"
     assert body["entity_id"] == pack_id
+    # W0-03 C13: the actor is the authenticated identity, never the body's claim. This
+    # deployment carries no verified identity, so the deployment's own principal is recorded
+    # and the ignored claim is reported rather than believed.
+    assert body["actor"] == "public-api"
+    assert decision.json()["meta"]["warnings"] == ["ACTOR_CLAIM_IGNORED:trader-a"]
 
     listed = client.get(
         "/api/review/decisions",
@@ -426,7 +431,7 @@ def test_review_pack_confirmation_is_recorded_and_replayed(client) -> None:
     confirmation = confirmed["artifacts"]["review_pack"]["payload"]["human_confirmation"]
     assert confirmation["entity_type"] == "agent_review_pack"
     assert [row["decision"] for row in confirmation["decisions"]] == ["accepted"]
-    assert confirmation["decisions"][0]["actor"] == "trader-a"
+    assert confirmation["decisions"][0]["actor"] == "public-api"
 
 
 def test_review_decision_rejects_unknown_entity_kind(client) -> None:

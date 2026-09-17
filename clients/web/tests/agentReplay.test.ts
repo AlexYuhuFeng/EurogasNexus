@@ -556,26 +556,28 @@ test("the review gate is offered only for a present review pack with an id and a
   assert.notEqual(recorded.decisions[0]?.createdAtUtc, "");
 });
 
-test("the posted review decision never invents an entity kind", () => {
+test("the posted review decision never invents an entity kind or an actor", () => {
   const gate = agentReviewGate(replayFixture(), "dev.analyst");
-  const body = agentReviewDecisionInput(gate, "dev.analyst", "accepted", "  ");
+  const body = agentReviewDecisionInput(gate, "accepted", "  ");
+  // No actor: the platform records the authenticated identity (W0-03 C13), so the client sends
+  // no name it could only be repeating as an unverified claim.
   assert.deepEqual(body, {
     entity_type: AGENT_REVIEW_PACK_ENTITY_TYPE,
     entity_id: REVIEW_PACK_ID,
-    actor: "dev.analyst",
     decision: "accepted",
     note: null,
   });
+  assert.equal("actor" in (body ?? {}), false);
   assert.equal(
-    agentReviewDecisionInput(gate, "dev.analyst", "needs_attention", " check ")?.note,
+    agentReviewDecisionInput(gate, "needs_attention", " check ")?.note,
     "check",
   );
 
   const unavailable = agentReviewGate(replayFixture({ present: ["research_plan"] }), "dev.analyst");
-  assert.equal(agentReviewDecisionInput(unavailable, "dev.analyst", "accepted", ""), null);
+  assert.equal(agentReviewDecisionInput(unavailable, "accepted", ""), null);
 
   const foreignKind = { ...gate, entityType: "generated_report" };
-  assert.equal(agentReviewDecisionInput(foreignKind, "dev.analyst", "accepted", ""), null);
+  assert.equal(agentReviewDecisionInput(foreignKind, "accepted", ""), null);
 });
 
 test("confirmation transitions hold one in-flight decision and explain refusals", () => {
@@ -682,7 +684,10 @@ test("the gate records through the existing review endpoint and disables in flig
   const client = readWebFile("api/client.ts");
 
   assert.match(workspace, /api\.recordReviewDecisionOutcome\(body\)/);
-  assert.match(workspace, /agentReviewDecisionInput\(gate, reviewerIdentity, decision, note\)/);
+  assert.match(workspace, /agentReviewDecisionInput\(gate, decision, note\)/);
+  // The reviewer identity still decides whether the gate is available; it is simply no longer
+  // sent as the actor, because the platform records the authenticated identity.
+  assert.match(workspace, /agentReviewGate\(selectedRun, reviewerIdentity\)/);
   assert.match(workspace, /api\.agentReplay\(selectedRun\.agent_run_id\)/);
   assert.doesNotMatch(workspace, /"\/review/);
   assert.match(client, /recordReviewDecisionOutcome: \(body: ReviewDecisionInputDTO\) =>[\s\S]*?apiOutcome\(\(\) => post<ReviewDecisionDTO>\("\/review\/decisions", body\)\)/);

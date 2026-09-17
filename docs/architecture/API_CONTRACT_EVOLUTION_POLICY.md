@@ -127,6 +127,7 @@ keeps its previous behaviour.
 | Surface | Deprecated since | Removal planned | Status |
 |---|---|---|---|
 | `/api/workflows/*` (10 legacy shells) | 0.5.x (S4.3) | after Web/SDK/CLI migrate to the domain-specific `/api` endpoints | removed in 0.5.x after Web/SDK/CLI migration; legacy paths now return 404 |
+| `actor` (request field) on `POST /api/review/decisions` | 0.5.x (W0-03 C13) | when no caller still sends it | accepted but never used: the platform records the authenticated identity as the actor of the decision and of its audit events. A value that disagrees with the identity is reported as an `ACTOR_CLAIM_IGNORED:<claim>` envelope warning, so a caller learns its claim was not recorded. The field became optional in the same change, so omitting it is the supported form |
 
 ## Non-Goals
 

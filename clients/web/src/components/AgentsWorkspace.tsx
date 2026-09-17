@@ -154,7 +154,7 @@ export function AgentsWorkspace({ t, principalId = null, runtimeDbReady }: Agent
   }
 
   async function confirmReviewPack(decision: AgentReviewDecisionValue, note: string) {
-    const body = agentReviewDecisionInput(gate, reviewerIdentity, decision, note);
+    const body = agentReviewDecisionInput(gate, decision, note);
     if (!body) {
       setConfirmation((current) =>
         nextAgentConfirmationState(current, { type: "refused", httpStatus: 422 }),

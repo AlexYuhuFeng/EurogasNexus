@@ -97,6 +97,14 @@ test("the review surface converged its own AI panel onto the canonical actions",
   assert.match(decision, /api\.generatePortfolioReport\(review\.analysisPayload\)/);
   assert.equal(decision.includes("review.setAnalysisQuestion"), false);
   assert.equal(decision.includes("api.askAnalysis(review.analysisPayload)"), false);
+
+  // W0-03 C13: the decision's actor is the authenticated identity, so the surface offers no
+  // field for it and sends none. A typed name could only ever be an unverified claim.
+  assert.equal(review.includes("review.actor_not_authenticated"), false);
+  assert.match(review, /t\("review\.actor_authenticated"\)/);
+  assert.equal(review.includes("setActor"), false);
+  assert.equal(review.includes("actor: actor"), false);
+  assert.match(review, /void onRecordDecision\(\{\s*entity_type: entityType,\s*entity_id: trimmedId,\s*decision,/s);
 });
 
 test("a workspace mounts the Copilot with the same rule the palette applies", () => {
