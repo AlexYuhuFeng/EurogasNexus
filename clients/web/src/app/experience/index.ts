@@ -140,12 +140,14 @@ export {
 } from "./workModes.ts";
 
 export {
+  ADMINISTRATION_CAPABILITIES,
   SERVER_WORK_MODE_IDS,
   availableModeCompositions,
   compositionAllowsMode,
   compositionFromProfile,
   compositionHasCommercialAccess,
   compositionHoldsCapability,
+  compositionSeesAdministration,
   type ClientExperienceComposition,
 } from "./experienceProfile.ts";
 

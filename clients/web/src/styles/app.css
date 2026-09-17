@@ -8777,3 +8777,25 @@ button.glossary-related-chip {
   background: var(--warn-bg, #fdf3e3);
   color: var(--warn-fg, #8a5a12);
 }
+
+/* Architecture V2 control-plane restriction (Wave 3).
+   The administration surface is hidden from an identity without an
+   administration capability; a deep link renders this bounded notice instead of
+   a workspace whose requests the backend would refuse. */
+.restricted-surface {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 720px;
+}
+
+.restricted-surface-body {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.restricted-surface-note {
+  margin: 0;
+  color: var(--text-muted, #5b6472);
+  font-size: 12px;
+}

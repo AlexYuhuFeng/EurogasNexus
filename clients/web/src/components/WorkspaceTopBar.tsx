@@ -8,6 +8,10 @@ import {
   type PrimaryWorkspace,
   type PrimaryWorkspaceId,
 } from "@/app/navigation/productNavigation";
+import {
+  compositionFromProfile,
+  compositionSeesAdministration,
+} from "@/app/experience/experienceProfile";
 import { StatusBadge, WorkspaceTabs } from "@/components/ui";
 import type { WorkspacePageId } from "@/workspaceNavigation";
 import type { ApiState } from "@/stores/api";
@@ -96,7 +100,15 @@ export function WorkspaceTopBar({
     sourceError: sourceEndpointError,
     dataStatus,
   });
-  const primaryTabs = primaryWorkspaces.map((primary) => ({
+  // Architecture V2 control-plane boundary: the administration primary is only
+  // offered to an identity whose composition includes an administration
+  // capability. Presentation only - the backend authorises every request - and it
+  // fails closed, so an absent profile hides the surface instead of showing it.
+  const composition = compositionFromProfile(currentUser?.experience);
+  const visiblePrimaries = compositionSeesAdministration(composition)
+    ? primaryWorkspaces
+    : primaryWorkspaces.filter((primary) => primary.controlPlane !== true);
+  const primaryTabs = visiblePrimaries.map((primary) => ({
     id: primary.id,
     label: t(primary.labelKey),
   }));

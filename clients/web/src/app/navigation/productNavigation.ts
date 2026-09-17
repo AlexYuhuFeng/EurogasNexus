@@ -5,7 +5,8 @@ export type PrimaryWorkspaceId =
   | "portfolio"
   | "strategy"
   | "decision"
-  | "system";
+  | "system"
+  | "administration";
 
 export interface PrimaryWorkspace {
   id: PrimaryWorkspaceId;
@@ -13,6 +14,14 @@ export interface PrimaryWorkspace {
   descriptionKey: string;
   pages: WorkspacePageId[];
   defaultPage: WorkspacePageId;
+  /**
+   * Architecture V2 control-plane boundary (06_IDENTITY_ACCESS_CONTROL_PLANE.md
+   * section 8): administration is a distinct product surface, not a business
+   * workspace. The shell hides it for an identity without an administration
+   * capability and refuses a deep link into it; the backend authorises every
+   * request independently.
+   */
+  controlPlane?: boolean;
 }
 
 export const primaryWorkspaces: PrimaryWorkspace[] = [
@@ -48,8 +57,16 @@ export const primaryWorkspaces: PrimaryWorkspace[] = [
     id: "system",
     labelKey: "nav.primary.system",
     descriptionKey: "nav.primary.system.description",
-    pages: ["sources", "runtime", "research", "agents", "settings", "manual", "glossary", "access"],
+    pages: ["research", "agents", "settings", "manual", "glossary"],
+    defaultPage: "research",
+  },
+  {
+    id: "administration",
+    labelKey: "nav.primary.administration",
+    descriptionKey: "nav.primary.administration.description",
+    pages: ["sources", "runtime", "access"],
     defaultPage: "sources",
+    controlPlane: true,
   },
 ];
 
@@ -91,4 +108,14 @@ export function defaultWorkspacePageForPrimary(
     typeof primary === "string" ? primaryById.get(primary) : primary;
   if (!workspace) throw new Error(`Unknown primary workspace '${String(primary)}'.`);
   return workspace.defaultPage;
+}
+
+/** Whether a page belongs to the control plane rather than the business workspace. */
+export function isControlPlanePage(page: WorkspacePageId): boolean {
+  return primaryWorkspaceForPage(page).controlPlane === true;
+}
+
+/** The control-plane primaries. There is one today; the helper keeps it declarative. */
+export function controlPlanePrimaries(): PrimaryWorkspace[] {
+  return primaryWorkspaces.filter((primary) => primary.controlPlane === true);
 }

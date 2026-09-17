@@ -132,10 +132,10 @@ export const workspaceCompositions: readonly WorkspaceComposition[] = [
   },
   {
     page: "sources",
-    primary: "system",
+    primary: "administration",
     pattern: "MONITOR",
     headerMode: "local-tabs",
-    rationale: "Provider/source health, freshness and credential posture (control-plane owner: Wave 3).",
+    rationale: "Provider/source health, freshness and credential posture - control plane (Wave 3).",
     inspectorSubjects: ["provider-connection", "data-product"],
     panels: ["metric-strip", "table", "warnings", "evidence"],
   },
@@ -150,7 +150,7 @@ export const workspaceCompositions: readonly WorkspaceComposition[] = [
   },
   {
     page: "runtime",
-    primary: "system",
+    primary: "administration",
     pattern: "MONITOR",
     headerMode: "local-tabs",
     rationale: "Operator readiness, delivery and governance status - technical, not commercial, health.",
@@ -177,7 +177,7 @@ export const workspaceCompositions: readonly WorkspaceComposition[] = [
   },
   {
     page: "access",
-    primary: "system",
+    primary: "administration",
     pattern: "CONFIGURE",
     headerMode: "local-tabs",
     rationale:
@@ -261,9 +261,11 @@ export const taskPatterns: Readonly<Record<PrimaryWorkspaceId, Readonly<Record<s
     optimize: "ANALYSE",
     review: "REVIEW",
   },
-  // The system primary keeps its views local (not URL-addressable) until Wave 9
-  // converges navigation; no task pattern is claimed for it here.
+  // The system and administration primaries keep their views local (not
+  // URL-addressable) until Wave 9 converges navigation; no task pattern is
+  // claimed for them here.
   system: {},
+  administration: {},
 };
 
 export function taskPatternFor(primary: PrimaryWorkspaceId, task: string): WorkspacePattern {

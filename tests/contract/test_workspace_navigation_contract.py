@@ -45,16 +45,8 @@ EXPECTED_PRIMARY_CHILDREN = {
     "portfolio": ["contracts", "orders"],
     "strategy": ["strategy"],
     "decision": ["scenario", "review"],
-    "system": [
-        "sources",
-        "runtime",
-        "research",
-        "agents",
-        "settings",
-        "manual",
-        "glossary",
-        "access",
-    ],
+    "system": ["research", "agents", "settings", "manual", "glossary"],
+    "administration": ["sources", "runtime", "access"],
 }
 
 EXPECTED_DEFAULTS = {
@@ -62,7 +54,8 @@ EXPECTED_DEFAULTS = {
     "portfolio": "contracts",
     "strategy": "strategy",
     "decision": "scenario",
-    "system": "sources",
+    "system": "research",
+    "administration": "sources",
 }
 
 
@@ -146,7 +139,7 @@ def test_navigation_hook_derives_primary_and_opens_default_views() -> None:
     assert 'window.addEventListener("popstate", syncWorkspaceFromUrl)' in hook_text
 
 
-def test_topbar_uses_five_primary_tabs_and_no_grouped_dropdown() -> None:
+def test_topbar_composes_primary_tabs_without_a_grouped_dropdown() -> None:
     topbar_text = _read(TOPBAR_TSX)
     # The tablist stays owned by the shared primitive; the import may carry other
     # primitives from the same barrel (the status badge joined it for the
@@ -154,11 +147,41 @@ def test_topbar_uses_five_primary_tabs_and_no_grouped_dropdown() -> None:
     assert re.search(r'import \{[^}]*\bWorkspaceTabs\b[^}]*\} from "@/components/ui"', topbar_text)
     assert "workspace-primary-tabs" in topbar_text
     assert "workspace-primary" in topbar_text
-    assert "primaryWorkspaces.map" in topbar_text
+    # Tabs come from the primary registry, filtered by the Architecture V2
+    # control-plane boundary rather than by a hardcoded list.
+    assert "primaryWorkspaces" in topbar_text
+    assert "visiblePrimaries.map" in topbar_text
     assert "onOpenPrimaryWorkspace" in topbar_text
     assert "groupedMenuOpen" not in topbar_text
     assert "workspaceGroups" not in topbar_text
     assert "workspace-menu" not in topbar_text
+
+
+def test_control_plane_boundary_is_declared_and_gated() -> None:
+    """Architecture V2 Wave 3: administration is a separate, gated surface."""
+
+    product_text = _read(PRODUCT_NAVIGATION_TS)
+    topbar_text = _read(TOPBAR_TSX)
+    shell_text = _read(
+        ROOT / "clients" / "web" / "src" / "app" / "shell" / "AppShell.tsx"
+    )
+    restricted = ROOT / "clients" / "web" / "src" / "components" / "RestrictedSurface.tsx"
+
+    assert 'id: "administration"' in product_text
+    assert "controlPlane: true" in product_text
+    assert "export function isControlPlanePage" in product_text
+
+    # The tab row is filtered by the server composition, and a deep link into a
+    # control-plane page renders the restricted notice instead of the workspace.
+    assert "compositionSeesAdministration" in topbar_text
+    assert "visiblePrimaries" in topbar_text
+    assert "isControlPlanePage(" in shell_text
+    assert "<RestrictedSurface" in shell_text
+
+    assert restricted.exists()
+    restricted_text = _read(restricted)
+    assert "data-restricted-surface" in restricted_text
+    assert "<button" not in restricted_text
 
 
 def test_topbar_styles_are_externalized_and_keyboard_primitive_owned() -> None:
@@ -194,6 +217,8 @@ def test_primary_labels_are_i18n_backed_and_parity_aligned() -> None:
         "nav.primary.decision.description",
         "nav.primary.system",
         "nav.primary.system.description",
+        "nav.primary.administration",
+        "nav.primary.administration.description",
         "topbar.primary_navigation",
         "topbar.current_task",
         "topbar.task_label",

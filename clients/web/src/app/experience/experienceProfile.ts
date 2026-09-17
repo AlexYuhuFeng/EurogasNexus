@@ -135,3 +135,35 @@ export function compositionHasCommercialAccess(
 ): boolean {
   return composition.commercialCapabilities.length > 0;
 }
+
+/**
+ * Capabilities that make the control-plane surface meaningful. Architecture V2
+ * separates administration from the business workspace
+ * (`06_IDENTITY_ACCESS_CONTROL_PLANE.md` section 8): an identity that can only
+ * *read* source or runtime status keeps those indicators in the business shell
+ * but does not get the provider/credential/runtime administration surface.
+ */
+export const ADMINISTRATION_CAPABILITIES: readonly string[] = [
+  "access.manage",
+  "api_keys.manage",
+  "provider.ingestion.operate",
+  "provider.backfill.operate",
+  "provider.credential.manage",
+  "provider.certification.manage",
+];
+
+/**
+ * Whether the authenticated identity may see the administration surface.
+ *
+ * Navigation is not a security boundary: the backend authorises every request.
+ * This decides presentation only, and it fails closed - an absent profile hides
+ * the surface rather than showing it.
+ */
+export function compositionSeesAdministration(
+  composition: ClientExperienceComposition,
+): boolean {
+  if (!composition.available) return false;
+  return ADMINISTRATION_CAPABILITIES.some((capability) =>
+    composition.effectiveCapabilities.includes(capability),
+  );
+}

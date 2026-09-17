@@ -25,7 +25,7 @@
   "nav.primary.decision": "Decision Center",
   "nav.primary.decision.description": "Scenarios, optimization, and human review",
   "nav.primary.system": "System",
-  "nav.primary.system.description": "Data, runtime, settings, and help",
+  "nav.primary.system.description": "Data catalogue, research, settings and help",
   "context.result_mismatch": "Result context mismatch",
   "context.result_mismatch_hint": "Gas day, product, or hub context changed after this result was generated. Re-run the calculation for the current context.",
   "network.open_in_scenario": "Open in Scenario",
@@ -1728,5 +1728,11 @@
   "experience.inspector.empty": "Select an object to inspect its detail, provenance and restrictions.",
   "experience.palette.title": "Commands",
   "experience.palette.placeholder": "Search commands, workspaces and actions",
-  "experience.palette.empty": "No command matches this search."
+  "experience.palette.empty": "No command matches this search.",
+  "nav.primary.administration": "Administration",
+  "nav.primary.administration.description": "Access, provider connections and runtime operations",
+  "restricted.eyebrow": "Restricted",
+  "restricted.title": "Administration is not available to this identity",
+  "restricted.body": "Administration covers access control, provider connections and runtime operations. This identity can read source and runtime status from the business workspace, but it holds no administration capability.",
+  "restricted.note": "Presentation only: the backend refuses the same requests independently."
 }

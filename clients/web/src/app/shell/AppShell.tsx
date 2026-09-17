@@ -1,4 +1,5 @@
 import { NetworkWorkspace } from "@/components/NetworkWorkspace";
+import { RestrictedSurface } from "@/components/RestrictedSurface";
 import { SignInScreen } from "@/components/SignInScreen";
 import { WorkspaceTopBar } from "@/components/WorkspaceTopBar";
 import type { AppController } from "@/app/hooks/useAppController";
@@ -6,6 +7,11 @@ import {
   describeEndpointFailures,
   describeEndpointRetry,
 } from "@/app/model/endpointFailures";
+import {
+  compositionFromProfile,
+  compositionSeesAdministration,
+} from "@/app/experience/experienceProfile";
+import { isControlPlanePage } from "@/app/navigation/productNavigation";
 import { WorkspaceRenderer } from "@/app/workspaces/WorkspaceRenderer";
 import { isBlockingCompatibility } from "@/app/releaseCompatibility";
 import { changeAppLanguage } from "@/i18n";
@@ -93,6 +99,14 @@ export function AppShell({ controller }: AppShellProps) {
     t,
   );
 
+  // Architecture V2 control-plane boundary: a page that belongs to the
+  // administration surface is refused for an identity without an administration
+  // capability, instead of mounting a surface whose requests the backend will
+  // reject. Navigation is not a security boundary; this is honest presentation.
+  const controlPlaneRestricted =
+    isControlPlanePage(navigation.activeWorkspace) &&
+    !compositionSeesAdministration(compositionFromProfile(api.currentUser?.experience));
+
   return (
     <div className={`app cockpit-app workspace-${navigation.activeWorkspace}`}>
       <WorkspaceTopBar
@@ -168,7 +182,9 @@ export function AppShell({ controller }: AppShellProps) {
       )}
 
       <main className="app-main" id="workspace-primary-content" data-shell-region="primary-workspace">
-        {navigation.activeWorkspace === "network" ? (
+        {controlPlaneRestricted ? (
+          <RestrictedSurface t={t} />
+        ) : navigation.activeWorkspace === "network" ? (
           <>
             <h1 className="network-main-title">{t("nav.network")}</h1>
             <NetworkWorkspace

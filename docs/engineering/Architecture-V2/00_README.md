@@ -130,3 +130,9 @@ Wave 2 (effective access and experience composition):
 - [W2-01 effective access and the ExperienceProfile](W2-01_EFFECTIVE_ACCESS_AND_EXPERIENCE_PROFILE.md) —
   capability catalogue, platform-administration/commercial-data separation, and the
   composition contract served inside `GET /api/me`.
+
+Wave 3 (control plane separation):
+
+- [W3-01 control plane separation](W3-01_CONTROL_PLANE_SEPARATION.md) — the
+  capability-gated Administration surface, the restricted control-plane notice and
+  the preserved deep links.

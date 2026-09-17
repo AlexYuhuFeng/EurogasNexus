@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  controlPlanePrimaries,
   defaultWorkspacePageForPrimary,
+  isControlPlanePage,
   isPrimaryWorkspaceId,
   primaryWorkspaceForId,
   primaryWorkspaceForPage,
@@ -34,8 +36,39 @@ test("primary workspace defaults match the accepted architecture", () => {
     portfolio: "contracts",
     strategy: "strategy",
     decision: "scenario",
-    system: "sources",
+    system: "research",
+    administration: "sources",
   });
+});
+
+test("the administration surface is the declared control plane", () => {
+  assert.deepEqual(
+    controlPlanePrimaries().map((primary) => primary.id),
+    ["administration"],
+  );
+  assert.deepEqual(primaryWorkspaceForId("administration")?.pages, [
+    "sources",
+    "runtime",
+    "access",
+  ]);
+
+  for (const page of ["sources", "runtime", "access"] as const) {
+    assert.equal(isControlPlanePage(page), true, page);
+  }
+  for (const page of [
+    "market",
+    "network",
+    "contracts",
+    "strategy",
+    "review",
+    "research",
+    "agents",
+    "settings",
+    "manual",
+    "glossary",
+  ] as const) {
+    assert.equal(isControlPlanePage(page), false, page);
+  }
 });
 
 test("old technical workspace ids continue to resolve", () => {
@@ -48,8 +81,8 @@ test("old technical workspace ids continue to resolve", () => {
     strategy: "strategy",
     scenario: "decision",
     review: "decision",
-    sources: "system",
-    runtime: "system",
+    sources: "administration",
+    runtime: "administration",
     settings: "system",
     manual: "system",
     glossary: "system",

@@ -25,7 +25,7 @@
   "nav.primary.decision": "决策中心",
   "nav.primary.decision.description": "情景、优化与人工复核",
   "nav.primary.system": "系统",
-  "nav.primary.system.description": "数据、运行、设置与帮助",
+  "nav.primary.system.description": "数据目录、研究、设置与帮助",
   "context.result_mismatch": "结果上下文不匹配",
   "context.result_mismatch_hint": "结果生成后气日、品种或枢纽上下文已变化。请按当前上下文重新计算。",
   "network.open_in_scenario": "在情景中打开",
@@ -1728,5 +1728,11 @@
   "experience.inspector.empty": "选择一个对象以查看其明细、来源与限制。",
   "experience.palette.title": "命令",
   "experience.palette.placeholder": "搜索命令、工作区与操作",
-  "experience.palette.empty": "没有匹配的命令。"
+  "experience.palette.empty": "没有匹配的命令。",
+  "nav.primary.administration": "管理",
+  "nav.primary.administration.description": "访问控制、供应商连接与运行运维",
+  "restricted.eyebrow": "访问受限",
+  "restricted.title": "当前身份无法访问管理功能",
+  "restricted.body": "管理功能涵盖访问控制、供应商连接与运行运维。当前身份可在业务工作区查看数据源与运行状态，但不具备管理能力。",
+  "restricted.note": "此提示仅用于呈现：后端同样会独立拒绝相应请求。"
 }
