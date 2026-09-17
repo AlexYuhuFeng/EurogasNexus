@@ -23,15 +23,19 @@ fields are added alongside it at the top level::
 Additive by construction, so Web, SDK and CLI clients that read ``detail`` keep
 working, while a V2 client can explain the failure through the taxonomy.
 
-Unhandled exceptions are deliberately left to the framework default: turning them
-into a 500 body would change behaviour tests and operators rely on, and the client
-already renders an unclassified failure safely. Wiring that path, with its own
-always-on correlation and log capture, is a separate bounded step.
+An **unexpected** failure is enveloped too: status 500, the framework's own
+user-facing text in ``detail``, the ``internal`` code from the taxonomy (family
+SYSTEM, severity critical), an always-present correlation id echoed on
+``X-Request-Id``, and the fault's own type name - never its message - in
+``operator_detail``, which only an operator identity receives. The traceback is
+still the server's business: Starlette re-raises after the response is sent, so
+logging and monitoring keep seeing the real failure.
 """
 
 from __future__ import annotations
 
 from typing import Any
+from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -41,6 +45,13 @@ from eurogas_nexus.security.identity import ROLE_RANK, Role
 
 #: Operator surfaces may carry technical detail; business surfaces never do.
 _OPERATOR_ROLES = frozenset({Role.OPERATOR.value, Role.ADMIN.value})
+
+#: The catalogued code for an unexpected internal fault (family SYSTEM, critical).
+UNHANDLED_ERROR_CODE = "internal"
+
+#: The framework's own user-facing text for a 500, kept so clients that read ``detail``
+#: are unaffected by the envelope.
+_SERVER_ERROR_DETAIL = "Internal Server Error"
 
 
 def register_error_handlers(app: FastAPI) -> None:
@@ -64,6 +75,38 @@ def register_error_handlers(app: FastAPI) -> None:
             content=body,
             headers=dict(exc.headers or {}) or None,
         )
+
+    @app.exception_handler(Exception)
+    async def _unhandled_exception(request: Request, exc: Exception) -> JSONResponse:
+        """Envelope an unexpected failure without hiding it or leaking it.
+
+        The client learns a stable code, the family, the severity, what to do next and a
+        correlation id; it never learns the exception's text, which can carry commercial
+        values (a row, a price, a query fragment). The operator identity additionally sees
+        the fault's class, which is what makes it matchable to a server log line.
+        """
+
+        correlation_id = getattr(request.state, "request_id", None) or uuid4().hex
+        operator = _is_operator_request(request)
+        payload = error_payload(
+            UNHANDLED_ERROR_CODE,
+            correlation_id=correlation_id,
+            operator=operator,
+            operator_detail=_unhandled_detail(exc, operator=operator),
+        )
+        return JSONResponse(
+            status_code=500,
+            content={"detail": _SERVER_ERROR_DETAIL, **payload},
+            headers={"X-Request-Id": correlation_id},
+        )
+
+
+def _unhandled_detail(exc: Exception, *, operator: bool) -> str | None:
+    """The fault's own type name for an operator identity, never its message."""
+
+    if not operator:
+        return None
+    return exc.__class__.__name__
 
 
 def _code_from_detail(detail: Any) -> str | None:

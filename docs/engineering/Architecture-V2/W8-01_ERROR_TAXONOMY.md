@@ -46,18 +46,31 @@ translation keys, so a client always has text to render instead of a missing-key
 5. **Unknown input fails closed.** An unrecognised family, severity or recoverability degrades to the
    safe default instead of claiming a lower severity.
 
-## 4. Deferred (explicit)
+## 4. The unhandled-failure envelope (delivered)
 
-- **Unhandled-exception handler.** `HTTPException` is enveloped; an unhandled exception still uses the
-  framework default (a 500 with no taxonomy body). Turning that into a system-fault envelope with
-  always-on correlation and log capture is a separate bounded step, because it changes behaviour
-  tests and operators rely on today. The client already renders an unclassified failure safely.
+`HTTPException` was enveloped from the start; an unexpected exception still answered with the
+framework's bare 500, which a V2 client cannot explain and an operator cannot match to a log line.
+That path is now enveloped as well, and the bargain is explicit:
+
+- the client gets the `internal` code (family SYSTEM, severity critical), a recoverability, a message
+  and action key, and an **always-present** correlation id echoed on `X-Request-Id` - even when the
+  request never reached the middleware that stamps one;
+- FastAPI's own user-facing text stays in `detail`, so a client that reads `detail` is unaffected;
+- the exception's **own message never travels**: it can carry commercial values (a row, a price, a
+  query fragment), so a business identity reads an explainable envelope and nothing else;
+- an operator identity additionally receives `operator_detail` with the fault's **class name**, which
+  is what makes it matchable to the server log;
+- the failure is not hidden: Starlette re-raises after the response is sent, so logging and monitoring
+  keep seeing the real traceback.
+
+## 5. Deferred (explicit)
+
 - **Unified Job model.** `JOB_FAILED`/`JOB_CANCELLED` are catalogued, but a shared job lifecycle
   (`QUEUED`…`EXPIRED` with progress, retries, cancellation) is not implemented. That is the other
   half of Wave 8 and needs its own schema decision.
 - Business-health vs technical-health separation and the diagnostics bundle remain Wave 8/9 work.
 
-## 5. Verification
+## 6. Verification
 
 - `tests/unit/test_error_taxonomy.py` — catalogue completeness and typing, coverage of the codes the
   API already returns, the V2-named failure modes, family inference for uncatalogued codes,
@@ -68,6 +81,11 @@ translation keys, so a client always has text to render instead of a missing-key
   endpoint code is still classified; a missing API token is a CONFIGURATION failure; and
   `operator_detail` appears only for an operator identity. The correlation id equals the
   `X-Request-Id` header.
+- `tests/api/test_unhandled_error_envelope.py` — an unexpected failure answers with the SYSTEM
+  envelope, an always-present correlation id echoed on the header, and FastAPI's own `detail` text; the
+  exception's message never reaches the client (no value, no class name, no traceback) and no
+  `operator_detail` is present for a business identity; the operator path exposes the class name only;
+  and a declared `HTTPException` code is untouched by the new handler.
 - `clients/web/tests/errorPresentation.test.ts` — the four questions for a catalogued failure, the
   administration-versus-commercial refusal, retry/user-action classification, fail-closed behaviour
   for unknown, missing and malformed payloads, message trimming, and bilingual key coverage.
