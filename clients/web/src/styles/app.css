@@ -8542,6 +8542,30 @@ button.glossary-related-chip {
   border-radius: 8px;
 }
 
+/* The run action lives in the workspace header; the panel reports what has to be true
+   before it can run, and what the run will and will not do. */
+.agents-boundary {
+  margin: 0 0 0.5rem;
+}
+
+.agents-readiness {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--line-soft, #d8dee6);
+}
+
+.agents-blocker-list,
+.agents-disclosure-list {
+  margin: 0.5rem 0 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.agents-disclosure-list {
+  color: var(--text-muted, #5b6673);
+}
+
 .agents-page .link-row {
   width: 100%;
   text-align: left;

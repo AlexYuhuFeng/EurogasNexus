@@ -92,6 +92,7 @@ test("a workspace header declares at most one primary action, and only a permitt
   // The inventory is asserted so the slot's use cannot grow silently. A surface that starts
   // passing one belongs in this list *with* a `compute` or `persist` action.
   assert.deepEqual(passing.sort(), [
+    "components/AgentsWorkspace.tsx",
     "components/DecisionWorkspace.tsx",
     "components/PortfolioWorkspace.tsx",
   ]);
@@ -127,6 +128,24 @@ test("a workspace header declares at most one primary action, and only a permitt
   assert.equal(readWebSource("components/ContractWorkbench.tsx").includes("contracts.action.save"), false);
   assert.equal(
     (portfolio.match(/contracts\.action\.save/g) ?? []).length,
+    1,
+    "the primary action exists once",
+  );
+
+  const agents = readWebSource("components/AgentsWorkspace.tsx");
+  assert.equal((agents.match(/primaryAction=\{/g) ?? []).length, 1);
+  // The action it passes is starting a governed research run: another `compute` consequence,
+  // permitted in the primary slot, and disabled by the run-readiness rule the panel lists -
+  // the route refuses the run without a runtime database and below its objective bounds, so
+  // the surface must not offer it.
+  assert.match(agents, /const primaryAction =\s*activeView === "research" \? \(/);
+  assert.match(agents, /disabled=\{!readiness\.canRun\}/);
+  assert.match(agents, /onClick=\{\(\) => void runResearch\(\)\}/);
+  assert.equal(mayOccupyPrimarySlot("compute"), true);
+  // The panel configures and reports the run; it no longer starts it.
+  assert.match(agents, /agentRunReadiness\(\{ objective, runtimeDbReady, running \}\)/);
+  assert.equal(
+    (agents.match(/agents\.run_research"/g) ?? []).length,
     1,
     "the primary action exists once",
   );

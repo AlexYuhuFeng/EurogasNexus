@@ -180,6 +180,14 @@ rather than a shared one. The contract workbench is the first of those lifts: th
 extracted to a model rather than copied into the header, because a second copy of "may this be
 written" is the failure mode the geography exists to prevent.
 
+- **Third application (compute).** The agent research surface now puts starting a governed
+  research run in that slot, with the same shape as the first: the run is a `compute`
+  consequence, the surface's own tab row became a `WorkspaceHeader`, and the action is disabled
+  by a rule (`app/model/agentRunModel.ts`) that mirrors the route's contract - an objective of
+  8 to 4000 characters and a reachable runtime PostgreSQL, which the run needs because it
+  persists its own rows. The disabled action explains itself with the first blocker, and the
+  panel carries the full readiness list and the run's disclosures.
+
 ## 7. Fifth slice — the panel taxonomy's disclosure rule, applied and audited
 
 The panel taxonomy states which disclosures a panel owes when it presents a material value:
@@ -243,6 +251,11 @@ requires a new contract.
   keys and their order, the volume/price/cost/fuel-loss thresholds, read-only-library,
   runtime-not-ready and read-in-flight blocking, the view facts' "known" resolution, and the
   wiring that keeps the panel reporting while the header acts.
+- `clients/web/tests/agentRunAction.test.ts` — the research run rule and its wiring: the
+  route's objective bounds asserted at both boundaries, the runtime-database and in-flight
+  preconditions, the request's deliberate omissions (no client-chosen profile, no invented
+  period evidence), the strategy-generation disclosure in both states, and every reported key
+  present and translated in both locales.
 - `clients/web/tests/experienceArchitecture.test.ts` — updated shell-region
   honesty check: every rendered region carries its marker and nothing remains
   `planned`.

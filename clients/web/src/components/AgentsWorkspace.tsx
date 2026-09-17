@@ -19,7 +19,13 @@ import {
 } from "@/app/model/agentReplayModel";
 import { AgentArtifactChain } from "@/components/agents/AgentArtifactChain";
 import { AgentReviewGate } from "@/components/agents/AgentReviewGate";
-import { MetricStrip, PanelHeader, WorkspaceTabs } from "@/components/ui";
+import {
+  AGENT_RUN_DISCLOSURES,
+  agentResearchRequest,
+  agentRunReadiness,
+  agentStrategyDisclosure,
+} from "@/app/model/agentRunModel";
+import { MetricStrip, PanelHeader, WorkspaceHeader } from "@/components/ui";
 
 type Translate = (key: string) => string;
 type AgentsViewId = "capabilities" | "research" | "runs";
@@ -30,6 +36,12 @@ interface AgentsWorkspaceProps {
   t: Translate;
   /** Authenticated principal recorded as the reviewer of a review pack. */
   principalId?: string | null;
+  /**
+   * Whether the runtime database can accept the rows a research run persists. The run is
+   * refused with 503 without it, so the action is gated on the same fact the portfolio
+   * optimiser uses rather than being offered and then failing.
+   */
+  runtimeDbReady: boolean;
 }
 
 function AgentIssueList({
@@ -56,7 +68,7 @@ function AgentIssueList({
   );
 }
 
-export function AgentsWorkspace({ t, principalId = null }: AgentsWorkspaceProps) {
+export function AgentsWorkspace({ t, principalId = null, runtimeDbReady }: AgentsWorkspaceProps) {
   const [activeView, setActiveView] = useState<AgentsViewId>("capabilities");
   const [capabilities, setCapabilities] = useState<CapabilityDTO[]>([]);
   const [runs, setRuns] = useState<AgentRunDTO[]>([]);
@@ -102,17 +114,25 @@ export function AgentsWorkspace({ t, principalId = null }: AgentsWorkspaceProps)
     [selectedRun],
   );
 
+  // Wave 9 action geography: starting a governed research run is a `compute` consequence, so
+  // it sits in the workspace's single primary slot rather than among the form's own controls.
+  // The panel configures the run and reports its readiness and outcome; the header starts it,
+  // disabled by the same rule the panel lists.
+  const readiness = useMemo(
+    () => agentRunReadiness({ objective, runtimeDbReady, running }),
+    [objective, runtimeDbReady, running],
+  );
+  const strategyDisclosure = useMemo(() => agentStrategyDisclosure(allowStrategy), [allowStrategy]);
+
   async function runResearch() {
-    if (!objective.trim()) return;
+    if (!readiness.canRun) return;
     setRunning(true);
     setError(null);
     setResult(null);
     try {
-      const response = await api.runAgentResearch({
-        objective: objective.trim(),
-        agent_profile: "STRATEGY_RESEARCHER",
-        strategy_generation_allowed: allowStrategy,
-      });
+      const response = await api.runAgentResearch(
+        agentResearchRequest({ objective, allowStrategy }),
+      );
       setResult(response.data);
       const refreshed = await api.agentRuns();
       setRuns(refreshed.data);
@@ -179,26 +199,40 @@ export function AgentsWorkspace({ t, principalId = null }: AgentsWorkspaceProps)
     }
   }
 
+  const primaryAction =
+    activeView === "research" ? (
+      <button
+        type="button"
+        disabled={!readiness.canRun}
+        title={
+          readiness.firstBlockerKey
+            ? t(readiness.firstBlockerKey)
+            : t("agents.run_research_hint")
+        }
+        onClick={() => void runResearch()}
+      >
+        {t("agents.run_research")}
+      </button>
+    ) : undefined;
+
   return (
-    <div className={`workspace-grid agents-page agents-view-${activeView}`}>
-      <div className="workspace-panel span-3">
-        <PanelHeader title={t("agents.title")} meta={t("agents.subtitle")} />
-        <p className="muted">{t("agents.boundary")}</p>
-      </div>
+    <div className={`agents-workspace agents-view-${activeView}`}>
+      <WorkspaceHeader
+        title={t("agents.title")}
+        taskLabel={t(`agents.tab.${activeView}`)}
+        idPrefix="agents-task"
+        tabs={tabs}
+        activeId={activeView}
+        panelId="agents-task-panel"
+        tabLabel={t("agents.title")}
+        tabsClassName="agents-task-tabs"
+        primaryAction={primaryAction}
+        onActivate={(view) => setActiveView(view as AgentsViewId)}
+      />
+      <p className="muted agents-boundary">{t("agents.boundary")}</p>
 
-      <div className="workspace-panel span-3">
-        <WorkspaceTabs
-          idPrefix="agents-task"
-          label={t("agents.title")}
-          tabs={tabs}
-          activeId={activeView}
-          panelId="agents-task-panel"
-          className="agents-task-tabs"
-          onActivate={(view) => setActiveView(view as AgentsViewId)}
-        />
-      </div>
-
-      {error && <div className="workspace-panel span-3 alert">{error}</div>}
+      <div className={`workspace-grid agents-page agents-view-${activeView}`}>
+        {error && <div className="workspace-panel span-3 alert">{error}</div>}
 
       {activeView === "capabilities" && (
         <div
@@ -257,9 +291,30 @@ export function AgentsWorkspace({ t, principalId = null }: AgentsWorkspaceProps)
             />
             {t("agents.allow_strategy")}
           </label>
-          <button className="button primary" onClick={runResearch} disabled={running || !objective.trim()}>
-            {running ? t("status.loading") : t("agents.run_research")}
-          </button>
+
+          {/* The run starts from the workspace's primary action. What the panel owes is the
+              verdict: what is missing before it can run, and what the run will and will not
+              do once it does. */}
+          <section className="agents-readiness" aria-label={t("agents.readiness.title")}>
+            <div className="section-heading">
+              <span className="eyebrow">{t("agents.readiness.title")}</span>
+              <strong className={readiness.canRun ? "success-text" : "warning-text"}>
+                {readiness.canRun ? t("agents.readiness.ready") : t("agents.readiness.blocked")}
+              </strong>
+            </div>
+            {readiness.blockerKeys.length > 0 && (
+              <ul className="agents-blocker-list">
+                {readiness.blockerKeys.map((key) => (
+                  <li key={key}>{t(key)}</li>
+                ))}
+              </ul>
+            )}
+            <ul className="agents-disclosure-list">
+              {[...strategyDisclosure, ...AGENT_RUN_DISCLOSURES].map((key) => (
+                <li key={key}>{t(key)}</li>
+              ))}
+            </ul>
+          </section>
 
           {result && (
             <div className="agents-result-panel">
@@ -409,6 +464,7 @@ export function AgentsWorkspace({ t, principalId = null }: AgentsWorkspaceProps)
           )}
         </div>
       )}
+      </div>
     </div>
   );
 }

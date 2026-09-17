@@ -192,7 +192,16 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
       )}
 
       {activeWorkspace === "agents" && (
-        <AgentsWorkspace t={t} principalId={api.currentUser?.principal_id ?? null} />
+        <AgentsWorkspace
+          t={t}
+          principalId={api.currentUser?.principal_id ?? null}
+          // A research run persists its own rows, so the route refuses it with 503 until the
+          // runtime database is configured and reachable. The action is gated on the same
+          // fact the portfolio optimiser uses instead of being offered and then failing.
+          runtimeDbReady={
+            api.runtimeDb?.database_url_present === true && api.runtimeDb.connectivity.ok
+          }
+        />
       )}
 
       {activeWorkspace === "runtime" && (

@@ -650,7 +650,7 @@ test("the agents surface renders the chain and the gate through shared primitive
   const chain = readWebFile("components/agents/AgentArtifactChain.tsx");
   const gate = readWebFile("components/agents/AgentReviewGate.tsx");
 
-  for (const primitive of ["MetricStrip", "PanelHeader", "WorkspaceTabs"]) {
+  for (const primitive of ["MetricStrip", "PanelHeader", "WorkspaceHeader"]) {
     assert.match(workspace, new RegExp(`<${primitive}`));
   }
   assert.match(workspace, /from "@\/components\/ui"/);

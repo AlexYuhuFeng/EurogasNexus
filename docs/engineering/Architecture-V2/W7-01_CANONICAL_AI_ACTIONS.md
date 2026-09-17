@@ -182,8 +182,9 @@ is not attached to it.
 
 - **No dedicated backend task kind per action.** That would be a backend contract change; the five
   actions run `DB_INQUIRY` today.
-- **No convergence of the `/agent/*` research surfaces.** Those remain untouched; converging them is
-  follow-up work in the files that own them.
+- **No convergence of the `/agent/*` research surfaces.** Those remain untouched here; converging
+  them is follow-up work in the files that own them (the research run's own convergence is
+  recorded in section 14).
 
 ## 12. Convergence follow-up delivered
 
@@ -227,3 +228,44 @@ question is no longer user-typed. AI-drafted output is the `draft` action's job,
 panel's own copy now says.
 - **No conversation, thread or history model.** A run is one action on one context; the backend
   persists the analysis it produced, and the surface shows the run record it composed.
+
+## 14. The governed research run converged
+
+The `/agent/*` research surface could always start a run, but it decided almost nothing about it,
+and what it did decide it decided dishonestly:
+
+- the run button was enabled for any non-empty objective while `POST /api/agent/research` requires
+  an objective of 8 to 4000 characters, so a three-word objective was offered and then refused;
+- the route answers 503 without a configured runtime PostgreSQL - the run persists its plan,
+  findings and job record - and the surface did not check, so it offered a run that could only fail;
+- the request named `STRATEGY_RESEARCHER` itself, making the client the author of a governance
+  label that is recorded on the run and scopes its tracked job;
+- asking for strategy generation said nothing about what it does: freezing a StrategyVersion and
+  backtesting it are human acts, so such a run terminates at `READY_FOR_HUMAN_REVIEW` with
+  `HUMAN_CONFIRMATION_REQUIRED` rather than reaching a backtest.
+
+`clients/web/src/app/model/agentRunModel.ts` now holds the rule (objective bounds mirrored from the
+route's own request model, the runtime-database precondition, the in-flight state, the request
+composition and the disclosures), and the surface is wired to it:
+
+- the action is the workspace's **primary** action - a `compute` consequence - disabled by the same
+  readiness rule the panel lists, with the first blocker as its explanation;
+- the panel keeps the objective, the strategy switch and the verdict: every unsettled precondition,
+  plus what the run will do (`agents.strategy.*`) and the two things that hold for every run (the
+  plan's analyses are validated against the caller's own data scopes, and the profile is recorded by
+  the runtime rather than chosen here);
+- the request no longer names a profile, and sends no `strategy_ir`, frozen version or period
+  bounds: the route's declared default profile applies, and the surface shows the profile the run
+  records. If profiles ever become behaviour-bearing rather than declarative, offering the choice
+  becomes honest and this is the note that says so;
+- the tracked run stays readable: the run is read back from `/api/agent/runs` after it starts, and
+  the replay, artifact chain and review gate are unchanged.
+
+This is convergence onto the same governance rules the five canonical actions follow, not a sixth
+AI entry point: the run is a governed, deterministic research pipeline that invokes registered
+capabilities under the caller's own authority, and the surface reports the provider and model the
+run record carries rather than branding it.
+
+Still open in the `/agent/*` family: the capability-invoke surface (`/api/capabilities/{id}/invoke`)
+has no client surface, and the profile catalogue is fetched by nobody - a client-chosen profile
+would be a label, not a capability, until the orchestrator executes the profile's declared stages.
