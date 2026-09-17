@@ -124,3 +124,9 @@ Wave 1 (product experience architecture foundation):
 Machine-readable form of the Wave 1 contracts: `clients/web/src/app/experience/` and
 `clients/web/src/app/host/`, with focused checks in
 `clients/web/tests/experienceArchitecture.test.ts`.
+
+Wave 2 (effective access and experience composition):
+
+- [W2-01 effective access and the ExperienceProfile](W2-01_EFFECTIVE_ACCESS_AND_EXPERIENCE_PROFILE.md) —
+  capability catalogue, platform-administration/commercial-data separation, and the
+  composition contract served inside `GET /api/me`.

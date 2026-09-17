@@ -298,6 +298,7 @@ def get_me(
         else None
     )
     from eurogas_nexus.security.authorization import permissions_for_principal
+    from eurogas_nexus.security.capabilities import build_experience_profile
 
     permissions = sorted(permission.value for permission in permissions_for_principal(principal))
     return {
@@ -314,6 +315,10 @@ def get_me(
             "permissions": permissions,
             "auth_method": principal.auth_method,
             "csrf_token": csrf_token,
+            # Architecture V2 composition contract: capability names, functional
+            # assignments and work modes. Composition only - it grants nothing,
+            # and every route re-authorises the caller server-side.
+            "experience": build_experience_profile(principal).to_payload(),
         },
         "meta": {
             "research_only": False,

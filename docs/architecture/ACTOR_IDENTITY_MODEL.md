@@ -6,8 +6,10 @@ Chinese companion: [ACTOR_IDENTITY_MODEL-CN.md](ACTOR_IDENTITY_MODEL-CN.md)
 
 Eurogas Nexus is a decision-support product. R32 adds local PostgreSQL
 identities (`identity_principals` / `identity_api_keys`) with USER/SERVICE
-principals, hashed bearer keys, and VIEWER/ANALYST/OPERATOR/ADMIN roles. This
-document defines the actor identity model used by the trust chain (review
+principals, hashed bearer keys, and VIEWER/REVIEWER/ANALYST/OPERATOR/ADMIN roles.
+Roles overlap: a principal may hold several at once, and Architecture V2
+(ADR-0016) keeps platform administration separate from commercial-data access.
+This document defines the actor identity model used by the trust chain (review
 decisions, audit events, internal operator writes) and states what remains
 deferred.
 

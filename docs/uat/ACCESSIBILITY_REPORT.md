@@ -5,8 +5,9 @@
 The main CI workflow contains a deterministic `browser-acceptance` job. It:
 
 - starts PostgreSQL 16, applies Alembic migrations, and seeds preview/UAT data;
-- creates a development/test-only authenticated ADMIN principal with wildcard
-  data scope for the acceptance fixture;
+- creates a development/test-only authenticated browser-UAT principal with
+  wildcard data scope for the acceptance fixture (roles ADMIN + ANALYST, since
+  platform administration alone is refused commercial data under ADR-0016);
 - starts the FastAPI and Vite development servers on loopback;
 - runs Playwright Chromium against all 16 declared workspaces;
 - repeats the workspace sweep in English and Mandarin at 1440x900,

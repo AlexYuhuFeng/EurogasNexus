@@ -10,7 +10,7 @@ R32 支持本地 PostgreSQL 身份；本增量不包含公司 SSO/OIDC，也未�
 | 项目 | 行为 |
 |---|---|
 | 主体 | `identity_principals` 中的 USER 或 SERVICE 行 |
-| 角色 | VIEWER、ANALYST、OPERATOR、ADMIN |
+| 角色 | VIEWER、REVIEWER、ANALYST、OPERATOR、ADMIN（可叠加，一个主体可持有多个角色） |
 | 凭据 | `identity_api_keys` 中的哈希 bearer API key |
 | 客户端头 | `X-Eurogas-Identity: nexus_<key_id>_<secret>` |
 | 旧部署兼容 | 只发送 `X-Eurogas-Api-Key` 时仍映射为 OPERATOR service principal |
@@ -45,9 +45,12 @@ POST   /api/internal/audit/prune
 | GOVERNED | ANALYST |
 | OPERATOR | OPERATOR |
 
-ADMIN 满足所有角色。旧部署令牌调用方保持 OPERATOR 兼容。注册表由
-`tests/security/test_permissions_registry.py` 测试，release 配置下由
-`route_permission.py` 强制执行。
+ADMIN 满足所有角色*门槛*（rank 最高），旧部署令牌调用方保持 OPERATOR 兼容。但 rank 不等于商业数据访问权：
+自 Architecture V2（ADR-0016）起，仅持有平台管理身份的主体不持有任何商业数据权限；访问商业数据路径将返回
+403 `commercial_access_not_granted`，除非该主体同时持有商业角色（例如 ANALYST）。注册表由
+`tests/security/test_permissions_registry.py` 测试，release 配置下由 `route_permission.py` 强制执行；
+商业数据边界由 `api/dependencies/commercial_access.py` 强制执行，并由
+`tests/security/test_platform_admin_commercial_boundary.py` 覆盖。
 
 ## 商业数据 scope
 

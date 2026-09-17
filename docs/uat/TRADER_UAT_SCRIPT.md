@@ -106,9 +106,11 @@ names WHAT is affected, WHAT the last verified time was, and WHAT to do.
 
 ## UAT-G: Access/entitlement
 
-Use VIEWER, ANALYST, REVIEWER, OPERATOR, ADMIN. Expected: allowed actions are
-obvious, denied controls are unavailable/explained, restricted sources never
-leak into derived results, and backend enforcement is authoritative.
+Use VIEWER, ANALYST, REVIEWER, OPERATOR, ADMIN (and an ADMIN+ANALYST principal
+to check that platform administration alone is refused commercial data).
+Expected: allowed actions are obvious, denied controls are unavailable/explained,
+restricted sources never leak into derived results, and backend enforcement is
+authoritative.
 
 ## UAT-H: Desktop first-run
 

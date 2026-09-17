@@ -1,11 +1,19 @@
 #!/usr/bin/env python
 """Seed one authenticated browser-UAT principal (development/test only).
 
-This helper is intentionally narrow: it creates or refreshes one ADMIN principal
-used by the Playwright acceptance job. It never stores a password; the
-development login credential remains an environment-only secret. The helper is
-blocked outside development/test and requires the same explicit UAT-fixture
+This helper is intentionally narrow: it creates or refreshes one browser-UAT
+principal used by the Playwright acceptance job. It never stores a password;
+the development login credential remains an environment-only secret. The helper
+is blocked outside development/test and requires the same explicit UAT-fixture
 acknowledgement as the simulated-data seed.
+
+Architecture V2 separates platform administration from commercial-data access
+(``docs/engineering/Architecture-V2/06_IDENTITY_ACCESS_CONTROL_PLANE.md``
+section 7), so the UAT operator holds two overlapping functional assignments:
+``ADMIN`` for the control plane it exercises and ``ANALYST`` for the market,
+portfolio and strategy flows the browser workflow validates. A single ADMIN
+assignment would be refused commercial reads by
+``eurogas_nexus.api.dependencies.commercial_access``.
 """
 
 from __future__ import annotations
@@ -16,6 +24,9 @@ from datetime import UTC, datetime
 from eurogas_nexus.db.models import IdentityPrincipalRecord
 from eurogas_nexus.db.repositories.identity import create_identity_principal
 from eurogas_nexus.db.session import get_session_factory, resolve_database_url
+
+UAT_ROLES = ["ADMIN", "ANALYST"]
+UAT_DISPLAY_NAME = "Eurogas Browser UAT Operator"
 
 
 def main() -> int:
@@ -49,23 +60,23 @@ def main() -> int:
             row = create_identity_principal(
                 session,
                 name=username,
-                display_name="Eurogas Browser UAT Admin",
-                role="ADMIN",
+                display_name=UAT_DISPLAY_NAME,
+                role=UAT_ROLES[0],
                 data_scopes=["*"],
                 now_utc=now,
             )
         else:
-            row.display_name = "Eurogas Browser UAT Admin"
-            row.role = "ADMIN"
-            row.roles = ["ADMIN"]
-            row.status = "ACTIVE"
-            row.data_scopes = ["*"]
-            row.updated_at_utc = now
-            session.flush()
+            row.display_name = UAT_DISPLAY_NAME
+        row.role = UAT_ROLES[0]
+        row.roles = list(UAT_ROLES)
+        row.status = "ACTIVE"
+        row.data_scopes = ["*"]
+        row.updated_at_utc = now
+        session.flush()
         session.commit()
         principal_id = row.principal_id
 
-    print(f"Browser UAT principal ready: {principal_id}")
+    print(f"Browser UAT principal ready: {principal_id} (roles: {', '.join(UAT_ROLES)})")
     return 0
 
 

@@ -11,7 +11,7 @@ PostgreSQL identities and service API keys remain supported.
 | Item | Behavior |
 |---|---|
 | Principal | USER or SERVICE row in `identity_principals` |
-| Roles | VIEWER, REVIEWER, ANALYST, OPERATOR, ADMIN |
+| Roles | VIEWER, REVIEWER, ANALYST, OPERATOR, ADMIN (overlapping; a principal may hold several) |
 | Credential | Hashed bearer API key in `identity_api_keys` |
 | Client header | `X-Eurogas-Identity: nexus_<key_id>_<secret>` |
 | Legacy deployment | `X-Eurogas-Api-Key` without identity header remains an OPERATOR service principal |
@@ -88,9 +88,16 @@ POST   /api/internal/audit/prune
 | GOVERNED | ANALYST |
 | OPERATOR | OPERATOR |
 
-ADMIN satisfies every role. Legacy deployment-token callers keep OPERATOR
-compatibility. The registry is tested by `tests/security/test_permissions_registry.py`
-and enforced in the release profile by `route_permission.py`.
+ADMIN satisfies every role *floor* (highest rank), and legacy deployment-token
+callers keep OPERATOR compatibility. Rank is not commercial access: since
+Architecture V2 (ADR-0016) a platform-administration identity holds no
+commercial-data permission, and a commercial path is refused with 403
+`commercial_access_not_granted` unless the principal also holds a commercial
+role (for example ANALYST). The registry is tested by
+`tests/security/test_permissions_registry.py` and enforced in the release
+profile by `route_permission.py`; the commercial boundary is enforced by
+`api/dependencies/commercial_access.py` and tested by
+`tests/security/test_platform_admin_commercial_boundary.py`.
 
 ## Commercial-data scopes
 

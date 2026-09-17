@@ -93,6 +93,7 @@ Architecture V2 is the binding target architecture and product-experience intera
   [Inspector, AI actions and command palette](engineering/Architecture-V2/W1-03_INSPECTOR_AI_AND_COMMAND_CONTRACT.md),
   [HostCapabilities](engineering/Architecture-V2/W1-04_HOST_CAPABILITIES_CONTRACT.md),
   [canonical experience specifications](engineering/Architecture-V2/W1-05_CANONICAL_EXPERIENCE_SPECS.md).
+- Wave 2 contracts: [effective access and the ExperienceProfile](engineering/Architecture-V2/W2-01_EFFECTIVE_ACCESS_AND_EXPERIENCE_PROFILE.md).
 
 ### Research data foundation
 

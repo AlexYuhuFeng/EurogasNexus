@@ -3,6 +3,13 @@
 RBAC job-function roles expand into explicit permissions. Commercial data
 entitlement remains separate (principal.data_scopes) and is never encoded in
 a role string. Unknown roles/permissions fail closed.
+
+Architecture V2 (``06_IDENTITY_ACCESS_CONTROL_PLANE.md`` section 7) separates
+platform administration from commercial-data access: ``ADMIN`` is a
+*platform administration bundle* (identity, API keys, audit, providers,
+runtime, capability catalogue) and holds no commercial-data permission. An
+administrator who also analyses holds a commercial role alongside ``ADMIN`` -
+roles are overlapping functional assignments, not exclusive personas.
 """
 
 from __future__ import annotations
@@ -50,6 +57,41 @@ class Permission(StrEnum):
     CAPABILITY_INVOKE = "capability.invoke"
     AGENT_READ = "agent.read"
     AGENT_RESEARCH = "agent.research"
+
+
+# Permissions that read or write commercial data: prices, positions, contract
+# terms, strategy parameters, PnL, decision evidence or licensed datasets.
+# Distinct from platform administration on purpose - see the module docstring
+# and ``eurogas_nexus.security.capabilities.COMMERCIAL_CAPABILITIES``.
+COMMERCIAL_PERMISSIONS: frozenset[Permission] = frozenset(
+    {
+        Permission.MARKET_READ,
+        Permission.PORTFOLIO_READ,
+        Permission.PORTFOLIO_WRITE,
+        Permission.STRATEGY_READ,
+        Permission.STRATEGY_CREATE,
+        Permission.STRATEGY_EDIT,
+        Permission.STRATEGY_FREEZE,
+        Permission.STRATEGY_RETIRE,
+        Permission.STRATEGY_SHADOW_MANAGE,
+        Permission.SCENARIO_CREATE,
+        Permission.OPTIMIZATION_RUN,
+        Permission.REVIEW_READ,
+        Permission.REVIEW_RECORD,
+        Permission.ANALYSIS_QUERY,
+        Permission.CAPABILITY_INVOKE,
+        # Agent runs carry commercial research evidence (plans, findings,
+        # artefacts); the capability *catalogue* read stays platform metadata.
+        Permission.AGENT_READ,
+        Permission.AGENT_RESEARCH,
+    }
+)
+
+# Permissions a platform administrator holds: operate the platform, its
+# providers, its identities and its runtime - without commercial data.
+PLATFORM_ADMINISTRATION_PERMISSIONS: frozenset[Permission] = frozenset(
+    set(Permission) - COMMERCIAL_PERMISSIONS
+)
 
 
 ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
@@ -124,7 +166,10 @@ ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.AGENT_RESEARCH,
         }
     ),
-    Role.ADMIN: frozenset(set(Permission)),
+    # Platform administration: identity, access, audit, providers, runtime and
+    # the capability catalogue. Commercial data is granted by a commercial role
+    # assignment (see COMMERCIAL_PERMISSIONS and PLATFORM_ADMINISTRATION_PERMISSIONS).
+    Role.ADMIN: PLATFORM_ADMINISTRATION_PERMISSIONS,
 }
 
 

@@ -38,7 +38,7 @@ No existing file was modified by this task. The only new files are the two above
 | FF6 | Tauri commands stay within HostCapabilities | `10_DOCUMENTATION_NFR_TESTING.md` §7 bullet 6; `14_VALIDATION_PACK.md` §E; `12_MIGRATION_ROADMAP.md` Wave 1 | partial: `tests/contract/test_client_release_surface.py:103` (capability ACL is exactly `core:default`), `:76` (host window/splash behaviour) | IMPLEMENTED IN THIS TASK + OPEN GAP FF6-G1 (partially closed by Wave 1) | host declarations `clients/desktop/src-tauri/src/main.rs:50`, `:82`, `:101`, `:108`, `:125`; registration `:214`-`:220`; client-side allowlist `clients/web/src/app/host/hostCapabilities.ts` (`HOST_COMMANDS`, delivered and documented as [W1-04](W1-04_HOST_CAPABILITIES_CONTRACT.md)); capability file `clients/desktop/src-tauri/capabilities/default.json:6`; static check proves declared == registered == allowlist == the five commands the Web workspace can invoke | FF6-G1 (capability ACL still does not mirror the per-command class) |
 | FF7 | Module dependency direction (api → application/domain → db/infrastructure, never the reverse) | `10_DOCUMENTATION_NFR_TESTING.md` §7 bullet 7 | partial: `tests/contract/test_import_boundaries.py:9` (domain ↛ fastapi), `:21` (SDK/CLI ↛ domain) | IMPLEMENTED IN THIS TASK (restricted) + OPEN GAP FF7-G1 … FF7-G4 | rules that hold: `domain` imports neither `eurogas_nexus.api` nor `eurogas_nexus.application`; `db` imports neither `api` nor `application`; `security` does not import `api`; `optimization` imports no other package at all; reverse `api` importers outside `src/eurogas_nexus/api` are frozen to two modules (see FF7-G1) | FF7-G1 … FF7-G4 |
 | FF8 | Version/config consistency | `10_DOCUMENTATION_NFR_TESTING.md` §7 bullet 8 | ALREADY COVERED: `tests/contract/test_client_release_surface.py:27` (`test_release_versions_are_aligned`: `pyproject.toml`, `clients/desktop/src-tauri/Cargo.toml`, `clients/desktop/src-tauri/tauri.conf.json`, `clients/web/package.json`, `clients/desktop/package.json` all `0.5.0`); adjacent `tests/release/test_release_engineering.py:51`, `tests/contract/test_docs_alignment.py:143` | ALREADY COVERED — not duplicated | `tests/contract/test_client_release_surface.py:40`-`:46` | none |
-| FF9 | ExperienceProfile cannot grant capability | `10_DOCUMENTATION_NFR_TESTING.md` §7 bullet 9; `06_IDENTITY_ACCESS_CONTROL_PLANE.md:118`; `12_MIGRATION_ROADMAP.md` Wave 2 | `none` | OPEN GAP | no `ExperienceProfile`, `FunctionalAssignment` or `WorkMode` token exists anywhere under `src/`; access is the fixed role model `src/eurogas_nexus/security/authorization.py:21` (`Permission`), `:55` (`ROLE_PERMISSIONS`), `:127` (`Role.ADMIN` = every permission), `:164` (`authorize`); the client navigation is the fixed five-primary model `clients/web/src/app/navigation/productNavigation.ts:18`-`:54` | FF9-G1 |
+| FF9 | ExperienceProfile cannot grant capability | `10_DOCUMENTATION_NFR_TESTING.md` §7 bullet 9; `06_IDENTITY_ACCESS_CONTROL_PLANE.md:118`; `12_MIGRATION_ROADMAP.md` Wave 2 | `tests/security/test_experience_profile.py`, `clients/web/tests/experienceProfile.test.ts` | **CLOSED IN WAVE 2** | `src/eurogas_nexus/security/capabilities.py` (capability catalogue bound to role permissions; `build_experience_profile`; `profile_stays_within_role_permissions`), served as `data.experience` by `GET /api/me` (`api/routes/public/auth.py`); the no-widening property is asserted for every role, and the client refuses a profile that claims authority (`clients/web/src/app/experience/experienceProfile.ts`). See [W2-01](W2-01_EFFECTIVE_ACCESS_AND_EXPERIENCE_PROFILE.md) | none - the record is closed |
 | FF10 | AI/agent invocation rechecks authority | `10_DOCUMENTATION_NFR_TESTING.md` §7 bullet 10; `14_VALIDATION_PACK.md` §C (“AI invocation re-authorises”) | ALREADY COVERED (behavioural): `tests/security/test_llm_provider_gate.py:64` (provider blocked by profile), `:87` (entitlement blocks unlicensed snapshot), `:139` (release API reports provider disabled); capability entitlement `tests/unit/test_agent_capability_runtime.py:127`, `:384`, `:416`; agent route permissions `tests/api/test_agents_api.py:101` | IMPLEMENTED IN THIS TASK (static fail-closed ordering) + ALREADY COVERED | `src/eurogas_nexus/api/routes/public/analysis.py:364` (caller opt-in), `:369` (profile gate), `:373` (snapshot entitlement re-check), `:391` (credential load), `:422` (provider call); per-request re-authorisation `src/eurogas_nexus/api/app.py:24`-`:32` | none required; residual limits in §6 |
 
 ## 3. Open gaps
@@ -181,21 +181,18 @@ No existing file was modified by this task. The only new files are the two above
   `tests/contract/test_architecture_v2_fitness.py` to the remaining packages and record each new
   exception deliberately.
 
-### FF9-G1 — no ExperienceProfile contract exists
+### FF9-G1 — CLOSED in Wave 2
 
-- Evidence: no `ExperienceProfile`, `experience_profile`, `FunctionalAssignment`,
-  `functional_assignment`, `WorkMode` or `work_mode` token exists anywhere under `src/`
-  (repository-wide search); access control is the fixed role model in
-  `src/eurogas_nexus/security/authorization.py:21`, `:55`, `:127`, `:164`; client navigation is
-  the fixed five-primary model in `clients/web/src/app/navigation/productNavigation.ts:18`-`:54`.
-  The contract exists only as target text: `docs/engineering/Architecture-V2/06_IDENTITY_ACCESS_CONTROL_PLANE.md:118`-`:133`
-  and `docs/engineering/Architecture-V2/12_MIGRATION_ROADMAP.md:41`-`:48` (Wave 2).
-- Effect: FF9 cannot be asserted today; “a work mode or profile never grants capability” has no
-  contract to test.
-- Remediation: Wave 2 — define the backend ExperienceProfile response contract, derive
-  `effective_capabilities` strictly from the role/permission model, and add a negative test that a
-  profile (or work mode) can only narrow, never widen, the role-derived permission set. It is
-  asserted in `AGENTS.md` rule 7 (“Work mode/persona never grants backend authority”).
+- Resolution: `src/eurogas_nexus/security/capabilities.py` defines the capability
+  catalogue bound to the existing role permissions, builds the `ExperienceProfile`,
+  and proves the no-widening property per role through
+  `profile_stays_within_role_permissions`. The profile is served additively inside
+  `GET /api/me`, and the client refuses a profile that claims composition
+  authority. See [W2-01](W2-01_EFFECTIVE_ACCESS_AND_EXPERIENCE_PROFILE.md) and
+  `tests/security/test_experience_profile.py`.
+- Residual: organisation/portfolio/market scope kinds are still not expressible in
+  the backend, so the profile reports them through `unsupported_scope_kinds`
+  instead of inventing them.
 
 ## 4. Checks implemented in this task
 
@@ -220,7 +217,8 @@ All static; each asserts a fact verified at the inspected revision.
 | `test_ai_provider_invocation_rechecks_authority_before_calling_provider` | FF10 |
 | `test_fitness_gap_inventory_covers_every_fitness_function` | this document |
 
-No test asserts FF8 (already covered elsewhere) or FF9 (no contract exists yet).
+No test in this module asserts FF8 (already covered elsewhere); FF9 is covered by
+`tests/security/test_experience_profile.py` since Wave 2 and is not duplicated here.
 
 ## 5. Tests run
 

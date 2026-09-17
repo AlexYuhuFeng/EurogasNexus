@@ -194,6 +194,52 @@ ROLE_REQUIREMENTS: dict[Permission, str] = {
     Permission.ADMIN: "ADMIN",
 }
 
+# Architecture V2 commercial-data boundary (06_IDENTITY_ACCESS_CONTROL_PLANE.md
+# section 7): platform administration is not a commercial super-user. These path
+# families serve prices, contract terms, positions, PnL, strategy parameters,
+# decision evidence or licensed research datasets, so they require a commercial
+# capability - which a platform-admin-only identity does not hold.
+#
+# Deliberately excluded (platform/context/system state a platform administrator
+# needs): /api/health, /api/me, /api/auth, /api/dev, /api/access, /api/audit,
+# /api/credentials, /api/sources, /api/source-certifications, /api/ingestion-runs,
+# /api/runtime, /api/glossary, /api/reference-network, /api/physical,
+# /api/storage, /api/lng, /api/weather, /api/capabilities (the registered
+# capability *catalogue* is control-plane metadata; invoking a capability over
+# commercial evidence stays commercial through /api/agent/ and the governed
+# invoke path).
+COMMERCIAL_DATA_PREFIXES: tuple[str, ...] = (
+    "/api/market/",
+    "/api/monitoring/",
+    "/api/stream/",
+    "/api/cost-observations/",
+    "/api/portfolio/",
+    "/api/contracts/",
+    "/api/optimization/",
+    "/api/route-cost/",
+    "/api/analysis/",
+    "/api/reports/",
+    "/api/backtest-experiments/",
+    "/api/strategies/",
+    "/api/strategy-lab/",
+    "/api/strategy-runs/",
+    "/api/strategy-versions/",
+    "/api/shadow-alerts/",
+    "/api/shadow-monitors/",
+    "/api/shadow-evaluations/",
+    "/api/shadow-runtime/",
+    "/api/review/",
+    "/api/research/",
+    "/api/agent/",
+)
+
+
+def serves_commercial_data(path: str) -> bool:
+    """Whether a public path serves commercial data (V2 platform-admin boundary)."""
+
+    return any(path.startswith(prefix) for prefix in COMMERCIAL_DATA_PREFIXES)
+
+
 
 def permission_for_path(path: str, method: str | None = None) -> Permission:
     """Resolve the permission for a public path.

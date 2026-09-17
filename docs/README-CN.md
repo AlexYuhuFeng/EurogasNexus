@@ -115,6 +115,7 @@ Architecture V2 是绑定的目标架构与产品体验交互权威（ADR-0016�
   [检查器、AI 动作与命令面板](engineering/Architecture-V2/W1-03_INSPECTOR_AI_AND_COMMAND_CONTRACT.md)、
   [HostCapabilities](engineering/Architecture-V2/W1-04_HOST_CAPABILITIES_CONTRACT.md)、
   [规范化体验规格](engineering/Architecture-V2/W1-05_CANONICAL_EXPERIENCE_SPECS.md)。
+- Wave 2 合同：[有效访问与 ExperienceProfile](engineering/Architecture-V2/W2-01_EFFECTIVE_ACCESS_AND_EXPERIENCE_PROFILE.md)。
 
 ## 当前运维手册
 

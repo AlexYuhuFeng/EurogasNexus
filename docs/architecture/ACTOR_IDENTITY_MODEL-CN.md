@@ -6,8 +6,9 @@
 
 R32 已增加本地 PostgreSQL 身份（`identity_principals` /
 `identity_api_keys`），包含 USER/SERVICE 主体、哈希 bearer key 和
-VIEWER/ANALYST/OPERATOR/ADMIN 角色。本文档定义信任链（复核决策、审计事件、
-internal operator 写入）使用的 actor 身份模型，并明确说明仍推迟的部分。
+VIEWER/REVIEWER/ANALYST/OPERATOR/ADMIN 角色。角色可叠加：一个主体可同时持有多个角色，
+且 Architecture V2（ADR-0016）将平台管理与商业数据访问分离。本文档定义信任链
+（复核决策、审计事件、internal operator 写入）使用的 actor 身份模型，并明确说明仍推迟的部分。
 
 ## Actor Principal
 

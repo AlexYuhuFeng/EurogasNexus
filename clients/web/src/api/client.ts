@@ -2150,11 +2150,35 @@ export const api = {
 };
 
 
+/**
+ * Architecture V2 composition contract returned by `GET /api/me`.
+ *
+ * It carries capability *names* the authenticated identity already holds,
+ * functional assignments and the work modes it may compose. It is composition
+ * only: the client MUST NOT treat it as a permission check, and the backend
+ * re-authorises every request.
+ */
+export interface ExperienceProfileDTO {
+  principal_id: string;
+  role: string;
+  roles: string[];
+  functional_assignments: string[];
+  available_work_modes: string[];
+  default_work_mode: string | null;
+  effective_capabilities: string[];
+  commercial_capabilities: string[];
+  scope_refs: string[];
+  data_entitlement_refs: string[];
+  unsupported_scope_kinds: string[];
+  work_mode_grants_authority: boolean;
+}
+
 export interface CurrentUserDTO {
   principal_id: string; name: string; display_name?: string; principal_type: string;
   role: string; roles: string[]; email: string | null;
   identity_source: string; status: string; data_scopes: string[];
   permissions: string[]; auth_method: string; csrf_token: string | null;
+  experience?: ExperienceProfileDTO;
 }
 
 export interface AuthStatusDTO {

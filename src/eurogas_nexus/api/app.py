@@ -3,6 +3,7 @@
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from eurogas_nexus.api.dependencies.commercial_access import require_commercial_access
 from eurogas_nexus.api.dependencies.identity import require_identity
 from eurogas_nexus.api.dependencies.public_auth import require_public_api_auth
 from eurogas_nexus.api.dependencies.route_permission import require_route_permission
@@ -26,6 +27,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             Depends(require_public_api_auth),
             Depends(require_identity),
             Depends(require_route_permission),
+            # Architecture V2: rank alone cannot express "administration is not
+            # commercial access", so commercial paths need a commercial capability.
+            Depends(require_commercial_access),
         ]
         if route_profile.require_auth
         else []

@@ -294,26 +294,48 @@ fails closed.
 
 ## 14. Role/permission matrix
 
+Architecture V2 (`docs/engineering/Architecture-V2/06_IDENTITY_ACCESS_CONTROL_PLANE.md`
+section 7, and ADR-0016) separates platform administration from commercial-data
+access. `ADMIN` is a **platform administration bundle**: it manages identity,
+API keys, audit, providers, runtime and the capability catalogue, and holds no
+commercial-data permission. An administrator who also analyses holds a
+commercial role alongside `ADMIN` - roles are overlapping functional
+assignments, not exclusive personas. `eurogas_nexus.api.dependencies.commercial_access`
+enforces the boundary per request; a commercial path returns 403
+`commercial_access_not_granted` for an administration-only identity.
+
 | Permission | VIEWER | ANALYST | REVIEWER | OPERATOR | ADMIN |
 |---|---|---|---|---|---|
-| market.read | ✓ | ✓ | ✓ | ✓ | ✓ |
-| portfolio.read | ✓ | ✓ | ✓ | ✓ | ✓ |
-| strategy.read | ✓ | ✓ | ✓ | ✓ | ✓ |
-| review.read | ✓ | ✓ | ✓ | ✓ | ✓ |
-| runtime.read | ✓ | ✓ | ✓ | ✓ | ✓ |
-| portfolio.write | | ✓ | | ✓ | ✓ |
-| strategy.create/edit/freeze | | ✓ | | | ✓ |
-| strategy.shadow.manage | | ✓ | | ✓ | ✓ |
-| scenario.create | | ✓ | | | ✓ |
-| optimization.run | | ✓ | | | ✓ |
-| review.record | | | ✓ | | ✓ |
-| source.run/backfill/credentials/certification | | | | ✓ | ✓ |
-| identity.read | | | | | ✓ |
-| identity.manage/api_keys.manage/audit.read | | | | | ✓ |
-| me.read | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `me.read` (platform) | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `market.read` | ✓ | ✓ | ✓ | ✓ | |
+| `portfolio.read` | ✓ | ✓ | ✓ | ✓ | |
+| `portfolio.write` | | ✓ | | | |
+| `strategy.read` | ✓ | ✓ | ✓ | ✓ | |
+| `strategy.create` / `strategy.edit` | | ✓ | | | |
+| `strategy.freeze` / `strategy.retire` | | ✓ | | | |
+| `strategy.shadow.manage` | | ✓ | | ✓ | |
+| `scenario.create` | | ✓ | | | |
+| `optimization.run` | | ✓ | | | |
+| `review.read` | ✓ | ✓ | ✓ | ✓ | |
+| `review.record` | | | ✓ | | |
+| `analysis.query` | | ✓ | | | |
+| `capability.read` (platform) | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `capability.invoke` | | ✓ | | ✓ | |
+| `agent.read` | ✓ | ✓ | ✓ | ✓ | |
+| `agent.research` | | ✓ | | ✓ | |
+| `source.read` (platform) | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `source.run` / `source.backfill` (platform) | | | | ✓ | ✓ |
+| `source.credentials.write` (platform) | | | | ✓ | ✓ |
+| `source.certification.manage` (platform) | | | | ✓ | ✓ |
+| `runtime.read` (platform) | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `identity.read` (platform) | | | | | ✓ |
+| `identity.manage` (platform) | | | | | ✓ |
+| `api_keys.manage` (platform) | | | | | ✓ |
+| `audit.read` (platform) | | | | | ✓ |
 
 ADMIN does **not** automatically receive every commercial data scope; data
-scopes are assigned separately. No TRADER_EXECUTOR or TRADE_APPROVER exists.
+scopes are assigned separately, and commercial capability additionally requires
+a commercial role assignment. No TRADER_EXECUTOR or TRADE_APPROVER exists.
 
 ## 15. Data-scope model
 

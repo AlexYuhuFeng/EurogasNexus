@@ -140,6 +140,16 @@ export {
 } from "./workModes.ts";
 
 export {
+  SERVER_WORK_MODE_IDS,
+  availableModeCompositions,
+  compositionAllowsMode,
+  compositionFromProfile,
+  compositionHasCommercialAccess,
+  compositionHoldsCapability,
+  type ClientExperienceComposition,
+} from "./experienceProfile.ts";
+
+export {
   DEFAULT_PALETTE_LIMIT,
   aiCommands,
   buildPaletteCommands,
