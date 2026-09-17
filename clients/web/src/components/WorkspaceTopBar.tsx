@@ -232,6 +232,7 @@ export function WorkspaceTopBar({
             analysisByAlert={monitoring.monitoringAnalysisByAlert}
             busyAlertId={monitoring.monitoringBusyAlertId}
             language={language}
+            t={t}
             onAcknowledge={monitoring.acknowledgeMonitoringAlert}
             onAnalyze={monitoring.analyzeMonitoringAlert}
           />

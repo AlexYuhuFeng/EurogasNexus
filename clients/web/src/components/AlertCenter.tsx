@@ -4,6 +4,9 @@ import type {
   MonitoringAnalysisDTO,
   MonitoringSummaryDTO,
 } from "@/api/client";
+import { aiActionContract, aiActionIsAvailable } from "@/app/experience/aiActions";
+
+type Translate = (key: string, options?: Record<string, unknown>) => string;
 
 interface AlertCenterProps {
   alerts: MonitoringAlertDTO[];
@@ -11,9 +14,25 @@ interface AlertCenterProps {
   analysisByAlert: Record<string, MonitoringAnalysisDTO>;
   busyAlertId: string | null;
   language: string;
+  t: Translate;
   onAcknowledge: (alertId: string) => Promise<void>;
   onAnalyze: (alertId: string, question: string, language: "en" | "zh-CN") => Promise<void>;
 }
+
+/**
+ * The canonical action an alert question runs as.
+ *
+ * Wave 7 convergence: this surface used to offer its own provider-branded question button
+ * with no gating, which is exactly the competing magic-AI entry point the V2 AI contract
+ * forbids. It is now the declared `ask` action - same contract, same posture copy, same
+ * evidence rule - over the alert-analysis route.
+ *
+ * The alert analysis composes from the persisted alert snapshot the backend loads by id,
+ * so the alert itself is the invocation context; what a question still needs is evidence,
+ * and an alert without source references has none. That is why only the evidence
+ * requirement is applied here, and why it is applied rather than assumed.
+ */
+const ALERT_ASK_ACTION = "ask" as const;
 
 export function AlertCenter({
   alerts,
@@ -21,6 +40,7 @@ export function AlertCenter({
   analysisByAlert,
   busyAlertId,
   language,
+  t,
   onAcknowledge,
   onAnalyze,
 }: AlertCenterProps) {
@@ -81,6 +101,17 @@ export function AlertCenter({
               const title = isChinese ? alert.title_zh_cn : alert.title_en;
               const message = isChinese ? alert.message_zh_cn : alert.message_en;
               const llmSummary = isChinese ? alert.llm_summary_zh_cn : alert.llm_summary_en;
+              // The canonical action contract decides whether the action may be offered,
+              // so an alert with no evidence reference withholds it instead of letting the
+              // model guess.
+              const contract = aiActionContract(ALERT_ASK_ACTION);
+              const evidenceRefs = alert.source_refs ?? [];
+              const askAvailable =
+                contract.action === ALERT_ASK_ACTION &&
+                aiActionIsAvailable(ALERT_ASK_ACTION, {
+                  activeContextComplete: true,
+                  evidenceRefCount: evidenceRefs.length,
+                });
               return (
                 <article key={alert.alert_id} className={`monitoring-alert severity-${alert.severity}`}>
                   <div className="monitoring-alert-heading">
@@ -97,13 +128,19 @@ export function AlertCenter({
                   </div>
                   {llmSummary && (
                     <div className="alert-ai-summary">
-                      <strong>DeepSeek</strong>
+                      {/* The stored summary names the provider the backend used. */}
+                      <strong>{alert.llm_provider_id}</strong>
                       <p>{llmSummary}</p>
                     </div>
                   )}
                   <div className="monitoring-alert-actions">
-                    <button type="button" onClick={() => startDiscussion(alert)}>
-                      {discussing ? (isChinese ? "收起" : "Hide") : (isChinese ? "询问 DeepSeek" : "Ask DeepSeek")}
+                    <button
+                      type="button"
+                      disabled={!askAvailable}
+                      title={askAvailable ? undefined : t("experience.copilot.withheld_evidence")}
+                      onClick={() => startDiscussion(alert)}
+                    >
+                      {t("experience.ai.ask")}
                     </button>
                     {alert.status === "open" && (
                       <button
@@ -115,13 +152,28 @@ export function AlertCenter({
                       </button>
                     )}
                   </div>
-                  {discussing && (
+                  {discussing && askAvailable && (
+                    <div className="alert-action-contract">
+                      <span>{t("experience.copilot.posture")}: {t(`experience.copilot.posture.${contract.posture}`)}</span>
+                      <span>{t("experience.copilot.produces")}: {t(`experience.copilot.produces.${contract.action}`)}</span>
+                      <span>
+                        {t("experience.copilot.evidence")}:{" "}
+                        {evidenceRefs.length > 0
+                          ? evidenceRefs.join(", ")
+                          : t("experience.copilot.carries_none")}
+                      </span>
+                    </div>
+                  )}
+                  {!askAvailable && (
+                    <p className="alert-action-withheld">{t("experience.copilot.withheld_evidence")}</p>
+                  )}
+                  {discussing && askAvailable && (
                     <div className="alert-discussion">
                       <textarea
                         value={question}
                         maxLength={2000}
                         onChange={(event) => setQuestion(event.target.value)}
-                        aria-label={isChinese ? "向 DeepSeek 提问" : "Question for DeepSeek"}
+                        aria-label={t("experience.copilot.question")}
                       />
                       <button
                         type="button"
@@ -133,14 +185,20 @@ export function AlertCenter({
                         )}
                       >
                         {busyAlertId === alert.alert_id
-                          ? (isChinese ? "分析中" : "Analyzing")
-                          : (isChinese ? "发送" : "Send")}
+                          ? t("experience.copilot.running")
+                          : t("experience.copilot.run")}
                       </button>
                       {analysis && (
                         <div className={`alert-analysis-result status-${analysis.provider_status}`}>
-                          <strong>DeepSeek · {analysis.provider_status}</strong>
-                          <p>{analysis.answer ?? (isChinese ? "未返回分析。请检查密钥和网络。" : "No analysis returned. Check the key and network.")}</p>
+                          {/* Provenance, not branding: the backend reports which provider answered. */}
+                          <strong>{analysis.provider_id} · {analysis.provider_status}</strong>
+                          <p>{analysis.answer ?? t("experience.copilot.error_title")}</p>
                         </div>
+                      )}
+                      {analysis && (
+                        <p className="alert-action-contract">
+                          {t("experience.copilot.result_interpretation")}
+                        </p>
                       )}
                     </div>
                   )}
