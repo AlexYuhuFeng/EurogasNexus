@@ -52,6 +52,11 @@ the `READ` floor — the same treatment as `/api/review/decisions`.
    rather than implying a reproducibility the platform cannot provide.
 4. **Audit is part of the write.** Create, record and reopen each append an audit event in the same
    transaction.
+5. **An AI interpretation is evidence of an interpretation.** The chain names an
+   `AI Findings/Challenge` stage, and `DecisionEvidenceKind.AI_ANALYSIS` is what holds it: a Copilot
+   run is cited by reference beside the deterministic artefacts, never as a number's authority. The
+   panel offers the run the identity just completed instead of asking for an identifier, and the case
+   still needs evidence and a human decision like any other.
 
 ## 4. Compatibility
 
