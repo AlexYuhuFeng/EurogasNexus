@@ -193,8 +193,31 @@ dataset catalogue it describes):
 - a state this build has no label for is rendered as its own code, and a failed read is reported
   as an alert rather than shown as an empty catalogue.
 
-Still open in this family: nothing in the product *records* an Analysis Snapshot, and the
-`researchCapabilities` read remains without a consumer.
+Still open in this family: the `researchCapabilities` read remains without a consumer.
+
+### The product records a snapshot too
+
+The last gap in this family was that nothing in the product *recorded* a snapshot, so a user could
+only cite one another caller had created - the reproducibility story had a hole at its first step.
+The review task now records one from the Active Context it is showing:
+
+- `app/model/analysisSnapshotModel.ts` holds the rule: the request carries only the Active Context
+  keys the backend accepts (`ACTIVE_CONTEXT_KEYS`, mirrored), so a dimension the platform cannot
+  express is omitted here rather than silently dropped into a descriptor that claims to describe
+  the context; the frozen instant is supplied by the caller rather than read from a clock inside
+  the rule; and recording is refused without a runtime database (a snapshot is persisted evidence,
+  so the route answers 503), without anything to freeze (a descriptor that names no version set is
+  evidence of nothing), and while a run is in flight.
+- The store action posts the request, then **re-reads the list from the backend** instead of
+  appending its own response, and selects the recorded reference - the workflow is freeze the
+  context, then cite it, and the next report run carries it.
+- The step sits beside the picker it feeds rather than in the workspace's primary slot. That is a
+  deliberate placement: the review task's act is a decision with three outcomes (recorded in
+  `W9-01` section 6), and a snapshot is a `persist` consequence whose object the user does not
+  compose - the context is taken as it stands. It is a bounded step adjacent to the object it
+  creates, which is where the geography puts an action that must stay next to what it affects.
+
+`W4-01` no longer lists a Wave 4 client gap.
 
 ## 7. Access path (07 §7)
 

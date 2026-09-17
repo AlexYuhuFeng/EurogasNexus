@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { warningLabel } from "@/app/warningLabel";
 import { formatUtcTimestamp } from "@/app/model/evidencePresentation";
 import { reviewEvidenceFor } from "@/app/model/reviewContextModel";
+import type { AnalysisSnapshotReadiness } from "@/app/model/analysisSnapshotModel";
 import { copilotOffers } from "@/app/model/copilotModel";
 import { useCopilotSources } from "@/app/hooks/useCopilot";
 import { CopilotHost } from "@/components/CopilotPanel";
@@ -40,6 +41,10 @@ interface ReviewWorkspaceProps {
   analysisSnapshots: AnalysisSnapshotDTO[];
   analysisSnapshotSource: string | null;
   reviewSnapshotId: string | null;
+  /** Whether the context may be frozen as a reference now, and the step that feeds the picker. */
+  snapshotReadiness: AnalysisSnapshotReadiness;
+  snapshotMessage: string | null;
+  onRecordSnapshot: () => void;
   onSelectSnapshot: (snapshotId: string | null) => void;
   t: Translate;
   onGenerateReport: () => void;
@@ -78,6 +83,9 @@ export function ReviewWorkspace({
   analysisSnapshots,
   analysisSnapshotSource,
   reviewSnapshotId,
+  snapshotReadiness,
+  snapshotMessage,
+  onRecordSnapshot,
   onSelectSnapshot,
   t,
   onGenerateReport,
@@ -342,6 +350,27 @@ export function ReviewWorkspace({
               : t("review.snapshot.empty")
             : t("review.snapshot.help")}
         </p>
+        {/* Recording sits beside the picker it feeds: the workflow is freeze the context, then
+            cite it. It is not this workspace's primary action - the review task's act is the
+            decision with three outcomes - so it is a bounded step next to the reference it
+            creates, which is where the geography puts an action adjacent to its object. */}
+        <div className="action-row">
+          <button
+            type="button"
+            disabled={!snapshotReadiness.canRecord}
+            title={
+              snapshotReadiness.firstBlockerKey
+                ? t(snapshotReadiness.firstBlockerKey)
+                : t("review.snapshot.record_hint")
+            }
+            onClick={onRecordSnapshot}
+          >
+            {t("review.snapshot.record")}
+          </button>
+          {snapshotMessage === "recorded" && (
+            <span className="status-badge status-complete">{t("review.snapshot.recorded")}</span>
+          )}
+        </div>
         <div className="action-row">
           <button type="button" onClick={onGenerateReport}>{t("analysis.report")}</button>
         </div>

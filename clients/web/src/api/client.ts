@@ -2551,6 +2551,18 @@ export const api = {
   dataProducts: (options?: ApiRequestOptions) =>
     get<DataProductCatalogueDTO>("/data-products", undefined, options),
   /**
+   * Record an Analysis Snapshot from the Active Context (Architecture V2 Wave 4).
+   *
+   * The route is GOVERNED and refuses the write without a runtime database, because a snapshot
+   * is persisted evidence rather than a derived read. Context keys outside the declared subset
+   * are refused with `active_context_key_unsupported` instead of being dropped, so the caller
+   * learns which dimension the platform cannot express.
+   */
+  createAnalysisSnapshot: (
+    body: { as_of_utc: string; active_context: Record<string, string> },
+    options?: ApiRequestOptions,
+  ) => post<AnalysisSnapshotDTO>("/analysis-snapshots", body, options),
+  /**
    * Recent Analysis Snapshots, newest first (Architecture V2 Wave 4).
    *
    * A snapshot descriptor is lineage metadata: it names the version set a run can cite as its

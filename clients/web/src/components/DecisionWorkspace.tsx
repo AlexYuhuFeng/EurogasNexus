@@ -8,6 +8,10 @@ import { warningLabel } from "@/app/warningLabel";
 import { CommercialWarningList } from "@/components/CommercialWarningList";
 import { DecisionCasePanel } from "@/components/DecisionCasePanel";
 import { inspectorSubjectFor } from "@/app/model/inspectorDetail";
+import {
+  analysisSnapshotReadiness,
+  snapshotContextFrom,
+} from "@/app/model/analysisSnapshotModel";
 import { useInspectorStore } from "@/stores/inspector";
 import {
   DECISION_TASKS,
@@ -210,6 +214,33 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
             analysisSnapshots={api.analysisSnapshots}
             analysisSnapshotSource={api.analysisSnapshotSource}
             reviewSnapshotId={api.reviewSnapshotId}
+            snapshotReadiness={analysisSnapshotReadiness({
+              context: snapshotContextFrom({
+                workspace: "review",
+                task,
+                gas_day: traderContext.gasDay,
+                product: traderContext.deliveryProduct,
+                hub: traderContext.hubId,
+                strategy_run_id: selection.strategyRunId ?? "",
+              }),
+              runtimeDbReady:
+                api.runtimeDb?.database_url_present === true && api.runtimeDb.connectivity.ok,
+              recording: api.loading,
+            })}
+            snapshotMessage={api.snapshotMessage}
+            onRecordSnapshot={() =>
+              void api.recordAnalysisSnapshot(
+                {
+                  workspace: "review",
+                  task,
+                  gas_day: traderContext.gasDay,
+                  product: traderContext.deliveryProduct,
+                  hub: traderContext.hubId,
+                  strategy_run_id: selection.strategyRunId ?? "",
+                },
+                api.runtimeDb?.database_url_present === true && api.runtimeDb.connectivity.ok,
+              )
+            }
             onSelectSnapshot={api.setReviewSnapshotId}
             t={t}
             onGenerateReport={() => api.generatePortfolioReport(review.analysisPayload)}

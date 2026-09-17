@@ -26,6 +26,11 @@ import {
 } from "@/app/model/portfolioSnapshotModel";
 import { reviewDecisions, reviewIsUsable } from "@/app/model/reviewContextModel";
 import {
+  analysisSnapshotReadiness,
+  analysisSnapshotRequest,
+  snapshotContextFrom,
+} from "@/app/model/analysisSnapshotModel";
+import {
   api,
   AnalysisRequestDTO,
   AnalysisResultDTO,
@@ -401,6 +406,8 @@ export interface ApiState {
    */
   analysisSnapshots: AnalysisSnapshotDTO[];
   analysisSnapshotSource: string | null;
+  /** `recorded` after a snapshot was written and read back; null otherwise. */
+  snapshotMessage: string | null;
   /** The reproducibility reference the next report run cites, or null for none. */
   reviewSnapshotId: string | null;
   marketLastUpdatedAtUtc: string | null;
@@ -424,6 +431,18 @@ export interface ApiState {
    */
   fetchReviewContext: () => Promise<void>;
   fetchAnalysisSnapshots: () => Promise<void>;
+  /**
+   * Record the context the caller is standing in as a reproducibility reference, and select it.
+   *
+   * Returns the message key the surface should show, or null when nothing was recorded. The
+   * list is re-read from the backend afterwards rather than appended to optimistically, and the
+   * recorded reference becomes the citation the next report run carries - that is the order the
+   * workflow has: freeze the context, then cite it.
+   */
+  recordAnalysisSnapshot: (
+    context: Record<string, string | null | undefined>,
+    runtimeDbReady: boolean,
+  ) => Promise<string | null>;
   setReviewSnapshotId: (snapshotId: string | null) => void;
   fetchMe: () => Promise<void>;
   signIn: () => Promise<void>;
@@ -674,6 +693,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
   meta: null,
   analysisSnapshots: [],
   analysisSnapshotSource: null,
+  snapshotMessage: null,
   reviewSnapshotId: null,
   marketLastUpdatedAtUtc: null,
   loading: false,
@@ -1412,6 +1432,35 @@ export const useApiStore = create<ApiState>((set, get) => ({
     // The selection is a choice among references the deployment recorded; clearing it means
     // the next run cites nothing and its payload stays exactly as it was.
     set({ reviewSnapshotId: snapshotId });
+  },
+
+  recordAnalysisSnapshot: async (context, runtimeDbReady) => {
+    if (logoutInProgress) return null;
+    if (!isIdentityGateOpen(get().authState)) return null;
+    const readiness = analysisSnapshotReadiness({ context: snapshotContextFrom(context), runtimeDbReady, recording: false });
+    // The rule decides, and the surface shows the same blockers: refusing here is the same
+    // answer the button's disabled state already gave.
+    if (!readiness.canRecord) return readiness.firstBlockerKey;
+    const requestGeneration = identityReadCoordinator.capture();
+    set({ snapshotMessage: null });
+    try {
+      const response = await api.createAnalysisSnapshot(
+        analysisSnapshotRequest(snapshotContextFrom(context), new Date().toISOString()),
+      );
+      if (!followUpReadIsCurrent(requestGeneration)) return null;
+      // Read the list back from the backend rather than appending the response: the record the
+      // deployment holds is the evidence, and the response is only what it said it wrote.
+      const recorded = response.data.snapshot_id;
+      set({ reviewSnapshotId: recorded, snapshotMessage: "recorded" });
+      await get().fetchAnalysisSnapshots();
+      return "recorded";
+    } catch (e) {
+      if (!followUpReadIsCurrent(requestGeneration)) return null;
+      // A refusal is reported as itself: an unknown context key, an unavailable store or a
+      // failed write must not read as a recorded snapshot.
+      set({ snapshotMessage: null, error: String(e) });
+      return "failed";
+    }
   },
 
   saveProviderCredential: async (providerId, apiKey, label) => {
