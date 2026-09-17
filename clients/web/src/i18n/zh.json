@@ -1841,6 +1841,7 @@
   "decision_case.evidence.STRATEGY_RUN": "策略运行",
   "decision_case.evidence.RESEARCH_DATASET": "研究数据集",
   "decision_case.evidence.AGENT_RUN": "智能体运行",
+  "decision_case.evidence.AI_ANALYSIS": "AI 解读",
   "decision_case.evidence.REVIEW_CONTEXT": "复核背景",
   "decision_case.evidence.MANUAL": "人工引用",
   "decision_case.blocker.evidence_required": "记录决策前必须提供证据。",

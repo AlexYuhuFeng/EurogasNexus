@@ -222,6 +222,9 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
             hubId={traderContext.hubId}
             routeId={selection.routeId}
             strategyRunId={selection.strategyRunId ?? api.strategyRuns[0]?.run_id ?? null}
+            // The Decision Case chain cites AI findings and challenges, so the run this
+            // identity last completed is offered as evidence by reference.
+            analysisId={api.analysisResult?.analysis_id ?? null}
             t={t}
           />
         )}

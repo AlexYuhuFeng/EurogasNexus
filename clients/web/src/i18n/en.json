@@ -1841,6 +1841,7 @@
   "decision_case.evidence.STRATEGY_RUN": "Strategy run",
   "decision_case.evidence.RESEARCH_DATASET": "Research dataset",
   "decision_case.evidence.AGENT_RUN": "Agent run",
+  "decision_case.evidence.AI_ANALYSIS": "AI interpretation",
   "decision_case.evidence.REVIEW_CONTEXT": "Review context",
   "decision_case.evidence.MANUAL": "Manual reference",
   "decision_case.blocker.evidence_required": "Evidence is required before a decision can be recorded.",

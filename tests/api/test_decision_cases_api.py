@@ -151,6 +151,47 @@ def test_evidence_then_decision_then_reopen(tmp_path, monkeypatch) -> None:
     assert listed[0]["last_record"]["outcome"] == "accepted"
 
 
+def test_an_ai_interpretation_run_is_citable_evidence(tmp_path, monkeypatch) -> None:
+    """The Decision Case chain names an AI Findings/Challenge stage (W6-01 section 1).
+
+    A governed AI interpretation is therefore citable - as an interpretation, by reference,
+    beside the deterministic artefacts - and citing it does not make the case decidable on
+    its own terms any differently: the evidence is still what a human decides against.
+    """
+
+    database_url = _prepare(tmp_path, monkeypatch)
+    analyst = _identity(database_url, name="ai-evidence-analyst", role="ANALYST")
+    client = TestClient(create_app(Settings(api_profile="release")))
+
+    case_id = client.post(
+        "/api/decision-cases",
+        headers=_headers(analyst),
+        json={"objective": "Challenge the carry assumption.", "gas_day": "2026-09-15"},
+    ).json()["data"]["case_id"]
+
+    attached = client.post(
+        f"/api/decision-cases/{case_id}/evidence",
+        headers=_headers(analyst),
+        json={
+            "kind": "AI_ANALYSIS",
+            "ref": "monitoring-analysis-abc123",
+            "label": "Ask: is the NBP premium persistent",
+            "as_of_utc": "2026-09-15T06:00:00+00:00",
+        },
+    )
+
+    assert attached.status_code == 200
+    payload = attached.json()["data"]
+    assert payload["decidable"] is True
+    assert [item["kind"] for item in payload["evidence"]] == ["AI_ANALYSIS"]
+    assert payload["evidence"][0]["ref"] == "monitoring-analysis-abc123"
+
+    # The kind is the vocabulary's own value, so a client that reads it back sees the code
+    # it sent rather than a normalised stand-in.
+    reloaded = client.get(f"/api/decision-cases/{case_id}", headers=_headers(analyst)).json()["data"]
+    assert reloaded["evidence"][0]["kind"] == "AI_ANALYSIS"
+
+
 def test_the_actor_is_the_authenticated_identity_and_not_a_body_field(tmp_path, monkeypatch) -> None:
     database_url = _prepare(tmp_path, monkeypatch)
     reviewer = _identity(database_url, name="real-reviewer", role="REVIEWER")

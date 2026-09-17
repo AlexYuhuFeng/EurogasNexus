@@ -143,7 +143,19 @@ test("labels are stable keys, and an unknown blocker still gets one", () => {
 
   assert.deepEqual([...DECISION_OUTCOMES], ["accepted", "rejected", "needs_attention"]);
   assert.ok(DECISION_EVIDENCE_KINDS.includes("ROUTE_RECOMMENDATION"));
-  assert.equal(DECISION_EVIDENCE_KINDS.length, 11);
+  // The Decision Case chain names an "AI Findings/Challenge" stage, so an AI interpretation
+  // run is citable evidence alongside the deterministic artefacts.
+  assert.ok(DECISION_EVIDENCE_KINDS.includes("AI_ANALYSIS"));
+  assert.equal(DECISION_EVIDENCE_KINDS.length, 12);
+  // Every kind has copy in both locales: a selector must never render a raw identifier.
+  const en = JSON.parse(readWebSource("i18n/en.json")) as Record<string, string>;
+  const zh = JSON.parse(readWebSource("i18n/zh.json")) as Record<string, string>;
+  for (const kind of DECISION_EVIDENCE_KINDS) {
+    const key = evidenceKindLabelKey(kind);
+    assert.ok(en[key]?.trim(), `en ${key}`);
+    assert.ok(zh[key]?.trim(), `zh ${key}`);
+    assert.notEqual(en[key], zh[key], key);
+  }
 });
 
 test("the Active Context supplies identifiers instead of asking the user to type them", () => {
@@ -152,6 +164,12 @@ test("the Active Context supplies identifiers instead of asking the user to type
     "route-9",
   );
   assert.equal(suggestedEvidenceRef("STRATEGY_RUN", { strategyRunId: "run-3" }), "run-3");
+  // The run the user just completed is offered by reference, never typed in.
+  assert.equal(
+    suggestedEvidenceRef("AI_ANALYSIS", { analysisId: "analysis-7" }),
+    "analysis-7",
+  );
+  assert.equal(suggestedEvidenceRef("AI_ANALYSIS", { analysisId: null }), "");
   assert.equal(suggestedEvidenceRef("ROUTE_RECOMMENDATION", { routeId: null }), "");
   assert.equal(suggestedEvidenceRef("MANUAL", { routeId: "route-9" }), "");
 });

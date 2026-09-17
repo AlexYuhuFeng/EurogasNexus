@@ -911,6 +911,7 @@ export interface DecisionCaseEvidenceInputDTO {
     | "STRATEGY_RUN"
     | "RESEARCH_DATASET"
     | "AGENT_RUN"
+    | "AI_ANALYSIS"
     | "REVIEW_CONTEXT"
     | "MANUAL";
   ref: string; label?: string; as_of_utc?: string; snapshot_id?: string;

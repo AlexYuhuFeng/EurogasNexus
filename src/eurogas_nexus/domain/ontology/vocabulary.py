@@ -703,6 +703,11 @@ class DecisionEvidenceKind(StrEnum):
     RESEARCH_DATASET = "RESEARCH_DATASET"
     AGENT_RUN = "AGENT_RUN"
     REVIEW_CONTEXT = "REVIEW_CONTEXT"
+    #: A governed AI *interpretation* - the Copilot's Ask, Explain, Compare, Challenge or
+    #: Draft run. The Decision Case chain names an "AI Findings/Challenge" stage, so citing
+    #: one is part of the record; it stays interpretation, never a numeric authority, and the
+    #: case still needs a human decision.
+    AI_ANALYSIS = "AI_ANALYSIS"
     MANUAL = "MANUAL"
 
 

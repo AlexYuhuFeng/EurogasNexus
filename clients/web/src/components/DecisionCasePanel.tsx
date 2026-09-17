@@ -38,6 +38,7 @@ import {
   isReproducible,
   outcomeLabelKey,
   splitCases,
+  suggestedEvidenceRef,
 } from "@/app/model/decisionCaseModel";
 import { describeApiError } from "@/app/experience/errorPresentation";
 import { MetricStrip, PanelHeader, WorkspaceTabs } from "@/components/ui";
@@ -50,6 +51,12 @@ interface DecisionCasePanelProps {
   hubId: string | null;
   routeId: string | null;
   strategyRunId: string | null;
+  /**
+   * The last governed AI analysis run this identity completed, if any. The Decision Case
+   * chain cites AI findings and challenges, so the panel offers that run by reference
+   * rather than asking the user to copy an identifier.
+   */
+  analysisId?: string | null;
   t: Translate;
 }
 
@@ -61,6 +68,7 @@ export function DecisionCasePanel({
   hubId,
   routeId,
   strategyRunId,
+  analysisId,
   t,
 }: DecisionCasePanelProps) {
   const [cases, setCases] = useState<DecisionCaseSummaryDTO[]>([]);
@@ -259,9 +267,18 @@ export function DecisionCasePanel({
               <span>{t("decision_case.evidence_kind")}</span>
               <select
                 value={evidenceKind}
-                onChange={(event) =>
-                  setEvidenceKind(event.target.value as DecisionCaseEvidenceInputDTO["kind"])
-                }
+                onChange={(event) => {
+                  const next = event.target.value as DecisionCaseEvidenceInputDTO["kind"];
+                  setEvidenceKind(next);
+                  // The reference the Active Context (or the last AI run) already carries is
+                  // offered instead of asking the user to copy an identifier.
+                  const suggestion = suggestedEvidenceRef(next, {
+                    routeId,
+                    strategyRunId,
+                    analysisId,
+                  });
+                  if (suggestion) setEvidenceRef(suggestion);
+                }}
               >
                 {DECISION_EVIDENCE_KINDS.map((kind) => (
                   <option key={kind} value={kind}>
