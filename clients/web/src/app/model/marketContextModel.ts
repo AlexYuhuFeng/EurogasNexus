@@ -24,8 +24,16 @@ import type {
   MarketQuoteDTO,
   MonitoringAlertDTO,
   NormalizedMarketObsDTO,
-  ProjectionSliceDTO,
 } from "@/api/client";
+import {
+  degradedReadings,
+  projectionSliceIsAvailable,
+  projectionSliceRows,
+  projectionSliceReadings,
+  type SliceReading,
+} from "./projectionModel.ts";
+
+export type { SliceReading };
 
 export type ProjectionSliceKey = keyof MarketContextProjectionDTO["slices"];
 
@@ -50,48 +58,18 @@ export const MARK_CONTEXT_SLICE_LABEL_KEYS: Readonly<Record<ProjectionSliceKey, 
   data_sources: "market_context.slice.data_sources",
 };
 
-export interface SliceReading {
-  readonly key: ProjectionSliceKey;
-  readonly available: boolean;
-  readonly rowCount: number;
-  readonly freshnessState: string;
-  readonly lastObservedAtUtc: string | null;
-  readonly expectedWithinMinutes: number | null;
-  readonly restricted: boolean;
-  readonly filteredOut: number;
-  readonly contextRule: string | null;
-  readonly notes: readonly string[];
-}
-
 /** One row per slice, in reading order, for the surface's status strip. */
 export function sliceReadings(
   projection: MarketContextProjectionDTO | null | undefined,
 ): SliceReading[] {
-  if (!projection) return [];
-  return MARKET_CONTEXT_SLICE_ORDER.map((key) => {
-    const slice = projection.slices[key] as ProjectionSliceDTO<unknown> | undefined;
-    return {
-      key,
-      available: slice?.available === true,
-      rowCount: slice?.row_count ?? 0,
-      freshnessState: (slice?.freshness?.state ?? "UNKNOWN").toUpperCase(),
-      lastObservedAtUtc: slice?.freshness?.last_observed_at_utc ?? null,
-      expectedWithinMinutes: slice?.freshness?.expected_within_minutes ?? null,
-      restricted: slice?.entitlement ? slice.entitlement.filtered_out > 0 : false,
-      filteredOut: slice?.entitlement?.filtered_out ?? 0,
-      contextRule: slice?.context_filter?.rule ?? null,
-      notes: slice?.notes ?? [],
-    };
-  });
+  return projectionSliceReadings(projection?.slices, MARKET_CONTEXT_SLICE_ORDER);
 }
 
 /** Slices that are stale, missing or unavailable, so a surface can qualify a value. */
 export function degradedSlices(
   projection: MarketContextProjectionDTO | null | undefined,
 ): SliceReading[] {
-  return sliceReadings(projection).filter(
-    (reading) => !reading.available || reading.freshnessState !== "FRESH",
-  );
+  return degradedReadings(sliceReadings(projection));
 }
 
 /**
@@ -103,9 +81,10 @@ export function sliceRows<Row>(
   projection: MarketContextProjectionDTO | null | undefined,
   key: ProjectionSliceKey,
 ): Row[] {
-  const slice = projection?.slices?.[key] as ProjectionSliceDTO<Row> | undefined;
-  if (!slice?.available) return [];
-  return slice.rows ?? [];
+  return projectionSliceRows<Row, MarketContextProjectionDTO["slices"], ProjectionSliceKey>(
+    projection?.slices,
+    key,
+  );
 }
 
 export function contextQuotes(
@@ -162,5 +141,5 @@ export function contextIsUsable(
   projection: MarketContextProjectionDTO | null | undefined,
 ): boolean {
   if (!projection) return false;
-  return projection.slices.quotes?.available === true;
+  return projectionSliceIsAvailable(projection.slices, "quotes");
 }

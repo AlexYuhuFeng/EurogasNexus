@@ -1,0 +1,63 @@
+/*
+ * Projection context strip (Architecture V2 Wave 5).
+ *
+ * Shared by every surface that renders a projection reading, so one definition of
+ * "usable slice" is styled in one place. Surfaces add their own class for grid
+ * placement only.
+ */
+
+.projection-context {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  flex-wrap: wrap;
+  border: 1px solid var(--eg-hairline);
+  background: var(--eg-canvas);
+  padding: var(--space-1) var(--space-2);
+  color: var(--eg-muted);
+  font-size: var(--text-meta);
+}
+
+.projection-context-summary {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.projection-context-summary span {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.projection-context-summary strong {
+  color: var(--eg-ink);
+}
+
+.projection-context-slices {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  flex-wrap: wrap;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.projection-context-slices li {
+  display: flex;
+  gap: var(--space-1);
+  align-items: center;
+  border: 1px solid var(--eg-hairline);
+  border-radius: var(--radius-control);
+  background: var(--eg-canvas-soft-2);
+  padding: 0 var(--space-1);
+}
+
+.projection-slice-label {
+  color: var(--eg-ink);
+}
+
+.projection-slice-restricted {
+  color: var(--eg-warning);
+}

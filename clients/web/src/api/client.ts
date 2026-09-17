@@ -753,6 +753,40 @@ export interface MarketContextQuery {
   hub?: string;
 }
 
+/**
+ * Architecture V2 portfolio projection: the coherent portfolio read model. The
+ * `summary` slice carries a payload rather than rows, because the summary is an
+ * aggregate and not a row set.
+ */
+export interface PortfolioSnapshotProjectionDTO {
+  projection: string;
+  projection_version: string;
+  as_of_utc: string;
+  time_basis: Record<string, unknown>;
+  active_context: Record<string, unknown>;
+  slices: {
+    summary: ProjectionSliceDTO<never>;
+    screen_orders: ProjectionSliceDTO<ScreenOrderObservationDTO>;
+    pnl_snapshots: ProjectionSliceDTO<PortfolioPnlSnapshotDTO>;
+    contracts: ProjectionSliceDTO<UpstreamContractDTO>;
+    resources: ProjectionSliceDTO<Record<string, unknown>>;
+    data_sources: ProjectionSliceDTO<SourceSystemDTO>;
+  };
+  warnings: string[];
+  research_only: boolean;
+  human_review_required: boolean;
+}
+
+export interface PortfolioSnapshotQuery {
+  gasDay?: string;
+  portfolioId?: string;
+  product?: string;
+  hub?: string;
+  orderLimit?: number;
+  snapshotLimit?: number;
+  contractLimit?: number;
+}
+
 export interface ReviewDecisionDTO {
   decision_id: string; entity_type: string; entity_id: string;
   actor: string; decision: string; note: string | null; created_at_utc: string;
@@ -2032,13 +2066,40 @@ export const api = {
    * normalized quotes, quotes, opportunities, spreads, monitoring, data sources)
    * on a single as-of and time basis, so the client stops joining several
    * endpoints with mixed timestamps.
+   *
+   * Query names are translated to the route's snake_case parameters here: a
+   * camelCase parameter the route does not declare would be ignored silently,
+   * which would drop a caller's filter without any error.
    */
   marketContext: (query?: MarketContextQuery, options?: ApiRequestOptions) => {
     const params: Record<string, string> = {};
-    if (query?.gasDay) params.gasDay = query.gasDay;
-    if (query?.product) params.product = query.product;
+    if (query?.gasDay) params.gas_day = query.gasDay;
+    if (query?.product) params.delivery_product = query.product;
     if (query?.hub) params.hub = query.hub;
     return get<MarketContextProjectionDTO>("/projections/market-context", params, options);
+  },
+
+  /**
+   * Architecture V2 portfolio projection: one coherent read model (summary, screen
+   * orders, PnL snapshots, upstream contracts, resource-pool follow-up, data
+   * sources) on a single as-of, replacing the client's join of
+   * `/portfolio/live-summary`, `/portfolio/screen-orders` and
+   * `/portfolio/pnl-snapshots`.
+   */
+  portfolioSnapshot: (query?: PortfolioSnapshotQuery, options?: ApiRequestOptions) => {
+    const params: Record<string, string> = {};
+    if (query?.gasDay) params.gas_day = query.gasDay;
+    if (query?.portfolioId) params.portfolio_id = query.portfolioId;
+    if (query?.product) params.delivery_product = query.product;
+    if (query?.hub) params.hub = query.hub;
+    if (query?.orderLimit !== undefined) params.order_limit = String(query.orderLimit);
+    if (query?.snapshotLimit !== undefined) params.snapshot_limit = String(query.snapshotLimit);
+    if (query?.contractLimit !== undefined) params.contract_limit = String(query.contractLimit);
+    return get<PortfolioSnapshotProjectionDTO>(
+      "/projections/portfolio-snapshot",
+      params,
+      options,
+    );
   },
 
   reviewDecisions: (params?: { entity_type?: string; entity_id?: string; limit?: string }, options?: ApiRequestOptions) =>

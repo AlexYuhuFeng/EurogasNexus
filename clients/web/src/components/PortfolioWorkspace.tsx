@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { PanelHeader, WorkspaceHeader } from "@/components/ui";
 import { ContractWorkbench } from "@/components/ContractWorkbench";
 import { MarketPositioningWorkspace } from "@/components/MarketPositioningWorkspace";
+import { PortfolioContextStrip } from "@/components/PortfolioContextStrip";
 import type { AppController } from "@/app/hooks/useAppController";
 import { CommercialWarningList } from "@/components/CommercialWarningList";
 import {
@@ -179,6 +180,7 @@ export function PortfolioWorkspace({ controller }: { controller: AppController }
         onActivate={openTask}
       />
       <div id="portfolio-task-panel">
+        <PortfolioContextStrip projection={api.portfolioSnapshot} t={t} />
         {task === "overview" && <PortfolioOverview controller={controller} />}
         {task === "resources" && (
           <ContractWorkbench

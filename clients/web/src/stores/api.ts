@@ -18,6 +18,12 @@ import {
   sliceRows,
 } from "@/app/model/marketContextModel";
 import {
+  snapshotIsUsable,
+  snapshotPnlSnapshots,
+  snapshotScreenOrders,
+  snapshotSummary,
+} from "@/app/model/portfolioSnapshotModel";
+import {
   api,
   AnalysisRequestDTO,
   AnalysisResultDTO,
@@ -45,6 +51,7 @@ import {
   PortfolioOptimizationRequestDTO,
   PortfolioOptimizationResultDTO,
   PortfolioPnlSnapshotDTO,
+  PortfolioSnapshotProjectionDTO,
   ResourcePoolOptionsDTO,
   ReviewDecisionDTO,
   ReviewDecisionInputDTO,
@@ -252,6 +259,53 @@ function applyMarketContext(
   };
 }
 
+/**
+ * Architecture V2 Wave 5: map one portfolio-snapshot projection onto the portfolio
+ * lane. The projection's slices fill the same ApiState fields the surfaces already
+ * read, so no downstream model changes.
+ *
+ * The summary is an aggregate: a projection whose summary slice the backend did not
+ * serve leaves the previous values in place instead of reporting an unmeasured
+ * portfolio as an empty (zero-valued) one.
+ */
+function applyPortfolioSnapshot(
+  state: ApiState,
+  projection: PortfolioSnapshotProjectionDTO | null,
+): Pick<
+  ApiState,
+  "portfolioSnapshot" | "screenOrders" | "pnlSnapshots" | "portfolioSummary"
+> {
+  if (!snapshotIsUsable(projection)) {
+    return {
+      portfolioSnapshot: projection,
+      screenOrders: state.screenOrders,
+      pnlSnapshots: state.pnlSnapshots,
+      portfolioSummary: state.portfolioSummary,
+    };
+  }
+  return {
+    portfolioSnapshot: projection,
+    screenOrders: snapshotScreenOrders(projection),
+    pnlSnapshots: snapshotPnlSnapshots(projection),
+    portfolioSummary: snapshotSummary(projection),
+  };
+}
+
+/**
+ * Projection lanes read through one loader key but write several state fields.
+ * A retried projection must re-derive every field it feeds, so the retry path maps
+ * the payload through the same applier the periodic lane uses.
+ */
+const PROJECTION_LANE_APPLIERS: Record<
+  string,
+  (state: ApiState, payload: unknown) => Partial<ApiState>
+> = {
+  marketContext: (state, payload) =>
+    applyMarketContext(state, payload as MarketContextProjectionDTO | null),
+  portfolioSnapshot: (state, payload) =>
+    applyPortfolioSnapshot(state, payload as PortfolioSnapshotProjectionDTO | null),
+};
+
 export interface ApiState {
   authState: AuthState;
   authStatus: AuthStatusSnapshot;
@@ -267,6 +321,7 @@ export interface ApiState {
   marketQuotes: MarketQuoteDTO[];
   intradayOpportunities: IntradayOpportunityDTO[];
   marketContext: MarketContextProjectionDTO | null;
+  portfolioSnapshot: PortfolioSnapshotProjectionDTO | null;
   screenOrders: ScreenOrderObservationDTO[];
   pnlSnapshots: PortfolioPnlSnapshotDTO[];
   portfolioSummary: PortfolioLiveSummaryDTO | null;
@@ -416,9 +471,11 @@ const WORKSPACE_LOADERS: Array<[string, WorkspaceApiLoader]> = [
   ["marketSpreads", api.marketSpreads],
   ["marketQuotes", api.marketQuotes],
   ["intradayOpportunities", api.intradayOpportunities],
-  ["screenOrders", api.screenOrders],
-  ["pnlSnapshots", api.pnlSnapshots],
-  ["portfolioSummary", api.portfolioLiveSummary],
+  // Architecture V2 Wave 5: the portfolio lane reads ONE coherent projection
+  // (summary, screen orders, PnL snapshots, contracts on one as-of) instead of
+  // joining /portfolio/live-summary, /portfolio/screen-orders and
+  // /portfolio/pnl-snapshots. The slices fill the same ApiState fields.
+  ["portfolioSnapshot", (options) => api.portfolioSnapshot(undefined, options)],
   ["fxRates", api.fxRates],
   ["flows", api.flowObservations],
   ["capacity", api.capacityObservations],
@@ -460,9 +517,6 @@ const WORKSPACE_STATE_KEYS: Record<string, keyof ApiState> = {
   marketSpreads: "marketSpreads",
   marketQuotes: "marketQuotes",
   intradayOpportunities: "intradayOpportunities",
-  screenOrders: "screenOrders",
-  pnlSnapshots: "pnlSnapshots",
-  portfolioSummary: "portfolioSummary",
   fxRates: "fxRates",
   flows: "flows",
   capacity: "capacity",
@@ -523,6 +577,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
    * the row slices above stay the rendering input.
    */
   marketContext: null,
+  portfolioSnapshot: null,
   screenOrders: [],
   pnlSnapshots: [],
   portfolioSummary: null,
@@ -712,6 +767,12 @@ export const useApiStore = create<ApiState>((set, get) => ({
     const hasRuntime = sourceRefs.some((source) => source === "runtime-postgresql");
     const hasDbMissing = sourceRefs.some((source) => source === "runtime-db-not-configured");
     const runtimeDb = slices.runtimeDb as RuntimeDbStatusDTO | undefined;
+    // The portfolio projection fills three state fields from one payload, so the
+    // batch maps it through the same applier the retry path uses.
+    const portfolioLane = applyPortfolioSnapshot(
+      get(),
+      (slices.portfolioSnapshot ?? null) as PortfolioSnapshotProjectionDTO | null,
+    );
     const allFailed = Object.keys(endpointErrors).length === WORKSPACE_LOADERS.length;
     const resolvedStatus =
       !runtimeDb || !runtimeDb.database_url_present || !runtimeDb.connectivity.ok
@@ -730,9 +791,10 @@ export const useApiStore = create<ApiState>((set, get) => ({
       marketSpreads: (slices.marketSpreads ?? []) as MarketSpreadDTO[],
       marketQuotes: (slices.marketQuotes ?? []) as MarketQuoteDTO[],
       intradayOpportunities: (slices.intradayOpportunities ?? []) as IntradayOpportunityDTO[],
-      screenOrders: (slices.screenOrders ?? []) as ScreenOrderObservationDTO[],
-      pnlSnapshots: (slices.pnlSnapshots ?? []) as PortfolioPnlSnapshotDTO[],
-      portfolioSummary: (slices.portfolioSummary ?? null) as PortfolioLiveSummaryDTO | null,
+      screenOrders: portfolioLane.screenOrders,
+      pnlSnapshots: portfolioLane.pnlSnapshots,
+      portfolioSummary: portfolioLane.portfolioSummary,
+      portfolioSnapshot: portfolioLane.portfolioSnapshot,
       fxRates: (slices.fxRates ?? []) as FxRateDTO[],
       flows: (slices.flows ?? []) as FlowObsDTO[],
       capacity: (slices.capacity ?? []) as CapacityObsDTO[],
@@ -819,13 +881,11 @@ export const useApiStore = create<ApiState>((set, get) => ({
             delete endpointErrors[key];
             delete endpointErrorCodes[key];
             endpointMeta[key] = outcome.value.meta;
-            // The market projection carries the whole market lane, so a retried
-            // read re-derives every slice it feeds rather than only the payload.
-            if (key === "marketContext") {
-              Object.assign(
-                patch,
-                applyMarketContext(state, outcome.value.data as MarketContextProjectionDTO),
-              );
+            // A projection lane carries several ApiState fields, so a retried read
+            // re-derives every field it feeds rather than only the payload.
+            const applyProjection = PROJECTION_LANE_APPLIERS[key];
+            if (applyProjection) {
+              Object.assign(patch, applyProjection(state, outcome.value.data));
               continue;
             }
             const stateKey = WORKSPACE_STATE_KEYS[key];

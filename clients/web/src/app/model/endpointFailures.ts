@@ -38,6 +38,7 @@ export const ENDPOINT_FAILURE_LABEL_KEYS: Record<string, string> = {
   marketQuotes: "workspace.endpoint.market_quotes",
   intradayOpportunities: "workspace.endpoint.intraday_opportunities",
   screenOrders: "workspace.endpoint.screen_orders",
+  portfolioSnapshot: "workspace.endpoint.portfolio_snapshot",
   pnlSnapshots: "workspace.endpoint.pnl_snapshots",
   portfolioSummary: "workspace.endpoint.portfolio_summary",
   fxRates: "workspace.endpoint.fx_rates",

@@ -229,9 +229,10 @@ test("a failed market read stays retryable and re-derives every slice it feeds",
 
   // A retried projection re-derives the whole lane rather than only the payload,
   // so a recovered read cannot leave stale slice values behind.
+  assert.match(store, /const applyProjection = PROJECTION_LANE_APPLIERS\[key\];/);
   assert.match(
     store,
-    /if \(key === "marketContext"\) \{\s*Object\.assign\(patch, applyMarketContext\(state, outcome\.value\.data\)\);\s*continue;\s*\}/s,
+    /marketContext: \(state, payload\) =>\s*applyMarketContext\(state, payload as MarketContextProjectionDTO \| null\),/,
   );
 });
 

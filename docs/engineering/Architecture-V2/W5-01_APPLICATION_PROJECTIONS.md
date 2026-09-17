@@ -83,37 +83,49 @@ The wave's real content is the extraction, not the four new routes:
   `resources` slice call it.
 - Scenario results are deliberately never synthesised; the endpoints that produce them are listed
   in `data.not_included`.
-- The portfolio and review surfaces have not yet migrated onto `PortfolioSnapshot`/`ReviewContext`.
-  The market surface has (section 7); the remaining two follow the same pattern.
+- The review surface has not yet migrated onto `ReviewContext`. It follows the same pattern as the
+  market and portfolio lanes (section 7).
 
 ## 7. Client migration onto the projections
 
-The market lane is the first migrated consumer, and it demonstrates the rule that a projection is
-only worth its cost when the client deletes a join rather than adding a fifth read.
+The market and portfolio lanes are the migrated consumers, and they demonstrate the rule that a
+projection is only worth its cost when the client deletes a join rather than adding a fifth read.
 
 - `clients/web/src/stores/api.ts` `refreshMarketData` no longer joins `marketQuotes`,
   `normalizedMarketObservations`, `marketSpreads`, `intradayOpportunities` and `monitoringAlerts`.
   It reads `GET /projections/market-context` (plus the independent source posture and FX reads) and
   maps the slices into the same state fields the surfaces already read, so no downstream model
   changes.
-- `applyMarketContext()` is the single mapping point, used by both the periodic refresh and the
-  bounded retry control. `marketContext` is registered as a retry-only loader, so a failed market
-  read stays retryable without making an initial workspace load request the projection twice; a
-  retried projection re-derives every slice it feeds instead of only the payload.
-- `clients/web/src/app/model/marketContextModel.ts` turns the payload into what a trader must read
-  before trusting a number: one as-of, one time basis, per-slice freshness, restriction and row
-  count. Freshness is the backend's answer; the client never recomputes it from wall-clock time.
-- `clients/web/src/components/MarketContextStrip.tsx` renders that reading at the top of the market
-  cockpit. It is presentational: it does not fetch, recompute or reconcile timestamps.
+- The workspace batch no longer joins `/portfolio/live-summary`, `/portfolio/screen-orders` and
+  `/portfolio/pnl-snapshots`: it reads `GET /projections/portfolio-snapshot` once and fills
+  `portfolioSummary`, `screenOrders` and `pnlSnapshots` from its slices. The route-local
+  `resourcePoolOptions` read stays separate until the resource-pool composition is shared, which the
+  `resources` slice now declares.
+- `applyMarketContext()` and `applyPortfolioSnapshot()` are the single mapping points per lane, used
+  by both the periodic/workspace read and the bounded retry control. `marketContext` is registered as
+  a retry-only loader, so a failed market read stays retryable without making an initial workspace
+  load request the projection twice; `portfolioSnapshot` is an ordinary batch loader. A retried
+  projection re-derives every field it feeds through `PROJECTION_LANE_APPLIERS` instead of only
+  storing the payload.
+- `clients/web/src/app/model/projectionModel.ts` owns the one definition of a slice reading, so two
+  surfaces cannot disagree about what "unavailable", "stale" or "restricted" means.
+  `marketContextModel.ts` and `portfolioSnapshotModel.ts` are the two per-projection views built on
+  it. Freshness is the backend's answer; the client never recomputes it from wall-clock time.
+- `clients/web/src/components/ProjectionContextStrip.tsx` renders that reading, and
+  `MarketContextStrip.tsx` / `PortfolioContextStrip.tsx` are the two thin adapters that mount it at
+  the top of the market cockpit and the portfolio workspace. They are presentational: they do not
+  fetch, recompute or reconcile timestamps.
 
 Honesty rules the client keeps:
 
-1. A slice the backend marks unavailable reads as *unavailable*, never as an empty market; the
-   previous values stay in place and the surface qualifies them.
-2. A slice whose rows an entitlement withheld reads as *restricted with the withheld count*, never
+1. A slice the backend marks unavailable reads as *unavailable*, never as an empty market or a flat
+   portfolio; the previous values stay in place and the surface qualifies them.
+2. A summary the backend did not provide is `null`, never a zero-valued summary: "no exposure" and
+   "not measured" are different answers.
+3. A slice whose rows an entitlement withheld reads as *restricted with the withheld count*, never
    as a zero. Restriction is reported separately from degradation: the "stale, missing or
    unavailable" count is freshness and availability only.
-3. A payload the backend could not serve leaves `marketContext` empty and the strip unmounted rather
+4. A payload the backend could not serve leaves the projection empty and the strip unmounted rather
    than implying a coherent read that never happened.
 
 ## 8. Verification
@@ -121,8 +133,10 @@ Honesty rules the client keeps:
 - `tests/api/test_projections_api.py` (10 tests) and `tests/unit/test_projections_application.py`
   (21 tests): coherent single time basis, per-slice freshness, entitlement at least as strict as the
   underlying route, empty/degraded states, payload stability, and the `gas_day_invalid` 422.
-- `clients/web/tests/marketContextProjection.test.ts` (7 tests): as-of/time-basis coherence,
-  unavailable-is-not-empty, stale and restricted reporting, absent payload, the store's single-read
-  lane and retry wiring, and bilingual strip vocabulary.
+- `clients/web/tests/marketContextProjection.test.ts` (7 tests) and
+  `clients/web/tests/portfolioSnapshotProjection.test.ts` (8 tests): as-of/time-basis coherence,
+  unavailable-is-not-empty, an unmeasured summary is `null` rather than zero, stale and restricted
+  reporting, absent payload, the store's single-read lanes and retry wiring, one shared slice-reading
+  implementation, and bilingual strip vocabulary.
 - Full suites: `python -m pytest tests -q --ignore=tests/integration` (green) and the client suite in
   `clients/web`; results are recorded in the execution checkpoint.
