@@ -547,20 +547,38 @@ TOOLS_BY_NAME: dict[str, MCPTool] = {tool.name: tool for tool in TOOLS}
 
 
 def _agent_context():
+    """The principal an MCP capability invocation runs as.
+
+    Architecture V2 finding C8: MCP used to default its data scopes to ``*``, which made an
+    unconfigured MCP server a super-user over every commercial family - the opposite of the
+    rule that AI inherits the invoking user's authority and has no bypass. The transport
+    does not carry a user identity here, so the pseudo-principal cannot inherit anything;
+    what it can do is fail closed.
+
+    The default is therefore **no commercial grant**:
+
+    - ``EUROGAS_NEXUS_AGENT_DATA_SCOPES`` must name the families this server may read;
+      public baseline families (operator input, ENTSOG, GIE, ECB, weather) stay available
+      to any active principal, exactly as they are on the API;
+    - ``EUROGAS_NEXUS_AGENT_PRINCIPAL`` and ``EUROGAS_NEXUS_AGENT_ROLE`` still describe
+      *who* the server acts as, and a deployment that grants scopes does so deliberately
+      rather than by omission.
+
+    Carrying the calling user's identity across the MCP transport, and retiring the legacy
+    read/sandbox tools that bypass the capability runtime, remain open halves of C8.
+    """
+
     import os
 
     from eurogas_nexus.domain.agents.contracts import AgentInvocationContext
 
     role = os.environ.get("EUROGAS_NEXUS_AGENT_ROLE", "ANALYST")
+    scopes = os.environ.get("EUROGAS_NEXUS_AGENT_DATA_SCOPES", "")
     return AgentInvocationContext(
         principal_id=os.environ.get("EUROGAS_NEXUS_AGENT_PRINCIPAL", "service:mcp"),
         role=role,
         roles=[role],
-        data_scopes=[
-            item.strip()
-            for item in os.environ.get("EUROGAS_NEXUS_AGENT_DATA_SCOPES", "*").split(",")
-            if item.strip()
-        ],
+        data_scopes=[item.strip() for item in scopes.split(",") if item.strip()],
     )
 
 
