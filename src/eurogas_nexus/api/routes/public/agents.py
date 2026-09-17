@@ -70,7 +70,22 @@ def _runtime() -> CapabilityRuntime:
     return CapabilityRuntime(_registry())
 
 
-def _principal(request: Request) -> AgentInvocationContext:
+def _principal(
+    request: Request,
+    *,
+    human_confirmation: bool = False,
+    confirmation_note: str = "",
+) -> AgentInvocationContext:
+    """The invocation context for one call.
+
+    ``human_confirmation`` is the caller's answer to a capability whose ``action_policy`` is
+    ``HUMAN_CONFIRMATION``: the runtime refuses such a capability without it. The flag used to be
+    accepted in the request body and then dropped here, which made every
+    ``HUMAN_CONFIRMATION`` capability permanently uncallable through this route while the caller
+    was told its confirmation was required - a governance control turned into a dead end. It is
+    carried now, and only the runtime decides whether the confirmation is enough.
+    """
+
     identity = getattr(request.state, "identity", None)
     if identity is None:
         return AgentInvocationContext(
@@ -78,6 +93,8 @@ def _principal(request: Request) -> AgentInvocationContext:
             role="ANALYST",
             roles=["ANALYST"],
             data_scopes=["*"],
+            human_confirmation=human_confirmation,
+            confirmation_note=confirmation_note,
         )
     return AgentInvocationContext(
         principal_id=identity.principal_id,
@@ -85,6 +102,8 @@ def _principal(request: Request) -> AgentInvocationContext:
         roles=list(identity.roles or [identity.role]),
         data_scopes=list(identity.data_scopes or []),
         correlation_request_id=getattr(request.state, "request_id", None),
+        human_confirmation=human_confirmation,
+        confirmation_note=confirmation_note,
     )
 
 
@@ -146,7 +165,20 @@ def invoke_capability(
     body: CapabilityInvokeRequest,
     request: Request,
 ) -> dict:
-    principal = _principal(request)
+    """Invoke one registered capability under the caller's own authority.
+
+    The runtime enforces the capability's declared posture: ``HUMAN_ONLY`` is never invoked,
+    ``HUMAN_CONFIRMATION`` requires the caller's confirmation flag, and permissions, data scopes
+    and argument validation are checked before the handler runs. A refusal is returned as a
+    ``BLOCKED`` result with its stable failure code rather than raised, so the caller can read
+    exactly which control stopped it.
+    """
+
+    principal = _principal(
+        request,
+        human_confirmation=body.human_confirmation,
+        confirmation_note=body.confirmation_note,
+    )
     result = _runtime().invoke(capability_id, body.arguments, principal)
     if result.status == "SUCCESS":
         return _env(result.model_dump(mode="json"), request, source="capability-runtime")
