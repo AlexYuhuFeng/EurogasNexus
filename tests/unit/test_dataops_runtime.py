@@ -293,6 +293,78 @@ def test_schema_change_stops_correctly(engine) -> None:
         assert row.error_category == FailureCategory.SCHEMA_CHANGED.value
 
 
+def test_each_claimed_run_registers_a_job_matching_the_run_outcome(engine) -> None:
+    """Wave 8: one claimed run is one tracked job, and the job tells the truth about it."""
+
+    from sqlalchemy import select
+
+    from eurogas_nexus.db.models import JobRecord
+
+    definition = _test_definition()
+
+    # One run that fails (the runner reports the failure instead of raising)...
+    with Session(engine) as session:
+        failing = _queue_run(session, definition, NOW)
+        session.flush()
+        session.commit()
+        failed_run_id = failing.run_id
+
+    with Session(engine) as session:
+        execute_claimed_runs(
+            session,
+            runner=lambda _payload, _attempt: IngestionAttemptResult(
+                succeeded=False,
+                error_message="upstream refused the connection",
+                classification=FailureCategory.UPSTREAM_UNAVAILABLE,
+            ),
+            definitions=(definition,),
+            now_utc=NOW + timedelta(seconds=1),
+            sleeper=lambda _seconds: None,
+        )
+        session.commit()
+
+    # ...and one run that succeeds.
+    with Session(engine) as session:
+        state = session.get(SourceRuntimeStateRecord, definition.source_id)
+        state.next_run_at_utc = NOW + timedelta(hours=2)
+        session.flush()
+        claims = dataops_repository.claim_due_sources(
+            session, (definition,), now_utc=NOW + timedelta(hours=2), limit=10
+        )
+        successful_run_id = claims[0][1].run_id
+        session.commit()
+
+    with Session(engine) as session:
+        execute_claimed_runs(
+            session,
+            runner=lambda _payload, _attempt: IngestionAttemptResult(succeeded=True),
+            definitions=(definition,),
+            now_utc=NOW + timedelta(hours=2, seconds=1),
+            sleeper=lambda _seconds: None,
+        )
+        session.commit()
+
+    with Session(engine) as session:
+        jobs = session.execute(select(JobRecord)).scalars().all()
+
+    assert len(jobs) == 2
+    by_status = {job.status: job for job in jobs}
+    assert set(by_status) == {"FAILED", "SUCCEEDED"}
+    failed_job = by_status["FAILED"]
+    succeeded_job = by_status["SUCCEEDED"]
+
+    # A failed run is a failed job with a stable code, and it cites no artefact.
+    assert failed_job.kind == "INGESTION"
+    assert failed_job.error_code
+    assert failed_run_id
+    assert list(failed_job.output_refs_json) == []
+    assert failed_job.principal == "dataops-worker"
+
+    # A successful run is a succeeded job that cites the run it produced.
+    assert succeeded_job.status == "SUCCEEDED"
+    assert list(succeeded_job.output_refs_json) == [f"ingestion_run:{successful_run_id}"]
+    assert "SOURCE:src-test" in list(succeeded_job.scope_refs_json)
+
 def test_circuit_opens_then_recovery_probe_uses_recovery_trigger(engine) -> None:
     definition = _test_definition()
     with Session(engine) as session:

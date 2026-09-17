@@ -59,6 +59,7 @@ The seam only earns its keep when existing work registers into it, so the paths 
 | Strategy backtest (`POST /api/strategy-runs`, `run_type=BACKTEST`) | `track_job()` inside the existing `_db_session()` | `strategy_run:<run_id>`, committed with the run rows it describes |
 | Portfolio report (`POST /api/reports/portfolio`) | `run_tracked_job()` | `generated_report:<report_id>`, and **only** when the report really was persisted |
 | Governed agent research (`POST /api/agent/research`) | `track_job()` in the run's own session, committed after the tracker wrote the terminal outcome | `agent_run:<run_id>` plus every artefact that carries an id (`strategy_version:`, `backtest:`, `review-pack:`); the orchestrator's bare artefact labels are not dressed up as references |
+| Ingestion runs (`execute_claimed_runs`, the worker path) | `track_job()` per claimed run, with the outcome stated on the handle because the runtime reports failure in its return value rather than by raising | `ingestion_run:<run_id>` on a successful run; a failed run records the run's own error code and cites no artefact |
 
 The report path needed one honesty fix before it could be tracked: `_persist_report_if_db` swallowed
 every failure, so a job would have cited a report the store does not hold. Persistence is still
@@ -70,10 +71,15 @@ runtime store at all is a declared posture (the envelope already reports
 
 ## 6. Deferred
 
-- Ingestion runs are still untracked; the crawl/ingestion worker has its own scheduling path, so
-  adopting the model there is a worker-side change rather than a request-path one.
 - Job *replay* and retention policy (how long records are kept) are future operations decisions. The
   activity list shows the most recent 25 records and refreshes on demand.
+
+Every run family V2 names is now tracked: ingestion, dataset builds, optimisation, backtests,
+reporting, agent runs and snapshots. The ingestion path needed one addition to the seam - work that
+reports its outcome in a return value rather than by raising can state it on the handle
+(`JobHandle.mark_failed`), so the job records the run's real outcome instead of the mere fact that the
+worker did not throw. Tracking there also degrades to untracked when a store cannot accept a job row,
+because a missing job row is an operational gap while a skipped ingestion is lost data.
 
 ## 7. Verification
 
@@ -94,6 +100,9 @@ runtime store at all is a declared posture (the envelope already reports
 - `tests/api/test_agents_api.py` — a governed research run registers an `AGENT_RUN` job attributed to a
   principal the identity vocabulary accepts, citing the run and every id-bearing artefact, with no bare
   artefact label among its output references.
+- `tests/unit/test_dataops_runtime.py` — one claimed ingestion run is one tracked job: a failed run is
+  a FAILED job with the run's own error code and no artefact, a successful run cites
+  `ingestion_run:<run_id>`, and the job is scoped to its source.
 - `tests/api/test_projections_api.py`, `tests/api/test_route_cost_adjacent_api.py` and
   `tests/api/test_backtest_api.py` — the adopted paths' own behaviour is unchanged by tracking.
 - Full suites: `python -m pytest tests -q --ignore=tests/integration` and the client suite; results are

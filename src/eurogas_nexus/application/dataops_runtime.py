@@ -8,13 +8,15 @@ production runner wraps the existing public-source ingestor subprocess).
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy.orm import Session
 
+from eurogas_nexus.application.jobs import JobHandle, track_job
 from eurogas_nexus.db.models import (
     DataOperationsHeartbeatRecord,
     IngestionRunRecord,
@@ -38,6 +40,11 @@ from eurogas_nexus.domain.dataops.retry import classify_failure, retry_decision
 from eurogas_nexus.domain.dataops.schedule import next_scheduled_instant
 
 RunAttempt = Callable[[dict[str, Any], int], "IngestionAttemptResult"]
+
+#: Principal a worker-executed ingestion run is attributed to. Ingestion is scheduled work,
+#: not a user request: it runs as the deployment's data-operations runtime, and the run row
+#: carries the trigger type and reason that caused it.
+INGESTION_JOB_PRINCIPAL = "dataops-worker"
 
 
 @dataclass(frozen=True, slots=True)
@@ -135,9 +142,20 @@ def execute_claimed_runs(
             run.error_code = "UNKNOWN_SOURCE_DEFINITION"
             run.completed_at_utc = now
             outcomes.append({"run_id": run.run_id, "status": run.status})
+            _track_ingestion_run(
+                session,
+                run=run,
+                now_utc=now,
+                succeeded=False,
+                error_code="UNKNOWN_SOURCE_DEFINITION",
+                error_message=f"no source definition for {run.source_id!r}",
+            )
             continue
-        outcomes.append(
-            _execute_one(
+        # Wave 8: one claimed run is one tracked job. The runtime reports failure in its
+        # return value rather than by raising, so the outcome is stated on the handle and
+        # the job records what really happened to the run.
+        with _ingestion_job(session, run=run) as job:
+            outcome = _execute_one(
                 session,
                 run=run,
                 definition=definition,
@@ -145,13 +163,87 @@ def execute_claimed_runs(
                 now_utc=now,
                 sleeper=sleep,
             )
-        )
+            if outcome["status"] == IngestionRunStatus.SUCCEEDED.value:
+                job.add_output(f"ingestion_run:{run.run_id}")
+            else:
+                job.mark_failed(
+                    run.error_code or "INGESTION_RUN_FAILED",
+                    f"run {run.run_id} finished {outcome['status']}"
+                    + (f" ({run.error_category})" if run.error_category else ""),
+                )
+        outcomes.append(outcome)
     session.flush()
     return {
         "executed_at_utc": now.isoformat(),
         "claimed_count": len(runs),
         "outcomes": outcomes,
     }
+
+
+@contextmanager
+def _ingestion_job(session: Session, *, run: IngestionRunRecord) -> Iterator[JobHandle]:
+    """Track one claimed ingestion run, degrading to untracked when the store refuses a job.
+
+    The worker must not lose an ingestion because of bookkeeping: a store migrated before
+    the job model existed, or one that cannot accept the row, leaves the run untracked
+    rather than failing it. Every other guarantee is :func:`track_job`'s: the job row is
+    written in the caller's session, a failure inside the tracker never masks the real one,
+    and work that reports its outcome instead of raising states it on the handle.
+    """
+
+    tracker = track_job(
+        session,
+        kind="INGESTION",
+        principal=INGESTION_JOB_PRINCIPAL,
+        scope_refs=(f"SOURCE:{run.source_id}",),
+        inputs={
+            "run_id": run.run_id,
+            "source_id": run.source_id,
+            "trigger_type": run.trigger_type,
+        },
+        correlation_id=run.correlation_id,
+        provenance=("dataops", "ingestion-worker"),
+    )
+    try:
+        handle = tracker.__enter__()
+    except Exception:  # noqa: BLE001 - tracking is best effort, the ingestion is not
+        yield JobHandle(
+            job_id="",
+            kind="INGESTION",
+            principal=INGESTION_JOB_PRINCIPAL,
+            output_refs=[],
+        )
+        return
+    try:
+        yield handle
+    except BaseException as exc:  # noqa: BLE001 - the worker's own error must propagate
+        try:
+            tracker.__exit__(type(exc), exc, exc.__traceback__)
+        except BaseException:  # noqa: BLE001 - never mask the real failure
+            pass
+        raise
+    tracker.__exit__(None, None, None)
+
+
+def _track_ingestion_run(
+    session: Session,
+    *,
+    run: IngestionRunRecord,
+    now_utc: datetime,
+    succeeded: bool,
+    error_code: str,
+    error_message: str,
+) -> None:
+    """Record a claimed run whose source has no definition as a failed job.
+
+    The run never executed, so there is nothing to wrap: the job is opened and closed
+    around the decision itself, which keeps "one claimed run, one job" true even on the
+    path that fails before execution.
+    """
+
+    with _ingestion_job(session, run=run) as job:
+        if not succeeded:
+            job.mark_failed(error_code, error_message)
 
 
 def _execute_one(

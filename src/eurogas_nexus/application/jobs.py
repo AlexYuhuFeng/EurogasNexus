@@ -46,12 +46,26 @@ class JobHandle:
     kind: str
     principal: str
     output_refs: list[str]
+    _failure: tuple[str, str] | None = None
 
     def add_output(self, reference: str) -> None:
         """Record an artefact the operation produced."""
 
         if reference and reference not in self.output_refs:
             self.output_refs.append(reference)
+
+    def mark_failed(self, error_code: str, error_message: str = "") -> None:
+        """Declare that the run failed without raising.
+
+        Some operations report failure in their return value rather than by raising - the
+        ingestion runtime records a failed attempt on the run row and returns its status.
+        Such a caller states the outcome here, and the tracker finishes the job FAILED with
+        that stable code instead of claiming a success the run did not have. A caller that
+        raises needs nothing: the tracker already fails the job with the exception's code.
+        """
+
+        if error_code:
+            self._failure = (error_code, error_message)
 
 
 def job_input_hash(payload: Any) -> str:
@@ -105,7 +119,28 @@ def track_job(
     except BaseException as exc:  # noqa: BLE001 - the original error must propagate
         _fail_quietly(session, handle.job_id, exc)
         raise
+    if handle._failure is not None:
+        # The work reported its own failure rather than raising: record what happened, with
+        # the stable code it named, and do not put the failed run's artefacts on the job.
+        code, message = handle._failure
+        _fail_with_code(session, handle.job_id, code, message)
+        return
     finish_job(session, handle.job_id, output_refs=tuple(handle.output_refs))
+
+
+def _fail_with_code(session: Session, job_id: str, code: str, message: str) -> None:
+    """Mark a job failed with a code the work itself declared."""
+
+    try:
+        fail_job(
+            session,
+            job_id,
+            error_code=code,
+            error_message=message,
+            retryable=True,
+        )
+    except Exception:  # noqa: BLE001 - tracking must not break the real outcome
+        return
 
 
 def _fail_quietly(session: Session, job_id: str, exc: BaseException) -> None:
