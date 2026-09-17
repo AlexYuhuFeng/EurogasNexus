@@ -20,6 +20,7 @@ import {
 import {
   snapshotIsUsable,
   snapshotPnlSnapshots,
+  snapshotResourcePoolOptions,
   snapshotScreenOrders,
   snapshotSummary,
 } from "@/app/model/portfolioSnapshotModel";
@@ -273,7 +274,11 @@ function applyPortfolioSnapshot(
   projection: PortfolioSnapshotProjectionDTO | null,
 ): Pick<
   ApiState,
-  "portfolioSnapshot" | "screenOrders" | "pnlSnapshots" | "portfolioSummary"
+  | "portfolioSnapshot"
+  | "screenOrders"
+  | "pnlSnapshots"
+  | "portfolioSummary"
+  | "resourcePoolOptions"
 > {
   if (!snapshotIsUsable(projection)) {
     return {
@@ -281,6 +286,7 @@ function applyPortfolioSnapshot(
       screenOrders: state.screenOrders,
       pnlSnapshots: state.pnlSnapshots,
       portfolioSummary: state.portfolioSummary,
+      resourcePoolOptions: state.resourcePoolOptions,
     };
   }
   return {
@@ -288,6 +294,9 @@ function applyPortfolioSnapshot(
     screenOrders: snapshotScreenOrders(projection),
     pnlSnapshots: snapshotPnlSnapshots(projection),
     portfolioSummary: snapshotSummary(projection),
+    // The pool block comes from the same coherent payload instead of a second route
+    // call, and a slice the backend withheld leaves the previous options in place.
+    resourcePoolOptions: snapshotResourcePoolOptions(projection) ?? state.resourcePoolOptions,
   };
 }
 
@@ -486,7 +495,6 @@ const WORKSPACE_LOADERS: Array<[string, WorkspaceApiLoader]> = [
   ["routeCandidates", api.routeCandidates],
   ["tsoTariffs", api.tsoTariffs],
   ["upstreamContracts", api.upstreamContracts],
-  ["resourcePoolOptions", api.resourcePoolOptions],
   ["glossaryTerms", (options) => api.glossary("en", undefined, options)],
   ["runtimeDb", api.runtimeDb],
   ["runtimeDependencies", api.runtimeDependencies],
@@ -527,7 +535,6 @@ const WORKSPACE_STATE_KEYS: Record<string, keyof ApiState> = {
   routeCandidates: "routeCandidates",
   tsoTariffs: "tsoTariffs",
   upstreamContracts: "upstreamContracts",
-  resourcePoolOptions: "resourcePoolOptions",
   glossaryTerms: "glossaryTerms",
   runtimeDb: "runtimeDb",
   runtimeDependencies: "runtimeDependencies",
@@ -805,7 +812,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
       routeCandidates: (slices.routeCandidates ?? []) as RouteCandidateDTO[],
       tsoTariffs: (slices.tsoTariffs ?? []) as TsoTariffDTO[],
       upstreamContracts: (slices.upstreamContracts ?? []) as UpstreamContractDTO[],
-      resourcePoolOptions: (slices.resourcePoolOptions ?? null) as ResourcePoolOptionsDTO | null,
+      resourcePoolOptions: portfolioLane.resourcePoolOptions,
       glossaryTerms: (slices.glossaryTerms ?? []) as GlossaryTermDTO[],
       runtimeDb: (slices.runtimeDb ?? null) as RuntimeDbStatusDTO | null,
       runtimeDependencies: (slices.runtimeDependencies ?? null) as RuntimeDependenciesDTO | null,

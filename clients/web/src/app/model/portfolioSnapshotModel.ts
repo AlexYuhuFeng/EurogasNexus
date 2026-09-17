@@ -15,7 +15,9 @@
 import type {
   PortfolioLiveSummaryDTO,
   PortfolioPnlSnapshotDTO,
+  PortfolioResourceDTO,
   PortfolioSnapshotProjectionDTO,
+  ResourcePoolOptionsDTO,
   ScreenOrderObservationDTO,
   UpstreamContractDTO,
 } from "@/api/client";
@@ -134,6 +136,55 @@ export function snapshotIsUsable(
 ): boolean {
   if (!projection) return false;
   return projectionSliceIsAvailable(projection.slices, "summary");
+}
+
+/**
+ * The resource-pool block the projection composed, rebuilt into the shape the
+ * surfaces already read.
+ *
+ * The `resources` slice carries the pool payload (scope, data source, portfolio
+ * resources, blockers, warnings) with the executable sale options as its rows, so the
+ * client can read the pool from the same coherent payload instead of asking the route
+ * for a second composition of the same thing. The slice is strictly narrower than the
+ * route: where the route applies no row filter, the projection filters both
+ * contributing reads (route candidates and market observations) by entitlement, so a
+ * withheld option is absent rather than re-derived on the client.
+ *
+ * Returns `null` when the backend did not serve the slice, or when it did not carry
+ * the pool's identifying fields - the surface then keeps what it read before rather
+ * than showing an empty pool.
+ */
+export function snapshotResourcePoolOptions(
+  projection: PortfolioSnapshotProjectionDTO | null | undefined,
+): ResourcePoolOptionsDTO | null {
+  const payload = projectionSlicePayload<
+    Record<string, unknown>,
+    PortfolioSnapshotProjectionDTO["slices"],
+    PortfolioSliceKey
+  >(projection?.slices, "resources");
+  if (!payload) return null;
+
+  const scope = typeof payload.scope === "string" ? payload.scope : null;
+  const dataSource = typeof payload.data_source === "string" ? payload.data_source : null;
+  if (!scope || !dataSource) return null;
+
+  const stringList = (value: unknown): string[] =>
+    Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+
+  return {
+    scope,
+    data_source: dataSource,
+    portfolio_resources: Array.isArray(payload.portfolio_resources)
+      ? (payload.portfolio_resources as PortfolioResourceDTO[])
+      : [],
+    sale_options: projectionSliceRows<
+      ResourcePoolOptionsDTO["sale_options"][number],
+      PortfolioSnapshotProjectionDTO["slices"],
+      PortfolioSliceKey
+    >(projection?.slices, "resources"),
+    blockers: stringList(payload.blockers),
+    warnings: stringList(payload.warnings),
+  };
 }
 
 /**

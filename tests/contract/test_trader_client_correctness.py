@@ -37,9 +37,11 @@ def test_strategy_prices_consume_backend_normalized_market_view() -> None:
 
     # the store consumes the backend-normalized view and backend spreads
     assert '["normalizedMarkets", api.normalizedMarketObservations]' in store
-    assert "loadWorkspaceEndpoint(api.normalizedMarketObservations" in store
     assert '["marketSpreads", api.marketSpreads]' in store
-    assert "loadWorkspaceEndpoint(api.marketSpreads" in store
+    # Architecture V2 Wave 5: the periodic market lane reads the market-context
+    # projection, which composes the same normalized view and spreads through the
+    # same bounded loader instead of joining the low-level endpoints in the browser.
+    assert "loadWorkspaceEndpoint((loaderOptions) => api.marketContext(undefined, loaderOptions)" in store
 
     # scenario assembly reads backend-owned fields only (no FX math)
     assert "observation.price_gbp_mwh" in scenario

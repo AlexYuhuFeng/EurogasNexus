@@ -23,6 +23,7 @@ import {
   snapshotIsUsable,
   snapshotPnlSnapshots,
   snapshotResourceNote,
+  snapshotResourcePoolOptions,
   snapshotScreenOrders,
   snapshotSummary,
   snapshotTimeBasis,
@@ -151,6 +152,48 @@ test("the resource-pool slice is declared, not approximated", () => {
   assert.equal(snapshotIsUsable(payload), true);
 });
 
+test("the pool block is read from the snapshot instead of a second route call", () => {
+  const payload = projection({
+    resources: slice({
+      available: true,
+      row_count: 2,
+      rows: [
+        { option_id: "option-1", label: "Gate to NCG", sale_price_gbp_mwh: 27.5 },
+        { option_id: "option-2", label: "Gate to TTF", sale_price_gbp_mwh: 29.1 },
+      ],
+      payload: {
+        scope: "portfolio-live",
+        data_source: "runtime-postgresql",
+        portfolio_resources: [{ resource_id: "resource-1", resource_name: "Gate slot" }],
+        blockers: ["missing_fx_rate"],
+        warnings: ["stale_sale_price"],
+        counts: { portfolio_resources: 1, sale_options: 2 },
+      },
+    }),
+  });
+
+  const options = snapshotResourcePoolOptions(payload);
+  assert.ok(options);
+  assert.equal(options.scope, "portfolio-live");
+  assert.equal(options.data_source, "runtime-postgresql");
+  assert.equal(options.portfolio_resources.length, 1);
+  assert.deepEqual(
+    options.sale_options.map((option) => option.option_id),
+    ["option-1", "option-2"],
+  );
+  assert.deepEqual(options.blockers, ["missing_fx_rate"]);
+  assert.deepEqual(options.warnings, ["stale_sale_price"]);
+
+  // A slice the backend withheld, or a payload without the pool's identifying
+  // fields, yields no pool block at all rather than an empty one.
+  assert.equal(snapshotResourcePoolOptions(projection()), null);
+  assert.equal(
+    snapshotResourcePoolOptions(projection({ resources: slice({ available: true, payload: {} }) })),
+    null,
+  );
+  assert.equal(snapshotResourcePoolOptions(null), null);
+});
+
 test("stale and restricted slices are qualified, and an absent payload is not usable", () => {
   const payload = projection({
     pnl_snapshots: slice({
@@ -203,7 +246,14 @@ test("the portfolio lane reads one projection instead of three endpoints", () =>
   assert.ok(loaders.length > 0, "workspace loaders found");
 
   assert.match(loaders, /\["portfolioSnapshot", \(options\) => api\.portfolioSnapshot\(undefined, options\)\]/);
-  for (const endpoint of ["api.screenOrders", "api.pnlSnapshots", "api.portfolioLiveSummary"]) {
+  for (const endpoint of [
+    "api.screenOrders",
+    "api.pnlSnapshots",
+    "api.portfolioLiveSummary",
+    // The pool block now comes from the snapshot's `resources` slice: loading the
+    // route as well would compose the same pool twice on every workspace load.
+    "api.resourcePoolOptions",
+  ]) {
     assert.equal(loaders.includes(endpoint), false, endpoint);
   }
 
@@ -214,6 +264,11 @@ test("the portfolio lane reads one projection instead of three endpoints", () =>
   assert.match(store, /pnlSnapshots: portfolioLane\.pnlSnapshots,/);
   assert.match(store, /portfolioSummary: portfolioLane\.portfolioSummary,/);
   assert.match(store, /portfolioSnapshot: portfolioLane\.portfolioSnapshot,/);
+  assert.match(store, /resourcePoolOptions: portfolioLane\.resourcePoolOptions,/);
+  assert.match(
+    store,
+    /resourcePoolOptions: snapshotResourcePoolOptions\(projection\) \?\? state\.resourcePoolOptions,/,
+  );
   assert.match(store, /if \(!snapshotIsUsable\(projection\)\) \{/);
   assert.match(
     store,

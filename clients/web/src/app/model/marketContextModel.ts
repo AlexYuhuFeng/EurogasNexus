@@ -74,8 +74,8 @@ export function degradedSlices(
 
 /**
  * The rows a slice carries, or an empty list when the backend did not make it
- * available. Callers that need to distinguish "unavailable" from "empty" must use
- * `sliceReadings`/`degradedSlices`; this helper is for rendering tables.
+ * available. Callers that need to tell an unavailable slice apart from an empty one
+ * must use `sliceReadings`/`degradedSlices`; this helper is for rendering tables.
  */
 export function sliceRows<Row>(
   projection: MarketContextProjectionDTO | null | undefined,

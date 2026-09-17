@@ -70,8 +70,8 @@ export function degradedReadings(readings: readonly SliceReading[]): SliceReadin
 
 /**
  * The rows a slice carries, or an empty list when the backend did not make it
- * available. Callers that must distinguish "unavailable" from "empty" use the
- * readings; this helper is for rendering tables.
+ * available. Callers that must tell an unavailable slice apart from an empty one use
+ * the readings; this helper is for rendering tables.
  */
 export function projectionSliceRows<Row, Slices extends object, Key extends keyof Slices & string>(
   slices: Slices | null | undefined,

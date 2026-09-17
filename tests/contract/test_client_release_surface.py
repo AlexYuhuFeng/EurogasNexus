@@ -577,8 +577,12 @@ def test_web_client_market_page_is_trader_terminal_surface() -> None:
     assert "MARKET_REFRESH_INTERVAL_MS" in app
     assert "marketLastUpdatedAtUtc: string | null" in store
     assert "refreshMarketData: () => Promise<void>" in store
-    assert "loadWorkspaceEndpoint(api.normalizedMarketObservations" in store
-    assert "loadWorkspaceEndpoint(api.marketSpreads" in store
+    # The market lane reads one coherent projection through the same bounded
+    # workspace loader (Architecture V2 Wave 5); the low-level reads still exist in
+    # the workspace batch, so the terminal keeps real, timeout-bounded sources.
+    assert "loadWorkspaceEndpoint((loaderOptions) => api.marketContext(undefined, loaderOptions)" in store
+    assert '["normalizedMarkets", api.normalizedMarketObservations]' in store
+    assert '["marketSpreads", api.marketSpreads]' in store
     assert "loadWorkspaceEndpoint(api.fxRates" in store
     assert "market-terminal-board" in market_terminal
     assert "market-price-ticker" in market_terminal

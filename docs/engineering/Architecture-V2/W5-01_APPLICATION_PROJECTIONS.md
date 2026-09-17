@@ -83,8 +83,11 @@ The wave's real content is the extraction, not the four new routes:
   `resources` slice call it.
 - Scenario results are deliberately never synthesised; the endpoints that produce them are listed
   in `data.not_included`.
-- The review surface has not yet migrated onto `ReviewContext`. It follows the same pattern as the
-  market and portfolio lanes (section 7).
+- The review surface has not migrated onto `ReviewContext`, deliberately: that projection resolves
+  evidence per review entity (`evidence_limit`, default 20) and reads the monitoring posture, so
+  putting it on the workspace load path would make every session pay for detail only the review
+  surface needs. The intended shape is the same as the market lane - fetch `ReviewContext` when the
+  review surface opens, not in the workspace batch - and it is the bounded next step for this wave.
 
 ## 7. Client migration onto the projections
 
@@ -98,9 +101,12 @@ projection is only worth its cost when the client deletes a join rather than add
   changes.
 - The workspace batch no longer joins `/portfolio/live-summary`, `/portfolio/screen-orders` and
   `/portfolio/pnl-snapshots`: it reads `GET /projections/portfolio-snapshot` once and fills
-  `portfolioSummary`, `screenOrders` and `pnlSnapshots` from its slices. The route-local
-  `resourcePoolOptions` read stays separate until the resource-pool composition is shared, which the
-  `resources` slice now declares.
+  `portfolioSummary`, `screenOrders`, `pnlSnapshots` and `resourcePoolOptions` from its slices. The
+  resource-pool block now comes from the `resources` slice, which composes the same
+  `application/resource_pool` code the route calls, so the workspace load no longer composes the pool
+  twice. That slice is **strictly narrower** than the route: the route applies no row filter, while the
+  slice filters both contributing reads (route candidates and market observations) by entitlement, so
+  a withheld sale option is absent on the client rather than re-derived there.
 - `applyMarketContext()` and `applyPortfolioSnapshot()` are the single mapping points per lane, used
   by both the periodic/workspace read and the bounded retry control. `marketContext` is registered as
   a retry-only loader, so a failed market read stays retryable without making an initial workspace
