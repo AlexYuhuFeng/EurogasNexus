@@ -88,6 +88,12 @@ detail panes. The second slice makes the Inspector worth handing a subject to.
   observation) is handed to the Inspector by `marketObservationSubject(...)` from the
   rail's hand-off actions. That is the pattern the remaining surfaces follow -
   rail/panel-local detail is replaced by a hand-over, not by a second copy.
+- The contract workbench is the second: every hand-over now goes through one
+  composition-checked builder (`inspectorSubjectFor`), so the Wave 1 rule - a page may
+  only inspect the subject kinds it declares - is enforced where the selection happens
+  and not only inside the resolver, and `marketObservationSubject` delegates to it. The
+  workbench's library row hands a saved contract over from an Inspect action beside its
+  existing Strategy Lab hand-off, so object detail did not become a third pane.
 
 ## 5. What this slice does not claim
 
