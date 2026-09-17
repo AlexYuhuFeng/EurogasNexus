@@ -103,6 +103,15 @@ detail panes. The second slice makes the Inspector worth handing a subject to.
   strip, while the KPI strip and charts stay on the surface. The migration replaces
   duplication rather than capability - the run's facts and provenance live in the one
   Inspector, and the workspace keeps the analysis it exists to do.
+- The review decision history is the fifth, and the first whose subject is *evidence*
+  rather than a record the surface already lists. Each row hands its entity's resolved
+  evidence over when the review projection carries an entry for it, and says so when the
+  entry is missing, so the action never appears where it would do nothing. Evidence the
+  backend withheld is still inspectable and shows `ENTITLEMENT_DENIED` as its state: a
+  reviewer needs to know that evidence exists and was withheld, not that there is none.
+  A resolver's artifact has its own shape, so its flat fields are presented under their
+  own names - `InspectorFact` therefore carries an optional raw `label` beside its
+  translation key, because inventing product copy for data keys would misdescribe them.
 
 ## 5. What this slice does not claim
 
