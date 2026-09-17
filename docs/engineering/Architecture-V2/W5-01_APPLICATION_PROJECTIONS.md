@@ -101,11 +101,18 @@ claiming a gap it no longer has.
 
 - Scenario results are deliberately never synthesised; the endpoints that produce them are listed
   in `data.not_included`.
-- The review surface has not migrated onto `ReviewContext`, deliberately: that projection resolves
-  evidence per review entity (`evidence_limit`, default 20) and reads the monitoring posture, so
-  putting it on the workspace load path would make every session pay for detail only the review
-  surface needs. The intended shape is the same as the market lane - fetch `ReviewContext` when the
-  review surface opens, not in the workspace batch - and it is the bounded next step for this wave.
+- The review surface reads its projection **on demand** rather than in the workspace batch: resolving
+  evidence is per-entity work, so `fetchReviewContext()` runs when the review task opens, coalesced
+  through a dedicated review lane, identity-gated, retryable through the same bounded control as the
+  other projection reads, and it re-derives the decisions list only from a usable payload.
+  `ReviewContextStrip` reports what the read returned, including the evidence coverage the backend
+  measured (`resolved of requested`), so a reviewer can see that evidence was withheld or stale before
+  treating a decision as reviewed.
+- `ScenarioContext` stays **available but unconsumed** in the client, deliberately: the scenario
+  surface is driven by the deterministic run endpoints (recommendation, pool optimisation, backtest)
+  and its read inputs already arrive in the workspace batch, so fetching a GOVERNED projection when
+  the surface opens would add a read without deleting a join. Its `not_included` block remains the
+  product statement of which inputs a read model must not synthesise.
 
 ## 8. Client migration onto the projections
 

@@ -185,9 +185,27 @@ is not attached to it.
   its own context, the container resolves it from the canonical sources (section 7).
 - **No dedicated backend task kind per action.** That would be a backend contract change; the five
   actions run `DB_INQUIRY` today.
-- **No convergence of other AI entry points.** `clients/web/src/components/AlertCenter.tsx` still
-  carries an ad-hoc "Ask DeepSeek" action that is not one of the five canonical actions, and the
-  `/agent/*` research surfaces are untouched. Converging them is follow-up work in the file that owns
-  them.
+- **No convergence of the `/agent/*` research surfaces.** Those remain untouched; converging them is
+  follow-up work in the files that own them.
+
+## 12. Convergence follow-up delivered
+
+`clients/web/src/components/AlertCenter.tsx` carried an ad-hoc provider-branded question button that
+was not one of the five canonical actions and applied no gating at all - an alert with no evidence
+reference could still be sent to a model. It now runs the declared **`ask`** action:
+
+- the button is the action, labelled from `experience.ai.ask`, and it is **withheld** unless
+  `aiActionIsAvailable("ask", ...)` holds for the alert's own `source_refs`, so an alert without
+  evidence withholds the action (and the discussion surface with it) instead of letting the model
+  guess;
+- the surface shows the contract's posture and produces copy, and the evidence references it will
+  carry into the run, before the question is asked;
+- the client no longer names a vendor: the stored summary and the run result are labelled with the
+  provider the backend reports (`llm_provider_id`, `provider_id`), and the answer is labelled as
+  interpretation with no numeric authority, using the Copilot's vocabulary rather than a second one.
+
+This pairs with the backend half of finding C8: the alert-analysis route now re-authorises the
+invocation against the caller's own `analysis.query` capability, so the surface and the route agree
+about whose authority an alert question runs under.
 - **No conversation, thread or history model.** A run is one action on one context; the backend
   persists the analysis it produced, and the surface shows the run record it composed.
