@@ -263,6 +263,10 @@ test("every hand-over goes through one composition-checked builder", () => {
   assert.equal(inspectorSubjectFor("contract", null, "Gate term", "contracts"), null);
   assert.equal(inspectorSubjectFor("resource", "resource-1", "Gate slot", "contracts")?.kind, "resource");
 
+  // The network page declares network-node, the market page does not.
+  assert.equal(inspectorSubjectFor("network-node", "node-1", "Zeebrugge", "network")?.kind, "network-node");
+  assert.equal(inspectorSubjectFor("network-node", "node-1", "Zeebrugge", "market"), null);
+
   // The contract workbench hands a saved contract over rather than growing a third
   // detail pane, and it resolves detail from data the surface already received.
   const workbench = readWebSource("components/ContractWorkbench.tsx");
@@ -274,6 +278,40 @@ test("every hand-over goes through one composition-checked builder", () => {
   );
   assert.match(workbench, /if \(subject\) inspector\.open\(subject\);/);
   assert.equal(workbench.includes("fetch("), false);
+});
+
+test("the network map hands a clicked node over instead of only popup detail", () => {
+  const map = readWebSource("components/GasNetworkMap.tsx");
+  const workspace = readWebSource("components/NetworkWorkspace.tsx");
+
+  // The map keeps its quick context and adds the hand-over, so it does not become a
+  // second detail pane.
+  assert.match(map, /onInspectNode\?: \(nodeId: string, label: string\) => void;/);
+  assert.match(map, /if \(onInspectNode && nodeId\) \{/);
+  assert.match(map, /inspect\.textContent = t\("map\.inspect_node"\);/);
+  assert.match(map, /onInspectNode\(nodeId, nodeLabel\);/);
+  // The handler is registered with the effect, so a new callback cannot be ignored.
+  assert.match(map, /mapReady, onInspectNode, t, verifiedPipelineLines\]/);
+
+  // The workspace owns the page identity, so the composition rule is applied there.
+  assert.match(workspace, /import \{ inspectorSubjectFor \} from "@\/app\/model\/inspectorDetail"/);
+  assert.match(workspace, /const inspector = useInspectorStore\(\);/);
+  assert.match(
+    workspace,
+    /const subject = inspectorSubjectFor\("network-node", nodeId, label, "network"\);/,
+  );
+  assert.match(workspace, /onInspectNode=\{openNodeInspector\}/);
+
+  // The map itself plans no fetch: the Inspector resolves from state already in hand.
+  assert.equal(map.includes("fetch("), false);
+
+  const en = JSON.parse(readWebSource("i18n/en.json")) as Record<string, string>;
+  const zh = JSON.parse(readWebSource("i18n/zh.json")) as Record<string, string>;
+  for (const key of ["map.inspect_node", "map.node_popup_source"]) {
+    assert.ok(en[key]?.trim(), `en ${key}`);
+    assert.ok(zh[key]?.trim(), `zh ${key}`);
+    assert.notEqual(en[key], zh[key], key);
+  }
 });
 
 test("the panel renders resolved facts and never resolves detail itself", () => {

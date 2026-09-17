@@ -130,6 +130,7 @@
   "map.empty_title": "No governed network evidence to display",
   "map.empty_help": "Load governed reference-network nodes, verified geometry, or route evidence to populate this map. The basemap remains visible, but Eurogas Nexus will not fabricate network features.",
   "map.node_popup_source": "Source",
+  "map.inspect_node": "Inspect node",
   "map.node_popup_coordinate_quality": "Coordinate quality",
   "map.node_popup_approximate_coordinate": "Approximate display coordinate, not surveyed WGS84 geometry.",
   "map.unmatched_route_legs_warning": "{{count}} route leg node(s) were not matched; map shows an indicative schematic corridor, not surveyed pipeline geometry.",

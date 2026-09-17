@@ -27,6 +27,12 @@ interface GasNetworkMapProps {
   searchTerm: string;
   t: Translate;
   highlightedRoute?: NetworkHighlightedRoute;
+  /**
+   * Hand a clicked node to the canonical Inspector. Omitted where the page's composition
+   * does not declare `network-node` as an inspectable subject, so no surface promises
+   * detail it has no contract for.
+   */
+  onInspectNode?: (nodeId: string, label: string) => void;
 }
 
 function resolveEffectiveTheme(themeMode: GasNetworkMapProps["themeMode"]): "light" | "dark" {
@@ -110,6 +116,7 @@ export function GasNetworkMap({
   searchTerm,
   t,
   highlightedRoute,
+  onInspectNode,
 }: GasNetworkMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
@@ -590,7 +597,9 @@ export function GasNetworkMap({
         const props = feature.properties ?? {};
         const coordinateQuality = propertyText(props.coordinate_quality, t("data.unavailable"));
         const source = propertyText(props.source_system, t("data.unavailable"));
-        new maplibregl.Popup({ closeButton: false })
+        const nodeId = propertyText(props.id, "");
+        const nodeLabel = propertyText(props.name, nodeId);
+        const popup = new maplibregl.Popup({ closeButton: false })
           .setLngLat(event.lngLat)
           .setHTML(
             `<div class="node-popup">
@@ -604,6 +613,23 @@ export function GasNetworkMap({
             </div>`
           )
           .addTo(map);
+        // Wave 9: the popup stays the map's quick context, and the canonical Inspector
+        // carries the object's detail. The map hands the node over rather than growing a
+        // second detail pane of its own.
+        if (onInspectNode && nodeId) {
+          const container = popup.getElement()?.querySelector(".node-popup");
+          if (container) {
+            const inspect = document.createElement("button");
+            inspect.type = "button";
+            inspect.className = "node-popup-inspect";
+            inspect.textContent = t("map.inspect_node");
+            inspect.addEventListener("click", () => {
+              onInspectNode(nodeId, nodeLabel);
+              popup.remove();
+            });
+            container.appendChild(inspect);
+          }
+        }
       });
       map.on("mouseenter", "nodes-circle", () => {
         map.getCanvas().style.cursor = "pointer";
@@ -617,7 +643,7 @@ export function GasNetworkMap({
         features: nodeFeatures,
       });
     }
-  }, [filteredNodes, highlightedRouteSegmentFeatures, indicativeRouteLines, mapColors, mapReady, t, verifiedPipelineLines]);
+  }, [filteredNodes, highlightedRouteSegmentFeatures, indicativeRouteLines, mapColors, mapReady, onInspectNode, t, verifiedPipelineLines]);
 
   useEffect(() => {
     const map = mapRef.current;

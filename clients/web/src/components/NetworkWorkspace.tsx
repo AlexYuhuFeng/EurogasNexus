@@ -18,6 +18,8 @@ import {
   type NetworkGeometryState,
 } from "@/app/workspaceDerivedData";
 import { GasNetworkMap } from "@/components/GasNetworkMap";
+import { inspectorSubjectFor } from "@/app/model/inspectorDetail";
+import { useInspectorStore } from "@/stores/inspector";
 import { IntradayDecisionFeed } from "@/components/IntradayDecisionFeed";
 import { CommercialWarningList } from "@/components/CommercialWarningList";
 import type { CommercialDiagnosticItem } from "@/app/model/commercialWarnings";
@@ -143,6 +145,14 @@ export function NetworkWorkspace({
   onOpenReview,
   onOpenScenario,
 }: NetworkWorkspaceProps) {
+  // Wave 9: map nodes hand their detail to the canonical Inspector. This page declares
+  // `network-node` as an inspectable subject, so the hand-over is legal here; the builder
+  // refuses it everywhere the composition does not declare it.
+  const inspector = useInspectorStore();
+  const openNodeInspector = (nodeId: string, label: string) => {
+    const subject = inspectorSubjectFor("network-node", nodeId, label, "network");
+    if (subject) inspector.open(subject);
+  };
   const displayedNetworkCount = nodes.filter(
     (node) =>
       !["hub", "lng", "interconnection"].includes(node.node_type) &&
@@ -315,6 +325,7 @@ export function NetworkWorkspace({
             searchTerm={searchTerm}
             t={t}
             highlightedRoute={highlightedRoute}
+            onInspectNode={openNodeInspector}
           />
           {!mapHasVisibleEvidence && (
             <div className="map-empty-state" role="status">
