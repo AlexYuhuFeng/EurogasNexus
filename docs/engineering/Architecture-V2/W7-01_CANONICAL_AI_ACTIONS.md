@@ -180,9 +180,6 @@ is not attached to it.
 
 ## 11. What this slice does not claim
 
-- **The review surface is not converged yet.** Its own analysis panel still carries a question box
-  beside the canonical actions; replacing it with the Copilot is follow-up work in the file that owns
-  it.
 - **No dedicated backend task kind per action.** That would be a backend contract change; the five
   actions run `DB_INQUIRY` today.
 - **No convergence of the `/agent/*` research surfaces.** Those remain untouched; converging them is
@@ -222,7 +219,11 @@ work. The market cockpit's context rail now carries the five canonical actions:
   the control instead of opening a panel that refuses it;
 - choosing one mounts the hosted Copilot, which owns the transport; the cockpit names no endpoint.
 
-A workspace that wants the surface inline follows the same pattern, and the review surface's own
-analysis panel is the remaining convergence.
+A workspace that wants the surface inline follows the same pattern. The review task took it one step
+further: its own analysis panel carried a free-text question box and an invoke-the-provider switch,
+which made a sixth AI surface beside the canonical five. Those controls are gone - the five actions
+live there instead, and what remains of the panel is the deterministic portfolio report, whose
+question is no longer user-typed. AI-drafted output is the `draft` action's job, which is what the
+panel's own copy now says.
 - **No conversation, thread or history model.** A run is one action on one context; the backend
   persists the analysis it produced, and the surface shows the run record it composed.
