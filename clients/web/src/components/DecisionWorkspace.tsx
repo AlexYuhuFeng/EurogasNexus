@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { PanelHeader, WorkspaceHeader } from "@/components/ui";
 import { ScenarioWorkspace } from "@/components/ScenarioWorkspace";
 import { ReviewWorkspace } from "@/components/ReviewWorkspace";
+import { ReviewContextStrip } from "@/components/ReviewContextStrip";
 import type { AppController } from "@/app/hooks/useAppController";
 import { warningLabel } from "@/app/warningLabel";
 import { CommercialWarningList } from "@/components/CommercialWarningList";
@@ -126,6 +127,14 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
     setTask(decisionTaskFromLocation(window.location.search));
   }, [controller.navigation.locationRevision]);
 
+  // Wave 5: the review surface reads its own projection when it opens. Resolving review
+  // evidence is per-entity work, so it belongs here rather than on every workspace load;
+  // the store coalesces repeat opens through the review lane.
+  useEffect(() => {
+    if (task !== "review") return;
+    void api.fetchReviewContext();
+  }, [api, task]);
+
   function openTask(next: DecisionTask) {
     setTask(next);
     navigation.openWorkspace(next === "review" ? "review" : "scenario", next);
@@ -147,6 +156,7 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
         onActivate={openTask}
       />
       <div id="decision-task-panel">
+        {task === "review" && <ReviewContextStrip projection={api.reviewContext} t={t} />}
         {task === "scenario" && (
           <ScenarioWorkspace
             routeCandidates={api.routeCandidates}

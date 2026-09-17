@@ -12,6 +12,8 @@
  * as unavailable rather than as an empty result.
  */
 
+import { type ReactNode } from "react";
+
 import type { SliceReading } from "@/app/model/projectionModel";
 import { formatUtcTimestamp } from "@/app/model/evidencePresentation";
 import { StatusBadge } from "@/components/ui";
@@ -31,6 +33,8 @@ interface ProjectionContextStripProps {
   asOf: string | null;
   basis: Record<string, unknown> | null;
   t: Translate;
+  /** Surface-specific qualification, rendered beside the shared summary. */
+  children?: ReactNode;
 }
 
 export function ProjectionContextStrip({
@@ -42,6 +46,7 @@ export function ProjectionContextStrip({
   asOf,
   basis,
   t,
+  children,
 }: ProjectionContextStripProps) {
   if (readings.length === 0) return null;
 
@@ -70,6 +75,7 @@ export function ProjectionContextStrip({
             ? t(key("all_fresh"))
             : t(key("degraded"), { count: degraded.length })}
         </span>
+        {children}
       </div>
 
       <ul className="projection-context-slices">

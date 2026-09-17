@@ -787,6 +787,55 @@ export interface PortfolioSnapshotQuery {
   contractLimit?: number;
 }
 
+/**
+ * One resolved (or explicitly unresolved) piece of review evidence.
+ *
+ * Evidence a resolver could not produce is reported as `available: false` with a stable
+ * `unavailable_reason` - never as an empty artifact, because "we could not retrieve it"
+ * and "it holds nothing" are different answers.
+ */
+export interface ReviewEvidenceEntryDTO {
+  entity_type: string;
+  entity_id: string;
+  available: boolean;
+  resolver: string | null;
+  artifact: Record<string, unknown> | null;
+  unavailable_reason: string | null;
+  warnings: string[];
+}
+
+/**
+ * Architecture V2 review projection: the decisions of the current review target, the
+ * evidence each of them was decided on, and the monitoring posture - one as-of, one
+ * time basis, per-slice freshness.
+ */
+export interface ReviewContextProjectionDTO {
+  projection: string;
+  projection_version: string;
+  as_of_utc: string;
+  time_basis: Record<string, unknown>;
+  active_context: Record<string, unknown>;
+  review_target: { entity_type?: string | null; entity_id?: string | null };
+  slices: {
+    decisions: ProjectionSliceDTO<ReviewDecisionDTO>;
+    evidence: ProjectionSliceDTO<ReviewEvidenceEntryDTO>;
+    monitoring: ProjectionSliceDTO<never>;
+  };
+  warnings: string[];
+  research_only: boolean;
+  human_review_required: boolean;
+}
+
+export interface ReviewContextQuery {
+  entityType?: string;
+  entityId?: string;
+  gasDay?: string;
+  product?: string;
+  hub?: string;
+  decisionLimit?: number;
+  evidenceLimit?: number;
+}
+
 export interface ReviewDecisionDTO {
   decision_id: string; entity_type: string; entity_id: string;
   actor: string; decision: string; note: string | null; created_at_utc: string;
@@ -2100,6 +2149,23 @@ export const api = {
       params,
       options,
     );
+  },
+
+  /**
+   * Architecture V2 review projection: the decisions, their resolved evidence and the
+   * monitoring posture on one as-of. The review surface reads it when it opens rather
+   * than putting evidence resolution on every workspace load.
+   */
+  reviewContext: (query?: ReviewContextQuery, options?: ApiRequestOptions) => {
+    const params: Record<string, string> = {};
+    if (query?.entityType) params.entity_type = query.entityType;
+    if (query?.entityId) params.entity_id = query.entityId;
+    if (query?.gasDay) params.gas_day = query.gasDay;
+    if (query?.product) params.delivery_product = query.product;
+    if (query?.hub) params.hub = query.hub;
+    if (query?.decisionLimit !== undefined) params.decision_limit = String(query.decisionLimit);
+    if (query?.evidenceLimit !== undefined) params.evidence_limit = String(query.evidenceLimit);
+    return get<ReviewContextProjectionDTO>("/projections/review-context", params, options);
   },
 
   reviewDecisions: (params?: { entity_type?: string; entity_id?: string; limit?: string }, options?: ApiRequestOptions) =>

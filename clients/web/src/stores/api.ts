@@ -24,6 +24,7 @@ import {
   snapshotScreenOrders,
   snapshotSummary,
 } from "@/app/model/portfolioSnapshotModel";
+import { reviewDecisions, reviewIsUsable } from "@/app/model/reviewContextModel";
 import {
   api,
   AnalysisRequestDTO,
@@ -54,6 +55,7 @@ import {
   PortfolioPnlSnapshotDTO,
   PortfolioSnapshotProjectionDTO,
   ResourcePoolOptionsDTO,
+  ReviewContextProjectionDTO,
   ReviewDecisionDTO,
   ReviewDecisionInputDTO,
   RouteRecommendationRequestDTO,
@@ -313,6 +315,15 @@ const PROJECTION_LANE_APPLIERS: Record<
     applyMarketContext(state, payload as MarketContextProjectionDTO | null),
   portfolioSnapshot: (state, payload) =>
     applyPortfolioSnapshot(state, payload as PortfolioSnapshotProjectionDTO | null),
+  reviewContext: (state, payload) => {
+    const projection = payload as ReviewContextProjectionDTO | null;
+    return {
+      reviewContext: projection,
+      reviewDecisions: reviewIsUsable(projection)
+        ? reviewDecisions(projection)
+        : state.reviewDecisions,
+    };
+  },
 };
 
 export interface ApiState {
@@ -331,6 +342,7 @@ export interface ApiState {
   intradayOpportunities: IntradayOpportunityDTO[];
   marketContext: MarketContextProjectionDTO | null;
   portfolioSnapshot: PortfolioSnapshotProjectionDTO | null;
+  reviewContext: ReviewContextProjectionDTO | null;
   screenOrders: ScreenOrderObservationDTO[];
   pnlSnapshots: PortfolioPnlSnapshotDTO[];
   portfolioSummary: PortfolioLiveSummaryDTO | null;
@@ -390,6 +402,12 @@ export interface ApiState {
   refreshMarketData: () => Promise<void>;
   subscribeDecisionStreams: () => void;
   refreshMonitoring: () => Promise<void>;
+  /**
+   * Read the review projection (decisions, resolved evidence, monitoring posture) on
+   * demand. The review surface calls this when it opens; it is never part of the
+   * workspace batch, because resolving evidence is per-entity work.
+   */
+  fetchReviewContext: () => Promise<void>;
   fetchMe: () => Promise<void>;
   signIn: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -514,6 +532,7 @@ const WORKSPACE_LOADERS: Array<[string, WorkspaceApiLoader]> = [
  */
 const RETRY_ONLY_LOADERS: Array<[string, WorkspaceApiLoader]> = [
   ["marketContext", (options) => api.marketContext(undefined, options)],
+  ["reviewContext", (options) => api.reviewContext(undefined, options)],
 ];
 
 /** endpointMeta key -> ApiState slice key. */
@@ -585,6 +604,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
    */
   marketContext: null,
   portfolioSnapshot: null,
+  reviewContext: null,
   screenOrders: [],
   pnlSnapshots: [],
   portfolioSummary: null,
@@ -1289,6 +1309,53 @@ export const useApiStore = create<ApiState>((set, get) => ({
             monitoringSummary: summary.value.meta,
             pipelineHealth: health.value.meta,
           },
+        };
+      });
+    } finally {
+      refresh.release();
+    }
+  },
+
+  fetchReviewContext: async () => {
+    if (logoutInProgress) return;
+    if (!isIdentityGateOpen(get().authState)) return;
+    // The review lane coalesces repeat opens: a second request while one is in flight is
+    // the same question, and the answer would be the same payload.
+    const refresh = readRefreshCoordinator.review.tryStart();
+    if (!refresh) return;
+    const refreshGeneration = readRefreshCoordinator.currentGeneration();
+    try {
+      const result = await loadWorkspaceEndpoint(
+        (loaderOptions) => api.reviewContext(undefined, loaderOptions),
+        {
+          signal: refresh.signal,
+          retries: 0,
+          timeoutMs: DEFAULT_WORKSPACE_READ_TIMEOUT_MS,
+        },
+      );
+      if (!readRefreshCoordinator.isCurrent(refreshGeneration)) return;
+      set((state) => {
+        const endpointMeta = { ...state.endpointMeta };
+        const endpointErrors = { ...state.endpointErrors };
+        const endpointErrorCodes = { ...state.endpointErrorCodes };
+        if (result.ok) {
+          delete endpointErrors.reviewContext;
+          delete endpointErrorCodes.reviewContext;
+          endpointMeta.reviewContext = result.value.meta;
+        } else {
+          endpointErrors.reviewContext = result.error.message;
+          endpointErrorCodes.reviewContext = result.error.code;
+        }
+        const projection = result.ok ? result.value.data : null;
+        const usable = reviewIsUsable(projection);
+        return {
+          reviewContext: projection,
+          // A payload the backend could not serve leaves the review surface with the
+          // decisions it already had instead of an empty review.
+          reviewDecisions: usable ? reviewDecisions(projection) : state.reviewDecisions,
+          endpointMeta,
+          endpointErrors,
+          endpointErrorCodes,
         };
       });
     } finally {

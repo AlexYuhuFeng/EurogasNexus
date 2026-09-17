@@ -367,6 +367,12 @@ export class ReadRefreshLane {
 export class ReadRefreshCoordinator {
   readonly market = new ReadRefreshLane();
   readonly monitoring = new ReadRefreshLane();
+  /**
+   * The review lane carries the on-demand ReviewContext read: the review surface asks for
+   * its resolved evidence when it opens, and the lane coalesces repeat opens while an
+   * identity generation is current.
+   */
+  readonly review = new ReadRefreshLane();
   private generation = 0;
 
   beginWorkspaceLoad(): number {
@@ -378,6 +384,7 @@ export class ReadRefreshCoordinator {
     this.generation += 1;
     this.market.cancel();
     this.monitoring.cancel();
+    this.review.cancel();
     return this.generation;
   }
 

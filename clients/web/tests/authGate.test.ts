@@ -386,12 +386,13 @@ test("the shell mounts no workspace surface before the backend confirms identity
 test("every workspace loader, poll and stream is gated on the identity gate", () => {
   const store = source("stores/api.ts");
 
-  assert.equal(store.match(/isIdentityGateOpen\(get\(\)\.authState\)/g)?.length, 5);
+  assert.equal(store.match(/isIdentityGateOpen\(get\(\)\.authState\)/g)?.length, 6);
   for (const action of [
     "fetchWorkspace: async",
     "retryFailedWorkspaceEndpoints: async",
     "refreshMarketData: async",
     "refreshMonitoring: async",
+    "fetchReviewContext: async",
     "subscribeDecisionStreams: () =>",
   ]) {
     assert.ok(store.includes(action), action);
