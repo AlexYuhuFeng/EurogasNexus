@@ -1589,6 +1589,62 @@ export interface AnalysisRequestDTO {
   duration_end_utc?: string | null; include_sections?: string[]; language?: string;
 }
 
+/**
+ * One Data Product catalogue entry (Architecture V2 Wave 4).
+ *
+ * The catalogue is the platform's declared read model: what a product is, which case it
+ * answers, its time basis, the source families behind it, and - per principal - whether this
+ * caller may see its values. `provenance` is present only when the caller is entitled; a
+ * restricted product is still listed, so absence of provenance here means "withheld", never
+ * "nothing to report".
+ */
+export interface DataProductDTO {
+  product_id: string;
+  business_name: string;
+  description: string;
+  domain: string;
+  availability: { state: string; note: string };
+  time_basis: {
+    basis: string;
+    gas_day_calendar: string | null;
+    freshness_expectation_minutes: number | null;
+  };
+  source_families: string[];
+  simulated_families: string[];
+  entitlement_families: string[];
+  served_by: Array<{ kind: string; reference: string; description: string }>;
+  provenance_tables: string[];
+  restricted: boolean;
+  entitlement: {
+    status: string;
+    reason: string;
+    required_family_count: number;
+    granted_family_count: number;
+    restricted_family_count: number;
+    note: string;
+  };
+  provenance: {
+    as_of_utc: string | null;
+    row_count: number;
+    freshness: { status: string; expectation_minutes: number | null; last_observed_at_utc: string | null };
+    confidence: string;
+    quality_flags: string[];
+  } | null;
+  human_review_required: boolean;
+}
+
+export interface DataProductCatalogueDTO {
+  catalogue_version: string;
+  generated_at_utc: string;
+  runtime_available: boolean;
+  products: DataProductDTO[];
+  entitlement_summary: {
+    total_products: number;
+    allowed_products: number;
+    restricted_products: number;
+  };
+}
+
 export interface AnalysisResultDTO {
   analysis_id: string; task: string; provider_id: string; provider_status: string;
   answer_en: string; answer_zh_cn: string; citations: string[];
@@ -2484,6 +2540,16 @@ export const api = {
   invokeCapability: (capabilityId: string, argumentsBody: Record<string, unknown>) =>
     post<Record<string, unknown>>(`/capabilities/${encodeURIComponent(capabilityId)}/invoke`, { arguments: argumentsBody }),
   agentProfiles: () => get<Record<string, unknown>[]>("/agent/profiles"),
+  /**
+   * The declared Data Product catalogue with this caller's entitlement verdict
+   * (Architecture V2 Wave 4).
+   *
+   * A deployment without a runtime database still serves the declared contract and reports
+   * freshness as `UNKNOWN` rather than a fabricated zero, so the surface renders what it
+   * receives instead of assuming a measured value is always present.
+   */
+  dataProducts: (options?: ApiRequestOptions) =>
+    get<DataProductCatalogueDTO>("/data-products", undefined, options),
   /**
    * Recent Analysis Snapshots, newest first (Architecture V2 Wave 4).
    *

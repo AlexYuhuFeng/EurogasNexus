@@ -172,8 +172,29 @@ Two things this follow-up deliberately states rather than implies:
 
 - **What remains open:** the client reads and cites snapshots but does not *record* one - there
   is no "freeze this context" action yet, so a user can only cite a snapshot some other caller
-  recorded. The Data Product catalogue (`GET /api/data-products`) likewise still has no client
-  surface.
+  recorded.
+
+### The catalogue has a client consumer
+
+`GET /api/data-products` had no client consumer either, so the catalogue's honesty rules - the
+ones section 3 states as contract - had no surface to be true on. The research surface now
+carries a **Data Products** view (not a new page: V2 rule 9, and the catalogue belongs beside the
+dataset catalogue it describes):
+
+- `api/client.ts` gains the typed `DataProductDTO`/`DataProductCatalogueDTO` and the read;
+- `app/model/dataProductModel.ts` keeps the three provenance states **apart** instead of
+  collapsing them into one empty-looking cell: `measured` (the backend measured it), `restricted`
+  (this caller is not entitled, and the backend withheld the block on purpose) and `unmeasured`
+  (entitled, but no runtime database was configured). A withheld or unmeasured row carries
+  `rowCount: null`, so the surface cannot print a zero that reads like "this product is empty" -
+  while a genuinely measured zero stays a zero, because that one is a measurement;
+- a restricted product is **listed** with its declared facts (name, case, availability, time
+  basis, sources) and says why it is restricted, with no count in the provenance cell;
+- a state this build has no label for is rendered as its own code, and a failed read is reported
+  as an alert rather than shown as an empty catalogue.
+
+Still open in this family: nothing in the product *records* an Analysis Snapshot, and the
+`researchCapabilities` read remains without a consumer.
 
 ## 7. Access path (07 §7)
 

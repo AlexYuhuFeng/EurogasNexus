@@ -9,6 +9,7 @@ import {
   apiOutcome,
 } from "@/api/client";
 import { MetricStrip, PanelHeader, StatusBadge, WorkspaceTabs } from "@/components/ui";
+import { DataProductCatalogue } from "@/components/DataProductCatalogue";
 import {
   DEFAULT_WORKSPACE_READ_TIMEOUT_MS,
   WorkspaceLoadCoordinator,
@@ -50,10 +51,10 @@ import {
 import "@/styles/researchDataWorkspace.css";
 
 type Translate = (key: string) => string;
-type ResearchViewId = "datasets" | "features" | "targets";
+type ResearchViewId = "datasets" | "products" | "features" | "targets";
 type ExportFormat = "parquet" | "csv";
 
-const VIEWS: ResearchViewId[] = ["datasets", "features", "targets"];
+const VIEWS: ResearchViewId[] = ["datasets", "products", "features", "targets"];
 
 interface ResearchDataWorkspaceProps {
   t: Translate;
@@ -817,6 +818,7 @@ export function ResearchDataWorkspace({ t }: ResearchDataWorkspaceProps) {
     <div className="research-task-tabs-wrap"><WorkspaceTabs idPrefix="research-task" label={t("research.title")} tabs={tabs} activeId={activeView} panelId="research-task-panel" className="research-task-tabs" onActivate={(view) => setActiveView(view as ResearchViewId)} /></div>
     {activeView === "datasets" && <ResearchSpecPanel t={t} draft={specDraft} onDraftChange={(key, value) => setSpecDraft((current) => ({ ...current, [key]: value }))} missingInputs={missingInputs} validationState={validationState} buildState={buildState} gate={buildGate} createdDetail={createdDetail} onValidate={() => void validateSpecDraft()} onBuild={() => void buildSnapshot()} />}
     {activeView === "datasets" && <div className="research-master-detail" id="research-task-panel" role="tabpanel" aria-label={t("research.tab.datasets")}><DatasetCatalog t={t} datasets={visibleDatasets} loading={catalogLoading} error={catalogError} selectedId={visibleSelectedDatasetId} onSelect={(datasetId) => { selectedDatasetIdRef.current = datasetId; setSelectedDatasetId(datasetId); }} /><DatasetDetailRail t={t} selectedId={visibleSelectedDatasetId} detailState={detailState} onRetry={() => setDetailRetryKey((value) => value + 1)} onExport={() => void requestArtifactReference()} exportFormat={exportFormat} onExportFormatChange={setExportFormat} exportBusy={exportBusy} exportState={exportState} exportError={exportError} /></div>}
-    {activeView !== "datasets" && <RegistryTable t={t} type={activeView} features={visibleFeatures} targets={visibleTargets} loading={catalogLoading} error={catalogError} />}
+    {activeView === "products" && <DataProductCatalogue t={t} />}
+    {activeView !== "datasets" && activeView !== "products" && <RegistryTable t={t} type={activeView} features={visibleFeatures} targets={visibleTargets} loading={catalogLoading} error={catalogError} />}
   </div>;
 }
