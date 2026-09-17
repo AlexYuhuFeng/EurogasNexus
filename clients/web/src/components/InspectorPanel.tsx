@@ -70,8 +70,8 @@ export function InspectorPanel({
           <dd>{t(`nav.${subject.originPage}`)}</dd>
         </div>
         {detail.facts.map((fact) => (
-          <div key={fact.labelKey}>
-            <dt>{t(fact.labelKey)}</dt>
+          <div key={`${fact.labelKey}:${fact.value}`}>
+            <dt>{fact.label ?? t(fact.labelKey)}</dt>
             <dd>{fact.value}</dd>
           </div>
         ))}

@@ -27,12 +27,14 @@ import type {
   NormalizedMarketObsDTO,
   PortfolioResourceDTO,
   ResourcePoolOptionsDTO,
+  ReviewContextProjectionDTO,
   RouteCandidateDTO,
   StrategyRunDTO,
   UpstreamContractDTO,
 } from "@/api/client";
 import { canOpenInspector, type InspectorSubject } from "../experience/inspectorContract.ts";
 import type { InspectorSubjectKind } from "../experience/vocabulary.ts";
+import { reviewEvidence } from "./reviewContextModel.ts";
 import { formatUtcTimestamp } from "./evidencePresentation.ts";
 
 /** The state the Inspector may read detail from. The api store satisfies it. */
@@ -46,10 +48,17 @@ export interface InspectorDetailSource {
   readonly routeCandidates: readonly RouteCandidateDTO[];
   readonly resourcePoolOptions: ResourcePoolOptionsDTO | null;
   readonly strategyRuns: readonly StrategyRunDTO[];
+  /** The review projection, for evidence a review decision was taken on. */
+  readonly reviewContext?: ReviewContextProjectionDTO | null;
 }
 
 export interface InspectorFact {
   readonly labelKey: string;
+  /**
+   * A record's own field name, when the fact comes from a resolver-specific artifact.
+   * Data keys are shown as they are rather than given invented product copy.
+   */
+  readonly label?: string;
   readonly value: string;
 }
 
@@ -339,6 +348,9 @@ export function inspectorDetailFor(
 ): InspectorDetail {
   if (!subject || !source) return UNRESOLVED;
   if (!canOpenInspector(subject.kind, subject.originPage)) return UNRESOLVED;
+  if (subject.kind === "decision-evidence") {
+    return decisionEvidenceDetail(source, subject.ref);
+  }
   const idFields = ID_FIELDS_BY_KIND[subject.kind];
   if (!idFields) return UNRESOLVED;
 
@@ -356,6 +368,57 @@ export function inspectorDetailFor(
     return { resolved: true, label, facts, evidenceRefs: evidenceRefs(record) };
   }
   return UNRESOLVED;
+}
+
+/**
+ * Resolve the evidence a review decision was taken on.
+ *
+ * The ref is the review entity the decision names, ``"<entity_type>:<entity_id>"`` - the
+ * same pair the decision history renders. The detail comes from the review projection's
+ * evidence slice, which is where the backend reports what it could and could not retrieve,
+ * so an entry it could not resolve is shown as unavailable *with its reason* rather than as
+ * an empty artifact.
+ */
+function decisionEvidenceDetail(
+  source: InspectorDetailSource,
+  ref: string,
+): InspectorDetail {
+  const separator = ref.indexOf(":");
+  if (separator <= 0) return UNRESOLVED;
+  const entityType = ref.slice(0, separator);
+  const entityId = ref.slice(separator + 1);
+  const entry = reviewEvidence(source.reviewContext).find(
+    (item) => item.entity_type === entityType && item.entity_id === entityId,
+  );
+  if (!entry) return UNRESOLVED;
+
+  const facts: InspectorFact[] = [
+    { labelKey: "experience.inspector.fact.entity_type", value: entry.entity_type },
+    { labelKey: "experience.inspector.fact.entity_ref", value: entry.entity_id },
+    {
+      labelKey: "experience.inspector.fact.evidence_state",
+      value: entry.available
+        ? "available"
+        : (entry.unavailable_reason ?? "unavailable"),
+    },
+  ];
+  if (entry.resolver) {
+    facts.push({ labelKey: "experience.inspector.fact.evidence_resolver", value: entry.resolver });
+  }
+  // A resolver's artifact is its own shape, so its flat scalar fields are presented under
+  // their own names: inventing product copy for data keys would misdescribe them.
+  for (const [key, value] of Object.entries(entry.artifact ?? {}).slice(0, 8)) {
+    const formatted = formatValue(value, undefined);
+    if (formatted !== null) facts.push({ labelKey: key, label: key, value: formatted });
+  }
+
+  const artifactRefs = evidenceRefs(asRecord(entry.artifact ?? {}));
+  return {
+    resolved: true,
+    label: `${entry.entity_type}: ${entry.entity_id}`,
+    facts,
+    evidenceRefs: entry.resolver ? [entry.resolver, ...artifactRefs] : artifactRefs,
+  };
 }
 
 /** The subject kinds this build can resolve detail for. Used by tests and docs. */

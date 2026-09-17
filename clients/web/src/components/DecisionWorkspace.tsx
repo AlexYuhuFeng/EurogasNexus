@@ -7,6 +7,8 @@ import type { AppController } from "@/app/hooks/useAppController";
 import { warningLabel } from "@/app/warningLabel";
 import { CommercialWarningList } from "@/components/CommercialWarningList";
 import { DecisionCasePanel } from "@/components/DecisionCasePanel";
+import { inspectorSubjectFor } from "@/app/model/inspectorDetail";
+import { useInspectorStore } from "@/stores/inspector";
 import {
   DECISION_TASKS,
   decisionTaskFromLocation,
@@ -119,6 +121,7 @@ function OptimizeWorkspace({ controller }: { controller: AppController }) {
 
 export function DecisionWorkspace({ controller }: { controller: AppController }) {
   const { t, api, portfolio, review, selection, i18n, contractEditor, navigation, traderContext } = controller;
+  const inspector = useInspectorStore();
   const [task, setTask] = useState<DecisionTask>(() =>
     decisionTaskFromLocation(window.location.search),
   );
@@ -188,6 +191,7 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
             analysisResult={api.analysisResult}
             language={i18n.language}
             reviewDecisions={api.reviewDecisions}
+            reviewProjection={api.reviewContext}
             reviewMessage={api.reviewMessage}
             latestStrategyRunId={api.strategyRuns[0]?.run_id ?? null}
             carriedStrategyRunId={selection.strategyRunId}
@@ -197,6 +201,12 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
             onAnalyze={() => api.askAnalysis(review.analysisPayload)}
             onGenerateReport={() => api.generatePortfolioReport(review.analysisPayload)}
             onRecordDecision={api.recordReviewDecision}
+            onInspectEvidence={(ref, label) => {
+              // Wave 9: the review page declares decision-evidence, so the decision history
+              // can hand the evidence behind a decision to the canonical Inspector.
+              const subject = inspectorSubjectFor("decision-evidence", ref, label, "review");
+              if (subject) inspector.open(subject);
+            }}
           />
         )}
         {task === "review" && (

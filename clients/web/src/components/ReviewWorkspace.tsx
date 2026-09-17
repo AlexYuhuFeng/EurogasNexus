@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { warningLabel } from "@/app/warningLabel";
 import { formatUtcTimestamp } from "@/app/model/evidencePresentation";
+import { reviewEvidenceFor } from "@/app/model/reviewContextModel";
 import { EvidenceBlock } from "@/components/ui";
 import type {
   AnalysisResultDTO,
   PortfolioOptimizationResultDTO,
   PortfolioSaleOptionDTO,
+  ReviewContextProjectionDTO,
   ReviewDecisionDTO,
   ReviewDecisionInputDTO,
 } from "@/api/client";
@@ -22,6 +24,8 @@ interface ReviewWorkspaceProps {
   analysisResult: AnalysisResultDTO | null;
   language: string;
   reviewDecisions: ReviewDecisionDTO[];
+  /** The review projection, when its on-demand read has landed. */
+  reviewProjection: ReviewContextProjectionDTO | null;
   reviewMessage: string | null;
   latestStrategyRunId: string | null;
   carriedStrategyRunId: string | null;
@@ -31,6 +35,7 @@ interface ReviewWorkspaceProps {
   onAnalyze: () => void;
   onGenerateReport: () => void;
   onRecordDecision: (body: ReviewDecisionInputDTO) => Promise<void>;
+  onInspectEvidence: (ref: string, label: string) => void;
 }
 
 const REVIEW_DECISIONS: ReviewDecisionInputDTO["decision"][] = [
@@ -59,6 +64,7 @@ export function ReviewWorkspace({
   analysisResult,
   language,
   reviewDecisions,
+  reviewProjection,
   reviewMessage,
   latestStrategyRunId,
   carriedStrategyRunId,
@@ -68,6 +74,7 @@ export function ReviewWorkspace({
   onAnalyze,
   onGenerateReport,
   onRecordDecision,
+  onInspectEvidence,
 }: ReviewWorkspaceProps) {
   const [actor, setActor] = useState("operator");
   const [entityType, setEntityType] = useState<ReviewDecisionInputDTO["entity_type"]>("strategy_run");
@@ -268,18 +275,38 @@ export function ReviewWorkspace({
           <strong>{t("review.decision_history")}</strong>
         </div>
         <div className="data-table" tabIndex={0}>
-          <div className="data-table-row header three"><span>{t("review.entity_id")}</span><span>{t("review.decision")}</span><span>{t("review.decision_time")}</span></div>
-          {reviewDecisions.slice(0, 12).map((row) => (
-            <div key={`review-history-${row.decision_id}`} className="data-table-row three">
-              <strong>{row.entity_type}:{row.entity_id}</strong>
-              <span className={`review-decision-badge review-decision-${row.decision}`}>
-                {row.decision} / {row.actor}
-              </span>
-              <span>{formatDecisionTime(row.created_at_utc)}</span>
-            </div>
-          ))}
+          <div className="data-table-row header four"><span>{t("review.entity_id")}</span><span>{t("review.decision")}</span><span>{t("review.decision_time")}</span><span>{t("review.evidence")}</span></div>
+          {reviewDecisions.slice(0, 12).map((row) => {
+            const entityRef = `${row.entity_type}:${row.entity_id}`;
+            const resolved = reviewEvidenceFor(reviewProjection, row.entity_type, row.entity_id);
+            return (
+              <div key={`review-history-${row.decision_id}`} className="data-table-row four">
+                <strong>{entityRef}</strong>
+                <span className={`review-decision-badge review-decision-${row.decision}`}>
+                  {row.decision} / {row.actor}
+                </span>
+                <span>{formatDecisionTime(row.created_at_utc)}</span>
+                <span>
+                  {/* Wave 9: the evidence behind a decision is an object, so it is handed to
+                      the Inspector. The action exists only when the projection resolved an
+                      entry for this entity; an unresolved entity is not dressed up. */}
+                  {resolved ? (
+                    <button
+                      type="button"
+                      className="text-action"
+                      onClick={() => onInspectEvidence(entityRef, `${row.entity_type}: ${row.entity_id}`)}
+                    >
+                      {t("review.inspect_evidence")}
+                    </button>
+                  ) : (
+                    t("review.evidence_unavailable")
+                  )}
+                </span>
+              </div>
+            );
+          })}
           {reviewDecisions.length === 0 && (
-            <div className="data-table-row three"><strong>{t("review.no_decisions")}</strong><span>n/a</span><span>n/a</span></div>
+            <div className="data-table-row four"><strong>{t("review.no_decisions")}</strong><span>n/a</span><span>n/a</span><span>n/a</span></div>
           )}
         </div>
       </div>

@@ -342,6 +342,150 @@ test("the strategy backtest hands the selected run over instead of duplicating i
   assert.notEqual(en["strategy_lab.inspect_run"], zh["strategy_lab.inspect_run"]);
 });
 
+test("review evidence resolves from the review projection, including what it could not get", () => {
+  const projection = {
+    projection: "review-context",
+    projection_version: "review-context/v1",
+    as_of_utc: "2026-09-16T06:00:00+00:00",
+    time_basis: { basis_id: "EU-CAM-UTC-2025" },
+    active_context: {},
+    review_target: {},
+    slices: {
+      decisions: { available: true, row_count: 1, rows: [], payload: null, freshness: { state: "FRESH" } },
+      evidence: {
+        available: true,
+        row_count: 2,
+        rows: [
+          {
+            entity_type: "strategy_run",
+            entity_id: "run-1",
+            available: true,
+            resolver: "strategy_run",
+            artifact: {
+              run_id: "run-1",
+              status: "SUCCEEDED",
+              net_indicative_pnl_gbp: 12500,
+              source_systems: ["ENTSOG"],
+            },
+            unavailable_reason: null,
+            warnings: [],
+          },
+          {
+            entity_type: "generated_report",
+            entity_id: "report-1",
+            available: false,
+            resolver: "generated_report",
+            artifact: null,
+            unavailable_reason: "ENTITLEMENT_DENIED",
+            warnings: ["ENTITLEMENT_DENIED"],
+          },
+        ],
+        payload: null,
+        freshness: { state: "FRESH" },
+      },
+      monitoring: { available: true, row_count: 0, rows: null, payload: null, freshness: { state: "FRESH" } },
+    },
+    warnings: [],
+  } as never;
+
+  const resolved = inspectorDetailFor(
+    source({ reviewContext: projection }),
+    { kind: "decision-evidence", ref: "strategy_run:run-1", label: "run-1", originPage: "review" },
+  );
+
+  assert.equal(resolved.resolved, true);
+  assert.equal(resolved.label, "strategy_run: run-1");
+  const byLabel = new Map(resolved.facts.map((fact) => [fact.label ?? fact.labelKey, fact.value]));
+  assert.equal(byLabel.get("experience.inspector.fact.evidence_state"), "available");
+  assert.equal(byLabel.get("experience.inspector.fact.evidence_resolver"), "strategy_run");
+  // A resolver's artifact is presented under its own field names: inventing product copy
+  // for data keys would misdescribe them.
+  assert.equal(byLabel.get("status"), "SUCCEEDED");
+  assert.equal(byLabel.get("net_indicative_pnl_gbp"), "12500");
+  assert.equal(resolved.evidenceRefs.includes("strategy_run"), true);
+  assert.equal(resolved.evidenceRefs.includes("ENTSOG"), true);
+
+  // Evidence the backend could not resolve is still inspectable, and says why.
+  const withheld = inspectorDetailFor(
+    source({ reviewContext: projection }),
+    {
+      kind: "decision-evidence",
+      ref: "generated_report:report-1",
+      label: "report-1",
+      originPage: "review",
+    },
+  );
+  assert.equal(withheld.resolved, true);
+  assert.equal(
+    withheld.facts.find(
+      (fact) => (fact.label ?? fact.labelKey) === "experience.inspector.fact.evidence_state",
+    )?.value,
+    "ENTITLEMENT_DENIED",
+  );
+
+  // An entity the projection does not carry is explicitly unresolved, and the ref format
+  // is checked rather than guessed.
+  assert.equal(
+    inspectorDetailFor(source({ reviewContext: projection }), {
+      kind: "decision-evidence",
+      ref: "strategy_run:run-absent",
+      label: "run-absent",
+      originPage: "review",
+    }).resolved,
+    false,
+  );
+  assert.equal(
+    inspectorDetailFor(source({ reviewContext: projection }), {
+      kind: "decision-evidence",
+      ref: "no-separator",
+      label: "no-separator",
+      originPage: "review",
+    }).resolved,
+    false,
+  );
+  assert.equal(
+    inspectorDetailFor(source({ reviewContext: null }), {
+      kind: "decision-evidence",
+      ref: "strategy_run:run-1",
+      label: "run-1",
+      originPage: "review",
+    }).resolved,
+    false,
+  );
+});
+
+test("the review surface hands its evidence over only when it was resolved", () => {
+  const workspace = readWebSource("components/ReviewWorkspace.tsx");
+  const decision = readWebSource("components/DecisionWorkspace.tsx");
+
+  assert.match(workspace, /const resolved = reviewEvidenceFor\(reviewProjection, row\.entity_type, row\.entity_id\);/);
+  assert.match(workspace, /\{resolved \? \(/);
+  assert.match(workspace, /onInspectEvidence\(entityRef, /);
+  // An unresolved entity says so rather than offering an action that would do nothing.
+  assert.match(workspace, /t\("review\.evidence_unavailable"\)/);
+
+  assert.match(decision, /reviewProjection=\{api\.reviewContext\}/);
+  assert.match(
+    decision,
+    /const subject = inspectorSubjectFor\("decision-evidence", ref, label, "review"\);/,
+  );
+  assert.match(decision, /if \(subject\) inspector\.open\(subject\);/);
+
+  const en = JSON.parse(readWebSource("i18n/en.json")) as Record<string, string>;
+  const zh = JSON.parse(readWebSource("i18n/zh.json")) as Record<string, string>;
+  for (const key of [
+    "review.evidence",
+    "review.inspect_evidence",
+    "review.evidence_unavailable",
+    "experience.inspector.fact.evidence_state",
+    "experience.inspector.fact.evidence_resolver",
+  ]) {
+    assert.ok(en[key]?.trim(), `en ${key}`);
+    assert.ok(zh[key]?.trim(), `zh ${key}`);
+    assert.notEqual(en[key], zh[key], key);
+  }
+});
+
 test("the panel renders resolved facts and never resolves detail itself", () => {
   const panel = readWebSource("components/InspectorPanel.tsx");
   const shell = readWebSource("app/shell/AppShell.tsx");
