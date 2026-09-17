@@ -20,6 +20,7 @@ user, an operator, the job telemetry and the error surface all read the same thi
 | Tracking seam | `src/eurogas_nexus/application/jobs.py` | `track_job()` context manager: creates the job, records produced artefacts, fails it with a stable code and **re-raises the original exception untouched** |
 | API | `api/routes/public/jobs.py` | `GET /api/jobs` (filter by status/kind/principal), `GET /api/jobs/{job_id}`, `POST /api/jobs/{job_id}/cancel` |
 | Client contract | `clients/web/src/api/client.ts` | `JobDTO` plus `jobs()`, `job(id)`, `cancelJob(id)` |
+| Activity surface | `clients/web/src/components/JobTimeline.tsx`, `clients/web/src/app/model/jobTimelineModel.ts` | The activity list on the Administration surface: active work first, states from the payload, cancellation offered only where the backend would accept it, failure codes rendered through the product error taxonomy, and the correlation id shown so a user can quote it |
 | First wired path | `api/routes/public/research_data.py` | a dataset build is tracked, so `/api/jobs` shows what the deployment actually ran, its artefacts and its failure code |
 
 ## 3. Rules
@@ -52,9 +53,8 @@ user, an operator, the job telemetry and the error surface all read the same thi
 - Wiring the remaining long-running paths onto `track_job()`: resource-pool optimisation, strategy
   backtests, report generation, agent runs and ingestion runs. The seam is ready; each is a small
   bounded change.
-- The activity/notification region of the shell still shows only the endpoint-failure banner; a job
-  timeline in the product UI is Wave 9 work that can now read `/api/jobs`.
-- Job *replay* and retention policy (how long records are kept) are future operations decisions.
+- Job *replay* and retention policy (how long records are kept) are future operations decisions. The
+  activity list shows the most recent 25 records and refreshes on demand.
 
 ## 6. Verification
 
@@ -64,5 +64,10 @@ user, an operator, the job telemetry and the error surface all read the same thi
 - `tests/api/test_jobs_api.py` — a tracked job records outcome, deduplicated outputs, input hash and
   correlation id; a failing tracked job stores the stable code and re-raises; cancellation is refused
   for a finished job and accepted for a running one; 404 for an unknown job; authentication required.
+- `clients/web/tests/jobTimeline.test.ts` — active/finished separation, payload-driven cancellation and
+  retry, progress and duration formatting without invented values, timeline ordering and summary
+  counts, stable label keys, the shared badge primitive (including that the existing variants are
+  unchanged), the mount on the administration surface, failure explanation through the taxonomy, and
+  bilingual vocabulary.
 - Full suites: `python -m pytest tests -q --ignore=tests/integration` and the client suite; results are
   recorded in the execution checkpoint.

@@ -17,6 +17,7 @@ import {
   StatusBadge,
   WorkspaceTabs,
 } from "@/components/ui";
+import { JobTimeline } from "@/components/JobTimeline";
 
 type Translate = (key: string) => string;
 type ReadinessState = "ready" | "partial" | "blocked";
@@ -359,6 +360,9 @@ export function RuntimeWorkspace({
             <div><span>{t("status.missing_tables")}</span><strong>{runtimeDb.missing_tables.length}</strong></div>
           </div>
         ) : <p className="panel-copy">{t("data.unavailable")}</p>}
+      </div>
+      <div className="workspace-panel span-3 job-timeline-panel">
+        <JobTimeline t={t} />
       </div>
       </>
       )}

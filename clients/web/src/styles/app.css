@@ -8799,3 +8799,82 @@ button.glossary-related-chip {
   color: var(--text-muted, #5b6472);
   font-size: 12px;
 }
+
+/* Architecture V2 unified job states (Wave 8 activity surface). Same badge shape
+   as the source/pipeline badges, so the activity list speaks the existing visual
+   language instead of introducing a fourth one. */
+.job-state {
+  width: fit-content;
+  border: 1px solid var(--eg-hairline);
+  border-radius: var(--eg-pill);
+  background: var(--eg-canvas);
+  color: var(--eg-body);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 8px;
+  text-transform: uppercase;
+}
+
+.job-state-succeeded {
+  border-color: rgb(15 118 110 / 24%);
+  background: rgb(15 118 110 / 12%);
+  color: var(--accent);
+}
+
+.job-state-failed {
+  border-color: rgb(180 35 24 / 24%);
+  background: rgb(180 35 24 / 10%);
+  color: var(--danger);
+}
+
+.job-state-cancelled,
+.job-state-expired,
+.job-state-waiting_for_input {
+  border-color: rgb(180 83 9 / 24%);
+  background: rgb(180 83 9 / 10%);
+  color: var(--warning);
+}
+
+.job-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.job-timeline-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.job-timeline-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.job-timeline-kind {
+  font-weight: 700;
+}
+
+.job-timeline-detail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 11px;
+  color: var(--eg-muted);
+}
+
+.job-timeline-error {
+  color: var(--danger);
+}
+
+.job-timeline-empty {
+  font-size: 12px;
+  color: var(--eg-muted);
+}
