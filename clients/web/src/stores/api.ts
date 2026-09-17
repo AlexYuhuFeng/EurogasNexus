@@ -10,6 +10,14 @@ import {
   requireHostCommand,
 } from "@/app/host/hostCapabilities";
 import {
+  contextAlerts,
+  contextIsUsable,
+  contextNormalizedRows,
+  contextOpportunities,
+  contextQuotes,
+  sliceRows,
+} from "@/app/model/marketContextModel";
+import {
   api,
   AnalysisRequestDTO,
   AnalysisResultDTO,
@@ -24,6 +32,7 @@ import {
   GlossaryContextDTO,
   LngObsDTO,
   IntradayOpportunityDTO,
+  MarketContextProjectionDTO,
   MarketQuoteDTO,
   MarketSpreadDTO,
   MonitoringAlertDTO,
@@ -193,6 +202,56 @@ function latestMarketObservedAt(
   return latestTimestamp(timestamps);
 }
 
+/**
+ * Architecture V2 Wave 5: map one market-context projection onto the market lane.
+ *
+ * The projection is the market surface's coherent source - one as-of instant, one
+ * time basis, per-slice freshness. Its slices are written into the same state
+ * fields the surfaces already read, so no downstream model changes, while every
+ * value now comes from a single payload.
+ *
+ * The projection is never treated as an empty market: a payload the backend could
+ * not serve (or whose quotes slice was withheld) leaves the previous values in
+ * place, and the surface qualifies them from `sliceReadings`/`degradedSlices`.
+ */
+function applyMarketContext(
+  state: ApiState,
+  projection: MarketContextProjectionDTO | null,
+  fxRates: FxRateDTO[] = state.fxRates,
+): Pick<
+  ApiState,
+  | "marketContext"
+  | "normalizedMarkets"
+  | "marketSpreads"
+  | "marketQuotes"
+  | "intradayOpportunities"
+  | "monitoringAlerts"
+  | "marketLastUpdatedAtUtc"
+> {
+  const usable = contextIsUsable(projection);
+  const normalizedMarkets = usable ? contextNormalizedRows(projection) : state.normalizedMarkets;
+  const marketSpreads = usable
+    ? sliceRows<MarketSpreadDTO>(projection, "spreads")
+    : state.marketSpreads;
+  const marketQuotes = usable
+    ? mergeMarketQuotes(state.marketQuotes, contextQuotes(projection))
+    : state.marketQuotes;
+  const intradayOpportunities = usable
+    ? mergeIntradayOpportunities(state.intradayOpportunities, contextOpportunities(projection))
+    : state.intradayOpportunities;
+  const monitoringAlerts = usable ? contextAlerts(projection) : state.monitoringAlerts;
+
+  return {
+    marketContext: projection,
+    normalizedMarkets,
+    marketSpreads,
+    marketQuotes,
+    intradayOpportunities,
+    monitoringAlerts,
+    marketLastUpdatedAtUtc: latestMarketObservedAt(normalizedMarkets, marketQuotes, fxRates),
+  };
+}
+
 export interface ApiState {
   authState: AuthState;
   authStatus: AuthStatusSnapshot;
@@ -207,6 +266,7 @@ export interface ApiState {
   marketSpreads: MarketSpreadDTO[];
   marketQuotes: MarketQuoteDTO[];
   intradayOpportunities: IntradayOpportunityDTO[];
+  marketContext: MarketContextProjectionDTO | null;
   screenOrders: ScreenOrderObservationDTO[];
   pnlSnapshots: PortfolioPnlSnapshotDTO[];
   portfolioSummary: PortfolioLiveSummaryDTO | null;
@@ -380,6 +440,17 @@ const WORKSPACE_LOADERS: Array<[string, WorkspaceApiLoader]> = [
   ["pipelineHealth", api.pipelineHealth],
 ];
 
+/**
+ * Retry-only loaders: reads the market lane performs outside the workspace batch.
+ *
+ * They are deliberately absent from WORKSPACE_LOADERS so an initial workspace load
+ * does not request the projection a second time, but a failed market read stays
+ * retryable through the same bounded control as every other endpoint.
+ */
+const RETRY_ONLY_LOADERS: Array<[string, WorkspaceApiLoader]> = [
+  ["marketContext", (options) => api.marketContext(undefined, options)],
+];
+
 /** endpointMeta key -> ApiState slice key. */
 const WORKSPACE_STATE_KEYS: Record<string, keyof ApiState> = {
   referenceNodes: "nodes",
@@ -446,6 +517,12 @@ export const useApiStore = create<ApiState>((set, get) => ({
   marketSpreads: [],
   marketQuotes: [],
   intradayOpportunities: [],
+  /**
+   * Architecture V2 Wave 5: the coherent market read model the market lane
+   * refreshes. Surfaces read it for the single as-of and per-slice freshness;
+   * the row slices above stay the rendering input.
+   */
+  marketContext: null,
   screenOrders: [],
   pnlSnapshots: [],
   portfolioSummary: null,
@@ -708,7 +785,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
     if (get().endpointRetryBusy) return;
     const failedKeys = Object.keys(get().endpointErrors);
     if (failedKeys.length === 0) return;
-    const loaderByKey = new Map(WORKSPACE_LOADERS);
+    const loaderByKey = new Map([...WORKSPACE_LOADERS, ...RETRY_ONLY_LOADERS]);
     const retryableLoaders = knownWorkspaceLoaders(failedKeys, loaderByKey);
     if (retryableLoaders.length === 0) return;
 
@@ -742,6 +819,15 @@ export const useApiStore = create<ApiState>((set, get) => ({
             delete endpointErrors[key];
             delete endpointErrorCodes[key];
             endpointMeta[key] = outcome.value.meta;
+            // The market projection carries the whole market lane, so a retried
+            // read re-derives every slice it feeds rather than only the payload.
+            if (key === "marketContext") {
+              Object.assign(
+                patch,
+                applyMarketContext(state, outcome.value.data as MarketContextProjectionDTO),
+              );
+              continue;
+            }
             const stateKey = WORKSPACE_STATE_KEYS[key];
             if (stateKey) {
               (patch as Record<string, unknown>)[stateKey] = deriveWorkspaceSlice(key, outcome.value);
@@ -782,17 +868,15 @@ export const useApiStore = create<ApiState>((set, get) => ({
       timeoutMs: DEFAULT_WORKSPACE_READ_TIMEOUT_MS,
     };
     try {
-      // Keep source posture independent from the market-board commit, but keep
-      // it inside this lane so timer ticks cannot create another source read.
+      // Architecture V2 Wave 5: the market lane reads ONE coherent projection
+      // (one as-of, one time basis, per-slice freshness) instead of joining five
+      // low-level endpoints and reconciling their timestamps client-side. Source
+      // posture stays independent inside the same lane.
       const sourcesPromise = loadWorkspaceEndpoint(api.sources, options);
-      const [normalizedResult, spreadResult, quoteResult, opportunityResult, fxResult] =
-        await Promise.all([
-          loadWorkspaceEndpoint(api.normalizedMarketObservations, options),
-          loadWorkspaceEndpoint(api.marketSpreads, options),
-          loadWorkspaceEndpoint(api.marketQuotes, options),
-          loadWorkspaceEndpoint(api.intradayOpportunities, options),
-          loadWorkspaceEndpoint(api.fxRates, options),
-        ]);
+      const [contextResult, fxResult] = await Promise.all([
+        loadWorkspaceEndpoint((loaderOptions) => api.marketContext(undefined, loaderOptions), options),
+        loadWorkspaceEndpoint(api.fxRates, options),
+      ]);
       if (
         refreshSequence === marketRefreshSequence &&
         readRefreshCoordinator.isCurrent(refreshGeneration)
@@ -814,51 +898,27 @@ export const useApiStore = create<ApiState>((set, get) => ({
               endpointErrorCodes[key] = outcome.error.code;
             }
           };
-          recordOutcome("normalizedMarkets", normalizedResult);
-          recordOutcome("marketSpreads", spreadResult);
-          recordOutcome("marketQuotes", quoteResult);
-          recordOutcome("intradayOpportunities", opportunityResult);
+          recordOutcome("marketContext", contextResult);
           recordOutcome("fxRates", fxResult);
 
-          const normalizedMarkets = normalizedResult.ok
-            ? normalizedResult.value.data
-            : state.normalizedMarkets;
-          const marketSpreads = spreadResult.ok
-            ? spreadResult.value.data
-            : state.marketSpreads;
-          const marketQuotes = quoteResult.ok
-            ? mergeMarketQuotes(state.marketQuotes, quoteResult.value.data)
-            : state.marketQuotes;
-          const intradayOpportunities = opportunityResult.ok
-            ? mergeIntradayOpportunities(
-              state.intradayOpportunities,
-              opportunityResult.value.data,
-            )
-            : state.intradayOpportunities;
+          // The projection is the market surface's coherent source. Its slices are
+          // mapped into the same state fields the surfaces already read, so no
+          // downstream model changes - but every value now comes from one payload
+          // with one as-of. A projection the backend could not serve leaves the
+          // previous values in place instead of inventing an empty market.
+          const projection = contextResult.ok ? contextResult.value.data : null;
           const fxRates = fxResult.ok ? fxResult.value.data : state.fxRates;
-          const failedMarketEndpoints = [
-            "normalizedMarkets",
-            "marketSpreads",
-            "marketQuotes",
-            "intradayOpportunities",
-            "fxRates",
-          ].filter((key) => endpointErrors[key]);
+          const failedMarketEndpoints = ["marketContext", "fxRates"].filter(
+            (key) => endpointErrors[key],
+          );
 
           return {
-            normalizedMarkets,
-            marketSpreads,
-            marketQuotes,
-            intradayOpportunities,
+            ...applyMarketContext(state, projection, fxRates),
             fxRates,
             endpointMeta,
             endpointErrors,
             endpointErrorCodes,
-            meta: normalizedResult.ok ? normalizedResult.value.meta : state.meta,
-            marketLastUpdatedAtUtc: latestMarketObservedAt(
-              normalizedMarkets,
-              marketQuotes,
-              fxRates,
-            ),
+            meta: contextResult.ok ? contextResult.value.meta : state.meta,
             error: failedMarketEndpoints.length > 0
               ? `${MARKET_REFRESH_ERROR_PREFIX} ${failedMarketEndpoints.join(", ")}`
               : state.error?.startsWith(MARKET_REFRESH_ERROR_PREFIX)

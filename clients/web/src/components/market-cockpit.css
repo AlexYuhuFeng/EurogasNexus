@@ -63,6 +63,34 @@
   color: var(--eg-ink);
 }
 
+.market-context-slices {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  flex-wrap: wrap;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.market-context-slices li {
+  display: flex;
+  gap: var(--space-1);
+  align-items: center;
+  border: 1px solid var(--eg-hairline);
+  border-radius: var(--radius-control);
+  background: var(--eg-canvas-soft-2);
+  padding: 0 var(--space-1);
+}
+
+.market-context-slice-label {
+  color: var(--eg-ink);
+}
+
+.market-context-slice-restricted {
+  color: var(--eg-warning);
+}
+
 .market-hub-board {
   grid-area: board;
   align-self: start;

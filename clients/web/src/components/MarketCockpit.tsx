@@ -6,6 +6,7 @@ import { MarketTerminal } from "@/components/MarketTerminal";
 import { NetworkWorkspace } from "@/components/NetworkWorkspace";
 import { GasNetworkMap } from "@/components/GasNetworkMap";
 import { IntradayDecisionFeed } from "@/components/IntradayDecisionFeed";
+import { MarketContextStrip } from "@/components/MarketContextStrip";
 import type { AppController } from "@/app/hooks/useAppController";
 import { dataPlaneLabelKey, dataPlaneState } from "@/app/model/dataPlaneStatus";
 import "./market-cockpit.css";
@@ -285,6 +286,7 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
         onActivate={openTask}
       />
       <div id="market-cockpit-panel">
+        <MarketContextStrip projection={api.marketContext} t={t} />
         {task === "overview" && <MarketOverview controller={controller} task={task} />}
         {task === "curves" && (
           <MarketTerminal

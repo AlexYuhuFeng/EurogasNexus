@@ -689,6 +689,70 @@ export interface MarketSpreadDTO {
   from_hub: string; to_hub: string; spread_eur_mwh: number; period: string;
 }
 
+/**
+ * Architecture V2 Wave 5 projection contract.
+ *
+ * A projection is a coherent, server-composed read model: one `as_of_utc`, one
+ * `time_basis`, and per-slice freshness and entitlement. The client renders it
+ * instead of joining several low-level endpoints with mixed timestamps.
+ */
+export interface ProjectionFreshnessDTO {
+  state: string;
+  basis: string | null;
+  evaluated_at_utc: string | null;
+  last_observed_at_utc: string | null;
+  expected_within_minutes: number | null;
+  expectation_source: string | null;
+  measured: unknown;
+  derived_from: string | null;
+}
+
+export interface ProjectionEntitlementDTO {
+  row_filter_applied: boolean;
+  filtered_out: number;
+  reason: string;
+}
+
+export interface ProjectionSliceDTO<Row> {
+  available: boolean;
+  source_references: string[];
+  row_count: number;
+  rows: Row[] | null;
+  payload: Record<string, unknown> | null;
+  freshness: ProjectionFreshnessDTO;
+  entitlement: ProjectionEntitlementDTO | null;
+  context_filter: { applied: string[]; rule: string } | null;
+  limits: { row_limit: number; truncated: boolean } | null;
+  warnings: string[];
+  notes: string[];
+}
+
+export interface MarketContextProjectionDTO {
+  projection: string;
+  projection_version: string;
+  as_of_utc: string;
+  time_basis: Record<string, unknown>;
+  active_context: Record<string, unknown>;
+  slices: {
+    market_observations: ProjectionSliceDTO<MarketObsDTO>;
+    normalized_quotes: ProjectionSliceDTO<NormalizedMarketObsDTO>;
+    quotes: ProjectionSliceDTO<MarketQuoteDTO>;
+    intraday_opportunities: ProjectionSliceDTO<IntradayOpportunityDTO>;
+    spreads: ProjectionSliceDTO<MarketSpreadDTO>;
+    monitoring: ProjectionSliceDTO<MonitoringAlertDTO>;
+    data_sources: ProjectionSliceDTO<SourceSystemDTO>;
+  };
+  warnings: string[];
+  research_only: boolean;
+  human_review_required: boolean;
+}
+
+export interface MarketContextQuery {
+  gasDay?: string;
+  product?: string;
+  hub?: string;
+}
+
 export interface ReviewDecisionDTO {
   decision_id: string; entity_type: string; entity_id: string;
   actor: string; decision: string; note: string | null; created_at_utc: string;
@@ -1962,6 +2026,20 @@ export const api = {
     get<NormalizedMarketObsDTO[]>("/market/normalized", { limit: "500" }, options),
 
   marketSpreads: (options?: ApiRequestOptions) => get<MarketSpreadDTO[]>("/market/spreads", undefined, options),
+
+  /**
+   * Architecture V2 market projection: one coherent read model (observations,
+   * normalized quotes, quotes, opportunities, spreads, monitoring, data sources)
+   * on a single as-of and time basis, so the client stops joining several
+   * endpoints with mixed timestamps.
+   */
+  marketContext: (query?: MarketContextQuery, options?: ApiRequestOptions) => {
+    const params: Record<string, string> = {};
+    if (query?.gasDay) params.gasDay = query.gasDay;
+    if (query?.product) params.product = query.product;
+    if (query?.hub) params.hub = query.hub;
+    return get<MarketContextProjectionDTO>("/projections/market-context", params, options);
+  },
 
   reviewDecisions: (params?: { entity_type?: string; entity_id?: string; limit?: string }, options?: ApiRequestOptions) =>
     get<ReviewDecisionDTO[]>("/review/decisions", params, options),
