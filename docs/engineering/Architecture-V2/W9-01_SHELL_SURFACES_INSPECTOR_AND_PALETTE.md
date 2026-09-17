@@ -180,6 +180,21 @@ rather than a shared one. The contract workbench is the first of those lifts: th
 extracted to a model rather than copied into the header, because a second copy of "may this be
 written" is the failure mode the geography exists to prevent.
 
+**Surfaces that deliberately declare no primary action.** An empty primary slot is also a
+claim, so the ones this migration leaves empty are recorded here with their reason rather than
+left to be read as unfinished work:
+
+| Surface | Why no primary action |
+| --- | --- |
+| Review task (`DecisionWorkspace`, `task === "review"`) | Its act is a *decision* with three outcomes (accepted / rejected / needs attention), not one action. Promoting one outcome into the header would make the platform look like it recommends that outcome, and the three buttons are a deliberate step next to the evidence they judge. The report run beside them is supporting evidence for that judgement, not the task's primary act |
+| Market cockpit (`MarketCockpit`) | Read-mostly: it presents curves, observations and context. Its actions are the five canonical AI actions in the rail, which the geography places as offers rather than as a workspace primary |
+| Runtime / administration (`RuntimeWorkspace`) | Operator surfaces: readiness evidence, the activity timeline and the diagnostics bundle. Their controls are operational (`refresh`, `cancel`, `prepare`), which the geography keeps beside the thing they act on; none is a compute or persist act of the workspace |
+| Sources, glossary, access, settings, manual | Administrative and reference surfaces whose acts are row- or field-local (`save credential`, `update access`, `change language`), i.e. `read`, `utility` or `lifecycle`, none of which occupies the primary slot |
+
+The action-geography enforcement asserts the *inventory* of surfaces that pass a primary action,
+so a surface that starts passing one fails the test until its consequence is declared. This
+table is the complement: it states which surfaces may not, and why.
+
 - **Third application (compute).** The agent research surface now puts starting a governed
   research run in that slot, with the same shape as the first: the run is a `compute`
   consequence, the surface's own tab row became a `WorkspaceHeader`, and the action is disabled
