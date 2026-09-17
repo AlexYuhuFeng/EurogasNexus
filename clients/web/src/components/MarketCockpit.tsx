@@ -7,6 +7,8 @@ import { NetworkWorkspace } from "@/components/NetworkWorkspace";
 import { GasNetworkMap } from "@/components/GasNetworkMap";
 import { IntradayDecisionFeed } from "@/components/IntradayDecisionFeed";
 import { MarketContextStrip } from "@/components/MarketContextStrip";
+import { marketObservationSubject } from "@/app/model/inspectorDetail";
+import { useInspectorStore } from "@/stores/inspector";
 import type { AppController } from "@/app/hooks/useAppController";
 import { dataPlaneLabelKey, dataPlaneState } from "@/app/model/dataPlaneStatus";
 import "./market-cockpit.css";
@@ -90,6 +92,7 @@ function MarketOverview({ controller }: MarketOverviewProps) {
   const { api, portfolio, traderContext, selection, controls, t, navigation, theme } = controller;
   const markets = api.normalizedMarkets;
   const quotes = api.marketQuotes;
+  const inspector = useInspectorStore();
   const [nowMs, setNowMs] = useState(() => Date.now());
 
   useEffect(() => {
@@ -112,6 +115,13 @@ function MarketOverview({ controller }: MarketOverviewProps) {
     [comparisonRows],
   );
   const focusedHub = traderContext.hubId;
+  // Wave 9 hand-over: the Inspector shows the object the hub board actually
+  // displayed for the focused hub - the quote when one exists, otherwise the
+  // normalized observation. It resolves detail from data this surface already
+  // received, so opening it fetches nothing.
+  const inspectedObservation = focusedHub
+    ? comparisonByHub.get(focusedHub)?.quote ?? latestMarketByHub.get(focusedHub) ?? null
+    : null;
   const relevantResources = portfolio.portfolioResources.filter(
     (resource) =>
       !focusedHub ||
@@ -232,6 +242,20 @@ function MarketOverview({ controller }: MarketOverviewProps) {
               }}
             >
               {t("market.inspect_in_strategy")}
+            </button>
+            <button
+              type="button"
+              disabled={!inspectedObservation}
+              onClick={() => {
+                const subject = marketObservationSubject(
+                  inspectedObservation,
+                  "market",
+                  focusedHub ?? "",
+                );
+                if (subject) inspector.open(subject);
+              }}
+            >
+              {t("market.inspect_observation")}
             </button>
           </div>
         </section>

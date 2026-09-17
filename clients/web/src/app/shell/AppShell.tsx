@@ -17,6 +17,7 @@ import {
 import type { PaletteCommand } from "@/app/experience/commandPalette";
 import { paletteUnavailableReasonKey } from "@/app/experience/commandPalette";
 import { isControlPlanePage } from "@/app/navigation/productNavigation";
+import { inspectorDetailFor } from "@/app/model/inspectorDetail";
 import { useInspectorStore } from "@/stores/inspector";
 import { WorkspaceRenderer } from "@/app/workspaces/WorkspaceRenderer";
 import { isBlockingCompatibility } from "@/app/releaseCompatibility";
@@ -287,6 +288,7 @@ export function AppShell({ controller }: AppShellProps) {
       {inspector.subject && (
         <InspectorPanel
           subject={inspector.subject}
+          detail={inspectorDetailFor(api, inspector.subject)}
           canGoBack={inspector.history.length > 0}
           t={t}
           onClose={inspector.close}
