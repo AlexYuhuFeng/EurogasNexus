@@ -8,6 +8,10 @@ import { GasNetworkMap } from "@/components/GasNetworkMap";
 import { IntradayDecisionFeed } from "@/components/IntradayDecisionFeed";
 import { MarketContextStrip } from "@/components/MarketContextStrip";
 import { marketObservationSubject } from "@/app/model/inspectorDetail";
+import { copilotOffers } from "@/app/model/copilotModel";
+import { CopilotHost } from "@/components/CopilotPanel";
+import { useCopilotSources } from "@/app/hooks/useCopilot";
+import type { AiActionKind } from "@/app/experience/vocabulary";
 import { useInspectorStore } from "@/stores/inspector";
 import type { AppController } from "@/app/hooks/useAppController";
 import { dataPlaneLabelKey, dataPlaneState } from "@/app/model/dataPlaneStatus";
@@ -93,6 +97,17 @@ function MarketOverview({ controller }: MarketOverviewProps) {
   const markets = api.normalizedMarkets;
   const quotes = api.marketQuotes;
   const inspector = useInspectorStore();
+  const [aiAction, setAiAction] = useState<AiActionKind | null>(null);
+  // The Copilot reads the same canonical sources the shell and the palette use, so an
+  // action offered here carries the context and evidence a run would actually use.
+  const copilotSources = useCopilotSources({
+    selection: {
+      routeId: selection.routeId,
+      resourceId: selection.resourceId,
+      strategyVersionId: selection.strategyVersionId,
+      strategyRunId: selection.strategyRunId,
+    },
+  });
   const [nowMs, setNowMs] = useState(() => Date.now());
 
   useEffect(() => {
@@ -233,8 +248,7 @@ function MarketOverview({ controller }: MarketOverviewProps) {
             </ul>
           )}
           <div className="market-handoff-actions">
-            <button type="button" onClick={() => navigation.openWorkspace("scenario")}>{t("market.open_in_scenario")}</button>
-            <button
+            <button type="button" onClick={() => navigation.openWorkspace("scenario")}>{t("market.open_in_scenario")}</button>            <button
               type="button"
               onClick={() => {
                 if (focusedHub) traderContext.setHubId(focusedHub);
@@ -259,6 +273,26 @@ function MarketOverview({ controller }: MarketOverviewProps) {
             </button>
           </div>
         </section>
+        <section className="workspace-panel" aria-label={t("experience.copilot.title")}>
+          <h2>{t("experience.copilot.title")}</h2>
+          <p className="panel-copy">{t("experience.copilot.subtitle")}</p>
+          {/* Wave 7 convergence on this workspace: the five canonical actions are offered
+              here, gated by the same rule the palette and the Copilot apply. An action that
+              would be withheld says so instead of opening a panel that refuses it. */}
+          <div className="market-handoff-actions">
+            {copilotOffers(copilotSources.context, copilotSources.evidenceRefs).map((offer) => (
+              <button
+                key={offer.action}
+                type="button"
+                disabled={!offer.available}
+                title={offer.withheldReasonKey ? t(offer.withheldReasonKey) : undefined}
+                onClick={() => setAiAction(offer.action)}
+              >
+                {t(offer.labelKey)}
+              </button>
+            ))}
+          </div>
+        </section>
       </aside>
 
       <section className="market-spread-strip" aria-label={t("market.spread_strip")}>
@@ -269,6 +303,15 @@ function MarketOverview({ controller }: MarketOverviewProps) {
           </div>
         ))}
       </section>
+
+      {aiAction && (
+        <CopilotHost
+          action={aiAction}
+          t={t}
+          onClose={() => setAiAction(null)}
+          onSelectAction={setAiAction}
+        />
+      )}
     </div>
   );
 }

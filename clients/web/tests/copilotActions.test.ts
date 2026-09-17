@@ -65,6 +65,31 @@ function readLocale(name: "en" | "zh"): Record<string, string> {
   return JSON.parse(readWebSource(`i18n/${name}.json`)) as Record<string, string>;
 }
 
+test("a workspace mounts the Copilot with the same rule the palette applies", () => {
+  const cockpit = readWebSource("components/MarketCockpit.tsx");
+
+  // The workspace offers the five canonical actions from the one registry, resolved from
+  // the same canonical sources the shell and the palette use, and gates each with the
+  // offer the contract produced rather than with a copy of the rule.
+  assert.match(cockpit, /import \{ copilotOffers \} from "@\/app\/model\/copilotModel"/);
+  assert.match(cockpit, /import \{ CopilotHost \} from "@\/components\/CopilotPanel"/);
+  assert.match(cockpit, /copilotOffers\(copilotSources\.context, copilotSources\.evidenceRefs\)\.map/);
+  assert.match(cockpit, /disabled=\{!offer\.available\}/);
+  assert.match(
+    cockpit,
+    /title=\{offer\.withheldReasonKey \? t\(offer\.withheldReasonKey\) : undefined\}/,
+  );
+  assert.match(cockpit, /onClick=\{\(\) => setAiAction\(offer\.action\)\}/);
+  assert.match(cockpit, /<CopilotHost\s+action=\{aiAction\}/s);
+  // Evidence comes from the selection the surface already holds, and the panel is a
+  // canonical-action surface rather than a sixth action of its own.
+  assert.match(cockpit, /const copilotSources = useCopilotSources\(\{/);
+  assert.match(cockpit, /routeId: selection\.routeId,/);
+  assert.match(cockpit, /strategyRunId: selection\.strategyRunId,/);
+  assert.match(cockpit, /import type \{ AiActionKind \} from "@\/app\/experience\/vocabulary"/);
+  assert.equal(cockpit.includes("api.analysisQuery"), false, "the Copilot host owns the transport");
+});
+
 /** Executable lines only: comments state the rules and are checked separately. */
 function codeLines(source: string): string {
   return source
