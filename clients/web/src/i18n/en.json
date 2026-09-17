@@ -1791,6 +1791,7 @@
   "errors.cause.capability_missing": "The identity lacks the capability this action needs.",
   "errors.cause.licence_restriction": "The data licence does not cover this principal.",
   "errors.cause.administration_is_not_commercial": "Platform administration does not grant commercial data access.",
+  "errors.cause.self_grant_refused": "Roles and data scopes are granted by someone else; an identity cannot change its own.",
   "errors.cause.export_restriction": "Export is restricted for this dataset.",
   "errors.cause.data_beyond_freshness": "The newest value is older than the freshness expectation.",
   "errors.cause.source_has_no_rows": "The source returned no rows for this selection.",

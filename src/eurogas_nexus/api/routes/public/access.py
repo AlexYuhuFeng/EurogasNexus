@@ -22,6 +22,9 @@ from eurogas_nexus.security.rate_limit import require_admin_rate_limit
 
 router = APIRouter(tags=["access"], dependencies=[Depends(require_admin_rate_limit)])
 
+#: Refusal code for a caller that would change its own roles or data scopes.
+ENTITLEMENT_SELF_GRANT_FORBIDDEN = "entitlement_self_grant_forbidden"
+
 
 class AccessUpdateRequest(BaseModel):
     status: str | None = Field(default=None, pattern="^(ACTIVE|DISABLED|LOCKED)$")
@@ -35,6 +38,37 @@ class ApiKeyCreateRequest(BaseModel):
     display_name: str = Field(default="default", min_length=1, max_length=128)
     expires_at_utc: datetime | None = None
     scopes: list[str] = Field(default_factory=list)
+
+
+def _changes_own_grants(
+    *,
+    admin: AuthenticatedPrincipal,
+    principal_id: str,
+    row,
+    body: AccessUpdateRequest,
+) -> bool:
+    """Whether this request would change the caller's own roles or data scopes.
+
+    Only a *change* is refused: a request that repeats the current grants is a no-op and
+    stays allowed, so an administration form that submits unchanged fields keeps working,
+    while an escalation - or a self-demotion - has to be made by a second administrator.
+    """
+
+    if principal_id != admin.principal_id:
+        return False
+    if body.roles is None and body.data_scopes is None:
+        return False
+    current_roles = sorted(str(item) for item in (row.roles or [row.role]))
+    current_scopes = sorted(str(item) for item in (row.data_scopes or []))
+    requested_roles = (
+        sorted(str(item) for item in body.roles) if body.roles is not None else current_roles
+    )
+    requested_scopes = (
+        sorted(str(item) for item in body.data_scopes)
+        if body.data_scopes is not None
+        else current_scopes
+    )
+    return requested_roles != current_roles or requested_scopes != current_scopes
 
 
 def _require_admin(request: Request, permission: Permission) -> AuthenticatedPrincipal:
@@ -89,6 +123,37 @@ def patch_user(principal_id: str, body: AccessUpdateRequest, request: Request) -
         if row is None:
             raise HTTPException(status_code=404, detail={"code": "user_not_found"})
         before = principal_payload(session, row)
+        if _changes_own_grants(admin=admin, principal_id=principal_id, row=row, body=body):
+            # Architecture V2 finding C6b: entitlement is granted, not assumed, and a grant
+            # the grantee makes to itself is not a grant. The refusal is audited as a denial
+            # - and committed - so an attempt is visible even though nothing changed.
+            _audit_admin(
+                session,
+                actor=admin.principal_id,
+                action="access.user.update",
+                resource=f"identity_principal:{principal_id}",
+                outcome="denied",
+                detail=(
+                    "self grant refused: roles and data scopes are changed by another "
+                    "administrator"
+                ),
+                before=before,
+            )
+            session.commit()
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "error": ENTITLEMENT_SELF_GRANT_FORBIDDEN,
+                    "message": (
+                        "Roles and data scopes are granted by someone else: this identity "
+                        "cannot change its own grants. Ask a second administrator to make "
+                        "the change."
+                    ),
+                    "principal_id": principal_id,
+                    "research_only": True,
+                    "human_review_required": True,
+                },
+            )
         if body.status:
             row.status = body.status
             if body.status in {"DISABLED", "LOCKED"}:

@@ -97,6 +97,7 @@ const CODE_CAUSES: Readonly<Record<string, string>> = {
   permission_denied: "errors.cause.capability_missing",
   entitlement_denied: "errors.cause.licence_restriction",
   commercial_access_not_granted: "errors.cause.administration_is_not_commercial",
+  entitlement_self_grant_forbidden: "errors.cause.self_grant_refused",
   export_denied: "errors.cause.export_restriction",
   DATA_STALE: "errors.cause.data_beyond_freshness",
   DATA_MISSING: "errors.cause.source_has_no_rows",

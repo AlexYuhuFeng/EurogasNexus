@@ -1791,6 +1791,7 @@
   "errors.cause.capability_missing": "当前身份缺少该操作所需的能力。",
   "errors.cause.licence_restriction": "数据许可不覆盖该主体。",
   "errors.cause.administration_is_not_commercial": "平台管理权限不授予商业数据访问权。",
+  "errors.cause.self_grant_refused": "角色与数据范围由他人授予，主体不能更改自身的授权。",
   "errors.cause.export_restriction": "该数据集的导出受到限制。",
   "errors.cause.data_beyond_freshness": "最新数值已超过新鲜度预期。",
   "errors.cause.source_has_no_rows": "该数据源在此选择下没有返回行。",
