@@ -104,6 +104,9 @@ These tests fail CI loudly on contract drift:
 | `GET /api/projections/portfolio-snapshot` | Architecture V2 Wave 5 | READ-floor coherent portfolio read model (summary, screen orders, PnL snapshots, resource context) with per-slice freshness |
 | `GET /api/projections/review-context` | Architecture V2 Wave 5 | READ-floor coherent review read model (evidence, decisions, warnings) for the review workflow |
 | `GET /api/projections/scenario-context` | Architecture V2 Wave 5 | GOVERNED-floor (ANALYST) scenario and route-economics read model. The projection keeps the floor of the endpoint it composes, so it cannot widen access; it exists to remove client-side joins, not to relax authorisation |
+| `GET /api/jobs` | Architecture V2 Wave 8 (unified jobs) | READ-floor list of tracked long-running operations (ingestion, dataset build, optimisation, backtest, report, agent run, snapshot) newest first, filterable by status, kind and principal. Job telemetry only: no secret, no stack trace, no licensed payload |
+| `GET /api/jobs/{job_id}` | Architecture V2 Wave 8 | read one job with its progress, output references, correlation id and, on failure, the stable error code from the product taxonomy; 404 when the job is not tracked |
+| `POST /api/jobs/{job_id}/cancel` | Architecture V2 Wave 8 | GOVERNED-floor (ANALYST) cancellation of a cancellable, non-terminal job. A finished job answers 409 `job_already_finished` and a protected one 409 `job_not_cancellable`, so the surface never claims to have stopped work it did not stop |
 
 ## Deprecation Table
 

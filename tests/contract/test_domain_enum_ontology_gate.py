@@ -105,6 +105,11 @@ _REVIEWED_DOMAIN_STR_ENUMS: set[str] = {
     "eurogas_nexus.domain.operations.error_taxonomy:ErrorFamily",
     "eurogas_nexus.domain.operations.error_taxonomy:ErrorSeverity",
     "eurogas_nexus.domain.operations.error_taxonomy:Recoverability",
+    # Architecture V2 Wave 8 unified job lifecycle. Operational state vocabulary
+    # shared by ingestion, dataset builds, optimisation, backtests, reporting and
+    # agent work - not gas-market semantics, so it stays with its contract.
+    "eurogas_nexus.domain.operations.jobs:JobKind",
+    "eurogas_nexus.domain.operations.jobs:JobState",
 }
 
 

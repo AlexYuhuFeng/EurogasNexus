@@ -24,7 +24,7 @@ Wave status: DELIVERED_AND_VALIDATED for the waves listed above.
 - [x] **Wave 4** — Data Product catalogue (`GET /api/data-products`), Analysis Snapshot v1 (`0034_analysis_snapshots`, `POST/GET /api/analysis-snapshots`), snapshot reference carried by the route-cost recommendation (`W4-01`).
 - [x] **Wave 5** — application projections: MarketContext, PortfolioSnapshot, ReviewContext, ScenarioContext (`/api/projections/*`), with the market and portfolio read layers extracted into `application/projections/` so both the existing routes and the projections call one implementation (`W5-01`).
 - [x] **Wave 6** — Decision Case domain, persistence (`0035_decision_cases`), API and client contract; a case cannot be decided without evidence, and the actor is the authenticated identity (`W6-01`).
-- [x] **Wave 8 (taxonomy/presentation)** — product error taxonomy with ten families, severity, recoverability, correlation ids and operator-only detail; client presentation answering what happened, impact, cause and recovery (`W8-01`).
+- [x] **Wave 8 (taxonomy, presentation and jobs)** — product error taxonomy with ten families, severity, recoverability, correlation ids and operator-only detail; the additive API error envelope on every `HTTPException`; and the **unified Job model** (`job_records`, `0036_job_records`) with `track_job()` as the adoption seam, wired into the dataset-build path (`W8-01`, `W8-02`).
 - [x] **Wave 9 (first slice)** — canonical Inspector region and mounted command palette; every declared shell region is now rendered (`W9-01`).
 - [x] Release/security plumbing kept honest: `DB_SCHEMA_REVISION` now reports the real Alembic head and the release-metadata test asserts it equals that head; the security acceptance surface bound moved to 175 paths with the reason recorded.
 
@@ -38,7 +38,7 @@ Wave status: DELIVERED_AND_VALIDATED for the waves listed above.
 ## Deferred / known gaps
 
 - **Wave 5 client half**: no UI reads the projections yet. Also `PortfolioSnapshot.resources` is declared unavailable (`RESOURCE_POOL_COMPOSITION_IS_ROUTE_LOCAL`) until `_compose_resource_pool_options` is extracted from `route_cost.py`.
-- **Wave 8**: the API still raises hand-built `HTTPException` details; wiring the taxonomy into the error handler/middleware is the next step. The unified Job model is not implemented.
+- **Wave 8**: the unified Job model exists and one path uses it; wiring the remaining long-running paths (resource-pool optimisation, backtests, reports, agent runs, ingestion runs) onto `track_job()` is incremental. Unhandled exceptions still use the framework default rather than a system-fault envelope.
 - **Wave 9**: workspaces are not yet migrated onto the Inspector and the panel taxonomy; the palette is mounted but AI actions stay out of it until Wave 7 gives them an invocation surface.
 - **Wave 7** (research/AI convergence) and **Wave 10** (desktop workstation) are not started.
 - Security findings C5-C8 from `W0-03_ARCHITECTURE_RECONCILIATION.md` remain open for the authority work: the legacy-principal entitlement behaviour, MCP's environment pseudo-principal, the two direct LLM routes that do not re-authorise against user authority, and the separation-of-duties question (C6b) for entitlement grants.

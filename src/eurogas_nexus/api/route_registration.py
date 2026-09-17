@@ -16,6 +16,7 @@ from eurogas_nexus.api.routes.public.data_platform import router as data_platfor
 from eurogas_nexus.api.routes.public.decision_cases import router as decision_cases_router
 from eurogas_nexus.api.routes.public.glossary import router as glossary_router
 from eurogas_nexus.api.routes.public.health import router as health_router
+from eurogas_nexus.api.routes.public.jobs import router as jobs_router
 from eurogas_nexus.api.routes.public.lng import router as lng_router
 from eurogas_nexus.api.routes.public.market import router as market_router
 from eurogas_nexus.api.routes.public.monitoring import router as monitoring_router
@@ -50,6 +51,7 @@ def register_routes(
     if route_profile.include_public:
         app.include_router(agents_router)
         app.include_router(health_router)
+        app.include_router(jobs_router)
         app.include_router(auth_router)
         app.include_router(access_router)
         app.include_router(analysis_router)

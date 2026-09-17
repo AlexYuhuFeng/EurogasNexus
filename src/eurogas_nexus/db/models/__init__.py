@@ -39,6 +39,7 @@ from eurogas_nexus.db.models.dataops import (
     SourceRuntimeStateRecord,
 )
 from eurogas_nexus.db.models.glossary import GlossaryTermRecord
+from eurogas_nexus.db.models.jobs import JobRecord
 from eurogas_nexus.db.models.identity import (
     IdentityApiKeyRecord,
     IdentityExternalIdRecord,
@@ -253,6 +254,7 @@ __all__ = [
     "FlowObservationRecord",
     "FxObservationRecord",
     "GlossaryTermRecord",
+    "JobRecord",
     "GeneratedReportRecord",
     "IngestionRunRecord",
     "IngestionRunStatus",

@@ -160,6 +160,9 @@ Wave 8 (product operations):
 
 - [W8-01 product error taxonomy](W8-01_ERROR_TAXONOMY.md) — ten families, stable
   codes, severity and recoverability, correlation ids, and operator-only detail.
+- [W8-02 unified job model](W8-02_UNIFIED_JOB_MODEL.md) — one lifecycle for
+  ingestion, dataset builds, optimisation, backtests, reporting and agent runs,
+  with a tracking seam existing work can adopt.
 
 Wave 9 (UI implementation convergence):
 

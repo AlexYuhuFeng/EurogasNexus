@@ -229,6 +229,7 @@ REQUIRED_TABLES: tuple[RequiredTable, ...] = (
     RequiredTable(name="analysis_snapshots", introduced_in="0034_analysis_snapshots"),
     RequiredTable(name="decision_cases", introduced_in="0035_decision_cases"),
     RequiredTable(name="decision_case_records", introduced_in="0035_decision_cases"),
+    RequiredTable(name="job_records", introduced_in="0036_job_records"),
 )
 
 

@@ -331,36 +331,54 @@ def materialize_dataset(body: DatasetMaterializeRequest, request: Request) -> di
     except ValidationError as exc:
         raise _dataset_spec_error(exc) from None
     with _session() as session:
-        try:
-            result, dependency_rows, issue_rows = _build_from_runtime(
-                session, spec, snapshot_id=body.snapshot_id, principal=principal
-            )
-        except HTTPException:
-            raise
-        except DatasetRegistryError as exc:
-            raise _registry_error(exc) from exc
-        except (KeyError, TypeError, ValueError) as exc:
-            raise _dataset_build_error() from exc
-        if body.materialize:
-            from eurogas_nexus.application import research_artifacts
-            from eurogas_nexus.db.repositories.research import persist_dataset_snapshot
+        # Architecture V2 Wave 8: a dataset build is tracked under the shared job
+        # lifecycle, so its outcome is visible in /api/jobs together with the
+        # artefacts it produced and a stable code when it fails.
+        from eurogas_nexus.application.jobs import track_job
 
+        with track_job(
+            session,
+            kind="DATASET_BUILD",
+            principal=principal.name,
+            scope_refs=(f"SNAPSHOT:{body.snapshot_id}",) if body.snapshot_id else (),
+            snapshot_id=body.snapshot_id,
+            inputs=body.dataset_spec,
+            correlation_id=getattr(request.state, "request_id", None),
+            provenance=("research-datasets",),
+        ) as job:
             try:
-                # CR14-ARTIFACT-001: materialize the format-specific artifacts
-                # this deployment can produce before persisting the snapshot, so
-                # a snapshot can never reference an artifact that was not
-                # written, and an unusable store fails closed.
-                artifacts = research_artifacts.write_dataset_artifacts(result)
-            except research_artifacts.ArtifactStoreUnavailable as exc:
-                raise _artifact_store_error(exc.detail) from exc
-            persist_dataset_snapshot(
-                session,
-                metadata=result.as_metadata(),
-                dependencies=dependency_rows,
-                issues=issue_rows,
-                artifacts=artifacts,
-            )
-            session.commit()
+                result, dependency_rows, issue_rows = _build_from_runtime(
+                    session, spec, snapshot_id=body.snapshot_id, principal=principal
+                )
+            except HTTPException:
+                raise
+            except DatasetRegistryError as exc:
+                raise _registry_error(exc) from exc
+            except (KeyError, TypeError, ValueError) as exc:
+                raise _dataset_build_error() from exc
+            if body.materialize:
+                from eurogas_nexus.application import research_artifacts
+                from eurogas_nexus.db.repositories.research import persist_dataset_snapshot
+
+                try:
+                    # CR14-ARTIFACT-001: materialize the format-specific artifacts
+                    # this deployment can produce before persisting the snapshot, so
+                    # a snapshot can never reference an artifact that was not
+                    # written, and an unusable store fails closed.
+                    artifacts = research_artifacts.write_dataset_artifacts(result)
+                except research_artifacts.ArtifactStoreUnavailable as exc:
+                    raise _artifact_store_error(exc.detail) from exc
+                persist_dataset_snapshot(
+                    session,
+                    metadata=result.as_metadata(),
+                    dependencies=dependency_rows,
+                    issues=issue_rows,
+                    artifacts=artifacts,
+                )
+                job.add_output(f"dataset_snapshot:{result.dataset_snapshot_id}")
+        # The tracked outcome commits with the work it describes; a validate-only
+        # build persists nothing but its job record.
+        session.commit()
     return _env(
         {
             **result.as_metadata(),

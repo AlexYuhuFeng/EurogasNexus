@@ -173,6 +173,13 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     ("/api/projections/portfolio-snapshot", Permission.READ),
     ("/api/projections/review-context", Permission.READ),
     ("/api/projections/scenario-context", Permission.GOVERNED),
+    # --- Architecture V2 unified jobs ---
+    # Job status is operational telemetry: any authenticated caller may read what
+    # their deployment is running. Cancelling a job stops work, so it keeps the
+    # GOVERNED (ANALYST) floor.
+    ("/api/jobs", Permission.READ),
+    ("/api/jobs/{job_id}", Permission.READ),
+    ("/api/jobs/{job_id}/cancel", Permission.GOVERNED),
     # --- agent-native capability layer (CR-15) ---
     ("/api/capabilities", Permission.READ),
     ("/api/capabilities/search", Permission.READ),

@@ -774,6 +774,48 @@ export interface DecisionCaseDecisionInputDTO {
   note?: string;
 }
 
+/**
+ * Unified job record (`GET /api/jobs`). Architecture V2 converges ingestion,
+ * dataset builds, optimisation, backtests, reporting and agent work on this one
+ * lifecycle, so a surface can show what the deployment is actually running.
+ */
+export interface JobDTO {
+  job_id: string;
+  kind:
+    | "INGESTION"
+    | "DATASET_BUILD"
+    | "OPTIMISATION"
+    | "BACKTEST"
+    | "REPORT"
+    | "AGENT_RUN"
+    | "SNAPSHOT";
+  job_version: string;
+  status:
+    | "QUEUED"
+    | "RUNNING"
+    | "WAITING_FOR_INPUT"
+    | "SUCCEEDED"
+    | "FAILED"
+    | "CANCELLED"
+    | "EXPIRED";
+  principal: string;
+  scope_refs: string[];
+  snapshot_id: string;
+  input_hash: string;
+  progress: number;
+  created_at_utc: string;
+  started_at_utc: string | null;
+  finished_at_utc: string | null;
+  duration_seconds: number | null;
+  output_refs: string[];
+  error_code: string;
+  error_message: string;
+  retryable: boolean;
+  cancellable: boolean;
+  correlation_id: string | null;
+  provenance: string[];
+}
+
 export interface PipelineHealthSourceDTO {
   source_name: string; status: string;
   started_at_utc: string; finished_at_utc: string | null;
@@ -1956,6 +1998,20 @@ export const api = {
 
   reopenDecisionCase: (caseId: string) =>
     post<DecisionCaseDTO>(`/decision-cases/${encodeURIComponent(caseId)}/reopen`, {}),
+
+  /**
+   * Architecture V2 unified jobs. Read-only except cancellation; a finished or
+   * non-cancellable job answers 409 rather than pretending to have stopped it.
+   */
+  jobs: (
+    params?: { status?: string; kind?: string; principal?: string; limit?: string },
+    options?: ApiRequestOptions,
+  ) => get<JobDTO[]>("/jobs", params, options),
+
+  job: (jobId: string, options?: ApiRequestOptions) =>
+    get<JobDTO>(`/jobs/${encodeURIComponent(jobId)}`, undefined, options),
+
+  cancelJob: (jobId: string) => post<JobDTO>(`/jobs/${encodeURIComponent(jobId)}/cancel`, {}),
 
   recordReviewDecision: (body: ReviewDecisionInputDTO) =>
     post<ReviewDecisionDTO>("/review/decisions", body),
