@@ -30,7 +30,12 @@ MCP path. The corrections:
   across the transport is still open work.
 - **The legacy read/sandbox MCP tools bypass `CapabilityRuntime`.** They call the SDK
   directly and therefore inherit only the API token and principal the SDK sends, not the
-  permission and entitlement checks above. Retiring or re-homing them is open work.
+  permission and entitlement checks above. That posture is no longer implicit: every MCP
+  tool declares it (`posture: deployment-principal` versus `runtime-authorised`), publishes
+  it in `tools/list` with the prose a client reads first, and every call of a
+  deployment-principal tool is audited as running outside the capability runtime
+  (`governance.access` / `mcp.tool.invoked`). Re-homing them onto the runtime is open work,
+  and it changes behaviour for consumers this repository cannot see.
 - **API-side agent invocation passes the real principal**, so the checks above do apply
   there; a deployment with no identity attached substitutes a synthetic `ANALYST`, which
   is a broad default rather than a denial and is tracked with finding C5.
