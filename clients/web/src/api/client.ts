@@ -2537,8 +2537,25 @@ export const api = {
   searchCapabilities: (q: string) => get<CapabilityDTO[]>("/capabilities/search", { q }),
   capability: (capabilityId: string) =>
     get<CapabilityDTO>(`/capabilities/${encodeURIComponent(capabilityId)}`),
-  invokeCapability: (capabilityId: string, argumentsBody: Record<string, unknown>) =>
-    post<Record<string, unknown>>(`/capabilities/${encodeURIComponent(capabilityId)}/invoke`, { arguments: argumentsBody }),
+  /**
+   * Invoke one registered capability (Architecture V2 Wave 7 / CR-15).
+   *
+   * `human_confirmation` answers a capability whose declared `action_policy` is
+   * `HUMAN_CONFIRMATION`; the runtime refuses such a capability without it, and the flag buys no
+   * authority - permissions, data scopes and argument validation are evaluated either way. The
+   * response is a `CapabilityResult`: a refusal comes back as `status: "BLOCKED"` with a stable
+   * failure code, so the surface renders what stopped it rather than an error string.
+   */
+  invokeCapability: (
+    capabilityId: string,
+    argumentsBody: Record<string, unknown>,
+    confirmation?: { humanConfirmation: boolean; confirmationNote?: string },
+  ) =>
+    post<Record<string, unknown>>(`/capabilities/${encodeURIComponent(capabilityId)}/invoke`, {
+      arguments: argumentsBody,
+      human_confirmation: confirmation?.humanConfirmation ?? false,
+      confirmation_note: confirmation?.confirmationNote ?? "",
+    }),
   agentProfiles: () => get<Record<string, unknown>[]>("/agent/profiles"),
   /**
    * The declared Data Product catalogue with this caller's entitlement verdict

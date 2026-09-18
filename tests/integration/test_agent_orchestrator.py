@@ -35,6 +35,12 @@ def session(database_url):
     Base.metadata.create_all(engine)
     with Session(engine) as session:
         now = datetime.now(UTC)
+        # The orchestrator reads market observations from the start of the current UTC day
+        # (`market_rows(start_utc=now.replace(hour=0, ...))`), so the seed has to lie inside that
+        # window rather than at a fixed offset from "now". Seeding relative to now made this
+        # fixture pass after 05:00 UTC and fail before it, when "now - 1..5 hours" crossed back
+        # into yesterday and the run legitimately found no data.
+        day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         for code in ("NBP", "TTF"):
             session.add(
                 CanonicalEntityRecord(
@@ -68,7 +74,7 @@ def session(database_url):
         index = 0
         for hour in range(5):
             for hub, value in [("NBP", 30.0 + hour * 0.1), ("TTF", 28.0 + hour * 0.05)]:
-                observed = now - timedelta(hours=hour + 1)
+                observed = day_start + timedelta(hours=hour + 1)
                 session.add(
                     MarketObservationRecord(
                         observation_id=f"obs-{index}",

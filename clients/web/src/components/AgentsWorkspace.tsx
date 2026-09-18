@@ -25,6 +25,14 @@ import {
   agentRunReadiness,
   agentStrategyDisclosure,
 } from "@/app/model/agentRunModel";
+import {
+  capabilityInvocationReadiness,
+  capabilityInvocationRequest,
+  capabilityOutcome,
+  capabilityPolicyKey,
+  type CapabilityInvocationSubject,
+  type CapabilityOutcome,
+} from "@/app/model/capabilityInvocationModel";
 import { MetricStrip, PanelHeader, WorkspaceHeader } from "@/components/ui";
 
 type Translate = (key: string) => string;
@@ -124,6 +132,64 @@ export function AgentsWorkspace({ t, principalId = null, runtimeDbReady }: Agent
   );
   const strategyDisclosure = useMemo(() => agentStrategyDisclosure(allowStrategy), [allowStrategy]);
 
+  // Capability invocation (Wave 7 / CR-15). The catalogue was published to the surface and had no
+  // consumer: it listed postures without offering the act they govern. The rule lives in
+  // `app/model/capabilityInvocationModel.ts`, the panel edits the arguments, and the header runs
+  // it - the same split the research run uses.
+  const [invokeCapabilityId, setInvokeCapabilityId] = useState("");
+  const [invokeArguments, setInvokeArguments] = useState("{}");
+  const [invokeConfirmed, setInvokeConfirmed] = useState(false);
+  const [invokeNote, setInvokeNote] = useState("");
+  const [invoking, setInvoking] = useState(false);
+  const [invokeOutcome, setInvokeOutcome] = useState<CapabilityOutcome | null>(null);
+  const [invokeError, setInvokeError] = useState<string | null>(null);
+
+  const invokeSubject = useMemo<CapabilityInvocationSubject | null>(() => {
+    const definition = capabilities.find((item) => item.capability_id === invokeCapabilityId);
+    if (!definition) return null;
+    return {
+      capabilityId: definition.capability_id,
+      actionPolicy: definition.action_policy,
+      sideEffectClass: definition.side_effect_class,
+      determinismClass: definition.determinism_class,
+    };
+  }, [capabilities, invokeCapabilityId]);
+
+  const invokeReadiness = useMemo(
+    () =>
+      capabilityInvocationReadiness({
+        capability: invokeSubject,
+        argumentsText: invokeArguments,
+        confirmed: invokeConfirmed,
+        running: invoking,
+      }),
+    [invokeSubject, invokeArguments, invokeConfirmed, invoking],
+  );
+
+  async function invokeSelectedCapability() {
+    const request = capabilityInvocationRequest({
+      capability: invokeSubject,
+      argumentsText: invokeArguments,
+      confirmed: invokeConfirmed,
+      confirmationNote: invokeNote,
+    });
+    if (!invokeSubject || !request) return;
+    setInvoking(true);
+    setInvokeError(null);
+    setInvokeOutcome(null);
+    try {
+      const response = await api.invokeCapability(invokeSubject.capabilityId, request.arguments, {
+        humanConfirmation: request.humanConfirmation,
+        confirmationNote: request.confirmationNote,
+      });
+      setInvokeOutcome(capabilityOutcome(response.data));
+    } catch (reason) {
+      setInvokeError(String(reason));
+    } finally {
+      setInvoking(false);
+    }
+  }
+
   async function runResearch() {
     if (!readiness.canRun) return;
     setRunning(true);
@@ -213,6 +279,19 @@ export function AgentsWorkspace({ t, principalId = null, runtimeDbReady }: Agent
       >
         {t("agents.run_research")}
       </button>
+    ) : activeView === "capabilities" ? (
+      <button
+        type="button"
+        disabled={!invokeReadiness.canInvoke}
+        title={
+          invokeReadiness.firstBlockerKey
+            ? t(invokeReadiness.firstBlockerKey)
+            : t("capabilities.invoke_hint")
+        }
+        onClick={() => void invokeSelectedCapability()}
+      >
+        {t("capabilities.invoke")}
+      </button>
     ) : undefined;
 
   return (
@@ -262,6 +341,115 @@ export function AgentsWorkspace({ t, principalId = null, runtimeDbReady }: Agent
               <div className="data-table-row"><span>{t("status.loading")}</span></div>
             )}
           </div>
+
+          {/* Wave 7 / CR-15: the catalogue listed each capability's posture and offered no way to
+              act on it. The form below picks one, edits its arguments and states the confirmation
+              a HUMAN_CONFIRMATION capability requires; the run itself is the workspace's primary
+              action. */}
+          <section className="capability-invocation" aria-label={t("capabilities.invoke_panel")}>
+            <div className="section-heading">
+              <span className="eyebrow">{t("capabilities.invoke_panel")}</span>
+              <strong>
+                {invokeSubject ? t(capabilityPolicyKey(invokeSubject.actionPolicy)) : t("capabilities.no_selection")}
+              </strong>
+            </div>
+            <label className="field-label" htmlFor="capability-invoke-target">
+              {t("capabilities.capability")}
+            </label>
+            <select
+              id="capability-invoke-target"
+              value={invokeCapabilityId}
+              onChange={(event) => {
+                setInvokeCapabilityId(event.target.value);
+                // A confirmation belongs to the capability it was given for: changing the target
+                // clears it, so nobody confirms one thing and runs another.
+                setInvokeConfirmed(false);
+                setInvokeOutcome(null);
+              }}
+            >
+              <option value="">{t("capabilities.no_selection")}</option>
+              {capabilities.map((capability) => (
+                <option key={`capability-invoke-${capability.capability_id}`} value={capability.capability_id}>
+                  {capability.capability_id} · {capability.action_policy}
+                </option>
+              ))}
+            </select>
+            {invokeSubject && (
+              <p className="panel-copy">
+                {t("capabilities.policy")}: <code>{invokeSubject.actionPolicy}</code> ·{" "}
+                {t("capabilities.side_effect")}: <code>{invokeSubject.sideEffectClass}</code> ·{" "}
+                {t("capabilities.determinism")}: <code>{invokeSubject.determinismClass}</code>
+              </p>
+            )}
+            <label className="field-label" htmlFor="capability-invoke-arguments">
+              {t("capabilities.arguments")}
+            </label>
+            <textarea
+              id="capability-invoke-arguments"
+              className="textarea"
+              value={invokeArguments}
+              onChange={(event) => setInvokeArguments(event.target.value)}
+              rows={4}
+            />
+            {invokeReadiness.requiresConfirmation && (
+              <>
+                <label className="field-inline">
+                  <input
+                    type="checkbox"
+                    checked={invokeConfirmed}
+                    onChange={(event) => setInvokeConfirmed(event.target.checked)}
+                  />
+                  {t("capabilities.confirm")}
+                </label>
+                <label className="field-label" htmlFor="capability-invoke-note">
+                  {t("capabilities.confirmation_note")}
+                </label>
+                <input
+                  id="capability-invoke-note"
+                  value={invokeNote}
+                  onChange={(event) => setInvokeNote(event.target.value)}
+                />
+              </>
+            )}
+            <ul className="agents-disclosure-list">
+              {invokeReadiness.blockerKeys.map((key) => (
+                <li key={key}>{t(key)}</li>
+              ))}
+              {invokeReadiness.canInvoke && <li>{t("capabilities.ready")}</li>}
+            </ul>
+            {invokeError && (
+              <p className="alert" role="alert">
+                {invokeError}
+              </p>
+            )}
+            {invokeOutcome && (
+              <div className="agents-result-panel">
+                {/* A BLOCKED result is a result: the surface shows the stable code and detail the
+                    runtime reported rather than rewriting it as an error. */}
+                <p>
+                  {t("agents.status")}: <code>{invokeOutcome.status}</code>
+                  {invokeOutcome.failureCode && (
+                    <>
+                      {" · "}
+                      <code>{invokeOutcome.failureCode}</code>
+                    </>
+                  )}
+                </p>
+                {invokeOutcome.failureDetail && <p>{invokeOutcome.failureDetail}</p>}
+                {invokeOutcome.blockers.length > 0 && (
+                  <AgentIssueList
+                    rows={invokeOutcome.blockers.map(agentIssueRowFromText)}
+                    t={t}
+                  />
+                )}
+                <p className="panel-copy">
+                  {t("capabilities.quality")}: {invokeOutcome.qualityState} ·{" "}
+                  {t("capabilities.entitlement")}: {invokeOutcome.entitlementState}
+                  {invokeOutcome.asOf ? ` · ${invokeOutcome.asOf}` : ""}
+                </p>
+              </div>
+            )}
+          </section>
         </div>
       )}
 
