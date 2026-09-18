@@ -170,13 +170,97 @@ test("a provider connection resolves from the source row the surface received", 
   );
 });
 
+test("a catalogue entry resolves its declaration, and a withheld provenance stays withheld", () => {
+  const entry = {
+    product_id: "market-prices",
+    business_name: "Market prices",
+    description: "Normalised market observations",
+    domain: "market",
+    availability: { state: "available", note: "producer implemented" },
+    time_basis: { basis: "as_of_instant", gas_day_calendar: null, freshness_expectation_minutes: 15 },
+    source_families: ["EEX"],
+    simulated_families: ["EEX_Sim"],
+    entitlement_families: ["EEX"],
+    served_by: [],
+    provenance_tables: ["market_observations"],
+    restricted: false,
+    entitlement: {
+      status: "allowed",
+      reason: "entitled",
+      required_family_count: 1,
+      granted_family_count: 1,
+      restricted_family_count: 0,
+      note: "",
+    },
+    provenance: {
+      as_of_utc: "2026-02-01T09:00:00Z",
+      row_count: 481,
+      freshness: { status: "FRESH", expectation_minutes: 15, last_observed_at_utc: null },
+      confidence: "HIGH",
+      quality_flags: [],
+    },
+    human_review_required: true,
+  };
+
+  const detail = inspectorDetailFor(
+    source({
+      dataProducts: {
+        catalogue_version: "catalogue/v1",
+        generated_at_utc: "2026-02-01T09:00:00Z",
+        runtime_available: true,
+        products: [entry],
+        entitlement_summary: { total_products: 1, allowed_products: 1, restricted_products: 0 },
+      } as never,
+    }),
+    { kind: "data-product", ref: "market-prices", label: "Market prices", originPage: "research" },
+  );
+
+  assert.equal(detail.resolved, true);
+  const facts = new Map(detail.facts.map((fact) => [fact.labelKey, fact.value]));
+  // Nested paths resolve: the declaration is read, not guessed from a flat key that is absent.
+  assert.equal(facts.get("experience.inspector.fact.availability"), "available");
+  assert.equal(facts.get("experience.inspector.fact.time_basis"), "as_of_instant");
+  assert.equal(facts.get("experience.inspector.fact.source_families"), "EEX");
+  assert.equal(facts.get("experience.inspector.fact.simulated_families"), "EEX_Sim");
+  assert.equal(facts.get("experience.inspector.fact.freshness"), "FRESH");
+  assert.equal(facts.get("experience.inspector.fact.provenance_rows"), "481");
+  assert.equal(facts.get("experience.inspector.fact.confidence"), "HIGH");
+  // A field the entry does not carry (a null gas-day calendar) is omitted, never blank.
+  assert.equal(facts.has("experience.inspector.fact.gas_day_calendar"), false);
+
+  // A restricted entry withholds its provenance: the verdict is shown and no measurement appears.
+  const restricted = inspectorDetailFor(
+    source({
+      dataProducts: {
+        catalogue_version: "catalogue/v1",
+        generated_at_utc: "2026-02-01T09:00:00Z",
+        runtime_available: true,
+        products: [
+          {
+            ...entry,
+            restricted: true,
+            entitlement: { ...entry.entitlement, status: "restricted", reason: "family_missing" },
+            provenance: null,
+          },
+        ],
+        entitlement_summary: { total_products: 1, allowed_products: 0, restricted_products: 1 },
+      } as never,
+    }),
+    { kind: "data-product", ref: "market-prices", label: "x", originPage: "research" },
+  );
+  const restrictedFacts = new Map(
+    restricted.facts.map((fact) => [fact.labelKey, fact.value]),
+  );
+  assert.equal(restrictedFacts.get("experience.inspector.fact.entitlement"), "restricted");
+  assert.equal(restrictedFacts.has("experience.inspector.fact.provenance_rows"), false);
+  assert.equal(restrictedFacts.has("experience.inspector.fact.freshness"), false);
+});
+
 test("a page declares only subject kinds this build can resolve, or says what is pending", () => {
   // A declaration is a promise: a page listing a kind it could never hand over reads as a
   // capability that exists. Each declared kind must therefore resolve, or be recorded here with
   // the work it still needs - so a *new* declaration cannot quietly promise nothing.
   const PENDING: Record<string, string> = {
-    "data-product":
-      "the Data Products view lists catalogue entries; handing one over needs a resolver over the catalogue entry",
     "agent-run":
       "the agents surface hands a review pack to its own gate; a run subject needs a resolver over the run row",
     "strategy-version":
@@ -354,13 +438,14 @@ test("an unresolvable subject says so instead of looking empty", () => {
   assert.deepEqual(missingRef.facts, []);
 
   // A kind with no resolver in this build is explicitly unresolved rather than
-  // rendering as "this object has no detail".
-  assert.equal(resolvableInspectorKinds().includes("data-product" as never), false);
+  // rendering as "this object has no detail". `strategy-version` is still such a kind: the design
+  // task edits a version rather than inspecting one.
+  assert.equal(resolvableInspectorKinds().includes("strategy-version" as never), false);
   const noResolver = inspectorDetailFor(source(), {
-    kind: "data-product",
-    ref: "product-1",
-    label: "product-1",
-    originPage: "research",
+    kind: "strategy-version",
+    ref: "version-1",
+    label: "version-1",
+    originPage: "strategy",
   });
   assert.equal(noResolver.resolved, false);
 

@@ -21,6 +21,7 @@
 
 import type {
   CapacityObsDTO,
+  DataProductCatalogueDTO,
   IntradayOpportunityDTO,
   JobDTO,
   MarketQuoteDTO,
@@ -59,6 +60,8 @@ export interface InspectorDetailSource {
   readonly jobs?: readonly JobDTO[];
   /** The source registry, for a provider connection's posture. */
   readonly sources?: readonly SourceSystemDTO[];
+  /** The Data Product catalogue the research surface read, for a catalogue entry. */
+  readonly dataProducts?: DataProductCatalogueDTO | null;
 }
 
 export interface InspectorFact {
@@ -141,6 +144,8 @@ function candidatesFor(
       return collect([byId(source.jobs ?? [], "job_id")]);
     case "provider-connection":
       return collect([byId(source.sources ?? [], "source_id")]);
+    case "data-product":
+      return collect([byId(source.dataProducts?.products ?? [], "product_id")]);
     default:
       return [];
   }
@@ -335,6 +340,35 @@ const PROVIDER_CONNECTION_FIELDS: readonly FieldSpec[] = [
 ];
 
 /**
+ * A Data Product catalogue entry's own record.
+ *
+ * The catalogue is the platform's declared read model, so the Inspector shows the declaration
+ * rather than a measurement: what the product is, its time basis, the source families behind it
+ * and this identity's entitlement verdict. A product whose provenance the backend withheld carries
+ * no measurement here either - the row reports the entitlement reason instead of a zero.
+ */
+const DATA_PRODUCT_FIELDS: readonly FieldSpec[] = [
+  { field: "business_name", labelKey: "experience.inspector.fact.business_name" },
+  { field: "domain", labelKey: "experience.inspector.fact.domain" },
+  { field: "availability.state", labelKey: "experience.inspector.fact.availability" },
+  { field: "availability.note", labelKey: "experience.inspector.fact.availability_note" },
+  { field: "time_basis.basis", labelKey: "experience.inspector.fact.time_basis" },
+  { field: "time_basis.gas_day_calendar", labelKey: "experience.inspector.fact.gas_day_calendar" },
+  { field: "source_families", labelKey: "experience.inspector.fact.source_families" },
+  { field: "simulated_families", labelKey: "experience.inspector.fact.simulated_families" },
+  { field: "entitlement.status", labelKey: "experience.inspector.fact.entitlement" },
+  { field: "entitlement.reason", labelKey: "experience.inspector.fact.entitlement_reason" },
+  { field: "provenance.freshness.status", labelKey: "experience.inspector.fact.freshness" },
+  { field: "provenance.row_count", labelKey: "experience.inspector.fact.provenance_rows" },
+  { field: "provenance.confidence", labelKey: "experience.inspector.fact.confidence" },
+  {
+    field: "provenance.as_of_utc",
+    labelKey: "experience.inspector.fact.observed_at",
+    format: "timestamp",
+  },
+];
+
+/**
  * Field specs per kind. A kind with several record shapes (an alert reads as an
  * alert, a quote as a quote) declares its specs per recognised shape, keyed by the
  * id field the record carries.
@@ -351,6 +385,7 @@ const FIELDS_BY_ID_FIELD: Readonly<Record<string, readonly FieldSpec[]>> = {
   id: NODE_FIELDS,
   job_id: JOB_FIELDS,
   source_id: PROVIDER_CONNECTION_FIELDS,
+  product_id: DATA_PRODUCT_FIELDS,
 };
 
 /**
@@ -374,6 +409,7 @@ const ID_FIELDS_BY_KIND: Partial<Record<InspectorSubjectKind, readonly string[]>
   capacity: ["observation_id"],
   job: ["job_id"],
   "provider-connection": ["source_id"],
+  "data-product": ["product_id"],
 };
 
 /**
@@ -397,6 +433,24 @@ const LABEL_BY_ID_FIELD: Readonly<
   run_id: (record) => stringField(record, "strategy_name") ?? stringField(record, "strategy_id"),
   id: (record) => stringField(record, "name"),
 };
+
+/**
+ * Read one field out of a record, following a dotted path when the spec names one.
+ *
+ * Records the surfaces hold are mostly flat, but a catalogue entry nests its posture
+ * (`availability.state`, `provenance.freshness.status`). Walking the path keeps the spec honest:
+ * a field that does not resolve is omitted by the caller exactly like a flat one the record does
+ * not carry, rather than being read as present and undefined.
+ */
+function fieldValue(record: Record<string, unknown>, path: string): unknown {
+  if (!path.includes(".")) return record[path];
+  let current: unknown = record;
+  for (const segment of path.split(".")) {
+    if (current === null || typeof current !== "object") return undefined;
+    current = (current as Record<string, unknown>)[segment];
+  }
+  return current;
+}
 
 function joinParts(parts: Array<string | null>): string | null {
   const present = parts.filter((part): part is string => part !== null);
@@ -469,7 +523,7 @@ export function inspectorDetailFor(
     const specs = FIELDS_BY_KIND[subject.kind] ?? FIELDS_BY_ID_FIELD[idField] ?? [];
     const facts: InspectorFact[] = [];
     for (const spec of specs) {
-      const value = formatValue(record[spec.field], spec.format);
+      const value = formatValue(fieldValue(record, spec.field), spec.format);
       if (value !== null) facts.push({ labelKey: spec.labelKey, value });
     }
     const label = LABEL_BY_ID_FIELD[idField]?.(record) ?? null;

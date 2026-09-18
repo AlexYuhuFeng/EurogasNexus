@@ -45,6 +45,7 @@ import {
   FxRateDTO,
   GlossaryTermDTO,
   JobDTO,
+  DataProductCatalogueDTO,
   GlossaryContextDTO,
   LngObsDTO,
   IntradayOpportunityDTO,
@@ -431,6 +432,15 @@ export interface ApiState {
   jobs: JobDTO[];
   publishJobsRead: (jobs: JobDTO[]) => void;
   /**
+   * The Data Product catalogue the research surface read (Architecture V2 Wave 4).
+   *
+   * The catalogue panel owns that read - it is a bounded, on-demand read rather than a workspace
+   * loader - but the Inspector resolves detail from state the identity already received, so the
+   * entries it fetched are published here for the `data-product` subject. Nothing else reads them.
+   */
+  dataProducts: DataProductCatalogueDTO | null;
+  publishDataProductsRead: (catalogue: DataProductCatalogueDTO | null) => void;
+  /**
    * Queue one manual ingestion run for a source.
    *
    * The route queues it for the dataops worker; nothing executes inside the request. A refusal
@@ -725,6 +735,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
   contractSaveMessage: null,
   sourceRunOutcome: null,
   jobs: [],
+  dataProducts: null,
   dataStatus: "unavailable",
 
   bootstrapIdentity: async () => {
@@ -1456,6 +1467,12 @@ export const useApiStore = create<ApiState>((set, get) => ({
     // Publishing a read is not authority: this only lets the Inspector show a job the timeline
     // already fetched, and clearing it (an empty list) removes detail rather than inventing it.
     set({ jobs });
+  },
+
+  publishDataProductsRead: (catalogue) => {
+    // Same rule for the catalogue: a failed read publishes null, so the Inspector says it cannot
+    // show a product rather than showing an empty one.
+    set({ dataProducts: catalogue });
   },
 
   requestSourceRun: async (sourceId, reason) => {

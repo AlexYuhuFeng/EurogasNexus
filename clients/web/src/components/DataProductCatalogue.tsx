@@ -30,6 +30,9 @@ import {
   type DataProductRow,
 } from "@/app/model/dataProductModel";
 import { MetricStrip, PanelHeader, StatusBadge } from "@/components/ui";
+import { inspectorSubjectFor } from "@/app/model/inspectorDetail";
+import { useApiStore } from "@/stores/api";
+import { useInspectorStore } from "@/stores/inspector";
 
 type Translate = (key: string) => string;
 
@@ -48,6 +51,8 @@ function provenanceCell(row: DataProductRow, t: Translate): string {
 }
 
 export function DataProductCatalogue({ t }: DataProductCatalogueProps) {
+  const publishDataProductsRead = useApiStore((state) => state.publishDataProductsRead);
+  const inspector = useInspectorStore();
   const [catalogue, setCatalogue] = useState<DataProductCatalogueDTO | null>(null);
   const [errorText, setErrorText] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -58,12 +63,17 @@ export function DataProductCatalogue({ t }: DataProductCatalogueProps) {
     try {
       const response = await api.dataProducts();
       setCatalogue(response.data);
+      // The Inspector resolves detail from state the identity already received, so the entries
+      // this read produced are published for the `data-product` subject; a failed read publishes
+      // null rather than an empty catalogue.
+      publishDataProductsRead(response.data);
     } catch (error) {
       setErrorText(explain(error, t));
+      publishDataProductsRead(null);
     } finally {
       setBusy(false);
     }
-  }, [t]);
+  }, [t, publishDataProductsRead]);
 
   useEffect(() => {
     void refresh();
@@ -116,6 +126,7 @@ export function DataProductCatalogue({ t }: DataProductCatalogueProps) {
               <th scope="col">{t("data_product.column.sources")}</th>
               <th scope="col">{t("data_product.column.entitlement")}</th>
               <th scope="col">{t("data_product.column.provenance")}</th>
+              <th scope="col">{t("data_product.column.inspect")}</th>
             </tr>
           </thead>
           <tbody>
@@ -170,11 +181,30 @@ export function DataProductCatalogue({ t }: DataProductCatalogueProps) {
                   )}
                 </td>
                 <td>{provenanceCell(row, t)}</td>
+                <td>
+                  {/* Wave 9: the entry's own record belongs to the canonical Inspector, so the
+                      catalogue hands the subject over rather than growing a detail pane. */}
+                  <button
+                    type="button"
+                    className="text-action"
+                    onClick={() => {
+                      const subject = inspectorSubjectFor(
+                        "data-product",
+                        row.productId,
+                        row.businessName,
+                        "research",
+                      );
+                      if (subject) inspector.open(subject);
+                    }}
+                  >
+                    {t("data_product.inspect")}
+                  </button>
+                </td>
               </tr>
             ))}
             {catalogue !== null && rows.length === 0 && (
               <tr>
-                <td colSpan={6} className="research-state-row">
+                <td colSpan={7} className="research-state-row">
                   {t("data_product.empty")}
                 </td>
               </tr>
