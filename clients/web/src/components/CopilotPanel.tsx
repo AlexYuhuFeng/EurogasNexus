@@ -24,6 +24,7 @@
 import { useTranslation } from "react-i18next";
 
 import { api, type AnalysisRequestDTO, type AnalysisResultDTO, type ApiResponse } from "@/api/client";
+import { describeApiError, presentError } from "@/app/experience/errorPresentation";
 import type { AiActionKind } from "@/app/experience/vocabulary";
 import {
   COPILOT_CONTEXT_FIELDS,
@@ -64,6 +65,9 @@ export function CopilotPanel({
   error,
 }: CopilotPanelProps) {
   const activeContext = context.activeContext;
+  // Resolution lives in one place: a presentation key the vocabulary does not cover yet
+  // falls back to the family's wording rather than printing a raw `errors.…` key.
+  const failureText = presentError(t, error ?? describeApiError(null));
   return (
     <section
       className="copilot-panel"
@@ -336,12 +340,12 @@ export function CopilotPanel({
         <div className="copilot-error" role="alert">
           <strong>{t("experience.copilot.error_title")}</strong>
           {error.message && <p>{error.message}</p>}
-          <p>{t(error.impactKey)}</p>
-          <p>{t(error.causeKey)}</p>
-          <p>{t(error.actionKey)}</p>
+          <p>{failureText.impact}</p>
+          <p>{failureText.cause}</p>
+          <p>{failureText.action}</p>
           <p className="copilot-error-code">
             <code>{error.code}</code>
-            {error.correlationId && <code>{error.correlationId}</code>}
+            {failureText.correlationId && <code>{failureText.correlationId}</code>}
           </p>
         </div>
       )}

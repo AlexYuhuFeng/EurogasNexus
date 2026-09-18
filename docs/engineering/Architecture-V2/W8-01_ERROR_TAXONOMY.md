@@ -19,8 +19,8 @@ whatever string arrives.
 | Catalogue | `src/eurogas_nexus/domain/operations/error_taxonomy.py` | Ten families (`AUTH`, `ENTITLEMENT`, `VALIDATION`, `DATA`, `CALCULATION`, `DEPENDENCY`, `CONFIGURATION`, `JOB`, `AGENT`, `SYSTEM`), severity, recoverability, translation keys per code, family inference for uncatalogued codes, and `error_payload()` |
 | Bridge | same module | `family_for_operational_category()` maps the pre-existing infrastructure taxonomy (`operations/errors.py`) onto the product families, so the two vocabularies do not compete |
 | API envelope | `src/eurogas_nexus/api/error_handlers.py`, wired in `api/app.py` | Every `HTTPException` keeps the `detail` the endpoint raised — a string stays a string, a dict keeps every key — and gains `error`, `family`, `severity`, `recoverability`, `message_key`, `action_key` and `correlation_id` (the same value as the `X-Request-Id` header) alongside it, plus `operator_detail` only for an operator identity |
-| Client presentation | `clients/web/src/app/experience/errorPresentation.ts` | `describeApiError()` turns a payload into the four questions; `isRetryable()` / `requiresUserAction()` let a surface decide whether to offer a retry |
-| Vocabulary | `clients/web/src/i18n/{en,zh-CN}.json` | `errors.<code>.message`, `errors.<code>.action`, `errors.family.<FAMILY>.{title,impact,cause,action}` and the specific cause keys the presentation can emit |
+| Client presentation | `clients/web/src/app/experience/errorPresentation.ts` | `describeFailure()` reassembles the whole failure — the envelope's top-level fields *and* the endpoint's `detail` — into the four questions; `presentError()` resolves the presentation keys to text (falling back to the family's wording, never printing a raw `errors.…` key); `isRetryable()` / `requiresUserAction()` let a surface decide whether to offer a retry |
+| Vocabulary | `clients/web/src/i18n/{en,zh}.json` | `errors.<code>.message`, `errors.<code>.action` for **every** catalogued code (46 of them), `errors.family.<FAMILY>.{title,impact,cause,action}` and the specific cause keys the presentation can emit |
 
 Coverage: the catalogue explains every code the repository already returns
 (`unauthenticated`, `entitlement_denied`, `permission_not_declared`, `runtime_db_unavailable`,
@@ -42,7 +42,8 @@ translation keys, so a client always has text to render instead of a missing-key
    internal fault is an `error`/`critical`.
 4. **Messages are translation keys.** The backend returns `message_key`/`action_key`; EN and zh-CN
    stay in step because the client renders keys, not prose (a safe backend message may override the
-   text while keeping the keys).
+   text while keeping the keys). The client resolves a key it has no text for to the family's own
+   wording, so a raw `errors.…` key is never shown to a user.
 5. **Unknown input fails closed.** An unrecognised family, severity or recoverability degrades to the
    safe default instead of claiming a lower severity.
 
@@ -88,6 +89,34 @@ That path is now enveloped as well, and the bargain is explicit:
   and a declared `HTTPException` code is untouched by the new handler.
 - `clients/web/tests/errorPresentation.test.ts` — the four questions for a catalogued failure, the
   administration-versus-commercial refusal, retry/user-action classification, fail-closed behaviour
-  for unknown, missing and malformed payloads, message trimming, and bilingual key coverage.
+  for unknown, missing and malformed payloads, message trimming, bilingual key coverage, the whole
+  envelope reaching the presentation from every shape a caller holds (a bare body, an `ApiError`, an
+  `ApiFailureDTO`), and `presentError()` resolving to text in both locales without ever returning a
+  raw `errors.…` key.
+- `tests/contract/test_error_vocabulary_coverage.py` — the vocabulary gate: every catalogued code has
+  `errors.<code>.message` and `errors.<code>.action` in **both** locales, the two locales never
+  render the same sentence, the keys checked are the ones `error_payload()` actually emits (so the
+  gate follows the taxonomy rather than a hand-kept list), and the client's `ApiErrorBody` reads
+  exactly the field names the envelope writes (apart from the operator-only `operator_detail`).
 - Full suites: `python -m pytest tests -q --ignore=tests/integration` and
   `node --test "tests/*.test.ts"` in `clients/web` (both green).
+
+## 7. The envelope reaching the client, and the text it renders (delivered later)
+
+Two defects in this slice's own promise were found by a claim-by-claim audit and closed:
+
+- **The taxonomy never reached a surface.** `api/error_handlers.py` writes the code, family,
+  severity, recoverability, message key, action key and correlation id at the *top level* of the
+  body, beside `detail`. The transport kept only `detail` on `ApiError`, so a 403
+  `entitlement_denied` was presented as a generic SYSTEM fault and `correlationId` was always null -
+  the correlation id a user is told to quote could never appear. `ApiError` and `ApiFailureDTO` now
+  carry the whole body, `describeFailure()` reassembles whichever shape the caller holds, and every
+  surface (`CopilotPanel`, `JobTimeline`, `DataProductCatalogue`, `DecisionCasePanel`, the Copilot
+  hook) explains a failure through it instead of re-parsing `detail` itself.
+- **46 codes reached users as raw keys.** The catalogue emits `errors.<code>.message` /
+  `errors.<code>.action` for every catalogued code, and neither locale defined a single per-code
+  key: `t("errors.entitlement_denied.message")` rendered the literal key. Both locales now carry the
+  92 entries, and `presentError()` resolves a key the vocabulary does not cover to the family's own
+  wording, so "a client always has text to render instead of a missing-key placeholder" holds for
+  catalogued, uncatalogued and unrecognised codes alike.
+

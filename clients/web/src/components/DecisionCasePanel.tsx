@@ -40,7 +40,7 @@ import {
   splitCases,
   suggestedEvidenceRef,
 } from "@/app/model/decisionCaseModel";
-import { describeApiError } from "@/app/experience/errorPresentation";
+import { describeFailure, presentError } from "@/app/experience/errorPresentation";
 import { MetricStrip, PanelHeader, WorkspaceTabs } from "@/components/ui";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
@@ -380,23 +380,14 @@ export function DecisionCasePanel({
 
 /** Render a failure through the product error taxonomy, never as a raw status. */
 function explainError(error: unknown, t: Translate): string {
-  if (error instanceof ApiError) {
-    const body =
-      error.detail && typeof error.detail === "object"
-        ? (error.detail as Record<string, unknown>)
-        : null;
-    const presentation = describeApiError(
-      body
-        ? { ...body, correlation_id: (body.correlation_id as string | null) ?? null }
-        : { error: `http_${error.status}` },
-    );
-    const title = t(presentation.titleKey);
-    const action = t(presentation.actionKey);
-    // The backend names the blockers it refused on; keep them visible.
-    const blockers = Array.isArray(body?.blockers)
-      ? (body?.blockers as string[]).map((blocker) => t(blockerLabelKey(blocker))).join(", ")
-      : "";
-    return blockers ? `${title} (${blockers}). ${action}` : `${title}. ${action}`;
-  }
-  return t("decision_case.error_generic");
+  const { title, action } = presentError(t, describeFailure(error));
+  // The backend names the blockers it refused on; keep them visible.
+  const detail =
+    error instanceof ApiError && error.detail && typeof error.detail === "object"
+      ? (error.detail as Record<string, unknown>)
+      : null;
+  const blockers = Array.isArray(detail?.blockers)
+    ? (detail?.blockers as string[]).map((blocker) => t(blockerLabelKey(blocker))).join(", ")
+    : "";
+  return blockers ? `${title} (${blockers}). ${action}` : `${title}. ${action}`;
 }

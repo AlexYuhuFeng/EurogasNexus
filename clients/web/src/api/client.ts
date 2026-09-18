@@ -289,12 +289,24 @@ function errorDetail(payload: unknown, fallback: string): string {
 export class ApiError extends Error {
   readonly status: number;
   readonly detail: unknown;
+  /**
+   * The whole error body, envelope included.
+   *
+   * The backend writes the stable code, family, severity, recoverability, message key,
+   * action key and correlation id at the **top level** of the body and passes the
+   * endpoint's own `detail` through unchanged beside them. Keeping the complete body is
+   * what lets a surface explain a failure through the product error taxonomy instead of
+   * reporting every one of them as a generic error (`describeFailure` in
+   * `app/experience/errorPresentation.ts` reads this field first).
+   */
+  readonly body: unknown;
 
-  constructor(message: string, status: number, detail: unknown) {
+  constructor(message: string, status: number, detail: unknown, body: unknown = null) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.detail = detail;
+    this.body = body;
   }
 }
 
@@ -302,6 +314,8 @@ export class ApiError extends Error {
 export interface ApiFailureDTO {
   status: number;
   detail: unknown;
+  /** The whole error body, envelope included (see `ApiError.body`). */
+  body: unknown;
   message: string;
 }
 
@@ -324,7 +338,12 @@ export async function apiOutcome<T>(
     if (error instanceof ApiError) {
       return {
         ok: false,
-        failure: { status: error.status, detail: error.detail, message: error.message },
+        failure: {
+          status: error.status,
+          detail: error.detail,
+          body: error.body,
+          message: error.message,
+        },
       };
     }
     throw error;
@@ -351,6 +370,9 @@ async function parseResponse<T>(res: Response): Promise<T> {
       payload && typeof payload === "object" && "detail" in payload
         ? (payload as { detail: unknown }).detail
         : payload,
+      // The envelope travels whole: the taxonomy fields sit beside `detail`, and a
+      // surface that only kept `detail` would report every failure as generic.
+      payload,
     );
   }
   if (!looksJson || payload === null) {

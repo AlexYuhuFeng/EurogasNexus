@@ -152,13 +152,19 @@ export {
 } from "./experienceProfile.ts";
 
 export {
+  apiErrorBodyFrom,
   describeApiError,
+  describeFailure,
   errorFamilyIds,
   isRetryable,
+  pickApiErrorBody,
+  presentError,
   requiresUserAction,
   type ApiErrorBody,
   type ErrorFamilyId,
   type ErrorPresentation,
+  type ErrorText,
+  type Translate,
 } from "./errorPresentation.ts";
 
 export {

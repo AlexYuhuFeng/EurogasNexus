@@ -20,7 +20,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { api } from "@/api/client";
 import type { DataProductCatalogueDTO } from "@/api/client";
-import { describeApiError } from "@/app/experience/errorPresentation";
+import { describeFailure, presentError } from "@/app/experience/errorPresentation";
 import {
   dataProductAvailabilityKey,
   dataProductFreshnessKey,
@@ -223,12 +223,6 @@ export function DataProductCatalogue({ t }: DataProductCatalogueProps) {
 }
 
 function explain(error: unknown, t: Translate): string {
-  const detail =
-    error && typeof error === "object" && "detail" in error
-      ? (error as { detail?: unknown }).detail
-      : undefined;
-  const body =
-    detail && typeof detail === "object" ? (detail as Record<string, unknown>) : undefined;
-  const presentation = describeApiError(body ?? { error: "service_unavailable" });
-  return `${t(presentation.titleKey)}. ${t(presentation.actionKey)}`;
+  const { title, action } = presentError(t, describeFailure(error));
+  return `${title}. ${action}`;
 }

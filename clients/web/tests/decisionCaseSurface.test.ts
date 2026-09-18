@@ -197,9 +197,12 @@ test("the panel keeps the actor on the backend and explains refusals", () => {
   assert.match(panel, /selected\.blockers\.length > 0/);
   assert.match(panel, /blockerLabelKey\(blocker\)/);
 
-  // Failures are explained through the product error taxonomy, not a raw status.
-  assert.match(panel, /describeApiError\(/);
-  assert.match(panel, /presentation\.titleKey/);
+  // Failures are explained through the product error taxonomy, not a raw status: the
+  // panel hands the whole failure to `describeFailure` (which reassembles the envelope)
+  // and renders resolved text through `presentError`, so no raw `errors.…` key is shown.
+  assert.match(panel, /describeFailure\(error\)/);
+  assert.match(panel, /presentError\(t, describeFailure\(error\)\)/);
+  assert.equal(/describeApiError\(/.test(panel), false);
   assert.match(panel, /role="alert"/);
 
   // The no-execution boundary is stated, not implied.

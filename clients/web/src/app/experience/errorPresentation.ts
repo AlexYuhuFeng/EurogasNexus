@@ -10,7 +10,15 @@
  *
  * Unknown codes fail closed to a generic SYSTEM explanation that still names the
  * correlation id, so a user always has something to quote to an operator.
+ *
+ * Two things this module owns that a surface must not re-implement: reassembling the
+ * taxonomy body from wherever the failure carries it (`apiErrorBodyFrom`), and resolving
+ * a presentation key to text (`presentError`), which never hands a raw `errors.…` key to
+ * a user when the vocabulary lacks an entry.
  */
+
+/** The translation function a surface holds, as `i18next`'s `t` is used here. */
+export type Translate = (key: string) => string;
 
 export interface ApiErrorBody {
   readonly error?: string;
@@ -128,6 +136,131 @@ export function describeApiError(body: ApiErrorBody | null | undefined): ErrorPr
     actionKey: body?.action_key ?? `errors.family.${family}.action`,
     message: body?.message?.trim() ? body.message.trim() : null,
     correlationId: body?.correlation_id ?? null,
+  };
+}
+
+/** The taxonomy scalars of one source, whitelisted so a payload cannot smuggle one in. */
+function taxonomyFields(source: Record<string, unknown>): ApiErrorBody {
+  const text = (key: string): string | undefined => {
+    const value = source[key];
+    return typeof value === "string" && value.trim() ? value.trim() : undefined;
+  };
+  return {
+    error: text("error") ?? text("code"),
+    family: text("family"),
+    severity: text("severity"),
+    recoverability: text("recoverability"),
+    message_key: text("message_key"),
+    action_key: text("action_key"),
+    correlation_id: text("correlation_id") ?? null,
+  };
+}
+
+/** A whitelisted error body, safe message included. */
+export function pickApiErrorBody(source: Record<string, unknown>): ApiErrorBody {
+  const value = source.message;
+  const message = typeof value === "string" && value.trim() ? value.trim() : undefined;
+  return { ...taxonomyFields(source), message };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+/**
+ * The taxonomy body of a failure, wherever its parts sit.
+ *
+ * The backend writes the stable code, family, severity, recoverability and correlation id
+ * at the **top level** of the error body and passes the endpoint's own `detail` through
+ * unchanged beside them (`api/error_handlers.py`). A caller may hold either shape: an
+ * `ApiError` (top-level envelope plus `detail`), an `ApiFailureDTO`, a bare body dict, or
+ * just the `detail`. This is the one place that reassembles them, so a surface never has
+ * to guess and can never silently lose the correlation id.
+ */
+export function apiErrorBodyFrom(cause: unknown): ApiErrorBody | null {
+  if (!isRecord(cause)) return null;
+  const envelope = isRecord(cause.body) ? cause.body : null;
+  const detail = isRecord(cause.detail) ? cause.detail : null;
+  // A dict that carries no `detail`/`body` wrapper is already a body.
+  const direct = !envelope && !detail ? cause : null;
+  const merged: Record<string, unknown> = {
+    // The endpoint's own detail first: it names the code a route declared.
+    ...(detail ?? {}),
+    // Then the failure's own taxonomy scalars, which the envelope repeats.
+    ...taxonomyFields(cause),
+    ...(envelope ?? {}),
+    ...(direct ?? {}),
+  };
+  const body = pickApiErrorBody(merged);
+  return Object.values(body).some((value) => value !== undefined && value !== null) ? body : null;
+}
+
+/** The failure explained through the taxonomy, from whatever shape the caller holds. */
+export function describeFailure(
+  cause: unknown,
+  fallbackCode = "unclassified",
+): ErrorPresentation {
+  return describeApiError(apiErrorBodyFrom(cause) ?? { error: fallbackCode });
+}
+
+/** The four answers a surface renders, plus the correlation id a user can quote. */
+export interface ErrorText {
+  readonly title: string;
+  readonly impact: string;
+  readonly cause: string;
+  readonly action: string;
+  readonly correlationId: string | null;
+}
+
+/**
+ * Resolve one presentation key, never returning an unresolved key to a user.
+ *
+ * The taxonomy names a key per code (`errors.<code>.message`), and the backend emits
+ * that key for every catalogued code. A code the client's vocabulary does not cover
+ * yet must still read as prose, so the family's own wording is used and, failing
+ * that, the unclassified text - a raw key is never shown, because it tells the user
+ * nothing they can act on.
+ */
+function resolveKey(
+  t: Translate,
+  key: string,
+  fallback: string,
+  lastResort: string,
+): string {
+  for (const candidate of [key, fallback, lastResort]) {
+    const text = t(candidate);
+    if (text && text !== candidate) return text;
+  }
+  return lastResort;
+}
+
+export function presentError(t: Translate, presentation: ErrorPresentation): ErrorText {
+  return {
+    title: resolveKey(
+      t,
+      presentation.titleKey,
+      `errors.family.${presentation.family}.title`,
+      "errors.unclassified.message",
+    ),
+    impact: resolveKey(
+      t,
+      presentation.impactKey,
+      "errors.family.SYSTEM.impact",
+      "errors.unclassified.message",
+    ),
+    cause: resolveKey(
+      t,
+      presentation.causeKey,
+      `errors.family.${presentation.family}.cause`,
+      "errors.family.SYSTEM.cause",
+    ),
+    action: resolveKey(
+      t,
+      presentation.actionKey,
+      `errors.family.${presentation.family}.action`,
+      "errors.unclassified.action",
+    ),
+    correlationId: presentation.correlationId,
   };
 }
 

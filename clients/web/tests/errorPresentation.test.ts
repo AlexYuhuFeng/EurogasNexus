@@ -12,13 +12,21 @@ import test from "node:test";
 
 import {
   describeApiError,
+  describeFailure,
   errorFamilyIds,
   isRetryable,
+  presentError,
   requiresUserAction,
 } from "../src/app/experience/index.ts";
 
 function readWebSource(relativePath: string): string {
   return readFileSync(new URL(`../src/${relativePath}`, import.meta.url), "utf8");
+}
+
+/** The real English vocabulary, so "does this text exist" is a real question. */
+function englishTranslator(): (key: string) => string {
+  const strings = JSON.parse(readWebSource("i18n/en.json")) as Record<string, string>;
+  return (key: string) => strings[key] ?? key;
 }
 
 test("a catalogued failure becomes the four V2 questions", () => {
@@ -111,6 +119,102 @@ test("the backend's safe message is preferred over a translation key", () => {
 
   assert.equal(presentation.message, "Last verified 12 minutes ago.");
   assert.equal(presentation.titleKey, "errors.DATA_STALE.message");
+});
+
+test("the whole error envelope reaches the presentation, not only its detail", () => {
+  // The backend writes the taxonomy at the top level of the body and passes the
+  // endpoint's `detail` through beside it. A cause that kept only `detail` would present
+  // every failure as a generic SYSTEM fault and lose the correlation id.
+  const body = {
+    detail: { error: "entitlement_denied", blockers: ["EVIDENCE_REQUIRED"] },
+    error: "entitlement_denied",
+    family: "ENTITLEMENT",
+    severity: "error",
+    recoverability: "permanent",
+    message_key: "errors.entitlement_denied.message",
+    action_key: "errors.entitlement_denied.action",
+    correlation_id: "corr-9",
+  };
+
+  for (const cause of [
+    body,
+    { status: 403, detail: body.detail, body },
+    { status: 403, detail: body.detail, body, message: "API 403: denied" },
+  ]) {
+    const presentation = describeFailure(cause);
+    assert.equal(presentation.code, "entitlement_denied");
+    assert.equal(presentation.family, "ENTITLEMENT");
+    assert.equal(presentation.correlationId, "corr-9");
+    assert.equal(presentation.titleKey, "errors.entitlement_denied.message");
+  }
+
+  // A transport failure that carries no envelope at all is unclassified, not a claimed
+  // dependency outage: nothing in it says a service was unavailable.
+  assert.equal(describeFailure(new Error("boom")).code, "unclassified");
+  assert.equal(describeFailure(undefined).family, "SYSTEM");
+});
+
+test("presentation resolves to text and never hands a user a raw key", () => {
+  const t = englishTranslator();
+
+  const catalogued = presentError(
+    t,
+    describeFailure({
+      error: "entitlement_denied",
+      family: "ENTITLEMENT",
+      recoverability: "permanent",
+      message_key: "errors.entitlement_denied.message",
+      action_key: "errors.entitlement_denied.action",
+      correlation_id: "corr-9",
+    }),
+  );
+  assert.equal(catalogued.title, "The data licence does not cover this principal.");
+  assert.equal(catalogued.action, "Request the entitlement for this data family.");
+  assert.equal(catalogued.correlationId, "corr-9");
+  for (const text of Object.values(catalogued)) {
+    assert.doesNotMatch(String(text), /^errors\./, String(text));
+  }
+
+  // A code the vocabulary does not cover falls back to the family's own wording.
+  const unmapped = presentError(t, describeApiError({ error: "brand_new_refusal" }));
+  assert.equal(unmapped.title, "Unexpected system error");
+  assert.equal(unmapped.action, "Retry once, then quote the correlation id to an operator.");
+
+  // The severity floor still holds: an unknown code is not presented as retryable.
+  assert.equal(isRetryable(describeApiError({ error: "brand_new_refusal" })), false);
+});
+
+test("the four answers answer the four questions in both locales", () => {
+  const locales = {
+    en: JSON.parse(readWebSource("i18n/en.json")) as Record<string, string>,
+    zh: JSON.parse(readWebSource("i18n/zh.json")) as Record<string, string>,
+  };
+
+  for (const [locale, strings] of Object.entries(locales)) {
+    const text = presentError((key) => strings[key] ?? key, describeFailure({
+      error: "runtime_db_unavailable",
+      family: "DEPENDENCY",
+      severity: "error",
+      recoverability: "retry",
+      message_key: "errors.runtime_db_unavailable.message",
+      action_key: "errors.runtime_db_unavailable.action",
+      correlation_id: "c-1",
+    }));
+    for (const [field, value] of Object.entries(text)) {
+      if (field === "correlationId") continue;
+      assert.ok(value.trim(), `${locale}.${field}`);
+      assert.doesNotMatch(value, /^errors\./, `${locale}.${field}=${value}`);
+    }
+    assert.equal(text.correlationId, "c-1");
+  }
+});
+
+test("a catalogued code's own text is what a job timeline renders", () => {
+  // `JobTimeline` explains a failed job from its stored error code alone.
+  const presentation = describeApiError({ error: "PROVIDER_UNAVAILABLE" });
+  const text = presentError(englishTranslator(), presentation);
+  assert.equal(text.title, "The provider connection did not answer.");
+  assert.match(readWebSource("components/JobTimeline.tsx"), /presentError\(t, describeApiError\(\{ error: job\.error_code \}\)\)\.title/);
 });
 
 test("every family and the causes it uses exist in both locales", () => {

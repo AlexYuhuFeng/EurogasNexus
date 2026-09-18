@@ -15,7 +15,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api } from "@/api/client";
 import type { JobDTO } from "@/api/client";
 import { inspectorSubjectFor } from "@/app/model/inspectorDetail";
-import { describeApiError } from "@/app/experience/errorPresentation";
+import { describeApiError, describeFailure, presentError } from "@/app/experience/errorPresentation";
 import { useApiStore } from "@/stores/api";
 import { useInspectorStore } from "@/stores/inspector";
 import {
@@ -146,7 +146,7 @@ export function JobTimeline({ t }: JobTimelineProps) {
               )}
               {job.error_code && (
                 <span className="job-timeline-error">
-                  {t(describeApiError({ error: job.error_code }).titleKey)}
+                  {presentError(t, describeApiError({ error: job.error_code })).title}
                 </span>
               )}
               {job.correlation_id && (
@@ -170,12 +170,6 @@ export function JobTimeline({ t }: JobTimelineProps) {
 }
 
 function explain(error: unknown, t: Translate): string {
-  const detail =
-    error && typeof error === "object" && "detail" in error
-      ? (error as { detail?: unknown }).detail
-      : undefined;
-  const body =
-    detail && typeof detail === "object" ? (detail as Record<string, unknown>) : undefined;
-  const presentation = describeApiError(body ?? { error: "service_unavailable" });
-  return `${t(presentation.titleKey)}. ${t(presentation.actionKey)}`;
+  const { title, action } = presentError(t, describeFailure(error));
+  return `${title}. ${action}`;
 }

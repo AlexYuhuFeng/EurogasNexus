@@ -22,8 +22,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { AnalysisRequestDTO, AnalysisResultDTO, ApiResponse } from "@/api/client";
 import { readPersistedTraderContext } from "@/app/context/contextPersistence";
 import {
-  describeApiError,
-  type ApiErrorBody,
+  describeFailure,
   type ErrorPresentation,
 } from "@/app/experience/errorPresentation";
 import type { AiActionKind } from "@/app/experience/vocabulary";
@@ -190,33 +189,11 @@ export function useCopilot(options: UseCopilotOptions): CopilotController {
 
 /**
  * A failure is explained through the product error taxonomy, never as a raw status:
- * what happened, what it affects, the likely cause and how to recover. The body is
- * whitelisted field by field instead of spread, so an unexpected payload cannot
- * smuggle an unmodelled field into the presentation.
+ * what happened, what it affects, the likely cause and how to recover. The taxonomy body
+ * (code, family, severity, recoverability, message/action keys, correlation id) is
+ * reassembled by `describeFailure`, which reads the whole failure rather than only its
+ * `detail` - the envelope's fields sit beside `detail`, not inside it.
  */
 export function describeCopilotFailure(cause: unknown): ErrorPresentation {
-  const detail =
-    cause && typeof cause === "object" && "detail" in cause
-      ? (cause as { detail?: unknown }).detail
-      : undefined;
-  const body: ApiErrorBody | null =
-    detail && typeof detail === "object" ? pickApiErrorBody(detail as Record<string, unknown>) : null;
-  return describeApiError(body ?? { error: "service_unavailable" });
-}
-
-function pickApiErrorBody(source: Record<string, unknown>): ApiErrorBody {
-  const text = (key: string): string | undefined => {
-    const value = source[key];
-    return typeof value === "string" && value.trim() ? value.trim() : undefined;
-  };
-  return {
-    error: text("error"),
-    family: text("family"),
-    severity: text("severity"),
-    recoverability: text("recoverability"),
-    message: text("message"),
-    message_key: text("message_key"),
-    action_key: text("action_key"),
-    correlation_id: text("correlation_id") ?? null,
-  };
+  return describeFailure(cause);
 }
