@@ -30,6 +30,7 @@ import {
   analysisSnapshotRequest,
   snapshotContextFrom,
 } from "@/app/model/analysisSnapshotModel";
+import { sourceRunOutcome, type SourceRunOutcome } from "@/app/model/sourceRunModel";
 import {
   api,
   AnalysisRequestDTO,
@@ -416,6 +417,16 @@ export interface ApiState {
   error: string | null;
   credentialMessage: string | null;
   contractSaveMessage: string | null;
+  /** The last queued ingestion run, as the source surface shows it. */
+  sourceRunOutcome: SourceRunOutcome | null;
+  /**
+   * Queue one manual ingestion run for a source.
+   *
+   * The route queues it for the dataops worker; nothing executes inside the request. A refusal
+   * (unknown source, no runtime store) is reported as itself and leaves no outcome behind, so the
+   * surface cannot show a run that was never queued.
+   */
+  requestSourceRun: (sourceId: string, reason: string) => Promise<void>;
   dataStatus: "runtime" | "delayed" | "partial" | "unavailable";
   bootstrapIdentity: () => Promise<void>;
   login: (username: string, password: string) => Promise<void>;
@@ -701,6 +712,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
   error: null,
   credentialMessage: null,
   contractSaveMessage: null,
+  sourceRunOutcome: null,
   dataStatus: "unavailable",
 
   bootstrapIdentity: async () => {
@@ -1428,8 +1440,23 @@ export const useApiStore = create<ApiState>((set, get) => ({
     }
   },
 
-  setReviewSnapshotId: (snapshotId) => {
-    // The selection is a choice among references the deployment recorded; clearing it means
+  requestSourceRun: async (sourceId, reason) => {
+    if (logoutInProgress) return;
+    if (!isIdentityGateOpen(get().authState)) return;
+    const requestGeneration = identityReadCoordinator.capture();
+    set({ sourceRunOutcome: null, error: null });
+    try {
+      const response = await api.requestSourceRun(sourceId, reason);
+      if (!followUpReadIsCurrent(requestGeneration)) return;
+      // The queued run is shown from the response: the worker's progress is a separate read.
+      set({ sourceRunOutcome: sourceRunOutcome(response.data), loading: false });
+    } catch (e) {
+      if (!followUpReadIsCurrent(requestGeneration)) return;
+      set({ sourceRunOutcome: null, error: String(e) });
+    }
+  },
+
+  setReviewSnapshotId: (snapshotId) => {    // The selection is a choice among references the deployment recorded; clearing it means
     // the next run cites nothing and its payload stays exactly as it was.
     set({ reviewSnapshotId: snapshotId });
   },

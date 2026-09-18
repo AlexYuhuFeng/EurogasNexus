@@ -4,6 +4,7 @@ import { AccessCenter } from "@/components/AccessCenter";
 import { AgentsWorkspace } from "@/components/AgentsWorkspace";
 import { primaryWorkspaceForPage } from "@/app/navigation/productNavigation";
 import { headerModeForPage } from "@/app/experience/workspacePatterns";
+import { sourceRunReadiness, sourceRunReason } from "@/app/model/sourceRunModel";
 import { WorkspaceTabs } from "@/components/ui";
 import type { WorkspacePageId } from "@/workspaceNavigation";
 import { GlossaryWiki } from "@/components/GlossaryWiki";
@@ -156,6 +157,50 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
           categoryProviderSummary={sources.categoryProviderSummary}
           sourceNextAction={sources.sourceNextAction}
           formatSourceTimestamp={sources.formatSourceTimestamp}
+          // Wave 4/8: the source surface recommended an ingestion run it had no way to start. The
+          // route queues a MANUAL run for the dataops worker; the rule that decides whether the
+          // control is offered - and what the platform's guards are doing - lives in
+          // `app/model/sourceRunModel.ts`.
+          runtimeDbReady={
+            api.runtimeDb?.database_url_present === true && api.runtimeDb.connectivity.ok
+          }
+          runReadiness={sourceRunReadiness({
+            subject: sources.selectedSource
+              ? {
+                  sourceId: sources.selectedSource.source_id,
+                  sourceSystem: sources.selectedSource.source_system,
+                  schedulerEnabled: sources.selectedSource.scheduler_enabled,
+                  workflowReady: sources.selectedSource.workflow_ready,
+                  credentialState: sources.selectedSource.credential_state,
+                  connectivityStatus: sources.selectedSource.connectivity_status,
+                  circuitState: sources.selectedSource.circuit_state,
+                  consecutiveFailures: sources.selectedSource.consecutive_failures,
+                  lastIngestionStatus: sources.selectedSource.last_ingestion_status,
+                }
+              : null,
+            runtimeDbReady:
+              api.runtimeDb?.database_url_present === true && api.runtimeDb.connectivity.ok,
+            running: false,
+          })}
+          sourceRunOutcome={api.sourceRunOutcome}
+          onRequestSourceRun={() => {
+            const source = sources.selectedSource;
+            if (!source) return;
+            void api.requestSourceRun(
+              source.source_id,
+              sourceRunReason({
+                sourceId: source.source_id,
+                sourceSystem: source.source_system,
+                schedulerEnabled: source.scheduler_enabled,
+                workflowReady: source.workflow_ready,
+                credentialState: source.credential_state,
+                connectivityStatus: source.connectivity_status,
+                circuitState: source.circuit_state,
+                consecutiveFailures: source.consecutive_failures,
+                lastIngestionStatus: source.last_ingestion_status,
+              }),
+            );
+          }}
         />
       )}
 

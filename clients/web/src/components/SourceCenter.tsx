@@ -1,4 +1,5 @@
 import { type FormEventHandler, useState } from "react";
+import type { SourceRunOutcome, SourceRunReadiness } from "@/app/model/sourceRunModel";
 import {
   EvidenceBlock,
   MetricStrip,
@@ -62,6 +63,11 @@ interface SourceCenterProps {
   sourceLabel: (prefix: string, value: string | null | undefined) => string;
   categoryProviderSummary: (category: string) => string;
   sourceNextAction: (source: SourceSystemDTO | null) => string;
+  /** Whether the runtime store can accept a queued ingestion run. */
+  runtimeDbReady: boolean;
+  runReadiness: SourceRunReadiness;
+  sourceRunOutcome: SourceRunOutcome | null;
+  onRequestSourceRun: () => void;
   formatSourceTimestamp: (value: string | null | undefined) => string;
 }
 
@@ -113,6 +119,10 @@ export function SourceCenter({
   sourceLabel,
   categoryProviderSummary,
   sourceNextAction,
+  runtimeDbReady,
+  runReadiness,
+  sourceRunOutcome,
+  onRequestSourceRun,
   formatSourceTimestamp,
 }: SourceCenterProps) {
   const [activeView, setActiveView] = useState<SourceViewId>("attention");
@@ -344,10 +354,39 @@ export function SourceCenter({
             <div className="source-next-action">
               <span>{t("sources.next_action")}</span>
               <strong>{sourceNextAction(selectedSource)}</strong>
+              {/* Wave 4/8: the recommendation named an action no control could perform. Where the
+                  recommendation IS the ingestion run, the control belongs beside it - and it
+                  states what the platform's guards are doing rather than hiding the act. */}
+              {selectedSource && sourceNextAction(selectedSource) === t("sources.action.run_ingestion") && (
+                <>
+                  {runReadiness.disclosureKeys.map((key) => (
+                    <small key={key}>{t(key)}</small>
+                  ))}
+                  <button
+                    type="button"
+                    className="source-open-access"
+                    disabled={!runReadiness.canRequest}
+                    title={
+                      runReadiness.firstBlockerKey
+                        ? t(runReadiness.firstBlockerKey)
+                        : t("sources.run.hint")
+                    }
+                    onClick={onRequestSourceRun}
+                  >
+                    {t("sources.action.run_ingestion")}
+                  </button>
+                </>
+              )}
               {activeView !== "access" && (
                 <button type="button" className="source-open-access" onClick={() => activateView("access")}>
                   {t("sources.open_access")}
                 </button>
+              )}
+              {sourceRunOutcome?.runId && (
+                <small>
+                  {t("sources.run.queued")}: <code>{sourceRunOutcome.runId}</code>
+                  {sourceRunOutcome.status ? ` · ${sourceRunOutcome.status}` : ""}
+                </small>
               )}
             </div>
             {selectedSource.preview_substitute_source_system && (

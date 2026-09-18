@@ -2565,6 +2565,19 @@ export const api = {
    * freshness as `UNKNOWN` rather than a fabricated zero, so the surface renders what it
    * receives instead of assuming a measured value is always present.
    */
+  /**
+   * Queue one MANUAL ingestion run for a source (Architecture V2 Wave 4/8 operator path).
+   *
+   * The route queues the run and returns it; the dataops worker executes it. The platform's own
+   * guards (credential state, circuit breaker, certification) still decide whether the run will
+   * produce data, so the surface discloses what it sees instead of pre-empting the platform.
+   */
+  requestSourceRun: (sourceId: string, reason: string, options?: ApiRequestOptions) =>
+    post<Record<string, unknown>>(
+      `/sources/${encodeURIComponent(sourceId)}/run`,
+      { reason },
+      options,
+    ),
   dataProducts: (options?: ApiRequestOptions) =>
     get<DataProductCatalogueDTO>("/data-products", undefined, options),
   /**
