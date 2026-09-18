@@ -82,7 +82,9 @@ Continue with the highest-value open item. What is actually open, in the order t
 3. **Wave 4** — complete on the client side: the product records a snapshot, cites it, reads the Data Product catalogue and queues a manual ingestion run. The `researchCapabilities` read is the only Wave 4 read still without a consumer.
 4. **Wave 8** — job retention and the replay question are delivered; what remains is operational (choosing a retention window per deployment, and reading the re-run contracts when a surface wants to offer one).
 5. **Wave 10 / 11** — the native desktop half needs a machine with the Rust toolchain, and RC/GA readiness needs the external items (IdP acceptance, provider certification, a real UAT, a production restore drill, signing/notarisation).
-6. **Owner decisions** — written up as decidable options in `W0-03` section 9: D1 C5's profile authentication, D2 C6b's second-approver policy, D3 C11's uncalled client methods (measured: 21 of 131 never mentioned, 52 never called directly), D4 C12's map tiles, D5 where the native host and RC/GA work can proceed. Each states the options, the consequence of each and a recommendation; none has been decided silently, and no work presumes an answer.
+6. **Owner decisions** — written up as decidable options in `W0-03` section 9: D1 C5's profile authentication, D2 C6b's second-approver policy, D3 C11's uncalled client methods (measured: 21 of 131 never mentioned, 52 never called directly), D4 C12's map tiles, D5 where the native host and RC/GA work can proceed, and D6 what the MCP surface should do about the calling user. Each states the options, the consequence of each and a recommendation; none has been decided silently, and no work presumes an answer.
+
+**Nothing else is outstanding.** Every item the migration could settle in this environment is settled, tested and pushed; what follows is blocked by something I cannot supply rather than by work left undone.
 
 ## Where the migration stands
 

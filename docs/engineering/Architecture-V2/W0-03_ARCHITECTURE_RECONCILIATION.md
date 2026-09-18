@@ -224,7 +224,29 @@ ADR; (b) removes the third-party request entirely. **Recommendation: (b) for the
 posture and (a) only if a licensed provider is bought**, because the product's map is reference
 geometry rather than licensed market data.
 
-### D5 — Wave 10 native host and Wave 11 RC/GA: proceed where?
+### D6 — C8 remainder: what should the MCP surface do about the calling user?
+
+**Today.** MCP runs under a deployment-configured service identity, not the calling user, and its
+tools declare and publish that posture; a call that runs outside the capability runtime is audited
+rather than silent, and the pseudo-principal no longer defaults to a wildcard data scope. What
+remains is a real question rather than a defect: an MCP client (typically an LLM agent acting for a
+person) reads rows filtered by the *service* identity's scopes, so a tool can return data the human
+behind the call is not entitled to.
+
+**Options.** (a) Require a per-call caller identity that the MCP server verifies against the
+identity store, and re-authorise each tool call as that principal - the strongest posture, and a
+breaking change for any MCP client that has none; (b) keep the service identity but bound its data
+scopes to the intersection of the tools' declared needs (no behavioural change for clients, a
+narrower blast radius for a misconfigured deployment); (c) leave as declared and audited.
+
+**Consequence of (a).** Every MCP tool gains a required identity argument, the server needs the
+identity store at hand, and existing clients stop working until they pass one. **Consequence of
+(b).** A deployment that today reads broad data through MCP would read less; the change is
+configuration-visible and reversible. **Recommendation: (b) now**, plus a documented trigger for
+(a): if an MCP client is ever used by more than one human identity, the service identity becomes an
+authority-laundering path and (a) is required. Neither is decided here.
+
+
 
 Neither can be finished in this environment, and neither is a defect: **Wave 10's native half**
 (window creation, multi-monitor restore, notifications, protocol registration, tray, file dialogs)
