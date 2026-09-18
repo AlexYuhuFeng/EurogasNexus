@@ -2687,7 +2687,7 @@ export const api = {
   patchAccessUser: (principalId: string, body: AccessUserPatchInputDTO) =>
     patch<AccessUserDTO>(`/access/users/${encodeURIComponent(principalId)}`, body),
   accessRoles: () => get<Record<string, string[]>>("/access/roles"),
-  accessDataScopes: () => get<Record<string, string[]>>("/access/data-scopes"),
+  accessDataScopes: () => get<DataScopeCatalogueDTO>("/access/data-scopes"),
   accessApiKeys: () => get<AccessApiKeyDTO[]>("/access/api-keys"),
   createAccessApiKey: (body: AccessApiKeyCreateInputDTO) =>
     post<AccessApiKeyDTO & { api_key: string }>("/access/api-keys", body),
@@ -2790,6 +2790,19 @@ export interface AccessApiKeyDTO {
 export interface AccessApiKeyCreateInputDTO {
   principal_id: string; display_name?: string; expires_at_utc?: string | null;
   scopes?: string[];
+}
+
+/**
+ * The data-scope families this deployment declares (`GET /api/access/data-scopes`).
+ *
+ * It is a catalogue, not a policy: an entitlement may name any of these, and a value outside it is
+ * one nothing recognises. Typed as itself rather than as an open record so a surface that offers
+ * scopes is offering the deployment's own declaration.
+ */
+export interface DataScopeCatalogueDTO {
+  public_baseline: string[];
+  commercial: string[];
+  wildcard: string;
 }
 
 export interface AuditEventDTO {
