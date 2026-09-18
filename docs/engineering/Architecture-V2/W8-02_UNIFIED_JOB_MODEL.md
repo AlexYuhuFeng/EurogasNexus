@@ -91,14 +91,43 @@ mechanism follows the audit-retention pattern, and the *policy* stays the operat
   the audit endpoints are served because an auditor needs a served, audited path, and mirroring
   that for jobs is a deliberate step if an operator asks for it.
 
-Job *replay* stays deferred: re-running a recorded job is not a retention question, and it needs
-its own answer about authority and idempotence before any surface offers it.
+Job *replay* is answered rather than deferred - see section 6b. The activity list shows the most
+recent 25 records and refreshes on demand.
 
-## 7. Deferred
+## 7. The replay question, answered
 
-- Job *replay* (re-running a recorded job) is a future operations decision: it needs an authority
-  and idempotence answer before a surface offers it. Retention is delivered - see section 6. The
-  activity list shows the most recent 25 records and refreshes on demand.
+Wave 8 left one operations question open: can a recorded job be replayed? The answer is a property
+of the record, not a feature to switch on, and it is now declared per kind in
+`domain/operations/jobs.py` (`JOB_RERUN_CONTRACTS`), held to the schema by a fitness test:
+
+- **No kind can be re-issued from its job row**, because the row is bookkeeping *about* work: it
+  stores a hash of the inputs (`input_hash`), a scope and output *references*. The fitness test
+  asserts the table holds no inputs container to replay from, so a future contract claiming
+  `from_job_row` would have to change the schema first - which is the point.
+- **Where a re-run is possible it is a *new run* of that kind**, issued through the path that owns
+  the inputs: the source registry for an ingestion run, a stored spec for a dataset build, an
+  optimisation run's input snapshot, a frozen strategy version and period for a backtest, a report's
+  selections, an agent run's objective and profile. Each contract names both the owner and the path,
+  and the fitness test checks the path is one the deployment actually serves.
+- **A re-run always needs fresh authorisation and is never assumed idempotent.** The inputs may no
+  longer be entitled, the engine version may have moved (a backtest records it, so a re-run on a
+  newer engine is a different measurement and says so), and a filed artefact is not overwritten: a
+  second report is a new report.
+- **Recording a snapshot is never repeated.** It records a point in time, and recording it again
+  later would produce a different snapshot under the same reference.
+- The naming is pinned: the only public path called `replay`
+  (`/api/agent/runs/{agent_run_id}/replay`) reads a recorded artefact chain, so the word cannot be
+  misread as a re-run.
+
+| Kind | Re-runnable | Inputs live in | New run issued by |
+|---|---|---|---|
+| `INGESTION` | yes | source registry (source, trigger, reason) | `POST /api/sources/{source_id}/run` |
+| `DATASET_BUILD` | yes | research dataset spec | `POST /api/research/datasets` |
+| `OPTIMISATION` | yes | `optimization_runs.input_snapshot` | `POST /api/route-cost/resource-pool/optimize` |
+| `BACKTEST` | yes | strategy run (scenario, frozen version, period) | `POST /api/strategy-runs` |
+| `REPORT` | yes | generated report row | `POST /api/reports/portfolio` |
+| `AGENT_RUN` | yes | agent run row (objective, profile, period) | `POST /api/agent/research` |
+| `SNAPSHOT` | **no** | - | - |
 
 Every run family V2 names is now tracked: ingestion, dataset builds, optimisation, backtests,
 reporting, agent runs and snapshots. The ingestion path needed one addition to the seam - work that

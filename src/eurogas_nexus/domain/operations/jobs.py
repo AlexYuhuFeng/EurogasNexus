@@ -90,6 +90,140 @@ def job_is_terminal(state: JobState) -> bool:
     return state in TERMINAL_JOB_STATES
 
 
+@dataclass(frozen=True, slots=True)
+class JobRerunContract:
+    """What can honestly be done with a finished job's *work*, per kind.
+
+    Wave 8 recorded "job replay" as an open question - whether a recorded job can be re-run - and
+    the answer is a property of the record, not a feature to switch on:
+
+    - a job row is **bookkeeping about work**. It stores a *hash* of the inputs
+      (``input_hash``), a scope and output *references*; it does not store the request that
+      produced it. So no kind can be re-issued *from its job row*, and a contract that claimed
+      otherwise would be describing something the schema cannot support - which the fitness test
+      beside this module checks against the table itself.
+    - where a kind's **own** record already holds what the work needs (an optimisation run's input
+      snapshot, a dataset spec, an agent run's objective), the honest act is to issue a *new* run
+      of that kind through the path that owns the inputs. That is a new job with a new identity,
+      not a replay of the old one.
+    - a new run therefore always needs **fresh authorisation** and is never assumed idempotent:
+      the inputs may no longer be entitled, the deployment may have moved on, and a second run can
+      produce different numbers by design.
+    - recording a snapshot is the one act that can never be repeated: the second recording would
+      be a *different* point in time claiming the same reference.
+
+    Attributes:
+        kind: The work family this contract answers for.
+        rerun_possible: Whether new work of this kind can be issued at all with the same inputs.
+        input_owner: Where those inputs actually live (table or surface), or "" when they are not
+            retained anywhere.
+        new_run_path: The public path that issues a new run of this kind, or "" when none exists.
+        reason: Why this is the answer, in the terms an operator would ask it.
+    """
+
+    kind: JobKind
+    rerun_possible: bool
+    input_owner: str
+    new_run_path: str
+    reason: str
+
+    @property
+    def from_job_row(self) -> bool:
+        """Never true: the row keeps a hash of the inputs, not the inputs."""
+
+        return False
+
+
+#: One contract per kind. A new kind must answer this question when it is declared, because the
+#: fitness test beside this module fails on a kind with no contract.
+JOB_RERUN_CONTRACTS: tuple[JobRerunContract, ...] = (
+    JobRerunContract(
+        kind=JobKind.INGESTION,
+        rerun_possible=True,
+        input_owner="source registry (source_id, trigger, reason)",
+        new_run_path="/api/sources/{source_id}/run",
+        reason=(
+            "An ingestion run is defined by its source, not by a request body: queueing a new run "
+            "is the operator path, and it is a new run rather than a repeat of the recorded one."
+        ),
+    ),
+    JobRerunContract(
+        kind=JobKind.DATASET_BUILD,
+        rerun_possible=True,
+        input_owner="research dataset spec (dataset_spec_id)",
+        new_run_path="/api/research/datasets",
+        reason=(
+            "The build is reproducible from the stored spec, and the spec - not the job - is the "
+            "input: a build after the spec changed is a different artefact under the same id."
+        ),
+    ),
+    JobRerunContract(
+        kind=JobKind.OPTIMISATION,
+        rerun_possible=True,
+        input_owner="optimization_runs.input_snapshot",
+        new_run_path="/api/route-cost/resource-pool/optimize",
+        reason=(
+            "The optimisation run keeps its input snapshot, so a re-run is possible from the run "
+            "row - as a new run with a new id, authorised again and compared rather than merged."
+        ),
+    ),
+    JobRerunContract(
+        kind=JobKind.BACKTEST,
+        rerun_possible=True,
+        input_owner="strategy run (scenario, frozen version, period)",
+        new_run_path="/api/strategy-runs",
+        reason=(
+            "A backtest is reproducible from its frozen version and period; the engine version is "
+            "recorded too, so a re-run on a newer engine is a different measurement and says so."
+        ),
+    ),
+    JobRerunContract(
+        kind=JobKind.REPORT,
+        rerun_possible=True,
+        input_owner="generated report row (title, selections, window)",
+        new_run_path="/api/reports/portfolio",
+        reason=(
+            "A report can be generated again, but it is a filed artefact: the second run is a new "
+            "report, and overwriting the first would destroy the evidence the job cited."
+        ),
+    ),
+    JobRerunContract(
+        kind=JobKind.AGENT_RUN,
+        rerun_possible=True,
+        input_owner="agent run row (objective, profile, period, frozen version)",
+        new_run_path="/api/agent/research",
+        reason=(
+            "A research run can be repeated from its recorded objective and profile. Its findings "
+            "are evidence of that run, so a repeat adds a run rather than replacing the chain."
+        ),
+    ),
+    JobRerunContract(
+        kind=JobKind.SNAPSHOT,
+        rerun_possible=False,
+        input_owner="",
+        new_run_path="",
+        reason=(
+            "A snapshot records a point in time. Recording it again later would produce a "
+            "different snapshot under the same reference, so it is never replayed."
+        ),
+    ),
+)
+
+
+def job_rerun_contract(kind: JobKind) -> JobRerunContract:
+    """The declared answer for one kind.
+
+    Raises:
+        KeyError: the kind has no contract, which is a programming error rather than a runtime
+            state: every declared kind answers this question.
+    """
+
+    for contract in JOB_RERUN_CONTRACTS:
+        if contract.kind == kind:
+            return contract
+    raise KeyError(f"No rerun contract is declared for job kind {kind!r}.")
+
+
 def transition_allowed(current: JobState, target: JobState) -> bool:
     """Whether a state change is legal under the shared lifecycle."""
 
