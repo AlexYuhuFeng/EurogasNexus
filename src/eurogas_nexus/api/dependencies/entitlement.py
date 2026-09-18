@@ -10,7 +10,8 @@ Decision record (architecture conflict register C7). This dependency is **delibe
 unwired today**, and that is a decision rather than an oversight:
 
 - the enforced control on the governed read routes is the **row-level** filter
-  (``api/dependencies/row_entitlement.py`` and ``security/identity.principal_allows_source_family``),
+  (``api/dependencies/row_entitlement.py`` and
+  ``security/identity.principal_allows_source_family``),
   which is per-family *and* per-row, so a principal entitled to one source family keeps
   receiving exactly the rows it may see;
 - this dependency is a **route-level** gate on one declared family. Mounting it on a
@@ -21,7 +22,8 @@ unwired today**, and that is a decision rather than an oversight:
   ``07_DATA_GOVERNANCE_AND_RESEARCH.md`` asks for, which models per-dataset licences
   (``EntitlementScope.LICENSED``) rather than one family per route.
 
-Until then it stays tested rather than dead by neglect: ``tests/security/test_entitlement_dependency.py``
+Until then it stays tested rather than dead by neglect:
+``tests/security/test_entitlement_dependency.py``
 pins its fail-closed behaviour, so the day it is mounted it is already known to refuse
 an unknown family, an unentitled principal and an unavailable governance module.
 """

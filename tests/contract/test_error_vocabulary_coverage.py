@@ -79,9 +79,9 @@ def test_the_client_reads_the_field_names_the_envelope_writes() -> None:
     together here rather than by eye.
     """
 
-    source = (ROOT / "clients" / "web" / "src" / "app" / "experience" / "errorPresentation.ts").read_text(
-        encoding="utf-8-sig"
-    )
+    source = (
+        ROOT / "clients" / "web" / "src" / "app" / "experience" / "errorPresentation.ts"
+    ).read_text(encoding="utf-8-sig")
     body = source.split("export interface ApiErrorBody {", 1)[1].split("}", 1)[0]
     read_fields = set(re.findall(r"readonly (\w+)\??:", body))
 

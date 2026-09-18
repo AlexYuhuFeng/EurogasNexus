@@ -70,7 +70,9 @@ def test_upgrade_creates_the_case_tables_and_downgrade_removes_only_them() -> No
     try:
         with engine.begin() as connection:
             # A pre-existing table standing in for an earlier revision's schema.
-            connection.execute(text("CREATE TABLE analysis_snapshots (snapshot_id VARCHAR(64) PRIMARY KEY)"))
+            connection.execute(
+                text("CREATE TABLE analysis_snapshots (snapshot_id VARCHAR(64) PRIMARY KEY)")
+            )
             before = set(inspect(connection).get_table_names())
 
             _apply(connection, "upgrade")

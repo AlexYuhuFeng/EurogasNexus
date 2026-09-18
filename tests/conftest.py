@@ -38,6 +38,35 @@ def _pythonpath_for_subprocesses() -> None:
     os.environ["PYTHONPATH"] = os.pathsep.join(parts)
 
 
+@pytest.fixture(autouse=True)
+def _no_ambient_runtime_store(
+    request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Keep the non-integration suites independent of the machine's deployment config.
+
+    Most suites assert what the platform does *with the store they configure themselves* -
+    a SQLite fixture, or no store at all - and a developer who runs them on a workstation
+    that happens to have `RUNTIME_STORE_DATABASE_URL` set (a live deployment, a container)
+    would otherwise see roughly twenty failures that say nothing about the change under
+    test: a route that should answer `runtime_db_not_configured` answers from the live
+    store instead, and a degradation test asserts a warning the live run does not produce.
+
+    `tests/integration` is the one place a live store is meant to be exercised, so this
+    fixture leaves it alone - and it removes the variables through `monkeypatch`, so the
+    ambient value is restored for the tests that do want it. A test that configures its own
+    store is unaffected: its `monkeypatch.setenv` runs after this fixture.
+    """
+
+    if "integration" in Path(str(request.path)).parts:
+        return
+    for name in (
+        "RUNTIME_STORE_DATABASE_URL",
+        "DATABASE_URL",
+        "EUROGAS_NEXUS_DB_DSN",
+    ):
+        monkeypatch.delenv(name, raising=False)
+
+
 @pytest.fixture()
 def tmp_path() -> Path:
     """Return a writable per-test directory (sandbox-safe, default mode)."""

@@ -7,8 +7,6 @@ can never leak to a business user.
 
 from __future__ import annotations
 
-import pytest
-
 from eurogas_nexus.domain.operations.error_taxonomy import (
     ERROR_CATALOGUE,
     UNKNOWN_ERROR_CODE,
@@ -150,7 +148,9 @@ def test_operator_detail_never_reaches_a_business_user() -> None:
 
 
 def test_a_safe_message_override_is_allowed_and_keeps_the_keys() -> None:
-    payload = error_payload("DATA_STALE", message="Last verified 12 minutes ago.", correlation_id="c1")
+    payload = error_payload(
+        "DATA_STALE", message="Last verified 12 minutes ago.", correlation_id="c1"
+    )
 
     assert payload["message"] == "Last verified 12 minutes ago."
     assert payload["message_key"] == "errors.DATA_STALE.message"
@@ -159,9 +159,18 @@ def test_a_safe_message_override_is_allowed_and_keeps_the_keys() -> None:
 
 
 def test_the_infrastructure_taxonomy_bridges_onto_the_product_families() -> None:
-    assert family_for_operational_category(OperationalErrorCategory.ENTITLEMENT) is ErrorFamily.ENTITLEMENT
-    assert family_for_operational_category(OperationalErrorCategory.SOLVER) is ErrorFamily.CALCULATION
-    assert family_for_operational_category(OperationalErrorCategory.DATABASE) is ErrorFamily.DEPENDENCY
+    assert (
+        family_for_operational_category(OperationalErrorCategory.ENTITLEMENT)
+        is ErrorFamily.ENTITLEMENT
+    )
+    assert (
+        family_for_operational_category(OperationalErrorCategory.SOLVER)
+        is ErrorFamily.CALCULATION
+    )
+    assert (
+        family_for_operational_category(OperationalErrorCategory.DATABASE)
+        is ErrorFamily.DEPENDENCY
+    )
     assert family_for_operational_category(OperationalErrorCategory.JOB) is ErrorFamily.JOB
     assert family_for_operational_category(OperationalErrorCategory.INTERNAL) is ErrorFamily.SYSTEM
 
@@ -172,7 +181,7 @@ def test_the_infrastructure_taxonomy_bridges_onto_the_product_families() -> None
 def test_catalogue_grouping_is_complete_and_stable() -> None:
     grouped = catalogue_by_family()
 
-    set(grouped) == set(ErrorFamily)
+    assert set(grouped) == set(ErrorFamily)
     flattened = [code for codes in grouped.values() for code in codes]
     assert sorted(flattened) == sorted(ERROR_CATALOGUE)
     assert len(flattened) == len(set(flattened)) == len(ERROR_CATALOGUE)

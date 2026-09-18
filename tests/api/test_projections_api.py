@@ -23,8 +23,8 @@ from eurogas_nexus.api.app import create_app
 from eurogas_nexus.api.dependencies import identity as identity_dependency
 from eurogas_nexus.api.routes.public.projections import router as projections_router
 from eurogas_nexus.core.config import Settings
-from eurogas_nexus.db.base import Base
 from eurogas_nexus.db import session as db_session
+from eurogas_nexus.db.base import Base
 from eurogas_nexus.db.models import (
     GeneratedReportRecord,
     IntradayOpportunityRecord,

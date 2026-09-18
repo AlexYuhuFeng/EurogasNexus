@@ -85,7 +85,9 @@ def test_analysis_query_echoes_the_snapshot_it_cited(tmp_path, monkeypatch) -> N
     assert data["snapshot_id"] != snapshot_id
 
 
-def test_analysis_query_without_a_citation_keeps_the_previous_payload(tmp_path, monkeypatch) -> None:
+def test_analysis_query_without_a_citation_keeps_the_previous_payload(
+    tmp_path, monkeypatch
+) -> None:
     _database(tmp_path, monkeypatch)
     client = TestClient(create_app())
 
@@ -166,7 +168,9 @@ def test_portfolio_report_echoes_the_snapshot_it_cited(tmp_path, monkeypatch) ->
     assert data["task"] == "PORTFOLIO_REPORT"
 
 
-def test_portfolio_report_without_a_citation_keeps_the_previous_payload(tmp_path, monkeypatch) -> None:
+def test_portfolio_report_without_a_citation_keeps_the_previous_payload(
+    tmp_path, monkeypatch
+) -> None:
     _database(tmp_path, monkeypatch)
     client = TestClient(create_app())
 

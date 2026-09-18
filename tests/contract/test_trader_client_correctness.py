@@ -41,7 +41,10 @@ def test_strategy_prices_consume_backend_normalized_market_view() -> None:
     # Architecture V2 Wave 5: the periodic market lane reads the market-context
     # projection, which composes the same normalized view and spreads through the
     # same bounded loader instead of joining the low-level endpoints in the browser.
-    assert "loadWorkspaceEndpoint((loaderOptions) => api.marketContext(undefined, loaderOptions)" in store
+    assert (
+        "loadWorkspaceEndpoint((loaderOptions) => api.marketContext(undefined, loaderOptions)"
+        in store
+    )
 
     # scenario assembly reads backend-owned fields only (no FX math)
     assert "observation.price_gbp_mwh" in scenario
@@ -296,7 +299,6 @@ def test_visible_literal_translation_keys_exist_in_both_locales() -> None:
 def test_network_geometry_does_not_overstate_route_corridor_coverage() -> None:
     api_client = _read(WEB / "api" / "client.ts")
     derived = _read(WEB / "app" / "workspaceDerivedData.ts")
-    app = _read_application()
     network_workspace = _read(WEB / "components" / "NetworkWorkspace.tsx")
     map_component = _read(WEB / "components" / "GasNetworkMap.tsx")
     line_model = _read(WEB / "app" / "networkMapLines.ts")

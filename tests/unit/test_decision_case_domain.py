@@ -172,7 +172,9 @@ def test_evidence_is_deduplicated_and_carries_the_assumptions() -> None:
         ),
         DecisionEvidence(kind=DecisionEvidenceKind.SCENARIO, ref="scenario-1"),
     )
-    again = add_evidence(case, DecisionEvidence(kind=DecisionEvidenceKind.SCENARIO, ref="scenario-1"))
+    again = add_evidence(
+        case, DecisionEvidence(kind=DecisionEvidenceKind.SCENARIO, ref="scenario-1")
+    )
     assert again is case
 
     assert add_evidence(case, DecisionEvidence(kind=DecisionEvidenceKind.MANUAL, ref=" ")) is case

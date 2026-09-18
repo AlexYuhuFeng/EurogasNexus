@@ -47,7 +47,19 @@ addopts = ["--import-mode=importlib"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+# `.automation/` is the earlier autonomous-development harness, kept in the tree as history
+# rather than as product code (it is neither accepted nor reverted by the architecture
+# programme). Linting it would report hundreds of style findings in scripts nobody maintains
+# and drown the findings that matter in `src/`, `tests/` and `scripts/`.
+exclude = [".automation"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI's parameter functions are *meant* to be called in a signature default
+# (`limit: int = Query(default=50, ge=1, le=500)`); B008 exists to catch a mutable or
+# expensive default, which these are not. Declaring them here is the documented way to
+# teach the linter the framework idiom instead of silencing the rule.
+extend-immutable-calls = ["fastapi.Query", "fastapi.Depends", "fastapi.Header", "fastapi.Path", "fastapi.Body"]
 

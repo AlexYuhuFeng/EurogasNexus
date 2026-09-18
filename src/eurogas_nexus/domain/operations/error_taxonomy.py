@@ -100,22 +100,66 @@ ERROR_CATALOGUE: dict[str, ErrorDefinition] = {
     defn.code: defn
     for defn in (
         # --- authentication and identity ---
-        _definition("unauthenticated", ErrorFamily.AUTH, recoverability=Recoverability.AFTER_USER_ACTION),
-        _definition("invalid_credentials", ErrorFamily.AUTH, recoverability=Recoverability.AFTER_USER_ACTION),
-        _definition("session_invalid", ErrorFamily.AUTH, recoverability=Recoverability.AFTER_USER_ACTION),
-        _definition("session_principal_inactive", ErrorFamily.AUTH, recoverability=Recoverability.PERMANENT),
-        _definition("identity_not_provisioned", ErrorFamily.AUTH, recoverability=Recoverability.PERMANENT),
-        _definition("dev_login_disabled", ErrorFamily.AUTH, recoverability=Recoverability.PERMANENT),
+        _definition(
+            "unauthenticated",
+            ErrorFamily.AUTH,
+            recoverability=Recoverability.AFTER_USER_ACTION,
+        ),
+        _definition(
+            "invalid_credentials",
+            ErrorFamily.AUTH,
+            recoverability=Recoverability.AFTER_USER_ACTION,
+        ),
+        _definition(
+            "session_invalid",
+            ErrorFamily.AUTH,
+            recoverability=Recoverability.AFTER_USER_ACTION,
+        ),
+        _definition(
+            "session_principal_inactive",
+            ErrorFamily.AUTH,
+            recoverability=Recoverability.PERMANENT,
+        ),
+        _definition(
+            "identity_not_provisioned",
+            ErrorFamily.AUTH,
+            recoverability=Recoverability.PERMANENT,
+        ),
+        _definition(
+            "dev_login_disabled",
+            ErrorFamily.AUTH,
+            recoverability=Recoverability.PERMANENT,
+        ),
         _definition("oidc_not_configured", ErrorFamily.CONFIGURATION, operator_only=True),
         _definition(
             "identity_store_not_configured", ErrorFamily.CONFIGURATION, operator_only=True
         ),
-        _definition("identity_store_unavailable", ErrorFamily.DEPENDENCY, recoverability=Recoverability.RETRY),
-        _definition("principal_missing", ErrorFamily.AUTH, recoverability=Recoverability.AFTER_USER_ACTION),
-        _definition("operator_principal_missing", ErrorFamily.AUTH, recoverability=Recoverability.AFTER_USER_ACTION),
-        _definition("operator_principal_invalid", ErrorFamily.AUTH, recoverability=Recoverability.AFTER_USER_ACTION),
+        _definition(
+            "identity_store_unavailable",
+            ErrorFamily.DEPENDENCY,
+            recoverability=Recoverability.RETRY,
+        ),
+        _definition(
+            "principal_missing",
+            ErrorFamily.AUTH,
+            recoverability=Recoverability.AFTER_USER_ACTION,
+        ),
+        _definition(
+            "operator_principal_missing",
+            ErrorFamily.AUTH,
+            recoverability=Recoverability.AFTER_USER_ACTION,
+        ),
+        _definition(
+            "operator_principal_invalid",
+            ErrorFamily.AUTH,
+            recoverability=Recoverability.AFTER_USER_ACTION,
+        ),
         # --- authorization and entitlement ---
-        _definition("identity_role_forbidden", ErrorFamily.AUTH, recoverability=Recoverability.PERMANENT),
+        _definition(
+            "identity_role_forbidden",
+            ErrorFamily.AUTH,
+            recoverability=Recoverability.PERMANENT,
+        ),
         _definition("permission_denied", ErrorFamily.AUTH, recoverability=Recoverability.PERMANENT),
         # The origin/CSRF guard's refusals. Catalogued because the code-shape rules would
         # otherwise file them elsewhere ("origin_not_allowed" matches no rule and fell to
@@ -131,18 +175,43 @@ ERROR_CATALOGUE: dict[str, ErrorDefinition] = {
             ErrorFamily.AUTH,
             recoverability=Recoverability.AFTER_USER_ACTION,
         ),
-        _definition("permission_not_declared", ErrorFamily.CONFIGURATION, severity=ErrorSeverity.CRITICAL, operator_only=True),
+        _definition(
+            "permission_not_declared",
+            ErrorFamily.CONFIGURATION,
+            severity=ErrorSeverity.CRITICAL,
+            operator_only=True,
+        ),
         _definition(
             "commercial_access_not_granted",
             ErrorFamily.ENTITLEMENT,
             recoverability=Recoverability.AFTER_USER_ACTION,
         ),
-        _definition("entitlement_denied", ErrorFamily.ENTITLEMENT, recoverability=Recoverability.PERMANENT),
-        _definition("entitlement_unavailable", ErrorFamily.ENTITLEMENT, recoverability=Recoverability.RETRY),
-        _definition("export_denied", ErrorFamily.ENTITLEMENT, recoverability=Recoverability.PERMANENT),
+        _definition(
+            "entitlement_denied",
+            ErrorFamily.ENTITLEMENT,
+            recoverability=Recoverability.PERMANENT,
+        ),
+        _definition(
+            "entitlement_unavailable",
+            ErrorFamily.ENTITLEMENT,
+            recoverability=Recoverability.RETRY,
+        ),
+        _definition(
+            "export_denied",
+            ErrorFamily.ENTITLEMENT,
+            recoverability=Recoverability.PERMANENT,
+        ),
         # --- validation ---
-        _definition("dataset_spec_invalid", ErrorFamily.VALIDATION, recoverability=Recoverability.AFTER_USER_ACTION),
-        _definition("dataset_build_invalid", ErrorFamily.VALIDATION, recoverability=Recoverability.AFTER_USER_ACTION),
+        _definition(
+            "dataset_spec_invalid",
+            ErrorFamily.VALIDATION,
+            recoverability=Recoverability.AFTER_USER_ACTION,
+        ),
+        _definition(
+            "dataset_build_invalid",
+            ErrorFamily.VALIDATION,
+            recoverability=Recoverability.AFTER_USER_ACTION,
+        ),
         # The analysis and report routes refuse a selection the pipeline cannot apply
         # (Architecture V2 Wave 7 section 16). Catalogued rather than left to the
         # code-shape rules so the caller is told the request itself has to change.
@@ -154,36 +223,126 @@ ERROR_CATALOGUE: dict[str, ErrorDefinition] = {
         # Generic HTTP failures an endpoint may raise without a domain code. They
         # exist so the error envelope never has to label a plain 404 or 409 as an
         # unclassified SYSTEM fault.
-        _definition("not_found", ErrorFamily.VALIDATION, severity=ErrorSeverity.WARNING, recoverability=Recoverability.PERMANENT),
-        _definition("conflict", ErrorFamily.VALIDATION, severity=ErrorSeverity.WARNING, recoverability=Recoverability.AFTER_USER_ACTION),
-        _definition("validation_failed", ErrorFamily.VALIDATION, recoverability=Recoverability.AFTER_USER_ACTION),
-        _definition("service_unavailable", ErrorFamily.DEPENDENCY, recoverability=Recoverability.RETRY),
-        _definition("rate_limited", ErrorFamily.DEPENDENCY, severity=ErrorSeverity.WARNING, recoverability=Recoverability.RETRY),
+        _definition(
+            "not_found",
+            ErrorFamily.VALIDATION,
+            severity=ErrorSeverity.WARNING,
+            recoverability=Recoverability.PERMANENT,
+        ),
+        _definition(
+            "conflict",
+            ErrorFamily.VALIDATION,
+            severity=ErrorSeverity.WARNING,
+            recoverability=Recoverability.AFTER_USER_ACTION,
+        ),
+        _definition(
+            "validation_failed",
+            ErrorFamily.VALIDATION,
+            recoverability=Recoverability.AFTER_USER_ACTION,
+        ),
+        _definition(
+            "service_unavailable",
+            ErrorFamily.DEPENDENCY,
+            recoverability=Recoverability.RETRY,
+        ),
+        _definition(
+            "rate_limited",
+            ErrorFamily.DEPENDENCY,
+            severity=ErrorSeverity.WARNING,
+            recoverability=Recoverability.RETRY,
+        ),
         # --- data ---
-        _definition("DATA_STALE", ErrorFamily.DATA, severity=ErrorSeverity.WARNING, recoverability=Recoverability.RETRY),
+        _definition(
+            "DATA_STALE",
+            ErrorFamily.DATA,
+            severity=ErrorSeverity.WARNING,
+            recoverability=Recoverability.RETRY,
+        ),
         _definition("DATA_MISSING", ErrorFamily.DATA, severity=ErrorSeverity.WARNING),
         _definition("PORTFOLIO_INCOMPLETE", ErrorFamily.DATA, severity=ErrorSeverity.WARNING),
-        _definition("SNAPSHOT_EXPIRED", ErrorFamily.DATA, recoverability=Recoverability.AFTER_USER_ACTION),
+        _definition(
+            "SNAPSHOT_EXPIRED",
+            ErrorFamily.DATA,
+            recoverability=Recoverability.AFTER_USER_ACTION,
+        ),
         # --- calculation ---
-        _definition("ROUTE_INFEASIBLE", ErrorFamily.CALCULATION, recoverability=Recoverability.AFTER_USER_ACTION),
-        _definition("OPTIMIZATION_INFEASIBLE", ErrorFamily.CALCULATION, recoverability=Recoverability.AFTER_USER_ACTION),
+        _definition(
+            "ROUTE_INFEASIBLE",
+            ErrorFamily.CALCULATION,
+            recoverability=Recoverability.AFTER_USER_ACTION,
+        ),
+        _definition(
+            "OPTIMIZATION_INFEASIBLE",
+            ErrorFamily.CALCULATION,
+            recoverability=Recoverability.AFTER_USER_ACTION,
+        ),
         # --- dependency and runtime ---
-        _definition("PROVIDER_UNAVAILABLE", ErrorFamily.DEPENDENCY, severity=ErrorSeverity.WARNING, recoverability=Recoverability.RETRY),
-        _definition("runtime_db_unavailable", ErrorFamily.DEPENDENCY, recoverability=Recoverability.RETRY),
-        _definition("runtime_db_required", ErrorFamily.CONFIGURATION, recoverability=Recoverability.AFTER_USER_ACTION),
+        _definition(
+            "PROVIDER_UNAVAILABLE",
+            ErrorFamily.DEPENDENCY,
+            severity=ErrorSeverity.WARNING,
+            recoverability=Recoverability.RETRY,
+        ),
+        _definition(
+            "runtime_db_unavailable",
+            ErrorFamily.DEPENDENCY,
+            recoverability=Recoverability.RETRY,
+        ),
+        _definition(
+            "runtime_db_required",
+            ErrorFamily.CONFIGURATION,
+            recoverability=Recoverability.AFTER_USER_ACTION,
+        ),
         # --- jobs and agents ---
         _definition("JOB_FAILED", ErrorFamily.JOB, recoverability=Recoverability.RETRY),
-        _definition("JOB_CANCELLED", ErrorFamily.JOB, severity=ErrorSeverity.INFO, recoverability=Recoverability.AFTER_USER_ACTION),
-        _definition("AGENT_BUDGET_EXCEEDED", ErrorFamily.AGENT, severity=ErrorSeverity.WARNING, recoverability=Recoverability.AFTER_USER_ACTION),
-        _definition("AGENT_CAPABILITY_UNAVAILABLE", ErrorFamily.AGENT, recoverability=Recoverability.RETRY),
+        _definition(
+            "JOB_CANCELLED",
+            ErrorFamily.JOB,
+            severity=ErrorSeverity.INFO,
+            recoverability=Recoverability.AFTER_USER_ACTION,
+        ),
+        _definition(
+            "AGENT_BUDGET_EXCEEDED",
+            ErrorFamily.AGENT,
+            severity=ErrorSeverity.WARNING,
+            recoverability=Recoverability.AFTER_USER_ACTION,
+        ),
+        _definition(
+            "AGENT_CAPABILITY_UNAVAILABLE",
+            ErrorFamily.AGENT,
+            recoverability=Recoverability.RETRY,
+        ),
         # --- configuration and secrets ---
-        _definition("public_api_token_not_configured", ErrorFamily.CONFIGURATION, severity=ErrorSeverity.CRITICAL, operator_only=True),
-        _definition("internal_api_token_not_configured", ErrorFamily.CONFIGURATION, severity=ErrorSeverity.CRITICAL, operator_only=True),
-        _definition("credential_store_not_configured", ErrorFamily.CONFIGURATION, operator_only=True),
-        _definition("llm_provider_denied", ErrorFamily.ENTITLEMENT, recoverability=Recoverability.AFTER_USER_ACTION),
+        _definition(
+            "public_api_token_not_configured",
+            ErrorFamily.CONFIGURATION,
+            severity=ErrorSeverity.CRITICAL,
+            operator_only=True,
+        ),
+        _definition(
+            "internal_api_token_not_configured",
+            ErrorFamily.CONFIGURATION,
+            severity=ErrorSeverity.CRITICAL,
+            operator_only=True,
+        ),
+        _definition(
+            "credential_store_not_configured",
+            ErrorFamily.CONFIGURATION,
+            operator_only=True,
+        ),
+        _definition(
+            "llm_provider_denied",
+            ErrorFamily.ENTITLEMENT,
+            recoverability=Recoverability.AFTER_USER_ACTION,
+        ),
         _definition("oidc_login_error", ErrorFamily.AUTH, recoverability=Recoverability.RETRY),
         # --- system ---
-        _definition("internal", ErrorFamily.SYSTEM, severity=ErrorSeverity.CRITICAL, operator_only=True),
+        _definition(
+            "internal",
+            ErrorFamily.SYSTEM,
+            severity=ErrorSeverity.CRITICAL,
+            operator_only=True,
+        ),
     )
 }
 

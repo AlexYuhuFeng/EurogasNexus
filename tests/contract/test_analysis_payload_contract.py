@@ -56,13 +56,14 @@ def test_the_report_run_takes_no_resource_list() -> None:
     """A report is not scoped by a selection, so the resource list is not an input."""
 
     hook_text = REVIEW_HOOK_TS.read_text(encoding="utf-8-sig")
-    controller_text = (ROOT / "clients" / "web" / "src" / "app" / "hooks" / "useAppController.ts").read_text(
-        encoding="utf-8-sig"
-    )
+    controller_text = (
+        ROOT / "clients" / "web" / "src" / "app" / "hooks" / "useAppController.ts"
+    ).read_text(encoding="utf-8-sig")
     # The hook takes the language and the cited snapshot; the controller no longer has to
     # gather portfolio resources to build the payload.
     assert re.search(
-        r"export function useReviewAnalysis\(\s*language: string,.*analysisSnapshotId: string \| null = null,\s*\)",
+        r"export function useReviewAnalysis\(\s*language: string,.*"
+        r"analysisSnapshotId: string \| null = null,\s*\)",
         hook_text,
         re.S,
     )

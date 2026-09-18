@@ -33,10 +33,10 @@ from eurogas_nexus.security.capabilities import (
     Capability,
     FunctionalAssignment,
     WorkMode,
+    available_work_modes,
     build_experience_profile,
     capabilities_for_principal,
     capability_source_permissions,
-    available_work_modes,
     commercial_capabilities_for_principal,
     default_work_mode,
     functional_assignments_for,
@@ -79,7 +79,9 @@ def test_every_capability_is_bound_to_real_permissions() -> None:
     for capability, sources in CAPABILITY_PERMISSIONS.items():
         assert sources, capability
         for permission in sources:
-            assert permission in role_reachable, f"{capability} is bound to unreachable {permission}"
+            assert permission in role_reachable, (
+                f"{capability} is bound to unreachable {permission}"
+            )
 
 
 def test_capability_catalogue_cannot_widen_any_role() -> None:

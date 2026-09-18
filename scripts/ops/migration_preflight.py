@@ -24,21 +24,27 @@ from eurogas_nexus.db.registry import list_missing_required_tables
 from eurogas_nexus.db.session import get_engine, redact_database_url, resolve_database_url
 
 ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 
 def alembic_head() -> str | None:
-    """Return the newest migration revision id declared in source."""
+    """Return the newest migration revision id declared in source.
 
-    revisions = []
-    for path in (ROOT / "alembic" / "versions").glob("*.py"):
-        text = path.read_text(encoding="utf-8")
-        for line in text.splitlines():
-            if line.startswith("revision"):
-                value = line.split("=", 1)[1].strip().strip('"').strip("'")
-                if value and value != "None":
-                    revisions.append(value)
-                    break
-    return sorted(revisions)[-1] if revisions else None
+    This used to be a second, private copy of the scan in
+    `scripts/release/release_metadata.py` - and it kept the bug that copy had already fixed:
+    a wrapped docstring line beginning with the word "revision" was read as the identifier
+    assignment, so the preflight crashed with an IndexError on the tree that contains
+    `0035_decision_cases` (whose docstring wraps exactly there). An operator running the
+    migration preflight, of all scripts, got a traceback instead of a report.
+
+    There is one implementation now, and it resolves by the *graph* rather than by sorting
+    identifiers, so a migration named out of order cannot be mistaken for the head.
+    """
+
+    from scripts.release.release_metadata import latest_alembic_revision
+
+    return latest_alembic_revision()
 
 
 def main(argv: list[str] | None = None) -> int:

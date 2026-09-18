@@ -379,7 +379,9 @@ def test_ai_caller_prefers_the_authenticated_identity() -> None:
     class _AnonymousRequest:
         state = _AnonymousState()
 
-    assert ai_caller(_AnonymousRequest()).principal_id == legacy_public_token_principal().principal_id
+    assert (
+        ai_caller(_AnonymousRequest()).principal_id == legacy_public_token_principal().principal_id
+    )
 
 
 if __name__ == "__main__":  # pragma: no cover - manual invocation guard

@@ -29,17 +29,16 @@ from eurogas_nexus.db.models.backtest import (
 from eurogas_nexus.db.models.certification import ProviderCertificationRecord
 from eurogas_nexus.db.models.cost_observation import CostObservationRecord
 from eurogas_nexus.db.models.data_platform import AnalysisSnapshotRecord
-from eurogas_nexus.db.models.decision import (
-    DecisionCaseDecisionRecord,
-    DecisionCaseRecord,
-)
 from eurogas_nexus.db.models.dataops import (
     DataOperationsHeartbeatRecord,
     IngestionRunIssueRecord,
     SourceRuntimeStateRecord,
 )
+from eurogas_nexus.db.models.decision import (
+    DecisionCaseDecisionRecord,
+    DecisionCaseRecord,
+)
 from eurogas_nexus.db.models.glossary import GlossaryTermRecord
-from eurogas_nexus.db.models.jobs import JobRecord
 from eurogas_nexus.db.models.identity import (
     IdentityApiKeyRecord,
     IdentityExternalIdRecord,
@@ -47,6 +46,7 @@ from eurogas_nexus.db.models.identity import (
     OidcAuthorizationStateRecord,
     UserSessionRecord,
 )
+from eurogas_nexus.db.models.jobs import JobRecord
 from eurogas_nexus.db.models.market_intelligence import (
     CompanyTsoAccessRecord,
     IntradayOpportunityRecord,

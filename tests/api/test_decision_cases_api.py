@@ -43,7 +43,9 @@ def _identity(database_url: str, *, name: str, role: str) -> str:
             role=role,
             data_scopes=[],
         )
-        _key, bearer = create_identity_api_key(session, row.principal_id, display_name="decision-test")
+        _key, bearer = create_identity_api_key(
+            session, row.principal_id, display_name="decision-test"
+        )
         session.commit()
     return bearer
 
@@ -124,7 +126,9 @@ def test_evidence_then_decision_then_reopen(tmp_path, monkeypatch) -> None:
         headers=_headers(analyst),
         json={"kind": "ROUTE_RECOMMENDATION", "ref": "route-rec-9"},
     )
-    reloaded = client.get(f"/api/decision-cases/{case_id}", headers=_headers(analyst)).json()["data"]
+    reloaded = client.get(
+        f"/api/decision-cases/{case_id}", headers=_headers(analyst)
+    ).json()["data"]
     assert len(reloaded["evidence"]) == 1
 
     recorded = client.post(
@@ -188,11 +192,15 @@ def test_an_ai_interpretation_run_is_citable_evidence(tmp_path, monkeypatch) -> 
 
     # The kind is the vocabulary's own value, so a client that reads it back sees the code
     # it sent rather than a normalised stand-in.
-    reloaded = client.get(f"/api/decision-cases/{case_id}", headers=_headers(analyst)).json()["data"]
+    reloaded = client.get(
+        f"/api/decision-cases/{case_id}", headers=_headers(analyst)
+    ).json()["data"]
     assert reloaded["evidence"][0]["kind"] == "AI_ANALYSIS"
 
 
-def test_the_actor_is_the_authenticated_identity_and_not_a_body_field(tmp_path, monkeypatch) -> None:
+def test_the_actor_is_the_authenticated_identity_and_not_a_body_field(
+    tmp_path, monkeypatch
+) -> None:
     database_url = _prepare(tmp_path, monkeypatch)
     reviewer = _identity(database_url, name="real-reviewer", role="REVIEWER")
     analyst = _identity(database_url, name="decision-analyst", role="ANALYST")

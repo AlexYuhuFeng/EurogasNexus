@@ -578,7 +578,10 @@ def _published_description(tool: MCPTool) -> str:
             "does not re-authorise permission or entitlement per user, and every call is "
             "audited as running outside the capability runtime."
         )
-    return f"{tool.description} Invokes a registry capability, which re-authorises the caller per call."
+    return (
+        f"{tool.description} Invokes a registry capability, "
+        "which re-authorises the caller per call."
+    )
 
 
 def _audit_deployment_principal_call(tool: MCPTool) -> None:

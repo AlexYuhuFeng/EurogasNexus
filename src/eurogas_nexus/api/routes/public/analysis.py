@@ -5,11 +5,12 @@ from __future__ import annotations
 import json
 from collections.abc import Sequence
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Request
 
-from eurogas_nexus.api.dependencies.ai_authority import ai_caller, ai_authority_denial
+from eurogas_nexus.api.dependencies.ai_authority import ai_authority_denial, ai_caller
 from eurogas_nexus.domain.analysis import (
     AnalysisRequest,
     AnalysisResult,
@@ -22,6 +23,12 @@ from eurogas_nexus.domain.analysis import (
 from eurogas_nexus.domain.glossary import baseline_glossary_terms
 from eurogas_nexus.llm import invoke_deepseek
 from eurogas_nexus.security.provider_keys import load_provider_api_key
+
+if TYPE_CHECKING:  # pragma: no cover - a type-only import, never executed
+    # `_maybe_invoke_provider` annotates the caller it re-authorises. The name was used without
+    # being imported, which `from __future__ import annotations` made invisible at runtime and
+    # only a linter could see (`F821`): the annotation was unresolved for any tool that reads it.
+    from eurogas_nexus.security.identity import AuthenticatedPrincipal
 
 router = APIRouter(tags=["analysis"])
 

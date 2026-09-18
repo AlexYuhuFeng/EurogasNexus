@@ -67,18 +67,29 @@ def test_audit_event_write_and_readback() -> None:
 
 
 def test_raw_payload_archive_write_and_readback() -> None:
+    """The archive accepts a row and reads it back, on a database that already has some.
+
+    The archive is append-only, so the test cannot clean up after itself: it writes a fresh
+    identifier per run instead. A fixed id passed on a database that had already seen this
+    test - which is what a developer sees when they point the suite at a persistent store
+    rather than CI's throw-away service - failed with a duplicate-key error and read as a
+    broken archive rather than a broken test.
+    """
+
     from datetime import UTC, datetime
+    from uuid import uuid4
 
     from sqlalchemy.orm import Session
 
     from eurogas_nexus.db.models import RawPayloadArchiveRecord
     from eurogas_nexus.db.repositories.raw_archive import archive_raw_payload
 
+    archive_id = f"raw-smoke-{uuid4().hex[:12]}"
     engine = _engine()
     with Session(engine) as session:
         archive_raw_payload(
             session,
-            archive_id="raw-smoke-0001",
+            archive_id=archive_id,
             source_system="SMOKE",
             dataset="test",
             source_reference="postgres-smoke",
@@ -88,6 +99,6 @@ def test_raw_payload_archive_write_and_readback() -> None:
             received_at_utc=datetime(2026, 7, 1, tzinfo=UTC),
         )
         session.commit()
-        row = session.get(RawPayloadArchiveRecord, "raw-smoke-0001")
+        row = session.get(RawPayloadArchiveRecord, archive_id)
         assert row is not None
         assert row.source_system == "SMOKE"

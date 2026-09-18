@@ -106,7 +106,9 @@ def test_commercial_surface_declaration_matches_the_intended_boundary() -> None:
     assert serves_commercial_data("/api/capabilities") is False
     assert serves_commercial_data("/api/me") is False
     assert serves_commercial_data("/api/health") is False
-    assert all(prefix.startswith("/api/") and prefix.endswith("/") for prefix in COMMERCIAL_DATA_PREFIXES)
+    assert all(
+        prefix.startswith("/api/") and prefix.endswith("/") for prefix in COMMERCIAL_DATA_PREFIXES
+    )
 
 
 def test_platform_admin_cannot_read_commercial_data(tmp_path, monkeypatch) -> None:

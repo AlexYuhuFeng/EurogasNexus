@@ -418,7 +418,7 @@ def test_release_profile_wires_route_permission_enforcement() -> None:
             continue
         if not isinstance(node.value, ast.Dict):
             continue
-        for key, value in zip(node.value.keys, node.value.values):
+        for key, value in zip(node.value.keys, node.value.values, strict=True):
             name = getattr(key, "attr", None)
             if name is None or not isinstance(value, ast.Call):
                 continue

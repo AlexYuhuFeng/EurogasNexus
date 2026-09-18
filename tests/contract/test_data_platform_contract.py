@@ -30,10 +30,10 @@ from eurogas_nexus.domain.data_platform.snapshots import (
     DESCRIPTOR_FIELDS,
 )
 from eurogas_nexus.domain.dataops.entitlement import COMMERCIAL_SOURCE_FAMILIES
+from eurogas_nexus.ingestion.public_sources import KWH_PER_MCM  # noqa: F401  (import safety)
 from eurogas_nexus.ingestion.simulated_market_prices import (
     SIMULATED_MARKET_PRICE_SOURCE_SYSTEMS,
 )
-from eurogas_nexus.ingestion.public_sources import KWH_PER_MCM  # noqa: F401  (import safety)
 from eurogas_nexus.security.identity import PUBLIC_BASELINE_SOURCE_FAMILIES
 from eurogas_nexus.security.permissions import Permission, permission_for_path
 

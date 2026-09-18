@@ -138,13 +138,58 @@ its notification-copy bullet, which is contract rather than delivered behaviour 
 - `tests/api/test_data_platform_api.py` pins both provenance shapes (no block when unmeasurable, a
   real `0` when measured) and the `SNAPSHOT` job row.
 
-## 6. Limits of this audit
+## 6. What running, rather than reading, then found
+
+The audit above reads code against claims. Four further findings came from *executing* what the
+checkpoint had recorded as unrunnable, after noticing that this environment does have a Docker daemon
+and a running PostgreSQL 16 container:
+
+1. **The migration preflight crashed on the current tree.** `scripts/ops/migration_preflight.py`
+   carried a second, private copy of the migration-scan logic that
+   `scripts/release/release_metadata.py` had already fixed, and it kept the bug that copy had fixed: a
+   wrapped docstring line beginning with the word `revision` was read as the identifier assignment, so
+   `alembic_head()` raised `IndexError` on the tree containing `0035_decision_cases` (whose docstring
+   wraps exactly there). An operator running the preflight - the script whose entire purpose is to run
+   before a migration - got a traceback instead of a report. There is one implementation now, it
+   resolves the head by the `down_revision` chain rather than by sorting identifiers, it refuses a
+   branched history instead of silently picking a leaf, and `tests/unit/test_migration_preflight.py`
+   holds it (including the prose pitfall, in the shape the real tree has).
+2. **The suite depended on the machine it ran on.** Roughly twenty suites assert what the platform does
+   with the store *they* configure (a SQLite fixture, or none), and they read the ambient environment:
+   with `RUNTIME_STORE_DATABASE_URL` pointing at a deployment, a route that must answer
+   `runtime_db_not_configured` answered from the live store, and a degradation test asserted a warning
+   that never appeared. `tests/conftest.py` now removes the ambient runtime-store variables for every
+   test outside `tests/integration` (through `monkeypatch`, so the live suite still gets them), which
+   is the policy `docs/operations/LIVE_POSTGRESQL.md` already stated - "default validation remains
+   DB-free" - enforced rather than assumed.
+3. **The integration suite could not be run twice.** One test archived a row under a fixed
+   `raw-smoke-0001` id, so a second run against a persistent database failed with a duplicate key and
+   read as a broken archive; CI's throw-away service container hid it. The archive is append-only, so
+   the test writes a fresh id per run instead of deleting anything.
+4. **The repository's own gate was red.** `ruff check .` is declared in
+   `docs/engineering/CODING_STANDARDS.md`, `docs/operations/VALIDATION.md` and
+   `.github/workflows/ci.yml`, and reported ~409 findings on this tree: the style bulk in the earlier
+   `.automation/` harness, and real ones in product code - an undefined name in a type annotation that
+   `from __future__ import annotations` made invisible at runtime (`analysis.py`), an unused variable,
+   an unused import, a `zip()` without `strict=`, and a test whose completeness assertion was a bare
+   comparison (`set(grouped) == set(ErrorFamily)`) that could never fail. All are fixed;
+   `.automation/` is excluded with that reason written in `pyproject.toml`, FastAPI's parameter
+   functions are declared immutable calls so `B008` stops mis-reading the framework idiom, and
+   `ruff check .` is clean.
+
+What that execution bought, beyond the fixes: the migration chain applied to a real PostgreSQL 16
+(`0033` → `0036`), the whole suite green against a scratch database at head (1807 passed, 1 skipped,
+including the 16 store-gated tests), and the automated backup/restore drill passing with real data
+(52.5 MB dump, restored at head `0036_job_records`, 80,545 ingestion runs, API smoke 200).
+
+## 7. Limits of this audit
 
 - The verdicts are the auditors' and the integrator's reading of the code, not a proof; each finding
   above names the file it rests on, so a reader can disagree with any of them.
 - Only the records listed in section 2 were audited. The V2 pack's numbered specification documents
   (`02_ARCHITECTURE_CONSTITUTION.md` and the rest) were read for context, not audited claim by claim.
-- Nothing was verified against a live PostgreSQL deployment, a packaged desktop build, an external
-  identity provider or a real UAT, because none exists in this environment. Claims that depend on
-  those remain verified only as far as the fixtures go, which is what the execution checkpoint's
-  "not run and not claimed" list already says.
+- Nothing was verified against the **production** deployment, a packaged desktop build or an external
+  identity provider: the PostgreSQL evidence above comes from a local container, the browser UAT job
+  needs Playwright, and the desktop bundle needs a Rust toolchain. Claims that depend on those remain
+  verified only as far as the fixtures and the local services go, which is what the execution
+  checkpoint's "not run and not claimed" list says.

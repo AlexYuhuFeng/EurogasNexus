@@ -31,6 +31,9 @@ PACKAGE_NAME = "eurogas-nexus"
 _REVISION_ASSIGNMENT = re.compile(
     r"""^revision(?:\s*:\s*[^=]+)?\s*=\s*["'](?P<value>[^"']+)["']""",
 )
+_DOWN_REVISION_ASSIGNMENT = re.compile(
+    r"""^down_revision(?:\s*:\s*[^=]+)?\s*=\s*["']?(?P<value>[^"'\s]+)["']?""",
+)
 
 
 def load_pyproject() -> dict[str, Any]:
@@ -42,27 +45,39 @@ def canonical_app_version() -> str:
 
 
 def latest_alembic_revision() -> str:
-    """Resolve the current Alembic head without importing alembic or env.py."""
+    """Resolve the current Alembic head without importing alembic or env.py.
+
+    The head is the revision no other migration declares as its ``down_revision`` - the
+    end of the chain - rather than the highest identifier: a migration named out of order
+    would otherwise be mistaken for it. Identifiers are read from the module-level
+    assignment only (`_REVISION_ASSIGNMENT`), because prose may start with the word.
+    """
 
     versions = sorted((ROOT / "alembic" / "versions").glob("*.py"))
     if not versions:
         raise RuntimeError("No Alembic migration files found.")
-    # Migration filenames use a zero-padded monotonic prefix; the highest
-    # prefix is the head of the expand-only chain. Match the module-level
-    # assignment only: prose in a docstring may start with the word "revision".
-    revisions: list[tuple[str, str]] = []
+    revisions: list[str] = []
+    parents: set[str] = set()
     for path in versions:
         if path.name == "__init__.py":
             continue
         text = path.read_text(encoding="utf-8")
         for line in text.splitlines():
-            match = _REVISION_ASSIGNMENT.match(line.strip())
+            stripped = line.strip()
+            match = _REVISION_ASSIGNMENT.match(stripped)
             if match:
-                revisions.append((path.name, match.group(1)))
-                break
+                revisions.append(match.group(1))
+            parent = _DOWN_REVISION_ASSIGNMENT.match(stripped)
+            if parent and parent.group("value") != "None":
+                parents.add(parent.group("value"))
     if not revisions:
         raise RuntimeError("No Alembic revision identifiers found.")
-    return sorted(revisions)[-1][1]
+    heads = [revision for revision in revisions if revision not in parents]
+    if len(heads) != 1:
+        # More than one leaf means a branched history, which an expand-only chain must never
+        # have; reporting the set is more useful than silently picking one of them.
+        raise RuntimeError(f"expected exactly one migration head, found {sorted(heads)}")
+    return heads[0]
 
 
 def git_output(*args: str) -> str | None:

@@ -238,9 +238,10 @@ def run_research(body: ResearchRunRequest, request: Request) -> dict:
             detail={
                 "code": "strategy_ir_not_accepted",
                 "message": (
-                    "This runtime drafts and validates its own Strategy IR from the run's findings; "
-                    "a supplied one is refused rather than ignored. Use the strategy registry "
-                    "(POST /api/strategies/{strategy_id}/versions) to submit a specification."
+                    "This runtime drafts and validates its own Strategy IR from the run's "
+                    "findings; a supplied one is refused rather than ignored. Use the strategy "
+                    "registry (POST /api/strategies/{strategy_id}/versions) to submit a "
+                    "specification."
                 ),
             },
         )

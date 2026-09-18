@@ -138,7 +138,7 @@ def test_an_uncatalogued_endpoint_code_is_still_classified(tmp_path, monkeypatch
 
 
 def test_a_missing_api_token_is_a_configuration_failure(tmp_path, monkeypatch) -> None:
-    database_url = _prepare(tmp_path, monkeypatch)
+    _prepare(tmp_path, monkeypatch)
     monkeypatch.delenv("EUROGAS_NEXUS_PUBLIC_API_TOKEN", raising=False)
     client = TestClient(create_app(Settings(api_profile="release")))
 

@@ -418,9 +418,10 @@ def test_market_context_applies_entitlement_never_wider_than_the_market_route(tm
     assert scoped_slice["entitlement"]["filtered_out"] == 1
     assert "ENTITLEMENT_FILTERED" in scoped_payload["meta"]["warnings"]
     # A restricted family is never named in the data-source summary.
-    assert {row["source_system"] for row in scoped_payload["data"]["slices"]["data_sources"]["rows"]} == {
-        "ENTSOG"
-    }
+    assert (
+        {row["source_system"] for row in scoped_payload["data"]["slices"]["data_sources"]["rows"]}
+        == {"ENTSOG"}
+    )
     # The unscoped legacy principal keeps the single-trust-domain view.
     assert legacy_slice["entitlement"]["row_filter_applied"] is False
 

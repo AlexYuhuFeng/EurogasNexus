@@ -142,7 +142,9 @@ def test_a_decision_without_an_actor_field_is_still_attributed(tmp_path, monkeyp
     assert response.json()["meta"]["warnings"] == []
 
 
-def test_a_claim_that_matches_the_identity_is_not_reported_as_ignored(tmp_path, monkeypatch) -> None:
+def test_a_claim_that_matches_the_identity_is_not_reported_as_ignored(
+    tmp_path, monkeypatch
+) -> None:
     _database(tmp_path, monkeypatch)
     client = _client(_principal("analyst-river"))
 

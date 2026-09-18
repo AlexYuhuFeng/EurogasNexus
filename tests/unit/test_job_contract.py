@@ -76,7 +76,9 @@ def test_a_job_runs_to_success_and_stamps_its_duration() -> None:
     job = job_progress(job, 0.4)
     assert job.progress == 0.4
 
-    finished = job_succeeded(job, output_refs=("dataset_snapshot:ds-1",), now_utc=NOW + timedelta(seconds=30))
+    finished = job_succeeded(
+        job, output_refs=("dataset_snapshot:ds-1",), now_utc=NOW + timedelta(seconds=30)
+    )
     assert finished.status is JobState.SUCCEEDED
     assert finished.progress == 1.0
     assert finished.output_refs == ("dataset_snapshot:ds-1",)

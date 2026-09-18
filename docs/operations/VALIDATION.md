@@ -134,3 +134,26 @@ standard live local PostgreSQL validation path when a safe DB URL is configured.
 Default tests remain DB-free.
 
 See `docs/operations/LIVE_POSTGRESQL.md` for the live PostgreSQL policy.
+
+### Running the suite against live PostgreSQL
+
+Default validation stays DB-free *even when the machine has a database configured*:
+`tests/conftest.py` removes `RUNTIME_STORE_DATABASE_URL`, `DATABASE_URL` and
+`EUROGAS_NEXUS_DB_DSN` for every test outside `tests/integration`, so a suite that
+asserts "no runtime store is configured" keeps asserting that instead of silently
+reading whatever deployment the workstation happens to point at (the fixtures that
+do want a store set it themselves, after that).
+
+`tests/integration` is the live path, and it skips unless a URL is present:
+
+```powershell
+$env:RUNTIME_STORE_DATABASE_URL = "postgresql+pg8000://user:pass@127.0.0.1:5432/scratch"
+python -m alembic upgrade head          # apply the chain to the scratch database
+ruff check .
+pytest -q tests                         # everything, with the integration suite live
+pytest -q tests/integration             # the live half on its own
+```
+
+The integration suite is re-runnable against a persistent database (CI's service
+container is throw-away, a developer's is not), and `python scripts/ops/migration_preflight.py`
+reports the source-tree head next to the database's current revision before you migrate.
