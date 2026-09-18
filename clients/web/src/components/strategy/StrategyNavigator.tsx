@@ -1,5 +1,7 @@
 import { useState } from "react";
 import type { StrategyLabController } from "@/app/model/useStrategyLab";
+import { inspectorSubjectFor } from "@/app/model/inspectorDetail";
+import { useInspectorStore } from "@/stores/inspector";
 
 type Translate = (key: string) => string;
 
@@ -14,6 +16,7 @@ export function StrategyNavigator({
   language,
   t,
 }: StrategyNavigatorProps) {
+  const inspector = useInspectorStore();
   const [query, setQuery] = useState("");
   const strategies = controller.strategies.filter((strategy) => {
     const haystack = `${strategy.name} ${strategy.strategy_id}`.toLowerCase();
@@ -70,6 +73,24 @@ export function StrategyNavigator({
                         <span className={`status-badge status-${version.status.toLowerCase()}`}>
                           {version.status}
                         </span>
+                      </button>
+                      {/* Wave 9: the version's own record (number, status, content hash, who
+                          created and froze it) belongs to the canonical Inspector, so this list
+                          hands the subject over rather than restating it in the rail. */}
+                      <button
+                        type="button"
+                        className="text-action"
+                        onClick={() => {
+                          const subject = inspectorSubjectFor(
+                            "strategy-version",
+                            version.strategy_version_id,
+                            `v${version.version_number}`,
+                            "strategy",
+                          );
+                          if (subject) inspector.open(subject);
+                        }}
+                      >
+                        {t("strategy_lab.inspect_version")}
                       </button>
                     </li>
                   ))}

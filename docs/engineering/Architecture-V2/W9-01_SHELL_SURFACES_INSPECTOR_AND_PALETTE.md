@@ -298,10 +298,15 @@ capability the product did not have.
   reading it flat would have silently dropped every nested fact. All three surfaces hand the
   subject over instead of growing a second detail pane, and a job's `output_refs` are read as
   evidence of what it did.
-- **The rest are recorded, not forgotten**: only `strategy-version` remains, with the reason the
-  design task edits a version rather than inspecting one, and the test fails on a page that declares
-  a kind which neither resolves nor appears in that list - so a new declaration cannot quietly
-  promise nothing.
+- **The last kind followed, and the pending list is now empty.** `strategy-version` was recorded as
+  pending with the reason that the design task *edits* a version rather than inspecting one - which
+  was true of that panel and wrong about the surface: the strategy navigator lists versions, and a
+  version's own record (number, status, schema, the content hash that makes it reproducible, who
+  created and froze it, the version it forked from) is exactly what an operator asks about. It now
+  resolves, the navigator hands it over, and the declaration test's pending list is empty. That
+  makes the vocabulary and the resolvers agree **exactly**: all thirteen subject kinds a page may
+  declare are kinds the build can show, and a test asserts that set equality, so the registry can
+  no longer promise a kind nobody implemented.
 
 ## 7. Fifth slice — the panel taxonomy's disclosure rule, applied and audited
 

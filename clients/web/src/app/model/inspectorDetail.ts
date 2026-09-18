@@ -35,6 +35,7 @@ import type {
   RouteCandidateDTO,
   SourceSystemDTO,
   StrategyRunDTO,
+  StrategyVersionDTO,
   UpstreamContractDTO,
 } from "@/api/client";
 import { canOpenInspector, type InspectorSubject } from "../experience/inspectorContract.ts";
@@ -65,6 +66,8 @@ export interface InspectorDetailSource {
   readonly dataProducts?: DataProductCatalogueDTO | null;
   /** The agent runs the research surface read, for a governed run. */
   readonly agentRuns?: readonly AgentRunDTO[];
+  /** The strategy versions the surface read, for a version's own record. */
+  readonly strategyVersions?: readonly StrategyVersionDTO[];
 }
 
 export interface InspectorFact {
@@ -151,6 +154,8 @@ function candidatesFor(
       return collect([byId(source.dataProducts?.products ?? [], "product_id")]);
     case "agent-run":
       return collect([byId(source.agentRuns ?? [], "agent_run_id")]);
+    case "strategy-version":
+      return collect([byId(source.strategyVersions ?? [], "strategy_version_id")]);
     default:
       return [];
   }
@@ -395,6 +400,27 @@ const AGENT_RUN_FIELDS: readonly FieldSpec[] = [
 ];
 
 /**
+ * A strategy version's own record.
+ *
+ * A version is the frozen-or-draft artefact a backtest evaluates, so the Inspector shows what
+ * identifies it: its number, status, schema, the content hash that makes it reproducible, who
+ * created it and when, the version it forked from, and the hypothesis it was written under. Its
+ * definition is a document, not a fact list - the design task renders that.
+ */
+const STRATEGY_VERSION_FIELDS: readonly FieldSpec[] = [
+  { field: "strategy_id", labelKey: "experience.inspector.fact.strategy" },
+  { field: "version_number", labelKey: "experience.inspector.fact.version_number" },
+  { field: "status", labelKey: "experience.inspector.fact.status" },
+  { field: "schema_version", labelKey: "experience.inspector.fact.schema_version" },
+  { field: "content_hash", labelKey: "experience.inspector.fact.content_hash" },
+  { field: "created_by", labelKey: "experience.inspector.fact.created_by" },
+  { field: "created_at_utc", labelKey: "experience.inspector.fact.observed_at", format: "timestamp" },
+  { field: "frozen_at_utc", labelKey: "experience.inspector.fact.frozen_at", format: "timestamp" },
+  { field: "parent_version_id", labelKey: "experience.inspector.fact.parent_version" },
+  { field: "hypothesis", labelKey: "experience.inspector.fact.hypothesis" },
+];
+
+/**
  * Field specs per kind. A kind with several record shapes (an alert reads as an
  * alert, a quote as a quote) declares its specs per recognised shape, keyed by the
  * id field the record carries.
@@ -413,6 +439,7 @@ const FIELDS_BY_ID_FIELD: Readonly<Record<string, readonly FieldSpec[]>> = {
   source_id: PROVIDER_CONNECTION_FIELDS,
   product_id: DATA_PRODUCT_FIELDS,
   agent_run_id: AGENT_RUN_FIELDS,
+  strategy_version_id: STRATEGY_VERSION_FIELDS,
 };
 
 /**
@@ -438,6 +465,7 @@ const ID_FIELDS_BY_KIND: Partial<Record<InspectorSubjectKind, readonly string[]>
   "provider-connection": ["source_id"],
   "data-product": ["product_id"],
   "agent-run": ["agent_run_id"],
+  "strategy-version": ["strategy_version_id"],
 };
 
 /**

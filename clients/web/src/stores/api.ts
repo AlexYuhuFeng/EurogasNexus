@@ -47,6 +47,7 @@ import {
   JobDTO,
   DataProductCatalogueDTO,
   AgentRunDTO,
+  StrategyVersionDTO,
   GlossaryContextDTO,
   LngObsDTO,
   IntradayOpportunityDTO,
@@ -450,6 +451,14 @@ export interface ApiState {
   agentRuns: AgentRunDTO[];
   publishAgentRunsRead: (runs: AgentRunDTO[]) => void;
   /**
+   * The strategy versions the design task read, for the `strategy-version` subject.
+   *
+   * Same pattern again: the strategy workspace owns that read, and the Inspector resolves detail
+   * from what the identity already received.
+   */
+  strategyVersions: StrategyVersionDTO[];
+  publishStrategyVersionsRead: (versions: StrategyVersionDTO[]) => void;
+  /**
    * Queue one manual ingestion run for a source.
    *
    * The route queues it for the dataops worker; nothing executes inside the request. A refusal
@@ -746,6 +755,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
   jobs: [],
   dataProducts: null,
   agentRuns: [],
+  strategyVersions: [],
   dataStatus: "unavailable",
 
   bootstrapIdentity: async () => {
@@ -1487,6 +1497,10 @@ export const useApiStore = create<ApiState>((set, get) => ({
 
   publishAgentRunsRead: (agentRuns) => {
     set({ agentRuns });
+  },
+
+  publishStrategyVersionsRead: (strategyVersions) => {
+    set({ strategyVersions });
   },
 
   requestSourceRun: async (sourceId, reason) => {

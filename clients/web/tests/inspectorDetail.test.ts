@@ -20,6 +20,7 @@ import {
   type InspectorDetailSource,
 } from "../src/app/model/inspectorDetail.ts";
 import { canOpenInspector } from "../src/app/experience/inspectorContract.ts";
+import { INSPECTOR_SUBJECT_KINDS } from "../src/app/experience/vocabulary.ts";
 import {
   inspectorSubjectsForPage,
   registeredPages,
@@ -289,14 +290,57 @@ test("a governed research run resolves what the run recorded about itself", () =
   assert.equal(facts.has("experience.inspector.fact.finished_at"), false);
 });
 
+test("a strategy version resolves what identifies it, and nothing its definition holds", () => {
+  const version = {
+    strategy_version_id: "version-1",
+    strategy_id: "nbp-sap-icis-ocm-window",
+    version_number: 3,
+    schema_version: "strategy/v1",
+    status: "FROZEN",
+    hypothesis: "The window carries a premium",
+    definition_json: { components: [] },
+    parent_version_id: "version-0",
+    created_by: "analyst-river",
+    created_at_utc: "2026-02-01T09:00:00Z",
+    frozen_at_utc: "2026-02-01T10:00:00Z",
+    content_hash: "sha256:abc",
+    research_only: true,
+  };
+
+  const detail = inspectorDetailFor(
+    source({ strategyVersions: [version] as never }),
+    { kind: "strategy-version", ref: "version-1", label: "v3", originPage: "strategy" },
+  );
+
+  assert.equal(detail.resolved, true);
+  const facts = new Map(detail.facts.map((fact) => [fact.labelKey, fact.value]));
+  assert.equal(facts.get("experience.inspector.fact.version_number"), "3");
+  assert.equal(facts.get("experience.inspector.fact.status"), "FROZEN");
+  // The content hash is what makes the version reproducible, so it is shown as the backend's own.
+  assert.equal(facts.get("experience.inspector.fact.content_hash"), "sha256:abc");
+  assert.equal(facts.get("experience.inspector.fact.created_by"), "analyst-river");
+  assert.equal(facts.get("experience.inspector.fact.parent_version"), "version-0");
+  assert.equal(facts.get("experience.inspector.fact.hypothesis"), "The window carries a premium");
+  // The definition is a document, not a fact list, and the Inspector does not restate it.
+  for (const value of facts.values()) {
+    assert.equal(value.includes("components"), false);
+  }
+
+  // A draft has no freeze instant, which is omitted rather than shown as empty.
+  const draft = inspectorDetailFor(
+    source({ strategyVersions: [{ ...version, status: "DRAFT", frozen_at_utc: null }] as never }),
+    { kind: "strategy-version", ref: "version-1", label: "v3", originPage: "strategy" },
+  );
+  assert.equal(new Map(draft.facts.map((f) => [f.labelKey, f.value])).has("experience.inspector.fact.frozen_at"), false);
+});
+
 test("a page declares only subject kinds this build can resolve, or says what is pending", () => {
   // A declaration is a promise: a page listing a kind it could never hand over reads as a
   // capability that exists. Each declared kind must therefore resolve, or be recorded here with
   // the work it still needs - so a *new* declaration cannot quietly promise nothing.
-  const PENDING: Record<string, string> = {
-    "strategy-version":
-      "the design task edits a version rather than inspecting it; a version subject needs a resolver over the version row, and no surface hands one over today",
-  };
+  // Every kind a page declares now resolves. The list is kept (empty) so that a new declaration
+  // still has to face this check rather than being waved through by its absence.
+  const PENDING: Record<string, string> = {};
   const promised = new Set<string>();
   for (const page of registeredPages()) {
     for (const kind of inspectorSubjectsForPage(page)) promised.add(kind);
@@ -468,15 +512,18 @@ test("an unresolvable subject says so instead of looking empty", () => {
   assert.equal(missingRef.resolved, false);
   assert.deepEqual(missingRef.facts, []);
 
-  // A kind with no resolver in this build is explicitly unresolved rather than
-  // rendering as "this object has no detail". `strategy-version` is still such a kind: the design
-  // task edits a version rather than inspecting one.
-  assert.equal(resolvableInspectorKinds().includes("strategy-version" as never), false);
+  // Every kind the vocabulary names now resolves, so the earlier example of "a kind this build
+  // cannot resolve" no longer exists. What still has to hold: the vocabulary and the resolvers
+  // agree exactly, and a kind the vocabulary does not name is refused rather than guessed at.
+  assert.deepEqual(
+    [...resolvableInspectorKinds(), "decision-evidence"].sort(),
+    [...INSPECTOR_SUBJECT_KINDS].sort(),
+  );
   const noResolver = inspectorDetailFor(source(), {
-    kind: "strategy-version",
-    ref: "version-1",
-    label: "version-1",
-    originPage: "strategy",
+    kind: "not-a-subject-kind" as never,
+    ref: "x",
+    label: "x",
+    originPage: "market",
   });
   assert.equal(noResolver.resolved, false);
 

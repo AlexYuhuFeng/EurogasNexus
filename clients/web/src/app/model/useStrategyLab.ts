@@ -8,6 +8,7 @@ import type {
   StrategyVersionDTO,
 } from "@/api/client";
 import { api as apiClient } from "@/api/client";
+import { useApiStore } from "@/stores/api";
 
 import {
   STRATEGY_TASKS,
@@ -81,11 +82,17 @@ export function useStrategyLab({ selection, gasDay, locationRevision }: UseStrat
     () => (strategyId ? versionsByStrategy[strategyId] ?? [] : []),
     [strategyId, versionsByStrategy],
   );
+  // The Inspector resolves detail from state the identity already received, so the versions this
+  // workspace read are published for the `strategy-version` subject; clearing them (an empty list)
+  // removes detail rather than inventing it.
+  const publishStrategyVersionsRead = useApiStore((state) => state.publishStrategyVersionsRead);
+  useEffect(() => {
+    publishStrategyVersionsRead(versions);
+  }, [publishStrategyVersionsRead, versions]);
   const selectedVersion = useMemo(
     () => versions.find((item) => item.strategy_version_id === versionId) ?? null,
     [versions, versionId],
-  );
-  const selectedRun = useMemo(
+  );  const selectedRun = useMemo(
     () => runs.find((item) => item.run_id === selectedRunId) ?? null,
     [runs, selectedRunId],
   );
