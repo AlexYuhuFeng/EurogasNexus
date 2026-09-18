@@ -141,7 +141,100 @@ review; they were discovered, not created, and changing them is explicitly out o
 | Wave 4 preparation | Data Product abstraction; Analysis Snapshot v1 (closes the reproducibility gap named in W1-01) | After Wave 2/3 |
 | Wave 9 preparation | Migrate workspaces onto the Wave 1 contracts: shell composition, Inspector, palette, action geography; resolve C9-C11 | After Waves 2-8 as sequenced by the roadmap |
 
-## 9. Validation evidence for this slice
+## 9. Decisions the owner must take
+
+Everything the migration can decide for itself has been decided, implemented, tested and recorded.
+What is left is a short list of questions that are **the owner's, not a worker's**, because each one
+changes a security posture, a licence obligation or a product surface rather than fixing a
+contradiction. They are written here as options with consequences so they can be answered in one
+pass instead of being rediscovered per round. Nothing below is decided silently, and no work has
+been done that presumes an answer.
+
+### D1 — C5: should the `development` and `internal` profiles authenticate their callers?
+
+**Today.** `authentication: enforced | not_installed` is reported at runtime by `/api/health` and
+`/api/health/live`, derived from the route profile's own `require_auth`; the private-network posture
+is documented, published and tested. The `development`/`internal` profiles do not install
+authentication, so every request in those profiles acts as the compatibility public-API principal.
+
+**Why it is not a worker decision.** Turning authentication on in those profiles changes a pinned
+contract (the route-profile contract and the compatibility principal's entitlement semantics), so it
+is a profile/behaviour change with a deployment consequence, not a bug fix.
+
+**Options.** (a) Install app-wide authentication in `development`/`internal` as well, keeping the
+private-network posture only as an explicit, documented deployment choice; (b) keep the code default
+and require operators to change the profile in deployment configuration; (c) keep as-is and rely on
+the runtime posture report plus network controls.
+
+**Consequence of (a).** Every local/dev script, seed, benchmark and integration harness that relies
+on the compatibility principal must present a credential; the acceptance script's
+`deployment_posture_defaults_private` expectation stays, but the "private network" claim becomes a
+deployment statement rather than a code default. **Recommendation: (a)**, because a code default that
+trusts the network is the one security posture the programme has repeatedly had to publish *because*
+it is surprising; the work is roughly a day including harness updates.
+
+### D2 — C6b: what is the second-approver policy for role and data-scope grants?
+
+**Today.** A principal cannot change its own roles or data scopes (self-service half closed, tested).
+Granting a role or a data scope to *somebody else* is a single-operator action recorded in the audit
+trail; there is no second approver.
+
+**Options.** (a) Require two-person approval for role grants above a threshold (e.g. ADMIN or a
+commercial data scope) with the first approver recorded as pending; (b) require approval only for
+commercial-scope grants, on the grounds that they carry the entitlement risk; (c) keep single-operator
+with audit only.
+
+**Consequence.** (a)/(b) add a pending state to the access model and an approval surface, i.e. a
+schema change plus an admin UI. **Recommendation: (b)** as the smallest control that addresses the
+real risk (commercial data entitlement), with the ADR recording why ADMIN-role grants stay
+single-operator.
+
+### D3 — C11: build the surfaces for the client methods with no caller, or retire the routes?
+
+**Today.** Measured in the current tree: 131 methods in `api/client.ts`, of which **21 are never
+mentioned** anywhere outside the client and **52 are never called directly**; the clusters are the
+strategy lifecycle, the shadow runtime, access administration and a handful of reference reads. Each
+is a declared backend capability whose surface does not exist. `W0-01` section 2.8 holds the original
+inventory; the re-measurement and its method are in the conflict table above.
+
+**Options.** (a) Build the surfaces for the families an operator actually needs (strategy freeze/fork
+and shadow monitors look like the strongest candidates, since their routes are tested and the
+surfaces' absence forces operators to the API); (b) retire the routes and the methods for the rest,
+so "declared" means "reachable"; (c) leave them and record the gap (status quo).
+
+**Consequence of (b).** Removing public paths is a breaking change for SDK/CLI callers and needs the
+contract-evolution policy procedure; the paths are pinned in
+`tests/contract/test_api_surface_stability.py`, so this is a deliberate, visible change.
+**Recommendation: (a) for the strategy lifecycle and shadow runtime, (b) for access administration
+(the Access & Identity API is an operator tool with its own client), (c) for the reference reads
+until a surface wants them.**
+
+### D4 — C12: map tiles — which provider, under whose licence and token?
+
+**Today.** The client can request third-party map tiles and the deployment selects a provider in
+Settings; the licence question and the client-held token were deferred to a security/licence review.
+No provider access was expanded or modified.
+
+**Options.** (a) A licensed provider with a deployment-held token served through a backend proxy (no
+client-held token); (b) a self-hosted/offline tile set for the preview posture; (c) keep the current
+selection with the token held by the operator.
+
+**Consequence of (a).** A new backend route and a cache, i.e. a small service addition with its own
+ADR; (b) removes the third-party request entirely. **Recommendation: (b) for the private-network
+posture and (a) only if a licensed provider is bought**, because the product's map is reference
+geometry rather than licensed market data.
+
+### D5 — Wave 10 native host and Wave 11 RC/GA: proceed where?
+
+Neither can be finished in this environment, and neither is a defect: **Wave 10's native half**
+(window creation, multi-monitor restore, notifications, protocol registration, tray, file dialogs)
+needs a machine with the Rust toolchain and platform packaging; **Wave 11** needs the external items
+an operator owns (IdP acceptance against a real issuer, provider certification, a real UAT, a
+production restore drill, signing/notarisation). The contract, the capability model, the diagnostics
+consumer and the fail-soft host boundary are delivered and tested; the honest statement is that the
+native implementation is *declared and unverified* rather than done.
+
+## 10. Validation evidence for this slice
 
 - `clients/web`: `npm run build` (tsc + vite) — exit 0; `node --test "tests/*.test.ts"` — 236 tests,
   236 pass, including the 15 new experience-architecture tests and the migrated host-boundary

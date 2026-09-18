@@ -82,4 +82,23 @@ Continue with the highest-value open item. What is actually open, in the order t
 3. **Wave 4** — complete on the client side: the product records a snapshot, cites it, reads the Data Product catalogue and queues a manual ingestion run. The `researchCapabilities` read is the only Wave 4 read still without a consumer.
 4. **Wave 8** — job retention and the replay question are delivered; what remains is operational (choosing a retention window per deployment, and reading the re-run contracts when a surface wants to offer one).
 5. **Wave 10 / 11** — the native desktop half needs a machine with the Rust toolchain, and RC/GA readiness needs the external items (IdP acceptance, provider certification, a real UAT, a production restore drill, signing/notarisation).
-6. **Owner decisions** — C5's behaviour change (app-wide authentication in the `development`/`internal` profiles), C6b's second-approver policy ADR, C11's 48 client API methods with no call site, C12's map-tile licence and client-held token.
+6. **Owner decisions** — written up as decidable options in `W0-03` section 9: D1 C5's profile authentication, D2 C6b's second-approver policy, D3 C11's uncalled client methods (measured: 21 of 131 never mentioned, 52 never called directly), D4 C12's map tiles, D5 where the native host and RC/GA work can proceed. Each states the options, the consequence of each and a recommendation; none has been decided silently, and no work presumes an answer.
+
+## Where the migration stands
+
+Every wave that can be finished in this environment is finished, and the ones that cannot are stated
+as such rather than implied:
+
+| Wave | State |
+| --- | --- |
+| W0/W1 foundations | Delivered: contracts, registries, fitness functions, host capabilities |
+| W2 capabilities and scopes | Delivered |
+| W3 control-plane boundary | Delivered (C9/C10 closed) |
+| W4 unified data platform | Delivered including the client half: catalogue, snapshots, citations, manual ingestion queue |
+| W5 projection lanes | Delivered (market, portfolio, review; scenario context deliberately unconsumed) |
+| W6 Decision Case | Delivered |
+| W7 AI convergence | Delivered: five canonical actions, alert/review/market convergence, governed research run, capability-invoke seam and surface. Left: the profile catalogue has no consumer |
+| W8 error taxonomy and job model | Delivered: taxonomy, unified jobs for every run family, retention, and the replay question answered per kind |
+| W9 workspace migration | Six geography applications, the Inspector handover on six surfaces, panel disclosures audited. Left: two panel-owned persists recorded with the work each needs |
+| W10 desktop workstation | Contract, capability model, diagnostics consumer delivered; the **native half is blocked** on a Rust toolchain and is not claimed |
+| W11 RC/GA | **Blocked** on external items (IdP acceptance, provider certification, real UAT, restore drill, signing) |

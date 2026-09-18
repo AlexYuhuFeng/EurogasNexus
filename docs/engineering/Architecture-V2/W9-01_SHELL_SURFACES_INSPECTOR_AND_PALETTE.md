@@ -251,6 +251,20 @@ entry point among several rather than the predictable one.
   cross-surface guard was extended to this act at the same time, so the comparison cannot be
   re-copied into a panel the way the optimiser run had been.
 
+### What is left, and what each one actually needs
+
+Two surfaces still hold a `persist` act inside a panel. Neither is forgotten, and neither is a
+rule-extraction away from being finished, so they are recorded with the work they need:
+
+| Surface | The act | Why it has not moved |
+| --- | --- | --- |
+| Strategy Lab, Design task | `Save draft` (and `Create new version` when the version is frozen) | The draft is **panel state, not a rule**: the whole form (about 25 fields), its validation summary, the request body builder and the busy/message/error state live in `StrategyDesignWorkspace`, so moving the action means lifting that draft to the workspace or into a hook first. The guarded consequences are already right: `Freeze version` changes a version's standing, so it stays a bounded action next to the version it affects and must not be promoted to the slot (`requiresDeliberateStep("lifecycle")` is true). |
+| Decision task, Review task | `Record review decision` (three outcomes) and the Decision Case's own persist acts | The review task's primary slot is deliberately empty: its act is a decision with three outcomes, and promoting one outcome would make the platform look like it recommends it (recorded in the table above). The Decision Case panel's acts are form-local persistence inside that same task. |
+
+Everything else that presents a material action is placed: the five `compute`/`persist` applications
+above, the Source Center's manual ingestion queue next to the recommendation that asks for it, the
+Data Products view (a read), and the surfaces recorded as deliberately having no primary action.
+
 ## 7. Fifth slice — the panel taxonomy's disclosure rule, applied and audited
 
 The panel taxonomy states which disclosures a panel owes when it presents a material value:
