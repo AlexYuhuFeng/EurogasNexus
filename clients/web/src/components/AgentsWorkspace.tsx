@@ -34,6 +34,7 @@ import {
   type CapabilityOutcome,
 } from "@/app/model/capabilityInvocationModel";
 import { inspectorSubjectFor } from "@/app/model/inspectorDetail";
+import { workspaceHeaderTitleLevel } from "@/app/experience/workspacePatterns";
 import { useApiStore } from "@/stores/api";
 import { useInspectorStore } from "@/stores/inspector";
 import { MetricStrip, PanelHeader, WorkspaceHeader } from "@/components/ui";
@@ -315,6 +316,9 @@ export function AgentsWorkspace({ t, principalId = null, runtimeDbReady }: Agent
         tabLabel={t("agents.title")}
         tabsClassName="agents-task-tabs"
         primaryAction={primaryAction}
+        // The `agents` page is declared `local-tabs`, so the shell already renders the page
+        // `<h1>`; this header is a section under it, not a second page title.
+        titleLevel={workspaceHeaderTitleLevel("agents")}
         onActivate={(view) => setActiveView(view as AgentsViewId)}
       />
       <p className="muted agents-boundary">{t("agents.boundary")}</p>

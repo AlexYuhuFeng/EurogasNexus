@@ -182,6 +182,27 @@ What that execution bought, beyond the fixes: the migration chain applied to a r
 including the 16 store-gated tests), and the automated backup/restore drill passing with real data
 (52.5 MB dump, restored at head `0036_job_records`, 80,545 ingestion runs, API smoke 200).
 
+Two more findings came out of the browser sweep, which needs a seeded runtime, a dev API, Vite and
+Playwright and had never been run here either:
+
+5. **The sweep could not start a research run, so the CI browser job was red.** It clicked
+   `button.button.primary` inside the agents view - a class that button never had, because Wave 9
+   moved every primary action into the workspace header's primary slot. The click found nothing (or
+   a disabled button) while a second 30-second timeout on the expected response raced it, so the run
+   failed as a timeout with no explanation. The slot now marks what it renders (`data-primary-action`,
+   applied by the component that owns the slot rather than by each call site), the sweep waits for
+   the action to be usable and reports the blocker the button shows if it never is.
+6. **Three workspaces rendered two top-level headings.** `strategy`, `research` and `agents` are
+   declared `local-tabs` (the shell renders the page heading) *and* render a `WorkspaceHeader` of
+   their own, which also rendered one - so every page in those three workspaces had two `h1`
+   elements in every language and at every viewport. No source-text test could see it; the sweep
+   counts headings per rendered page. The registry stays the one owner of the rule:
+   `workspaceHeaderTitleLevel(page)` decides the level, and a workspace heading on a `local-tabs`
+   page is a section heading under the shell's page title.
+
+With both fixed, the sweep passes end to end (`ok: true`, 96 checks, 0 axe violations, 0 horizontal
+overflow) including the agent-research interaction.
+
 ## 7. Limits of this audit
 
 - The verdicts are the auditors' and the integrator's reading of the code, not a proof; each finding

@@ -9,6 +9,7 @@ import {
 } from "@/app/model/strategyBacktestModel";
 import { StrategyDesignWorkspace } from "./StrategyDesignWorkspace";
 import { useStrategyDesignDraft } from "@/app/model/useStrategyDesignDraft";
+import { workspaceHeaderTitleLevel } from "@/app/experience/workspacePatterns";
 import { StrategyBacktestWorkspace } from "./StrategyBacktestWorkspace";
 import { StrategyCompareWorkspace } from "./StrategyCompareWorkspace";
 import { StrategyShadowShell } from "./StrategyShadowShell";
@@ -118,6 +119,9 @@ export function StrategyLabWorkspace({
         tabLabel={t("nav.strategy")}
         tabsClassName="strategy-lab-task-tabs"
         primaryAction={primaryAction}
+        // The `strategy` page is declared `local-tabs`, so the shell renders the page `<h1>`
+        // and this header is a section under it rather than a second page title.
+        titleLevel={workspaceHeaderTitleLevel("strategy")}
         onActivate={controller.openTask}
       />
       <div className="strategy-lab-grid" id="strategy-lab-panel">

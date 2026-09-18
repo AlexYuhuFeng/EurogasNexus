@@ -41,13 +41,41 @@ test("only WorkspaceHeader owns the consolidated primary h1 and shared tab seman
   const header = readWebSource("components/ui/WorkspaceHeader.tsx");
   const renderer = readWebSource("app/workspaces/WorkspaceRenderer.tsx");
 
-  assert.equal((header.match(/<h1>/g) ?? []).length, 1);
+  // One top-level heading per header, and one section heading for the local-tabs pages: exactly
+  // one branch of each level, so a page can have a single h1 whichever header owns it.
+  assert.equal((header.match(/<h1>\{title\}<\/h1>/g) ?? []).length, 1);
+  assert.equal((header.match(/<h2>\{title\}<\/h2>/g) ?? []).length, 1);
   assert.match(header, /<WorkspaceTabs/);
   assert.match(header, /idPrefix=\{idPrefix\}/);
   assert.match(header, /panelId=\{panelId\}/);
   assert.match(renderer, /usesConsolidatedHeader/);
   assert.match(renderer, /!usesConsolidatedHeader/);
   assert.match(renderer, /!usesConsolidatedHeader\s*&&\s*\(\s*<header/);
+});
+
+test("a page has one h1, and the registry decides which header owns it", () => {
+  // A `local-tabs` page's heading belongs to the shell, so a workspace that renders a header of
+  // its own there is a *section* under it. Three surfaces (strategy, research, agents) were given
+  // their own header by Wave 9 while their pages stayed `local-tabs`, and each rendered a second
+  // `<h1>` beside the shell's - invisible to every source-text test and only found by the
+  // whole-product browser sweep, which counts h1s per rendered page.
+  const registry = readWebSource("app/experience/workspacePatterns.ts");
+  assert.match(
+    registry,
+    /export function workspaceHeaderTitleLevel\(page: WorkspacePageId\): 1 \| 2 \{\s*return headerModeForPage\(page\) === "local-tabs" \? 2 : 1;/s,
+  );
+
+  for (const [file, page] of [
+    ["components/strategy/StrategyLabWorkspace.tsx", "strategy"],
+    ["components/ResearchDataWorkspace.tsx", "research"],
+    ["components/AgentsWorkspace.tsx", "agents"],
+  ] as const) {
+    assert.match(
+      readWebSource(file),
+      new RegExp(`titleLevel=\\{workspaceHeaderTitleLevel\\("${page}"\\)\\}`),
+      file,
+    );
+  }
 });
 
 test("the direct map-first Network route is composed, not intercepted", () => {

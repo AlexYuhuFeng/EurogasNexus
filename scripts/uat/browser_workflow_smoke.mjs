@@ -213,13 +213,38 @@ async function agentResearchE2E(page, failures) {
     );
     if (!(await allowStrategy.isChecked())) await allowStrategy.check();
 
+    // The run is the workspace's primary action, so it lives in the header's primary slot
+    // (`data-primary-action`), not inside the panel - Wave 9 moved it there and this sweep kept
+    // clicking `button.button.primary` inside the view, a class the header action never had. The
+    // action is disabled until the workspace batch has answered (the run persists its own rows, so
+    // it is gated on the runtime database), so wait for it to be usable and report the blocker it
+    // shows rather than letting two 30-second timeouts race.
+    const runButton = page.locator(".agents-workspace [data-primary-action]").first();
+    await runButton.waitFor({ state: "visible", timeout: 30_000 });
+    const runnable = await page
+      .waitForFunction(
+        () => {
+          const button = document.querySelector(".agents-workspace [data-primary-action]");
+          return Boolean(button) && !button.disabled;
+        },
+        null,
+        { timeout: 60_000 },
+      )
+      .then(() => true)
+      .catch(() => false);
+    if (!runnable) {
+      throw new Error(
+        `agent research action stayed disabled: ${await runButton.getAttribute("title")}`,
+      );
+    }
+
     const researchResponsePromise = page.waitForResponse(
       (response) =>
         response.url().includes("/api/agent/research") &&
         response.request().method() === "POST",
-      { timeout: 30_000 },
+      { timeout: 120_000 },
     );
-    await page.locator(".agents-view-research button.button.primary").click();
+    await runButton.click();
     const researchResponse = await researchResponsePromise;
     const researchBody = await researchResponse.json().catch(() => null);
     if (!researchResponse.ok()) {

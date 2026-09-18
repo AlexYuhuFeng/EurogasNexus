@@ -223,6 +223,20 @@ export function headerModeForPage(page: WorkspacePageId): WorkspaceHeaderMode {
   return compositionForPage(page).headerMode;
 }
 
+/**
+ * The heading level a workspace's own header should use for its title.
+ *
+ * One page, one `<h1>`. On a `consolidated` page the workspace owns it, so its header renders
+ * level 1; on a `local-tabs` page the *shell* renders the page `<h1>` and the workspace's header
+ * is a section under it, so it renders level 2. Deciding this here keeps the registry the single
+ * owner of the composition rule: three surfaces (strategy, research, agents) were given a header
+ * of their own by Wave 9 while their pages stayed `local-tabs`, and each rendered a second `<h1>`
+ * beside the shell's until the browser sweep measured it.
+ */
+export function workspaceHeaderTitleLevel(page: WorkspacePageId): 1 | 2 {
+  return headerModeForPage(page) === "local-tabs" ? 2 : 1;
+}
+
 /** True when the primary workspace renders its own consolidated header and task row. */
 export function usesConsolidatedHeader(page: WorkspacePageId): boolean {
   return headerModeForPage(page) === "consolidated";

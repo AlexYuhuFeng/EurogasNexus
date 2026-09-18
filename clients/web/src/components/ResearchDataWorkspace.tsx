@@ -49,6 +49,7 @@ import {
   researchValidationOutcome,
   safeResearchErrorMessage,
 } from "@/app/model/researchDataModel";
+import { workspaceHeaderTitleLevel } from "@/app/experience/workspacePatterns";
 import "@/styles/researchDataWorkspace.css";
 
 type Translate = (key: string) => string;
@@ -847,6 +848,8 @@ export function ResearchDataWorkspace({ t }: ResearchDataWorkspaceProps) {
       tabLabel={t("research.title")}
       tabsClassName="research-task-tabs"
       primaryAction={primaryAction}
+      // The `research` page is declared `local-tabs`, so the shell owns the page `<h1>`.
+      titleLevel={workspaceHeaderTitleLevel("research")}
       onActivate={(view) => setActiveView(view as ResearchViewId)}
     />
     {activeView === "datasets" && <ResearchSpecPanel t={t} draft={specDraft} onDraftChange={(key, value) => setSpecDraft((current) => ({ ...current, [key]: value }))} missingInputs={missingInputs} validationState={validationState} buildState={buildState} gate={buildGate} createdDetail={createdDetail} onValidate={() => void validateSpecDraft()} />}
