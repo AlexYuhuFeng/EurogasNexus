@@ -203,6 +203,17 @@ Playwright and had never been run here either:
 With both fixed, the sweep passes end to end (`ok: true`, 96 checks, 0 axe violations, 0 horizontal
 overflow) including the agent-research interaction.
 
+7. **The gates the programme records as green were red on `main`.** Checked against the GitHub API
+   rather than assumed: the last successful `CI` run before this stretch was **351** (`7a07b965`,
+   2026-09-16) and runs **352–446** all failed - two jobs, `validate` (the `ruff check .` gate, ~409
+   findings) and `Browser acceptance` (the stale primary-action selector and the duplicate heading
+   above). Every slice in that window was recorded as "gates green"; the record was describing the
+   author's local run of a *subset* of the job, and nothing reconciled it with CI. Run **447** at
+   `0c34959` is the first green run since: `validate`, dependency audit, PostgreSQL integration, Web
+   build/tests and browser acceptance succeeded together. The lesson is not "run the tests" - they
+   were run - it is that a gate is green only in the place it is enforced, and a document that says
+   otherwise is a claim like any other.
+
 ## 7. Limits of this audit
 
 - The verdicts are the auditors' and the integrator's reading of the code, not a proof; each finding

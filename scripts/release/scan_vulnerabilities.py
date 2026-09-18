@@ -21,7 +21,15 @@ ROOT = Path(__file__).resolve().parents[2]
 def _run(command: list[str], cwd: Path | None = None) -> tuple[int, str]:
     if os.name == "nt" and command[0] == "npm":
         command = [f"{command[0]}.cmd", *command[1:]]
-    result = subprocess.run(command, cwd=cwd, capture_output=True, text=True, check=False)
+    try:
+        result = subprocess.run(command, cwd=cwd, capture_output=True, text=True, check=False)
+    except FileNotFoundError:
+        # A missing tool is a report, not a crash. `rust_scan` below already recognises the
+        # "not found" text to answer `TOOL_UNAVAILABLE`, but on a machine without the toolchain
+        # (a Windows workstation with no `cargo`, which is the situation the deployment docs
+        # describe) the call raised before that branch could be reached and the scan died with a
+        # traceback instead of saying which scanner was missing.
+        return 127, f"command not found: {command[0]}"
     return result.returncode, result.stdout or result.stderr or ""
 
 

@@ -1,5 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import maplibregl, { GeoJSONSource, Map as MapLibreMap, Marker } from "maplibre-gl";
+// maplibre-gl v6 is ESM-only and has no default export: every symbol the map uses is imported by
+// name. (The upgrade from v5 to v6.10.0 is a security fix - see the package note in
+// `clients/web/package.json` and `docs/operations/VALIDATION.md`.)
+import {
+  AttributionControl,
+  GeoJSONSource,
+  Map as MapLibreMap,
+  Marker,
+  NavigationControl,
+  Popup,
+} from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { EdgeDTO, NodeDTO, RouteEligibilityDTO } from "@/api/client";
 import {
@@ -257,7 +267,7 @@ export function GasNetworkMap({
 
     const mapTileProvider = configuredMapTileProvider();
     const mapTileToken = configuredMapTileToken();
-    const map = new maplibregl.Map({
+    const map = new MapLibreMap({
       container: containerRef.current,
       center: toMapCoordinates(7.8, 51.2),
       zoom: 4.0,
@@ -278,8 +288,8 @@ export function GasNetworkMap({
       ),
     });
 
-    map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-right");
-    map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-left");
+    map.addControl(new NavigationControl({ visualizePitch: true }), "top-right");
+    map.addControl(new AttributionControl({ compact: true }), "bottom-left");
     map.on("load", () => setMapReady(true));
     mapRef.current = map;
     return () => {
@@ -599,7 +609,7 @@ export function GasNetworkMap({
         const source = propertyText(props.source_system, t("data.unavailable"));
         const nodeId = propertyText(props.id, "");
         const nodeLabel = propertyText(props.name, nodeId);
-        const popup = new maplibregl.Popup({ closeButton: false })
+        const popup = new Popup({ closeButton: false })
           .setLngLat(event.lngLat)
           .setHTML(
             `<div class="node-popup">
@@ -672,7 +682,7 @@ export function GasNetworkMap({
         element.textContent = fallbackNodeLabel(node);
         element.title = node.name;
         labelMarkersRef.current.push(
-          new maplibregl.Marker({ element, anchor: "left", offset: [9, -7] })
+          new Marker({ element, anchor: "left", offset: [9, -7] })
             .setLngLat(toMapCoordinates(node.lon, node.lat))
             .addTo(map),
         );
