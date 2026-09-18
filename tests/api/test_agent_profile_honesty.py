@@ -61,6 +61,35 @@ def test_a_declared_profile_is_accepted() -> None:
     assert response.status_code != 422
 
 
+def test_a_supplied_strategy_ir_is_refused_instead_of_ignored() -> None:
+    # The request model accepted a `strategy_ir` and the orchestrator dropped it, so a caller could
+    # believe its own specification had been run. The refusal names the path that does own one.
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/api/agent/research",
+        json={
+            "objective": "Does NBP trade at a premium to TTF?",
+            "strategy_generation_allowed": True,
+            "strategy_ir": {"components": []},
+        },
+    )
+
+    assert response.status_code == 422
+    detail = response.json()["detail"]
+    assert detail["code"] == "strategy_ir_not_accepted"
+    assert "strategy registry" in detail["message"]
+
+    # A run that supplies none is unaffected.
+    assert (
+        client.post(
+            "/api/agent/research",
+            json={"objective": "Does NBP trade at a premium to TTF?"},
+        ).status_code
+        != 422
+    )
+
+
 def _outcome(*stages: OrchestrationStage) -> OrchestrationOutcome:
     outcome = OrchestrationOutcome("agent-run-1")
     for stage in stages:

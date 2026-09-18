@@ -294,6 +294,21 @@ generation without a frozen version terminates at human confirmation by design),
 explains that in its own blockers and warnings. What changed is that the label can no longer stand
 in for the pipeline.
 
+Two neighbouring defects came out of the same audit, because they are the same failure mode - an
+accepted input that the run silently ignored:
+
+- **`strategy_ir` was accepted and dropped.** The request model carries a `strategy_ir` and the
+  orchestrator never read it, so a caller could believe its own specification had been run while the
+  pipeline drafted and validated a different candidate of its own. It is now refused with
+  `422 strategy_ir_not_accepted`, naming the strategy registry as the path that does own a
+  specification.
+- **A deferred backtest was recorded as a reached stage.** The pipeline marked `BACKTESTED` *before*
+  attempting the backtest, so a run whose backtest never produced anything still claimed the stage -
+  and the profile check above, reading that record, would have taken it as evidence the backtest ran.
+  `BACKTESTED` is now recorded only when the backtest produced a run, and a test drives a run with a
+  frozen version that cannot be backtested to assert it reports `BACKTEST_DEFERRED` and
+  `PROFILE_STAGES_NOT_REACHED:BACKTESTED` rather than claiming the stage.
+
 With both halves delivered, and the capability-invoke surface shipped earlier, the `/agent/*` family
 is converged: a run's profile is now a *validated, self-qualifying* label, which is what makes
 offering a profile choice to a client meaningful - and the surface still does not offer one, because

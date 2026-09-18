@@ -132,6 +132,30 @@ def test_strategy_generation_stops_at_human_freeze_gate(session) -> None:
     assert outcome.status.value == "READY_FOR_HUMAN_REVIEW"
     assert outcome.strategy_ir is not None
     assert "HUMAN_CONFIRMATION_REQUIRED" in outcome.blockers
+    # The stages the profile declares but the run never entered are reported, so the run's label
+    # cannot stand in for a pipeline that did not run.
+    assert any(item.startswith("PROFILE_STAGES_NOT_REACHED:") for item in outcome.warnings)
+
+
+def test_a_backtest_that_deferred_is_not_recorded_as_reached(session) -> None:
+    # A frozen version that does not exist cannot be backtested: the capability refuses it, so the
+    # run defers. It must then *not* claim it reached `BACKTESTED`, or the profile check built on
+    # that record would read a stage that never ran as evidence that it did.
+    outcome = _run(
+        session,
+        strategy_generation_allowed=True,
+        frozen_strategy_version_id="version-does-not-exist",
+        period_start_utc=datetime(2026, 1, 1, tzinfo=UTC),
+        period_end_utc=datetime(2026, 2, 1, tzinfo=UTC),
+    )
+
+    assert "BACKTESTED" not in outcome.stages_reached
+    assert outcome.backtest_run_id is None
+    assert any(item.startswith("BACKTEST_DEFERRED") for item in outcome.warnings)
+    assert "PROFILE_STAGES_NOT_REACHED:BACKTESTED" in outcome.warnings
+    # The pipeline still finished its own work and reached the stages it did complete.
+    assert "STRATEGY_VALIDATED" in outcome.stages_reached
+    assert outcome.status.value in {"READY_FOR_HUMAN_REVIEW", "BLOCKED"}
 
 
 def test_blocked_flow_persists_blocker(session) -> None:

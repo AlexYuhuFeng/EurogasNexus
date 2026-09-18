@@ -228,6 +228,23 @@ def run_research(body: ResearchRunRequest, request: Request) -> dict:
             },
         )
 
+    if body.strategy_ir is not None:
+        # The pipeline drafts its own candidate from the findings it produced and validates it
+        # against the feature catalogue. A caller-supplied IR was accepted by the request model and
+        # then dropped by the orchestrator, so a caller could believe its own specification had been
+        # run. It is refused instead, with the path that does own a strategy specification named.
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "strategy_ir_not_accepted",
+                "message": (
+                    "This runtime drafts and validates its own Strategy IR from the run's findings; "
+                    "a supplied one is refused rather than ignored. Use the strategy registry "
+                    "(POST /api/strategies/{strategy_id}/versions) to submit a specification."
+                ),
+            },
+        )
+
     from eurogas_nexus.application.agents.research_orchestrator import (
         GovernedResearchOrchestrator,
     )

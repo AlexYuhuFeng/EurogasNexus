@@ -203,7 +203,9 @@ class GovernedResearchOrchestrator:
             outcome.artifacts.append("StrategyIR")
             if frozen_strategy_version_id:
                 outcome.strategy_version_id = frozen_strategy_version_id
-                self._transition(outcome, OrchestrationStage.BACKTESTED, AgentRunStatus.RUNNING)
+                # The stage is recorded only once the backtest actually produced a run: a run that
+                # never backtested must not report that it reached `BACKTESTED`, and the profile
+                # check compares the run's own stage record against what the profile declares.
                 backtest = self._maybe_backtest(
                     session,
                     principal,
@@ -219,6 +221,7 @@ class GovernedResearchOrchestrator:
                 else:
                     outcome.backtest_run_id = backtest["run_id"]
                     outcome.artifacts.append(f"backtest:{outcome.backtest_run_id}")
+                    self._transition(outcome, OrchestrationStage.BACKTESTED, AgentRunStatus.RUNNING)
                     self._transition(
                         outcome, OrchestrationStage.ROBUSTNESS_EVALUATED, AgentRunStatus.RUNNING
                     )
