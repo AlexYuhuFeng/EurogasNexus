@@ -64,6 +64,23 @@ That path is now enveloped as well, and the bargain is explicit:
 - the failure is not hidden: Starlette re-raises after the response is sent, so logging and monitoring
   keep seeing the real traceback.
 
+### The other two failure paths (delivered later)
+
+A claim audit found two more ways a failure left the platform without the taxonomy. Both are now
+enveloped, and neither changed a status code or a `detail`:
+
+- **A malformed request body.** FastAPI answered a body that did not match the model with a bare
+  `{"detail": [...]}`, so the most ordinary failure there is - the caller's input did not match the
+  contract - read as an unclassified SYSTEM fault. A `RequestValidationError` handler now adds
+  `validation_failed` (VALIDATION, `after_user_action`), the message/action keys and a correlation id
+  beside the framework's own error list, which is passed through unchanged.
+- **A cookie-authenticated request refused by the origin/CSRF guard.** That middleware sits *outside*
+  the request-id layer, so its refusal carried no id at all and a client could not classify it. It now
+  builds the same envelope, generating a correlation id when the request never got one and echoing it
+  on `X-Request-Id`, and its two codes (`origin_not_allowed`, `csrf_invalid`) are catalogued as AUTH
+  refusals the caller can act on rather than left to the code-shape rules - which would have filed
+  `origin_not_allowed` under SYSTEM and `csrf_invalid` under VALIDATION.
+
 ## 5. Deferred (explicit)
 
 - **Unified Job model.** `JOB_FAILED`/`JOB_CANCELLED` are catalogued, but a shared job lifecycle

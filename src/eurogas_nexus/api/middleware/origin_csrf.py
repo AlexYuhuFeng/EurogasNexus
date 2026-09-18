@@ -18,6 +18,7 @@ mutating route stays guarded.
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 from collections.abc import Awaitable, Callable
 from typing import Any
@@ -121,8 +122,29 @@ def _cookie_value(cookies: str, name: str) -> str:
 
 
 async def _reject(send: Any, *, status: int, code: str) -> None:
-    body = (
-        '{"error":"' + code + '","message":"Cookie-authenticated request blocked."}'
+    """Refuse a cookie-authenticated request in the product's error shape.
+
+    This middleware sits outside `RequestIdMiddleware`, so a rejection here never reached
+    the layer that stamps a correlation id - and it used to answer with a bare
+    `{"error", "message"}` body, which meant a client could not classify the refusal
+    (family, severity, recoverability) and a user had no id to quote. It now builds the
+    same envelope the API's error handler does: the taxonomy fields from
+    `error_payload()`, a correlation id generated here when the request never got one, and
+    that id echoed on `X-Request-Id` exactly as the unhandled-failure path does.
+    """
+
+    from uuid import uuid4
+
+    from eurogas_nexus.domain.operations.error_taxonomy import error_payload
+
+    correlation_id = uuid4().hex
+    payload = error_payload(
+        code,
+        correlation_id=correlation_id,
+        message="Cookie-authenticated request blocked.",
+    )
+    body = json.dumps(
+        {**payload, "detail": {"error": code, "message": payload["message"]}}
     ).encode("utf-8")
     await send(
         {
@@ -131,6 +153,7 @@ async def _reject(send: Any, *, status: int, code: str) -> None:
             "headers": [
                 (b"content-type", b"application/json"),
                 (b"content-length", str(len(body)).encode("ascii")),
+                (b"x-request-id", correlation_id.encode("ascii")),
             ],
         }
     )

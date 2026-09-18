@@ -117,6 +117,20 @@ ERROR_CATALOGUE: dict[str, ErrorDefinition] = {
         # --- authorization and entitlement ---
         _definition("identity_role_forbidden", ErrorFamily.AUTH, recoverability=Recoverability.PERMANENT),
         _definition("permission_denied", ErrorFamily.AUTH, recoverability=Recoverability.PERMANENT),
+        # The origin/CSRF guard's refusals. Catalogued because the code-shape rules would
+        # otherwise file them elsewhere ("origin_not_allowed" matches no rule and fell to
+        # SYSTEM; "csrf_invalid" would read as a VALIDATION failure), and both are
+        # session-bound security refusals the caller can act on.
+        _definition(
+            "origin_not_allowed",
+            ErrorFamily.AUTH,
+            recoverability=Recoverability.AFTER_USER_ACTION,
+        ),
+        _definition(
+            "csrf_invalid",
+            ErrorFamily.AUTH,
+            recoverability=Recoverability.AFTER_USER_ACTION,
+        ),
         _definition("permission_not_declared", ErrorFamily.CONFIGURATION, severity=ErrorSeverity.CRITICAL, operator_only=True),
         _definition(
             "commercial_access_not_granted",

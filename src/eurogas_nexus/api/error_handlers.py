@@ -38,6 +38,7 @@ from typing import Any
 from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from eurogas_nexus.domain.operations.error_taxonomy import code_for_status, error_payload
@@ -74,6 +75,34 @@ def register_error_handlers(app: FastAPI) -> None:
             status_code=exc.status_code,
             content=body,
             headers=dict(exc.headers or {}) or None,
+        )
+
+    @app.exception_handler(RequestValidationError)
+    async def _request_validation_error(
+        request: Request, exc: RequestValidationError
+    ) -> JSONResponse:
+        """Envelope the framework's own 422 without rewriting its `detail`.
+
+        FastAPI answers a malformed request body with a bare `{"detail": [...]}` list, which a
+        client reading the taxonomy cannot classify: it was presented as an unclassified SYSTEM
+        fault, when what actually happened is the most ordinary thing there is - the caller's
+        input did not match the contract. The status code and the `detail` list are kept exactly
+        as FastAPI produces them (clients that read `detail` are unaffected); the taxonomy fields
+        are added beside them, so the failure reads as VALIDATION and the caller is told to fix
+        the request.
+        """
+
+        existing_id = getattr(request.state, "request_id", None)
+        correlation_id = existing_id or uuid4().hex
+        payload = error_payload("validation_failed", correlation_id=correlation_id)
+        return JSONResponse(
+            status_code=422,
+            # `exc.errors()` is what FastAPI's own 422 body carries, cleaned only where an
+            # exception object would not serialise.
+            content={"detail": _jsonable_detail(exc.errors()), **payload},
+            # The request reached the middleware that stamps an id, so only a generated one is
+            # echoed here; otherwise the header would carry the same id twice.
+            headers={} if existing_id else {"X-Request-Id": correlation_id},
         )
 
     @app.exception_handler(Exception)
@@ -118,6 +147,27 @@ def _code_from_detail(detail: Any) -> str | None:
             if isinstance(value, str) and value.strip():
                 return value.strip()
     return None
+
+
+def _jsonable_detail(detail: Any) -> Any:
+    """The framework's validation detail, made JSON-serialisable without being changed.
+
+    FastAPI hands the handler the raw errors, whose `ctx` can hold exception objects. They are
+    stringified rather than dropped: an operator diagnosing a refused body needs to see which
+    value was rejected, and the field list is the caller's own input, not platform state.
+    """
+
+    if isinstance(detail, list):
+        cleaned = []
+        for item in detail:
+            if isinstance(item, dict) and isinstance(item.get("ctx"), dict):
+                item = {
+                    **item,
+                    "ctx": {key: str(value) for key, value in item["ctx"].items()},
+                }
+            cleaned.append(item)
+        return cleaned
+    return detail
 
 
 def _operator_detail(detail: Any, *, operator: bool) -> str | None:

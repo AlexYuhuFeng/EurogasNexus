@@ -52,6 +52,13 @@ def test_cookie_mutation_requires_origin_and_csrf(tmp_path, monkeypatch) -> None
     missing = client.post("/api/auth/logout", headers={"Cookie": cookie})
     assert missing.status_code == 403
     assert missing.json()["error"] == "origin_not_allowed"
+    # This middleware sits outside the one that stamps a request id, so a rejection here used
+    # to answer with a bare error code: a user had nothing to quote and a client could not
+    # classify the refusal. It now answers in the product's error shape, id included.
+    assert missing.json()["family"] == "AUTH"
+    assert missing.json()["recoverability"] == "after_user_action"
+    assert missing.json()["correlation_id"]
+    assert missing.headers["x-request-id"] == missing.json()["correlation_id"]
 
     wrong_csrf = client.post(
         "/api/auth/logout",
@@ -59,6 +66,9 @@ def test_cookie_mutation_requires_origin_and_csrf(tmp_path, monkeypatch) -> None
     )
     assert wrong_csrf.status_code == 403
     assert wrong_csrf.json()["error"] == "csrf_invalid"
+    assert wrong_csrf.json()["family"] == "AUTH"
+    # The endpoint's own `detail` shape is kept, so a client reading it is unaffected.
+    assert wrong_csrf.json()["detail"]["error"] == "csrf_invalid"
 
     csrf = hashlib.sha256(token.encode("utf-8")).hexdigest()[:32]
     ok = client.post(

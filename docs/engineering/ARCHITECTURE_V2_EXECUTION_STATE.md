@@ -43,11 +43,11 @@ Wave status: DELIVERED_AND_VALIDATED for every slice listed under "Completed tas
 
 ## Validation evidence (combined tree)
 
-- `python -m pytest -q` — **1786 passed, 17 skipped, 0 failed**.
+- `python -m pytest -q` — **1787 passed, 17 skipped, 0 failed**.
 - `clients/web`: `node --test "tests/*.test.ts"` — **450 passed**; `npx tsc --noEmit` exit 0; `npm run build` exit 0.
 - `python scripts/security/run_security_acceptance.py` — all automated checks PASS (`api_import_safe`, `public_surface_bounded` 178, `permission_registry_complete` 178, token/identity/OIDC fail-closed, posture retained); external review items remain BLOCKED as before.
 - Documentation gates: `tests/contract/test_markdown_links.py` and `tests/contract/test_docstring_policy.py` pass, including the new wave records.
-- Bilingual parity: `clients/web/src/i18n/{en,zh}.json` hold the same 2395 keys, no key is declared twice (the raw text is checked, because `JSON.parse` would silently keep the last), no value carries a question mark or a replacement character, and the vocabulary is distinct per locale. The 92 keys added this stretch are the per-code error texts (`errors.<code>.message` / `.action` for all 46 catalogued codes), held to the backend catalogue by `tests/contract/test_error_vocabulary_coverage.py`.
+- Bilingual parity: `clients/web/src/i18n/{en,zh}.json` hold the same 2399 keys, no key is declared twice (the raw text is checked, because `JSON.parse` would silently keep the last), no value carries a question mark or a replacement character, and the vocabulary is distinct per locale. The 96 keys added this stretch are the per-code error texts (`errors.<code>.message` / `.action` for all 48 catalogued codes), held to the backend catalogue by `tests/contract/test_error_vocabulary_coverage.py`.
 - Not run and not claimed: `tests/integration` (live PostgreSQL), any Tauri/Rust build, packaging/installer evidence, visual/accessibility/UAT review, provider and licence validation, and lint (`ruff` is not installed).
 
 ## Deferred / known gaps

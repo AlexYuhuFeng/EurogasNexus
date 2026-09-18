@@ -153,6 +153,31 @@ def test_a_missing_api_token_is_a_configuration_failure(tmp_path, monkeypatch) -
     assert body["correlation_id"]
 
 
+def test_a_malformed_request_body_is_a_validation_failure_not_a_system_fault() -> None:
+    """The framework's own 422 is enveloped without its `detail` list being rewritten.
+
+    FastAPI answered a body that did not match the model with a bare `{"detail": [...]}`, which
+    the taxonomy could not classify: the most ordinary failure there is - the caller's input did
+    not match the contract - read as an unclassified SYSTEM fault.
+    """
+
+    client = TestClient(create_app())
+
+    response = client.post("/api/reports/portfolio", json={"portfolio_id": ["not", "a", "string"]})
+    assert response.status_code == 422
+    body = response.json()
+
+    assert body["error"] == "validation_failed"
+    assert body["family"] == "VALIDATION"
+    assert body["recoverability"] == "after_user_action"
+    assert body["message_key"] == "errors.validation_failed.message"
+    assert body["correlation_id"] == response.headers["x-request-id"]
+    # FastAPI's own error list is passed through as the client already receives it.
+    assert isinstance(body["detail"], list)
+    assert body["detail"][0]["loc"] == ["body", "portfolio_id"]
+    assert body["detail"][0]["type"] == "string_type"
+
+
 def test_operator_detail_is_separate_and_gated_on_an_operator_identity(
     tmp_path, monkeypatch
 ) -> None:

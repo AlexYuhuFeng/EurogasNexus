@@ -60,6 +60,19 @@ category - five were true when written and had gone stale as later waves moved t
    `eurogas://market#role=ADMIN` opened with the claim silently dropped.
    (`W10-01` section 4.)
 
+Two further failure paths were found while auditing the envelope's reach, and are fixed with it
+(they are the same defect: a failure a user meets, answering with less than the product promises):
+
+- *The framework's own 422* for a body that did not match the model answered with a bare
+  `{"detail": [...]}`, so the caller's input error read as an unclassified SYSTEM fault; a
+  `RequestValidationError` handler now adds `validation_failed` beside the unchanged list.
+- *The origin/CSRF guard's refusal* carried no correlation id and no taxonomy at all, because that
+  middleware sits outside the request-id layer; it now builds the envelope, generates an id when the
+  request never got one, echoes it on `X-Request-Id`, and its two codes are catalogued as AUTH.
+- The job re-run fitness test asserted a hard-coded property back to itself and so could never fail;
+  it now holds the *derivation* (the answer is a property of the record, not a per-kind field), which
+  is the assertion with teeth, and the schema test beside it remains the real gate.
+
 **Claims that overstated what is guarded or delivered** (corrected in the record, one carried to the
 owner):
 

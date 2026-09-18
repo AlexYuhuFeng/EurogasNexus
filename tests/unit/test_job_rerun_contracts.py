@@ -19,6 +19,7 @@ from eurogas_nexus.db.models import JobRecord
 from eurogas_nexus.domain.operations.jobs import (
     JOB_RERUN_CONTRACTS,
     JobKind,
+    JobRerunContract,
     job_rerun_contract,
 )
 
@@ -29,11 +30,23 @@ def test_every_declared_kind_answers_the_replay_question() -> None:
     assert len(JOB_RERUN_CONTRACTS) == len(JobKind)
 
 
-def test_no_kind_claims_to_be_replayable_from_its_job_row() -> None:
-    # The row keeps one hash of the inputs, not the inputs. A future contract that claimed
-    # otherwise would have to change the schema first, which is the point of asserting it here.
-    for contract in JOB_RERUN_CONTRACTS:
-        assert contract.from_job_row is False, contract.kind
+def test_the_replay_answer_is_a_property_of_the_record_not_a_per_kind_choice() -> None:
+    """No kind *can* claim to be replayable, which is why the schema is the real gate.
+
+    A table of per-kind booleans would let a new kind declare itself replayable from a row that
+    has nowhere to keep the inputs. The answer is derived from the record instead, and this test
+    holds it that way: if a future edit turned `from_job_row` back into a settable field, the
+    claim would become per-kind and the schema would have to change with it - which is what the
+    neighbouring column test forbids. (The earlier version of this test only read the property
+    back, so it could not fail; the assertion that has teeth is the one about the dataclass
+    fields.)
+    """
+
+    from dataclasses import fields
+
+    assert isinstance(JobRerunContract.from_job_row, property)
+    assert "from_job_row" not in {field.name for field in fields(JobRerunContract)}
+    assert all(contract.from_job_row is False for contract in JOB_RERUN_CONTRACTS)
 
 
 def test_the_job_table_holds_no_inputs_container_to_replay_from() -> None:
