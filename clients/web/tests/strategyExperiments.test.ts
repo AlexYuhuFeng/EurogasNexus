@@ -199,6 +199,22 @@ test("the panel uses the declared experiment and metadata calls, not ad-hoc ones
   assert.ok(EXPERIMENT_NAME_MAX_LENGTH === 256);
 });
 
+test("the shadow surface reads one evaluation, and one monitor, for the detail it shows", () => {
+  // `GET /api/shadow-evaluations/{id}` is the only read that carries an evaluation's risk checks, and
+  // `GET /api/shadow-monitors/{id}` is the only read that answers where the monitor stands now. Both
+  // were declared in the client and never called: the surface showed a list, so a blocked candidate's
+  // controls were invisible and the monitor's state could only be as fresh as the last list read.
+  const shell = readWebSource("components/strategy/StrategyShadowShell.tsx");
+
+  assert.match(shell, /apiClient\.shadowEvaluation\(evaluationId\)/);
+  assert.match(shell, /apiClient\.shadowMonitor\(monitorId\)/);
+  assert.match(shell, /apiClient\.shadowMonitor\(selectedMonitorId\)/);
+  assert.match(shell, /openOneEvaluation\(/);
+  assert.match(shell, /openEvaluation\.risk_checks/);
+  // The state strip reads the monitor's own record, not the list entry it was loaded from.
+  assert.match(shell, /const monitorNow = freshMonitor \?\? selectedMonitor;/);
+});
+
 test("the experiment vocabulary is bilingual", () => {
   const en = JSON.parse(readWebSource("i18n/en.json")) as Record<string, string>;
   const zh = JSON.parse(readWebSource("i18n/zh.json")) as Record<string, string>;
@@ -226,6 +242,18 @@ test("the experiment vocabulary is bilingual", () => {
     "period_too_long",
   ]) {
     keys.push(`strategy_lab.experiment.blocker.${blocker}`);
+  }
+  for (const key of [
+    "strategy_lab.health",
+    "strategy_lab.consecutive_failures",
+    "strategy_lab.evaluation_detail",
+    "strategy_lab.control",
+    "strategy_lab.observed",
+    "strategy_lab.limit",
+    "strategy_lab.missing_inputs",
+    "strategy_lab.no_risk_checks",
+  ]) {
+    keys.push(key);
   }
   for (const key of keys) {
     assert.ok(en[key]?.trim(), `en ${key}`);
