@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type {
   BacktestAttributionDTO,
   BacktestDecisionEventDTO,
+  BacktestExperimentCreateInputDTO,
+  BacktestExperimentDTO,
   BacktestSeriesPointDTO,
   StrategyDTO,
   StrategyRunDTO,
@@ -16,6 +18,7 @@ import {
   strategyTaskToSearch,
   type StrategyTaskId,
 } from "./strategyLabModel";
+import { experimentsForStrategy, experimentReadiness, experimentRequest } from "./strategyExperimentModel";
 
 export type { StrategyTaskId };
 
@@ -66,6 +69,16 @@ export function useStrategyLab({ selection, gasDay, locationRevision }: UseStrat
   const [detailsByRun, setDetailsByRun] = useState<
     Record<string, StrategyRunDetails>
   >({});
+  /**
+   * Backtest experiments, and the one the surface is currently working in.
+   *
+   * The registry shipped experiment grouping with the strategy lifecycle and no surface ever
+   * created one, so a run could only be grouped by calling the API. The list is read for the whole
+   * deployment (the route's own bound) and filtered per strategy here, because an experiment names
+   * its strategy and a user may switch strategy without re-reading.
+   */
+  const [experiments, setExperiments] = useState<BacktestExperimentDTO[]>([]);
+  const [selectedExperimentId, setSelectedExperimentId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -99,6 +112,14 @@ export function useStrategyLab({ selection, gasDay, locationRevision }: UseStrat
   const backtestRuns = useMemo(
     () => runs.filter((run) => run.run_type === "BACKTEST"),
     [runs],
+  );
+  const strategyExperiments = useMemo(
+    () => experimentsForStrategy(experiments, strategyId),
+    [experiments, strategyId],
+  );
+  const selectedExperiment = useMemo(
+    () => experiments.find((item) => item.experiment_id === selectedExperimentId) ?? null,
+    [experiments, selectedExperimentId],
   );
 
   const openTask = useCallback((next: StrategyTaskId) => {
@@ -143,6 +164,44 @@ export function useStrategyLab({ selection, gasDay, locationRevision }: UseStrat
       }
     },
     [],
+  );
+
+  const refreshExperiments = useCallback(async () => {
+    try {
+      const result = await apiClient.backtestExperiments();
+      setExperiments(result.data);
+      return result.data;
+    } catch (err) {
+      setError(String(err));
+      return [];
+    }
+  }, []);
+
+  /**
+   * Open one run from the registry by id.
+   *
+   * The run history is a bounded read (50 newest), so a run an experiment names may not be in it -
+   * an experiment's base run is often older than the window. This reads that run directly, and
+   * falls back to the route's own answer rather than pretending the run does not exist.
+   */
+  const loadRegistryRun = useCallback(
+    async (runId: string) => {
+      const known = runs.find((item) => item.run_id === runId);
+      if (known) return known;
+      try {
+        const result = await apiClient.strategyRegistryRun(runId);
+        setRuns((current) =>
+          current.some((item) => item.run_id === result.data.run_id)
+            ? current
+            : [result.data, ...current],
+        );
+        return result.data;
+      } catch (err) {
+        setError(String(err));
+        return null;
+      }
+    },
+    [runs],
   );
 
   const selectStrategy = useCallback(
@@ -252,9 +311,126 @@ export function useStrategyLab({ selection, gasDay, locationRevision }: UseStrat
     };
   }, [gasDay]);
 
+  /**
+   * Create an experiment for the selected strategy and frozen version.
+   *
+   * The rule decides *whether* it may be created and *what* the body is, so this only refuses what
+   * the rule refused and reports what the route answered: a surface that composed a partial body
+   * would be inventing the facts the route then rejects.
+   */
+  const createExperiment = useCallback(
+    async (draft: { name: string; hypothesis: string; period: { start: string; end: string } }) => {
+      const subject = {
+        strategyId,
+        version: selectedVersion
+          ? {
+              strategy_version_id: selectedVersion.strategy_version_id,
+              status: selectedVersion.status,
+            }
+          : null,
+      };
+      const readiness = experimentReadiness({ subject, draft });
+      const body: BacktestExperimentCreateInputDTO | null = experimentRequest(
+        { subject, draft },
+        readiness,
+      );
+      if (!body) return null;
+      setLoading(true);
+      setError(null);
+      setMessage(null);
+      try {
+        const result = await apiClient.createBacktestExperiment(body);
+        setExperiments((current) => [result.data, ...current]);
+        setSelectedExperimentId(result.data.experiment_id);
+        setMessage(result.data.experiment_id);
+        return result.data;
+      } catch (err) {
+        setError(String(err));
+        return null;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [selectedVersion, strategyId],
+  );
+
+  const selectExperiment = useCallback(
+    (experimentId: string | null) => {
+      setSelectedExperimentId(experimentId);
+      // Selecting an experiment is a view of the runs it groups; it never changes which version
+      // the next run would use, because that stays the user's selection in the navigator.
+      selection.setStrategyRunId(null);
+    },
+    [selection.setStrategyRunId],
+  );
+
+  /**
+   * Open one experiment by id, reading it when the list has not loaded it.
+   *
+   * The list is bounded (200 newest), so an experiment an identity cites - or one opened from a
+   * deep link - may not be in it. The route answers for one experiment directly, and this reads it
+   * there rather than reporting that it does not exist.
+   */
+  const openExperiment = useCallback(
+    async (experimentId: string) => {
+      const known = experiments.find((item) => item.experiment_id === experimentId);
+      if (known) {
+        selectExperiment(experimentId);
+        return known;
+      }
+      try {
+        const result = await apiClient.backtestExperiment(experimentId);
+        setExperiments((current) =>
+          current.some((item) => item.experiment_id === result.data.experiment_id)
+            ? current
+            : [result.data, ...current],
+        );
+        selectExperiment(result.data.experiment_id);
+        return result.data;
+      } catch (err) {
+        setError(String(err));
+        return null;
+      }
+    },
+    [experiments, selectExperiment],
+  );
+
+  /**
+   * Edit a strategy's own metadata (name, description, tags).
+   *
+   * This is a `persist` on the *identity*, not on a version: the version's draft has the
+   * workspace's primary slot, and the identity is edited where its other bounded acts live. The
+   * route owns the bounds (name 1..256, description <= 4000) and refuses a retired strategy; the
+   * surface reports the answer rather than assuming one.
+   */
+  const updateStrategyMetadata = useCallback(
+    async (strategyIdToEdit: string, body: { name?: string; description?: string; tags?: string[] }) => {
+      setLoading(true);
+      setError(null);
+      setMessage(null);
+      try {
+        const result = await apiClient.updateStrategyMetadata(strategyIdToEdit, body);
+        setStrategies((current) =>
+          current.map((item) =>
+            item.strategy_id === result.data.strategy_id ? result.data : item,
+          ),
+        );
+        setMessage(result.data.strategy_id);
+        return result.data;
+      } catch (err) {
+        setError(String(err));
+        return null;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [],
+  );
+
   useEffect(() => {
     void refreshStrategies();
-  }, [refreshStrategies]);
+    void refreshExperiments();
+  }, [refreshExperiments, refreshStrategies]);
 
   useEffect(() => {
     if (strategyId) {
@@ -280,6 +456,8 @@ export function useStrategyLab({ selection, gasDay, locationRevision }: UseStrat
     backtestRuns,
     selectedRun,
     detailsByRun,
+    experiments: strategyExperiments,
+    selectedExperiment,
     loading,
     message,
     error,
@@ -287,11 +465,17 @@ export function useStrategyLab({ selection, gasDay, locationRevision }: UseStrat
     refreshStrategies,
     refreshVersions,
     refreshRuns,
+    refreshExperiments,
     selectStrategy,
     selectVersion,
     selectRun,
     loadRunDetails,
+    loadRegistryRun,
     runBacktest,
+    createExperiment,
+    selectExperiment,
+    openExperiment,
+    updateStrategyMetadata,
   };
 }
 

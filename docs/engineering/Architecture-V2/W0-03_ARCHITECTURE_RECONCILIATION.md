@@ -213,9 +213,27 @@ or recorded as a compatibility artefact rather than left to look like a surface.
 **Consequence of (b).** Removing public paths is a breaking change for SDK/CLI callers and needs the
 contract-evolution policy procedure; the paths are pinned in
 `tests/contract/test_api_surface_stability.py`, so this is a deliberate, visible change.
-**Recommendation: (a) for the strategy lifecycle and shadow runtime, (b) for access administration
-(the Access & Identity API is an operator tool with its own client), (c) for the reference reads
-until a surface wants them.**
+**Recommendation (superseded by the decision above): (a) for the strategy lifecycle and shadow
+runtime, (b) for access administration, (c) for the reference reads until a surface wants them.** The
+owner chose to build all of them, so (b) and (c) are not taken; slice C therefore builds the access
+reads rather than retiring them, and slice D builds the reference reads.
+
+**DECIDED 2026-09-18 — the owner chose (a): build every missing surface.** The work is sliced by
+family, each slice carrying its own rule, tests, bilingual vocabulary and record, and the census is
+re-measured after each one so this register states the *remaining* set rather than the opening one:
+
+| Slice | Methods that gained a surface | Where | State |
+|---|---|---|---|
+| A: strategy lifecycle | `updateStrategyMetadata`, `createBacktestExperiment`, `backtestExperiments`, `backtestExperiment`, `strategyRegistryRun` | Strategy Lab — a backtest-experiment panel in the Backtest task (create, list, open, and read a grouped run the bounded history has not loaded) and a strategy-identity metadata editor in the Design task | **Delivered**: never-mentioned set 20 → 15 |
+| B: shadow runtime | `shadowMonitor`, `shadowEvaluation` and the monitor lifecycle actions | Strategy Lab — the Shadow task | Not started |
+| C: access administration | `accessRoles`, `accessDataScopes`, `createAccessApiKey` | Access & Identity | Not started |
+| D: reference and data reads | `facilities`, `marketHubs`, `capacityContracts`, `routeCost`, `portfolioLiveSummary` | market / network / capacity / portfolio surfaces | Not started |
+| E: agent and capability reads | `agentProfiles`, `agentRun`, `searchCapabilities`, `researchCapabilities` | the agents workspace and the research catalogue | Not started |
+| F: decision outcome | `recordDecisionCaseDecisionOutcome` | Decision Case panel | Not started |
+
+Two things the slices do not change: no new page is created (V2 rule 9 — each surface completes a task
+that already exists), and no route, permission or payload changes. The unmounted terminal stays open
+until its own family's slice decides it.
 
 ### D4 — C12: map tiles — which provider, under whose licence and token?
 

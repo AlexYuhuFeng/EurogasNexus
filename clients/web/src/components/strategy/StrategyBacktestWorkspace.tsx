@@ -7,6 +7,14 @@ import {
   type StrategyBacktestDraft,
   type StrategyBacktestReadiness,
 } from "@/app/model/strategyBacktestModel";
+import {
+  experimentPeriod,
+  experimentReadiness,
+  EXPERIMENT_HYPOTHESIS_MAX_LENGTH,
+  EXPERIMENT_NAME_MAX_LENGTH,
+  runsInExperiment,
+  unloadedRunIds,
+} from "@/app/model/strategyExperimentModel";
 import { useInspectorStore } from "@/stores/inspector";
 import { StrategyLineChart } from "./StrategyLabCharts";
 
@@ -60,10 +68,52 @@ export function StrategyBacktestWorkspace({
   // facts and provenance are handed over rather than duplicated.
   const inspector = useInspectorStore();
   const [mode, setMode] = useState<"configure" | "result">("configure");
+  // The experiment form's own view state stays with the panel; what would be *written* is decided
+  // by `strategyExperimentModel` and sent by the controller.
+  const [experimentName, setExperimentName] = useState("");
+  const [experimentHypothesis, setExperimentHypothesis] = useState("");
+  const [experimentPeriodDraft, setExperimentPeriodDraft] = useState(() => ({
+    start: draft.start,
+    end: draft.end,
+  }));
 
   const run = controller.selectedRun;
   const metrics = run?.backtest_metrics ?? null;
   const details = run ? controller.detailsByRun[run.run_id] : undefined;
+
+  const experimentDraft = useMemo(
+    () => ({
+      name: experimentName,
+      hypothesis: experimentHypothesis,
+      period: experimentPeriodDraft,
+    }),
+    [experimentHypothesis, experimentName, experimentPeriodDraft],
+  );
+  const experimentReadinessNow = useMemo(
+    () =>
+      experimentReadiness({
+        subject: {
+          strategyId: controller.selectedStrategy?.strategy_id ?? null,
+          version: controller.selectedVersion
+            ? {
+                strategy_version_id: controller.selectedVersion.strategy_version_id,
+                status: controller.selectedVersion.status,
+              }
+            : null,
+        },
+        draft: experimentDraft,
+      }),
+    [controller.selectedStrategy?.strategy_id, controller.selectedVersion, experimentDraft],
+  );
+  const selectedExperiment = controller.selectedExperiment;
+  const experimentRuns = useMemo(
+    () => runsInExperiment(controller.backtestRuns, selectedExperiment),
+    [controller.backtestRuns, selectedExperiment],
+  );
+  const missingExperimentRuns = useMemo(
+    () => unloadedRunIds(selectedExperiment, controller.backtestRuns),
+    [controller.backtestRuns, selectedExperiment],
+  );
 
   const updateDraft = (patch: Partial<StrategyBacktestDraft>) =>
     onDraftChange({ ...draft, ...patch });
@@ -254,6 +304,156 @@ export function StrategyBacktestWorkspace({
           </section>
         </div>
       )}
+
+      {/* Experiments. The route has grouped runs into experiments since the strategy registry
+          shipped and no surface ever created one, so a run could only be grouped by calling the
+          API. Creating an experiment is a `persist`, which the geography places in the workspace's
+          primary slot - and that slot holds the backtest run, the task's `compute` act. It lives
+          here, bounded next to the runs it groups, for the same reason the version acts do: one
+          task has one primary act, and a second persist is a bounded act beside its object rather
+          than a rival for the slot. The run itself still carries the experiment id, so choosing an
+          experiment here groups the run this task starts. */}
+      <section className="workspace-panel strategy-experiments" aria-label={t("strategy_lab.experiments")}>
+        <h2>{t("strategy_lab.experiments")}</h2>
+        <p className="panel-copy">{t("strategy_lab.experiments_note")}</p>
+        <div className="strategy-form-grid">
+          <label>{t("strategy_lab.experiment.name")}
+            <input
+              value={experimentName}
+              maxLength={EXPERIMENT_NAME_MAX_LENGTH}
+              placeholder={t("strategy_lab.experiment.name_placeholder")}
+              onChange={(event) => setExperimentName(event.target.value)}
+            />
+          </label>
+          <label>{t("strategy_lab.experiment.period_start")}
+            <input
+              type="date"
+              value={experimentPeriodDraft.start}
+              onChange={(event) =>
+                setExperimentPeriodDraft((current) => ({ ...current, start: event.target.value }))
+              }
+            />
+          </label>
+          <label>{t("strategy_lab.experiment.period_end")}
+            <input
+              type="date"
+              value={experimentPeriodDraft.end}
+              onChange={(event) =>
+                setExperimentPeriodDraft((current) => ({ ...current, end: event.target.value }))
+              }
+            />
+          </label>
+        </div>
+        <label>
+          {t("strategy_lab.experiment.hypothesis")}
+          <textarea
+            value={experimentHypothesis}
+            maxLength={EXPERIMENT_HYPOTHESIS_MAX_LENGTH}
+            onChange={(event) => setExperimentHypothesis(event.target.value)}
+          />
+        </label>
+        <div className="strategy-preflight">
+          <strong>{t("strategy_lab.preflight")}</strong>
+          {experimentReadinessNow.blockerKeys.length === 0 ? (
+            <span className="status-badge status-complete">{t("strategy_lab.ready")}</span>
+          ) : (
+            experimentReadinessNow.blockerKeys.map((key) => (
+              <span key={key} className="status-badge status-blocked">{t(key)}</span>
+            ))
+          )}
+        </div>
+        <div className="strategy-design-actions">
+          <button
+            type="button"
+            disabled={!experimentReadinessNow.canCreate || controller.loading}
+            title={
+              experimentReadinessNow.firstBlockerKey
+                ? t(experimentReadinessNow.firstBlockerKey)
+                : t("strategy_lab.experiment.create_hint")
+            }
+            onClick={() => void controller.createExperiment(experimentDraft)}
+          >
+            {t("strategy_lab.experiment.create")}
+          </button>
+        </div>
+        {controller.experiments.length === 0 ? (
+          <p className="muted">{t("strategy_lab.experiment.empty")}</p>
+        ) : (
+          <div className="data-table strategy-experiment-table">
+            <div className="data-table-row header five">
+              <span>{t("strategy_lab.experiment.name")}</span>
+              <span>{t("strategy_lab.experiment.type")}</span>
+              <span>{t("strategy_lab.period")}</span>
+              <span>{t("strategy_lab.experiment.runs")}</span>
+              <span>{t("strategy_lab.status")}</span>
+            </div>
+            {controller.experiments.map((experiment) => {
+              const period = experimentPeriod(experiment);
+              return (
+                <button
+                  key={experiment.experiment_id}
+                  type="button"
+                  className={`data-table-row five ${
+                    experiment.experiment_id === selectedExperiment?.experiment_id ? "selected" : ""
+                  }`}
+                  onClick={() => controller.selectExperiment(experiment.experiment_id)}
+                >
+                  <span>{experiment.name}</span>
+                  <span>{experiment.experiment_type}</span>
+                  <span>
+                    {period.start ? `${period.start.slice(0, 10)} → ${period.end.slice(0, 10)}` : "n/a"}
+                  </span>
+                  <span>{experiment.run_ids.length}</span>
+                  <span>{experiment.status}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+        {selectedExperiment && (
+          <div className="strategy-experiment-detail">
+            <p className="panel-copy">
+              {t("strategy_lab.experiment.selected")}: {selectedExperiment.experiment_id}
+            </p>
+            {selectedExperiment.hypothesis && <p className="muted">{selectedExperiment.hypothesis}</p>}
+            {experimentRuns.length === 0 && missingExperimentRuns.length === 0 && (
+              <p className="muted">{t("strategy_lab.experiment.no_runs")}</p>
+            )}
+            {experimentRuns.map((item) => (
+              <button
+                key={item.run_id}
+                type="button"
+                className="text-action"
+                onClick={() => {
+                  controller.selectRun(item.run_id);
+                  setMode("result");
+                }}
+              >
+                {t("strategy_lab.experiment.open_run")}: {item.run_id}
+              </button>
+            ))}
+            {/* An experiment may group runs older than the bounded run history. They are counted
+                and read on demand through the registry rather than dropped from the view. */}
+            {missingExperimentRuns.map((runId) => (
+              <button
+                key={runId}
+                type="button"
+                className="text-action"
+                onClick={() => {
+                  void controller.loadRegistryRun(runId).then((loaded) => {
+                    if (loaded) {
+                      controller.selectRun(runId);
+                      setMode("result");
+                    }
+                  });
+                }}
+              >
+                {t("strategy_lab.experiment.open_older_run")}: {runId}
+              </button>
+            ))}
+          </div>
+        )}
+      </section>
 
       <section className="workspace-panel strategy-run-history">
         <h2>{t("strategy_lab.run_history")}</h2>

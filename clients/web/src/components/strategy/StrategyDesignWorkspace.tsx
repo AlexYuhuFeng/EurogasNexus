@@ -10,6 +10,11 @@
 
 import type { StrategyLabController } from "@/app/model/useStrategyLab";
 import type { StrategyDesignDraft } from "@/app/model/useStrategyDesignDraft";
+import {
+  STRATEGY_DESCRIPTION_MAX_LENGTH,
+  STRATEGY_NAME_MAX_LENGTH,
+  type StrategyIdentityMetadata,
+} from "@/app/model/useStrategyIdentityMetadata";
 
 type Translate = (key: string) => string;
 
@@ -17,12 +22,15 @@ interface StrategyDesignWorkspaceProps {
   controller: StrategyLabController;
   /** The draft and its rule, owned by the workspace that hosts the save action. */
   draft: StrategyDesignDraft;
+  /** The identity edit and its rule, owned by the workspace for the same reason. */
+  identity: StrategyIdentityMetadata;
   t: Translate;
 }
 
 export function StrategyDesignWorkspace({
   controller,
   draft,
+  identity,
   t,
 }: StrategyDesignWorkspaceProps) {
   // Everything about *what would be written* belongs to the workspace that hosts the save action;
@@ -30,6 +38,7 @@ export function StrategyDesignWorkspace({
   const { form, setField: set, validation } = draft;
   const { frozen, busy, message, error } = draft;
   const version = controller.selectedVersion;
+  const strategy = controller.selectedStrategy;
 
   return (
     <div className="strategy-design">
@@ -137,6 +146,63 @@ export function StrategyDesignWorkspace({
             </button>
           )}
         </div>
+      </section>
+      {/* The strategy identity's own metadata. The route has accepted this edit since the registry
+          shipped and no surface ever sent it, so renaming a strategy meant calling the API. It is a
+          `persist` on the *identity* rather than the draft, and the task's primary slot holds the
+          draft save: a second persist belongs bounded beside the object it changes, which is where
+          this object's lifecycle acts already are. */}
+      <section className="strategy-version-actions" aria-label={t("strategy_lab.identity_actions")}>
+        <span className="eyebrow">{t("strategy_lab.identity_actions")}</span>
+        <p className="panel-copy">{t("strategy_lab.identity_actions_note")}</p>
+        {!strategy ? (
+          <p className="muted">{t("strategy_lab.no_strategy_selected")}</p>
+        ) : (
+          <>
+            <label>
+              {t("strategy_lab.metadata.name")}
+              <input
+                value={identity.name}
+                maxLength={STRATEGY_NAME_MAX_LENGTH}
+                onChange={(event) => identity.setName(event.target.value)}
+              />
+            </label>
+            <label>
+              {t("strategy_lab.metadata.description")}
+              <textarea
+                value={identity.description}
+                maxLength={STRATEGY_DESCRIPTION_MAX_LENGTH}
+                onChange={(event) => identity.setDescription(event.target.value)}
+              />
+            </label>
+            <label>
+              {t("strategy_lab.metadata.tags")}
+              <input
+                value={identity.tags}
+                placeholder={t("strategy_lab.metadata.tags_hint")}
+                onChange={(event) => identity.setTags(event.target.value)}
+              />
+            </label>
+            <div className="strategy-design-actions">
+              <button
+                type="button"
+                disabled={!identity.canSave || identity.busy}
+                title={
+                  identity.name.trim()
+                    ? identity.dirty
+                      ? t("strategy_lab.metadata.save_hint")
+                      : t("strategy_lab.metadata.unchanged")
+                    : t("strategy_lab.metadata.name_required")
+                }
+                onClick={() => void identity.save()}
+              >
+                {t("strategy_lab.metadata.save")}
+              </button>
+            </div>
+            {identity.saved && <p className="muted">{t("strategy_lab.metadata.saved")}</p>}
+            {identity.error && <p className="strategy-error">{identity.error}</p>}
+          </>
+        )}
       </section>
       {message && <p className="muted">{t("strategy_lab.saved")}: {message}</p>}
       {error && <p className="strategy-error">{error}</p>}

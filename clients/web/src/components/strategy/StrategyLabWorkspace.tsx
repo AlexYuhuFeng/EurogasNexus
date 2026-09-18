@@ -9,6 +9,7 @@ import {
 } from "@/app/model/strategyBacktestModel";
 import { StrategyDesignWorkspace } from "./StrategyDesignWorkspace";
 import { useStrategyDesignDraft } from "@/app/model/useStrategyDesignDraft";
+import { useStrategyIdentityMetadata } from "@/app/model/useStrategyIdentityMetadata";
 import { workspaceHeaderTitleLevel } from "@/app/experience/workspacePatterns";
 import { StrategyBacktestWorkspace } from "./StrategyBacktestWorkspace";
 import { StrategyCompareWorkspace } from "./StrategyCompareWorkspace";
@@ -70,6 +71,9 @@ export function StrategyLabWorkspace({
   // renders the form and the validation verdict, and this workspace performs the write. The two
   // `lifecycle` acts on that surface (freeze, fork) stay bounded in the panel by design.
   const designDraft = useStrategyDesignDraft({ controller, selection, t });
+  // The strategy identity's own metadata edit is a second `persist` on a different object, so its
+  // state lives here with the other rules the workspace owns and the Design panel renders it.
+  const identityMetadata = useStrategyIdentityMetadata({ controller });
   const primaryAction =
     controller.task === "backtest" ? (
       <button
@@ -142,6 +146,7 @@ export function StrategyLabWorkspace({
               <StrategyDesignWorkspace
                 controller={controller}
                 draft={designDraft}
+                identity={identityMetadata}
                 t={t}
               />
             )}
