@@ -132,7 +132,9 @@ A declared field the pipeline never reads is a claim the platform cannot honour:
 it in receives an unmodified result while believing their selection was applied. Such a field is
 **refused with a stable error code instead of ignored**, is listed here, and stays declared (removing
 it would turn an explicit refusal into a silent drop for a caller that still sends it). The refusal is
-raised before the run is loaded, tracked or paid for, and an empty value is never an offence.
+raised before the run is loaded, tracked or paid for, and an empty value is never an offence. Every
+refusal code below is catalogued in the product error taxonomy, so a client classifies it (family,
+severity, recoverability) rather than reading a raw status code.
 
 | Path | Field | Contract |
 |---|---|---|

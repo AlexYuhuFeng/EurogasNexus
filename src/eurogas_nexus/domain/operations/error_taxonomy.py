@@ -129,6 +129,14 @@ ERROR_CATALOGUE: dict[str, ErrorDefinition] = {
         # --- validation ---
         _definition("dataset_spec_invalid", ErrorFamily.VALIDATION, recoverability=Recoverability.AFTER_USER_ACTION),
         _definition("dataset_build_invalid", ErrorFamily.VALIDATION, recoverability=Recoverability.AFTER_USER_ACTION),
+        # The analysis and report routes refuse a selection the pipeline cannot apply
+        # (Architecture V2 Wave 7 section 16). Catalogued rather than left to the
+        # code-shape rules so the caller is told the request itself has to change.
+        _definition(
+            "analysis_selection_not_supported",
+            ErrorFamily.VALIDATION,
+            recoverability=Recoverability.AFTER_USER_ACTION,
+        ),
         # Generic HTTP failures an endpoint may raise without a domain code. They
         # exist so the error envelope never has to label a plain 404 or 409 as an
         # unclassified SYSTEM fault.

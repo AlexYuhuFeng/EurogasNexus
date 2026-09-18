@@ -130,6 +130,21 @@ def test_the_report_route_still_runs_without_any_selection() -> None:
     }
 
 
+def test_the_refusal_is_classified_by_the_product_error_taxonomy() -> None:
+    """The refusal is a validation failure the caller can repair, not a SYSTEM fault."""
+
+    client = TestClient(create_app())
+
+    body = client.post("/api/analysis/query", json=_analysis_body(selected_terms=["TTF"])).json()
+
+    assert body["error"] == "analysis_selection_not_supported"
+    assert body["family"] == "VALIDATION"
+    assert body["recoverability"] == "after_user_action"
+    assert body["correlation_id"]
+    # The endpoint's own `detail` is passed through unchanged, envelope or not.
+    assert body["detail"]["fields"] == ["selected_terms"]
+
+
 def test_a_refused_selection_is_refused_before_the_run_exists(tmp_path, monkeypatch) -> None:
     """Nothing is loaded, tracked or persisted for a request that is refused."""
 
