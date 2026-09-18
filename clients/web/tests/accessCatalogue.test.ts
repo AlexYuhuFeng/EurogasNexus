@@ -132,6 +132,27 @@ test("the Access Center uses the declared catalogue and key calls, not ad-hoc on
   assert.equal(/sessionStorage/.test(panel), false);
 });
 
+test("a governed refusal is rendered as an outcome, not as a transport failure", () => {
+  // `recordDecisionCaseDecisionOutcome` is the `apiOutcome` variant of the decision route: a 409
+  // `case_not_decidable` resolves with its blockers instead of throwing. The panel renders those
+  // blockers as the answer, because "not decidable yet, and here is why" is a statement about the
+  // case rather than a failure of the request.
+  const panel = readWebSource("components/DecisionCasePanel.tsx");
+  const client = readWebSource("api/client.ts");
+
+  assert.match(client, /recordDecisionCaseDecisionOutcome/);
+  assert.match(panel, /api\.recordDecisionCaseDecisionOutcome\(/);
+  assert.match(panel, /if \(result\.ok\) \{/);
+  assert.match(panel, /setRefusalBlockers\(blockers\)/);
+  assert.match(panel, /refusalBlockers\.map\(\(blocker\) => \(\s*<li key=\{blocker\}>\{t\(blockerLabelKey\(blocker\)\)\}<\/li>/s);
+
+  const en = JSON.parse(readWebSource("i18n/en.json")) as Record<string, string>;
+  const zh = JSON.parse(readWebSource("i18n/zh.json")) as Record<string, string>;
+  assert.ok(en["decision_case.not_decidable"]?.trim());
+  assert.ok(zh["decision_case.not_decidable"]?.trim());
+  assert.notEqual(en["decision_case.not_decidable"], zh["decision_case.not_decidable"]);
+});
+
 test("the access vocabulary is bilingual", () => {
   const en = JSON.parse(readWebSource("i18n/en.json")) as Record<string, string>;
   const zh = JSON.parse(readWebSource("i18n/zh.json")) as Record<string, string>;

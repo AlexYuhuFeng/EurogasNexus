@@ -226,10 +226,10 @@ re-measured after each one so this register states the *remaining* set rather th
 |---|---|---|---|
 | A: strategy lifecycle | `updateStrategyMetadata`, `createBacktestExperiment`, `backtestExperiments`, `backtestExperiment`, `strategyRegistryRun` | Strategy Lab — a backtest-experiment panel in the Backtest task (create, list, open, and read a grouped run the bounded history has not loaded) and a strategy-identity metadata editor in the Design task | **Delivered**: never-mentioned set 20 → 15 |
 | B: shadow runtime | `shadowEvaluation`, `shadowMonitor` | Strategy Lab — the Shadow task now opens one evaluation (the only read that carries its **risk checks**, so a blocked candidate's controls are finally visible) and re-reads the monitor it belongs to, whose current state the list entry cannot be fresher than | **Delivered**: never-mentioned set 15 → 13. The monitor list, alerts, drift, lifecycle actions and runtime status were already surfaced by the CR-06 slice |
-| C: access administration | `accessRoles`, `accessDataScopes`, `createAccessApiKey` | Access & Identity | Not started |
+| C: access administration | `accessRoles`, `accessDataScopes`, `createAccessApiKey` | Access & Identity — a **Roles and scopes** tab (the role → permission catalogue and the declared scope families) and an issue-key form on the api-keys view | **Delivered**: never-mentioned set 13 → 10 |
 | D: reference and data reads | `facilities`, `marketHubs`, `capacityContracts`, `routeCost`, `portfolioLiveSummary` | market / network / capacity / portfolio surfaces | Not started |
 | E: agent and capability reads | `agentProfiles`, `agentRun`, `searchCapabilities`, `researchCapabilities` | the agents workspace and the research catalogue | Not started |
-| F: decision outcome | `recordDecisionCaseDecisionOutcome` | Decision Case panel | Not started |
+| F: decision outcome | `recordDecisionCaseDecisionOutcome` | Decision Case panel — the decision is recorded through the `apiOutcome` variant, so a 409 `case_not_decidable` renders its blockers as a governed answer instead of a thrown failure. Its unused throwing twin (`recordDecisionCaseDecision`, same route) was deleted rather than left as a second way to handle one refusal | **Delivered**: never-mentioned set 10 → 9 |
 
 Two things the slices do not change: no new page is created (V2 rule 9 — each surface completes a task
 that already exists), and no route, permission or payload changes. The unmounted terminal stays open

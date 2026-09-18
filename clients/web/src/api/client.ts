@@ -2308,13 +2308,14 @@ export const api = {
   attachDecisionCaseEvidence: (caseId: string, body: DecisionCaseEvidenceInputDTO) =>
     post<DecisionCaseDTO>(`/decision-cases/${encodeURIComponent(caseId)}/evidence`, body),
 
-  recordDecisionCaseDecision: (caseId: string, body: DecisionCaseDecisionInputDTO) =>
-    post<DecisionCaseDTO>(`/decision-cases/${encodeURIComponent(caseId)}/decisions`, body),
-
   /**
-   * A refusal here is a governed outcome, not an exception: 409
-   * ``case_not_decidable`` carries the blockers, so the caller can explain why a
-   * case cannot be decided yet instead of showing a generic failure.
+   * Record a human decision on a case.
+   *
+   * A refusal here is a governed outcome, not an exception: 409 ``case_not_decidable`` carries the
+   * blockers, so the caller explains why a case cannot be decided yet instead of showing a generic
+   * failure. This is the only decision call the client declares - a throwing twin posting to the
+   * same route sat beside it with no caller, and two names for one act is how a surface ends up
+   * handling the same refusal two different ways.
    */
   recordDecisionCaseDecisionOutcome: (
     caseId: string,

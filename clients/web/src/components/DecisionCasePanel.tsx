@@ -22,6 +22,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ApiError, api } from "@/api/client";
 import type {
   DecisionCaseDTO,
+  DecisionCaseDecisionInputDTO,
   DecisionCaseEvidenceInputDTO,
   DecisionCaseSummaryDTO,
 } from "@/api/client";
@@ -81,6 +82,14 @@ export function DecisionCasePanel({
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
+  /**
+   * The blockers a governed refusal named.
+   *
+   * A case that cannot be decided yet answers 409 with its blocker codes; they are rendered as the
+   * answer (with their labels) rather than as an error string, because "not decidable yet, and here
+   * is why" is a statement about the case.
+   */
+  const [refusalBlockers, setRefusalBlockers] = useState<string[]>([]);
 
   const refresh = useCallback(async () => {
     try {
@@ -110,6 +119,46 @@ export function DecisionCasePanel({
     } finally {
       setBusy(false);
     }
+  }
+
+  /**
+   * Record a decision outcome through the call that treats a refusal as an outcome.
+   *
+   * `POST /decision-cases/{id}/decisions` answers 409 `case_not_decidable` with the blockers when a
+   * case cannot be decided yet. That is a governed answer about the case, not a transport failure,
+   * so this uses `recordDecisionCaseDecisionOutcome` - the `apiOutcome` variant of the same route -
+   * and renders the blockers the payload names. The throwing call is still what every other action
+   * here uses, because their failures are failures.
+   */
+  async function recordOutcome(outcome: string, noteText: string) {
+    if (!selected) return;
+    setBusy(true);
+    setErrorText(null);
+    setRefusalBlockers([]);
+    const result = await api.recordDecisionCaseDecisionOutcome(selected.case_id, {
+      outcome: outcome as DecisionCaseDecisionInputDTO["outcome"],
+      note: noteText,
+    });
+    if (result.ok) {
+      setSelected(result.data);
+      await refresh();
+    } else {
+      const detail =
+        result.failure.detail && typeof result.failure.detail === "object"
+          ? (result.failure.detail as Record<string, unknown>)
+          : null;
+      const blockers = Array.isArray(detail?.blockers)
+        ? (detail?.blockers as string[])
+        : [];
+      if (blockers.length > 0) {
+        // The blockers are the answer: the case is not decidable yet, and these are the reasons.
+        setRefusalBlockers(blockers);
+        setErrorText(result.failure.message);
+      } else {
+        setErrorText(explainError({ status: result.failure.status, detail: result.failure.detail, body: result.failure.body }, t));
+      }
+    }
+    setBusy(false);
   }
 
   async function openCase() {
@@ -329,11 +378,7 @@ export function DecisionCasePanel({
                   key={outcome}
                   type="button"
                   disabled={busy || !canRecordDecision(selected)}
-                  onClick={() =>
-                    void run(() =>
-                      api.recordDecisionCaseDecision(selected.case_id, { outcome, note }),
-                    )
-                  }
+                  onClick={() => void recordOutcome(outcome, note)}
                 >
                   {t(outcomeLabelKey(outcome))}
                 </button>
@@ -348,6 +393,16 @@ export function DecisionCasePanel({
                 </button>
               )}
             </div>
+            {refusalBlockers.length > 0 && (
+              <div className="decision-case-refusal" role="status">
+                <strong>{t("decision_case.not_decidable")}</strong>
+                <ul>
+                  {refusalBlockers.map((blocker) => (
+                    <li key={blocker}>{t(blockerLabelKey(blocker))}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
 
           {selected.records.length > 0 && (

@@ -2146,6 +2146,7 @@
   "decision_case.snapshot": "Analysis snapshot",
   "decision_case.not_recorded": "not recorded",
   "decision_case.not_reproducible": "no snapshot attached",
+  "decision_case.not_decidable": "Not decidable yet",
   "decision_case.evidence_kind": "Evidence kind",
   "decision_case.evidence_ref": "Reference",
   "decision_case.evidence_ref_placeholder": "Object identifier",

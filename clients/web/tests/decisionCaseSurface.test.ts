@@ -189,7 +189,10 @@ test("the panel keeps the actor on the backend and explains refusals", () => {
   assert.equal(code.includes("actor:"), false);
   assert.match(panel, /api\.createDecisionCase\(/);
   assert.match(panel, /api\.attachDecisionCaseEvidence\(/);
-  assert.match(panel, /api\.recordDecisionCaseDecision\(/);
+  // The decision goes through the `apiOutcome` variant of the route, so a 409 `case_not_decidable`
+  // arrives as a governed answer with its blockers instead of as a thrown transport failure.
+  assert.match(panel, /api\.recordDecisionCaseDecisionOutcome\(/);
+  assert.match(panel, /result\.ok/);
   assert.match(panel, /api\.reopenDecisionCase\(/);
 
   // Availability and blockers come from the payload.

@@ -2146,6 +2146,7 @@
   "decision_case.snapshot": "分析快照",
   "decision_case.not_recorded": "未记录",
   "decision_case.not_reproducible": "未附快照",
+  "decision_case.not_decidable": "尚未可决策",
   "decision_case.evidence_kind": "证据类型",
   "decision_case.evidence_ref": "引用标识",
   "decision_case.evidence_ref_placeholder": "对象标识",
