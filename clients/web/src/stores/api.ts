@@ -44,6 +44,7 @@ import {
   FlowObsDTO,
   FxRateDTO,
   GlossaryTermDTO,
+  JobDTO,
   GlossaryContextDTO,
   LngObsDTO,
   IntradayOpportunityDTO,
@@ -420,6 +421,16 @@ export interface ApiState {
   /** The last queued ingestion run, as the source surface shows it. */
   sourceRunOutcome: SourceRunOutcome | null;
   /**
+   * The most recent jobs the activity timeline read.
+   *
+   * The timeline owns that read (it is a bounded, operator-triggered refresh rather than a
+   * workspace loader), but the Inspector resolves detail from state the identity already received,
+   * so the rows it fetched are published here for the `job` subject to resolve against. Nothing
+   * else reads them.
+   */
+  jobs: JobDTO[];
+  publishJobsRead: (jobs: JobDTO[]) => void;
+  /**
    * Queue one manual ingestion run for a source.
    *
    * The route queues it for the dataops worker; nothing executes inside the request. A refusal
@@ -713,6 +724,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
   credentialMessage: null,
   contractSaveMessage: null,
   sourceRunOutcome: null,
+  jobs: [],
   dataStatus: "unavailable",
 
   bootstrapIdentity: async () => {
@@ -1438,6 +1450,12 @@ export const useApiStore = create<ApiState>((set, get) => ({
       if (!followUpReadIsCurrent(requestGeneration)) return;
       set({ analysisSnapshots: [], analysisSnapshotSource: null, error: String(e) });
     }
+  },
+
+  publishJobsRead: (jobs) => {
+    // Publishing a read is not authority: this only lets the Inspector show a job the timeline
+    // already fetched, and clearing it (an empty list) removes detail rather than inventing it.
+    set({ jobs });
   },
 
   requestSourceRun: async (sourceId, reason) => {

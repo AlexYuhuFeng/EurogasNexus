@@ -22,6 +22,7 @@
 import type {
   CapacityObsDTO,
   IntradayOpportunityDTO,
+  JobDTO,
   MarketQuoteDTO,
   MonitoringAlertDTO,
   NodeDTO,
@@ -53,6 +54,8 @@ export interface InspectorDetailSource {
   readonly capacity?: readonly CapacityObsDTO[];
   /** The review projection, for evidence a review decision was taken on. */
   readonly reviewContext?: ReviewContextProjectionDTO | null;
+  /** The activity timeline's most recent job rows, for a tracked operation. */
+  readonly jobs?: readonly JobDTO[];
 }
 
 export interface InspectorFact {
@@ -131,6 +134,8 @@ function candidatesFor(
       return collect([byId(source.nodes, "id")]);
     case "capacity":
       return collect([byId(source.capacity ?? [], "observation_id")]);
+    case "job":
+      return collect([byId(source.jobs ?? [], "job_id")]);
     default:
       return [];
   }
@@ -266,6 +271,30 @@ const CAPACITY_FIELDS: readonly FieldSpec[] = [
 ];
 
 /**
+ * A tracked operation's own record.
+ *
+ * The job row is bookkeeping about work, so the Inspector shows what it records - the operation,
+ * who it is attributed to, its scope, its progress and timings, the artefacts it names and the
+ * failure code if it has one - and never the work's results, which live in their own records.
+ */
+const JOB_FIELDS: readonly FieldSpec[] = [
+  { field: "kind", labelKey: "experience.inspector.fact.job_kind" },
+  { field: "status", labelKey: "experience.inspector.fact.status" },
+  { field: "principal", labelKey: "experience.inspector.fact.job_principal" },
+  { field: "scope_refs", labelKey: "experience.inspector.fact.job_scope" },
+  { field: "progress", labelKey: "experience.inspector.fact.job_progress" },
+  { field: "created_at_utc", labelKey: "experience.inspector.fact.observed_at", format: "timestamp" },
+  { field: "started_at_utc", labelKey: "experience.inspector.fact.started_at", format: "timestamp" },
+  { field: "finished_at_utc", labelKey: "experience.inspector.fact.finished_at", format: "timestamp" },
+  { field: "output_refs", labelKey: "experience.inspector.fact.job_outputs" },
+  { field: "error_code", labelKey: "experience.inspector.fact.job_error" },
+  { field: "correlation_id", labelKey: "experience.inspector.fact.job_correlation" },
+  { field: "snapshot_id", labelKey: "experience.inspector.fact.job_snapshot" },
+  { field: "input_hash", labelKey: "experience.inspector.fact.job_input_hash" },
+  { field: "provenance", labelKey: "experience.inspector.fact.job_provenance" },
+];
+
+/**
  * Field specs per kind. A kind with several record shapes (an alert reads as an
  * alert, a quote as a quote) declares its specs per recognised shape, keyed by the
  * id field the record carries.
@@ -280,6 +309,7 @@ const FIELDS_BY_ID_FIELD: Readonly<Record<string, readonly FieldSpec[]>> = {
   resource_id: RESOURCE_FIELDS,
   run_id: STRATEGY_RUN_FIELDS,
   id: NODE_FIELDS,
+  job_id: JOB_FIELDS,
 };
 
 /**
@@ -301,6 +331,7 @@ const ID_FIELDS_BY_KIND: Partial<Record<InspectorSubjectKind, readonly string[]>
   "strategy-run": ["run_id"],
   "network-node": ["id"],
   capacity: ["observation_id"],
+  job: ["job_id"],
 };
 
 /**
@@ -338,6 +369,9 @@ const EVIDENCE_FIELDS = [
   "source_system",
   "evidence_refs",
   "required_tso_access",
+  // What a record produced is evidence of what it did: a tracked operation names its artefacts
+  // here, and the Inspector links them rather than treating them as decoration.
+  "output_refs",
 ] as const;
 
 function formatValue(value: unknown, format: FieldSpec["format"]): string | null {

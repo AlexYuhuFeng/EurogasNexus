@@ -276,6 +276,25 @@ Everything else that presents a material action is placed: the `compute`/`persis
 above, the Source Center's manual ingestion queue next to the recommendation that asks for it, the
 Data Products view (a read), and the surfaces recorded as deliberately having no primary action.
 
+### A declared subject kind now has to resolve
+
+The workspace-pattern registry declares, per page, which subject kinds that page may hand to the
+Inspector - and the registry had drifted from what the build can resolve. The runtime page declared
+`job`, the sources page `provider-connection` and `data-product`, the agents page `agent-run`, the
+strategy page `strategy-version`, and none of them had a resolver, so a declaration read as a
+capability the product did not have.
+
+- **`job` is delivered**: `inspectorDetail.ts` resolves a tracked operation from the rows the
+  activity timeline already read (the timeline publishes what it fetched into the store, which is
+  the state the Inspector is allowed to read), shows the record's own facts - operation, status,
+  recorded principal, scope, progress, timings, artefacts, failure code - and omits a field the row
+  does not carry rather than showing an empty one. The timeline hands the subject over instead of
+  growing a detail pane, and a job's `output_refs` are now treated as evidence of what it did.
+- **The rest are recorded, not forgotten**: `provider-connection`, `data-product`, `agent-run` and
+  `strategy-version` are listed in the test with the work each needs, and the test now fails on a
+  page that declares a kind which neither resolves nor appears in that list - so a new declaration
+  cannot quietly promise nothing.
+
 ## 7. Fifth slice — the panel taxonomy's disclosure rule, applied and audited
 
 The panel taxonomy states which disclosures a panel owes when it presents a material value:
@@ -349,6 +368,12 @@ requires a new contract.
   the frozen-version precondition, a period asserted to be a real interval at its boundaries, a
   modeled cost that must parse while an unmodeled one is never read, the in-flight blocker, the
   composed request, and the panel that reports without starting.
+- `clients/web/tests/strategyDraft.test.ts` — the draft rule the Design task's save is gated by:
+  the blockers and warnings (an unmodeled cost is disclosed rather than refused), the
+  frozen/in-flight readiness, the request body, the read-back from a stored version, and the
+  bounded version actions that stay out of the primary slot.
+- `clients/web/tests/inspectorDetail.test.ts` — the `job` subject resolving from the rows the
+  activity timeline already read, plus the declaration check described below.
 - `clients/web/tests/experienceArchitecture.test.ts` — updated shell-region
   honesty check: every rendered region carries its marker and nothing remains
   `planned`.

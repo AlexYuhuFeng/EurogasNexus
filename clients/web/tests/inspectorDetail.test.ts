@@ -20,6 +20,10 @@ import {
   type InspectorDetailSource,
 } from "../src/app/model/inspectorDetail.ts";
 import { canOpenInspector } from "../src/app/experience/inspectorContract.ts";
+import {
+  inspectorSubjectsForPage,
+  registeredPages,
+} from "../src/app/experience/workspacePatterns.ts";
 
 function readWebSource(relativePath: string): string {
   return readFileSync(new URL(`../src/${relativePath}`, import.meta.url), "utf8");
@@ -61,6 +65,95 @@ const QUOTE = {
   quality_score: 0.94,
   simulated: false,
 };
+
+test("a tracked operation resolves from the rows the timeline already read", () => {
+  // The runtime page declares the `job` subject, so the Inspector must be able to resolve it from
+  // state the identity already received - the timeline publishes what it fetched.
+  const job = {
+    job_id: "job-1",
+    kind: "REPORT",
+    status: "SUCCEEDED",
+    principal: "analyst-river",
+    scope_refs: ["PORTFOLIO:pool-a"],
+    snapshot_id: "asnap-1",
+    input_hash: "abc123",
+    progress: 1,
+    created_at_utc: "2026-02-01T09:00:00Z",
+    started_at_utc: "2026-02-01T09:00:01Z",
+    finished_at_utc: "2026-02-01T09:00:07Z",
+    output_refs: ["generated_report:report-9"],
+    error_code: "",
+    correlation_id: "req-7",
+    provenance: ["analysis", "portfolio-report"],
+  };
+
+  const detail = inspectorDetailFor(
+    source({ jobs: [job] as never }),
+    { kind: "job", ref: "job-1", label: "Activity", originPage: "runtime" },
+  );
+
+  assert.equal(detail.resolved, true);
+  const facts = new Map(detail.facts.map((fact) => [fact.labelKey, fact.value]));
+  assert.equal(facts.get("experience.inspector.fact.job_kind"), "REPORT");
+  assert.equal(facts.get("experience.inspector.fact.status"), "SUCCEEDED");
+  // Who the row is attributed to is shown as recorded, not inferred from the session.
+  assert.equal(facts.get("experience.inspector.fact.job_principal"), "analyst-river");
+  assert.equal(facts.get("experience.inspector.fact.job_outputs"), "generated_report:report-9");
+  assert.equal(facts.get("experience.inspector.fact.job_correlation"), "req-7");
+  // A field the row does not carry is omitted rather than shown as a zero or an empty string.
+  assert.equal(facts.has("experience.inspector.fact.job_error"), false);
+  assert.ok(detail.evidenceRefs.includes("generated_report:report-9"));
+
+  // A ref the timeline never read is explicitly unresolved rather than rendered as bare facts.
+  assert.equal(
+    inspectorDetailFor(
+      source({ jobs: [job] as never }),
+      { kind: "job", ref: "job-unknown", label: "x", originPage: "runtime" },
+    ).resolved,
+    false,
+  );
+  // The hand-over is only legal for a page that declares the kind.
+  assert.equal(
+    inspectorDetailFor(
+      source({ jobs: [job] as never }),
+      { kind: "job", ref: "job-1", label: "x", originPage: "market" },
+    ).resolved,
+    false,
+  );
+});
+
+test("a page declares only subject kinds this build can resolve, or says what is pending", () => {
+  // A declaration is a promise: a page listing a kind it could never hand over reads as a
+  // capability that exists. Each declared kind must therefore resolve, or be recorded here with
+  // the work it still needs - so a *new* declaration cannot quietly promise nothing.
+  const PENDING: Record<string, string> = {
+    "provider-connection":
+      "the Source Center shows credential/connection posture locally; handing it over needs a resolver over the source row and a bounded action on that surface",
+    "data-product":
+      "the Data Products view lists catalogue entries; handing one over needs a resolver over the catalogue entry",
+    "agent-run":
+      "the agents surface hands a review pack to its own gate; a run subject needs a resolver over the run row",
+    "strategy-version":
+      "the design task edits a version rather than inspecting it; a version subject needs a resolver over the version row",
+  };
+  const promised = new Set<string>();
+  for (const page of registeredPages()) {
+    for (const kind of inspectorSubjectsForPage(page)) promised.add(kind);
+  }
+
+  const resolvable = new Set(resolvableInspectorKinds());
+  const undeclared: string[] = [];
+  for (const kind of promised) {
+    if (resolvable.has(kind as never) || kind === "decision-evidence") continue;
+    if (kind in PENDING) continue;
+    undeclared.push(kind);
+  }
+  assert.deepEqual(
+    undeclared,
+    [],
+    "a page declares a subject kind that neither resolves nor is recorded as pending",
+  );
+});
 
 test("a market observation resolves into facts and provenance, not a fetch", () => {
   const detail = inspectorDetailFor(

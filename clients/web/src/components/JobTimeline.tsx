@@ -14,7 +14,10 @@ import { useCallback, useEffect, useState } from "react";
 
 import { api } from "@/api/client";
 import type { JobDTO } from "@/api/client";
+import { inspectorSubjectFor } from "@/app/model/inspectorDetail";
 import { describeApiError } from "@/app/experience/errorPresentation";
+import { useApiStore } from "@/stores/api";
+import { useInspectorStore } from "@/stores/inspector";
 import {
   JOB_STATUS_BADGE_VARIANT,
   jobCanCancel,
@@ -40,6 +43,8 @@ export function JobTimeline({ t }: JobTimelineProps) {
   const [jobs, setJobs] = useState<JobDTO[]>([]);
   const [busy, setBusy] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
+  const publishJobsRead = useApiStore((state) => state.publishJobsRead);
+  const inspector = useInspectorStore();
 
   const refresh = useCallback(async () => {
     setBusy(true);
@@ -47,6 +52,9 @@ export function JobTimeline({ t }: JobTimelineProps) {
     try {
       const response = await api.jobs({ limit: String(TIMELINE_LIMIT) });
       setJobs(response.data);
+      // The Inspector resolves detail from state the identity already received; this is the row
+      // set it can resolve a `job` subject against, without a fetch of its own.
+      publishJobsRead(response.data);
     } catch (error) {
       setErrorText(explain(error, t));
     } finally {
@@ -111,6 +119,24 @@ export function JobTimeline({ t }: JobTimelineProps) {
                   {t("job.cancel")}
                 </button>
               )}
+              {/* Wave 9: the run's own record belongs to the canonical Inspector, so this
+                  timeline hands the subject over instead of growing a detail pane. The row it
+                  shows is what the Inspector resolves against - no fetch. */}
+              <button
+                type="button"
+                className="text-action"
+                onClick={() => {
+                  const subject = inspectorSubjectFor(
+                    "job",
+                    job.job_id,
+                    t(jobKindLabelKey(job.kind)),
+                    "runtime",
+                  );
+                  if (subject) inspector.open(subject);
+                }}
+              >
+                {t("job.inspect")}
+              </button>
             </div>
             <div className="job-timeline-detail">
               {job.output_refs.length > 0 && (
