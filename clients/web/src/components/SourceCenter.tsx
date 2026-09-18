@@ -1,5 +1,7 @@
 import { type FormEventHandler, useState } from "react";
 import type { SourceRunOutcome, SourceRunReadiness } from "@/app/model/sourceRunModel";
+import { inspectorSubjectFor } from "@/app/model/inspectorDetail";
+import { useInspectorStore } from "@/stores/inspector";
 import {
   EvidenceBlock,
   MetricStrip,
@@ -125,6 +127,7 @@ export function SourceCenter({
   onRequestSourceRun,
   formatSourceTimestamp,
 }: SourceCenterProps) {
+  const inspector = useInspectorStore();
   const [activeView, setActiveView] = useState<SourceViewId>("attention");
   const sortedSources = [...filteredSources].sort((left, right) => {
     const priorityDelta = sourcePriority(left) - sourcePriority(right);
@@ -303,6 +306,24 @@ export function SourceCenter({
         {selectedSource && (
           <>
             <p>{selectedSource.description}</p>
+            {/* Wave 9: the connection's own record belongs to the canonical Inspector, so this
+                surface hands the subject over rather than growing a second detail pane. The row
+                it already received is what the Inspector resolves against - no fetch. */}
+            <button
+              type="button"
+              className="text-action"
+              onClick={() => {
+                const subject = inspectorSubjectFor(
+                  "provider-connection",
+                  selectedSource.source_id,
+                  selectedSource.source_system,
+                  "sources",
+                );
+                if (subject) inspector.open(subject);
+              }}
+            >
+              {t("sources.inspect_connection")}
+            </button>
             <EvidenceBlock
               className="source-evidence-block"
               ariaLabel={t("sources.title")}

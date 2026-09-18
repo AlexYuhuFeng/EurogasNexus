@@ -284,16 +284,19 @@ Inspector - and the registry had drifted from what the build can resolve. The ru
 strategy page `strategy-version`, and none of them had a resolver, so a declaration read as a
 capability the product did not have.
 
-- **`job` is delivered**: `inspectorDetail.ts` resolves a tracked operation from the rows the
-  activity timeline already read (the timeline publishes what it fetched into the store, which is
-  the state the Inspector is allowed to read), shows the record's own facts - operation, status,
-  recorded principal, scope, progress, timings, artefacts, failure code - and omits a field the row
-  does not carry rather than showing an empty one. The timeline hands the subject over instead of
-  growing a detail pane, and a job's `output_refs` are now treated as evidence of what it did.
-- **The rest are recorded, not forgotten**: `provider-connection`, `data-product`, `agent-run` and
-  `strategy-version` are listed in the test with the work each needs, and the test now fails on a
-  page that declares a kind which neither resolves nor appears in that list - so a new declaration
-  cannot quietly promise nothing.
+- **`job` and `provider-connection` are delivered**: `inspectorDetail.ts` resolves a tracked
+  operation from the rows the activity timeline already read (the timeline publishes what it
+  fetched into the store, which is the state the Inspector is allowed to read) and a provider
+  connection from the source row the Source Center already received. Each shows the record's own
+  facts - for a job: operation, status, recorded principal, scope, progress, timings, artefacts,
+  failure code; for a connection: provider, entitlement scope, credential and connectivity state,
+  certification stage, freshness, last run - and omits a field the row does not carry rather than
+  showing an empty one. Both surfaces hand the subject over instead of growing a second detail
+  pane, and a job's `output_refs` are read as evidence of what it did.
+- **The rest are recorded, not forgotten**: `data-product`, `agent-run` and `strategy-version` are
+  listed in the test with the work each needs, and the test now fails on a page that declares a
+  kind which neither resolves nor appears in that list - so a new declaration cannot quietly
+  promise nothing.
 
 ## 7. Fifth slice — the panel taxonomy's disclosure rule, applied and audited
 

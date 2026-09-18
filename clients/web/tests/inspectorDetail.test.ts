@@ -122,13 +122,59 @@ test("a tracked operation resolves from the rows the timeline already read", () 
   );
 });
 
+test("a provider connection resolves from the source row the surface received", () => {
+  const row = {
+    source_id: "entsog",
+    source_system: "ENTSOG",
+    category: "infrastructure",
+    entitlement_scope: "public",
+    credential_state: "not_required",
+    credential_provider_id: null,
+    credential_last_tested_at_utc: null,
+    connectivity_status: "ok",
+    freshness_state: "FRESH",
+    last_success_at_utc: "2026-02-01T08:00:00Z",
+    last_failure_at_utc: null,
+    consecutive_failures: 0,
+    circuit_state: "CLOSED",
+    certification_stage: "IMPLEMENTED",
+    certification_allows_live: true,
+    scheduler_enabled: true,
+    next_run_at_utc: "2026-02-01T10:00:00Z",
+    live_record_count: 481,
+    preview_substitute_record_count: 0,
+    last_ingestion_status: "success",
+  };
+
+  const detail = inspectorDetailFor(
+    source({ sources: [row] as never }),
+    { kind: "provider-connection", ref: "entsog", label: "ENTSOG", originPage: "sources" },
+  );
+
+  assert.equal(detail.resolved, true);
+  const facts = new Map(detail.facts.map((fact) => [fact.labelKey, fact.value]));
+  assert.equal(facts.get("experience.inspector.fact.source"), "ENTSOG");
+  assert.equal(facts.get("experience.inspector.fact.credential_state"), "not_required");
+  assert.equal(facts.get("experience.inspector.fact.certification_stage"), "IMPLEMENTED");
+  assert.equal(facts.get("experience.inspector.fact.live_records"), "481");
+  // A field the row reports as null is omitted rather than shown as an empty value.
+  assert.equal(facts.has("experience.inspector.fact.credential_provider"), false);
+  assert.equal(facts.has("experience.inspector.fact.last_failure"), false);
+  // The hand-over is only legal for the page that declares this kind.
+  assert.equal(
+    inspectorDetailFor(
+      source({ sources: [row] as never }),
+      { kind: "provider-connection", ref: "entsog", label: "ENTSOG", originPage: "market" },
+    ).resolved,
+    false,
+  );
+});
+
 test("a page declares only subject kinds this build can resolve, or says what is pending", () => {
   // A declaration is a promise: a page listing a kind it could never hand over reads as a
   // capability that exists. Each declared kind must therefore resolve, or be recorded here with
   // the work it still needs - so a *new* declaration cannot quietly promise nothing.
   const PENDING: Record<string, string> = {
-    "provider-connection":
-      "the Source Center shows credential/connection posture locally; handing it over needs a resolver over the source row and a bounded action on that surface",
     "data-product":
       "the Data Products view lists catalogue entries; handing one over needs a resolver over the catalogue entry",
     "agent-run":

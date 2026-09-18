@@ -31,6 +31,7 @@ import type {
   ResourcePoolOptionsDTO,
   ReviewContextProjectionDTO,
   RouteCandidateDTO,
+  SourceSystemDTO,
   StrategyRunDTO,
   UpstreamContractDTO,
 } from "@/api/client";
@@ -56,6 +57,8 @@ export interface InspectorDetailSource {
   readonly reviewContext?: ReviewContextProjectionDTO | null;
   /** The activity timeline's most recent job rows, for a tracked operation. */
   readonly jobs?: readonly JobDTO[];
+  /** The source registry, for a provider connection's posture. */
+  readonly sources?: readonly SourceSystemDTO[];
 }
 
 export interface InspectorFact {
@@ -136,6 +139,8 @@ function candidatesFor(
       return collect([byId(source.capacity ?? [], "observation_id")]);
     case "job":
       return collect([byId(source.jobs ?? [], "job_id")]);
+    case "provider-connection":
+      return collect([byId(source.sources ?? [], "source_id")]);
     default:
       return [];
   }
@@ -295,6 +300,41 @@ const JOB_FIELDS: readonly FieldSpec[] = [
 ];
 
 /**
+ * A provider connection's own record.
+ *
+ * A source row is a connection, not commercial data: the Inspector shows its posture - the
+ * provider, the entitlement scope, credential and connectivity state, certification stage,
+ * freshness and the last run outcome - which is exactly what an operator asks about it. Record
+ * counts are shown as the row reports them, including the preview-substitute pair, so a substitute
+ * is never mistaken for live data.
+ */
+const PROVIDER_CONNECTION_FIELDS: readonly FieldSpec[] = [
+  { field: "source_system", labelKey: "experience.inspector.fact.source" },
+  { field: "category", labelKey: "experience.inspector.fact.provider_category" },
+  { field: "entitlement_scope", labelKey: "experience.inspector.fact.entitlement_scope" },
+  { field: "credential_state", labelKey: "experience.inspector.fact.credential_state" },
+  { field: "credential_provider_id", labelKey: "experience.inspector.fact.credential_provider" },
+  {
+    field: "credential_last_tested_at_utc",
+    labelKey: "experience.inspector.fact.credential_tested_at",
+    format: "timestamp",
+  },
+  { field: "connectivity_status", labelKey: "experience.inspector.fact.connectivity" },
+  { field: "freshness_state", labelKey: "experience.inspector.fact.freshness" },
+  { field: "last_success_at_utc", labelKey: "experience.inspector.fact.last_success", format: "timestamp" },
+  { field: "last_failure_at_utc", labelKey: "experience.inspector.fact.last_failure", format: "timestamp" },
+  { field: "consecutive_failures", labelKey: "experience.inspector.fact.consecutive_failures" },
+  { field: "circuit_state", labelKey: "experience.inspector.fact.circuit_state" },
+  { field: "certification_stage", labelKey: "experience.inspector.fact.certification_stage" },
+  { field: "certification_allows_live", labelKey: "experience.inspector.fact.certification_allows_live" },
+  { field: "scheduler_enabled", labelKey: "experience.inspector.fact.scheduler_enabled" },
+  { field: "next_run_at_utc", labelKey: "experience.inspector.fact.next_run", format: "timestamp" },
+  { field: "live_record_count", labelKey: "experience.inspector.fact.live_records" },
+  { field: "preview_substitute_record_count", labelKey: "experience.inspector.fact.preview_records" },
+  { field: "last_ingestion_status", labelKey: "experience.inspector.fact.last_ingestion" },
+];
+
+/**
  * Field specs per kind. A kind with several record shapes (an alert reads as an
  * alert, a quote as a quote) declares its specs per recognised shape, keyed by the
  * id field the record carries.
@@ -310,6 +350,7 @@ const FIELDS_BY_ID_FIELD: Readonly<Record<string, readonly FieldSpec[]>> = {
   run_id: STRATEGY_RUN_FIELDS,
   id: NODE_FIELDS,
   job_id: JOB_FIELDS,
+  source_id: PROVIDER_CONNECTION_FIELDS,
 };
 
 /**
@@ -332,6 +373,7 @@ const ID_FIELDS_BY_KIND: Partial<Record<InspectorSubjectKind, readonly string[]>
   "network-node": ["id"],
   capacity: ["observation_id"],
   job: ["job_id"],
+  "provider-connection": ["source_id"],
 };
 
 /**
