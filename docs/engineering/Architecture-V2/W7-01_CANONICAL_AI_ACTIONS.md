@@ -266,6 +266,35 @@ AI entry point: the run is a governed, deterministic research pipeline that invo
 capabilities under the caller's own authority, and the surface reports the provider and model the
 run record carries rather than branding it.
 
-Still open in the `/agent/*` family: the capability-invoke surface (`/api/capabilities/{id}/invoke`)
-has no client surface, and the profile catalogue is fetched by nobody - a client-chosen profile
-would be a label, not a capability, until the orchestrator executes the profile's declared stages.
+Still open in the `/agent/*` family: the profile catalogue is fetched by nobody - and the note that
+justified that ("a client-chosen profile would be a label, not a capability") turned out to describe
+a defect in the runtime, which section 15 fixes.
+
+## 15. The profile became a truthful label, or it is not accepted
+
+Two ways the run's profile could lie, both now closed:
+
+- **An undeclared profile was accepted as an arbitrary string.** `POST /api/agent/research` took any
+  value up to 32 characters and recorded it on the run row *and* in the tracked job's scope, while
+  `GET /api/agent/profiles` published the four profiles the domain declares and nothing validated
+  against them. A run could therefore be filed under a profile the runtime does not have. The route
+  now refuses one with `422 agent_profile_unknown`, listing the declared profiles in the detail, and
+  a test asserts the refusal and the published catalogue are the same set.
+- **A run could carry a profile whose declared stages it never entered.** A profile names the stages
+  it covers (`deterministic_stages`, `llm_stages`); the orchestrator executes one pipeline. So a run
+  filed under `STRATEGY_RESEARCHER` that never reached `BACKTESTED` still carried the label, which
+  reads as evidence of a pipeline that did not run. The outcome now records `stages_reached` (in
+  order, once each, and carried in the payload), and the run warns with
+  `PROFILE_STAGES_NOT_REACHED:<stage,…>` naming every declared stage it did not reach. An undeclared
+  profile reaching the orchestrator directly - bypassing the route - is reported as
+  `PROFILE_NOT_DECLARED:<profile>` rather than silently compared against nothing.
+
+This is deliberately **reported, not refused**: stopping short is often the honest outcome (strategy
+generation without a frozen version terminates at human confirmation by design), and the run already
+explains that in its own blockers and warnings. What changed is that the label can no longer stand
+in for the pipeline.
+
+With both halves delivered, and the capability-invoke surface shipped earlier, the `/agent/*` family
+is converged: a run's profile is now a *validated, self-qualifying* label, which is what makes
+offering a profile choice to a client meaningful - and the surface still does not offer one, because
+choosing a label that does not change the pipeline would imply a capability that does not exist.

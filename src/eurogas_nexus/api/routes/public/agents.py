@@ -203,6 +203,31 @@ def list_agent_profiles(request: Request) -> dict:
 
 @router.post("/api/agent/research")
 def run_research(body: ResearchRunRequest, request: Request) -> dict:
+    """Run one governed research pipeline and record it.
+
+    The run is filed under an ``agent_profile``, so the profile must be one the runtime declares:
+    the catalogue at ``GET /api/agent/profiles`` is the same list this refuses against, and an
+    undeclared profile is a 422 rather than an arbitrary string recorded on the run and in its
+    job's scope. What a profile's stages mean for the run is reported by the run itself - a profile
+    whose declared stages were not reached says so in its warnings rather than quietly standing as
+    evidence of a pipeline that did not run.
+    """
+
+    from eurogas_nexus.domain.agents.contracts import PROFILES_BY_ID
+
+    if body.agent_profile not in PROFILES_BY_ID:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "agent_profile_unknown",
+                "message": (
+                    "No agent profile is declared for "
+                    f"{body.agent_profile!r}; a run is filed under a declared profile."
+                ),
+                "declared_profiles": sorted(PROFILES_BY_ID),
+            },
+        )
+
     from eurogas_nexus.application.agents.research_orchestrator import (
         GovernedResearchOrchestrator,
     )

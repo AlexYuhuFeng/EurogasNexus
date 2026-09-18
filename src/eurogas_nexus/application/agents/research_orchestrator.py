@@ -68,6 +68,16 @@ class OrchestrationOutcome:
         self.blockers: list[str] = []
         self.artifacts: list[str] = []
         self.evidence: list[str] = []
+        #: Every stage this run actually reached, in order. A run records the profile it was filed
+        #: under, so it also has to be able to say which of that profile's declared stages it did
+        #: not reach - otherwise the label reads as evidence of a pipeline that never ran.
+        self.stages_reached: list[str] = [OrchestrationStage.OBJECTIVE_RECEIVED.value]
+
+    def note_stage(self, stage: OrchestrationStage) -> None:
+        """Record one stage as reached, once, in order."""
+
+        if stage.value not in self.stages_reached:
+            self.stages_reached.append(stage.value)
 
     def payload(self) -> dict[str, Any]:
         return {
@@ -85,6 +95,7 @@ class OrchestrationOutcome:
             "blockers": self.blockers,
             "artifacts": self.artifacts,
             "evidence": self.evidence,
+            "stages_reached": self.stages_reached,
         }
 
 
@@ -253,8 +264,33 @@ class GovernedResearchOrchestrator:
             OrchestrationStage.READY_FOR_HUMAN_REVIEW,
             AgentRunStatus.READY_FOR_HUMAN_REVIEW,
         )
+        self._note_unreached_profile_stages(outcome, agent_profile)
         self._persist_run_state(session, outcome)
         return outcome
+
+    def _note_unreached_profile_stages(self, outcome, agent_profile: str) -> None:
+        """Say which of the profile's declared stages this run did not reach.
+
+        A run is filed under a profile, and the profile declares the stages it covers, so a run
+        that claims a profile while never entering one of those stages would make the label read as
+        evidence of a pipeline that did not run. The warning names them instead - it does not fail
+        the run, because stopping short is often the honest outcome (strategy generation without a
+        frozen version terminates at human confirmation by design).
+
+        An unknown profile is reported as such rather than silently compared against nothing: the
+        route refuses one, and this keeps the orchestration honest when it is called directly.
+        """
+
+        from eurogas_nexus.domain.agents.contracts import PROFILES_BY_ID
+
+        profile = PROFILES_BY_ID.get(agent_profile)
+        if profile is None:
+            outcome.warnings.append(f"PROFILE_NOT_DECLARED:{agent_profile}")
+            return
+        declared = [*profile.deterministic_stages, *profile.llm_stages]
+        unreached = [stage for stage in declared if stage not in outcome.stages_reached]
+        if unreached:
+            outcome.warnings.append(f"PROFILE_STAGES_NOT_REACHED:{','.join(unreached)}")
 
     def _create_budget(self, session: Session, run_id: str) -> ResearchBudget:
         budget = ResearchBudget(budget_id=f"budget-{uuid4().hex[:16]}", agent_run_id=run_id)
@@ -461,6 +497,7 @@ class GovernedResearchOrchestrator:
     def _transition(self, outcome, stage, status):
         outcome.stage = stage
         outcome.status = status
+        outcome.note_stage(stage)
 
     def _safe_input_summary(self, arguments):
         return {
