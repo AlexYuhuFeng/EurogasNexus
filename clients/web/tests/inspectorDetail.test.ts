@@ -256,15 +256,46 @@ test("a catalogue entry resolves its declaration, and a withheld provenance stay
   assert.equal(restrictedFacts.has("experience.inspector.fact.freshness"), false);
 });
 
+test("a governed research run resolves what the run recorded about itself", () => {
+  const run = {
+    agent_run_id: "agent-run-1",
+    principal_id: "analyst-river",
+    user_objective: "Does NBP trade at a premium to TTF?",
+    agent_profile: "STRATEGY_RESEARCHER",
+    model_provider: "DETERMINISTIC",
+    model_id: "rule-based-plan/v1",
+    status: "READY_FOR_HUMAN_REVIEW",
+    current_stage: "READY_FOR_HUMAN_REVIEW",
+    artifacts_created: ["ResearchPlan", "ReviewPack"],
+    created_at: "2026-02-01T09:00:00Z",
+    completed_at: null,
+  };
+
+  const detail = inspectorDetailFor(
+    source({ agentRuns: [run] as never }),
+    { kind: "agent-run", ref: "agent-run-1", label: "x", originPage: "agents" },
+  );
+
+  assert.equal(detail.resolved, true);
+  const facts = new Map(detail.facts.map((fact) => [fact.labelKey, fact.value]));
+  assert.equal(facts.get("experience.inspector.fact.agent_objective"), "Does NBP trade at a premium to TTF?");
+  assert.equal(facts.get("experience.inspector.fact.agent_profile"), "STRATEGY_RESEARCHER");
+  // The provider and model are shown as the run reported them: this surface does not brand a run.
+  assert.equal(facts.get("experience.inspector.fact.model_provider"), "DETERMINISTIC");
+  assert.equal(facts.get("experience.inspector.fact.model_id"), "rule-based-plan/v1");
+  assert.equal(facts.get("experience.inspector.fact.principal"), "analyst-river");
+  assert.equal(facts.get("experience.inspector.fact.agent_artifacts"), "ResearchPlan, ReviewPack");
+  // A run still in flight has no completion instant, which is omitted rather than blank.
+  assert.equal(facts.has("experience.inspector.fact.finished_at"), false);
+});
+
 test("a page declares only subject kinds this build can resolve, or says what is pending", () => {
   // A declaration is a promise: a page listing a kind it could never hand over reads as a
   // capability that exists. Each declared kind must therefore resolve, or be recorded here with
   // the work it still needs - so a *new* declaration cannot quietly promise nothing.
   const PENDING: Record<string, string> = {
-    "agent-run":
-      "the agents surface hands a review pack to its own gate; a run subject needs a resolver over the run row",
     "strategy-version":
-      "the design task edits a version rather than inspecting it; a version subject needs a resolver over the version row",
+      "the design task edits a version rather than inspecting it; a version subject needs a resolver over the version row, and no surface hands one over today",
   };
   const promised = new Set<string>();
   for (const page of registeredPages()) {

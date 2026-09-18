@@ -46,6 +46,7 @@ import {
   GlossaryTermDTO,
   JobDTO,
   DataProductCatalogueDTO,
+  AgentRunDTO,
   GlossaryContextDTO,
   LngObsDTO,
   IntradayOpportunityDTO,
@@ -441,6 +442,14 @@ export interface ApiState {
   dataProducts: DataProductCatalogueDTO | null;
   publishDataProductsRead: (catalogue: DataProductCatalogueDTO | null) => void;
   /**
+   * The agent runs the research surface read, for the `agent-run` subject.
+   *
+   * Same pattern as the jobs and catalogue reads: the surface owns the read, and the Inspector
+   * resolves detail from what the identity already received rather than fetching.
+   */
+  agentRuns: AgentRunDTO[];
+  publishAgentRunsRead: (runs: AgentRunDTO[]) => void;
+  /**
    * Queue one manual ingestion run for a source.
    *
    * The route queues it for the dataops worker; nothing executes inside the request. A refusal
@@ -736,6 +745,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
   sourceRunOutcome: null,
   jobs: [],
   dataProducts: null,
+  agentRuns: [],
   dataStatus: "unavailable",
 
   bootstrapIdentity: async () => {
@@ -1473,6 +1483,10 @@ export const useApiStore = create<ApiState>((set, get) => ({
     // Same rule for the catalogue: a failed read publishes null, so the Inspector says it cannot
     // show a product rather than showing an empty one.
     set({ dataProducts: catalogue });
+  },
+
+  publishAgentRunsRead: (agentRuns) => {
+    set({ agentRuns });
   },
 
   requestSourceRun: async (sourceId, reason) => {

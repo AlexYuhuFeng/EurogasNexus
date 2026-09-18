@@ -140,6 +140,22 @@ test("the experience vocabulary is unique, guarded and fully labelled", () => {
   }
 });
 
+test("no locale declares the same key twice", () => {
+  // `JSON.parse` keeps the last of two identical keys and says nothing, so a duplicated entry is
+  // invisible to every test that reads these files as objects: the earlier value is simply
+  // unreachable. The duplicate is read from the raw text for that reason - and this check exists
+  // because one was introduced and shipped before it was noticed.
+  for (const file of ["i18n/en.json", "i18n/zh.json"]) {
+    const keys = readWebSource(file)
+      .split("\n")
+      .map((line) => /^\s*"([^"]+)":/.exec(line)?.[1])
+      .filter((key): key is string => typeof key === "string");
+    const seen = new Set<string>();
+    const duplicates = keys.filter((key) => (seen.has(key) ? true : (seen.add(key), false)));
+    assert.deepEqual(duplicates, [], `${file} declares a key more than once`);
+  }
+});
+
 test("every declared shell region has a contract and the markup tells the truth", () => {
   assert.deepEqual(
     shellRegions.map((contract) => contract.region).sort(),

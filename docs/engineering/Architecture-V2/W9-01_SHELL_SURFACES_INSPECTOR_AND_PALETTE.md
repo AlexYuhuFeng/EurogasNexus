@@ -298,9 +298,10 @@ capability the product did not have.
   reading it flat would have silently dropped every nested fact. All three surfaces hand the
   subject over instead of growing a second detail pane, and a job's `output_refs` are read as
   evidence of what it did.
-- **The rest are recorded, not forgotten**: `agent-run` and `strategy-version` are listed in the
-  test with the work each needs, and the test now fails on a page that declares a kind which
-  neither resolves nor appears in that list - so a new declaration cannot quietly promise nothing.
+- **The rest are recorded, not forgotten**: only `strategy-version` remains, with the reason the
+  design task edits a version rather than inspecting one, and the test fails on a page that declares
+  a kind which neither resolves nor appears in that list - so a new declaration cannot quietly
+  promise nothing.
 
 ## 7. Fifth slice — the panel taxonomy's disclosure rule, applied and audited
 

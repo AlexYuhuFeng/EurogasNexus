@@ -20,6 +20,7 @@
  */
 
 import type {
+  AgentRunDTO,
   CapacityObsDTO,
   DataProductCatalogueDTO,
   IntradayOpportunityDTO,
@@ -62,6 +63,8 @@ export interface InspectorDetailSource {
   readonly sources?: readonly SourceSystemDTO[];
   /** The Data Product catalogue the research surface read, for a catalogue entry. */
   readonly dataProducts?: DataProductCatalogueDTO | null;
+  /** The agent runs the research surface read, for a governed run. */
+  readonly agentRuns?: readonly AgentRunDTO[];
 }
 
 export interface InspectorFact {
@@ -146,6 +149,8 @@ function candidatesFor(
       return collect([byId(source.sources ?? [], "source_id")]);
     case "data-product":
       return collect([byId(source.dataProducts?.products ?? [], "product_id")]);
+    case "agent-run":
+      return collect([byId(source.agentRuns ?? [], "agent_run_id")]);
     default:
       return [];
   }
@@ -369,6 +374,27 @@ const DATA_PRODUCT_FIELDS: readonly FieldSpec[] = [
 ];
 
 /**
+ * A governed research run's own record.
+ *
+ * The run row is what the runtime recorded: the objective it ran under, the profile that scoped
+ * its job, the provider and model it reported, its stage and status, the artefacts it produced and
+ * who it is attributed to. Its findings are separate records - the Inspector shows what the run
+ * says about itself, not the research it produced.
+ */
+const AGENT_RUN_FIELDS: readonly FieldSpec[] = [
+  { field: "agent_profile", labelKey: "experience.inspector.fact.agent_profile" },
+  { field: "user_objective", labelKey: "experience.inspector.fact.agent_objective" },
+  { field: "status", labelKey: "experience.inspector.fact.status" },
+  { field: "current_stage", labelKey: "experience.inspector.fact.agent_stage" },
+  { field: "principal_id", labelKey: "experience.inspector.fact.principal" },
+  { field: "model_provider", labelKey: "experience.inspector.fact.model_provider" },
+  { field: "model_id", labelKey: "experience.inspector.fact.model_id" },
+  { field: "artifacts_created", labelKey: "experience.inspector.fact.agent_artifacts" },
+  { field: "created_at", labelKey: "experience.inspector.fact.observed_at", format: "timestamp" },
+  { field: "completed_at", labelKey: "experience.inspector.fact.finished_at", format: "timestamp" },
+];
+
+/**
  * Field specs per kind. A kind with several record shapes (an alert reads as an
  * alert, a quote as a quote) declares its specs per recognised shape, keyed by the
  * id field the record carries.
@@ -386,6 +412,7 @@ const FIELDS_BY_ID_FIELD: Readonly<Record<string, readonly FieldSpec[]>> = {
   job_id: JOB_FIELDS,
   source_id: PROVIDER_CONNECTION_FIELDS,
   product_id: DATA_PRODUCT_FIELDS,
+  agent_run_id: AGENT_RUN_FIELDS,
 };
 
 /**
@@ -410,6 +437,7 @@ const ID_FIELDS_BY_KIND: Partial<Record<InspectorSubjectKind, readonly string[]>
   job: ["job_id"],
   "provider-connection": ["source_id"],
   "data-product": ["product_id"],
+  "agent-run": ["agent_run_id"],
 };
 
 /**

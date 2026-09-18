@@ -33,6 +33,9 @@ import {
   type CapabilityInvocationSubject,
   type CapabilityOutcome,
 } from "@/app/model/capabilityInvocationModel";
+import { inspectorSubjectFor } from "@/app/model/inspectorDetail";
+import { useApiStore } from "@/stores/api";
+import { useInspectorStore } from "@/stores/inspector";
 import { MetricStrip, PanelHeader, WorkspaceHeader } from "@/components/ui";
 
 type Translate = (key: string) => string;
@@ -77,6 +80,8 @@ function AgentIssueList({
 }
 
 export function AgentsWorkspace({ t, principalId = null, runtimeDbReady }: AgentsWorkspaceProps) {
+  const publishAgentRunsRead = useApiStore((state) => state.publishAgentRunsRead);
+  const inspector = useInspectorStore();
   const [activeView, setActiveView] = useState<AgentsViewId>("capabilities");
   const [capabilities, setCapabilities] = useState<CapabilityDTO[]>([]);
   const [runs, setRuns] = useState<AgentRunDTO[]>([]);
@@ -95,12 +100,15 @@ export function AgentsWorkspace({ t, principalId = null, runtimeDbReady }: Agent
         if (!active) return;
         setCapabilities(capabilityResult.data);
         setRuns(runResult.data);
+        // The Inspector resolves detail from state the identity already received, so the runs
+        // this read produced are published for the `agent-run` subject.
+        publishAgentRunsRead(runResult.data);
       })
       .catch((reason) => active && setError(String(reason)));
     return () => {
       active = false;
     };
-  }, []);
+  }, [publishAgentRunsRead]);
 
   const tabs = useMemo(
     () => VIEWS.map((id) => ({ id, label: t(`agents.tab.${id}`) })),
@@ -202,6 +210,7 @@ export function AgentsWorkspace({ t, principalId = null, runtimeDbReady }: Agent
       setResult(response.data);
       const refreshed = await api.agentRuns();
       setRuns(refreshed.data);
+      publishAgentRunsRead(refreshed.data);
     } catch (reason) {
       setError(String(reason));
     } finally {
@@ -571,6 +580,26 @@ export function AgentsWorkspace({ t, principalId = null, runtimeDbReady }: Agent
           {selectedRun && (
             <div className="agents-result-panel agents-replay-panel">
               <PanelHeader title={t("agents.replay")} meta={selectedRun.agent_run_id} />
+              {/* Wave 9: the run's own record belongs to the canonical Inspector, so this panel
+                  hands the subject over - next to the run it describes - rather than restating
+                  the row's facts in a second detail surface. */}
+              <div className="action-row">
+                <button
+                  type="button"
+                  className="text-action"
+                  onClick={() => {
+                    const subject = inspectorSubjectFor(
+                      "agent-run",
+                      selectedRun.agent_run_id,
+                      selectedRun.user_objective,
+                      "agents",
+                    );
+                    if (subject) inspector.open(subject);
+                  }}
+                >
+                  {t("agents.inspect_run")}
+                </button>
+              </div>
               <MetricStrip
                 className="metric-grid agents-replay-metrics"
                 items={[
