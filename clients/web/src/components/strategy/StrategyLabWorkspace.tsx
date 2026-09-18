@@ -8,6 +8,7 @@ import {
   type StrategyBacktestDraft,
 } from "@/app/model/strategyBacktestModel";
 import { StrategyDesignWorkspace } from "./StrategyDesignWorkspace";
+import { useStrategyDesignDraft } from "@/app/model/useStrategyDesignDraft";
 import { StrategyBacktestWorkspace } from "./StrategyBacktestWorkspace";
 import { StrategyCompareWorkspace } from "./StrategyCompareWorkspace";
 import { StrategyShadowShell } from "./StrategyShadowShell";
@@ -64,6 +65,10 @@ export function StrategyLabWorkspace({
     frozen: controller.selectedVersion?.status === "FROZEN",
     running: controller.loading,
   });
+  // The Design task's `persist` act is saving the draft, so its draft lives here too: the panel
+  // renders the form and the validation verdict, and this workspace performs the write. The two
+  // `lifecycle` acts on that surface (freeze, fork) stay bounded in the panel by design.
+  const designDraft = useStrategyDesignDraft({ controller, selection, t });
   const primaryAction =
     controller.task === "backtest" ? (
       <button
@@ -85,6 +90,19 @@ export function StrategyLabWorkspace({
         }}
       >
         {t("strategy_lab.run_backtest")}
+      </button>
+    ) : controller.task === "design" && !designDraft.frozen ? (
+      <button
+        type="button"
+        disabled={!designDraft.readiness.canSave}
+        title={
+          designDraft.readiness.firstBlockerKey
+            ? t(designDraft.readiness.firstBlockerKey)
+            : t("strategy_lab.save_draft_hint")
+        }
+        onClick={() => void designDraft.saveDraft()}
+      >
+        {t("strategy_lab.save_draft")}
       </button>
     ) : undefined;
 
@@ -119,7 +137,7 @@ export function StrategyLabWorkspace({
             {controller.task === "design" && (
               <StrategyDesignWorkspace
                 controller={controller}
-                selection={selection}
+                draft={designDraft}
                 t={t}
               />
             )}

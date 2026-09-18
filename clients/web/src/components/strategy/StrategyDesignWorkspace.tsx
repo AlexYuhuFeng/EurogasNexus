@@ -1,303 +1,45 @@
-import { useEffect, useMemo, useState } from "react";
-import { api as apiClient } from "@/api/client";
-import type { StrategyLabController, StrategyLabSelection } from "@/app/model/useStrategyLab";
+/**
+ * Strategy design panel (Architecture V2 Wave 9, action geography).
+ *
+ * This panel renders the draft the workspace owns and reports the validation verdict it is handed.
+ * Saving is the workspace's primary action - a `persist` consequence belongs there, not among the
+ * form's own controls - so what stays here are the two `lifecycle` acts: freezing a version and
+ * forking one. The geography keeps those bounded next to the version they change, and
+ * `requiresDeliberateStep` says neither may be promoted to the primary slot.
+ */
+
+import type { StrategyLabController } from "@/app/model/useStrategyLab";
+import type { StrategyDesignDraft } from "@/app/model/useStrategyDesignDraft";
 
 type Translate = (key: string) => string;
 
 interface StrategyDesignWorkspaceProps {
   controller: StrategyLabController;
-  selection: StrategyLabSelection;
+  /** The draft and its rule, owned by the workspace that hosts the save action. */
+  draft: StrategyDesignDraft;
   t: Translate;
-}
-
-interface DesignFormState {
-  name: string;
-  description: string;
-  hypothesis: string;
-  hubs: string;
-  dayAheadNames: string;
-  intradayNames: string;
-  weight: string;
-  positiveThreshold: string;
-  negativeThreshold: string;
-  windowStart: string;
-  windowEnd: string;
-  barMinutes: string;
-  maxOcm: string;
-  minDayAhead: string;
-  requireTsoAccess: boolean;
-  fillPricePolicy: string;
-  missingDataPolicy: string;
-  transactionCostTreatment: string;
-  transactionCost: string;
-  slippageTreatment: string;
-  slippage: string;
-  resourceId: string;
-  resourceName: string;
-  resourceQuantity: string;
-  resourceCost: string;
-}
-
-const DEFAULT_FORM: DesignFormState = {
-  name: "",
-  description: "",
-  hypothesis: "",
-  hubs: "NBP",
-  dayAheadNames: "SAP",
-  intradayNames: "ICE_OCM",
-  weight: "1.0",
-  positiveThreshold: "0.0",
-  negativeThreshold: "0.0",
-  windowStart: "05:00",
-  windowEnd: "05:30",
-  barMinutes: "5",
-  maxOcm: "80.0",
-  minDayAhead: "10.0",
-  requireTsoAccess: false,
-  fillPricePolicy: "NEXT_ELIGIBLE",
-  missingDataPolicy: "FAIL",
-  transactionCostTreatment: "UNAVAILABLE",
-  transactionCost: "",
-  slippageTreatment: "UNAVAILABLE",
-  slippage: "",
-  resourceId: "res-1",
-  resourceName: "Resource 1",
-  resourceQuantity: "100",
-  resourceCost: "20",
-};
-
-function formFromVersion(definition: Record<string, unknown> | undefined): DesignFormState {
-  if (!definition) return DEFAULT_FORM;
-  const component = Array.isArray(definition.components)
-    ? (definition.components[0] as Record<string, unknown>)
-    : null;
-  const extension = (component?.extension_json as Record<string, unknown>) ?? {};
-  const risk = (definition.risk_controls as Record<string, unknown>) ?? {};
-  const resources = Array.isArray(definition.resource_contexts)
-    ? (definition.resource_contexts[0] as Record<string, unknown>)
-    : null;
-  return {
-    ...DEFAULT_FORM,
-    name: String(definition.strategy_name ?? ""),
-    hypothesis: String(definition.hypothesis ?? ""),
-    hubs: Array.isArray(component?.hubs)
-      ? (component?.hubs as string[]).join(", ")
-      : "NBP",
-    dayAheadNames: Array.isArray(extension.day_ahead_price_names)
-      ? (extension.day_ahead_price_names as string[]).join(", ")
-      : "SAP",
-    intradayNames: Array.isArray(extension.intraday_price_names)
-      ? (extension.intraday_price_names as string[]).join(", ")
-      : "ICE_OCM",
-    weight: String(extension.weight ?? 1.0),
-    positiveThreshold: String(extension.positive_spread_threshold_gbp_mwh ?? 0.0),
-    negativeThreshold: String(extension.negative_spread_threshold_gbp_mwh ?? 0.0),
-    windowStart: String(extension.time_window_start ?? "05:00"),
-    windowEnd: String(extension.time_window_end ?? "05:30"),
-    barMinutes: String(extension.target_bar_minutes ?? 5),
-    maxOcm: String(risk.max_ocm_allocation_pct ?? 80.0),
-    minDayAhead: String(risk.min_day_ahead_allocation_pct ?? 10.0),
-    requireTsoAccess: Boolean(risk.require_tso_access),
-    resourceId: String(resources?.resource_id ?? "res-1"),
-    resourceName: String(resources?.resource_name ?? "Resource 1"),
-    resourceQuantity: String(resources?.available_quantity_mwh_per_day ?? "100"),
-    resourceCost: String(resources?.all_in_cost_gbp_mwh ?? "20"),
-  };
-}
-
-function csv(value: string): string[] {
-  return value.split(",").map((item) => item.trim()).filter(Boolean);
-}
-
-function numberValue(value: string): number | null {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
 }
 
 export function StrategyDesignWorkspace({
   controller,
-  selection,
+  draft,
   t,
 }: StrategyDesignWorkspaceProps) {
-  const [form, setForm] = useState<DesignFormState>(DEFAULT_FORM);
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // Everything about *what would be written* belongs to the workspace that hosts the save action;
+  // this panel renders it and reports the verdict it was handed.
+  const { form, setField: set, validation } = draft;
+  const { frozen, busy, message, error } = draft;
   const version = controller.selectedVersion;
-  const frozen = version?.status === "FROZEN";
-
-  useEffect(() => {
-    setForm(formFromVersion(version?.definition_json));
-  }, [version?.definition_json, version?.strategy_version_id]);
-
-  const set = (key: keyof DesignFormState, value: string | boolean) => {
-    setForm((current) => ({ ...current, [key]: value }));
-  };
-
-  const validation = useMemo(() => {
-    const blockers: string[] = [];
-    const warnings: string[] = [];
-    if (!form.name.trim()) blockers.push(t("strategy_lab.blocker.name"));
-    if (csv(form.dayAheadNames).length === 0) blockers.push(t("strategy_lab.blocker.day_ahead"));
-    if (csv(form.intradayNames).length === 0) blockers.push(t("strategy_lab.blocker.intraday"));
-    const quantity = numberValue(form.resourceQuantity);
-    const cost = numberValue(form.resourceCost);
-    if (quantity === null || quantity <= 0 || cost === null || cost <= 0) {
-      blockers.push(t("strategy_lab.blocker.resource"));
-    }
-    if (form.transactionCostTreatment === "MODELED_COST" && numberValue(form.transactionCost) === null) {
-      blockers.push(t("strategy_lab.blocker.transaction_cost"));
-    }
-    if (form.transactionCostTreatment === "UNAVAILABLE") {
-      warnings.push(t("strategy_lab.warning.transaction_cost_unavailable"));
-    }
-    if (form.missingDataPolicy === "CARRY_FORWARD_WITH_MAX_AGE") {
-      warnings.push(t("strategy_lab.warning.carry_forward"));
-    }
-    return { blockers, warnings };
-  }, [form, t]);
-
-  const buildBody = () => ({
-    hypothesis: form.hypothesis,
-    definition: {
-      components: [
-        {
-          component_id: "ocm-da-1",
-          component_type: "OCM_VS_DAY_AHEAD",
-          hubs: csv(form.hubs),
-          tenors: ["within-day", "day-ahead"],
-          extension_json: {
-            weight: numberValue(form.weight) ?? 1.0,
-            day_ahead_price_names: csv(form.dayAheadNames),
-            intraday_price_names: csv(form.intradayNames),
-            positive_spread_threshold_gbp_mwh: numberValue(form.positiveThreshold) ?? 0,
-            negative_spread_threshold_gbp_mwh: numberValue(form.negativeThreshold) ?? 0,
-            time_window_start: form.windowStart || null,
-            time_window_end: form.windowEnd || null,
-            target_bar_minutes: numberValue(form.barMinutes) ?? 5,
-          },
-        },
-      ],
-      parameter_definitions: [],
-      parameter_values: {},
-      risk_controls: {
-        max_ocm_allocation_pct: numberValue(form.maxOcm) ?? 80,
-        min_day_ahead_allocation_pct: numberValue(form.minDayAhead) ?? 10,
-        require_tso_access: form.requireTsoAccess,
-      },
-      economic_assumptions: {
-        fill_price_policy: form.fillPricePolicy,
-        missing_data_policy: form.missingDataPolicy,
-        cost_components: [
-          {
-            code: "TRANSACTION_COST",
-            treatment: form.transactionCostTreatment,
-            amount_gbp_mwh:
-              form.transactionCostTreatment === "MODELED_COST"
-                ? numberValue(form.transactionCost)
-                : null,
-          },
-          {
-            code: "SLIPPAGE",
-            treatment: form.slippageTreatment,
-            amount_gbp_mwh:
-              form.slippageTreatment === "MODELED_COST"
-                ? numberValue(form.slippage)
-                : null,
-          },
-        ],
-      },
-      data_requirements: { hubs: csv(form.hubs) },
-      evaluation_windows: [],
-    },
-    strategy_name: form.name,
-    run_mode: "BACKTEST",
-    resource_contexts: [
-      {
-        resource_id: form.resourceId,
-        resource_name: form.resourceName,
-        available_quantity_mwh_per_day: numberValue(form.resourceQuantity) ?? 100,
-        all_in_cost_gbp_mwh: numberValue(form.resourceCost) ?? 20,
-        required_tso_access: [],
-      },
-    ],
-    price_observations: [],
-    existing_shadow_pnl_gbp: 0,
-  });
-
-  const saveDraft = async () => {
-    setBusy(true);
-    setError(null);
-    setMessage(null);
-    try {
-      const body = buildBody();
-      if (!controller.selectedStrategy) {
-        const strategyName = form.name.trim() || "Untitled strategy";
-        const created = await apiClient.createStrategy({
-          name: strategyName,
-          description: form.description,
-        });
-        controller.selectStrategy(created.data.strategy_id);
-        const versionResult = await apiClient.createStrategyVersion(created.data.strategy_id, body);
-        selection.setStrategyVersionId(versionResult.data.strategy_version_id);
-        setMessage(versionResult.data.strategy_version_id);
-        await controller.refreshStrategies();
-        await controller.refreshVersions(created.data.strategy_id);
-      } else if (version && version.status === "DRAFT") {
-        await apiClient.updateStrategyVersionDraft(version.strategy_version_id, body);
-        await controller.refreshVersions(controller.selectedStrategy.strategy_id);
-        setMessage(version.strategy_version_id);
-      } else {
-        setError(t("strategy_lab.error.frozen_create_new_version"));
-      }
-    } catch (err) {
-      setError(String(err));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const createNewVersion = async () => {
-    if (!version || version.status !== "FROZEN") return;
-    setBusy(true);
-    setError(null);
-    try {
-      const result = await apiClient.forkStrategyVersion(version.strategy_version_id, {
-        definition: buildBody().definition,
-        hypothesis: form.hypothesis,
-      });
-      controller.selectVersion(result.data.strategy_version_id);
-      await controller.refreshVersions(version.strategy_id);
-      setMessage(result.data.strategy_version_id);
-    } catch (err) {
-      setError(String(err));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const freeze = async () => {
-    if (!version || version.status !== "DRAFT") return;
-    setBusy(true);
-    try {
-      await apiClient.freezeStrategyVersion(version.strategy_version_id);
-      await controller.refreshVersions(version.strategy_id);
-    } catch (err) {
-      setError(String(err));
-    } finally {
-      setBusy(false);
-    }
-  };
 
   return (
     <div className="strategy-design">
       <div className="strategy-validation-summary">
         <span>{t("strategy_lab.validation")}</span>
-        <span className="status-badge status-blocked">{validation.blockers.length} {t("strategy_lab.blockers")}</span>
-        <span className="status-badge status-warning">{validation.warnings.length} {t("strategy_lab.warnings")}</span>
+        <span className="status-badge status-blocked">{validation.blockerKeys.length} {t("strategy_lab.blockers")}</span>
+        <span className="status-badge status-warning">{validation.warningKeys.length} {t("strategy_lab.warnings")}</span>
         <div className="strategy-validation-list">
-          {validation.blockers.map((item) => <div key={item}>BLOCKER: {item}</div>)}
-          {validation.warnings.map((item) => <div key={item}>WARNING: {item}</div>)}
+          {validation.blockerKeys.map((key) => <div key={key}>BLOCKER: {t(key)}</div>)}
+          {validation.warningKeys.map((key) => <div key={key}>WARNING: {t(key)}</div>)}
         </div>
       </div>
       <section className="workspace-panel">
@@ -376,22 +118,26 @@ export function StrategyDesignWorkspace({
           <label>{t("strategy_lab.slippage")} GBP/MWh<input type="number" step="0.01" value={form.slippage} disabled={frozen} onChange={(event) => set("slippage", event.target.value)} /></label>
         </div>
       </section>
-      <div className="strategy-design-actions">
-        {frozen ? (
-          <button type="button" disabled={busy} onClick={createNewVersion}>
-            {t("strategy_lab.create_new_version")}
-          </button>
-        ) : (
-          <button type="button" disabled={busy || validation.blockers.length > 0} onClick={saveDraft}>
-            {t("strategy_lab.save_draft")}
-          </button>
-        )}
-        {version?.status === "DRAFT" && (
-          <button type="button" disabled={busy} onClick={freeze}>
-            {t("strategy_lab.freeze_version")}
-          </button>
-        )}
-      </div>
+      {/* Saving the draft is the workspace's primary action. What remains here changes a version's
+          standing, so it is bounded next to the version it affects rather than promoted: the
+          geography keeps `lifecycle` consequences out of the primary slot because neither is
+          reversible from the surface that triggers it. */}
+      <section className="strategy-version-actions" aria-label={t("strategy_lab.version_actions")}>
+        <span className="eyebrow">{t("strategy_lab.version_actions")}</span>
+        <p className="panel-copy">{t("strategy_lab.version_actions_note")}</p>
+        <div className="strategy-design-actions">
+          {frozen && (
+            <button type="button" disabled={busy} onClick={() => void draft.createNewVersion()}>
+              {t("strategy_lab.create_new_version")}
+            </button>
+          )}
+          {version?.status === "DRAFT" && (
+            <button type="button" disabled={busy} onClick={() => void draft.freezeVersion()}>
+              {t("strategy_lab.freeze_version")}
+            </button>
+          )}
+        </div>
+      </section>
       {message && <p className="muted">{t("strategy_lab.saved")}: {message}</p>}
       {error && <p className="strategy-error">{error}</p>}
     </div>

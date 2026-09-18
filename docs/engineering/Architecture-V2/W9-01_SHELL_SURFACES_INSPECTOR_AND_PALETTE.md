@@ -251,17 +251,28 @@ entry point among several rather than the predictable one.
   cross-surface guard was extended to this act at the same time, so the comparison cannot be
   re-copied into a panel the way the optimiser run had been.
 
+- **Seventh application (persist).** The Strategy Lab's Design task puts saving the draft in the
+  slot, and this one was the largest lift of the set because the *draft itself* lived in the panel:
+  about twenty-five form fields, their validation, the request builder and the busy/message/error
+  state. It now lives in `app/model/useStrategyDesignDraft.ts` (state) and
+  `app/model/strategyDraftModel.ts` (the rule, returning keys), the workspace hosts the action and
+  the panel renders the form and reports the verdict it is handed. Two things stayed out of the
+  slot deliberately: **freezing** a version and **forking** one are `lifecycle` consequences, so
+  they sit in a bounded "version actions" group next to the version they change and say why - the
+  geography keeps them out of the primary slot because neither is reversible from the surface that
+  triggers it. The rule also gained the test it never had, since it used to exist only as a
+  `useMemo` inside a component.
+
 ### What is left, and what each one actually needs
 
-Two surfaces still hold a `persist` act inside a panel. Neither is forgotten, and neither is a
-rule-extraction away from being finished, so they are recorded with the work they need:
+One surface still holds a `persist` act inside a panel, and it is recorded rather than forgotten
+because the work it needs is a design decision rather than a lift:
 
 | Surface | The act | Why it has not moved |
 | --- | --- | --- |
-| Strategy Lab, Design task | `Save draft` (and `Create new version` when the version is frozen) | The draft is **panel state, not a rule**: the whole form (about 25 fields), its validation summary, the request body builder and the busy/message/error state live in `StrategyDesignWorkspace`, so moving the action means lifting that draft to the workspace or into a hook first. The guarded consequences are already right: `Freeze version` changes a version's standing, so it stays a bounded action next to the version it affects and must not be promoted to the slot (`requiresDeliberateStep("lifecycle")` is true). |
 | Decision task, Review task | `Record review decision` (three outcomes) and the Decision Case's own persist acts | The review task's primary slot is deliberately empty: its act is a decision with three outcomes, and promoting one outcome would make the platform look like it recommends it (recorded in the table above). The Decision Case panel's acts are form-local persistence inside that same task. |
 
-Everything else that presents a material action is placed: the five `compute`/`persist` applications
+Everything else that presents a material action is placed: the `compute`/`persist` applications
 above, the Source Center's manual ingestion queue next to the recommendation that asks for it, the
 Data Products view (a read), and the surfaces recorded as deliberately having no primary action.
 
