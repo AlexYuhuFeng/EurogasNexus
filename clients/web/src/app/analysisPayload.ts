@@ -1,12 +1,7 @@
-type PortfolioResourceLike = {
-  resource_id: string;
-};
-
 export function buildAnalysisPayload(
   analysisQuestion: string,
   invokeDeepSeek: boolean,
   language: string,
-  portfolioResources: PortfolioResourceLike[],
   /**
    * The Analysis Snapshot this run cites as its reproducibility reference
    * (Architecture V2 Wave 4), or null/absent to cite nothing.
@@ -17,15 +12,19 @@ export function buildAnalysisPayload(
    */
   analysisSnapshotId?: string | null,
 ) {
+  // No selection field is sent, and none is invented on the analyst's behalf. The
+  // analysis pipeline reads no term, asset, contract, strategy, section or portfolio
+  // selection, so the platform refuses a non-empty one with
+  // `422 analysis_selection_not_supported` rather than returning a report over the
+  // whole snapshot as if it had been narrowed. The portfolio's own resources are
+  // already the report's subject; naming them as a selection would restate the scope
+  // as if it were a filter.
   const payload = {
     question: analysisQuestion,
     task: "PORTFOLIO_REPORT",
     provider_id: "DEEPSEEK",
     model: "deepseek-v4-flash",
     invoke_provider: invokeDeepSeek,
-    selected_terms: ["TTF", "NBP", "ICE OCM"],
-    selected_assets: ["TTF", "NBP", "BBL"],
-    selected_contracts: portfolioResources.map((resource) => resource.resource_id),
     language: language.startsWith("zh") ? "zh-CN" : "en",
   };
   const snapshotId = (analysisSnapshotId ?? "").trim();

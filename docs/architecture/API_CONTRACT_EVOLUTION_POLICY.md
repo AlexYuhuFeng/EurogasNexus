@@ -58,9 +58,13 @@ These tests fail CI loudly on contract drift:
    `test_architecture_alignment.py` assertion) in the same change.
 3. For a deprecated path: mark it `deprecated` in the router, add the
    envelope warning, and record it in the deprecation table below.
-4. Add API, SDK, and contract tests before the implementation is considered
+4. For a refused field: keep it declared in the model, refuse a non-empty value
+   with a stable `422` code that names every offending field, record it in the
+   refused-field table above, and remove it from every client request builder and
+   from the client's request DTO in the same change.
+5. Add API, SDK, and contract tests before the implementation is considered
    complete.
-5. Run the full validation command set from `CONTRIBUTING.md`.
+6. Run the full validation command set from `CONTRIBUTING.md`.
 
 ## Declared Additive Paths
 
@@ -121,6 +125,21 @@ keeps its previous behaviour.
 | `POST /api/strategy-runs` (`run_type=BACKTEST`) | `analysis_snapshot_id` (request, optional; echoed on `data`) | Architecture V2 Wave 4 scope extended to the strategy backtest run: verified against persisted Analysis Snapshots before the run (no run row and no job are created when it is refused), echoed on the response, and absent when the caller cites nothing |
 | `POST /api/analysis/query` | `analysis_snapshot_id` (request, optional; echoed on `data`) | Architecture V2 Wave 4 scope extended to the analysis (AI evidence) path: verified before the input snapshot is loaded and before any provider call, so an unverifiable citation can never be paid for with an external request. Same refusal codes as the other paths; the field is absent from `data` when the caller cites nothing, and the citation is part of the persisted analysis record |
 | `POST /api/reports/portfolio` | `analysis_snapshot_id` (request, optional; echoed on `data`) | Architecture V2 Wave 4 scope extended to the portfolio report: verified before the run, echoed on the report, and recorded on the tracked `REPORT` job as the snapshot the report was computed against (an empty reference when the caller cited nothing). The stored report record keeps its sections and source references; it has no column for a cited reference, which is recorded here rather than implied |
+
+## Refused Request Fields
+
+A declared field the pipeline never reads is a claim the platform cannot honour: a caller that fills
+it in receives an unmodified result while believing their selection was applied. Such a field is
+**refused with a stable error code instead of ignored**, is listed here, and stays declared (removing
+it would turn an explicit refusal into a silent drop for a caller that still sends it). The refusal is
+raised before the run is loaded, tracked or paid for, and an empty value is never an offence.
+
+| Path | Field | Contract |
+|---|---|---|
+| `POST /api/analysis/query` | `selected_terms`, `selected_assets`, `selected_contracts`, `include_sections` | `422 analysis_selection_not_supported`, naming every non-empty field in `detail.fields`. The deterministic builders read the snapshot, the task and the question, so a term, asset, contract or section selection describes work that does not happen. Evidence references belong in `question`, which is the prompt the platform records and the provider receives |
+| `POST /api/reports/portfolio` | `portfolio_id`, `selected_resources`, `selected_contracts`, `selected_strategies` | same code and the same `detail.fields` contract: a report is computed from the whole entitled snapshot, so a portfolio/resource/contract/strategy selection would be a scope the caller believed was applied |
+| `POST /api/agent/research` | `strategy_ir` | `422 strategy_ir_not_accepted`: the orchestrator never read it, so a caller could believe its own specification had been run while the pipeline validated a candidate of its own. The strategy registry is the path that owns a specification |
+| `POST /api/agent/research` | `profile` (validated, not refused) | `422 agent_profile_unknown` when the profile is not one the platform declares; a declared profile that never reached all of its stages is reported with `PROFILE_STAGES_NOT_REACHED:<stage,…>` rather than refused, because stopping short is often the honest outcome |
 
 ## Deprecation Table
 

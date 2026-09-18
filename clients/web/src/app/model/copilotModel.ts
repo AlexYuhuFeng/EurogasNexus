@@ -426,12 +426,6 @@ export interface CopilotRunInput {
  * the backend's deterministic builders.
  */
 export function composeCopilotRequest(input: CopilotRunInput): AnalysisRequestDTO {
-  const assets = input.evidenceRefs
-    .filter((ref) => ref.kind !== "contract")
-    .map((ref) => ref.ref);
-  const contracts = input.evidenceRefs
-    .filter((ref) => ref.kind === "contract")
-    .map((ref) => ref.ref);
   return {
     question: copilotQuestion(input),
     task: copilotTaskForAction(input.action),
@@ -441,9 +435,13 @@ export function composeCopilotRequest(input: CopilotRunInput): AnalysisRequestDT
     // evidence set. The backend still re-authorises and fails closed before any
     // provider call.
     invoke_provider: true,
-    selected_terms: [],
-    selected_assets: assets,
-    selected_contracts: contracts,
+    // The evidence references travel inside the question - `Evidence references:
+    // route:ROUTE-9, resource:RES-1` - which is the prompt the platform records for the
+    // run and the text the provider receives. They are not also sent as a selection:
+    // the analysis pipeline reads no selection, so the platform refuses a non-empty one
+    // (`422 analysis_selection_not_supported`) instead of reporting the whole snapshot as
+    // if the caller's references had narrowed it, and no field is sent that would let
+    // the model treat an identity as a value.
     language: input.language.startsWith("zh") ? "zh-CN" : "en",
   };
 }

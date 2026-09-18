@@ -50,8 +50,11 @@ Windows/Linux 桌面外壳和双语运营文档。所有消费方都是同一契
    `-CN.md` 及 `test_architecture_alignment.py` 断言）。
 3. 弃用路径：在 router 标记 `deprecated`、在信封加 warning，并登记到下方
    弃用表。
-4. 先补 API、SDK、契约测试，再视为完成。
-5. 运行 `CONTRIBUTING.md` 中的完整验证命令集。
+4. 被拒绝字段：在模型中保持声明，对非空值以稳定 `422` 错误码拒绝并列出每个
+   违规字段，登记到上方“被拒绝的请求字段”表，并在同一次变更中从所有客户端
+   请求构建器与客户端请求 DTO 中移除。
+5. 先补 API、SDK、契约测试，再视为完成。
+6. 运行 `CONTRIBUTING.md` 中的完整验证命令集。
 
 ## 已声明的新增路径
 
@@ -75,6 +78,17 @@ Windows/Linux 桌面外壳和双语运营文档。所有消费方都是同一契
 | `POST /api/strategy-runs`（`run_type=BACKTEST`） | `analysis_snapshot_id`（请求可选，`data` 回显） | Wave 4 范围扩展到策略回测运行：运行前对持久化的 Analysis Snapshot 校验（被拒绝时不创建运行行、不创建作业），并在响应中回显；未引用时不出现 |
 | `POST /api/analysis/query` | `analysis_snapshot_id`（请求可选，`data` 回显） | Wave 4 范围扩展到分析（AI 证据）路径：在加载输入快照之前、且在调用任何 provider 之前完成校验，因此无法校验的引用绝不会以一次外部请求作为代价。拒绝码与其他路径一致；未引用时 `data` 中不出现该字段，且该引用随分析记录一并持久化 |
 | `POST /api/reports/portfolio` | `analysis_snapshot_id`（请求可选，`data` 回显） | Wave 4 范围扩展到组合报告：运行前校验，在报告中回显，并作为该报告所依据的快照记入受跟踪的 `REPORT` 作业（未引用时记录为空引用）。已存储的报告记录仅保留其章节与来源引用，没有存放被引用快照的列——此处如实记录，不作暗示 |
+
+## 被拒绝的请求字段
+
+已声明但管道从不读取的字段，是平台无法兑现的声明：填入它的调用方会收到未加修改的结果，却以为自己的选择已被应用。此类字段**以稳定错误码拒绝，而不是被忽略**，登记于此，并保持声明状态（删除它会把显式拒绝变成对仍在发送该字段的调用方的静默丢弃）。拒绝发生在运行被加载、被跟踪或被计费之前，且空值绝不构成违规。
+
+| 路径 | 字段 | 契约 |
+|---|---|---|
+| `POST /api/analysis/query` | `selected_terms`、`selected_assets`、`selected_contracts`、`include_sections` | `422 analysis_selection_not_supported`，并在 `detail.fields` 中列出每一个非空字段。确定性构建器只读取快照、任务与问题，因此术语、资产、合约或章节选择描述的是不会发生的工作。证据引用应放在 `question` 中——那正是平台记录的提示词、也是 provider 收到的文本 |
+| `POST /api/reports/portfolio` | `portfolio_id`、`selected_resources`、`selected_contracts`、`selected_strategies` | 同一错误码与同一 `detail.fields` 契约：报告基于具权限的整份快照计算，因此组合/资源/合约/策略选择会成为调用方误以为已生效的范围 |
+| `POST /api/agent/research` | `strategy_ir` | `422 strategy_ir_not_accepted`：编排器从不读取它，调用方可能以为自己提供的规格已被运行，而管道实际校验的是自己生成的候选。策略注册表才是拥有规格的路径 |
+| `POST /api/agent/research` | `profile`（校验，非拒绝） | 不是平台已声明的 profile 时返回 `422 agent_profile_unknown`；已声明但未走完其全部阶段的 profile 以 `PROFILE_STAGES_NOT_REACHED:<stage,…>` 报告而不拒绝，因为提前停止往往是诚实的结果 |
 
 ## 弃用表
 

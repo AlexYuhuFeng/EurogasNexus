@@ -33,7 +33,6 @@ ANALYSIS_BODY = {
 
 REPORT_BODY = {
     "title": "Current portfolio report",
-    "selected_resources": ["operator-ttf-bbl-portfolio"],
     "invoke_provider": False,
 }
 

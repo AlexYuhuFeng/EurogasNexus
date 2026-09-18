@@ -1582,11 +1582,20 @@ export interface GlossaryContextDTO {
   research_only: boolean; human_review_required: boolean;
 }
 
+/**
+ * One `/analysis/query` or `/reports/portfolio` request.
+ *
+ * No selection or filter field is declared here. The analysis pipeline reads no term,
+ * asset, contract, strategy, section or portfolio selection, and the platform refuses a
+ * non-empty one (`422 analysis_selection_not_supported`) rather than returning a run over
+ * the whole entitled snapshot as if it had been narrowed. Evidence references belong in
+ * `question`, which is the prompt the platform records and the provider receives.
+ */
 export interface AnalysisRequestDTO {
   question: string; task?: string; provider_id?: string; model?: string;
-  invoke_provider?: boolean; selected_terms?: string[]; selected_assets?: string[];
-  selected_contracts?: string[]; duration_start_utc?: string | null;
-  duration_end_utc?: string | null; include_sections?: string[]; language?: string;
+  invoke_provider?: boolean; duration_start_utc?: string | null;
+  duration_end_utc?: string | null; language?: string;
+  analysis_snapshot_id?: string | null;
 }
 
 /**

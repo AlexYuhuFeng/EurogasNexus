@@ -37,7 +37,6 @@ def _configure_store(tmp_path, monkeypatch) -> str:
 def _report_body() -> dict:
     return {
         "title": "Current portfolio report",
-        "selected_resources": ["operator-ttf-bbl-portfolio"],
         "invoke_provider": False,
         "duration_start_utc": datetime(2026, 9, 16, 4, 0, tzinfo=UTC).isoformat(),
         "duration_end_utc": datetime(2026, 9, 17, 4, 0, tzinfo=UTC).isoformat(),

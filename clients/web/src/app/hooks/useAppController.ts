@@ -45,11 +45,9 @@ export function useAppController() {
     selectedRouteId: selection.routeId,
     t,
   });
-  const review = useReviewAnalysis(
-    i18n.language,
-    portfolio.portfolioResources,
-    api.reviewSnapshotId,
-  );
+  // The report run takes the interface language and the snapshot it cites; the portfolio's
+  // resource list is not an input, because the report is not scoped by a selection.
+  const review = useReviewAnalysis(i18n.language, api.reviewSnapshotId);
   const glossary = useGlossaryExplorer({
     glossaryTerms: api.glossaryTerms,
     fetchGlossaryContext: api.fetchGlossaryContext,

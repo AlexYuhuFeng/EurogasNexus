@@ -31,6 +31,13 @@ class AnalysisTask(StrEnum):
 class AnalysisRequest(BaseModel):
     """One analysis query request.
 
+    选择字段的诚实契约：``selected_terms`` / ``selected_assets`` /
+    ``selected_contracts`` / ``include_sections`` 声明在模型中只为向调用方
+    说真话——管道从不读取它们，因此路由在收到非空选择时以
+    ``422 analysis_selection_not_supported`` 拒绝，而不是把整份快照当作
+    "已按选择过滤"返回。证据引用随 ``question`` 传输（平台记录并送给
+    provider 的正是 question）。
+
     Attributes:
         question: The analyst question (1-4096 chars).
         task: Task kind steering missing-input and section logic.
@@ -39,12 +46,17 @@ class AnalysisRequest(BaseModel):
         invoke_provider: Whether to call the external provider; False keeps
             the pipeline deterministic-only (no external calls).
         include_contract_prices: Whether contract prices enter the context.
-        selected_terms: Glossary terms selected by the client.
-        selected_assets: Asset/point selections.
-        selected_contracts: Contract selections.
+        selected_terms: Refused when non-empty. The pipeline reads no glossary
+            selection, and a term invented on the user's behalf is exactly what
+            the copilot contract forbids.
+        selected_assets: Refused when non-empty (same reason). The evidence
+            references a run carries travel in ``question``.
+        selected_contracts: Refused when non-empty (same reason).
         duration_start_utc: Window start; None = unbounded.
         duration_end_utc: Window end; None = unbounded.
-        include_sections: Section ids the client wants.
+        include_sections: Refused when non-empty: the section set belongs to the
+            task, and honouring a subset would silently drop sections the report
+            contract requires.
         language: Output language hint (``en`` or ``zh-CN``).
         analysis_snapshot_id: Optional Analysis Snapshot this query was run
             against (Architecture V2 Wave 4). Verified to exist and echoed on the
@@ -70,16 +82,26 @@ class AnalysisRequest(BaseModel):
 class PortfolioReportRequest(BaseModel):
     """Request for a portfolio decision-support report.
 
+    与 ``AnalysisRequest`` 相同的诚实契约：报告由具权限的整份快照计算，
+    因此 ``portfolio_id`` / ``selected_resources`` / ``selected_contracts`` /
+    ``selected_strategies`` 一旦非空即被路由以
+    ``422 analysis_selection_not_supported`` 拒绝，绝不把"未过滤"的报告
+    当成"已按选择过滤"的结果返回。
+
     Attributes:
         title: Report title (also the question for the LLM synthesis).
         provider_id: LLM provider id.
         model: Provider model name.
         invoke_provider: Whether to call the external provider.
         include_contract_prices: Whether contract prices enter the context.
-        portfolio_id: Portfolio filter, or None for all.
-        selected_resources: Resource selections.
-        selected_contracts: Contract selections.
-        selected_strategies: Strategy selections.
+        portfolio_id: Refused when supplied. A report is computed from the whole
+            entitled snapshot; the pipeline reads no portfolio filter, so a
+            non-empty value would be a scope the caller believes was applied.
+        selected_resources: Refused when non-empty (same reason). The references a
+            run carries travel in the report title, which is the question the
+            provider receives.
+        selected_contracts: Refused when non-empty (same reason).
+        selected_strategies: Refused when non-empty (same reason).
         duration_start_utc: Window start; None = unbounded.
         duration_end_utc: Window end; None = unbounded.
         language: Output language hint.

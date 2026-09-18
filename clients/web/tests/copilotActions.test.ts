@@ -88,7 +88,7 @@ test("the review surface converged its own AI panel onto the canonical actions",
   assert.match(review, /onGenerateReport/);
   assert.match(
     hook,
-    /buildAnalysisPayload\(\s*REPORT_QUESTION,\s*false,\s*language,\s*portfolioResources,\s*analysisSnapshotId,\s*\)/s,
+    /buildAnalysisPayload\(\s*REPORT_QUESTION,\s*false,\s*language,\s*analysisSnapshotId,\s*\)/s,
   );
   assert.equal(hook.includes("useState"), false);
   // The citation the report may carry is a reproducibility reference chosen from the
@@ -399,24 +399,24 @@ test("a run is composed onto the existing analysis route, context and evidence i
   });
 
   assert.equal(COPILOT_REQUEST_ROUTE, "/analysis/query");
-  // Only the declared analysis request fields are sent; nothing is added ad hoc.
+  // Only the declared analysis request fields are sent; nothing is added ad hoc, and no
+  // selection field is filled in: the analysis pipeline reads no selection and the platform
+  // refuses a non-empty one (`422 analysis_selection_not_supported`).
   assert.deepEqual(Object.keys(request).sort(), [
     "invoke_provider",
     "language",
     "model",
     "provider_id",
     "question",
-    "selected_assets",
-    "selected_contracts",
-    "selected_terms",
     "task",
   ]);
   assert.equal(request.task, copilotTaskForAction("explain"));
   assert.equal(request.language, "zh-CN");
   assert.equal(request.invoke_provider, true);
-  assert.deepEqual(request.selected_assets, ["ROUTE-9", "RES-1"]);
-  assert.deepEqual(request.selected_contracts, []);
-  assert.deepEqual(request.selected_terms, []);
+  assert.deepEqual(
+    Object.keys(request).filter((key) => key.startsWith("selected_")),
+    [],
+  );
 
   const question = copilotQuestion({
     action: "explain",
@@ -428,6 +428,8 @@ test("a run is composed onto the existing analysis route, context and evidence i
   assert.ok(question.startsWith("[EXPLAIN] Which inputs produced this allocation"));
   assert.ok(question.includes("gas day 2026-09-16"));
   assert.ok(question.includes(`Context key: ${context.contextKey}`));
+  // The references travel inside the question - the prompt the platform records and the
+  // provider receives - which is why the refused selection fields are not needed.
   assert.ok(question.includes("route:ROUTE-9, resource:RES-1"));
 
   // English stays English; an empty question falls back to the contract framing

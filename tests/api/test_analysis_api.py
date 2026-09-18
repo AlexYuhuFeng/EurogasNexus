@@ -25,7 +25,6 @@ def test_analysis_query_uses_snapshot_without_invoking_provider() -> None:
             "question": "Summarize current TTF context",
             "task": "DB_INQUIRY",
             "invoke_provider": False,
-            "selected_terms": ["TTF"],
         },
     )
 
@@ -47,7 +46,6 @@ def test_portfolio_report_returns_required_sections() -> None:
         "/api/reports/portfolio",
         json={
             "title": "Current portfolio report",
-            "selected_resources": ["operator-ttf-bbl-portfolio"],
             "invoke_provider": False,
         },
     )

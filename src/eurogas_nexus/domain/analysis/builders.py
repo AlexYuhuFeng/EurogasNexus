@@ -128,8 +128,10 @@ def build_portfolio_report(
         provider_id=request.provider_id,
         model=request.model,
         invoke_provider=request.invoke_provider,
-        selected_contracts=request.selected_contracts,
-        selected_assets=request.selected_resources,
+        # The report request's portfolio/resource/contract/strategy selections are
+        # refused by the route when non-empty, and no builder reads them, so they are
+        # not projected here: a selection that reached this point would be a claim the
+        # report does not honour.
         duration_start_utc=request.duration_start_utc,
         duration_end_utc=request.duration_end_utc,
         language=request.language,

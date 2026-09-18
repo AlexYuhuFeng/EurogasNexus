@@ -1,5 +1,4 @@
 import { useMemo } from "react";
-import type { PortfolioResourceDTO } from "@/api/client";
 import { buildAnalysisPayload } from "@/app/index";
 
 /**
@@ -14,23 +13,23 @@ const REPORT_QUESTION = "Summarize current portfolio PnL, route, market, and str
 
 export function useReviewAnalysis(
   language: string,
-  portfolioResources: PortfolioResourceDTO[],
   /**
    * The reproducibility reference the next report run cites (Architecture V2 Wave 4), chosen
    * from the snapshots the deployment recorded. Null cites nothing.
    */
   analysisSnapshotId: string | null = null,
 ) {
+  // The portfolio's resource list is not an input: the report covers the whole entitled
+  // snapshot, and the platform refuses the selection field the list used to fill.
   const analysisPayload = useMemo(
     () =>
       buildAnalysisPayload(
         REPORT_QUESTION,
         false,
         language,
-        portfolioResources,
         analysisSnapshotId,
       ),
-    [language, portfolioResources, analysisSnapshotId],
+    [language, analysisSnapshotId],
   );
 
   return { analysisPayload };

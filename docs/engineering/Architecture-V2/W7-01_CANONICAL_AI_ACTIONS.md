@@ -84,8 +84,7 @@ Evidence references: route:ROUTE-9, resource:RES-1
 | `task` | `DB_INQUIRY` | all five actions are questions over one governed snapshot; a task kind per action would be a backend contract change, and `DB_INQUIRY` fabricates no missing-input claim |
 | `invoke_provider` | `true` | invocation is the deliberate step; the backend still re-authorises and fails closed before any provider call |
 | `language` | `zh-CN` or `en` | the interface language decides the answer language |
-| `selected_assets` / `selected_contracts` | the evidence references | identities only, never values; the backend re-authorises each one |
-| `selected_terms` | empty | no glossary term is invented on the user's behalf |
+| selection fields | none is sent (§16) | the pipeline reads no selection; the evidence references above travel in `question`, which is the prompt the platform records |
 
 The surface shows the route it will use, so the invocation is not a black box.
 
@@ -313,3 +312,42 @@ With both halves delivered, and the capability-invoke surface shipped earlier, t
 is converged: a run's profile is now a *validated, self-qualifying* label, which is what makes
 offering a profile choice to a client meaningful - and the surface still does not offer one, because
 choosing a label that does not change the pipeline would imply a capability that does not exist.
+
+## 16. The analysis request stopped declaring selections it cannot apply
+
+The same failure mode - an accepted input the run silently ignored - was still open on the analysis
+and report routes, in six fields: `selected_terms`, `selected_assets`, `selected_contracts` and
+`include_sections` on `POST /api/analysis/query`, and `portfolio_id`, `selected_resources`,
+`selected_contracts` and `selected_strategies` on `POST /api/reports/portfolio`. The deterministic
+builders read the snapshot, the task and the question; they read none of these. A caller naming a
+portfolio therefore received a report over the whole entitled snapshot, and a caller naming sections
+received the task's full section set - with nothing in the response saying so.
+
+Both routes now refuse a non-empty selection with `422 analysis_selection_not_supported`, naming every
+offending field in `detail.fields` and giving the repair in the message: put the references in
+`question` (or the report title), which is exactly what the platform records as the run's prompt
+snapshot and what the provider receives. The refusal is raised before the snapshot is loaded, before
+the run is tracked and before any provider call, so a refused selection costs nothing - a test proves
+the report route writes neither a report record nor a job row, and another proves no provider call is
+made. Empty and absent values are legal, so a caller who sends the field empty is not refused for it.
+
+Three consequences were removed with the fields rather than left as decoration:
+
+- the client's report payload no longer invents a selection: it sent three fixed glossary terms
+  (`TTF`, `NBP`, `ICE OCM`) and two assets the analyst never chose, which is precisely the invented
+  term the table in §3 forbids;
+- the Copilot no longer mirrors its evidence references into `selected_assets` / `selected_contracts`:
+  they were a duplicate of the `Evidence references:` line already inside the composed question, and a
+  second copy could only suggest that the selection field, rather than the question, was what scoped
+  the run;
+- the tracked report job no longer records `scope_refs` from `selected_resources`, because the report
+  was never scoped to them: the run records the scope it really had - the Analysis Snapshot it cited.
+
+The `AnalysisRequestDTO` the client types against declares only fields the platform accepts, and a
+contract test fails if any client request builder fills in a refused field again.
+
+What this does **not** claim: the platform still cannot narrow an analysis or a report to a portfolio,
+resource, contract, strategy, section, asset or glossary term. That is a capability, not a bug fix -
+it would need a scoped snapshot, per-selection entitlement and a section subset that cannot silently
+drop what the report contract requires - and the refusal is the honest state until a measured need
+produces that work.

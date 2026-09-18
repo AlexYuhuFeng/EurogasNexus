@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from uuid import uuid4
 
@@ -64,11 +65,21 @@ def post_analysis_query(body: AnalysisRequest, request: Request) -> dict:
 
     Raises:
         HTTPException: 403 ``llm_provider_denied`` when provider invocation
-            is requested without a configured provider key; the Analysis
-            Snapshot refusal contract (503/422) when a citation cannot be
-            verified.
+            is requested without a configured provider key; 422
+            ``analysis_selection_not_supported`` when a selection the pipeline
+            cannot apply is supplied; the Analysis Snapshot refusal contract
+            (503/422) when a citation cannot be verified.
     """
 
+    _refuse_unsupported_selection(
+        (
+            ("selected_terms", body.selected_terms),
+            ("selected_assets", body.selected_assets),
+            ("selected_contracts", body.selected_contracts),
+            ("include_sections", body.include_sections),
+        ),
+        resource="analysis_query",
+    )
     _require_known_analysis_snapshot(body.analysis_snapshot_id, resource="analysis_query")
 
     snapshot = _load_snapshot(
@@ -133,8 +144,23 @@ def post_portfolio_report(body: PortfolioReportRequest, request: Request) -> dic
 
     Returns:
         Enveloped AnalysisResult for the portfolio report.
+
+    Raises:
+        HTTPException: 422 ``analysis_selection_not_supported`` when a portfolio,
+            resource, contract or strategy selection is supplied - the report is
+            computed from the whole entitled snapshot, so a selection would be a
+            scope the caller believed was applied.
     """
 
+    _refuse_unsupported_selection(
+        (
+            ("portfolio_id", body.portfolio_id),
+            ("selected_resources", body.selected_resources),
+            ("selected_contracts", body.selected_contracts),
+            ("selected_strategies", body.selected_strategies),
+        ),
+        resource="portfolio_report",
+    )
     _require_known_analysis_snapshot(body.analysis_snapshot_id, resource="portfolio_report")
 
     snapshot = _load_snapshot(
@@ -182,8 +208,8 @@ def post_portfolio_report(body: PortfolioReportRequest, request: Request) -> dic
         model=body.model,
         invoke_provider=body.invoke_provider,
         include_contract_prices=body.include_contract_prices,
-        selected_assets=body.selected_resources,
-        selected_contracts=body.selected_contracts,
+        # No selection is carried over: the route refuses a non-empty one, so a
+        # copied field would be a value no builder reads.
         duration_start_utc=body.duration_start_utc,
         duration_end_utc=body.duration_end_utc,
         language=body.language,
@@ -693,6 +719,72 @@ def _snapshot_entitlement_blocker(snapshot: AnalysisSnapshot) -> str | None:
     return None
 
 
+def _selection_was_supplied(value: object) -> bool:
+    """Return whether a caller really filled in a selection field.
+
+    Absent (``None``), blank and empty collections are all "nothing was selected", so a
+    caller who sends the field with an empty value is not refused while a caller who names
+    a portfolio, a resource, a contract, a strategy, a section, an asset or a term is.
+    """
+
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, (list, tuple, set, frozenset)):
+        return any(str(item).strip() for item in value)
+    return True
+
+
+def _refuse_unsupported_selection(
+    selections: Sequence[tuple[str, object]],
+    *,
+    resource: str,
+) -> None:
+    """Refuse a selection the analysis pipeline cannot apply.
+
+    The run's deterministic builders read the snapshot, the task and the question.
+    They read no glossary term, asset, contract, strategy, section or portfolio
+    selection, so a non-empty one describes work that will not happen: the caller
+    would receive a report over the whole entitled snapshot while believing it had
+    been narrowed to what they named. Refusing is the only honest answer, and it is
+    given before the snapshot is loaded, before the run is tracked and before any
+    provider call, so a refused selection costs nothing.
+
+    The evidence references an AI action carries are not lost by this refusal: they
+    travel inside ``question`` (or the report title), which is exactly what the
+    platform records as the run's prompt snapshot and sends to the provider.
+
+    Args:
+        selections: ``(field name, value)`` pairs as supplied by the caller.
+        resource: Surface label echoed in the refusal.
+
+    Raises:
+        HTTPException: 422 ``analysis_selection_not_supported`` naming every
+            non-empty field.
+    """
+
+    refused = [name for name, value in selections if _selection_was_supplied(value)]
+    if not refused:
+        return
+    raise HTTPException(
+        status_code=422,
+        detail={
+            "error": "analysis_selection_not_supported",
+            "message": (
+                "The analysis pipeline reads no selection or filter field: it "
+                "analyses the whole entitled snapshot for the supplied question. "
+                "Send the evidence references inside 'question' instead of a "
+                "selection field, or remove the field."
+            ),
+            "fields": refused,
+            "resource": resource,
+            "research_only": True,
+            "human_review_required": True,
+        },
+    )
+
+
 def _require_known_analysis_snapshot(snapshot_id: str | None, *, resource: str) -> None:
     """Fail closed when a supplied Analysis Snapshot reference does not exist.
 
@@ -845,7 +937,10 @@ def _track_report_run(
         # optimisation paths do: the compatibility deployment token's identifier is not
         # expressible in the principal vocabulary, its name is.
         principal=principal.name,
-        scope_refs=tuple(str(item) for item in (body.selected_resources or [])),
+        # A report is not scoped to individual resources: the route refuses a
+        # resource selection, and the run records the scope it really had - the
+        # cited Analysis Snapshot - rather than a narrowing that never happened.
+        scope_refs=(),
         inputs={
             "title": body.title,
             "report_id": result.analysis_id,

@@ -22,20 +22,18 @@ function readWebSource(relativePath: string): string {
   return readFileSync(new URL(`../src/${relativePath}`, import.meta.url), "utf8");
 }
 
-const RESOURCES = [{ resource_id: "operator-ttf-supply-2025" }];
-
 test("citing nothing leaves the report payload exactly as it was", () => {
-  const payload = buildAnalysisPayload("Summarize", false, "en", RESOURCES);
+  const payload = buildAnalysisPayload("Summarize", false, "en");
 
   assert.equal("analysis_snapshot_id" in payload, false);
-  assert.deepEqual(buildAnalysisPayload("Summarize", false, "en", RESOURCES, null), payload);
-  assert.deepEqual(buildAnalysisPayload("Summarize", false, "en", RESOURCES, ""), payload);
-  assert.deepEqual(buildAnalysisPayload("Summarize", false, "en", RESOURCES, "   "), payload);
+  assert.deepEqual(buildAnalysisPayload("Summarize", false, "en", null), payload);
+  assert.deepEqual(buildAnalysisPayload("Summarize", false, "en", ""), payload);
+  assert.deepEqual(buildAnalysisPayload("Summarize", false, "en", "   "), payload);
 });
 
 test("a chosen reference is sent as the citation and changes nothing else", () => {
-  const base = buildAnalysisPayload("Summarize", false, "en", RESOURCES);
-  const cited = buildAnalysisPayload("Summarize", false, "en", RESOURCES, "asnap-2026-02-01");
+  const base = buildAnalysisPayload("Summarize", false, "en");
+  const cited = buildAnalysisPayload("Summarize", false, "en", "asnap-2026-02-01");
 
   assert.equal(cited.analysis_snapshot_id, "asnap-2026-02-01");
   // The citation is an added reference, not a second request: every other input is identical,
@@ -47,6 +45,25 @@ test("a chosen reference is sent as the citation and changes nothing else", () =
   assert.equal(cited.question, base.question);
   assert.equal(cited.task, "PORTFOLIO_REPORT");
   assert.equal(cited.invoke_provider, false);
+});
+
+test("the report run sends no selection, not even the portfolio's resources", () => {
+  // The pipeline reads no selection and the platform refuses a non-empty one
+  // (`422 analysis_selection_not_supported`), so the payload carries none: naming the
+  // portfolio's resources would describe a filter that was never applied.
+  const payload = buildAnalysisPayload("Summarize", false, "en");
+  assert.deepEqual(Object.keys(payload).sort(), [
+    "invoke_provider",
+    "language",
+    "model",
+    "provider_id",
+    "question",
+    "task",
+  ]);
+
+  // The resource list is not even an input any more, so it cannot reach the payload.
+  const module = readWebSource("app/analysisPayload.ts");
+  assert.equal(/portfolioResources|resource_id|selected_/.test(module), false);
 });
 
 test("the client reads the deployment's references from the platform surface", () => {
@@ -96,7 +113,7 @@ test("the read is task-scoped and gated, and the selection reaches the run", () 
   );
   assert.match(store, /api\.analysisSnapshots\(\{ limit: SNAPSHOT_PICKER_LIMIT \}\)/);
   // The header/panel wiring carries the selection into the payload the report run uses.
-  assert.match(controller, /useReviewAnalysis\(\s*i18n\.language,\s*portfolio\.portfolioResources,\s*api\.reviewSnapshotId,\s*\)/s);
+  assert.match(controller, /useReviewAnalysis\(i18n\.language, api\.reviewSnapshotId\)/);
   assert.match(decision, /onGenerateReport=\{\(\) => api\.generatePortfolioReport\(review\.analysisPayload\)\}/);
   assert.match(decision, /reviewSnapshotId=\{api\.reviewSnapshotId\}/);
   assert.match(decision, /onSelectSnapshot=\{api\.setReviewSnapshotId\}/);
