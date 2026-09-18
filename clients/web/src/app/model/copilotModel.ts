@@ -77,10 +77,14 @@ export const COPILOT_POSTURES: readonly AiActionPosture[] = [
  * Product invariants the Copilot surface inherits. Derived from the Wave 1
  * contract rather than restated, so the two cannot drift; the false entries are
  * the boundary the surface may never widen.
+ *
+ * "Interpretation only, with no numeric authority" is not a second promise: it is what
+ * following the deterministic engines' ownership of the numbers *means* for this surface,
+ * so both entries are read from that invariant rather than asserted beside it.
  */
 export const COPILOT_BOUNDARY = {
-  interpretationOnly: true,
-  numericAuthority: "none",
+  interpretationOnly: AI_INVARIANTS.deterministicEnginesOwnNumbers,
+  numericAuthority: AI_INVARIANTS.deterministicEnginesOwnNumbers ? "none" : "unbounded",
   inheritsUserAuthority: AI_INVARIANTS.inheritsUserAuthority,
   mayWidenEntitlement: AI_INVARIANTS.mayBypassEntitlement,
   mayInventMissingData: AI_INVARIANTS.mayInventMissingData,

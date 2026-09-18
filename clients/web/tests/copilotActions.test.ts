@@ -564,6 +564,16 @@ test("the product boundary is restated, not merely implied", () => {
   assert.equal(AI_INVARIANTS.deterministicEnginesOwnNumbers, true);
   assert.equal(AI_INVARIANTS.mayExecuteOrNominate, false);
 
+  // Every entry is read from that set rather than restated beside it: a literal here would be a
+  // second copy of the boundary, free to drift from the invariant it claims to mirror.
+  const boundary = readWebSource("app/model/copilotModel.ts");
+  const start = boundary.indexOf("export const COPILOT_BOUNDARY = {");
+  const end = boundary.indexOf("} as const;", start);
+  const declaration = boundary.slice(start, end);
+  for (const entry of declaration.split("\n").filter((line) => line.includes(":"))) {
+    assert.match(entry, /AI_INVARIANTS\./, entry);
+  }
+
   const panel = codeLines(readWebSource("components/CopilotPanel.tsx"));
   for (const banned of ["order", "nomination", "settle", "execute", "trade"]) {
     assert.equal(new RegExp(`\\b${banned}\\b`, "i").test(panel), false, banned);

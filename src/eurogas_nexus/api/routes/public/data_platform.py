@@ -39,6 +39,18 @@ _MAX_ASSUMPTION_KEY_LENGTH = 64
 _MAX_ASSUMPTION_VALUE_LENGTH = 512
 
 
+def _job_principal(request: Request) -> str:
+    """The principal a tracked run is attributed to.
+
+    The compatibility deployment token's identifier is not expressible in the principal
+    vocabulary, so the job records the acting principal's name - the convention the
+    dataset-build, optimisation, report and agent-run paths already follow.
+    """
+
+    identity = getattr(request.state, "identity", None)
+    return identity.name if identity is not None else "public-api"
+
+
 class AnalysisSnapshotCreateRequest(BaseModel):
     """Request body for recording an Analysis Snapshot.
 
@@ -108,18 +120,43 @@ def create_analysis_snapshot(body: AnalysisSnapshotCreateRequest, request: Reque
     sqlalchemy_error = _sqlalchemy_error_type()
     try:
         from eurogas_nexus.application.data_platform_snapshots import build_analysis_snapshot
+        from eurogas_nexus.application.jobs import track_job
         from eurogas_nexus.db.repositories.data_platform import create_analysis_snapshot
         from eurogas_nexus.db.session import get_session_factory
 
         with get_session_factory()() as session:
-            descriptor = build_analysis_snapshot(
-                current_principal(request),
-                session=session,
-                active_context=body.active_context,
-                manual_assumptions=body.manual_assumptions,
-                as_of_utc=body.as_of_utc,
-            )
-            payload = create_analysis_snapshot(session, descriptor)
+            # Architecture V2 Wave 8: recording a snapshot is a run of its own family, so it is
+            # tracked like every other one - the snapshot family is declared by
+            # `JOB_RERUN_CONTRACTS` (it is the one family a re-run contract says is never
+            # re-issued), and `/api/jobs` is where a run's artefacts are read back. The job row
+            # commits in this session, with the snapshot it describes.
+            with track_job(
+                session,
+                kind="SNAPSHOT",
+                principal=_job_principal(request),
+                # The scope a snapshot run has is the Active Context it froze, recorded as the
+                # context's own references rather than invented.
+                scope_refs=tuple(
+                    f"{key.upper()}:{value}"
+                    for key, value in sorted(body.active_context.items())
+                ),
+                inputs={
+                    "as_of_utc": body.as_of_utc.isoformat() if body.as_of_utc else "",
+                    "active_context": dict(body.active_context),
+                    "manual_assumptions": dict(body.manual_assumptions or {}),
+                },
+                correlation_id=getattr(request.state, "request_id", None),
+                provenance=("data-platform", "analysis-snapshot"),
+            ) as job:
+                descriptor = build_analysis_snapshot(
+                    current_principal(request),
+                    session=session,
+                    active_context=body.active_context,
+                    manual_assumptions=body.manual_assumptions,
+                    as_of_utc=body.as_of_utc,
+                )
+                payload = create_analysis_snapshot(session, descriptor)
+                job.add_output(f"analysis_snapshot:{payload['snapshot_id']}")
             session.commit()
     except sqlalchemy_error as exc:
         raise _db_unavailable(exc) from exc

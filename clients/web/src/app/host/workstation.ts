@@ -376,6 +376,11 @@ export const DEEP_LINK_CONTEXT_KEYS = [
  * unknown page, or a link that tries to carry an authority parameter. A refused link
  * is refused loudly (nothing opens) rather than opened with the parameter ignored,
  * because ignoring it would let a caller believe it had been honoured.
+ *
+ * The refusal is inspected in **both** places a parameter can live. A link is declared as
+ * `eurogas://<page>?<context>`, but a fragment is still a place a caller can write
+ * `#role=ADMIN`, and a link that opens while silently dropping an authority claim is the
+ * outcome this function exists to prevent.
  */
 export function parseDeepLink(url: string): DeepLinkTarget | null {
   let parsed: URL;
@@ -388,8 +393,12 @@ export function parseDeepLink(url: string): DeepLinkTarget | null {
   const segments = [parsed.hostname, ...parsed.pathname.split("/")].filter(Boolean);
   const page = segments[0] ?? null;
   if (!isWorkspacePageId(page)) return null;
-  for (const forbidden of DEEP_LINK_FORBIDDEN_PARAMS) {
-    if (parsed.searchParams.has(forbidden)) return null;
+  // `?a=1&b=2`, and `#a=1&b=2` when the fragment is written as parameters.
+  const parameterSources = [parsed.searchParams, new URLSearchParams(parsed.hash.replace(/^#/, ""))];
+  for (const source of parameterSources) {
+    for (const forbidden of DEEP_LINK_FORBIDDEN_PARAMS) {
+      if (source.has(forbidden)) return null;
+    }
   }
   const context: Record<string, string> = {};
   for (const key of DEEP_LINK_CONTEXT_KEYS) {

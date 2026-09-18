@@ -28,7 +28,7 @@ and "Data entitlement" already had a fail-closed per-principal implementation in
 
 | Element | Where | What it does |
 |---|---|---|
-| Data Product catalogue as code | `src/eurogas_nexus/domain/data_platform/products.py` | Ten declared products (the eight named by 07 §2 plus two honest gap declarations), each with stable id, business name, domain, declared source families, simulated substitutes, entitlement families, time basis + gas-day calendar version, freshness expectation, explicit availability state, and the surfaces that serve it today |
+| Data Product catalogue as code | `src/eurogas_nexus/domain/data_platform/products.py` | Nine declared products (the eight named by 07 §2 plus one honest gap declaration, `lng-cargo-flow-context`), each with stable id, business name, domain, declared source families, simulated substitutes, entitlement families, time basis + gas-day calendar version, freshness expectation, explicit availability state, and the surfaces that serve it today |
 | Catalogue read model | `src/eurogas_nexus/application/data_products.py` | Composes the declaration with the per-principal entitlement verdict and a measured freshness/provenance summary |
 | Provenance reader | `src/eurogas_nexus/db/repositories/data_platform.py` | Per canonical table: row count, newest observation timestamp and per-label split. Exposes no credential, scheduler or retry state |
 | Snapshot descriptor contract | `src/eurogas_nexus/domain/data_platform/snapshots.py` | The 07 §6 field list, the declared-availability model, the Active Context vocabulary, and the deterministic `content_hash` |
@@ -147,7 +147,7 @@ client surface actually runs now accepts, verifies and echoes the reference:
 |---|---|---|---|
 | `POST /api/route-cost/recommend` | yes | `data.analysis_snapshot_id` | response only |
 | `POST /api/route-cost/resource-pool/optimize` | yes | on the result | the tracked run's `snapshot_id` |
-| `POST /api/strategy-runs` (`run_type=BACKTEST`) | yes - no run row or job is created when refused | on the result | the strategy run and its job |
+| `POST /api/strategy-runs` (`run_type=BACKTEST`) | yes - no run row or job is created when refused | on the result | the tracked `BACKTEST` job's `snapshot_id` |
 | `POST /api/analysis/query` | yes - before the input snapshot is loaded and before any provider call | on the result, absent when nothing was cited | the persisted analysis record's output snapshot |
 | `POST /api/reports/portfolio` | yes | on the report, absent when nothing was cited | the tracked `REPORT` job's `snapshot_id` |
 
@@ -156,6 +156,11 @@ Two things this follow-up deliberately states rather than implies:
 - **Verification comes first on the analysis path** because that path can call an external
   provider. An unverifiable citation is refused before the call, so a bad reference cannot be
   paid for with a request to a third party.
+- **The backend route is the only place a citation becomes durable.** For the backtest and the
+  portfolio report the run's own row has no column for a cited reference (the backtest run's snapshot
+  fields describe the data it computed over), so the tracked job carries it, and re-reading the run
+  reports the run rather than the Analysis Snapshot it cited. The analysis path is the exception
+  because its own record already stores the input snapshot it ran against.
 - **The stored report record has no column for a cited reference.** Its sections and source
   references are unchanged, and the citation lives on the tracked run; adding a column is a
   migration, not something to imply. The analysis record needs no such column because the
@@ -192,6 +197,17 @@ dataset catalogue it describes):
   basis, sources) and says why it is restricted, with no count in the provenance cell;
 - a state this build has no label for is rendered as its own code, and a failed read is reported
   as an alert rather than shown as an empty catalogue.
+
+**The backend half of that rule was repaired after the fact.** The client could classify three
+states, but the catalogue only ever produced two: an entitled product received a full provenance
+block even when no runtime database existed to measure it, so every entitled product arrived as
+`measured` with `row_count: 0` and the surface printed the placeholder zero this section says it
+cannot print. `application/data_products.py` now distinguishes *could not measure* from *measured
+zero*: a deployment without a runtime store publishes **no** provenance block for an entitled
+product (which is what makes the `unmeasured` state reachable), while a configured store that holds
+no rows still publishes one with a real `0` and the `NO_RUNTIME_ROWS` flag, because that is a
+measurement. Both halves are pinned - `tests/api/test_data_platform_api.py` asserts the two shapes
+and `clients/web/tests/dataProductCatalogue.test.ts` the two classifications.
 
 Still open in this family: the `researchCapabilities` read remains without a consumer.
 
@@ -246,7 +262,10 @@ a table, and no client calls a provider.
   own already-declared path.
 - **Numerics:** unchanged. No existing calculation was touched; the route-cost
   recommendation adds only a reference echo and a verification lookup.
-- **Client:** unchanged. No client code was modified.
+- **Client:** unchanged *at the time this slice was written* - the backend slice added no client code.
+  The client half followed in the same wave (the Data Products view, snapshot recording and the
+  citation picker, described in the sections above), so this line is a scope statement about the
+  backend slice, not a claim about the tree.
 
 ## 9. Verification
 

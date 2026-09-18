@@ -68,7 +68,8 @@ The wave's real content is the extraction, not the four new routes:
 
 - Additive: four new GET paths, pinned in `tests/contract/test_api_surface_stability.py`, recorded
   in `docs/architecture/API_CONTRACT_EVOLUTION_POLICY.md`, and counted in the security acceptance
-  surface bound (175 paths).
+  surface bound (175 paths when this slice landed; the bound is **178** today, and the script is the
+  authority for it).
 - No schema, migration, datastore, dependency, permission widening or numerical change. Existing
   `/api/market/*` and `/api/portfolio/*` payloads are byte-identical (their suites still pass).
 - The projections import no `eurogas_nexus.api` module and keep SQLAlchemy behind `TYPE_CHECKING`,
@@ -162,8 +163,9 @@ Honesty rules the client keeps:
 ## 9. Verification
 
 - `tests/api/test_projections_api.py` (10 tests) and `tests/unit/test_projections_application.py`
-  (21 tests): coherent single time basis, per-slice freshness, entitlement at least as strict as the
-  underlying route, empty/degraded states, payload stability, and the `gas_day_invalid` 422.
+  (24 tests at the current tree; 21 when this slice landed): coherent single time basis, per-slice
+  freshness, entitlement at least as strict as the underlying route, empty/degraded states, payload
+  stability, and the `gas_day_invalid` 422.
 - `clients/web/tests/marketContextProjection.test.ts` (7 tests) and
   `clients/web/tests/portfolioSnapshotProjection.test.ts` (8 tests): as-of/time-basis coherence,
   unavailable-is-not-empty, an unmeasured summary is `null` rather than zero, stale and restricted

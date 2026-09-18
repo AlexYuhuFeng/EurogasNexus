@@ -87,7 +87,8 @@ Architecture V2 is the binding target architecture and product-experience intera
 - Wave 0 evidence: [client inventory](engineering/Architecture-V2/W0-01_CLIENT_INVENTORY.md),
   [backend access inventory](engineering/Architecture-V2/W0-02_BACKEND_ACCESS_INVENTORY.md),
   [reconciliation and gate](engineering/Architecture-V2/W0-03_ARCHITECTURE_RECONCILIATION.md),
-  [architecture fitness gaps](engineering/Architecture-V2/W0-03_FITNESS_GAPS.md).
+  [architecture fitness gaps](engineering/Architecture-V2/W0-03_FITNESS_GAPS.md),
+  [claim audit of the wave records](engineering/Architecture-V2/W0-04_CLAIM_AUDIT_OF_THE_WAVE_RECORDS.md).
 - Wave 1 contracts: [shell and Active Context](engineering/Architecture-V2/W1-01_SHELL_AND_ACTIVE_CONTEXT_CONTRACT.md),
   [workspace patterns and panels](engineering/Architecture-V2/W1-02_WORKSPACE_PATTERN_AND_PANEL_REGISTRY.md),
   [Inspector, AI actions and command palette](engineering/Architecture-V2/W1-03_INSPECTOR_AI_AND_COMMAND_CONTRACT.md),

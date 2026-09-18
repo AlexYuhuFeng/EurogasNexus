@@ -109,7 +109,8 @@ Architecture V2 是绑定的目标架构与产品体验交互权威（ADR-0016�
 - Wave 0 证据：[客户端清单](engineering/Architecture-V2/W0-01_CLIENT_INVENTORY.md)、
   [后端访问清单](engineering/Architecture-V2/W0-02_BACKEND_ACCESS_INVENTORY.md)、
   [冲突协调与门禁](engineering/Architecture-V2/W0-03_ARCHITECTURE_RECONCILIATION.md)、
-  [架构适应度缺口](engineering/Architecture-V2/W0-03_FITNESS_GAPS.md)。
+  [架构适应度缺口](engineering/Architecture-V2/W0-03_FITNESS_GAPS.md)、
+  [各波次记录的断言审计](engineering/Architecture-V2/W0-04_CLAIM_AUDIT_OF_THE_WAVE_RECORDS.md)。
 - Wave 1 合同：[外壳与活动上下文](engineering/Architecture-V2/W1-01_SHELL_AND_ACTIVE_CONTEXT_CONTRACT.md)、
   [工作区模式与面板](engineering/Architecture-V2/W1-02_WORKSPACE_PATTERN_AND_PANEL_REGISTRY.md)、
   [检查器、AI 动作与命令面板](engineering/Architecture-V2/W1-03_INSPECTOR_AI_AND_COMMAND_CONTRACT.md)、

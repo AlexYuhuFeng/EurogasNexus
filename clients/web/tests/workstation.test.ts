@@ -198,7 +198,18 @@ test("a deep link opens only declared pages and refuses authority parameters", (
   // while ignoring the parameter would let the caller believe it had been applied.
   for (const forbidden of DEEP_LINK_FORBIDDEN_PARAMS) {
     assert.equal(parseDeepLink(`eurogas://market?${forbidden}=ADMIN`), null, forbidden);
+    // The fragment is the other place a parameter can be written, and a link that opened
+    // while dropping the claim would be the same lie.
+    assert.equal(parseDeepLink(`eurogas://market#${forbidden}=ADMIN`), null, `${forbidden} (fragment)`);
+    assert.equal(
+      parseDeepLink(`eurogas://market?hub=TTF#${forbidden}=ADMIN`),
+      null,
+      `${forbidden} (fragment beside context)`,
+    );
   }
+
+  // A fragment that is not a parameter list is not a parameter list: it stays ignorable.
+  assert.ok(parseDeepLink("eurogas://market?hub=TTF#section-2"));
 
   // Only declared context keys survive, so a link cannot smuggle extra state.
   const extra = parseDeepLink("eurogas://market?hub=TTF&theme=dark&filter=secret");

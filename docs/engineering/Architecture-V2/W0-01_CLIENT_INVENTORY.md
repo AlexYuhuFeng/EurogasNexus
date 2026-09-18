@@ -2,6 +2,14 @@
 
 Status: Wave 0 evidence artifact. Documentation only. Not an acceptance of Wave 0.
 
+**Read this as a baseline, not as current state.** Every count, path and "absent" statement below
+describes the tree at the repair HEAD `dd1abe1` (2026-09-14). The programme has since delivered Waves
+1-10, so several of them have moved: navigation declares six primaries (Wave 3 split the control
+plane out), the client surfaces the "Absent" rows name now exist, and the client API method census is
+restated in [W0-03](W0-03_ARCHITECTURE_RECONCILIATION.md)'s conflict register, which is where the
+corrections and their measurements live. Nothing in this file is edited to keep up with the code; a
+reader who needs today's behaviour reads the wave records or the code.
+
 - Task: W0-01 (DeepSeek worker brief, `.automation/runtime/tasks/W0-01.md`).
 - Repair task: W0-01-R1 (Astra integration review; brief `.automation/runtime/tasks/W0-01-R1.md`).
   W0-01 was REWORK_REQUIRED, not accepted; this repair corrects the evidence in this file only.
@@ -150,8 +158,10 @@ Helpers: `primaryWorkspaceForPage` (throws for an unmapped page) `:66-72`,
 `defaultWorkspacePageForPrimary` `:87-93`. `PrimaryWorkspaceId`/`PrimaryWorkspace`
 interfaces at `:3-16`.
 
-Every child appears exactly once across the five primaries; this is asserted by
-`tests/contract/test_workspace_navigation_contract.py` and `clients/web/tests/productNavigation.test.ts`.
+Every child appears exactly once across the primaries of the Wave 0/1 baseline (five; six since
+Wave 3 split the control plane out - see the note on section 2.3 below); this is asserted by
+`tests/contract/test_workspace_navigation_contract.py` and `clients/web/tests/productNavigation.test.ts`,
+both of which now assert the six-primary model.
 
 ### 2.3 URL contract and history semantics
 

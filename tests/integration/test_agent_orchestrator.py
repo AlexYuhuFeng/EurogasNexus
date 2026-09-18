@@ -170,6 +170,38 @@ def test_blocked_flow_persists_blocker(session) -> None:
     assert session.query(AgentResearchBudgetRecord).count() == 1
 
 
+def test_a_blocked_run_also_qualifies_the_profile_it_carries(session) -> None:
+    """A run that stops at a precondition still says which declared stages never ran.
+
+    The note is derived where the run state is written rather than at the end of the happy
+    path, so the early BLOCKED exits - an exhausted budget, a plan that fails validation, a
+    strategy draft with no history - carry it too. Otherwise a blocked run would claim its
+    profile on the run row and in its tracked job's scope while saying nothing about the
+    pipeline it never entered.
+    """
+
+    # Plan validation blocks: the plan names a hub whose canonical entity is gone.
+    session.query(CanonicalEntityRecord).filter(
+        CanonicalEntityRecord.canonical_entity_id == "ent:market_hub:TTF"
+    ).delete()
+    session.commit()
+
+    outcome = _run(session)
+
+    assert outcome.status.value == "BLOCKED"
+    notes = [item for item in outcome.warnings if item.startswith("PROFILE_STAGES_NOT_REACHED:")]
+    assert len(notes) == 1, outcome.warnings
+    # The unreached list names real declared stages, and the run's own stage record agrees.
+    unreached = notes[0].split(":", 1)[1].split(",")
+    assert "DATA_ANALYSIS" in unreached
+    assert all(stage not in outcome.stages_reached for stage in unreached)
+
+    # And it is persisted with the state the run row records, not only returned in memory.
+    row = agents.get_agent_run(session, outcome.run_id)
+    assert row is not None
+    assert notes[0] in list(row.warnings)
+
+
 def test_budget_is_created_and_replay_safe(session) -> None:
     outcome = _run(session)
     assert outcome.status.value == "READY_FOR_HUMAN_REVIEW"

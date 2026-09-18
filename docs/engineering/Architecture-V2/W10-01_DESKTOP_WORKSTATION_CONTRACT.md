@@ -65,8 +65,14 @@ The payload type is the security property:
 - `buildNotificationPayload` composes it through an allowlist, so a caller that passes a
   price, a volume or a whole backend record gets a payload without them. A withheld
   row cannot reach the operating system's notification centre;
-- the client composes the copy from translation keys (it owns the localisation) while
-  the values stay on screen, under the identity and entitlement that fetched them;
+- the copy is composed from translation keys (the client owns the localisation) while
+  the values stay on screen, under the identity and entitlement that fetched them. This
+  bullet is **contract, not delivered behaviour**: the payload type carries `titleKey`/
+  `bodyKey` and the allowlist enforces them, but no production code composes a
+  notification from them yet and neither locale declares a `notification*` key, because
+  the native surface that would deliver one is not implemented (section 7). The keys are
+  what the delivery half will read; until then nothing can show a value in a notification,
+  which is the guarantee this bullet exists for;
 - a severity below the family's floor produces no notification at all, rather than an
   in-app event dressed up as an OS interruption.
 
@@ -81,7 +87,10 @@ The payload type is the security property:
   `entitlement`, `scope`, `principal`, `token`) is **refused outright**, not opened with
   the parameter ignored: ignoring it would let a caller believe it had been honoured.
   A deep link is a navigation convenience, never an authentication or authorisation
-  mechanism.
+  mechanism. The refusal inspects **both** places a parameter can be written - the query
+  and the fragment - because `#role=ADMIN` is the same claim in a different position, and
+  a link that opened while dropping it would be the same lie. (This was the narrow gap in
+  the first delivery: the query was refused and the fragment was not inspected at all.)
 - Unknown query keys are dropped rather than forwarded.
 - `buildDeepLink` falls back to the default page for an unknown page, so the product
   never produces a link it cannot open.
@@ -122,7 +131,9 @@ real surface, and the rules that make it safe are structural rather than convent
   means declaring its capability class in `HOST_COMMAND_CAPABILITIES` first.
 - `clients/web/src/components/DiagnosticsPanel.tsx` shows what would leave before it leaves -
   every field with its value, and every field that could not be reported - beside the activity
-  timeline on the runtime readiness surface, which is where an operator already looks.
+  timeline in the runtime page's **governance** view, which is where an operator reviewing what a
+  run would hand over already looks. (The runtime page opens on its readiness view, where neither
+  panel is mounted: naming the page rather than the view was inaccurate in the first delivery.)
 
 ## 6. Shortcut model
 

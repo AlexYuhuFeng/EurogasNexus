@@ -1625,9 +1625,12 @@ export interface AnalysisRequestDTO {
  *
  * The catalogue is the platform's declared read model: what a product is, which case it
  * answers, its time basis, the source families behind it, and - per principal - whether this
- * caller may see its values. `provenance` is present only when the caller is entitled; a
- * restricted product is still listed, so absence of provenance here means "withheld", never
- * "nothing to report".
+ * caller may see its values. `provenance` is present only when the caller is entitled **and**
+ * the deployment could measure it: a restricted product carries none because the values are
+ * withheld, and an entitled product carries none when the deployment has no runtime database
+ * to measure with. Both read as "nothing to show" rather than as a zero, which is a
+ * measurement - the two are told apart by `restricted` and by the catalogue's own
+ * `runtime_available` flag, never by the absence alone.
  */
 export interface DataProductDTO {
   product_id: string;

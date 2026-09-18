@@ -288,11 +288,34 @@ def test_catalogue_without_a_runtime_database_is_honest(db_url: str, monkeypatch
     client = TestClient(create_app())
 
     body = client.get("/api/data-products").json()
-    assert body["data"]["runtime_available"] is False
-    entry = body["data"]["products"][0]
-    assert entry["provenance"]["freshness"]["status"] in {"MISSING", "NOT_EXPECTED"}
-    assert "RUNTIME_DATABASE_NOT_CONFIGURED" in entry["provenance"]["quality_flags"]
+    data = body["data"]
+    assert data["runtime_available"] is False
+    # An entitled product whose provenance could not be measured carries **no** provenance block.
+    # Publishing one filled with placeholders is what made a deployment without a runtime database
+    # read as "this product is empty": the surface printed the zero as a measurement.
+    allowed = [entry for entry in data["products"] if not entry["restricted"]]
+    assert allowed, "the compatibility principal is entitled to the catalogue"
+    assert all(entry["provenance"] is None for entry in allowed)
+    # The unavailability is still stated, twice: the catalogue-level flag and the envelope warning.
     assert "Runtime DB is not configured" in " ".join(body["meta"]["warnings"])
+
+
+def test_a_measured_zero_stays_a_zero(db_url: str) -> None:
+    """A configured store that holds no rows is a measurement, not an absence."""
+
+    client = TestClient(create_app())
+
+    data = client.get("/api/data-products").json()["data"]
+    assert data["runtime_available"] is True
+    allowed = [entry for entry in data["products"] if not entry["restricted"]]
+    assert allowed
+    for entry in allowed:
+        assert entry["provenance"] is not None
+        assert entry["provenance"]["row_count"] == 0
+    # And a product nobody declared a source for says so rather than being merely empty.
+    assert any(
+        "NO_RUNTIME_ROWS" in entry["provenance"]["quality_flags"] for entry in allowed
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -349,6 +372,42 @@ def test_snapshot_round_trip_records_versions_and_absences(db_url: str) -> None:
 
     by_gas_day = client.get("/api/analysis-snapshots", params={"gas_day": "2025-01-01"})
     assert by_gas_day.json()["data"] == []
+
+
+def test_recording_a_snapshot_registers_it_in_the_unified_job_model(db_url: str) -> None:
+    """The snapshot family is tracked like every other run family (Architecture V2 Wave 8)."""
+
+    from eurogas_nexus.db.models import JobRecord
+
+    _seed_runtime_rows(db_url)
+    client = TestClient(create_app())
+
+    payload = client.post(
+        "/api/analysis-snapshots",
+        json={
+            "as_of_utc": "2026-01-02T10:00:00+00:00",
+            "active_context": {"workspace": "market", "hub": "NBP", "gas_day": "2026-01-02"},
+        },
+    ).json()["data"]
+
+    with Session(create_engine(db_url, future=True)) as session:
+        jobs = session.query(JobRecord).all()
+
+    assert len(jobs) == 1
+    job = jobs[0]
+    assert job.kind == "SNAPSHOT"
+    assert job.status == "SUCCEEDED"
+    # The artefact reference is the snapshot that really exists, under its stored id.
+    assert list(job.output_refs_json) == [f"analysis_snapshot:{payload['snapshot_id']}"]
+    # Its scope is the Active Context it froze, recorded as those references.
+    assert sorted(job.scope_refs_json) == ["GAS_DAY:2026-01-02", "HUB:NBP", "WORKSPACE:market"]
+    assert "analysis-snapshot" in list(job.provenance_json)
+    assert job.input_hash
+    # A run is attributed to the acting principal, never to a credential.
+    assert job.principal and PUBLIC_TOKEN not in job.principal
+    # And it is listed by the public read, so the family is reachable rather than merely stored.
+    listed = client.get("/api/jobs", params={"kind": "SNAPSHOT"})
+    assert [row["job_id"] for row in listed.json()["data"]] == [job.job_id]
 
 
 def test_snapshot_is_reproducible_from_its_own_payload(db_url: str) -> None:

@@ -49,8 +49,13 @@ Every shell region is now either `present` or `partial`; nothing remains in the
   hidden. Availability is presentation only: the backend still authorises every
   request.
 - Canonical AI actions (`ask`, `explain`, `compare`, `challenge`, `draft`) stay in
-  the contract but are omitted from the runtime palette until their invocation
-  surface exists (Wave 7), so no command is offered that would do nothing.
+  the contract. When this slice was written they were **omitted from the runtime palette**
+  because their invocation surface did not exist yet, so no command could be offered that
+  would do nothing. Wave 7 delivered that surface (the palette's AI entries mount the
+  Copilot), so they are offered today: `useCommandPalette` offers them unless a caller
+  passes `includeAiActions: false`, and no caller does. The rule this bullet was written
+  for still holds - a command is offered only when it does something - which is what the
+  Wave 7 palette test asserts.
 - Accessibility: `role="dialog"` with `aria-modal`, a labelled search input,
   `role="listbox"`/`role="option"` with `aria-selected` and `aria-activedescendant`,
   and `aria-disabled` on unavailable entries.
@@ -170,9 +175,11 @@ workspace's single primary slot" lived only in prose and in its own unit test.
   `app/model/contractDraftModel.ts` as pure functions (`contractValidationIssueKeys`,
   `contractViewFacts`, `contractSaveState`), the sub-view state is owned by the workspace that
   hosts the action, and the panel receives `taskView`/`viewFacts`/`saveState` as props: it
-  renders the sub-views, the translated issue list and the save outcome, and no longer
-  evaluates the rule, holds the payload or renders a save control. The action's blocked state
-  and its explanation key therefore come from the same computation the panel reports.
+  renders the sub-views, the translated issue list and the save outcome, holds no payload and
+  renders no save control. Its issue list is still built by calling the *shared* rule
+  (`contractValidationIssueKeys`) rather than by re-deriving validity, which is the distinction
+  that matters here: the panel consumes the rule, it does not restate it. The action's blocked
+  state and its explanation key therefore come from the same computation the panel reports.
 
 The remaining surfaces still keep their primary actions inside panels; each needs its handler
 and blocked-state lifted to the component that owns the header, which is a per-surface change
@@ -353,7 +360,12 @@ requires a new contract.
 
 ## 9. Compatibility
 
-- No route, deep link, page id or workspace composition changed in these slices.
+- No route, deep link, page id or workspace composition changed in **the slices section 4 and
+  section 6 describe**. One URL's *resolution* did change, in the navigation work this document
+  records as C10: a bare `?workspace=orders` link now opens the market-positioning view instead of
+  the overview, because the page id names that view. The URL format, the page ids and the declared
+  task parameters are unchanged, so a link keeps working and lands where its page says it lands -
+  which is the point of the change rather than an exception to this section.
 - No API, schema, permission, numerical, release or DR behaviour changed.
 - New user-visible vocabulary is bilingual (`en`, `zh-CN`), and the shell surfaces
   add no new colour, type or motion family.

@@ -106,7 +106,11 @@ The surface shows the route it will use, so the invocation is not a black box.
 ## 6. Boundary (non-negotiable)
 
 `COPILOT_BOUNDARY` is derived from the Wave 1 `AI_INVARIANTS` rather than restated, so the two cannot
-drift:
+drift. Every one of the eight entries reads an invariant: the first two follow from
+`deterministicEnginesOwnNumbers` (a surface that owns no number is interpretation-only and has no
+numeric authority), and the rest are the invariant itself. A literal in that object would be a second
+copy of the boundary, free to drift from what it claims to mirror, so a test reads the declaration and
+fails if any entry stops deriving:
 
 | Invariant | Value |
 |---|---|
@@ -307,6 +311,14 @@ accepted input that the run silently ignored:
   `BACKTESTED` is now recorded only when the backtest produced a run, and a test drives a run with a
   frozen version that cannot be backtested to assert it reports `BACKTEST_DEFERRED` and
   `PROFILE_STAGES_NOT_REACHED:BACKTESTED` rather than claiming the stage.
+- **The note itself was applied on one exit only.** It ran at the end of the happy path, so the three
+  early `BLOCKED` returns - an exhausted budget, a plan that failed validation, a strategy draft with
+  no history - carried the profile on the run row and in the tracked job's scope while saying nothing
+  about the pipeline they never entered. Those are precisely the runs whose label most needs
+  qualifying. The note is now derived where the run state is written (`_persist_run_state`), which
+  every exit path uses, so it cannot be forgotten at a new return; `tests/integration/
+  test_agent_orchestrator.py` drives the plan-validation block and asserts both that the warning is
+  reported and that it reaches the persisted row.
 
 With both halves delivered, and the capability-invoke surface shipped earlier, the `/agent/*` family
 is converged: a run's profile is now a *validated, self-qualifying* label, which is what makes
@@ -316,9 +328,10 @@ choosing a label that does not change the pipeline would imply a capability that
 ## 16. The analysis request stopped declaring selections it cannot apply
 
 The same failure mode - an accepted input the run silently ignored - was still open on the analysis
-and report routes, in six fields: `selected_terms`, `selected_assets`, `selected_contracts` and
-`include_sections` on `POST /api/analysis/query`, and `portfolio_id`, `selected_resources`,
-`selected_contracts` and `selected_strategies` on `POST /api/reports/portfolio`. The deterministic
+and report routes: **eight field positions across the two routes, seven distinct names**
+(`selected_contracts` is declared by both). On `POST /api/analysis/query`: `selected_terms`,
+`selected_assets`, `selected_contracts` and `include_sections`. On `POST /api/reports/portfolio`:
+`portfolio_id`, `selected_resources`, `selected_contracts` and `selected_strategies`. The deterministic
 builders read the snapshot, the task and the question; they read none of these. A caller naming a
 portfolio therefore received a report over the whole entitled snapshot, and a caller naming sections
 received the task's full section set - with nothing in the response saying so.

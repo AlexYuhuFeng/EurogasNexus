@@ -60,6 +60,7 @@ The seam only earns its keep when existing work registers into it, so the paths 
 | Portfolio report (`POST /api/reports/portfolio`) | `run_tracked_job()` | `generated_report:<report_id>`, and **only** when the report really was persisted |
 | Governed agent research (`POST /api/agent/research`) | `track_job()` in the run's own session, committed after the tracker wrote the terminal outcome | `agent_run:<run_id>` plus every artefact that carries an id (`strategy_version:`, `backtest:`, `review-pack:`); the orchestrator's bare artefact labels are not dressed up as references |
 | Ingestion runs (`execute_claimed_runs`, the worker path) | `track_job()` per claimed run, with the outcome stated on the handle because the runtime reports failure in its return value rather than by raising | `ingestion_run:<run_id>` on a successful run; a failed run records the run's own error code and cites no artefact |
+| Analysis Snapshot recording (`POST /api/analysis-snapshots`) | `track_job()` in the handler's own session, committed with the snapshot it describes | `analysis_snapshot:<snapshot_id>` - added after the fact, because the family's `JobKind` member and its re-run contract existed while no path created one |
 
 The report path needed one honesty fix before it could be tracked: `_persist_report_if_db` swallowed
 every failure, so a job would have cited a report the store does not hold. Persistence is still
@@ -86,7 +87,10 @@ mechanism follows the audit-retention pattern, and the *policy* stays the operat
 - **Pruning removes bookkeeping, never work.** The reports, strategy runs, dataset snapshots and
   agent runs a job's output references name are separate records the prune does not touch.
 - `scripts/ops/prune_job_records.py` is dry-run by default, requires `--retention-days`, and prints
-  rows deleted, rows eligible, active rows retained and the oldest instant still represented.
+  rows deleted, rows eligible, active rows retained and the oldest instant still represented. The last
+  of those was carried in the summary and never printed until it was pointed out; without it "0 rows
+  deleted" cannot be told apart from "this table is empty", which are different states for an operator
+  to be in.
 - No route exposes it. Bounding operational bookkeeping is an operator action on the deployment;
   the audit endpoints are served because an auditor needs a served, audited path, and mirroring
   that for jobs is a deliberate step if an operator asks for it.
@@ -130,11 +134,16 @@ of the record, not a feature to switch on, and it is now declared per kind in
 | `SNAPSHOT` | **no** | - | - |
 
 Every run family V2 names is now tracked: ingestion, dataset builds, optimisation, backtests,
-reporting, agent runs and snapshots. The ingestion path needed one addition to the seam - work that
-reports its outcome in a return value rather than by raising can state it on the handle
-(`JobHandle.mark_failed`), so the job records the run's real outcome instead of the mere fact that the
-worker did not throw. Tracking there also degrades to untracked when a store cannot accept a job row,
-because a missing job row is an operational gap while a skipped ingestion is lost data.
+reporting, agent runs and snapshots. **The last of those was claimed one revision early** - the
+`SNAPSHOT` kind and its re-run contract existed while nothing created such a job, which is exactly the
+kind of gap a table like the one above hides; `POST /api/analysis-snapshots` now opens one in the same
+session as the snapshot it describes, with the frozen Active Context as its scope, so the family is
+reachable through `/api/jobs?kind=SNAPSHOT` rather than merely declared. The ingestion path needed one
+addition to the seam - work that reports its outcome in a return value rather than by raising can state
+it on the handle (`JobHandle.mark_failed`), so the job records the run's real outcome instead of the
+mere fact that the worker did not throw. Tracking there also degrades to untracked when a store cannot
+accept a job row, because a missing job row is an operational gap while a skipped ingestion is lost
+data.
 
 ## 7. Verification
 

@@ -112,6 +112,9 @@ Wave 0 (baseline and architecture freeze):
 - [W0-03 architecture reconciliation](W0-03_ARCHITECTURE_RECONCILIATION.md) — conflict register,
   current-to-target map and the Wave 0 gate.
 - [W0-03 fitness gaps](W0-03_FITNESS_GAPS.md) — coverage of the V2 architecture fitness functions.
+- [W0-04 claim audit of the wave records](W0-04_CLAIM_AUDIT_OF_THE_WAVE_RECORDS.md) — every normative
+  claim in the wave records checked against the code, with what was fixed, what was corrected and
+  what stays an owner decision.
 
 Wave 1 (product experience architecture foundation):
 

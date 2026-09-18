@@ -64,9 +64,10 @@ the `READ` floor — the same treatment as `/api/review/decisions`.
   `docs/architecture/API_CONTRACT_EVOLUTION_POLICY.md`, counted in the security acceptance bound.
 - New migration `0035_decision_cases` is expand-only: it creates two tables and their indexes,
   alters nothing existing, needs no backfill, and is safe while the application serves traffic.
-  `src/eurogas_nexus/release/constants.py::DB_SCHEMA_REVISION` now reports `0035_decision_cases`, and
-  the release-metadata test asserts that value equals the real Alembic head, so the constant cannot
-  drift again.
+  `src/eurogas_nexus/release/constants.py::DB_SCHEMA_REVISION` reported `0035_decision_cases` when
+  this slice landed and reports `0036_job_records` today (the Wave 8 job-lifecycle revision moved the
+  head on), and the release-metadata test asserts that value equals the real Alembic head, so the
+  constant cannot drift again - it tracks the head rather than this revision.
 - No permission widening: the commercial boundary, role floors and entitlement filtering are
   unchanged.
 - The panel is additive on the review task; the existing review-decision flow is untouched, and the
@@ -77,8 +78,14 @@ the `READ` floor — the same treatment as `/api/review/decisions`.
 - `tests/unit/test_decision_case_domain.py` — decidability, blocker codes, named-human requirement,
   note bounds, structure validation, reopen history, evidence deduplication.
 - `tests/api/test_decision_cases_api.py` — 409 before evidence with blockers, evidence → decision →
-  reopen flow, evidence deduplication, the actor coming from the identity rather than the body,
-  404/422 behaviour, and the migration actually applying on SQLite.
+  reopen flow, evidence deduplication, the actor coming from the identity rather than the body, and
+  404/422 behaviour.
+- `tests/unit/test_decision_case_migration.py` — the migration applying for real: the draft's
+  `upgrade()`/`downgrade()` run against a throw-away SQLite database, the created tables/columns/
+  indexes, that nothing pre-existing is touched, and that a decision record cannot name a case that
+  does not exist (and is removed with its case). This file was added because the line it replaces -
+  "the migration actually applying on SQLite" listed under the API suite - was not true: that suite
+  builds its schema with `Base.metadata.create_all` and nothing anywhere read revision `0035`.
 - `clients/web/tests/decisionCaseSurface.test.ts` — availability only when the payload says
   decidable, reproducibility and decidedness read from the payload, list splitting, stable label keys
   for unknown blockers, Active-Context-suggested references, the actor never being sent, failures

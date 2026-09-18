@@ -161,7 +161,11 @@ def test_the_script_prunes_with_an_explicit_window(tmp_path, monkeypatch, capsys
 
     # Dry-run is the default: the rows are counted, not removed.
     assert script.main(["--retention-days", "180"]) == 0
-    assert "dry-run" in capsys.readouterr().out
+    dry_run_output = capsys.readouterr().out
+    assert "dry-run" in dry_run_output
+    # The operator is told what the window still represents, not only what it would remove:
+    # without it, "0 rows deleted" cannot be told apart from "this table is empty".
+    assert "Oldest job still represented: 2025-" in dry_run_output
     with Session(create_engine(database_url, future=True)) as session:
         assert session.query(JobRecord).count() == 2
 
@@ -170,5 +174,8 @@ def test_the_script_prunes_with_an_explicit_window(tmp_path, monkeypatch, capsys
     assert "committed" in output
     # The stale active row is reported with the recovery script to run, not deleted.
     assert "recover_stale_jobs.py" in output
+    # A retained active row is still represented, so the oldest instant is its own: the line
+    # describes what the table holds, not only what the window removed.
+    assert "Oldest job still represented: 2025-" in output
     with Session(create_engine(database_url, future=True)) as session:
         assert {row.job_id for row in session.query(JobRecord).all()} == {"old-running"}

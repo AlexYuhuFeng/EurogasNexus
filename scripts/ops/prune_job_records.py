@@ -81,6 +81,11 @@ def main(argv: list[str] | None = None) -> int:
         f"{summary['jobs_eligible']} eligible "
         f"(retention_days={summary['retention_days']}, cutoff={summary['cutoff_utc']})."
     )
+    # What the window still represents: the oldest record that survives it, or the fact that none
+    # does. An operator reading the line above alone cannot tell whether history now starts at the
+    # cutoff or the table is empty, and those are different states to be in.
+    oldest = summary["oldest_job_created_at_utc"]
+    print(f"Oldest job still represented: {oldest if oldest else 'none'}")
     if summary["active_jobs_retained"]:
         # Older than the window and still not terminal: that is stale work, not history, and
         # the retention pass deliberately left it alone.

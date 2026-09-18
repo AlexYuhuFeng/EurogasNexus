@@ -64,8 +64,20 @@ def build_data_product_catalogue(
 
     now = _as_utc(now_utc or datetime.now(UTC))
     provenance = _load_provenance(session)
+    # Whether the platform could *measure* provenance at all, as opposed to measuring zero: a
+    # configured runtime store answers for every declared table (a table with no rows is a
+    # measured zero), while a deployment without one cannot answer anything. An entitled product
+    # whose provenance could not be measured publishes no provenance block, so no surface can
+    # print a placeholder count that reads like "this product is empty".
+    measurable = session is not None and bool(provenance)
     products = [
-        _product_entry(product, principal=principal, provenance=provenance, now_utc=now)
+        _product_entry(
+            product,
+            principal=principal,
+            provenance=provenance,
+            measurable=measurable,
+            now_utc=now,
+        )
         for product in data_products()
     ]
     restricted = [entry for entry in products if entry["restricted"]]
@@ -100,9 +112,16 @@ def _product_entry(
     *,
     principal: AuthenticatedPrincipal,
     provenance: Mapping[str, dict[str, Any]],
+    measurable: bool,
     now_utc: datetime,
 ) -> dict[str, Any]:
-    """Render one catalogue entry, including its entitlement verdict."""
+    """Render one catalogue entry, including its entitlement verdict.
+
+    An entitlement verdict and a measurement are two different things, and the entry keeps them
+    apart: a restricted product has no provenance block because the caller may not see it, and an
+    entitled product has none when the deployment could not measure it. Both read as "nothing to
+    show" rather than as a zero, which is a measurement.
+    """
 
     entitlement = evaluate_product_entitlement(principal, product)
     entry: dict[str, Any] = {
@@ -143,7 +162,7 @@ def _product_entry(
         "provenance": None,
         "human_review_required": True,
     }
-    if entitlement.allowed:
+    if entitlement.allowed and measurable:
         entry["provenance"] = _provenance_entry(
             product, provenance=provenance, now_utc=now_utc
         )

@@ -267,7 +267,7 @@ class GovernedResearchOrchestrator:
             OrchestrationStage.READY_FOR_HUMAN_REVIEW,
             AgentRunStatus.READY_FOR_HUMAN_REVIEW,
         )
-        self._note_unreached_profile_stages(outcome, agent_profile)
+        # The profile note is applied by `_persist_run_state`, which every exit uses.
         self._persist_run_state(session, outcome)
         return outcome
 
@@ -482,6 +482,13 @@ class GovernedResearchOrchestrator:
         run_row = repo.get_agent_run(session, outcome.run_id)
         if run_row is None:
             return
+        # Every exit from `run_research` persists through here - including the BLOCKED ones that
+        # return early on a budget, a plan-validation or an insufficient-history decision. The
+        # profile label is self-qualifying on *all* of them, so the note is derived at the one
+        # place the state is written rather than remembered at each return: a blocked run carries
+        # the profile on its row and in its tracked job's scope, and would otherwise claim a
+        # pipeline it never entered without saying so.
+        self._note_unreached_profile_stages(outcome, run_row.agent_profile)
         repo.update_agent_run(
             session,
             run_row,
