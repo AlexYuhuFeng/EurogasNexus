@@ -326,36 +326,65 @@ async function agentResearchE2E(page, failures) {
       recordFailure(failures, scope, "review-pack accept action is disabled");
     } else {
       await accept.click();
-      await page.waitForFunction(
-        async (runId) => {
-          const response = await fetch(
-            `/api/agent/runs/${encodeURIComponent(runId)}/replay`,
-            { credentials: "include" },
-          );
-          if (!response.ok) return false;
-          const replay = (await response.json()).data;
-          const decisions =
-            replay?.artifacts?.review_pack?.payload?.human_confirmation?.decisions || [];
-          return decisions.some((item) => item.decision === "accepted");
-        },
-        runEnvelope.run.agent_run_id,
-        { timeout: 15_000 },
-      );
     }
 
-    const confirmedReplay = await page.evaluate(async (runId) => {
-      const response = await fetch(
-        `/api/agent/runs/${encodeURIComponent(runId)}/replay`,
-        { credentials: "include" },
+    /**
+     * The accepted decision, read back from PostgreSQL.
+     *
+     * One property, asserted once and bounded in time: the decision the operator just accepted is
+     * replayable from the persisted run. It used to be read twice in a row - a `waitForFunction`
+     * poll that proved the property, followed by an immediate second read that could disagree with
+     * it and did, once, in CI:
+     *
+     *     interaction/agent-research-review: accepted review decision was not replayed from PostgreSQL
+     *
+     * The poll had already seen the decision, so the write was persisted and replayable; the
+     * duplicate read is a race in the check rather than a fact about the product. The check now
+     * retries the *same* read until the decision appears (15s) and, if it never does, reports what
+     * every attempt observed, so a genuine persistence failure is distinguishable from a stale read.
+     */
+    const readReplayDecisions = () =>
+      page.evaluate(async (runId) => {
+        const response = await fetch(
+          `/api/agent/runs/${encodeURIComponent(runId)}/replay`,
+          { credentials: "include" },
+        );
+        if (!response.ok) throw new Error(`agent replay HTTP ${response.status}`);
+        return (await response.json()).data;
+      }, runEnvelope.run.agent_run_id);
+
+    let confirmedReplay = null;
+    const observations = [];
+    const replayDeadline = Date.now() + 15_000;
+    for (;;) {
+      try {
+        const candidate = await readReplayDecisions();
+        const seen = candidate?.artifacts?.review_pack?.payload?.human_confirmation?.decisions || [];
+        if (seen.some((item) => item.decision === "accepted")) {
+          confirmedReplay = candidate;
+          break;
+        }
+        observations.push(
+          `read returned ${seen.length} decision(s): ${JSON.stringify(seen.map((item) => item.decision))}`,
+        );
+      } catch (error) {
+        observations.push(`read failed: ${String(error)}`);
+      }
+      if (Date.now() >= replayDeadline) break;
+      await page.waitForTimeout(500);
+    }
+
+    if (!confirmedReplay) {
+      recordFailure(
+        failures,
+        scope,
+        `accepted review decision was not replayed from PostgreSQL after 15s (${observations.join("; ")})`,
       );
-      if (!response.ok) throw new Error(`agent replay HTTP ${response.status}`);
-      return (await response.json()).data;
-    }, runEnvelope.run.agent_run_id);
+      return null;
+    }
+
     const decisions =
       confirmedReplay?.artifacts?.review_pack?.payload?.human_confirmation?.decisions || [];
-    if (!decisions.some((item) => item.decision === "accepted")) {
-      recordFailure(failures, scope, "accepted review decision was not replayed from PostgreSQL");
-    }
 
     const evidence = {
       runId: runEnvelope.run.agent_run_id,
