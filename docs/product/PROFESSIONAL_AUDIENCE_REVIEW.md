@@ -236,7 +236,7 @@ is verifiable where, what is signed, and who owns each external item.
 | 6 | Surface `capacity` and `contracts` engines; give certification a surface or retire it | trader, data operator | closes the remaining reachability gaps deliberately rather than by accident | M | worker |
 | 7 | SDK-produced research results inherit the platform's disclosures | quant, reviewer | a machine-run figure must be as checkable as a screen-run one | S-M | owner (policy) |
 | 8 | Acceptance-job diagnostics on the server-start step | IT, reviewers of CI | two failures in six runs with no readable cause | S | worker |
-| 9 | Handover index for deployment IT (what is verifiable where, what is signed, who owns each external item) | IT, commercial handover | the honest packaging of "not verified here" | S | worker |
+| 9 | ~~Handover index for deployment IT (what is verifiable where, what is signed, who owns each external item)~~ — **delivered 2026-09-19**: [HANDOVER_INDEX](../deployment/HANDOVER_INDEX.md) states what a receiving team can verify without us (with the exact command and record for each), what this repository signs or supplies, the seven items only they can close, and what this repository does **not** verify | IT, commercial handover | the honest packaging of "not verified here" | S | done |
 | 10 | Remaining Wave 9 action-geography lifts, then the structural splits (`client.ts` ~2.9k lines, 143 unreferenced locale keys) | every maintainer | what makes the next change expensive | M-L | worker |
 
 Owner decisions still open, unchanged by this review: **D2** (second approver for grants), **D4**

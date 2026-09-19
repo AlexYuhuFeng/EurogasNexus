@@ -234,6 +234,8 @@ Operational procedures and operator-facing guides:
   [CN](release/SECURITY_ACCEPTANCE_EVIDENCE-CN.md)
 - [Deployment roles EN](deployment/DEPLOYMENT_ROLES-EN.md) /
   [CN](deployment/DEPLOYMENT_ROLES-CN.md)
+- [Deployment handover index](deployment/HANDOVER_INDEX.md) — what a receiving team can verify for
+  itself, what is signed where, and which items only they can close
 
 ## Document status rules
 
