@@ -27,6 +27,7 @@ from eurogas_nexus.db.repositories.monitoring import (
 )
 from eurogas_nexus.domain.monitoring import MonitoringCandidate
 from eurogas_nexus.llm import DEEPSEEK_DEFAULT_MODEL, DeepSeekCallResult, invoke_deepseek
+from eurogas_nexus.security.identity import AuthenticatedPrincipal
 from eurogas_nexus.security.provider_keys import load_provider_api_key
 
 ProviderCall = Callable[..., DeepSeekCallResult]
@@ -109,8 +110,14 @@ def enrich_monitoring_alert(
     now_utc: datetime | None = None,
     api_key_loader: ApiKeyLoader | None = None,
     provider_call: ProviderCall | None = None,
+    actor: AuthenticatedPrincipal | None = None,
 ) -> DeepSeekCallResult:
-    """Request a live DeepSeek explanation for one persisted alert."""
+    """Request a live DeepSeek explanation for one persisted alert.
+
+    ``actor`` is the identity the enrichment runs as (owner decision D7). It is carried so the run
+    is attributable to the service principal the deployment provisioned rather than to nobody: a
+    caller that reached this function without an authority is refused by the scan before this.
+    """
 
     now = _as_utc(now_utc or datetime.now(UTC))
     key_loader = api_key_loader or load_provider_api_key
@@ -313,7 +320,14 @@ def _enrich_pending_alerts(
     limit: int,
     api_key_loader: ApiKeyLoader,
     provider_call: ProviderCall,
+    actor: AuthenticatedPrincipal | None = None,
 ) -> int:
+    """Enrich eligible alerts under the acting service identity (owner decision D7).
+
+    ``actor`` is the principal the enrichment runs as. It is required for a *caller-driven* path
+    and supplied by the worker from its configured service identity; the parameter exists so the
+    acting identity travels with the call rather than being re-derived somewhere else.
+    """
     retry_before = now_utc - timedelta(minutes=5)
     eligible = [
         row
@@ -336,6 +350,7 @@ def _enrich_pending_alerts(
             now_utc=now_utc,
             api_key_loader=api_key_loader,
             provider_call=provider_call,
+            actor=actor,
         )
         if result.status == "success":
             enriched += 1

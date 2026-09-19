@@ -8,6 +8,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from eurogas_nexus.application.monitoring_service import scan_monitoring_conditions
+from eurogas_nexus.application.service_identity import ServiceAuthority
 from eurogas_nexus.db.base import Base
 from eurogas_nexus.db.models import (
     IngestionRunRecord,
@@ -15,6 +16,28 @@ from eurogas_nexus.db.models import (
     MonitoringAlertRecord,
 )
 from eurogas_nexus.llm import DeepSeekCallResult
+from eurogas_nexus.security.identity import AuthenticatedPrincipal
+
+
+def _granted_authority() -> ServiceAuthority:
+    """The authority these tests run enrichment under (owner decision D7).
+
+    A provider call needs a named service identity holding the analysis capability; that rule
+    has its own tests, and here it is satisfied explicitly so these tests keep measuring
+    enrichment itself.
+    """
+
+    principal = AuthenticatedPrincipal(
+        principal_id="service:monitoring-test",
+        name="monitoring-test",
+        principal_type="SERVICE",
+        role="ANALYST",
+        status="ACTIVE",
+        data_scopes=("*",),
+        roles=("ANALYST",),
+        auth_method="service_identity",
+    )
+    return ServiceAuthority(principal=principal, refusal="", detail="")
 
 
 def _opportunity(now: datetime) -> IntradayOpportunityRecord:
@@ -83,17 +106,26 @@ def test_same_condition_is_deduplicated_and_enriched_once() -> None:
             now_utc=now,
             api_key_loader=lambda _provider: "test-key",
             provider_call=provider_call,
+        service_authority=_granted_authority(),
         )
         second = scan_monitoring_conditions(
             session,
             now_utc=now + timedelta(seconds=10),
             api_key_loader=lambda _provider: "test-key",
             provider_call=provider_call,
+        service_authority=_granted_authority(),
         )
         alert = session.query(MonitoringAlertRecord).one()
 
-    assert first == {"active_count": 1, "resolved_count": 0, "llm_enriched_count": 1}
-    assert second == {"active_count": 1, "resolved_count": 0, "llm_enriched_count": 0}
+    assert first["active_count"] == 1
+    assert first["resolved_count"] == 0
+    assert first["llm_enriched_count"] == 1
+    # D7: a granted run enriches and reports no refusal.
+    assert first["llm_enrichment_refused"] == ""
+    assert second["active_count"] == 1
+    assert second["resolved_count"] == 0
+    # The deduplicated condition is not enriched a second time, under the same granted authority.
+    assert second["llm_enriched_count"] == 0
     assert len(calls) == 1
     assert alert.occurrence_count == 1
     assert alert.llm_status == "success"
@@ -132,6 +164,7 @@ def test_source_failure_escalation_reopens_llm_enrichment() -> None:
             now_utc=now,
             api_key_loader=lambda _provider: "test-key",
             provider_call=provider_call,
+        service_authority=_granted_authority(),
         )
         for index in (2, 3):
             event_time = now + timedelta(minutes=index)
@@ -151,6 +184,7 @@ def test_source_failure_escalation_reopens_llm_enrichment() -> None:
             now_utc=now + timedelta(minutes=4),
             api_key_loader=lambda _provider: "test-key",
             provider_call=provider_call,
+        service_authority=_granted_authority(),
         )
         alert = session.query(MonitoringAlertRecord).one()
 
@@ -175,6 +209,7 @@ def test_missing_deepseek_key_is_visible_without_provider_call() -> None:
             provider_call=lambda **_kwargs: (_ for _ in ()).throw(
                 AssertionError("provider must not be called")
             ),
+        service_authority=_granted_authority(),
         )
         alert = session.query(MonitoringAlertRecord).one()
 
