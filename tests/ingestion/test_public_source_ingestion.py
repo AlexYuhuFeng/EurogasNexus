@@ -68,10 +68,36 @@ def test_entsog_json_is_normalized_into_flow_observations() -> None:
     assert rows[0]["point_name"] == "Zeebrugge"
     assert rows[0]["flow_mcm_d"] == 1.0
     assert rows[0]["freshness"] == "live"
-    # Offset input is converted to UTC by the current parser. This does NOT yet
-    # prove provider timezone semantics for naive/CET/CEST payloads (M1-P0).
+    # Offset input is converted to UTC. The naive/CET/CEST/WET cases, and the fail-closed rule for a
+    # zone the contract does not support, are asserted in
+    # `tests/ingestion/test_source_timezone_contract.py` (M1-P0).
     assert rows[0]["period_start_utc"] == datetime(2026, 5, 29, 4, 0, tzinfo=UTC)
     assert rows[0]["period_end_utc"] == datetime(2026, 5, 30, 4, 0, tzinfo=UTC)
+
+
+def test_entsog_naive_periods_are_read_on_the_central_european_clock() -> None:
+    """The defect M1-P0 named: a bare 06:00 is 05:00Z in winter, not 06:00Z."""
+
+    payload = {
+        "operationaldatas": [
+            {
+                "id": "123",
+                "pointKey": "be-zee",
+                "pointLabel": "Zeebrugge",
+                "directionKey": "entry",
+                "indicator": "Physical Flow",
+                "unit": "kWh/d",
+                "value": "10550000",
+                "periodFrom": "2026-01-15T06:00:00",
+                "periodTo": "2026-01-16T06:00:00",
+            }
+        ]
+    }
+
+    rows = entsog_flow_observations_from_json(payload)
+
+    assert rows[0]["period_start_utc"] == datetime(2026, 1, 15, 5, 0, tzinfo=UTC)
+    assert rows[0]["period_end_utc"] == datetime(2026, 1, 16, 5, 0, tzinfo=UTC)
 
 
 def test_entsog_operational_indicators_are_not_mixed_between_flow_and_capacity() -> None:
@@ -123,7 +149,7 @@ def test_gie_agsi_json_is_normalized_into_storage_observations() -> None:
                 "full": "59.1",
                 "injection": "2.5",
                 "withdrawal": "1.2",
-                "updatedAt": "2026-05-29 12:00:00",
+                "updatedAt": "2026-05-29T14:00:00+02:00",
             }
         ]
     }
@@ -154,7 +180,7 @@ def test_gie_alsi_json_is_normalized_into_lng_observations() -> None:
                 "inventory": {"lng": "9.5", "gwh": "42.5"},
                 "sendOut": "3.4",
                 "dtmi": {"lng": "14.4", "gwh": "65.0"},
-                "updatedAt": "2026-05-29 12:00:00",
+                "updatedAt": "2026-05-29T14:00:00+02:00",
             }
         ]
     }

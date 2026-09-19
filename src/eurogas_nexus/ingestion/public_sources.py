@@ -12,6 +12,11 @@ from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 from xml.etree import ElementTree
 
+from eurogas_nexus.domain.ingestion.source_timezone import (
+    contract_for,
+    parse_source_instant,
+    resolve_payload_zone,
+)
 from eurogas_nexus.domain.market.gas_day import EU_CAM_UTC_CALENDAR
 
 KWH_PER_MCM = 10_550_000.0
@@ -148,8 +153,14 @@ def entsog_market_hubs_from_connectionpoints(payload: dict[str, Any]) -> list[di
 
 
 def entsog_tso_access_points_from_json(payload: dict[str, Any]) -> list[dict[str, Any]]:
-    """Normalize ENTSOG operator point directions into TSO access metadata."""
+    """Normalize ENTSOG operator point directions into TSO access metadata.
 
+    The dataset's own timestamps go through the ENTSOG timezone declaration too: this read carries
+    ``lastUpdateDateTime`` on the same Central European clock as the operational data.
+    """
+
+    contract = contract_for("ENTSOG", "operatorpointdirections")
+    zone = resolve_payload_zone(contract, payload)
     rows: list[dict[str, Any]] = []
     for record in _extract_records(payload, "operatorpointdirections"):
         point_key = str(record.get("pointKey") or "").strip()
@@ -158,7 +169,9 @@ def entsog_tso_access_points_from_json(payload: dict[str, Any]) -> list[dict[str
         if not point_key or not operator_key or _as_bool(record.get("isInvalid")):
             continue
         node_id = f"entsog-{point_key.lower()}"
-        last_update = _parse_datetime(record.get("lastUpdateDateTime"))
+        last_update = parse_source_instant(
+            record.get("lastUpdateDateTime"), contract=contract, zone=zone
+        )
         record_key = _safe_record_key(
             str(
                 record.get("id")
@@ -330,8 +343,17 @@ def ecb_fx_observations_from_xml(
 
 
 def entsog_flow_observations_from_json(payload: dict[str, Any]) -> list[dict[str, Any]]:
-    """Normalize ENTSOG operational data JSON into flow observation rows."""
+    """Normalize ENTSOG operational data JSON into flow observation rows.
 
+    Period instants are read through the ENTSOG timezone declaration
+    (:mod:`eurogas_nexus.domain.ingestion.source_timezone`, item M1-P0): an offset in the
+    payload is trusted, a value without one is read on the Central European clock the gas-day
+    calendar uses, and a payload that declares a zone the contract does not support is refused
+    whole rather than read as UTC.
+    """
+
+    contract = contract_for("ENTSOG", "operationaldatas")
+    zone = resolve_payload_zone(contract, payload)
     records = _extract_records(payload, "operationaldatas")
     rows: list[dict[str, Any]] = []
     for record in records:
@@ -342,8 +364,8 @@ def entsog_flow_observations_from_json(payload: dict[str, Any]) -> list[dict[str
         value = _to_float(record.get("value"))
         if not record_id or value is None:
             continue
-        period_start = _parse_datetime(record.get("periodFrom"))
-        period_end = _parse_datetime(record.get("periodTo"))
+        period_start = parse_source_instant(record.get("periodFrom"), contract=contract, zone=zone)
+        period_end = parse_source_instant(record.get("periodTo"), contract=contract, zone=zone)
         if period_start is None or period_end is None:
             continue
         unit = str(record.get("unit") or "").lower()
@@ -360,7 +382,9 @@ def entsog_flow_observations_from_json(payload: dict[str, Any]) -> list[dict[str
                 "original_unit": unit or None,
                 "period_start_utc": period_start,
                 "period_end_utc": period_end,
-                "observed_at_utc": _parse_datetime(record.get("lastUpdateDateTime"))
+                "observed_at_utc": parse_source_instant(
+                    record.get("lastUpdateDateTime"), contract=contract, zone=zone
+                )
                 or datetime.now(UTC),
                 "source_system": "ENTSOG",
                 "source_reference": "entsog-operationaldatas",
@@ -389,8 +413,14 @@ def entsog_flow_observations_from_json(payload: dict[str, Any]) -> list[dict[str
 
 
 def entsog_capacity_observations_from_json(payload: dict[str, Any]) -> list[dict[str, Any]]:
-    """Normalize ENTSOG operational data JSON into capacity observation rows."""
+    """Normalize ENTSOG operational data JSON into capacity observation rows.
 
+    Periods are read through the same ENTSOG timezone declaration as the flow normalizer, so a
+    capacity row and a flow row covering one gas day cannot disagree about which hour it started.
+    """
+
+    contract = contract_for("ENTSOG", "operationaldatas")
+    zone = resolve_payload_zone(contract, payload)
     records = _extract_records(payload, "operationaldatas")
     rows: list[dict[str, Any]] = []
     for record in records:
@@ -398,8 +428,8 @@ def entsog_capacity_observations_from_json(payload: dict[str, Any]) -> list[dict
         value = _to_float(record.get("value"))
         if not record_id or value is None:
             continue
-        period_start = _parse_datetime(record.get("periodFrom"))
-        period_end = _parse_datetime(record.get("periodTo"))
+        period_start = parse_source_instant(record.get("periodFrom"), contract=contract, zone=zone)
+        period_end = parse_source_instant(record.get("periodTo"), contract=contract, zone=zone)
         if period_start is None or period_end is None:
             continue
         indicator = str(record.get("indicator") or "capacity").strip()
@@ -421,7 +451,9 @@ def entsog_capacity_observations_from_json(payload: dict[str, Any]) -> list[dict
                 "original_unit": unit or None,
                 "period_start_utc": period_start,
                 "period_end_utc": period_end,
-                "observed_at_utc": _parse_datetime(record.get("lastUpdateDateTime"))
+                "observed_at_utc": parse_source_instant(
+                    record.get("lastUpdateDateTime"), contract=contract, zone=zone
+                )
                 or datetime.now(UTC),
                 "source_system": "ENTSOG",
                 "source_reference": "entsog-operationaldatas",
@@ -450,8 +482,16 @@ def entsog_capacity_observations_from_json(payload: dict[str, Any]) -> list[dict
 
 
 def gie_storage_observations_from_json(payload: dict[str, Any]) -> list[dict[str, Any]]:
-    """Normalize GIE AGSI records into storage observation rows."""
+    """Normalize GIE AGSI records into storage observation rows.
 
+    The gas-day dates go through the frozen CAM calendar (period boundaries); the feed's `updatedAt`
+    freshness stamp has no proven zone in this repository, so the GIE declaration refuses a value
+    without an offset rather than reading it as UTC (item M1-P0).
+    """
+
+    contract = contract_for("GIE", "agsi")
+    zone = resolve_payload_zone(contract, payload)
+    gie_contract, gie_zone = contract, zone
     rows: list[dict[str, Any]] = []
     for record in _extract_records(payload, "data"):
         code = str(record.get("code") or "").strip()
@@ -473,7 +513,10 @@ def gie_storage_observations_from_json(payload: dict[str, Any]) -> list[dict[str
                 "withdrawal_twh_d": _gwh_to_twh(record.get("withdrawal")),
                 "period_start_utc": period_start,
                 "period_end_utc": period_end,
-                "observed_at_utc": _parse_datetime(record.get("updatedAt")) or datetime.now(UTC),
+                "observed_at_utc": parse_source_instant(
+                    record.get("updatedAt"), contract=gie_contract, zone=gie_zone
+                )
+                or datetime.now(UTC),
                 "source_system": "GIE",
                 "source_reference": "gie-agsi-api",
                 "source_record_id": f"{code}-{gas_day.isoformat()}",
@@ -504,8 +547,15 @@ def gie_storage_observations_from_json(payload: dict[str, Any]) -> list[dict[str
 
 
 def gie_lng_observations_from_json(payload: dict[str, Any]) -> list[dict[str, Any]]:
-    """Normalize GIE ALSI records into LNG observation rows."""
+    """Normalize GIE ALSI records into LNG observation rows.
 
+    Same declaration as AGSI: the CAM calendar owns the gas-day boundaries and the `updatedAt`
+    freshness stamp is refused when it carries no offset.
+    """
+
+    contract = contract_for("GIE", "alsi")
+    zone = resolve_payload_zone(contract, payload)
+    gie_contract, gie_zone = contract, zone
     rows: list[dict[str, Any]] = []
     for record in _extract_records(payload, "data"):
         code = str(record.get("code") or "").strip()
@@ -525,7 +575,10 @@ def gie_lng_observations_from_json(payload: dict[str, Any]) -> list[dict[str, An
                 "dtmi_twh": _gwh_to_twh(record.get("dtmi")),
                 "period_start_utc": period_start,
                 "period_end_utc": period_end,
-                "observed_at_utc": _parse_datetime(record.get("updatedAt")) or datetime.now(UTC),
+                "observed_at_utc": parse_source_instant(
+                    record.get("updatedAt"), contract=gie_contract, zone=gie_zone
+                )
+                or datetime.now(UTC),
                 "source_system": "GIE",
                 "source_reference": "gie-alsi-api",
                 "source_record_id": f"{code}-{gas_day.isoformat()}",

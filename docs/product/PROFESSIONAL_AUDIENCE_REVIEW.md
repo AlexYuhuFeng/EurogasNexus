@@ -219,7 +219,7 @@ is verifiable where, what is signed, and who owns each external item.
 
 | # | Step | Serves | Why now | Size | Decides |
 |---|---|---|---|---|---|
-| 1 | Finish **M1-P0** (ENTSOG timezone normalization, naive-timestamp handling) | every audience | correctness of every period; already P0 in the ledger | M | worker |
+| 1 | ~~Finish **M1-P0** (ENTSOG timezone normalization, naive-timestamp handling)~~ — **delivered 2026-09-19**: one declaration per source, exact-UTC fixtures for CET/CEST/stated offsets/DST, and refusal instead of assumption for an unsupported or unprovable zone ([source timezone contract](../data/SOURCE_TIMEZONE_CONTRACT.md)) | every audience | correctness of every period; was P0 in the ledger | M | done |
 | 2 | Build **D1** (authentication in every profile) with the recorded plan | administrator, IT | a code default that trusts the network is the posture the programme keeps publishing *because* it is surprising | L | worker (decided) |
 | 3 | **The day view**: next windows, unactioned decisions, alerts that moved — inside an existing task | trader, portfolio | the clock is the one thing the product still cannot show; the engines now exist | M | worker |
 | 4 | **Decision pack** from existing artefacts (snapshot, versions, inputs, warnings, actor, audit refs) | reviewer, compliance | a governance artefact a human can sign | M | worker |
