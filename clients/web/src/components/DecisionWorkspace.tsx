@@ -15,6 +15,7 @@ import {
   useOptimizationRunRecord,
   useStorageDispatchAssessment,
 } from "@/app/model/useOptimizationAssessment";
+import { isIdentityGateOpen } from "@/stores/workspaceLoading";
 import { dayBoardModel } from "@/app/model/dayBoardModel";
 import { reviewIsUsable } from "@/app/model/reviewContextModel";
 import { inspectorSubjectFor } from "@/app/model/inspectorDetail";
@@ -160,14 +161,20 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
   // this mount asks the same question once - and the register behind "no decision recorded" is
   // only answerable from the review projection, which is why the board asks for it too.
   //
-  // The dependencies are the store's own actions rather than the whole controller state: the state
-  // object is replaced on every write, so depending on it would re-ask on every store update.
+  // The gate is a dependency, and that is the correction of a real defect: the store refuses a read
+  // while the identity gate is closed, and on a fresh page load this effect ran *before* the
+  // session resolved, so the read was dropped and never retried - the board said "the nomination
+  // windows were not read" and the register "has not been read" for a user who navigated normally,
+  // while the endpoints themselves answered 200 with data. Depending on the gate (a primitive, so
+  // no re-ask storm) makes the read happen when it can succeed.
   const fetchNominationWindows = api.fetchNominationWindows;
   const fetchReviewContext = api.fetchReviewContext;
+  const identityReady = isIdentityGateOpen(api.authState);
   useEffect(() => {
+    if (!identityReady) return;
     void fetchNominationWindows();
     void fetchReviewContext();
-  }, [fetchNominationWindows, fetchReviewContext]);
+  }, [identityReady, fetchNominationWindows, fetchReviewContext]);
 
   /**
    * The browser clock the countdowns are measured against, refreshed once a minute.
