@@ -34,6 +34,7 @@ import {
   type CapabilityOutcome,
 } from "@/app/model/capabilityInvocationModel";
 import { inspectorSubjectFor } from "@/app/model/inspectorDetail";
+import { describeFailure, presentError } from "@/app/experience/errorPresentation";
 import { workspaceHeaderTitleLevel } from "@/app/experience/workspacePatterns";
 import { useApiStore } from "@/stores/api";
 import { useInspectorStore } from "@/stores/inspector";
@@ -92,7 +93,19 @@ export function AgentsWorkspace({ t, principalId = null, runtimeDbReady }: Agent
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<Record<string, unknown> | null>(null);
   const [confirmation, setConfirmation] = useState<AgentConfirmationState>({ status: "idle" });
-  const [error, setError] = useState<string | null>(null);
+  // The failure is kept as it arrived, not flattened to text: the transport carries the backend's
+  // whole error envelope (code, family, correlation id), and presenting it through the taxonomy is
+  // what turns a raw transport string into something a user can act on and quote.
+  const [error, setError] = useState<unknown>(null);
+  // A capability search runs through the route's own search, and the profile catalogue is read once
+  // so the run view can name the profiles the platform declares.
+  const [capabilityQuery, setCapabilityQuery] = useState("");
+  const [runIdQuery, setRunIdQuery] = useState("");
+  const [profiles, setProfiles] = useState<Record<string, unknown>[]>([]);
+  // Whether the profile read has answered, so an empty catalogue is stated as a declaration the
+  // deployment made rather than as a read that has not arrived.
+  const [profilesRead, setProfilesRead] = useState(false);
+  const failure = error ? presentError(t, describeFailure(error)) : null;
 
   useEffect(() => {
     let active = true;
@@ -105,11 +118,17 @@ export function AgentsWorkspace({ t, principalId = null, runtimeDbReady }: Agent
         // this read produced are published for the `agent-run` subject.
         publishAgentRunsRead(runResult.data);
       })
-      .catch((reason) => active && setError(String(reason)));
+      .catch((reason) => active && setError(reason));
     return () => {
       active = false;
     };
   }, [publishAgentRunsRead]);
+
+  useEffect(() => {
+    void loadAgentProfiles();
+    // The catalogue is a domain declaration that does not change while the surface is open, so it is
+    // read once rather than on every render of the run view.
+  }, []);
 
   const tabs = useMemo(
     () => VIEWS.map((id) => ({ id, label: t(`agents.tab.${id}`) })),
@@ -213,7 +232,7 @@ export function AgentsWorkspace({ t, principalId = null, runtimeDbReady }: Agent
       setRuns(refreshed.data);
       publishAgentRunsRead(refreshed.data);
     } catch (reason) {
-      setError(String(reason));
+      setError(reason);
     } finally {
       setRunning(false);
     }
@@ -225,7 +244,77 @@ export function AgentsWorkspace({ t, principalId = null, runtimeDbReady }: Agent
       setSelectedRun(response.data);
       setConfirmation({ status: "idle" });
     } catch (reason) {
-      setError(String(reason));
+      setError(reason);
+    }
+  }
+
+  /**
+   * Open a run the list does not hold.
+   *
+   * `GET /api/agent/runs` is a bounded read (the newest 50 here), so a run cited by a Decision Case,
+   * an Inspector reference or a colleague's message cannot be opened from the table. `GET
+   * /api/agent/runs/{id}` answers for one run directly; this resolves the id there, adds the run to
+   * the list it belongs in, and then opens it like any other row.
+   */
+  async function openRunById() {
+    const wanted = runIdQuery.trim();
+    if (!wanted) return;
+    setError(null);
+    const known = runs.find((item) => item.agent_run_id === wanted);
+    if (known) {
+      await openRun(known);
+      return;
+    }
+    try {
+      const response = await api.agentRun(wanted);
+      setRuns((current) => [response.data, ...current]);
+      publishAgentRunsRead([response.data, ...runs]);
+      setActiveView("runs");
+      await openRun(response.data);
+    } catch (reason) {
+      setError(reason);
+    }
+  }
+
+  /**
+   * Search the capability catalogue through the route that owns the search.
+   *
+   * The catalogue is small enough to filter on the client, but the route's search is what a caller
+   * reads the catalogue with, and it searches the description, domain, tags and input concepts - so
+   * a user who typed a term the client filter would miss gets the platform's answer. An empty query
+   * restores the full catalogue rather than searching for nothing.
+   */
+  async function searchCapabilityCatalogue() {
+    const query = capabilityQuery.trim();
+    setError(null);
+    try {
+      if (!query) {
+        const response = await api.capabilities();
+        setCapabilities(response.data);
+        return;
+      }
+      const response = await api.searchCapabilities(query);
+      setCapabilities(response.data);
+    } catch (reason) {
+      setError(reason);
+    }
+  }
+
+  /**
+   * The declared agent profiles.
+   *
+   * A run is filed under a profile and the route refuses an undeclared one, so the catalogue is what
+   * makes the label on a run row checkable: which profiles exist, what each covers, and which stages
+   * it declares. Wave 7 recorded this read as having no consumer; the research view now shows it
+   * beside the run form rather than leaving the vocabulary invisible.
+   */
+  async function loadAgentProfiles() {
+    try {
+      const response = await api.agentProfiles();
+      setProfiles(response.data);
+      setProfilesRead(true);
+    } catch (reason) {
+      setError(reason);
     }
   }
 
@@ -264,11 +353,11 @@ export function AgentsWorkspace({ t, principalId = null, runtimeDbReady }: Agent
           const refreshed = await api.agentReplay(selectedRun.agent_run_id);
           setSelectedRun(refreshed.data);
         } catch (reason) {
-          setError(String(reason));
+          setError(reason);
         }
       }
     } catch (reason) {
-      setError(String(reason));
+      setError(reason);
       setConfirmation((current) =>
         nextAgentConfirmationState(current, { type: "refused", httpStatus: 0 }),
       );
@@ -324,7 +413,17 @@ export function AgentsWorkspace({ t, principalId = null, runtimeDbReady }: Agent
       <p className="muted agents-boundary">{t("agents.boundary")}</p>
 
       <div className={`workspace-grid agents-page agents-view-${activeView}`}>
-        {error && <div className="workspace-panel span-3 alert">{error}</div>}
+        {failure && (
+          <div className="workspace-panel span-3 alert">
+            <strong>{failure.title}</strong>
+            <p>{failure.action}</p>
+            {failure.correlationId && (
+              <p className="muted">
+                {t("errors.correlation_id")}: {failure.correlationId}
+              </p>
+            )}
+          </div>
+        )}
 
       {activeView === "capabilities" && (
         <div
@@ -333,6 +432,27 @@ export function AgentsWorkspace({ t, principalId = null, runtimeDbReady }: Agent
           role="tabpanel"
           aria-labelledby={`agents-task-${activeView}`}
         >
+          {/* The catalogue has a route of its own for search, and it searches more than a client
+              filter can see (domain, tags, description, input concepts), so the query goes there. */}
+          <div className="agents-catalogue-search">
+            <label className="field-label" htmlFor="agents-capability-search">
+              {t("agents.search_capabilities")}
+            </label>
+            <input
+              id="agents-capability-search"
+              type="search"
+              value={capabilityQuery}
+              maxLength={120}
+              placeholder={t("agents.search_capabilities_placeholder")}
+              onChange={(event) => setCapabilityQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") void searchCapabilityCatalogue();
+              }}
+            />
+            <button type="button" onClick={() => void searchCapabilityCatalogue()}>
+              {t("agents.search")}
+            </button>
+          </div>
           <div className="research-table data-table" tabIndex={0}>
             <div className="data-table-row header five">
               <span>{t("agents.capability")}</span>
@@ -517,6 +637,46 @@ export function AgentsWorkspace({ t, principalId = null, runtimeDbReady }: Agent
             </ul>
           </section>
 
+          {/* The profiles a run may be filed under. The route refuses an undeclared one, so this is
+              the vocabulary the label on a run row is checked against - and the stages each profile
+              declares, which is what a `PROFILE_STAGES_NOT_REACHED` warning refers to. */}
+          <section className="agents-profiles" aria-label={t("agents.profiles")}>
+            <div className="section-heading">
+              <span className="eyebrow">{t("agents.profiles")}</span>
+              <strong>{profiles.length}</strong>
+            </div>
+            <p className="panel-copy">{t("agents.profiles_note")}</p>
+            {profiles.length === 0 ? (
+              // An unread catalogue and a catalogue that declares nothing are different statements,
+              // and only the second one is a fact about the deployment.
+              <p className="muted">
+                {profilesRead ? t("agents.profiles_none") : t("data.unavailable")}
+              </p>
+            ) : (
+              <div className="research-table data-table" tabIndex={0}>
+                <div className="data-table-row header three">
+                  <span>{t("agents.profile")}</span>
+                  <span>{t("agents.profile_stages")}</span>
+                  <span>{t("agents.profile_purpose")}</span>
+                </div>
+                {profiles.map((profile) => {
+                  const id = String(profile.profile_id ?? "");
+                  const declared = [
+                    ...((profile.deterministic_stages as string[]) ?? []),
+                    ...((profile.llm_stages as string[]) ?? []),
+                  ];
+                  return (
+                    <div key={id} className="data-table-row three">
+                      <strong>{id}</strong>
+                      <span>{declared.join(", ") || t("agents.profile_stages_none")}</span>
+                      <span>{String(profile.role_description ?? "")}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+
           {result && (
             <div className="agents-result-panel">
               <PanelHeader title={t("agents.result")} meta={String(result.stage ?? "")} />
@@ -553,6 +713,31 @@ export function AgentsWorkspace({ t, principalId = null, runtimeDbReady }: Agent
           role="tabpanel"
           aria-labelledby={`agents-task-${activeView}`}
         >
+          {/* The run list is bounded (the newest 50), so a run cited elsewhere - by a Decision Case,
+              an Inspector reference, a colleague - is opened by id through the route that answers
+              for one run. */}
+          <div className="agents-run-lookup">
+            <label className="field-label" htmlFor="agents-run-id">
+              {t("agents.open_run_by_id")}
+            </label>
+            <input
+              id="agents-run-id"
+              type="text"
+              value={runIdQuery}
+              placeholder={t("agents.run_id_placeholder")}
+              onChange={(event) => setRunIdQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") void openRunById();
+              }}
+            />
+            <button
+              type="button"
+              disabled={!runIdQuery.trim()}
+              onClick={() => void openRunById()}
+            >
+              {t("agents.open_run")}
+            </button>
+          </div>
           <div className="research-table data-table" tabIndex={0}>
             <div className="data-table-row header six">
               <span>{t("agents.time")}</span>

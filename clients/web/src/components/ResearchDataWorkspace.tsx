@@ -11,6 +11,9 @@ import {
 import { MetricStrip, PanelHeader, StatusBadge, WorkspaceHeader } from "@/components/ui";
 import { DataProductCatalogue } from "@/components/DataProductCatalogue";
 import {
+  ResearchCapabilityCatalogue,
+} from "@/components/ResearchCapabilityCatalogue";
+import {
   DEFAULT_WORKSPACE_READ_TIMEOUT_MS,
   WorkspaceLoadCoordinator,
   loadWorkspaceEndpoint,
@@ -855,6 +858,7 @@ export function ResearchDataWorkspace({ t }: ResearchDataWorkspaceProps) {
     {activeView === "datasets" && <ResearchSpecPanel t={t} draft={specDraft} onDraftChange={(key, value) => setSpecDraft((current) => ({ ...current, [key]: value }))} missingInputs={missingInputs} validationState={validationState} buildState={buildState} gate={buildGate} createdDetail={createdDetail} onValidate={() => void validateSpecDraft()} />}
     {activeView === "datasets" && <div className="research-master-detail" id="research-task-panel" role="tabpanel" aria-label={t("research.tab.datasets")}><DatasetCatalog t={t} datasets={visibleDatasets} loading={catalogLoading} error={catalogError} selectedId={visibleSelectedDatasetId} onSelect={(datasetId) => { selectedDatasetIdRef.current = datasetId; setSelectedDatasetId(datasetId); }} /><DatasetDetailRail t={t} selectedId={visibleSelectedDatasetId} detailState={detailState} onRetry={() => setDetailRetryKey((value) => value + 1)} onExport={() => void requestArtifactReference()} exportFormat={exportFormat} onExportFormatChange={setExportFormat} exportBusy={exportBusy} exportState={exportState} exportError={exportError} /></div>}
     {activeView === "products" && <DataProductCatalogue t={t} />}
+    {activeView === "products" && <ResearchCapabilityCatalogue t={t} />}
     {activeView !== "datasets" && activeView !== "products" && <RegistryTable t={t} type={activeView} features={visibleFeatures} targets={visibleTargets} loading={catalogLoading} error={catalogError} />}
   </div>;
 }

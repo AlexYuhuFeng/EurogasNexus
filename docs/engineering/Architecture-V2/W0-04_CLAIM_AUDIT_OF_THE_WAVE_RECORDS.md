@@ -214,6 +214,21 @@ overflow) including the agent-research interaction.
    were run - it is that a gate is green only in the place it is enforced, and a document that says
    otherwise is a claim like any other.
 
+8. **A declared locale was, in part, the English text.** Found while finishing the D3 slice that
+   touches the agents workspace: 24 `agents.*` keys carried their English value as the Chinese
+   value, so a Chinese user read the entire agents workspace - its title, tabs, boundary statement,
+   objective field and every run column - in English. Every existing locale check passed, because
+   they assert key *parity* and duplicate keys, and none of them asked whether a value had been
+   translated; the execution checkpoint's own line that "the vocabulary is distinct per locale" was
+   therefore overstated for those keys (it held for the vocabulary each stretch added, which is what
+   it was written about, and not for the file as a whole). The 23 prose keys are translated now, and
+   the 12 values still identical across locales - `SSO`, `AI`, `LLM`, `KPI`, `LNG`, `GIE LNG`,
+   `UTC`, `Alembic`, `Eurogas Nexus`, `English`, `中文` and one identifier shape - are acronyms,
+   proper nouns and language names, i.e. the same words in both locales. `localeDistinctness.test.ts`
+   now fails on *any* value that is the same in both locales unless it is declared with its reason,
+   so this cannot arrive silently again. The lesson repeats this audit's other one: the checks that
+   existed were about the shape of the file, and nobody had asserted the property that mattered.
+
 ## 7. Limits of this audit
 
 - The verdicts are the auditors' and the integrator's reading of the code, not a proof; each finding
