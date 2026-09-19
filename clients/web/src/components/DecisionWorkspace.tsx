@@ -7,6 +7,13 @@ import type { AppController } from "@/app/hooks/useAppController";
 import { warningLabel } from "@/app/warningLabel";
 import { CommercialWarningList } from "@/components/CommercialWarningList";
 import { DecisionCasePanel } from "@/components/DecisionCasePanel";
+import { NominationWindowPanel } from "@/components/decision/NominationWindowPanel";
+import { StorageDispatchPanel } from "@/components/decision/StorageDispatchPanel";
+import {
+  useNominationAssessment,
+  useOptimizationRunRecord,
+  useStorageDispatchAssessment,
+} from "@/app/model/useOptimizationAssessment";
 import { inspectorSubjectFor } from "@/app/model/inspectorDetail";
 import {
   analysisSnapshotReadiness,
@@ -123,6 +130,11 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
   const [task, setTask] = useState<DecisionTask>(() =>
     decisionTaskFromLocation(window.location.search),
   );
+  // Register C14/D8: the desk's two assessment engines. Each owns its own draft, and each is the
+  // primary act of its own task, so the header's single slot starts the run the task configures.
+  const nomination = useNominationAssessment();
+  const dispatch = useStorageDispatchAssessment();
+  const optimizationRun = useOptimizationRunRecord();
 
   useEffect(() => {
     setTask(decisionTaskFromLocation(window.location.search));
@@ -172,6 +184,24 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
       >
         {t("economics.compare")}
       </button>
+    ) : task === "nomination" ? (
+      <button
+        type="button"
+        disabled={!nomination.readiness.canRun || nomination.busy}
+        title={t(nomination.readiness.firstBlockerKey ?? "decision.nomination.ready")}
+        onClick={() => void nomination.run()}
+      >
+        {t("decision.nomination.assess")}
+      </button>
+    ) : task === "dispatch" ? (
+      <button
+        type="button"
+        disabled={!dispatch.readiness.canRun || dispatch.busy}
+        title={t(dispatch.readiness.firstBlockerKey ?? "decision.dispatch.ready")}
+        onClick={() => void dispatch.run()}
+      >
+        {t("decision.dispatch.assess")}
+      </button>
     ) : undefined;
 
   return (
@@ -206,6 +236,12 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
           />
         )}
         {task === "optimize" && <OptimizeWorkspace controller={controller} />}
+        {task === "nomination" && (
+          <NominationWindowPanel t={t} assessment={nomination} record={optimizationRun} />
+        )}
+        {task === "dispatch" && (
+          <StorageDispatchPanel t={t} assessment={dispatch} record={optimizationRun} />
+        )}
         {task === "review" && (
           <ReviewWorkspace
             allocations={portfolio.poolAllocations}

@@ -79,20 +79,30 @@ MACHINE_SURFACE: dict[str, str] = {
 }
 
 #: The surface gap `W0-03` D8 records: engines a desk decision needs, reachable only from the SDK.
+#:
+#: The nomination-window and storage-dispatch engines, and the run-evidence read, left this list
+#: when the desk slice surfaced them on the Decision workspace (`nomination` and `dispatch` tasks).
+#: What remains is the engines no surface asks for yet, plus the one route whose operation has a
+#: canonical twin.
 SURFACE_GAP_D8: dict[str, str] = {
     "/api/optimization/capacity": "capacity product selection engine - no client method",
     "/api/optimization/contracts": "contract pre-selection engine - no client method",
-    "/api/optimization/nomination-window": "nomination-window engine - no client method",
     "/api/optimization/portfolio-network": "portfolio-network engine - no client method",
     "/api/optimization/route": "minimum-cost path engine - no client method",
-    "/api/optimization/runs/{run_id}": "optimisation run evidence read - no client method",
-    "/api/optimization/storage-dispatch": "storage dispatch engine - no client method",
     # The one operation with two public routes: this is the newer one, which uniquely supports the
     # runtime/DB-first decision context, while the product calls the older route that uniquely
     # carries the Analysis-Snapshot citation and the job tracking (see D8).
     "/api/optimization/resource-pool": (
         "runtime-context pool optimiser; the product uses the older, snapshot-citing route"
     ),
+}
+
+#: Engines the desk slice surfaced, so a regression that drops one fails here rather than quietly
+#: returning to the gap list.
+SURFACED_BY_THE_DESK_SLICE: dict[str, str] = {
+    "/api/optimization/nomination-window": "Decision workspace, Nomination task",
+    "/api/optimization/storage-dispatch": "Decision workspace, Storage dispatch task",
+    "/api/optimization/runs/{run_id}": "read back from either assessment result",
 }
 
 #: Paths that are deliberately not a product surface, each with the reason it is not.
@@ -155,13 +165,16 @@ def test_no_declared_exemption_outlives_its_path() -> None:
 
 
 def test_the_recorded_surface_gap_is_the_optimisation_family_and_nothing_else() -> None:
-    """D8's gap is stated as a fact about the client, not as a paragraph in a document."""
+    """D8's remaining gap is stated as a fact about the client, not as a paragraph in a document."""
 
     client = _client_source()
-    # The web client has no method for any of the engines, and no path literal for the family.
-    assert "optimization/" not in client
     for path in SURFACE_GAP_D8:
         assert path.startswith("/api/optimization/"), path
+    # Every remaining gap engine is still uncalled, and every surfaced one really is called.
+    for path in SURFACE_GAP_D8:
+        assert _marker(path) not in client, f"{path} gained a client method - declare it surfaced"
+    for path in SURFACED_BY_THE_DESK_SLICE:
+        assert _marker(path) in client, f"{path} lost its client method"
 
 
 def test_the_two_optimisation_families_are_both_declared_and_both_still_reachable() -> None:
@@ -182,22 +195,15 @@ def test_the_two_optimisation_families_are_both_declared_and_both_still_reachabl
     assert "optimization/resource-pool" in machine["sdk"], "the SDK calls the newer one"
 
 
-def test_the_optimisation_engines_have_no_client_method() -> None:
-    """The gap in D8, measured: seven engines and the evidence read, none of them callable."""
+def test_the_optimisation_engines_the_product_does_not_ask_for_have_no_client_method() -> None:
+    """The gap in D8, measured: the engines no surface asks for are still uncallable, and the two
+    the desk needed are not - the second half is what the desk slice delivered."""
 
     client = _client_source()
-    engines = [
-        "optimization/capacity",
-        "optimization/contracts",
-        "optimization/nomination-window",
-        "optimization/portfolio-network",
-        "optimization/resource-pool",
-        "optimization/route",
-        "optimization/runs",
-        "optimization/storage-dispatch",
-    ]
-    missing = [engine for engine in engines if engine in client]
-    assert missing == [], f"engines that gained a client method: {missing}"
+    for path in SURFACE_GAP_D8:
+        assert _marker(path) not in client, path
+    for engine in ("optimization/nomination-window", "optimization/storage-dispatch"):
+        assert engine in client, engine
 
 
 def test_the_census_states_what_it_cannot_see() -> None:

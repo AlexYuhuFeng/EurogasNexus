@@ -444,6 +444,29 @@ requires every public path to be reached by the web client, declared a machine s
 deliberate, pins the overlap pair, and pins the fact that no optimisation engine has a client method.
 When the overlap collapses, that gate is what has to change, in one visible place.
 
+**DELIVERED — the desk slice, the same day.** Two of the four twin-less engines are surfaced, because
+they are the day's clock rather than a later convenience:
+
+- **Nomination windows** and **storage dispatch** are now two tasks of the Decision workspace
+  (`Nomination`, `Storage dispatch`), each the primary act of its own task - a `compute` in the
+  workspace-primary slot, per the action geography - with the panel configuring the assessment and
+  reporting the engine's own answer. No new page (rule 9); the tasks join the existing Scenarios /
+  Optimize / Review set.
+- Both panels are **assessments and say so**: the engines evaluate instructions and return accepted or
+  adjusted quantities, and neither submits a nomination, a booking or a trade. The nomination panel
+  renders one row per instruction with **the window that applied and the engine's own reason** -
+  including an instruction that falls outside every window, which is a legitimate question rather
+  than a form error - and the dispatch panel renders the per-period inject/withdraw schedule, the
+  ending inventory and each period's cashflow.
+- **The evidence read is wired**: every response carries `meta.run_id` when the deployment has a
+  runtime database, the panel offers "Read the run record" through
+  `GET /api/optimization/runs/{run_id}`, and a deployment *without* one shows "No run record" with
+  the reason, instead of letting an unrepeatable assessment read as evidence.
+- The reachability gate moved both engines from the gap list to a `SURFACED_BY_THE_DESK_SLICE` table,
+  so a regression that drops one fails a test rather than quietly returning to the gap. What remains
+  in the gap is `capacity`, `contracts`, `portfolio-network`, `route` and the pool optimiser's
+  runtime-context twin.
+
 **Consequence of collapsing it later.** Once (2) is satisfied, the pool optimiser has one canonical
 route, the client moves to it, and `/api/route-cost/resource-pool/optimize` becomes a deprecated
 compatibility alias rather than a second way to answer the same question - the same shape as the

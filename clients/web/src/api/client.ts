@@ -1899,6 +1899,121 @@ export interface NetbackOutcomeDTO {
   generated_at_utc: string;
 }
 
+/**
+ * The desk's optimisation assessments (register C14/D8).
+ *
+ * `POST /api/optimization/nomination-window` and `POST /api/optimization/storage-dispatch` are
+ * deterministic *assessment* engines: they evaluate instructions and return accepted or adjusted
+ * quantities, and they never submit a nomination, a booking or a trade. Every answer is enveloped
+ * with `meta.run_id` - the persisted input/output snapshot `GET /api/optimization/runs/{run_id}`
+ * re-reads - or with `run_id: null` when the deployment has no runtime database, which the surface
+ * states rather than hiding.
+ */
+export type OptimizationDecisionContextDTO = "SANDBOX_SCENARIO" | "RUNTIME_DECISION";
+
+export interface NominationInstructionInputDTO {
+  submitted_at: string;
+  requested_quantity_mwh: number;
+}
+
+export interface NominationWindowInputDTO {
+  window_id: string;
+  opens_at: string;
+  closes_at: string;
+  maximum_change_mwh?: number | null;
+  maximum_change_pct?: number | null;
+}
+
+export interface NominationWindowRequestDTO {
+  initial_quantity_mwh: number;
+  instructions: NominationInstructionInputDTO[];
+  windows: NominationWindowInputDTO[];
+  gas_day?: string | null;
+  decision_context: OptimizationDecisionContextDTO;
+}
+
+export interface NominationDecisionDTO {
+  submitted_at: string;
+  requested_quantity_mwh: number;
+  accepted_quantity_mwh: number;
+  window_id: string | null;
+  accepted: boolean;
+  reason: string;
+}
+
+export interface NominationScheduleResultDTO {
+  status: string;
+  final_quantity_mwh: number;
+  decisions: NominationDecisionDTO[];
+  warnings: string[];
+  human_review_required: boolean;
+}
+
+export interface StorageFacilityInputDTO {
+  initial_inventory_mwh: number;
+  minimum_inventory_mwh: number;
+  maximum_inventory_mwh: number;
+  maximum_injection_mwh: number;
+  maximum_withdrawal_mwh: number;
+  injection_efficiency?: number;
+  withdrawal_efficiency?: number;
+  injection_cost_gbp_mwh?: number;
+  withdrawal_cost_gbp_mwh?: number;
+  terminal_inventory_mwh?: number | null;
+}
+
+export interface StoragePeriodInputDTO {
+  period_id: string;
+  market_price_gbp_mwh: number;
+}
+
+export interface StorageDispatchRequestDTO {
+  facility?: StorageFacilityInputDTO | null;
+  periods: StoragePeriodInputDTO[];
+  inventory_step_mwh?: number;
+  facility_id?: string | null;
+  gas_day?: string | null;
+  max_periods?: number;
+  decision_context: OptimizationDecisionContextDTO;
+}
+
+export interface StorageDecisionDTO {
+  period_id: string;
+  injection_mwh: number;
+  withdrawal_mwh: number;
+  ending_inventory_mwh: number;
+  cashflow_gbp: number;
+}
+
+export interface StorageDispatchResultDTO {
+  status: string;
+  objective_value_gbp: number;
+  decisions: StorageDecisionDTO[];
+  terminal_inventory_mwh: number;
+  warnings: string[];
+  human_review_required: boolean;
+}
+
+/**
+ * One persisted optimisation run - what was decided, from which inputs.
+ *
+ * `source_refs` and `warnings` are the run's own, `created_at_utc` is its as-of, and the two
+ * snapshots are the evidence: the request the engine received and the result it produced.
+ */
+export interface OptimizationRunDTO {
+  run_id: string;
+  optimization_type: string;
+  decision_context: string;
+  status: string;
+  input_snapshot: Record<string, unknown>;
+  output_snapshot: Record<string, unknown>;
+  source_refs: string[];
+  warnings: string[];
+  created_at_utc: string;
+  research_only: boolean;
+  human_review_required: boolean;
+}
+
 export interface ResearchCapabilityDTO {
   name: string;
   description: string;
@@ -2761,6 +2876,21 @@ export const api = {
 
   routeCost: (body: RouteCostRequestDTO) => post<RouteCostOutcomeDTO>("/research/route-cost", body),
   netback: (body: NetbackRequestDTO) => post<NetbackOutcomeDTO>("/research/netback", body),
+
+  /**
+   * The two desk assessments, and the run record that makes them checkable (register C14/D8).
+   *
+   * Assessment only: `nomination-window` evaluates instructions against window rules and returns
+   * accepted or adjusted quantities, and `storage-dispatch` returns a per-period inject/withdraw
+   * plan. Neither submits a nomination, a booking or a trade - the platform has no execution
+   * semantics by design.
+   */
+  optimizeNominationWindow: (body: NominationWindowRequestDTO) =>
+    post<NominationScheduleResultDTO>("/optimization/nomination-window", body),
+  optimizeStorageDispatch: (body: StorageDispatchRequestDTO) =>
+    post<StorageDispatchResultDTO>("/optimization/storage-dispatch", body),
+  optimizationRun: (runId: string, options?: ApiRequestOptions) =>
+    get<OptimizationRunDTO>(`/optimization/runs/${encodeURIComponent(runId)}`, undefined, options),
 
   me: (options?: ApiRequestOptions) => get<CurrentUserDTO>("/me", undefined, options),
   authStatus: () => get<AuthStatusDTO>("/auth/status"),

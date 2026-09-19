@@ -6,10 +6,18 @@ import type {
 } from "@/api/client";
 
 export type PortfolioTask = "overview" | "resources" | "routes" | "exposure";
-export type DecisionTask = "scenario" | "optimize" | "review";
+//: The Decision workspace's tasks. `nomination` and `dispatch` (register C14/D8) are the desk's
+//: two assessment engines, each the primary act of its own task.
+export type DecisionTask = "scenario" | "optimize" | "nomination" | "dispatch" | "review";
 
 export const PORTFOLIO_TASKS: PortfolioTask[] = ["overview", "resources", "routes", "exposure"];
-export const DECISION_TASKS: DecisionTask[] = ["scenario", "optimize", "review"];
+export const DECISION_TASKS: DecisionTask[] = [
+  "scenario",
+  "optimize",
+  "nomination",
+  "dispatch",
+  "review",
+];
 
 export function portfolioTaskFromLocation(search: string): PortfolioTask {
   const params = new URLSearchParams(search);
