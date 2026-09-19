@@ -221,7 +221,15 @@ jobs:
             fi
             sleep 1
           done
-          test "$api_ready" = "1"
+          if test "$api_ready" != "1"; then
+            # This step has failed three times on unchanged code by not starting the API inside the
+            # readiness window, and each time the job proved only *that* it failed: the process
+            # output went to a file nobody printed. Print it, so the next occurrence is a diagnosis
+            # rather than another re-run.
+            echo "::error::the API did not answer /api/health within 60s - api.log follows"
+            tail -n 200 artifacts/uat-browser/api.log || true
+            exit 1
+          fi
 
           web_ready=0
           for _ in {1..60}; do
@@ -231,14 +239,28 @@ jobs:
             fi
             sleep 1
           done
-          test "$web_ready" = "1"
+          if test "$web_ready" != "1"; then
+            echo "::error::the Web dev server did not answer on :3000 within 60s - vite.log follows"
+            tail -n 200 artifacts/uat-browser/vite.log || true
+            exit 1
+          fi
 
       - name: Run whole-product browser acceptance
         env:
           EUROGAS_UAT_PLAYWRIGHT_PATH: /tmp/eurogas-uat/node_modules/playwright/index.js
           EUROGAS_UAT_AXE_PATH: /tmp/eurogas-uat/node_modules/axe-core/axe.min.js
           EUROGAS_UAT_OUTPUT_DIR: artifacts/uat-browser
-        run: node scripts/uat/browser_workflow_smoke.mjs
+        run: |
+          set +e
+          node scripts/uat/browser_workflow_smoke.mjs
+          sweep_status=$?
+          set -e
+          if test "$sweep_status" != "0"; then
+            # The sweep writes its own summary; print it so a failure is readable in the job log
+            # rather than only inside the uploaded artifact.
+            cat artifacts/uat-browser/summary.json 2>/dev/null || true
+          fi
+          exit "$sweep_status"
 
       - name: Stop UAT servers
         if: always()
