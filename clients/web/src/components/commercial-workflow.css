@@ -1,4 +1,4 @@
-﻿.commercial-workspace {
+.commercial-workspace {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
@@ -245,4 +245,172 @@
   display: flex;
   gap: var(--space-1, 4px);
   flex-wrap: wrap;
+}
+
+/* The decision pack: the artefact a reviewer signs, mounted above the decision controls.
+   Presentation only - the hash stays selectable rather than being reformatted, and the three
+   snapshot states read differently because they are three different statements. */
+.decision-pack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2, 8px);
+  margin: var(--space-4, 16px) 0;
+  padding: var(--space-3, 12px);
+  border: 1px solid var(--eg-hairline-strong);
+  border-radius: var(--eg-radius-md, 8px);
+  background: var(--eg-canvas-soft);
+}
+
+.decision-pack-heading h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.decision-pack-basis {
+  font-size: 12px;
+  color: var(--eg-muted);
+}
+
+.decision-pack-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1, 4px);
+  border-top: 1px solid var(--eg-hairline);
+  padding-top: var(--space-2, 8px);
+}
+
+.decision-pack-section h4 {
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--eg-muted);
+}
+
+.decision-pack-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2, 8px);
+  margin: 0;
+  font-size: 12px;
+}
+
+.decision-pack-facts div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 140px;
+}
+
+.decision-pack-facts dt {
+  color: var(--eg-muted);
+}
+
+.decision-pack-facts dd {
+  margin: 0;
+}
+
+.decision-pack-evidence-list,
+.decision-pack-list,
+.decision-pack-history-list,
+.decision-pack-audit-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1, 4px);
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+}
+
+.decision-pack-evidence-head {
+  display: flex;
+  gap: var(--space-2, 8px);
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.decision-pack-evidence-label,
+.decision-pack-list p,
+.decision-pack-history-list p,
+.decision-pack-audit-list p {
+  margin: 2px 0 0;
+  color: var(--eg-body);
+}
+
+.decision-pack-snapshot {
+  margin: 2px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* The snapshot is on record. */
+.decision-pack-snapshot.is-resolved {
+  color: var(--eg-positive);
+}
+
+/* The reference cites a snapshot that is not on record: a hole a reviewer must see. */
+.decision-pack-snapshot.is-unresolved {
+  color: var(--eg-negative);
+}
+
+/* The reference cites no snapshot at all, so nothing is claimed either way. */
+.decision-pack-snapshot.is-not-cited {
+  color: var(--eg-muted);
+  font-weight: 400;
+}
+
+.decision-pack-warnings,
+.decision-pack-none,
+.decision-pack-note,
+.decision-pack-unavailable,
+.decision-pack-ready,
+.decision-pack-not-ready,
+.decision-pack-signature {
+  margin: 0;
+  font-size: 12px;
+  color: var(--eg-muted);
+}
+
+.decision-pack-ready {
+  color: var(--eg-positive);
+}
+
+.decision-pack-not-ready {
+  color: var(--eg-warn);
+  font-weight: 600;
+}
+
+.decision-pack-unavailable,
+.decision-pack-blockers {
+  color: var(--eg-warn);
+}
+
+.decision-pack-blockers strong {
+  font-size: 12px;
+}
+
+.decision-pack-blockers ul {
+  margin: var(--space-1, 4px) 0 0;
+  padding-left: 18px;
+  font-size: 12px;
+}
+
+.decision-pack-content-hash {
+  display: block;
+  /* Selected and copied by hand, so it wraps rather than being clipped or scrolled out of reach. */
+  overflow-wrap: anywhere;
+  user-select: all;
+  padding: var(--space-1, 4px);
+  border: 1px solid var(--eg-hairline);
+  border-radius: var(--eg-radius-sm, 6px);
+  background: var(--eg-canvas);
+  font-size: 12px;
+}
+
+.decision-pack-content-hash.is-invalid {
+  color: var(--eg-negative);
+}
+
+.decision-pack-content-hash.is-unknown {
+  color: var(--eg-muted);
 }

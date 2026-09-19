@@ -910,6 +910,82 @@ export interface DecisionCaseRecordDTO {
   actor: string; note: string; evidence_refs: string[]; recorded_at_utc: string;
 }
 
+/**
+ * One evidence reference in a decision pack (`GET /api/decision-cases/{case_id}`, `pack.evidence`).
+ *
+ * `snapshot_resolvable` is *measured* by the route and three-valued, and the three values say three
+ * different things: `true` the cited snapshot is on record, `false` the reference cites a snapshot
+ * that is not on record (a hole a reviewer has to see), and `null` the reference cites no snapshot
+ * at all, so nothing is claimed either way.
+ */
+export interface DecisionPackEvidenceDTO {
+  kind: string; ref: string; label: string; as_of_utc: string;
+  /** The snapshot the reference cites, or null when it cites none. */
+  snapshot_id: string | null;
+  snapshot_resolvable: boolean | null;
+}
+
+/** One audit event the pack cites against its case (`pack.audit.events`). */
+export interface DecisionPackAuditEventDTO {
+  event_id: string; action: string; principal: string;
+  outcome: string; severity: string;
+  /** The instant the act was recorded; null when the trail row carries none. */
+  event_ts_utc: string | null;
+  detail: string;
+}
+
+/** The case context as the pack composed it (`pack.context`). */
+export interface DecisionPackContextDTO {
+  gas_day: string | null; delivery_product: string | null; hub_id: string | null;
+  portfolio_ref: string | null; snapshot_id: string | null;
+  reproducible: boolean | null; created_by: string | null; created_at_utc: string | null;
+}
+
+/** The audit trail the pack carries for its own case (`pack.audit`). */
+export interface DecisionPackAuditDTO {
+  /** The resource the acts were recorded against: `decision_case:<case_id>`. */
+  resource: string;
+  events: DecisionPackAuditEventDTO[];
+  /** Where the trail is readable in full, e.g. `/api/audit`. */
+  read_surface: string;
+}
+
+/**
+ * The decision pack beside a case's own fields (`GET /api/decision-cases/{case_id}`).
+ *
+ * One governance artefact a reviewer can sign: the context, the evidence with each snapshot's
+ * resolvability measured, assumptions, alternatives, AI findings, warnings, the human decision with
+ * its actor, the acts recorded against the case, and a canonical content hash over all of it. The
+ * platform holds no signature, so `signable` states whether the case has the two things that make it
+ * decidable at all (evidence and a recorded decision) and `signature_note` says so where a reader
+ * looks for one.
+ */
+export interface DecisionPackDTO {
+  /** The pack shape this payload was composed under, e.g. `decision-pack-1`. */
+  pack_version: string;
+  case_id: string; objective: string; status: string;
+  context: DecisionPackContextDTO;
+  evidence: DecisionPackEvidenceDTO[];
+  assumptions: DecisionCaseAssumptionDTO[];
+  alternatives: DecisionCaseAlternativeDTO[];
+  ai_findings: string[]; warnings: string[];
+  /** The human decision - the newest of `history` - or null while none has been recorded. */
+  decision: DecisionCaseRecordDTO | null;
+  /** Every record the case carries, oldest first: the same array as `DecisionCaseDTO.records`. */
+  history: DecisionCaseRecordDTO[];
+  audit: DecisionPackAuditDTO;
+  /** False while there is no recorded decision or no evidence; the signature itself is a human act. */
+  signable: boolean;
+  /**
+   * Blocker codes in two vocabularies: the pack's own `DECISION_PACK_*` codes and the case's own
+   * codes. A surface renders every one of them rather than only the ones it recognises.
+   */
+  blockers: string[];
+  signature_note: string;
+  content_hash: string;
+  content_hash_basis: string;
+}
+
 /** Full decision-case payload (`GET /api/decision-cases/{case_id}`). */
 export interface DecisionCaseDTO {
   case_id: string; objective: string; status: string;
@@ -923,6 +999,13 @@ export interface DecisionCaseDTO {
   records: DecisionCaseRecordDTO[];
   /** Whether the case may accept a decision yet, with the blockers when it may not. */
   decidable: boolean; blockers: string[];
+  /**
+   * The case's decision pack, composed for the reviewer who signs it.
+   *
+   * Optional on purpose: a deployment whose single-case read predates the pack answers without this
+   * field, and a surface says the pack is not in the read rather than rendering an empty one.
+   */
+  pack?: DecisionPackDTO;
 }
 
 /** Compact list row (`GET /api/decision-cases`). */

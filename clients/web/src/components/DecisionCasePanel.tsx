@@ -41,7 +41,9 @@ import {
   splitCases,
   suggestedEvidenceRef,
 } from "@/app/model/decisionCaseModel";
+import { decisionPackPresentation } from "@/app/model/decisionPackModel";
 import { describeFailure, presentError } from "@/app/experience/errorPresentation";
+import { DecisionPackPanel } from "@/components/decision/DecisionPackPanel";
 import { MetricStrip, PanelHeader, WorkspaceTabs } from "@/components/ui";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
@@ -107,12 +109,32 @@ export function DecisionCasePanel({
   const grouped = useMemo(() => splitCases(cases), [cases]);
   const counts = caseCounts(selected);
 
+  /**
+   * The case as the pack rides with it.
+   *
+   * The pack is composed by the single-case read (`GET /api/decision-cases/{case_id}`), because the
+   * pack *is* that resource in a citable form - a write answers with the case it wrote and cannot
+   * compose the artefact it has just changed. So a write here is followed by that read, which keeps
+   * the pack beside the case the reviewer is deciding on instead of leaving them signing from a case
+   * whose artefact has vanished. It is a read: nothing here composes, stores or signs a pack. When
+   * the follow-up read fails, the case the write returned is still shown and the pack panel states
+   * that this read carried no pack rather than showing the one from before the write.
+   */
+  async function withPack(caseDto: DecisionCaseDTO): Promise<DecisionCaseDTO> {
+    try {
+      const read = await api.decisionCase(caseDto.case_id);
+      return read.data;
+    } catch {
+      return caseDto;
+    }
+  }
+
   async function run(operation: () => Promise<{ data: DecisionCaseDTO }>) {
     setBusy(true);
     setErrorText(null);
     try {
       const response = await operation();
-      setSelected(response.data);
+      setSelected(await withPack(response.data));
       await refresh();
     } catch (error) {
       setErrorText(explainError(error, t));
@@ -140,7 +162,7 @@ export function DecisionCasePanel({
       note: noteText,
     });
     if (result.ok) {
-      setSelected(result.data);
+      setSelected(await withPack(result.data));
       await refresh();
     } else {
       const detail =
@@ -172,7 +194,7 @@ export function DecisionCasePanel({
         delivery_product: deliveryProduct,
         hub_id: hubId ?? "",
       });
-      setSelected(response.data);
+      setSelected(await withPack(response.data));
       setObjective("");
       await refresh();
     } catch (error) {
@@ -362,6 +384,16 @@ export function DecisionCasePanel({
               ))}
             </ul>
           )}
+
+          {/*
+            The decision pack sits directly above the decision controls, because it is the artefact
+            the reviewer signs: the context, the evidence with each snapshot's resolvability
+            measured, the assumptions, the alternatives, the AI findings, the warnings, the recorded
+            decision with its actor, the acts recorded against the case and the content hash. It is
+            composed by the same read this detail comes from (`selected.pack`) and it records
+            nothing - the outcome controls below are still the only act on this surface.
+          */}
+          <DecisionPackPanel t={t} model={decisionPackPresentation(selected.pack)} />
 
           <div className="decision-case-record">
             <label>

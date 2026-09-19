@@ -10,6 +10,50 @@ from sqlalchemy.orm import Session
 from eurogas_nexus.db.models import AuditEventRecord
 
 
+def list_audit_events_for_resource(
+    session: Session, resource: str, *, limit: int = 50
+) -> list[dict[str, object]]:
+    """Return the audit trail recorded against one resource, oldest first.
+
+    按资源读取审计轨迹（最早的在前），供决策包引用而不必猜测关联方式。
+
+    Args:
+        session: Open session.
+        resource: The ``resource`` value the acts were recorded under, e.g.
+            ``decision_case:<case_id>``.
+        limit: Maximum rows to return; the newest ``limit`` are kept, then ordered oldest first.
+
+    Returns:
+        One dict per event with the fields a reviewer cites: action, principal, outcome, severity,
+        timestamp and the detail text.
+    """
+
+    from sqlalchemy import desc
+
+    rows = (
+        session.query(AuditEventRecord)
+        .filter(AuditEventRecord.resource == resource)
+        .order_by(desc(AuditEventRecord.event_ts_utc))
+        .limit(limit)
+        .all()
+    )
+    ordered = list(reversed(rows))
+    return [
+        {
+            "event_id": row.event_id,
+            "action": row.action,
+            "principal": row.principal,
+            "outcome": row.outcome,
+            "severity": row.severity,
+            "event_ts_utc": (
+                row.event_ts_utc.isoformat() if row.event_ts_utc is not None else None
+            ),
+            "detail": row.detail,
+        }
+        for row in ordered
+    ]
+
+
 def record_audit_event(
     session: Session,
     *,

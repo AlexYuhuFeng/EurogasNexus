@@ -124,7 +124,7 @@ def get_decision_cases(
 
 @router.get("/api/decision-cases/{case_id}")
 def get_decision_case(case_id: str, request: Request) -> dict:
-    """Read one decision case with its evidence, assumptions and records."""
+    """Read one decision case with its evidence, assumptions, records and decision pack."""
 
     warnings: list[str] = []
     data: dict | None = None
@@ -132,13 +132,23 @@ def get_decision_case(case_id: str, request: Request) -> dict:
         warnings.append("RUNTIME_DB_NOT_CONFIGURED")
     else:
         try:
+            from eurogas_nexus.application.decision_pack import load_decision_pack
             from eurogas_nexus.db.repositories.decision import get_decision_case as load_case
             from eurogas_nexus.db.session import get_session_factory
 
             with get_session_factory()() as session:
                 data = load_case(session, case_id)
+                # The pack is the same case, composed for a reviewer who has to sign it: the
+                # evidence with each snapshot's resolvability measured, the human record with its
+                # actor, the acts recorded against the case, and a canonical hash over all of it.
+                # It rides on this read rather than a second route because it *is* this resource -
+                # a pack is not a second answer to the question, it is the citable form of this one.
+                pack = load_decision_pack(session, case_id, case=data)
         except _sqlalchemy_error_type():
             warnings.append("RUNTIME_POSTGRESQL_UNAVAILABLE")
+            pack = None
+        if data is not None and pack is not None:
+            data = {**data, "pack": pack}
 
     if data is None and "RUNTIME_DB_NOT_CONFIGURED" not in warnings:
         raise HTTPException(
