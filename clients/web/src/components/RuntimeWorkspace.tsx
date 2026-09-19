@@ -348,7 +348,7 @@ export function RuntimeWorkspace({
           <div className="metric-grid">
             <div><span>{t("status.research_only")}</span><strong>{String(meta.research_only)}</strong></div>
             <div><span>{t("status.human_review_required")}</span><strong>{String(meta.human_review_required)}</strong></div>
-            <div><span>{t("status.source")}</span><strong>{meta.source_references.join(", ") || "n/a"}</strong></div>
+            <div><span>{t("status.source")}</span><strong>{(meta.source_references ?? []).join(", ") || t("data.unavailable")}</strong></div>
           </div>
         ) : <p className="panel-copy">{t("data.unavailable")}</p>}
       </div>

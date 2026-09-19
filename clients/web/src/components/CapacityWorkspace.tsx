@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { EvidenceBlock, WorkspaceTabs } from "@/components/ui";
+import { CapacityContractBook } from "@/components/CapacityContractBook";
 import { formatUtcTimestamp } from "@/app/model/evidencePresentation";
 import { inspectorSubjectFor } from "@/app/model/inspectorDetail";
 import { useInspectorStore } from "@/stores/inspector";
@@ -546,6 +547,11 @@ export function CapacityWorkspace({
           </div>
         </section>
       )}
+
+      {/* The capacity the operator has declared, behind the board's measured and technical
+          capacity: the profiles the runtime stores, on the same page as the points they belong to
+          (slice D). */}
+      <CapacityContractBook t={t} />
       </div>
     </div>
   );

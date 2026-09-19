@@ -4,6 +4,7 @@ import { useMarketViewPreference } from "@/app/context";
 import { CapacityWorkspace } from "@/components/CapacityWorkspace";
 import { MarketTerminal } from "@/components/MarketTerminal";
 import { NetworkWorkspace } from "@/components/NetworkWorkspace";
+import { ReferenceNetworkCatalogue } from "@/components/ReferenceNetworkCatalogue";
 import { GasNetworkMap } from "@/components/GasNetworkMap";
 import { IntradayDecisionFeed } from "@/components/IntradayDecisionFeed";
 import { MarketContextStrip } from "@/components/MarketContextStrip";
@@ -371,6 +372,7 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
           />
         )}
         {task === "network" && (
+          <>
           <NetworkWorkspace
             t={t}
             nodes={api.nodes}
@@ -425,6 +427,10 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
               navigation.openWorkspace("scenario");
             }}
           />
+          {/* The register the map's topology is drawn against, on the same task as the map: what
+              the deployment declares, including the rows the map does not place (slice D). */}
+          <ReferenceNetworkCatalogue t={t} />
+          </>
         )}
         {task === "capacity" && (
           <CapacityWorkspace

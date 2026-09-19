@@ -239,8 +239,20 @@ export function openEventStream(
 export interface ApiMeta {
   research_only: boolean;
   human_review_required: boolean;
-  source_references: string[];
-  warnings: string[];
+  /**
+   * Where the payload came from. Optional because not every envelope carries it: the research
+   * compute routes return the engine's own `source_references` inside `data` and a meta without
+   * them, so a surface reads provenance where the payload actually has it rather than assuming a
+   * field the response may not contain.
+   */
+  source_references?: string[];
+  warnings?: string[];
+  /**
+   * Inputs the read needed and did not have - a missing runtime DB URL, a missing table. A surface
+   * uses this to keep two statements apart: the read established nothing, and the read established
+   * an empty result. Which one it was decides what the page is allowed to say.
+   */
+  missing_inputs?: string[];
   source_posture_summary?: SourcePostureSummaryDTO;
 }
 
@@ -2254,6 +2266,12 @@ export const api = {
    * sources) on a single as-of, replacing the client's join of
    * `/portfolio/live-summary`, `/portfolio/screen-orders` and
    * `/portfolio/pnl-snapshots`.
+   *
+   * `GET /portfolio/live-summary` is deliberately not declared here any more. The
+   * projection's `summary` slice is the same `summarize_portfolio` result - narrowed by the
+   * caller's entitlement, which the route does not do - on one as-of with the orders it
+   * summarises. A second client read would answer the same question from a different instant,
+   * so the route stays for the SDK and the CLI while the client has exactly one answer.
    */
   portfolioSnapshot: (query?: PortfolioSnapshotQuery, options?: ApiRequestOptions) => {
     const params: Record<string, string> = {};
@@ -2363,8 +2381,6 @@ export const api = {
   screenOrders: (options?: ApiRequestOptions) => get<ScreenOrderObservationDTO[]>("/portfolio/screen-orders", undefined, options),
 
   pnlSnapshots: (options?: ApiRequestOptions) => get<PortfolioPnlSnapshotDTO[]>("/portfolio/pnl-snapshots", undefined, options),
-
-  portfolioLiveSummary: (options?: ApiRequestOptions) => get<PortfolioLiveSummaryDTO>("/portfolio/live-summary", undefined, options),
 
   flowObservations: (options?: ApiRequestOptions) => get<FlowObsDTO[]>("/physical/flows", undefined, options),
 

@@ -1475,7 +1475,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
       if (!followUpReadIsCurrent(requestGeneration)) return;
       set({
         analysisSnapshots: result.data,
-        analysisSnapshotSource: result.meta.source_references[0] ?? null,
+        analysisSnapshotSource: result.meta.source_references?.[0] ?? null,
       });
     } catch (e) {
       if (!followUpReadIsCurrent(requestGeneration)) return;
