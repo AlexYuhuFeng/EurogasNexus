@@ -63,6 +63,8 @@ resolve a conflict: the resolutions are decisions, contracts, tests and named fu
 | C12 | Map-tile third-party requests and the client-held API token / operator principal in `localStorage` ([W0-01](W0-01_CLIENT_INVENTORY.md) sections 6.5, 7) | Licence/entitlement interpretation and security scope | Deferred: licence review and a security decision, not a worker judgement. No provider access was expanded or modified | **DEFERRED** |
 | C13 | A review decision's actor is a **request-body field**, and the review route used it as the persisted actor *and* as the audit event's principal, while the Decision Case path already resolved its actor from the authenticated identity ([`review.py`](../../../src/eurogas_nexus/api/routes/public/review.py), audit rows) | V2 08 and the Decision Case rule: a governance act names who actually decided; an audit trail that repeats a typed claim is not evidence. Invariant 7 ("work mode/persona never grants backend authority") in spirit: a caller cannot attribute a decision to another person | Fixed on discovery — the two paths answered "who decided" differently, and the answer that repeated a typed name was the one writing the audit trail | **RESOLVED.** The rule now has one home, `api/dependencies/acting_actor.py`, and both the review-decision path and the Decision Case path call it. The review request's `actor` is retained only for compatibility, is never used as the actor, and a claim that disagrees with the identity comes back as an `ACTOR_CLAIM_IGNORED:<claim>` envelope warning instead of being believed; a deployment with no verified identity records its own public-API principal, because that is who acted. Both writers of the decision's audit rows (the repository's decision event and the route's governance action) now name the identity, which `tests/api/test_review_decision_actor.py` asserts over every row. The client surfaces follow: the review workspace offers no actor field and sends none, and the agent review gate sends none either |
 
+| C14 | Two generations of the optimisation surface exist, and the newer one is unreachable from the product: `/api/optimization/*` (7 engines + a run-evidence read + the only `RUNTIME_DECISION` context) has **no client method and no path literal** anywhere in `clients/web/src`, while the product calls the older `/api/route-cost/*` optimise pair, which carries the Wave 4 snapshot citation and the Wave 8 job tracking the newer family lacks. Four engines - `capacity`, `contracts`, `nomination-window`, `storage-dispatch` - have no counterpart in either direction | V2's "one canonical owner per concept" and the reproducibility invariant: a result that cannot be re-read, or an engine no surface can reach, is a declared capability without a home. Rule 9 forbids solving it with a new page, so the answer has to be convergence plus surfaces inside existing tasks | Measured, then decided with the owner: `tests/contract/test_surface_reachability.py` (public path → reached, machine surface, or deliberate), plus `W0-03` D8 | **DECIDED (D8).** Canonical per operation: `/api/optimization/*` owns the runs that need runtime context or run evidence; the `/route-cost` optimise pair stays canonical **until** the newer family carries the same two invariants (snapshot citation, job tracking), which is the condition for collapsing the one true overlap (the pool optimiser); reads and the contract write stay in `/route-cost/*`; the four twin-less engines are the recorded surface gap, worked next with nomination window and storage dispatch first. The state is pinned by the reachability gate rather than described |
+
 ## 4. Consolidated current-to-target map
 
 Summary of the two inventories, using the V2 decision vocabulary. Detailed rows are in
@@ -380,6 +382,73 @@ honest statement available today - what the deployment does is what its operator
 the gap named where an operator will read it. **Recommendation: (b) now, (a) when more than one
 service invokes providers headlessly**, because two headless callers is where a shared posture stops
 being describable and a real identity earns its keep. Neither is decided here.
+
+### D8 — C14: two optimisation families, and the engines the product cannot reach
+
+**Today.** The platform exposes two generations of the optimisation surface, and until this record
+nobody had measured the relationship between them:
+
+- **`/api/route-cost/*`** (landed 2026-06-01): the read family the product is built on -
+  `tso-tariffs`, `route-candidates`, `upstream-contracts` (and its write), `resource-pool/options` -
+  plus `calculate`, `lng-regas/assess` and the two optimise calls the web client actually makes
+  (`resource-pool/optimize`, `recommend`). It is the family the V2 waves invested in: Wave 4's
+  Analysis-Snapshot verification and echo, Wave 8's shared job tracking, and Wave 5's projection.
+- **`/api/optimization/*`** (landed 2026-07-13, "phase two"): seven engines - `route`,
+  `resource-pool`, `capacity`, `contracts`, `storage-dispatch`, `nomination-window`,
+  `portfolio-network` - plus the run-evidence read `runs/{run_id}`, and the only
+  `RUNTIME_DECISION` context in the platform, where inputs are assembled from the runtime database
+  rather than supplied by the caller.
+
+Measured with `tests/contract/test_surface_reachability.py`: **the web client has no method and no
+path literal for any of `/api/optimization/*`.** Four of those engines have no counterpart anywhere
+else (`capacity`, `contracts`, `nomination-window`, `storage-dispatch`), and they are exactly the
+ones a gas desk decides with - nomination windows and storage dispatch are the day's clock. Today
+they are reachable only from the Python SDK.
+
+**The overlap is one operation, not two families.** `resource-pool` exists in both, and an earlier
+reading of this stretch ("the same engine behind both") was wrong: the newer route runs
+`PhaseTwoOptimizer` over caller-supplied resources and sale options and uniquely supports
+`RUNTIME_DECISION`; the older route runs the Wave-integrated application optimiser, uniquely
+verifies and echoes an Analysis Snapshot and tracks the run as a job, and is the one the Decision
+workspace's primary action calls. `route` in the newer family is *not* a duplicate of `recommend` in
+the older one either - one is a minimum-cost path over caller-supplied edges, the other a
+tariff-driven allocation recommendation over runtime rows. Each family holds something the other
+lacks.
+
+**Options.** (a) Make `/api/optimization/*` canonical and migrate the product to it, deprecating the
+two `/route-cost` optimise calls - coherent, and the client ends up on the family that has the desk's
+missing engines, but it moves the Decision workspace's primary action onto a route that today carries
+*neither* the snapshot citation nor the job tracking, so the invariants would have to be added first
+or lost; (b) make `/route-cost/*` canonical and port the four missing engines into it - keeps every
+platform invariant in one family, at the cost of duplicating four engines' worth of route surface and
+leaving `/optimization/*`'s run-evidence read orphaned; (c) leave both and record the split.
+
+**DECIDED 2026-09-18 — the owner chose to converge, with the invariants as the condition.** The
+ruling is per operation rather than per family, because that is what the evidence supports:
+
+1. **`/api/optimization/*` is the canonical owner of the optimisation runs that need runtime
+   context or run evidence** - it is the only place `RUNTIME_DECISION` exists and the only place an
+   optimiser's run can be re-read (`runs/{run_id}`).
+2. **The `/route-cost` optimise calls stay canonical until the newer family carries the same two
+   invariants** - Analysis-Snapshot verification/echo (Wave 4) and tracking under the shared job
+   lifecycle (Wave 8). That is the *condition* for collapsing the overlap, not a preference: moving
+   the product first would trade a cited, tracked run for an uncited, untracked one.
+3. **Reads and the contract write stay in `/route-cost/*`** - they have no twin, and a write does
+   not belong in an optimiser namespace.
+4. **The four engines with no counterpart are the surface gap**, recorded as such by the gate and
+   worked next: nomination window and storage dispatch first (a desk decision with a deadline),
+   then capacity and contracts.
+
+The state is now machine-checked rather than described: `tests/contract/test_surface_reachability.py`
+requires every public path to be reached by the web client, declared a machine surface, or declared
+deliberate, pins the overlap pair, and pins the fact that no optimisation engine has a client method.
+When the overlap collapses, that gate is what has to change, in one visible place.
+
+**Consequence of collapsing it later.** Once (2) is satisfied, the pool optimiser has one canonical
+route, the client moves to it, and `/api/route-cost/resource-pool/optimize` becomes a deprecated
+compatibility alias rather than a second way to answer the same question - the same shape as the
+`portfolioLiveSummary` retirement in D3, and the same reason: two answers to one question disagree
+eventually.
 
 
 ### What no decision here can unblock

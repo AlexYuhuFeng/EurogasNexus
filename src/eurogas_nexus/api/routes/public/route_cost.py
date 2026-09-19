@@ -313,6 +313,12 @@ def post_resource_pool_optimization(
     ``/api/jobs`` shows what the deployment actually optimised, against which
     snapshot, and with a stable code when it fails. Tracking never changes what
     this handler returns or raises.
+
+    **This operation has two public routes** (register C14/D8). This one uniquely verifies and
+    echoes an Analysis Snapshot and tracks the run as a job, and is the route the product calls;
+    ``POST /api/optimization/resource-pool`` uniquely supports the runtime/DB-first decision
+    context. This route stays canonical until the other carries these same two invariants: see
+    ``W0-03`` D8.
     """
 
     _require_known_analysis_snapshot(body.analysis_snapshot_id)

@@ -371,6 +371,12 @@ def optimize_resource_pool(body: ResourcePoolOptimizationRequest) -> dict:
     ``RUNTIME_DECISION`` rejects client-supplied prices/volumes and assembles
     the inputs exclusively from the runtime DB snapshot (contracts, route
     candidates, market prices with as-of FX), persisting the input snapshot id.
+
+    **This operation has two public routes** (register C14/D8). This one uniquely supports
+    ``RUNTIME_DECISION``; ``POST /api/route-cost/resource-pool/optimize`` uniquely verifies and
+    echoes an Analysis Snapshot and tracks the run under the shared job lifecycle, and is the route
+    the product calls. The overlap collapses when this route carries those same two invariants - see
+    ``W0-03`` D8, and ``tests/contract/test_surface_reachability.py``, which pins the pair.
     """
 
     if body.decision_context == "RUNTIME_DECISION":
