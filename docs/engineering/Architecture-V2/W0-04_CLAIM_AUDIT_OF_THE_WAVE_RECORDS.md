@@ -278,6 +278,20 @@ overflow) including the agent-research interaction.
    `required_tables=33`) was also refreshed from a real run: `0036_job_records`, 91 tables, none
    missing, no warnings.
 
+12. **A slice of the D3 decision went red on CI while every local gate was green, and the cause was
+   a race this audit's own acceptance check had.** Run **455** (`f03c403`, the agents/research
+   catalogue slice) failed `Browser acceptance` alone - `validate`, the dependency audit, the
+   PostgreSQL integration job and the web-client build all passed - and the check that failed was
+   the header preferences assertion, which reads `document.activeElement` immediately after
+   `Escape` while the menu moved focus back to its trigger on the next animation frame. On the
+   machine used here the same check failed twice in a row; on CI it failed once and passed on the
+   next commit, which is what a race looks like. Both halves are fixed: the menu focuses the
+   trigger synchronously before closing (the trigger is always mounted, so closing afterwards
+   cannot drop focus into the body), and the sweep waits for the outcome within a bounded time
+   instead of assuming it happened in the same tick, so a legitimate frame-deferred focus no longer
+   reads as a defect. This is finding 7's lesson arriving again from the other direction: the local
+   run and the enforced gate disagreed, and only the API could say so.
+
 ## 7. Limits of this audit
 
 - The verdicts are the auditors' and the integrator's reading of the code, not a proof; each finding
