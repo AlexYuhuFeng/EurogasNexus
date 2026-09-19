@@ -13,12 +13,6 @@ jobs:
   validate:
     runs-on: ubuntu-latest
 
-    env:
-      # Owner decision D1: every profile identifies its callers, so the two load smokes below
-      # present the deployment token - the documented SDK/CLI credential - and refuse to produce a
-      # baseline without one rather than measuring a table of refusals.
-      EUROGAS_NEXUS_PUBLIC_API_TOKEN: ci-load-smoke-public-api-token
-
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -41,9 +35,18 @@ jobs:
         run: pytest -q tests
 
       - name: API load smoke (in-process, no server)
+        # Owner decision D1: every profile identifies its callers, so the smoke presents the
+        # deployment token - the documented SDK/CLI credential - and refuses to run without one
+        # rather than reporting a table of 401 latencies as a baseline. The variable is scoped to
+        # this step and the next one on purpose: set job-wide it would override the token the test
+        # suite configures for itself, and every suite that presents it would measure a 403.
+        env:
+          EUROGAS_NEXUS_PUBLIC_API_TOKEN: ci-load-smoke-public-api-token
         run: python scripts/ops/load_smoke.py --requests 200 --concurrency 8 --p95-threshold-ms 1000
 
       - name: API load smoke (served instance over HTTP)
+        env:
+          EUROGAS_NEXUS_PUBLIC_API_TOKEN: ci-load-smoke-public-api-token
         run: bash scripts/ops/run_served_load_smoke.sh
 
       - name: MCP server handshake smoke

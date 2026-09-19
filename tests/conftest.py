@@ -23,7 +23,19 @@ _TMP_ROOT = Path(os.environ.get("EUROGAS_NEXUS_TEST_TMP_ROOT", ".tmp_work")).res
 
 @pytest.fixture(scope="session", autouse=True)
 def _public_api_token_env() -> None:
-    os.environ.setdefault("EUROGAS_NEXUS_PUBLIC_API_TOKEN", "test-public-api-token")
+    """Pin the deployment token the suite presents, whatever the machine happens to configure.
+
+    ``setdefault`` was enough while no profile installed the token gate in development; now that
+    every profile identifies its callers (owner decision D1) the suites that present a token *are*
+    testing the gate, and an ambient token from a developer's shell or a CI job would make their
+    hardcoded value invalid - a wall of 403s that says nothing about the change under test. This is
+    the same protection ``_no_ambient_runtime_store`` gives the database URL, for the same reason.
+
+    A test that needs a different value (or none) still wins: ``monkeypatch`` runs after this
+    fixture.
+    """
+
+    os.environ["EUROGAS_NEXUS_PUBLIC_API_TOKEN"] = "test-public-api-token"
 
 
 @pytest.fixture(autouse=True)
