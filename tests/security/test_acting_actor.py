@@ -1,15 +1,16 @@
 """Who is recorded as the actor of a job, run or operational action.
 
-Found while implementing owner decision D1 (architecture conflict C5): the compatibility principal's
-``principal_id`` is ``service:public-api``, and the actor validator rejects a colon. Every route that
-turned an attached identity into a job's ``principal`` therefore failed - in the release profile too,
-where that principal has always been attached for a deployment-token caller. Installing the identity
-layer in the development profile is what surfaced it, but the defect was not confined to development.
+Found while implementing owner decision D1 (architecture conflict C5): the compatibility
+principal's ``principal_id`` is ``service:public-api``, and the actor validator rejects a colon.
+Every route that turned an attached identity into a job's ``principal`` therefore failed - in the
+release profile too, where that principal has always been attached for a deployment-token caller.
+Installing the identity layer in the development profile is what surfaced it, but the defect was
+not confined to development.
 
 The rule now has one home (`acting_actor_name`), the same way the C13 actor rule does: an actor is
 taken from the identity only when the identity was **authenticated**, and a caller the deployment
-serves without a credential is recorded under the fallback the routes used before. The actor is never
-a value from the request body.
+serves without a credential is recorded under the fallback the routes used before. The actor is
+never a value from the request body.
 """
 
 from __future__ import annotations
@@ -91,8 +92,9 @@ def test_the_job_tracking_routes_share_one_actor_rule() -> None:
 
     from pathlib import Path
 
-    root = Path(__file__).resolve().parents[2] / "src" / "eurogas_nexus" / "api" / "routes" / "public"
+    root = Path(__file__).resolve().parents[2]
+    routes = root / "src" / "eurogas_nexus" / "api" / "routes" / "public"
     for name in ("shadow.py", "strategy_registry.py", "source_operations.py"):
-        source = (root / name).read_text(encoding="utf-8")
+        source = (routes / name).read_text(encoding="utf-8")
         assert "acting_actor_name(request)" in source, name
         assert "str(identity.principal_id)" not in source, name
