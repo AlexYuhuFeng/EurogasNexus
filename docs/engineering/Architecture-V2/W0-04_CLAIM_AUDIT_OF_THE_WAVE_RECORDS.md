@@ -289,8 +289,15 @@ overflow) including the agent-research interaction.
    trigger synchronously before closing (the trigger is always mounted, so closing afterwards
    cannot drop focus into the body), and the sweep waits for the outcome within a bounded time
    instead of assuming it happened in the same tick, so a legitimate frame-deferred focus no longer
-   reads as a defect. This is finding 7's lesson arriving again from the other direction: the local
-   run and the enforced gate disagreed, and only the API could say so.
+   reads as a defect. **The fix then broke two more runs, for a reason worth recording:** the same
+   commit changed the behaviour that `workspaceHeader.test.ts` pinned
+   (`requestAnimationFrame(() => triggerRef.current?.focus())`), the client suite had been run
+   *before* that edit rather than after it, and runs **457** and **458** failed the `Test Web
+   client` step on an assertion about a shape the product no longer had - the product change was
+   right and the test that pinned the old shape was not updated in the same pass. Run **459**
+   (`4828983`) is green on every job. This is finding 7's lesson arriving twice in one stretch: the
+   local run and the enforced gate disagreed, and only the API could say so; and a local run is
+   evidence for the tree it ran on and no other.
 
 13. **A contract test can outlive the surface it describes, and keep passing.** Five contract tests
    read `StrategyShadowRunTerminal.tsx` as their subject, and one of them -
