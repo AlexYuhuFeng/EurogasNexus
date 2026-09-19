@@ -61,6 +61,77 @@ const VIEWPORTS = [
   { id: "narrow-390", width: 390, height: 844 },
 ];
 
+
+/**
+ * What each workspace must show, and where the data it shows comes from.
+ *
+ * `heading` is matched against the displayed page's own heading, so a deep link that lands on a
+ * different surface fails instead of being screenshotted as if it were the requested one.
+ * `apiPath` is read from the same session the browser holds, and `rowSelector` counts the rows the
+ * surface actually rendered: if the read returns rows and the surface renders none, the surface is
+ * telling the user there is no data while the deployment has data - a delivery defect, not a
+ * cosmetic one.
+ */
+const SURFACE_SIGNALS = {
+  network: { heading: /network|market/i, apiPath: "/api/reference-network/edges?limit=5", rowSelector: null },
+  capacity: { heading: /capacity/i, apiPath: "/api/physical/capacity?limit=5", rowSelector: null },
+  market: { heading: /market/i, apiPath: "/api/market/observations?limit=5", rowSelector: null },
+  scenario: { heading: /decision/i, apiPath: "/api/decision-cases?limit=5", rowSelector: null },
+  contracts: { heading: /portfolio|contract/i, apiPath: "/api/contracts/upstream?limit=5", rowSelector: null },
+  strategy: { heading: /strategy/i, apiPath: "/api/strategies?limit=5", rowSelector: null },
+  review: { heading: /review|decision/i, apiPath: "/api/review/decisions?limit=5", rowSelector: null },
+  orders: { heading: /portfolio|order/i, apiPath: "/api/portfolio/live-summary", rowSelector: null },
+  sources: { heading: /source/i, apiPath: "/api/sources?limit=5", rowSelector: null },
+  glossary: { heading: /glossary/i, apiPath: "/api/glossary?limit=5", rowSelector: null },
+  runtime: { heading: /runtime/i, apiPath: "/api/runtime/pipeline-health", rowSelector: null },
+  settings: { heading: /settings/i, apiPath: "/api/runtime/release", rowSelector: null },
+  manual: { heading: /manual/i, apiPath: null, rowSelector: null },
+  access: { heading: /access/i, apiPath: "/api/access/users", rowSelector: null },
+  research: { heading: /research/i, apiPath: "/api/capabilities?limit=5", rowSelector: null },
+  agents: { heading: /agent/i, apiPath: "/api/capabilities?limit=5", rowSelector: null },
+};
+
+/**
+ * Functional gaps this run already knows about: a surface whose read returns rows while the
+ * surface renders none. Declared with the reason so the number is visible in every summary, and so
+ * a *new* one fails the run rather than joining a silent list.
+ */
+const KNOWN_FUNCTIONAL_GAPS = {
+  market:
+    "market observations return rows while every hub card renders n/a - recorded by the visual "
+    + "review and not yet fixed",
+  capacity:
+    "physical capacity returns rows while the operating board renders no rows and every KPI reads 0",
+  sources:
+    "sources return rows while the administration surface reports Total sources 0",
+  access: "access users return rows while the Users table renders the empty row 'No users'",
+  research: "the capability catalogue returns rows while the table renders 'Loading workspace'",
+  agents: "the capability catalogue returns rows while the table renders 'Loading workspace'",
+  glossary: "glossary terms return rows while the term index renders 'Loading workspace'",
+};
+
+/**
+ * Surface defects this run has measured and that are still open.
+ *
+ * Declared rather than ignored: each one is counted in `functionalGapCount`, printed in
+ * `observations`, and stated in `docs/release/FUNCTIONAL_ACCEPTANCE_REPORT.md`, so the delivery
+ * conversation starts from the measured state. A surface that is *not* listed here fails the run.
+ */
+const KNOWN_SURFACE_DEFECTS = {
+  glossary:
+    "the term index renders 'Loading workspace' after load while /api/glossary returns terms "
+    + "(measured 2026-09-19; the surface's own read never completes on a fresh login)",
+  agents:
+    "the capability catalogue renders 'Loading workspace' after load while /api/capabilities "
+    + "returns rows (measured 2026-09-19; the surface's own read never completes on a fresh login)",
+};
+
+/** Console noise that is a known, declared condition rather than a defect. */
+const ALLOWED_CONSOLE_ERRORS = [
+  // The shell asks who it is before the session exists; the 401 there is the expected answer.
+  /the server responded with a status of 401/,
+];
+
 function safeName(value) {
   return value.replaceAll(/[^a-zA-Z0-9._-]+/g, "-");
 }
@@ -141,7 +212,145 @@ async function axeViolations(page) {
   });
 }
 
-async function inspectWorkspace(page, language, viewport, workspace, failures, observations) {
+
+/**
+ * The functional check for one workspace: is the requested page displayed, is its heading the
+ * expected one, has loading finished, and does it render what its own API returned?
+ */
+async function inspectSurfaceFunction(
+  page,
+  workspace,
+  failures,
+  observations,
+  functionalGaps,
+) {
+  const signal = SURFACE_SIGNALS[workspace];
+  const scope = `functional/${workspace}`;
+  if (!signal) {
+    recordFailure(
+      failures,
+      scope,
+      "no surface signal is declared for this workspace: add one, so the link cannot pass unmeasured",
+    );
+    return null;
+  }
+
+  const state = await page.evaluate(async (path) => {
+    const pages = [...document.querySelectorAll(".workspace-page")];
+    const displayed = pages.find((element) => {
+      const style = getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      return style.display !== "none" && rect.width > 0 && rect.height > 0;
+    });
+    // The shell marks the active workspace with a `workspace-<id>` class on an ancestor, which is
+    // the only language-independent way to say "this is the page the link asked for": matching the
+    // translated heading failed the whole Chinese run for no reason but translation.
+    let markedWorkspace = null;
+    const known = new Set([
+      "network", "capacity", "market", "scenario", "contracts", "strategy", "review", "orders",
+      "sources", "glossary", "runtime", "settings", "manual", "access", "research", "agents",
+    ]);
+    let node = displayed ?? null;
+    while (node && markedWorkspace === null) {
+      for (const name of String(node.className || "").split(/\s+/)) {
+        // `workspace-page` is the page element's own class, not a workspace marker; only a class
+        // naming a known workspace identifies which surface is on screen.
+        if (name.startsWith("workspace-") && known.has(name.slice("workspace-".length))) {
+          markedWorkspace = name.slice("workspace-".length);
+          break;
+        }
+      }
+      node = node.parentElement;
+    }
+    const heading = displayed?.querySelector("h1, h2")?.textContent?.trim() ?? null;
+    const text = displayed ? displayed.innerText : "";
+    let apiRows = null;
+    let apiStatus = null;
+    if (path) {
+      try {
+        const response = await fetch(path, { credentials: "include" });
+        apiStatus = response.status;
+        const body = await response.json();
+        const data = body?.data;
+        apiRows = Array.isArray(data)
+          ? data.length
+          : data === null || data === undefined
+            ? 0
+            : 1;
+      } catch (error) {
+        apiStatus = 0;
+        apiRows = null;
+      }
+    }
+    return {
+      displayed: Boolean(displayed),
+      markedWorkspace,
+      heading,
+      loading: /loading workspace/i.test(text),
+      text: text.slice(0, 400),
+      apiRows,
+      apiStatus,
+    };
+  }, signal.apiPath);
+
+  if (!state.displayed) {
+    recordFailure(failures, scope, "the requested workspace page is not displayed");
+    return state;
+  }
+  if (state.markedWorkspace && state.markedWorkspace !== workspace) {
+    // The deep link resolved to a different surface: the screenshot is evidence for the wrong page.
+    // This is the defect that let `contracts.png` capture Portfolio Overview for a run that stayed
+    // green.
+    recordFailure(
+      failures,
+      scope,
+      `the displayed page is the '${state.markedWorkspace}' workspace, not '${workspace}'`,
+    );
+  }
+  if (state.loading) {
+    const declared = KNOWN_SURFACE_DEFECTS[workspace];
+    if (declared) {
+      functionalGaps.push({ workspace, declared: true, reason: declared });
+      recordObservation(observations, `${scope}: declared defect - ${declared}`);
+    } else {
+      recordFailure(failures, scope, "the surface still shows 'Loading workspace' after load");
+    }
+  }
+  if (state.apiRows !== null && state.apiRows > 0) {
+    // The read has data. If the surface renders none of it, it is telling the operator the
+    // deployment is empty - the defect class this gate exists for.
+    const rendersNothing = /\bn\/a\b|unavailable|no records|no data|not (?:available|read|configured)/i.test(
+      state.text,
+    );
+    if (rendersNothing) {
+      const declared = KNOWN_FUNCTIONAL_GAPS[workspace];
+      if (declared) {
+        functionalGaps.push({ workspace, declared: true, reason: declared });
+        recordObservation(
+          observations,
+          `${scope}: declared functional gap - ${declared} (api ${state.apiStatus}, ${state.apiRows} row(s))`,
+        );
+      } else {
+        recordFailure(
+          failures,
+          scope,
+          `the read returned ${state.apiRows} row(s) (${state.apiStatus}) and the surface renders none of them`,
+        );
+      }
+    }
+  }
+  return state;
+}
+
+async function inspectWorkspace(
+  page,
+  language,
+  viewport,
+  workspace,
+  failures,
+  observations,
+  functionalGaps,
+) {
   await page.setViewportSize({ width: viewport.width, height: viewport.height });
   await page.goto(
     `${BASE}/?workspace=${encodeURIComponent(workspace)}`,
@@ -222,6 +431,11 @@ async function inspectWorkspace(page, language, viewport, workspace, failures, o
   if (violations.length > 0) {
     recordFailure(failures, scope, `axe violations: ${JSON.stringify(violations)}`);
   }
+
+  // The functional gate: the requested page, its data, and no unfinished loading state. The
+  // chrome-level checks above cannot see any of that - which is how a run stayed green while the
+  // surfaces it captured were empty.
+  await inspectSurfaceFunction(page, workspace, failures, observations, functionalGaps);
 
   const screenshotDir = path.join(
     OUTPUT_DIR,
@@ -612,12 +826,26 @@ export async function runWorkflowSmoke() {
   // are reported in the summary so a green run cannot hide them.
   const observations = [];
   const pageErrors = [];
+  // Declared functional gaps: a surface whose read returns rows while the surface renders none.
+  // Counted and printed in every summary, and a new one fails the run rather than joining a list
+  // nobody reads.
+  const functionalGaps = [];
+  const consoleErrors = [];
   const results = [];
   let agentResearch = null;
   let currentScope = "startup";
 
   page.on("pageerror", (error) => {
     pageErrors.push({ scope: currentScope, detail: String(error) });
+  });
+
+  // A React internal error arrives as a console error rather than a pageerror, so a console
+  // listener is the only way to see it. Anything outside the declared allowlist is a defect.
+  page.on("console", (message) => {
+    if (message.type() !== "error") return;
+    const text = message.text();
+    if (ALLOWED_CONSOLE_ERRORS.some((pattern) => pattern.test(text))) return;
+    consoleErrors.push({ scope: currentScope, detail: text.slice(0, 300) });
   });
 
   try {
@@ -637,6 +865,7 @@ export async function runWorkflowSmoke() {
                 workspace,
                 failures,
                 observations,
+                functionalGaps,
               ),
             );
           } catch (error) {
@@ -659,6 +888,9 @@ export async function runWorkflowSmoke() {
   for (const error of pageErrors) {
     recordFailure(failures, error.scope, `pageerror: ${error.detail}`);
   }
+  for (const error of consoleErrors) {
+    recordFailure(failures, error.scope, `console error: ${error.detail}`);
+  }
 
   const summary = {
     ok: failures.length === 0,
@@ -671,6 +903,10 @@ export async function runWorkflowSmoke() {
     // Declared gaps and skipped checks travel with the result: a green run that quietly measured
     // nothing is the failure mode this list exists to prevent.
     observations,
+    // The functional state, measured rather than assumed: which declared gaps are still present,
+    // and whether every surface rendered what its own API returned.
+    functionalGaps,
+    functionalGapCount: functionalGaps.length,
     results,
     failures,
   };

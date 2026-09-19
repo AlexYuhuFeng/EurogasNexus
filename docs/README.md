@@ -225,6 +225,8 @@ Operational procedures and operator-facing guides:
 - [Release engineering specification](release/RELEASE_ENGINEERING_SPEC.md)
 - [Release channels](release/RELEASE_CHANNELS.md)
 - [GA release gates](release/GA_RELEASE_GATES.md)
+- [Functional acceptance report](release/FUNCTIONAL_ACCEPTANCE_REPORT.md) - the measured
+  functional state: the browser gate now checks that a surface renders what its own API returned
 - [Software supply chain](release/SUPPLY_CHAIN.md)
 - [Update policy](release/UPDATE_POLICY.md)
 - [Install Windows](release/INSTALL_WINDOWS.md)
