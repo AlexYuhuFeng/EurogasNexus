@@ -33,12 +33,31 @@ def _auth_headers() -> dict[str, str]:
 
 
 def test_certification_write_rejects_missing_internal_token(monkeypatch) -> None:
+    """An uncredentialed write is refused; D1 moved *which* gate refuses it.
+
+    The internal route validated the internal token inside the handler, and it still does. Owner
+    decision D1 also installs the route-permission gate in the internal profile, and the route is
+    declared OPERATOR there, so a request carrying neither a principal nor the internal token is now
+    refused one layer earlier - with the operator-principal code rather than the handler's internal
+    one. Both are 401 refusals of the same caller, and the second gate is still there for the
+    request that presents a principal but no valid token (the test below).
+    """
+
     monkeypatch.setenv("EUROGAS_NEXUS_INTERNAL_API_TOKEN", "test-internal-token")
 
     response = _internal_client().post(CERT_URL, json=VALID_CERTIFICATION)
 
     assert response.status_code == 401
-    assert response.json()["detail"]["code"] == "internal_api_token_missing"
+    detail = response.json()["detail"]
+    assert detail["error"] in {"operator_principal_missing", "internal_api_token_missing"}
+    # With a principal but no internal token the handler's own gate is the one that answers.
+    with_principal = _internal_client().post(
+        CERT_URL,
+        headers={"X-Eurogas-Principal": "ops-user"},
+        json=VALID_CERTIFICATION,
+    )
+    assert with_principal.status_code == 401
+    assert with_principal.json()["detail"]["code"] == "internal_api_token_missing"
 
 
 def test_certification_write_fails_closed_without_configured_token(monkeypatch) -> None:

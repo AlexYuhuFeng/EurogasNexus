@@ -1,9 +1,16 @@
-"""Route-permission enforcement dependency (release profile).
+"""Route-permission enforcement dependency (every profile).
 
 Enforces identity requirements declared in the permission registry
-(``eurogas_nexus.security.permissions``): OPERATOR routes require an explicit,
-valid ``X-Eurogas-Principal`` header. READ/GOVERNED/PUBLIC routes need only the
-public API token (enforced by ``require_public_api_auth``).
+(``eurogas_nexus.security.permissions``).
+
+Two different callers reach an OPERATOR/ADMIN route, and they are held to different things:
+
+* an **authenticated** caller (session, identity key, validated OIDC token) is the acting operator
+  itself, so it needs no further proof of who it is - ``request.state.actor`` is its own name;
+* the **compatibility** caller (the deployment token, which identifies the deployment rather than a
+  person) must name the acting operator explicitly with ``X-Eurogas-Principal``.
+
+READ/GOVERNED/PUBLIC routes need only the credential the caller already presented.
 
 本模块把"路由路径 → 所需身份"的映射与执行分离：映射在
 ``security.permissions`` 登记表声明，这里只负责按结果强制校验。
@@ -40,9 +47,10 @@ async def require_route_permission(request: Request) -> None:
     Raises:
         HTTPException: 500 ``permission_not_declared`` when the path is not
             registered in the permission table (a deployment bug, not a
-            client error); 401 ``operator_principal_missing`` when an
-            OPERATOR route has no principal header; 403
-            ``operator_principal_invalid`` when the header value is invalid.
+            client error); 401 ``operator_principal_missing`` when a
+            compatibility caller reaches an OPERATOR route with no principal
+            header; 403 ``operator_principal_invalid`` when the header value is
+            invalid.
     """
 
     try:
@@ -75,9 +83,16 @@ async def require_route_permission(request: Request) -> None:
     if permission not in {Permission.OPERATOR, Permission.ADMIN}:
         return
 
-    if identity.auth_method == "identity_key":
-        # The DB identity is the authenticated actor; no spoofable header is
-        # accepted for identity-key callers.
+    if getattr(request.state, "identity_authenticated", False) or (
+        identity.auth_method == "identity_key"
+    ):
+        # An authenticated caller *is* the acting operator: a session, an identity key or a
+        # validated OIDC token already names who is acting, and the C13 rule records that identity
+        # as the actor rather than any caller-supplied claim. Demanding the header here would add a
+        # spoofable value that changes nothing - and it would break the browser, which cannot send
+        # it: the administration surfaces read ADMIN routes from a session, so before owner decision
+        # D1 installed this gate in every profile those reads passed in development and, in release,
+        # they were answered by the compatibility principal.
         request.state.actor = identity.name
         return
 

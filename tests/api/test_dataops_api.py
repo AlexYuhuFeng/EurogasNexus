@@ -16,6 +16,12 @@ from eurogas_nexus.db.repositories import dataops as dataops_repository
 from eurogas_nexus.domain.dataops.registry import definition_for_source
 from eurogas_nexus.security.permissions import permission_for_path
 
+#: Data operations are OPERATOR routes - running, retrying, backfilling, enabling and certifying a
+#: source all change what the deployment ingests. Owner decision D1 installed the route-permission
+#: gate in every profile, so the acting operator is named here in the development profile too,
+#: exactly as the operator console does.
+OPERATOR_HEADERS = {"X-Eurogas-Principal": "ops-analyst"}
+
 
 @pytest.fixture()
 def client(tmp_path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
@@ -25,7 +31,7 @@ def client(tmp_path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     monkeypatch.setenv("RUNTIME_STORE_DATABASE_URL", database_url)
     monkeypatch.delenv("DATABASE_URL", raising=False)
     monkeypatch.delenv("EUROGAS_NEXUS_DB_DSN", raising=False)
-    client = TestClient(create_app())
+    client = TestClient(create_app(), headers=OPERATOR_HEADERS)
     client.engine = engine
     return client
 

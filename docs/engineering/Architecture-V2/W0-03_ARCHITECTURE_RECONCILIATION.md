@@ -176,44 +176,82 @@ trusts the network is the one security posture the programme has repeatedly had 
 it is surprising; the work is roughly a day including harness updates.
 
 **DECIDED 2026-09-19 — the owner chose (a): authentication is installed in every profile.**
-**Implementation not started; the attempt is recorded here with what it found.** "Private network"
-becomes a deployment statement instead of a code default, so a deployment that wants to trust its
-network says so in its own configuration rather than inheriting that posture from the platform.
+**DELIVERED 2026-09-19, after the first attempt was reverted.** "Private network" is now a
+deployment statement instead of a code default: a deployment that wants to trust its network says
+so in its own configuration rather than inheriting that posture from the platform.
 
-An implementation was attempted and reverted before it could land, because it is not the bounded
-change the estimate suggested: installing the identity dependency app-wide changes route behaviour
-well beyond "identify your callers", and three of the consequences are security-relevant. What the
-attempt established, all of which the next pass needs:
+**What the delivery is.** `require_auth` is true in every profile, so the full dependency chain
+(the deployment-token gate, the identity gate, the route-permission gate, the commercial-access
+gate) is installed everywhere. A caller that presents nothing is refused. The one way back to the
+pre-D1 posture is `EUROGAS_NEXUS_ALLOW_ANONYMOUS_CALLERS=1`, and the health payload reports it:
+`authentication` is `enforced` by default and `anonymous_allowed` when the deployment opted in
+(the old `not_installed` value is no longer produced by any shipped profile; it stays declared for
+a profile that installs nothing).
 
-- **The public authentication routes must be exempt from the identity requirement.** The
-  development credential login is how a caller obtains a session; with `require_identity`
-  installed app-wide and no exemption, `/api/auth/*` refuses the login that would have supplied the
-  credential, so no client could ever authenticate. The public-token gate already has such a list
-  (`AUTH_EXEMPT_PREFIXES`); the identity dependency needs its own, and it should cover the health
-  probes as well, which are read by tooling that has no credential.
-- **Entitlement parity depends on which principal is attached, and attaching one by default can
-  widen what a caller sees.** `current_principal` falls back to the compatibility principal, whose
-  data scopes are `("*",)`. `tests/api/test_projections_api.py::test_projections_are_never_wider_than_the_underlying_routes`
-  failed during the attempt with a restricted observation appearing through the projection but not
-  through the route: one path resolved the newly attached principal and the other resolved
-  something narrower. Whatever the mechanism, the next pass must prove parity on both sides before
-  the change lands - a posture change must never make a governed read wider.
-- **Two suites encoded the old posture as their premise.** `tests/api/test_review_decision_actor.py`
-  injects `request.state.identity` through middleware *because* "the development profile does not
-  authenticate the request", and `tests/api/test_health_api.py` asserts the posture vocabulary. Both
-  need reworking with the change rather than after it: the first should authenticate with a real
-  credential, the second should assert the new vocabulary on both sides of the deployment
-  statement.
-- **The release profile already carries the actor defect** the attempt surfaced and this stretch
-  fixed: `legacy_public_token_principal().principal_id` is `service:public-api`, the actor validator
-  rejects a colon, and three job-tracking routes turned an attached identity into that string - so a
-  deployment-token caller reaching them raised instead of being recorded. The actor rule now has one
-  home (`api/dependencies/acting_actor.py::acting_actor_name`) beside the C13 rule, an actor is taken
-  from the identity only when the identity was authenticated, and
-  `tests/security/test_acting_actor.py` pins both the defect and the rule.
+| Profile | Identifies callers | Reaches a business path with no credential | Anonymous posture available |
+|---|---|---|---|
+| `development` | yes | no (401 `public_api_token_missing`, or 503 when no deployment token is configured) | yes, by the deployment's own setting |
+| `internal` | yes | no (same) | yes, by the deployment's own setting |
+| `release` | yes | no (same) | yes, by the deployment's own setting |
+
+**The four findings from the first attempt, and what each turned into.**
+
+1. **The public authentication routes must be exempt.** Now one list, `api/dependencies/
+   exempt_paths.py::CREDENTIAL_EXEMPT_PREFIXES`, consumed by *both* gates - the defect was two
+   lists (the token gate had one, the identity gate none) so a login could not be reached. It
+   covers `/api/auth/`, `/api/dev/auth/`, `/api/health` (and therefore `live`/`ready`) and the
+   `/api/dev/health` and `/api/internal/health` aliases, each with its reason, and it is pinned by
+   `tests/security/test_public_api_auth.py::test_the_health_probes_and_login_are_reachable_without_a_credential`.
+2. **Attaching a principal by default can widen a governed read.** The mechanism is now known
+   exactly: `require_identity` *overwrote* an identity another layer had already resolved, so the
+   projections test's scoped principal was replaced by the unscoped compatibility one and a
+   restricted observation appeared. `require_identity` now returns immediately when
+   `request.state.identity` is already set, and
+   `tests/api/test_projections_api.py::test_projections_are_never_wider_than_the_underlying_routes`
+   passes unchanged, which is the parity evidence: the projection is still a subset of the route.
+3. **Two suites encoded the old posture as their premise.** Reworked with the change rather than
+   after it: `test_health_api.py` now asserts the new vocabulary on both sides of the deployment
+   statement, `test_review_decision_actor.py` keeps its injected identity (which the no-overwrite
+   rule now protects) and the suites that reached OPERATOR routes in development without a
+   principal (`test_provider_credentials_api.py`, `test_dataops_api.py`) name the acting operator
+   the way the console does. Three more suites carried the same premise and are reworked on the
+   same terms: `test_public_api_auth.py` (the development profile's "no token required" test is now
+   the opt-in test, and its probe path moved off `/api/health`, which is exempt), and the two
+   internal-token tests, whose refusal now comes from the declared OPERATOR requirement one layer
+   earlier.
+4. **The release profile already carried the actor defect** the attempt surfaced, and this stretch
+   fixed it (`api/dependencies/acting_actor.py`, `tests/security/test_acting_actor.py`).
+
+**Two defects the delivery itself uncovered, both declared rather than patched quietly.**
+
+- **Twelve internal paths had no declared permission.** They were mounted only in the `internal`
+  profile, where the gate that reads the registry was never installed, so no test could see it:
+  `GET/POST /api/internal/identities*`, `/api/internal/audit/*`,
+  `/api/internal/portfolio/import-observations`, `/api/internal/shadow-scheduler/tick`,
+  `/api/internal/sources/certification` and `/api/internal/health`. Installing the gate turned each
+  into a 500 `permission_not_declared`. They are now declared in the registry, each entry mirroring
+  the floor its route already enforces (`validate_internal_operator_headers`: an internal token
+  **and** an explicit operator principal) rather than adding a second, different one - the internal
+  token remains the stronger control and is still validated in the handler.
+- **The identity gate's own refusal is a backstop, not the gate a caller meets.** With the
+  deployment-token gate installed everywhere, an anonymous caller is refused by *that* gate first
+  (401 `public_api_token_missing`, or 503 fail-closed when no token is configured). The identity
+  dependency keeps its `401 authentication_required` refusal all the same, because the requirement
+  is "this deployment identifies its callers" and that must not depend on a different dependency
+  staying installed; it is exercised directly rather than through the app, and the interaction is
+  stated in the tests so a future reader does not mistake the backstop for the control.
+
+**Harness consequences, which is where the estimate went.** Every harness that relied on the
+compatibility principal now presents a credential: the test suite does it once, centrally
+(`tests/conftest.py` injects the deployment token into development- and internal-profile clients
+unless a test asks for anonymity or presents its own credential, which is exactly the documented
+SDK/CLI caller and changes no principal, scope or row filter); the two load harnesses
+(`scripts/ops/load_smoke.py`, `scripts/ops/performance_baseline.py`) present the token and refuse to
+run without one rather than reporting a table of 401s as healthy latency; and the browser
+acceptance sweep already logs in through the exempt development login.
 
 The delivery note, with the profile matrix, the exemption list, the parity evidence and the
-harnesses updated, belongs in the execution checkpoint's security section when it lands.
+harnesses updated, is in the execution checkpoint's security section.
 
 ### D2 — C6b: what is the second-approver policy for role and data-scope grants?
 

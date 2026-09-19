@@ -9,6 +9,16 @@ from eurogas_nexus.db.base import Base
 from eurogas_nexus.db.models import ProviderCredentialRecord
 from eurogas_nexus.llm import DeepSeekCallResult
 
+#: Writing or rotating a provider credential is an OPERATOR route in *every* profile since owner
+#: decision D1 installed the route-permission gate app-wide (before it, the development profile
+#: simply did not run that gate). The suite therefore acts the way the console does: it names the
+#: acting operator.
+OPERATOR_HEADERS = {"X-Eurogas-Principal": "operator-alice"}
+
+
+def _client() -> TestClient:
+    return TestClient(create_app(), headers=OPERATOR_HEADERS)
+
 
 def test_credential_write_requires_secret_key(tmp_path, monkeypatch) -> None:
     database_url = f"sqlite+pysqlite:///{(tmp_path / 'credentials.sqlite').as_posix()}"
@@ -18,7 +28,7 @@ def test_credential_write_requires_secret_key(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("RUNTIME_STORE_DATABASE_URL", database_url)
     monkeypatch.delenv("EUROGAS_NEXUS_SECRET_KEY", raising=False)
 
-    response = TestClient(create_app()).put(
+    response = _client().put(
         "/api/credentials/GIE",
         json={"api_key": "secret-value", "label": "local-gie"},
     )
@@ -35,7 +45,7 @@ def test_credentials_are_encrypted_and_redacted(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("RUNTIME_STORE_DATABASE_URL", database_url)
     monkeypatch.setenv("EUROGAS_NEXUS_SECRET_KEY", "test-local-secret-key")
 
-    client = TestClient(create_app())
+    client = _client()
     response = client.put(
         "/api/credentials/GIE",
         json={"api_key": "secret-value", "label": "local-gie"},
@@ -79,7 +89,7 @@ def test_deepseek_live_connection_test_is_explicit_and_write_only(
         "eurogas_nexus.llm.test_deepseek_connection",
         fake_connection_test,
     )
-    client = TestClient(create_app())
+    client = _client()
     saved = client.put(
         "/api/credentials/DEEPSEEK",
         json={"api_key": "deepseek-test-secret", "label": "operator-default"},
@@ -106,7 +116,7 @@ def test_credential_rotation_disable_and_local_validation_are_write_only(
     monkeypatch.setenv("RUNTIME_STORE_DATABASE_URL", database_url)
     monkeypatch.setenv("EUROGAS_NEXUS_SECRET_KEY", "test-local-secret-key")
 
-    client = TestClient(create_app())
+    client = _client()
     first = client.put(
         "/api/credentials/GIE",
         json={"api_key": "first-secret-value", "label": "local-gie"},
@@ -158,7 +168,7 @@ def test_credential_rotation_disable_and_local_validation_are_write_only(
 
 
 def test_public_provider_credentials_cannot_be_rotated_or_disabled() -> None:
-    client = TestClient(create_app())
+    client = _client()
 
     rotate = client.post(
         "/api/credentials/ECB/rotate",
@@ -176,7 +186,7 @@ def test_public_provider_credentials_cannot_be_rotated_or_disabled() -> None:
 
 
 def test_provider_registry_covers_v1_source_center() -> None:
-    response = TestClient(create_app()).get("/api/credentials/providers")
+    response = _client().get("/api/credentials/providers")
     assert response.status_code == 200
 
     providers = {item["provider_id"]: item for item in response.json()["data"]}

@@ -156,7 +156,11 @@ def test_internal_import_requires_explicit_principal(
     )
 
     assert response.status_code == 401
-    assert response.json()["detail"]["code"] == "internal_principal_missing"
+    # D1 installs the route-permission gate in the internal profile, so the declared OPERATOR
+    # requirement refuses this request one layer before the handler's own principal check would.
+    # The refusal - and the fact that nothing was written - is what this test is about.
+    detail = response.json()["detail"]
+    assert detail.get("error") == "operator_principal_missing"
     with Session(engine) as session:
         assert session.get(ScreenOrderObservationRecord, "order-api-001") is None
         assert session.get(PortfolioPnlSnapshotRecord, "pnl-api-001") is None

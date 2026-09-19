@@ -151,6 +151,17 @@ severity, recoverability) rather than reading a raw status code.
 |---|---|---|---|
 | `/api/workflows/*` (10 legacy shells) | 0.5.x (S4.3) | after Web/SDK/CLI migrate to the domain-specific `/api` endpoints | removed in 0.5.x after Web/SDK/CLI migration; legacy paths now return 404 |
 | `actor` (request field) on `POST /api/review/decisions` | 0.5.x (W0-03 C13) | when no caller still sends it | accepted but never used: the platform records the authenticated identity as the actor of the decision and of its audit events. A value that disagrees with the identity is reported as an `ACTOR_CLAIM_IGNORED:<claim>` envelope warning, so a caller learns its claim was not recorded. The field became optional in the same change, so omitting it is the supported form |
+| `authentication` value `not_installed` on `GET /api/health` / `/api/health/live` | 2026-09-19 (owner decision D1) | when no consumer switches on it | **Replaced, not removed**: every route profile installs authentication now, so no shipped profile produces the value. It stays declared in the response type for a profile that installs nothing, and the payload reports `enforced` by default or `anonymous_allowed` when the deployment itself opted into trusting its network (`EUROGAS_NEXUS_ALLOW_ANONYMOUS_CALLERS`). A consumer that only handled `enforced`/`not_installed` treats `anonymous_allowed` as the old value, which is exactly what it is |
+
+## Deliberate Narrowings
+
+Behaviour changes that refuse more than they used to, recorded here because they are visible to a
+caller rather than additive.
+
+| Surface | Change | Why |
+|---|---|---|
+| Every `/api` path except the credential-exempt ones | **A caller that presents no credential is refused.** Before D1 the `development` and `internal` profiles installed no authentication and served such a caller as the compatibility principal (data scopes `("*",)`, role `OPERATOR`). They now answer 401 `public_api_token_missing` when a deployment token is configured, or 503 `public_api_token_not_configured` when none is, and the identity dependency adds its own 401 `authentication_required` refusal as a backstop. The exempt paths are `/api/auth/*`, `/api/dev/auth/*`, `/api/health` (so `live` and `ready`), `/api/dev/health` and `/api/internal/health` | Owner decision D1: identification is the default and trusting the network is a deployment's own, reported statement. The SDK, CLI, MCP and Web clients are unaffected - they already present the deployment token or a session |
+| `/api/internal/*` (12 paths) | **Declared permissions where there were none.** The route-permission gate was not installed in the `internal` profile, so these paths never resolved a permission; installing the gate exposed that a mounted path with no registry entry answers 500 `permission_not_declared` | The registry is enforcement, not documentation. Each entry mirrors the floor the route already enforced in its handler (`validate_internal_operator_headers`), so nothing that could reach them before is refused now |
 
 ## Non-Goals
 

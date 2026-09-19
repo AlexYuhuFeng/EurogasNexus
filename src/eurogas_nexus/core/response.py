@@ -12,9 +12,14 @@ class HealthResponse(BaseModel):
     service: str = "eurogas-nexus"
     version: str
     profile: str
-    #: Whether this profile installs app-wide authentication (architecture finding C5).
-    #: `not_installed` is a documented posture of the development and internal profiles, not
-    #: an error - but it is the difference between a deployment that identifies its callers
-    #: and one that trusts the network, so it is reported rather than assumed.
-    authentication: Literal["enforced", "not_installed"] = "not_installed"
+    #: Whether this deployment identifies its callers (architecture finding C5, owner decision D1).
+    #: `enforced` is the default in every profile: a caller that presents nothing is refused.
+    #: `anonymous_allowed` is a deployment's own, explicit choice
+    #: (`EUROGAS_NEXUS_ALLOW_ANONYMOUS_CALLERS`) to trust its network, and it is reported rather
+    #: than assumed - an operator can always see which of the two this deployment is.
+    #: `not_installed` remains declared for a profile that installs no authentication at all; no
+    #: shipped profile does since D1.
+    authentication: Literal[
+        "enforced", "anonymous_allowed", "not_installed"
+    ] = "enforced"
 

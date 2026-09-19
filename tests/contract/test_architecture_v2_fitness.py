@@ -403,12 +403,15 @@ def test_every_public_route_has_a_declared_permission() -> None:
 
 
 def test_release_profile_wires_route_permission_enforcement() -> None:
-    """FF3: the declared permission registry is actually enforced by a profile.
+    """FF3: the declared permission registry is enforced by *every* profile.
 
-    Records the enforcement gap at the same time: the dependency is only attached
-    when ``require_auth`` is true, and only the RELEASE profile sets it, so the
-    registry is documentation rather than enforcement in the development and
-    internal profiles (see the gap inventory, FF3-G2).
+    The gap this function used to record - the dependency is only attached when ``require_auth`` is
+    true, and only RELEASE set it, so the registry was documentation in development and internal
+    (FF3-G2) - is **closed** by owner decision D1: every profile identifies its callers, and the one
+    way to relax that is a deployment's own explicit statement
+    (``EUROGAS_NEXUS_ALLOW_ANONYMOUS_CALLERS``), which the health payload reports. The assertions
+    below therefore pin the closed state rather than the gap, and pin the opt-in as the only
+    relaxation so a future profile cannot quietly reintroduce the old default.
     """
 
     tree = _python_tree(ROUTE_PROFILES_MODULE)
@@ -429,9 +432,15 @@ def test_release_profile_wires_route_permission_enforcement() -> None:
             }
 
     assert set(profiles) >= {"DEVELOPMENT", "INTERNAL", "RELEASE"}
-    assert profiles["RELEASE"].get("require_auth") is True
-    assert profiles["DEVELOPMENT"].get("require_auth") in (None, False)
-    assert profiles["INTERNAL"].get("require_auth") in (None, False)
+    # D1: no profile opts out. A profile that does not set the flag inherits the dataclass default,
+    # which is True for the same reason.
+    for name in ("DEVELOPMENT", "INTERNAL", "RELEASE"):
+        assert profiles[name].get("require_auth") in (None, True), name
+
+    profiles_source = _read_text(ROUTE_PROFILES_MODULE)
+    assert "require_auth: bool = True" in profiles_source
+    # The relaxation is a deployment setting, and it is reported rather than silent.
+    assert "anonymous_allowed" in profiles_source
 
     app_source = _read_text(APP_MODULE)
     assert "Depends(require_route_permission)" in app_source

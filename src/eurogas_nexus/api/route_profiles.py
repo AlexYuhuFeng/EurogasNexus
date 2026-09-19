@@ -22,7 +22,13 @@ class ApiRouteProfile(BaseModel):
     include_public: bool = True
     include_internal: bool = False
     include_dev: bool = False
-    require_auth: bool = False
+    #: Whether this profile identifies its callers (finding C5 / owner decision D1).
+    #:
+    #: True in every profile: a *profile* does not decide whether callers are identified, because
+    #: the posture a deployment wants is a deployment statement. A deployment that trusts its
+    #: network says so with ``EUROGAS_NEXUS_ALLOW_ANONYMOUS_CALLERS``, and that choice is reported
+    #: by the health payload instead of being inherited from the code.
+    require_auth: bool = True
 
 
 API_ROUTE_PROFILES: dict[ApiProfileName, ApiRouteProfile] = {
@@ -31,14 +37,14 @@ API_ROUTE_PROFILES: dict[ApiProfileName, ApiRouteProfile] = {
         expose_docs=True,
         expose_openapi=True,
         include_dev=True,
+        require_auth=True,
     ),
     ApiProfileName.INTERNAL: ApiRouteProfile(
         name=ApiProfileName.INTERNAL,
         expose_docs=False,
         expose_openapi=False,
         include_internal=True,
-    ),
-    ApiProfileName.RELEASE: ApiRouteProfile(
+    ),    ApiProfileName.RELEASE: ApiRouteProfile(
         name=ApiProfileName.RELEASE,
         expose_docs=False,
         expose_openapi=False,
@@ -54,16 +60,36 @@ def get_route_profile(name: str | ApiProfileName) -> ApiRouteProfile:
     return API_ROUTE_PROFILES[profile_name]
 
 
-def authentication_posture(name: str | ApiProfileName) -> str:
-    """Whether a profile installs app-wide authentication.
+def authentication_posture(
+    name: str | ApiProfileName, *, allow_anonymous_callers: bool = False
+) -> str:
+    """Whether a deployment identifies its callers.
 
-    Architecture finding C5: the ``development`` and ``internal`` profiles deliberately
-    install none, so a caller that presents no identity resolves to the documented
-    single-trust-domain compatibility principal and receives its unrestricted row filtering.
-    That is a posture, not an accident - and publishing it on the health payload makes it
-    visible to whoever operates the deployment instead of only to whoever reads the conflict
-    register.
+    认证姿态：标识调用方（enforced）还是由部署显式声明信任网络（anonymous_allowed）。
+
+    Architecture finding C5 was published as a runtime posture because a code default that trusts
+    the network is surprising. Owner decision **D1** then installed authentication in every profile,
+    so the surprising default is gone and what remains is a deployment's own choice: with
+    ``EUROGAS_NEXUS_ALLOW_ANONYMOUS_CALLERS`` set, a caller that presents nothing resolves to the
+    documented compatibility principal and receives its unrestricted row filtering - which the
+    payload says out loud, so an operator still cannot be surprised by it.
+
+    Args:
+        name: Route profile name.
+        allow_anonymous_callers: Whether the deployment opted into trusting its network.
+
+    Returns:
+        ``"enforced"`` when a caller that presents nothing is refused, or ``"anonymous_allowed"``
+        when the deployment explicitly permits it.
+
+    Raises:
+        ValueError: When ``name`` is not a registered profile.
     """
 
-    return "enforced" if get_route_profile(name).require_auth else "not_installed"
+    profile = get_route_profile(name)
+    if not profile.require_auth:
+        # No profile does this today; a profile that installed no authentication would be reported
+        # as what it is rather than silently as "enforced".
+        return "not_installed"
+    return "anonymous_allowed" if allow_anonymous_callers else "enforced"
 

@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import os
 import statistics
 import sys
 import time
@@ -77,6 +78,7 @@ def run_requests(
                     transport=None if base_url else transport(),
                     base_url=base_url or "http://loadtest.local",
                     timeout=30.0,
+                    headers=_caller_headers(),
                 )
                 try:
                     path = paths[index % len(paths)]
@@ -84,7 +86,10 @@ def run_requests(
                     try:
                         response = await client.get(path)
                         elapsed_ms = (time.perf_counter() - started) * 1000.0
-                        if response.status_code >= 500:
+                        if response.status_code >= 400:
+                            # Owner decision D1: a caller that presents nothing is refused, so a
+                            # 401 measured as a healthy latency would hide exactly the failure this
+                            # smoke exists to catch.
                             async with lock:
                                 errors.append(f"{path}:{response.status_code}")
                         else:
@@ -100,6 +105,26 @@ def run_requests(
         return latencies, errors
 
     return asyncio.run(runner())
+
+
+def _caller_headers() -> dict[str, str]:
+    """The credential this smoke presents, or a refusal to run without one.
+
+    The in-process target is the real ASGI app, and since owner decision D1 it identifies its
+    callers in every profile. The smoke acts as the documented SDK/CLI caller (deployment token from
+    the environment), and refuses to produce a baseline that would only measure refusals.
+    """
+
+    token = os.environ.get("EUROGAS_NEXUS_PUBLIC_API_TOKEN", "").strip()
+    if token:
+        return {"X-Eurogas-Api-Key": token}
+    if os.environ.get("EUROGAS_NEXUS_ALLOW_ANONYMOUS_CALLERS", "").strip() in {"1", "true", "yes"}:
+        return {}
+    raise SystemExit(
+        "EUROGAS_NEXUS_PUBLIC_API_TOKEN is not set and this deployment does not allow anonymous "
+        "callers: every smoke path would answer 401. Set the token, or set "
+        "EUROGAS_NEXUS_ALLOW_ANONYMOUS_CALLERS=1 if the deployment really does trust its network."
+    )
 
 
 def percentile(values: list[float], pct: float) -> float:

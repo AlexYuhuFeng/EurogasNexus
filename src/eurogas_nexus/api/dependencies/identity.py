@@ -1,22 +1,39 @@
 """FastAPI dependency that resolves the authenticated R32 identity.
 
-Release profile only. ``X-Eurogas-Identity`` carries a DB-backed bearer key.
-When no credential at all is presented (no identity header, no OIDC access
-token, no session cookie), the already-verified public API token maps to the
-legacy single-trust-domain service principal so existing SDK/Web deployments do
-not break, but the request is explicitly marked
-``request.state.identity_authenticated = False``: attaching a compatibility
-principal is not the same thing as authenticating a caller. Routes that must
-distinguish the two (``GET /api/me``) read that flag.
+Installed in every route profile (finding C5 / owner decision D1): a profile no longer decides
+whether callers are identified. ``X-Eurogas-Identity`` carries a DB-backed bearer key, and a
+presented OIDC access token or backend session cookie is validated the same way.
 
-The resolved principal is attached to ``request.state.identity`` for
-route-permission and row-entitlement enforcement.
+What a caller that presents *nothing* gets is the one thing that changed, and it is a deployment
+statement rather than a code default:
+
+* a **verified deployment token** (``require_public_api_auth``) still resolves to the legacy
+  single-trust-domain service principal, because that is the documented SDK/CLI caller, and the
+  request is marked ``request.state.identity_authenticated = False`` - attaching a compatibility
+  principal is not the same thing as authenticating a caller;
+* a deployment that has explicitly said it trusts its network
+  (``EUROGAS_NEXUS_ALLOW_ANONYMOUS_CALLERS``) gets the same compatibility principal, so the old
+  posture remains available and is now opt-in;
+* otherwise the request is **refused** with 401 ``authentication_required``. The authentication
+  routes and the health probes are exempt, because the login that would supply a credential cannot
+  itself require one.
+
+An identity already resolved by an outer layer is never replaced: overwriting it would silently
+re-authorise a decision another layer already made, which is exactly the entitlement widening the
+first attempt at this change produced.
+
+The resolved principal is attached to ``request.state.identity`` for route-permission and
+row-entitlement enforcement.
 """
 
 from __future__ import annotations
 
 from fastapi import HTTPException, Request
 
+from eurogas_nexus.api.dependencies.exempt_paths import (
+    CREDENTIAL_EXEMPT_PREFIXES,
+    is_credential_exempt,
+)
 from eurogas_nexus.security.identity import (
     IDENTITY_HEADER,
     AuthenticatedPrincipal,
@@ -35,24 +52,47 @@ SESSION_COOKIE = "eurogas_session"
 PUBLIC_TOKEN_VERIFIED_FLAG = "public_api_token_verified"
 IDENTITY_AUTHENTICATED_FLAG = "identity_authenticated"
 
+#: Paths that must answer without a credential. Declared once, in ``exempt_paths``, because the
+#: public-token gate needs the same list; re-exported here for the readers of this dependency.
+IDENTITY_EXEMPT_PREFIXES = CREDENTIAL_EXEMPT_PREFIXES
+
+
+def _allow_anonymous(request: Request) -> bool:
+    """Whether this deployment explicitly permits callers that present no credential."""
+
+    settings = getattr(request.app.state, "settings", None)
+    if settings is None:
+        from eurogas_nexus.core.config import get_settings
+
+        settings = get_settings()
+    return bool(getattr(settings, "allow_anonymous_callers", False))
+
 
 async def require_identity(request: Request) -> None:
     """Resolve and attach the authenticated principal for this request.
 
-    ``request.state.identity_authenticated`` records whether a *real*
-    credential (DB identity key, OIDC access token, or backend session cookie)
-    was presented and validated. It stays ``False`` when no credential at all
-    is presented, even though the legacy service principal is still attached
-    for SDK/CLI compatibility.
+    ``request.state.identity_authenticated`` records whether a *real* credential (DB identity key,
+    OIDC access token, or backend session cookie) was presented and validated. It stays ``False``
+    for the two compatibility callers above, whose principal is attached but not authenticated.
+
+    Args:
+        request: The incoming request.
+
+    Returns:
+        None. The principal is attached to ``request.state``.
+
+    Raises:
+        HTTPException: 401 ``authentication_required`` when the caller presented no credential and
+            the deployment has not opted into trusting its network.
     """
+
+    if getattr(request.state, "identity", None) is not None:
+        # Resolved earlier in the chain, and that decision is authoritative.
+        return
 
     bearer = request.headers.get(IDENTITY_HEADER)
     oidc_token = request.headers.get(OIDC_ACCESS_TOKEN_HEADER)
     session_cookie = request.cookies.get(SESSION_COOKIE, "")
-    if not (bearer or "").strip() and not (oidc_token or "").strip() and not session_cookie:
-        request.state.identity = legacy_public_token_principal()
-        request.state.identity_authenticated = False
-        return
 
     if (bearer or "").strip():
         request.state.identity = _authenticate_identity_key(bearer)
@@ -69,18 +109,35 @@ async def require_identity(request: Request) -> None:
         request.state.identity_authenticated = True
         return
 
-    request.state.identity = _authenticate_identity_key(bearer)
-    request.state.identity_authenticated = True
+    verified_token = bool(getattr(request.state, PUBLIC_TOKEN_VERIFIED_FLAG, False))
+    if verified_token or _allow_anonymous(request):
+        request.state.identity = legacy_public_token_principal()
+        request.state.identity_authenticated = False
+        return
+
+    if is_credential_exempt(request.url.path):
+        # No principal is attached: an exempt route is reachable without one, and inventing a
+        # compatibility caller here would report an identity the request never presented.
+        return
+
+    raise HTTPException(
+        status_code=401,
+        detail={
+            "error": "authentication_required",
+            "message": (
+                "This deployment identifies its callers: present a session, an identity key, an "
+                "OIDC access token, or the deployment API token."
+            ),
+        },
+    )
 
 
 async def require_identity_for_route(request: Request) -> None:
     """Resolve a presented credential for one route that needs the distinction.
 
-    The release profile installs ``require_identity`` application-wide, but the
-    development and internal profiles install no auth dependency at all. A route
-    that must still tell "authenticated" from "anonymous" (``GET /api/me``)
-    depends on this thin wrapper, which is a no-op once an identity is already
-    attached.
+    Kept for routes that must tell "authenticated" from "not" independently of the app-wide
+    dependency (``GET /api/me``): it is a no-op once an identity is attached, and otherwise runs
+    the same resolution - including the refusal of a caller that presented nothing.
     """
 
     if getattr(request.state, "identity", None) is not None:

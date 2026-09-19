@@ -196,6 +196,26 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     ("/api/capabilities/{capability_id}", Permission.READ),
     ("/api/capabilities/{capability_id}/invoke", Permission.GOVERNED),
     ("/api/agent/profiles", Permission.READ),
+    # --- internal operator profile (mounted only when ``include_internal``) ---
+    # Owner decision D1 installs the permission gate in every profile, which is the first time
+    # these paths were ever checked: the gate that reads this table simply was not installed in
+    # ``internal`` before, so twelve mounted paths had no declared permission and would have
+    # answered 500 ``permission_not_declared`` the moment it was. Each entry mirrors the floor the
+    # route itself enforces (``validate_internal_operator_headers``: an internal token **and** an
+    # explicit operator principal) rather than inventing a second, different one; the internal
+    # token stays the stronger control and is still validated inside the handler, so declaring
+    # OPERATOR here does not widen who can reach them. The health probe is a probe.
+    ("/api/internal/health", Permission.PUBLIC),
+    ("/api/internal/identities", Permission.OPERATOR),
+    ("/api/internal/identities/{principal_id}/keys", Permission.OPERATOR),
+    ("/api/internal/identities/{principal_id}/keys/{key_id}/rotate", Permission.OPERATOR),
+    ("/api/internal/identities/{principal_id}/keys/{key_id}/revoke", Permission.OPERATOR),
+    ("/api/internal/identities/{principal_id}/disable", Permission.OPERATOR),
+    ("/api/internal/audit/events", Permission.OPERATOR),
+    ("/api/internal/audit/prune", Permission.OPERATOR),
+    ("/api/internal/portfolio/import-observations", Permission.OPERATOR),
+    ("/api/internal/shadow-scheduler/tick", Permission.OPERATOR),
+    ("/api/internal/sources/certification", Permission.OPERATOR),
     ("/api/agent/plans/validate", Permission.GOVERNED),
     ("/api/agent/research", Permission.GOVERNED),
     ("/api/agent/runs", Permission.READ),

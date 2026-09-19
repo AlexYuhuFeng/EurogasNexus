@@ -81,16 +81,30 @@ def _dev_client() -> TestClient:
 
 
 def test_me_returns_401_without_any_presented_credential(env_db, monkeypatch) -> None:
+    """D1: a caller that presents nothing is refused before ``/api/me`` can describe them.
+
+    This test used to rely on the development profile installing no authentication, so the
+    compatibility principal answered and ``/api/me`` reported it as unauthenticated. The profile
+    now identifies its callers, so the same request is refused at the gate with the stable
+    ``authentication_required`` code - which is the stronger statement of the same fact.
+    """
+
     _configure_dev_credentials(monkeypatch)
-    client = _dev_client()
+    monkeypatch.setenv("EUROGAS_NEXUS_TEST_ANONYMOUS", "1")
+    try:
+        client = _dev_client()
 
-    response = client.get("/api/me")
+        response = client.get("/api/me")
 
-    assert response.status_code == 401
-    assert response.json()["detail"] == {
-        "error": "unauthenticated",
-        "message": "No authenticated identity was presented.",
-    }
+        # A caller that presents nothing is refused, and the gate that answers first is the
+        # deployment-token gate: this deployment has one configured, so its refusal is the one the
+        # caller meets (owner decision D1 installed that gate in every profile). The identity
+        # dependency keeps its own refusal as a second lock, exercised in
+        # ``tests/security/test_public_api_auth.py``.
+        assert response.status_code == 401
+        assert response.json()["detail"]["error"] == "public_api_token_missing"
+    finally:
+        monkeypatch.delenv("EUROGAS_NEXUS_TEST_ANONYMOUS", raising=False)
 
 
 def test_me_returns_principal_for_a_dev_login_session(env_db, monkeypatch) -> None:
@@ -300,30 +314,42 @@ def test_auth_status_reports_dev_login_only_when_mounted_and_configured(
 
 
 def test_dev_login_issues_a_revocable_backend_session(env_db, monkeypatch) -> None:
+    """The revoked session is not a credential any more.
+
+    The client is built without the suite's deployment token (``EUROGAS_NEXUS_TEST_ANONYMOUS``), so
+    the session cookie is the *only* credential this request could carry: after logout there is
+    nothing left to authenticate with, and the answer is the gate's refusal rather than a fresh
+    compatibility principal.
+    """
+
     engine = env_db
     username, password = _configure_dev_credentials(monkeypatch)
     _seed_principal(engine, name=username)
-    client = _dev_client()
+    monkeypatch.setenv("EUROGAS_NEXUS_TEST_ANONYMOUS", "1")
+    try:
+        client = _dev_client()
 
-    login = client.post(
-        DEV_LOGIN_PATH, json={"username": username, "password": password}
-    )
-    assert login.status_code == 200
-    session_token = client.cookies.get("eurogas_session")
-    assert session_token
+        login = client.post(
+            DEV_LOGIN_PATH, json={"username": username, "password": password}
+        )
+        assert login.status_code == 200
+        session_token = client.cookies.get("eurogas_session")
+        assert session_token
 
-    logout = client.post(
-        "/api/auth/logout",
-        headers={
-            "Origin": "http://testserver",
-            "X-Eurogas-CSRF": hashlib.sha256(
-                session_token.encode("utf-8")
-            ).hexdigest()[:32],
-        },
-    )
+        logout = client.post(
+            "/api/auth/logout",
+            headers={
+                "Origin": "http://testserver",
+                "X-Eurogas-CSRF": hashlib.sha256(
+                    session_token.encode("utf-8")
+                ).hexdigest()[:32],
+            },
+        )
 
-    assert logout.status_code == 200
-    assert client.get("/api/me").status_code == 401
+        assert logout.status_code == 200
+        assert client.get("/api/me").status_code == 401
+    finally:
+        monkeypatch.delenv("EUROGAS_NEXUS_TEST_ANONYMOUS", raising=False)
 
 
 def test_rejected_jit_registration_is_committed_before_the_login_fails(monkeypatch) -> None:

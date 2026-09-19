@@ -42,10 +42,35 @@ def percentile(values: list[float], pct: float) -> float:
     return ordered[min(len(ordered) - 1, int(len(ordered) * pct))]
 
 
+def _caller_headers() -> dict[str, str]:
+    """The credential this harness presents, or a refusal to run without one.
+
+    Owner decision D1 installs authentication in every profile, so the ASGI app this harness drives
+    refuses a request that presents nothing: a baseline measured without a credential would be a
+    table of 401 latencies. The harness therefore acts as the documented SDK/CLI caller, with the
+    deployment token from the environment. A deployment that explicitly permits anonymous callers
+    does not need one, and the harness says which of the two it is in its report.
+    """
+
+    import os
+
+    token = os.environ.get("EUROGAS_NEXUS_PUBLIC_API_TOKEN", "").strip()
+    if token:
+        return {"X-Eurogas-Api-Key": token}
+    if os.environ.get("EUROGAS_NEXUS_ALLOW_ANONYMOUS_CALLERS", "").strip() in {"1", "true", "yes"}:
+        return {}
+    raise SystemExit(
+        "EUROGAS_NEXUS_PUBLIC_API_TOKEN is not set and this deployment does not allow anonymous "
+        "callers: every measured path would answer 401. Set the token, or set "
+        "EUROGAS_NEXUS_ALLOW_ANONYMOUS_CALLERS=1 if the deployment really does trust its network."
+    )
+
+
 def run_baseline(total: int, concurrency: int) -> tuple[list[float], list[str]]:
     from apps.api.main import app
 
     transport = httpx.ASGITransport(app=app)
+    headers = _caller_headers()
 
     async def runner() -> tuple[list[float], list[str]]:
         semaphore = asyncio.Semaphore(concurrency)
@@ -60,9 +85,11 @@ def run_baseline(total: int, concurrency: int) -> tuple[list[float], list[str]]:
                     url = "http://baseline.local" + BASELINE_PATHS[index % len(BASELINE_PATHS)]
                     started = time.perf_counter()
                     try:
-                        response = await client.get(url)
+                        response = await client.get(url, headers=headers)
                         elapsed = (time.perf_counter() - started) * 1000.0
-                        if response.status_code >= 500:
+                        if response.status_code >= 400:
+                            # An authenticated caller should not see 4xx either: counting only 5xx
+                            # hid a refusal behind a healthy-looking latency.
                             async with lock:
                                 errors.append(f"{url}:{response.status_code}")
                         else:

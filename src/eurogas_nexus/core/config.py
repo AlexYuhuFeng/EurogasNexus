@@ -110,6 +110,14 @@ class Settings(BaseModel):
     build_timestamp: str | None = None
     environment: RuntimeEnvironment = "development"
     api_profile: ApiProfile = "development"
+    #: Whether this deployment permits callers that present no credential (owner decision D1).
+    #:
+    #: Default False: every profile identifies its callers, so "the network is the trust boundary"
+    #: is a deployment's own statement rather than a code default. Setting
+    #: ``EUROGAS_NEXUS_ALLOW_ANONYMOUS_CALLERS=1`` restores the pre-D1 posture - an anonymous caller
+    #: resolves to the documented compatibility principal - and the health payload reports
+    #: ``authentication: anonymous_allowed`` so the choice is visible to whoever operates it.
+    allow_anonymous_callers: bool = False
     db: DbRuntimeConfig = Field(default_factory=DbRuntimeConfig)
     deployment: DeploymentConfig = Field(default_factory=DeploymentConfig)
     research_artifacts: ResearchArtifactConfig = Field(default_factory=ResearchArtifactConfig)
@@ -142,6 +150,10 @@ class Settings(BaseModel):
             build_timestamp=(os.getenv("EUROGAS_NEXUS_BUILD_TIMESTAMP") or "").strip() or None,
             environment=environment,
             api_profile=os.getenv("EUROGAS_NEXUS_API_PROFILE", "development"),
+            allow_anonymous_callers=parse_env_bool(
+                os.getenv("EUROGAS_NEXUS_ALLOW_ANONYMOUS_CALLERS"),
+                default=False,
+            ),
             db=DbRuntimeConfig(
                 dsn=resolve_db_dsn_from_env(),
                 echo=parse_env_bool(os.getenv("EUROGAS_NEXUS_DB_ECHO"), default=False),

@@ -78,10 +78,63 @@ def test_the_fault_s_own_text_never_reaches_the_client(failing_client: TestClien
     # commercial values, and an unentitled caller must not read them out of a 500.
     assert "31.4" not in rendered
     assert "Example Energy" not in rendered
-    assert "_Boom" not in rendered
     assert "Traceback" not in rendered
-    # A business identity is not an operator identity, so it sees no technical detail.
+    # D1 identifies this caller: the suite's client presents the deployment token, which is the
+    # documented SDK/CLI credential and resolves to the operator service principal - exactly what
+    # the release profile has always done with it. So the fault's *class* is visible (it is what
+    # matches the response to a server log line) and its text is not. That is the identified-caller
+    # contract; the next test pins the business caller, who sees no technical detail at all.
+    assert response.json()["operator_detail"] == "_Boom"
+    assert "31.4" not in response.json()["operator_detail"]
+
+
+def test_a_business_identity_sees_no_technical_detail_at_all() -> None:
+    """The other half of the rule: an identified *business* caller learns nothing technical.
+
+    The principal is resolved by the app-wide identity dependency (owner decision D1 installs it in
+    every profile), and an identity already attached is never replaced - so a harness that installs
+    one is really exercising what that identity receives.
+    """
+
+    from eurogas_nexus.security.identity import AuthenticatedPrincipal
+
+    def _explode(*_args, **_kwargs):
+        raise _Boom()
+
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(
+        "eurogas_nexus.api.routes.public.analysis._load_snapshot",
+        _explode,
+    )
+    app = create_app()
+    business = AuthenticatedPrincipal(
+        principal_id="fixture-analyst",
+        name="fixture-analyst",
+        principal_type="USER",
+        role="ANALYST",
+        status="ACTIVE",
+        data_scopes=("*",),
+        roles=("ANALYST",),
+        auth_method="identity_key",
+    )
+
+    @app.middleware("http")
+    async def _inject_business_identity(request, call_next):  # type: ignore[no-untyped-def]
+        request.state.identity = business
+        return await call_next(request)
+
+    try:
+        client = TestClient(app, raise_server_exceptions=False)
+        response = client.post(
+            "/api/analysis/query",
+            json={"question": "Summarize current TTF context", "task": "DB_INQUIRY"},
+        )
+    finally:
+        monkeypatch.undo()
+
+    assert response.status_code == 500
     assert "operator_detail" not in response.json()
+    assert "_Boom" not in response.text
 
 
 def test_an_operator_identity_learns_the_fault_class_but_not_its_payload() -> None:

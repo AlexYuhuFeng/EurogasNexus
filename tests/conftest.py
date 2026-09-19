@@ -26,6 +26,67 @@ def _public_api_token_env() -> None:
     os.environ.setdefault("EUROGAS_NEXUS_PUBLIC_API_TOKEN", "test-public-api-token")
 
 
+@pytest.fixture(autouse=True)
+def _development_clients_present_the_deployment_token(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Make the suite act as a caller, because every profile now identifies its callers.
+
+    Owner decision **D1** installs authentication in every route profile: a request that presents
+    nothing is refused with 401 instead of silently resolving to the compatibility principal. Every
+    test that exercises *business* behaviour would therefore answer 401 for a reason it is not
+    testing, which is what made the first attempt at this change look far larger than it is.
+
+    Those tests were already acting as the compatibility principal - the development profile used to
+    attach it to any request - so the faithful harness is the documented SDK/CLI caller: the
+    deployment token, presented as a header. Nothing about the principal, its data scopes or the
+    row filtering they produce changes; only the credential the request carries does.
+
+    Scope, deliberately narrow:
+
+    * **development and internal profiles only.** Release clients in the suite are built to test the
+      gate itself, and they present their own credentials (or assert the refusal of none), so
+      injecting here would rewrite the tests that define the posture.
+    * **never over an explicit credential.** A client built with an identity header, an OIDC token,
+      a session cookie, its own API key or the internal token is left exactly as it is.
+    * **opt out per test** with ``monkeypatch.setenv("EUROGAS_NEXUS_TEST_ANONYMOUS", "1")`` before
+      building the client, for the tests that assert what an anonymous caller gets.
+    """
+
+    from starlette.testclient import TestClient
+
+    original_init = TestClient.__init__
+
+    def patched_init(self, app, *args, **kwargs):  # type: ignore[no-untyped-def]
+        headers = dict(kwargs.get("headers") or {})
+        profile = getattr(getattr(app, "state", None), "route_profile", None)
+        anonymous_requested = os.environ.get("EUROGAS_NEXUS_TEST_ANONYMOUS", "") == "1"
+        credential_present = any(
+            key.lower()
+            in {
+                "authorization",
+                "x-eurogas-api-key",
+                "x-eurogas-identity",
+                "x-eurogas-oidc-access-token",
+                "x-eurogas-internal-token",
+            }
+            for key in headers
+        )
+        if (
+            getattr(profile, "name", "") in {"development", "internal"}
+            and not anonymous_requested
+            and not credential_present
+            and os.environ.get("EUROGAS_NEXUS_PUBLIC_API_TOKEN")
+        ):
+            headers.setdefault(
+                "X-Eurogas-Api-Key", os.environ["EUROGAS_NEXUS_PUBLIC_API_TOKEN"]
+            )
+            kwargs["headers"] = headers
+        original_init(self, app, *args, **kwargs)
+
+    monkeypatch.setattr(TestClient, "__init__", patched_init)
+
+
 @pytest.fixture(scope="session", autouse=True)
 def _pythonpath_for_subprocesses() -> None:
     """Make ``src`` importable by scripts spawned as subprocesses."""

@@ -17,7 +17,10 @@ def health(request: Request) -> HealthResponse:
     return HealthResponse(
         version=settings.app_version,
         profile=settings.api_profile,
-        authentication=authentication_posture(settings.api_profile),
+        authentication=authentication_posture(
+            settings.api_profile,
+            allow_anonymous_callers=settings.allow_anonymous_callers,
+        ),
     )
 
 
@@ -33,7 +36,10 @@ def health_live(request: Request) -> dict:
         "profile": settings.api_profile,
         # The same posture the shell status reports: a probe can see whether this deployment
         # identifies its callers, and finding C5 stops being a document-only fact.
-        "authentication": authentication_posture(settings.api_profile),
+        "authentication": authentication_posture(
+            settings.api_profile,
+            allow_anonymous_callers=settings.allow_anonymous_callers,
+        ),
     }
 
 
