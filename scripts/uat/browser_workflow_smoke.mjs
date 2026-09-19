@@ -69,6 +69,28 @@ function recordFailure(failures, scope, detail) {
   failures.push({ scope, detail: String(detail) });
 }
 
+/** Record something the run could not measure, or a gap it declares. Never a failure. */
+function recordObservation(observations, detail) {
+  observations.push(String(detail));
+}
+
+/**
+ * Workspaces whose deep link currently mounts no visible page.
+ *
+ * Declared rather than excused, in the shape the rest of this repository uses for a known gap: the
+ * check that owns this (see `inspectWorkspace`) fails for any *new* occurrence, and the entry here
+ * is printed in the summary so the gap stays visible instead of silently green. `network` is the
+ * market primary's map page: `?workspace=network` mounts the page and leaves it `display: none`,
+ * while `?workspace=contracts` and `?workspace=agents` show theirs - so every other check in this
+ * function was measuring a hidden subtree for that workspace and could not fail.
+ */
+const KNOWN_NON_RENDERING_WORKSPACES = {
+  network:
+    "the page mounts but stays display:none, so the map, the basemap state and every workspace "
+    + "assertion about it are measured on a hidden subtree (recorded for the next slice on the "
+    + "market workspace)",
+};
+
 async function ensureAuthenticated(page) {
   await page.goto(BASE, { waitUntil: "domcontentloaded" });
   await page.waitForTimeout(500);
@@ -119,7 +141,7 @@ async function axeViolations(page) {
   });
 }
 
-async function inspectWorkspace(page, language, viewport, workspace, failures) {
+async function inspectWorkspace(page, language, viewport, workspace, failures, observations) {
   await page.setViewportSize({ width: viewport.width, height: viewport.height });
   await page.goto(
     `${BASE}/?workspace=${encodeURIComponent(workspace)}`,
@@ -144,9 +166,37 @@ async function inspectWorkspace(page, language, viewport, workspace, failures) {
     clientWidth: document.documentElement.clientWidth,
     h1Count: document.querySelectorAll("main h1").length,
     signInVisible: Boolean(document.querySelector(".sign-in-screen")),
+    // Whether the page the deep link asked for is actually on screen. Every other check in this
+    // function - the language, the heading count, the overflow comparison, the axe sweep - is
+    // vacuous for a hidden page: a `display: none` subtree has no overflow, no visible heading and
+    // nothing for axe to judge. That is how a workspace whose page never renders could stay green
+    // here for as long as this check was missing.
+    pageVisible: [...document.querySelectorAll(".workspace-page")].some((element) => {
+      const style = getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      return style.display !== "none" && rect.width > 0 && rect.height > 0;
+    }),
+    pageCount: document.querySelectorAll(".workspace-page").length,
   }));
 
   const scope = `${language.id}/${viewport.id}/${workspace}`;
+  if (!state.pageVisible) {
+    // Declared, not excused: a workspace whose page does not render is a real defect, and
+    // `KNOWN_NON_RENDERING_WORKSPACES` says which one and why. A *new* one fails immediately, and
+    // the declared entry is printed in the summary so it cannot be forgotten.
+    if (KNOWN_NON_RENDERING_WORKSPACES[workspace]) {
+      recordObservation(
+        observations,
+        `workspace/${workspace} does not render its page: ${KNOWN_NON_RENDERING_WORKSPACES[workspace]}`,
+      );
+    } else {
+      recordFailure(
+        failures,
+        scope,
+        `no workspace page is displayed (mounted pages: ${state.pageCount})`,
+      );
+    }
+  }
   if (!state.lang.toLowerCase().startsWith(language.htmlPrefix)) {
     recordFailure(
       failures,
@@ -558,6 +608,9 @@ export async function runWorkflowSmoke() {
   const page = await context.newPage();
 
   const failures = [];
+  // Observations are not failures: a declared gap or a check that could not measure anything. They
+  // are reported in the summary so a green run cannot hide them.
+  const observations = [];
   const pageErrors = [];
   const results = [];
   let agentResearch = null;
@@ -583,6 +636,7 @@ export async function runWorkflowSmoke() {
                 viewport,
                 workspace,
                 failures,
+                observations,
               ),
             );
           } catch (error) {
@@ -614,6 +668,9 @@ export async function runWorkflowSmoke() {
     viewports: VIEWPORTS,
     checks: results.length,
     agentResearch,
+    // Declared gaps and skipped checks travel with the result: a green run that quietly measured
+    // nothing is the failure mode this list exists to prevent.
+    observations,
     results,
     failures,
   };

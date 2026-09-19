@@ -7,6 +7,10 @@ import json
 import time
 
 from eurogas_nexus.application.monitoring_service import scan_monitoring_conditions
+from eurogas_nexus.application.service_identity import (
+    configured_service_principal_name,
+    resolve_service_authority,
+)
 from eurogas_nexus.db.session import get_session_factory, resolve_database_url
 
 
@@ -30,6 +34,25 @@ def main() -> int:
 
     interval_seconds = max(2.0, args.interval_seconds)
     session_factory = get_session_factory()
+    # Owner decision D7: enrichment runs under a named service identity, resolved once at start-up
+    # and reported in every status line. Without one the worker still scans and persists alerts - it
+    # is the *provider call* that is refused - and the operator sees which configuration is missing
+    # instead of a pipeline that quietly stopped analysing.
+    with session_factory() as session:
+        authority = resolve_service_authority(session)
+    if not authority.granted and not args.no_llm:
+        print(
+            json.dumps(
+                {
+                    "status": "degraded",
+                    "enrichment": "refused",
+                    "reason": authority.refusal,
+                    "detail": authority.detail,
+                    "service_principal": configured_service_principal_name(),
+                }
+            ),
+            flush=True,
+        )
     while True:
         try:
             with session_factory() as session:
@@ -37,6 +60,7 @@ def main() -> int:
                     session,
                     enrich_with_llm=not args.no_llm,
                     max_llm_enrichments=max(0, args.max_llm_enrichments),
+                    service_authority=authority,
                 )
             print(json.dumps({"status": "ok", **result}), flush=True)
         except Exception as exc:

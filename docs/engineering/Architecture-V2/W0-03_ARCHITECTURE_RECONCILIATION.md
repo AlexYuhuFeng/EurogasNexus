@@ -649,14 +649,30 @@ that no locale-dependent default survives).
 browser acceptance sweep green with the new default (`ok: true`, 96 checks, 0 failures, 0 axe
 violations, 0 overflow at three viewports in two languages), and the state itself read back from the
 running page: on the network workspace the element exists, carries the class `is-no-basemap` and the
-sentence "No basemap configured…". What it could **not** show is the banner inside a *visible* map:
-in this fixture the network map column carries no height at all (`.gas-map` measures 0x0 and the
-fallback SVG is `display: none`), because the map has nothing to draw in a deployment with no
-basemap and no geometry loaded. That is pre-existing layout behaviour rather than something this
-change introduced - the diff adds one `<p>` inside the existing container and styles only that
-element - but it is recorded rather than glossed, because it is itself a finding for the market
-audience: a map column that collapses to nothing is indistinguishable from a map that failed to
-load. It belongs to the next slice on that workspace rather than inside a basemap change.
+sentence "No basemap configured…". What it could **not** show is the banner inside a *visible* map, and the
+reason turned out to be a bigger finding than the banner.
+
+A first reading blamed the map column ("it collapses to 0x0"), which was **wrong and is corrected
+here**: the column has no height because its ancestor `section.workspace-page` is `display: none`.
+The network deep link (`?workspace=network`) mounts the market primary's map page and leaves it
+hidden - the same navigation shows "Portfolio" for `?workspace=contracts` and "Agent Research" for
+`?workspace=agents`, so the parameter mechanism works and this one page does not display. Its API
+reads all answer 200, so it is not a data failure.
+
+Two consequences, both now recorded rather than latent:
+
+1. **A product defect**: the map page cannot be reached by its own deep link, so the network
+   workspace - the product's map surface - does not render at all in that state.
+2. **A harness false-green, which is the more serious of the two**: every other check the
+   acceptance sweep makes per workspace is vacuous on a hidden subtree - a `display: none` page has
+   no overflow, no *visible* heading (the sweep counted `main h1` in the DOM, hidden or not) and
+   nothing for axe to judge. `?workspace=network` had therefore been passing three viewports and two
+   languages of checks while measuring nothing. `inspectWorkspace` now requires a workspace page to
+   be *displayed*, and a workspace known not to render is declared in
+   `KNOWN_NON_RENDERING_WORKSPACES` with its reason: a **new** occurrence fails the run, the
+   declared one is printed in `summary.json` under `observations` (not `failures`) so a green run
+   cannot hide it. The CSS "floor" a first pass added to the map column on the wrong premise was
+   reverted with it.
 
 ### D5 — where can the native host and RC/GA work proceed?
 

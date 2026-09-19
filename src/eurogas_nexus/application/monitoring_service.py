@@ -10,6 +10,11 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from eurogas_nexus.application.service_identity import (
+    ServiceAuthority,
+    configured_service_principal_name,
+    resolve_service_authority,
+)
 from eurogas_nexus.db.models import (
     IngestionRunRecord,
     IntradayOpportunityRecord,
@@ -36,8 +41,16 @@ def scan_monitoring_conditions(
     max_llm_enrichments: int = 3,
     api_key_loader: ApiKeyLoader | None = None,
     provider_call: ProviderCall | None = None,
-) -> dict[str, int]:
-    """Persist current conditions and enrich only new or escalated alerts."""
+    service_authority: ServiceAuthority | None = None,
+) -> dict[str, object]:
+    """Persist current conditions and enrich only new or escalated alerts.
+
+    Owner decision D7: enrichment runs **under a named service identity**. ``service_authority`` is
+    resolved by the headless caller (see ``application/service_identity.py``); when it is absent or
+    not granted, no provider is called and the refusal travels in the result, because a worker that
+    spends a provider credential with nobody's authority behind the call is the one control gap the
+    register refused to leave implicit.
+    """
 
     now = _as_utc(now_utc or datetime.now(UTC))
     candidates = [
@@ -58,20 +71,34 @@ def scan_monitoring_conditions(
     session.commit()
 
     enriched_count = 0
+    enrichment_refusal = ""
     if enrich_with_llm and max_llm_enrichments > 0:
-        enriched_count = _enrich_pending_alerts(
-            session,
-            rows,
-            now_utc=now,
-            limit=max_llm_enrichments,
-            api_key_loader=api_key_loader or load_provider_api_key,
-            provider_call=provider_call or invoke_deepseek,
-        )
+        authority = service_authority or resolve_service_authority(session)
+        if authority.granted:
+            enriched_count = _enrich_pending_alerts(
+                session,
+                rows,
+                now_utc=now,
+                limit=max_llm_enrichments,
+                api_key_loader=api_key_loader or load_provider_api_key,
+                provider_call=provider_call or invoke_deepseek,
+                actor=authority.principal,
+            )
+        else:
+            # Reported, not swallowed: the worker's own log is where an operator learns that no
+            # provider call happened and which configuration would allow one.
+            enrichment_refusal = authority.refusal
+            _record_enrichment_refusal(session, authority, now_utc=now)
 
     return {
         "active_count": len(candidates),
         "resolved_count": resolved_count,
         "llm_enriched_count": enriched_count,
+        "llm_enrichment_refused": enrichment_refusal,
+        "llm_enrichment_refusal_detail": (
+            enrichment_refusal and (service_authority or resolve_service_authority(session)).detail
+        )
+        or "",
     }
 
 
@@ -313,6 +340,36 @@ def _enrich_pending_alerts(
         if result.status == "success":
             enriched += 1
     return enriched
+
+
+def _record_enrichment_refusal(
+    session: Session,
+    authority: ServiceAuthority,
+    *,
+    now_utc: datetime,
+) -> None:
+    """Record that enrichment was refused, and why.
+
+    A refusal is an operational event: the deployment is running a monitoring pipeline whose
+    analysis stage is disabled by configuration. Recording it is what stops that from looking like
+    "nothing to report".
+    """
+
+    from eurogas_nexus.db.repositories.audit import record_audit_event
+
+    record_audit_event(
+        session,
+        event_type="governance.ai_authority",
+        action="monitoring.enrichment.refused",
+        resource="monitoring_alerts",
+        principal=configured_service_principal_name() or "unconfigured",
+        outcome="denied",
+        severity="warning",
+        detail=f"reason={authority.refusal}; {authority.detail}",
+        source_system="monitoring-worker",
+        now_utc=now_utc,
+    )
+    session.commit()
 
 
 def _alert_enrichment_messages(alert: MonitoringAlertRecord) -> list[dict[str, str]]:
