@@ -45,6 +45,26 @@ it fires on every workspace, and a renderer in that state is a credible explanat
 that mount, fetch nothing, and stay on their loading placeholder. It is the first thing to fix, and
 it is one dependency or build configuration, not sixteen surfaces.
 
+### The React error's measured shape
+
+Probed directly rather than guessed at:
+
+- it fires **once per application mount**, not once per workspace - the gate's 101 occurrences are
+  101 mounts (16 workspaces x 2 languages x 3 viewports, plus the interaction and agent flows), so
+  this is an app-boot condition rather than a per-surface one;
+- it carries **no component stack**: React reports it as a plain console error, which is why a
+  `pageerror`-only listener never saw it and why the sweep now listens to the console;
+- `react` and `react-dom` are both **19.2.6** with a single copy in `node_modules`, so it is not a
+  version skew or a duplicated React;
+- `index.html` has an empty `#root` and no server-rendered markup, so it is not a hydration
+  mismatch against a stale SSR build.
+
+Next step for whoever picks this up: reproduce it against a React development build with source
+maps and a `debugger` on the throw, since the console alone does not name the component. Everything
+else in this report is secondary to it: a renderer in this state is a credible cause of surfaces that
+mount, fetch nothing and stay on their loading placeholder, and fixing it may clear a large part of
+the 140 failures above.
+
 ### What the visual review adds to it
 
 Reading the screenshots with a vision model (`deepseek-v4-flash-vision-exp`) produced ~24 further
