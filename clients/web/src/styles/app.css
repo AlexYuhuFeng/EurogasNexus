@@ -2220,6 +2220,55 @@ input {
   white-space: nowrap;
 }
 
+/* The shadow task's economics, inside the task that manages the monitors. The panels reuse the
+   classes above; these rules cover the framing the retired terminal's own shell used to provide. */
+.strategy-shadow-detail-header,
+.strategy-contract-pnl-panel,
+.strategy-run-provenance,
+.strategy-paper-state {
+  min-width: 0;
+}
+
+.strategy-provenance-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  margin-top: 8px;
+  border: 1px solid var(--eg-hairline);
+  background: var(--eg-hairline);
+  gap: 1px;
+}
+
+.strategy-provenance-facts > div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+  background: var(--eg-canvas);
+  padding: 8px 9px;
+}
+
+.strategy-provenance-facts span {
+  overflow: hidden;
+  color: var(--eg-muted);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.strategy-provenance-facts strong {
+  overflow: hidden;
+  color: var(--eg-ink);
+  font-size: 12px;
+  text-overflow: ellipsis;
+}
+
+.strategy-provenance-table {
+  margin-top: 8px;
+}
+
+.strategy-warning-stack {
+  margin-top: 8px;
+}
+
 .strategy-selected-basis-metrics {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }

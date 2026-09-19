@@ -79,16 +79,20 @@ def test_portfolio_model_consumes_hub_and_resource_selection_intentionally() -> 
 def test_high_value_cross_workspace_handoffs_are_explicit_actions() -> None:
     network = _read("components", "NetworkWorkspace.tsx")
     contracts = _read("components", "ContractWorkbench.tsx")
-    strategy = _read("components", "StrategyShadowRunTerminal.tsx")
+    decision = _read("components", "DecisionWorkspace.tsx")
     review = _read("components", "ReviewWorkspace.tsx")
 
     assert "onOpenScenario: () => void" in network
     assert 't("network.open_in_scenario")' in network
     assert "onOpenStrategyForResource" in contracts
     assert 't("contracts.open_in_strategy")' in contracts
-    assert "onReviewRun: (runId: string) => void" in strategy
-    assert 't("strategy.review_decision")' in strategy
+    # The strategy-run hand-off is the Decision workspace's: it carries the selected run into
+    # Review, which opens on it and says so. The retired shadow terminal's own button went with the
+    # terminal (see `test_web_client_strategy_page_is_shadow_run_terminal`); the hand-off itself is
+    # one explicit action in one place rather than two.
+    assert "carriedStrategyRunId={selection.strategyRunId}" in decision
     assert "carriedStrategyRunId" in review
+    assert "carried_strategy_run" in review
 
 
 def test_context_ui_is_compact_accessible_and_clearable() -> None:

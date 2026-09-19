@@ -292,6 +292,23 @@ overflow) including the agent-research interaction.
    reads as a defect. This is finding 7's lesson arriving again from the other direction: the local
    run and the enforced gate disagreed, and only the API could say so.
 
+13. **A contract test can outlive the surface it describes, and keep passing.** Five contract tests
+   read `StrategyShadowRunTerminal.tsx` as their subject, and one of them -
+   `test_strategy_bar_minutes_is_operator_selectable` - asserted that an operator can choose a bar
+   size of 1, 5 or 15 minutes. Nothing rendered that component, so the claim was never true of the
+   product: the scenario builder declares 5 for every request and no mounted surface changes it. The
+   tests were green for as long as the file existed, which is the failure mode this audit keeps
+   finding in a new shape - not a stale document, but a *passing gate* whose subject nobody could
+   reach. When the owner retired the terminal, the five were repointed at where the behaviour now
+   lives (`app/model/shadowRunPresentation.ts`, `StrategyShadowRunDetail.tsx`, the design spec) and
+   the bar-size contract was rewritten to assert what the product does, with the missing operator
+   control recorded as a gap in `W0-03` rather than implied by a test. The same sweep found that
+   roughly 140 locale keys are now unreferenced - about forty of them the retired terminal's, the
+   rest older (`sources.*` 41, `glossary.*` 10, `panel.*` 9) - measured by literal references plus
+   the template bases that build keys dynamically. They are recorded rather than deleted: a locale
+   file is a vocabulary rather than a claim, and a mass deletion needs that same dynamic-key audit
+   applied to every family first.
+
 ## 7. Limits of this audit
 
 - The verdicts are the auditors' and the integrator's reading of the code, not a proof; each finding

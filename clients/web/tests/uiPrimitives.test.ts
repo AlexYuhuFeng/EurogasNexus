@@ -70,7 +70,6 @@ test("Capacity, Network rail, and Strategy shadow delegate tab semantics to Work
   const cases = [
     ["components/CapacityWorkspace.tsx", "capacity-view"],
     ["components/NetworkWorkspace.tsx", "network-rail-tab"],
-    ["components/StrategyShadowRunTerminal.tsx", "strategy-tab"],
   ] as const;
 
   for (const [path, prefix] of cases) {
@@ -81,8 +80,12 @@ test("Capacity, Network rail, and Strategy shadow delegate tab semantics to Work
     assert.doesNotMatch(source, /<button[\s\S]*?role="tab"/);
   }
 
-  const strategy = readWebSource("components/StrategyShadowRunTerminal.tsx");
+  const strategy = readWebSource("components/strategy/StrategyShadowRunDetail.tsx");
+  // The shadow detail renders panels only: no tab set of its own, and no hand-rolled tab keyboard
+  // handling, because the task's views belong to the workspace shell.
   assert.doesNotMatch(strategy, /handleViewKeyDown/);
+  assert.doesNotMatch(strategy, /<WorkspaceTabs/);
+  assert.doesNotMatch(strategy, /role="tab"/);
 });
 
 test("narrow scroll regions are explicitly keyboard focusable", () => {

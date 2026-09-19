@@ -14,6 +14,7 @@ import { workspaceHeaderTitleLevel } from "@/app/experience/workspacePatterns";
 import { StrategyBacktestWorkspace } from "./StrategyBacktestWorkspace";
 import { StrategyCompareWorkspace } from "./StrategyCompareWorkspace";
 import { StrategyShadowShell } from "./StrategyShadowShell";
+import { StrategyShadowRunDetail } from "./StrategyShadowRunDetail";
 import { StrategyIdentityHeader } from "./StrategyIdentityHeader";
 import { StrategyNavigator } from "./StrategyNavigator";
 import "./strategy-lab.css";
@@ -170,11 +171,18 @@ export function StrategyLabWorkspace({
               />
             )}
             {controller.task === "shadow" && (
-              <StrategyShadowShell
-                controller={controller}
-                language={language}
-                t={t}
-              />
+              <>
+                <StrategyShadowShell
+                  controller={controller}
+                  language={language}
+                  t={t}
+                />
+                {/* What the shadow economics rest on - the price basis behind each figure, the
+                    pool's own cost and volume, the daily PnL each basis puts at risk, and the
+                    engine, dataset and commit behind the run - inside the task that manages the
+                    monitors, so the two halves of a shadow run are read together. */}
+                <StrategyShadowRunDetail language={language} t={t} />
+              </>
             )}
           </div>
         </div>

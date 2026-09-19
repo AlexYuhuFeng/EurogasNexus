@@ -1,59 +1,23 @@
 import type { StrategyRunDTO, StrategySummaryDTO } from "@/api/client";
+import {
+  basisLabelKey,
+  type PriceBasisId,
+  type StrategyBasisExposureRow,
+  type StrategyContractPnlRow,
+  type StrategyPnlCurveRow,
+  type StrategyPriceBasisRow,
+} from "@/app/model/shadowRunPresentation";
 
 type Translate = (key: string) => string;
 
-export type PriceBasisId =
-  | "WITHIN_DAY"
-  | "DAY_AHEAD"
-  | "MONTHLY"
-  | "ICIS_ASSESSMENT"
-  | "ICE_OCM_MARK"
-  | "EEX_CURVE"
-  | "FX";
-
-export interface StrategyPriceBasisRow {
-  basis: PriceBasisId;
-  latestPrice: number | null;
-  observationCount: number;
-  sourceSystems: string[];
-  simulatedCount: number;
-  staleCount: number;
-  latestObservedAtUtc: string | null;
-}
-
-export interface StrategyPnlCurveRow {
-  basis: PriceBasisId;
-  latestPrice: number | null;
-  pnlGbpPerDay: number | null;
-  marginGbpMwh: number | null;
-  poolQuantityMwhPerDay: number;
-  weightedPoolCostGbpMwh: number | null;
-  sourceSystems: string[];
-  simulatedCount: number;
-  staleCount: number;
-}
-
-export interface StrategyBasisExposureRow {
-  basis: PriceBasisId;
-  latestPrice: number | null;
-  basisMarginVsPoolCost: number | null;
-  poolPnlAtRiskGbpPerDay: number | null;
-  poolQuantityMwhPerDay: number;
-  weightedPoolCostGbpMwh: number | null;
-  observationCount: number;
-  sourceSystems: string[];
-  simulatedCount: number;
-  staleCount: number;
-}
-
-export interface StrategyContractPnlRow {
-  resourceId: string;
-  resourceName: string;
-  quantityMwhPerDay: number;
-  costGbpMwh: number;
-  marginGbpMwh: number | null;
-  dailyPnlGbp: number | null;
-}
+// The row shapes live with the derivations that produce them; these panels render them.
+export type {
+  PriceBasisId,
+  StrategyBasisExposureRow,
+  StrategyContractPnlRow,
+  StrategyPnlCurveRow,
+  StrategyPriceBasisRow,
+};
 
 interface StrategyPriceBasisBoardProps {
   rows: StrategyPriceBasisRow[];
@@ -89,10 +53,6 @@ interface StrategyPerformancePanelProps {
   summary: StrategySummaryDTO | null;
   language: string;
   t: Translate;
-}
-
-function basisLabelKey(basis: PriceBasisId): string {
-  return `strategy.basis.${basis.toLowerCase()}`;
 }
 
 function formatMoney(value: number | null | undefined): string {
@@ -395,8 +355,12 @@ export function StrategyPerformancePanel({
           <strong>{formatSignedMoney(summary?.cumulative_pnl_gbp)} GBP</strong>
         </div>
         <div>
+          {/* A summary the surface does not hold is not a zero hit rate: it is n/a, because a rate
+              nobody measured is not a rate of nothing. */}
           <span>{t("strategy.hit_rate")}</span>
-          <strong>{((summary?.hit_rate ?? 0) * 100).toFixed(1)}%</strong>
+          <strong>
+            {summary ? `${(summary.hit_rate * 100).toFixed(1)}%` : t("data.unavailable")}
+          </strong>
         </div>
         <div>
           <span>{t("strategy.max_drawdown")}</span>

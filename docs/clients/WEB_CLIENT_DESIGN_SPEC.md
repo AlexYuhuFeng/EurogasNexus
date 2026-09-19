@@ -1,4 +1,4 @@
-﻿# Web Client Design Spec
+# Web Client Design Spec
 
 ## Objective
 
@@ -378,14 +378,20 @@ Purpose:
 
 - inspect strategy backtests and paper shadow runs over approved market,
   physical, capacity, resource-term, and weather context;
-- present the strategy workspace as a shadow-run terminal for trader-reviewed
-  signal monitoring and scenario comparison;
-- expose market tape, paper state, allocation ladder, risk stack, source
-  evidence, warning stack, and candidate action through four task-led views:
-  Monitor, Economics, Risk & Evidence, and Run History;
-- keep strategy identity, `PAPER` / `SHADOW_RUN`, no-execution state, bar
-  selection, latest observation, and paper-evaluation command visible above
-  every task view;
+- present the shadow task as two halves read together: monitor management
+  (monitors, alerts, drift, evaluations and their risk checks, lifecycle) and
+  **what the run's economics rest on** (price basis, pool cost, PnL at risk,
+  contract attribution, paper state, run provenance);
+- expose market tape, paper state, allocation ladder, source evidence, warning
+  stack, and candidate action on the shadow task itself. The four task-led views
+  (Monitor, Economics, Risk & Evidence, Run History) belonged to the separate
+  `StrategyShadowRunTerminal` component, which nothing mounted; the owner retired
+  it in favour of the two halves above;
+- keep strategy identity, `PAPER` / `SHADOW_RUN` and no-execution state visible
+  above every task view. Bar selection and the paper-evaluation command belonged
+  to the retired terminal: the shadow request's bar size is declared by the
+  scenario builder, and there is no operator-selectable control for it today
+  (recorded as a gap in `docs/engineering/Architecture-V2/W0-03`);
 - render cumulative paper PnL only from persisted strategy runs. When no runs
   exist, render an explicit empty state rather than an illustrative curve;
 - include a price-basis comparison board for within-day, day-ahead, month-ahead,
@@ -400,7 +406,9 @@ Purpose:
 - show contract-level PnL attribution so resource-pool strategy output can be
   traced back to persisted resource terms;
 - include a stale/simulated/unavailable data banner whenever price bases or
-  market observations are not live and fully sourced;
+  market observations are not live and fully sourced. Staleness is a statement
+  about the figure the board shows: a basis is stale when its **latest**
+  observation is older than that basis's own threshold;
 - show a resource-pool PnL curve for comparing shadow-run outcomes across the
   selected portfolio resources;
 - monitor live signal processes when the backend has authorized data and

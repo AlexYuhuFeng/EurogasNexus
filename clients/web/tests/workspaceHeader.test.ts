@@ -123,7 +123,10 @@ test("the header preferences menu owns preference and lifecycle actions with key
   assert.match(menu, /event\.key === "ArrowDown"/);
   assert.match(menu, /event\.key === "ArrowUp"/);
   assert.match(menu, /triggerRef\.current\?\.focus\(\)/);
-  assert.match(menu, /requestAnimationFrame\(\(\) => triggerRef\.current\?\.focus\(\)\)/);
+  // The focus move is synchronous, because the acceptance sweep reads `document.activeElement`
+  // immediately after `Escape`: a frame-deferred move cannot promise it. Opening still moves focus
+  // into the menu on a frame, which `preferencesAndStatus.test.ts` holds.
+  assert.equal(menu.includes("requestAnimationFrame(() => triggerRef.current?.focus())"), false);
   assert.match(menu, /onLanguageChange\("en"\)/);
   assert.match(menu, /onLanguageChange\("zh-CN"\)/);
   assert.match(menu, /onModeChange\(themeMode\)/);
