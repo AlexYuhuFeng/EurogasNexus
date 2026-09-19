@@ -173,25 +173,45 @@ deployment statement rather than a code default. **Recommendation: (a)**, becaus
 trusts the network is the one security posture the programme has repeatedly had to publish *because*
 it is surprising; the work is roughly a day including harness updates.
 
-**DECIDED 2026-09-19 — the owner chose (a): authentication is installed in every profile.** "Private
-network" becomes a deployment statement instead of a code default, so a deployment that wants to
-trust its network says so in its own configuration rather than inheriting that posture from the
-platform. What the decision changes, and what it does not:
+**DECIDED 2026-09-19 — the owner chose (a): authentication is installed in every profile.**
+**Implementation not started; the attempt is recorded here with what it found.** "Private network"
+becomes a deployment statement instead of a code default, so a deployment that wants to trust its
+network says so in its own configuration rather than inheriting that posture from the platform.
 
-- the profile contract keeps one meaning for `require_auth`: it is true everywhere, so
-  `GET /api/health` reports `authentication: enforced` in every profile and the runtime posture
-  report stops being the only place the trust-the-network posture was visible;
-- the compatibility public-API principal is no longer what an unauthenticated request becomes; a
-  request without a credential is refused with the identity layer's own failure rather than being
-  served as a public-API caller;
-- the local development path stays usable because it is *explicit*: `EUROGAS_NEXUS_API_PROFILE`'s
-  development profile keeps a development identity provider (the seeded dev login), so scripts,
-  seeds, benchmarks and the UAT harness authenticate as a named principal instead of inheriting one;
-- the harnesses that relied on the implicit principal are updated in the same change, which is where
-  the day of work in the consequence above actually goes.
+An implementation was attempted and reverted before it could land, because it is not the bounded
+change the estimate suggested: installing the identity dependency app-wide changes route behaviour
+well beyond "identify your callers", and three of the consequences are security-relevant. What the
+attempt established, all of which the next pass needs:
 
-The delivery note, with the exact profile matrix, the harnesses updated and the gates re-run, is
-recorded in the execution checkpoint under the security section.
+- **The public authentication routes must be exempt from the identity requirement.** The
+  development credential login is how a caller obtains a session; with `require_identity`
+  installed app-wide and no exemption, `/api/auth/*` refuses the login that would have supplied the
+  credential, so no client could ever authenticate. The public-token gate already has such a list
+  (`AUTH_EXEMPT_PREFIXES`); the identity dependency needs its own, and it should cover the health
+  probes as well, which are read by tooling that has no credential.
+- **Entitlement parity depends on which principal is attached, and attaching one by default can
+  widen what a caller sees.** `current_principal` falls back to the compatibility principal, whose
+  data scopes are `("*",)`. `tests/api/test_projections_api.py::test_projections_are_never_wider_than_the_underlying_routes`
+  failed during the attempt with a restricted observation appearing through the projection but not
+  through the route: one path resolved the newly attached principal and the other resolved
+  something narrower. Whatever the mechanism, the next pass must prove parity on both sides before
+  the change lands - a posture change must never make a governed read wider.
+- **Two suites encoded the old posture as their premise.** `tests/api/test_review_decision_actor.py`
+  injects `request.state.identity` through middleware *because* "the development profile does not
+  authenticate the request", and `tests/api/test_health_api.py` asserts the posture vocabulary. Both
+  need reworking with the change rather than after it: the first should authenticate with a real
+  credential, the second should assert the new vocabulary on both sides of the deployment
+  statement.
+- **The release profile already carries the actor defect** the attempt surfaced and this stretch
+  fixed: `legacy_public_token_principal().principal_id` is `service:public-api`, the actor validator
+  rejects a colon, and three job-tracking routes turned an attached identity into that string - so a
+  deployment-token caller reaching them raised instead of being recorded. The actor rule now has one
+  home (`api/dependencies/acting_actor.py::acting_actor_name`) beside the C13 rule, an actor is taken
+  from the identity only when the identity was authenticated, and
+  `tests/security/test_acting_actor.py` pins both the defect and the rule.
+
+The delivery note, with the profile matrix, the exemption list, the parity evidence and the
+harnesses updated, belongs in the execution checkpoint's security section when it lands.
 
 ### D2 — C6b: what is the second-approver policy for role and data-scope grants?
 

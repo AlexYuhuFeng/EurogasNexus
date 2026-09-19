@@ -316,6 +316,23 @@ overflow) including the agent-research interaction.
    file is a vocabulary rather than a claim, and a mass deletion needs that same dynamic-key audit
    applied to every family first.
 
+14. **The compatibility principal's id could not be stored as an actor.** Found while implementing
+   owner decision D1, and fixed because it is a live defect independent of that decision:
+   `legacy_public_token_principal().principal_id` is `service:public-api`, and the actor validator
+   (`domain/identity/principal.py`) permits only letters, digits, `.`, `_`, `@` and `-`. Three
+   job-tracking routes (`shadow.py`, `strategy_registry.py`, `source_operations.py`) derived their
+   job's `principal` from the attached identity, so a caller whose identity *was* the compatibility
+   principal - every deployment-token caller, in the release profile, since that principal is what
+   `require_identity` attaches when no identity header is presented - reached `track_job` with a
+   string it refuses, and the request raised instead of recording the job. It survived because the
+   development profile attached no identity at all, and nothing in the release path's test coverage
+   called those routes with only the deployment token. The rule now has one home,
+   `api/dependencies/acting_actor.py::acting_actor_name`, beside the C13 rule it belongs to: an actor
+   is taken from the identity only when the identity was *authenticated*, an anonymously served
+   caller is recorded under the fallback the routes used before, and the name never comes from the
+   request body. `tests/security/test_acting_actor.py` pins the defect (the id is rejected by the
+   validator, the name is not) and the rule.
+
 ## 7. Limits of this audit
 
 - The verdicts are the auditors' and the integrator's reading of the code, not a proof; each finding

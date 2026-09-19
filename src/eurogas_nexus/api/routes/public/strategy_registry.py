@@ -17,6 +17,7 @@ from uuid import uuid4
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
+from eurogas_nexus.api.dependencies.acting_actor import acting_actor_name
 from eurogas_nexus.api.dependencies.analysis_snapshot import (
     require_known_analysis_snapshot,
 )
@@ -857,10 +858,8 @@ def _audit_action(request: Request, action: str, resource: str, outcome: str) ->
 
 
 def _requested_by(request: Request) -> str:
-    identity = getattr(request.state, "identity", None)
-    if identity is not None and getattr(identity, "principal_id", None):
-        return str(identity.principal_id)
-    return "operator"
+    # One home for who acted (finding C13, owner decision D1).
+    return acting_actor_name(request)
 
 
 def _env(

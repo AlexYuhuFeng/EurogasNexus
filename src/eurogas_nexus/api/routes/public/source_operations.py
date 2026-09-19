@@ -12,6 +12,7 @@ from datetime import UTC, datetime, timedelta
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
+from eurogas_nexus.api.dependencies.acting_actor import acting_actor_name
 from eurogas_nexus.application.dataops_observability import emit_event
 from eurogas_nexus.domain.dataops.contracts import IngestionTriggerType
 from eurogas_nexus.domain.ingestion.certification import (
@@ -414,10 +415,8 @@ def _actor(request: Request) -> str:
     value = getattr(request.state, "actor", None)
     if value:
         return str(value)
-    identity = getattr(request.state, "identity", None)
-    if identity is not None:
-        return str(identity.principal_id)
-    return "operator"
+    # One home for who acted (finding C13, owner decision D1).
+    return acting_actor_name(request)
 
 
 def _as_utc(value: datetime) -> datetime:

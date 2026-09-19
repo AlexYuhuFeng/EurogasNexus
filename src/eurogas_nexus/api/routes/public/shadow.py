@@ -11,6 +11,8 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
+from eurogas_nexus.api.dependencies.acting_actor import acting_actor_name
+
 router = APIRouter(tags=["shadow-runtime"])
 
 
@@ -329,10 +331,10 @@ def _session():
 
 
 def _requested_by(request: Request) -> str:
-    identity = getattr(request.state, "identity", None)
-    if identity is not None and getattr(identity, "principal_id", None):
-        return str(identity.principal_id)
-    return "operator"
+    # One home for who acted (finding C13, owner decision D1): an authenticated caller is recorded
+    # by their principal id, and a caller this deployment serves anonymously under the fallback the
+    # routes used before the identity layer ran in every profile.
+    return acting_actor_name(request)
 
 
 def _env(data, _request: Request, *, source: str) -> dict:

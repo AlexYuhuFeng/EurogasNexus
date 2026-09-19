@@ -26,6 +26,11 @@ from eurogas_nexus.security.identity import (
     legacy_public_token_principal,
 )
 
+#: Set by ``require_identity`` when a real credential (identity key, OIDC token or session) was
+#: validated. The compatibility principal is attached without it, because attaching a principal is
+#: not the same thing as authenticating a caller.
+IDENTITY_AUTHENTICATED_FLAG = "identity_authenticated"
+
 
 def acting_actor(request: Request) -> AuthenticatedPrincipal:
     """The principal a governance act is recorded against.
@@ -43,3 +48,25 @@ def acting_actor(request: Request) -> AuthenticatedPrincipal:
     if isinstance(identity, AuthenticatedPrincipal):
         return identity
     return legacy_public_token_principal()
+
+
+def acting_actor_name(request: Request, *, fallback: str = "operator") -> str:
+    """The actor recorded on a job, run or operational action, as a validated principal string.
+
+    Owner decision D1 made the identity layer run in every profile, which surfaced a defect this
+    helper closes: the compatibility principal's ``principal_id`` is ``service:public-api``, and the
+    actor validator rejects a colon. Every route that turned an attached identity into a job's
+    ``principal`` therefore failed - in the release profile too, where the compatibility principal
+    has always been attached for a deployment-token caller.
+
+    An actor is only taken from the identity when that identity was **authenticated**: a caller who
+    presented a credential is recorded by their principal id, and a caller this deployment serves
+    anonymously is recorded under the fallback the routes used before D1. The name never comes from
+    the request body (finding C13).
+    """
+
+    identity = getattr(request.state, "identity", None)
+    authenticated = bool(getattr(request.state, IDENTITY_AUTHENTICATED_FLAG, False))
+    if authenticated and isinstance(identity, AuthenticatedPrincipal):
+        return str(identity.principal_id)
+    return fallback
