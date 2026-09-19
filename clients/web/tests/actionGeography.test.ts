@@ -214,7 +214,14 @@ test("a primary action is moved into the header, not copied beside it", () => {
   for (const { path, source } of passing) {
     const start = source.indexOf("const primaryAction");
     assert.ok(start > 0, path);
-    const expression = source.slice(start, source.indexOf("\n\n", start));
+    // The blank line that ends the expression is matched with a newline-agnostic pattern. It used
+    // to be a literal "\n\n", which silently does not match a CRLF file: the slice then ran to the
+    // end of the component and every label key in the file was counted as if the primary action had
+    // declared it - a false failure that depended on the checkout's line endings rather than on the
+    // code, and one this check must not be able to produce.
+    const blankLine = /\r?\n\s*\r?\n/.exec(source.slice(start));
+    assert.ok(blankLine, `${path}: the primary action expression is not followed by a blank line`);
+    const expression = source.slice(start, start + blankLine.index);
     const labelKeys = [...expression.matchAll(/t\("([^"]+)"\)/g)].map((match) => match[1]);
     assert.ok(labelKeys.length > 0, `${path}: the primary action declares no label`);
     for (const key of labelKeys) {
