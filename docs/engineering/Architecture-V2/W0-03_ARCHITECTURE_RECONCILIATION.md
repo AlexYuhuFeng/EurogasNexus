@@ -583,6 +583,169 @@ problem, and (a) is the only option that changes no behaviour while making the a
 (c) is the right answer if windows ever vary by date rather than by clock.
 
 
+
+### D2 — C6b: what is the second-approver policy for role and data-scope grants?
+
+**DECIDED 2026-09-19 — dual control for privilege *elevation*, and only for elevation.**
+
+*Audience: the platform administrator and the security reviewer.* A reviewer's test is "can one
+person, alone and with a valid credential, give themselves — or anyone — more access than they
+already have?". Today they can: an operator with the internal token can grant any role and any data
+scope, and the audit row records one name. The self-grant half is already closed (a principal cannot
+change its own roles or scopes), but that is a boundary on *identity*, not a second pair of eyes.
+
+The decision is deliberately narrow, because dual control applied to everything produces shadow
+processes instead of control:
+
+- **A grant that does not raise privilege stays single-approver**: adding a scope a principal's role
+  already implies, disabling a principal, issuing or rotating a key for a principal *at or below* the
+  granter's own rank. These are administrative acts, they are audited, and making each of them
+  two-person would make the platform unusable without making it safer.
+- **A grant that raises privilege requires a second, *verified* identity**: assigning a role above
+  the granter's own rank, or a wildcard data scope, requires the request to carry the key of a
+  *different* ADMIN principal. The approver is a credential the platform verifies, not a header a
+  caller can type — the same reason the C13 actor rule takes the actor from the authenticated
+  identity and never from the body.
+- **Self-approval is refused**, and the refusal names itself (`second_approver_required`,
+  `second_approver_is_requester`), so an operator learns the rule instead of guessing at a 403.
+- Both names travel in the audit detail, so the pair is reviewable after the fact even when the
+  approval was granted in one call.
+
+**Implementation state: decided, not built.** It needs a route-level dependency and a store of
+pending requests if the approver is to act asynchronously; the two-person *single call* form above is
+the smaller step and is what the next slice implements. Recorded here so a worker does not invent a
+weaker rule in the meantime.
+
+### D4 — C12: map tiles — which provider, under whose licence and token?
+
+**DECIDED 2026-09-19 — the product ships no third-party basemap, and the operator brings its own.
+DELIVERED in the same change.**
+
+*Audience: the deployment IT and commercial team receiving a commercially licensed product.* The
+previous behaviour was chosen by the *browser's language*: a Chinese-locale operator silently got
+AMap's public raster endpoint, everyone else got `tile.openstreetmap.org`, with CARTO's public
+basemaps as a fallback. None of those three is licensed for commercial embedding — OpenStreetMap's
+tile service is volunteer-run and its usage policy excludes heavy and commercial use, CARTO's public
+endpoints are not a production entitlement, and AMap's terms require a key or an enterprise
+agreement. A product that ships one of them by default hands its customer a licence exposure it never
+agreed to, and imagery a vendor can block by referrer without notice.
+
+So: the default is **no basemap**. The network draws on a plain background and the map *says* that no
+basemap is configured — "unavailable ≠ empty" applied to imagery, because the geometry is the
+product and the projection does not need a raster under it. `custom` (the deployment's own or
+licensed tile URL + its licence's attribution text) and `tianditu` (with the operator's token) are
+the two presets a commercial deployment may use; `osm`, `carto` and `amap` remain selectable but are
+declared `not-for-commercial-use` *on the control that selects them*, so an operator evaluating the
+product can still see imagery and cannot do it by accident. A provider that needs a token or a URL
+this build does not have renders "the configured basemap cannot be drawn" rather than a blank map.
+
+Delivered: `clients/web/src/app/mapTileProviders.ts` (licence state per provider, `none` default,
+custom template + attribution from build configuration, `mapTileBasemapState`),
+`GasNetworkMap.tsx` (states both non-drawing states), `SettingsCenter.tsx` (the licence note beside
+the selector), both locales, and `clients/web/tests/mapBasemapLicence.test.ts` (6 tests, including
+that no locale-dependent default survives).
+
+**Verification, and one thing it could not show.** Client gates green (551 tests, `tsc`, build), the
+browser acceptance sweep green with the new default (`ok: true`, 96 checks, 0 failures, 0 axe
+violations, 0 overflow at three viewports in two languages), and the state itself read back from the
+running page: on the network workspace the element exists, carries the class `is-no-basemap` and the
+sentence "No basemap configured…". What it could **not** show is the banner inside a *visible* map:
+in this fixture the network map column carries no height at all (`.gas-map` measures 0x0 and the
+fallback SVG is `display: none`), because the map has nothing to draw in a deployment with no
+basemap and no geometry loaded. That is pre-existing layout behaviour rather than something this
+change introduced - the diff adds one `<p>` inside the existing container and styles only that
+element - but it is recorded rather than glossed, because it is itself a finding for the market
+audience: a map column that collapses to nothing is indistinguishable from a map that failed to
+load. It belongs to the next slice on that workspace rather than inside a basemap change.
+
+### D5 — where can the native host and RC/GA work proceed?
+
+**DECIDED 2026-09-19 — the native host is deferred to a machine with the Rust toolchain, and RC/GA
+stays with the operator; neither is simulated.**
+
+*Audience: the owner and the receiving IT team.* The honest reading of the evidence is that Wave 10
+cannot be done here at all: `cargo`, `rustc` and `rustup` are absent, so `main.rs` cannot be type
+checked, let alone built — window management, multi-monitor restore, notifications, tray, protocol
+registration and autosave are unimplemented rather than unverified. Writing them blind and calling
+the result "delivered" would be the single most damaging thing this programme could do to its own
+credibility, and the second-most damaging is leaving the deferral implicit.
+
+Consequences, recorded rather than implied: the desktop host stays *declared* and unimplemented; the
+CI job that would build bundles stays skipped for pushes; and everything that depends on it —
+installers, signing, notarisation, auto-update — is listed as an external item on the operator's
+side in `docs/deployment/HANDOVER_INDEX.md`. RC/GA is gated on the external items the deployment
+must close (penetration test, IdP TLS review, production restore drill, provider certifications,
+user acceptance), not on work left in this repository.
+
+### D6 — C8 remainder: what should the MCP surface do about the calling user?
+
+**DECIDED 2026-09-19 — MCP runs as a *named* service identity with least privilege, and says so per
+tool; it never implies the caller's identity.**
+
+*Audience: the agent/machine caller and the security reviewer.* Two facts make "inherit the calling
+user" the wrong target: the MCP transport carries no user identity across a stdio session, and a
+tool invocation happens *after* the model chose it, so there is no per-call user context to inherit
+that the platform could verify. Pretending otherwise produces exactly the failure a reviewer hunts
+for — an AI action attributed to a person who never took it.
+
+So the decision is to make the posture explicit and least-privileged rather than implicit and wide:
+every tool declares its posture (already published), the identity is a **deployment-configured
+service principal** with the narrowest role and data scopes that make the tool useful — not the
+wildcard the pseudo-principal used to default to — and each call's audit row names that service
+identity, never a user. A deployment that wants per-user attribution must front MCP with its own
+per-user gateway and inject a credential per session; the platform will honour a presented identity
+key, and it will not invent one.
+
+**Implementation state: decided; the posture is published and audited today (the wildcard default is
+already gone).** What remains is to make the service principal *configurable by name and scope*
+rather than derived, which is a small settings change deferred with this record.
+
+### D7 — C8: what authority does the headless `monitoring-worker` invoke the provider under?
+
+**DECIDED 2026-09-19 — a named service identity with declared scopes, or it does not call the
+provider at all.**
+
+*Audience: the security reviewer and the operations team.* The worker currently invokes an external
+LLM provider with **no authority binding at all**, because it has no caller identity to inherit. That
+is the one place in the platform where a governed action happens with nobody's authority behind it —
+and "nobody's authority" is not a posture, it is a missing control.
+
+The decision: the worker authenticates as a **service principal the deployment names**
+(`EUROGAS_NEXUS_WORKER_PRINCIPAL`, with its own role and data scopes), the provider call is
+authorised against that principal's analysis capability exactly as an interactive call is, and the
+audit row names it. A deployment that has not named one gets the worker **refusing to call** — the
+same fail-closed shape as an unconfigured deployment token — with the refusal recorded, because a
+monitoring pipeline that silently stops analysing is better than one that silently acts without
+authority.
+
+**Implementation state: decided, not built.** Small and bounded: a settings entry, the principal
+resolution in the worker path, an authorisation check on the provider call, and tests for the
+refusal. It is listed here so the next slice implements *this* rule rather than a weaker one.
+
+### D9 — which clock do the declared nomination-window masters mean?
+
+**DECIDED 2026-09-19 — the deployment declares the basis, the engine reads it, and an undeclared
+basis stays UTC.**
+
+*Audience: the desk trader and the operations team.* A nomination window is a *market* deadline;
+CAM-style deadlines are expressed on the market's local clock, while the engine matches a submitted
+instant's UTC clock time. Both readings produce a plausible window, which is why the ambiguity was
+invisible until the day view resolved one into a showable deadline. Guessing on the desk's behalf is
+not acceptable — an hour of error here is an hour of missed nomination — and neither is a silent
+semantic change to assessments that already ran.
+
+So the basis becomes **declared data rather than an assumption**: the window master carries its
+clock basis (`UTC` for the existing rows, which keeps every current assessment bit-identical, or
+`GAS_DAY_LOCAL` for a market-clock master), the engine interprets the declared basis, the read
+reports it per row, and a master with no declared basis is read as UTC *and says so*. A deployment
+that loads local market times must say so; from then on the two clocks are distinguishable in the
+payload instead of only in the numbers.
+
+**Implementation state: decided; the read already states the basis it assumed (`time_basis`,
+`utc-clock-on-gas-day`) and the engine's documentation now matches its implementation, so nothing is
+silently mis-dated while the column, the engine branch and the migration land.** The migration
+defaults existing rows to `UTC`, which is why it changes no historical assessment.
+
 ### What no decision here can unblock
 
 Neither of the two remaining wave halves can be finished in this environment, and neither is a

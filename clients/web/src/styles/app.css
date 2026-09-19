@@ -9164,3 +9164,53 @@ button.glossary-related-chip {
 .day-board-next-window {
   font-variant-numeric: tabular-nums;
 }
+
+/* D4: the basemap state, stated over the map rather than left as a blank rectangle. It sits above
+   the canvas but below the interaction layers, and it never blocks the map itself. */
+.map-basemap-state {
+  position: absolute;
+  left: 12px;
+  top: 12px;
+  z-index: 3;
+  display: grid;
+  gap: 2px;
+  max-width: 340px;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--eg-hairline);
+  border-left: 3px solid var(--eg-link);
+  border-radius: var(--eg-radius-sm);
+  background: color-mix(in srgb, var(--eg-canvas) 92%, transparent);
+  color: var(--eg-ink);
+  pointer-events: none;
+}
+
+.map-basemap-state.is-unavailable {
+  border-left-color: var(--eg-negative);
+}
+
+.map-basemap-state strong {
+  font-size: var(--text-control);
+}
+
+.map-basemap-state small {
+  color: var(--eg-muted);
+  font-size: var(--text-meta);
+}
+
+/* The licence note beside the basemap selector: an operator reads it where the choice is made. */
+.settings-map-licence {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  color: var(--eg-muted);
+  font-size: var(--text-meta);
+}
+
+.settings-map-licence strong {
+  color: var(--eg-ink);
+}
+
+.settings-map-licence.is-restricted strong {
+  color: var(--eg-negative);
+}

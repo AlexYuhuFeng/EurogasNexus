@@ -22,6 +22,7 @@ import {
   buildMapStyle,
   configuredMapTileProvider,
   configuredMapTileToken,
+  mapTileBasemapState,
   transformCoordinate,
 } from "@/app/mapTileProviders";
 import type { RouteGeometryState } from "@/components/ResourcePoolPathOverlay";
@@ -134,6 +135,10 @@ export function GasNetworkMap({
   const [mapReady, setMapReady] = useState(false);
   const effectiveTheme = resolveEffectiveTheme(themeMode);
   const mapTileProvider = useMemo(configuredMapTileProvider, []);
+  const basemapState = useMemo(
+    () => mapTileBasemapState(mapTileProvider, configuredMapTileToken()),
+    [mapTileProvider],
+  );
   const toMapCoordinates = (lon: number, lat: number): [number, number] =>
     transformCoordinate(mapTileProvider.id, lon, lat);
   const mapColors = useMemo(
@@ -706,6 +711,30 @@ export function GasNetworkMap({
   return (
     <div className="gas-map" aria-label={t("map.gas_network_map")}>
       <div ref={containerRef} className="maplibre-canvas" />
+      {/*
+        Owner decision D4: no third-party basemap is a default, so the map has to say which of the
+        two honest states it is in. "No basemap configured" is a choice the deployment made and the
+        geometry is unaffected; "the configured basemap cannot be drawn" is a deployment fault the
+        operator has to see. Rendering neither would leave a blank map looking like a data failure.
+      */}
+      {basemapState !== "configured" && (
+        <p className={`map-basemap-state is-${basemapState}`} role="status">
+          <strong>
+            {t(
+              basemapState === "no-basemap"
+                ? "map.basemap.none"
+                : "map.basemap.unavailable",
+            )}
+          </strong>
+          <small>
+            {t(
+              basemapState === "no-basemap"
+                ? "map.basemap.none_detail"
+                : "map.basemap.unavailable_detail",
+            )}
+          </small>
+        </p>
+      )}
       <svg className={mapReady ? "fallback-network-map map-ready" : "fallback-network-map"} viewBox="0 0 1000 620" role="presentation">
         <path
           className="fallback-landmass"

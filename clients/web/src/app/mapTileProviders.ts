@@ -1,86 +1,194 @@
 import type { StyleSpecification } from "maplibre-gl";
 
-export type MapTileProviderId = "osm" | "carto" | "amap" | "tianditu";
+/**
+ * Basemap providers, and the licence each one carries.
+ *
+ * Owner decision **D4** (finding C12), taken from the audience this file serves: a deployment IT and
+ * commercial team handing over a commercially licensed product. The previous default was
+ * `tile.openstreetmap.org` for international browsers and AMap's public raster endpoint for Chinese
+ * ones, with CARTO's public basemaps as a fallback - and **none of those three is licensed for
+ * commercial embedding**: OpenStreetMap's tile service is volunteer-run and its usage policy forbids
+ * heavy or commercial use, CARTO's public basemaps are not a production entitlement, and AMap's
+ * terms require a key or an enterprise agreement. A product that ships one of them as its *default*
+ * hands its customer a licence problem it never agreed to, and a basemap the vendor may block by
+ * referrer at any time.
+ *
+ * So the decision is: **the platform ships no third-party basemap by default.** The map draws the
+ * network on a background colour and says that no basemap is configured, which is honest - the
+ * geometry is what this product is for, and the projection does not need a raster under it. A
+ * deployment that wants imagery configures a source *it* has the right to use: its own tile service,
+ * or a named provider it has licensed, with its own key.
+ *
+ * The presets stay in the list, because an operator who *has* the licence should not have to
+ * hand-write a URL template - but each now declares its licence state, and the two whose public
+ * endpoints are not a commercial entitlement say so where the operator chooses them.
+ */
+
+export type MapTileProviderId = "none" | "custom" | "osm" | "carto" | "amap" | "tianditu";
+
+/**
+ * Whether a provider may be used in a commercial deployment as-is.
+ *
+ * `licensed-by-deployment` means the *operator* holds the entitlement (their own service, or a
+ * provider they have an agreement and a key with); `not-for-commercial-use` means the endpoint's own
+ * terms exclude production commercial use, so selecting it is a deliberate, recorded deployment
+ * choice rather than something the product does on the operator's behalf.
+ */
+export type MapTileLicenceState = "licensed-by-deployment" | "not-for-commercial-use";
 
 export interface MapTileProvider {
   id: MapTileProviderId;
   label: string;
   labelZh: string;
   requiresToken: boolean;
+  licence: MapTileLicenceState;
   description: string;
 }
 
 export const MAP_TILE_STORAGE_KEY = "eurogas.settings.map_tile_provider";
 const MAP_TILE_TOKEN_KEY = "eurogas.settings.map_tile_token";
 
+/** The default: no third-party basemap, and the map says so. */
+export const DEFAULT_MAP_TILE_PROVIDER_ID: MapTileProviderId = "none";
+
 export const MAP_TILE_PROVIDERS: MapTileProvider[] = [
   {
-    id: "osm",
-    label: "OpenStreetMap",
-    labelZh: "OpenStreetMap（国际默认）",
+    id: "none",
+    label: "No basemap",
+    labelZh: "无底图（默认）",
     requiresToken: false,
+    licence: "licensed-by-deployment",
     description:
-      "OpenStreetMap raster tiles. Suitable outside mainland China where the tile endpoint is reachable.",
+      "The default. The network draws on a plain background, so no third-party licence is implied "
+      + "by using the platform and nothing has to be reachable from the browser.",
   },
   {
-    id: "carto",
-    label: "CARTO Voyager",
-    labelZh: "CARTO Voyager（国际备用）",
+    id: "custom",
+    label: "Your own tile service",
+    labelZh: "自建/自有瓦片服务",
     requiresToken: false,
+    licence: "licensed-by-deployment",
     description:
-      "Permissive raster basemap. May still be slow or unreachable in mainland China and is only a secondary international fallback.",
-  },
-  {
-    id: "amap",
-    label: "AMap / 高德地图",
-    labelZh: "高德地图（中国大陆免 key 备用）",
-    requiresToken: false,
-    description:
-      "AMap raster tiles are generally reachable in mainland China without a key. AMap uses GCJ-02 coordinates; the client transforms WGS84 network data to GCJ-02 for display alignment.",
+      "A raster tile URL template you operate or license ({z}/{x}/{y} placeholders), with the "
+      + "attribution text your licence requires. Recommended for a commercial deployment.",
   },
   {
     id: "tianditu",
     label: "Tianditu / 天地图",
-    labelZh: "天地图（中国大陆推荐）",
+    labelZh: "天地图（需 operator token）",
     requiresToken: true,
+    licence: "licensed-by-deployment",
     description:
-      "CGCS2000-compatible WMTS basemap operated in mainland China. Requires an operator-provided Tianditu token; coordinate alignment with the network WGS84 data is display-safe.",
+      "CGCS2000-compatible WMTS basemap operated in mainland China. Requires an operator-provided "
+      + "Tianditu token; coordinate alignment with the network WGS84 data is display-safe.",
+  },
+  {
+    id: "osm",
+    label: "OpenStreetMap",
+    labelZh: "OpenStreetMap（仅非商业/评估）",
+    requiresToken: false,
+    licence: "not-for-commercial-use",
+    description:
+      "Volunteer-run tile service. Its usage policy excludes heavy and commercial use, so this is "
+      + "for evaluation only: a production deployment must configure its own source.",
+  },
+  {
+    id: "carto",
+    label: "CARTO Voyager",
+    labelZh: "CARTO Voyager（仅非商业/评估）",
+    requiresToken: false,
+    licence: "not-for-commercial-use",
+    description:
+      "Public basemaps endpoint, not a production entitlement under CARTO's terms. Evaluation only.",
+  },
+  {
+    id: "amap",
+    label: "AMap / 高德地图",
+    labelZh: "高德地图（仅非商业/评估）",
+    requiresToken: false,
+    licence: "not-for-commercial-use",
+    description:
+      "Public raster endpoint whose terms require a key or an enterprise agreement for production "
+      + "use. Evaluation only. AMap uses GCJ-02 coordinates; the client transforms WGS84 network "
+      + "data to GCJ-02 for display alignment.",
   },
 ];
+
+/** The provider record for an id, or `undefined` when the id is not one this build knows. */
+export function mapTileProviderById(id: string | null | undefined): MapTileProvider | undefined {
+  if (!id) return undefined;
+  return MAP_TILE_PROVIDERS.find((provider) => provider.id === id);
+}
+
+/** Whether a selection is one the product may make on an operator's behalf. */
+export function mapTileProviderNeedsOperatorLicence(provider: MapTileProvider): boolean {
+  return provider.licence === "not-for-commercial-use";
+}
 
 function envMapToken(): string {
   const value = import.meta.env.VITE_EUROGAS_MAP_TILE_TOKEN as string | undefined;
   return (value ?? "").trim();
 }
 
+/**
+ * The deployment's own tile source, when it configured one.
+ *
+ * `{z}/{x}/{y}` are the placeholders maplibre expects; `{r}` is accepted too and left to maplibre.
+ * An empty template means the deployment configured nothing, which is the default state and not an
+ * error: the map draws without a basemap and states that.
+ */
+export function configuredCustomTileTemplate(): string {
+  const value = import.meta.env.VITE_EUROGAS_MAP_TILE_URL as string | undefined;
+  return (value ?? "").trim();
+}
+
+/** The attribution the deployment's own licence requires for its tile source. */
+export function configuredCustomTileAttribution(): string {
+  const value = import.meta.env.VITE_EUROGAS_MAP_TILE_ATTRIBUTION as string | undefined;
+  return (value ?? "").trim();
+}
+
 export function configuredMapTileProviderId(): MapTileProviderId {
   try {
-    const stored = localStorage.getItem(MAP_TILE_STORAGE_KEY) as MapTileProviderId | null;
-    if (stored && MAP_TILE_PROVIDERS.some((provider) => provider.id === stored)) {
-      return stored;
+    const stored = localStorage.getItem(MAP_TILE_STORAGE_KEY);
+    if (mapTileProviderById(stored)) {
+      return stored as MapTileProviderId;
     }
   } catch {
     // storage unavailable: fall through to build-time env
   }
   const env = import.meta.env.VITE_EUROGAS_MAP_TILE_PROVIDER as string | undefined;
-  if (env === "tianditu" || env === "carto" || env === "amap" || env === "osm") {
-    return env;
+  const fromEnv = mapTileProviderById(env);
+  if (fromEnv) {
+    return fromEnv.id;
   }
-  // Mainland-China browsers default to AMap, which is generally reachable
-  // without a key and avoids the OSM accessibility problem.
-  try {
-    if (typeof navigator !== "undefined" && navigator.language?.toLowerCase().startsWith("zh")) {
-      return "amap";
-    }
-  } catch {
-    // SSR/test environment: use the international default.
-  }
-  return "osm";
+  // D4: no locale-dependent default. A browser's language previously selected AMap's public
+  // endpoint on the operator's behalf; now an unconfigured deployment gets no basemap at all.
+  return configuredCustomTileTemplate() ? "custom" : DEFAULT_MAP_TILE_PROVIDER_ID;
 }
 
 export function configuredMapTileProvider(): MapTileProvider {
   const id = configuredMapTileProviderId();
-  return MAP_TILE_PROVIDERS.find((provider) => provider.id === id) ?? MAP_TILE_PROVIDERS[0];
+  return mapTileProviderById(id) ?? MAP_TILE_PROVIDERS[0];
+}
+
+/**
+ * Whether the configured basemap can actually be drawn.
+ *
+ * A provider that needs a token and has none, or `custom` with no template, cannot - and the map
+ * states that rather than silently drawing nothing over a blank background. `none` is *configured*
+ * (the deployment chose no basemap), which is a different statement from *unavailable*.
+ */
+export function mapTileBasemapState(
+  provider: MapTileProvider,
+  token: string,
+): "configured" | "no-basemap" | "unavailable" {
+  if (provider.id === "none") return "no-basemap";
+  if (provider.id === "custom") {
+    return configuredCustomTileTemplate() ? "configured" : "unavailable";
+  }
+  if (provider.requiresToken && !token.trim()) return "unavailable";
+  return "configured";
 }
 
 export function saveMapTileProvider(id: MapTileProviderId): void {
@@ -198,6 +306,12 @@ export function buildMapStyle(
     ],
   };
 
+  if (providerId === "none") {
+    // The default: the deployment chose no basemap, so the background layer is the whole style and
+    // the map states that. Nothing is fetched from a third party on the operator's behalf.
+    return style;
+  }
+
   if (providerId === "tianditu" && token) {
     style.sources = {
       ...style.sources,
@@ -218,6 +332,27 @@ export function buildMapStyle(
       { id: "tianditu-vec-raster", type: "raster", source: "tianditu-vec", paint },
       { id: "tianditu-label-raster", type: "raster", source: "tianditu-label", paint },
     );
+    return style;
+  }
+
+  if (providerId === "custom") {
+    const template = configuredCustomTileTemplate();
+    if (!template) {
+      // Stated as unconfigured rather than drawn as an empty basemap: the map keeps its background
+      // and the surface says no tile source is configured.
+      return style;
+    }
+    const attribution = configuredCustomTileAttribution();
+    style.sources = {
+      ...style.sources,
+      basemap: {
+        type: "raster",
+        tiles: [template],
+        tileSize: 256,
+        ...(attribution ? { attribution } : {}),
+      },
+    };
+    style.layers.push({ id: "basemap-raster", type: "raster", source: "basemap", paint });
     return style;
   }
 
@@ -249,7 +384,7 @@ export function buildMapStyle(
         attribution: "CARTO basemaps © OpenStreetMap contributors",
       },
     };
-  } else {
+  } else if (providerId === "osm") {
     style.sources = {
       ...style.sources,
       basemap: {
@@ -259,6 +394,10 @@ export function buildMapStyle(
         attribution: "OpenStreetMap contributors",
       },
     };
+  } else {
+    // "none", or a provider whose endpoints are not a commercial entitlement and which therefore
+    // draws nothing: the background layer is the whole style.
+    return style;
   }
   style.layers.push({ id: "basemap-raster", type: "raster", source: "basemap", paint });
   return style;

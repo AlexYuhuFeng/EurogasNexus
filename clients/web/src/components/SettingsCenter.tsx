@@ -21,6 +21,7 @@ import {
   MAP_TILE_PROVIDERS,
   configuredMapTileProviderId,
   configuredMapTileToken,
+  mapTileProviderById,
   saveMapTileProvider,
   saveMapTileToken,
 } from "@/app/mapTileProviders";
@@ -139,6 +140,8 @@ export function SettingsCenter({
   const [mapTileProviderId, setMapTileProviderId] = useState(() => configuredMapTileProviderId());
   const [mapTileToken, setMapTileToken] = useState(() => configuredMapTileToken());
   const [mapTileMessage, setMapTileMessage] = useState<string | null>(null);
+  const selectedMapTileProvider =
+    mapTileProviderById(mapTileProviderId) ?? MAP_TILE_PROVIDERS[0];
 
   useEffect(() => {
     localStorage.setItem(PREFERENCE_STORAGE_KEY, JSON.stringify(preferences));
@@ -348,6 +351,33 @@ export function SettingsCenter({
             ))}
           </select>
         </label>
+        {/*
+          Owner decision D4: the product ships no third-party basemap, and the endpoints whose terms
+          exclude commercial use say so where the operator picks one. A licence the operator is
+          about to rely on belongs next to the control that selects it, not in a document.
+        */}
+        <p
+          className={
+            selectedMapTileProvider.licence === "not-for-commercial-use"
+              ? "settings-map-licence is-restricted"
+              : "settings-map-licence"
+          }
+          role="status"
+        >
+          <strong>
+            {t(
+              selectedMapTileProvider.licence === "not-for-commercial-use"
+                ? "settings.map_tile_licence_evaluation"
+                : "settings.map_tile_licence_deployment",
+            )}
+          </strong>
+          <small>{t(`settings.map_tile_provider_${selectedMapTileProvider.id}`)}</small>
+        </p>
+        {selectedMapTileProvider.id === "custom" && (
+          <p className="settings-map-licence">
+            <small>{t("settings.map_tile_custom_detail")}</small>
+          </p>
+        )}
         <label>
           {t("settings.map_tile_token")}
           <input
