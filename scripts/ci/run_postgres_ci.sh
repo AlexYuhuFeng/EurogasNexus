@@ -25,12 +25,29 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 from apps.api.main import app  # noqa: E402
 
-client = TestClient(app)
+# Owner decision D1: every profile identifies its callers, so this smoke presents the deployment
+# token - the documented SDK/CLI caller - exactly as the SDK and the CLI do. Without one it would
+# measure a fail-closed 503 instead of the read it exists to check.
+token = os.environ.get("EUROGAS_NEXUS_PUBLIC_API_TOKEN", "").strip()
+if not token:
+    raise SystemExit(
+        "EUROGAS_NEXUS_PUBLIC_API_TOKEN must be configured: the API identifies its callers in "
+        "every profile now, so an uncredentialed smoke asserts nothing about the database."
+    )
+
+client = TestClient(app, headers={"X-Eurogas-Api-Key": token})
 response = client.get("/api/route-cost/tso-tariffs")
 assert response.status_code == 200, response.text
 meta = response.json()["meta"]
 assert meta["source_references"] == ["runtime-postgresql"], meta
 print("db-backed api smoke ok: tso-tariffs served from runtime-postgresql")
+
+# The refusal the posture guarantees, asserted where a real deployment would see it: no credential,
+# no read.
+anonymous = TestClient(app)
+refused = anonymous.get("/api/route-cost/tso-tariffs")
+assert refused.status_code in {401, 403, 503}, refused.status_code
+print("db-backed api smoke ok: an uncredentialed caller is refused")
 PY
 
 python -m pytest -q \

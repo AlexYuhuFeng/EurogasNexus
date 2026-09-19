@@ -204,7 +204,10 @@ is verifiable where, what is signed, and who owns each external item.
    correctness item rather than a feature. **It should be finished before more surface work.**
 3. **The deployment's identity posture is decided but not built (D1).** Until it is, "the network is
    the trust boundary" remains a code default rather than a deployment statement, and the
-   administrator audience cannot choose otherwise.
+   administrator audience cannot choose otherwise. **Delivered 2026-09-19** (next steps, row 2):
+   every profile identifies its callers, the old posture is a deployment's own reported setting, and
+   the delivery also closed a widening defect the first attempt had exposed and declared twelve
+   internal paths that had never had a permission.
 
 ## 5. Records this review corrects
 
@@ -226,7 +229,7 @@ is verifiable where, what is signed, and who owns each external item.
 | # | Step | Serves | Why now | Size | Decides |
 |---|---|---|---|---|---|
 | 1 | ~~Finish **M1-P0** (ENTSOG timezone normalization, naive-timestamp handling)~~ — **delivered 2026-09-19**: one declaration per source, exact-UTC fixtures for CET/CEST/stated offsets/DST, and refusal instead of assumption for an unsupported or unprovable zone ([source timezone contract](../data/SOURCE_TIMEZONE_CONTRACT.md)) | every audience | correctness of every period; was P0 in the ledger | M | done |
-| 2 | Build **D1** (authentication in every profile) with the recorded plan | administrator, IT | a code default that trusts the network is the posture the programme keeps publishing *because* it is surprising | L | worker (decided) |
+| 2 | ~~Build **D1** (authentication in every profile) with the recorded plan~~ — **delivered 2026-09-19**: every route profile identifies its callers, the one way back to the old posture is the deployment's own reported statement (`EUROGAS_NEXUS_ALLOW_ANONYMOUS_CALLERS`), one exemption list serves both gates, and the attempt's widening defect is closed by never overwriting an identity another layer resolved | administrator, IT | a code default that trusts the network is the posture the programme keeps publishing *because* it is surprising | L | done |
 | 3 | ~~**The day view**: next windows, unactioned decisions, alerts that moved — inside an existing task~~ — **delivered 2026-09-19**: `GET /api/optimization/nomination-windows` (READ floor, the 179th public path) serves the declared window masters with the UTC deadlines the gas-day calendar resolves them to, and the day board above the Decision workspace's tasks shows the deadlines, the actionable opportunities with no decision recorded, and a measured pointer into the alert centre that already exists in the top bar | trader, portfolio | the clock is the one thing the product still cannot show; the engines now exist | M | done |
 | 4 | **Decision pack** from existing artefacts (snapshot, versions, inputs, warnings, actor, audit refs) | reviewer, compliance | a governance artefact a human can sign | M | worker |
 | 5 | Give `/api/optimization/*` snapshot citation + job tracking, then collapse the pool-optimiser overlap | portfolio, trader | the stated condition in D8; removes the last two-answers-to-one-question | M | worker (decided) |

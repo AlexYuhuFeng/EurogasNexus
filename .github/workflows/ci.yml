@@ -13,6 +13,12 @@ jobs:
   validate:
     runs-on: ubuntu-latest
 
+    env:
+      # Owner decision D1: every profile identifies its callers, so the two load smokes below
+      # present the deployment token - the documented SDK/CLI credential - and refuse to produce a
+      # baseline without one rather than measuring a table of refusals.
+      EUROGAS_NEXUS_PUBLIC_API_TOKEN: ci-load-smoke-public-api-token
+
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -91,6 +97,10 @@ jobs:
 
     env:
       RUNTIME_STORE_DATABASE_URL: postgresql+pg8000://nexus:nexus@127.0.0.1:5432/nexus_test
+      # Owner decision D1: every profile identifies its callers, so the DB-backed API smoke in
+      # scripts/ci/run_postgres_ci.sh presents the deployment token. Without one it would measure a
+      # fail-closed 503 instead of the read it exists to check.
+      EUROGAS_NEXUS_PUBLIC_API_TOKEN: ci-integration-public-api-token
 
     steps:
       - name: Check out repository
