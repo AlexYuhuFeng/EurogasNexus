@@ -2,6 +2,11 @@
 
 Never writes, never prints a full DSN, never runs migrations.
 
+The table reconciliation runs only once the database answers, so the report keeps
+`missing_tables` as `None` (not inspected) until then: an unreachable database has
+not been shown to be missing every required table, and saying so would be the same
+mistake this project refuses to make about missing data elsewhere.
+
 Usage:
     python scripts/ops/validate_runtime_db.py
     python scripts/ops/validate_runtime_db.py --json
@@ -11,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -18,6 +24,29 @@ from typing import Any
 _SRC_PATH = Path(__file__).resolve().parents[2] / "src"
 if str(_SRC_PATH) not in sys.path:
     sys.path.insert(0, str(_SRC_PATH))
+
+#: The driver this project depends on, and the URL scheme that selects it.
+_PROJECT_DRIVER = "pg8000"
+_PROJECT_SCHEME = "postgresql+pg8000"
+
+_MISSING_MODULE = re.compile(r"No module named '([^']+)'")
+
+
+def _driver_warning(error: str | None) -> str | None:
+    """Explain an unimportable DBAPI driver, because the URL chooses it and not the project.
+
+    SQLAlchemy picks the driver from the URL: a bare `postgresql://` means psycopg2, which this
+    project does not depend on. Without this line the operator sees a connectivity failure and a
+    driver name, with nothing saying which scheme the deployment actually uses.
+    """
+    if not error or "ModuleNotFoundError" not in error:
+        return None
+    match = _MISSING_MODULE.search(error)
+    module = match.group(1) if match else "the driver named in the URL"
+    return (
+        f"The driver this URL selects ({module}) is not installed. This project depends on "
+        f"{_PROJECT_DRIVER}: use {_PROJECT_SCHEME}://<user>:<password>@<host>:<port>/<database>."
+    )
 
 
 def _build_report() -> tuple[dict[str, Any], int]:
@@ -38,7 +67,9 @@ def _build_report() -> tuple[dict[str, Any], int]:
         "redacted_database_url": redact_database_url(database_url),
         "connectivity": {"ok": False, "error": None},
         "required_tables": required_tables,
-        "missing_tables": required_tables,
+        # None means "not inspected", which is a different statement from an empty list.
+        "missing_tables": None,
+        "table_inspection": "not-performed",
         "alembic_revision": None,
         "decision_support": True,
         "human_review_required": True,
@@ -59,12 +90,19 @@ def _build_report() -> tuple[dict[str, Any], int]:
     }
     if not connectivity.ok:
         report["warnings"].append("Runtime DB connectivity check failed.")
+        driver_warning = _driver_warning(connectivity.error)
+        if driver_warning:
+            report["warnings"].append(driver_warning)
+        report["warnings"].append(
+            "The required-table check did not run, so the tables are not reported as missing."
+        )
         return report, 2
 
     engine = None
     try:
         engine = get_engine(database_url)
         report["missing_tables"] = list(list_missing_required_tables(engine))
+        report["table_inspection"] = "performed"
     except Exception as exc:
         report["warnings"].append(f"Required table inspection failed: {exc.__class__.__name__}.")
         return report, 2
@@ -98,7 +136,10 @@ def main(argv: list[str] | None = None) -> int:
     if report["connectivity"]["error"]:
         print(f"Connectivity error: {report['connectivity']['error']}")
     print(f"Required tables: {', '.join(report['required_tables']) or 'none'}")
-    print(f"Missing tables: {', '.join(report['missing_tables']) or 'none'}")
+    if report["table_inspection"] == "performed":
+        print(f"Missing tables: {', '.join(report['missing_tables'] or []) or 'none'}")
+    else:
+        print("Missing tables: not checked (no database connection)")
     print(f"Alembic revision: {report['alembic_revision'] or 'unavailable'}")
     for warning in report["warnings"]:
         print(f"Warning: {warning}")

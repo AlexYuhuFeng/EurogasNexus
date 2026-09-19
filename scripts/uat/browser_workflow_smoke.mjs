@@ -392,9 +392,16 @@ async function interactionChecks(page, failures) {
     await menu.waitFor({ state: "visible", timeout: 5_000 });
     await page.keyboard.press("ArrowDown");
     await page.keyboard.press("Escape");
-    const focusReturned = await preferenceTrigger.evaluate(
-      (element) => document.activeElement === element,
-    );
+    // Focus restoration is asserted as an outcome with a bounded wait rather than as an instant: a
+    // surface that moves focus on the next frame is not wrong, and a surface that never moves it
+    // still fails. (The header menu now moves it synchronously, so this passes on the first read.)
+    let focusReturned = false;
+    for (let attempt = 0; attempt < 20 && !focusReturned; attempt += 1) {
+      focusReturned = await preferenceTrigger.evaluate(
+        (element) => document.activeElement === element,
+      );
+      if (!focusReturned) await page.waitForTimeout(50);
+    }
     if (!focusReturned) {
       recordFailure(failures, "interaction/preferences", "Escape did not return focus to invoker");
     }

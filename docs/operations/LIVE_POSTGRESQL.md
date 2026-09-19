@@ -100,20 +100,42 @@ Latest checked local API posture:
 GET /api/runtime/db
 database_url_present=true
 connectivity.ok=true
-alembic_revision=0013_gie_lng_dtmi_energy
-required_tables=33
+alembic_revision=0036_job_records
+required_tables=91
 missing_tables=0
 source=runtime-postgresql
 ```
+
+The same reconciliation from the command line
+(`python scripts/ops/validate_runtime_db.py --json`, redacted output above) reports
+`table_inspection=performed`, no missing tables and no warnings against the local
+runtime database.
 
 This evidence means the running backend process can reach the configured
 PostgreSQL runtime database and sees the required schema. It does not mean each
 licensed commercial provider has been live-called.
 
+## The URL Names The Driver
+
+SQLAlchemy selects the DBAPI driver from the URL, and this project depends on
+**pg8000** only, so the scheme is part of the configuration rather than a detail:
+
+```text
+postgresql+pg8000://<user>:<password>@<host>:<port>/<database>
+```
+
+A bare `postgresql://` URL selects psycopg2, which is not installed here. The
+result is not a schema problem: the driver import fails before any connection, so
+every live read and every store-gated test fails with `ModuleNotFoundError` while
+the database itself is healthy. `scripts/ops/validate_runtime_db.py` detects that
+case, names the driver the URL selected and the scheme this project uses, and
+reports the table check as **not performed** rather than listing the required
+tables as missing - the database has not been shown to be missing anything.
+
 ## Standard Live Validation Command
 
 Run only when the operator has already configured a local PostgreSQL URL in the
-shell environment:
+shell environment (using the `postgresql+pg8000` scheme above):
 
 ```bash
 python scripts/ops/validate_runtime_db.py --json
@@ -134,7 +156,11 @@ Expected behavior:
 - perform `SELECT 1`;
 - inspect required tables;
 - inspect Alembic revision if the version table exists;
-- perform no writes.
+- perform no writes;
+- keep `table_inspection` honest: when the connection fails, the report says the
+  table check did not run (`missing_tables: null`, `table_inspection: "not-performed"`)
+  instead of reporting every required table as missing, and a driver import failure
+  names both the driver the URL selected and the `postgresql+pg8000` scheme.
 
 ## Standard Migration Command
 

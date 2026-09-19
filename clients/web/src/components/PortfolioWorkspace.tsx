@@ -2,6 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { PanelHeader, WorkspaceHeader } from "@/components/ui";
 import { ContractWorkbench, type ContractTaskView } from "@/components/ContractWorkbench";
 import { MarketPositioningWorkspace } from "@/components/MarketPositioningWorkspace";
+import { RouteCostWhatIfPanel } from "@/components/RouteCostWhatIfPanel";
+import { routeCostDraftForRoute } from "@/app/model/routeCostModel";
+import { useRouteCostWhatIf } from "@/app/model/useRouteCostWhatIf";
 import { PortfolioContextStrip } from "@/components/PortfolioContextStrip";
 import type { AppController } from "@/app/hooks/useAppController";
 import { CommercialWarningList } from "@/components/CommercialWarningList";
@@ -164,6 +167,9 @@ export function PortfolioWorkspace({ controller }: { controller: AppController }
   const [contractView, setContractView] = useState<ContractTaskView>(() =>
     selection.resourceId ? "library" : "terms",
   );
+  // Costing a route and valuing its netback is the Routes task's own compute; its draft lives here
+  // so the header's action and the panel it acts on read one readiness rule (slice D).
+  const routeCost = useRouteCostWhatIf();
 
   useEffect(() => {
     setTask(portfolioTaskFromLocation(window.location.search));
@@ -207,6 +213,17 @@ export function PortfolioWorkspace({ controller }: { controller: AppController }
         }
       >
         {t("contracts.action.save")}
+      </button>
+    ) : task === "routes" ? (
+      // Costing a route is a `compute` consequence, which the geography permits in the primary
+      // slot: the Routes task owns the run, the panel configures it and reports the result.
+      <button
+        type="button"
+        disabled={!routeCost.readiness.canCompute || routeCost.busy}
+        title={t(routeCost.readiness.firstBlockerKey ?? "portfolio.route_cost.ready")}
+        onClick={() => void routeCost.run()}
+      >
+        {t("portfolio.route_cost.run")}
       </button>
     ) : undefined;
 
@@ -258,7 +275,26 @@ export function PortfolioWorkspace({ controller }: { controller: AppController }
             loadPersistedContract={contractEditor.loadPersistedContract}
           />
         )}
-        {task === "routes" && <PortfolioRoutes controller={controller} />}
+        {task === "routes" && (
+          <>
+            <PortfolioRoutes controller={controller} />
+            <RouteCostWhatIfPanel
+              t={t}
+              whatIf={routeCost}
+              route={
+                api.routeCandidates.find((item) => item.route_id === selection.routeId) ?? null
+              }
+              onUseSelectedRoute={() =>
+                routeCost.updateDraft((current) =>
+                  routeCostDraftForRoute(
+                    current,
+                    api.routeCandidates.find((item) => item.route_id === selection.routeId) ?? null,
+                  ),
+                )
+              }
+            />
+          </>
+        )}
         {task === "exposure" && (
           <MarketPositioningWorkspace
             portfolioSummary={api.portfolioSummary}

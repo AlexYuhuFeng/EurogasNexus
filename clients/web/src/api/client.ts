@@ -1827,6 +1827,78 @@ export interface ResearchDatasetBuildDTO extends Record<string, unknown> {
   entitlement_envelope?: Record<string, unknown>;
 }
 
+/**
+ * The two research computes the Routes task runs (slice D).
+ *
+ * Both engines answer with the research contract: the figure, the assumptions it rests on, the
+ * inputs it lacked, its warnings, and provenance that names `operator-input` - these are the
+ * caller's own numbers, not market data. The provenance and the as-of travel inside `data` here,
+ * which is why the surface reads them from the payload rather than from the envelope's meta.
+ */
+export interface RouteCostComponentDTO {
+  component_type: string;
+  amount: number;
+  unit: string;
+  currency: string;
+  description: string;
+}
+
+export interface RouteCostRequestDTO {
+  route_name: string;
+  from_node_id: string;
+  to_node_id: string;
+  components: RouteCostComponentDTO[];
+  route_km?: number | null;
+}
+
+export interface RouteCostOutcomeDTO {
+  route_name: string;
+  from_node_id: string;
+  to_node_id: string;
+  total_cost_eur_mwh: number;
+  total_cost_boe: number;
+  components: RouteCostComponentDTO[];
+  route_km: number | null;
+  research_only: boolean;
+  human_review_required: boolean;
+  assumptions: string[];
+  missing_inputs: string[];
+  warnings: string[];
+  source_references: string[];
+  lineage: string[];
+  generated_at_utc: string;
+}
+
+export interface NetbackRequestDTO {
+  route_name: string;
+  from_market: string;
+  to_market: string;
+  market_price_eur_mwh: number;
+  route_cost_eur_mwh: number;
+  fx_rate: number;
+  fx_pair: string;
+}
+
+export interface NetbackOutcomeDTO {
+  route_name: string;
+  from_market: string;
+  to_market: string;
+  market_price_eur_mwh: number;
+  route_cost_eur_mwh: number;
+  netback_eur_mwh: number;
+  netback_local_mwh: number;
+  fx_rate: number;
+  fx_pair: string;
+  research_only: boolean;
+  human_review_required: boolean;
+  assumptions: string[];
+  missing_inputs: string[];
+  warnings: string[];
+  source_references: string[];
+  lineage: string[];
+  generated_at_utc: string;
+}
+
 export interface ResearchCapabilityDTO {
   name: string;
   description: string;
@@ -2687,8 +2759,8 @@ export const api = {
 
   portfolioReport: (body: AnalysisRequestDTO) => post<AnalysisResultDTO>("/reports/portfolio", body),
 
-  routeCost: (body: unknown) => post<unknown>("/research/route-cost", body),
-  netback: (body: unknown) => post<unknown>("/research/netback", body),
+  routeCost: (body: RouteCostRequestDTO) => post<RouteCostOutcomeDTO>("/research/route-cost", body),
+  netback: (body: NetbackRequestDTO) => post<NetbackOutcomeDTO>("/research/netback", body),
 
   me: (options?: ApiRequestOptions) => get<CurrentUserDTO>("/me", undefined, options),
   authStatus: () => get<AuthStatusDTO>("/auth/status"),

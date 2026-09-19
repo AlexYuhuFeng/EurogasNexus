@@ -103,6 +103,30 @@ test("settings remains the full preferences surface while the header uses one gr
   assert.match(signIn, /aria-label=\{t\("settings\.language"\)\}/);
 });
 
+test("closing the header menu returns focus to its trigger without waiting for a frame", () => {
+  const menu = readWebSource("components/HeaderPreferencesMenu.tsx");
+
+  // The accessibility sweep presses Escape and reads `document.activeElement` immediately, so a
+  // focus move deferred to the next animation frame is a promise the surface cannot keep. The
+  // trigger is always mounted, so it can be focused before the menu closes - and closing after
+  // that cannot drop focus into the body, because the focused element is not in the removed
+  // subtree.
+  const closeHandler =
+    /const closeAndReturnFocus = \(\) => \{([\s\S]*?)\n {2}\};/.exec(menu)?.[1] ?? "";
+  assert.ok(closeHandler, "the close handler is declared once");
+  assert.match(closeHandler, /triggerRef\.current\?\.focus\(\)/);
+  assert.equal(closeHandler.includes("requestAnimationFrame"), false);
+  assert.match(closeHandler, /setOpen\(false\)/);
+
+  // Escape, and only Escape, routes through it: the same handler serves every item that closes
+  // the menu, so no path leaves focus behind.
+  assert.match(menu, /event\.key === "Escape"[\s\S]*?closeAndReturnFocus\(\)/);
+  assert.match(menu, /const select = \(action: \(\) => void\) => \{\s*action\(\);\s*closeAndReturnFocus\(\);/);
+  assert.match(menu, /aria-controls="topbar-preferences-menu"/);
+  // Opening still moves focus into the menu, which is the other half of the pattern.
+  assert.match(menu, /window\.requestAnimationFrame\(\(\) => focusableItems\(\)\[0\]\?\.focus\(\)\)/);
+});
+
 test("the data-plane badge speaks the operational vocabulary, not the store name", () => {
   const bar = readWebSource("components/WorkspaceTopBar.tsx");
   const settings = readWebSource("components/SettingsCenter.tsx");

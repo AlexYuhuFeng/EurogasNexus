@@ -137,6 +137,13 @@ its notification-copy bullet, which is contract rather than delivered behaviour 
   the fragment, and in both at once.
 - `tests/api/test_data_platform_api.py` pins both provenance shapes (no block when unmeasurable, a
   real `0` when measured) and the `SNAPSHOT` job row.
+- Findings 8-11, added as the D3 surface slices were built, each have a gate rather than only a fix:
+  `clients/web/tests/localeDistinctness.test.ts` (no value may be identical in both locales unless it
+  is declared with its reason), `clients/web/tests/referenceNetwork.test.ts` (an unconfigured runtime
+  database is not an empty register, a bound is not a total, and a row that declares no capacity is
+  not a zero), `clients/web/tests/routeCostWhatIf.test.ts` (the client sums nothing and the netback
+  carries the engine's own cost) and `tests/unit/test_runtime_db_validation.py` (an unreachable
+  database is reported as not inspected, with the driver the URL selected named).
 
 ## 6. What running, rather than reading, then found
 
@@ -228,6 +235,48 @@ overflow) including the agent-research interaction.
    now fails on *any* value that is the same in both locales unless it is declared with its reason,
    so this cannot arrive silently again. The lesson repeats this audit's other one: the checks that
    existed were about the shape of the file, and nobody had asserted the property that mattered.
+
+9. **The census that found the uncalled methods was itself fooled by an unrelated identifier.**
+   Found while finishing slice D: the measurement behind C11/D3 counts a method as "mentioned" when
+   its name appears anywhere outside `client.ts`, and `netback` appears twice without any caller -
+   once as a `RouteRecommendationDTO` field and once as a UI string in the scenario workspace. So
+   `api.netback`, which had no more of a surface than `api.routeCost` beside it, was never in the
+   never-mentioned set at all; the audit's own instrument was measuring a substring, not a call. The
+   same weakness made the "mentioned but never invoked by name" list the more honest of the two
+   numbers, which is why both are reported. With slice D delivered the never-mentioned set is empty
+   and the count that matters is 30 methods reached only through the loader seam - and each of those
+   was checked by eye against the store that owns the seam.
+
+10. **The client's envelope type asserted more than the backend sends.** `ApiMeta` declared
+   `source_references` and `warnings` as **required**, while the research compute routes return a
+   meta of `{research_only, human_review_required, decision_context}` - so a surface reading
+   `meta.source_references` was reading a field the response did not contain, and TypeScript could
+   not say so. The same envelopes put the engine's own `source_references` inside `data`, which is
+   where the route-cost panel now reads provenance from. Four route modules send
+   `meta.missing_inputs` (the reference-network reads, the optimiser, the research computes, the
+   sources read) and the client declared nothing, so the one signal that separates *nothing was
+   measured* from *measured and empty* was invisible to every surface. All three fields are now
+   declared honestly (the first two optional) and the two call sites that assumed them were fixed.
+   A related record rather than a fix: `GET /api/contracts/capacity` maps the column
+   `capacity_mwh_per_day` into a payload field named `capacity_boe_d` while the row's own `unit`
+   says `MWh/d`. The unit is the explicit statement and the surface renders it verbatim; renaming a
+   pinned payload field is a contract change, so the wart is recorded here instead of being fixed
+   quietly.
+
+11. **The runtime-DB validator reported an unreachable database as 93 missing tables.** Found by
+   running the documented live-validation command with a bare `postgresql://` URL - the scheme most
+   operators would type, and one that makes SQLAlchemy select psycopg2, a driver this project does
+   not depend on. The connectivity check failed with `ModuleNotFoundError`, and the report then
+   printed every required table as missing, because `missing_tables` was initialised to the full
+   required set and never cleared. Nothing had been inspected, so nothing had been shown to be
+   missing; it is the same defect the platform refuses to make about data (*unmeasured* rendered as
+   *zero*), in the operator's own diagnostics. The report now carries
+   `table_inspection: "not-performed"` with `missing_tables: null` when the database does not
+   answer, names the driver the URL selected and the `postgresql+pg8000` scheme this project uses,
+   and `docs/operations/LIVE_POSTGRESQL.md` states the scheme where it previously named no driver
+   at all. The stale evidence block in that document (`alembic_revision=0013…`,
+   `required_tables=33`) was also refreshed from a real run: `0036_job_records`, 91 tables, none
+   missing, no warnings.
 
 ## 7. Limits of this audit
 

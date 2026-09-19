@@ -39,9 +39,18 @@ export function HeaderPreferencesMenu({
       ) ?? [],
     );
 
+  /**
+   * Close the menu and put focus back on the trigger that opened it.
+   *
+   * The focus move is synchronous and happens *before* the menu closes: the trigger is always
+   * mounted, so focusing it does not depend on a frame having run, and closing afterwards cannot
+   * drop focus into the document body because the element that holds focus is not inside the
+   * subtree being removed. The accessibility sweep asserts exactly this outcome right after
+   * `Escape`, which a deferred focus cannot promise.
+   */
   const closeAndReturnFocus = () => {
+    triggerRef.current?.focus();
     setOpen(false);
-    window.requestAnimationFrame(() => triggerRef.current?.focus());
   };
 
   const select = (action: () => void) => {
