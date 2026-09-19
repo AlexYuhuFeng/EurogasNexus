@@ -32,15 +32,22 @@ This hierarchy answers those jobs in order and makes operations recede.
 
 ## 3. Target primary workspaces
 
-Level 1 (global navigation) contains five primary workspaces:
+The original CR-01 mapping described **five** primary workspaces, with `sources`, `runtime`,
+`settings`, `manual` and `glossary` all under `system`. Architecture V2's control-plane separation
+(`06_IDENTITY_ACCESS_CONTROL_PLANE.md` section 8, delivered in Waves 3 and 9) split administration
+out, so the implemented registry (`clients/web/src/app/navigation/productNavigation.ts`) has
+**six**, and the tables below are corrected to it: `administration` is a capability-gated control
+plane the shell hides from an identity without an administration capability and refuses to
+deep-link into, while `system` keeps the help, research and agent surfaces.
 
-| PrimaryWorkspaceId | Label EN | Label zh-CN | Trader question it answers |
+| PrimaryWorkspaceId | Label EN | Label zh-CN | The question it answers |
 |---|---|---|---|
 | `market` | Market | 市场 | What is happening physically and financially? |
 | `portfolio` | Portfolio | 组合 | What resources/exposures do we currently have? |
 | `strategy` | Strategy Lab | 策略实验室 | What research strategy are we testing/monitoring? |
 | `decision` | Decision Center | 决策中心 | What scenario/optimization output needs review? |
-| `system` | System | 系统 | Is the data/application configured and healthy? |
+| `system` | System | 系统 | What can I research, ask and look up? |
+| `administration` | Administration | 管理 | Are connections, access, entitlements and runtime healthy? (control plane) |
 
 ## 4. Child views (level 2, technical ids preserved)
 
@@ -48,9 +55,10 @@ Level 1 (global navigation) contains five primary workspaces:
 |---|---|---|---|
 | Market | `network`, `market`, `capacity` | `network` | Network remains map-first; capacity and market stay local tasks |
 | Portfolio | `contracts`, `orders` | `contracts` | `contracts` displayed as Resource Terms; `orders` displayed as Market Positioning |
-| Strategy Lab | `strategy` | `strategy` | Later milestones add Design / Backtest / Compare / Shadow |
-| Decision Center | `scenario`, `review` | `scenario` | Optimization results remain reachable inside scenario/network workflows |
-| System | `sources`, `runtime`, `settings`, `manual`, `glossary` | `sources` | Glossary re-homed as help/knowledge; direct links remain |
+| Strategy Lab | `strategy` | `strategy` | Design / Backtest / Compare / Shadow are tasks of the one page |
+| Decision Center | `scenario`, `review` | `scenario` | Tasks are scenario, optimize, nomination, storage dispatch and review; pool-optimiser results remain reachable inside scenario/network workflows |
+| System | `research`, `agents`, `settings`, `manual`, `glossary` | `research` | Glossary re-homed as help/knowledge; direct links remain |
+| Administration | `sources`, `runtime`, `access` | `sources` | Control plane: hidden and refused without an administration capability |
 
 No backend endpoint is renamed. No database schema is changed. No domain
 calculation is changed by this mapping.

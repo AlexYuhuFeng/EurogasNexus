@@ -51,7 +51,13 @@ evidence. Fresh repository evidence may re-order entries with a dated note.
 
 ## Current run
 
-See `docs/product/SCHEDULED_AGENT_STATE.md`. This run implements only CR-15 / P14.
+See `docs/engineering/ARCHITECTURE_V2_EXECUTION_STATE.md` for the programme's current state: every
+CR in the ledger above is delivered, and the Architecture V2 waves are complete except the halves
+this environment cannot verify (the native desktop build and the external release items). The
+earlier pointer here named CR-15 / P14 alone, which stopped being true once CR-11 to CR-14 landed;
+`docs/product/SCHEDULED_AGENT_STATE.md` remains the record for that milestone. `M1-P0` (ENTSOG
+timezone normalization) is the one P0 still `ready` rather than `complete`, and
+[PROFESSIONAL_AUDIENCE_REVIEW](PROFESSIONAL_AUDIENCE_REVIEW.md) ranks it first among next steps.
 
 ## Evidence policy
 

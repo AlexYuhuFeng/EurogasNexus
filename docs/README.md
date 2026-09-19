@@ -20,6 +20,7 @@ the current/normative document listed here and report the conflict.
 - [Commercial readiness backlog](product/COMMERCIAL_READINESS_BACKLOG.md)
 - [Scheduled agent state](product/SCHEDULED_AGENT_STATE.md)
 - [Product information architecture](product/PRODUCT_INFORMATION_ARCHITECTURE.md)
+- [Professional audience review](product/PROFESSIONAL_AUDIENCE_REVIEW.md)
 - [Trader context spec](product/TRADER_CONTEXT_SPEC.md)
 - [Industry benchmark principles](product/INDUSTRY_BENCHMARK.md)
 - [UX reference](product/UX_REFERENCE.md)
