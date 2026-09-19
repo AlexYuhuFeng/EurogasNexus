@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import os
 import sys
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, time, timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -25,6 +25,7 @@ from eurogas_nexus.db.models import (  # noqa: E402
     CanonicalEntityRecord,
     FxObservationRecord,
     MarketObservationRecord,
+    NominationWindowMasterRecord,
     SeriesDefinitionRecord,
 )
 from eurogas_nexus.db.session import (  # noqa: E402
@@ -222,6 +223,49 @@ def main() -> int:
                     )
                 )
                 inserted += 1
+
+        # The desk's clock. `nomination_window_masters` is a deployment declaration, so without one
+        # the browser UAT can only exercise the *absence* of a window: the nomination task reports
+        # `NOMINATION_WINDOWS_MISSING` and the day board has no deadline to show. These two are
+        # simulated declarations on the UTC clock the engine matches against, chosen inside the gas
+        # day all year (its boundary is 04:00-05:00 UTC), so a deadline exists whatever the run's
+        # wall-clock time. 06:00 UTC is the winter boundary's own hour - the moment a gas day starts
+        # in the CAM calendar - and 12:00 UTC sits in the middle of the day.
+        for window_id, name, opens_at, closes_at, maximum_change_mwh, maximum_change_pct in (
+            (
+                "uat-window-day-open",
+                "UAT simulated window at the gas-day open",
+                time(6, 0),
+                time(6, 30),
+                150.0,
+                None,
+            ),
+            (
+                "uat-window-midday",
+                "UAT simulated midday renomination window",
+                time(12, 0),
+                time(12, 30),
+                None,
+                10.0,
+            ),
+        ):
+            session.merge(
+                NominationWindowMasterRecord(
+                    window_id=window_id,
+                    name=name,
+                    country="DE",
+                    opens_at=opens_at,
+                    closes_at=closes_at,
+                    maximum_change_mwh=maximum_change_mwh,
+                    maximum_change_pct=maximum_change_pct,
+                    valid_from_utc=datetime(2020, 1, 1, tzinfo=UTC),
+                    valid_to_utc=None,
+                    source_system="CAM_UAT_Sim",
+                    source_reference=f"uat-sim:cam:{window_id}",
+                    active=True,
+                    created_at_utc=now,
+                )
+            )
 
         session.commit()
     print(

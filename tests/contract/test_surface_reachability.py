@@ -2,8 +2,11 @@
 
 The D3 census measured client methods -> surfaces, and closed that set to zero. The other direction
 was never measured: a declared public route that no client calls. Run over the whole web source
-(stream subscriptions live in `stores/api.ts`, not in the transport), **36 of the 178 public paths
-are not reached from the web client**, and 10 of those are called by nobody at all.
+(stream subscriptions live in `stores/api.ts`, not in the transport), **34 of the 179 public paths
+are not reached from the web client**, and 16 of those are called by nobody at all. Both figures are
+re-measured rather than carried forward, because the count moves whenever a route gains or loses a
+reader - the nomination-windows read left the unreached set with the desk's day board, and the route
+it reads is one public path more than the census had.
 
 This gate makes that state declared instead of accidental. Every public path must fall into exactly
 one bucket, and each non-obvious entry carries its reason:
@@ -97,12 +100,15 @@ SURFACE_GAP_D8: dict[str, str] = {
     ),
 }
 
-#: Engines the desk slice surfaced, so a regression that drops one fails here rather than quietly
-#: returning to the gap list.
+#: Engines and reads the desk slice surfaced, so a regression that drops one fails here rather than
+#: quietly returning to the gap list.
 SURFACED_BY_THE_DESK_SLICE: dict[str, str] = {
     "/api/optimization/nomination-window": "Decision workspace, Nomination task",
     "/api/optimization/storage-dispatch": "Decision workspace, Storage dispatch task",
     "/api/optimization/runs/{run_id}": "read back from either assessment result",
+    # The clock the desk trades against: the day board, mounted above every Decision task, reads the
+    # declared window masters so a deadline is visible without opening the nomination task.
+    "/api/optimization/nomination-windows": "the day board's clock, above every Decision task",
 }
 
 #: Paths that are deliberately not a product surface, each with the reason it is not.

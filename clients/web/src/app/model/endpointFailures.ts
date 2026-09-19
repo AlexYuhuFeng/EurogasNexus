@@ -60,6 +60,12 @@ export const ENDPOINT_FAILURE_LABEL_KEYS: Record<string, string> = {
   monitoringSummary: "workspace.endpoint.monitoring_summary",
   reviewDecisions: "workspace.endpoint.review_decisions",
   pipelineHealth: "workspace.endpoint.pipeline_health",
+  /**
+   * The day board's clock read. It is on-demand rather than part of the workspace batch, but it
+   * records its failure in the same map, so it is labelled here rather than falling through to the
+   * generic "unknown endpoint" row.
+   */
+  nominationWindows: "workspace.endpoint.nomination_windows",
 };
 
 /** Fallback label for a loader key this client does not know: never the raw key. */

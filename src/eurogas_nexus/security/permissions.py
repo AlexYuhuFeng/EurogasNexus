@@ -136,6 +136,11 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     ("/api/strategy-versions/{version_id}/freeze", Permission.GOVERNED),
     ("/api/strategy-versions/{version_id}/fork", Permission.GOVERNED),
     ("/api/optimization/runs/{run_id}", Permission.READ),
+    # The declared nomination-window masters are the desk's clock: which windows exist and when
+    # they close. Running a nomination assessment stays GOVERNED (it composes market material and
+    # produces a schedule), while reading the declaration that the assessment is measured against
+    # keeps the READ floor - a trader must be able to see the deadline being traded against.
+    ("/api/optimization/nomination-windows", Permission.READ),
     ("/api/route-cost/tso-tariffs", Permission.READ),
     ("/api/route-cost/route-candidates", Permission.READ),
     # GET lists + POST upserts contracts: policy-gated write surface.

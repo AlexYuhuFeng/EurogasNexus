@@ -63,6 +63,7 @@ Windows/Linux 桌面外壳和双语运营文档。所有消费方都是同一契
 | `POST /api/optimization/portfolio-network` | 已接受的发布合同 | 仅 DB `RUNTIME_DECISION`；只接受决策元数据，绝不接受客户端网络/费率/管容/价格事实 |
 | `POST /api/optimization/storage-dispatch` | 已接受的发布合同 | 仅评估的储气调度；RUNTIME_DECISION 组装 PostgreSQL master/观测 |
 | `POST /api/optimization/nomination-window` | 已接受的发布合同 | 仅评估的提名窗口；RUNTIME_DECISION 读取 DB 窗口 master；无提交动作 |
+| `GET /api/optimization/nomination-windows` | 交易台时钟读取（Architecture V2 日视图） | READ 级别读取某个气体日已声明的 `nomination_window_masters`，同时给出声明的时钟时刻与其在该气体日解析出的 UTC 时刻。它暴露的是"声明"而非"评估"：不含市场材料、不含调度结果、不含提交动作。未配置 runtime DB 时返回空列表并在 `meta.missing_inputs` 说明原因；runtime DB 已配置但没有任何生效 master 时返回"已测量的零"并携带 `NOMINATION_WINDOWS_MISSING`，因此"今天没有窗口关闭"与"窗口未被读取"不会被混为一谈 |
 | `GET /api/data-products` | Architecture V2 Wave 4（统一数据平台） | READ 级别的 Data Product 目录声明：产品 id、业务名称、可用状态、时间基准、声明的来源/授权族与今日服务端点，外加按主体的授权判定与新鲜度/溯源摘要。绝不返回 API 密钥、密钥值、调度器内部或重试轨迹；调用方无权访问的产品标记为 `restricted` 且不返回溯源块，既不省略也不显示为 0 |
 | `GET/POST /api/analysis-snapshots` | Architecture V2 Wave 4（统一数据平台） | `POST`（GOVERNED，ANALYST 门槛）按当前 Active Context 记录 Analysis Snapshot 描述符；`GET` 列出最近的描述符。`GET` 保持 READ 门槛，因为描述符是血缘/溯源元数据、不含商业数值；其引用的每个数值仍在各自的商业端点之后 |
 | `GET /api/analysis-snapshots/{snapshot_id}` | Architecture V2 Wave 4（统一数据平台） | 按可复现引用读取单个 Analysis Snapshot；未知引用返回 404 |
@@ -78,6 +79,7 @@ Windows/Linux 桌面外壳和双语运营文档。所有消费方都是同一契
 | `POST /api/strategy-runs`（`run_type=BACKTEST`） | `analysis_snapshot_id`（请求可选，`data` 回显） | Wave 4 范围扩展到策略回测运行：运行前对持久化的 Analysis Snapshot 校验（被拒绝时不创建运行行、不创建作业），并在响应中回显；未引用时不出现 |
 | `POST /api/analysis/query` | `analysis_snapshot_id`（请求可选，`data` 回显） | Wave 4 范围扩展到分析（AI 证据）路径：在加载输入快照之前、且在调用任何 provider 之前完成校验，因此无法校验的引用绝不会以一次外部请求作为代价。拒绝码与其他路径一致；未引用时 `data` 中不出现该字段，且该引用随分析记录一并持久化 |
 | `POST /api/reports/portfolio` | `analysis_snapshot_id`（请求可选，`data` 回显） | Wave 4 范围扩展到组合报告：运行前校验，在报告中回显，并作为该报告所依据的快照记入受跟踪的 `REPORT` 作业（未引用时记录为空引用）。已存储的报告记录仅保留其章节与来源引用，没有存放被引用快照的列——此处如实记录，不作暗示 |
+| `GET /api/optimization/nomination-windows` | `next_gas_day`、`next_opens_at_utc`、`next_closes_at_utc`（每个窗口行，客户端可忽略） | 日视图的后续补充，且属于同一族：窗口 master 是按日生效的规则，因此当所请求气体日的窗口已关闭时，可行动的时点是同一时钟在次日的气体日发生。两个发生均由接口按气体日日历解析，而不是由客户端在时钟上加一天；忽略这三个字段的 JSON 客户端所见载荷与之前完全一致 |
 
 ## 被拒绝的请求字段
 

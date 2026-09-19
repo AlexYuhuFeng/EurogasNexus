@@ -58,6 +58,8 @@ import {
   MonitoringAnalysisDTO,
   MonitoringSummaryDTO,
   NodeDTO,
+  NominationWindowOccurrenceDTO,
+  NominationWindowReadDTO,
   NormalizedMarketObsDTO,
   PipelineHealthDTO,
   PortfolioLiveSummaryDTO,
@@ -377,6 +379,21 @@ export interface ApiState {
   strategySummary: StrategySummaryDTO | null;
   reviewDecisions: ReviewDecisionDTO[];
   reviewMessage: string | null;
+  /**
+   * The nomination windows the deployment declares for one gas day (the day board's clock).
+   *
+   * The rows are only half of the read: `nominationWindowsMeta` is kept beside them because the
+   * route's three deployment states are told apart by the *envelope*, not by the row count. An
+   * unconfigured runtime database answers an empty list with `runtime-db-not-configured` and a
+   * named missing input; a configured deployment that declares no window master answers an empty
+   * list with the `NOMINATION_WINDOWS_MISSING` warning. Rendering either as `0` would state a fact
+   * the deployment never established (`app/model/readPosture.ts` is the one place that decides).
+   * `nominationWindowsRead` keeps the block the board quotes: the gas day, the declared time basis,
+   * the read's own as-of and `window_masters_declared`.
+   */
+  nominationWindows: NominationWindowOccurrenceDTO[];
+  nominationWindowsRead: NominationWindowReadDTO | null;
+  nominationWindowsMeta: ApiMeta | null;
   glossaryTerms: GlossaryTermDTO[];
   glossaryContext: GlossaryContextDTO | null;
   analysisResult: AnalysisResultDTO | null;
@@ -480,6 +497,15 @@ export interface ApiState {
    * workspace batch, because resolving evidence is per-entity work.
    */
   fetchReviewContext: () => Promise<void>;
+  /**
+   * Read the nomination windows the deployment declares, for the desk's clock.
+   *
+   * The day board asks for this when the Decision workspace mounts; the read is task-scoped
+   * rather than part of the workspace batch, and the store's lane coalesces repeat asks. The
+   * gas day is optional: omitting it asks for the gas day containing the current UTC instant,
+   * which is the day the board is about.
+   */
+  fetchNominationWindows: (gasDay?: string) => Promise<void>;
   fetchAnalysisSnapshots: () => Promise<void>;
   /**
    * Record the context the caller is standing in as a reproducibility reference, and select it.
@@ -712,6 +738,9 @@ export const useApiStore = create<ApiState>((set, get) => ({
   strategySummary: null,
   reviewDecisions: [],
   reviewMessage: null,
+  nominationWindows: [],
+  nominationWindowsRead: null,
+  nominationWindowsMeta: null,
   glossaryTerms: [],
   glossaryContext: null,
   analysisResult: null,
@@ -1449,6 +1478,57 @@ export const useApiStore = create<ApiState>((set, get) => ({
           // decisions it already had instead of an empty review.
           reviewDecisions: usable ? reviewDecisions(projection) : state.reviewDecisions,
           endpointMeta,
+          endpointErrors,
+          endpointErrorCodes,
+        };
+      });
+    } finally {
+      refresh.release();
+    }
+  },
+
+  /**
+   * Read the deployment's declared nomination windows for one gas day (the day board's clock).
+   *
+   * On demand rather than part of the workspace batch: the board is the only surface that asks,
+   * and it asks when the Decision workspace mounts. The lane coalesces the repeat asks a task
+   * switch produces, exactly as the review lane does.
+   *
+   * The envelope is stored, not summarised: the rows alone cannot distinguish an unconfigured
+   * runtime database from a deployment that declares no window master, and the board renders those
+   * two sentences differently. A read that failed establishes nothing - it leaves whatever the last
+   * successful read left and records the failure where every other endpoint failure is recorded.
+   */
+  fetchNominationWindows: async (gasDay) => {
+    if (logoutInProgress) return;
+    if (!isIdentityGateOpen(get().authState)) return;
+    const refresh = readRefreshCoordinator.nominationWindows.tryStart();
+    if (!refresh) return;
+    const refreshGeneration = readRefreshCoordinator.currentGeneration();
+    try {
+      const result = await loadWorkspaceEndpoint(
+        (loaderOptions) => api.nominationWindows(gasDay, loaderOptions),
+        {
+          signal: refresh.signal,
+          retries: 0,
+          timeoutMs: DEFAULT_WORKSPACE_READ_TIMEOUT_MS,
+        },
+      );
+      if (!readRefreshCoordinator.isCurrent(refreshGeneration)) return;
+      set((state) => {
+        const endpointErrors = { ...state.endpointErrors };
+        const endpointErrorCodes = { ...state.endpointErrorCodes };
+        if (!result.ok) {
+          endpointErrors.nominationWindows = result.error.message;
+          endpointErrorCodes.nominationWindows = result.error.code;
+          return { endpointErrors, endpointErrorCodes };
+        }
+        delete endpointErrors.nominationWindows;
+        delete endpointErrorCodes.nominationWindows;
+        return {
+          nominationWindows: result.value.data.windows,
+          nominationWindowsRead: result.value.data,
+          nominationWindowsMeta: result.value.meta,
           endpointErrors,
           endpointErrorCodes,
         };

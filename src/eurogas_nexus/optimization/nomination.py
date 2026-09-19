@@ -13,10 +13,17 @@ from .models import OptimizationStatus
 class NominationWindow:
     """One nomination/renomination window of the gas day.
 
+    The times are *clock* times, not instants, and ``_find_window`` matches them against the UTC
+    clock time of the submitting instant (``submitted_at.time()``). That basis is the one
+    ``domain/market/nomination_windows.py`` resolves a gas day against; a master loaded with local
+    market times would therefore be matched an hour or two away from the intended deadline, which
+    is why the read surface states the basis it assumed.
+
     Attributes:
         window_id: Stable window id.
-        opens_at: Window open time (local gas-day clock).
-        closes_at: Window close time.
+        opens_at: Window open time of day, matched against the UTC clock time of a submission.
+        closes_at: Window close time of day, on the same UTC date unless it precedes ``opens_at``
+            (a window wrapping UTC midnight).
         maximum_change_mwh: Absolute change cap, or None.
         maximum_change_pct: Relative change cap, or None.
     """

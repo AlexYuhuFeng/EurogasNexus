@@ -473,6 +473,77 @@ compatibility alias rather than a second way to answer the same question - the s
 `portfolioLiveSummary` retirement in D3, and the same reason: two answers to one question disagree
 eventually.
 
+**DELIVERED - the day view, and the clock basis it exposed.** The desk slice surfaced the two engines
+a desk decides with; this slice surfaces the *clock* those engines are measured against, which is
+what the audience review ranked second and what D8's ruling (4) called "a desk decision with a
+deadline":
+
+- `nomination_window_masters` was read by the engine and by nobody else, so no surface could show
+  the deadline being traded against. `GET /api/optimization/nomination-windows` now serves the
+  declared masters for one gas day at the **READ floor** - reading a declaration, not running an
+  assessment, which stays GOVERNED. It is the first public path added since the 178-path bound, and
+  it moved that bound to 179 in the same change, declared in the pin, both contract-evolution
+  policies and the operations record.
+- The **clock** is resolved on the gas-day calendar (`domain/market/nomination_windows.py`), because
+  a gas day is 23/24/25 hours long and a declared clock time is not an instant. The rule is the
+  engine's rule rather than a new one: the occurrence inside the gas day, with a window that wraps
+  UTC midnight closing on the next UTC date. `tests/unit/test_nomination_window_occurrence.py`
+  asserts the two agree, instant by instant, instead of only asserting the arithmetic.
+- A read that established nothing is **not** an empty schedule, and the route says which one it is:
+  an unconfigured runtime database answers an empty list with `meta.missing_inputs`; a configured
+  database that declares no active master answers a *measured* zero carrying the composition's own
+  `NOMINATION_WINDOWS_MISSING` warning. "No window closes today" and "the windows were not read"
+  cannot be collapsed by a surface that renders `0` for both.
+- The surface itself is a **day board inside the existing Decision workspace** (no new page, rule 9):
+  the day's deadlines, the actionable items with no decision recorded yet, and a measured pointer
+  into the alert centre that already exists in the top bar - which is why the board does not render a
+  second alert list.
+- Each clock row also carries the same daily rule's occurrence on the **following** gas day, resolved
+  by the route. The browser sweep is what asked for it: on a first run at 14:56 UTC both declared
+  windows read "overdue 511 min" - honest, and useless to a desk for the rest of the day. The next
+  occurrence is a calendar answer (the gas day is 23/24/25 hours long), so it is resolved beside the
+  first one and the board states it once the window has closed, instead of leaving a client to add a
+  day to a clock.
+- **The finding this exposed is D9 below**: the engine's field documentation claimed a *local*
+  gas-day clock while the matcher compares UTC clock times.
+
+### D9 — which clock do the declared nomination-window masters mean?
+
+**Found by** the day-view slice, while resolving window times into showable deadlines. It is an owner
+question rather than a worker's because every option changes what a deployment must declare, and one
+of them changes assessment behaviour for existing rows.
+
+**Today.** `nomination_window_masters.opens_at` and `closes_at` are clock times (`TIME` columns), not
+instants. `optimization/nomination.py::_find_window` matches them against
+`instruction.submitted_at.time()` - the **UTC** clock time of the submission - while the dataclass
+docstring describing those same two fields said "local gas-day clock". Both readings produce a
+plausible-looking window, so nothing surfaces the disagreement, and no loader, document or test in
+the repository said which one a deployment should load.
+
+**Why it matters.** A master loaded with the market's local times (06:00 CET) is matched at 06:00
+UTC: one hour early in winter and two hours early in summer, on precisely the deadline a desk trades
+against. That is the same defect class as **M1-P0** (ENTSOG naive timestamps read as UTC), whose
+delivery is the bullet above it - an unstated time basis, not arithmetic.
+
+**What this slice does instead of choosing.** It changes no engine behaviour: the read route states
+the basis it assumed (`data.time_basis: "utc-clock-on-gas-day"`) and resolves on the gas-day
+calendar, the field documentation now states the implemented rule, and the operations record tells an
+operator to load UTC clock times. A disagreement is therefore visible in the payload rather than
+silent in the numbers.
+
+**Options.** (a) **Keep the UTC clock as the declared basis** and say so at every point a master is
+loaded (documentation plus loader validation), which is what the code already does; (b) **change the
+engine to read the times on the gas day's local clock** (CET/CEST, the clock the `EU-CAM-UTC-2025`
+calendar encodes and the natural reading of a market's own deadline) - correct for a CAM-style
+deadline, but it changes assessment behaviour for every existing row and needs the masters
+re-declared; (c) **store instants instead of clock times** (a migration), which removes the ambiguity
+entirely at the cost of declaring windows per day rather than as a daily rule.
+
+**RECOMMENDATION (not decided).** (a) now, and (b) only with the operator's evidence that some
+deployment has loaded local times. The ambiguity is a *declaration* problem before it is an engine
+problem, and (a) is the only option that changes no behaviour while making the assumption visible.
+(c) is the right answer if windows ever vary by date rather than by clock.
+
 
 ### What no decision here can unblock
 

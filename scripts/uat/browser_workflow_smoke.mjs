@@ -463,6 +463,90 @@ async function interactionChecks(page, failures) {
   } catch (error) {
     recordFailure(failures, "interaction/narrow-disclosure", error);
   }
+
+  // The day board (the desk's clock). The seeded UAT fixture declares two nomination windows, so a
+  // deadline row must exist: this asserts the whole chain the unit and API tests assert in pieces -
+  // the fixture declaration, the READ-floor route, the gas-day resolution and the panel - against a
+  // running browser. The instant shown must be the API's resolved one (a UTC timestamp), and the
+  // countdown beside it must be labelled as the browser's clock, because those are two clocks.
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`${BASE}/?workspace=scenario`, { waitUntil: "domcontentloaded" });
+  await page.waitForTimeout(500);
+  try {
+    const board = page.locator("section.day-board");
+    await board.waitFor({ state: "visible", timeout: 10_000 });
+    const deadlines = board.locator(".day-board-clock .day-board-deadline strong");
+    await deadlines
+      .first()
+      .waitFor({ state: "visible", timeout: 10_000 })
+      .catch(() =>
+        recordFailure(
+          failures,
+          "interaction/day-board",
+          "no nomination-window deadline rendered (the fixture declares two)",
+        ),
+      );
+    const rendered = await deadlines.allTextContents();
+    if (rendered.length < 2) {
+      recordFailure(
+        failures,
+        "interaction/day-board",
+        `expected two declared windows, rendered ${rendered.length}`,
+      );
+    }
+    for (const value of rendered) {
+      if (!/UTC/.test(value)) {
+        recordFailure(
+          failures,
+          "interaction/day-board",
+          `deadline is not the API's resolved UTC instant: ${value}`,
+        );
+      }
+    }
+    const qualifiers = await board
+      .locator(".day-board-clock .day-board-qualifier")
+      .allTextContents();
+    if (qualifiers.length === 0) {
+      recordFailure(
+        failures,
+        "interaction/day-board",
+        "the countdown is not labelled with the clock it was measured against",
+      );
+    }
+    // The board must be usable whatever time the sweep runs: every window row either still has time
+    // left on this gas day's deadline, or states the next occurrence the API resolved. A row that
+    // has closed without saying when the window next opens leaves the desk with nothing to act on.
+    await page
+      .waitForFunction(
+        () => {
+          const rows = [...document.querySelectorAll(".day-board-clock .day-board-row")];
+          if (rows.length === 0) return false;
+          return rows.every((row) => {
+            const overdue = row.querySelector(".day-board-countdown.is-overdue") !== null;
+            if (!overdue) return true;
+            return row.querySelector(".day-board-next-window") !== null;
+          });
+        },
+        { timeout: 10_000 },
+      )
+      .catch(() =>
+        recordFailure(
+          failures,
+          "interaction/day-board",
+          "a closed window states no next occurrence",
+        ),
+      );
+    const basis = await board.locator(".day-board-clock .day-board-note").first().textContent();
+    if (!basis || !/utc-clock-on-gas-day|UTC/i.test(basis)) {
+      recordFailure(
+        failures,
+        "interaction/day-board",
+        `the day board does not state the clock basis it assumed: ${basis}`,
+      );
+    }
+  } catch (error) {
+    recordFailure(failures, "interaction/day-board", error);
+  }
 }
 
 export async function runWorkflowSmoke() {

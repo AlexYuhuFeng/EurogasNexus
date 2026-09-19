@@ -388,17 +388,18 @@ test("the shell mounts no workspace surface before the backend confirms identity
 test("every workspace loader, poll and stream is gated on the identity gate", () => {
   const store = source("stores/api.ts");
 
-  // Nine gated entry points: six workspace loaders, the task-scoped Analysis Snapshot read the
-  // reproducibility picker uses, the snapshot *write*, and the manual ingestion-run queue - every
-  // write is gated the way the reads are. The count is asserted so a new loader or writer cannot
-  // be added without a gate.
-  assert.equal(store.match(/isIdentityGateOpen\(get\(\)\.authState\)/g)?.length, 9);
+  // Ten gated entry points: six workspace loaders, the task-scoped Analysis Snapshot read the
+  // reproducibility picker uses, the day board's nomination-windows read, the snapshot *write*, and
+  // the manual ingestion-run queue - every write is gated the way the reads are. The count is
+  // asserted so a new loader or writer cannot be added without a gate.
+  assert.equal(store.match(/isIdentityGateOpen\(get\(\)\.authState\)/g)?.length, 10);
   for (const action of [
     "fetchWorkspace: async",
     "retryFailedWorkspaceEndpoints: async",
     "refreshMarketData: async",
     "refreshMonitoring: async",
     "fetchReviewContext: async",
+    "fetchNominationWindows: async",
     "fetchAnalysisSnapshots: async",
     "recordAnalysisSnapshot: async",
     "requestSourceRun: async",

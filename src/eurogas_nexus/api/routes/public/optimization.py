@@ -11,13 +11,21 @@ persist identically in ``optimization_runs``.
 from __future__ import annotations
 
 from dataclasses import asdict
-from datetime import UTC, date, datetime, time
+from datetime import UTC, date, datetime, time, timedelta
 from typing import Literal
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
+from eurogas_nexus.domain.market.gas_day import (
+    DEFAULT_GAS_DAY_CALENDAR,
+    gas_day_label,
+)
+from eurogas_nexus.domain.market.nomination_windows import (
+    gas_day_bounds_utc,
+    resolve_window_occurrence,
+)
 from eurogas_nexus.domain.ontology.vocabulary import StatusKind
 from eurogas_nexus.domain.route_cost.portfolio_network import (
     CompanyTsoAccessFact,
@@ -681,6 +689,159 @@ def optimize_portfolio_network(body: PortfolioNetworkOptimizationRequest) -> dic
             "snapshot_id": run_id,
             "decision_context": "RUNTIME_DECISION",
             "gas_day": body.gas_day.isoformat(),
+        },
+    }
+
+
+@router.get("/nomination-windows")
+def get_nomination_windows(gas_day: date | None = None) -> dict:
+    """Return the declared nomination windows resolved onto one gas day.
+
+    读取数据库中声明的提名窗口主数据，并解析为该气体日的 UTC 起止时刻。
+
+    This is a read of the deployment's own declaration, not an optimization: the engines that
+    *use* the masters stay behind the GOVERNED floor, while a caller who may read the desk's
+    reference data may read which windows exist and when they close. It exists because the clock
+    had no surface - ``nomination_window_masters`` was read by the engine and by nobody else, so a
+    desk could not see the deadline it was trading against.
+
+    The resolution rule and its limits live with the calendar in
+    ``domain/market/nomination_windows.py``; the requested gas day's validity is assessed at noon
+    UTC, which is the same basis ``_runtime_nomination_window`` uses.
+
+    Args:
+        gas_day: Gas day whose window occurrences are wanted; defaults to the gas day containing
+            the current UTC instant.
+
+    Returns:
+        The declared windows with their resolved UTC instants, plus the deployment posture: an
+        unconfigured runtime database is reported as an unread input rather than as an empty
+        schedule, and a configured database that declares no active window master is reported as a
+        measured zero carrying the composition's own ``NOMINATION_WINDOWS_MISSING`` warning.
+
+    Raises:
+        HTTPException: 503 when the runtime database is configured but unavailable.
+    """
+
+    assessed_at_utc = datetime.now(UTC)
+    calendar = DEFAULT_GAS_DAY_CALENDAR
+    target_day = gas_day or date.fromisoformat(gas_day_label(assessed_at_utc, calendar))
+    gas_day_start_utc, gas_day_end_utc = gas_day_bounds_utc(target_day, calendar)
+    assumptions = [
+        "Nomination-window clock times are read as UTC clock times on the requested gas day, "
+        "which is how the nomination engine matches an instruction against a window.",
+        "Window validity is assessed at noon UTC on the requested gas day.",
+    ]
+    if not _db_is_configured():
+        return {
+            "data": {
+                "gas_day": target_day.isoformat(),
+                "calendar": calendar,
+                "gas_day_start_utc": gas_day_start_utc.isoformat(),
+                "gas_day_end_utc": gas_day_end_utc.isoformat(),
+                "time_basis": "utc-clock-on-gas-day",
+                "assessed_at_utc": assessed_at_utc.isoformat(),
+                "window_masters_declared": 0,
+                "windows": [],
+            },
+            "meta": {
+                "research_only": True,
+                "human_review_required": True,
+                "source_references": ["runtime-db-not-configured"],
+                "lineage": ["runtime-db-not-configured"],
+                "assumptions": [
+                    *assumptions,
+                    "No runtime DB URL is configured; the API did not synthesize nomination "
+                    "windows.",
+                ],
+                "missing_inputs": ["RUNTIME_STORE_DATABASE_URL", "nomination_window_masters"],
+                "warnings": [
+                    "Nomination windows are unavailable until a runtime DB is configured and "
+                    "its window masters are declared."
+                ],
+                "gas_day": target_day.isoformat(),
+                "calendar": calendar,
+            },
+        }
+    at_utc = datetime.combine(target_day, time(12, 0), tzinfo=UTC)
+    try:
+        from eurogas_nexus.db.repositories.storage_nomination import (
+            active_nomination_windows,
+        )
+        from eurogas_nexus.db.session import get_session_factory
+
+        with get_session_factory()() as session:
+            rows = active_nomination_windows(session, at_utc=at_utc)
+    except _sqlalchemy_error_type() as exc:
+        raise _db_unavailable(exc) from exc
+    ordered = sorted(rows, key=lambda item: (item.opens_at, item.window_id))
+    # The masters are daily rules, so the following gas day's occurrence is what a desk wants once
+    # the requested day's windows have closed: a board that only showed "overdue" would stop being
+    # useful the moment the last window shut. Both occurrences are pure functions of the calendar,
+    # which is why the route resolves them rather than leaving a client to add a day to a clock.
+    next_day = target_day + timedelta(days=1)
+    windows: list[dict] = []
+    for row in ordered:
+        occurrence = resolve_window_occurrence(
+            gas_day=target_day,
+            opens_at=row.opens_at,
+            closes_at=row.closes_at,
+            calendar=calendar,
+        )
+        following = resolve_window_occurrence(
+            gas_day=next_day,
+            opens_at=row.opens_at,
+            closes_at=row.closes_at,
+            calendar=calendar,
+        )
+        windows.append(
+            {
+                "window_id": row.window_id,
+                "name": row.name,
+                "country": row.country,
+                "opens_at": row.opens_at.isoformat(),
+                "closes_at": row.closes_at.isoformat(),
+                "opens_at_utc": occurrence.opens_at_utc.isoformat(),
+                "closes_at_utc": occurrence.closes_at_utc.isoformat(),
+                "closes_after_utc_midnight": occurrence.closes_after_utc_midnight,
+                "next_gas_day": next_day.isoformat(),
+                "next_opens_at_utc": following.opens_at_utc.isoformat(),
+                "next_closes_at_utc": following.closes_at_utc.isoformat(),
+                "maximum_change_mwh": row.maximum_change_mwh,
+                "maximum_change_pct": row.maximum_change_pct,
+                "valid_from_utc": row.valid_from_utc.isoformat(),
+                "valid_to_utc": (
+                    row.valid_to_utc.isoformat() if row.valid_to_utc is not None else None
+                ),
+                "source_system": row.source_system,
+                "source_reference": row.source_reference,
+            }
+        )
+    # A configured database with no active master is a *measured* zero, not a missing read: the
+    # deployment declares no window for this gas day, and it says so with the composition's own
+    # blocker vocabulary so the two statements cannot be confused downstream.
+    warnings = [] if windows else ["NOMINATION_WINDOWS_MISSING"]
+    return {
+        "data": {
+            "gas_day": target_day.isoformat(),
+            "calendar": calendar,
+            "gas_day_start_utc": gas_day_start_utc.isoformat(),
+            "gas_day_end_utc": gas_day_end_utc.isoformat(),
+            "time_basis": "utc-clock-on-gas-day",
+            "assessed_at_utc": assessed_at_utc.isoformat(),
+            "window_masters_declared": len(windows),
+            "windows": windows,
+        },
+        "meta": {
+            "research_only": True,
+            "human_review_required": True,
+            "source_references": ["nomination_window_masters"],
+            "lineage": [f"nomination_window_master:{row.window_id}" for row in ordered],
+            "assumptions": assumptions,
+            "missing_inputs": [],
+            "warnings": warnings,
+            "gas_day": target_day.isoformat(),
+            "calendar": calendar,
         },
     }
 

@@ -9000,3 +9000,167 @@ button.glossary-related-chip {
   font-size: 12px;
   color: var(--eg-muted);
 }
+
+/* The day board: the desk's clock, inside the Decision workspace.
+   Rows are buttons, so the strip is keyboard reachable, and the countdown is styled apart from the
+   declared instant it is measured against. */
+.day-board {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  border: 1px solid var(--eg-hairline);
+  border-radius: var(--eg-radius-md);
+  background: var(--eg-canvas);
+  box-shadow: var(--eg-shadow-2);
+  color: var(--eg-ink);
+  padding: 16px;
+}
+
+.day-board-heading h2 {
+  margin: 2px 0 0;
+  font-size: 17px;
+}
+
+.day-board-basis {
+  display: grid;
+  gap: 2px;
+  max-width: 340px;
+  text-align: right;
+  color: var(--eg-muted);
+  /* `.panel-title-row > span` styles every trailing span as an uppercase monospace chip; this one
+     is a sentence about which clock is which, so it resets that and keeps it only for the instant. */
+  font-family: inherit;
+  font-size: var(--text-meta);
+  text-transform: none;
+}
+
+.day-board-basis strong {
+  color: var(--eg-ink);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.day-board-section {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  border-top: 1px solid var(--eg-hairline);
+  padding-top: 10px;
+}
+
+.day-board-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.day-board-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--eg-hairline);
+  border-left: 3px solid var(--eg-link);
+  border-radius: var(--eg-radius-sm);
+  background: var(--eg-canvas);
+  color: var(--eg-ink);
+  padding: 8px 10px;
+  cursor: pointer;
+}
+
+.day-board-row:hover {
+  border-left-color: var(--eg-ink);
+}
+
+.day-board-row:focus-visible {
+  outline: 2px solid var(--eg-link);
+  outline-offset: 1px;
+}
+
+.day-board-row-main,
+.day-board-deadline,
+.day-board-limit,
+.day-board-evidence {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.day-board-row-main strong {
+  overflow-wrap: anywhere;
+}
+
+.day-board-row small {
+  color: var(--eg-muted);
+  font-size: var(--text-meta);
+}
+
+.day-board-row strong {
+  font-size: var(--text-control);
+}
+
+.day-board-deadline strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.day-board-deadline em {
+  font-style: normal;
+  font-weight: 600;
+}
+
+.day-board-countdown small {
+  color: var(--eg-muted);
+  font-size: var(--text-meta);
+  font-weight: 400;
+}
+
+.day-board-countdown.is-overdue {
+  color: var(--eg-negative);
+}
+
+.day-board-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin: 0;
+  font-size: var(--text-control);
+}
+
+.day-board-empty,
+.day-board-note,
+.day-board-pointer {
+  margin: 0;
+  color: var(--eg-muted);
+  font-size: var(--text-meta);
+}
+
+.day-board-pointer button {
+  margin-left: 6px;
+}
+
+.day-board-unavailable {
+  display: grid;
+  gap: 2px;
+  color: var(--eg-muted);
+  font-size: var(--text-meta);
+}
+
+.day-board-unavailable strong {
+  color: var(--eg-ink);
+}
+
+@media (max-width: 1100px) {
+  .day-board-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+/* The forward-looking line, shown once the gas day's own window has closed: it states the instant
+   the desk is actually waiting for. Tabular numerals keep it aligned with the deadline above it. */
+.day-board-next-window {
+  font-variant-numeric: tabular-nums;
+}

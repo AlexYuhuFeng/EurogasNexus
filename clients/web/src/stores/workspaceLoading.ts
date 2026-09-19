@@ -101,6 +101,11 @@ export function resetIdentityScopedCaches<T>(monitoringSummary: T) {
     strategySummary: null,
     reviewDecisions: [],
     reviewMessage: null,
+    // The day board's clock is identity-scoped like every other read: the windows one
+    // deployment declares and the envelope that said so both leave with the session.
+    nominationWindows: [],
+    nominationWindowsRead: null,
+    nominationWindowsMeta: null,
     glossaryTerms: [],
     glossaryContext: null,
     analysisResult: null,
@@ -373,6 +378,12 @@ export class ReadRefreshCoordinator {
    * identity generation is current.
    */
   readonly review = new ReadRefreshLane();
+  /**
+   * The day board's lane carries the nomination-windows read: the desk's clock is asked for
+   * when the Decision workspace mounts, and the lane coalesces the repeat mounts that every
+   * task switch produces instead of re-asking the same question.
+   */
+  readonly nominationWindows = new ReadRefreshLane();
   private generation = 0;
 
   beginWorkspaceLoad(): number {
@@ -385,6 +396,7 @@ export class ReadRefreshCoordinator {
     this.market.cancel();
     this.monitoring.cancel();
     this.review.cancel();
+    this.nominationWindows.cancel();
     return this.generation;
   }
 

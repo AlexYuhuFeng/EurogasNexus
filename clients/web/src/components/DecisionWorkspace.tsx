@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PanelHeader, WorkspaceHeader } from "@/components/ui";
 import { ScenarioWorkspace } from "@/components/ScenarioWorkspace";
 import { ReviewWorkspace } from "@/components/ReviewWorkspace";
@@ -7,6 +7,7 @@ import type { AppController } from "@/app/hooks/useAppController";
 import { warningLabel } from "@/app/warningLabel";
 import { CommercialWarningList } from "@/components/CommercialWarningList";
 import { DecisionCasePanel } from "@/components/DecisionCasePanel";
+import { DayBoardPanel } from "@/components/decision/DayBoardPanel";
 import { NominationWindowPanel } from "@/components/decision/NominationWindowPanel";
 import { StorageDispatchPanel } from "@/components/decision/StorageDispatchPanel";
 import {
@@ -14,6 +15,8 @@ import {
   useOptimizationRunRecord,
   useStorageDispatchAssessment,
 } from "@/app/model/useOptimizationAssessment";
+import { dayBoardModel } from "@/app/model/dayBoardModel";
+import { reviewIsUsable } from "@/app/model/reviewContextModel";
 import { inspectorSubjectFor } from "@/app/model/inspectorDetail";
 import {
   analysisSnapshotReadiness,
@@ -151,6 +154,65 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
     void api.fetchAnalysisSnapshots();
   }, [api, task]);
 
+  // The day board (the desk's clock) is the workspace's, not one tab's: the deadline strip is
+  // mounted above every task, so it has to be read when the workspace mount happens rather than
+  // when a task is opened. Both reads coalesce in the store, so opening the review task on top of
+  // this mount asks the same question once - and the register behind "no decision recorded" is
+  // only answerable from the review projection, which is why the board asks for it too.
+  //
+  // The dependencies are the store's own actions rather than the whole controller state: the state
+  // object is replaced on every write, so depending on it would re-ask on every store update.
+  const fetchNominationWindows = api.fetchNominationWindows;
+  const fetchReviewContext = api.fetchReviewContext;
+  useEffect(() => {
+    void fetchNominationWindows();
+    void fetchReviewContext();
+  }, [fetchNominationWindows, fetchReviewContext]);
+
+  /**
+   * The browser clock the countdowns are measured against, refreshed once a minute.
+   *
+   * The declared instants do not tick - they are the API's own resolution - but a countdown
+   * captured at mount would keep claiming the same time remaining for as long as the workspace
+   * stays open, which on a deadline board is worse than no countdown at all.
+   */
+  const [dayBoardNow, setDayBoardNow] = useState(() => new Date().toISOString());
+  useEffect(() => {
+    const timer = setInterval(() => setDayBoardNow(new Date().toISOString()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // The composition lives here, not in the panel: the panel renders the three sections and claims
+  // nothing of its own, so the same model is checked by the model tests without a renderer.
+  const dayBoard = useMemo(
+    () =>
+      dayBoardModel({
+        windowsRead: api.nominationWindowsRead,
+        windowsMeta: api.nominationWindowsMeta,
+        opportunities: api.intradayOpportunities,
+        reviewDecisions: api.reviewDecisions,
+        // "No decision is recorded" is a claim the register has to support: a payload whose
+        // decisions slice the backend did not serve leaves the previous decisions in the store, so
+        // the flag comes from the projection the store judged usable rather than from the list.
+        reviewRegisterRead: reviewIsUsable(api.reviewContext),
+        monitoringSummary: api.monitoringSummary,
+        monitoringMeta: api.endpointMeta.monitoringSummary ?? null,
+        monitoringAlerts: api.monitoringAlerts,
+        now: dayBoardNow,
+      }),
+    [
+      api.nominationWindowsRead,
+      api.nominationWindowsMeta,
+      api.intradayOpportunities,
+      api.reviewDecisions,
+      api.reviewContext,
+      api.monitoringSummary,
+      api.endpointMeta.monitoringSummary,
+      api.monitoringAlerts,
+      dayBoardNow,
+    ],
+  );
+
   function openTask(next: DecisionTask) {
     setTask(next);
     navigation.openWorkspace(next === "review" ? "review" : "scenario", next);
@@ -219,6 +281,15 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
         onActivate={openTask}
       />
       <div id="decision-task-panel">
+        {/* The desk's clock sits above the tabs' panels: it is the workspace's, and burying it in
+            one task would hide the deadline from a trader standing in another. It navigates - it
+            computes nothing and records nothing - so it takes no primary action slot. */}
+        <DayBoardPanel
+          t={t}
+          model={dayBoard}
+          onOpenTask={openTask}
+          onOpenAlerts={() => navigation.openWorkspace("market")}
+        />
         {task === "review" && <ReviewContextStrip projection={api.reviewContext} t={t} />}
         {task === "scenario" && (
           <ScenarioWorkspace

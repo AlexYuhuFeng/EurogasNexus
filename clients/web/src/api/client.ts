@@ -1949,6 +1949,73 @@ export interface NominationScheduleResultDTO {
   human_review_required: boolean;
 }
 
+/**
+ * One declared nomination window, resolved onto a gas day -
+ * `GET /api/optimization/nomination-windows`.
+ *
+ * The masters declare a *clock* (a time of day), not an instant: the route resolves the declared
+ * times against the gas-day calendar and serves the resulting UTC instants, so a surface shows the
+ * same deadline the nomination engine matches an instruction against instead of resolving the
+ * calendar a second time in the browser.
+ */
+export interface NominationWindowOccurrenceDTO {
+  window_id: string;
+  name: string;
+  country: string;
+  /** The declared clock time, as the master states it (`HH:MM:SS`). */
+  opens_at: string;
+  closes_at: string;
+  /** The deadline the route resolved for this gas day - the instant a board renders. */
+  opens_at_utc: string;
+  closes_at_utc: string;
+  /**
+   * Whether the close falls on a later UTC date than the open. The route serves this as
+   * `closes_after_utc_midnight` (the frozen contract draft named the field `wraps_utc_midnight`);
+   * it is optional here because the board states the declared `closes_at_utc` instant itself and
+   * must not need a flag to state a deadline.
+   */
+  closes_after_utc_midnight?: boolean;
+  /**
+   * The same daily rule's occurrence on the *following* gas day, resolved by the route.
+   *
+   * The masters are daily rules, so once the requested gas day's window has closed this is the
+   * instant a desk is actually waiting for. The route resolves it on the calendar rather than
+   * letting a surface add a day to a clock, which is why the board renders these three fields
+   * instead of computing them.
+   */
+  next_gas_day?: string;
+  next_opens_at_utc?: string;
+  next_closes_at_utc?: string;
+  /** The declared change limit. Null when the master declares none - never rendered as zero. */
+  maximum_change_mwh: number | null;
+  maximum_change_pct: number | null;
+  valid_from_utc: string;
+  valid_to_utc: string | null;
+  source_system: string | null;
+  source_reference: string | null;
+}
+
+/**
+ * The nomination-window read's data block (`GET /api/optimization/nomination-windows`).
+ *
+ * `windows` alone cannot be read as a schedule: the route answers an unconfigured runtime database
+ * with an empty list *plus a stated reason* (`meta.missing_inputs`, a `runtime-db-not-configured`
+ * source), and answers a configured deployment that declares no master with an empty list and the
+ * `NOMINATION_WINDOWS_MISSING` warning. `window_masters_declared` is the route's own count of what
+ * it declared, so a surface can tell a measured zero from an unread input.
+ */
+export interface NominationWindowReadDTO {
+  gas_day: string;
+  calendar: string;
+  gas_day_start_utc: string;
+  gas_day_end_utc: string;
+  /** How the route read the declared clock times; `utc-clock-on-gas-day` today. */
+  time_basis: string;
+  assessed_at_utc: string;
+  window_masters_declared: number;
+  windows: NominationWindowOccurrenceDTO[];
+}
+
 export interface StorageFacilityInputDTO {
   initial_inventory_mwh: number;
   minimum_inventory_mwh: number;
@@ -2891,6 +2958,21 @@ export const api = {
     post<StorageDispatchResultDTO>("/optimization/storage-dispatch", body),
   optimizationRun: (runId: string, options?: ApiRequestOptions) =>
     get<OptimizationRunDTO>(`/optimization/runs/${encodeURIComponent(runId)}`, undefined, options),
+
+  /**
+   * The declared nomination windows for one gas day - the desk's clock.
+   *
+   * A read of the deployment's own declaration, not an optimization: the query parameter is
+   * optional, and omitting it asks for the gas day containing the current UTC instant. The route
+   * reports an unconfigured runtime database as an unread input rather than as an empty schedule,
+   * so the caller keeps the whole envelope and reads the posture from `meta`.
+   */
+  nominationWindows: (gasDay?: string, options?: ApiRequestOptions) =>
+    get<NominationWindowReadDTO>(
+      "/optimization/nomination-windows",
+      gasDay ? { gas_day: gasDay } : undefined,
+      options,
+    ),
 
   me: (options?: ApiRequestOptions) => get<CurrentUserDTO>("/me", undefined, options),
   authStatus: () => get<AuthStatusDTO>("/auth/status"),

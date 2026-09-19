@@ -82,6 +82,7 @@ PINNED_PUBLIC_PATHS = {
     "/api/optimization/capacity",
     "/api/optimization/contracts",
     "/api/optimization/nomination-window",
+    "/api/optimization/nomination-windows",
     "/api/optimization/portfolio-network",
     "/api/optimization/resource-pool",
     "/api/optimization/storage-dispatch",
