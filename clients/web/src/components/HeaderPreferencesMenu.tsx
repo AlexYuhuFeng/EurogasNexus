@@ -63,9 +63,28 @@ export function HeaderPreferencesMenu({
     const onPointerDown = (event: PointerEvent) => {
       if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
     };
+    /**
+     * Escape closes the menu from anywhere while it is open.
+     *
+     * The menu's own `onKeyDown` only sees an Escape that reaches it, which requires focus to be
+     * inside the popover already - and the popover moves focus into itself on the next frame. A user
+     * (or an acceptance sweep) that presses Escape in that window would otherwise leave the menu
+     * open with focus on the document body. Closing on the document covers every position inside the
+     * open menu, which is what the ARIA menu-button pattern asks for: Escape dismisses the menu and
+     * focus returns to the trigger.
+     */
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      closeAndReturnFocus();
+    };
     document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
     window.requestAnimationFrame(() => focusableItems()[0]?.focus());
-    return () => document.removeEventListener("pointerdown", onPointerDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
   }, [open]);
 
   const onMenuKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {

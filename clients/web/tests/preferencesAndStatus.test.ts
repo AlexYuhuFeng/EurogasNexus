@@ -123,6 +123,13 @@ test("closing the header menu returns focus to its trigger without waiting for a
   assert.match(menu, /event\.key === "Escape"[\s\S]*?closeAndReturnFocus\(\)/);
   assert.match(menu, /const select = \(action: \(\) => void\) => \{\s*action\(\);\s*closeAndReturnFocus\(\);/);
   assert.match(menu, /aria-controls="topbar-preferences-menu"/);
+  // Escape is also handled on the document while the menu is open, because the popover moves focus
+  // into itself on the next frame: a sweep (or a user) pressing Escape in that window would
+  // otherwise leave the menu open with focus on the body. The ARIA menu-button pattern asks for
+  // Escape to dismiss the menu and return focus to the trigger, wherever focus is inside it.
+  assert.match(menu, /document\.addEventListener\("keydown", onKeyDown\)/);
+  assert.match(menu, /document\.removeEventListener\("keydown", onKeyDown\)/);
+  assert.match(menu, /if \(event\.key !== "Escape"\) return;/);
   // Opening still moves focus into the menu, which is the other half of the pattern.
   assert.match(menu, /window\.requestAnimationFrame\(\(\) => focusableItems\(\)\[0\]\?\.focus\(\)\)/);
 });

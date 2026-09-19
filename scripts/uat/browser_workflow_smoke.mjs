@@ -419,6 +419,14 @@ async function interactionChecks(page, failures) {
     await preferenceTrigger.click();
     const menu = page.locator('[role="menu"]#topbar-preferences-menu');
     await menu.waitFor({ state: "visible", timeout: 5_000 });
+    // Wait for the menu to hold focus before exercising its keyboard model, rather than assuming a
+    // frame has run: the popover moves focus into itself on the next animation frame, and a run that
+    // pressed ArrowDown before that was testing an unspecified state.
+    await page
+      .waitForFunction(() => document.activeElement?.closest("#topbar-preferences-menu") !== null, {
+        timeout: 5_000,
+      })
+      .catch(() => recordFailure(failures, "interaction/preferences", "the menu never took focus"));
     await page.keyboard.press("ArrowDown");
     await page.keyboard.press("Escape");
     // Focus restoration is asserted as an outcome with a bounded wait rather than as an instant: a
