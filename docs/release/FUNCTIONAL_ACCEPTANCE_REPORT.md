@@ -59,8 +59,14 @@ Probed directly rather than guessed at:
 - `index.html` has an empty `#root` and no server-rendered markup, so it is not a hydration
   mismatch against a stale SSR build.
 
-Next step for whoever picks this up: reproduce it against a React development build with source
-maps and a `debugger` on the throw, since the console alone does not name the component. Everything
+The suite now installs a `console.error` wrapper before the app loads
+(`installReactErrorStackCapture`) so the next run records a stack beside the message. **It did not
+fire in this environment**: the error is still reported by the console listener with no stack, which
+means React is not reaching the page's `console.error` through the patched global — worth knowing
+before someone spends an afternoon on the wrapper. The remaining candidates are a second `react-dom`
+instance inside a dependency bundle reaching its own console reference, or the error originating in a
+context the init script does not cover. Reproducing it against a React development build with source
+maps and a breakpoint on the throw remains the direct route. Everything
 else in this report is secondary to it: a renderer in this state is a credible cause of surfaces that
 mount, fetch nothing and stay on their loading placeholder, and fixing it may clear a large part of
 the 140 failures above.

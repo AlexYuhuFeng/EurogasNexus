@@ -162,6 +162,35 @@ const KNOWN_NON_RENDERING_WORKSPACES = {
     + "market workspace)",
 };
 
+/**
+ * Capture a stack for errors React only logs.
+ *
+ * React's internal errors arrive as a bare console.error with no component name and no stack, so a
+ * listener records a message that cannot be acted on. Wrapping console.error *before the app loads*
+ * takes a real stack at the moment React reports, which is the difference between "React is
+ * unhappy" and "React was rendering this".
+ */
+async function installReactErrorStackCapture(page) {
+  await page.addInitScript(() => {
+    const previous = console.error;
+    window.__reactErrorStacks = [];
+    console.error = function patchedConsoleError(...args) {
+      try {
+        const first = args[0];
+        if (typeof first === "string" && /Internal React error|static flag/i.test(first)) {
+          window.__reactErrorStacks.push({
+            message: first,
+            stack: String(new Error(first).stack || ""),
+          });
+        }
+      } catch {
+        // never let the capture break the page it is observing
+      }
+      return previous.apply(this, args);
+    };
+  });
+}
+
 async function ensureAuthenticated(page) {
   await page.goto(BASE, { waitUntil: "domcontentloaded" });
   await page.waitForTimeout(500);
@@ -282,8 +311,13 @@ async function inspectSurfaceFunction(
         apiRows = null;
       }
     }
+    const reactErrors = (window.__reactErrorStacks || []).slice(0, 2).map((entry) => ({
+      message: String(entry.message).slice(0, 160),
+      stack: String(entry.stack).split("\n").slice(0, 8).join(" | ").slice(0, 900),
+    }));
     return {
       displayed: Boolean(displayed),
+      reactErrors,
       markedWorkspace,
       heading,
       loading: /loading workspace/i.test(text),
@@ -315,6 +349,17 @@ async function inspectSurfaceFunction(
     } else {
       recordFailure(failures, scope, "the surface still shows 'Loading workspace' after load");
     }
+  }
+  if (state.reactErrors && state.reactErrors.length > 0) {
+    // Recorded as an observation with its stack: React's internal error is one per app mount, so
+    // repeating it as a failure per workspace would bury the evidence in 101 copies of itself. The
+    // console-error check reports the occurrences; this carries the stack that names the renderer.
+    recordObservation(
+      observations,
+      `react-internal-error at ${workspace}: ${state.reactErrors[0].message} :: ${
+        state.reactErrors[0].stack || "(no stack captured)"
+      }`,
+    );
   }
   if (state.apiRows !== null && state.apiRows > 0) {
     // The read has data. If the surface renders none of it, it is telling the operator the
@@ -849,6 +894,7 @@ export async function runWorkflowSmoke() {
   });
 
   try {
+    await installReactErrorStackCapture(page);
     await ensureAuthenticated(page);
 
     for (const language of LANGUAGES) {
