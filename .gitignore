@@ -68,3 +68,6 @@ output/
 # in CI, which uploads it as a workflow artifact), so it is never committed - the recorded
 # result belongs in the reports, the artefacts belong to the run that produced them.
 artifacts/
+
+# Local autonomous-development harness, never customer/source distribution.
+/.automation/

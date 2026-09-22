@@ -2,6 +2,11 @@
 
 ## Current Status
 
+2026-09-22 commercial audit override: **NOT APPROVED FOR CUSTOMER PRODUCTION**.
+The evidence below is historical, scoped to its dated ref, and does not certify
+Architecture V2. Current findings and acceptance requirements are recorded in
+[the commercial audit](../engineering/Architecture-V2/19_COMMERCIAL_ACCEPTANCE_AUDIT.md).
+
 Status: `RELEASE CANDIDATE FOR TESTED LOCAL SCOPE`
 
 Release marker: `RELEASE CANDIDATE`

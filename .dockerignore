@@ -1,5 +1,10 @@
 .git
 .github
+.automation
+.agent
+output
+artifacts
+.playwright-cli
 .deps
 .local-runtime
 .pytest_cache

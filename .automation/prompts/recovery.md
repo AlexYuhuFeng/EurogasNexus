@@ -1,1 +1,0 @@
-The prior orchestration turn was interrupted or rejected by allowance/runtime limits. Read the execution checkpoint and current Git diff first. Preserve correct partial work already on disk, do not repeat completed worker tasks, and continue the same bounded orchestration objective.

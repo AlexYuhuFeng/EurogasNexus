@@ -1,5 +1,12 @@
 # Deployment handover index
 
+Commercial status (2026-09-22): **not approved for production**. Source-checkout
+commands below require the engineering repository and its dependencies; they are
+not commands available in the small Server operator ZIP. That ZIP installs a
+published image, not a source checkout. Obtain the release-specific manifest,
+SBOM/notices, checksums, signed artifacts and operator runbooks separately before
+customer acceptance. Never infer signing or test status from this static page.
+
 **Audience:** the deployment IT and commercial-handover team who receive this platform.
 **Purpose:** one page that says what is verifiable where, what is signed, and who owns each item
 that this repository cannot close on its own. Written from the audience review's ninth-ranked next
@@ -32,10 +39,10 @@ session, or the check measures a refusal. The harnesses refuse to run rather tha
 | Artefact | State |
 |---|---|
 | Python package, Web client bundle, deployment bundle | built and checksummed by the release dry run |
-| Container image | built in the release dry run; not pushed anywhere by this repository |
+| Container image | release workflow builds and publishes to GHCR; verify the exact digest and provenance of the selected release |
 | SBOM (SPDX 2.3) | generated per release |
 | Release notes and checksums/manifest | generated per release |
-| Desktop bundles and installers | **not** supplied here: no Rust toolchain in the development environment, so the native host is unimplemented (Wave 10) and the CI job that would build bundles is skipped for pushes |
+| Desktop bundles and installers | release workflow defines Windows x64 and Linux x64/ARM64 builds; availability, signature and install acceptance must be verified for the exact release; a developer-machine toolchain limitation is not a product delivery statement |
 | Binaries signing / notarisation | **not done**: recorded as unsigned/pending-external in the release evidence |
 
 ## 3. What only you can close
@@ -58,9 +65,9 @@ security-acceptance script prints as `External review: BLOCKED`.
 - **No production evidence.** Every database, browser and load figure in
   `docs/engineering/ARCHITECTURE_V2_EXECUTION_STATE.md` comes from a local container, a local dev
   server or CI - never from a customer deployment. The document says which, per line.
-- **No desktop evidence.** The native host cannot be built here (no Rust toolchain), so window
-  management, notifications, tray, protocol registration and autosave are unimplemented rather than
-  unverified.
+- **No current customer desktop acceptance.** A build artifact is not evidence of
+  window management, notifications, tray, protocol registration, upgrade or
+  recovery behavior. Require platform-specific acceptance for the delivered version.
 - **No real provider calls.** Provider paths are exercised against stubs and recorded fixtures; a
   live provider needs credentials this environment does not hold.
 - **No unstated guarantees about your data.** Entitlement, data-scope and commercial-boundary

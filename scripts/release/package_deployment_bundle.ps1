@@ -1,53 +1,32 @@
+# Thin wrapper: the customer file allowlist, the staging tree and the ZIP are
+# owned by package_deployment_bundle.py and its policy manifest. This script
+# must not select files itself, so the Windows operator path and the release
+# workflow build the same member set.
 param(
     [string]$OutputDirectory = "dist/releases"
 )
 
 $ErrorActionPreference = "Stop"
-$RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..\..")
-$OutputRoot = [IO.Path]::GetFullPath((Join-Path $RepoRoot $OutputDirectory))
-$StagingRoot = Join-Path ([IO.Path]::GetTempPath()) ("eurogas-nexus-deployment-" + [Guid]::NewGuid().ToString("N"))
-$ServerRoot = Join-Path $StagingRoot "Eurogas-Nexus-Server-Windows"
-$ServerArchive = Join-Path $OutputRoot "Eurogas-Nexus-Server-Windows.zip"
-
-function Copy-DeploymentPayload([string]$Destination) {
-    New-Item -ItemType Directory -Path $Destination -Force | Out-Null
-    foreach ($relativePath in @("deploy\runtime", "docs\deployment")) {
-        $source = Join-Path $RepoRoot $relativePath
-        $target = Join-Path $Destination $relativePath
-        New-Item -ItemType Directory -Path (Split-Path $target -Parent) -Force | Out-Null
-        Copy-Item -LiteralPath $source -Destination $target -Recurse -Force
-    }
-    $windowsScripts = Join-Path $Destination "scripts\install\windows"
-    New-Item -ItemType Directory -Path $windowsScripts -Force | Out-Null
-    foreach ($scriptName in @("Deploy-EurogasNexus.ps1", "Install-EurogasNexusServerRuntime.ps1")) {
-        Copy-Item -LiteralPath (Join-Path $RepoRoot "scripts\install\windows\$scriptName") `
-            -Destination $windowsScripts -Force
-    }
+$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
+$PackageScript = Join-Path $PSScriptRoot "package_deployment_bundle.py"
+$OutputRoot = if ([IO.Path]::IsPathRooted($OutputDirectory)) {
+    [IO.Path]::GetFullPath($OutputDirectory)
+}
+else {
+    [IO.Path]::GetFullPath((Join-Path $RepoRoot $OutputDirectory))
 }
 
-try {
-    New-Item -ItemType Directory -Path $OutputRoot -Force | Out-Null
-    Copy-DeploymentPayload $ServerRoot
-
-    @"
-EUROGAS NEXUS SERVER FOR WINDOWS
-
-Advanced operator package for a dedicated Server deployment. Run the documented
-PowerShell preflight before installation. This package is not a desktop Client.
-See docs\deployment\DEPLOYMENT_ROLES-EN.md or DEPLOYMENT_ROLES-CN.md.
-"@ | Set-Content -LiteralPath (Join-Path $ServerRoot "START-HERE.txt") -Encoding UTF8
-
-    foreach ($target in @($ServerArchive)) {
-        if (Test-Path -LiteralPath $target) { Remove-Item -LiteralPath $target -Force }
-    }
-    Compress-Archive -Path $ServerRoot -DestinationPath $ServerArchive -CompressionLevel Optimal
-    Get-Item -LiteralPath $ServerArchive | Select-Object FullName, Length
+$PythonCommand = Get-Command python -ErrorAction SilentlyContinue
+if (-not $PythonCommand) { $PythonCommand = Get-Command python3 -ErrorAction SilentlyContinue }
+if (-not $PythonCommand) { $PythonCommand = Get-Command py -ErrorAction SilentlyContinue }
+if (-not $PythonCommand) {
+    throw "Python 3 is required to package the deployment bundle."
 }
-finally {
-    $resolvedStaging = [IO.Path]::GetFullPath($StagingRoot)
-    $tempRoot = [IO.Path]::GetFullPath([IO.Path]::GetTempPath())
-    if ($resolvedStaging.StartsWith($tempRoot, [StringComparison]::OrdinalIgnoreCase) -and
-        (Split-Path $resolvedStaging -Leaf).StartsWith("eurogas-nexus-deployment-")) {
-        Remove-Item -LiteralPath $resolvedStaging -Recurse -Force -ErrorAction SilentlyContinue
-    }
+
+$Archives = & $PythonCommand.Source $PackageScript $OutputRoot 2>&1
+if ($LASTEXITCODE -ne 0) {
+    throw "Deployment bundle packaging failed."
 }
+
+$ArchivePath = $Archives | Select-Object -Last 1
+Get-Item -LiteralPath $ArchivePath | Select-Object FullName, Length

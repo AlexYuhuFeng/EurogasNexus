@@ -42,7 +42,13 @@ def evaluate_gates(policy: dict, evidence_dir: Path, channel: str) -> tuple[list
     rows = []
     failed = False
     for gate in policy["gates"]:
-        required = gate["required_for"] in {channel, "all"}
+        # Promotion inherits earlier-channel controls; stable must not skip RC gates.
+        channel_rank = {"preview": 0, "rc": 1, "stable": 2}
+        required_for = gate["required_for"]
+        required = required_for == "all" or (
+            required_for in channel_rank
+            and channel_rank[channel] >= channel_rank[required_for]
+        )
         evidence = load_evidence(evidence_dir / gate["evidence"])
         if not required:
             state = evidence["status"]

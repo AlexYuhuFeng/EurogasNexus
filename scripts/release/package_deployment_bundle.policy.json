@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "description": "Reviewed customer payload for the Windows Server operator bundle. Selection is explicit: a file ships only when it is listed in entries. Recursive directory copies are not permitted, and the packager fails closed on missing required files, unsafe paths, symlinks and duplicates. Never list .automation, engineering docs, tests, secrets, local data/logs, or deploy/runtime/Dockerfile.api (the bundle pulls the published API image; the installer never builds it).",
+  "archive_name": "Eurogas-Nexus-Server-Windows.zip",
+  "bundle_root": "Eurogas-Nexus-Server-Windows",
+  "forbidden_member_globs": [
+    "**/.automation/**",
+    "**/docs/engineering/**",
+    "**/tests/**",
+    "**/__pycache__/**",
+    "**/.env",
+    "**/.env.*",
+    "*.env",
+    "Dockerfile.api",
+    "*.pem",
+    "*.key",
+    "*.crt",
+    "*.pfx",
+    "*.p12",
+    "id_rsa",
+    "*.log",
+    "*.dump",
+    "*.sql",
+    "*.sqlite",
+    "*.db",
+    "*.zip",
+    "*.tar.gz"
+  ],
+  "entries": [
+    {
+      "source": "scripts/release/package_deployment_bundle.START-HERE.txt",
+      "destination": "START-HERE.txt",
+      "required": true,
+      "purpose": "Operator entry point with the non-destructive preflight command, regenerated from one reviewed template shared by every entry point."
+    },
+    {
+      "source": "deploy/runtime/compose.yaml",
+      "destination": "deploy/runtime/compose.yaml",
+      "required": true,
+      "purpose": "Server runtime definition; Install-EurogasNexusServerRuntime.ps1 preflight fails without it and copies it to <InstallRoot>/compose.yaml."
+    },
+    {
+      "source": "deploy/runtime/Caddyfile",
+      "destination": "deploy/runtime/Caddyfile",
+      "required": true,
+      "purpose": "HTTPS gateway configuration; the preflight reports the HTTPS gateway configuration as missing without it and the installer copies it to <InstallRoot>/Caddyfile."
+    },
+    {
+      "source": "deploy/runtime/README-EN.md",
+      "destination": "deploy/runtime/README-EN.md",
+      "required": true,
+      "purpose": "English operating notes for the runtime directory operators receive."
+    },
+    {
+      "source": "deploy/runtime/README-CN.md",
+      "destination": "deploy/runtime/README-CN.md",
+      "required": true,
+      "purpose": "Mandarin operating notes for the runtime directory operators receive."
+    },
+    {
+      "source": "scripts/install/windows/Install-EurogasNexusServerRuntime.ps1",
+      "destination": "scripts/install/windows/Install-EurogasNexusServerRuntime.ps1",
+      "required": true,
+      "purpose": "Server runtime primitive invoked by the role selector; resolves deploy/runtime three levels above its own directory."
+    },
+    {
+      "source": "scripts/install/windows/Deploy-EurogasNexus.ps1",
+      "destination": "scripts/install/windows/Deploy-EurogasNexus.ps1",
+      "required": true,
+      "purpose": "Documented operator entry point for Preflight/Install/Repair/Validate/Uninstall; invokes the runtime primitive from the same directory."
+    },
+    {
+      "source": "docs/deployment/DEPLOYMENT_ROLES-EN.md",
+      "destination": "docs/deployment/DEPLOYMENT_ROLES-EN.md",
+      "required": true,
+      "purpose": "English role boundary, prerequisites and operator workflow referenced by START-HERE.txt."
+    },
+    {
+      "source": "docs/deployment/DEPLOYMENT_ROLES-CN.md",
+      "destination": "docs/deployment/DEPLOYMENT_ROLES-CN.md",
+      "required": true,
+      "purpose": "Mandarin role boundary, prerequisites and operator workflow referenced by START-HERE.txt."
+    },
+    {
+      "source": "docs/deployment/HANDOVER_INDEX.md",
+      "destination": "docs/deployment/HANDOVER_INDEX.md",
+      "required": true,
+      "purpose": "Handover index that states what the receiving team can verify itself and what remains externally owned."
+    }
+  ]
+}

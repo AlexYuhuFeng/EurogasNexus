@@ -5,3 +5,8 @@
 *.ttl text
 *.pdf binary
 *.docx binary
+
+# Maintainer orchestration does not belong in GitHub source archives.
+/.automation export-ignore
+/.agent export-ignore
+/AGENTS.md export-ignore

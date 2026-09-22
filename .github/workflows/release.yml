@@ -252,6 +252,13 @@ jobs:
         working-directory: clients/web
         run: npm ci
 
+      - name: Test Web client before packaging
+        working-directory: clients/web
+        run: npm test
+
+      - name: Check bilingual UI key coverage
+        run: python scripts/uat/check_i18n_parity.py
+
       - name: Build Web client with release identity
         working-directory: clients/web
         env:
@@ -601,6 +608,12 @@ jobs:
           path: release-assets
           merge-multiple: true
 
+      - name: Download immutable image identity
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: image-metadata
+          path: release-assets/image-metadata
+
       - name: Merge signing state
         shell: bash
         run: |
@@ -631,12 +644,13 @@ jobs:
         shell: bash
         run: |
           CONTEXT=release-assets/release-context.json
+          IMAGE_DIGEST=$(python -c "import json,re; d=json.load(open('release-assets/image-metadata/image-metadata.json'))['digest']; assert re.fullmatch(r'sha256:[0-9a-f]{64}', d), 'invalid image digest'; print(d)")
           python scripts/release/build_release_manifest.py \
             --context "$CONTEXT" \
             --artifacts-dir release-assets \
             --sbom-dir release-assets/sbom \
             --signing-state release-assets/signing-state.json \
-            --image-digest "$(python -c "import json; print(json.load(open('release-assets/image-metadata/image-metadata.json'))['digest'])" 2>/dev/null || true)"
+            --image-digest "$IMAGE_DIGEST"
           python - <<'PY'
           from scripts.release.release_artifacts import write_checksums
           write_checksums("release-assets", include_manifest=False)

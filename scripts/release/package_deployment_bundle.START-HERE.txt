@@ -1,0 +1,31 @@
+EUROGAS NEXUS SERVER FOR WINDOWS
+
+This package installs the backend runtime only:
+- PostgreSQL container
+- FastAPI runtime
+- Alembic migrations
+- HTTPS gateway
+- ingestion workers
+
+Prerequisites:
+- Windows 10/11 or Windows Server
+- PowerShell 5.1+
+- Docker Engine/Desktop with Docker Compose v2 already installed and running
+- administrator PowerShell
+- a private-network hostname or loopback name
+- PEM TLS certificate and private key
+
+Start with a non-destructive preflight from this extracted folder:
+
+  powershell -ExecutionPolicy Bypass -File .\scripts\install\windows\Deploy-EurogasNexus.ps1 `
+    -Action Preflight `
+    -Role Server `
+    -ServerName nexus.example.com `
+    -HttpsBindAddress 127.0.0.1 `
+    -TlsCertificatePath C:\secure\nexus.crt `
+    -TlsPrivateKeyPath C:\secure\nexus.key `
+    -PrivateNetworkOnly
+
+Then replace Preflight with Install after resolving every blocking item.
+See docs\deployment\DEPLOYMENT_ROLES-EN.md or docs\deployment\DEPLOYMENT_ROLES-CN.md.
+This package is not a desktop Client and does not embed the API image.

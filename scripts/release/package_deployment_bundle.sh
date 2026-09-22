@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# Thin wrapper: the customer file allowlist, the staging tree and the ZIP are
+# owned by package_deployment_bundle.py and its policy manifest. This script
+# must not select files itself, so the Linux CI job and the local dry run build
+# byte-identical member sets.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -7,82 +11,16 @@ if [[ "${OUTPUT_DIR}" != /* ]]; then
   OUTPUT_DIR="${REPO_ROOT}/${OUTPUT_DIR}"
 fi
 
-STAGING_ROOT="$(mktemp -d)"
-SERVER_ROOT="${STAGING_ROOT}/Eurogas-Nexus-Server-Windows"
-
-cleanup() {
-  rm -rf -- "${STAGING_ROOT}"
-}
-trap cleanup EXIT
-
-copy_common_payload() {
-  local destination="$1"
-  mkdir -p \
-    "${destination}/deploy" \
-    "${destination}/scripts/install/windows" \
-    "${destination}/docs"
-
-  cp -R "${REPO_ROOT}/deploy/runtime" "${destination}/deploy/"
-  cp "${REPO_ROOT}/scripts/install/windows/Deploy-EurogasNexus.ps1" "${destination}/scripts/install/windows/"
-  cp "${REPO_ROOT}/scripts/install/windows/Install-EurogasNexusServerRuntime.ps1" "${destination}/scripts/install/windows/"
-  cp -R "${REPO_ROOT}/docs/deployment" "${destination}/docs/"
-}
-
-mkdir -p "${OUTPUT_DIR}"
-copy_common_payload "${SERVER_ROOT}"
-
-cat > "${SERVER_ROOT}/START-HERE.txt" <<'EOF'
-EUROGAS NEXUS SERVER FOR WINDOWS
-
-This package installs the backend runtime only:
-- PostgreSQL container
-- FastAPI runtime
-- Alembic migrations
-- HTTPS gateway
-- ingestion workers
-
-Prerequisites:
-- Windows 10/11 or Windows Server
-- PowerShell 5.1+
-- Docker Engine/Desktop with Docker Compose v2 already installed and running
-- administrator PowerShell
-- a private-network hostname or loopback name
-- PEM TLS certificate and private key
-
-Start with a non-destructive preflight from this extracted folder:
-
-  powershell -ExecutionPolicy Bypass -File .\scripts\install\windows\Deploy-EurogasNexus.ps1 `
-    -Action Preflight `
-    -Role Server `
-    -ServerName nexus.example.com `
-    -HttpsBindAddress 127.0.0.1 `
-    -TlsCertificatePath C:\secure\nexus.crt `
-    -TlsPrivateKeyPath C:\secure\nexus.key `
-    -PrivateNetworkOnly
-
-Then replace Preflight with Install after resolving every blocking item.
-See docs\DEPLOYMENT_ROLES-CN.md or docs\DEPLOYMENT_ROLES-EN.md.
-EOF
-
-# Explicit role assets for operators. GitHub Linux runners carry `zip`;
-# local Windows dry-runs fall back to the Python zipfile module so the exact
-# same directory layout is packaged without requiring a native tool.
-if command -v zip >/dev/null 2>&1; then
-  (cd "${STAGING_ROOT}" && zip -qr "${OUTPUT_DIR}/Eurogas-Nexus-Server-Windows.zip" "$(basename "${SERVER_ROOT}")")
-else
-  python - "${OUTPUT_DIR}/Eurogas-Nexus-Server-Windows.zip" "${SERVER_ROOT}" <<'PYEOF'
-import sys
-import zipfile
-from pathlib import Path
-
-archive_path = Path(sys.argv[1])
-source_root = Path(sys.argv[2])
-with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as archive:
-    for path in sorted(source_root.rglob("*")):
-        if path.is_file():
-            archive.write(path, path.relative_to(source_root.parent))
-PYEOF
+PYTHON_BIN="${PYTHON:-}"
+if [[ -z "${PYTHON_BIN}" ]]; then
+  if command -v python3 >/dev/null 2>&1; then
+    PYTHON_BIN="python3"
+  elif command -v python >/dev/null 2>&1; then
+    PYTHON_BIN="python"
+  else
+    echo "python3 is required to package the deployment bundle." >&2
+    exit 1
+  fi
 fi
 
-printf '%s\n' \
-  "${OUTPUT_DIR}/Eurogas-Nexus-Server-Windows.zip"
+"${PYTHON_BIN}" "${REPO_ROOT}/scripts/release/package_deployment_bundle.py" "${OUTPUT_DIR}"

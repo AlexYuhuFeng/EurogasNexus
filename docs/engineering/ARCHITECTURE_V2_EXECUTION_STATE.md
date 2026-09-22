@@ -1,7 +1,26 @@
 # Architecture V2 Execution State
 
-Last updated: 2026-09-17
-Repository HEAD: `main` (see the git log for the exact head; every slice below is committed and pushed)Working tree: clean except pre-existing `.automation/*` edits from the earlier autonomous harness, which are neither accepted nor reverted.
+Last updated: 2026-09-22
+Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical slice records below do not constitute current production approval.
+
+## Current commercial acceptance checkpoint
+
+**NOT APPROVED FOR CUSTOMER PRODUCTION.** See [commercial acceptance audit](Architecture-V2/19_COMMERCIAL_ACCEPTANCE_AUDIT.md).
+This bounded audit fixes release-channel inheritance, frontend release checks,
+mandatory image-digest collection and customer deployment payload selection.
+The local `.automation` harness is retained on disk, excluded from tracked source,
+Docker context and source exports; its pre-existing local changes are preserved.
+Verification: 71 release/packaging contract tests passed, three Windows symlink
+tests skipped; 551 frontend tests passed, frontend build and bilingual key coverage
+passed. Focused Python lint passed and the actual ZIP contains ten allowlisted files.
+No new GitHub release, production deployment or full backend acceptance was run.
+Worker full-suite result: 1,906 passed, 20 skipped, one sandbox-permission failure;
+independent rerun of that Markdown-link module passed all three tests.
+Next: bind release evidence to SHA/digest, verify immutable-image installation and
+PostgreSQL migration, address service-authority gaps, then run authenticated HMI
+acceptance. Current test credentials were rejected; UI acceptance remains blocked.
+
+## Historical programme state
 V2 pack version: 2026-09 autonomous runner
 Current wave: Waves 0-10 have delivered slices. Wave 11 (RC/GA readiness) has not started.
 Wave status: DELIVERED_AND_VALIDATED for every slice listed under "Completed tasks"; the open halves are named under "Deferred / known gaps".
@@ -113,7 +132,10 @@ Continue with the highest-value open item. What is actually open, in the order t
 5. **Wave 10 / 11** — the native desktop half needs a machine with the Rust toolchain (none here: `cargo`, `rustc` and `rustup` are all absent, so `main.rs` cannot even be type-checked), and RC/GA readiness needs the external items: IdP acceptance against a real issuer, provider certification, the browser/accessibility UAT run on a machine with Playwright, the **production** restore drill, and signing/notarisation. What this environment *could* do about the restore drill is done: the automated drill ran against a real PostgreSQL 16 container with real data and passed (see the evidence above), so the procedure and the tooling are proven and only the production target remains.
 6. **Owner decisions** — written up as decidable options in `W0-03` section 9: D1 C5's profile authentication, D2 C6b's second-approver policy, D3 C11's uncalled client methods, D4 C12's map tiles, D5 where the native host and RC/GA work can proceed, D6 what the MCP surface should do about the calling user, D7 the authority a headless `monitoring-worker` invokes the provider under, and **D9 the clock basis the declared nomination-window masters are read on** (raised by the day view: the engine matches window times against the UTC clock while its own field documentation claimed the local gas-day clock). **Two have been decided by the owner in this stretch and are recorded in full there:** D3 (build every missing surface) — **delivered**, all six slices, with the census closing at zero and the unmounted terminal retired with its content kept on the shadow task; and D1 (install authentication in every profile) — **delivered** on the second pass, after the first attempt was reverted as larger than the estimate suggested: one exemption list shared by both gates, a `require_identity` that never overwrites an identity another layer already resolved (the widening the attempt exposed), twelve internal paths that had no declared permission declared at the floor their routes already enforced, and every harness that relied on the compatibility principal updated to present a credential. The attempt also surfaced a live defect, fixed here with its own test: the compatibility principal's id is not a valid actor, so every deployment-token caller reaching a job-tracking route raised. **The remaining six were then decided on the owner's instruction to take them from each audience's seat, and are recorded in full there:** D2 (dual control for privilege *elevation* only, with a *verified* second ADMIN identity and self-approval refused), D4 (no third-party basemap is a default; the operator brings a licensed source) - **delivered**, with the two endpoints whose terms exclude commercial use declared as evaluation-only on the control that selects them; D5 (the native host is deferred to a machine with the Rust toolchain and RC/GA stays with the operator, neither simulated); D6 (MCP runs as a named, least-privilege service identity and never implies the caller's); D7 (the headless `monitoring-worker` authenticates as a deployment-named service principal or refuses to call the provider at all); D9 (the window master declares its clock basis, the engine reads it, and an undeclared basis stays UTC). D2, D6 and D7 are decided-not-built with their implementation stated, so no worker invents a weaker rule in the meantime; D9's read already states the basis it assumed, so nothing is silently mis-dated while the migration lands. In D9's case the read surface **states the basis it assumed** rather than leaving the ambiguity in the numbers, so no deployment is silently mis-dated while the decision waits.
 
-**Nothing else is outstanding.** Every item the migration could settle in this environment is settled, tested and pushed; what follows is blocked by something I cannot supply rather than by work left undone.
+**Commercial readiness remains open.** The 2026-09-22 audit identified additional
+release-engineering and evidence gaps, alongside the decided-but-unbuilt controls
+listed above. See [commercial acceptance audit](Architecture-V2/19_COMMERCIAL_ACCEPTANCE_AUDIT.md).
+Earlier delivered-wave records are historical evidence, not production approval.
 
 ## Where the migration stands
 
