@@ -47,12 +47,17 @@ test("the numeric task mounts no map while the map task mounts the map", () => {
 
 test("the task switcher stays the shared primitive and remembers the chosen view", () => {
   const market = readWebSource("components/MarketCockpit.tsx");
+  const controller = readWebSource("app/hooks/useAppController.ts");
 
   assert.match(market, /<WorkspaceHeader/);
   assert.match(market, /onActivate=\{openTask\}/);
-  assert.match(market, /useMarketViewPreference\(/);
   assert.match(market, /rememberTask\(next\)/);
-  assert.match(market, /principalId: api\.currentUser\?\.principal_id/);
+  // One resolution, owned above the shell: the cockpit renders the task it returns and the shell
+  // keys its layout class on the same value, so neither may resolve the preference again.
+  assert.match(market, /const \{ task, rememberTask \} = marketView;/);
+  assert.equal(market.includes("useMarketViewPreference("), false);
+  assert.match(controller, /useMarketViewPreference\(\{/);
+  assert.match(controller, /principalId: api\.currentUser\?\.principal_id \?\? null/);
   assert.equal(market.includes('role="tab"'), false);
   assert.equal(market.includes('role="tablist"'), false);
   // Resolving the task straight from the raw location would ignore the

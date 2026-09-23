@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { WorkspaceHeader } from "@/components/ui";
-import { useMarketViewPreference } from "@/app/context";
 import { CapacityWorkspace } from "@/components/CapacityWorkspace";
 import { MarketTerminal } from "@/components/MarketTerminal";
 import { NetworkWorkspace } from "@/components/NetworkWorkspace";
@@ -318,20 +317,26 @@ function MarketOverview({ controller }: MarketOverviewProps) {
 }
 
 export function MarketCockpit({ controller }: { controller: AppController }) {
-  const { navigation, t, api, theme, portfolio, traderContext, controls, selection } = controller;
-  const activeWorkspace = navigation.activeWorkspace;
+  const {
+    navigation,
+    t,
+    api,
+    theme,
+    portfolio,
+    traderContext,
+    controls,
+    selection,
+    marketView,
+  } = controller;
   // The landing task is the authenticated user's persisted view preference:
   // URL task > persisted view > numeric default. The numeric (`curves`) and map
   // (`network`) views stay separate tasks, the fused `overview` dashboard is
   // only ever reached by an explicit URL task or tab choice, and switching
   // between the two views keeps gas-day, product, hub and selection context
   // because every switch is a workspace/task URL update that preserves the
-  // other query keys.
-  const { task, rememberTask } = useMarketViewPreference({
-    search: window.location.search,
-    activeWorkspace,
-    principalId: api.currentUser?.principal_id,
-  });
+  // other query keys. The resolution is owned by `useAppController`, so the
+  // task rendered here and the shell's layout class cannot disagree.
+  const { task, rememberTask } = marketView;
 
   const openTask = (next: MarketTask) => {
     rememberTask(next);
@@ -353,7 +358,10 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
         tabsClassName="market-cockpit-tabs"
         onActivate={openTask}
       />
-      <div id="market-cockpit-panel">
+      {/* The panel owns the task views. It carries its own class because the map task's layout
+          (app.css `.workspace-network`) expects the viewport height to arrive through the page,
+          the cockpit and this element. */}
+      <div id="market-cockpit-panel" className="market-cockpit-panel">
         <MarketContextStrip projection={api.marketContext} t={t} />
         {task === "overview" && <MarketOverview controller={controller} task={task} />}
         {task === "curves" && (

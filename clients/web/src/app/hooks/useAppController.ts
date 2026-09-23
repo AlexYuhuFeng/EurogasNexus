@@ -1,5 +1,9 @@
 import { useTranslation } from "react-i18next";
-import { useSelectionContext, useTraderContext } from "@/app/context";
+import {
+  useMarketViewPreference,
+  useSelectionContext,
+  useTraderContext,
+} from "@/app/context";
 import { useApiStore } from "@/stores/api";
 import { useThemeStore } from "@/stores/theme";
 import { usePortfolioDecisionModel } from "@/app/model/usePortfolioDecisionModel";
@@ -19,6 +23,15 @@ export function useAppController() {
   const navigation = useWorkspaceNavigation();
   const trader = useTraderContext();
   const selection = useSelectionContext();
+  // The market view lives here, above the shell and the cockpit, because both read it: the
+  // cockpit renders the task and the shell keys its layout class on it. Resolving it in the
+  // cockpit alone left the shell guessing from the URL, and a second resolution would be a
+  // second copy of the same per-principal preference.
+  const marketView = useMarketViewPreference({
+    search: window.location.search,
+    activeWorkspace: navigation.activeWorkspace,
+    principalId: api.currentUser?.principal_id ?? null,
+  });
   const controls = useCockpitControls();
   const contractEditor = useContractEditor(t);
 
@@ -69,6 +82,7 @@ export function useAppController() {
     api,
     theme,
     navigation,
+    marketView,
     traderContext: trader,
     selection,
     controls,

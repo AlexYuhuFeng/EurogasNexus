@@ -5,6 +5,8 @@ Status: **Target Architecture / Binding Implementation Baseline**
 Commercial acceptance: **not approved for customer production**. See
 [2026-09-22 commercial audit and acceptance amendment](19_COMMERCIAL_ACCEPTANCE_AUDIT.md)
 for current release blockers and trader/HMI/data-science acceptance requirements.
+The [2026-09-23 authenticated HMI audit](20_AUTHENTICATED_HMI_AUDIT.md)
+records current login, navigation, data-context and narrow-layout findings.
 
 This pack consolidates the full architecture review and supersedes the earlier draft V2 packs.
 

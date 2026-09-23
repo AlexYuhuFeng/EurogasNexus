@@ -3217,6 +3217,20 @@ body {
   margin: 0 auto;
 }
 
+/* The map-first network page composes through the workspace renderer like every other page
+   (Wave 9 removed the shell's own interception of that route), so on that route the page element
+   has to be shown and to carry the viewport height the map shell expects. The default above hides
+   `.workspace-page` because the shell used to mount the map *beside* it: leaving that default
+   unoverridden hid the whole surface - the map, its rails, its own header and the page heading -
+   while the top bar still rendered, which is exactly how the empty main was reported. */
+.cockpit-app.workspace-network .workspace-page {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+
 .workspace-page-header {
   display: flex;
   align-items: flex-end;

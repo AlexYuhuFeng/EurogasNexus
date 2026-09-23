@@ -146,29 +146,10 @@ function recordObservation(observations, detail) {
 }
 
 /**
- * Workspaces whose deep link currently mounts no visible page.
- *
- * Declared rather than excused, in the shape the rest of this repository uses for a known gap: the
- * check that owns this (see `inspectWorkspace`) fails for any *new* occurrence, and the entry here
- * is printed in the summary so the gap stays visible instead of silently green. `network` is the
- * market primary's map page: `?workspace=network` mounts the page and leaves it `display: none`,
- * while `?workspace=contracts` and `?workspace=agents` show theirs - so every other check in this
- * function was measuring a hidden subtree for that workspace and could not fail.
- */
-const KNOWN_NON_RENDERING_WORKSPACES = {
-  network:
-    "the page mounts but stays display:none, so the map, the basemap state and every workspace "
-    + "assertion about it are measured on a hidden subtree (recorded for the next slice on the "
-    + "market workspace)",
-};
-
-/**
  * Capture a stack for errors React only logs.
  *
- * React's internal errors arrive as a bare console.error with no component name and no stack, so a
- * listener records a message that cannot be acted on. Wrapping console.error *before the app loads*
- * takes a real stack at the moment React reports, which is the difference between "React is
- * unhappy" and "React was rendering this".
+ * React's internal errors arrive as a bare console.error with no component name and no stack;
+ * wrapping console.error before the app loads takes a real stack at the moment React reports.
  */
 async function installReactErrorStackCapture(page) {
   await page.addInitScript(() => {
@@ -351,12 +332,12 @@ async function inspectSurfaceFunction(
     }
   }
   if (state.reactErrors && state.reactErrors.length > 0) {
-    // Recorded as an observation with its stack: React's internal error is one per app mount, so
-    // repeating it as a failure per workspace would bury the evidence in 101 copies of itself. The
-    // console-error check reports the occurrences; this carries the stack that names the renderer.
-    recordObservation(
-      observations,
-      `react-internal-error at ${workspace}: ${state.reactErrors[0].message} :: ${
+    // A failure, with the captured stack: React's internal error is one per application mount and
+    // is a defect on every workspace it reaches, not a condition to be carried in a list.
+    recordFailure(
+      failures,
+      scope,
+      `react-internal-error: ${state.reactErrors[0].message} :: ${
         state.reactErrors[0].stack || "(no stack captured)"
       }`,
     );
@@ -435,21 +416,14 @@ async function inspectWorkspace(
 
   const scope = `${language.id}/${viewport.id}/${workspace}`;
   if (!state.pageVisible) {
-    // Declared, not excused: a workspace whose page does not render is a real defect, and
-    // `KNOWN_NON_RENDERING_WORKSPACES` says which one and why. A *new* one fails immediately, and
-    // the declared entry is printed in the summary so it cannot be forgotten.
-    if (KNOWN_NON_RENDERING_WORKSPACES[workspace]) {
-      recordObservation(
-        observations,
-        `workspace/${workspace} does not render its page: ${KNOWN_NON_RENDERING_WORKSPACES[workspace]}`,
-      );
-    } else {
-      recordFailure(
-        failures,
-        scope,
-        `no workspace page is displayed (mounted pages: ${state.pageCount})`,
-      );
-    }
+    // No exemption: a deep link whose page does not render is a failure for every workspace. The
+    // map page's own blank view was the declared one; it is repaired, so the declaration is gone
+    // with it rather than left to hide the next occurrence.
+    recordFailure(
+      failures,
+      scope,
+      `no workspace page is displayed (mounted pages: ${state.pageCount})`,
+    );
   }
   if (!state.lang.toLowerCase().startsWith(language.htmlPrefix)) {
     recordFailure(

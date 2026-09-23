@@ -1,6 +1,6 @@
 # Architecture V2 Execution State
 
-Last updated: 2026-09-22
+Last updated: 2026-09-23
 Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical slice records below do not constitute current production approval.
 
 ## Current commercial acceptance checkpoint
@@ -18,7 +18,20 @@ Worker full-suite result: 1,906 passed, 20 skipped, one sandbox-permission failu
 independent rerun of that Markdown-link module passed all three tests.
 Next: bind release evidence to SHA/digest, verify immutable-image installation and
 PostgreSQL migration, address service-authority gaps, then run authenticated HMI
-acceptance. Current test credentials were rejected; UI acceptance remains blocked.
+acceptance. Supplied UAT access succeeded on September 23; see
+[authenticated HMI audit](Architecture-V2/20_AUTHENTICATED_HMI_AUDIT.md).
+The first pass reached Portfolio, Strategy, Decision, Research, Glossary,
+Administration and numeric Market. It reproduced a blank initial Network view,
+literal interpolation tokens, conflicting gas-day context and readiness labels.
+Whole-product UI acceptance remains open; access itself is no longer blocked.
+September 23 HMI repair: DeepSeek implementation independently reviewed. Network
+layout now follows the shared resolved market task; the hidden page, conditional
+shell hooks and bilingual interpolation tokens are repaired. Browser smoke no
+longer exempts blank Network or React internal errors. Fresh UAT sign-in and
+numeric/Network switching passed in the in-app browser. Verification: 571 web
+tests, production build, locale parity and 78 focused Python contracts passed.
+Desktop/mobile full-sweep acceptance is still unverified. Next priority is the
+selected gas-day/projection mismatch and misleading readiness semantics.
 
 ## Historical programme state
 V2 pack version: 2026-09 autonomous runner

@@ -6,6 +6,21 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* The network route hands the map shell the viewport height (app.css `.workspace-network`
+   layout). The map page now composes through the workspace renderer, so the cockpit and its
+   task panel are the two elements between the page and `.network-workspace-shell`: they pass
+   that height down instead of sizing to their content, which is what lets the map column fill
+   the shell's `1fr` row rather than collapsing to zero. Scoped to the network route, so the
+   numeric, overview and capacity tasks keep their in-page flow. */
+.workspace-network .market-cockpit,
+.workspace-network .market-cockpit-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+
 .market-cockpit-tabs {
   display: flex;
   gap: var(--space-1);

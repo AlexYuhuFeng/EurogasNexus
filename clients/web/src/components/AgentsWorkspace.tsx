@@ -40,7 +40,12 @@ import { useApiStore } from "@/stores/api";
 import { useInspectorStore } from "@/stores/inspector";
 import { MetricStrip, PanelHeader, WorkspaceHeader } from "@/components/ui";
 
-type Translate = (key: string) => string;
+/**
+ * The surface's translation function. It takes interpolation options like every other surface's
+ * (`DecisionCasePanel`, `ProjectionContextStrip`): a label whose value belongs inside the sentence
+ * passes it, instead of splicing it beside a placeholder the locale interpolates.
+ */
+type Translate = (key: string, options?: Record<string, unknown>) => string;
 type AgentsViewId = "capabilities" | "research" | "runs";
 
 const VIEWS: AgentsViewId[] = ["capabilities", "research", "runs"];
@@ -809,10 +814,14 @@ export function AgentsWorkspace({ t, principalId = null, runtimeDbReady }: Agent
                   },
                 ]}
                 // A replay's headline numbers are evidence only with the instant they were
-                // taken: the run's own creation time is reported under the strip.
+                // taken: the run's own creation time travels into the strip's own as-of
+                // string, so the label and the instant cannot be separated by a translation
+                // that never interpolated its placeholder.
                 asOf={
                   selectedRun.created_at
-                    ? `${t("agents.run_as_of")} ${formatAgentTimestamp(selectedRun.created_at)}`
+                    ? t("agents.run_as_of", {
+                        value: formatAgentTimestamp(selectedRun.created_at),
+                      })
                     : undefined
                 }
               />

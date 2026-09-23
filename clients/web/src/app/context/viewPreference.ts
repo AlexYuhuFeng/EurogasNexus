@@ -4,6 +4,8 @@ import {
   DEFAULT_MARKET_TASK,
   type MarketTask,
 } from "../model/marketCockpitModel.ts";
+import { primaryWorkspaceForPage } from "../navigation/productNavigation.ts";
+import type { WorkspacePageId } from "../../workspaceNavigation.ts";
 
 /**
  * Per-user market view preference.
@@ -212,4 +214,34 @@ export function resolveMarketViewTask(input: {
     return { task: input.persisted, source: "persisted" };
   }
   return { task: DEFAULT_MARKET_TASK, source: "default" };
+}
+
+/**
+ * Page whose layout composes one market task.
+ *
+ * The map task is the map-first `network` page, and its whole layout is page-scoped in `app.css`
+ * (`.workspace-network`, plus the `:not(.workspace-network)` defaults that hide the map stage);
+ * `capacity` composes on its own page and the numeric and fused views on the market shell.
+ */
+export function marketTaskWorkspacePage(task: MarketTask): WorkspacePageId {
+  if (task === "network") return "network";
+  if (task === "capacity") return "capacity";
+  return MARKET_SHELL_PAGE_ID;
+}
+
+/**
+ * Page whose layout belongs to the surface being displayed.
+ *
+ * Only the market primary renders more than one page from one URL page id, because its shell
+ * resolves a task inside itself - so there, and there only, the layout page follows the task
+ * rather than the page the URL named. Every other page keeps its own id.
+ */
+export function layoutWorkspacePage(input: {
+  activeWorkspace: WorkspacePageId;
+  task: MarketTask;
+}): WorkspacePageId {
+  if (primaryWorkspaceForPage(input.activeWorkspace).id !== "market") {
+    return input.activeWorkspace;
+  }
+  return marketTaskWorkspacePage(input.task);
 }

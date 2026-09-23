@@ -21,6 +21,7 @@ import { useInspectorStore } from "@/stores/inspector";
 import { WorkspaceRenderer } from "@/app/workspaces/WorkspaceRenderer";
 import { isBlockingCompatibility } from "@/app/releaseCompatibility";
 import { changeAppLanguage } from "@/i18n";
+import { layoutWorkspacePage } from "@/app/context/viewPreference";
 
 interface AppShellProps {
   controller: AppController;
@@ -73,6 +74,12 @@ export function AppShell({ controller }: AppShellProps) {
   // read stay unmounted until the backend confirms the identity. This holds on
   // reload, on deep links and after history navigation, because the store's
   // authState - not the URL - decides what may mount.
+  //
+  // The authenticated shell is its own component on purpose: the hooks below
+  // used to be called in this body after this return, so the same instance
+  // rendered with a hook list that depended on the auth state, and React
+  // reported that as `Internal React error: Expected static flag was missing`
+  // on the sign-in transition.
   if (api.authState !== "authenticated") {
     return (
       <SignInScreen
@@ -90,6 +97,35 @@ export function AppShell({ controller }: AppShellProps) {
       />
     );
   }
+
+  return <AuthenticatedShell controller={controller} />;
+}
+
+interface AuthenticatedShellProps {
+  controller: AppController;
+}
+
+/**
+ * The authenticated terminal: one shell for every page, composed only once the
+ * backend confirmed the identity. Every hook in this component runs on every
+ * render of it (it mounts when the gate opens and unmounts when it closes), so
+ * the sign-in transition changes which component is mounted rather than the
+ * number of hooks one component calls.
+ */
+function AuthenticatedShell({ controller }: AuthenticatedShellProps) {
+  const {
+    t,
+    i18n,
+    api,
+    theme,
+    navigation,
+    marketView,
+    traderContext,
+    selection,
+    controls,
+    portfolio,
+    sources,
+  } = controller;
 
   // The one bounded failure surface. Loader keys and backend messages stay in
   // the store: only translated endpoint labels, safe failure codes and one
@@ -113,6 +149,15 @@ export function AppShell({ controller }: AppShellProps) {
   const controlPlaneRestricted =
     isControlPlanePage(navigation.activeWorkspace) &&
     !compositionSeesAdministration(composition);
+
+  // The layout class names the page whose layout is on screen, not only the page the URL named:
+  // the market primary resolves a task inside its own shell, so the map task - chosen by tab, by
+  // deep link or by the persisted view - has to bring the `.workspace-network` rules with it.
+  // Keying the class on the URL alone left the map column unsized and its stage hidden.
+  const layoutPage = layoutWorkspacePage({
+    activeWorkspace: navigation.activeWorkspace,
+    task: marketView.task,
+  });
 
   // Wave 9 shell surfaces: the canonical Inspector (object detail in one place)
   // and the command palette (one keyboard entry point to the derived command set).
@@ -146,7 +191,7 @@ export function AppShell({ controller }: AppShellProps) {
   });
 
   return (
-    <div className={`app cockpit-app workspace-${navigation.activeWorkspace}`}>
+    <div className={`app cockpit-app workspace-${layoutPage}`}>
       <WorkspaceTopBar
         activeWorkspace={navigation.activeWorkspace}
         activePrimaryWorkspace={navigation.activePrimaryWorkspace}

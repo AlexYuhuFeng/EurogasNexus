@@ -13,12 +13,14 @@ completed penetration test, full source audit or whole-product UAT. The reposito
 is public. Recent successful release runs inspected were for older SHAs, not
 evidence that the current product has passed customer acceptance.
 
-The in-app browser reached the current localhost sign-in screen. The previous
+At the September 22 audit, the in-app browser reached the localhost sign-in screen. The previous
 test credentials were rejected. Authentication was not bypassed and accounts
 were not provisioned. Therefore authenticated layouts, interaction efficiency,
 screen-reader behavior, decision workflows and native installation remain
 **unverified in this audit**. Previous screenshots are not substituted for new
-evidence. The user has been asked for current test access.
+evidence. The September 23 follow-up successfully authenticated with supplied UAT
+access: see [authenticated HMI audit](20_AUTHENTICATED_HMI_AUDIT.md). Full workflow
+acceptance remains open; missing access is no longer the blocker.
 
 ## Findings, ordered by release risk
 
@@ -32,7 +34,7 @@ evidence. The user has been asked for current test access.
 | CA-06 | P1 | Container acceptance inspects manifest platforms, not running service health or install/upgrade/rollback. Assembly downloads `release-*`, while image metadata is named `image-metadata`; evidence path assembly also needs end-to-end proof. | Fixed explicit metadata download and mandatory digest validation. Still open: immutable-image boot + PostgreSQL migration + authenticated smoke; prove final evidence assembly in CI. |
 | CA-07 | P1 | Checkpoint says "Nothing else is outstanding" despite named implementation and release gaps; readiness report is dated September 7. | Correct checkpoint; this audit is the current commercial disposition, not historical test totals. |
 | CA-08 | P2 | Public source tracks local autonomous supervisor configuration, worker prompts and orchestration scripts, including pre-existing local edits. | Remove `.automation` from tracked delivery; retain local files unchanged. Exclude Docker context and source archives. Historical Git objects/releases are not erased. |
-| CA-09 | Acceptance blocker | Current approved-user access unavailable to reviewer. No current authenticated visual/interaction evidence supports an LSEG/Kpler-level quality claim. | Obtain test access; run the workflow matrix below. No cosmetic redesign based on stale screenshots. |
+| CA-09 | Acceptance blocker | At initial audit, approved-user access was unavailable. No whole-product visual/interaction evidence supports an LSEG/Kpler-level quality claim. | September 23: supplied UAT account works; first authenticated pass found blank Network and malformed context labels. See audit 20. Full workflow matrix remains open. |
 | CA-10 | P1 | Both Windows installer scripts fall back to a desktop `tauri.conf.json` path containing a literal tab; this config is also absent from the operator ZIP. Without `EUROGAS_NEXUS_VERSION`, even preflight cannot resolve the version. | Open: deliver explicit immutable release identity in the bundle and test extracted-bundle preflight without a source checkout. Do not claim the ZIP is installation-approved. |
 
 ## Revised product objective
