@@ -389,10 +389,16 @@ test("every workspace loader, poll and stream is gated on the identity gate", ()
   const store = source("stores/api.ts");
 
   // Ten gated entry points: six workspace loaders, the task-scoped Analysis Snapshot read the
-  // reproducibility picker uses, the day board's nomination-windows read, the snapshot *write*, and
+  // reproducibility picker uses, the day board's nomination-windows read, the snapshot *write* and
   // the manual ingestion-run queue - every write is gated the way the reads are. The count is
   // asserted so a new loader or writer cannot be added without a gate.
   assert.equal(store.match(/isIdentityGateOpen\(get\(\)\.authState\)/g)?.length, 10);
+  // The context-change re-read asks the same gate through its own guard, which also refuses while a
+  // sign-out is in flight.
+  assert.match(
+    store,
+    /function projectionRefetchIsAllowed\(\): boolean \{\s*return !logoutInProgress && isIdentityGateOpen\(useApiStore\.getState\(\)\.authState\);/,
+  );
   for (const action of [
     "fetchWorkspace: async",
     "retryFailedWorkspaceEndpoints: async",
@@ -403,6 +409,7 @@ test("every workspace loader, poll and stream is gated on the identity gate", ()
     "fetchAnalysisSnapshots: async",
     "recordAnalysisSnapshot: async",
     "requestSourceRun: async",
+    "refetchTradingContextProjections: async",
     "subscribeDecisionStreams: () =>",
   ]) {
     assert.ok(store.includes(action), action);
@@ -430,6 +437,7 @@ test("the runtime resolves identity first and never polls before authentication"
 test("navigation and context restore nothing protected while unauthenticated", () => {
   const navigation = source("app/hooks/useWorkspaceNavigation.ts");
   const trader = source("app/context/useTraderContext.ts");
+  const session = source("app/context/sessionTraderContext.ts");
   const selection = source("app/context/useSelectionContext.ts");
   const controller = source("app/hooks/useAppController.ts");
 
@@ -440,7 +448,10 @@ test("navigation and context restore nothing protected while unauthenticated", (
   assert.match(navigation, /window\.history\.replaceState\(window\.history\.state, "", nextUrl\)/);
   assert.match(trader, /export function useTraderContext\(\) \{/);
   assert.match(selection, /export function useSelectionContext\(\) \{/);
-  assert.match(trader, /if \(!isIdentityGateOpen\(useApiStore\.getState\(\)\.authState\)\)/);
+  // The trader context is restored only for a resolved session: the rule lives in its own module
+  // because the store's projection reads depend on it, and the hook resolves through it.
+  assert.match(session, /if \(!isIdentityGateOpen\(authState\)\) return DEFAULT_TRADER_CONTEXT;/);
+  assert.match(trader, /resolveSessionTraderContext\(\{/);
   assert.match(selection, /if \(!isIdentityGateOpen\(useApiStore\.getState\(\)\.authState\)\)/);
   assert.match(controller, /useWorkspaceNavigation\(\)/);
   assert.match(controller, /useTraderContext\(\)/);

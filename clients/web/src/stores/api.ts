@@ -26,6 +26,15 @@ import {
 } from "@/app/model/portfolioSnapshotModel";
 import { reviewDecisions, reviewIsUsable } from "@/app/model/reviewContextModel";
 import {
+  projectionRequestContext,
+  type ProjectionRequestContext,
+} from "@/app/model/projectionContext";
+import {
+  DEFAULT_TRADER_CONTEXT,
+  traderContextKey,
+  type TraderContext,
+} from "@/app/context/traderContext";
+import {
   analysisSnapshotReadiness,
   analysisSnapshotRequest,
   snapshotContextFrom,
@@ -128,7 +137,9 @@ import {
 } from "./authGate";
 
 let decisionStreamClosers: Array<() => void> = [];
-let marketRefreshSequence = 0;
+/** One context-change re-read pass at a time, with a later change queued behind it. */
+let projectionRefetchActive = false;
+let projectionRefetchQueued = false;
 const workspaceLoadCoordinator = new WorkspaceLoadCoordinator();
 const readRefreshCoordinator = new ReadRefreshCoordinator();
 const identityReadCoordinator = new IdentityReadCoordinator();
@@ -165,6 +176,13 @@ function invalidateIdentitySession() {
   readRefreshCoordinator.invalidateLanes();
   workspaceLoadCoordinator.cancel();
   closeDecisionStreams();
+  // The context and the lanes it asked for belong to the identity that resolved them: the next
+  // session resolves its own, nothing queued survives the one that just ended, and no protected
+  // read may be issued - or committed - under the context it stood in.
+  projectionRefetchQueued = false;
+  resetProjectionLanes();
+  tradingContextGeneration += 1;
+  useApiStore.setState({ tradingContext: DEFAULT_TRADER_CONTEXT });
 }
 
 function isIdentityDenied(error: unknown): boolean {
@@ -180,6 +198,238 @@ function isIdentityDenied(error: unknown): boolean {
  */
 function followUpReadIsCurrent(generation: number): boolean {
   return !logoutInProgress && identityReadCoordinator.isCurrent(generation);
+}
+
+/** The projection lanes: one coherent read model each (Architecture V2 Wave 5). */
+type ProjectionLaneKey = "marketContext" | "portfolioSnapshot" | "reviewContext";
+
+/**
+ * The empty reading of each lane: what the state holds before the lane has answered for the
+ * context the caller is standing in.
+ *
+ * A context change clears exactly these fields (and the lane's own endpoint records), so a payload
+ * read for the context the caller has left is never shown under the new one while its replacement
+ * is in flight: a projection is coherent with the gas day its own `time_basis` declares, and that
+ * declaration cannot be re-labelled by a selector.
+ */
+const EMPTY_PROJECTION_LANE_READINGS: Record<ProjectionLaneKey, Partial<ApiState>> = {
+  marketContext: {
+    marketContext: null,
+    normalizedMarkets: [],
+    marketSpreads: [],
+    marketQuotes: [],
+    intradayOpportunities: [],
+    monitoringAlerts: [],
+    marketLastUpdatedAtUtc: null,
+  },
+  portfolioSnapshot: {
+    portfolioSnapshot: null,
+    screenOrders: [],
+    pnlSnapshots: [],
+    portfolioSummary: null,
+    resourcePoolOptions: null,
+  },
+  reviewContext: { reviewContext: null, reviewDecisions: [] },
+};
+
+/**
+ * The newest request each projection lane has issued, and whether this session has asked for it.
+ *
+ * `sequence` makes a late answer unable to overwrite a newer one, including the A -> B -> A switch
+ * where a context key alone would look current again. `requested` is what a context change
+ * re-reads: a lane whose first read is still in flight, or whose read failed, has been asked for
+ * and owes the caller an answer, so re-reading only the lanes that already hold a payload would
+ * drop a first load with no replacement.
+ */
+const projectionLanes: Record<ProjectionLaneKey, { sequence: number; requested: boolean }> = {
+  marketContext: { sequence: 0, requested: false },
+  portfolioSnapshot: { sequence: 0, requested: false },
+  reviewContext: { sequence: 0, requested: false },
+};
+
+/** Bumped by every published context change; a request carries the generation it was built under. */
+let tradingContextGeneration = 0;
+
+/** One projection request: the lane it belongs to and the state it must still match to be written. */
+interface ProjectionClaim {
+  readonly lane: ProjectionLaneKey;
+  readonly sequence: number;
+  readonly contextGeneration: number;
+  readonly identityGeneration: number;
+}
+
+function isProjectionLaneKey(key: string): key is ProjectionLaneKey {
+  return key in projectionLanes;
+}
+
+/** Claim a lane for one request, in the tick that builds it. */
+function claimProjectionLane(lane: ProjectionLaneKey): ProjectionClaim {
+  const state = projectionLanes[lane];
+  state.requested = true;
+  state.sequence += 1;
+  return {
+    lane,
+    sequence: state.sequence,
+    contextGeneration: tradingContextGeneration,
+    identityGeneration: identityReadCoordinator.capture(),
+  };
+}
+
+/**
+ * Whether an answer may still be written: it is the newest request in its lane, for the context
+ * generation it was asked under, and for the identity that asked. A context switch, a superseding
+ * re-read and a sign-out each change one of those.
+ */
+function projectionClaimIsCurrent(claim: ProjectionClaim): boolean {
+  return (
+    projectionLanes[claim.lane].sequence === claim.sequence &&
+    claim.contextGeneration === tradingContextGeneration &&
+    followUpReadIsCurrent(claim.identityGeneration)
+  );
+}
+
+/** Whether a pass's claim for one lane still owns it (`true` when the pass did not read the lane). */
+function projectionClaimHolds(claim: ProjectionClaim | undefined): boolean {
+  return claim === undefined || projectionClaimIsCurrent(claim);
+}
+
+/** Claim every projection lane a pass is about to read, so each answer can be held to its request. */
+function claimProjectionLanes(
+  loaders: ReadonlyArray<readonly [string, WorkspaceApiLoader]>,
+): Partial<Record<ProjectionLaneKey, ProjectionClaim>> {
+  const claims: Partial<Record<ProjectionLaneKey, ProjectionClaim>> = {};
+  for (const [key] of loaders) {
+    if (isProjectionLaneKey(key)) claims[key] = claimProjectionLane(key);
+  }
+  return claims;
+}
+
+/** The lanes this session has asked for. */
+function requestedProjectionLanes(): ProjectionLaneKey[] {
+  return (Object.keys(projectionLanes) as ProjectionLaneKey[]).filter(
+    (lane) => projectionLanes[lane].requested,
+  );
+}
+
+function resetProjectionLanes(): void {
+  for (const lane of Object.values(projectionLanes)) lane.requested = false;
+}
+
+/** The cleared readings of the given lanes, with the endpoint records that described them. */
+function clearedProjectionLanes(
+  state: ApiState,
+  lanes: ReadonlyArray<ProjectionLaneKey>,
+): Partial<ApiState> {
+  const cleared: Partial<ApiState> = {};
+  const endpointMeta = { ...state.endpointMeta };
+  const endpointErrors = { ...state.endpointErrors };
+  const endpointErrorCodes = { ...state.endpointErrorCodes };
+  for (const lane of lanes) {
+    Object.assign(cleared, EMPTY_PROJECTION_LANE_READINGS[lane]);
+    delete endpointMeta[lane];
+    delete endpointErrors[lane];
+    delete endpointErrorCodes[lane];
+  }
+  return { ...cleared, endpointMeta, endpointErrors, endpointErrorCodes };
+}
+
+/**
+ * The endpoint records after one pass, merged per key.
+ *
+ * A pass records the endpoints it read and leaves every other key as it was: a projection lane that
+ * answered while the pass was in flight keeps its own metadata and errors, and a key the pass never
+ * read keeps whatever the last read of it established. `skip` names the keys a newer lane owns.
+ */
+function endpointRecordsAfterPass(
+  state: ApiState,
+  outcomes: ReadonlyArray<{ key: string; outcome: WorkspaceLoaderOutcome<WorkspaceResponse> }>,
+  skip: ReadonlySet<string> = new Set(),
+): Pick<ApiState, "endpointMeta" | "endpointErrors" | "endpointErrorCodes"> {
+  const endpointMeta = { ...state.endpointMeta };
+  const endpointErrors = { ...state.endpointErrors };
+  const endpointErrorCodes = { ...state.endpointErrorCodes };
+  for (const key of new Set([...Object.keys(endpointMeta), ...Object.keys(endpointErrors)])) {
+    if (!projectionOwnsLegacyKey(key)) continue;
+    delete endpointMeta[key];
+    delete endpointErrors[key];
+    delete endpointErrorCodes[key];
+  }
+  for (const { key, outcome } of outcomes) {
+    if (projectionOwnsLegacyKey(key)) {
+      delete endpointMeta[key];
+      delete endpointErrors[key];
+      delete endpointErrorCodes[key];
+      continue;
+    }
+    if (skip.has(key)) continue;
+    if (outcome.ok) {
+      delete endpointErrors[key];
+      delete endpointErrorCodes[key];
+      endpointMeta[key] = outcome.value.meta;
+    } else {
+      endpointErrors[key] = outcome.error.message;
+      endpointErrorCodes[key] = outcome.error.code;
+    }
+  }
+  return { endpointMeta, endpointErrors, endpointErrorCodes };
+}
+
+/** Once requested, a projection owns its rows; unfiltered reads cannot widen them. */
+function projectionOwnsLegacyKey(key: string): boolean {
+  return (
+    (projectionLanes.marketContext.requested &&
+      ["normalizedMarkets", "marketSpreads", "marketQuotes", "intradayOpportunities", "monitoringAlerts"].includes(key)) ||
+    (projectionLanes.reviewContext.requested && key === "reviewDecisions")
+  );
+}
+
+/** Whether a context-change re-read may run: an authenticated session, and no sign-out in flight. */
+function projectionRefetchIsAllowed(): boolean {
+  return !logoutInProgress && isIdentityGateOpen(useApiStore.getState().authState);
+}
+
+/** Re-read one projection lane for the context the caller has moved to. */
+function reReadProjectionLane(
+  lane: ProjectionLaneKey,
+  query: ProjectionRequestContext,
+): Promise<void> {
+  const store = useApiStore.getState();
+  if (lane === "marketContext") return store.refreshMarketData();
+  if (lane === "reviewContext") return store.fetchReviewContext();
+  return reReadPortfolioSnapshot(query);
+}
+
+/**
+ * Answer the portfolio lane for one context.
+ *
+ * The lane rides the workspace batch, so its re-read is its own bounded read rather than a second
+ * batch. An answer a newer request has superseded is dropped, a failed re-read records the failure
+ * where every other endpoint failure is recorded, and a 401 fails the session closed exactly as it
+ * does inside the batch the lane rides.
+ */
+function reReadPortfolioSnapshot(query: ProjectionRequestContext): Promise<void> {
+  const claim = claimProjectionLane("portfolioSnapshot");
+  return loadWorkspaceEndpoint((options) => api.portfolioSnapshot(query, options), {
+    retries: 0,
+    timeoutMs: DEFAULT_WORKSPACE_READ_TIMEOUT_MS,
+  }).then((outcome) => {
+    const identityReset = identityDeniedWorkspaceReset(
+      [{ key: "portfolioSnapshot", outcome }],
+      DEFAULT_MONITORING_SUMMARY,
+    );
+    if (identityReset) {
+      invalidateIdentitySession();
+      useApiStore.setState({ ...identityReset, authErrorKey: SESSION_EXPIRED_KEY });
+      return;
+    }
+    if (!projectionClaimIsCurrent(claim)) return;
+    useApiStore.setState((state) => ({
+      ...endpointRecordsAfterPass(state, [{ key: "portfolioSnapshot", outcome }]),
+      ...(outcome.ok
+        ? applyPortfolioSnapshot(state, outcome.value.data as PortfolioSnapshotProjectionDTO)
+        : {}),
+    }));
+  });
 }
 
 function mergeMarketQuotes(
@@ -238,6 +488,9 @@ function latestMarketObservedAt(
  * The projection is never treated as an empty market: a payload the backend could
  * not serve (or whose quotes slice was withheld) leaves the previous values in
  * place, and the surface qualifies them from `sliceReadings`/`degradedSlices`.
+ *
+ * A successful projection replaces its row set. Merging unfiltered rows would contradict
+ * the hub/product scope declared by the payload.
  */
 function applyMarketContext(
   state: ApiState,
@@ -259,10 +512,10 @@ function applyMarketContext(
     ? sliceRows<MarketSpreadDTO>(projection, "spreads")
     : state.marketSpreads;
   const marketQuotes = usable
-    ? mergeMarketQuotes(state.marketQuotes, contextQuotes(projection))
+    ? contextQuotes(projection)
     : state.marketQuotes;
   const intradayOpportunities = usable
-    ? mergeIntradayOpportunities(state.intradayOpportunities, contextOpportunities(projection))
+    ? contextOpportunities(projection)
     : state.intradayOpportunities;
   const monitoringAlerts = usable ? contextAlerts(projection) : state.monitoringAlerts;
 
@@ -318,6 +571,32 @@ function applyPortfolioSnapshot(
 }
 
 /**
+ * The portfolio lane unchanged, for a projection read that was superseded by a context change.
+ *
+ * Nothing is written: the state keeps the reading it has (the cleared one, after a context change),
+ * and the re-read the change started replaces it with the current context's payload, so a strip is
+ * never re-labelled as a context it was not read for.
+ */
+function retainedPortfolioLane(
+  state: ApiState,
+): Pick<
+  ApiState,
+  | "portfolioSnapshot"
+  | "screenOrders"
+  | "pnlSnapshots"
+  | "portfolioSummary"
+  | "resourcePoolOptions"
+> {
+  return {
+    portfolioSnapshot: state.portfolioSnapshot,
+    screenOrders: state.screenOrders,
+    pnlSnapshots: state.pnlSnapshots,
+    portfolioSummary: state.portfolioSummary,
+    resourcePoolOptions: state.resourcePoolOptions,
+  };
+}
+
+/**
  * Projection lanes read through one loader key but write several state fields.
  * A retried projection must re-derive every field it feeds, so the retry path maps
  * the payload through the same applier the periodic lane uses.
@@ -348,6 +627,16 @@ export interface ApiState {
   authErrorKey: string | null;
   authNoticeKey: string | null;
   authBusy: boolean;
+  /**
+   * The canonical trading context the projection lanes request: the gas day, delivery product
+   * and hub focus the caller is standing in.
+   *
+   * `useTraderContext` owns it - it resolves the context from the URL and the persisted
+   * preference, and publishes every change here through `publishTradingContext`. The store
+   * neither invents a context nor restores one from browser storage; it reads this copy when it
+   * builds a projection request, and a change re-reads the projections a surface is showing.
+   */
+  tradingContext: TraderContext;
   nodes: NodeDTO[];
   edges: EdgeDTO[];
   sources: SourceSystemDTO[];
@@ -489,6 +778,24 @@ export interface ApiState {
   fetchWorkspace: () => Promise<void>;
   retryFailedWorkspaceEndpoints: () => Promise<void>;
   refreshMarketData: () => Promise<void>;
+  /**
+   * Publish the context the caller is standing in, owned by `useTraderContext`.
+   *
+   * A context change is not cosmetic: the projections already read describe another context, so the
+   * change clears them and supersedes the reads still in flight for it
+   * (`refetchTradingContextProjections`).
+   */
+  publishTradingContext: (context: TraderContext) => void;
+  /**
+   * Re-read the projection lanes the current trading context invalidated.
+   *
+   * Only the lanes this session has asked for are re-read - a first read still in flight or a failed
+   * one included - so a context change refreshes what a surface is showing instead of starting
+   * reads the product was not making anyway. One pass runs at a time and a change that arrives
+   * during one queues another, so a rapid switch cannot leave the last context unanswered.
+   * Identity-gated like every other protected read.
+   */
+  refetchTradingContextProjections: () => Promise<void>;
   subscribeDecisionStreams: () => void;
   refreshMonitoring: () => Promise<void>;
   /**
@@ -602,50 +909,67 @@ async function loadEndpointWithRetry<T>(
  */
 type WorkspaceResponse = { data: unknown; meta: ApiMeta };
 type WorkspaceApiLoader = WorkspaceLoader<WorkspaceResponse>;
-const WORKSPACE_LOADERS: Array<[string, WorkspaceApiLoader]> = [
-  ["referenceNodes", (options) => api.nodes(undefined, options)],
-  ["referenceEdges", (options) => api.edges(undefined, options)],
-  ["sources", api.sources],
-  ["normalizedMarkets", api.normalizedMarketObservations],
-  ["marketSpreads", api.marketSpreads],
-  ["marketQuotes", api.marketQuotes],
-  ["intradayOpportunities", api.intradayOpportunities],
-  // Architecture V2 Wave 5: the portfolio lane reads ONE coherent projection
-  // (summary, screen orders, PnL snapshots, contracts on one as-of) instead of
-  // joining /portfolio/live-summary, /portfolio/screen-orders and
-  // /portfolio/pnl-snapshots. The slices fill the same ApiState fields.
-  ["portfolioSnapshot", (options) => api.portfolioSnapshot(undefined, options)],
-  ["fxRates", api.fxRates],
-  ["flows", api.flowObservations],
-  ["capacity", api.capacityObservations],
-  ["storage", api.storageObservations],
-  ["lng", api.lngObservations],
-  ["tsoAccess", (options) => api.tsoAccess(undefined, options)],
-  ["routes", api.routeEligibility],
-  ["routeCandidates", api.routeCandidates],
-  ["tsoTariffs", api.tsoTariffs],
-  ["upstreamContracts", api.upstreamContracts],
-  ["glossaryTerms", (options) => api.glossary("en", undefined, options)],
-  ["runtimeDb", api.runtimeDb],
-  ["runtimeDependencies", api.runtimeDependencies],
-  ["credentialProviders", api.credentialProviders],
-  ["monitoringAlerts", api.monitoringAlerts],
-  ["monitoringSummary", api.monitoringSummary],
-  ["reviewDecisions", (options) => api.reviewDecisions(undefined, options)],
-  ["pipelineHealth", api.pipelineHealth],
-];
+
+/**
+ * The workspace batch, bound to the query of the pass that issues it.
+ *
+ * The query is an argument rather than a store read because `loadWorkspaceEndpoint` re-invokes its
+ * loader on a retry attempt: a loader that resolved the question from the store each time could ask
+ * a second one while the pass still judged every answer against the first.
+ */
+function workspaceLoaders(query: ProjectionRequestContext): Array<[string, WorkspaceApiLoader]> {
+  return [
+    ["referenceNodes", (options) => api.nodes(undefined, options)],
+    ["referenceEdges", (options) => api.edges(undefined, options)],
+    ["sources", api.sources],
+    ["normalizedMarkets", api.normalizedMarketObservations],
+    ["marketSpreads", api.marketSpreads],
+    ["marketQuotes", api.marketQuotes],
+    ["intradayOpportunities", api.intradayOpportunities],
+    // Architecture V2 Wave 5: the portfolio lane reads ONE coherent projection
+    // (summary, screen orders, PnL snapshots, contracts on one as-of) instead of
+    // joining /portfolio/live-summary, /portfolio/screen-orders and
+    // /portfolio/pnl-snapshots. The slices fill the same ApiState fields. The read
+    // carries the context the pass was built with, so the payload declares the gas
+    // day the caller selected instead of the one the backend derived from its clock.
+    ["portfolioSnapshot", (options) => api.portfolioSnapshot(query, options)],
+    ["fxRates", api.fxRates],
+    ["flows", api.flowObservations],
+    ["capacity", api.capacityObservations],
+    ["storage", api.storageObservations],
+    ["lng", api.lngObservations],
+    ["tsoAccess", (options) => api.tsoAccess(undefined, options)],
+    ["routes", api.routeEligibility],
+    ["routeCandidates", api.routeCandidates],
+    ["tsoTariffs", api.tsoTariffs],
+    ["upstreamContracts", api.upstreamContracts],
+    ["glossaryTerms", (options) => api.glossary("en", undefined, options)],
+    ["runtimeDb", api.runtimeDb],
+    ["runtimeDependencies", api.runtimeDependencies],
+    ["credentialProviders", api.credentialProviders],
+    ["monitoringAlerts", api.monitoringAlerts],
+    ["monitoringSummary", api.monitoringSummary],
+    ["reviewDecisions", (options) => api.reviewDecisions(undefined, options)],
+    ["pipelineHealth", api.pipelineHealth],
+  ];
+}
 
 /**
  * Retry-only loaders: reads the market lane performs outside the workspace batch.
  *
- * They are deliberately absent from WORKSPACE_LOADERS so an initial workspace load
- * does not request the projection a second time, but a failed market read stays
- * retryable through the same bounded control as every other endpoint.
+ * They are deliberately absent from the batch so an initial workspace load does not
+ * request the projection a second time, but a failed market read stays retryable
+ * through the same bounded control as every other endpoint. Like the batch they are
+ * bound to the query of the pass that issues them.
  */
-const RETRY_ONLY_LOADERS: Array<[string, WorkspaceApiLoader]> = [
-  ["marketContext", (options) => api.marketContext(undefined, options)],
-  ["reviewContext", (options) => api.reviewContext(undefined, options)],
-];
+function retryOnlyLoaders(
+  query: ProjectionRequestContext,
+): Array<[string, WorkspaceApiLoader]> {
+  return [
+    ["marketContext", (options) => api.marketContext(query, options)],
+    ["reviewContext", (options) => api.reviewContext(query, options)],
+  ];
+}
 
 /** endpointMeta key -> ApiState slice key. */
 const WORKSPACE_STATE_KEYS: Record<string, keyof ApiState> = {
@@ -702,6 +1026,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
   authErrorKey: null,
   authNoticeKey: null,
   authBusy: false,
+  tradingContext: DEFAULT_TRADER_CONTEXT,
   nodes: [],
   edges: [],
   sources: [],
@@ -890,7 +1215,12 @@ export const useApiStore = create<ApiState>((set, get) => ({
         releaseCompatibility: compatibilityForServer(CLIENT_RELEASE_METADATA, null),
       });
     }
-    const outcomes = await loadWorkspaceEndpoints(WORKSPACE_LOADERS, {
+    // The pass's query and claims are taken here, in the tick that builds its requests: every retry
+    // attempt asks this same question, and every answer is held to this claim rather than to
+    // whatever the store holds when it returns.
+    const batchLoaders = workspaceLoaders(projectionRequestContext(get().tradingContext));
+    const claims = claimProjectionLanes(batchLoaders);
+    const outcomes = await loadWorkspaceEndpoints(batchLoaders, {
       signal: load.signal,
       timeoutMs: DEFAULT_WORKSPACE_READ_TIMEOUT_MS,
     });
@@ -905,26 +1235,35 @@ export const useApiStore = create<ApiState>((set, get) => ({
       return;
     }
     const workspaceCommit = commitWorkspaceLoad(outcomes);
-    const { endpointErrors, endpointErrorCodes } = workspaceCommit;
-    const endpointMeta: Record<string, ApiMeta> = {};
+    const { endpointErrors } = workspaceCommit;
+    const batchMeta: Record<string, ApiMeta> = {};
     const slices: Record<string, unknown> = {};
     for (const { key, outcome } of outcomes) {
       if (outcome.ok) {
-        endpointMeta[key] = outcome.value.meta;
+        batchMeta[key] = outcome.value.meta;
         slices[key] = deriveWorkspaceSlice(key, outcome.value);
       }
     }
-    const sourceRefs = Object.values(endpointMeta).flatMap((item) => item.source_references ?? []);
+    // The portfolio lane is this batch's projection: when a newer request owns it (the context
+    // change's own re-read), the batch writes neither its payload nor its record, and the state
+    // keeps the reading it has - the re-read replaces it with the current context's payload.
+    const portfolioIsCurrent = projectionClaimHolds(claims.portfolioSnapshot);
+    // Requested projections own their rows, even if the legacy batch started later.
+    const marketLaneIsCurrent = !projectionLanes.marketContext.requested;
+    const reviewLaneIsCurrent = !projectionLanes.reviewContext.requested;
+    const sourceRefs = Object.values(batchMeta).flatMap((item) => item.source_references ?? []);
     const hasRuntime = sourceRefs.some((source) => source === "runtime-postgresql");
     const hasDbMissing = sourceRefs.some((source) => source === "runtime-db-not-configured");
     const runtimeDb = slices.runtimeDb as RuntimeDbStatusDTO | undefined;
     // The portfolio projection fills three state fields from one payload, so the
     // batch maps it through the same applier the retry path uses.
-    const portfolioLane = applyPortfolioSnapshot(
-      get(),
-      (slices.portfolioSnapshot ?? null) as PortfolioSnapshotProjectionDTO | null,
-    );
-    const allFailed = Object.keys(endpointErrors).length === WORKSPACE_LOADERS.length;
+    const portfolioLane = portfolioIsCurrent
+      ? applyPortfolioSnapshot(
+          get(),
+          (slices.portfolioSnapshot ?? null) as PortfolioSnapshotProjectionDTO | null,
+        )
+      : retainedPortfolioLane(get());
+    const allFailed = Object.keys(endpointErrors).length === batchLoaders.length;
     const resolvedStatus =
       !runtimeDb || !runtimeDb.database_url_present || !runtimeDb.connectivity.ok
         ? "unavailable"
@@ -938,15 +1277,25 @@ export const useApiStore = create<ApiState>((set, get) => ({
       nodes: (slices.referenceNodes ?? []) as NodeDTO[],
       edges: (slices.referenceEdges ?? []) as EdgeDTO[],
       sources: (slices.sources ?? []) as SourceSystemDTO[],
-      normalizedMarkets: (slices.normalizedMarkets ?? []) as NormalizedMarketObsDTO[],
-      marketSpreads: (slices.marketSpreads ?? []) as MarketSpreadDTO[],
-      marketQuotes: (slices.marketQuotes ?? []) as MarketQuoteDTO[],
-      intradayOpportunities: (slices.intradayOpportunities ?? []) as IntradayOpportunityDTO[],
+      ...(marketLaneIsCurrent
+        ? {
+            normalizedMarkets: (slices.normalizedMarkets ?? []) as NormalizedMarketObsDTO[],
+            marketSpreads: (slices.marketSpreads ?? []) as MarketSpreadDTO[],
+            marketQuotes: (slices.marketQuotes ?? []) as MarketQuoteDTO[],
+            intradayOpportunities: (slices.intradayOpportunities ?? []) as IntradayOpportunityDTO[],
+            monitoringAlerts: (slices.monitoringAlerts ?? []) as MonitoringAlertDTO[],
+            fxRates: (slices.fxRates ?? []) as FxRateDTO[],
+            marketLastUpdatedAtUtc: latestMarketObservedAt(
+              (slices.normalizedMarkets ?? []) as NormalizedMarketObsDTO[],
+              (slices.marketQuotes ?? []) as MarketQuoteDTO[],
+              (slices.fxRates ?? []) as FxRateDTO[],
+            ),
+          }
+        : {}),
       screenOrders: portfolioLane.screenOrders,
       pnlSnapshots: portfolioLane.pnlSnapshots,
       portfolioSummary: portfolioLane.portfolioSummary,
       portfolioSnapshot: portfolioLane.portfolioSnapshot,
-      fxRates: (slices.fxRates ?? []) as FxRateDTO[],
       flows: (slices.flows ?? []) as FlowObsDTO[],
       capacity: (slices.capacity ?? []) as CapacityObsDTO[],
       storage: (slices.storage ?? []) as StorageObsDTO[],
@@ -963,21 +1312,19 @@ export const useApiStore = create<ApiState>((set, get) => ({
       runtimeRelease: get().runtimeRelease,
       releaseCompatibility: get().releaseCompatibility,
       credentialProviders: (slices.credentialProviders ?? []) as CredentialProviderDTO[],
-      monitoringAlerts: (slices.monitoringAlerts ?? []) as MonitoringAlertDTO[],
       monitoringSummary: (slices.monitoringSummary ?? DEFAULT_MONITORING_SUMMARY) as MonitoringSummaryDTO,
-      reviewDecisions: (slices.reviewDecisions ?? []) as ReviewDecisionDTO[],
+      ...(reviewLaneIsCurrent
+        ? { reviewDecisions: (slices.reviewDecisions ?? []) as ReviewDecisionDTO[] }
+        : {}),
       pipelineHealth: (slices.pipelineHealth ?? null) as PipelineHealthDTO | null,
       // currentUser is owned by the identity reads (bootstrapIdentity/fetchMe);
       // a workspace batch must never rewrite identity.
-      endpointMeta,
-      endpointErrors,
-      endpointErrorCodes,
-      meta: endpointMeta.referenceNodes ?? null,
-      marketLastUpdatedAtUtc: latestMarketObservedAt(
-        (slices.normalizedMarkets ?? []) as NormalizedMarketObsDTO[],
-        (slices.marketQuotes ?? []) as MarketQuoteDTO[],
-        (slices.fxRates ?? []) as FxRateDTO[],
-      ),
+      ...endpointRecordsAfterPass(get(), outcomes, new Set([
+        ...outcomes.filter(({ key }) => projectionOwnsLegacyKey(key)).map(({ key }) => key),
+        ...(portfolioIsCurrent ? [] : ["portfolioSnapshot"]),
+        ...(marketLaneIsCurrent ? [] : ["fxRates"]),
+      ])),
+      meta: batchMeta.referenceNodes ?? null,
       dataStatus: resolvedStatus,
       loading: workspaceCommit.loading,
       error: allFailed ? workspaceCommit.error : null,
@@ -998,7 +1345,10 @@ export const useApiStore = create<ApiState>((set, get) => ({
     if (get().endpointRetryBusy) return;
     const failedKeys = Object.keys(get().endpointErrors);
     if (failedKeys.length === 0) return;
-    const loaderByKey = new Map([...WORKSPACE_LOADERS, ...RETRY_ONLY_LOADERS]);
+    // The pass's query is bound here, once: a retried endpoint is re-read with the question this
+    // pass started with, and every answer is held to the claim taken in the same tick.
+    const query = projectionRequestContext(get().tradingContext);
+    const loaderByKey = new Map([...workspaceLoaders(query), ...retryOnlyLoaders(query)]);
     const retryableLoaders = knownWorkspaceLoaders(failedKeys, loaderByKey);
     if (retryableLoaders.length === 0) return;
 
@@ -1011,6 +1361,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
       endpointRetryLastAttemptAtUtc: new Date().toISOString(),
     }));
     try {
+      const claims = claimProjectionLanes(retryableLoaders);
       const outcomes = await loadWorkspaceEndpoints(retryableLoaders, {
         signal: load.signal,
         timeoutMs: DEFAULT_WORKSPACE_READ_TIMEOUT_MS,
@@ -1022,38 +1373,32 @@ export const useApiStore = create<ApiState>((set, get) => ({
         set({ ...identityReset, authErrorKey: SESSION_EXPIRED_KEY });
         return;
       }
+      // A projection lane a newer request owns is neither written nor recorded by this pass: the
+      // context change's own re-read is the answer for the context the caller is standing in.
+      const written = outcomes.filter(({ key }) =>
+        !projectionOwnsLegacyKey(key) && projectionClaimHolds(claims[key as ProjectionLaneKey]),
+      );
       set((state) => {
-        const endpointErrors = { ...state.endpointErrors };
-        const endpointErrorCodes = { ...state.endpointErrorCodes };
-        const endpointMeta = { ...state.endpointMeta };
         const patch: Partial<ApiState> = {};
-        for (const { key, outcome } of outcomes) {
-          if (outcome.ok) {
-            delete endpointErrors[key];
-            delete endpointErrorCodes[key];
-            endpointMeta[key] = outcome.value.meta;
-            // A projection lane carries several ApiState fields, so a retried read
-            // re-derives every field it feeds rather than only the payload.
-            const applyProjection = PROJECTION_LANE_APPLIERS[key];
-            if (applyProjection) {
-              Object.assign(patch, applyProjection(state, outcome.value.data));
-              continue;
-            }
-            const stateKey = WORKSPACE_STATE_KEYS[key];
-            if (stateKey) {
-              (patch as Record<string, unknown>)[stateKey] = deriveWorkspaceSlice(key, outcome.value);
-            }
-          } else {
-            endpointErrors[key] = outcome.error.message;
-            endpointErrorCodes[key] = outcome.error.code;
+        for (const { key, outcome } of written) {
+          if (!outcome.ok) continue;
+          // A projection lane carries several ApiState fields, so a retried read
+          // re-derives every field it feeds rather than only the payload.
+          const applyProjection = PROJECTION_LANE_APPLIERS[key];
+          if (applyProjection) {
+            Object.assign(patch, applyProjection(state, outcome.value.data));
+            continue;
+          }
+          const stateKey = WORKSPACE_STATE_KEYS[key];
+          if (stateKey) {
+            (patch as Record<string, unknown>)[stateKey] = deriveWorkspaceSlice(key, outcome.value);
           }
         }
+        const records = endpointRecordsAfterPass(state, written);
         return {
           ...patch,
-          endpointErrors,
-          endpointErrorCodes,
-          endpointMeta,
-          error: Object.keys(endpointErrors).length === 0 ? null : state.error,
+          ...records,
+          error: Object.keys(records.endpointErrors).length === 0 ? null : state.error,
           loading: false,
         };
       });
@@ -1072,7 +1417,12 @@ export const useApiStore = create<ApiState>((set, get) => ({
     const refresh = readRefreshCoordinator.market.tryStart();
     if (!refresh) return;
     const refreshGeneration = readRefreshCoordinator.currentGeneration();
-    const refreshSequence = ++marketRefreshSequence;
+    // The lane claims its request here, with the query it carries: the answer is written only while
+    // this is still the newest market request, for this context generation and this identity.
+    const claim = claimProjectionLane("marketContext");
+    const query = projectionRequestContext(get().tradingContext);
+    const answerIsCurrent = () =>
+      projectionClaimIsCurrent(claim) && readRefreshCoordinator.isCurrent(refreshGeneration);
     const options = {
       signal: refresh.signal,
       retries: 0,
@@ -1085,33 +1435,11 @@ export const useApiStore = create<ApiState>((set, get) => ({
       // posture stays independent inside the same lane.
       const sourcesPromise = loadWorkspaceEndpoint(api.sources, options);
       const [contextResult, fxResult] = await Promise.all([
-        loadWorkspaceEndpoint((loaderOptions) => api.marketContext(undefined, loaderOptions), options),
+        loadWorkspaceEndpoint((loaderOptions) => api.marketContext(query, loaderOptions), options),
         loadWorkspaceEndpoint(api.fxRates, options),
       ]);
-      if (
-        refreshSequence === marketRefreshSequence &&
-        readRefreshCoordinator.isCurrent(refreshGeneration)
-      ) {
+      if (answerIsCurrent()) {
         set((state) => {
-          const endpointMeta = { ...state.endpointMeta };
-          const endpointErrors = { ...state.endpointErrors };
-          const endpointErrorCodes = { ...state.endpointErrorCodes };
-          const recordOutcome = (
-            key: string,
-            outcome: WorkspaceLoaderOutcome<{ data: unknown; meta: ApiMeta }>,
-          ) => {
-            if (outcome.ok) {
-              endpointMeta[key] = outcome.value.meta;
-              delete endpointErrors[key];
-              delete endpointErrorCodes[key];
-            } else {
-              endpointErrors[key] = outcome.error.message;
-              endpointErrorCodes[key] = outcome.error.code;
-            }
-          };
-          recordOutcome("marketContext", contextResult);
-          recordOutcome("fxRates", fxResult);
-
           // The projection is the market surface's coherent source. Its slices are
           // mapped into the same state fields the surfaces already read, so no
           // downstream model changes - but every value now comes from one payload
@@ -1119,16 +1447,18 @@ export const useApiStore = create<ApiState>((set, get) => ({
           // previous values in place instead of inventing an empty market.
           const projection = contextResult.ok ? contextResult.value.data : null;
           const fxRates = fxResult.ok ? fxResult.value.data : state.fxRates;
-          const failedMarketEndpoints = ["marketContext", "fxRates"].filter(
-            (key) => endpointErrors[key],
-          );
+          const failedMarketEndpoints = [
+            ...(contextResult.ok ? [] : ["marketContext"]),
+            ...(fxResult.ok ? [] : ["fxRates"]),
+          ];
 
           return {
             ...applyMarketContext(state, projection, fxRates),
             fxRates,
-            endpointMeta,
-            endpointErrors,
-            endpointErrorCodes,
+            ...endpointRecordsAfterPass(state, [
+              { key: "marketContext", outcome: contextResult },
+              { key: "fxRates", outcome: fxResult },
+            ]),
             meta: contextResult.ok ? contextResult.value.meta : state.meta,
             error: failedMarketEndpoints.length > 0
               ? `${MARKET_REFRESH_ERROR_PREFIX} ${failedMarketEndpoints.join(", ")}`
@@ -1139,33 +1469,69 @@ export const useApiStore = create<ApiState>((set, get) => ({
         });
       }
       const sources = await sourcesPromise;
-      if (
-        refreshSequence === marketRefreshSequence &&
-        readRefreshCoordinator.isCurrent(refreshGeneration) &&
-        sources.ok
-      ) {
+      if (answerIsCurrent()) {
         set((state) => ({
-          sources: sources.value.data,
-          endpointMeta: { ...state.endpointMeta, sources: sources.value.meta },
-          endpointErrors: Object.fromEntries(
-            Object.entries(state.endpointErrors).filter(([key]) => key !== "sources"),
-          ),
-          endpointErrorCodes: Object.fromEntries(
-            Object.entries(state.endpointErrorCodes).filter(([key]) => key !== "sources"),
-          ),
-        }));
-      } else if (
-        refreshSequence === marketRefreshSequence &&
-        readRefreshCoordinator.isCurrent(refreshGeneration) &&
-        !sources.ok
-      ) {
-        set((state) => ({
-          endpointErrors: { ...state.endpointErrors, sources: sources.error.message },
-          endpointErrorCodes: { ...state.endpointErrorCodes, sources: sources.error.code },
+          ...endpointRecordsAfterPass(state, [{ key: "sources", outcome: sources }]),
+          ...(sources.ok ? { sources: sources.value.data } : {}),
         }));
       }
     } finally {
       refresh.release();
+    }
+  },
+
+  /**
+   * Publish the context the caller is standing in. `useTraderContext` owns it and calls this on
+   * every change, including the reset to the default while the identity gate is closed.
+   *
+   * A changed context turns every projection this session holds into an answer about another
+   * context: the lanes' readings are cleared (nothing is re-labelled), the reads still in flight
+   * are aborted - which releases their lanes for the re-read - and the lanes this session has asked
+   * for are re-read, whether or not their first answer arrived.
+   */
+  publishTradingContext: (context) => {
+    if (traderContextKey(context) === traderContextKey(get().tradingContext)) return;
+    tradingContextGeneration += 1;
+    const lanes = requestedProjectionLanes();
+    set((state) => ({ tradingContext: context, ...clearedProjectionLanes(state, lanes) }));
+    readRefreshCoordinator.market.cancel();
+    readRefreshCoordinator.review.cancel();
+    void get().refetchTradingContextProjections();
+  },
+
+  /**
+   * Re-read the projection lanes the current trading context invalidated.
+   *
+   * Only the lanes this session has asked for are re-read, so a context change refreshes what a
+   * surface is showing instead of starting reads the product was not making anyway; a lane whose
+   * read is still in flight, or whose read failed, is among them. One pass runs at a time and a
+   * change that arrives during one queues another, so a rapid switch cannot leave the last context
+   * unanswered. The workspace batch is deliberately not re-run: a context change must not re-read
+   * twenty-odd endpoints that no context enters.
+   */
+  refetchTradingContextProjections: async () => {
+    if (!projectionRefetchIsAllowed()) {
+      projectionRefetchQueued = false;
+      return;
+    }
+    if (projectionRefetchActive) {
+      projectionRefetchQueued = true;
+      return;
+    }
+    projectionRefetchActive = true;
+    try {
+      do {
+        projectionRefetchQueued = false;
+        // Re-checked for every pass: an identity that ended while a pass was running (or queued)
+        // drops its work instead of issuing another protected read.
+        if (!projectionRefetchIsAllowed()) return;
+        const query = projectionRequestContext(get().tradingContext);
+        await Promise.all(
+          requestedProjectionLanes().map((lane) => reReadProjectionLane(lane, query)),
+        );
+      } while (projectionRefetchQueued && projectionRefetchIsAllowed());
+    } finally {
+      projectionRefetchActive = false;
     }
   },
 
@@ -1186,6 +1552,8 @@ export const useApiStore = create<ApiState>((set, get) => ({
         {
           quotes: (payload) => {
             if (!streamIsCurrent()) return;
+            // These streams are unfiltered. The regular projection poll owns scoped rows.
+            if (projectionLanes.marketContext.requested) return;
             const quote = payload as MarketQuoteDTO;
             if (!quote || typeof quote !== "object" || !("quote_id" in quote)) return;
             set((state) => ({
@@ -1205,6 +1573,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
       openEventStream("/stream/opportunities", {
         opportunities: (payload) => {
           if (!streamIsCurrent()) return;
+          if (projectionLanes.marketContext.requested) return;
           const opportunity = payload as IntradayOpportunityDTO;
           if (
             !opportunity ||
@@ -1448,28 +1817,24 @@ export const useApiStore = create<ApiState>((set, get) => ({
     const refresh = readRefreshCoordinator.review.tryStart();
     if (!refresh) return;
     const refreshGeneration = readRefreshCoordinator.currentGeneration();
+    const claim = claimProjectionLane("reviewContext");
+    const query = projectionRequestContext(get().tradingContext);
     try {
       const result = await loadWorkspaceEndpoint(
-        (loaderOptions) => api.reviewContext(undefined, loaderOptions),
+        (loaderOptions) => api.reviewContext(query, loaderOptions),
         {
           signal: refresh.signal,
           retries: 0,
           timeoutMs: DEFAULT_WORKSPACE_READ_TIMEOUT_MS,
         },
       );
-      if (!readRefreshCoordinator.isCurrent(refreshGeneration)) return;
+      if (
+        !projectionClaimIsCurrent(claim) ||
+        !readRefreshCoordinator.isCurrent(refreshGeneration)
+      ) {
+        return;
+      }
       set((state) => {
-        const endpointMeta = { ...state.endpointMeta };
-        const endpointErrors = { ...state.endpointErrors };
-        const endpointErrorCodes = { ...state.endpointErrorCodes };
-        if (result.ok) {
-          delete endpointErrors.reviewContext;
-          delete endpointErrorCodes.reviewContext;
-          endpointMeta.reviewContext = result.value.meta;
-        } else {
-          endpointErrors.reviewContext = result.error.message;
-          endpointErrorCodes.reviewContext = result.error.code;
-        }
         const projection = result.ok ? result.value.data : null;
         const usable = reviewIsUsable(projection);
         return {
@@ -1477,9 +1842,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
           // A payload the backend could not serve leaves the review surface with the
           // decisions it already had instead of an empty review.
           reviewDecisions: usable ? reviewDecisions(projection) : state.reviewDecisions,
-          endpointMeta,
-          endpointErrors,
-          endpointErrorCodes,
+          ...endpointRecordsAfterPass(state, [{ key: "reviewContext", outcome: result }]),
         };
       });
     } finally {

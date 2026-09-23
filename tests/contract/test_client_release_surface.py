@@ -584,11 +584,12 @@ def test_web_client_market_page_is_trader_terminal_surface() -> None:
     assert "refreshMarketData: () => Promise<void>" in store
     # The market lane reads one coherent projection through the same bounded
     # workspace loader (Architecture V2 Wave 5); the low-level reads still exist in
-    # the workspace batch, so the terminal keeps real, timeout-bounded sources.
-    assert (
-        "loadWorkspaceEndpoint((loaderOptions) => api.marketContext(undefined, loaderOptions)"
-        in store
-    )
+    # the workspace batch, so the terminal keeps real, timeout-bounded sources. The read
+    # carries the query its pass was bound to - the published trading context - so the
+    # payload declares the context it was asked about rather than one derived from the
+    # backend's clock, and an answer that no longer owns its lane is not written.
+    assert "const query = projectionRequestContext(get().tradingContext);" in store
+    assert "api.marketContext(query, loaderOptions)" in store
     assert '["normalizedMarkets", api.normalizedMarketObservations]' in store
     assert '["marketSpreads", api.marketSpreads]' in store
     assert "loadWorkspaceEndpoint(api.fxRates" in store

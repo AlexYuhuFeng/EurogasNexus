@@ -1,12 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useApiStore } from "@/stores/api";
-import { isIdentityGateOpen } from "@/stores/workspaceLoading";
+import { isIdentityGateOpen, type AuthState } from "@/stores/workspaceLoading";
 import { readPersistedTraderContext, writePersistedTraderContext } from "./contextPersistence.ts";
-import {
-  readTraderContextUrl,
-  resolveTraderContext,
-  traderContextToSearchParams,
-} from "./contextUrl.ts";
+import { traderContextToSearchParams } from "./contextUrl.ts";
+import { resolveSessionTraderContext } from "./sessionTraderContext.ts";
 import {
   DEFAULT_TRADER_CONTEXT,
   normalizeDeliveryProduct,
@@ -24,33 +21,56 @@ import {
  * unresolved or denied the context resets to defaults and nothing is written
  * back to history.
  */
-function contextFromLocation(): TraderContext {
+function traderContextForSession(authState: AuthState): TraderContext {
   if (typeof window === "undefined") return DEFAULT_TRADER_CONTEXT;
-  if (!isIdentityGateOpen(useApiStore.getState().authState)) return DEFAULT_TRADER_CONTEXT;
-  return resolveTraderContext(
-    readTraderContextUrl(window.location.search),
-    readPersistedTraderContext(),
-  );
+  return resolveSessionTraderContext({
+    authState,
+    search: window.location.search,
+    persisted: readPersistedTraderContext(),
+  });
 }
 
 export function useTraderContext() {
   const authState = useApiStore((state) => state.authState);
-  const [context, setContext] = useState<TraderContext>(() => contextFromLocation());
+  const publishTradingContext = useApiStore((state) => state.publishTradingContext);
+  const [context, setContext] = useState<TraderContext>(() =>
+    traderContextForSession(useApiStore.getState().authState),
+  );
   const initialUrlSyncRef = useRef(true);
   const skipNextUrlSyncRef = useRef(false);
+  const restoredContextRef = useRef<TraderContext | null>(null);
   const gateOpen = isIdentityGateOpen(authState);
 
   useEffect(() => {
-    const nextContext = contextFromLocation();
+    const nextContext = traderContextForSession(authState);
+    restoredContextRef.current = nextContext;
+    // Published here, not only through the state update below: the store issues the projections, and
+    // on a sign-in the first workspace batch must ask for the context the URL restored rather than
+    // the default the previous session left behind. Effects run in hook order, so the store holds
+    // the restored context before the runtime's own load effect runs.
+    publishTradingContext(nextContext);
     setContext((current) =>
       traderContextKey(current) === traderContextKey(nextContext) ? current : nextContext,
     );
-  }, [authState]);
+  }, [authState, publishTradingContext]);
+
+  // The store issues every projection read, so the canonical context has to reach it: the owner
+  // publishes each resolved context here - including the reset to the default while identity is
+  // unresolved or denied - and a changed context supersedes and re-reads the projections this
+  // session is showing. The store never restores a context of its own.
+  useEffect(() => {
+    if (restoredContextRef.current &&
+        traderContextKey(context) !== traderContextKey(restoredContextRef.current)) return;
+    restoredContextRef.current = null;
+    publishTradingContext(context);
+  }, [context, publishTradingContext]);
 
   useEffect(() => {
     const skipUrlWrite = skipNextUrlSyncRef.current;
     skipNextUrlSyncRef.current = false;
     if (!gateOpen || skipUrlWrite) return;
+    if (restoredContextRef.current &&
+        traderContextKey(context) !== traderContextKey(restoredContextRef.current)) return;
     writePersistedTraderContext(context);
     const nextUrl = new URL(window.location.href);
     nextUrl.search = traderContextToSearchParams(window.location.search, context);
@@ -65,7 +85,7 @@ export function useTraderContext() {
   useEffect(() => {
     function syncFromUrl() {
       skipNextUrlSyncRef.current = true;
-      setContext(contextFromLocation());
+      setContext(traderContextForSession(useApiStore.getState().authState));
     }
     window.addEventListener("popstate", syncFromUrl);
     return () => window.removeEventListener("popstate", syncFromUrl);

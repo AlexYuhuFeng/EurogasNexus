@@ -1,6 +1,6 @@
 # Architecture V2 Execution State
 
-Last updated: 2026-09-23
+Last updated: 2026-09-24
 Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical slice records below do not constitute current production approval.
 
 ## Current commercial acceptance checkpoint
@@ -32,6 +32,28 @@ numeric/Network switching passed in the in-app browser. Verification: 571 web
 tests, production build, locale parity and 78 focused Python contracts passed.
 Desktop/mobile full-sweep acceptance is still unverified. Next priority is the
 selected gas-day/projection mismatch and misleading readiness semantics.
+
+September 24 context repair (baseline `42e4be2`): DeepSeek implemented the
+projection request mapping and request-lifecycle changes; the integration review
+required executable deferred-response tests and closed remaining legacy-row
+overwrite paths. Market, portfolio and review requests now carry the selected
+context, bind retries to one query, reject superseded responses and clear old
+readings on context changes. The time-basis strip reads the backend's `basis`
+field and calendar. Successful market projections replace their scoped row set;
+unfiltered quote/opportunity streams do not widen it. Those rows use the existing
+10-second market projection poll, not tick-by-tick stream updates.
+Independent verification: 585 frontend tests, normal production build, 91 focused
+Python contracts, and 42 backend projection/context tests passed (the Python
+groups overlap in the trader-context module). No database writes or deployments.
+Live acceptance remains open: this session has no configured PostgreSQL URL and
+no local API listener; database health/schema were not inspected. The runtime
+configuration/launcher path has been requested. No new screenshots or live UAT
+claim applies to this repair. Backend gas day remains declared context, not a
+historical valuation filter; portfolio/review do not apply hub/product filters.
+Next: restore the existing test runtime, verify date/product/hub changes in the
+authenticated app, then address misleading readiness and per-slice filter
+disclosure. Global monitoring streams remain operational feeds, not scoped
+projection evidence. Keep commercial release disposition NOT APPROVED.
 
 ## Historical programme state
 V2 pack version: 2026-09 autonomous runner

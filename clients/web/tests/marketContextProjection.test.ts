@@ -74,7 +74,19 @@ function projection(
     projection: "market-context",
     projection_version: "market-context/v1",
     as_of_utc: "2026-09-16T06:00:00+00:00",
-    time_basis: { basis_id: "EU-CAM-UTC-2025", gas_day: "2026-09-16" },
+    // The projection's own declaration, as the route composes it (`time_basis_payload`): the
+    // basis of every value, the gas day it was expressed against and the frozen gas-day calendar
+    // that encoded that day's boundaries.
+    time_basis: {
+      basis: "as_of_instant",
+      as_of_utc: "2026-09-16T06:00:00+00:00",
+      gas_day: "2026-09-16",
+      gas_day_calendar: "EU-CAM-UTC-2025",
+      gas_day_start_utc: "2026-09-16T04:00:00+00:00",
+      gas_day_end_utc: "2026-09-17T04:00:00+00:00",
+      delivery_product: null,
+      hub: null,
+    },
     active_context: { gas_day: "2026-09-16" },
     slices: {
       quotes: slice({ row_count: 2, rows: [{ quote_id: "q1" }, { quote_id: "q2" }] }),
@@ -96,7 +108,7 @@ test("the projection carries one as-of and one time basis for every slice", () =
   const payload = projection();
 
   assert.equal(contextAsOf(payload), "2026-09-16T06:00:00+00:00");
-  assert.equal(contextTimeBasis(payload)?.basis_id, "EU-CAM-UTC-2025");
+  assert.equal(contextTimeBasis(payload)?.basis, "as_of_instant");
   assert.equal(contextTimeBasis(payload)?.gas_day, "2026-09-16");
 
   assert.equal(contextQuotes(payload).length, 2);
@@ -190,11 +202,11 @@ test("the market lane reads the projection instead of joining five endpoints", (
   assert.ok(start > 0 && end > start, "market refresh lane found");
   const lane = store.slice(start, end);
 
-  // One coherent read replaces the previous five-endpoint join...
-  assert.match(
-    lane,
-    /loadWorkspaceEndpoint\(\(loaderOptions\) => api\.marketContext\(undefined, loaderOptions\), options\)/,
-  );
+  // One coherent read replaces the previous five-endpoint join, and it carries the query the pass
+  // was bound to - the published trading context - instead of asking for whatever context the
+  // backend would derive from its own clock.
+  assert.match(lane, /const query = projectionRequestContext\(get\(\)\.tradingContext\);/);
+  assert.match(lane, /api\.marketContext\(query, loaderOptions\)/);
   for (const endpoint of [
     "api.marketQuotes",
     "api.normalizedMarketObservations",
@@ -209,23 +221,28 @@ test("the market lane reads the projection instead of joining five endpoints", (
   // downstream model changes and the projection itself is kept for the strip.
   assert.match(store, /marketContext: projection,/);
   assert.match(store, /const usable = contextIsUsable\(projection\);/);
-  assert.match(store, /mergeMarketQuotes\(state\.marketQuotes, contextQuotes\(projection\)\)/);
+  assert.match(store, /const marketQuotes = usable\s*\? contextQuotes\(projection\)/);
   assert.match(
     store,
-    /mergeIntradayOpportunities\(state\.intradayOpportunities, contextOpportunities\(projection\)\)/,
+    /const intradayOpportunities = usable\s*\? contextOpportunities\(projection\)/,
   );
   assert.match(lane, /\.\.\.applyMarketContext\(state, projection, fxRates\)/);
-  assert.match(lane, /recordOutcome\("marketContext", contextResult\)/);
+  assert.match(lane, /\{ key: "marketContext", outcome: contextResult \}/);
+  // The answer is written only while it still owns the lane: newest request, same context
+  // generation, same identity.
+  assert.match(lane, /const claim = claimProjectionLane\("marketContext"\);/);
+  assert.match(lane, /projectionClaimIsCurrent\(claim\) && readRefreshCoordinator\.isCurrent\(refreshGeneration\)/);
 });
 
 test("a failed market read stays retryable and re-derives every slice it feeds", () => {
   const store = readWebSource("stores/api.ts");
 
   // The projection is retry-only: an initial workspace load must not request it a
-  // second time, but the bounded retry control must still be able to re-read it.
-  assert.match(store, /const RETRY_ONLY_LOADERS: Array<\[string, WorkspaceApiLoader\]> = \[/);
-  assert.match(store, /\["marketContext", \(options\) => api\.marketContext\(undefined, options\)\]/);
-  assert.match(store, /new Map\(\[\.\.\.WORKSPACE_LOADERS, \.\.\.RETRY_ONLY_LOADERS\]\)/);
+  // second time, but the bounded retry control must still be able to re-read it -
+  // bound, like every pass, to the query that pass was built with.
+  assert.match(store, /function retryOnlyLoaders\(/);
+  assert.match(store, /\["marketContext", \(options\) => api\.marketContext\(query, options\)\]/);
+  assert.match(store, /new Map\(\[\.\.\.workspaceLoaders\(query\), \.\.\.retryOnlyLoaders\(query\)\]\)/);
 
   // A retried projection re-derives the whole lane rather than only the payload,
   // so a recovered read cannot leave stale slice values behind.

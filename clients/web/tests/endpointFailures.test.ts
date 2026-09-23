@@ -40,7 +40,7 @@ const t = translator(en);
 /** Loader keys the store can actually write into `endpointErrors`. */
 function workspaceLoaderKeys(): string[] {
   const store = readWebSource("stores/api.ts");
-  const block = /const WORKSPACE_LOADERS[\s\S]*?\n\];/.exec(store)?.[0] ?? "";
+  const block = /function workspaceLoaders\([\s\S]*?\n\}/.exec(store)?.[0] ?? "";
   return [...block.matchAll(/\["([A-Za-z0-9_]+)",/g)].map((match) => match[1]);
 }
 

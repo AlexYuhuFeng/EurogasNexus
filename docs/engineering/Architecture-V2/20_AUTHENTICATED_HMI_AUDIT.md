@@ -39,10 +39,11 @@ paths are usable. This change removes both exemptions: absent visible main
 content and React internal errors now fail browser acceptance.
 
 1. **Context consistency (P1):** global gas day is 2026-09-07 while Market and
-   Portfolio projection strips report 2026-09-22. This may reflect a query/default
-   or time-basis contract mismatch; cause is not established. Trace request,
-   projection and figure lineage before allowing a trader to interpret them as
-   one coherent valuation context. Never silently overwrite either date.
+   Portfolio projection strips report 2026-09-22. Confirmed cause: frontend
+   projection reads omitted selected context. The September 24 repair below
+   fixes request propagation and stale-response handling. Live re-verification
+   and disclosure of unapplied backend filters remain open; selected gas day
+   must not be mistaken for historical portfolio valuation.
 2. **Readiness semantics (P1):** numeric Market says Source posture Ready while
    projection slices are stale/missing and quotes are four days old. Runtime
    connectivity is not market-data fitness. Distinguish store availability,
@@ -103,3 +104,36 @@ diff, simplified the source-contract test and retested the live application.
 
 Next bounded milestone: trace and reconcile selected gas day, projection context
 and displayed figure lineage, then separate runtime connectivity from data fitness.
+
+## September 24 context repair
+
+Baseline `42e4be2`. DeepSeek performed implementation in two bounded passes;
+integration review added protection against later legacy batches/retries and
+unfiltered quote/opportunity streams widening focused market rows.
+
+- Projection requests carry gas day and focused product/hub; `all` is omitted.
+  No client-generated as-of is supplied. Each retry retains its original query.
+- Pending first reads are re-requested after a context change. Context, request
+  sequence and identity ownership reject late responses, including A-B-A switches.
+  Old readings are cleared while replacement reads are pending. A portfolio
+  refresh receiving a 401 fails the session closed.
+- The shared strip reads `time_basis.basis` and `gas_day_calendar`, correcting
+  the nonexistent `basis_id` lookup. English/Chinese labels are present.
+- Once requested, the market projection owns its price/opportunity rows.
+  Unfiltered streams cannot append rows outside that read; the existing
+  10-second projection poll supplies updates. This is not tick-by-tick streaming
+  acceptance. Global monitoring remains a separate operational feed.
+- Independent checks: 585 frontend tests, normal production build, 91 focused
+  Python contracts and 42 projection/context tests passed. The Python groups
+  overlap. Tests exercise real store actions through Vite with mocked HTTP and
+  deliberately reordered promises; no external data is fabricated or ingested.
+- No live browser verification was possible in this run: the API was stopped,
+  and the read-only validator reported no configured PostgreSQL URL. No database
+  health or schema finding can be inferred from that absence. Existing UAT
+  runtime configuration is needed before the authenticated retest.
+
+The backend declares gas day but does not filter rows historically by that date;
+portfolio/review also do not apply hub/product filters. Existing per-slice
+`context_filter` metadata must be surfaced clearly in the next HMI milestone.
+Readiness semantics, complete responsive acceptance and release approval remain
+open. This checkpoint does not approve customer production.

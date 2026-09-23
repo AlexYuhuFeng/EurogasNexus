@@ -15,9 +15,14 @@
  *   full minus entitled rows is restricted, not stale;
  * - the as-of and the freshness are the backend's answers; the client never
  *   recomputes them from wall-clock time.
+ *
+ * The payload's own context declaration is read here too: the declared time basis and the
+ * frozen gas-day calendar version are the backend's facts, and the strip renders those rather
+ * than looking for a field name the contract does not carry.
  */
 
 import type { ProjectionSliceDTO } from "@/api/client";
+import { dataProductTimeBasisKey } from "./dataProductModel.ts";
 
 /** Read one slice out of a projection's slice map without widening the projection type. */
 function sliceOf(slices: unknown, key: string): ProjectionSliceDTO<unknown> | undefined {
@@ -101,4 +106,32 @@ export function projectionSlicePayload<
  */
 export function projectionSliceIsAvailable(slices: unknown, key: string): boolean {
   return sliceOf(slices, key)?.available === true;
+}
+
+/**
+ * The time basis a projection declares, as a translation key, or `null` when it declared none.
+ *
+ * The backend states it under `time_basis.basis` - the same `TimeBasis` vocabulary the Data
+ * Product catalogue declares (`as_of_instant`, `gas_day`, `delivery_period`, `contract_term`) -
+ * beside the gas day and the frozen gas-day calendar version. The strip looked for
+ * `time_basis.basis_id`, which no payload has, so every projection read "not reported" while
+ * the backend had answered: a client-side name mismatch, not a missing fact.
+ *
+ * An unrecognised code is rendered as its own code rather than as a label the client does not
+ * have (`dataProductTimeBasisKey` states that rule), so nothing is invented here either.
+ */
+export function declaredTimeBasisKey(
+  basis: Record<string, unknown> | null | undefined,
+): string | null {
+  const value = basis?.basis;
+  if (typeof value !== "string" || value.trim() === "") return null;
+  return dataProductTimeBasisKey(value);
+}
+
+/** The frozen gas-day calendar version the payload declares, or `null` when it declared none. */
+export function declaredGasDayCalendar(
+  basis: Record<string, unknown> | null | undefined,
+): string | null {
+  const value = basis?.gas_day_calendar;
+  return typeof value === "string" && value.trim() !== "" ? value : null;
 }

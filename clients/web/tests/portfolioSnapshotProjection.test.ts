@@ -74,7 +74,11 @@ function projection(
     projection: "portfolio-snapshot",
     projection_version: "portfolio-snapshot/v1",
     as_of_utc: "2026-09-16T06:00:00+00:00",
-    time_basis: { basis_id: "EU-CAM-UTC-2025", gas_day: "2026-09-16" },
+    time_basis: {
+      basis: "as_of_instant",
+      gas_day: "2026-09-16",
+      gas_day_calendar: "EU-CAM-UTC-2025",
+    },
     active_context: { gas_day: "2026-09-16" },
     slices: {
       summary: slice({
@@ -254,10 +258,16 @@ test("both projection surfaces read through one shared implementation", () => {
 
 test("the portfolio lane reads one projection instead of three endpoints", () => {
   const store = readWebSource("stores/api.ts");
-  const loaders = /const WORKSPACE_LOADERS[\s\S]*?\n\];/.exec(store)?.[0] ?? "";
+  const loaders = /function workspaceLoaders\([\s\S]*?\n\}/.exec(store)?.[0] ?? "";
   assert.ok(loaders.length > 0, "workspace loaders found");
 
-  assert.match(loaders, /\["portfolioSnapshot", \(options\) => api\.portfolioSnapshot\(undefined, options\)\]/);
+  // The read carries the query the pass was bound to - the published trading context - so the
+  // payload declares the gas day the caller selected rather than the one the backend would derive
+  // from its own clock, and every retry attempt of the pass asks the same question.
+  assert.match(
+    loaders,
+    /\["portfolioSnapshot", \(options\) => api\.portfolioSnapshot\(query, options\)\]/,
+  );
   for (const endpoint of [
     "api.screenOrders",
     "api.pnlSnapshots",
@@ -271,7 +281,13 @@ test("the portfolio lane reads one projection instead of three endpoints", () =>
 
   // The three state fields come from the snapshot's slices, and a payload the
   // backend could not serve leaves the previous values in place.
-  assert.match(store, /const portfolioLane = applyPortfolioSnapshot\(/);
+  // The batch maps the payload through the same applier - unless a newer request owns the lane
+  // (the context change's own re-read), in which case the lane is left as it was
+  // (retainedPortfolioLane) and that re-read answers the context the caller is standing in.
+  assert.match(store, /const portfolioIsCurrent = projectionClaimHolds\(claims\.portfolioSnapshot\);/);
+  assert.match(store, /const portfolioLane = portfolioIsCurrent/);
+  assert.match(store, /\? applyPortfolioSnapshot\(/);
+  assert.match(store, /: retainedPortfolioLane\(get\(\)\);/);
   assert.match(store, /screenOrders: portfolioLane\.screenOrders,/);
   assert.match(store, /pnlSnapshots: portfolioLane\.pnlSnapshots,/);
   assert.match(store, /portfolioSummary: portfolioLane\.portfolioSummary,/);

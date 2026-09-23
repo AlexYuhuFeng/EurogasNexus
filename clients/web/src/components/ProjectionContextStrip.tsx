@@ -14,7 +14,11 @@
 
 import { type ReactNode } from "react";
 
-import type { SliceReading } from "@/app/model/projectionModel";
+import {
+  declaredGasDayCalendar,
+  declaredTimeBasisKey,
+  type SliceReading,
+} from "@/app/model/projectionModel";
 import { formatUtcTimestamp } from "@/app/model/evidencePresentation";
 import { StatusBadge } from "@/components/ui";
 import "@/components/projection-context.css";
@@ -50,8 +54,11 @@ export function ProjectionContextStrip({
 }: ProjectionContextStripProps) {
   if (readings.length === 0) return null;
 
+  // The declared basis the backend actually reports (`time_basis.basis`), labelled through the
+  // vocabulary the Data Product catalogue already uses; an unrecognised code is shown as itself.
+  const basisKey = declaredTimeBasisKey(basis);
   const gasDay = typeof basis?.gas_day === "string" ? basis.gas_day : null;
-  const basisId = typeof basis?.basis_id === "string" ? basis.basis_id : null;
+  const gasDayCalendar = declaredGasDayCalendar(basis);
   const key = (suffix: string) => `${namespace}.${suffix}`;
 
   return (
@@ -67,8 +74,9 @@ export function ProjectionContextStrip({
             : t(key("as_of_unknown"))}
         </strong>
         <span>
-          {t(key("time_basis"))}: {basisId ?? t(key("not_reported"))}
+          {t(key("time_basis"))}: {basisKey ? t(basisKey) : t(key("not_reported"))}
           {gasDay ? ` · ${gasDay}` : ""}
+          {gasDayCalendar ? ` · ${t(key("gas_day_calendar"))} ${gasDayCalendar}` : ""}
         </span>
         <span>
           {degraded.length === 0

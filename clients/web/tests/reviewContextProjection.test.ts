@@ -83,7 +83,11 @@ function projection(
     projection: "review-context",
     projection_version: "review-context/v1",
     as_of_utc: "2026-09-16T06:00:00+00:00",
-    time_basis: { basis_id: "EU-CAM-UTC-2025", gas_day: "2026-09-16" },
+    time_basis: {
+      basis: "as_of_instant",
+      gas_day: "2026-09-16",
+      gas_day_calendar: "EU-CAM-UTC-2025",
+    },
     active_context: { gas_day: "2026-09-16" },
     review_target: { entity_type: "intraday_opportunity", entity_id: "opportunity-1" },
     slices: {
@@ -214,7 +218,7 @@ test("the review lane is on demand, gated, coalesced and retryable", () => {
   const coordinator = readWebSource("stores/workspaceLoading.ts");
 
   // On demand: the review read is its own action, not part of the workspace batch.
-  const loaders = /const WORKSPACE_LOADERS[\s\S]*?\n\];/.exec(store)?.[0] ?? "";
+  const loaders = /function workspaceLoaders\([\s\S]*?\n\}/.exec(store)?.[0] ?? "";
   assert.equal(loaders.includes("api.reviewContext"), false);
   assert.match(store, /fetchReviewContext: async \(\) => \{/);
   assert.match(
@@ -222,8 +226,16 @@ test("the review lane is on demand, gated, coalesced and retryable", () => {
     /const refresh = readRefreshCoordinator\.review\.tryStart\(\);/,
   );
   assert.match(store, /isIdentityGateOpen\(get\(\)\.authState\)\) return;/);
-  // Retryable through the same bounded control as the other projection reads.
-  assert.match(store, /\["reviewContext", \(options\) => api\.reviewContext\(undefined, options\)\]/);
+  // Retryable through the same bounded control as the other projection reads, bound to the query
+  // of the pass that retries it.
+  assert.match(
+    store,
+    /\["reviewContext", \(options\) => api\.reviewContext\(query, options\)\]/,
+  );
+  // The read is held to its own claim, so an answer for a context the caller has left is dropped
+  // rather than written as the current one.
+  assert.match(store, /const claim = claimProjectionLane\("reviewContext"\);/);
+  assert.match(store, /!projectionClaimIsCurrent\(claim\) \|\|\s*!readRefreshCoordinator\.isCurrent\(refreshGeneration\)/);
   assert.match(store, /reviewContext: \(state, payload\) => \{/);
   // The lane exists and an identity or workspace reset cancels it.
   assert.match(coordinator, /readonly review = new ReadRefreshLane\(\);/);

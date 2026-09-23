@@ -147,6 +147,30 @@ projection is only worth its cost when the client deletes a join rather than add
   `MarketContextStrip.tsx` / `PortfolioContextStrip.tsx` are the two thin adapters that mount it at
   the top of the market cockpit and the portfolio workspace. They are presentational: they do not
   fetch, recompute or reconcile timestamps.
+- Every projection read is expressed against the canonical trading context.
+  `app/model/projectionContext.ts` is the single mapping from the trader context onto the routes' own
+  query names (`gas_day` / `delivery_product` / `hub`): a dimension the caller has not focused is
+  omitted rather than sent as a value the route would match, the gas day is always declared, and no
+  request invents an as-of instant. `useTraderContext` resolves the context (`sessionTraderContext`)
+  and publishes it into the store before the runtime's load effect runs, which is what makes a
+  sign-in's *first* batch ask for the context the URL restored rather than the default the previous
+  session left behind.
+  The store's projection lanes own the rest. A pass — the workspace batch, the bounded retry pass,
+  the periodic market lane, the on-demand review lane and the context change's own re-read — binds
+  one immutable query and claims its lane in the tick that builds its requests, so a retry attempt
+  cannot ask a second question under the first one's name. Every commit is held to that claim: newest
+  request in the lane, current context generation, current identity. The generation matters because a
+  context key does not survive an A → B → A switch, and because a change that arrives while a pass is
+  running is queued rather than claimed at once. A context change clears the lanes it invalidated (a
+  payload is never re-labelled under the new selector) and re-reads every lane the session has
+  *asked for* — including one whose first answer is still in flight or whose read failed, which is
+  why a lane is tracked as requested rather than by the payload it holds. The batch's unfiltered
+  legacy market and review rows cannot replace a requested projection, even when the batch
+  started later. Successful market reads replace their row sets; unfiltered quote/opportunity
+  streams do not widen them. The existing 10-second market poll supplies scoped updates.
+  The strip renders the basis the payload declares (`time_basis.basis`, plus the frozen
+  `gas_day_calendar`); it previously looked for `basis_id`, which no payload carries, so every strip
+  read "not reported" over an answer the backend had given.
 
 Honesty rules the client keeps:
 
@@ -171,5 +195,14 @@ Honesty rules the client keeps:
   unavailable-is-not-empty, an unmeasured summary is `null` rather than zero, stale and restricted
   reporting, absent payload, the store's single-read lanes and retry wiring, one shared slice-reading
   implementation, and bilingual strip vocabulary.
-- Full suites: `python -m pytest tests -q --ignore=tests/integration` (green) and the client suite in
-  `clients/web`; results are recorded in the execution checkpoint.
+- `clients/web/tests/tradingContextProjections.test.ts` (14 tests) drives the real store with mocked
+  answers and deferred promises (`tests/support/apiStoreHarness.ts` loads `stores/api.ts` through the
+  project's own Vite pipeline with only the HTTP boundary swapped): the selected context reaching the
+  request in the route's own query names, a context change answering a lane whose first read is still
+  pending, an out-of-order answer refused in an A → B → A switch, a failed read re-read for the next
+  context with unasked lanes left unread, a retry pass asking the question it started with, a batch
+  that lands after a projection change not repopulating the fields the projection owns, a sign-out
+  dropping queued work, and the session transition publishing the URL's context first.
+- Current independently verified results and runtime limitations are recorded in the
+  execution checkpoint. The worker's broader Python run hit the known sandbox-only
+  outside-workspace Markdown fixture failure; the reviewer reran that module successfully.

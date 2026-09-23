@@ -82,8 +82,12 @@ test("currency means both an open session and an unchanged identity generation",
   // Dropping a stale answer must not strand the loading flag: every path that
   // invalidates the generation also resets the identity-scoped slices, and that
   // reset clears `loading` and `error` (workspaceLoading.resetIdentityScopedCaches).
+  //
+  // Eight sites: the identity reads (bootstrap, login and both `fetchMe` exits), the workspace batch
+  // and the retry pass, the sign-out, and the portfolio read the trading context's own re-read
+  // issues - a 401 the batch would have caught had that read been part of one.
   const invalidations = [...store.matchAll(/invalidateIdentitySession\(\);/g)];
-  assert.equal(invalidations.length, 7);
+  assert.equal(invalidations.length, 8);
   for (const invalidation of invalidations) {
     const after = store.slice(invalidation.index ?? 0, (invalidation.index ?? 0) + 400);
     assert.ok(

@@ -124,7 +124,10 @@ export function contextAsOf(
   return projection?.as_of_utc ?? null;
 }
 
-/** The declared time basis, as the backend stated it (gas day, basis id, zone). */
+/**
+ * The declared time basis, as the backend stated it: the basis of every value (`time_basis.basis`),
+ * the gas day and the frozen gas-day calendar version that encoded that day's boundaries.
+ */
 export function contextTimeBasis(
   projection: MarketContextProjectionDTO | null | undefined,
 ): Record<string, unknown> | null {
