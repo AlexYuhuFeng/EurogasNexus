@@ -77,6 +77,22 @@ smallest coherent group, and rerun the same gates. The previous local-runtime
 blocker does not imply GitHub's PostgreSQL service failed. Production remains
 NOT APPROVED. No release or deployment was performed.
 
+September 24 local PostgreSQL recovery: the existing Docker PostgreSQL service
+is healthy and the API connection has been restored. The earlier missing URL
+was a missing application-process configuration, not a failed database. Read-only
+validation confirms connectivity, no missing required tables and revision
+`0036_job_records`, equal to Alembic head. No migration or market-data write was
+performed. A machine-local, Git-ignored launcher at
+`.automation/runtime/start-local-api.ps1` obtains the existing container settings
+in memory, validates the database and starts the development API on loopback;
+`-ValidateOnly` checks the connection without starting another API. No credentials
+are stored in the launcher or this checkpoint. `/api/health` now returns healthy
+with authentication enforced. The previously supplied UAT username is not
+provisioned in this database; a different active analyst identity exists. Await
+the user's choice of that existing identity versus explicit UAT administrator
+provisioning. Do not silently create roles, widen scopes or disable authentication.
+This resolves the database connectivity blocker, not authenticated UAT acceptance.
+
 ## Historical programme state
 V2 pack version: 2026-09 autonomous runner
 Current wave: Waves 0-10 have delivered slices. Wave 11 (RC/GA readiness) has not started.
