@@ -1407,12 +1407,26 @@ The data-plane badge keeps its slot and loses the store's name.
   it rendered the store's name ("Runtime DB") as if it were a state, outside the
   operational vocabulary §15 mandates, as a white pill identical to the selects
   beside it, which §13 and §22 both speak against.
-- It is now the canonical `StatusBadge` primitive showing Ready / Partial /
-  Unavailable, with the store named in the title - §15 explicitly allows a title
-  as the second signal. The mapping sits in one place because three surfaces
-  render this value, and the market overview had been printing the raw enum.
-  Fail-closed: an unrecognised state reads as Unavailable, including the
-  `delayed` slot the store type still carries with no producer.
+- It is now the canonical `StatusBadge` primitive showing one shared vocabulary,
+  with the store named in the title - §15 explicitly allows a title as the second
+  signal. The mapping sits in one place because three surfaces render this value,
+  and the market overview had been printing the raw enum. Fail-closed: an
+  unrecognised state reads as Unavailable, including the `delayed` slot the store
+  type still carries with no producer.
+- **Wording repaired 2026-09-24 (authenticated-HMI audit, readiness semantics
+  P1).** The vocabulary was Ready / Partial / Unavailable, and on the market
+  overview "Ready" sat beside projection slices that were stale or missing: a
+  reader takes that as the screen's readiness rather than as the runtime store's
+  own availability, and runtime-store provenance is not market-data fitness. The
+  shared words are now `Runtime data available` / `Runtime data partially
+  available` / `Runtime data delayed` / `Runtime data unavailable` / `Runtime data
+  availability unknown`, under the `Runtime data availability` caption, in both
+  locales. The store stays in the title, which now also says the state is not a
+  statement of market-data freshness, licensing or decision fitness. The market
+  strip's "Source posture" caption and the settings metric's "Runtime API" caption
+  went with the misreading, and the per-slice freshness disclosure is untouched.
+  The chip widths recorded below (54px at 1440, 38px at 390x844) measured the
+  retired "Ready" text and need a fresh live measurement.
 - Sizing needed pinning twice: the header controls row is a flex row on wide
   viewports and a two-column grid on narrow ones, and the first fix covered only
   the flex case, leaving the chip at half the row on a phone. Measured before and

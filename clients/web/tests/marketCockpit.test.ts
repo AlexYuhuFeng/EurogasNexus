@@ -10,6 +10,7 @@ import {
   marketTaskFromSearch,
   marketTaskToSearch,
 } from "../src/app/model/marketCockpitModel.ts";
+import { runtimeDataAvailabilityLabelKey } from "../src/app/model/dataPlaneStatus.ts";
 
 function readWebSource(relativePath: string): string {
   return readFileSync(new URL(`../src/${relativePath}`, import.meta.url), "utf8");
@@ -115,15 +116,21 @@ test("the market overview renders the data status as a translated label", () => 
   // The overview printed the store's enum value verbatim, so both locales showed
   // the internal token ("runtime") next to a translated label, and the zh
   // surface carried an untranslated English word. It now shares the shell's
-  // mapping, so the header, settings and this strip say the same words.
+  // mapping, so the header, settings and this strip say the same words - and the
+  // words are about runtime data availability, because "Ready" beside stale or
+  // missing projection slices read as decision readiness (HMI audit, P1).
   assert.equal(cockpit.includes("<strong>{api.dataStatus}</strong>"), false);
   assert.match(cockpit, /dataPlaneState\(api\.dataStatus\)/);
-  assert.match(cockpit, /t\(dataPlaneLabelKey\(/);
+  assert.match(cockpit, /t\(runtimeDataAvailabilityLabelKey\(runtimeAvailability\)\)/);
+  assert.match(cockpit, /t\(RUNTIME_DATA_AVAILABILITY_CAPTION_KEY\)/);
 
-  // Every state the mapping can produce must stay translatable in both locales.
-  for (const state of ["ready", "partial", "unavailable"]) {
-    assert.equal(typeof en[`data.${state}`], "string", `en data.${state}`);
-    assert.equal(typeof zh[`data.${state}`], "string", `zh data.${state}`);
+  // Every state the mapping can produce must stay translatable in both locales, and
+  // none of them may stand in for the overall readiness word.
+  for (const state of ["available", "partial", "delayed", "unavailable", "unknown"] as const) {
+    const key = runtimeDataAvailabilityLabelKey(state);
+    for (const [locale, translations] of [["en", en], ["zh", zh]] as const) {
+      assert.equal(typeof translations[key], "string", `${locale} ${key}`);
+      assert.equal(translations[key].includes(translations["data.ready"]), false, locale);
+    }
   }
 });
-

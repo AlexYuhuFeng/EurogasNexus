@@ -33,7 +33,12 @@ import {
   type MarketViewPreferenceId,
 } from "@/app/context";
 import type { ThemeMode } from "@/stores/theme";
-import { dataPlaneLabelKey, dataPlaneState } from "@/app/model/dataPlaneStatus";
+import {
+  RUNTIME_DATA_AVAILABILITY_CAPTION_KEY,
+  dataPlaneState,
+  runtimeDataAvailability,
+  runtimeDataAvailabilityLabelKey,
+} from "@/app/model/dataPlaneStatus";
 import { StatusBadge } from "@/components/ui";
 
 type Translate = (key: string) => string;
@@ -142,6 +147,11 @@ export function SettingsCenter({
   const [mapTileMessage, setMapTileMessage] = useState<string | null>(null);
   const selectedMapTileProvider =
     mapTileProviderById(mapTileProviderId) ?? MAP_TILE_PROVIDERS[0];
+  /**
+   * The runtime store's own availability, as the workspace batch reported it - never a
+   * statement that the readings inside that store are fresh or fit to decide on.
+   */
+  const runtimeAvailability = runtimeDataAvailability(dataStatus);
 
   useEffect(() => {
     localStorage.setItem(PREFERENCE_STORAGE_KEY, JSON.stringify(preferences));
@@ -220,7 +230,10 @@ export function SettingsCenter({
         <div className="metric-grid four-column settings-status-strip">
           <div><span>{t("settings.active_sources")}</span><strong>{activeSources}</strong></div>
           <div><span>{t("settings.api_services")}</span><strong>{credentialProviders.length}</strong></div>
-          <div><span>{t("settings.runtime_api")}</span><strong>{t(dataPlaneLabelKey(dataPlaneState(dataStatus)))}</strong></div>
+          <div>
+            <span>{t(RUNTIME_DATA_AVAILABILITY_CAPTION_KEY)}</span>
+            <strong>{t(runtimeDataAvailabilityLabelKey(runtimeAvailability))}</strong>
+          </div>
           <div><span>{t("settings.runtime_db")}</span><strong>{runtimeDb?.connectivity.ok ? "ok" : "n/a"}</strong></div>
         </div>
       </div>
@@ -263,7 +276,7 @@ export function SettingsCenter({
             status={dataPlaneState(dataStatus)}
             title={t("data.runtime_detail")}
           >
-            {t(dataPlaneLabelKey(dataPlaneState(dataStatus)))}
+            {t(runtimeDataAvailabilityLabelKey(runtimeAvailability))}
           </StatusBadge>
         </div>
         <div className="settings-backend-form">

@@ -9,7 +9,11 @@ import {
   storeLanguage,
   SUPPORTED_LANGUAGES,
 } from "../src/i18n/language.ts";
-import { dataPlaneLabelKey, dataPlaneState } from "../src/app/model/dataPlaneStatus.ts";
+import {
+  dataPlaneState,
+  runtimeDataAvailability,
+  runtimeDataAvailabilityLabelKey,
+} from "../src/app/model/dataPlaneStatus.ts";
 
 function readWebSource(relativePath: string): string {
   return readFileSync(new URL(`../src/${relativePath}`, import.meta.url), "utf8");
@@ -134,7 +138,7 @@ test("closing the header menu returns focus to its trigger without waiting for a
   assert.match(menu, /window\.requestAnimationFrame\(\(\) => focusableItems\(\)\[0\]\?\.focus\(\)\)/);
 });
 
-test("the data-plane badge speaks the operational vocabulary, not the store name", () => {
+test("the data-plane badge states runtime data availability, not an overall readiness", () => {
   const bar = readWebSource("components/WorkspaceTopBar.tsx");
   const settings = readWebSource("components/SettingsCenter.tsx");
   const en = JSON.parse(readWebSource("i18n/en.json")) as Record<string, string>;
@@ -146,22 +150,38 @@ test("the data-plane badge speaks the operational vocabulary, not the store name
   for (const value of ["unavailable", "delayed", "loading", "", null, undefined, "mystery"]) {
     assert.equal(dataPlaneState(value), "unavailable", String(value));
   }
-  assert.equal(dataPlaneLabelKey("ready"), "data.ready");
+  // The words are the runtime store's own availability: "Ready" would have read as the
+  // screen's readiness while the projection slices beside it were stale or missing.
+  assert.equal(
+    runtimeDataAvailabilityLabelKey(runtimeDataAvailability("runtime")),
+    "data.runtime_available",
+  );
 
   // One vocabulary in both surfaces, both locales. The store name survives only
   // as the badge's title detail (`data.runtime_detail`), never as the status.
   for (const file of [bar, settings]) {
     assert.match(file, /dataPlaneState\(/);
-    assert.match(file, /dataPlaneLabelKey\(/);
+    assert.match(file, /runtimeDataAvailabilityLabelKey\(/);
     assert.equal(file.includes('"data.runtime"'), false);
     assert.equal(file.includes("`data.${"), false);
   }
   for (const [locale, translations] of [["en", en], ["zh", zh]] as const) {
-    for (const key of ["data.ready", "data.partial", "data.unavailable", "data.runtime_detail"]) {
+    for (const key of [
+      "data.ready",
+      "data.partial",
+      "data.unavailable",
+      "data.runtime_detail",
+      "data.runtime_available",
+      "data.runtime_availability",
+    ]) {
       assert.equal(typeof translations[key], "string", `${locale} ${key}`);
     }
     // The store name is no longer a status label in either language.
     assert.equal("data.runtime" in translations, false, locale);
     assert.equal("data.delayed" in translations, false, locale);
+    // The captions this cell and this metric used to invent are gone with the wording:
+    // "Source posture" said source health where the store's availability was shown.
+    assert.equal("context.source_posture" in translations, false, locale);
+    assert.equal("settings.runtime_api" in translations, false, locale);
   }
 });

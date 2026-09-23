@@ -55,6 +55,28 @@ authenticated app, then address misleading readiness and per-slice filter
 disclosure. Global monitoring streams remain operational feeds, not scoped
 projection evidence. Keep commercial release disposition NOT APPROVED.
 
+September 24 continuity follow-up (baseline `796b734`, current with origin/main):
+DeepSeek repaired the runtime-availability wording across Market Overview,
+the header and Settings. Runtime provenance now says "Runtime data available"
+or its partial/delayed/unavailable/unknown equivalent, not overall "Ready".
+Per-row freshness, projection degradation, permissions and backend behaviour
+are unchanged. Independent checks: 589 frontend tests, production build, 28
+focused Python contracts passed; locale parity passed. Longer badge labels still
+need live responsive verification. No PostgreSQL URL is configured in this run.
+
+GitHub CI for `796b734` was inspected, not assumed green: run `35888959943`
+passed web build/tests, PostgreSQL integration and dependency audit, but failed
+browser acceptance. Its evidence covers 96 checks (16 surfaces, EN/ZH, three
+viewports), with 33 failure entries. The network rail is not keyboard-focusable;
+the harness also reports lingering loading states and missing rendered rows,
+and `/api/contracts/upstream?limit=5` returns 404. Distinguish real application
+failures from stale probe assumptions before fixing either; do not add exemptions.
+Next bounded milestone: diagnose these browser-acceptance failures from the
+downloaded evidence (`output/ci-35888959943`, ignored local files), repair the
+smallest coherent group, and rerun the same gates. The previous local-runtime
+blocker does not imply GitHub's PostgreSQL service failed. Production remains
+NOT APPROVED. No release or deployment was performed.
+
 ## Historical programme state
 V2 pack version: 2026-09 autonomous runner
 Current wave: Waves 0-10 have delivered slices. Wave 11 (RC/GA readiness) has not started.

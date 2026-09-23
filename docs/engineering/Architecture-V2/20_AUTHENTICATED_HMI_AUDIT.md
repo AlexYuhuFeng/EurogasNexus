@@ -137,3 +137,35 @@ portfolio/review also do not apply hub/product filters. Existing per-slice
 `context_filter` metadata must be surfaced clearly in the next HMI milestone.
 Readiness semantics, complete responsive acceptance and release approval remain
 open. This checkpoint does not approve customer production.
+
+## Runtime wording and CI evidence
+
+September 24 follow-up, baseline `796b734`: Market Overview, the header and
+Settings now label the runtime-data availability explicitly, not overall
+readiness. Unknown states remain non-healthy. Other uses of `data.ready`, market
+freshness and the projection degradation disclosures are unchanged. This closes
+the specific misleading runtime badge, not the broader decision-fitness finding.
+Independent checks: 589 frontend tests, production build, 28 focused Python
+contracts and locale parity passed. Live layout checks for the longer EN/ZH
+labels remain pending; no new authenticated local session was available.
+
+[GitHub CI run 35888959943](https://github.com/AlexYuhuFeng/EurogasNexus/actions/runs/35888959943)
+for `796b734` passed the web and PostgreSQL integration jobs but failed browser
+acceptance. The downloaded report contains 96 surface checks across EN/ZH and
+1440x900, 1920x1080 and 390x844, and 33 failure entries (not 33 distinct defects).
+This is CI evidence, not a new local live-browser inspection or a passed UAT.
+
+- Axe reports `scrollable-region-focusable` for `#network-rail-panel` in both
+  desktop sizes and both languages.
+- Functional probes report persistent loading on Network, Capacity and sometimes
+  Research, plus returned-but-not-rendered rows on Orders, Runtime and Settings.
+  Probe assumptions and actual surface state both need diagnosis.
+- Contracts checks generate six 404 console errors; API logs identify the
+  requested path as `/api/contracts/upstream?limit=5`. Check the probe against
+  the actual route contract before attributing this to the application.
+- The agent-research fixture reports its chain complete; that does not override
+  the failed whole-product gate.
+
+Evidence is retained locally under `output/ci-35888959943`, excluded from Git.
+These failures are the next acceptance-repair priority. No exemptions were added,
+no workflow was disabled, and commercial disposition remains NOT APPROVED.

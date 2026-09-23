@@ -14,7 +14,12 @@ import { useCopilotSources } from "@/app/hooks/useCopilot";
 import type { AiActionKind } from "@/app/experience/vocabulary";
 import { useInspectorStore } from "@/stores/inspector";
 import type { AppController } from "@/app/hooks/useAppController";
-import { dataPlaneLabelKey, dataPlaneState } from "@/app/model/dataPlaneStatus";
+import {
+  RUNTIME_DATA_AVAILABILITY_CAPTION_KEY,
+  dataPlaneState,
+  runtimeDataAvailability,
+  runtimeDataAvailabilityLabelKey,
+} from "@/app/model/dataPlaneStatus";
 import "./market-cockpit.css";
 
 import {
@@ -130,6 +135,12 @@ function MarketOverview({ controller }: MarketOverviewProps) {
     [comparisonRows],
   );
   const focusedHub = traderContext.hubId;
+  /**
+   * The runtime store's own availability, as the workspace batch reported it. It is not
+   * this grid's readiness: the projection strip above discloses which slices are stale or
+   * missing, and these words must not stand in for that.
+   */
+  const runtimeAvailability = runtimeDataAvailability(api.dataStatus);
   // Wave 9 hand-over: the Inspector shows the object the hub board actually
   // displayed for the focused hub - the quote when one exists, otherwise the
   // normalized observation. It resolves detail from data this surface already
@@ -150,9 +161,9 @@ function MarketOverview({ controller }: MarketOverviewProps) {
         <span><small>{t("context.gas_day")}</small><strong>{traderContext.gasDay}</strong></span>
         <span><small>{t("context.product")}</small><strong>{traderContext.deliveryProduct}</strong></span>
         <span><small>{t("context.hub")}</small><strong>{focusedHub ?? t("context.all_hubs")}</strong></span>
-        <span className={api.dataStatus === "runtime" ? "ready" : "issue"}>
-          <small>{t("context.source_posture")}</small>
-          <strong>{t(dataPlaneLabelKey(dataPlaneState(api.dataStatus)))}</strong>
+        <span className={dataPlaneState(api.dataStatus) === "ready" ? "ready" : "issue"}>
+          <small>{t(RUNTIME_DATA_AVAILABILITY_CAPTION_KEY)}</small>
+          <strong>{t(runtimeDataAvailabilityLabelKey(runtimeAvailability))}</strong>
         </span>
         <button type="button" onClick={() => void api.refreshMarketData()}>{t("market.refresh")}</button>
       </section>

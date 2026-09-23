@@ -18,7 +18,11 @@ import type { ApiState } from "@/stores/api";
 import type { ThemeMode } from "@/stores/theme";
 import type { CurrentUserDTO } from "@/api/client";
 import { buildSourceSummary, type SourceStats } from "@/app/workspaceDerivedData";
-import { dataPlaneLabelKey, dataPlaneState } from "@/app/model/dataPlaneStatus";
+import {
+  dataPlaneState,
+  runtimeDataAvailability,
+  runtimeDataAvailabilityLabelKey,
+} from "@/app/model/dataPlaneStatus";
 import { formatUtcTimestamp } from "@/app/model/evidencePresentation";
 import { AlertCenter } from "./AlertCenter";
 import { HeaderPreferencesMenu } from "./HeaderPreferencesMenu";
@@ -100,6 +104,12 @@ export function WorkspaceTopBar({
     sourceError: sourceEndpointError,
     dataStatus,
   });
+  /**
+   * The badge states what the workspace batch reported about the runtime store's own
+   * data. It is not the shell's, the market's or a decision's readiness: a runtime
+   * store can answer while the readings inside it are stale or missing.
+   */
+  const runtimeAvailability = runtimeDataAvailability(dataStatus);
   // Architecture V2 control-plane boundary: the administration primary is only
   // offered to an identity whose composition includes an administration
   // capability. Presentation only - the backend authorises every request - and it
@@ -243,13 +253,13 @@ export function WorkspaceTopBar({
             {streamingActive ? t("stream.live") : t("stream.polling_fallback")}
           </span>
           {/*
-            The shell owns runtime/data status, so the badge stays - but it speaks
-            the constitution's operational vocabulary (Ready / Partial /
-            Unavailable) rather than the store's name, and it is the canonical
-            StatusBadge, which reads as state instead of as a control beside the
-            context selects. It is absent while loading: the source-posture block
-            beside it already says "checking", and a badge that flipped to red
-            mid-load would report a failure that has not happened.
+            The shell owns runtime/data status, so the badge stays - but it names
+            runtime data availability rather than an overall readiness, and it is
+            the canonical StatusBadge, which reads as state instead of as a control
+            beside the context selects. The store is named in the title detail
+            only. It is absent while loading: the source-posture block beside it
+            already says "checking", and a badge that flipped to red mid-load would
+            report a failure that has not happened.
           */}
           {!loading && (
             <StatusBadge
@@ -258,7 +268,7 @@ export function WorkspaceTopBar({
               className="topbar-data-status"
               title={t("data.runtime_detail")}
             >
-              {t(dataPlaneLabelKey(dataPlaneState(dataStatus)))}
+              {t(runtimeDataAvailabilityLabelKey(runtimeAvailability))}
             </StatusBadge>
           )}
           <div className="topbar-user-menu">
