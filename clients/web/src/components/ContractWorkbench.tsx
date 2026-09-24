@@ -339,7 +339,15 @@ export function ContractWorkbench({
             const resourceInPool = portfolioResources.some((resource) => resource.resource_id === saved.contract_id);
             const selected = selectedResourceId === saved.contract_id || saved.contract_id === contract.contract_id;
             return (
-              <div key={saved.contract_id} className={`contract-library-row ${selected ? "selected" : ""}`}>
+              <div
+                key={saved.contract_id}
+                className={`contract-library-row ${selected ? "selected" : ""}`}
+                // The row carries the persisted term's own id, so the acceptance sweep compares it
+                // with the upstream-terms read by exact id rather than by page text
+                // (`scripts/uat/readToRender.mjs`).
+                data-record="upstream-contract"
+                data-record-id={saved.contract_id}
+              >
                 <button type="button" className="contract-library-load" onClick={() => loadTerm(saved)}>
                   <span><strong>{saved.contract_name}</strong><small>{saved.contract_id} · {saved.delivery_point_name} · {saved.gas_year}</small></span>
                   <span><strong>{formatQuantity(saved.delivery_quantity_mwh_per_day)}</strong></span>
@@ -372,7 +380,7 @@ export function ContractWorkbench({
                 </button>
               </div>
             );
-          })}{upstreamContracts.length === 0 && <p className="panel-copy">{t("contracts.no_saved_contracts")}</p>}</div>
+          })}{upstreamContracts.length === 0 && <p className="panel-copy" data-empty-state="contract-library">{t("contracts.no_saved_contracts")}</p>}</div>
         </section>
       )}
       <footer className="contract-boundary-note">{t("contracts.boundary_note")}</footer>
