@@ -1,3 +1,5 @@
+import type { RuntimeDbStatusDTO } from "@/api/client";
+
 /**
  * The shell's runtime data-availability badge.
  *
@@ -67,3 +69,21 @@ export function runtimeDataAvailabilityLabelKey(availability: RuntimeDataAvailab
 
 /** Translation key for the caption naming what those labels are about. */
 export const RUNTIME_DATA_AVAILABILITY_CAPTION_KEY = "data.runtime_availability";
+
+/**
+ * Whether the runtime store's own status read has answered for this session.
+ *
+ * The status slice is null until the workspace batch's status read answers, and it stays null when
+ * that read fails or is superseded. Neither is the fact "the store answered and is not connected",
+ * which is what a surface claims when it renders a boolean `runtimeDbReady` as `false`.
+ */
+export type RuntimeStoreStatus = "unknown" | "ready" | "unavailable";
+
+export function runtimeStoreStatus(
+  runtimeDb: RuntimeDbStatusDTO | null | undefined,
+): RuntimeStoreStatus {
+  if (!runtimeDb) return "unknown";
+  return runtimeDb.database_url_present === true && runtimeDb.connectivity.ok === true
+    ? "ready"
+    : "unavailable";
+}

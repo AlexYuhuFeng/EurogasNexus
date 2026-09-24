@@ -90,6 +90,9 @@ interface NetworkWorkspaceProps {
 }
 
 function geometryMessageKey(state: NetworkGeometryState): string {
+  // The status read has not answered: the map states that, and never claims a disconnection it
+  // has no reading for.
+  if (state === "runtime_unknown") return "map.runtime_unknown_body";
   if (state === "runtime_missing") return "map.runtime_missing_body";
   if (state === "nodes_missing") return "map.nodes_missing_body";
   if (state === "edges_missing") return "map.network_warning_body";
@@ -265,7 +268,9 @@ export function NetworkWorkspace({
                 ? t("data.ready")
                 : ["corridors_only", "unverified_geometry"].includes(networkGeometryState)
                   ? t("data.partial")
-                  : t("data.unavailable")}
+                  : networkGeometryState === "runtime_unknown"
+                    ? t("status.unknown")
+                    : t("data.unavailable")}
             </strong>
           </div>
           <div className={networkGeometryState === "loaded" ? "map-network-state ready" : "map-network-state blocked"}>

@@ -40,6 +40,7 @@ import {
   snapshotContextFrom,
 } from "@/app/model/analysisSnapshotModel";
 import { sourceRunOutcome, type SourceRunOutcome } from "@/app/model/sourceRunModel";
+import { runtimeStoreStatus } from "@/app/model/dataPlaneStatus";
 import {
   api,
   AnalysisRequestDTO,
@@ -723,6 +724,10 @@ export interface ApiState {
   reviewSnapshotId: string | null;
   marketLastUpdatedAtUtc: string | null;
   loading: boolean;
+  /** True exactly while the workspace batch (or its retry pass) is in flight. */
+  workspaceLoading: boolean;
+  /** How many workspace batches have committed for this session; 0 means nothing has answered. */
+  workspaceLoadsCommitted: number;
   streamingActive: boolean;
   error: string | null;
   credentialMessage: string | null;
@@ -772,7 +777,11 @@ export interface ApiState {
    * surface cannot show a run that was never queued.
    */
   requestSourceRun: (sourceId: string, reason: string) => Promise<void>;
-  dataStatus: "runtime" | "delayed" | "partial" | "unavailable";
+  /**
+   * What the last workspace batch reported about the runtime store's own data. `unknown` is the
+   * state before any batch has answered, and after an identity reset.
+   */
+  dataStatus: "unknown" | "runtime" | "delayed" | "partial" | "unavailable";
   bootstrapIdentity: () => Promise<void>;
   login: (username: string, password: string) => Promise<void>;
   fetchWorkspace: () => Promise<void>;
@@ -1100,7 +1109,14 @@ export const useApiStore = create<ApiState>((set, get) => ({
   snapshotMessage: null,
   reviewSnapshotId: null,
   marketLastUpdatedAtUtc: null,
+  /**
+   * In-flight activity, including on-demand actions. A surface that states the workspace's own
+   * load state reads `workspaceLoading` instead.
+   */
   loading: false,
+  /** The initial workspace batch (and its bounded retry) is in flight; nothing else sets this. */
+  workspaceLoading: false,
+  workspaceLoadsCommitted: 0,
   streamingActive: false,
   error: null,
   credentialMessage: null,
@@ -1110,7 +1126,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
   dataProducts: null,
   agentRuns: [],
   strategyVersions: [],
-  dataStatus: "unavailable",
+  dataStatus: "unknown",
 
   bootstrapIdentity: async () => {
     // Identity first: no workspace, market, monitoring or stream request may be
@@ -1194,7 +1210,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
     if (logoutInProgress) return;
     if (!isIdentityGateOpen(get().authState)) return;
     const load = startWorkspaceLoad();
-    set({ loading: true, error: null });
+    set({ loading: true, workspaceLoading: true, error: null });
     const releaseOutcome = await loadWorkspaceEndpoint(api.runtimeRelease, {
       signal: load.signal,
       timeoutMs: DEFAULT_WORKSPACE_READ_TIMEOUT_MS,
@@ -1264,14 +1280,19 @@ export const useApiStore = create<ApiState>((set, get) => ({
         )
       : retainedPortfolioLane(get());
     const allFailed = Object.keys(endpointErrors).length === batchLoaders.length;
+    // A status read that did not answer (failed, timed out or superseded) leaves the status
+    // unknown: holding no evidence about the store is not evidence that it is unreachable.
+    const runtimeStatus = runtimeStoreStatus(runtimeDb);
     const resolvedStatus =
-      !runtimeDb || !runtimeDb.database_url_present || !runtimeDb.connectivity.ok
-        ? "unavailable"
-        : hasRuntime && hasDbMissing
-          ? "partial"
-          : hasRuntime
-            ? "runtime"
-            : "partial";
+      runtimeStatus === "unknown"
+        ? "unknown"
+        : runtimeStatus === "unavailable"
+          ? "unavailable"
+          : hasRuntime && hasDbMissing
+            ? "partial"
+            : hasRuntime
+              ? "runtime"
+              : "partial";
 
     set({
       nodes: (slices.referenceNodes ?? []) as NodeDTO[],
@@ -1327,6 +1348,8 @@ export const useApiStore = create<ApiState>((set, get) => ({
       meta: batchMeta.referenceNodes ?? null,
       dataStatus: resolvedStatus,
       loading: workspaceCommit.loading,
+      workspaceLoading: workspaceCommit.loading,
+      workspaceLoadsCommitted: get().workspaceLoadsCommitted + 1,
       error: allFailed ? workspaceCommit.error : null,
     });
     void get().fetchStrategySummary();
@@ -1355,6 +1378,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
     const load = startWorkspaceLoad();
     set((state) => ({
       loading: true,
+      workspaceLoading: true,
       error: null,
       endpointRetryBusy: true,
       endpointRetryAttempts: state.endpointRetryAttempts + 1,
@@ -1407,7 +1431,11 @@ export const useApiStore = create<ApiState>((set, get) => ({
       workspaceLoadCoordinator.finish(load.generation);
       // The attempt owns the busy flag: it clears even when a newer workspace
       // load superseded this pass, so the retry control cannot stay disabled.
-      set(current ? { loading: false, endpointRetryBusy: false } : { endpointRetryBusy: false });
+      set(
+        current
+          ? { loading: false, workspaceLoading: false, endpointRetryBusy: false }
+          : { endpointRetryBusy: false },
+      );
     }
   },
 

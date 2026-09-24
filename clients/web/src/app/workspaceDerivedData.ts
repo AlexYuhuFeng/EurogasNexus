@@ -4,6 +4,7 @@ import type {
   SourceCategoryPostureDTO,
   SourceSystemDTO,
 } from "@/api/client";
+import type { RuntimeStoreStatus } from "@/app/model/dataPlaneStatus";
 
 type WarningCarrier = {
   warnings?: string[] | null;
@@ -233,6 +234,7 @@ export function sourceNextActionKey(source: SourceSystemDTO | null): string {
 }
 
 export type NetworkGeometryState =
+  | "runtime_unknown"
   | "runtime_missing"
   | "nodes_missing"
   | "edges_missing"
@@ -303,11 +305,14 @@ export function verifiedEdgeGeometryCoordinates(
 }
 
 export function resolveNetworkGeometryState(
-  runtimeDbReady: boolean,
+  runtimeStore: RuntimeStoreStatus,
   nodes: NodeDTO[],
   edges: EdgeDTO[],
 ): NetworkGeometryState {
-  if (!runtimeDbReady) return "runtime_missing";
+  // A status read that has not answered is not a disconnection: the map reports that it does not
+  // know yet rather than claiming the runtime store is gone.
+  if (runtimeStore === "unknown") return "runtime_unknown";
+  if (runtimeStore === "unavailable") return "runtime_missing";
   if (nodes.length === 0) return "nodes_missing";
   if (edges.length === 0) return "edges_missing";
   const hasVerifiedGeometry = edges.some(

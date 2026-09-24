@@ -53,6 +53,8 @@ export function DiagnosticsPanel({ t }: DiagnosticsPanelProps) {
   const releaseCompatibility = useApiStore((state) => state.releaseCompatibility);
   const dataStatus = useApiStore((state) => state.dataStatus);
   const endpointErrorCodes = useApiStore((state) => state.endpointErrorCodes);
+  const workspaceLoading = useApiStore((state) => state.workspaceLoading);
+  const workspaceLoadsCommitted = useApiStore((state) => state.workspaceLoadsCommitted);
   const marketContext = useApiStore((state) => state.marketContext);
   const portfolioSnapshot = useApiStore((state) => state.portfolioSnapshot);
   const reviewContext = useApiStore((state) => state.reviewContext);
@@ -76,9 +78,10 @@ export function DiagnosticsPanel({ t }: DiagnosticsPanelProps) {
     } catch {
       jobStates = null;
     }
-    // Before the workspace reads completed, an empty failure map is the absence of evidence
-    // rather than evidence of health, so the slices are reported as unavailable instead.
-    const slicesLoaded = dataStatus !== "unavailable";
+    // An empty failure map before the reads completed is the absence of evidence rather than
+    // evidence of health, so the slices are reported as unavailable instead. Completion is the
+    // committed batch's own fact (an unavailable answer is still an answer), not its provenance.
+    const readsSettled = workspaceLoadsCommitted > 0 && !workspaceLoading;
     setComposition(
       composeDiagnosticsBundle({
         hostKind,
@@ -88,8 +91,8 @@ export function DiagnosticsPanel({ t }: DiagnosticsPanelProps) {
         schemaRevision: runtimeRelease?.database_schema_revision ?? null,
         releaseCompatibility: releaseCompatibility?.state ?? null,
         dataStatus,
-        endpointFailureCodes: slicesLoaded ? { ...endpointErrorCodes } : null,
-        degradedSlices: slicesLoaded
+        endpointFailureCodes: readsSettled ? { ...endpointErrorCodes } : null,
+        degradedSlices: readsSettled
           ? [
               ...degradedSlices(marketContext).map((reading) => `market:${reading.key}:${reading.freshnessState}`),
               ...degradedPortfolioSlices(portfolioSnapshot).map(

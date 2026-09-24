@@ -33,7 +33,9 @@ def test_workspace_derived_data_helpers_match_app_contract() -> None:
         "buildSourcesByCategory(sources)",
         "filterSourcesByCategory(sources, sourceCategory)",
         "sourceNextActionKey(source)",
-        "resolveNetworkGeometryState(runtimeDbReady, api.nodes, api.edges)",
+        # The map's geometry state is resolved from the three-valued runtime-store status: a
+        # pending status read is not a disconnection (September 2026 runtime-loader repair).
+        "resolveNetworkGeometryState(runtimeStore, api.nodes, api.edges)",
     ]:
         assert app_phrase in application_text
     for removed_phrase in [

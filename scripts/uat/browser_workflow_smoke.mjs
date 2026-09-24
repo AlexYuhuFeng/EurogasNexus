@@ -396,6 +396,35 @@ async function inspectWorkspace(
     );
   }
 
+  /**
+   * The functional gate below judges a surface "after load", so the sweep waits for the page's own
+   * workspace read to settle instead of racing it.
+   *
+   * The page publishes that fact itself (`data-workspace-load-state`, `unread | loading | settled`):
+   * it is the batch's state, not `api.loading`, which is also true while an unrelated on-demand
+   * action runs, and a settled read is not the same as a boolean that is false before the read even
+   * starts. The sweep used to evaluate immediately, so on a slow CI database it measured surfaces
+   * whose read was still in flight and reported pending states as lingering loading copy and missing
+   * rows. A page that never settles is still a failure - the wait is bounded and its expiry recorded.
+   */
+  const settleScope = `${language.id}/${viewport.id}/${workspace}`;
+  const settled = await page
+    .waitForFunction(
+      () => [...document.querySelectorAll(".workspace-page")]
+        .some((element) => element.dataset.workspaceLoadState === "settled"),
+      null,
+      { timeout: 20_000 },
+    )
+    .then(() => true)
+    .catch(() => false);
+  if (!settled) {
+    recordFailure(
+      failures,
+      settleScope,
+      "the workspace read never settled (data-workspace-load-state was not 'settled' after 20s)",
+    );
+  }
+
   const state = await page.evaluate(() => ({
     lang: document.documentElement.lang,
     scrollWidth: document.documentElement.scrollWidth,

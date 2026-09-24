@@ -205,7 +205,9 @@ test("losing an identity clears every identity-scoped slice and returns to sign-
   assert.deepEqual(reset.marketQuotes, []);
   assert.deepEqual(reset.intradayOpportunities, []);
   assert.equal(reset.loading, false);
-  assert.equal(reset.dataStatus, "unavailable");
+  assert.equal(reset.workspaceLoading, false);
+  // The new session has read nothing about the runtime store, so it holds no verdict on it.
+  assert.equal(reset.dataStatus, "unknown");
 
   const denied = identityDeniedWorkspaceReset(
     [

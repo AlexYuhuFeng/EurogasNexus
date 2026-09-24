@@ -183,8 +183,12 @@ test("the surface composes through the rule, shows what is missing, and reports 
 
   // A read that failed is reported as unavailable rather than as zero work.
   assert.match(panel, /jobStates = null;/);
-  assert.match(panel, /const slicesLoaded = dataStatus !== "unavailable";/);
-  assert.match(panel, /endpointFailureCodes: slicesLoaded \? \{ \.\.\.endpointErrorCodes \} : null/);
+  // Whether the reads completed is the committed batch's own fact, never its provenance: an
+  // unavailable answer is an answer, and a batch in flight has not settled.
+  assert.match(panel, /const readsSettled = workspaceLoadsCommitted > 0 && !workspaceLoading;/);
+  assert.match(panel, /endpointFailureCodes: readsSettled \? \{ \.\.\.endpointErrorCodes \} : null/);
+  assert.match(panel, /degradedSlices: readsSettled/);
+  assert.equal(panel.includes("workspaceReadsAnswered"), false);
 
   // What leaves is shown before it leaves, including the fields that could not be reported.
   assert.match(panel, /composition\.unavailableFields\.map/);

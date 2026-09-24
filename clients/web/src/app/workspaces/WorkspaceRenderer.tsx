@@ -67,10 +67,19 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
         label: t(`nav.${page}`),
       }));
 
+  // The page's own read lifecycle (`unread | loading | settled`), published so a measurement can
+  // judge a surface after its read settled rather than mid-load. It is the batch's state, not
+  // `api.loading`, which is also true while an on-demand action runs.
+  const workspaceLoadState = api.workspaceLoading
+    ? "loading"
+    : api.workspaceLoadsCommitted > 0
+      ? "settled"
+      : "unread";
   return (
     <section
       className="workspace-page"
       id="workspace-active-panel"
+      data-workspace-load-state={workspaceLoadState}
       aria-label={`${t("app.title")} — ${t(activePrimaryWorkspace.labelKey)}`}
     >
       {!usesConsolidatedHeader && (
@@ -216,7 +225,7 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
           durationStart={glossary.durationStart}
           durationEnd={glossary.durationEnd}
           shortcutTerms={glossary.shortcutTerms}
-          loading={api.loading}
+          loading={api.workspaceLoading}
           t={t}
           onCategoryChange={glossary.setCategory}
           onQueryChange={glossary.setQuery}

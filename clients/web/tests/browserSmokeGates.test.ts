@@ -98,3 +98,21 @@ test("each surface probe reads a route the product serves, not a path no endpoin
   const client = readFileSync(new URL("../src/api/client.ts", import.meta.url), "utf8");
   assert.match(client, /"\/route-cost\/upstream-contracts"/);
 });
+
+test("the functional gate waits for the surface's own read to settle, and fails a stuck one", () => {
+  // The gate judges a surface "after load", but it used to evaluate immediately: on CI run
+  // 35966584093 it judged surfaces whose workspace batch was still in flight, so pending states
+  // were reported as lingering loading copy and as rows the surface never rendered. Waiting for
+  // the page's own published load state is the missing "after load"; it is not an exemption,
+  // because a page that never settles is recorded as a failure.
+  const settle = block("const settled = await page", "const state = await page.evaluate(() => ({");
+  assert.match(settle, /dataset\.workspaceLoadState === "settled"/);
+  assert.match(settle, /timeout: 20_000/);
+  assert.match(settle, /recordFailure\(\s*failures,\s*settleScope,/);
+  assert.match(settle, /the workspace read never settled/);
+  assert.equal(settle.includes("recordObservation("), false);
+  // A false-before-the-read-started boolean would let the sweep race the batch again.
+  assert.equal(settle.includes("workspaceLoading"), false);
+  // The text-based loading check stays, for the surfaces that are still loading after settling.
+  assert.match(source, /"the surface still shows 'Loading workspace' after load"/);
+});

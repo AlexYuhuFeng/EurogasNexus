@@ -405,7 +405,7 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
             poolInputBlockers={portfolio.poolInputBlockers}
             commercialDiagnostics={portfolio.commercialDiagnostics}
             error={api.error}
-            loading={api.loading}
+            loading={api.workspaceLoading}
             saleOptions={portfolio.saleOptions}
             portfolioResources={portfolio.portfolioResources}
             totalPoolVolume={portfolio.totalPoolVolume}

@@ -130,11 +130,14 @@ export function resetIdentityScopedCaches<T>(monitoringSummary: T) {
     meta: null,
     marketLastUpdatedAtUtc: null,
     loading: false,
+    workspaceLoading: false,
+    workspaceLoadsCommitted: 0,
     streamingActive: false,
     error: null,
     credentialMessage: null,
     contractSaveMessage: null,
-    dataStatus: "unavailable" as const,
+    // The reset leaves a new, unread session: nothing has been read about the runtime store yet.
+    dataStatus: "unknown" as const,
   };
 }
 

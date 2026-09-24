@@ -23,6 +23,7 @@ import {
 import type { ContractDraft } from "@/app/index";
 import { selectScenarioRouteEconomics } from "@/app/model/scenarioRouteEconomics";
 import { buildCommercialDiagnostics } from "@/app/model/commercialWarnings";
+import { runtimeStoreStatus } from "@/app/model/dataPlaneStatus";
 import type { ApiState } from "@/stores/api";
 
 interface PortfolioDecisionModelParams {
@@ -194,8 +195,10 @@ export function usePortfolioDecisionModel({
       api.strategyResult,
     ],
   );
-  const runtimeDbReady =
-    api.runtimeDb?.database_url_present === true && api.runtimeDb.connectivity.ok;
+  // Three states, not two: a status read that has not answered is not a disconnection, and the
+  // copy below may not claim one it has no evidence for.
+  const runtimeStore = runtimeStoreStatus(api.runtimeDb);
+  const runtimeDbReady = runtimeStore === "ready";
   const optionBlockers = api.resourcePoolOptions?.blockers ?? [];
   const canRunPoolOptimizer =
     runtimeDbReady &&
@@ -215,10 +218,11 @@ export function usePortfolioDecisionModel({
     !resultContextMatches(strategyResultContextKey, { gasDay, deliveryProduct, hubId });
   const poolInputBlockers = useMemo(() => {
     const blockers: string[] = [];
-    if (!runtimeDbReady) blockers.push(t("home.blocker_runtime_db"));
+    if (runtimeStore === "unknown") blockers.push(t("home.blocker_runtime_unknown"));
+    else if (!runtimeDbReady) blockers.push(t("home.blocker_runtime_db"));
     blockers.push(...(api.resourcePoolOptions?.blockers ?? []));
     return blockers;
-  }, [api.resourcePoolOptions, runtimeDbReady, t]);
+  }, [api.resourcePoolOptions, runtimeDbReady, runtimeStore, t]);
   const commercialDiagnostics = useMemo(
     () => buildCommercialDiagnostics({
       poolInputBlockers,
@@ -323,8 +327,8 @@ export function usePortfolioDecisionModel({
     t,
   ]);
   const networkGeometryState = useMemo(
-    () => resolveNetworkGeometryState(runtimeDbReady, api.nodes, api.edges),
-    [api.edges, api.nodes, runtimeDbReady],
+    () => resolveNetworkGeometryState(runtimeStore, api.nodes, api.edges),
+    [api.edges, api.nodes, runtimeStore],
   );
 
   function optimizeResourcePoolForCurrentContext() {

@@ -102,7 +102,8 @@ test("retry transition fails closed before applying successful slices after /me 
   assert.deepEqual(reset.resourcePoolOptions, null);
   assert.equal(reset.currentUser, null);
   assert.equal(reset.loading, false);
-  assert.equal(reset.dataStatus, "unavailable");
+  assert.equal(reset.workspaceLoading, false);
+  assert.equal(reset.dataStatus, "unknown");
 });
 
 test("logout timeout aborts its request and returns control", async () => {
@@ -122,7 +123,7 @@ test("logout timeout aborts its request and returns control", async () => {
   assert.equal(aborted, true);
 });
 
-test("identity reset clears rendered data and returns to unavailable loading state", () => {
+test("identity reset clears rendered data and returns to an unread loading state", () => {
   const reset = resetIdentityScopedCaches({ open_count: 0 });
 
   assert.deepEqual(reset.sources, []);
@@ -133,7 +134,10 @@ test("identity reset clears rendered data and returns to unavailable loading sta
   assert.deepEqual(reset.fxRates, []);
   assert.equal(reset.currentUser, null);
   assert.equal(reset.loading, false);
-  assert.equal(reset.dataStatus, "unavailable");
+  assert.equal(reset.workspaceLoading, false);
+  // Nothing has been read in the new session: the runtime store's status is unknown, not
+  // "unavailable", which would be a verdict the client has no reading for.
+  assert.equal(reset.dataStatus, "unknown");
   assert.equal(reset.authState, UNAUTHENTICATED_AUTH_STATE);
 });
 

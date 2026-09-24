@@ -64,6 +64,14 @@ export interface TradingContextValue {
 export interface ApiStoreState {
   authState: string;
   tradingContext: TradingContextValue;
+  /** In-flight activity of any kind, including on-demand actions. */
+  loading: boolean;
+  /** The workspace batch (or its retry pass) is in flight. */
+  workspaceLoading: boolean;
+  /** How many workspace batches have committed for this session. */
+  workspaceLoadsCommitted: number;
+  dataStatus: "unknown" | "runtime" | "delayed" | "partial" | "unavailable";
+  nodes: unknown[];
   marketContext: Record<string, unknown> | null;
   portfolioSnapshot: Record<string, unknown> | null;
   reviewContext: Record<string, unknown> | null;
@@ -79,6 +87,7 @@ export interface ApiStoreState {
   refreshMarketData: () => Promise<void>;
   fetchReviewContext: () => Promise<void>;
   retryFailedWorkspaceEndpoints: () => Promise<void>;
+  optimizeResourcePool: (request: Record<string, unknown>) => Promise<void>;
   publishTradingContext: (context: TradingContextValue) => void;
   refetchTradingContextProjections: () => Promise<void>;
 }

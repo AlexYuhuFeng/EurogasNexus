@@ -118,10 +118,11 @@ export function ReferenceNetworkCatalogue({ t }: ReferenceNetworkCatalogueProps)
     <section className="workspace-panel span-3 reference-network-panel" aria-label={t("network.reference.title")}>
       <PanelHeader
         title={t("network.reference.title")}
-        meta={facilityRead.source ?? t("data.unavailable")}
+        meta={facilityRead.source ?? t("status.unknown")}
       />
       <p className="panel-copy">{t("network.reference.note")}</p>
-      {loading && <p className="muted">{t("status.loading")}</p>}
+      {/* This panel's own read, named as such: the workspace is not loading because one panel is. */}
+      {loading && <p className="muted">{t("network.reference.loading")}</p>}
       {failure && (
         <div className="alert">
           <strong>{failure.title}</strong>

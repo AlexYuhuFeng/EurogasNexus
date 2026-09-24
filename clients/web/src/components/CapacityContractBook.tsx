@@ -70,10 +70,11 @@ export function CapacityContractBook({ t }: CapacityContractBookProps) {
     <section className="workspace-panel capacity-contract-book" aria-label={t("capacity.contracts.title")}>
       <PanelHeader
         title={t("capacity.contracts.title")}
-        meta={read.source ?? t("data.unavailable")}
+        meta={read.source ?? t("status.unknown")}
       />
       <p className="panel-copy">{t("capacity.contracts.note")}</p>
-      {loading && <p className="muted">{t("status.loading")}</p>}
+      {/* This panel's own read, named as such: the workspace is not loading because one panel is. */}
+      {loading && <p className="muted">{t("capacity.contracts.loading")}</p>}
       {failure && (
         <div className="alert">
           <strong>{failure.title}</strong>

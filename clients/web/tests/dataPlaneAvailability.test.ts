@@ -18,6 +18,7 @@ import {
   dataPlaneState,
   runtimeDataAvailability,
   runtimeDataAvailabilityLabelKey,
+  runtimeStoreStatus,
 } from "../src/app/model/dataPlaneStatus.ts";
 import { degradedSlices, sliceReadings } from "../src/app/model/marketContextModel.ts";
 import type { MarketContextProjectionDTO } from "../src/api/client.ts";
@@ -140,4 +141,24 @@ test("a runtime status beside stale or missing market slices never reads as over
   assert.match(cockpit, /t\(RUNTIME_DATA_AVAILABILITY_CAPTION_KEY\)/);
   assert.match(cockpit, /<MarketContextStrip/);
   assert.match(readWebSource("components/MarketContextStrip.tsx"), /degraded=\{degradedSlices\(/);
+});
+
+/**
+ * The pre-read window. Until the workspace batch answers, nothing about the runtime store has been
+ * read, so the shell's badge may not say "Runtime data unavailable" - that is a verdict, and the
+ * store holds no reading for it. The store's own token for that window is `unknown`, which the
+ * label vocabulary already renders as "Runtime data availability unknown".
+ */
+test("the store reports an unread runtime status as unknown, not as unavailable", () => {
+  const store = readWebSource("stores/api.ts");
+  assert.match(store, /dataStatus: "unknown" \| "runtime" \| "delayed" \| "partial" \| "unavailable";/);
+  assert.match(store, /dataStatus: "unknown",/);
+  assert.match(store, /workspaceLoading: false,/);
+  // The status slice's absence is read through the three-valued resolver, never as a bare null.
+  assert.match(store, /const runtimeStatus = runtimeStoreStatus\(runtimeDb\);/);
+  assert.equal(store.includes('!runtimeDb || !runtimeDb.database_url_present'), false);
+  assert.equal(runtimeStoreStatus(null), "unknown");
+  assert.equal(runtimeDataAvailability("unknown"), "unknown");
+  assert.notEqual(runtimeDataAvailabilityLabelKey(runtimeDataAvailability("unknown")), "data.runtime_unavailable");
+  assert.equal(dataPlaneState("unknown"), "unavailable", "the chip tone stays fail-closed");
 });

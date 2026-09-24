@@ -152,6 +152,28 @@ was independently inspected and still shows contradictory runtime-disconnection
 copy alongside PostgreSQL-backed data. Next task must reconcile actual loader
 state and scoped render assertions with these screenshots. Release remains blocked.
 
+September 24 runtime-loader repair (baseline `ea8c9a4`): DeepSeek traced the
+contradictory Network disconnection copy to an unanswered nullable status slice,
+and workspace-loading copy to a shared flag also raised by optimiser actions.
+Runtime status now distinguishes unknown from confirmed unavailable. The workspace
+batch has separate in-flight/committed state, cleared on identity reset; Network
+and Glossary use that lifecycle instead of unrelated action activity. Diagnostics
+also uses committed reads rather than inferring completion from availability.
+Panel loading copy names its own read. The browser gate waits at most 20 seconds
+for the workspace batch to settle and records a failure if it never settles;
+no acceptance exemptions were added or removed.
+
+Integration review required actual-store deferred-response tests, not only source
+assertions: pending/commit, failed status read, unavailable/healthy answers,
+unrelated action activity, supersession and revoked identity are covered.
+Independent verification: 605 frontend tests, production build and 39 focused
+Python contracts/link tests passed. No API, database, permission or calculation
+changes. Fresh CI/browser verification remains pending at this checkpoint.
+Known limits: other runtime-status cells still collapse unread into unavailable;
+the batch retains its existing multi-read commit barrier; market projection
+latency and page-wide read-to-render assertions remain open. Production is NOT
+APPROVED, and test progress does not authorize customer release.
+
 ## Historical programme state
 V2 pack version: 2026-09 autonomous runner
 Current wave: Waves 0-10 have delivered slices. Wave 11 (RC/GA readiness) has not started.
