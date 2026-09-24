@@ -119,6 +119,25 @@ investigate query performance without weakening entitlement or freshness rules.
 Next: resolve the recorded browser-acceptance failures and reproduce this slow
 market read. Production remains NOT APPROVED. No customer release was performed.
 
+September 24 browser-acceptance repair (baseline `bbb6499`): DeepSeek repaired
+two confirmed defects; the integration review preserved all acceptance gates.
+The scrollable network tabpanel is now keyboard-focusable with a token-based
+focus ring. The contracts probe now calls the existing client upstream-terms
+route, `/api/route-cost/upstream-contracts`, instead of causing its own 404 at
+an undeclared path. A new contract test checks every probe against served GET
+routes and the workspace inventory. No loading exemptions, security changes,
+database changes or market semantics changes were made.
+Independent verification: 591 frontend tests, production build and six focused
+Python probe/link tests passed. Worker verification additionally passed 480
+contract tests; its one sandbox file-permission failure passed on independent
+rerun. Latest baseline CI `35944266857` passes validation, PostgreSQL integration,
+dependency audit and web build, but browser acceptance still fails. A fresh
+browser run is required for this repair; unit tests are not visual acceptance.
+Remaining: loading/read-to-render failures and market projection latency. The
+orders probe still reads legacy live-summary rather than the portfolio projection;
+whole-page empty-state matching may confuse partial data with no rendered rows.
+Resolve these by measuring the actual surface, not exempting missing content.
+
 ## Historical programme state
 V2 pack version: 2026-09 autonomous runner
 Current wave: Waves 0-10 have delivered slices. Wave 11 (RC/GA readiness) has not started.

@@ -361,6 +361,8 @@ export function NetworkWorkspace({
           className="network-rail-view"
           role="tabpanel"
           aria-labelledby={`network-rail-tab-${activeRailView}`}
+          // Keep the text-only scroll region reachable by keyboard.
+          tabIndex={0}
         >
           {activeRailView === "decision" && (
             <>

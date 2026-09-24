@@ -8059,6 +8059,13 @@ button.glossary-related-chip {
   padding-right: 2px;
 }
 
+/* The rail scrolls, so it is a keyboard stop of its own (`tabIndex={0}` in
+   NetworkWorkspace.tsx); the focus it takes has to be visible on every theme. */
+.workspace-network .network-rail-view:focus-visible {
+  outline: 2px solid var(--eg-link);
+  outline-offset: -2px;
+}
+
 .workspace-network .network-warning-panel {
   display: grid;
   gap: 10px;

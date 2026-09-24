@@ -81,3 +81,20 @@ test("the summary separates failures from observations", () => {
   assert.match(source, /observations,/);
   assert.match(source, /functionalGapCount: functionalGaps\.length/);
 });
+
+test("each surface probe reads a route the product serves, not a path no endpoint declares", () => {
+  // `contracts` asked for `/api/contracts/upstream?limit=5`, which no route declares: the 404 it
+  // returned was the probe's own console error on six scopes, and the surface it was meant to
+  // measure was never compared with its data. It now reads the upstream resource terms the shell
+  // itself reads (`upstreamContracts` in the client). `tests/contract/test_browser_probe_paths.py`
+  // holds the same paths against the application's declared GET surface.
+  const signals = block("const SURFACE_SIGNALS = {", "\n};");
+  assert.match(
+    signals,
+    /contracts: \{ heading: \/portfolio\|contract\/i, apiPath: "\/api\/route-cost\/upstream-contracts",/,
+  );
+  assert.doesNotMatch(signals, /apiPath: "\/api\/contracts\/upstream/);
+
+  const client = readFileSync(new URL("../src/api/client.ts", import.meta.url), "utf8");
+  assert.match(client, /"\/route-cost\/upstream-contracts"/);
+});

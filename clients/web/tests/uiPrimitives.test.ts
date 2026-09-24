@@ -98,11 +98,31 @@ test("narrow scroll regions are explicitly keyboard focusable", () => {
     ["components/MarketPositioningWorkspace.tsx", /className="data-table orders-table" tabIndex=\{0\}/],
     ["components/AccessCenter.tsx", /className="data-table" tabIndex=\{0\}/],
     ["components/AgentsWorkspace.tsx", /className="research-table data-table" tabIndex=\{0\}/],
+    // The decision rail scrolls (`overflow-y: auto`) and holds text, not controls: without a focus
+    // stop of its own the keyboard cannot reach the rest of the rail (axe
+    // `scrollable-region-focusable`, measured on `#network-rail-panel` in run 35888959943).
+    ["components/NetworkWorkspace.tsx", /id="network-rail-panel"[\s\S]*?tabIndex=\{0\}/],
   ] as const;
 
   for (const [path, pattern] of cases) {
     assert.match(readWebSource(path), pattern, path);
   }
+});
+
+test("the scrollable network rail panel keeps its tabpanel contract and a token-based focus ring", () => {
+  const source = readWebSource("components/NetworkWorkspace.tsx");
+  assert.match(
+    source,
+    /id="network-rail-panel"[\s\S]*?role="tabpanel"[\s\S]*?aria-labelledby=\{`network-rail-tab-\$\{activeRailView\}`\}[\s\S]*?tabIndex=\{0\}/,
+  );
+
+  const css = readFileSync(new URL("../src/styles/app.css", import.meta.url), "utf8");
+  const rule = /\.workspace-network \.network-rail-view:focus-visible \{([^}]*)\}/.exec(css);
+  assert.ok(rule, "the rail panel declares a :focus-visible rule");
+  assert.match(rule[1], /outline: 2px solid var\(--eg-link\);/);
+  assert.match(rule[1], /outline-offset: -2px;/);
+  // The outline must resolve through a declared palette token, not a literal colour.
+  assert.match(css, /--eg-link:\s*#[0-9a-f]{3,8};/i);
 });
 
 test("WorkspaceTabs forwards its role prop and defaults to tablist", () => {

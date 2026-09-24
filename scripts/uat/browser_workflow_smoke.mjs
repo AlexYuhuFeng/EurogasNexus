@@ -77,7 +77,8 @@ const SURFACE_SIGNALS = {
   capacity: { heading: /capacity/i, apiPath: "/api/physical/capacity?limit=5", rowSelector: null },
   market: { heading: /market/i, apiPath: "/api/market/observations?limit=5", rowSelector: null },
   scenario: { heading: /decision/i, apiPath: "/api/decision-cases?limit=5", rowSelector: null },
-  contracts: { heading: /portfolio|contract/i, apiPath: "/api/contracts/upstream?limit=5", rowSelector: null },
+  // Match the client's upstream-terms read; this endpoint has no limit parameter.
+  contracts: { heading: /portfolio|contract/i, apiPath: "/api/route-cost/upstream-contracts", rowSelector: null },
   strategy: { heading: /strategy/i, apiPath: "/api/strategies?limit=5", rowSelector: null },
   review: { heading: /review|decision/i, apiPath: "/api/review/decisions?limit=5", rowSelector: null },
   orders: { heading: /portfolio|order/i, apiPath: "/api/portfolio/live-summary", rowSelector: null },
