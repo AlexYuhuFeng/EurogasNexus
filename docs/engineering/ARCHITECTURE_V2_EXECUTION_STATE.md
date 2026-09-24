@@ -138,6 +138,20 @@ orders probe still reads legacy live-summary rather than the portfolio projectio
 whole-page empty-state matching may confuse partial data with no rendered rows.
 Resolve these by measuring the actual surface, not exempting missing content.
 
+Post-push browser verification at `af8884d`, CI run `35966584093`: all 96
+EN/ZH desktop/mobile checks executed. Zero axe violations and zero horizontal
+overflow; the network focus defect and probe-generated contracts 404 are absent.
+Validation, PostgreSQL integration, dependency audit and web build jobs pass.
+Browser acceptance remains FAILED with 27 functional failure entries: lingering
+loading checks on network/capacity and read-to-render checks on contracts,
+orders, runtime and settings. Correcting the contracts endpoint exposed that
+surface's previously unmeasured read-to-render check; this is not a full pass.
+The deterministic agent-research fixture completed its evidence chain. Artifacts
+are saved locally under `output/ci-35966584093`; the network desktop screenshot
+was independently inspected and still shows contradictory runtime-disconnection
+copy alongside PostgreSQL-backed data. Next task must reconcile actual loader
+state and scoped render assertions with these screenshots. Release remains blocked.
+
 ## Historical programme state
 V2 pack version: 2026-09 autonomous runner
 Current wave: Waves 0-10 have delivered slices. Wave 11 (RC/GA readiness) has not started.
