@@ -10,7 +10,9 @@ from eurogas_nexus.domain.market_intelligence.normalized_view import (
     MarketObservationInput,
     build_normalized_market_view,
     convert_currency,
+    convert_with_edges,
     is_gas_price_observation,
+    normalize_observation,
     observation_hub,
     observation_tenor,
 )
@@ -146,3 +148,132 @@ def test_build_normalized_market_view_converts_prices_and_reports_failures() -> 
     assert view["rows"][1]["price_gbp_mwh"] is None
     assert view["rows"][2]["price_gbp_mwh"] is None
     assert any("PLN->GBP" in warning for warning in view["warnings"])
+
+
+def test_build_normalized_market_view_builds_the_latest_rate_graph_once(monkeypatch) -> None:
+    """The graph is a pure function of the rate list, so the view builds it once.
+
+    The values are the per-row reference's (asserted against ``convert_currency``
+    below); only the number of graph builds changes, which is what makes the
+    per-row rebuild avoidable rather than load-bearing.
+    """
+
+    from eurogas_nexus.domain.market_intelligence import normalized_view as module
+
+    calls: list[list[FxRateInput]] = []
+    original = module.latest_fx_edges
+
+    def counting(rates):
+        calls.append(rates)
+        return original(rates)
+
+    monkeypatch.setattr(module, "latest_fx_edges", counting)
+    observations = [
+        _observation(unit="EUR/MWh", currency="EUR", price=30.0 + index)
+        for index in range(25)
+    ]
+    view = build_normalized_market_view(observations, [EUR_GBP, EUR_USD, USD_GBP])
+
+    assert len(calls) == 1
+    assert len(view["rows"]) == 25
+    assert view["rows"][0]["price_gbp_mwh"] == convert_currency(
+        30.0, "EUR", "GBP", [EUR_GBP, EUR_USD, USD_GBP]
+    )
+
+
+def test_build_normalized_market_view_matches_the_per_row_reference_path() -> None:
+    """Reusing one graph must not move a single value or warning.
+
+    The reference is :func:`normalize_observation`, which builds the graph for
+    each row exactly as the view did before the graph was hoisted out of the
+    row loop.
+    """
+
+    zero_rate = FxRateInput(
+        pair="EURGBP", base_currency="EUR", quote_currency="GBP", rate=0.0
+    )
+    rates = [EUR_GBP, EUR_GBP_NEWER, EUR_USD, USD_GBP, zero_rate]
+    observations = [
+        _observation(unit="GBP/MWh", currency="GBP", price=20.0),
+        _observation(unit="EUR/MWh", currency="EUR", price=30.0),
+        _observation(unit="EUR/MWh", currency="EUR", price=31.0, market_venue="EEX"),
+        _observation(unit="USD/MWh", currency="USD", price=105.0, market_venue="ICE OCM"),
+        _observation(unit="PLN/MWh", currency="PLN", price=200.0, market_venue="TGE"),
+        _observation(unit="p/therm", currency="GBP", price=55.0),
+    ]
+
+    view = build_normalized_market_view(observations, rates)
+    reference = [normalize_observation(observation, rates) for observation in observations]
+    expected_warnings = [
+        f"FX conversion unavailable for observation {row['market_venue']}/{row['product']} "
+        f"({row['currency']}->GBP)."
+        for row in reference
+        if row["is_gas_price"] and row["price_gbp_mwh"] is None
+    ]
+
+    assert view["rows"] == reference
+    assert view["warnings"] == expected_warnings
+    assert any("PLN->GBP" in warning for warning in view["warnings"])
+
+
+def test_convert_currency_settles_cheap_cases_without_building_the_rate_graph(monkeypatch) -> None:
+    """Invalid input and same-currency conversion never read the rate list.
+
+    Those checks are a number test and two string comparisons, so the graph is
+    built only for a conversion that needs one; the value is the graph path's
+    either way.
+    """
+
+    from eurogas_nexus.domain.market_intelligence import normalized_view as module
+
+    builds: list[list[FxRateInput]] = []
+    original = module.latest_fx_edges
+
+    def counting(rates):
+        builds.append(rates)
+        return original(rates)
+
+    monkeypatch.setattr(module, "latest_fx_edges", counting)
+
+    assert convert_currency(10.0, "GBP", "GBP", [EUR_GBP]) == 10.0
+    assert convert_currency(float("nan"), "EUR", "GBP", [EUR_GBP]) is None
+    assert convert_currency(10.0, "  ", "GBP", [EUR_GBP]) is None
+    assert builds == []
+
+    rates = [EUR_GBP, EUR_USD, USD_GBP]
+    assert convert_currency(10.0, "EUR", "GBP", rates) == convert_with_edges(
+        10.0, "EUR", "GBP", original(rates)
+    )
+    assert builds == [rates]
+
+
+def test_normalize_observation_builds_the_rate_graph_only_for_a_gas_price_row(
+    monkeypatch,
+) -> None:
+    """A non-gas row is never converted, so it never builds the latest-rate graph.
+
+    The returned rows are compared to the view's - the graph reuse path - so the
+    cost change cannot move a value: only the number of graph builds changes.
+    """
+
+    from eurogas_nexus.domain.market_intelligence import normalized_view as module
+
+    builds: list[list[FxRateInput]] = []
+    original = module.latest_fx_edges
+    monkeypatch.setattr(
+        module,
+        "latest_fx_edges",
+        lambda rates: (builds.append(rates), original(rates))[1],
+    )
+
+    rates = [EUR_GBP, EUR_USD, USD_GBP]
+    non_gas = _observation(unit="p/therm", currency="GBP", price=55.0)
+    gas = _observation(unit="USD/MWh", currency="USD", price=105.0, market_venue="ICE OCM")
+
+    view = build_normalized_market_view([non_gas, gas], rates)
+    assert len(builds) == 1
+
+    assert normalize_observation(non_gas, rates) == view["rows"][0]
+    assert len(builds) == 1  # the non-gas row built nothing
+    assert normalize_observation(gas, rates) == view["rows"][1]
+    assert len(builds) == 2  # the gas row converts, so it builds one

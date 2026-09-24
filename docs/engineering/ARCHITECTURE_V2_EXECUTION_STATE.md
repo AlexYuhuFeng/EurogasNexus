@@ -216,6 +216,34 @@ acceptance or closure of declared gaps. Next: investigate the local market-read
 latency and strengthen populated-persona workflows without inventing market data.
 Commercial production approval remains blocked by the audit's open requirements.
 
+September 25 market latency repair (baseline `5919d81`): independently reproduced
+an authenticated local market-context timeout at 45 seconds. DeepSeek replaced
+the projection's unbounded observation materialization with a SQL-entitled,
+ordered, bounded read plus aggregate counts, preserving the existing response
+contract. Restricted sources are excluded before the row limit; raw totals retain
+their existing meaning. FX normalization builds its latest-rate graph once per
+view, while single-row helpers retain invalid/same-currency fast paths. Tests
+compare payloads and numerical results with the reference behaviour. No shared
+cache, schema change, migration, new datastore or runtime price write was added.
+
+The new read-only measurement harness isolates every statement in its own
+transaction, bounds server/driver timeouts and does not print the database URL.
+Its initial failed-query recovery bug was caught on real PostgreSQL and repaired
+with regression tests. Independent verification: 56 focused tests and repository
+lint pass; all 14 PostgreSQL plan probes completed. On this machine, the original
+unbounded observation plan read 856,534 rows in 3,360 ms; the bounded plan read
+500 in 0.363 ms (SQL plan times, excluding Python transfer/shaping). After restarting
+the local API with the repair, three authenticated HTTP reads succeeded in
+5.910, 4.736 and 5.094 seconds. A follow-up read confirmed 500 observation,
+500 normalized and 500 quote rows, plus other populated slices. These are warm,
+single-client measurements, not production load acceptance. Only six FX rows
+exist locally, so FX graph reuse is not the primary explanation here.
+
+Remaining cost includes the source-coverage window (~3,336 ms), gas-source count
+(~786 ms) and opportunity read (~751 ms) in this measurement. Future optimization
+must preserve coverage/entitlement/time semantics and measure concurrency. Fresh
+CI is pending; commercial production approval remains blocked.
+
 ## Historical programme state
 V2 pack version: 2026-09 autonomous runner
 Current wave: Waves 0-10 have delivered slices. Wave 11 (RC/GA readiness) has not started.

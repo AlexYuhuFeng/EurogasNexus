@@ -157,12 +157,12 @@ def list_normalized_market_view(
     ``price_gbp_mwh`` computed by the domain normalization module.
     """
 
-    allowed_market_sources = _allowed_source_systems(
+    allowed_market_sources = allowed_source_systems(
         session,
         MarketObservationRecord,
         source_filter,
     )
-    allowed_fx_sources = _allowed_source_systems(
+    allowed_fx_sources = allowed_source_systems(
         session,
         FxObservationRecord,
         source_filter,
@@ -364,12 +364,30 @@ def _ecb_market_fx_inputs(
     ]
 
 
-def _allowed_source_systems(
+def allowed_source_systems(
     session: Session,
     model,
     source_filter: Callable[[str], bool] | None,
 ) -> set[str] | None:
-    """Resolve the principal filter to concrete DB source values before reads."""
+    """Resolve a principal filter to concrete DB source values before reads.
+
+    The predicate is the same one the row-level entitlement filter applies
+    (``principal_allows_source_family`` for a DB identity, unconditional for the
+    legacy public token): evaluating it over the source values present in the
+    table turns it into a fail-closed ``IN`` predicate on the row read, so a
+    restricted row is never fetched. This narrows the *read* only: an aggregate
+    a caller reports alongside it (the projection's ``raw_count``) is a
+    ``count(*)`` over the table and keeps its existing definition, restricted
+    rows included.
+
+    Args:
+        session: DB session.
+        model: ORM model whose ``source_system`` column is resolved.
+        source_filter: Per-row source family predicate, or ``None`` for no filter.
+
+    Returns:
+        The allowed source values, or ``None`` when no filter applies.
+    """
 
     if source_filter is None:
         return None

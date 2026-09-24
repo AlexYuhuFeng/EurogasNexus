@@ -18,6 +18,7 @@ concerns), while the query, the shaping and the entitlement rule live here.
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Mapping, Sequence
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from eurogas_nexus.security.identity import (
@@ -125,6 +126,139 @@ def market_observations(session: Session) -> list[dict[str, Any]]:
         MarketObservationRecord.product,
     )
     return [market_observation_row(row) for row in rows.all()]
+
+
+@dataclass(frozen=True)
+class ObservationPage:
+    """A bounded observation read plus the counts a projection reports on it.
+
+    Attributes:
+        rows: The newest entitled observation payloads, at most the requested
+            limit of them.
+        raw_count: Observation rows in the table, before entitlement.
+        entitled_count: Observation rows the principal may see, before the cap.
+    """
+
+    rows: list[dict[str, Any]]
+    raw_count: int
+    entitled_count: int
+
+
+def market_observation_page(
+    session: Session,
+    principal: AuthenticatedPrincipal,
+    *,
+    limit: int,
+) -> ObservationPage:
+    """Read the newest ``limit`` entitled observations without materializing the table.
+
+    ``/api/market/observations`` is deliberately unbounded, so a projection's own
+    ``observation_limit`` used to be applied only after every row of
+    ``market_observations`` had been read and shaped in Python. This read applies
+    the same order, the same entitlement rule and then the same cap inside the
+    database, and reports the two counts the projection's entitlement block
+    states (table rows, and rows the principal may see before the cap) as SQL
+    aggregates instead of by reading the rows.
+
+    Entitlement is resolved the way the normalized read resolves it
+    (:func:`eurogas_nexus.db.repositories.market_intelligence.allowed_source_systems`):
+    the principal's source-family predicate - the same one
+    :func:`filter_entitled_rows` applies per row - is evaluated against the
+    source values present in the table, and the resulting set is applied as a
+    fail-closed SQL predicate. A restricted row is therefore excluded *before*
+    the cap, never after it, and never reaches the returned page.
+
+    The counts describe the same table, not the returned page. ``raw_count`` is
+    the table's total row count *before* entitlement - the figure the
+    projection's entitlement block has always called "raw", restricted rows
+    included - and ``entitled_count`` is the rows the principal may see, before
+    the cap. Both are ``count(*)`` aggregates, so a restricted row is never
+    fetched to count it: that it exists enters the payload only as the
+    difference between the two totals.
+
+    Args:
+        session: Open SQLAlchemy session.
+        principal: The authenticated principal the rows are rendered for.
+        limit: Maximum rows to return (the projection's ``observation_limit``).
+
+    Returns:
+        The newest entitled rows in the observation route's order (observed
+        instant desc, then venue, then product) - at most ``limit`` of them -
+        with the pre-cap counts.
+    """
+
+    allowed = (
+        None
+        if principal.auth_method == "legacy_public_token"
+        else _entitled_observation_sources(session, principal)
+    )
+    raw_count, entitled_count = _observation_counts(session, allowed)
+    if limit <= 0 or entitled_count <= 0:
+        return ObservationPage(rows=[], raw_count=raw_count, entitled_count=entitled_count)
+
+    from eurogas_nexus.db.models import MarketObservationRecord
+
+    query = session.query(MarketObservationRecord)
+    if allowed is not None:
+        query = query.filter(MarketObservationRecord.source_system.in_(allowed))
+    rows = (
+        query.order_by(
+            MarketObservationRecord.observed_at_utc.desc(),
+            MarketObservationRecord.market_venue,
+            MarketObservationRecord.product,
+        )
+        .limit(limit)
+        .all()
+    )
+    return ObservationPage(
+        rows=[market_observation_row(row) for row in rows],
+        raw_count=raw_count,
+        entitled_count=entitled_count,
+    )
+
+
+def _entitled_observation_sources(
+    session: Session,
+    principal: AuthenticatedPrincipal,
+) -> set[str]:
+    """Resolve one principal's entitlement to the observation sources present in the DB."""
+
+    from eurogas_nexus.db.models import MarketObservationRecord
+    from eurogas_nexus.db.repositories.market_intelligence import allowed_source_systems
+
+    return (
+        allowed_source_systems(
+            session,
+            MarketObservationRecord,
+            source_family_filter(principal),
+        )
+        or set()
+    )
+
+
+def _observation_counts(session: Session, allowed: set[str] | None) -> tuple[int, int]:
+    """Count table rows and entitled rows in one aggregate read.
+
+    ``allowed`` is ``None`` when no row filter applies (the legacy public token
+    keeps the single-trust-domain view), in which case every row is entitled.
+    """
+
+    from sqlalchemy import func
+
+    from eurogas_nexus.db.models import MarketObservationRecord
+
+    entitled = func.count()
+    if allowed is not None:
+        entitled = entitled.filter(MarketObservationRecord.source_system.in_(allowed))
+    raw_count, entitled_count = (
+        session.query(
+            func.count().label("raw_count"),
+            entitled.label("entitled_count"),
+        )
+        .select_from(MarketObservationRecord)
+        .one()
+    )
+    return int(raw_count or 0), int(entitled_count or 0)
 
 
 def fx_observations(session: Session) -> list[dict[str, Any]]:

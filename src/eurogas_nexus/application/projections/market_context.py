@@ -26,6 +26,16 @@ Contract
   and the normalized view is read with the same fail-closed source-family
   predicate. Slices whose underlying route applies no row filter declare
   ``entitlement.row_filter_applied = false`` instead of inventing one.
+- **Bounded observation slice.** The observations route is unbounded, so its
+  ``observation_limit`` is applied by the same SQL read that applies entitlement
+  and the route's order
+  (:func:`eurogas_nexus.application.projections.market_reads.market_observation_page`):
+  the slice holds the newest entitled rows, no restricted row is fetched to
+  build it, and the pre-cap counts its entitlement block reports are SQL
+  aggregates rather than rows read and then discarded. ``raw_count`` keeps its
+  existing meaning - the table's total rows, before entitlement, restricted rows
+  included - so the entitlement block can still state how many rows the filter
+  removed.
 - **Honest degradation.** Without a runtime database every slice reports
   ``available = false``, ``MISSING`` freshness and no rows - never a zero that
   reads as a measurement.
@@ -74,7 +84,7 @@ from eurogas_nexus.application.projections.market_reads import (
     derive_intraday_spreads,
     filter_entitled_rows,
     intraday_opportunities,
-    market_observations,
+    market_observation_page,
     market_quotes,
     normalized_market_view,
     source_family_filter,
@@ -182,11 +192,22 @@ def _populated_market_context(
     opportunity_limit: int,
     alert_limit: int,
 ) -> dict[str, Any]:
-    """Build every slice from one session and one as-of instant."""
+    """Build every slice from one session and one as-of instant.
 
-    raw_observations = market_observations(session)
-    observations = filter_entitled_rows(principal, raw_observations)
-    bounded_observations = observations[:observation_limit]
+    The observation slice is read through
+    :func:`eurogas_nexus.application.projections.market_reads.market_observation_page`:
+    the same entitlement rule and the same order, applied by the database before
+    the slice's own ``observation_limit``, so the slice holds exactly the rows the
+    unbounded ``/api/market/observations`` read would have contributed without
+    materializing ``market_observations`` to discard all but a few hundred rows.
+    """
+
+    observation_page = market_observation_page(
+        session,
+        principal,
+        limit=observation_limit,
+    )
+    bounded_observations = observation_page.rows
 
     view = normalized_market_view(
         session,
@@ -255,11 +276,11 @@ def _populated_market_context(
             ),
             entitlement=_entitlement_record(
                 principal,
-                raw_count=len(raw_observations),
-                kept_count=len(observations),
+                raw_count=observation_page.raw_count,
+                kept_count=observation_page.entitled_count,
             ),
             context_filter=context_filter_block(applied=[], rule=_NO_HUB_FIELD_RULE),
-            limits=_limit_record(observation_limit, len(observations)),
+            limits=_limit_record(observation_limit, observation_page.entitled_count),
             notes=[
                 "Source rows of /api/market/observations; the endpoint itself is "
                 "unbounded and this slice is bounded by observation_limit.",
@@ -394,8 +415,8 @@ def _populated_market_context(
             ),
             entitlement=_entitlement_record(
                 principal,
-                raw_count=len(raw_observations) + len(raw_quotes),
-                kept_count=len(observations) + len(quotes),
+                raw_count=observation_page.raw_count + len(raw_quotes),
+                kept_count=observation_page.entitled_count + len(quotes),
                 filtered_before_read=True,
             ),
             context_filter=context_filter_block(

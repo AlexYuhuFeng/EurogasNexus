@@ -15,7 +15,11 @@ value-identical:
   of ``product``, then ``market_venue``;
 - tenor extraction prefers ``metadata_json.tenor``, then the full ``product``;
 - a gas-price observation has a unit containing ``MWH`` and a three-letter
-  currency code.
+  currency code;
+- ``build_normalized_market_view`` builds the latest-rate graph once and reuses
+  it for every row, and ``normalize_observation`` builds it only for a row that
+  is actually converted; the graph is a pure function of the rate list, so both
+  are cost changes only - the values are the per-row reference path's.
 
 本模块是市场视图规范化的后端唯一契约：客户端不得自行重实现 FX 换算与
 hub/tenor 抽取，避免前后端口径漂移（审计项对应前端 marketPriceNormalization
@@ -32,6 +36,9 @@ from typing import Any
 
 TARGET_CURRENCY = "GBP"
 MAX_CONVERSION_DEPTH = 3
+
+#: Latest-rate adjacency built by :func:`latest_fx_edges` (currency -> edges).
+RateGraph = dict[str, list[tuple[str, float]]]
 
 
 @dataclass(frozen=True)
@@ -120,11 +127,16 @@ def _rate_currencies(rate: FxRateInput) -> tuple[str, str] | None:
     return None
 
 
-def latest_fx_edges(rates: list[FxRateInput]) -> dict[str, list[tuple[str, float]]]:
+def latest_fx_edges(rates: list[FxRateInput]) -> RateGraph:
     """Build an undirected latest-rate graph: currency -> [(target, multiplier)].
 
     构建"最新汇率"无向图：同币对保留观测时间最新的记录，正数有效汇率
     双向建边（反方向为 1/rate）。
+
+    The result is a pure function of ``rates`` (for equal observation instants
+    the first record in the list wins), so a batch of conversions against one
+    rate list builds it once and reuses it; see
+    :func:`build_normalized_market_view`.
 
     Args:
         rates: FX rate records.
@@ -148,7 +160,7 @@ def latest_fx_edges(rates: list[FxRateInput]) -> dict[str, list[tuple[str, float
         ):
             latest[key] = rate
 
-    graph: dict[str, list[tuple[str, float]]] = {}
+    graph: RateGraph = {}
     for rate in latest.values():
         currencies = _rate_currencies(rate)
         if currencies is None:
@@ -170,6 +182,13 @@ def convert_currency(
     跨最新汇率图做 BFS 换算（最多 3 条边），返回第一条到达目标币种的
     路径乘积；无路径或输入非法时返回 None（不静默近似）。
 
+    The checks that settle the call without a graph - a non-finite value, a
+    blank currency code, source and target already equal - return before
+    ``rates`` is touched, so the graph is built only for a conversion that
+    needs it. A caller converting many values against the same rate list builds
+    it once with :func:`latest_fx_edges` and calls :func:`convert_with_edges`,
+    which returns exactly the same numbers.
+
     Args:
         value: Amount to convert.
         source_currency: Source ISO 4217 code.
@@ -180,23 +199,51 @@ def convert_currency(
         Converted amount, or None when not convertible.
     """
 
-    if not _is_finite_number(value):
-        return None
+    settled, early_result = _conversion_without_rates(
+        value, source_currency, target_currency
+    )
+    if settled:
+        return early_result
+    return convert_with_edges(value, source_currency, target_currency, latest_fx_edges(rates))
+
+
+def convert_with_edges(
+    value: float,
+    source_currency: str,
+    target_currency: str,
+    edges: RateGraph,
+) -> float | None:
+    """Convert a value across an already-built latest-rate graph (BFS, max 3 edges).
+
+    Identical arithmetic, identical depth bound and identical "first path to the
+    target wins" rule to :func:`convert_currency`; only the graph construction is
+    factored out, so a batch of conversions does not rebuild it per value.
+
+    Args:
+        value: Amount to convert.
+        source_currency: Source ISO 4217 code.
+        target_currency: Target ISO 4217 code.
+        edges: Adjacency returned by :func:`latest_fx_edges`.
+
+    Returns:
+        Converted amount, or None when not convertible.
+    """
+
+    settled, early_result = _conversion_without_rates(
+        value, source_currency, target_currency
+    )
+    if settled:
+        return early_result
     source = normalized_currency(source_currency)
     target = normalized_currency(target_currency)
-    if not source or not target:
-        return None
-    if source == target:
-        return value
 
-    graph = latest_fx_edges(rates)
     queue: deque[tuple[str, float, int]] = deque([(source, value, 0)])
     visited = {source}
     while queue:
         current, converted, depth = queue.popleft()
         if depth >= MAX_CONVERSION_DEPTH:
             continue
-        for currency, multiplier in graph.get(current, []):
+        for currency, multiplier in edges.get(current, []):
             next_value = converted * multiplier
             if currency == target:
                 return next_value
@@ -205,6 +252,38 @@ def convert_currency(
             visited.add(currency)
             queue.append((currency, next_value, depth + 1))
     return None
+
+
+def _conversion_without_rates(
+    value: float,
+    source_currency: str,
+    target_currency: str,
+) -> tuple[bool, float | None]:
+    """Resolve the conversion checks that need no rate graph.
+
+    These checks are string and number comparisons; keeping them ahead of the
+    graph is what lets :func:`convert_currency` and :func:`normalize_observation`
+    skip building it for a value that cannot be converted anyway.
+
+    Args:
+        value: Amount to convert.
+        source_currency: Source ISO 4217 code.
+        target_currency: Target ISO 4217 code.
+
+    Returns:
+        ``(True, result)`` when the conversion is already settled, and
+        ``(False, None)`` when it needs the latest-rate graph.
+    """
+
+    if not _is_finite_number(value):
+        return True, None
+    source = normalized_currency(source_currency)
+    target = normalized_currency(target_currency)
+    if not source or not target:
+        return True, None
+    if source == target:
+        return True, value
+    return False, None
 
 
 def observation_hub(observation: MarketObservationInput) -> str:
@@ -251,6 +330,11 @@ def normalize_observation(
     返回带后端规范化字段的观测行：hub/tenor 抽取、气体价格判定与
     可选的 GBP/MWh 换算（仅气体价格行尝试换算）。
 
+    Only a gas-price row is converted, and its other fields do not read the
+    rates at all, so a non-gas row returns without building the latest-rate
+    graph. A batch row builder passes one shared graph to
+    :func:`normalize_observation_with_edges` instead.
+
     Args:
         observation: Raw observation input.
         rates: FX rate records for conversion.
@@ -260,9 +344,34 @@ def normalize_observation(
         ``tenor``, ``is_gas_price`` and ``price_gbp_mwh``.
     """
 
+    if not is_gas_price_observation(observation):
+        return normalize_observation_with_edges(observation, {})
+    return normalize_observation_with_edges(observation, latest_fx_edges(rates))
+
+
+def normalize_observation_with_edges(
+    observation: MarketObservationInput,
+    edges: RateGraph,
+) -> dict[str, Any]:
+    """Return one normalized row using an already-built latest-rate graph.
+
+    Same fields and same values as :func:`normalize_observation`; the caller
+    owns the graph so a batch of rows does not rebuild it per row. A non-gas
+    row is never converted, so its ``edges`` may be empty (``{}``): its
+    ``price_gbp_mwh`` is ``None`` either way.
+
+    Args:
+        observation: Raw observation input.
+        edges: Adjacency returned by :func:`latest_fx_edges`.
+
+    Returns:
+        Normalized row dict with all original fields plus ``hub``,
+        ``tenor``, ``is_gas_price`` and ``price_gbp_mwh``.
+    """
+
     gas_price = is_gas_price_observation(observation)
     price_gbp_mwh = (
-        convert_currency(observation.price, observation.currency, TARGET_CURRENCY, rates)
+        convert_with_edges(observation.price, observation.currency, TARGET_CURRENCY, edges)
         if gas_price
         else None
     )
@@ -290,6 +399,10 @@ def build_normalized_market_view(
     构建规范化市场视图：逐行规范化并收集换算失败的告警（气体价格行
     无法换算时逐条说明，而不是静默丢弃）。
 
+    The latest-rate graph is built once for the whole view: it is a pure
+    function of ``fx_rates``, so rebuilding it per row could only add work,
+    never change a number.
+
     Args:
         observations: Raw market observation inputs.
         fx_rates: FX rate records.
@@ -298,10 +411,11 @@ def build_normalized_market_view(
         Dict with ``rows`` (normalized) and ``warnings`` (conversion gaps).
     """
 
+    edges = latest_fx_edges(fx_rates)
     rows: list[dict[str, Any]] = []
     warnings: list[str] = []
     for observation in observations:
-        row = normalize_observation(observation, fx_rates)
+        row = normalize_observation_with_edges(observation, edges)
         if row["is_gas_price"] and row["price_gbp_mwh"] is None:
             warnings.append(
                 f"FX conversion unavailable for observation "

@@ -472,6 +472,249 @@ def test_market_context_empty_runtime_db_keeps_zero_rows_and_no_fabricated_value
         assert item["freshness"]["measured"] is False, name
 
 
+def _observation_page_fixture(
+    session: Session,
+    sources: tuple[str, ...] = (
+        "EEX_Sim",
+        "ENTSOG",
+        "ICIS",
+        "EEX_Sim",
+        "ICIS",
+        "ENTSOG",
+        "EEX_Sim",
+    ),
+) -> list[str]:
+    """Seed one observation per source, newest first (ENTSOG is a public baseline family)."""
+
+    identifiers = [f"obs-{index:02d}-{source}" for index, source in enumerate(sources)]
+    session.add_all(
+        [
+            _observation(
+                identifiers[index],
+                source,
+                observed_at=AS_OF - timedelta(minutes=index),
+            )
+            for index, source in enumerate(sources)
+        ]
+    )
+    session.commit()
+    return identifiers
+
+
+@pytest.mark.parametrize("observation_limit", [1, 3, 7, 50])
+def test_market_context_observation_slice_matches_the_unbounded_reference_read(
+    tmp_path, monkeypatch, observation_limit: int
+) -> None:
+    """The bounded observation read composes the payload the unbounded read produced.
+
+    The reference page is the composition the projection used before the read was
+    bounded: read every observation row, filter entitlement in Python, then slice.
+    Whole payloads are compared, so the returned rows and their order, the
+    entitlement counts (raw and kept, before the cap), the ``truncated`` flag and
+    every derived slice are pinned to that reference. The limits cover a cap
+    below, at and above both the entitled and the total row count.
+    """
+
+    from eurogas_nexus.application.projections import market_context as market_context_module
+    from eurogas_nexus.application.projections import market_reads
+
+    with _session(tmp_path, "observation-page.sqlite") as session:
+        _observation_page_fixture(session)
+        scoped = _principal(scopes=("EEX",))
+
+        def reference_page(_session, principal, *, limit):
+            rows = market_reads.market_observations(_session)
+            kept = market_reads.filter_entitled_rows(principal, rows)
+            return market_reads.ObservationPage(
+                rows=kept[:limit],
+                raw_count=len(rows),
+                entitled_count=len(kept),
+            )
+
+        with monkeypatch.context() as patcher:
+            patcher.setattr(
+                market_context_module, "market_observation_page", reference_page
+            )
+            reference_scoped = build_market_context(
+                scoped, session=session, as_of_utc=AS_OF, observation_limit=observation_limit
+            )
+            reference_legacy = build_market_context(
+                _legacy_principal(),
+                session=session,
+                as_of_utc=AS_OF,
+                observation_limit=observation_limit,
+                hub="NBP",
+                delivery_product="within-day",
+            )
+
+        bounded_scoped = build_market_context(
+            scoped, session=session, as_of_utc=AS_OF, observation_limit=observation_limit
+        )
+        bounded_legacy = build_market_context(
+            _legacy_principal(),
+            session=session,
+            as_of_utc=AS_OF,
+            observation_limit=observation_limit,
+            hub="NBP",
+            delivery_product="within-day",
+        )
+
+    assert bounded_scoped == reference_scoped
+    assert bounded_legacy == reference_legacy
+
+
+def test_market_context_observation_rows_are_the_newest_entitled_rows_at_the_cap(tmp_path) -> None:
+    """The cap keeps the newest entitled rows in the route's own order."""
+
+    with _session(tmp_path, "observation-cap.sqlite") as session:
+        identifiers = _observation_page_fixture(session)
+        bounded_scoped = build_market_context(
+            _principal(scopes=("EEX",)), session=session, as_of_utc=AS_OF, observation_limit=3
+        )
+        bounded_legacy = build_market_context(
+            _legacy_principal(), session=session, as_of_utc=AS_OF, observation_limit=3
+        )
+
+    # The scoped principal sees the EEX_Sim rows plus the public-baseline ENTSOG
+    # row, so the newest three rows it may see are EEX_Sim, ENTSOG, EEX_Sim: the
+    # restricted ICIS rows are filtered out *before* the cap, never after it.
+    scoped_slice = bounded_scoped["data"]["slices"]["market_observations"]
+    assert [row["observation_id"] for row in scoped_slice["rows"]] == [
+        identifiers[0],
+        identifiers[1],
+        identifiers[3],
+    ]
+    assert scoped_slice["entitlement"]["row_filter_applied"] is True
+    # The two restricted ICIS rows are counted as filtered out, and the three
+    # visible rows are not all of the five the principal may see.
+    assert scoped_slice["entitlement"]["filtered_out"] == 2
+    assert scoped_slice["limits"] == {"row_limit": 3, "truncated": True}
+
+    legacy_slice = bounded_legacy["data"]["slices"]["market_observations"]
+    assert [row["observation_id"] for row in legacy_slice["rows"]] == identifiers[:3]
+    assert legacy_slice["entitlement"]["row_filter_applied"] is False
+    assert legacy_slice["limits"] == {"row_limit": 3, "truncated": True}
+
+
+def test_market_context_observation_read_is_bounded_before_it_reaches_python(
+    tmp_path, monkeypatch
+) -> None:
+    """No observation row is read or shaped beyond the slice's own cap.
+
+    The projection used to read and shape every row of ``market_observations``
+    before applying ``observation_limit``. This pins the replacement: the rows are
+    fetched under a SQL ``LIMIT``, only ``observation_limit`` rows are shaped, and
+    the counts the payload reports come from an aggregate rather than from rows.
+    """
+
+    from sqlalchemy import event
+
+    from eurogas_nexus.application.projections import market_reads
+
+    with _session(tmp_path, "observation-bounded.sqlite") as session:
+        session.add(
+            # Present so the normalized slice uses the FX table rather than its
+            # ECB fallback, keeping this test about the observation reads.
+            FxObservationRecord(
+                observation_id="fx-eur-gbp",
+                pair="EURGBP",
+                base_currency="EUR",
+                quote_currency="GBP",
+                rate=0.85,
+                rate_type="reference",
+                value_date=GAS_DAY,
+                observed_at_utc=AS_OF,
+                source_system="ECB",
+                source_reference="ecb-eurofxref-daily",
+                source_record_id="2026-06-01-GBP",
+                freshness="live",
+                research_only=True,
+                metadata_json={"dataset": "eurofxref-daily"},
+            )
+        )
+        session.add_all(
+            [
+                _observation(
+                    f"obs-{index:03d}",
+                    "EEX_Sim",
+                    observed_at=AS_OF - timedelta(minutes=index),
+                )
+                for index in range(40)
+            ]
+        )
+        session.commit()
+
+        shaped: list[str] = []
+        original_row = market_reads.market_observation_row
+
+        def counting_row(row):
+            shaped.append(row.observation_id)
+            return original_row(row)
+
+        statements: list[str] = []
+        event.listen(
+            session.get_bind(),
+            "before_cursor_execute",
+            lambda conn, cursor, statement, parameters, context, executemany: (
+                statements.append(statement)
+            ),
+        )
+        monkeypatch.setattr(market_reads, "market_observation_row", counting_row)
+        payload = build_market_context(
+            _principal(scopes=("EEX",)),
+            session=session,
+            as_of_utc=AS_OF,
+            observation_limit=5,
+        )
+
+    observation_slice = payload["data"]["slices"]["market_observations"]
+    assert len(shaped) == 5
+    assert len(observation_slice["rows"]) == 5
+    assert observation_slice["limits"] == {"row_limit": 5, "truncated": True}
+    # The counts are aggregates and the entitlement probe reads source values
+    # only; every statement that loads observation rows carries a LIMIT. The
+    # normalized view's per-source coverage read loads rows too - it is bounded
+    # by its own ``source_rank`` window predicate instead, and is unchanged here.
+    full_row_statements = [
+        statement
+        for statement in statements
+        if "market_observations_observation_id" in statement
+        and "row_number" not in statement.lower()
+    ]
+    assert full_row_statements
+    assert all("LIMIT" in statement.upper() for statement in full_row_statements)
+    assert any("DISTINCT" in statement.upper() for statement in statements)
+
+
+def test_market_context_observation_slice_fails_closed_without_an_entitled_source(
+    tmp_path,
+) -> None:
+    """A principal with no grant for the sources present sees none of them, and is told so."""
+
+    from eurogas_nexus.application.projections.market_reads import ENTITLEMENT_RULE_SOURCE_FAMILY
+
+    with _session(tmp_path, "observation-unentitled.sqlite") as session:
+        _observation_page_fixture(session, sources=("EEX_Sim", "ICIS", "EEX_Sim"))
+        payload = build_market_context(
+            _principal(scopes=("Trayport",)),
+            session=session,
+            as_of_utc=AS_OF,
+            observation_limit=3,
+        )
+
+    observation_slice = payload["data"]["slices"]["market_observations"]
+    assert observation_slice["rows"] == []
+    assert observation_slice["row_count"] == 0
+    assert observation_slice["entitlement"] == {
+        "row_filter_applied": True,
+        "filtered_out": 3,
+        "reason": ENTITLEMENT_RULE_SOURCE_FAMILY,
+    }
+    assert observation_slice["limits"] == {"row_limit": 3, "truncated": False}
+    assert observation_slice["freshness"]["state"] == "MISSING"
+    assert "ENTITLEMENT_FILTERED" in payload["meta"]["warnings"]
+
+
 # ---------------------------------------------------------------------------
 # PortfolioSnapshot
 # ---------------------------------------------------------------------------
