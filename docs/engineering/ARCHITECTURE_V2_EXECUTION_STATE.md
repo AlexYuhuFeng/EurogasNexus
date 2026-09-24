@@ -1,6 +1,6 @@
 # Architecture V2 Execution State
 
-Last updated: 2026-09-24
+Last updated: 2026-09-25
 Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical slice records below do not constitute current production approval.
 
 ## Current commercial acceptance checkpoint
@@ -187,6 +187,22 @@ certify map geometry or every page's usability. Evidence:
 actual Portfolio/Orders rows and replace demonstrably stale whole-page probes
 with scoped assertions and negative tests, fixing any confirmed rendering defect.
 Market projection latency and remaining unread-status cells remain open.
+
+September 25 portfolio acceptance measurement (baseline `f5d6455`): DeepSeek
+replaced the contracts/orders whole-page empty-copy heuristic with scoped record
+comparison. The old orders probe read an aggregate rather than the projection;
+legitimate unavailable fields were mistaken for absent rows. The probe now reads
+the actual portfolio projection, and existing rows carry nonvisual record-ID
+attributes. Integration review rejected substring matching and generic empty
+selectors: comparisons now use exact IDs within each declared row group, explicit
+empty markers, deduplicated visible DOM evidence, and failures for malformed or
+unidentifiable returned rows. Negative tests cover wrong/missing/hidden/duplicate
+rows, overlapping selectors, stale rows on empty reads and legitimate n/a fields.
+No data was fabricated, no permissions changed and no exemptions were added.
+Independent checks: 625 frontend tests, production build and 13 focused Python
+probe/link/UAT tests passed. Fresh browser verification is pending. Empty CI
+orders/PnL fixtures cannot prove populated-row browser workflows; that limitation
+remains explicit. Market latency and other commercial-release gaps remain open.
 
 ## Historical programme state
 V2 pack version: 2026-09 autonomous runner

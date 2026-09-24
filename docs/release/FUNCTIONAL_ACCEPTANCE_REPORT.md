@@ -107,3 +107,85 @@ machine-translation grammar and mixed punctuation.
 - The failure count depends on the seeded fixture. An empty fixture would legitimately render empty
   states; this run's fixture has rows in the endpoints named above, which is why each finding is
   stated with the endpoint that returned them.
+
+## 2026-09-25 — the contracts/orders read-to-render group was the gate's own inference
+
+CI run `35996627042` reported nine functional failures: `contracts` (three) and `orders` (six).
+Neither was a surface that failed to render its read, and the evidence is in the run's own artifacts
+(`output/ci-35996627042`):
+
+- **The verdict came from page copy, not from rows.** The only producer of that failure is
+  `apiRows > 0` combined with a whole-page match of `n/a|unavailable|no records|no data|not
+  (available|read|configured)` over the first 400 characters of the displayed page. The matched text
+  is therefore always copy: the portfolio context strip's own sentence, "N slice(s) stale, missing or
+  unavailable", is rendered early on both pages because this payload has slices that are `MISSING`
+  with no rows (`screen_orders`, `pnl_snapshots`, `data_sources`, `summary`) and `contracts` is
+  `UNKNOWN` (a gas-year contract carries no observation instant). In Chinese that sentence contains
+  no matchable word, which is exactly the shape the failures took: `contracts` failed in English
+  only, `orders` in both languages (its tables render a language-independent literal `n/a` in their
+  empty states, and the Chinese page fits more of itself into the same 400-character window). The
+  artifact captured no page text, so the exact substring is identified from the components and the
+  payload states rather than quoted from a capture.
+- **The orders probe read an endpoint the surface does not use.** `api.log` records
+  `/api/portfolio/live-summary` exactly six times - once per orders scope, all six from the probe -
+  while the surface's own read, `/api/projections/portfolio-snapshot`, is read 97 times (once per
+  scope). The probe's "1 row" was not a row: the gate counted any non-array body as one row, and a
+  summary aggregate is an object.
+- **Nothing in the seed writes those tables.** Neither `scripts/ops/seed_preview_runtime_data.py` nor
+  `scripts/uat/seed_uat_fixture.py` inserts screen order or PnL snapshot observations, so the orders
+  surface's empty state was the truthful rendering of a measured zero.
+- **The contract row is rendered.** The one returned upstream contract is the resource-pool row the
+  Portfolio Overview task renders (`portfolio_resource_from_contract` maps `contract_id` to
+  `resource_id` and `contract_name` to `resource_name`), so the read had a rendered row all along.
+
+### What changed
+
+The gate now compares returned rows with rendered rows by exact record identity
+(`scripts/uat/readToRender.mjs`, exercised by `clients/web/tests/readToRender.test.ts`): the orders
+probe reads the projection's `screen_orders` and `pnl_snapshots` slices, the contracts probe keeps
+reading the upstream-terms route the client lane reads, and a returned row whose own id no visible
+row carries fails by name.
+
+The evidence is scoped rather than inferred, which was the review finding on the first version of
+this helper:
+
+- **Per group, not per page.** Each group names the selector its own rows are rendered under
+  (`[data-record="<kind>"]`), and only elements that selector matches inside the displayed page are
+  its evidence - another panel's rows cannot answer for it. The pool row, the contract library row,
+  the screen-order row and the PnL row now carry `data-record-id` with the record's own identifier
+  (`resource_id`, `contract_id`, `order_observation_id`, `pnl_snapshot_id`); the contracts group
+  accepts the pool row because the backend maps `resource_id` from `contract_id` in
+  `portfolio_resource_from_contract`, and that mapping is asserted by
+  `tests/contract/test_browser_probe_paths.py`.
+- **Exact ids, not substrings.** `contract-1` no longer matches a page that rendered `contract-11`,
+  because the comparison is string equality on the collected attribute rather than `includes` on the
+  row's text.
+- **One element is one row.** Overlapping selectors are de-duplicated by element, so a single
+  rendered row cannot satisfy two returned rows; duplicate rows need duplicate rendered rows.
+- **Empty means empty.** A successful empty read is checked against the surface's declared
+  `data-empty-state` marker (the former orders selector matched any row in the table, so a stale
+  populated table passed), and a populated row left under the group's selector now fails the check
+  instead of answering it.
+- **Unmeasurable is a failure, not a pass.** A returned row that carries no record id, a slice that
+  serves rows without declaring availability, a group that declares no rows path, record id field or
+  selector, and evidence that does not match the declared groups all fail rather than joining the
+  observations. A hidden (`display: none` or zero-size) row is still not evidence, a slice the
+  backend did not serve is still reported as unmeasured, and a read that did not answer 200 still
+  fails rather than passing quietly.
+
+No exemption, console filter, axe relaxation, fixture row or authorisation change was made, and the
+declared gaps for the other surfaces are untouched.
+
+### Limits of this repair
+
+- Verified here by unit and contract tests only (625 web tests, 7 contract tests, `tsc`); **no live
+  browser run was performed in this environment**. Re-running the acceptance sweep is the next step.
+- With no imported screen orders in the fixture, the orders check reports a measured zero rather than
+  proving rows are rendered; it will assert rows as soon as a deployment holds them.
+- The contracts probe's deep link lands on the Portfolio Overview task, which declares no empty-state
+  row for an empty pool, so an empty contracts read is reported as unmeasured rather than as a
+  missing empty state; the contract library's own `data-empty-state="contract-library"` marker is in
+  place for the library view.
+- A rendered row the read did not return is only a failure when the read is empty (stale rows); in a
+  populated group the read's rows must all be present, but extra rows are not yet attributed.
+- Value parity (does a rendered price equal the API's price) remains the next tightening.

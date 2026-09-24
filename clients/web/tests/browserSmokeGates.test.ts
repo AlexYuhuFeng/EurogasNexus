@@ -39,7 +39,10 @@ test("no workspace is exempt from rendering its own page", () => {
 });
 
 test("a React internal error fails the run instead of joining the observations", () => {
-  const reactCheck = block("if (state.reactErrors", "if (state.apiRows !== null");
+  // The block ends at the next branch, which is now the scoped read-to-render check: the
+  // contracts/orders surfaces stopped using the whole-page heuristic, so the weaker check below
+  // is no longer the first thing after the React-error check.
+  const reactCheck = block("if (state.reactErrors", "if (signal.readToRender) {");
   assert.match(reactCheck, /recordFailure\(\s*failures,\s*scope,/);
   // The captured stack stays in the failure, because the message alone names no renderer.
   assert.match(reactCheck, /state\.reactErrors\[0\]\.stack/);
@@ -47,6 +50,63 @@ test("a React internal error fails the run instead of joining the observations",
 
   // The stack capture is still installed before the app loads.
   assert.match(source, /await installReactErrorStackCapture\(page\);/);
+});
+
+test("the repaired surfaces compare rendered rows with their own read, not with page copy", () => {
+  // CI run 35996627042 failed contracts and orders as "the read returned 1 row(s) and the surface
+  // renders none of them". The verdict came from a page-wide `n/a`/`unavailable` match and a row
+  // count that treated an aggregate body as one row. Both surfaces now declare what their reads
+  // return and which rendered rows are compared, by exact record id and within each group's own
+  // selector, so one group's rows (or the page's copy) cannot stand in for another's.
+  const signals = block("const SURFACE_SIGNALS = {", "\n};");
+  assert.match(
+    signals,
+    /contracts: \{ heading: \/portfolio\|contract\/i, apiPath: "\/api\/route-cost\/upstream-contracts", readToRender: \[/,
+  );
+  assert.match(
+    signals,
+    /orders: \{ heading: \/portfolio\|order\/i, apiPath: "\/api\/projections\/portfolio-snapshot", readToRender: \[/,
+  );
+  for (const group of ["rowsPath", "recordIdField", "rowSelectors"]) {
+    assert.ok(signals.includes(group), `the scoped groups declare ${group}`);
+  }
+  // A signal-level row selector would be dead configuration: the rows a group compares are the
+  // ones its own selector collects.
+  assert.doesNotMatch(signals, /rowSelector: /);
+  // Display-text matching is gone: identity is the record's own id, carried by the row element.
+  assert.doesNotMatch(signals, /identityFields|identityMode/);
+  assert.match(signals, /recordIdField: "contract_id"/);
+  assert.match(signals, /recordIdField: "order_observation_id"/);
+  assert.match(signals, /recordIdField: "pnl_snapshot_id"/);
+  // The orders empty states are declared markers of their own, not "any row in the table".
+  assert.match(signals, /emptySelector: '\[data-empty-state="screen-orders"\]'/);
+  assert.match(signals, /emptySelector: '\[data-empty-state="pnl-snapshots"\]'/);
+  assert.doesNotMatch(signals, /orders: \{[^}]*live-summary/);
+
+  // The scoped branch reads the surface's own endpoint in the session it holds, collects the
+  // rows the surface actually rendered for each group's own selector (visibility-filtered, so a
+  // hidden row is not evidence) and compares the two through the module: a failure names the
+  // returned rows whose own id no rendered row carries.
+  const scoped = block("if (signal.readToRender) {", "} else if (state.apiRows !== null && state.apiRows > 0) {");
+  assert.match(scoped, /const groups = signal\.readToRender\.map\(\(group\) => readGroupRows\(state\.apiBody, group\)\)/);
+  assert.match(scoped, /await page\.evaluate\(collectVisibleElements, \{\s*groups:/);
+  assert.match(scoped, /evaluateReadToRender\(\{\s*status: state\.apiStatus,\s*groups,\s*evidence,/);
+  assert.match(scoped, /for \(const detail of compared\.failures\) \{\s*recordFailure\(failures, scope, detail\);/);
+  // What the comparison could not measure is reported as an observation, from the comparison's
+  // own result - never from a guess about the page's copy.
+  assert.match(
+    scoped,
+    /for \(const detail of compared\.observations\) \{\s*recordObservation\(observations, `\$\{scope\}: \$\{detail\}`\);/,
+  );
+
+  // The weaker whole-page heuristic survives only for the surfaces that have not declared a
+  // scoped contract, and it is no longer reachable from the repaired ones.
+  const legacy = source.slice(source.indexOf("} else if (state.apiRows !== null && state.apiRows > 0) {"));
+  assert.ok(legacy.includes("const rendersNothing"), "the weaker check is still the declared one");
+  assert.ok(legacy.includes("|unavailable|no records|no data|"), "its page-wide heuristic is intact");
+  const scopedIndex = source.indexOf("if (signal.readToRender) {");
+  const heuristicIndex = source.indexOf("const rendersNothing");
+  assert.ok(scopedIndex !== -1 && heuristicIndex > scopedIndex);
 });
 
 test("the unrelated declared defects are still declared, for declared workspaces only", () => {

@@ -56,12 +56,19 @@ export function MarketPositioningWorkspace({
         <div className="data-table orders-table" tabIndex={0}>
           <div className="data-table-row header six"><span>Venue</span><span>Side</span><span>Hub</span><span>Qty</span><span>Price</span><span>Status</span></div>
           {screenOrders.map((order) => (
-            <div key={`orders-${order.order_observation_id}`} className="data-table-row six">
+            <div
+              key={`orders-${order.order_observation_id}`}
+              className="data-table-row six"
+              // The row carries the observation's own id, so the acceptance sweep compares it
+              // with the projection read by exact id (`scripts/uat/readToRender.mjs`).
+              data-record="screen-order"
+              data-record-id={order.order_observation_id}
+            >
               <span>{order.venue}</span><span>{order.side}</span><span>{order.hub}</span><strong>{order.remaining_quantity_mwh.toLocaleString()} MWh</strong><span>{order.price.toFixed(2)} {order.unit}</span><span>{order.status}</span>
             </div>
           ))}
           {screenOrders.length === 0 && (
-            <div className="data-table-row six"><span>n/a</span><span>n/a</span><span>n/a</span><strong>{t("status.unknown")}</strong><span>n/a</span><span>{t("data.unavailable")}</span></div>
+            <div className="data-table-row six" data-empty-state="screen-orders"><span>n/a</span><span>n/a</span><span>n/a</span><strong>{t("status.unknown")}</strong><span>n/a</span><span>{t("data.unavailable")}</span></div>
           )}
         </div>
       </div>
@@ -70,7 +77,14 @@ export function MarketPositioningWorkspace({
         <div className="data-table" tabIndex={0}>
           <div className="data-table-row header six"><span>Portfolio</span><span>Valuation</span><span>Quantity</span><span>Indicative</span><span>Cash</span><span>Basis</span></div>
           {pnlSnapshots.slice(0, 8).map((snapshot) => (
-            <div key={`pnl-${snapshot.pnl_snapshot_id}`} className="data-table-row six">
+            <div
+              key={`pnl-${snapshot.pnl_snapshot_id}`}
+              className="data-table-row six"
+              // The row carries the snapshot's own id, so the acceptance sweep compares it with
+              // the projection read by exact id (`scripts/uat/readToRender.mjs`).
+              data-record="pnl-snapshot"
+              data-record-id={snapshot.pnl_snapshot_id}
+            >
               <strong>{snapshot.portfolio_id}</strong>
               <span>{formatTimestamp(snapshot.valuation_time_utc)}</span>
               <span>{snapshot.quantity_mwh.toLocaleString()} MWh</span>
@@ -80,7 +94,7 @@ export function MarketPositioningWorkspace({
             </div>
           ))}
           {pnlSnapshots.length === 0 && (
-            <div className="data-table-row six"><strong>n/a</strong><span>n/a</span><span>{t("status.unknown")}</span><span>n/a</span><span>n/a</span><span>{t("data.unavailable")}</span></div>
+            <div className="data-table-row six" data-empty-state="pnl-snapshots"><strong>n/a</strong><span>n/a</span><span>{t("status.unknown")}</span><span>n/a</span><span>n/a</span><span>{t("data.unavailable")}</span></div>
           )}
         </div>
       </div>

@@ -65,6 +65,11 @@ function PortfolioOverview({ controller }: { controller: AppController }) {
             <button
               key={resource.resource_id}
               type="button"
+              // The pool row carries the contract's own id (`portfolio_resource_from_contract`
+              // maps `contract_id` to `resource_id`), so the acceptance sweep can compare the
+              // row with the upstream-terms read it renders (`scripts/uat/readToRender.mjs`).
+              data-record="portfolio-resource"
+              data-record-id={resource.resource_id}
               className={`data-table-row five ${selection.resourceId === resource.resource_id ? "selected" : ""}`}
               onClick={() => {
                 selection.setResourceId(resource.resource_id);

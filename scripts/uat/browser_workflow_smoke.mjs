@@ -17,6 +17,13 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import {
+  collectVisibleElements,
+  evaluateReadToRender,
+  readGroupRows,
+  readSourceLabel,
+} from "./readToRender.mjs";
+
 const require = createRequire(import.meta.url);
 const { chromium } = require(
   process.env.EUROGAS_UAT_PLAYWRIGHT_PATH || "playwright",
@@ -67,29 +74,46 @@ const VIEWPORTS = [
  *
  * `heading` is matched against the displayed page's own heading, so a deep link that lands on a
  * different surface fails instead of being screenshotted as if it were the requested one.
- * `apiPath` is read from the same session the browser holds, and `rowSelector` counts the rows the
- * surface actually rendered: if the read returns rows and the surface renders none, the surface is
- * telling the user there is no data while the deployment has data - a delivery defect, not a
- * cosmetic one.
+ * `apiPath` is read from the same session the browser holds.
+ *
+ * A surface whose own read can be compared row by row declares `readToRender` (see
+ * `readToRender.mjs`). Each group names the path the rows have in the read's payload, the payload
+ * field that carries each row's record id, and the selector the surface renders those rows under
+ * (`data-record` kinds carrying `data-record-id`), so a returned row is compared only with its own
+ * group's rendered rows - by exact id, never by page copy. `rowLimit` mirrors the bound the
+ * surface itself applies, and `emptySelector` names the surface's own declared empty state
+ * (`data-empty-state`), used when the read is a successful, measured zero.
+ *
+ * A surface without `readToRender` keeps the older whole-page check: it is weaker, and it is
+ * why the declared functional gaps below stay declared.
  */
 const SURFACE_SIGNALS = {
-  network: { heading: /network|market/i, apiPath: "/api/reference-network/edges?limit=5", rowSelector: null },
-  capacity: { heading: /capacity/i, apiPath: "/api/physical/capacity?limit=5", rowSelector: null },
-  market: { heading: /market/i, apiPath: "/api/market/observations?limit=5", rowSelector: null },
-  scenario: { heading: /decision/i, apiPath: "/api/decision-cases?limit=5", rowSelector: null },
-  // Match the client's upstream-terms read; this endpoint has no limit parameter.
-  contracts: { heading: /portfolio|contract/i, apiPath: "/api/route-cost/upstream-contracts", rowSelector: null },
-  strategy: { heading: /strategy/i, apiPath: "/api/strategies?limit=5", rowSelector: null },
-  review: { heading: /review|decision/i, apiPath: "/api/review/decisions?limit=5", rowSelector: null },
-  orders: { heading: /portfolio|order/i, apiPath: "/api/portfolio/live-summary", rowSelector: null },
-  sources: { heading: /source/i, apiPath: "/api/sources?limit=5", rowSelector: null },
-  glossary: { heading: /glossary/i, apiPath: "/api/glossary?limit=5", rowSelector: null },
-  runtime: { heading: /runtime/i, apiPath: "/api/runtime/pipeline-health", rowSelector: null },
-  settings: { heading: /settings/i, apiPath: "/api/runtime/release", rowSelector: null },
-  manual: { heading: /manual/i, apiPath: null, rowSelector: null },
-  access: { heading: /access/i, apiPath: "/api/access/users", rowSelector: null },
-  research: { heading: /research/i, apiPath: "/api/capabilities?limit=5", rowSelector: null },
-  agents: { heading: /agent/i, apiPath: "/api/capabilities?limit=5", rowSelector: null },
+  network: { heading: /network|market/i, apiPath: "/api/reference-network/edges?limit=5" },
+  capacity: { heading: /capacity/i, apiPath: "/api/physical/capacity?limit=5" },
+  market: { heading: /market/i, apiPath: "/api/market/observations?limit=5" },
+  scenario: { heading: /decision/i, apiPath: "/api/decision-cases?limit=5" },
+  // Match the client's upstream-terms read; this endpoint has no limit parameter. One persisted
+  // contract is rendered in two places - the pool row the Portfolio Overview task draws from the
+  // projection's `resources` slice, and the contract library row - and both carry the contract's
+  // own id (`portfolio_resource_from_contract` maps `contract_id` to `resource_id`), so one group
+  // covers both views. `rowLimit` 25 mirrors the overview's own bound. The deep link lands on the
+  // overview task, which declares no empty-state row, so an empty read is reported as unmeasured
+  // rather than against an empty state this view does not render.
+  contracts: { heading: /portfolio|contract/i, apiPath: "/api/route-cost/upstream-contracts", readToRender: [{ label: "upstream contracts", rowsPath: "data", recordIdField: "contract_id", rowSelectors: ['[data-record="portfolio-resource"]', '[data-record="upstream-contract"]'], rowLimit: 25 }] },
+  strategy: { heading: /strategy/i, apiPath: "/api/strategies?limit=5" },
+  review: { heading: /review|decision/i, apiPath: "/api/review/decisions?limit=5" },
+  // The orders surface renders the rows of the portfolio projection it reads in its own workspace
+  // batch (`screen_orders`/`pnl_snapshots`), not the legacy live-summary aggregate the probe used
+  // to read: an aggregate is not a row set. `rowLimit` 8 mirrors the PnL table's own bound.
+  orders: { heading: /portfolio|order/i, apiPath: "/api/projections/portfolio-snapshot", readToRender: [{ label: "screen orders", rowsPath: "data.slices.screen_orders", recordIdField: "order_observation_id", rowSelectors: ['[data-record="screen-order"]'], emptySelector: '[data-empty-state="screen-orders"]' }, { label: "pnl snapshots", rowsPath: "data.slices.pnl_snapshots", recordIdField: "pnl_snapshot_id", rowSelectors: ['[data-record="pnl-snapshot"]'], emptySelector: '[data-empty-state="pnl-snapshots"]', rowLimit: 8 }] },
+  sources: { heading: /source/i, apiPath: "/api/sources?limit=5" },
+  glossary: { heading: /glossary/i, apiPath: "/api/glossary?limit=5" },
+  runtime: { heading: /runtime/i, apiPath: "/api/runtime/pipeline-health" },
+  settings: { heading: /settings/i, apiPath: "/api/runtime/release" },
+  manual: { heading: /manual/i, apiPath: null },
+  access: { heading: /access/i, apiPath: "/api/access/users" },
+  research: { heading: /research/i, apiPath: "/api/capabilities?limit=5" },
+  agents: { heading: /agent/i, apiPath: "/api/capabilities?limit=5" },
 };
 
 /**
@@ -277,11 +301,13 @@ async function inspectSurfaceFunction(
     const text = displayed ? displayed.innerText : "";
     let apiRows = null;
     let apiStatus = null;
+    let apiBody = null;
     if (path) {
       try {
         const response = await fetch(path, { credentials: "include" });
         apiStatus = response.status;
         const body = await response.json();
+        apiBody = body ?? null;
         const data = body?.data;
         apiRows = Array.isArray(data)
           ? data.length
@@ -306,6 +332,7 @@ async function inspectSurfaceFunction(
       text: text.slice(0, 400),
       apiRows,
       apiStatus,
+      apiBody,
     };
   }, signal.apiPath);
 
@@ -343,9 +370,37 @@ async function inspectSurfaceFunction(
       }`,
     );
   }
-  if (state.apiRows !== null && state.apiRows > 0) {
+  if (signal.readToRender) {
+    // The surface's own read is compared with the rows the surface actually rendered, by exact
+    // record id and only within each group's own selector (`readToRender.mjs`). Page copy is not
+    // consulted: a legitimate `n/a` cell, or the portfolio context strip's own "stale, missing or
+    // unavailable" sentence, used to be read as "the surface renders none of the read's rows" and
+    // failed a surface that had rendered them.
+    const groups = signal.readToRender.map((group) => readGroupRows(state.apiBody, group));
+    const evidence = await page.evaluate(collectVisibleElements, {
+      groups: groups.map((group) => ({
+        rowSelectors: Array.isArray(group.rowSelectors) ? group.rowSelectors : [],
+        emptySelector: group.emptySelector ?? null,
+      })),
+    });
+    const compared = evaluateReadToRender({
+      status: state.apiStatus,
+      groups,
+      evidence,
+      source: readSourceLabel(state.apiBody),
+    });
+    for (const detail of compared.observations) {
+      recordObservation(observations, `${scope}: ${detail}`);
+    }
+    for (const detail of compared.failures) {
+      recordFailure(failures, scope, detail);
+    }
+  } else if (state.apiRows !== null && state.apiRows > 0) {
     // The read has data. If the surface renders none of it, it is telling the operator the
-    // deployment is empty - the defect class this gate exists for.
+    // deployment is empty - the defect class this gate exists for. This whole-page check is the
+    // weaker one kept for the surfaces that have not declared a scoped `readToRender` contract
+    // yet; it treats any non-array body as one row and any `n/a` copy on the page as a missing
+    // row, which is why the repaired surfaces no longer use it.
     const rendersNothing = /\bn\/a\b|unavailable|no records|no data|not (?:available|read|configured)/i.test(
       state.text,
     );
