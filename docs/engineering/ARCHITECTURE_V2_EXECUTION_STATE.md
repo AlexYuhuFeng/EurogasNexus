@@ -174,6 +174,20 @@ the batch retains its existing multi-read commit barrier; market projection
 latency and page-wide read-to-render assertions remain open. Production is NOT
 APPROVED, and test progress does not authorize customer release.
 
+Fresh verification at `2c05f14`, CI run `35996627042`: 96 browser checks ran
+with zero axe violations and zero horizontal overflow. Functional failure entries
+fell from 27 to 9: contracts (three) and orders (six), all read-to-render checks.
+No workspace-settlement timeout or lingering-loading failure was reported.
+Validation, PostgreSQL integration, dependency audit and web build all passed;
+browser acceptance remains FAILED. The downloaded Network desktop screenshot
+was independently inspected: resource paths now show 2/2 with explicit indicative
+corridor disclosure, replacing the false disconnected message. This does not
+certify map geometry or every page's usability. Evidence:
+`output/ci-35996627042` (local ignored artifacts). Next bounded task: inspect the
+actual Portfolio/Orders rows and replace demonstrably stale whole-page probes
+with scoped assertions and negative tests, fixing any confirmed rendering defect.
+Market projection latency and remaining unread-status cells remain open.
+
 ## Historical programme state
 V2 pack version: 2026-09 autonomous runner
 Current wave: Waves 0-10 have delivered slices. Wave 11 (RC/GA readiness) has not started.
