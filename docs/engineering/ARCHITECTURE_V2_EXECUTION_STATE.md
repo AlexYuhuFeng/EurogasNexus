@@ -204,6 +204,18 @@ probe/link/UAT tests passed. Fresh browser verification is pending. Empty CI
 orders/PnL fixtures cannot prove populated-row browser workflows; that limitation
 remains explicit. Market latency and other commercial-release gaps remain open.
 
+Post-push verification: browser run `36032330807` at `69dd695` completed all
+96 checks with zero failures/axe violations; six declared functional gaps remain.
+Its validation job caught an integration packaging omission: ContractWorkbench's
+record/empty-state markers were left unstaged. They were included in `c8c260f`,
+and CI run `36033183882` then passed all five active jobs, including browser
+acceptance, PostgreSQL integration, validation, dependency audit and web build.
+Desktop packaging was skipped by the normal main workflow; no release was built.
+The green browser gate covers the seeded workload, not populated Orders/PnL
+acceptance or closure of declared gaps. Next: investigate the local market-read
+latency and strengthen populated-persona workflows without inventing market data.
+Commercial production approval remains blocked by the audit's open requirements.
+
 ## Historical programme state
 V2 pack version: 2026-09 autonomous runner
 Current wave: Waves 0-10 have delivered slices. Wave 11 (RC/GA readiness) has not started.
