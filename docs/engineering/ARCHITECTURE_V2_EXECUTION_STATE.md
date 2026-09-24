@@ -93,6 +93,32 @@ the user's choice of that existing identity versus explicit UAT administrator
 provisioning. Do not silently create roles, widen scopes or disable authentication.
 This resolves the database connectivity blocker, not authenticated UAT acceptance.
 
+September 24 local UAT identity milestone (baseline `0e3a84c`): on the user's
+explicit request, six test principals were provisioned in the existing local
+PostgreSQL database. One combined-role account covers all five work modes;
+five separate role accounts exercise VIEWER, ANALYST, REVIEWER, OPERATOR and
+ADMIN boundaries. This supersedes the preceding awaiting-user account decision.
+Credentials are encrypted with Windows DPAPI outside Git at
+`%LOCALAPPDATA%\EurogasNexus\uat\credentials.clixml`; usage instructions are in
+the adjacent local README. Role API keys expire after 30 days. No secrets are
+tracked and no market data or schema was changed.
+
+Provisioning exposed a real persistence defect: generated API-key display
+prefixes were 24 characters, exceeding PostgreSQL's 16-character column.
+The generator now respects that limit; bearer identity, secret hashing and
+authentication semantics are unchanged. A regression test checks the mapped
+column constraint and confirms the resulting bearer still parses and verifies.
+Focused identity tests: 17 passed. Real HTTP checks verified browser sign-in,
+all six experience profiles, connected runtime database at revision
+`0036_job_records`, ADMIN-only denial of commercial market reads, ANALYST denial
+of user administration and ADMIN-only access to user administration.
+
+These are identity checks, not whole-product persona acceptance. A combined-role
+market projection exceeded a 30-second request timeout with 853,376 stored quotes;
+investigate query performance without weakening entitlement or freshness rules.
+Next: resolve the recorded browser-acceptance failures and reproduce this slow
+market read. Production remains NOT APPROVED. No customer release was performed.
+
 ## Historical programme state
 V2 pack version: 2026-09 autonomous runner
 Current wave: Waves 0-10 have delivered slices. Wave 11 (RC/GA readiness) has not started.

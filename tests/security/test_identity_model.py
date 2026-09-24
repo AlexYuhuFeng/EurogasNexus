@@ -17,6 +17,19 @@ from eurogas_nexus.security.identity import (
 )
 
 
+def test_api_key_display_prefix_fits_postgresql_column() -> None:
+    from eurogas_nexus.db.models.identity import IdentityApiKeyRecord
+
+    key_id = "a" * 24
+    key = generate_api_key(key_id=key_id, display_name="local-test")
+    assert len(key.key_prefix) <= IdentityApiKeyRecord.__table__.c.key_prefix.type.length
+    assert key.bearer.startswith(key.key_prefix)
+    parsed = parse_identity_bearer(key.bearer)
+    assert parsed is not None
+    assert parsed[0] == key_id
+    assert verify_key_hash(parsed[1], key.key_hash)
+
+
 def test_role_precedence_is_least_privilege_ordered() -> None:
     assert role_allows("VIEWER", "VIEWER") is True
     assert role_allows("VIEWER", "ANALYST") is False

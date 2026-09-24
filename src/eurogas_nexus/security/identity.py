@@ -153,7 +153,7 @@ def generate_api_key(*, key_id: str, display_name: str) -> NewApiKey:
     return NewApiKey(
         key_id=key_id,
         bearer=bearer,
-        key_prefix=bearer[:24],
+        key_prefix=bearer[:16],
         key_hash=hash_key_secret(secret),
         display_name=display_name,
     )
