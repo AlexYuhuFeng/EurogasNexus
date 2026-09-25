@@ -24,6 +24,19 @@ What it measures (``--db``, the default):
 3. ``EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)`` for every statement the call tree
    issues, in the shape the application issues it (read-only SELECTs only), with
    the top plan node, actual rows, actual milliseconds and shared buffer reads.
+4. ``market_observations`` per source: how many rows each source holds, how many
+   of them are gas rows, and its newest observed instant - the inventory a reader
+   needs to judge the source-coverage read's cost;
+5. the source-coverage read in **both** shapes: the superseded one keeps its two
+   statements (``normalized.source_count`` and
+   ``normalized.source_coverage_window``, the second ranking every gas row of the
+   table), and the shipped one is measured as its actual per-source pages
+   (``normalized.source_page.<source>``, one statement per source, each bounded by
+   the page limit the repository applies). ``comparison`` sums each shape's
+   measured medians and states what that does and does not include; the two shapes
+   are compared by their *measured* statements, never by an assumed speedup.
+   The superseded statements are also the repository's fallback when the
+   reservation cannot fit, so they stay measurable for that case too.
 
 What it measures (``--python-only``), without any database connection: the
 per-row Python costs the bounded repair changes - one latest-rate graph build per
@@ -39,6 +52,7 @@ Usage:
     python scripts/ops/measure_market_projection_latency.py --repeat 3 --json
     python scripts/ops/measure_market_projection_latency.py --python-only
     python scripts/ops/measure_market_projection_latency.py --statement-timeout-ms 20000
+    python scripts/ops/measure_market_projection_latency.py --max-sources 4
 """
 
 from __future__ import annotations
@@ -46,10 +60,11 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import re
 import statistics
 import sys
 import time
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
@@ -82,18 +97,49 @@ _OBSERVATION_COLUMNS = (
     "metadata_json"
 )
 
+#: The repository's per-source reservation bound (``per_source_limit``), and the
+#: row bound the normalized endpoint asks for (``QUOTE_LIMIT``). The per-source
+#: page the repository issues is ``min(per_source_limit, limit)`` rows.
+PER_SOURCE_LIMIT = 40
 
-def _statements() -> list[tuple[str, str]]:
+#: Sources whose per-source page is measured by default. The shipped read issues one
+#: statement per source, so this harness's own runtime grows with the source count;
+#: the cap keeps a deployment with many sources measurable, and the report says how
+#: many sources were measured and how many were left out.
+DEFAULT_MAX_SOURCES = 12
+
+#: Statement-name prefix that marks one measured per-source page.
+SOURCE_PAGE_PREFIX = "normalized.source_page."
+
+#: Source values are data, so the harness interpolates one into its own read-only
+#: SQL only when it is a plain identifier. Anything else is reported as unmeasured
+#: rather than quoted into a statement.
+_SOURCE_VALUE_PATTERN = re.compile(r"[A-Za-z0-9_.:\-]{1,64}\Z")
+
+
+def _statements(source_systems: Sequence[str] = ()) -> list[tuple[str, str]]:
     """Return the (name, SQL) pairs of the projection's read statements.
 
     The SQL is written the way the ORM issues it, so a plan measured here is the
     plan the endpoint gets. ``observations.unbounded`` is the shape the market
     context read used before its slice was bounded in SQL; it is kept in the
     report so the avoided cost is measurable rather than asserted.
+
+    ``normalized.source_count`` and ``normalized.source_coverage_window`` are the
+    superseded source-coverage shape, kept for the same reason: the cost the
+    per-source pages avoid stays measurable instead of asserted. Those two statements
+    are also what the repository keeps for the rare case where the reservation cannot
+    fit (more gas sources than the payload bound), so the superseded numbers are that
+    fallback's cost as well. Every name in ``source_systems`` adds that source's page
+    statement, the shape
+    :func:`eurogas_nexus.db.repositories.market_intelligence.list_market_observations_with_source_coverage`
+    now issues - one bounded read per source, ordered by the route's own order fields
+    (rows tied on all three are left to the store, as the ranking window left them).
     """
 
     observation_order = "ORDER BY observed_at_utc DESC, market_venue, product"
-    return [
+    page_bound = min(PER_SOURCE_LIMIT, QUOTE_LIMIT)
+    statements = [
         (
             "observations.count",
             "SELECT count(*) AS raw_count FROM market_observations",
@@ -138,6 +184,18 @@ def _statements() -> list[tuple[str, str]]:
             "ON anon_1.observation_id = market_observations.observation_id "
             "WHERE anon_1.source_rank <= 40",
         ),
+    ]
+    statements += [
+        (
+            f"{SOURCE_PAGE_PREFIX}{source}",
+            f"SELECT {_OBSERVATION_COLUMNS} FROM market_observations "
+            f"WHERE source_system = '{source}' AND unit ILIKE '%MWH%' "
+            "ORDER BY observed_at_utc DESC, market_venue, product "
+            f"LIMIT {page_bound}",
+        )
+        for source in source_systems
+    ]
+    statements += [
         (
             "normalized.fx_rows",
             "SELECT observation_id, pair, base_currency, quote_currency, rate, "
@@ -175,6 +233,7 @@ def _statements() -> list[tuple[str, str]]:
             f"detected_at_utc DESC LIMIT {ALERT_LIMIT}",
         ),
     ]
+    return statements
 
 
 def _table_inventory(connection) -> list[dict[str, Any]]:
@@ -222,6 +281,154 @@ def _index_inventory(connection) -> list[dict[str, Any]]:
         )
     ).mappings()
     return [dict(row) for row in rows]
+
+
+def _source_inventory(connection) -> list[dict[str, Any]]:
+    """Report ``market_observations`` per source: rows, gas rows and newest instant.
+
+    The source-coverage read issues one statement per source, so how many sources
+    exist and how large each one is *is* the scaling answer; it is measured rather
+    than assumed. Counts and one timestamp per source are reported - no price, no
+    identity and no row content.
+    """
+
+    from sqlalchemy import text
+
+    rows = connection.execute(
+        text(
+            """
+            SELECT source_system,
+                   count(*) AS row_count,
+                   count(*) FILTER (WHERE unit ILIKE '%MWH%') AS gas_row_count,
+                   max(observed_at_utc) AS newest_observed_at_utc
+            FROM market_observations
+            GROUP BY source_system
+            ORDER BY count(*) DESC, source_system
+            """
+        )
+    ).mappings()
+    inventory: list[dict[str, Any]] = []
+    for row in rows:
+        newest = row["newest_observed_at_utc"]
+        inventory.append(
+            {
+                "source_system": row["source_system"],
+                "row_count": int(row["row_count"] or 0),
+                "gas_row_count": int(row["gas_row_count"] or 0),
+                "newest_observed_at_utc": (
+                    newest.isoformat() if hasattr(newest, "isoformat") else newest
+                ),
+            }
+        )
+    return inventory
+
+
+def _measureable_sources(
+    inventory: Sequence[dict[str, Any]] | None,
+    *,
+    max_sources: int,
+) -> tuple[list[str], list[str]]:
+    """Split the inventory into the sources whose page is measured and the rest.
+
+    The inventory arrives largest first. A source whose value is not a plain
+    identifier is never quoted into this harness's own SQL, and a source beyond
+    ``max_sources`` is not measured either - both are returned in the "not
+    measured" list so the report can say what it left out instead of quietly
+    measuring a subset.
+    """
+
+    if not inventory:
+        return [], []
+    names = [str(row.get("source_system") or "") for row in inventory]
+    readable = [name for name in names if _SOURCE_VALUE_PATTERN.fullmatch(name)]
+    unreadable = [name for name in names if not _SOURCE_VALUE_PATTERN.fullmatch(name)]
+    return readable[: max(1, max_sources)], readable[max(1, max_sources) :] + unreadable
+
+
+def _measurement(entry: dict[str, Any] | None) -> float | None:
+    """One measured statement's median milliseconds, or None when it did not run."""
+
+    if entry is None:
+        return None
+    value = entry.get("execution_ms_median")
+    return float(value) if isinstance(value, int | float) else None
+
+
+def _compare_shapes(
+    statements: Sequence[dict[str, Any]],
+    *,
+    page_bound: int,
+    sources_measured: Sequence[str],
+    sources_not_measured: Sequence[str],
+) -> dict[str, Any]:
+    """Sum each source-coverage read shape's measured statement medians.
+
+    Both sides are sums of *measured server plan times*: the superseded shape is its
+    gas source count plus its ranking window, the shipped shape is one bounded page
+    per measured source. Summing server times excludes the network round trips the
+    shapes pay in production - two for the superseded shape whatever the source
+    count, one per source for the shipped shape - so the comparison exposes the
+    statement cost, not the trip cost. Neither side is estimated, and a side with a
+    statement that did not run is reported as unmeasured rather than as a zero.
+    """
+
+    by_name = {entry.get("name"): entry for entry in statements}
+    superseded = [
+        _measurement(by_name.get("normalized.source_count")),
+        _measurement(by_name.get("normalized.source_coverage_window")),
+    ]
+    per_source = [
+        _measurement(entry)
+        for name, entry in by_name.items()
+        if isinstance(name, str) and name.startswith(SOURCE_PAGE_PREFIX)
+    ]
+    superseded_total = (
+        None if any(value is None for value in superseded) else round(sum(superseded), 3)
+    )
+    per_source_total = (
+        None
+        if not per_source or any(value is None for value in per_source)
+        else round(sum(per_source), 3)
+    )
+    return {
+        "superseded_shape": {
+            "statements": ["normalized.source_count", "normalized.source_coverage_window"],
+            "execution_ms": superseded_total,
+        },
+        "per_source_shape": {
+            "statement_count": len(per_source),
+            "page_bound": page_bound,
+            "sources_measured": list(sources_measured),
+            "sources_not_measured": list(sources_not_measured),
+            "execution_ms": per_source_total,
+        },
+        "ratio_superseded_over_per_source": (
+            round(superseded_total / per_source_total, 2)
+            if superseded_total is not None and per_source_total
+            else None
+        ),
+        "notes": [
+            "SQL plan times from EXPLAIN (ANALYZE, BUFFERS), excluding Python "
+            "shaping, row transfer and connection setup.",
+            "Both sides are sums of server plan times, so neither includes network "
+            "round trips: in production the superseded shape pays two round trips "
+            "whatever the source count, the shipped shape one per source.",
+            "The superseded statements are also the repository's fallback when the "
+            "candidate sources outnumber the payload bound (the reservation may not "
+            "fit), so these numbers are that fallback's cost as well.",
+            "The shipped read also issues one source enumeration unless the caller "
+            "already holds its entitled source set (observations.allowed_sources "
+            "is the projection's, and is measured above but excluded from both "
+            "sums).",
+            "Each per-source page is written for an index on (source_system, "
+            "observed_at_utc); the plan nodes under its statement show whether this "
+            "deployment's planner used one.",
+            "A statement that did not run leaves its side - and the ratio - "
+            "unmeasured rather than zero.",
+            "This is a triage measurement on this machine at this moment, not a "
+            "performance gate and not production load acceptance.",
+        ],
+    }
 
 
 def _explain(connection, statement: str) -> dict[str, Any]:
@@ -356,11 +563,18 @@ def _measure_statement(
     return entry
 
 
-def _measure_db(repeat: int, statement_timeout_ms: int) -> tuple[dict[str, Any], int]:
+def _measure_db(
+    repeat: int,
+    statement_timeout_ms: int,
+    *,
+    max_sources: int = DEFAULT_MAX_SOURCES,
+) -> tuple[dict[str, Any], int]:
     """Measure every statement of the projection's call tree, read-only.
 
     The report identifies the database by presence only: the DSN never enters
-    it, redacted or otherwise.
+    it, redacted or otherwise. The source inventory decides which per-source pages
+    are measured (largest sources first, at most ``max_sources`` of them); the
+    report names the ones it did not measure.
     """
 
     from sqlalchemy import text
@@ -381,8 +595,10 @@ def _measure_db(repeat: int, statement_timeout_ms: int) -> tuple[dict[str, Any],
         # an empty list would read as "there are none".
         "tables": None,
         "indexes": None,
+        "sources": None,
         "statements": [],
         "statements_failed": 0,
+        "comparison": None,
         "warnings": [
             "EXPLAIN (ANALYZE) executes each SELECT; it writes nothing, but it does "
             "read the tables and can be slow on the largest ones.",
@@ -404,7 +620,11 @@ def _measure_db(repeat: int, statement_timeout_ms: int) -> tuple[dict[str, Any],
         except Exception as exc:
             report["warnings"].append(f"Measurement aborted: {exc.__class__.__name__}.")
             return report, 2
-        for key, reader in (("tables", _table_inventory), ("indexes", _index_inventory)):
+        for key, reader in (
+            ("tables", _table_inventory),
+            ("indexes", _index_inventory),
+            ("sources", _source_inventory),
+        ):
             try:
                 with _read_only_connection(engine, statement_timeout_ms) as connection:
                     report[key] = reader(connection)
@@ -414,7 +634,23 @@ def _measure_db(repeat: int, statement_timeout_ms: int) -> tuple[dict[str, Any],
                     f"{key.capitalize()} inventory could not be read: "
                     f"{exc.__class__.__name__}."
                 )
-        for name, statement in _statements():
+        measured_sources, unmeasured_sources = _measureable_sources(
+            report["sources"],
+            max_sources=max_sources,
+        )
+        if report["sources"] is None:
+            report["warnings"].append(
+                "Per-source pages were not measured: the source inventory could not "
+                "be read, so the shipped source-coverage shape is not in the "
+                "comparison."
+            )
+        elif unmeasured_sources:
+            report["warnings"].append(
+                f"Per-source pages measured for {len(measured_sources)} source(s); "
+                f"{len(unmeasured_sources)} not measured (cap {max(1, max_sources)}, "
+                "or a value that is not a plain identifier)."
+            )
+        for name, statement in _statements(measured_sources):
             entry = _measure_statement(
                 engine,
                 name,
@@ -425,6 +661,12 @@ def _measure_db(repeat: int, statement_timeout_ms: int) -> tuple[dict[str, Any],
             if entry["errors"]:
                 report["statements_failed"] += 1
             report["statements"].append(entry)
+        report["comparison"] = _compare_shapes(
+            report["statements"],
+            page_bound=min(PER_SOURCE_LIMIT, QUOTE_LIMIT),
+            sources_measured=measured_sources,
+            sources_not_measured=unmeasured_sources,
+        )
     except Exception as exc:
         report["warnings"].append(f"Measurement aborted: {exc.__class__.__name__}.")
         return report, 2
@@ -562,6 +804,16 @@ def _print_human(report: dict[str, Any]) -> None:
     else:
         for index in report["indexes"]:
             print(f"  {index['index_name']}: {index['definition']}")
+    print("\nmarket_observations per source (rows / gas rows / newest):")
+    if report["sources"] is None:
+        print("  not measured (see warnings)")
+    else:
+        for source in report["sources"]:
+            print(
+                f"  {source['source_system']}: {source['row_count']} rows, "
+                f"{source['gas_row_count']} gas rows, "
+                f"newest {source['newest_observed_at_utc']}"
+            )
     print("\nStatements:")
     for entry in report["statements"]:
         run = entry.get("last_run")
@@ -586,6 +838,34 @@ def _print_human(report: dict[str, Any]) -> None:
         f"\nStatements measured: {len(report['statements'])}, "
         f"failed: {report['statements_failed']}"
     )
+    comparison = report.get("comparison")
+    print("\nSource-coverage shapes (measured SQL plan time only):")
+    if not comparison:
+        print("  not compared (the measurement did not complete)")
+    else:
+        superseded = comparison["superseded_shape"]["execution_ms"]
+        per_source = comparison["per_source_shape"]["execution_ms"]
+        print(
+            "  superseded (count + ranking window): "
+            + (f"{superseded} ms" if superseded is not None else "not measured")
+        )
+        print(
+            "  shipped (one bounded page per source): "
+            + (
+                f"{per_source} ms over "
+                f"{comparison['per_source_shape']['statement_count']} statement(s), "
+                f"page bound {comparison['per_source_shape']['page_bound']} rows"
+                if per_source is not None
+                else "not measured"
+            )
+        )
+        measured = comparison["per_source_shape"]["sources_measured"]
+        skipped = comparison["per_source_shape"]["sources_not_measured"]
+        print(f"  sources measured: {len(measured)}, not measured: {len(skipped)}")
+        ratio = comparison["ratio_superseded_over_per_source"]
+        print(f"  ratio superseded / shipped: {ratio if ratio is not None else 'not measured'}")
+        for note in comparison["notes"]:
+            print(f"  note: {note}")
     for warning in report["warnings"]:
         print(f"Warning: {warning}")
 
@@ -615,6 +895,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--rates", type=int, default=20000, help="Fixture FX rates for --python-only."
     )
+    parser.add_argument(
+        "--max-sources",
+        type=int,
+        default=DEFAULT_MAX_SOURCES,
+        help=(
+            "Sources whose per-source page statement is measured, largest first. The "
+            "shipped read issues one statement per source, so this bounds the "
+            f"harness's own runtime (default {DEFAULT_MAX_SOURCES})."
+        ),
+    )
     parser.add_argument("--json", action="store_true", help="Emit machine-readable JSON.")
     args = parser.parse_args(argv)
 
@@ -629,7 +919,11 @@ def main(argv: list[str] | None = None) -> int:
         }
         exit_code = 0
     else:
-        report, exit_code = _measure_db(max(1, args.repeat), args.statement_timeout_ms)
+        report, exit_code = _measure_db(
+            max(1, args.repeat),
+            args.statement_timeout_ms,
+            max_sources=max(1, args.max_sources),
+        )
 
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True))

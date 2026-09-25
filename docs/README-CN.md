@@ -142,6 +142,7 @@ Architecture V2 是绑定的目标架构与产品体验交互权威（ADR-0016�
 - [数据库运行加固](operations/DB_RUNTIME_HARDENING.md)
 - [备份与恢复](operations/BACKUP_RESTORE.md)
 - [SLO](operations/SLO.md)
+- [来源覆盖读取](operations/SOURCE_COVERAGE_READ.md)
 - [生产数据源运营 EN](operations/PRODUCTION_SOURCE_OPERATIONS.md) /
   [CN](operations/PRODUCTION_SOURCE_OPERATIONS-CN.md)
 - [模拟行情来源](operations/SIMULATED_MARKET_PRICE_SOURCES.md)

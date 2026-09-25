@@ -673,16 +673,27 @@ def test_market_context_observation_read_is_bounded_before_it_reaches_python(
     assert observation_slice["limits"] == {"row_limit": 5, "truncated": True}
     # The counts are aggregates and the entitlement probe reads source values
     # only; every statement that loads observation rows carries a LIMIT. The
-    # normalized view's per-source coverage read loads rows too - it is bounded
-    # by its own ``source_rank`` window predicate instead, and is unchanged here.
+    # normalized view's source-coverage read loads rows too: it is one bounded
+    # page per entitled source now, not a ``source_rank`` window over the table.
     full_row_statements = [
         statement
         for statement in statements
         if "market_observations_observation_id" in statement
-        and "row_number" not in statement.lower()
     ]
     assert full_row_statements
     assert all("LIMIT" in statement.upper() for statement in full_row_statements)
+    # The per-source page is the read that filters one source by equality and orders
+    # by the route's own order fields; it stands in for the removed `source_rank`
+    # window, and its only bound is its own LIMIT.
+    source_pages = [
+        statement
+        for statement in statements
+        if "market_observations.source_system = ?" in statement
+        and "market_observations_observation_id" in statement
+    ]
+    assert len(source_pages) == 1  # the one entitled source this fixture seeds
+    assert all("LIMIT" in statement.upper() for statement in source_pages)
+    assert all("row_number" not in statement.lower() for statement in statements)
     assert any("DISTINCT" in statement.upper() for statement in statements)
 
 

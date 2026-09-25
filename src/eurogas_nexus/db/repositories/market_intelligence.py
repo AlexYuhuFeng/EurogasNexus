@@ -144,6 +144,12 @@ def get_intraday_opportunity(
     return _opportunity_dict(row, now_utc=now_utc)
 
 
+#: Unit pattern for the gas rows the source-coverage read reserves. Shared by the
+#: per-source pages and by the fallback's ranking window, so the row set a
+#: reservation is computed over cannot drift between the two shapes.
+_GAS_UNIT_PATTERN = "%MWH%"
+
+
 def list_normalized_market_view(
     session: Session,
     *,
@@ -211,7 +217,32 @@ def list_market_observations_with_source_coverage(
     per_source_limit: int = 40,
     source_systems: set[str] | None = None,
 ) -> list:
-    """Return recent observations with bounded low-frequency source coverage."""
+    """Return recent observations with bounded low-frequency source coverage.
+
+    返回近期观测并为低频来源保留有界配额：每日评估类数据不得被高频 tick 挤掉。
+
+    The returned set is the globally newest ``limit`` rows merged with a bounded
+    reservation for the gas sources, deduplicated by ``observation_id``, capped at
+    ``limit`` and ordered by the market observation route's own order (observed
+    instant desc, market venue, product). The reservation is now one bounded page
+    per candidate source (:func:`_newest_gas_row_page`) instead of a ranking window
+    over every gas row of the table; the superseded window is kept for the one case
+    that read still decides, see :func:`_bounded_source_coverage_rows`. Bounds,
+    entitlement, tie handling and the fallback's cost are recorded in
+    ``docs/operations/SOURCE_COVERAGE_READ.md``.
+
+    Args:
+        session: DB session.
+        limit: Maximum rows returned, and the global newest read's bound.
+        per_source_limit: Maximum rows a single source may reserve.
+        source_systems: Entitled source values, or None for every source value
+            present in the table (the resource-pool composition reads that way and
+            applies entitlement to the returned rows afterwards).
+
+    Returns:
+        At most ``limit`` observation rows: the per-source reservation first, then
+        the globally newest rows, deduplicated and ordered as described above.
+    """
 
     newest_query = session.query(MarketObservationRecord)
     if source_systems is not None:
@@ -228,43 +259,116 @@ def list_market_observations_with_source_coverage(
         .limit(limit)
         .all()
     )
-    return _with_latest_row_per_gas_source(
-        session,
+    if limit <= 0 or not newest_rows:
+        return newest_rows
+    return _merge_bounded_source_coverage(
         newest_rows,
+        _bounded_source_coverage_rows(
+            session,
+            limit=limit,
+            per_source_limit=per_source_limit,
+            source_systems=source_systems,
+        ),
         limit=limit,
-        per_source_limit=per_source_limit,
-        source_systems=source_systems,
     )
 
 
-def _with_latest_row_per_gas_source(
+def _bounded_source_coverage_rows(
     session: Session,
-    newest_rows: list,
     *,
     limit: int,
     per_source_limit: int,
     source_systems: set[str] | None = None,
 ) -> list:
-    """Reserve recent rows for gas sources without exceeding the API limit.
+    """Read the newest gas rows of every candidate source, one bounded read each.
 
-    The normalized endpoint is intentionally bounded, but a low-frequency source
-    such as a daily ICIS assessment must not disappear behind hundreds of
-    high-frequency simulated ticks. A bounded per-source quota is selected first;
-    the remaining capacity is filled with the globally newest observations.
+    The reservation half of :func:`list_market_observations_with_source_coverage`:
+    one ``LIMIT``-bounded page per candidate source, in the shape
+    ``ix_market_observations_source_time`` (migration 0010) serves. The quota a
+    source keeps is applied after the reads, because it divides ``limit`` by the
+    number of gas sources and that divisor is only known once every candidate
+    source has answered; a source with no gas row at all reserves nothing and
+    consumes no quota.
+
+    When the candidate sources outnumber the payload bound the reservation may not
+    fit - the quota is then one row per gas source - and a page order would decide
+    which rows survive, a choice this read has no mandate to make. The candidate
+    count is known before any row is read, so that case takes
+    :func:`_reserved_gas_rows_window`, the algorithm that decided it before, without
+    reading a page first; its own quota rule leaves the selection identical wherever
+    the reservation would have fit. It is rare (the source count must exceed the
+    payload bound) and its cost is the superseded shape's cost.
+
+    Args:
+        session: DB session.
+        limit: The payload's row bound (the merge still owns the final cap).
+        per_source_limit: Maximum rows one source may reserve.
+        source_systems: Entitled source values, or None for every source present.
+
+    Returns:
+        The reserved rows every source with a gas row can keep, delivered read by
+        read in a deterministic source order; :func:`_merge_bounded_source_coverage`
+        orders the payload.
     """
 
-    if limit <= 0 or not newest_rows:
-        return newest_rows
+    page_bound = min(per_source_limit, limit)
+    if page_bound <= 0:
+        return []
+    sources = _coverage_source_systems(session, source_systems)
+    if not sources:
+        return []
+    if len(sources) > limit:
+        return _reserved_gas_rows_window(
+            session,
+            limit=limit,
+            per_source_limit=per_source_limit,
+            source_systems=source_systems,
+        )
+    pages = [
+        page
+        for page in (
+            _newest_gas_row_page(session, source=source, bound=page_bound)
+            for source in sources
+        )
+        if page
+    ]
+    if not pages:
+        return []
+    source_quota = min(per_source_limit, max(1, limit // len(pages)))
+    return [row for page in pages for row in page[:source_quota]]
+
+
+def _reserved_gas_rows_window(
+    session: Session,
+    *,
+    limit: int,
+    per_source_limit: int,
+    source_systems: set[str] | None,
+) -> list:
+    """The superseded reservation read, kept for the case it still decides.
+
+    ``count(DISTINCT source_system)`` over the gas rows, then ``row_number() OVER
+    (PARTITION BY source_system ORDER BY ...)`` over every gas row of the table and
+    a join back to ``market_observations`` for the rows inside the quota. This is
+    the read the bounded per-source pages replace; it is kept, unchanged, for
+    :func:`_bounded_source_coverage_rows`' rare case - more candidate sources than
+    the payload bound, so the reservation may not fit - where it is the algorithm
+    that decided the selection before. Its two full-table reads are the cost of that
+    fallback, measured by ``scripts/ops/measure_market_projection_latency.py`` as
+    ``normalized.source_count`` and ``normalized.source_coverage_window``. The row
+    order of the reservation is the join's, as it always was.
+    """
+
     source_count_query = session.query(
         func.count(func.distinct(MarketObservationRecord.source_system))
-    ).filter(MarketObservationRecord.unit.ilike("%MWH%"))
+    ).filter(MarketObservationRecord.unit.ilike(_GAS_UNIT_PATTERN))
     if source_systems is not None:
         source_count_query = source_count_query.filter(
             MarketObservationRecord.source_system.in_(source_systems)
         )
     source_count = source_count_query.scalar() or 0
     if source_count == 0:
-        return newest_rows[:limit]
+        return []
 
     source_quota = min(per_source_limit, max(1, limit // source_count))
     ranked_query = session.query(
@@ -279,13 +383,13 @@ def _with_latest_row_per_gas_source(
             ),
         )
         .label("source_rank"),
-    ).filter(MarketObservationRecord.unit.ilike("%MWH%"))
+    ).filter(MarketObservationRecord.unit.ilike(_GAS_UNIT_PATTERN))
     if source_systems is not None:
         ranked_query = ranked_query.filter(
             MarketObservationRecord.source_system.in_(source_systems)
         )
     ranked_rows = ranked_query.subquery()
-    coverage_rows = (
+    return (
         session.query(MarketObservationRecord)
         .join(
             ranked_rows,
@@ -294,7 +398,73 @@ def _with_latest_row_per_gas_source(
         .filter(ranked_rows.c.source_rank <= source_quota)
         .all()
     )
-    return _merge_bounded_source_coverage(newest_rows, coverage_rows, limit=limit)
+
+
+def _coverage_source_systems(
+    session: Session,
+    source_systems: set[str] | None,
+) -> list[str]:
+    """The candidate sources one coverage pass reads, in a deterministic order.
+
+    A caller that already holds the entitled source values passes them in; a caller
+    that does not (the resource-pool composition applies entitlement to the
+    returned rows) gets the values present in the table from one ``DISTINCT`` read,
+    which is the only statement this shape adds when no source set is supplied.
+    """
+
+    if source_systems is not None:
+        return sorted(source_systems)
+    rows = (
+        session.query(MarketObservationRecord.source_system)
+        .distinct()
+        .order_by(MarketObservationRecord.source_system)
+        .all()
+    )
+    return [source for (source,) in rows if isinstance(source, str)]
+
+
+def _newest_gas_row_page(session: Session, *, source: str, bound: int) -> list:
+    """One source's newest ``bound`` gas rows, in the route's own read order.
+
+    ``source_system`` equality with an observed-instant descending order is the
+    shape ``ix_market_observations_source_time`` serves, so this is a bounded index
+    range inside one source rather than a scan of the table. The order key is the
+    route's own - instant, venue, product - so rows that tie on all three are cut by
+    the database, exactly as the superseded ranking window cut them; this read does
+    not define a tie-break rule of its own.
+    """
+
+    return (
+        session.query(MarketObservationRecord)
+        .filter(
+            MarketObservationRecord.source_system == source,
+            MarketObservationRecord.unit.ilike(_GAS_UNIT_PATTERN),
+        )
+        .order_by(
+            MarketObservationRecord.observed_at_utc.desc(),
+            MarketObservationRecord.market_venue,
+            MarketObservationRecord.product,
+        )
+        .limit(bound)
+        .all()
+    )
+
+
+def _read_order_key(row) -> tuple:
+    """The market observation read order as a sort key (missing instant last).
+
+    The route's own order of ``market_observations`` is observed instant desc, then
+    venue, then product; the merge orders the payload with it, so the returned rows
+    have one definition of "newest first".
+    """
+
+    return (
+        _as_utc(row.observed_at_utc)
+        if row.observed_at_utc is not None
+        else datetime.min.replace(tzinfo=UTC),
+        row.market_venue,
+        row.product,
+    )
 
 
 def _merge_bounded_source_coverage(
@@ -303,7 +473,14 @@ def _merge_bounded_source_coverage(
     *,
     limit: int,
 ) -> list:
-    """Merge reserved source rows with newest rows, deduplicate, and cap output."""
+    """Merge reserved source rows with newest rows, deduplicate, and cap output.
+
+    The reservation is merged first - the order the superseded shape used - so a
+    reserved row is never displaced by a newer global row, and rows tied on the read
+    order keep the reservation ahead of the global read. The reserved rows are not
+    re-ranked here: they are consumed in the order the reads delivered them, and the
+    final stable sort is the only ordering rule the payload has.
+    """
 
     selected: list = []
     known_ids: set[str] = set()
@@ -314,16 +491,7 @@ def _merge_bounded_source_coverage(
         selected.append(row)
         if len(selected) >= limit:
             break
-    selected.sort(
-        key=lambda row: (
-            _as_utc(row.observed_at_utc)
-            if row.observed_at_utc is not None
-            else datetime.min.replace(tzinfo=UTC),
-            row.market_venue,
-            row.product,
-        ),
-        reverse=True,
-    )
+    selected.sort(key=_read_order_key, reverse=True)
     return selected
 
 

@@ -168,6 +168,7 @@ Operational procedures and operator-facing guides:
 - [Production reliability](operations/PRODUCTION_RELIABILITY_SPEC.md)
 - [Performance baseline](operations/PERFORMANCE_BASELINE.md)
 - [Performance budget](operations/PERFORMANCE_BUDGET.md)
+- [Source coverage read](operations/SOURCE_COVERAGE_READ.md)
 - [Backup and restore](operations/BACKUP_RESTORE.md)
 - [Disaster recovery](operations/DISASTER_RECOVERY.md)
 - [Release rollback](operations/RELEASE_ROLLBACK.md)

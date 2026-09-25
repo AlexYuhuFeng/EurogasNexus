@@ -151,6 +151,23 @@ class _FakeEngine:
                     }
                 ]
             )
+        if "GROUP BY source_system" in sql:
+            return _FakeResult(
+                [
+                    {
+                        "source_system": "SIM_TICKS",
+                        "row_count": 900_000,
+                        "gas_row_count": 860_000,
+                        "newest_observed_at_utc": "2026-09-25T06:00:00+00:00",
+                    },
+                    {
+                        "source_system": "ICIS",
+                        "row_count": 1_200,
+                        "gas_row_count": 1_200,
+                        "newest_observed_at_utc": "2026-09-25T05:30:00+00:00",
+                    },
+                ]
+            )
         return _FakeResult(
             [
                 {
@@ -238,8 +255,9 @@ def test_a_timed_out_statement_does_not_poison_the_statements_measured_after_it(
         for entry in report["statements"]
         for failure in entry["errors"]
     )
-    # The probe and the two inventory reads, then one connection per measured run.
-    assert len(engine.connections) == len(report["statements"]) + 3
+    # The probe and the three inventory reads (tables, indexes, sources), then one
+    # connection per measured run.
+    assert len(engine.connections) == len(report["statements"]) + 4
     measured = _measured_connections(engine)
     assert len(measured) == len(report["statements"])
     failed_connection = measured[0]
@@ -276,7 +294,7 @@ def test_a_failed_repetition_does_not_stop_the_next_repetition(
     assert report["statements_failed"] == 1
     # Two runs of the first statement, on two different connections.
     measured = _measured_connections(engine)
-    assert len(engine.connections) == 2 * len(report["statements"]) + 3
+    assert len(engine.connections) == 2 * len(report["statements"]) + 4
     assert len(measured) == 2 * len(report["statements"])
     assert measured[0] is not measured[1]
 
@@ -289,8 +307,9 @@ def test_every_measured_run_gets_its_own_read_only_transaction(
     module, engine, report, exit_code = _measure(monkeypatch)
 
     assert exit_code == 0
-    # The probe and the two inventory reads, then one connection per measured run.
-    assert len(engine.connections) == len(report["statements"]) + 3
+    # The probe and the three inventory reads (tables, indexes, sources), then one
+    # connection per measured run.
+    assert len(engine.connections) == len(report["statements"]) + 4
     for connection in engine.connections:
         assert connection.executed[0] == "SET TRANSACTION READ ONLY"
         assert connection.executed[1] == "SET LOCAL statement_timeout = 60000"
@@ -303,6 +322,213 @@ def test_every_measured_run_gets_its_own_read_only_transaction(
     assert engine.refusals == []
     assert all(sql.startswith(("SET ", "EXPLAIN ", "SELECT ")) for sql in engine.executed)
     assert all(statement.lstrip().startswith("SELECT") for _, statement in module._statements())
+
+
+def test_both_source_coverage_shapes_are_measured_with_their_real_statements() -> None:
+    """The superseded shape stays measurable, and the shipped pages are its own SQL."""
+
+    module = _harness()
+    names = [name for name, _ in module._statements(["ICIS", "SIM_TICKS"])]
+    statements = dict(module._statements(["ICIS", "SIM_TICKS"]))
+
+    assert "normalized.source_count" in names
+    assert "normalized.source_coverage_window" in names
+    assert "row_number() OVER (PARTITION BY" in statements[
+        "normalized.source_coverage_window"
+    ]
+    assert [
+        name for name in names if name.startswith(module.SOURCE_PAGE_PREFIX)
+    ] == [
+        f"{module.SOURCE_PAGE_PREFIX}ICIS",
+        f"{module.SOURCE_PAGE_PREFIX}SIM_TICKS",
+    ]
+    page = statements[f"{module.SOURCE_PAGE_PREFIX}ICIS"]
+    assert page.lstrip().startswith("SELECT")
+    assert "source_system = 'ICIS'" in page
+    assert "unit ILIKE '%MWH%'" in page
+    # The route's own order fields, with no tie-break appended: rows tied on all
+    # three are the store's choice, exactly as they were for the ranking window.
+    assert "ORDER BY observed_at_utc DESC, market_venue, product LIMIT" in page
+    assert "observation_id DESC" not in page
+    # The shipped read's page bound is the repository's per-source bound.
+    assert f"LIMIT {min(module.PER_SOURCE_LIMIT, module.QUOTE_LIMIT)}" in page
+    assert "row_number" not in page.lower()
+
+
+def test_a_source_value_that_is_not_a_plain_identifier_is_never_quoted_into_sql() -> None:
+    """Source values are data: the harness reports them instead of interpolating them."""
+
+    module = _harness()
+    measured, skipped = module._measureable_sources(
+        [
+            {"source_system": "SIM_TICKS"},
+            {"source_system": "O'Hara; DROP TABLE market_observations"},
+            {"source_system": ""},
+        ],
+        max_sources=5,
+    )
+
+    assert measured == ["SIM_TICKS"]
+    assert skipped == ["O'Hara; DROP TABLE market_observations", ""]
+    assert all(
+        "DROP" not in statement for _, statement in module._statements(measured)
+    )
+
+
+def test_the_source_cap_is_reported_instead_of_measuring_a_silent_subset() -> None:
+    """Sources beyond the cap are named as not measured, not dropped quietly."""
+
+    module = _harness()
+    inventory = [{"source_system": f"SRC_{index}"} for index in range(5)]
+
+    measured, skipped = module._measureable_sources(inventory, max_sources=2)
+
+    assert measured == ["SRC_0", "SRC_1"]
+    assert skipped == ["SRC_2", "SRC_3", "SRC_4"]
+
+
+def test_the_comparison_sums_measured_statements_and_never_invents_a_number() -> None:
+    """Each shape's total is a sum of measurements, and a missing side stays unknown."""
+
+    module = _harness()
+    statements = [
+        {"name": "normalized.source_count", "execution_ms_median": 786.0},
+        {"name": "normalized.source_coverage_window", "execution_ms_median": 3336.0},
+        {"name": "normalized.source_page.SIM_TICKS", "execution_ms_median": 0.4},
+        {"name": "normalized.source_page.ICIS", "execution_ms_median": 0.2},
+    ]
+
+    comparison = module._compare_shapes(
+        statements,
+        page_bound=40,
+        sources_measured=["SIM_TICKS", "ICIS"],
+        sources_not_measured=[],
+    )
+
+    assert comparison["superseded_shape"]["execution_ms"] == 4122.0
+    assert comparison["per_source_shape"]["execution_ms"] == 0.6
+    assert comparison["per_source_shape"]["statement_count"] == 2
+    assert comparison["per_source_shape"]["page_bound"] == 40
+    assert comparison["ratio_superseded_over_per_source"] == 6870.0
+    # The comparison is server plan time, and says that it excludes round trips.
+    assert any("neither includes network round trips" in note for note in comparison["notes"])
+    assert any("fallback" in note for note in comparison["notes"])
+    assert any("not a performance gate" in note for note in comparison["notes"])
+
+    # A measured statement that failed, and a side that never ran at all, are
+    # "not measured" rather than zero.
+    failed_page = module._compare_shapes(
+        [entry for entry in statements if entry["name"] != "normalized.source_page.ICIS"]
+        + [{"name": "normalized.source_page.ICIS", "errors": ["run 1: OperationalError"]}],
+        page_bound=40,
+        sources_measured=["SIM_TICKS", "ICIS"],
+        sources_not_measured=[],
+    )
+    missing_superseded = module._compare_shapes(
+        [entry for entry in statements if entry["name"] != "normalized.source_coverage_window"],
+        page_bound=40,
+        sources_measured=["SIM_TICKS", "ICIS"],
+        sources_not_measured=[],
+    )
+
+    assert failed_page["per_source_shape"]["execution_ms"] is None
+    assert failed_page["ratio_superseded_over_per_source"] is None
+    assert missing_superseded["superseded_shape"]["execution_ms"] is None
+    assert missing_superseded["ratio_superseded_over_per_source"] is None
+
+
+def test_the_measured_per_source_pages_come_from_the_source_inventory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The fake store's own sources decide which pages are measured."""
+
+    _, _, report, exit_code = _measure(monkeypatch)
+    names = [entry["name"] for entry in report["statements"]]
+
+    assert exit_code == 0
+    assert [name for name in names if name.startswith("normalized.source_page.")] == [
+        "normalized.source_page.SIM_TICKS",
+        "normalized.source_page.ICIS",
+    ]
+    assert report["sources"] == [
+        {
+            "source_system": "SIM_TICKS",
+            "row_count": 900_000,
+            "gas_row_count": 860_000,
+            "newest_observed_at_utc": "2026-09-25T06:00:00+00:00",
+        },
+        {
+            "source_system": "ICIS",
+            "row_count": 1_200,
+            "gas_row_count": 1_200,
+            "newest_observed_at_utc": "2026-09-25T05:30:00+00:00",
+        },
+    ]
+    assert report["comparison"]["per_source_shape"]["sources_measured"] == [
+        "SIM_TICKS",
+        "ICIS",
+    ]
+    assert report["comparison"]["per_source_shape"]["sources_not_measured"] == []
+    # Both sides are sums of the same fake plans, so neither is a placeholder.
+    assert report["comparison"]["superseded_shape"]["execution_ms"] == 3.0
+    assert report["comparison"]["per_source_shape"]["execution_ms"] == 3.0
+
+
+def test_the_source_cap_bounds_the_measured_pages_and_is_disclosed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``max_sources`` bounds the harness's own runtime and says what it left out."""
+
+    module = _harness()
+    monkeypatch.setenv("RUNTIME_STORE_DATABASE_URL", DSN)
+    engine = _FakeEngine()
+
+    def fake_get_engine(database_url: str, **kwargs: Any) -> _FakeEngine:
+        engine.database_url = database_url
+        engine.kwargs = kwargs
+        return engine
+
+    from eurogas_nexus import db as db_module
+
+    monkeypatch.setattr(db_module, "get_engine", fake_get_engine)
+    report, exit_code = module._measure_db(1, 60_000, max_sources=1)
+
+    names = [entry["name"] for entry in report["statements"]]
+    assert exit_code == 0
+    assert [name for name in names if name.startswith("normalized.source_page.")] == [
+        "normalized.source_page.SIM_TICKS"
+    ]
+    assert report["comparison"]["per_source_shape"]["sources_measured"] == ["SIM_TICKS"]
+    assert report["comparison"]["per_source_shape"]["sources_not_measured"] == ["ICIS"]
+    assert any("not measured (cap 1" in warning for warning in report["warnings"])
+
+
+def test_a_failed_source_inventory_leaves_the_comparison_one_sided(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An unreadable inventory is reported, and the shipped side stays unmeasured."""
+
+    module = _harness()
+    _, engine, report, exit_code = _measure(
+        monkeypatch,
+        fail=lambda sql: "GROUP BY source_system" in sql,
+    )
+
+    assert exit_code == 0
+    assert report["sources"] is None
+    assert report["statements_failed"] == 0
+    assert [entry["name"] for entry in report["statements"]] == [
+        name for name, _ in module._statements()
+    ]
+    assert report["comparison"]["per_source_shape"]["execution_ms"] is None
+    assert report["comparison"]["per_source_shape"]["statement_count"] == 0
+    assert report["comparison"]["ratio_superseded_over_per_source"] is None
+    assert any(
+        "Per-source pages were not measured" in warning for warning in report["warnings"]
+    )
+    # The inventory statement was attempted, and its own connection was closed.
+    assert any("GROUP BY source_system" in sql for sql in engine.executed)
+    assert all(connection.closed for connection in engine.connections)
 
 
 def test_the_report_never_carries_the_database_url(

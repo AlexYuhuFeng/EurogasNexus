@@ -244,6 +244,29 @@ Remaining cost includes the source-coverage window (~3,336 ms), gas-source count
 must preserve coverage/entitlement/time semantics and measure concurrency. Fresh
 CI is pending; commercial production approval remains blocked.
 
+September 25 source-coverage performance (baseline `8e5059a`, verified green
+CI `36066122675`): DeepSeek implemented bounded per-source reads using the existing
+source/time index. Daily-source reservations, entitlement-before-limit and global
+caps remain. Integration review rejected a new tie-break and newest-reservation
+selection rule; the original window algorithm is retained when candidate sources
+exceed the payload bound. Existing full-key tie ambiguity remains explicit rather
+than claimed as deterministic equivalence. No schema, permission or data changes.
+The per-source approach trades whole-history ranking for one query per source;
+many-source and non-gas-source cases require deployment-specific measurement.
+
+Independent checks: 67 focused repository/projection/entitlement/API/harness tests
+and repository lint passed. Real PostgreSQL plan comparison on five sources:
+old count/window statements total 4,035.359 ms; new per-source statements total
+0.601 ms. These are server plan times, excluding network and application work.
+Four authenticated market-context requests at concurrency two took 7.103, 7.105,
+5.556 and 5.596 seconds before this change; after restarting the same local API,
+they took 1.838, 1.838, 0.939 and 0.927 seconds, each with 500 observations and
+500 normalized rows. Cache warmth and the small sample preclude a production SLA
+claim. No live prices were fabricated. See the indexed operational note
+`docs/operations/SOURCE_COVERAGE_READ.md` for limits and fallback semantics.
+Fresh CI remains pending. Next: verify this commit's CI, exercise populated persona
+workflows and close the declared functional gaps. Production approval remains open.
+
 ## Historical programme state
 V2 pack version: 2026-09 autonomous runner
 Current wave: Waves 0-10 have delivered slices. Wave 11 (RC/GA readiness) has not started.
