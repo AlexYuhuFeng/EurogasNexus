@@ -189,3 +189,57 @@ declared gaps for the other surfaces are untouched.
 - A rendered row the read did not return is only a failure when the read is empty (stale rows); in a
   populated group the read's rows must all be present, but extra rows are not yet attributed.
 - Value parity (does a rendered price equal the API's price) remains the next tightening.
+
+## 2026-09-25 — the glossary term index and article are measured, and their exemption is retired
+
+The glossary carried two declarations from the 2026-09-19 run: a functional gap ("glossary terms
+return rows while the term index renders 'Loading workspace'") and a surface defect whose reason was
+"the surface's own read never completes on a fresh login". They were investigated against the
+current store and component and against the last full acceptance artifact (`output/ci-36032330807`,
+run `69dd695`, 96/96 checks green):
+
+- **The declaration was stale after the September 24 loader repair.** `GlossaryWiki` takes its
+  term-index badge from `api.workspaceLoading` (the workspace batch's own settled lifecycle), and
+  the article's "Loading workspace" copy is reachable only when the surface holds no term at all -
+  so a failed or absent read is what the old declaration described. Run `36032330807` recorded
+  neither a failure nor that declared defect for the glossary scope, and that check does not depend
+  on the probe's own read: had the surface held no term, its article fallback would have rendered
+  "Loading workspace" and the declaration would have fired. It did not, so the term index was
+  rendering. What remained true is the weakness the declaration exposed: it was a statement about
+  page copy, and the Chinese scopes could never be compared at all.
+- **What replaces it.** The glossary signal now declares a scoped read group (`rowsPath: "data"`,
+  `recordIdField: "term_id"`, selector `[data-record="glossary-term"]`, empty state
+  `[data-empty-state="glossary-terms"]`): every term `GET /api/glossary?limit=5` returns must be one
+  the left term index rendered, as a card carrying that term's own id. The comparison is
+  language-independent and per row, so a missing term, a hidden card, a card carrying another term's
+  id, a row without an id and a read that did not answer 200 are failures rather than passes. The
+  probe is the same route the client lane reads (`api.glossary`), and the contract module
+  `tests/contract/test_browser_probe_paths.py` holds the declaration against the served payload and
+  the component that renders it.
+- **The two-pane interaction is asserted, not assumed.** `interaction/glossary-term-selection` opens
+  the surface, holds the opening article to a term the read returned, clicks a *different* term in
+  the index and requires the wiki article to carry the clicked term's own record id and to render
+  that term's definition from the same read; it then filters the index by that term's own name,
+  which must keep the term in the index and the article on it. That is the "left term index selects,
+  right wiki article follows" behaviour the b566459 walkthrough (`docs/ux/POST_CR15_UI_AUDIT.md`)
+  recorded visually, with no executable assertion until now; the filter is checked against the one
+  query whose answer the read states itself, so the harness does not reimplement the filter's
+  matching rule.
+- **What did not change.** No permission, database, credential, route or payload change; no new page;
+  no visual redesign and no copy change. Market, capacity, sources, access, research and agents keep
+  their declared gaps exactly as they were. The 2026-09-19 table above is that run's measurement and
+  is not rewritten.
+
+### Limits of this repair
+
+- Verified here by the web suite (`readToRender.test.ts`, `browserSmokeGates.test.ts`), the contract
+  suite (`tests/contract/test_browser_probe_paths.py`) and `tsc`; **no live browser run was performed
+  in this environment**. The CI browser job is the evidence for the interaction, and it is the first
+  run in which the glossary index is compared per row in both languages.
+- The probe reads five terms while the surface renders its own list (bounded at 40, and the built-in
+  catalogue holds 31), so the check proves the index rendered the terms the read returned, not that
+  it rendered every term a deployment holds. That bound was re-measured against the route's real
+  payload outside the browser: all 31 rendered ids matched the five returned ones, and a hidden,
+  missing or substituted card failed by name.
+- The article's definition is compared with `definition_en`, because the interaction check runs in
+  English; the Chinese article is covered by the term-id comparison only.

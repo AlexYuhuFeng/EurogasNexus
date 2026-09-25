@@ -200,6 +200,11 @@ export function GlossaryWiki({
             <button
               key={`glossary-term-${term.term_id}`}
               type="button"
+              // The card carries the term's own id, so the acceptance sweep compares the term
+              // index with the glossary read by exact id rather than by page text
+              // (`scripts/uat/readToRender.mjs`).
+              data-record="glossary-term"
+              data-record-id={term.term_id}
               className={`glossary-term-card ${selectedTerm?.term_id === term.term_id ? "active" : ""}`}
               onClick={() => onSelectTerm(term)}
             >
@@ -212,7 +217,7 @@ export function GlossaryWiki({
             </button>
           ))}
           {terms.length === 0 && (
-            <div className="glossary-empty-state">
+            <div className="glossary-empty-state" data-empty-state="glossary-terms">
               <strong>{t("data.unavailable")}</strong>
               <span>{t("glossary.search")}</span>
             </div>
@@ -220,7 +225,14 @@ export function GlossaryWiki({
         </div>
       </section>
 
-      <article className="workspace-panel glossary-wiki-article">
+      <article
+        className="workspace-panel glossary-wiki-article"
+        // The article declares the term it is showing, so the browser sweep's glossary
+        // interaction can hold the selection to the exact record the index selected instead of
+        // comparing the page's own copy with itself (`browser_workflow_smoke.mjs`).
+        data-record="glossary-article"
+        data-record-id={selectedTerm?.term_id}
+      >
         <div className="panel-title-row">
           <div>
             <span className="eyebrow">{t("glossary.term_wiki")}</span>

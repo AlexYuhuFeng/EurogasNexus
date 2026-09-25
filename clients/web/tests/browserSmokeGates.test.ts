@@ -126,10 +126,17 @@ test("the unrelated declared defects are still declared, for declared workspaces
 
   // The measured-and-open gaps this repair does not touch, recorded in
   // docs/release/FUNCTIONAL_ACCEPTANCE_REPORT.md.
-  for (const key of ["market", "glossary", "agents", "access", "capacity", "sources", "research"]) {
+  for (const key of ["market", "agents", "access", "capacity", "sources", "research"]) {
     assert.ok(declaredKeys("KNOWN_FUNCTIONAL_GAPS").includes(key), `functional gap kept: ${key}`);
   }
-  assert.deepEqual(declaredKeys("KNOWN_SURFACE_DEFECTS").sort(), ["agents", "glossary"]);
+  assert.deepEqual(declaredKeys("KNOWN_SURFACE_DEFECTS").sort(), ["agents"]);
+
+  // The glossary exemption (measured 2026-09-19) is retired, not moved: it was a statement about
+  // page copy, and the surface's term index and wiki article are now compared with the surface's
+  // own read by exact term id, with its selection exercised as an interaction
+  // (`glossaryTermSelectionInteraction`). A surface that renders no term fails by name.
+  assert.equal(declaredKeys("KNOWN_FUNCTIONAL_GAPS").includes("glossary"), false);
+  assert.equal(declaredKeys("KNOWN_SURFACE_DEFECTS").includes("glossary"), false);
 
   // The session bootstrap's expected 401 is still the only allowed console error.
   assert.match(block("const ALLOWED_CONSOLE_ERRORS = [", "];"), /status of 401/);
@@ -175,4 +182,50 @@ test("the functional gate waits for the surface's own read to settle, and fails 
   assert.equal(settle.includes("workspaceLoading"), false);
   // The text-based loading check stays, for the surfaces that are still loading after settling.
   assert.match(source, /"the surface still shows 'Loading workspace' after load"/);
+});
+
+test("the glossary term index is compared by term id, and its selection is exercised", () => {
+  // The retirement of this surface's exemption has to be carried by measurements, not by its
+  // absence: the term index is compared with the surface's own read (`/api/glossary`) by exact
+  // `term_id`, in both languages and at every viewport, and the two-pane interaction the user
+  // asked for is asserted as an interaction - the article must follow the clicked record.
+  const signals = block("const SURFACE_SIGNALS = {", "\n};");
+  assert.match(
+    signals,
+    /glossary: \{ heading: \/glossary\/i, apiPath: "\/api\/glossary\?limit=5", readToRender: \[\{ label: "glossary term index", rowsPath: "data", recordIdField: "term_id", rowSelectors: \['\[data-record="glossary-term"\]'\], emptySelector: '\[data-empty-state="glossary-terms"\]' \}\] \},/,
+  );
+
+  const interaction = block(
+    "async function glossaryTermSelectionInteraction(",
+    "\nexport async function runWorkflowSmoke()",
+  );
+  // A different term is selected: the click only counts because the choice is taken against the
+  // read's own ids, by exact equality rather than by a rendered label or a page-wide substring.
+  assert.match(interaction, /const next = terms\.find\(\(row\) => row\.id !== initialId\);/);
+  assert.match(interaction, /const cardIndex = renderedIds\.indexOf\(next\.id\);/);
+  assert.match(interaction, /await page\.locator\('\[data-record="glossary-term"\]'\)\.nth\(cardIndex\)\.click\(\);/);
+  // The article must carry the clicked term's own record, and render that term's definition.
+  assert.match(interaction, /getAttribute\("data-record-id"\) === id,/);
+  assert.match(interaction, /article\.locator\("\.glossary-definition"\)/);
+  assert.match(interaction, /if \(expected !== "" && definition !== expected\)/);
+  // The index's filter is exercised on the selected term's own name: the one query whose expected
+  // answer the read knows without the harness reimplementing the filter's matching rule.
+  assert.match(interaction, /page\.locator\("\.glossary-left-rail input"\)\.first\(\)\.fill\(next\.term\)/);
+  assert.match(interaction, /filtering the term index by '\$\{next\.term\}' hides the term its own read returned/);
+  // A selection that does not reach the article, an article that opens on no returned term, and an
+  // index that never rendered the term are failures, never observations.
+  assert.match(interaction, /left the wiki article on/);
+  assert.match(interaction, /which the glossary read did not return/);
+  assert.match(interaction, /the term index renders no row for/);
+  assert.equal(interaction.includes("recordObservation("), false);
+  assert.match(source, /currentScope = "interaction\/glossary-term-selection";/);
+  assert.match(source, /await glossaryTermSelectionInteraction\(page, failures\);/);
+
+  // The markers the group and the interaction select are the glossary surface's own.
+  const component = readFileSync(new URL("../src/components/GlossaryWiki.tsx", import.meta.url), "utf8");
+  assert.match(component, /data-record="glossary-term"/);
+  assert.match(component, /data-record-id=\{term\.term_id\}/);
+  assert.match(component, /data-empty-state="glossary-terms"/);
+  assert.match(component, /data-record="glossary-article"/);
+  assert.match(component, /data-record-id=\{selectedTerm\?\.term_id\}/);
 });

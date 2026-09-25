@@ -63,8 +63,12 @@ MARKET_POSITIONING_DOMAIN = ROOT / "src" / "eurogas_nexus" / "domain" / "market_
 #: The components each scoped probe's rendered rows live in.
 WORKSPACE_COMPONENTS: dict[str, tuple[Path, ...]] = {
     "contracts": (WEB_SRC / "PortfolioWorkspace.tsx", WEB_SRC / "ContractWorkbench.tsx"),
+    "glossary": (WEB_SRC / "GlossaryWiki.tsx",),
     "orders": (WEB_SRC / "MarketPositioningWorkspace.tsx",),
 }
+
+#: The glossary domain payload the probe's rows are compared against.
+GLOSSARY_DOMAIN = ROOT / "src" / "eurogas_nexus" / "domain" / "glossary.py"
 
 
 def _signals_source() -> str:
@@ -197,10 +201,10 @@ def test_every_scoped_read_declares_its_own_rows_and_record_id() -> None:
     """
 
     groups = _declared_groups()
-    assert {workspace for workspace, _ in groups} == {"contracts", "orders"}, (
-        "exactly the contracts and orders surfaces declare the scoped comparison"
+    assert {workspace for workspace, _ in groups} == {"contracts", "glossary", "orders"}, (
+        "exactly the contracts, glossary and orders surfaces declare the scoped comparison"
     )
-    assert len(groups) == 3, "contracts declares one group, orders declares two"
+    assert len(groups) == 4, "contracts and glossary declare one group each, orders declares two"
 
     for workspace, group in groups:
         where = f"{workspace}/{group.get('label')}"
@@ -294,6 +298,42 @@ def test_the_scoped_groups_compare_ids_the_backend_actually_serves() -> None:
         assert re.search(rf"^    {field}: str$", domain, re.MULTILINE), (
             f"the served model declares no {field} for the group to compare"
         )
+
+
+def test_the_glossary_probe_compares_the_term_ids_the_route_serves() -> None:
+    """The term index is compared with the surface's own read, by the term's own id.
+
+    The glossary surface carried a declared exemption from the sweep ("glossary terms return rows
+    while the term index renders 'Loading workspace'", measured 2026-09-19). The whole-page
+    heuristic could not tell a rendered index from a stale one and could not read the Chinese copy
+    at all, so the exemption is replaced by a row comparison: the probe reads the same route the
+    client lane reads (``api.glossary``), and every term it returns must be one the index rendered
+    under the term's own ``term_id`` - the field the route's payload carries and the card renders.
+    """
+
+    probes = _declared_probes()
+    assert probes["glossary"] == "/api/glossary?limit=5"
+
+    # The probe is the surface's own read, bounded: the client lane asks the same route, and the
+    # surface's own list bound (40 terms) cannot cut off the five the probe compares.
+    client_path = probes["glossary"].removeprefix("/api").split("?", 1)[0]
+    assert client_path == "/glossary"
+    assert f'"{client_path}"' in WEB_CLIENT.read_text(encoding="utf-8")
+
+    domain = GLOSSARY_DOMAIN.read_text(encoding="utf-8")
+    assert '"term_id": self.term_id' in domain, (
+        "the served term payload carries the id the group compares"
+    )
+
+    glossary_groups = [
+        group for workspace, group in _declared_groups() if workspace == "glossary"
+    ]
+    assert len(glossary_groups) == 1, "the glossary surface declares one scoped comparison"
+    group = glossary_groups[0]
+    assert group["rowsPath"] == "data", "the glossary read serves its rows as the envelope's data"
+    assert group["recordIdField"] == "term_id"
+    assert group["rowSelectors"] == ['[data-record="glossary-term"]']
+    assert group["emptySelector"] == '[data-empty-state="glossary-terms"]'
 
 
 def _portfolio_slice_keys() -> set[str]:

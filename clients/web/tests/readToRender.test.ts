@@ -79,8 +79,36 @@ function contractsBody(rows: Array<Record<string, unknown>>) {
   return { data: rows, meta: { source_references: ["runtime-postgresql"] } };
 }
 
+/** One glossary term, as `GET /api/glossary` returns it. */
+const GLOSSARY_TERM = {
+  term_id: "hub-ttf",
+  term: "TTF",
+  category: "hub",
+  definition_en: "Title Transfer Facility, the Dutch virtual gas trading hub.",
+};
+
+/**
+ * The glossary term index's scoped read group, as `browser_workflow_smoke.mjs` declares it.
+ *
+ * The surface carried a declared exemption until this group replaced it: "glossary terms return
+ * rows while the term index renders 'Loading workspace'" (measured 2026-09-19). The whole-page
+ * heuristic could neither tell a rendered index from a stale one nor see the Chinese copy at all,
+ * which is what a row comparison by the term's own id fixes.
+ */
+const GLOSSARY_GROUP = {
+  label: "glossary term index",
+  rowsPath: "data",
+  recordIdField: "term_id",
+  rowSelectors: ['[data-record="glossary-term"]'],
+  emptySelector: '[data-empty-state="glossary-terms"]',
+};
+
 function portfolioSnapshot(slices: Record<string, unknown>) {
   return { data: { projection: "portfolio-snapshot", slices }, meta: {} };
+}
+
+function glossaryBody(rows: Array<Record<string, unknown>>) {
+  return { data: rows, meta: { source_references: ["baseline-glossary"] } };
 }
 
 /** The collector's output for one group, built directly for the decision-logic cases. */
@@ -101,6 +129,14 @@ function compareContracts(rows: Array<Record<string, unknown>>, evidence: unknow
   return evaluateReadToRender({
     status: 200,
     groups: [readGroupRows(contractsBody(rows), CONTRACTS_GROUP)],
+    evidence,
+  });
+}
+
+function compareGlossary(rows: Array<Record<string, unknown>>, evidence: unknown[]) {
+  return evaluateReadToRender({
+    status: 200,
+    groups: [readGroupRows(glossaryBody(rows), GLOSSARY_GROUP)],
     evidence,
   });
 }
@@ -421,6 +457,74 @@ test("the in-page collector survives serialisation, as page.evaluate performs it
     missingRecordIds: 0,
     emptyState: false,
   }]);
+});
+
+test("the glossary term index must render the terms its own read returned", () => {
+  const second = { ...GLOSSARY_TERM, term_id: "hub-nbp", term: "NBP" };
+  const rendered = compareGlossary(
+    [GLOSSARY_TERM, second],
+    [groupEvidence(GLOSSARY_GROUP, [GLOSSARY_TERM.term_id, second.term_id])],
+  );
+  assert.deepEqual(rendered.failures, []);
+  assert.match(
+    rendered.observations.join(" | "),
+    /2 returned row\(s\) \(200\) matched 2 rendered row\(s\) by term_id/,
+  );
+
+  // A term the read returned that the index never rendered is the surface's defect, named by the
+  // term's own id rather than by the page's copy.
+  const missing = compareGlossary(
+    [GLOSSARY_TERM, second],
+    [groupEvidence(GLOSSARY_GROUP, [GLOSSARY_TERM.term_id])],
+  );
+  assert.equal(missing.failures.length, 1);
+  assert.match(
+    missing.failures[0],
+    /glossary term index: the read returned 2 row\(s\) \(200\) and 1 have no rendered row carrying their id: hub-nbp/,
+  );
+});
+
+test("a glossary card carrying another term's id does not answer the term that was read", () => {
+  // The index rendering *a* term is not evidence it rendered *this* term, and an id that merely
+  // shares a prefix with the returned one is a different record.
+  const wrongTerm = compareGlossary(
+    [GLOSSARY_TERM],
+    [groupEvidence(GLOSSARY_GROUP, ["hub-nbp"])],
+  );
+  assert.equal(wrongTerm.failures.length, 1);
+  assert.match(wrongTerm.failures[0], /no rendered row carries their id: hub-ttf$/);
+
+  const longerId = compareGlossary(
+    [{ ...GLOSSARY_TERM, term_id: "hub-ttf" }],
+    [groupEvidence(GLOSSARY_GROUP, ["hub-ttf-day-ahead"])],
+  );
+  assert.equal(longerId.failures.length, 1);
+  assert.match(longerId.failures[0], /no rendered row carries their id: hub-ttf$/);
+});
+
+test("a glossary card hidden behind a filter is not rendered evidence", () => {
+  const hidden = collectWithStub(GLOSSARY_GROUP, {
+    '[data-record="glossary-term"]': [stubRow(GLOSSARY_TERM.term_id, { display: "none" })],
+  });
+  assert.deepEqual(hidden[0].recordIds, []);
+  const result = compareGlossary([GLOSSARY_TERM], hidden);
+  assert.equal(result.failures.length, 1);
+  assert.match(result.failures[0], /no rendered row carries their id: hub-ttf$/);
+
+  const visible = collectWithStub(GLOSSARY_GROUP, {
+    '[data-record="glossary-term"]': [stubRow(GLOSSARY_TERM.term_id)],
+  });
+  assert.deepEqual(visible[0].recordIds, [GLOSSARY_TERM.term_id]);
+  assert.deepEqual(compareGlossary([GLOSSARY_TERM], visible).failures, []);
+});
+
+test("a glossary row the read served without its term id cannot be compared", () => {
+  const result = compareGlossary(
+    [{ term: "TTF", category: "hub" }],
+    [groupEvidence(GLOSSARY_GROUP, [GLOSSARY_TERM.term_id])],
+  );
+  assert.equal(result.failures.length, 1);
+  assert.match(result.failures[0], /1 returned row\(s\) carry no 'term_id'/);
 });
 
 /** Minimal element/document stubs: `collectVisibleElements` runs in the page and in here. */

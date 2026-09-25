@@ -107,7 +107,12 @@ const SURFACE_SIGNALS = {
   // to read: an aggregate is not a row set. `rowLimit` 8 mirrors the PnL table's own bound.
   orders: { heading: /portfolio|order/i, apiPath: "/api/projections/portfolio-snapshot", readToRender: [{ label: "screen orders", rowsPath: "data.slices.screen_orders", recordIdField: "order_observation_id", rowSelectors: ['[data-record="screen-order"]'], emptySelector: '[data-empty-state="screen-orders"]' }, { label: "pnl snapshots", rowsPath: "data.slices.pnl_snapshots", recordIdField: "pnl_snapshot_id", rowSelectors: ['[data-record="pnl-snapshot"]'], emptySelector: '[data-empty-state="pnl-snapshots"]', rowLimit: 8 }] },
   sources: { heading: /source/i, apiPath: "/api/sources?limit=5" },
-  glossary: { heading: /glossary/i, apiPath: "/api/glossary?limit=5" },
+  // The glossary surface's own read (`api.glossary` in the client) answers the whole term
+  // catalogue; the probe reads the same route bounded to five terms, so every term it returns must
+  // be one the left term index rendered - by the term's own id, in both languages. The surface
+  // bounds its own list at 40 terms, which five cannot exceed, and it renders its declared empty
+  // state (`data-empty-state="glossary-terms"`) when it has no terms at all.
+  glossary: { heading: /glossary/i, apiPath: "/api/glossary?limit=5", readToRender: [{ label: "glossary term index", rowsPath: "data", recordIdField: "term_id", rowSelectors: ['[data-record="glossary-term"]'], emptySelector: '[data-empty-state="glossary-terms"]' }] },
   runtime: { heading: /runtime/i, apiPath: "/api/runtime/pipeline-health" },
   settings: { heading: /settings/i, apiPath: "/api/runtime/release" },
   manual: { heading: /manual/i, apiPath: null },
@@ -132,7 +137,6 @@ const KNOWN_FUNCTIONAL_GAPS = {
   access: "access users return rows while the Users table renders the empty row 'No users'",
   research: "the capability catalogue returns rows while the table renders 'Loading workspace'",
   agents: "the capability catalogue returns rows while the table renders 'Loading workspace'",
-  glossary: "glossary terms return rows while the term index renders 'Loading workspace'",
 };
 
 /**
@@ -143,9 +147,6 @@ const KNOWN_FUNCTIONAL_GAPS = {
  * conversation starts from the measured state. A surface that is *not* listed here fails the run.
  */
 const KNOWN_SURFACE_DEFECTS = {
-  glossary:
-    "the term index renders 'Loading workspace' after load while /api/glossary returns terms "
-    + "(measured 2026-09-19; the surface's own read never completes on a fresh login)",
   agents:
     "the capability catalogue renders 'Loading workspace' after load while /api/capabilities "
     + "returns rows (measured 2026-09-19; the surface's own read never completes on a fresh login)",
@@ -917,6 +918,148 @@ async function interactionChecks(page, failures) {
   }
 }
 
+/**
+ * The glossary's own interaction: the left term index selects, the right wiki article follows.
+ *
+ * The scoped read-to-render check proves the index rendered the terms its read returned; it cannot
+ * prove the index is a control, and this surface's recorded 2026-09-19 finding was only ever a
+ * statement about page copy. The two-pane walkthrough at b566459
+ * (`docs/ux/POST_CR15_UI_AUDIT.md`) was a visual review with no executable assertion that a
+ * selection changes the article. This clicks a term the article is *not* showing and holds the
+ * result to the record, never to the copy:
+ *
+ * - the article starts on a term the read returned, so the comparison below is not vacuous;
+ * - after the click the article carries the clicked term's own `data-record-id`;
+ * - the article's definition is the clicked term's definition from the same read;
+ * - the index's own filter is exercised on the term it just selected: searching for the selected
+ *   term's own name must keep that term in the index rather than hiding it.
+ */
+async function glossaryTermSelectionInteraction(page, failures) {
+  const scope = "interaction/glossary-term-selection";
+  try {
+    await setLanguage(page, "en");
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(`${BASE}/?workspace=glossary`, { waitUntil: "domcontentloaded" });
+    const settled = await page
+      .waitForFunction(
+        () => [...document.querySelectorAll(".workspace-page")]
+          .some((element) => element.dataset.workspaceLoadState === "settled"),
+        null,
+        { timeout: 20_000 },
+      )
+      .then(() => true)
+      .catch(() => false);
+    if (!settled) {
+      throw new Error("the glossary workspace read never settled");
+    }
+
+    const readRows = await page.evaluate(async () => {
+      const response = await fetch("/api/glossary?limit=5", { credentials: "include" });
+      if (!response.ok) throw new Error(`the glossary read answered ${response.status}`);
+      const body = await response.json();
+      return (Array.isArray(body?.data) ? body.data : []).map((row) => ({
+        id: typeof row?.term_id === "string" ? row.term_id.trim() : "",
+        term: typeof row?.term === "string" ? row.term : "",
+        definition: typeof row?.definition_en === "string" ? row.definition_en : "",
+      }));
+    });
+    const terms = readRows.filter((row) => row.id !== "");
+    if (terms.length < 2) {
+      throw new Error(
+        `the glossary read returned ${terms.length} identifiable term(s): a different term cannot`
+        + " be selected",
+      );
+    }
+
+    const article = page.locator('[data-record="glossary-article"]');
+    await article.waitFor({ state: "visible", timeout: 10_000 });
+    const initialId = (await article.getAttribute("data-record-id")) ?? "";
+    if (!terms.some((row) => row.id === initialId)) {
+      recordFailure(
+        failures,
+        scope,
+        `the article opens on '${initialId || "(no term)"}', which the glossary read did not return`,
+      );
+    }
+
+    const next = terms.find((row) => row.id !== initialId);
+    if (!next) {
+      // Only possible if the read returned the same id twice, which is the backend's defect, not
+      // a page to click around.
+      recordFailure(failures, scope, `every term the read returned carries '${initialId}'`);
+      return;
+    }
+    const renderedIds = await page
+      .locator('[data-record="glossary-term"]')
+      .evaluateAll((cards) => cards.map((card) => card.getAttribute("data-record-id")));
+    const cardIndex = renderedIds.indexOf(next.id);
+    if (cardIndex === -1) {
+      recordFailure(
+        failures,
+        scope,
+        `the term index renders no row for '${next.id}', a term its own read returned`,
+      );
+      return;
+    }
+    await page.locator('[data-record="glossary-term"]').nth(cardIndex).click();
+
+    const followed = await page
+      .waitForFunction(
+        (id) => document.querySelector('[data-record="glossary-article"]')
+          ?.getAttribute("data-record-id") === id,
+        next.id,
+        { timeout: 10_000 },
+      )
+      .then(() => true)
+      .catch(() => false);
+    if (!followed) {
+      const stayed = (await article.getAttribute("data-record-id")) || "(no term)";
+      recordFailure(
+        failures,
+        scope,
+        `selecting '${next.id}' left the wiki article on '${stayed}'`,
+      );
+      return;
+    }
+
+    const definition = ((await article.locator(".glossary-definition").first().textContent()) ?? "").trim();
+    const expected = next.definition.trim();
+    if (expected !== "" && definition !== expected) {
+      recordFailure(
+        failures,
+        scope,
+        `the wiki article shows '${next.id}' with copy its own read did not return:`
+        + ` '${definition.slice(0, 120)}'`,
+      );
+    }
+
+    if (next.term !== "") {
+      // The index's filter is the surface's search. Searching for the selected term's own name is
+      // the one query whose expected answer this read knows without reimplementing the filter: the
+      // term must stay in the index, and the article must stay on it.
+      await page.locator(".glossary-left-rail input").first().fill(next.term);
+      const filteredIds = await page
+        .locator('[data-record="glossary-term"]')
+        .evaluateAll((cards) => cards.map((card) => card.getAttribute("data-record-id")));
+      if (!filteredIds.includes(next.id)) {
+        recordFailure(
+          failures,
+          scope,
+          `filtering the term index by '${next.term}' hides the term its own read returned`,
+        );
+      } else if ((await article.getAttribute("data-record-id")) !== next.id) {
+        recordFailure(
+          failures,
+          scope,
+          `filtering the term index by '${next.term}' moved the article off the selected term`,
+        );
+      }
+    }
+  } catch (error) {
+    recordFailure(failures, scope, error);
+  }
+}
+
 export async function runWorkflowSmoke() {
   mkdirSync(OUTPUT_DIR, { recursive: true });
   const browser = await chromium.launch({ headless: true });
@@ -982,6 +1125,11 @@ export async function runWorkflowSmoke() {
 
     currentScope = "interaction-checks";
     await interactionChecks(page, failures);
+
+    // The glossary's selection behaviour is asserted as an interaction, not inferred from the
+    // rendered rows: the index is a control and the article must follow the clicked record.
+    currentScope = "interaction/glossary-term-selection";
+    await glossaryTermSelectionInteraction(page, failures);
 
     currentScope = "interaction/agent-research-review";
     agentResearch = await agentResearchE2E(page, failures);

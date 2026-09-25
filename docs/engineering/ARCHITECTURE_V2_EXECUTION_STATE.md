@@ -267,6 +267,17 @@ claim. No live prices were fabricated. See the indexed operational note
 Fresh CI remains pending. Next: verify this commit's CI, exercise populated persona
 workflows and close the declared functional gaps. Production approval remains open.
 
+September 25 glossary acceptance (baseline `7573161`, CI `36090533294` passed):
+DeepSeek replaced the stale glossary loading exemptions with exact visible term-ID
+checks and a browser interaction that selects a different term, verifies its wiki
+definition, and exercises search. The earlier loader repair had removed the
+recorded loading symptom; this task strengthens evidence rather than claiming a
+new rendering fix. The component gains nonvisual record/empty-state markers only.
+Independent checks: 630 frontend tests, production build and 17 focused Python
+probe/link/glossary tests passed. Fresh browser verification is pending. Index
+checks cover both languages and three viewports; the definition/search interaction
+currently covers English desktop only. Other declared gaps remain unchanged.
+
 ## Historical programme state
 V2 pack version: 2026-09 autonomous runner
 Current wave: Waves 0-10 have delivered slices. Wave 11 (RC/GA readiness) has not started.
