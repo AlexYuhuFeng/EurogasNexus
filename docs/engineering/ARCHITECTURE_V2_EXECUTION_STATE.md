@@ -278,6 +278,13 @@ probe/link/glossary tests passed. Fresh browser verification is pending. Index
 checks cover both languages and three viewports; the definition/search interaction
 currently covers English desktop only. Other declared gaps remain unchanged.
 
+Post-push verification at `01210a0`: CI `36110246148` passed all five active jobs,
+including the EN/ZH three-viewport sweep and new glossary term-selection/search
+interaction. Glossary loading is no longer exempted. Desktop packaging remains
+skipped on this main run; no release or production approval is implied. Next:
+inspect and replace the remaining market/source acceptance heuristics with real
+row evidence, then continue populated persona workflows and release audit gaps.
+
 ## Historical programme state
 V2 pack version: 2026-09 autonomous runner
 Current wave: Waves 0-10 have delivered slices. Wave 11 (RC/GA readiness) has not started.
