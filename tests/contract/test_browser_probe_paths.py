@@ -37,7 +37,7 @@ SIGNAL_ENTRY = re.compile(
 )
 ENTRY_BODY = re.compile(r"^\s{2}(?P<workspace>[a-z_]+): \{(?P<body>.*)\},?$", re.MULTILINE)
 GROUP_BODY = re.compile(r"\{ label: (?P<body>[^}]*)\}")
-GROUP_FIELD = re.compile(r"(\w+): (\"[^\"]*\"|'[^']*'|\d+|null)")
+GROUP_FIELD = re.compile(r"(\w+): (\"[^\"]*\"|'[^']*'|\d+|true|false|null)")
 GROUP_SELECTORS = re.compile(r"rowSelectors: \[(?P<body>.*?)\](?=,\s*\w+:|\s*$)")
 PORTFOLIO_SLICE_ORDER = re.compile(
     r"PORTFOLIO_SNAPSHOT_SLICE_ORDER: PortfolioSliceKey\[\] = \[(?P<body>.*?)\];",
@@ -65,10 +65,16 @@ WORKSPACE_COMPONENTS: dict[str, tuple[Path, ...]] = {
     "contracts": (WEB_SRC / "PortfolioWorkspace.tsx", WEB_SRC / "ContractWorkbench.tsx"),
     "glossary": (WEB_SRC / "GlossaryWiki.tsx",),
     "orders": (WEB_SRC / "MarketPositioningWorkspace.tsx",),
+    "sources": (WEB_SRC / "SourceCenter.tsx",),
 }
 
 #: The glossary domain payload the probe's rows are compared against.
 GLOSSARY_DOMAIN = ROOT / "src" / "eurogas_nexus" / "domain" / "glossary.py"
+
+#: The static source registry the Source Center probe's rows are compared against, and the route
+#: that serves it.
+SOURCE_REGISTRY = ROOT / "src" / "eurogas_nexus" / "domain" / "ingestion" / "source_registry.py"
+SOURCE_ROUTE = ROOT / "src" / "eurogas_nexus" / "api" / "routes" / "public" / "sources.py"
 
 
 def _signals_source() -> str:
@@ -101,6 +107,8 @@ def _group_fields(body: str) -> dict[str, object]:
     for name, raw in GROUP_FIELD.findall(body):
         if raw == "null":
             fields[name] = None
+        elif raw in {"true", "false"}:
+            fields[name] = raw == "true"
         elif raw.startswith(("'", '"')):
             fields[name] = raw[1:-1]
         else:
@@ -201,10 +209,15 @@ def test_every_scoped_read_declares_its_own_rows_and_record_id() -> None:
     """
 
     groups = _declared_groups()
-    assert {workspace for workspace, _ in groups} == {"contracts", "glossary", "orders"}, (
-        "exactly the contracts, glossary and orders surfaces declare the scoped comparison"
+    assert {workspace for workspace, _ in groups} == {
+        "contracts",
+        "glossary",
+        "orders",
+        "sources",
+    }, "exactly the contracts, glossary, orders and sources surfaces declare the scoped comparison"
+    assert len(groups) == 5, (
+        "contracts, glossary and sources declare one group each, orders declares two"
     )
-    assert len(groups) == 4, "contracts and glossary declare one group each, orders declares two"
 
     for workspace, group in groups:
         where = f"{workspace}/{group.get('label')}"
@@ -334,6 +347,71 @@ def test_the_glossary_probe_compares_the_term_ids_the_route_serves() -> None:
     assert group["recordIdField"] == "term_id"
     assert group["rowSelectors"] == ['[data-record="glossary-term"]']
     assert group["emptySelector"] == '[data-empty-state="glossary-terms"]'
+
+
+def test_the_sources_probe_compares_the_registry_ids_the_catalog_renders() -> None:
+    """The source catalog is compared with its own read, by the source's own id.
+
+    The surface carried a declared exemption from the sweep ("sources return rows while the
+    administration surface reports Total sources 0", measured 2026-09-19), produced by the
+    whole-page heuristic that matched the page's first 400 characters - copy that cannot say which
+    row is missing and cannot be read in Chinese at all. The exemption is replaced by a row
+    comparison against the registry route the client lane reads (``api.sources``): every source
+    ``GET /api/sources`` returns must be one the catalog rendered, under the source's own
+    ``source_id``, and - because the catalog renders the whole registry rather than a bound over it
+    - a rendered row the read did not return fails as well.
+
+    The surface opens on its priority queue, a *filtered* subset of the same read, so the group
+    names the catalog task (``source-tab-catalog``): the sweep activates it before collecting
+    evidence, which is what keeps a filtered task from being compared with unfiltered rows.
+    """
+
+    probes = _declared_probes()
+    assert probes["sources"] == "/api/sources"
+
+    # The probe is the surface's own read: the client lane asks the same route, and the route serves
+    # the whole static registry (no page parameter the probe could disagree with).
+    client_path = probes["sources"].removeprefix("/api")
+    assert client_path == "/sources"
+    assert f'"{client_path}"' in WEB_CLIENT.read_text(encoding="utf-8")
+    route = SOURCE_ROUTE.read_text(encoding="utf-8")
+    assert "registered_sources()" in route, "the route serves the registry the group compares"
+
+    registry = SOURCE_REGISTRY.read_text(encoding="utf-8")
+    assert '"source_id": source_id' in registry, (
+        "the served registry payload carries the id the group compares"
+    )
+    assert '"category": category' in registry, (
+        "the served registry payload carries the category the interaction filters by"
+    )
+
+    source_groups = [group for workspace, group in _declared_groups() if workspace == "sources"]
+    assert len(source_groups) == 1, "the source surface declares one scoped comparison"
+    group = source_groups[0]
+    assert group["rowsPath"] == "data", "the registry read serves its rows as the envelope's data"
+    assert group["recordIdField"] == "source_id"
+    assert group["rowSelectors"] == ['[data-record="source-row"]']
+    assert group["emptySelector"] == '[data-empty-state="source-rows"]'
+    assert group.get("taskTab") == "source-tab-catalog", (
+        "the group names the task that renders the unfiltered read"
+    )
+    assert group.get("exactRows") is True, (
+        "the catalog renders the whole registry, so a foreign row must fail too"
+    )
+    assert "rowLimit" not in group, "the registry read is not a bound the group may cut"
+
+    # The task the group names is the surface's own: the view tabs are declared with the
+    # `source-tab` id prefix and one of the surface's views is the catalog.
+    component = _workspace_sources("sources")
+    assert 'idPrefix="source-tab"' in component, "the surface declares the task tab prefix"
+    views = re.search(r'SOURCE_VIEWS: SourceViewId\[\] = \[(?P<body>.*?)\]', component)
+    assert views, "the surface declares its views"
+    assert '"catalog"' in views.group("body"), "the catalog task is one of the surface's views"
+    # The filter the interaction exercises is addressed by the category code the registry carries,
+    # so the check never matches a localized label.
+    assert "data-source-category={category}" in component, (
+        "the category filter carries the category code, not only its label"
+    )
 
 
 def _portfolio_slice_keys() -> set[str]:

@@ -84,6 +84,15 @@ const VIEWPORTS = [
  * surface itself applies, and `emptySelector` names the surface's own declared empty state
  * (`data-empty-state`), used when the read is a successful, measured zero.
  *
+ * `taskTab` names the surface's own task (its tab element id) that renders the rows the group
+ * declares. It exists because a surface may open on a task that *filters* the rows its read
+ * returned: the Source Center opens on its priority queue, which shows only the sources needing
+ * attention, so comparing those rows with the unfiltered registry read would fail a surface that
+ * is rendering exactly what its task means to render. The sweep activates the declared task
+ * before it collects evidence and restores the task that was active afterwards, so the screenshot
+ * still shows the task the deep link opened. `exactRows` marks a read that is the surface's whole
+ * row set rather than a bound over one, so a rendered row the read did not return fails too.
+ *
  * A surface without `readToRender` keeps the older whole-page check: it is weaker, and it is
  * why the declared functional gaps below stay declared.
  */
@@ -106,7 +115,15 @@ const SURFACE_SIGNALS = {
   // batch (`screen_orders`/`pnl_snapshots`), not the legacy live-summary aggregate the probe used
   // to read: an aggregate is not a row set. `rowLimit` 8 mirrors the PnL table's own bound.
   orders: { heading: /portfolio|order/i, apiPath: "/api/projections/portfolio-snapshot", readToRender: [{ label: "screen orders", rowsPath: "data.slices.screen_orders", recordIdField: "order_observation_id", rowSelectors: ['[data-record="screen-order"]'], emptySelector: '[data-empty-state="screen-orders"]' }, { label: "pnl snapshots", rowsPath: "data.slices.pnl_snapshots", recordIdField: "pnl_snapshot_id", rowSelectors: ['[data-record="pnl-snapshot"]'], emptySelector: '[data-empty-state="pnl-snapshots"]', rowLimit: 8 }] },
-  sources: { heading: /source/i, apiPath: "/api/sources?limit=5" },
+  // The Source Center's own read: `GET /api/sources` answers the whole static registry (24
+  // registered sources, no page parameter), which the client lane reads unbounded as well. The
+  // surface opens on its priority queue - the sources needing attention, a *filtered* subset - so
+  // the group declares the catalog task (`source-tab-catalog`), whose category filter is "all" and
+  // whose table therefore renders every row the read returned. Comparing the queue against the
+  // unfiltered read would be the "filtered UI against unfiltered rows" mistake; `exactRows` holds
+  // the catalog to the whole read in both directions, so a missing, hidden or foreign row fails by
+  // its own id.
+  sources: { heading: /source/i, apiPath: "/api/sources", readToRender: [{ label: "registered sources", rowsPath: "data", recordIdField: "source_id", rowSelectors: ['[data-record="source-row"]'], emptySelector: '[data-empty-state="source-rows"]', taskTab: "source-tab-catalog", exactRows: true }] },
   // The glossary surface's own read (`api.glossary` in the client) answers the whole term
   // catalogue; the probe reads the same route bounded to five terms, so every term it returns must
   // be one the left term index rendered - by the term's own id, in both languages. The surface
@@ -132,8 +149,6 @@ const KNOWN_FUNCTIONAL_GAPS = {
     + "review and not yet fixed",
   capacity:
     "physical capacity returns rows while the operating board renders no rows and every KPI reads 0",
-  sources:
-    "sources return rows while the administration surface reports Total sources 0",
   access: "access users return rows while the Users table renders the empty row 'No users'",
   research: "the capability catalogue returns rows while the table renders 'Loading workspace'",
   agents: "the capability catalogue returns rows while the table renders 'Loading workspace'",
@@ -248,6 +263,41 @@ async function axeViolations(page) {
   });
 }
 
+
+/**
+ * The id of the task tab that is selected in the same tab list as `tabId`, or null.
+ *
+ * Used to put the surface back on the task the deep link opened after a scoped comparison had to
+ * activate another one. The lookup is scoped to the tab's own tab list, so the page-level tabs the
+ * shell renders (which name the *page*, not the task) can never be mistaken for it.
+ */
+async function selectedTaskTabId(page, tabId) {
+  return page.evaluate((id) => {
+    const target = document.getElementById(id);
+    const list = target ? target.closest('[role="tablist"]') : null;
+    const selected = list ? list.querySelector('[role="tab"][aria-selected="true"]') : null;
+    return selected && selected.id && selected.id !== id ? selected.id : null;
+  }, tabId);
+}
+
+/**
+ * Activate one of the surface's own tasks (a tab button) and wait, bounded, for the surface to
+ * select it. A tab that is not on the page, or that never becomes the selected one, answers false
+ * - the caller records that as a failure rather than comparing rows from another task.
+ */
+async function activateTaskTab(page, tabId) {
+  const tab = page.locator(`#${tabId}`);
+  if ((await tab.count()) === 0) return false;
+  await tab.click();
+  return page
+    .waitForFunction(
+      (id) => document.getElementById(id)?.getAttribute("aria-selected") === "true",
+      tabId,
+      { timeout: 5_000 },
+    )
+    .then(() => true)
+    .catch(() => false);
+}
 
 /**
  * The functional check for one workspace: is the requested page displayed, is its heading the
@@ -377,23 +427,60 @@ async function inspectSurfaceFunction(
     // consulted: a legitimate `n/a` cell, or the portfolio context strip's own "stale, missing or
     // unavailable" sentence, used to be read as "the surface renders none of the read's rows" and
     // failed a surface that had rendered them.
+    //
+    // A group may also name the task its rows live in (`taskTab`): the surface's opening task can
+    // *filter* the rows its read returned, and comparing those rows with the unfiltered read is
+    // the "filtered UI against unfiltered rows" mistake rather than a measurement. The declared
+    // task is activated first, and the task that was active is restored afterwards so the
+    // screenshot keeps showing the task the deep link opened.
+    const declaredTabs = [
+      ...new Set(signal.readToRender.map((group) => group.taskTab).filter(Boolean)),
+    ];
+    const tabsToRestore = [];
+    for (const tabId of declaredTabs) {
+      const restoreTab = await selectedTaskTabId(page, tabId);
+      if (await activateTaskTab(page, tabId)) {
+        if (restoreTab) tabsToRestore.push(restoreTab);
+      } else {
+        recordFailure(
+          failures,
+          scope,
+          `the '${tabId}' task never became the active one, so the rows it declares could not be`
+          + " compared in it",
+        );
+      }
+    }
     const groups = signal.readToRender.map((group) => readGroupRows(state.apiBody, group));
-    const evidence = await page.evaluate(collectVisibleElements, {
-      groups: groups.map((group) => ({
-        rowSelectors: Array.isArray(group.rowSelectors) ? group.rowSelectors : [],
-        emptySelector: group.emptySelector ?? null,
-      })),
-    });
-    const compared = evaluateReadToRender({
-      status: state.apiStatus,
-      groups,
-      evidence,
-      source: readSourceLabel(state.apiBody),
-    });
-    for (const detail of compared.observations) {
+    let compared = null;
+    try {
+      const evidence = await page.evaluate(collectVisibleElements, {
+        groups: groups.map((group) => ({
+          rowSelectors: Array.isArray(group.rowSelectors) ? group.rowSelectors : [],
+          emptySelector: group.emptySelector ?? null,
+        })),
+      });
+      compared = evaluateReadToRender({
+        status: state.apiStatus,
+        groups,
+        evidence,
+        source: readSourceLabel(state.apiBody),
+      });
+    } finally {
+      for (const tabId of tabsToRestore.reverse()) {
+        if (!(await activateTaskTab(page, tabId))) {
+          recordFailure(
+            failures,
+            scope,
+            `the sweep could not restore the '${tabId}' task after comparing the read, so the`
+            + " evidence collected here would show another task than the deep link asked for",
+          );
+        }
+      }
+    }
+    for (const detail of compared?.observations ?? []) {
       recordObservation(observations, `${scope}: ${detail}`);
     }
-    for (const detail of compared.failures) {
+    for (const detail of compared?.failures ?? []) {
       recordFailure(failures, scope, detail);
     }
   } else if (state.apiRows !== null && state.apiRows > 0) {
@@ -1060,6 +1147,272 @@ async function glossaryTermSelectionInteraction(page, failures) {
   }
 }
 
+/**
+ * The Source Center's own interaction: the catalog renders its read's rows, a row selects, the
+ * detail panel follows it, and the surface's category filter shows exactly the rows of the
+ * category it was asked for.
+ *
+ * The surface carried a declared functional gap that was a statement about page copy ("sources
+ * return rows while the administration surface reports Total sources 0"), measured by a heuristic
+ * that read the page's first 400 characters: it could neither see the table nor name the row it
+ * believed was missing, and it could not read the Chinese page at all. What replaces it is the
+ * workflow itself, held against the read the surface makes:
+ *
+ * - the catalog task (the surface's registered-feeds task, whose category filter is "all") renders
+ *   exactly the registered sources `GET /api/sources` returned - by each source's own `source_id`,
+ *   in both directions, so a missing, hidden or foreign row is named by its id. The default task
+ *   is the priority queue, a filtered subset of the same read, which is why the rows are compared
+ *   in the declared task rather than in the task the deep link opens on;
+ * - the detail panel opens on a source the read returned, and clicking a *different* row moves it
+ *   to that row's own record, carrying that source's own system name from the same read;
+ * - the category filter is exercised on a category the read declares for that row: filtering to it
+ *   must leave exactly the read's rows of that category - none missing and none foreign - and
+ *   asking for "all" again must bring the whole read back. The filter is a control, not copy.
+ *
+ * The interaction only clicks the surface's own task, filter and row controls; the ingestion-run
+ * and credential controls are never touched, so it performs no write against the API.
+ */
+async function sourceCenterSelectionInteraction(page, failures) {
+  const scope = "interaction/source-center-selection";
+  /** The catalog's visible rows, collected by the sweep's own collector. */
+  const renderedRowIds = async () => {
+    const evidence = await page.evaluate(collectVisibleElements, {
+      groups: [{ rowSelectors: ['[data-record="source-row"]'], emptySelector: null }],
+    });
+    return evidence[0]?.recordIds ?? [];
+  };
+  const difference = (actual, expected) => {
+    const missing = expected.filter((id) => !actual.includes(id));
+    const foreign = actual.filter((id) => !expected.includes(id));
+    return `${missing.length} missing (${missing.slice(0, 4).join(" | ") || "none"}),`
+      + ` ${foreign.length} not in the read (${foreign.slice(0, 4).join(" | ") || "none"})`;
+  };
+  try {
+    await setLanguage(page, "en");
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(`${BASE}/?workspace=sources`, { waitUntil: "domcontentloaded" });
+    const settled = await page
+      .waitForFunction(
+        () => [...document.querySelectorAll(".workspace-page")]
+          .some((element) => element.dataset.workspaceLoadState === "settled"),
+        null,
+        { timeout: 20_000 },
+      )
+      .then(() => true)
+      .catch(() => false);
+    if (!settled) {
+      throw new Error("the sources workspace read never settled");
+    }
+
+    const readRows = await page.evaluate(async () => {
+      const response = await fetch("/api/sources", { credentials: "include" });
+      if (!response.ok) throw new Error(`the sources read answered ${response.status}`);
+      const body = await response.json();
+      return Array.isArray(body?.data) ? body.data : null;
+    });
+    if (!Array.isArray(readRows)) {
+      throw new Error("the sources read served no row set");
+    }
+    const sources = readRows.map((row) => ({
+      id: typeof row?.source_id === "string" ? row.source_id.trim() : "",
+      system: typeof row?.source_system === "string" ? row.source_system : "",
+      category: typeof row?.category === "string" ? row.category : "",
+    }));
+    const unidentified = sources.filter((row) => row.id === "").length;
+    if (unidentified > 0) {
+      recordFailure(
+        failures,
+        scope,
+        `${unidentified} row(s) the sources read returned carry no source_id, so the catalog`
+        + " cannot be compared with them",
+      );
+      return;
+    }
+    if (sources.length < 2) {
+      throw new Error(
+        `the sources read returned ${sources.length} identified source(s): a different row cannot`
+        + " be selected",
+      );
+    }
+
+    // The task that renders the whole read. The surface opens on its priority queue, which filters
+    // the same rows down to the sources needing attention, so the comparison runs in the declared
+    // catalog task - never as filtered rows against an unfiltered read.
+    if (!(await activateTaskTab(page, "source-tab-catalog"))) {
+      recordFailure(
+        failures,
+        scope,
+        "the catalog task never became the active one, so the rows it declares could not be"
+        + " compared in it",
+      );
+      return;
+    }
+
+    const readIds = sources.map((row) => row.id);
+    const catalogIds = await renderedRowIds();
+    const missing = readIds.filter((id) => !catalogIds.includes(id));
+    const foreign = catalogIds.filter((id) => !readIds.includes(id));
+    if (missing.length > 0 || foreign.length > 0) {
+      recordFailure(
+        failures,
+        scope,
+        "the catalog does not render the sources its own read returned:"
+        + ` ${difference(catalogIds, readIds)}`,
+      );
+      if (missing.length > 0) return;
+    }
+
+    const detail = page.locator('[data-record="source-detail"]');
+    await detail.waitFor({ state: "visible", timeout: 10_000 });
+    const openedId = (await detail.getAttribute("data-record-id")) ?? "";
+    if (!sources.some((row) => row.id === openedId)) {
+      recordFailure(
+        failures,
+        scope,
+        `the detail panel opens on '${openedId || "(no source)"}', which the sources read did not`
+        + " return",
+      );
+    }
+
+    const next = sources.find((row) => row.id !== openedId);
+    if (!next) {
+      // Only possible if the read returned the same id twice, which is the backend's defect, not a
+      // table to click around.
+      recordFailure(failures, scope, `every source the read returned carries '${openedId}'`);
+      return;
+    }
+    if (!/^[A-Za-z0-9_-]+$/.test(next.id)) {
+      recordFailure(
+        failures,
+        scope,
+        `the read returned '${next.id}' as a source_id, which cannot address its own row`,
+      );
+      return;
+    }
+    const row = page.locator(`[data-record="source-row"][data-record-id="${next.id}"]`);
+    if ((await row.count()) === 0) {
+      recordFailure(
+        failures,
+        scope,
+        `the catalog renders no row for '${next.id}', a source its own read returned`,
+      );
+      return;
+    }
+    await row.first().locator(".source-row-select").click();
+
+    const followed = await page
+      .waitForFunction(
+        (id) => document.querySelector('[data-record="source-detail"]')
+          ?.getAttribute("data-record-id") === id,
+        next.id,
+        { timeout: 10_000 },
+      )
+      .then(() => true)
+      .catch(() => false);
+    if (!followed) {
+      const stayed = (await detail.getAttribute("data-record-id")) || "(no source)";
+      recordFailure(failures, scope, `selecting '${next.id}' left the detail panel on '${stayed}'`);
+      return;
+    }
+    const shownSystem = ((await detail.locator("h2").first().textContent()) ?? "").trim();
+    if (next.system !== "" && shownSystem !== next.system) {
+      recordFailure(
+        failures,
+        scope,
+        `the detail panel shows '${next.id}' with a source name its own read did not return:`
+        + ` '${shownSystem.slice(0, 80)}'`,
+      );
+    }
+
+    // The surface's filter. The category comes from the read's own row, so the expected answer is
+    // the read's rows of that category - the harness never reimplements the filter's matching rule.
+    const filter = page.locator(`[data-source-category="${next.category}"]`);
+    if (next.category === "" || (await filter.count()) === 0) {
+      recordFailure(
+        failures,
+        scope,
+        `the surface offers no category filter for '${next.category || "(no category)"}', which`
+        + ` its own read declares for '${next.id}'`,
+      );
+      return;
+    }
+    const expectedFiltered = sources
+      .filter((item) => item.category === next.category)
+      .map((item) => item.id);
+    await filter.click();
+    const filtered = await page
+      .waitForFunction(catalogRendersExactly, expectedFiltered, { timeout: 5_000 })
+      .then(() => true)
+      .catch(() => false);
+    if (!filtered) {
+      const shown = await renderedRowIds();
+      recordFailure(
+        failures,
+        scope,
+        `filtering the catalog by '${next.category}' did not leave exactly the rows its own read`
+        + ` carries for that category: ${difference(shown, expectedFiltered)}`,
+      );
+    }
+    if ((await filter.getAttribute("aria-pressed")) !== "true") {
+      recordFailure(
+        failures,
+        scope,
+        `the category filter for '${next.category}' is not the one the surface reports as pressed`
+        + " after it was applied",
+      );
+    }
+    const filteredDetailId = (await detail.getAttribute("data-record-id")) ?? "";
+    if (!expectedFiltered.includes(filteredDetailId)) {
+      recordFailure(
+        failures,
+        scope,
+        `filtering by '${next.category}' left the detail panel on '${filteredDetailId || "(no source)"}',`
+        + " which the filtered task does not hold",
+      );
+    }
+
+    // Asked back to "all", the catalog must hold every row the read returned again: a filter that
+    // cannot be undone is a one-way door, not a view.
+    await page.locator('[data-source-category="all"]').click();
+    const restored = await page
+      .waitForFunction(catalogRendersExactly, readIds, { timeout: 5_000 })
+      .then(() => true)
+      .catch(() => false);
+    if (!restored) {
+      const shown = await renderedRowIds();
+      recordFailure(
+        failures,
+        scope,
+        "asking for the 'all' category did not put the catalog back on every row its own read"
+        + ` returned: ${difference(shown, readIds)}`,
+      );
+    }
+  } catch (error) {
+    recordFailure(failures, scope, error);
+  }
+}
+
+/**
+ * True when the surface's own source rows are exactly the ids `wanted`, one row each.
+ *
+ * Declared at module scope because the sweep serialises it into the page
+ * (`page.waitForFunction`), so it may not reference anything outside its own body - the attribute
+ * name included. It is the bounded wait's condition, not the verdict: a run that never converges
+ * is reported by the caller with the difference between the two sets.
+ */
+function catalogRendersExactly(wanted) {
+  const rendered = [...document.querySelectorAll('[data-record="source-row"]')]
+    .map((element) => element.getAttribute("data-record-id"));
+  if (rendered.length !== wanted.length) return false;
+  const remaining = [...wanted];
+  for (const id of rendered) {
+    const at = remaining.indexOf(id);
+    if (at === -1) return false;
+    remaining.splice(at, 1);
+  }
+  return true;
+}
+
 export async function runWorkflowSmoke() {
   mkdirSync(OUTPUT_DIR, { recursive: true });
   const browser = await chromium.launch({ headless: true });
@@ -1130,6 +1483,12 @@ export async function runWorkflowSmoke() {
     // rendered rows: the index is a control and the article must follow the clicked record.
     currentScope = "interaction/glossary-term-selection";
     await glossaryTermSelectionInteraction(page, failures);
+
+    // The Source Center's catalog, selection and category filter are asserted the same way: the
+    // rows are compared with the registry read by exact source id, the detail panel must follow the
+    // clicked row, and the surface's own category filter must show exactly that category's rows.
+    currentScope = "interaction/source-center-selection";
+    await sourceCenterSelectionInteraction(page, failures);
 
     currentScope = "interaction/agent-research-review";
     agentResearch = await agentResearchE2E(page, failures);

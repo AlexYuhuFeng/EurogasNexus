@@ -91,12 +91,15 @@ test("the repaired surfaces compare rendered rows with their own read, not with 
   assert.match(scoped, /const groups = signal\.readToRender\.map\(\(group\) => readGroupRows\(state\.apiBody, group\)\)/);
   assert.match(scoped, /await page\.evaluate\(collectVisibleElements, \{\s*groups:/);
   assert.match(scoped, /evaluateReadToRender\(\{\s*status: state\.apiStatus,\s*groups,\s*evidence,/);
-  assert.match(scoped, /for \(const detail of compared\.failures\) \{\s*recordFailure\(failures, scope, detail\);/);
+  assert.match(
+    scoped,
+    /for \(const detail of compared\?\.failures \?\? \[\]\) \{\s*recordFailure\(failures, scope, detail\);/,
+  );
   // What the comparison could not measure is reported as an observation, from the comparison's
   // own result - never from a guess about the page's copy.
   assert.match(
     scoped,
-    /for \(const detail of compared\.observations\) \{\s*recordObservation\(observations, `\$\{scope\}: \$\{detail\}`\);/,
+    /for \(const detail of compared\?\.observations \?\? \[\]\) \{\s*recordObservation\(observations, `\$\{scope\}: \$\{detail\}`\);/,
   );
 
   // The weaker whole-page heuristic survives only for the surfaces that have not declared a
@@ -126,7 +129,7 @@ test("the unrelated declared defects are still declared, for declared workspaces
 
   // The measured-and-open gaps this repair does not touch, recorded in
   // docs/release/FUNCTIONAL_ACCEPTANCE_REPORT.md.
-  for (const key of ["market", "agents", "access", "capacity", "sources", "research"]) {
+  for (const key of ["market", "agents", "access", "capacity", "research"]) {
     assert.ok(declaredKeys("KNOWN_FUNCTIONAL_GAPS").includes(key), `functional gap kept: ${key}`);
   }
   assert.deepEqual(declaredKeys("KNOWN_SURFACE_DEFECTS").sort(), ["agents"]);
@@ -137,6 +140,15 @@ test("the unrelated declared defects are still declared, for declared workspaces
   // (`glossaryTermSelectionInteraction`). A surface that renders no term fails by name.
   assert.equal(declaredKeys("KNOWN_FUNCTIONAL_GAPS").includes("glossary"), false);
   assert.equal(declaredKeys("KNOWN_SURFACE_DEFECTS").includes("glossary"), false);
+
+  // The source center's exemption is retired the same way and for the same reason: "sources
+  // return rows while the administration surface reports Total sources 0" was a statement about
+  // the page's copy, and the surface's catalog is now compared with the registry read by exact
+  // source id, with its selection and category filter exercised as an interaction
+  // (`sourceCenterSelectionInteraction`). A row the read returned that the catalog does not render
+  // - and a row the catalog renders that the read did not return - fails by name.
+  assert.equal(declaredKeys("KNOWN_FUNCTIONAL_GAPS").includes("sources"), false);
+  assert.equal(declaredKeys("KNOWN_SURFACE_DEFECTS").includes("sources"), false);
 
   // The session bootstrap's expected 401 is still the only allowed console error.
   assert.match(block("const ALLOWED_CONSOLE_ERRORS = [", "];"), /status of 401/);
@@ -228,4 +240,99 @@ test("the glossary term index is compared by term id, and its selection is exerc
   assert.match(component, /data-empty-state="glossary-terms"/);
   assert.match(component, /data-record="glossary-article"/);
   assert.match(component, /data-record-id=\{selectedTerm\?\.term_id\}/);
+});
+
+test("the source catalog is compared by source id, in the task that renders the whole read", () => {
+  // The surface's declaration was page copy ("sources return rows while the administration surface
+  // reports Total sources 0"), produced by a whole-page match over the first 400 characters that
+  // could not see the table, name a row, or read the Chinese page. The registry read
+  // (`GET /api/sources`, the route the client lane reads) is now compared with the catalog table
+  // row by row, by each source's own `source_id`, and the surface's selection and category filter
+  // are exercised as interactions.
+  const signals = block("const SURFACE_SIGNALS = {", "\n};");
+  const sources = block("sources: { heading: /source/i", "glossary: {");
+  assert.match(sources, /apiPath: "\/api\/sources"/);
+  assert.match(sources, /recordIdField: "source_id"/);
+  assert.match(sources, /rowSelectors: \['\[data-record="source-row"\]'\]/);
+  assert.match(sources, /emptySelector: '\[data-empty-state="source-rows"\]'/);
+  // The surface opens on its priority queue, a filtered subset of the same read, so the group names
+  // the catalog task: the comparison is never filtered rows against an unfiltered read.
+  assert.match(sources, /taskTab: "source-tab-catalog"/);
+  // The registry read is the catalog's whole row set, not a bound over one: a rendered row the read
+  // did not return is a failure too, not only a row the read returned and the surface did not.
+  assert.match(sources, /exactRows: true/);
+  assert.doesNotMatch(sources, /rowLimit/);
+  assert.doesNotMatch(signals, /apiPath: "\/api\/sources\?limit=5"/);
+
+  // The declared task is activated before the evidence is collected and the task that was active is
+  // restored afterwards, so the screenshot keeps showing the task the deep link opened. A task that
+  // never becomes active, and a restore that fails, are failures rather than silent comparisons in
+  // another task's rows.
+  const scoped = block("if (signal.readToRender) {", "} else if (state.apiRows !== null && state.apiRows > 0) {");
+  assert.match(scoped, /const restoreTab = await selectedTaskTabId\(page, tabId\);/);
+  assert.match(scoped, /if \(await activateTaskTab\(page, tabId\)\) \{/);
+  assert.match(scoped, /the '\$\{tabId\}' task never became the active one/);
+  assert.match(scoped, /the sweep could not restore the '\$\{tabId\}' task/);
+  assert.ok(
+    scoped.indexOf("await activateTaskTab(page, tabId)") < scoped.indexOf("collectVisibleElements"),
+    "the task is activated before the rows are collected",
+  );
+  const helpers = block("async function selectedTaskTabId(", "async function inspectSurfaceFunction(");
+  assert.match(helpers, /aria-selected="true"/);
+  assert.match(helpers, /timeout: 5_000/);
+  assert.equal(helpers.includes("recordObservation("), false);
+
+  const interaction = block(
+    "async function sourceCenterSelectionInteraction(",
+    "\nfunction catalogRendersExactly(",
+  );
+  // The catalog is compared in the surface's own task, by the read's ids in both directions: a row
+  // the read returned but the catalog does not render, and a row the catalog renders that the read
+  // did not return, are both failures - never a pass.
+  assert.match(interaction, /if \(!\(await activateTaskTab\(page, "source-tab-catalog"\)\)\) \{/);
+  assert.match(interaction, /not in the read/);
+  assert.match(interaction, /the catalog does not render the sources its own read returned/);
+  assert.match(interaction, /the detail panel opens on/);
+  assert.match(interaction, /which the sources read did not/);
+  // The selection is taken by exact id, not by a rendered label or an index into the page.
+  assert.match(
+    interaction,
+    /page\.locator\(`\[data-record="source-row"\]\[data-record-id="\$\{next\.id\}"\]`\)/,
+  );
+  assert.match(interaction, /await row\.first\(\)\.locator\("\.source-row-select"\)\.click\(\);/);
+  assert.match(interaction, /left the detail panel on/);
+  assert.match(interaction, /detail\.locator\("h2"\)/);
+  // The filter is exercised on a category the read itself declares for that row, and the expected
+  // answer is the read's own rows of that category: the harness never reimplements the filter's
+  // matching rule, and asking for "all" again must bring the whole read back.
+  assert.match(
+    interaction,
+    /page\.locator\(`\[data-source-category="\$\{next\.category\}"\]`\)/,
+  );
+  assert.match(interaction, /the surface offers no category filter for/);
+  assert.match(interaction, /its own read declares for '\$\{next\.id\}'/);
+  assert.match(interaction, /did not leave exactly the rows its own read/);
+  assert.match(interaction, /is not the one the surface reports as pressed/);
+  assert.match(interaction, /asking for the 'all' category did not put the catalog back on every row/);
+  assert.equal(interaction.includes("recordObservation("), false);
+  // The interaction clicks the surface's own controls only: no ingestion run, no credential write.
+  assert.equal(interaction.includes("requestSourceRun"), false);
+  assert.equal(interaction.includes("saveProviderCredential"), false);
+  assert.equal(interaction.includes("POST"), false);
+  assert.match(source, /currentScope = "interaction\/source-center-selection";/);
+  assert.match(source, /await sourceCenterSelectionInteraction\(page, failures\);/);
+
+  // The bounded wait's predicate is serialised into the page, so it must be self-contained.
+  const predicate = block("function catalogRendersExactly(", "\nexport async function runWorkflowSmoke()");
+  assert.match(predicate, /document\.querySelectorAll\('\[data-record="source-row"\]'\)/);
+  assert.equal(predicate.includes("renderedRowIds"), false);
+
+  // The markers the group and the interaction select are the source surface's own.
+  const component = readFileSync(new URL("../src/components/SourceCenter.tsx", import.meta.url), "utf8");
+  assert.match(component, /data-record="source-row"/);
+  assert.match(component, /data-record-id=\{source\.source_id\}/);
+  assert.match(component, /data-empty-state="source-rows"/);
+  assert.match(component, /data-record="source-detail"/);
+  assert.match(component, /data-record-id=\{selectedSource\?\.source_id\}/);
+  assert.match(component, /data-source-category=\{category\}/);
 });

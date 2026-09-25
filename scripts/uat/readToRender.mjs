@@ -25,7 +25,10 @@
  *   (`data-empty-state`), so a populated table the read no longer returned is a stale-row
  *   failure rather than a pass;
  * - a returned row that carries no id, a slice that served rows without declaring availability,
- *   and a group whose evidence was not collected are failures rather than quiet observations.
+ *   and a group whose evidence was not collected are failures rather than quiet observations;
+ * - a group that declares `exactRows` is compared in both directions: a rendered row its own read
+ *   did not return then fails by name, because that group claims the read is the surface's whole
+ *   row set (the source catalog), not a bound over a larger set.
  *
  * The decision logic is pure so every negative case can be exercised without a browser
  * (`clients/web/tests/readToRender.test.ts`); `collectVisibleElements` is serialised into the
@@ -251,6 +254,17 @@ export function evaluateReadToRender({ status, groups, evidence = [], source = n
       observations.push(
         `${label}: ${matched} returned row(s) (200) matched ${matched} rendered row(s)`
         + ` by ${group.recordIdField}`,
+      );
+    }
+
+    // The rows the surface rendered that its own read did not return. Only a group declaring
+    // `exactRows` is held to this direction, because only then is the read claimed to be the
+    // surface's whole row set rather than a bound over a larger one; a `rowLimit` cuts the
+    // returned rows, so the rows beyond it are not an answer about this read.
+    if (group.exactRows === true && !group.rowLimit && remaining.length > 0) {
+      failures.push(
+        `${label}: the surface renders ${remaining.length} row(s) its own read did not return`
+        + ` (200): ${remaining.slice(0, 4).join(" | ")}`,
       );
     }
   });

@@ -285,6 +285,18 @@ skipped on this main run; no release or production approval is implied. Next:
 inspect and replace the remaining market/source acceptance heuristics with real
 row evidence, then continue populated persona workflows and release audit gaps.
 
+September 25 Source Center acceptance (baseline `5285a11`, CI `36110841498`
+passed): DeepSeek replaced the sources copy-based exemption with exact registry
+record comparison. The default priority queue is a filtered view, so acceptance
+switches to the catalog for the unfiltered comparison and restores the prior task.
+New negative tests reject missing, hidden, foreign and stale rows. A read-only
+browser interaction verifies source selection/detail and reversible category
+filtering. Product changes are nonvisual data attributes only; no provider action,
+credential update or ingestion write is exercised. Independent checks: 636 frontend
+tests, production build and 12 focused Python probe/link tests passed. Fresh CI
+browser evidence is pending. A failed source registry read still lacks dedicated
+surface error copy; do not treat a seeded acceptance pass as that error-path test.
+
 ## Historical programme state
 V2 pack version: 2026-09 autonomous runner
 Current wave: Waves 0-10 have delivered slices. Wave 11 (RC/GA readiness) has not started.

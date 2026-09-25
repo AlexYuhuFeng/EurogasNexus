@@ -201,6 +201,10 @@ export function SourceCenter({
               <button
                 key={`source-category-${category}`}
                 type="button"
+                // The filter carries its own category code, so the browser sweep can ask for the
+                // category a read declares by exact value instead of matching the localized label
+                // (`scripts/uat/browser_workflow_smoke.mjs`).
+                data-source-category={category}
                 aria-pressed={sourceCategory === category}
                 className={sourceCategory === category ? "source-posture-row active" : "source-posture-row"}
                 title={categoryProviderSummary(category)}
@@ -243,6 +247,11 @@ export function SourceCenter({
               {displayedSources.map((source) => (
                 <tr
                   key={`source-row-${source.source_id}`}
+                  // The row carries the registered source's own id, so the acceptance sweep
+                  // compares the table with the source registry read by exact id rather than by
+                  // the page's copy (`scripts/uat/readToRender.mjs`).
+                  data-record="source-row"
+                  data-record-id={source.source_id}
                   className={selectedSource?.source_id === source.source_id ? "active" : undefined}
                 >
                   <td>
@@ -283,7 +292,7 @@ export function SourceCenter({
                 </tr>
               ))}
               {displayedSources.length === 0 && (
-                <tr>
+                <tr data-empty-state="source-rows">
                   <td colSpan={9}><span>{t("review.no_warnings")}</span></td>
                 </tr>
               )}
@@ -294,7 +303,14 @@ export function SourceCenter({
       )}
 
       {activeView !== "infrastructure" && (
-      <div className={activeView === "access" ? "workspace-panel span-3 source-detail-panel" : "workspace-panel source-detail-panel"}>
+      <div
+        className={activeView === "access" ? "workspace-panel span-3 source-detail-panel" : "workspace-panel source-detail-panel"}
+        // The detail panel declares the record it is showing, so the browser sweep's source
+        // interaction can hold the selection to the exact row that was clicked instead of
+        // comparing the page's own copy with itself (`browser_workflow_smoke.mjs`).
+        data-record="source-detail"
+        data-record-id={selectedSource?.source_id}
+      >
         <PanelHeader
           title={selectedSource?.source_system ?? t("sources.no_source")}
           meta={selectedSource ? (

@@ -243,3 +243,88 @@ run `69dd695`, 96/96 checks green):
   missing or substituted card failed by name.
 - The article's definition is compared with `definition_en`, because the interaction check runs in
   English; the Chinese article is covered by the term-id comparison only.
+
+## 2026-09-25 — the Source Center's catalog, selection and category filter are measured
+
+The source surface carried a declared functional gap from the 2026-09-19 run: "sources return rows
+while the administration surface reports Total sources 0" (`output/ci-36032330807`, run `69dd695`,
+96/96 checks green with six declared gaps). It was investigated against the current store and
+component:
+
+- **The declaration was page copy, not a measured row.** The only producer of that observation is
+  the older whole-page check: `apiRows > 0` combined with a match of
+  `n/a|unavailable|no records|no data|not (available|read|configured)` over the page's first 400
+  characters - and this surface renders language-independent `n/a` literals of its own: the
+  operations table's "Last success" cell is `formatUtcTimestamp(...)` with an `n/a` fallback, and
+  the detail panel's freshness, circuit-state and last-ingestion fields fall back to `n/a` too
+  (`formatUtcTimestamp`, `sourceLabel`). The artifact captured no page text, so the exact token is
+  identified from the component and the fixture rather than quoted from a capture; the Chinese page
+  fits considerably more of itself into the same 400-character window, which is the shape the three
+  recorded occurrences take.
+- **The phrase cannot describe this component.** The metric strip's "Total sources" value and the
+  catalog's rows are the same array: `sourceStats.total` is `buildSourceStats(api.sources).total`
+  and the catalog's rows are `filterSourcesByCategory(api.sources, category)`. A zero KPI beside a
+  rendered table is therefore not a state this surface can produce, and the reader (a vision model
+  over the screenshots) was describing an image, not a measurement.
+
+### What replaces it
+
+The surface now declares a scoped read group instead of an exemption, and the row evidence is
+exact:
+
+- **The right task, not the filtered one.** `GET /api/sources` answers the whole static registry
+  (24 registered sources, no page parameter - the same unbounded read the client lane performs), and
+  the surface opens on its *priority queue*, which is that read filtered down to the sources needing
+  attention. The group therefore names the catalog task (`taskTab: "source-tab-catalog"`): the sweep
+  activates the surface's own catalog tab before collecting evidence and restores the tab that was
+  active afterwards, so the screenshot keeps showing the task the deep link opened. Comparing the
+  queue with the unfiltered registry - the filtered-UI-against-unfiltered-rows mistake - is what the
+  declaration exists to prevent.
+- **Exact ids, both directions.** Each catalog row carries its registered source's own id
+  (`data-record="source-row"`, `data-record-id={source.source_id}`), and the group declares
+  `recordIdField: "source_id"`. Because the catalog renders the whole registry rather than a bound
+  over it, the comparison is two-directional (`exactRows`): a returned row no visible row carries is
+  a failure, and a rendered row the read did not return is a failure too - each named by id. A
+  hidden (`display: none` or zero-size) row is not evidence, and an empty successful read must show
+  the table's declared `data-empty-state="source-rows"` row.
+- **The workflow is exercised, not inferred.** `interaction/source-center-selection` compares the
+  catalog with the same read by exact id, holds the detail panel to a source the read returned,
+  clicks a *different* row and requires the panel to follow that row's own record and to render that
+  source's own system name from the read, and then exercises the surface's category filter on the
+  category the read itself declares for that row: the filtered table must hold exactly the read's
+  rows of that category - none missing and none foreign - and asking for "all" again must bring the
+  whole read back. The filter control carries its category code
+  (`data-source-category={category}`), so no localized label is ever matched. The interaction
+  clicks only the surface's own task, row and filter controls: no ingestion run and no credential
+  write is performed.
+- **The surface's filter workflow is its category filter and its view tasks.** This surface has no
+  free-text search control - the two inputs it renders belong to the credential form in the access
+  task - so "filter" here means the category rail (exercised above) and the task tabs (the catalog
+  itself, whose activation is the scoping mechanism). A text-search check would have to be invented
+  for a control the surface does not have.
+- **What did not change.** No permission, database, credential, route or payload change; no new
+  page; no visual redesign and no copy change. Market, capacity, access, research and agents keep
+  their declared gaps exactly as they were. The 2026-09-19 table above is that run's measurement and
+  is not rewritten.
+
+### Limits of this repair
+
+- Verified here by the web suite (`readToRender.test.ts` negative cases for the missing, hidden,
+  foreign, stale-row and non-200 answers; `browserSmokeGates.test.ts` for the declaration, the task
+  activation and the interaction), the contract suite (`tests/contract/test_browser_probe_paths.py`,
+  which holds the probe path, the record id and the component markers against each other) and `tsc`;
+  **no live browser run was performed in this environment** (no local API or database is
+  reachable). The CI browser job is the first run in which the catalog is compared per row, in both
+  languages and at all three viewports.
+- The comparison proves the *table* renders the read's rows. The metric strip's own KPI copy is not
+  asserted; it is derived from the same array the compared rows come from, so the two cannot
+  disagree in the direction the old declaration described.
+- A registry read that fails in the workspace batch leaves the surface holding no source and
+  rendering "Total sources 0" with no error copy of its own (the surface takes no endpoint-error
+  prop). That state now *fails* the sweep by name - the read answers in the same session the surface
+  does not reflect - rather than being carried as a declared gap. Surfacing the read's own failure
+  on the Source Center remains open, as does the same disclosure question on the other surfaces.
+- The interaction covers English desktop only; the catalog comparison covers both languages and all
+  three viewports. The category filter's expected answer is the read's own `category` field, so the
+  check proves the filter hides exactly the rows that field excludes - it does not re-derive the
+  surface's category vocabulary, which `source_registry.py` owns.

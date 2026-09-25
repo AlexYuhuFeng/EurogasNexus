@@ -103,12 +103,43 @@ const GLOSSARY_GROUP = {
   emptySelector: '[data-empty-state="glossary-terms"]',
 };
 
+/**
+ * The source catalog's scoped read group, as `browser_workflow_smoke.mjs` declares it.
+ *
+ * The surface carried a declared exemption ("sources return rows while the administration surface
+ * reports Total sources 0"), produced by a whole-page match over the page's first 400 characters.
+ * `GET /api/sources` answers the whole static registry - the catalog renders every row of it - so
+ * the group declares `exactRows`, while the surface's opening task (the priority queue) is a
+ * filtered subset of the same read and is compared in the catalog task instead.
+ */
+const SOURCES_GROUP = {
+  label: "registered sources",
+  rowsPath: "data",
+  recordIdField: "source_id",
+  rowSelectors: ['[data-record="source-row"]'],
+  emptySelector: '[data-empty-state="source-rows"]',
+  taskTab: "source-tab-catalog",
+  exactRows: true,
+};
+
+/** One registered source, as `GET /api/sources` returns it. */
+const SOURCE = {
+  source_id: "src-entsog",
+  source_system: "ENTSOG",
+  category: "infrastructure",
+  entitlement_scope: "public",
+};
+
 function portfolioSnapshot(slices: Record<string, unknown>) {
   return { data: { projection: "portfolio-snapshot", slices }, meta: {} };
 }
 
 function glossaryBody(rows: Array<Record<string, unknown>>) {
   return { data: rows, meta: { source_references: ["baseline-glossary"] } };
+}
+
+function sourcesBody(rows: Array<Record<string, unknown>>) {
+  return { data: rows, meta: { source: "runtime-postgresql" } };
 }
 
 /** The collector's output for one group, built directly for the decision-logic cases. */
@@ -137,6 +168,14 @@ function compareGlossary(rows: Array<Record<string, unknown>>, evidence: unknown
   return evaluateReadToRender({
     status: 200,
     groups: [readGroupRows(glossaryBody(rows), GLOSSARY_GROUP)],
+    evidence,
+  });
+}
+
+function compareSources(rows: Array<Record<string, unknown>>, evidence: unknown[]) {
+  return evaluateReadToRender({
+    status: 200,
+    groups: [readGroupRows(sourcesBody(rows), SOURCES_GROUP)],
     evidence,
   });
 }
@@ -525,6 +564,97 @@ test("a glossary row the read served without its term id cannot be compared", ()
   );
   assert.equal(result.failures.length, 1);
   assert.match(result.failures[0], /1 returned row\(s\) carry no 'term_id'/);
+});
+
+test("the source catalog must render every row its own read returned", () => {
+  const second = { ...SOURCE, source_id: "src-gie", source_system: "GIE" };
+  const rendered = compareSources(
+    [SOURCE, second],
+    [groupEvidence(SOURCES_GROUP, [SOURCE.source_id, second.source_id])],
+  );
+  assert.deepEqual(rendered.failures, []);
+  assert.match(
+    rendered.observations.join(" | "),
+    /2 returned row\(s\) \(200\) matched 2 rendered row\(s\) by source_id/,
+  );
+
+  // The surface opens on its priority queue, which filters the read down to the sources needing
+  // attention. Those rows answering an unfiltered registry read is exactly the mistake the group's
+  // declared task exists to prevent: the row the queue filtered out is named by its own id.
+  const filteredTask = compareSources(
+    [SOURCE, second],
+    [groupEvidence(SOURCES_GROUP, [SOURCE.source_id])],
+  );
+  assert.equal(filteredTask.failures.length, 1);
+  assert.match(
+    filteredTask.failures[0],
+    /registered sources: the read returned 2 row\(s\) \(200\) and 1 have no rendered row carrying their id: src-gie/,
+  );
+});
+
+test("a row the registry read did not return fails in a group that claims the whole set", () => {
+  // `exactRows` is the direction the other groups do not declare: the orders and contracts reads
+  // are bounded over larger sets, so a rendered row they did not return cannot be attributed to
+  // them. The source catalog claims the whole registry, so a foreign row is a failure - and it is
+  // named, rather than being carried as an observation.
+  const foreign = compareSources(
+    [SOURCE],
+    [groupEvidence(SOURCES_GROUP, [SOURCE.source_id, "src-not-registered"])],
+  );
+  assert.equal(foreign.failures.length, 1);
+  assert.match(
+    foreign.failures[0],
+    /registered sources: the surface renders 1 row\(s\) its own read did not return \(200\): src-not-registered/,
+  );
+  // The read's own row was rendered, so this is not reported as a missing row as well.
+  assert.doesNotMatch(foreign.failures[0], /no rendered row carries their id/);
+});
+
+test("a source row hidden on the page is not evidence that the catalog rendered it", () => {
+  const hidden = collectWithStub(SOURCES_GROUP, {
+    '[data-record="source-row"]': [stubRow(SOURCE.source_id, { display: "none" })],
+  });
+  assert.deepEqual(hidden[0].recordIds, []);
+  const result = compareSources([SOURCE], hidden);
+  assert.equal(result.failures.length, 1);
+  assert.match(result.failures[0], /no rendered row carries their id: src-entsog/);
+
+  const visible = collectWithStub(SOURCES_GROUP, {
+    '[data-record="source-row"]': [stubRow(SOURCE.source_id), stubRow("src-gie")],
+  });
+  // The catalog rendered a second row the read did not return: both directions are measured.
+  const mixed = compareSources([SOURCE], visible);
+  assert.equal(mixed.failures.length, 1);
+  assert.match(mixed.failures[0], /src-gie/);
+});
+
+test("the source catalog's empty state is a declared marker, not any row in the table", () => {
+  const emptyRead = compareSources([], [groupEvidence(SOURCES_GROUP, [], true)]);
+  assert.deepEqual(emptyRead.failures, []);
+  assert.match(
+    emptyRead.observations.join(" | "),
+    /the read returned no rows \(200\) and the surface renders its declared empty state/,
+  );
+
+  const staleRows = compareSources(
+    [],
+    [groupEvidence(SOURCES_GROUP, [SOURCE.source_id], true)],
+  );
+  assert.equal(staleRows.failures.length, 1);
+  assert.match(staleRows.failures[0], /stale rows are not a measured zero/);
+});
+
+test("a group that bounds its rows is not held to the whole row set", () => {
+  // The catalog's read is unbounded; a group that mirrors a surface's own bound must not report the
+  // rows beyond it as rows its read did not return.
+  const bounded = { ...SOURCES_GROUP, rowLimit: 1 };
+  const second = { ...SOURCE, source_id: "src-gie" };
+  const result = evaluateReadToRender({
+    status: 200,
+    groups: [readGroupRows(sourcesBody([SOURCE, second]), bounded)],
+    evidence: [groupEvidence(bounded, [SOURCE.source_id, second.source_id])],
+  });
+  assert.deepEqual(result.failures, []);
 });
 
 /** Minimal element/document stubs: `collectVisibleElements` runs in the page and in here. */
