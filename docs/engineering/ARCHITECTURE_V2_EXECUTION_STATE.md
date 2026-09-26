@@ -1,6 +1,6 @@
 # Architecture V2 Execution State
 
-Last updated: 2026-09-25
+Last updated: 2026-09-27
 Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical slice records below do not constitute current production approval.
 
 ## Current commercial acceptance checkpoint
@@ -296,6 +296,18 @@ credential update or ingestion write is exercised. Independent checks: 636 front
 tests, production build and 12 focused Python probe/link tests passed. Fresh CI
 browser evidence is pending. A failed source registry read still lacks dedicated
 surface error copy; do not treat a seeded acceptance pass as that error-path test.
+
+September 27 continuity verification: resumed the unfinished CI verification,
+not a second implementation worker. Run `36137985501` at `3786690` passed all
+five active jobs, including the Source Center catalog comparison and selection/
+category interaction in browser acceptance. Desktop packaging was skipped by the
+main workflow. Fetched origin and confirmed local HEAD matched main; the local
+API still answers healthy with authentication enforced. No intervening heartbeat
+is claimed as completed development. This closes the Source Center measurement
+milestone, not its registry-failure UX or production approval. Next bounded task:
+expose source-read failure distinctly from an empty registry, with retry and
+permission-preserving tests; then strengthen the remaining market acceptance
+checks and populated persona workflows. Commercial release remains NOT APPROVED.
 
 ## Historical programme state
 V2 pack version: 2026-09 autonomous runner
