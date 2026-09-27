@@ -391,8 +391,15 @@ export function CapacityWorkspace({
   const lngSendOut = latestLng.reduce((total, row) => total + (row.send_out_twh_d ?? 0), 0);
   const lngDtmi = latestLng.reduce((total, row) => total + (row.dtmi_twh ?? 0), 0);
 
+  // The filter, sort and page markers are nonvisual evidence: the acceptance sweep captures the
+  // context this board was compared under instead of driving its controls (readToRender.mjs).
   return (
-    <div className="capacity-page capacity-operations" data-capacity-read-state={boardRead.state}>
+    <div
+      className="capacity-page capacity-operations"
+      data-capacity-read-state={boardRead.state}
+      data-capacity-board-filters={filtersApplied ? "applied" : "none"}
+      data-capacity-board-sort={sort}
+    >
       <section className="workspace-panel capacity-command-panel">
         <div className="capacity-view-header">
           <div>
@@ -488,7 +495,11 @@ export function CapacityWorkspace({
           <section className="workspace-panel capacity-board-panel">
             <div className="panel-title-row">
               <div><h2>{t("capacity.operating_board")}</h2><p>{t("capacity.operating_board_note")}</p></div>
-              {boardRead.measured && <span>{filteredRows.length} / {operatingRows.length}</span>}
+              {boardRead.measured && (
+                <span data-capacity-board-count={`${filteredRows.length}/${operatingRows.length}`}>
+                  {filteredRows.length} / {operatingRows.length}
+                </span>
+              )}
             </div>
             <CapacityBoardStateNotice read={boardRead} t={t} onRetry={onRetryBoardRead} />
             {/* The rows are select buttons, so the container is a labelled group rather than a
@@ -528,7 +539,11 @@ export function CapacityWorkspace({
             </div>
             )}
             {filteredRows.length > 0 && (
-              <div className="capacity-pagination" aria-label={t("capacity.pagination")}>
+              <div
+                className="capacity-pagination"
+                aria-label={t("capacity.pagination")}
+                data-capacity-page-start={pageStart}
+              >
                 <span>{t("capacity.showing")} {pageStart + 1}-{Math.min(pageStart + PAGE_SIZE, filteredRows.length)} {t("capacity.of")} {filteredRows.length}</span>
                 <div>
                   <button type="button" onClick={() => setPage(Math.max(activePage - 1, 0))} disabled={activePage === 0}>{t("capacity.previous")}</button>

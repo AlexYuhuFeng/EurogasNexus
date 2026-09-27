@@ -134,10 +134,17 @@ test("the unrelated declared defects are still declared, for declared workspaces
 
   // The measured-and-open gaps this repair does not touch, recorded in
   // docs/release/FUNCTIONAL_ACCEPTANCE_REPORT.md.
-  for (const key of ["agents", "access", "capacity", "research"]) {
+  for (const key of ["agents", "access", "research"]) {
     assert.ok(declaredKeys("KNOWN_FUNCTIONAL_GAPS").includes(key), `functional gap kept: ${key}`);
   }
   assert.deepEqual(declaredKeys("KNOWN_SURFACE_DEFECTS").sort(), ["agents"]);
+
+  // The capacity board's exemption is retired with its replacement, not moved: its rows are a
+  // union of the `flows` and `capacity` reads, and the board's visible joined keys, stated total
+  // and read state are compared with both reads (`joinedBoard`/`evaluateCapacityBoardJoin`), so a
+  // served operating point the board does not render fails by its own key.
+  assert.equal(declaredKeys("KNOWN_FUNCTIONAL_GAPS").includes("capacity"), false);
+  assert.equal(declaredKeys("KNOWN_SURFACE_DEFECTS").includes("capacity"), false);
 
   // The market board's gap is retired for the same reason as the glossary's and the sources': it
   // was a statement about page copy ("every hub card renders n/a") produced while the probe read
@@ -523,18 +530,36 @@ test("the refused-registry check refuses one read, and holds the surface to stat
   assert.match(component, /data-source-registry-retry="true"/);
 });
 
-test("the refused capacity read leaves the board disclosing it, and the exemption stays declared", () => {
-  // The operating board's rows are a join of two reads, so its own exemption is not retired here -
-  // the scoped joined-row comparison is a later milestone. What is pinned instead is the
-  // disclosure path: the harness refuses exactly the board's capacity read, the board must state
-  // that a required read did not answer instead of a joined zero, and its own retry of the store's
-  // bounded path must restore the reading once the refusal is removed.
-  assert.ok(declaredKeys("KNOWN_FUNCTIONAL_GAPS").includes("capacity"));
+test("the capacity board's joined rows are compared with both reads, and its refusal is disclosed", () => {
+  // The operating board's rows are a join of two reads, so the whole-page exemption is retired by
+  // a joined-row comparison rather than by a single-read one: both read paths are declared and
+  // read in the same session, and the board's visible keys, stated count and read state are
+  // compared with the union through the pure rule whose negative cases run in
+  // `readToRender.test.ts`. The refusal path stays pinned beside it: the harness refuses exactly
+  // the board's capacity read, the board must state that a required read did not answer instead
+  // of a joined zero, and its own retry of the store's bounded path must restore the reading.
+  const signals = block("const SURFACE_SIGNALS = {", "\n};");
   assert.match(
-    block("const SURFACE_SIGNALS = {", "\n};"),
-    /capacity: \{ heading: \/capacity\/i, apiPath: "\/api\/physical\/capacity\?limit=5" \}/,
-    "the retired-later whole-page check keeps the declaration it still uses",
+    signals,
+    /capacity: \{ heading: \/capacity\/i, apiPath: "\/api\/physical\/capacity", joinedBoard: \{/,
+    "the board's own capacity read is still the probe's declared read",
   );
+  assert.match(
+    signals,
+    /reads: \[\{ lane: "flows", path: "\/api\/physical\/flows" \}, \{ lane: "capacity", path: "\/api\/physical\/capacity" \}\]/,
+    "the joined comparison declares both reads the board's rows come from",
+  );
+  assert.match(signals, /pageSize: 50/, "the declared page bound mirrors the surface's own");
+  const joined = block("} else if (signal.joinedBoard) {", "} else if (state.apiRows !== null");
+  assert.match(joined, /const board = await page\.evaluate\(collectCapacityOperatingBoard\);/);
+  assert.match(
+    joined,
+    /const compared = evaluateCapacityBoardJoin\(\{\s*reads,\s*pageSize: signal\.joinedBoard\.pageSize,\s*board,/,
+  );
+  assert.match(joined, /for \(const detail of compared\?\.failures \?\? \[\]\) \{\s*recordFailure\(failures, scope, detail\);/);
+  // Both reads are the client lane's own, so the comparison is made against the product's reads.
+  const client = readFileSync(new URL("../src/api/client.ts", import.meta.url), "utf8");
+  assert.ok(client.includes('"/physical/flows"') && client.includes('"/physical/capacity"'));
 
   const interaction = block(
     "async function capacityBoardFailureInteraction(",
@@ -595,6 +620,10 @@ test("the refused capacity read leaves the board disclosing it, and the exemptio
     'data-record="capacity-point"',
     "data-record-id={row.key}",
     "data-empty-state={boardEmptyState.marker}",
+    'data-capacity-board-filters={filtersApplied ? "applied" : "none"}',
+    "data-capacity-board-sort={sort}",
+    "data-capacity-board-count={`${filteredRows.length}/${operatingRows.length}`}",
+    "data-capacity-page-start={pageStart}",
   ]) {
     assert.ok(component.includes(marker), `the operating board declares ${marker}`);
   }
@@ -605,6 +634,10 @@ test("the refused capacity read leaves the board disclosing it, and the exemptio
   for (const marker of [
     'data-empty-state="capacity-operating-points"',
     'data-empty-state="capacity-filter-no-match"',
+    "[data-capacity-board-count]",
+    "[data-capacity-board-filters]",
+    "[data-capacity-board-sort]",
+    "[data-capacity-page-start]",
   ]) {
     assert.ok(collector.includes(marker), `the board's markers include ${marker}`);
   }

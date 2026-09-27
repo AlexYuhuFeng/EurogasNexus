@@ -1,9 +1,20 @@
 # Architecture V2 Execution State
 
-Last updated: 2026-09-27
+Last updated: 2026-09-28
 Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical slice records below do not constitute current production approval.
 
 ## Current commercial acceptance checkpoint
+
+September 28 capacity joined-row evidence (baseline `99e56cb`): DeepSeek replaced
+the whole-page capacity exemption with a two-read union comparison. Integration
+review added negative controls requiring exactly one flows and one capacity read,
+and changed count collection to visible text rather than a data attribute. Those
+controls failed before repair; all 674 frontend tests now pass. Production build
+and 17 probe/Markdown contracts passed independently. No calculation, API, schema,
+permissions or stored data changed. Browser CI pending for this milestone.
+The check covers an unfiltered first page, union membership/count and empty-read
+provenance, not sort correctness, later-page identity or populated live acceptance.
+An empty CI fixture is explicitly reported as such, not populated-data acceptance.
 
 September 27 capacity disclosure implementation (baseline `d9a3971`): DeepSeek
 added operating-board read states and bilingual notices using existing store facts.

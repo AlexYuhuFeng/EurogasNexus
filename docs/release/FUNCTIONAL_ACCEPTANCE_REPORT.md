@@ -596,6 +596,7 @@ reading:
   keys against *both* reads - is a separate, larger milestone and is not claimed here. This change
   adds a disclosure path and browser evidence for a refused read; it does **not** compare a single
   returned row with a rendered row on this surface.
+  *(Superseded 2026-09-28: the joined-row comparison now covers both reads; see the last section.)*
 - **Presentation and disclosure only**: no API, route, payload, database, migration, permission,
   entitlement, credential or ingestion change, no new page and no new fetch machinery. The join
   key, the three capacity roles, the utilization/booking/headroom arithmetic, the 85% constrained
@@ -615,3 +616,52 @@ reading:
   last-committed rows with a disclosure, whether points without TSO access/tariffs should be
   excluded, and whether acceptance may seed physical observations at all remain parent decisions
   and were deliberately not inferred.
+
+## 2026-09-28 — the capacity operating board is compared with the union of both its reads
+
+The board's whole-page exemption is retired by its replacement, not moved. The board is not a list
+of capacity observations: its rows are a union of two reads keyed `point_id:direction` (`flows`,
+`capacity`), which is why neither a whole-page check nor a single-read probe could measure it. The
+capacity signal now declares both client-lane paths and the surface's own page bound
+(`joinedBoard`/`pageSize: 50`, held to `CapacityWorkspace.PAGE_SIZE` by the contract gates); the
+sweep reads both in the browser's session, and the pure rule `evaluateCapacityBoardJoin`
+(`scripts/uat/readToRender.mjs`) compares that union with the board's own evidence.
+
+- **Expected identities are the union**, deduplicated the way the board's own `Set`/`Map` join
+  deduplicates them. No utilization, posture or sort arithmetic is re-derived in the harness.
+- **The board's own facts are the evidence**: its read state, the count it prints
+  (`data-capacity-board-count`, the same `N / M` numbers), its visible rows (`data-record-id`),
+  and the slice it was drawn under: the page start (`data-capacity-page-start`, held to row 0),
+  the filter context (`data-capacity-board-filters`) and the sort (`data-capacity-board-sort`). A
+  missing, foreign, hidden, duplicated or unidentifiable row, a stated total the reads cannot
+  account for, a count narrowed with no declared filter, an undeclared or later page, a failure
+  notice, retry or filter result beside answered reads, and a board that presents no measurement
+  each fail by name. A page whose filters are applied is a measurement failure, not a pass.
+- **A read the runtime database did not answer cannot pass as empty**: the fallback envelope
+  answers 200 with an empty row set and names another source, so it is a measurement failure, not
+  the board's measured empty state.
+- **Negative cases run without a browser** (`clients/web/tests/readToRender.test.ts`, six new
+  cases) and the declaration is held to the product (`clients/web/tests/browserSmokeGates.test.ts`,
+  `tests/contract/test_browser_probe_paths.py`): both paths are the client lane's own, the page
+  bound is the component's, and `KNOWN_FUNCTIONAL_GAPS` no longer declares `capacity`.
+
+Limits of this milestone:
+
+- In the CI fixture the two reads answer with no rows, so the run records a **measured empty**
+  fixture. An empty fixture is not populated acceptance; a populated deployment is what exercises
+  the joined-identity comparison end to end, and that run has not happened here. Both reads are
+  made in the surface's own session, so row-scope entitlement filtering applies to the probe and
+  the surface alike; an identity whose scopes exclude every physical row would read as a measured
+  empty on both sides.
+- A populated union larger than the declared page is verified as a bounded slice: every visible
+  key must be one of the union, the visible count must equal the page of the stated total, and
+  the stated total must equal the union - but keys beyond the first page are not compared by
+  identity, and the surface's sort order is captured, not re-derived (the paginator's next/previous
+  controls are therefore not exercised by this comparison).
+- The refusal/recovery interaction is unchanged and still covers English desktop only. No API,
+  payload, database, migration, permission, entitlement or calculation changed; the only client
+  edits are nonvisual evidence attributes, and the storage/LNG views are untouched.
+- Verified here by the web suite (674 tests, six of them new for this comparison), `tsc` (exit 0),
+  the focused Python contract group (14 passed) and `node --check` on both harness modules. No
+  live browser run was performed in this environment (Playwright unavailable), so CI browser
+  evidence for the joined comparison is pending and not claimed.

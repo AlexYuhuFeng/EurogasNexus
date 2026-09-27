@@ -511,7 +511,8 @@ test("the board renders the state it was given, and its retry is the store's own
   assert.match(cockpit, /onRetryBoardRead=\{\(\) => void api\.retryFailedWorkspaceEndpoints\(\)\}/);
 
   // The browser check refuses exactly the board's own capacity read and holds it to the pure
-  // rules; the joined rows stay a later milestone, so no component gains a fetch of its own.
+  // rules; the joined rows are compared by the sweep's own probe, so no component gains a fetch
+  // of its own.
   assert.match(harness, /const CAPACITY_READ_ROUTE = \/\\\/api\\\/physical\\\/capacity\(\\\?\.\*\)\?\$\/;/);
   assert.match(harness, /evaluateRefusedCapacityBoard\(refused\)/);
   assert.match(harness, /evaluateCapacityBoardRecovery\(surface, served\)/);

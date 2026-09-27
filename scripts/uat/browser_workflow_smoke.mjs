@@ -21,6 +21,7 @@ import {
   collectCapacityOperatingBoard,
   collectVisibleElements,
   collectQuotedBoard,
+  evaluateCapacityBoardJoin,
   evaluateCapacityBoardRecovery,
   evaluateRefusedCapacityBoard,
   evaluateRefusedRegistry,
@@ -113,12 +114,21 @@ const VIEWPORTS = [
  * tenor tab) and the projection as-of it states. Its verdict is `evaluateQuotedBoard`; see
  * `readToRender.mjs` for the rules it enforces.
  *
- * A surface without `readToRender` keeps the older whole-page check: it is weaker, and it is
- * why the declared functional gaps below stay declared.
+ * `joinedBoard` declares a surface whose rows are the *union* of two reads (`reads`, each lane's
+ * own path) rendered one bounded page at a time (`pageSize`, the surface's own bound). Both reads
+ * are made in the same session and the surface's visible row keys, stated count, filter and sort
+ * context are compared with the union through `evaluateCapacityBoardJoin`: a joined key the
+ * surface does not render, a key neither read joined, a read the runtime database did not answer
+ * and a total the reads cannot account for all fail by name.
+ *
+ * A surface without `readToRender`, `quotedBoard` or `joinedBoard` keeps the older whole-page
+ * check: it is weaker, and it is why the declared functional gaps below stay declared.
  */
 const SURFACE_SIGNALS = {
   network: { heading: /network|market/i, apiPath: "/api/reference-network/edges?limit=5" },
-  capacity: { heading: /capacity/i, apiPath: "/api/physical/capacity?limit=5" },
+  // The capacity workspace's operating board is a union of two reads keyed `point_id:direction`
+  // (`flows` and `capacity`), so it is compared with both rather than with either row list.
+  capacity: { heading: /capacity/i, apiPath: "/api/physical/capacity", joinedBoard: { reads: [{ lane: "flows", path: "/api/physical/flows" }, { lane: "capacity", path: "/api/physical/capacity" }], pageSize: 50 } },
   // The market workspace's numeric task (`curves`, the default landing view) prices its hub board
   // from the market-context projection the market lane reads - not from `/api/market/observations`,
   // which the lane never calls. `displayedContext` names the shell element that states the Active
@@ -176,8 +186,10 @@ const KNOWN_FUNCTIONAL_GAPS = {
   // are now compared with the rows of the market-context projection they priced (`quotedBoard`),
   // for the displayed context and tenor, so a card that renders `n/a` for a served pair fails by
   // name.
-  capacity:
-    "physical capacity returns rows while the operating board renders no rows and every KPI reads 0",
+  // The operating board's gap was retired the same way: its rows are a union of two reads, and the
+  // board's visible joined keys, stated total and read state are now compared with both
+  // (`joinedBoard`, `evaluateCapacityBoardJoin`), so a served operating point the board does not
+  // render fails by its own `point_id:direction` key.
   access: "access users return rows while the Users table renders the empty row 'No users'",
   research: "the capability catalogue returns rows while the table renders 'Loading workspace'",
   agents: "the capability catalogue returns rows while the table renders 'Loading workspace'",
@@ -653,6 +665,43 @@ async function inspectSurfaceFunction(
     }
     if (state.requestPath) {
       recordObservation(observations, `${scope}: read ${state.requestPath}`);
+    }
+  } else if (signal.joinedBoard) {
+    // A surface whose rows are the union of two reads (the capacity operating board's
+    // `flows`/`capacity` join keyed `point_id:direction`) is compared with both, not with either
+    // row list: the declared reads are read in the same session, the union's keys are the
+    // identities the board is held to, and the board's visible row keys, stated total, page and
+    // filter/sort context are the evidence (`readToRender.mjs`,
+    // `evaluateCapacityBoardJoin`). Only the board's own declared page is compared; a larger
+    // union is reported as the bounded slice it is, and no utilization, posture or sort
+    // arithmetic is re-derived here.
+    const readResults = await page.evaluate(async (readPaths) => {
+      const answers = [];
+      for (const path of readPaths) {
+        try {
+          const response = await fetch(path, { credentials: "include" });
+          answers.push({ status: response.status, body: await response.json() });
+        } catch (error) {
+          answers.push({ status: 0, body: null });
+        }
+      }
+      return answers;
+    }, signal.joinedBoard.reads.map((read) => read.path));
+    const reads = signal.joinedBoard.reads.map((read, index) => ({
+      ...read,
+      ...(readResults[index] ?? { status: 0, body: null }),
+    }));
+    const board = await page.evaluate(collectCapacityOperatingBoard);
+    const compared = evaluateCapacityBoardJoin({
+      reads,
+      pageSize: signal.joinedBoard.pageSize,
+      board,
+    });
+    for (const detail of compared?.observations ?? []) {
+      recordObservation(observations, `${scope}: ${detail}`);
+    }
+    for (const detail of compared?.failures ?? []) {
+      recordFailure(failures, scope, detail);
     }
   } else if (state.apiRows !== null && state.apiRows > 0) {
     // The read has data. If the surface renders none of it, it is telling the operator the
@@ -1825,8 +1874,9 @@ function capacityBoardRecovered(wanted) {
  *   refuses a second concurrent attempt, which the unit tests hold);
  * - the harness removes the interception, and the board's own retry must leave it stating the
  *   reading its two reads now support (`ready` when either served a row, the measured `empty` when
- *   both answered with none) with the notice gone. The joined rows themselves are not compared
- *   here: that is the scoped joined-row acceptance, a later milestone.
+ *   both answered with none) with the notice gone. The joined rows themselves are compared by the
+ *   sweep's own probe (`functional/capacity`, `evaluateCapacityBoardJoin`); this interaction
+ *   measures the refusal and recovery states.
  *
  * The interaction clicks only the board's own retry control; no capacity, flow or reference write
  * is performed.
@@ -2054,8 +2104,8 @@ export async function runWorkflowSmoke() {
     // The operating board's failure path: the harness itself refuses `GET /api/physical/capacity`,
     // the board must state that one of its two required reads did not answer instead of a joined
     // zero, and its own scoped retry of the store's bounded path must restore the reading once the
-    // refusal is removed. The joined rows are a later milestone; this check makes no claim about
-    // them.
+    // refusal is removed. The joined rows themselves are compared by the sweep's own probe
+    // (`functional/capacity`).
     currentScope = "interaction/capacity-board-failure";
     const capacityFailure = await capacityBoardFailureInteraction(page, failures);
     recordObservation(

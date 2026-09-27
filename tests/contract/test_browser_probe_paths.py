@@ -653,25 +653,35 @@ def test_the_refused_registry_probe_refuses_the_read_the_catalog_compares() -> N
     assert 'data-empty-state="source-rows"' in component
 
 
-def test_the_capacity_probe_refuses_the_board_read_the_disclosure_names() -> None:
-    """The operating board's read disclosure, and the exemption it deliberately keeps.
+def test_the_capacity_probe_compares_the_board_with_both_of_its_reads() -> None:
+    """The operating board's joined-row comparison, and the disclosure path beside it.
 
-    The board's rows are a join of two reads (``flows`` and ``capacity``), so its exemption is not
-    retired by this change: the scoped joined-row comparison is a later milestone and the whole-page
-    declaration stays, still pinned to the probe path it was declared with. What is held here is
-    the disclosure path - the refusal names exactly the board's capacity read, the verdicts are the
-    pure rules the web suite exercises, and the markers they select are the component's own - plus
-    the parity of the copy in both locales.
+    The board's rows are a union of two reads keyed ``point_id:direction`` (``flows`` and
+    ``capacity``), so the whole-page exemption is retired by a comparison with *both* - the union's
+    keys, the board's declared total and its visible first page - rather than by either read's row
+    list. What is held here is the declaration (both read paths, the page bound the surface itself
+    applies), the pure rules the web suite exercises, the markers they select, the refusal path
+    that stays unchanged, and the parity of the copy in both locales.
     """
 
     harness = HARNESS.read_text(encoding="utf-8")
-    # The exemption is kept, and the probe that declared it is unchanged.
+    # The exemption is retired with its replacement, not kept beside it.
     gaps = re.search(r"const KNOWN_FUNCTIONAL_GAPS = \{(?P<body>.*?)\n\};", harness, re.DOTALL)
     assert gaps, "KNOWN_FUNCTIONAL_GAPS is still declared in the browser sweep"
-    assert re.search(r"^\s{2}capacity:", gaps.group("body"), re.MULTILINE), (
-        "the capacity exemption stays declared until a scoped joined-row replacement exists"
+    assert not re.search(r"^\s{2}capacity:", gaps.group("body"), re.MULTILINE), (
+        "the capacity exemption is retired by the scoped joined-row comparison"
     )
-    assert _declared_probes()["capacity"] == "/api/physical/capacity?limit=5"
+    # The probe still performs the board's capacity read, and the joined declaration names both
+    # reads the board's rows come from - the client lane's own paths.
+    assert _declared_probes()["capacity"] == "/api/physical/capacity"
+    signals = _signals_source()
+    assert 'joinedBoard: { reads: [' in signals, "the capacity probe declares its joined reads"
+    assert '{ lane: "flows", path: "/api/physical/flows" }' in signals
+    assert '{ lane: "capacity", path: "/api/physical/capacity" }' in signals
+    assert "pageSize: 50" in signals, "the declared page bound mirrors the surface's own"
+    assert "const PAGE_SIZE = 50;" in CAPACITY_COMPONENT.read_text(encoding="utf-8"), (
+        "the surface's own page bound is the declared one"
+    )
 
     # The refused route is one of the two reads the board joins, and it is the client lane's own
     # read: both paths are declared by the client the surface uses.
@@ -688,10 +698,18 @@ def test_the_capacity_probe_refuses_the_board_read_the_disclosure_names() -> Non
     read_to_render = READ_TO_RENDER.read_text(encoding="utf-8")
     for rule in (
         "collectCapacityOperatingBoard",
+        "capacityBoardJoinedKeys",
+        "evaluateCapacityBoardJoin",
         "evaluateRefusedCapacityBoard",
         "evaluateCapacityBoardRecovery",
     ):
         assert f"export function {rule}(" in read_to_render, f"{rule} is declared"
+    for rule in (
+        "collectCapacityOperatingBoard",
+        "evaluateCapacityBoardJoin",
+        "evaluateRefusedCapacityBoard",
+        "evaluateCapacityBoardRecovery",
+    ):
         assert rule in harness, f"the sweep applies {rule}"
 
     # The states the model names, and the two reads they are derived from.
@@ -721,6 +739,10 @@ def test_the_capacity_probe_refuses_the_board_read_the_disclosure_names() -> Non
         'data-capacity-board-retry="true"',
         'data-record="capacity-point"',
         "data-record-id={row.key}",
+        'data-capacity-board-filters={filtersApplied ? "applied" : "none"}',
+        "data-capacity-board-sort={sort}",
+        "data-capacity-board-count={`${filteredRows.length}/${operatingRows.length}`}",
+        "data-capacity-page-start={pageStart}",
         "data-empty-state={boardEmptyState.marker}",
         'key: "capacity.board.empty", marker: "capacity-operating-points"',
         'key: "capacity.no_matching_points", marker: "capacity-filter-no-match"',

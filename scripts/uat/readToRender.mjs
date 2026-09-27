@@ -541,6 +541,273 @@ export function evaluateCapacityBoardRecovery(surface, served) {
   return failures;
 }
 
+/** The source a read served by the runtime database names in its envelope. */
+const RUNTIME_DATABASE_SOURCE = "runtime-postgresql";
+
+/**
+ * The joined keys the operating board's two reads support, and every reason they cannot be joined.
+ *
+ * The board is not a list of capacity observations: its rows are a union of `flows` and `capacity`
+ * keyed `point_id:direction` (`CapacityWorkspace.buildOperatingRows`), so comparing it with either
+ * read alone would judge a correctly rendered board by the wrong row list - which is why its
+ * whole-page exemption outlived the row-comparison milestones. Each read must be the runtime
+ * database's own answer: the fallback envelope answers 200 with an empty row set and names another
+ * source, and "the runtime served no operating point" is not the same statement as "no runtime
+ * read happened". A row carrying no `point_id`/`direction` proves nothing, so it is a problem
+ * rather than a key skipped quietly.
+ */
+export function capacityBoardJoinedKeys(reads) {
+  const problems = [];
+  if (!Array.isArray(reads) || reads.length !== 2
+      || reads.filter((read) => read?.lane === "flows").length !== 1
+      || reads.filter((read) => read?.lane === "capacity").length !== 1) {
+    problems.push("the join requires exactly one flows and one capacity read");
+  }
+  const keys = [];
+  const seen = new Set();
+  const served = [];
+  for (const read of Array.isArray(reads) ? reads : []) {
+    const label = read?.label ?? read?.lane ?? "read";
+    const status = read?.status ?? null;
+    if (status !== 200) {
+      problems.push(
+        `${label}: the read answered ${status === null || status === 0 ? "nothing" : status}, so`
+        + " the board's join could not be measured",
+      );
+      continue;
+    }
+    const rows = read?.body?.data;
+    const references = read?.body?.meta?.source_references;
+    const source =
+      Array.isArray(references) && typeof references[0] === "string" ? references[0].trim() : "";
+    if (!Array.isArray(rows)) {
+      problems.push(`${label}: the read's payload carries no row set 'data'`);
+      continue;
+    }
+    if (source !== RUNTIME_DATABASE_SOURCE) {
+      problems.push(
+        `${label}: the read was answered by '${source || "(no source)"}' rather than the runtime`
+        + " database, so it is not a measurement",
+      );
+      continue;
+    }
+    served.push(`${label} ${rows.length}`);
+    for (const row of rows) {
+      const pointId = rowRecordId(row, "point_id");
+      const direction = rowRecordId(row, "direction");
+      if (pointId === null || direction === null) {
+        problems.push(
+          `${label}: a returned row carries no point_id/direction, so no joined key could be`
+          + " compared with it",
+        );
+        continue;
+      }
+      const key = `${pointId}:${direction}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        keys.push(key);
+      }
+    }
+  }
+  return { keys, problems, served };
+}
+
+/** The board's own declared joined count (`data-capacity-board-count`, ``<filtered>/<total>``). */
+function boardDeclaredCount(raw) {
+  const match = /^(\d+)\/(\d+)$/.exec(String(raw ?? "").trim());
+  if (!match) return null;
+  return { filtered: Number(match[1]), total: Number(match[2]) };
+}
+
+/**
+ * Compare the operating board with the union of its two reads.
+ *
+ * `reads` are the harness's declared reads, each with its own `status` and `body`; `board` is
+ * `collectCapacityOperatingBoard`'s output; `pageSize` is the surface's own declared page bound
+ * (`CapacityWorkspace.PAGE_SIZE`), held to it by the contract tests rather than guessed here.
+ *
+ * The rules, one direction at a time:
+ *
+ * - the board's expected identities are the union's keys, deduplicated the way the board's own
+ *   `Set` joins them; no utilization, posture or sort value is recomputed here;
+ * - both reads must be the runtime database's answers, so an unavailable read can never pass as
+ *   the board's measured empty state;
+ * - the board must report the state its reads support (`ready`/`empty`), state its count, and
+ *   present no failure notice, retry or filter result;
+ * - its stated total is held to the joined key count, and a total it claims without the reads'
+ *   rows is named;
+ * - its visible keys are held to the bounded page the surface renders: a missing, foreign,
+ *   hidden, duplicated or unidentifiable row fails by name, and a union larger than the declared
+ *   page is reported as the bounded slice it is rather than claimed as fully compared.
+ *
+ * Pure, so the negative cases run without a browser (`clients/web/tests/readToRender.test.ts`).
+ */
+export function evaluateCapacityBoardJoin({ reads = [], pageSize = 0, board = null }) {
+  const failures = [];
+  const observations = [];
+  const declaredPage = Number(pageSize) > 0 ? Math.floor(Number(pageSize)) : 0;
+  if (declaredPage === 0) {
+    failures.push(
+      "the joined comparison declares no page size, so no bounded slice could be verified",
+    );
+    return { failures, observations };
+  }
+  const joined = capacityBoardJoinedKeys(reads);
+  for (const problem of joined.problems) failures.push(problem);
+  if (joined.problems.length > 0) return { failures, observations };
+  if (!board) {
+    failures.push(
+      "no displayed workspace page carried the operating board, so its joined rows could not be"
+      + " compared",
+    );
+    return { failures, observations };
+  }
+
+  const total = joined.keys.length;
+  const served = joined.served.join(", ");
+  const expectedState = total > 0 ? "ready" : "empty";
+  if (board.state !== expectedState) {
+    failures.push(
+      `the board's two reads joined ${total} key(s) and the board reports`
+      + ` '${board.state || "(no state)"}' instead of '${expectedState}'`,
+    );
+  }
+  if (board.noticePresent === true) {
+    failures.push("the board states a read failure while both of its reads answered");
+  }
+  if (board.retryControls > 0) {
+    failures.push("the board offers its retry control while both of its reads answered");
+  }
+  if (board.kpiStrips === 0) {
+    failures.push("the board states no measurement after both of its reads answered");
+  }
+  if (board.filterNoMatch > 0) {
+    failures.push("the board presents a filter result while it declares no filter applied");
+  }
+
+  const filters = String(board.filters ?? "");
+  if (filters !== "none" && filters !== "applied") {
+    failures.push(
+      "the board does not declare its filter context, so the comparison's filters are unknown",
+    );
+  } else if (filters === "applied") {
+    failures.push(
+      "the board's filters were applied, so the unfiltered joined comparison could not be"
+      + " measured",
+    );
+    return { failures, observations };
+  }
+  const sort = String(board.sort ?? "").trim();
+  if (sort === "") {
+    failures.push("the board does not declare the sort its first page was drawn with");
+  }
+
+  const count = boardDeclaredCount(board.count);
+  if (count === null) {
+    failures.push(
+      `the board states no joined count, so its total could not be compared with the ${total}`
+      + " key(s) the two reads joined",
+    );
+  } else {
+    if (count.total !== total) {
+      failures.push(
+        `the board's two reads joined ${total} key(s) and the board states ${count.total}`
+        + " operating point(s)",
+      );
+    }
+    if (count.filtered !== count.total) {
+      failures.push(
+        `the board states ${count.filtered} of ${count.total} operating point(s) while it declares`
+        + " no filter applied",
+      );
+    }
+  }
+  // The compared slice is declared rather than assumed: the board states the first row of the page
+  // it is rendering, so the sweep verifies the first declared page and never a later one by
+  // accident. A missing declaration is a failure, not "page zero by default".
+  const pageStartRaw = String(board.pageStart ?? "").trim();
+  const pageStart = /^\d+$/.test(pageStartRaw) ? Number(pageStartRaw) : null;
+  if (total > 0 && pageStart === null) {
+    failures.push(
+      "the board does not declare the page of joined keys it rendered, so no bounded slice could"
+      + " be verified",
+    );
+  } else if (total > 0 && pageStart !== 0) {
+    failures.push(
+      `the board's first page is the compared slice and the board renders the page starting at`
+      + ` row ${pageStart}`,
+    );
+  }
+
+  const recordIds = Array.isArray(board.recordIds) ? board.recordIds.map(String) : [];
+  const missingRecordIds = Number(board.missingRecordIds) > 0 ? Number(board.missingRecordIds) : 0;
+  if (missingRecordIds > 0) {
+    failures.push(
+      `${missingRecordIds} visible row(s) under '[data-record="capacity-point"]' carry no`
+      + " data-record-id, so no joined key could be compared with them",
+    );
+  }
+  const duplicates = recordIds.length - new Set(recordIds).size;
+  if (duplicates > 0) {
+    failures.push(`the board renders ${duplicates} duplicate operating row identity(ies)`);
+  }
+  const expectedVisible = Math.min(total, declaredPage);
+  if (recordIds.length !== expectedVisible) {
+    failures.push(
+      `the board's own page holds ${expectedVisible} of ${total} joined key(s) and it renders`
+      + ` ${recordIds.length} visible row(s)`,
+    );
+  }
+  const foreign = recordIds.filter((id) => !joined.keys.includes(id));
+  if (foreign.length > 0) {
+    failures.push(
+      `the board renders ${foreign.length} row(s) neither read joined:`
+      + ` ${foreign.slice(0, 4).join(" | ")}`,
+    );
+  }
+
+  if (total === 0) {
+    if (!(board.measuredEmpty > 0)) {
+      failures.push(
+        "both reads answered with an empty row set and the board does not declare its measured"
+        + " empty state",
+      );
+    }
+    observations.push(
+      "both reads answered 0 row(s) from the runtime database: the board states the measured"
+      + " empty reading (an empty fixture is not populated acceptance)",
+    );
+  } else {
+    if (board.measuredEmpty > 0) {
+      failures.push("the board presents its measured-empty marker while its reads joined rows");
+    }
+    if (total <= declaredPage) {
+      const remaining = [...joined.keys];
+      for (const id of recordIds) {
+        const at = remaining.indexOf(id);
+        if (at !== -1) remaining.splice(at, 1);
+      }
+      if (remaining.length > 0) {
+        failures.push(
+          `the board does not render ${remaining.length} joined key(s) its two reads served:`
+          + ` ${remaining.slice(0, 4).join(" | ")}`,
+        );
+      }
+      observations.push(
+        `the two reads joined ${total} key(s) (${served}) - a populated union - and the board`
+        + ` rendered every one of them under its own '${sort}' sort`,
+      );
+    } else {
+      observations.push(
+        `the two reads joined ${total} key(s) (${served}) - a populated union; the board's first`
+        + ` declared page of ${declaredPage} was compared by identity and keys beyond that page`
+        + " are not claimed",
+      );
+    }
+  }
+  return { failures, observations };
+}
+
 /**
  * Collect the operating board's own read state and its claims from the displayed page.
  *
@@ -549,6 +816,12 @@ export function evaluateCapacityBoardRecovery(surface, served) {
  * evidence; the notice's text is read from the element the operator sees, the row count only from
  * the board's own row marker, and the measured-empty and filter markers are the surface's
  * declared ones - never the page's copy and never another panel's rows.
+ *
+ * The joined comparison's own evidence is collected here too: the visible row identities the
+ * board renders (`recordIds`), the count it states (`count`, the numbers it prints as `N / M`),
+ * the page its rows begin at (`pageStart`), and the filter and sort context it was drawn under
+ * (`filters`, `sort`). `rows` remains the row-element count the refusal rules use; `recordIds` is
+ * the visibility-filtered evidence - a hidden row, or a row carrying no id, is not a joined key.
  */
 export function collectCapacityOperatingBoard() {
   const isVisible = (element) => {
@@ -570,6 +843,16 @@ export function collectCapacityOperatingBoard() {
   if (!displayed) return null;
 
   const notice = displayed.querySelector("[data-capacity-notice]");
+  const rowElements = [...displayed.querySelectorAll('[data-record="capacity-point"]')];
+  const recordIds = [];
+  let missingRecordIds = 0;
+  for (const row of rowElements) {
+    if (!isVisible(row)) continue;
+    const value = attribute(row, "data-record-id");
+    if (value === "") missingRecordIds += 1;
+    else recordIds.push(value);
+  }
+  const countElement = displayed.querySelector("[data-capacity-board-count]");
   return {
     state: attribute(
       displayed.querySelector("[data-capacity-read-state]"),
@@ -579,7 +862,22 @@ export function collectCapacityOperatingBoard() {
     noticeState: attribute(notice, "data-capacity-notice"),
     noticeText: text(notice),
     vocabulary: text(displayed.querySelector(".capacity-board-vocabulary")),
-    rows: displayed.querySelectorAll('[data-record="capacity-point"]').length,
+    rows: rowElements.length,
+    recordIds,
+    missingRecordIds,
+    count: isVisible(countElement) ? text(countElement).replace(/\s+/g, "") : "",
+    pageStart: attribute(
+      displayed.querySelector("[data-capacity-page-start]"),
+      "data-capacity-page-start",
+    ),
+    filters: attribute(
+      displayed.querySelector("[data-capacity-board-filters]"),
+      "data-capacity-board-filters",
+    ),
+    sort: attribute(
+      displayed.querySelector("[data-capacity-board-sort]"),
+      "data-capacity-board-sort",
+    ),
     measuredEmpty: displayed.querySelectorAll(
       '[data-empty-state="capacity-operating-points"]',
     ).length,

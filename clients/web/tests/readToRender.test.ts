@@ -21,6 +21,7 @@ import {
   collectVisibleElements,
   collectQuotedBoard,
   displayPriceUnit,
+  evaluateCapacityBoardJoin,
   evaluateCapacityBoardRecovery,
   evaluateRefusedCapacityBoard,
   evaluateRefusedRegistry,
@@ -1477,16 +1478,26 @@ function collectCapacityBoardWithStub(spec: {
   state?: string;
   notice?: { state: string; text: string } | null;
   rows?: number;
+  rowIds?: string[];
+  hiddenRowIds?: string[];
+  count?: string;
+  pageStart?: string;
+  filters?: string;
+  sort?: string;
   measuredEmpty?: number;
   filterNoMatch?: number;
   kpiStrips?: number;
   retryDisabled?: boolean | null;
   visible?: boolean;
 }) {
-  const element = (attributes: Record<string, string>, text = "") => ({
+  const element = (attributes: Record<string, string>, text = "", hidden = false) => ({
     ...stubBoardElement({ attributes, text }),
-    ownerDocument: { defaultView: { getComputedStyle: () => ({ display: "block", visibility: "visible" }) } },
-    getBoundingClientRect: () => ({ width: 120, height: 24 }),
+    ownerDocument: {
+      defaultView: {
+        getComputedStyle: () => ({ display: hidden ? "none" : "block", visibility: "visible" }),
+      },
+    },
+    getBoundingClientRect: () => (hidden ? { width: 0, height: 0 } : { width: 120, height: 24 }),
   });
   const noticeElement = spec.notice
     ? element({ "data-capacity-notice": spec.notice.state }, spec.notice.text)
@@ -1510,10 +1521,36 @@ function collectCapacityBoardWithStub(spec: {
         return spec.notice ? element({}, spec.notice.text) : null;
       }
       if (selector === "[data-capacity-board-retry]") return retryElement;
+      if (selector === "[data-capacity-board-count]") {
+        return spec.count === undefined
+          ? null
+          : element({ "data-capacity-board-count": "999/999" }, spec.count);
+      }
+      if (selector === "[data-capacity-page-start]") {
+        return spec.pageStart === undefined
+          ? null
+          : element({ "data-capacity-page-start": spec.pageStart });
+      }
+      if (selector === "[data-capacity-board-filters]") {
+        return spec.filters === undefined
+          ? null
+          : element({ "data-capacity-board-filters": spec.filters });
+      }
+      if (selector === "[data-capacity-board-sort]") {
+        return spec.sort === undefined
+          ? null
+          : element({ "data-capacity-board-sort": spec.sort });
+      }
       return null;
     },
     querySelectorAll: (selector: string) => {
-      if (selector === '[data-record="capacity-point"]') return spread(spec.rows ?? 0);
+      if (selector === '[data-record="capacity-point"]') {
+        return [
+          ...(spec.rowIds ?? []).map((id) => element({ "data-record-id": id })),
+          ...(spec.hiddenRowIds ?? []).map((id) => element({ "data-record-id": id }, "", true)),
+          ...spread(spec.rows ?? 0),
+        ];
+      }
       if (selector === '[data-empty-state="capacity-operating-points"]') return spread(spec.measuredEmpty ?? 0);
       if (selector === '[data-empty-state="capacity-filter-no-match"]') return spread(spec.filterNoMatch ?? 0);
       if (selector === ".capacity-kpi-strip") return spread(spec.kpiStrips ?? 0);
@@ -1564,4 +1601,352 @@ test("the operating board's own markers are what the sweep reads", () => {
 
   // A hidden page is not evidence at all.
   assert.equal(collectCapacityBoardWithStub({ state: "ready", visible: false }), null);
+
+  // The joined comparison's evidence is the board's own declared markers: the count it states,
+  // its filter and sort context, and the visible rows that carry their own record id. A hidden
+  // row, or a row element with no id, is not evidence for a joined key.
+  const joined = collectCapacityBoardWithStub({
+    state: "ready",
+    notice: null,
+    rowIds: ["de-nl-obbicht:entry"],
+    hiddenRowIds: ["be-de-zeebrugge:exit"],
+    rows: 2,
+    count: "3/3",
+    pageStart: "0",
+    filters: "none",
+    sort: "attention",
+    kpiStrips: 1,
+  });
+  assert.deepEqual(joined?.recordIds, ["de-nl-obbicht:entry"]);
+  assert.equal(joined?.missingRecordIds, 2);
+  assert.equal(joined?.count, "3/3");
+  assert.equal(joined?.pageStart, "0");
+  assert.equal(joined?.filters, "none");
+  assert.equal(joined?.sort, "attention");
+});
+
+/**
+ * The capacity operating board's joined-row evidence.
+ *
+ * The board is a union of the flow and capacity reads keyed `point_id:direction`
+ * (`CapacityWorkspace.buildOperatingRows`), so comparing it with either read alone would judge a
+ * correctly rendered board by the wrong row list - which is why its whole-page exemption outlived
+ * the row-comparison milestones. `evaluateCapacityBoardJoin` holds the board to the union's keys,
+ * the total it declares and the visible page it renders, without re-deriving the component's
+ * utilization, posture or sort arithmetic. These are the negative cases: a missing, foreign,
+ * hidden, duplicated or unidentifiable row, a read the runtime did not answer, a count that is not
+ * the joined total, and a page the reads cannot account for all fail by name.
+ */
+
+/** One physical flow observation, as `GET /api/physical/flows` answers with it. */
+const FLOW_OBS = {
+  observation_id: "uat-flow-1",
+  point_id: "de-nl-obbicht",
+  point_name: "Obbicht",
+  direction: "entry",
+  flow_mcm_d: 12.5,
+};
+
+/** One capacity observation, as `GET /api/physical/capacity` answers with it. */
+const CAPACITY_OBS = {
+  observation_id: "uat-capacity-1",
+  point_id: "de-nl-obbicht",
+  point_name: "Obbicht",
+  direction: "entry",
+  capacity_type: "Firm Technical",
+  capacity_mcm_d: 20,
+};
+
+/** The envelope both physical reads answer with; the fallback names a source of its own. */
+function physicalBody(rows: Array<Record<string, unknown>>, source = "runtime-postgresql") {
+  return {
+    data: rows,
+    meta: { source_references: [source], warnings: [] },
+  };
+}
+
+/** The board's own evidence, as `collectCapacityOperatingBoard` collects it. */
+function capacityBoard(
+  options: {
+    state?: string;
+    recordIds?: string[];
+    count?: string | null;
+    pageStart?: string;
+    filters?: string;
+    sort?: string;
+    notice?: boolean;
+    retryControls?: number;
+    measuredEmpty?: number;
+    filterNoMatch?: number;
+    kpiStrips?: number;
+  } = {},
+) {
+  return {
+    state: options.state ?? "ready",
+    noticePresent: options.notice ?? false,
+    noticeState: options.notice ? options.state ?? "ready" : "",
+    noticeText: "",
+    vocabulary: "",
+    rows: options.recordIds?.length ?? 0,
+    recordIds: options.recordIds ?? [],
+    missingRecordIds: 0,
+    count: options.count === undefined ? "0/0" : options.count,
+    pageStart: options.pageStart ?? "0",
+    filters: options.filters ?? "none",
+    sort: options.sort ?? "attention",
+    measuredEmpty: options.measuredEmpty ?? 0,
+    filterNoMatch: options.filterNoMatch ?? 0,
+    kpiStrips: options.kpiStrips ?? 1,
+    retryControls: options.retryControls ?? 0,
+    retryDisabled: null,
+  };
+}
+
+/** The two reads the board joins, each with its own status and source. */
+function capacityReads(
+  flows: Array<Record<string, unknown>>,
+  capacity: Array<Record<string, unknown>>,
+  options: { flowsSource?: string; flowsStatus?: number } = {},
+) {
+  return [
+    {
+      lane: "flows",
+      label: "flows",
+      path: "/api/physical/flows",
+      status: options.flowsStatus ?? 200,
+      body: physicalBody(flows, options.flowsSource),
+    },
+    {
+      lane: "capacity",
+      label: "capacity",
+      path: "/api/physical/capacity",
+      status: 200,
+      body: physicalBody(capacity),
+    },
+  ];
+}
+
+const JOIN_PAGE_SIZE = 50;
+
+test("the operating board is held to the union of its two reads, not to either row list", () => {
+  const flows = [
+    FLOW_OBS,
+    { ...FLOW_OBS, observation_id: "uat-flow-2", point_id: "be-de-zeebrugge", direction: "exit" },
+  ];
+  const capacity = [
+    CAPACITY_OBS,
+    { ...CAPACITY_OBS, observation_id: "uat-capacity-2", point_id: "nl-uk-bbl", direction: "entry" },
+  ];
+  const compared = evaluateCapacityBoardJoin({
+    reads: capacityReads(flows, capacity),
+    pageSize: JOIN_PAGE_SIZE,
+    board: capacityBoard({
+      recordIds: ["de-nl-obbicht:entry", "be-de-zeebrugge:exit", "nl-uk-bbl:entry"],
+      count: "3/3",
+    }),
+  });
+  assert.deepEqual(compared.failures, []);
+  assert.match(compared.observations.join(" | "), /joined 3 key\(s\)/);
+  // The summary says which it measured: a populated union is not an empty fixture.
+  assert.match(compared.observations.join(" | "), /populated union/);
+
+  // A key only one read served is the board's to render in either direction: the capacity-only
+  // key is not missing because the capacity read is not the board's row list.
+  const flowOnly = evaluateCapacityBoardJoin({
+    reads: capacityReads(flows, []),
+    pageSize: JOIN_PAGE_SIZE,
+    board: capacityBoard({
+      recordIds: ["de-nl-obbicht:entry", "be-de-zeebrugge:exit"],
+      count: "2/2",
+    }),
+  });
+  assert.deepEqual(flowOnly.failures, []);
+  assert.match(flowOnly.observations.join(" | "), /joined 2 key\(s\)/);
+});
+
+test("a joined key the board does not render is a missing row, and a key neither read joined is foreign", () => {
+  const missing = evaluateCapacityBoardJoin({
+    reads: capacityReads(
+      [FLOW_OBS, { ...FLOW_OBS, observation_id: "uat-flow-2", direction: "exit" }],
+      [],
+    ),
+    pageSize: JOIN_PAGE_SIZE,
+    board: capacityBoard({ recordIds: ["de-nl-obbicht:entry"], count: "2/2" }),
+  }).failures.join(" | ");
+  assert.match(missing, /does not render 1 joined key\(s\)/);
+  assert.match(missing, /de-nl-obbicht:exit/);
+
+  const foreign = evaluateCapacityBoardJoin({
+    reads: capacityReads([FLOW_OBS], []),
+    pageSize: JOIN_PAGE_SIZE,
+    board: capacityBoard({ recordIds: ["de-nl-obbicht:entry", "fr-es-foreign:exit"], count: "2/2" }),
+  }).failures.join(" | ");
+  assert.match(foreign, /renders 1 row\(s\) neither read joined/);
+  assert.match(foreign, /fr-es-foreign:exit/);
+});
+
+test("an empty runtime answer is a measured empty only when the board states it", () => {
+  const empty = evaluateCapacityBoardJoin({
+    reads: capacityReads([], []),
+    pageSize: JOIN_PAGE_SIZE,
+    board: capacityBoard({ state: "empty", count: "0/0", measuredEmpty: 1 }),
+  });
+  assert.deepEqual(empty.failures, []);
+  assert.match(empty.observations.join(" | "), /both reads answered 0 row\(s\)/);
+  assert.match(empty.observations.join(" | "), /not populated acceptance/);
+
+  const stateOf = (overrides: Parameters<typeof capacityBoard>[0]) =>
+    evaluateCapacityBoardJoin({
+      reads: capacityReads([], []),
+      pageSize: JOIN_PAGE_SIZE,
+      board: capacityBoard({ state: "empty", count: "0/0", measuredEmpty: 1, ...overrides }),
+    }).failures.join(" | ");
+  assert.match(stateOf({ state: "ready" }), /reports 'ready' instead of 'empty'/);
+  assert.match(stateOf({ measuredEmpty: 0 }), /does not declare its measured empty state/);
+  assert.match(stateOf({ filterNoMatch: 1 }), /filter result/);
+  assert.match(stateOf({ kpiStrips: 0 }), /states no measurement/);
+  assert.match(stateOf({ recordIds: ["de-nl-obbicht:entry"] }), /renders 1 visible row\(s\)/);
+});
+
+test("a read the runtime database did not answer cannot pass as a measured board", () => {
+  const fallback = evaluateCapacityBoardJoin({
+    reads: capacityReads([], [], { flowsSource: "runtime-db-not-configured" }),
+    pageSize: JOIN_PAGE_SIZE,
+    board: capacityBoard({ state: "empty", count: "0/0", measuredEmpty: 1 }),
+  }).failures.join(" | ");
+  assert.match(fallback, /runtime-db-not-configured/);
+  assert.match(fallback, /rather than the runtime database/);
+
+  const refused = evaluateCapacityBoardJoin({
+    reads: capacityReads([FLOW_OBS], [], { flowsStatus: 503 }),
+    pageSize: JOIN_PAGE_SIZE,
+    board: capacityBoard({ recordIds: ["de-nl-obbicht:entry"], count: "1/1" }),
+  }).failures.join(" | ");
+  assert.match(refused, /flows: the read answered 503/);
+
+  const noRowSet = evaluateCapacityBoardJoin({
+    reads: [{ lane: "flows", label: "flows", status: 200, body: { meta: {} } }],
+    pageSize: JOIN_PAGE_SIZE,
+    board: capacityBoard(),
+  }).failures.join(" | ");
+  assert.match(noRowSet, /carries no row set 'data'/);
+
+  const unkeyed = evaluateCapacityBoardJoin({
+    reads: capacityReads([{ ...FLOW_OBS, direction: "" }], []),
+    pageSize: JOIN_PAGE_SIZE,
+    board: capacityBoard(),
+  }).failures.join(" | ");
+  assert.match(unkeyed, /no point_id\/direction/);
+});
+
+test("the board's stated total is the joined key count, and a page is verified as the bounded slice it is", () => {
+  for (const reads of [[], capacityReads([], []).slice(0, 1), [capacityReads([], [])[0], capacityReads([], [])[0]]]) {
+    const result = evaluateCapacityBoardJoin({
+      reads,
+      pageSize: 50,
+      board: capacityBoard({ state: "empty", measuredEmpty: 1 }),
+    });
+    assert.match(result.failures.join(" | "), /exactly one flows and one capacity read/);
+  }
+  const unionRows = Array.from({ length: 60 }, (_, index) => ({
+    ...FLOW_OBS,
+    observation_id: `uat-flow-${index}`,
+    point_id: `point-${index}`,
+  }));
+  const firstPage = unionRows.slice(0, 50).map((row) => `${row.point_id}:entry`);
+  const bounded = evaluateCapacityBoardJoin({
+    reads: capacityReads(unionRows, []),
+    pageSize: JOIN_PAGE_SIZE,
+    board: capacityBoard({ recordIds: firstPage, count: "60/60" }),
+  });
+  assert.deepEqual(bounded.failures, []);
+  assert.match(bounded.observations.join(" | "), /joined 60 key\(s\)/);
+  assert.match(bounded.observations.join(" | "), /first declared page of 50/);
+
+  const shortPage = evaluateCapacityBoardJoin({
+    reads: capacityReads(unionRows, []),
+    pageSize: JOIN_PAGE_SIZE,
+    board: capacityBoard({ recordIds: firstPage.slice(0, 49), count: "60/60" }),
+  }).failures.join(" | ");
+  assert.match(shortPage, /holds 50 of 60 joined key\(s\) and it renders 49 visible row\(s\)/);
+
+  const wrongTotal = evaluateCapacityBoardJoin({
+    reads: capacityReads([FLOW_OBS], []),
+    pageSize: JOIN_PAGE_SIZE,
+    board: capacityBoard({ recordIds: ["de-nl-obbicht:entry"], count: "2/2" }),
+  }).failures.join(" | ");
+  assert.match(wrongTotal, /joined 1 key\(s\) and the board states 2 operating point\(s\)/);
+
+  const duplicates = evaluateCapacityBoardJoin({
+    reads: capacityReads([FLOW_OBS], []),
+    pageSize: JOIN_PAGE_SIZE,
+    board: capacityBoard({
+      recordIds: ["de-nl-obbicht:entry", "de-nl-obbicht:entry"],
+      count: "1/1",
+    }),
+  }).failures.join(" | ");
+  assert.match(duplicates, /renders 1 duplicate operating row identity\(ies\)/);
+
+  const narrowed = evaluateCapacityBoardJoin({
+    reads: capacityReads(
+      [FLOW_OBS, { ...FLOW_OBS, observation_id: "uat-flow-2", direction: "exit" }],
+      [],
+    ),
+    pageSize: JOIN_PAGE_SIZE,
+    board: capacityBoard({ recordIds: ["de-nl-obbicht:entry"], count: "1/2" }),
+  }).failures.join(" | ");
+  assert.match(narrowed, /states 1 of 2 operating point\(s\) while it declares no filter applied/);
+
+  const undeclared = evaluateCapacityBoardJoin({
+    reads: capacityReads([FLOW_OBS], []),
+    pageSize: JOIN_PAGE_SIZE,
+    board: capacityBoard({ recordIds: ["de-nl-obbicht:entry"], count: null }),
+  }).failures.join(" | ");
+  assert.match(undeclared, /states no joined count/);
+
+  // The compared slice is declared, not assumed: an undeclared page start fails, and a page the
+  // reads cannot place first is not accepted as the first page.
+  const unplaced = evaluateCapacityBoardJoin({
+    reads: capacityReads([FLOW_OBS], []),
+    pageSize: JOIN_PAGE_SIZE,
+    board: capacityBoard({ recordIds: ["de-nl-obbicht:entry"], count: "1/1", pageStart: "" }),
+  }).failures.join(" | ");
+  assert.match(unplaced, /does not declare the page of joined keys it rendered/);
+  const laterPage = evaluateCapacityBoardJoin({
+    reads: capacityReads(unionRows, []),
+    pageSize: JOIN_PAGE_SIZE,
+    board: capacityBoard({ recordIds: firstPage, count: "60/60", pageStart: "50" }),
+  }).failures.join(" | ");
+  assert.match(laterPage, /renders the page starting at row 50/);
+});
+
+test("the board's filter and sort context is captured, and a board that failed while its reads answered fails", () => {
+  const base = { reads: capacityReads([FLOW_OBS], []), pageSize: JOIN_PAGE_SIZE };
+  const stateOf = (overrides: Parameters<typeof capacityBoard>[0]) =>
+    evaluateCapacityBoardJoin({
+      ...base,
+      board: capacityBoard({ recordIds: ["de-nl-obbicht:entry"], count: "1/1", ...overrides }),
+    }).failures.join(" | ");
+  assert.match(stateOf({ filters: "" }), /does not declare its filter context/);
+  assert.match(stateOf({ filters: "applied" }), /filters were applied/);
+  assert.match(stateOf({ sort: "" }), /does not declare the sort/);
+  for (const state of ["failed", "partial", "pending", "unread"]) {
+    assert.match(stateOf({ state }), new RegExp(`reports '${state}'`), state);
+  }
+  assert.match(stateOf({ notice: true }), /states a read failure while both of its reads answered/);
+  assert.match(stateOf({ retryControls: 1 }), /offers its retry control/);
+
+  const unbound = evaluateCapacityBoardJoin({
+    reads: capacityReads([FLOW_OBS], []),
+    pageSize: 0,
+    board: capacityBoard(),
+  }).failures.join(" | ");
+  assert.match(unbound, /declares no page size/);
+
+  const unboarded = evaluateCapacityBoardJoin({
+    reads: capacityReads([FLOW_OBS], []),
+    pageSize: JOIN_PAGE_SIZE,
+    board: null,
+  }).failures.join(" | ");
+  assert.match(unboarded, /no displayed workspace page carried the operating board/);
 });
