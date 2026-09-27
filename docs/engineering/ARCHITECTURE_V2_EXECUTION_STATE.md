@@ -12,7 +12,9 @@ job reads with a post-read rerun check, and actions:read/token wiring on the
 stable gate itself. Independent tests: 199 release/Markdown passed, 3 symlink
 cases skipped; focused Ruff and whitespace passed. The hardened transport also
 verified real run `36346322788`, attempt 1, for the baseline SHA with all required
-jobs successful. CI pending for this implementation. No release was dispatched.
+jobs successful. Implementation commit `e506ff8` passed CI `36359433427`, all
+five active jobs; native packaging skipped. No release was dispatched and the
+publication workflow itself remains unexercised.
 Remaining: preview/RC publication does not yet consult these gates; other gate
 producers remain self-declared; external approvals are unconfigured. G1 verifies
 source CI, not artifact installation or customer workflow acceptance. Next:
