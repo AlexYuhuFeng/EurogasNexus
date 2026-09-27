@@ -28,32 +28,133 @@ param(
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 
-$ReleaseConfigPath = Join-Path $PSScriptRoot "..\..\..\clients\desktop\src-tauri	auri.conf.json"
-$TauriReleaseConfig = if (Test-Path -LiteralPath $ReleaseConfigPath) {
-    Get-Content -LiteralPath $ReleaseConfigPath -Raw | ConvertFrom-Json
-}
-else { $null }
-$PackageVersion = if ($env:EUROGAS_NEXUS_VERSION) {
-    $env:EUROGAS_NEXUS_VERSION
-}
-elseif ($TauriReleaseConfig) {
-    [string]$TauriReleaseConfig.version
-}
-else {
-    throw "Cannot resolve Eurogas Nexus package version from environment or tauri.conf.json."
-}
-$ReleaseChannel = if ($env:EUROGAS_NEXUS_RELEASE_CHANNEL) {
-    $env:EUROGAS_NEXUS_RELEASE_CHANNEL
-}
-else {
-    "preview"
-}
-$ReleaseLine = "v${PackageVersion}-${ReleaseChannel}"
-if ([string]::IsNullOrWhiteSpace($ApiImage)) {
-    $ApiImage = "ghcr.io/alexyuhufeng/eurogasnexus-api:${PackageVersion}-${ReleaseChannel}"
+# Release identity (PILOT-A). A released operator ZIP carries
+# release-identity.json at the bundle root: schema version, application and
+# release version, channel, full commit SHA and the API image pinned by digest.
+# That record is the only accepted identity source for packaged use. An explicit
+# source checkout (three levels above this script) keeps working for development
+# and is reported as release_identity_source=source-development. Anything else
+# fails closed instead of guessing a version from a machine variable.
+$BundleRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..\..")).Path
+$ReleaseIdentityPath = Join-Path $BundleRoot "release-identity.json"
+$SourceDevelopmentMarker = Join-Path $BundleRoot "pyproject.toml"
+$SourceTauriConfigPath = Join-Path $BundleRoot "clients\desktop\src-tauri\tauri.conf.json"
+
+function Assert-IdentityText([object]$Value, [string]$Name, [string]$Pattern) {
+    if ($Value -isnot [string] -or $Value -notmatch $Pattern) {
+        throw "The release identity is malformed: $Name does not match $Pattern."
+    }
+    return [string]$Value
 }
 
-$RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..\..\..")
+function Assert-IdentityImageRepository([string]$Repository) {
+    # A registry port belongs to the first component (registry.example.com:5000/team/api).
+    # A colon on the final path component is a tag, which this identity never carries.
+    $finalComponent = $Repository.Split("/")[-1]
+    if ([string]::IsNullOrEmpty($finalComponent) -or $finalComponent.Contains(":")) {
+        throw "The release identity is malformed: api_image_repository must end with a repository name and must not carry a tag on its final path component."
+    }
+    return $Repository
+}
+
+function Read-BundleReleaseIdentity([string]$Path) {
+    $identity = $null
+    try {
+        $identity = Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json
+    }
+    catch {
+        throw "The release identity is malformed: $Path is not valid JSON."
+    }
+    if ($identity.schema_version -ne 1) {
+        throw "The release identity is malformed: unsupported schema_version in $Path."
+    }
+    if ($identity.product_name -ne "Eurogas Nexus") {
+        throw "The release identity is malformed: product_name in $Path is not Eurogas Nexus."
+    }
+    $channel = Assert-IdentityText $identity.channel "channel" "^(preview|rc|stable)$"
+    $appVersion = Assert-IdentityText $identity.app_version "app_version" "^\d+\.\d+\.\d+$"
+    $releaseVersion = Assert-IdentityText $identity.release_version "release_version" `
+        "^v\d+\.\d+\.\d+(-(preview|rc)\.\d+(\.([0-9a-f]{7,40}))?)?$"
+    $expectedVersion = if ($channel -eq "stable") { "^v$([regex]::Escape($appVersion))$" }
+        elseif ($channel -eq "rc") { "^v$([regex]::Escape($appVersion))-rc\.\d+$" }
+        else { "^v$([regex]::Escape($appVersion))-preview\.\d+\.[0-9a-f]{12}$" }
+    if ($releaseVersion -notmatch $expectedVersion) {
+        throw "The release identity is malformed: release_version does not match channel $channel."
+    }
+    $commit = Assert-IdentityText $identity.commit_sha "commit_sha" "^[0-9a-f]{40}$"
+    if ($channel -eq "preview" -and -not $commit.StartsWith($releaseVersion.Split(".")[-1])) {
+        throw "The release identity is malformed: release_version preview suffix does not match commit_sha."
+    }
+    $repository = Assert-IdentityImageRepository (Assert-IdentityText $identity.api_image_repository "api_image_repository" "^[^@\s]+/[^@\s]+$")
+    $digest = Assert-IdentityText $identity.api_image_digest "api_image_digest" "^sha256:[0-9a-f]{64}$"
+    $reference = Assert-IdentityText $identity.api_image_reference "api_image_reference" "^[^@\s]+@sha256:[0-9a-f]{64}$"
+    if ($reference -ne "$repository@$digest") {
+        throw "The release identity is malformed: api_image_reference does not match repository and digest."
+    }
+    return [ordered]@{
+        source = "bundle"
+        app_version = $appVersion
+        release_version = $releaseVersion
+        channel = $channel
+        commit_sha = $commit
+        api_image = $reference
+    }
+}
+
+function Resolve-ReleaseIdentity {
+    if (Test-Path -LiteralPath $ReleaseIdentityPath) {
+        $identity = Read-BundleReleaseIdentity $ReleaseIdentityPath
+        if ($env:EUROGAS_NEXUS_VERSION -and $env:EUROGAS_NEXUS_VERSION -ne $identity.app_version) {
+            throw "Release identity conflict: EUROGAS_NEXUS_VERSION does not match the bundle release-identity.json."
+        }
+        if ($env:EUROGAS_NEXUS_RELEASE_CHANNEL -and $env:EUROGAS_NEXUS_RELEASE_CHANNEL -ne $identity.channel) {
+            throw "Release identity conflict: EUROGAS_NEXUS_RELEASE_CHANNEL does not match the bundle release-identity.json."
+        }
+        return $identity
+    }
+    if ((Test-Path -LiteralPath $SourceDevelopmentMarker) -and (Test-Path -LiteralPath $SourceTauriConfigPath)) {
+        $config = Get-Content -LiteralPath $SourceTauriConfigPath -Raw | ConvertFrom-Json
+        $version = if ($env:EUROGAS_NEXUS_VERSION) { $env:EUROGAS_NEXUS_VERSION } else { [string]$config.version }
+        if ($version -notmatch "^\d+\.\d+\.\d+$") {
+            throw "Release identity conflict: source-development version '$version' is not X.Y.Z."
+        }
+        $channel = if ($env:EUROGAS_NEXUS_RELEASE_CHANNEL) { $env:EUROGAS_NEXUS_RELEASE_CHANNEL } else { "preview" }
+        if ($channel -notin @("preview", "rc", "stable")) {
+            throw "Release identity conflict: source-development channel '$channel' is not preview, rc or stable."
+        }
+        return [ordered]@{
+            source = "source-development"
+            app_version = $version
+            release_version = "v${version}-${channel}"
+            channel = $channel
+            commit_sha = $null
+            api_image = $null
+        }
+    }
+    throw "Cannot resolve the release identity: release-identity.json is missing from this deployment bundle and no source checkout was found next to this script. Use the released operator ZIP."
+}
+
+$ReleaseIdentity = Resolve-ReleaseIdentity
+$PackageVersion = $ReleaseIdentity.app_version
+$ReleaseChannel = $ReleaseIdentity.channel
+$ReleaseLine = "v${PackageVersion}-${ReleaseChannel}"
+$ApiImage = ([string]$ApiImage).Trim()
+if ([string]::IsNullOrWhiteSpace($ApiImage)) {
+    $ApiImage = if ($ReleaseIdentity.api_image) {
+        # Immutable reference from the bundle identity; never a floating tag.
+        $ReleaseIdentity.api_image
+    }
+    else {
+        "ghcr.io/alexyuhufeng/eurogasnexus-api:${PackageVersion}-${ReleaseChannel}"
+    }
+}
+elseif ($ReleaseIdentity.api_image -and $ApiImage -ne $ReleaseIdentity.api_image) {
+    # A customer bundle pins one image by digest; an operator-supplied image
+    # that contradicts it is refused instead of silently overriding the pin.
+    throw "Release identity conflict: -ApiImage does not match the API image pinned by the bundle release-identity.json."
+}
+
+$RepoRoot = $BundleRoot
 $SourceComposeFile = Join-Path $RepoRoot "deploy\runtime\compose.yaml"
 $SourceCaddyFile = Join-Path $RepoRoot "deploy\runtime\Caddyfile"
 $ComposeFile = Join-Path $InstallRoot "compose.yaml"
@@ -176,6 +277,10 @@ function Get-PreflightReport {
         action = $Action
         install_root = $InstallRoot
         api_base_url = $ApiBaseUrl
+        release_version = $ReleaseIdentity.release_version
+        release_channel = $ReleaseChannel
+        release_identity_source = $ReleaseIdentity.source
+        api_image = $ApiImage
         checks = $checks
         blocking = $blocking
         docker_install_attempted = $false

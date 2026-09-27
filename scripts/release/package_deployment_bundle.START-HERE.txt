@@ -29,3 +29,12 @@ Start with a non-destructive preflight from this extracted folder:
 Then replace Preflight with Install after resolving every blocking item.
 See docs\deployment\DEPLOYMENT_ROLES-EN.md or docs\deployment\DEPLOYMENT_ROLES-CN.md.
 This package is not a desktop Client and does not embed the API image.
+
+Release identity: this package carries release-identity.json (schema version,
+application and release version, channel, full commit SHA, and the API image
+repository pinned by sha256 digest). The entry scripts resolve it automatically;
+do not set EUROGAS_NEXUS_VERSION or EUROGAS_NEXUS_RELEASE_CHANNEL for a
+downloaded package - conflicting values are refused, and a package without a
+valid identity fails closed. Verify the ZIP itself against the published
+SHA256SUMS and release manifest: the ZIP checksum is deliberately held outside
+the archive, because an archive cannot hash itself.

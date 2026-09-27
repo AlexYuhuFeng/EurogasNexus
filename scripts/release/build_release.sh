@@ -64,8 +64,22 @@ npm --prefix "${WEB_DIR}" run build
 step "Build desktop bundle (${BUNDLE})"
 npm --prefix "${DESKTOP_DIR}" run build -- --bundles "${BUNDLE}"
 
+CONTEXT_FILE="${REPO_ROOT}/dist/releases/release-context.json"
+
+step "Resolve release context"
+python "${REPO_ROOT}/scripts/release/resolve_release_context.py" \
+  --channel "${EUROGAS_NEXUS_RELEASE_CHANNEL:-preview}" \
+  --allow-off-mainline \
+  --output "${CONTEXT_FILE}"
+
 step "Package deployment role bundle"
-bash "${REPO_ROOT}/scripts/release/package_deployment_bundle.sh"
+if [[ -n "${API_IMAGE_DIGEST:-}" ]]; then
+  bash "${REPO_ROOT}/scripts/release/package_deployment_bundle.sh" \
+    --release-context "${CONTEXT_FILE}" \
+    --image-digest "${API_IMAGE_DIGEST}"
+else
+  echo "Skipped: set API_IMAGE_DIGEST=sha256:<digest> (the Server operator bundle identity pins the published API image)."
+fi
 
 step "Release artifacts"
 find "${DESKTOP_DIR}/src-tauri/target/release/bundle" -type f \

@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -22,6 +23,27 @@ SRC = ROOT / "src"
 for path in (ROOT, SRC):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
+
+_IMAGE_DIGEST_RE = re.compile(r"sha256:[0-9a-f]{64}")
+
+
+def published_image_digest(explicit_digest: str) -> str:
+    """Return the explicitly supplied published image digest, or "".
+
+    The Server operator bundle identity may only carry the digest the registry
+    published for this release, supplied explicitly through ``--image-digest``.
+    A locally built image's ``docker image inspect .Id`` identifies local
+    build state (the config digest); it is not a published repository manifest
+    digest, so it is never substituted here.
+    """
+
+    digest = explicit_digest.strip()
+    if digest and _IMAGE_DIGEST_RE.fullmatch(digest) is None:
+        raise ValueError(
+            "--image-digest must be the published image's immutable "
+            f"sha256:<64 lowercase hex> manifest digest: {digest!r}"
+        )
+    return digest
 
 
 def _run(
@@ -67,6 +89,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--build-web", action="store_true")
     parser.add_argument("--build-desktop", action="store_true")
     parser.add_argument("--build-container", action="store_true")
+    parser.add_argument(
+        "--image-digest",
+        default="",
+        help=(
+            "published repository manifest digest of the API image this release "
+            "pushed (sha256:<64 hex>); always required for the Server operator "
+            "bundle identity, including with --build-container, because a local "
+            "build id is not a published digest"
+        ),
+    )
     parser.add_argument("--with-performance", action="store_true")
     parser.add_argument("--container-smoke", action="store_true")
     args = parser.parse_args(argv)
@@ -185,21 +217,14 @@ def main(argv: list[str] | None = None) -> int:
         f"x64={bool(linux_x64)} arm64={bool(linux_arm64)} (CI-only platforms)",
     )
 
-    _run(
-        [
-            sys.executable,
-            "scripts/release/package_deployment_bundle.py",
-            str(output),
-        ]
-    )
-    server_zip = output / "Eurogas-Nexus-Server-Windows.zip"
-    server_target = output / (
-        f"Eurogas-Nexus-Server-{context['release_version'].lstrip('v')}-Windows.zip"
-    )
-    server_zip.replace(server_target)
-    step("package-deployment", True, "server operator bundle")
-
     image_digest = ""
+    image_digest_error = ""
+    try:
+        image_digest = published_image_digest(args.image_digest)
+    except ValueError as error:
+        image_digest_error = str(error)
+
+    local_build_id = ""
     image_smoke = {"status": "PENDING_EXTERNAL", "detail": "not requested"}
     if args.build_container:
         image_tag = "eurogas-nexus-api:dry-run"
@@ -207,8 +232,11 @@ def main(argv: list[str] | None = None) -> int:
             ["docker", "build", "--file", "deploy/runtime/Dockerfile.api", "--tag", image_tag, "."]
         )
         inspect = _run(["docker", "image", "inspect", image_tag, "--format", "{{.Id}}"])
-        image_digest = inspect.stdout.strip()
-        step("build-container", True, image_digest)
+        # Diagnostic only: this is the local image config id. It is not the
+        # digest of a published repository manifest and never becomes bundle
+        # identity, a manifest digest or a substitute for --image-digest.
+        local_build_id = inspect.stdout.strip()
+        step("build-container", True, f"local image config id {local_build_id} (diagnostic only)")
         if args.container_smoke:
             env = os.environ.copy()
             env.update(
@@ -240,6 +268,43 @@ def main(argv: list[str] | None = None) -> int:
             step("container-smoke", result.returncode == 0, image_smoke["detail"])
     else:
         step("build-container", False, "skipped; run with --build-container")
+
+    # The Server operator bundle identity must carry the published API image
+    # digest supplied explicitly through --image-digest; without one, the
+    # bundle is not built at all. --build-container only records a local
+    # diagnostic build id, so it never satisfies this input.
+    server_zip = output / "Eurogas-Nexus-Server-Windows.zip"
+    if image_digest_error:
+        step("package-deployment", False, image_digest_error)
+    elif image_digest:
+        _run(
+            [
+                sys.executable,
+                "scripts/release/package_deployment_bundle.py",
+                str(output),
+                "--release-context",
+                str(context_file),
+                "--image-digest",
+                image_digest,
+            ]
+        )
+        server_target = output / (
+            f"Eurogas-Nexus-Server-{context['release_version'].lstrip('v')}-Windows.zip"
+        )
+        server_zip.replace(server_target)
+        step(
+            "package-deployment",
+            True,
+            "server operator bundle pinned to the explicit published image digest",
+        )
+    else:
+        step(
+            "package-deployment",
+            False,
+            "Server operator bundle requires an explicit --image-digest "
+            "sha256:<published repository manifest digest>; a local build id is "
+            "diagnostic only and is not substituted",
+        )
 
     _run(
         [

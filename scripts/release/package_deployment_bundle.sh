@@ -6,7 +6,11 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-OUTPUT_DIR="${1:-${REPO_ROOT}/dist/releases}"
+OUTPUT_DIR="${REPO_ROOT}/dist/releases"
+if [[ $# -gt 0 && "${1}" != --* ]]; then
+  OUTPUT_DIR="${1}"
+  shift
+fi
 if [[ "${OUTPUT_DIR}" != /* ]]; then
   OUTPUT_DIR="${REPO_ROOT}/${OUTPUT_DIR}"
 fi
@@ -23,4 +27,4 @@ if [[ -z "${PYTHON_BIN}" ]]; then
   fi
 fi
 
-"${PYTHON_BIN}" "${REPO_ROOT}/scripts/release/package_deployment_bundle.py" "${OUTPUT_DIR}"
+"${PYTHON_BIN}" "${REPO_ROOT}/scripts/release/package_deployment_bundle.py" "${OUTPUT_DIR}" "$@"

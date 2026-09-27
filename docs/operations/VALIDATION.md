@@ -74,14 +74,25 @@ Report validation as `PARTIAL` if only a subset of checks can run.
 
 ```bash
 python scripts/release/check_version_consistency.py
-python scripts/release/run_release_dry_run.py --channel preview
+python scripts/release/run_release_dry_run.py --channel preview \
+  --image-digest sha256:<published-image-digest>
+python scripts/release/package_deployment_bundle.py dist/releases \
+  --release-context dist/releases/release-context.json \
+  --image-digest sha256:<published-image-digest>
 python scripts/release/validate_release_artifacts.py --context release-assets/release-context.json --artifacts-dir release-assets
 python scripts/release/validate_stable_release.py --context release-assets/release-context.json --artifacts-dir release-assets
 python scripts/release/scan_vulnerabilities.py --channel preview
 ```
 
 The dry-run builds/assembles the release candidate without publishing. Stable
-validation is deliberately fail-closed while external evidence is pending.
+validation is deliberately fail-closed while external evidence is pending. The
+Server operator bundle requires the resolved release context and the published
+image digest; it fails closed without them instead of fabricating an identity.
+The dry run needs the same explicit `--image-digest`: `--build-container` builds
+and can smoke-test a local image, but the local image config id
+(`docker image inspect .Id`) is recorded as a diagnostic only and is never
+substituted for the published repository manifest digest in the bundle identity
+or the release manifest.
 
 ## UAT Validation
 

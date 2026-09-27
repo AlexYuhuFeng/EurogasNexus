@@ -58,7 +58,11 @@ by a CLI flag.
   tauri/Cargo metadata, docs, install scripts, and the release workflow.
 - Release dry-run: `python scripts/release/run_release_dry_run.py` produces
   `release-assets/release-manifest.json`, SPDX SBOMs, `SHA256SUMS`, signing
-  state, vulnerability evidence, and a fail-closed gate report.
+  state, vulnerability evidence, and a fail-closed gate report. The Server
+  operator bundle is packaged only when the published repository manifest
+  digest is supplied explicitly (`--image-digest sha256:...`):
+  `--build-container` records the local image config id as a diagnostic only
+  and never substitutes it for that published digest.
 - Container runtime image remains non-root and is built with BuildKit
   provenance/SBOM in CI; local Docker acceptance recorded in the dry-run.
 
@@ -152,7 +156,13 @@ Every successful release workflow publishes:
 
 Container image tags: semantic `X.Y.Z[-channel]` and immutable `sha-<commit>`.
 Deployment manifests should prefer `@sha256:<digest>`; never use `latest` as
-rollback identity.
+rollback identity. The Server operator ZIP carries one generated
+`release-identity.json` (schema version, application/release version, channel,
+full commit SHA, API image `repository@sha256:` digest) built from the resolved
+release context and the published image digest; both Windows entry points
+resolve the version from it and refuse a missing, malformed or conflicting
+identity. The ZIP's own checksum is deliberately external (`SHA256SUMS`,
+`release-manifest.json`) because an archive cannot hash itself.
 
 ## What Runtime DB Means In The Client
 

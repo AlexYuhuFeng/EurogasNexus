@@ -1,8 +1,11 @@
 {
-  "schema_version": 1,
-  "description": "Reviewed customer payload for the Windows Server operator bundle. Selection is explicit: a file ships only when it is listed in entries. Recursive directory copies are not permitted, and the packager fails closed on missing required files, unsafe paths, symlinks and duplicates. Never list .automation, engineering docs, tests, secrets, local data/logs, or deploy/runtime/Dockerfile.api (the bundle pulls the published API image; the installer never builds it).",
+  "schema_version": 2,
+  "description": "Reviewed customer payload for the Windows Server operator bundle. Selection is explicit: a file ships only when it is listed in entries, plus one generated release-identity.json. Recursive directory copies are not permitted, and the packager fails closed on missing required files, unsafe paths, symlinks and duplicates. Never list .automation, engineering docs, tests, secrets, local data/logs, or deploy/runtime/Dockerfile.api (the bundle pulls the published API image; the installer never builds it).",
   "archive_name": "Eurogas-Nexus-Server-Windows.zip",
   "bundle_root": "Eurogas-Nexus-Server-Windows",
+  "identity": {
+    "destination": "release-identity.json"
+  },
   "forbidden_member_globs": [
     "**/.automation/**",
     "**/docs/engineering/**",

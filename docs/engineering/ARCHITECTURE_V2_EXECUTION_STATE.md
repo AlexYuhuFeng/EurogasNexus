@@ -5,6 +5,18 @@ Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical sli
 
 ## Current work
 
+PILOT-A implementation, September 28 (baseline `b5caa87`): operator ZIP now
+contains validated release identity; both Windows entrypoints resolve it without
+a checkout, pin the API image and reject conflicting bundle inputs. Review caught
+and corrected config-image-ID versus registry-digest confusion in dry-run tooling,
+version-prefix acceptance and tagged repository inputs. ZIP checksum stays outside
+the ZIP. Independent verification: 129 release/Markdown tests passed, 3 Windows
+symlink cases skipped; focused Ruff and whitespace checks passed. Tests include
+actual temporary ZIP extraction and PowerShell preflight/negative identity cases.
+Preflight host blockers are not installation acceptance. CI pending for this
+commit; release publication, actual install/upgrade/restore and provenance binding
+remain open. Next implementation: PILOT-B same-SHA/digest evidence validation.
+
 First-customer pilot readiness (baseline `42d8144`, 2026-09-28): the single
 current scope, acceptance and blocker register is
 [the first-customer pilot plan](../release/FIRST_CUSTOMER_PILOT_PLAN.md). It is

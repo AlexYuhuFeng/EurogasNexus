@@ -4,12 +4,13 @@ param(
     [ValidateSet("nsis", "deb", "appimage", "msi")]
     [string]$Bundle = "nsis",
     [string]$ApiImageArchivePath,
-    [string]$ApiImage
+    [string]$ApiImage,
+    [string]$ApiImageDigest
 )
 
 $ErrorActionPreference = "Stop"
 
-$DesktopManifestPath = Join-Path $PSScriptRoot "..\..\clients\desktop\src-tauri	auri.conf.json"
+$DesktopManifestPath = Join-Path $PSScriptRoot "..\..\clients\desktop\src-tauri\tauri.conf.json"
 $DesktopManifest = Get-Content -LiteralPath $DesktopManifestPath -Raw | ConvertFrom-Json
 $ResolvedVersion = if ($env:EUROGAS_NEXUS_VERSION) { $env:EUROGAS_NEXUS_VERSION } else { [string]$DesktopManifest.version }
 $ReleaseChannel = if ($env:EUROGAS_NEXUS_RELEASE_CHANNEL) { $env:EUROGAS_NEXUS_RELEASE_CHANNEL } else { "preview" }
@@ -66,8 +67,24 @@ try {
         npm --prefix $DesktopDir run build -- --bundles $Bundle
     }
 
+    $ReleaseContextPath = Join-Path $RepoRoot "dist\releases\release-context.json"
+
+    Invoke-Step "Resolve release context" {
+        python (Join-Path $PSScriptRoot "resolve_release_context.py") `
+            --channel $ReleaseChannel `
+            --allow-off-mainline `
+            --output $ReleaseContextPath
+    }
+
     Invoke-Step "Package deployment role bundle" {
-        & (Join-Path $PSScriptRoot "package_deployment_bundle.ps1")
+        if ([string]::IsNullOrWhiteSpace($ApiImageDigest)) {
+            Write-Host "Skipped: the Server operator bundle identity requires -ApiImageDigest sha256:<digest> of the published API image."
+        }
+        else {
+            & (Join-Path $PSScriptRoot "package_deployment_bundle.ps1") `
+                -ReleaseContext $ReleaseContextPath `
+                -ImageDigest $ApiImageDigest
+        }
     }
 
 

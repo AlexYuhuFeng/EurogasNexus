@@ -8,6 +8,15 @@ single source of truth for the selection, and packaging fails closed when a
 required file is missing, a path is unsafe, a source is a symlink (including a
 symlinked repository root), or two entries collide.
 
+The archive also carries one generated release-identity record
+(`release-identity.json` by policy): schema version, application and release
+version, channel, the full commit SHA and the immutable API image
+repository@sha256 digest. Identity inputs are explicit - the resolved release
+context plus the published image digest - so a bundle can never be built with a
+synthesised SHA or a floating image tag. The ZIP's own checksum is deliberately
+*not* part of that record: an archive cannot hash itself; the checksum belongs
+to the external SHA256SUMS/release-manifest.json files.
+
 `package_deployment_bundle.sh` and `package_deployment_bundle.ps1` are thin
 wrappers around this module, so the three entry points cannot drift.
 """
@@ -17,17 +26,31 @@ from __future__ import annotations
 import argparse
 import fnmatch
 import json
+import re
 import shutil
 import sys
 import tempfile
 import uuid
 import zipfile
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
 ROOT = Path(__file__).resolve().parents[2]
 POLICY_PATH = Path(__file__).with_name("package_deployment_bundle.policy.json")
-SUPPORTED_POLICY_SCHEMA = 1
+SUPPORTED_POLICY_SCHEMA = 2
+IDENTITY_SCHEMA_VERSION = 1
+IDENTITY_PRODUCT_NAME = "Eurogas Nexus"
+
+_APP_VERSION_RE = re.compile(r"\d+\.\d+\.\d+")
+_COMMIT_SHA_RE = re.compile(r"[0-9a-f]{40}")
+_IMAGE_DIGEST_RE = re.compile(r"sha256:[0-9a-f]{64}")
+_CHANNELS = ("preview", "rc", "stable")
+_RELEASE_VERSION_RES = {
+    "stable": re.compile(r"v\d+\.\d+\.\d+"),
+    "rc": re.compile(r"v\d+\.\d+\.\d+-rc\.\d+"),
+    "preview": re.compile(r"v\d+\.\d+\.\d+-preview\.\d+\.[0-9a-f]{12}"),
+}
 
 _POLICY_KEYS = frozenset(
     {
@@ -35,11 +58,13 @@ _POLICY_KEYS = frozenset(
         "description",
         "archive_name",
         "bundle_root",
+        "identity",
         "forbidden_member_globs",
         "entries",
     }
 )
 _ENTRY_KEYS = frozenset({"source", "destination", "required", "purpose"})
+_IDENTITY_KEYS = frozenset({"destination"})
 
 
 class PackagingError(RuntimeError):
@@ -63,6 +88,7 @@ class Policy:
     schema_version: int
     archive_name: str
     bundle_root: str
+    identity_destination: str
     entries: tuple[Entry, ...]
     forbidden_member_globs: tuple[str, ...]
 
@@ -114,13 +140,33 @@ def load_policy(policy_path: str | Path = POLICY_PATH) -> Policy:
             "unsupported deployment bundle policy schema_version "
             f"{raw.get('schema_version')!r}; this packager supports {SUPPORTED_POLICY_SCHEMA}"
         )
-    for key in ("archive_name", "bundle_root", "forbidden_member_globs", "entries"):
+    for key in ("archive_name", "bundle_root", "identity", "forbidden_member_globs", "entries"):
         if key not in raw:
             raise PackagingError(f"deployment bundle policy is missing the {key!r} key")
     archive_name = _validate_archive_name(raw["archive_name"])
     bundle_root = _validate_relative_path(raw["bundle_root"], field="policy bundle_root")
     if "/" in bundle_root:
         raise PackagingError("policy bundle_root must be a single directory name")
+    identity_raw = raw["identity"]
+    if not isinstance(identity_raw, dict):
+        raise PackagingError("policy identity must be an object")
+    unknown_identity_keys = sorted(set(identity_raw) - _IDENTITY_KEYS)
+    if unknown_identity_keys:
+        raise PackagingError(
+            f"policy identity has unknown keys: {', '.join(unknown_identity_keys)}"
+        )
+    missing_identity_keys = sorted(_IDENTITY_KEYS - set(identity_raw))
+    if missing_identity_keys:
+        raise PackagingError(
+            f"policy identity is missing keys: {', '.join(missing_identity_keys)}"
+        )
+    identity_destination = _validate_relative_path(
+        identity_raw["destination"], field="policy identity.destination"
+    )
+    if "/" in identity_destination:
+        raise PackagingError(
+            "policy identity.destination must be a single file name at the bundle root"
+        )
     globs = raw["forbidden_member_globs"]
     if not isinstance(globs, list) or not all(
         isinstance(pattern, str) and pattern for pattern in globs
@@ -157,6 +203,11 @@ def load_policy(policy_path: str | Path = POLICY_PATH) -> Policy:
             raise PackagingError(f"policy entries[{index}].purpose must be a non-empty string")
         if destination in destinations:
             raise PackagingError(f"duplicate bundle destination in policy: {destination}")
+        if destination == identity_destination:
+            raise PackagingError(
+                f"duplicate bundle destination in policy: {destination} is reserved "
+                "for the generated release identity"
+            )
         if source in sources:
             raise PackagingError(f"duplicate bundle source in policy: {source}")
         destinations[destination] = source
@@ -174,6 +225,7 @@ def load_policy(policy_path: str | Path = POLICY_PATH) -> Policy:
         schema_version=SUPPORTED_POLICY_SCHEMA,
         archive_name=archive_name,
         bundle_root=bundle_root,
+        identity_destination=identity_destination,
         entries=tuple(entries),
         forbidden_member_globs=tuple(globs),
     )
@@ -197,6 +249,116 @@ def forbidden_match(member: str, policy: Policy) -> str | None:
         elif fnmatch.fnmatchcase(name, pattern):
             return pattern
     return None
+
+
+def _require_context_text(context: Mapping[str, object], key: str) -> str:
+    value = context.get(key)
+    if not isinstance(value, str) or not value.strip() or value != value.strip():
+        raise PackagingError(f"release context {key} must be a non-empty string")
+    return value
+
+
+def _validate_image_repository(repository: str) -> str:
+    """Return a repository reference that carries no tag and no digest.
+
+    ``api_image`` is the repository path only: publishing appends the immutable
+    ``@sha256:`` digest. A tag on the final path component (``repo:tag``) is
+    refused even though a registry host may legitimately carry a port
+    (``registry.example.com:5000/team/api``), because a tagged repository would
+    make the bundle identity ambiguous and is not what the release publishes.
+    """
+
+    if "@" in repository or "/" not in repository or any(
+        character.isspace() for character in repository
+    ):
+        raise PackagingError(
+            "release context api_image must be a repository reference without a "
+            f"tag or digest: {repository!r}"
+        )
+    final_component = repository.rsplit("/", 1)[-1]
+    if not final_component or ":" in final_component:
+        raise PackagingError(
+            "release context api_image must end with a repository name and must "
+            "not carry a tag on the final path component (a registry port earlier "
+            f"in the reference is allowed): {repository!r}"
+        )
+    return repository
+
+
+def build_release_identity(
+    context: Mapping[str, object], image_digest: str
+) -> dict[str, object]:
+    """Build the archive's release-identity.json from verified release inputs.
+
+    The resolved release context owns version and channel; the image digest is
+    an explicit input. Missing, short or inconsistent values fail closed - this
+    function never defaults a SHA, a channel or a floating image tag.
+    """
+
+    if not isinstance(context, Mapping):
+        raise PackagingError("release context must be a JSON object")
+    channel = _require_context_text(context, "channel")
+    if channel not in _CHANNELS:
+        raise PackagingError(f"release context channel must be one of {_CHANNELS}: {channel!r}")
+    app_version = _require_context_text(context, "app_version")
+    if _APP_VERSION_RE.fullmatch(app_version) is None:
+        raise PackagingError(f"release context app_version must be X.Y.Z: {app_version!r}")
+    release_version = _require_context_text(context, "release_version")
+    if _RELEASE_VERSION_RES[channel].fullmatch(release_version) is None:
+        raise PackagingError(
+            f"release context release_version {release_version!r} does not match "
+            f"channel {channel!r}"
+        )
+    # The channel suffix is appended to the exact application version: a
+    # prefix match would wrongly accept e.g. app_version 0.5.0 with a
+    # release_version of v0.5.01 or v0.5.01-preview.7.0123456789ab.
+    base_version = re.escape(f"v{app_version}")
+    expected_release_version = {
+        "stable": base_version,
+        "rc": rf"{base_version}-rc\.\d+",
+        "preview": rf"{base_version}-preview\.\d+\.[0-9a-f]{{12}}",
+    }[channel]
+    if re.fullmatch(expected_release_version, release_version) is None:
+        raise PackagingError(
+            f"release context release_version {release_version!r} does not match "
+            f"the exact v{app_version} base version for channel {channel!r}"
+        )
+    commit_sha = _require_context_text(context, "git_sha")
+    if _COMMIT_SHA_RE.fullmatch(commit_sha) is None:
+        raise PackagingError(
+            "release context git_sha must be a full lowercase 40-character commit SHA"
+        )
+    if channel == "preview" and not commit_sha.startswith(release_version.rsplit(".", 1)[-1]):
+        raise PackagingError(
+            "release context release_version preview suffix does not match git_sha"
+        )
+    repository = _validate_image_repository(_require_context_text(context, "api_image"))
+    if not isinstance(image_digest, str) or _IMAGE_DIGEST_RE.fullmatch(image_digest) is None:
+        raise PackagingError(
+            "image digest must be an immutable sha256:<64 lowercase hex> digest"
+        )
+    return {
+        "schema_version": IDENTITY_SCHEMA_VERSION,
+        "product_name": IDENTITY_PRODUCT_NAME,
+        "app_version": app_version,
+        "release_version": release_version,
+        "channel": channel,
+        "commit_sha": commit_sha,
+        "api_image_repository": repository,
+        "api_image_digest": image_digest,
+        "api_image_reference": f"{repository}@{image_digest}",
+    }
+
+
+def _load_release_context(path: str | Path) -> object:
+    source = Path(path)
+    try:
+        raw = json.loads(source.read_text(encoding="utf-8"))
+    except FileNotFoundError as error:
+        raise PackagingError(f"release context is missing: {source}") from error
+    except json.JSONDecodeError as error:
+        raise PackagingError(f"release context is not valid JSON: {source}") from error
+    return raw
 
 
 def _assert_within(path: Path, root: Path, *, description: str) -> None:
@@ -308,15 +470,43 @@ def _create_staging_root() -> Path:
     return candidate
 
 
+def _verify_identity_member(
+    bundle: zipfile.ZipFile, policy: Policy, identity: dict[str, object]
+) -> None:
+    """Read the identity back out of the built archive and compare it."""
+
+    member = f"{policy.bundle_root}/{policy.identity_destination}"
+    try:
+        recorded = json.loads(bundle.read(member).decode("utf-8"))
+    except (KeyError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise PackagingError(f"archive release identity is not readable JSON: {member}") from error
+    if recorded != identity:
+        raise PackagingError("archive release identity does not match the generated identity")
+
+
 def package(
     output_dir: str | Path,
     *,
+    release_context: Mapping[str, object],
+    image_digest: str,
     repo_root: str | Path = ROOT,
     policy_path: str | Path = POLICY_PATH,
 ) -> Path:
-    """Build the deployment bundle archive and return its path."""
+    """Build the deployment bundle archive and return its path.
+
+    `release_context` is the resolved release identity (see
+    `scripts/release/resolve_release_context.py`); `image_digest` is the
+    published image's immutable ``sha256:`` digest. Both are required.
+    """
 
     policy = load_policy(policy_path)
+    identity = build_release_identity(release_context, image_digest)
+    matched = forbidden_match(policy.identity_destination, policy)
+    if matched:
+        raise PackagingError(
+            f"release identity destination {policy.identity_destination!r} matches "
+            f"forbidden pattern {matched!r}"
+        )
     repo = Path(repo_root)
     if not repo.is_dir():
         raise PackagingError(f"repository root is not a directory: {repo}")
@@ -327,6 +517,11 @@ def package(
     staging_root = _create_staging_root()
     try:
         staged = _stage_payload(repo, policy, staging_root)
+        identity_target = staging_root / policy.bundle_root / policy.identity_destination
+        identity_target.write_text(
+            json.dumps(identity, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+        staged.append(policy.identity_destination)
         partial = target_dir / f"{policy.archive_name}.partial"
         partial.unlink(missing_ok=True)
         try:
@@ -338,6 +533,7 @@ def package(
                     )
             with zipfile.ZipFile(partial) as bundle:
                 _verify_members(bundle.namelist(), policy, staged=staged)
+                _verify_identity_member(bundle, policy, identity)
             partial.replace(archive)
         except Exception:
             partial.unlink(missing_ok=True)
@@ -360,9 +556,23 @@ def main(argv: list[str] | None = None) -> int:
         default="dist/releases",
         help="directory that receives the bundle archive",
     )
+    parser.add_argument(
+        "--release-context",
+        required=True,
+        help="resolved release-context.json produced by resolve_release_context.py",
+    )
+    parser.add_argument(
+        "--image-digest",
+        required=True,
+        help="immutable sha256: digest of the published API image this release built",
+    )
     args = parser.parse_args(argv)
     try:
-        archive = package(args.output_dir)
+        archive = package(
+            args.output_dir,
+            release_context=_load_release_context(args.release_context),
+            image_digest=args.image_digest,
+        )
     except PackagingError as error:
         print(f"deployment bundle packaging failed: {error}", file=sys.stderr)
         return 1

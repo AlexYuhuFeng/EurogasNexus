@@ -3,7 +3,9 @@
 # must not select files itself, so the Windows operator path and the release
 # workflow build the same member set.
 param(
-    [string]$OutputDirectory = "dist/releases"
+    [string]$OutputDirectory = "dist/releases",
+    [string]$ReleaseContext,
+    [string]$ImageDigest
 )
 
 $ErrorActionPreference = "Stop"
@@ -23,7 +25,11 @@ if (-not $PythonCommand) {
     throw "Python 3 is required to package the deployment bundle."
 }
 
-$Archives = & $PythonCommand.Source $PackageScript $OutputRoot 2>&1
+$PythonArguments = @($OutputRoot)
+if ($ReleaseContext) { $PythonArguments += @("--release-context", $ReleaseContext) }
+if ($ImageDigest) { $PythonArguments += @("--image-digest", $ImageDigest) }
+
+$Archives = & $PythonCommand.Source $PackageScript @PythonArguments 2>&1
 if ($LASTEXITCODE -ne 0) {
     throw "Deployment bundle packaging failed."
 }

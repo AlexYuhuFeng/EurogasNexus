@@ -38,6 +38,7 @@ session, or the check measures a refusal. The harnesses refuse to run rather tha
 
 | Artefact | State |
 |---|---|
+| Server operator ZIP | carries one `release-identity.json` (schema version, version, channel, full commit SHA, API image `repository@sha256:` digest); both Windows entry points resolve it, and the ZIP's own SHA-256 stays external in `SHA256SUMS`/`release-manifest.json` |
 | Python package, Web client bundle, deployment bundle | built and checksummed by the release dry run |
 | Container image | release workflow builds and publishes to GHCR; verify the exact digest and provenance of the selected release |
 | SBOM (SPDX 2.3) | generated per release |

@@ -52,10 +52,27 @@ The Windows deployment bundle contains:
 - `Deploy-EurogasNexus.ps1`: operator-facing role selector;
 - `Install-EurogasNexusServerRuntime.ps1`: internal server-runtime primitive;
 - `compose.yaml`, `Caddyfile`, and the API image reference;
+- `release-identity.json`: the release identity (schema version, application and
+  release version, channel, full commit SHA, and the API image repository
+  pinned by `sha256` digest);
 - English and Mandarin operating instructions.
 
 The Client-only NSIS installer is published as a separate GitHub Release asset;
 it is not included in the Server operator ZIP.
+
+Both Windows entry points resolve version, channel and image reference from
+`release-identity.json`; no source checkout and no manually set
+`EUROGAS_NEXUS_VERSION` are required, and a conflicting value for that variable
+or `EUROGAS_NEXUS_RELEASE_CHANNEL` is refused. A ZIP whose identity is missing,
+malformed or internally inconsistent fails closed instead of guessing. The API
+image is pinned by digest from that record - the installer does not silently
+fall back to a moving tag, and an explicitly supplied image that contradicts
+the pinned reference is refused instead of overriding it. A repository field
+that carries a tag on its final path component is refused as malformed (a
+registry port earlier in the reference is allowed). The ZIP's own SHA-256 is
+deliberately **not** stored inside the archive (an archive cannot hash itself);
+verify it against the release's `SHA256SUMS` and `release-manifest.json`
+instead.
 
 Run PowerShell as Administrator. Start with a non-destructive preflight:
 

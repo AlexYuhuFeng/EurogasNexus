@@ -49,10 +49,22 @@ Windows 部署包包括：
 - `Deploy-EurogasNexus.ps1`：面向实施人员的统一角色部署工具；
 - `Install-EurogasNexusServerRuntime.ps1`：部署工具内部调用的服务器运行时脚本；
 - `compose.yaml`、`Caddyfile` 和 API 镜像引用；
+- `release-identity.json`：Release 身份记录（schema 版本、应用与 Release
+  版本、渠道、完整提交 SHA，以及按 `sha256` 摘要固定的 API 镜像仓库）；
 - 中英文运维说明。
 
 Client-only NSIS 客户端安装包作为独立的 GitHub Release 产物发布，
 不包含在 Server 运维 ZIP 包中。
+
+两个 Windows 入口脚本都从 `release-identity.json` 解析版本、渠道和镜像引用：
+无需源码检出，也无需手工设置 `EUROGAS_NEXUS_VERSION`；若该变量或
+`EUROGAS_NEXUS_RELEASE_CHANNEL` 与包内身份冲突，脚本会直接拒绝。身份文件
+缺失、格式错误或内部不一致时，脚本会失败关闭，不会猜测版本。API 镜像按该
+记录中的摘要固定，安装器不会静默回退到浮动 tag；显式传入但与固定引用冲突的
+镜像会被拒绝，而不是覆盖固定值。仓库字段的最后一段路径若携带 tag 会按格式
+错误被拒绝（引用前部的镜像仓库端口仍然允许）。ZIP 自身的 SHA-256 **不会**
+写入压缩包内部（压缩包无法自我哈希），请使用 Release 的 `SHA256SUMS` 与
+`release-manifest.json` 校验。
 
 以管理员身份运行 PowerShell，并先执行无副作用的预检：
 
