@@ -18,6 +18,8 @@ import test from "node:test";
 
 import {
   collectVisibleElements,
+  evaluateRefusedRegistry,
+  evaluateRegistryRecovery,
   evaluateReadToRender,
   readGroupRows,
   rowRecordId,
@@ -709,3 +711,107 @@ function collectWithStub(
     (globalThis as { document?: unknown }).document = previous;
   }
 }
+
+/** What the surface reported while the harness refused its registry read. */
+const REFUSED_REGISTRY_OK = {
+  state: "failed",
+  failedNotice: true,
+  rows: 0,
+  measuredEmpty: 0,
+  kpiStrips: 0,
+  retryControls: 1,
+  retryDisabled: false,
+};
+
+test("a refused registry read passes only when the surface states it and measures nothing", () => {
+  // The state the surface owes for a read that did not answer: its own failure, its own retry,
+  // and nothing that reads as a count.
+  assert.deepEqual(evaluateRefusedRegistry(REFUSED_REGISTRY_OK), []);
+
+  // The recorded defect: a measured zero for a read that never answered. A surface that reports
+  // any other state fails by name, including "ready" and the states that mean "no reading".
+  for (const state of ["ready", "empty", "pending", "unread", ""]) {
+    const failures = evaluateRefusedRegistry({ ...REFUSED_REGISTRY_OK, state });
+    assert.equal(failures.length, 1, state);
+    assert.match(failures[0], /reports '(ready|empty|pending|unread|\(no state\))'/);
+  }
+  assert.match(
+    evaluateRefusedRegistry({}).join(" | "),
+    /reports '\(no state\)'/,
+    "a surface that reports nothing is a failure, not a pass",
+  );
+
+  // Each measurement a surface could still present is its own failure.
+  assert.match(
+    evaluateRefusedRegistry({ ...REFUSED_REGISTRY_OK, failedNotice: false }).join(" | "),
+    /no failure notice/,
+  );
+  assert.match(
+    evaluateRefusedRegistry({ ...REFUSED_REGISTRY_OK, kpiStrips: 1 }).join(" | "),
+    /1 KPI strip/,
+  );
+  assert.match(
+    evaluateRefusedRegistry({ ...REFUSED_REGISTRY_OK, rows: 3 }).join(" | "),
+    /3 source row/,
+  );
+  assert.match(
+    evaluateRefusedRegistry({ ...REFUSED_REGISTRY_OK, measuredEmpty: 1 }).join(" | "),
+    /measured-empty marker/,
+  );
+
+  // The retry is the surface's own control, offered and enabled while no attempt is in flight.
+  assert.match(
+    evaluateRefusedRegistry({ ...REFUSED_REGISTRY_OK, retryControls: 0 }).join(" | "),
+    /offers no retry/,
+  );
+  assert.match(
+    evaluateRefusedRegistry({ ...REFUSED_REGISTRY_OK, retryDisabled: true }).join(" | "),
+    /disabled while no retry is in flight/,
+  );
+  // Every defect is reported at once: one repair must not hide the next.
+  assert.equal(
+    evaluateRefusedRegistry({
+      state: "empty",
+      failedNotice: false,
+      rows: 2,
+      measuredEmpty: 1,
+      kpiStrips: 1,
+      retryControls: 0,
+      retryDisabled: null,
+    }).length,
+    6,
+  );
+});
+
+test("a recovered registry renders exactly its own read, with the failed notice gone", () => {
+  const wanted = ["ENTSOG", "GIE", "ICE"];
+  assert.deepEqual(
+    evaluateRegistryRecovery({ failedNotice: false, recordIds: ["GIE", "ICE", "ENTSOG"] }, wanted),
+    [],
+    "order is the surface's business; identity is the check's",
+  );
+  assert.match(
+    evaluateRegistryRecovery({ failedNotice: true, recordIds: wanted }, wanted).join(" | "),
+    /notice survives/,
+  );
+  assert.match(
+    evaluateRegistryRecovery({ failedNotice: false, recordIds: ["ENTSOG"] }, wanted).join(" | "),
+    /does not render 2 source\(s\) its own read returned/,
+  );
+  assert.match(
+    evaluateRegistryRecovery({ failedNotice: false, recordIds: [...wanted, "EEX"] }, wanted)
+      .join(" | "),
+    /renders 1 source\(s\) its read did not return/,
+  );
+  // One element is one row: a duplicated rendering is not a match for a single returned row.
+  assert.match(
+    evaluateRegistryRecovery({ failedNotice: false, recordIds: ["ENTSOG", "ENTSOG"] }, ["ENTSOG"])
+      .join(" | "),
+    /read did not return/,
+  );
+  // A surface that never recovered is named for what it does not render.
+  assert.match(
+    evaluateRegistryRecovery({ failedNotice: false, recordIds: [] }, wanted).join(" | "),
+    /does not render 3 source\(s\)/,
+  );
+});

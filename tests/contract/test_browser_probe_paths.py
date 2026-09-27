@@ -418,3 +418,44 @@ def _portfolio_slice_keys() -> set[str]:
     match = PORTFOLIO_SLICE_ORDER.search(PORTFOLIO_SNAPSHOT_MODEL.read_text(encoding="utf-8"))
     assert match, "the portfolio snapshot model still declares its slice order"
     return set(SLICE_KEY.findall(match.group("body")))
+
+
+def test_the_refused_registry_probe_refuses_the_read_the_catalog_compares() -> None:
+    """The registry-failure check refuses the surface's own read, and holds it to stated markers.
+
+    The Source Center's recorded defect was that a failed ``GET /api/sources`` left the surface
+    rendering "Total sources 0" beside "No active warnings" - a measured zero for a read that never
+    answered. The browser check refuses exactly that read through a route interception, requires
+    the surface's own declared failure state with no measurement, then removes the interception and
+    requires the surface's retry to restore the read. The refusal must be the same route the
+    catalog comparison reads, and the markers it selects must be the component's own.
+    """
+
+    harness = HARNESS.read_text(encoding="utf-8")
+    assert "const SOURCES_READ_ROUTE = /\\/api\\/sources(\\?.*)?$/;" in harness, (
+        "the refusal names the registry read alone, not a broader sources path"
+    )
+    # The refused route is the probe's own path: one read, refused and then compared.
+    assert _declared_probes()["sources"] == "/api/sources"
+    assert "await page.route(SOURCES_READ_ROUTE, handler);" in harness
+    assert harness.count("await page.unroute(SOURCES_READ_ROUTE, handler)") == 2, (
+        "the interception is removed in the recovery half and again in the finally"
+    )
+    assert 'if (request.method() !== "GET") {' in harness, (
+        "only the surface's own read is refused; another method on the path reaches the app"
+    )
+    # The verdicts are the pure rules the web suite exercises, not a reading of the page's copy.
+    read_to_render = (ROOT / "scripts" / "uat" / "readToRender.mjs").read_text(encoding="utf-8")
+    for rule in ("evaluateRefusedRegistry", "evaluateRegistryRecovery"):
+        assert f"export function {rule}(" in read_to_render, f"{rule} is declared"
+        assert rule in harness, f"the sweep applies {rule}"
+
+    component = _workspace_sources("sources")
+    for marker in (
+        "data-source-registry-state={registryRead.state}",
+        "data-registry-notice={read.state}",
+        'data-source-registry-retry="true"',
+    ):
+        assert marker in component, f"the surface declares {marker}"
+    # The measured-empty marker the refusal must not present stays the group's declared one.
+    assert 'data-empty-state="source-rows"' in component

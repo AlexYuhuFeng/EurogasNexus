@@ -336,3 +336,65 @@ test("the source catalog is compared by source id, in the task that renders the 
   assert.match(component, /data-record-id=\{selectedSource\?\.source_id\}/);
   assert.match(component, /data-source-category=\{category\}/);
 });
+
+test("the refused-registry check refuses one read, and holds the surface to stating that failure", () => {
+  // The Surface Center's recorded defect was that a failed registry read left it rendering "Total
+  // sources 0" beside "No active warnings" - the copy of a measured zero, for a read that never
+  // answered (`docs/release/FUNCTIONAL_ACCEPTANCE_REPORT.md`, 2026-09-25 limits). The check
+  // refuses exactly `GET /api/sources` through a route interception, requires the surface to
+  // state the failure with no measurement and its own retry of the store's bounded path, then
+  // removes the refusal and requires that retry to restore exactly the read the platform serves.
+  const interaction = block(
+    "async function sourceRegistryFailureInteraction(",
+    "\nexport async function runWorkflowSmoke()",
+  );
+
+  // One path, one method, and it is the surface's own read: anything else on this path reaches the
+  // application, and a non-GET there is continued rather than refused.
+  assert.ok(
+    source.includes("const SOURCES_READ_ROUTE = /\\/api\\/sources(\\?.*)?$/;"),
+    "the refusal names the registry read alone",
+  );
+  assert.match(interaction, /await page\.route\(SOURCES_READ_ROUTE, handler\);/);
+  assert.match(interaction, /if \(request\.method\(\) !== "GET"\) \{[\s\S]{0,200}await route\.continue\(\);/);
+  // The interception is removed in the recovery half and again in the finally, so no later check
+  // runs against a page whose registry read is still refused.
+  assert.equal(interaction.match(/await page\.unroute\(SOURCES_READ_ROUTE, handler\)/g)?.length, 2);
+  assert.match(interaction, /await page\.locator\("\[data-source-registry-retry\]"\)\.first\(\)\.click\(\);/);
+  // The refused refusal and the recovery are decided by the same pure rules whose negative cases
+  // run in the web suite (`readToRender.test.ts`), not by reading the page's copy.
+  assert.match(interaction, /const refusedFailures = evaluateRefusedRegistry\(refused\);/);
+  assert.match(interaction, /const recoveryFailures = evaluateRegistryRecovery\(/);
+  // A check that measured nothing says so: the refusal must have reached the page it refused.
+  assert.match(interaction, /if \(refusal\.refusals === 0\) \{/);
+  assert.match(interaction, /the harness's own refusal never reached the page/);
+  // Failures only: what the run could not measure is recorded at the call site as an observation.
+  assert.equal(interaction.includes("recordObservation("), false);
+  // The interaction clicks the surface's own retry control only: no ingestion run, no credential
+  // write, and no method other than the GET it refuses.
+  assert.equal(interaction.includes("requestSourceRun"), false);
+  assert.equal(interaction.includes("saveProviderCredential"), false);
+  assert.equal(/\bPOST\b/.test(interaction), false);
+  assert.match(source, /currentScope = "interaction\/source-registry-failure";/);
+  assert.match(source, /await sourceRegistryFailureInteraction\(page, failures\);/);
+
+  // The console entry the browser reports for the harness's own refusal is attributed to that
+  // exact request and reported as an observation - never added to the declared allowlist, which
+  // still carries only the pre-login 401.
+  const allowed = block("const ALLOWED_CONSOLE_ERRORS = [", "];");
+  assert.equal(allowed.includes("503"), false, "the induced refusal is not an exemption");
+  assert.match(source, /const induced = inducedReadRefusalFor\(message\);/);
+  assert.match(source, /induced\.consoleEntries\.push\(/);
+  assert.match(source, /function inducedReadRefusalFor\(message\) \{/);
+  // Attribution is by the request the harness refused (origin and path), so a console error for
+  // any other endpoint inside the same window stays a failure.
+  assert.match(source, /function requestPath\(url\) \{/);
+  assert.match(source, /requestPath\(url\) === requestPath\(refusal\.url\)/);
+
+  // The markers the check selects are the source surface's own, and the failed state is the
+  // surface's declared one.
+  const component = readFileSync(new URL("../src/components/SourceCenter.tsx", import.meta.url), "utf8");
+  assert.match(component, /data-source-registry-state=\{registryRead\.state\}/);
+  assert.match(component, /data-registry-notice=\{read\.state\}/);
+  assert.match(component, /data-source-registry-retry="true"/);
+});

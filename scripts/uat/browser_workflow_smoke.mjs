@@ -19,6 +19,8 @@ import { fileURLToPath } from "node:url";
 
 import {
   collectVisibleElements,
+  evaluateRefusedRegistry,
+  evaluateRegistryRecovery,
   evaluateReadToRender,
   readGroupRows,
   readSourceLabel,
@@ -172,6 +174,45 @@ const ALLOWED_CONSOLE_ERRORS = [
   // The shell asks who it is before the session exists; the 401 there is the expected answer.
   /the server responded with a status of 401/,
 ];
+
+/**
+ * The reads this harness refuses on purpose, one entry per installed interception.
+ *
+ * The registry-failure interaction makes the platform refuse `GET /api/sources` itself, and the
+ * browser reports that refusal in the page console exactly as it reports a real one. Such an entry
+ * is the harness's own induced failure rather than a product defect, so it is attributed here by
+ * the request URL the harness refused (and, only when the browser carries no URL for the entry, by
+ * the exact status the harness returned) and reported in the summary as an observation. Every
+ * other console error stays a failure, including one on another URL inside the same window.
+ */
+const inducedReadRefusals = [];
+
+/** The origin and path of a URL, without its query, fragment or a trailing slash. */
+function requestPath(url) {
+  return String(url).split("#")[0].split("?")[0].replace(/\/+$/, "");
+}
+
+function inducedReadRefusalFor(message) {
+  if (inducedReadRefusals.length === 0) return null;
+  const location = typeof message.location === "function" ? message.location() : null;
+  const url = location && typeof location.url === "string" ? location.url : "";
+  const text = message.text();
+  for (const refusal of inducedReadRefusals) {
+    // The same origin and path the harness refused - never another endpoint's message.
+    if (url !== "" && refusal.url !== null && requestPath(url) === requestPath(refusal.url)) {
+      return refusal;
+    }
+    if (
+      url === ""
+      && refusal.active
+      && /failed to load resource/i.test(text)
+      && text.includes(`status of ${refusal.status}`)
+    ) {
+      return refusal;
+    }
+  }
+  return null;
+}
 
 function safeName(value) {
   return value.replaceAll(/[^a-zA-Z0-9._-]+/g, "-");
@@ -1413,6 +1454,202 @@ function catalogRendersExactly(wanted) {
   return true;
 }
 
+/**
+ * The one read the registry-failure interaction refuses: `GET /api/sources`, query string or not.
+ *
+ * It is deliberately not a broader path: a pattern that also matched `/api/sources/{id}/run` would
+ * intercept a write the check must never touch.
+ */
+const SOURCES_READ_ROUTE = /\/api\/sources(\?.*)?$/;
+
+/**
+ * True when the surface has recovered from the refused registry read: no failed-registry notice
+ * and exactly the source rows the platform serves, one each.
+ *
+ * Declared at module scope because the sweep serialises it into the page
+ * (`page.waitForFunction`), so it may not reference anything outside its own body - the attribute
+ * names included. It is the bounded wait's condition, not the verdict: a run that never converges
+ * is reported by the caller with the difference between the two sets.
+ */
+function registryRecovered(wanted) {
+  const surface = document.querySelector("[data-source-registry-state]");
+  if (surface?.getAttribute("data-source-registry-state") === "failed") return false;
+  if (document.querySelector('[data-registry-notice="failed"]') !== null) return false;
+  const rendered = [...document.querySelectorAll('[data-record="source-row"]')]
+    .map((element) => element.getAttribute("data-record-id"));
+  if (rendered.length !== wanted.length) return false;
+  const remaining = [...wanted];
+  for (const id of rendered) {
+    const at = remaining.indexOf(id);
+    if (at === -1) return false;
+    remaining.splice(at, 1);
+  }
+  return true;
+}
+
+/**
+ * The Source Center's failure path: the registry read is refused by the harness itself, and the
+ * surface must state that failure - with the store's own bounded retry, scoped to this surface -
+ * instead of the false zero it used to render (`Total sources 0` beside `No active warnings`,
+ * recorded in `docs/release/FUNCTIONAL_ACCEPTANCE_REPORT.md`, 2026-09-25 limits).
+ *
+ * Exactly one read is refused: `GET /api/sources`, the read the surface's own lane performs
+ * (`api.sources` in the client). The refusal is a real 503 the harness fulfils, so nothing about
+ * the application is mocked out - only the platform's answer for that one request. Then:
+ *
+ * - the surface must declare its failure state (`data-source-registry-state="failed"`, with a
+ *   failure notice) and must present no measurement at all - no source row, no measured-empty
+ *   marker, no KPI strip - because a read that never answered is not a count of zero;
+ * - the surface must offer its retry control, enabled while no attempt is in flight (the store's
+ *   own path refuses a second concurrent attempt, which the unit tests hold);
+ * - the harness removes the interception, and the surface's own retry must bring back exactly the
+ *   registry `GET /api/sources` then serves - by each source's own `source_id`, in both
+ *   directions, with the failed notice gone.
+ *
+ * The interaction clicks only the surface's own retry control; no ingestion run, credential write
+ * or source-registry write is performed.
+ */
+async function sourceRegistryFailureInteraction(page, failures) {
+  const scope = "interaction/source-registry-failure";
+  const refusal = {
+    url: null,
+    status: 503,
+    active: true,
+    refusals: 0,
+    consoleEntries: [],
+  };
+  const handler = async (route) => {
+    const request = route.request();
+    if (request.method() !== "GET") {
+      // Only the surface's own read is refused: anything else on this path reaches the app.
+      await route.continue();
+      return;
+    }
+    refusal.url = request.url();
+    refusal.refusals += 1;
+    await route.fulfill({
+      status: refusal.status,
+      contentType: "application/json",
+      body: JSON.stringify({ detail: { error: "service_unavailable" } }),
+    });
+  };
+  inducedReadRefusals.push(refusal);
+  await page.route(SOURCES_READ_ROUTE, handler);
+  try {
+    await setLanguage(page, "en");
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(`${BASE}/?workspace=sources`, { waitUntil: "domcontentloaded" });
+    const settled = await page
+      .waitForFunction(
+        () => [...document.querySelectorAll(".workspace-page")]
+          .some((element) => element.dataset.workspaceLoadState === "settled"),
+        null,
+        { timeout: 20_000 },
+      )
+      .then(() => true)
+      .catch(() => false);
+    if (!settled) {
+      recordFailure(
+        failures,
+        scope,
+        "the sources workspace read never settled while the registry read was refused",
+      );
+      return refusal;
+    }
+    if (refusal.refusals === 0) {
+      recordFailure(
+        failures,
+        scope,
+        "the harness's own refusal never reached the page: the surface's registry read is not the"
+        + " GET this check intercepts",
+      );
+      return refusal;
+    }
+
+    const refused = await page.evaluate(() => ({
+      state: document.querySelector("[data-source-registry-state]")
+        ?.getAttribute("data-source-registry-state") ?? "",
+      failedNotice: document.querySelector('[data-registry-notice="failed"]') !== null,
+      rows: document.querySelectorAll('[data-record="source-row"]').length,
+      measuredEmpty: document.querySelectorAll('[data-empty-state="source-rows"]').length,
+      kpiStrips: document.querySelectorAll(".source-readiness-strip .metric-grid").length,
+      retryControls: document.querySelectorAll("[data-source-registry-retry]").length,
+      retryDisabled: document.querySelector("[data-source-registry-retry]")?.disabled ?? null,
+    }));
+    const refusedFailures = evaluateRefusedRegistry(refused);
+    for (const detail of refusedFailures) recordFailure(failures, scope, detail);
+    if (refusedFailures.length > 0) {
+      // A surface that does not state the failure (or offers no retry) cannot be walked further:
+      // the recovery half would be measured against a surface in an undefined state.
+      return refusal;
+    }
+
+    // The recovery half: the harness stops refusing, and the surface's own retry must bring back
+    // exactly the registry the platform serves.
+    refusal.active = false;
+    await page.unroute(SOURCES_READ_ROUTE, handler);
+    const readRows = await page.evaluate(async () => {
+      const response = await fetch("/api/sources", { credentials: "include" });
+      if (!response.ok) throw new Error(`the sources read answered ${response.status}`);
+      const body = await response.json();
+      return Array.isArray(body?.data)
+        ? body.data.map((row) => (typeof row?.source_id === "string" ? row.source_id.trim() : ""))
+        : null;
+    });
+    if (!Array.isArray(readRows) || readRows.length === 0 || readRows.some((id) => id === "")) {
+      recordFailure(
+        failures,
+        scope,
+        "the registry read served no identifiable source once the harness stopped refusing it, so"
+        + " the retry could not be compared",
+      );
+      return refusal;
+    }
+    // The surface opens on its priority queue, a filtered subset of the same read: the recovered
+    // rows are compared in the catalog task, as the catalog comparison does.
+    if (!(await activateTaskTab(page, "source-tab-catalog"))) {
+      recordFailure(
+        failures,
+        scope,
+        "the catalog task never became the active one, so the recovered rows could not be"
+        + " compared in it",
+      );
+      return refusal;
+    }
+    await page.locator("[data-source-registry-retry]").first().click();
+    const recovered = await page
+      .waitForFunction(registryRecovered, readRows, { timeout: 15_000 })
+      .then(() => true)
+      .catch(() => false);
+    if (!recovered) {
+      const state = await page.evaluate(() =>
+        document.querySelector("[data-source-registry-state]")
+          ?.getAttribute("data-source-registry-state") ?? "",
+      );
+      const recoveryFailures = evaluateRegistryRecovery(
+        await page.evaluate(() => ({
+          failedNotice: document.querySelector('[data-registry-notice="failed"]') !== null,
+          recordIds: [...document.querySelectorAll('[data-record="source-row"]')]
+            .map((element) => element.getAttribute("data-record-id")),
+        })),
+        readRows,
+      );
+      recordFailure(
+        failures,
+        scope,
+        `the surface's own retry did not restore its registry read (state '${state || "(no state)"}')`,
+      );
+      for (const detail of recoveryFailures) recordFailure(failures, scope, detail);
+    }
+  } catch (error) {
+    recordFailure(failures, scope, error);
+  } finally {
+    refusal.active = false;
+    await page.unroute(SOURCES_READ_ROUTE, handler).catch(() => {});
+  }
+  return refusal;
+}
+
 export async function runWorkflowSmoke() {
   mkdirSync(OUTPUT_DIR, { recursive: true });
   const browser = await chromium.launch({ headless: true });
@@ -1445,6 +1682,11 @@ export async function runWorkflowSmoke() {
     if (message.type() !== "error") return;
     const text = message.text();
     if (ALLOWED_CONSOLE_ERRORS.some((pattern) => pattern.test(text))) return;
+    const induced = inducedReadRefusalFor(message);
+    if (induced) {
+      induced.consoleEntries.push({ scope: currentScope, detail: text.slice(0, 200) });
+      return;
+    }
     consoleErrors.push({ scope: currentScope, detail: text.slice(0, 300) });
   });
 
@@ -1489,6 +1731,19 @@ export async function runWorkflowSmoke() {
     // clicked row, and the surface's own category filter must show exactly that category's rows.
     currentScope = "interaction/source-center-selection";
     await sourceCenterSelectionInteraction(page, failures);
+
+    // The Source Center's failure path: the harness itself refuses `GET /api/sources`, the surface
+    // must state that failure instead of a measured zero, and its own scoped retry of the store's
+    // bounded path must recover the read once the refusal is removed.
+    currentScope = "interaction/source-registry-failure";
+    const registryFailure = await sourceRegistryFailureInteraction(page, failures);
+    recordObservation(
+      observations,
+      `interaction/source-registry-failure: refused ${registryFailure.refusals} GET /api/sources`
+      + ` read(s); the browser reported ${registryFailure.consoleEntries.length} console error(s)`
+      + " for exactly that refused request (the harness's own induced failure, attributed by the"
+      + " request URL it refused)",
+    );
 
     currentScope = "interaction/agent-research-review";
     agentResearch = await agentResearchE2E(page, failures);

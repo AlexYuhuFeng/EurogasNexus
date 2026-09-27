@@ -324,3 +324,86 @@ export function collectVisibleElements(spec) {
   }
   return evidence;
 }
+
+/**
+ * What the Source Center's surface reports about a registry read the harness itself refused.
+ *
+ * `GET /api/sources` failing used to leave the surface rendering `Total sources 0` beside `No
+ * active warnings` - the copy of a measured zero, produced by a read that never answered
+ * (`docs/release/FUNCTIONAL_ACCEPTANCE_REPORT.md`, 2026-09-25 limits). The rule this holds the
+ * surface to is one-directional on purpose: while the read is refused, nothing that reads as a
+ * measurement may be presented, so a KPI strip, a source row or the declared measured-empty marker
+ * is a failure even when the value would look plausible. The failure must be stated in the surface
+ * itself, with a retry that is offered and enabled while no attempt is in flight (the store owns
+ * the one-attempt-at-a-time rule).
+ *
+ * Pure, so the negative cases run without a browser (`clients/web/tests/readToRender.test.ts`).
+ */
+export function evaluateRefusedRegistry(surface) {
+  const failures = [];
+  const state = surface?.state ?? "";
+  if (state !== "failed") {
+    failures.push(
+      `the registry read was refused and the surface reports '${state || "(no state)"}'`,
+    );
+  }
+  if (!surface?.failedNotice) {
+    failures.push("the surface renders no failure notice for the refused registry read");
+  }
+  if (surface?.rows > 0) {
+    failures.push(
+      `the surface still renders ${surface.rows} source row(s) for a read that did not answer`,
+    );
+  }
+  if (surface?.measuredEmpty > 0) {
+    failures.push(
+      "the surface still presents its measured-empty marker for a read that did not answer",
+    );
+  }
+  if (surface?.kpiStrips > 0) {
+    failures.push(
+      `the surface still renders ${surface.kpiStrips} KPI strip(s) for a read that did not answer`,
+    );
+  }
+  if (surface?.retryControls === 0) {
+    failures.push("the surface offers no retry for the refused registry read");
+  } else if (surface?.retryDisabled === true) {
+    failures.push("the retry control is disabled while no retry is in flight");
+  }
+  return failures;
+}
+
+/**
+ * The recovery half: once the refusal is removed, the surface's own retry must leave it rendering
+ * exactly the registry its read serves - by each source's own id, in both directions - with the
+ * failure notice gone. A surface that keeps the notice, drops a returned source or renders one the
+ * read did not return is named by id rather than passed.
+ *
+ * Pure, so the negative cases run without a browser (`clients/web/tests/readToRender.test.ts`).
+ */
+export function evaluateRegistryRecovery(surface, wanted) {
+  const failures = [];
+  if (surface?.failedNotice) {
+    failures.push("the failed-registry notice survives the retry that recovered the read");
+  }
+  const remaining = [...(wanted ?? [])];
+  const foreign = [];
+  for (const id of surface?.recordIds ?? []) {
+    const at = remaining.indexOf(id);
+    if (at === -1) foreign.push(id);
+    else remaining.splice(at, 1);
+  }
+  if (remaining.length > 0) {
+    failures.push(
+      `the recovered catalog does not render ${remaining.length} source(s) its own read returned:`
+      + ` ${remaining.slice(0, 4).join(" | ")}`,
+    );
+  }
+  if (foreign.length > 0) {
+    failures.push(
+      `the recovered catalog renders ${foreign.length} source(s) its read did not return:`
+      + ` ${foreign.slice(0, 4).join(" | ")}`,
+    );
+  }
+  return failures;
+}

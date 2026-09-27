@@ -166,6 +166,10 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
           categoryProviderSummary={sources.categoryProviderSummary}
           sourceNextAction={sources.sourceNextAction}
           formatSourceTimestamp={sources.formatSourceTimestamp}
+          // The registry read's own state: the surface states pending, failure (with the store's
+          // bounded retry) or a measured registry instead of printing counts it does not have.
+          registryRead={sources.registryRead}
+          onRegistryRetry={sources.retryRegistryRead}
           // Wave 4/8: the source surface recommended an ingestion run it had no way to start. The
           // route queues a MANUAL run for the dataops worker; the rule that decides whether the
           // control is offered - and what the platform's guards are doing - lives in

@@ -72,6 +72,19 @@ export function useAppController() {
     sourcePostureCategories: api.endpointMeta.sources?.source_posture_summary?.categories,
     saveProviderCredential: api.saveProviderCredential,
     testProviderConnection: api.testProviderConnection,
+    // The Source Center's own read state: the batch's failure record for the sources endpoint,
+    // whether a pass has committed this session, and the bounded retry's bookkeeping. The surface
+    // renders a count only for a committed reading.
+    registryRead: {
+      loading: api.workspaceLoading,
+      committedPasses: api.workspaceLoadsCommitted,
+      error: api.endpointErrors.sources,
+      errorCode: api.endpointErrorCodes.sources,
+      retryBusy: api.endpointRetryBusy,
+      retryAttempts: api.endpointRetryAttempts,
+      retryLastAttemptAtUtc: api.endpointRetryLastAttemptAtUtc,
+    },
+    retryFailedWorkspaceEndpoints: api.retryFailedWorkspaceEndpoints,
     language: i18n.language,
     t,
   });

@@ -121,7 +121,16 @@ export interface EndpointFailureSurface {
   truncatedSummary: string | null;
 }
 
-function safeFailureCode(code: string | undefined): EndpointFailureCode {
+/**
+ * The safe code a failure record carries, with an unreadable or missing one staying "unknown".
+ *
+ * It is exported because a surface that renders one endpoint's failure in its own place (the
+ * Source Center's registry notice) has to resolve the same vocabulary without re-implementing
+ * the mapping.
+ */
+export function safeEndpointFailureCode(
+  code: string | null | undefined,
+): EndpointFailureCode {
   return code === "timeout" || code === "aborted" || code === "request" ? code : "unknown";
 }
 
@@ -148,7 +157,7 @@ export function describeEndpointFailures(
   const entries = Object.keys(endpointErrors ?? {})
     .map((key): EndpointFailureDetail => {
       const labelKey = ENDPOINT_FAILURE_LABEL_KEYS[key] ?? UNKNOWN_ENDPOINT_FAILURE_LABEL_KEY;
-      const code = safeFailureCode(endpointErrorCodes?.[key]);
+      const code = safeEndpointFailureCode(endpointErrorCodes?.[key]);
       const codeKey = ENDPOINT_FAILURE_CODE_KEYS[code];
       return { key, labelKey, label: t(labelKey), code, codeKey, message: t(codeKey) };
     })

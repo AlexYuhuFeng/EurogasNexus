@@ -4944,6 +4944,50 @@ body {
   min-height: 74px;
 }
 
+/* The registry read's own state, in place of the counts it cannot state: unread, in flight, or
+   failed with the surface's scoped retry of the store's existing bounded path. */
+.source-registry-state {
+  display: grid;
+  gap: 6px;
+  border-left: 3px solid var(--eg-hairline);
+  padding: 4px 0 4px 10px;
+}
+
+.source-registry-state.is-failed {
+  border-left-color: var(--eg-danger);
+}
+
+.source-registry-state strong {
+  color: var(--eg-ink);
+  font-size: 13px;
+}
+
+.source-registry-state p {
+  margin: 0;
+}
+
+.source-registry-state .source-registry-vocabulary {
+  color: var(--eg-muted);
+  font-size: 11px;
+}
+
+.source-registry-retry {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+
+.source-registry-retry button[disabled] {
+  cursor: progress;
+  opacity: 0.65;
+}
+
+.source-registry-retry-meta {
+  color: var(--eg-muted);
+  font-size: 11px;
+}
+
 .source-posture-board {
   align-self: stretch;
   padding: 12px;

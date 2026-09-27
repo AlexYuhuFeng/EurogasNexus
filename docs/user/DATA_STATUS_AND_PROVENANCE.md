@@ -9,6 +9,12 @@ Eurogas Nexus separates research state from current market state.
 - Evidence packs in Review.
 - Source Center for credential/certification/runtime state per source.
 
+A surface that reads a shared or on-demand slice states its own read, too: the Source Center says
+whether its registry read is pending, failed (with the read's own retry), or answered - and only a
+read that answered may present a count. A failed or not-yet-answered read is never shown as a
+measured zero, and rows that are held from an earlier read are labelled as the last committed
+reading.
+
 ## Status vocabulary
 
 - `FRESH/LATE/STALE/MISSING/NOT_EXPECTED`: backend-owned freshness evaluation.

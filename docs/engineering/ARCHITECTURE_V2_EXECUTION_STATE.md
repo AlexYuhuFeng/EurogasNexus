@@ -309,6 +309,20 @@ expose source-read failure distinctly from an empty registry, with retry and
 permission-preserving tests; then strengthen the remaining market acceptance
 checks and populated persona workflows. Commercial release remains NOT APPROVED.
 
+September 27 source-read failure UX (baseline `a98d32a`): DeepSeek added distinct
+unread/pending/failed/measured-empty states to Source Center using existing store
+facts and retry infrastructure. Unknown reads no longer print zero-source KPIs.
+Retained rows on a failed refresh carry a last-reading disclosure. Integration
+review separated an empty filtered queue from an empty registry and labelled the
+existing retry accurately: it retries failed workspace reads, not only sources.
+No backend, permission, database or ingestion behaviour changed.
+Independent checks: 646 frontend tests, production build and 13 focused Python
+probe/link tests passed. The new browser test injects a GET-only registry failure
+and requires the surface to recover through its retry after interception is removed.
+Fresh CI/browser verification is pending; error-path interaction is English desktop,
+while normal acceptance retains both languages and three viewports. Production
+release remains NOT APPROVED.
+
 ## Historical programme state
 V2 pack version: 2026-09 autonomous runner
 Current wave: Waves 0-10 have delivered slices. Wave 11 (RC/GA readiness) has not started.

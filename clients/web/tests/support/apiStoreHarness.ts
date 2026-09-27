@@ -72,6 +72,8 @@ export interface ApiStoreState {
   workspaceLoadsCommitted: number;
   dataStatus: "unknown" | "runtime" | "delayed" | "partial" | "unavailable";
   nodes: unknown[];
+  /** The registry lane's rows, as the workspace batch and its retry pass leave them. */
+  sources: unknown[];
   marketContext: Record<string, unknown> | null;
   portfolioSnapshot: Record<string, unknown> | null;
   reviewContext: Record<string, unknown> | null;
@@ -81,6 +83,10 @@ export interface ApiStoreState {
   endpointMeta: Record<string, unknown>;
   endpointErrors: Record<string, string>;
   endpointErrorCodes: Record<string, string>;
+  /** The bounded retry's bookkeeping: one attempt at a time, counted for the surface. */
+  endpointRetryBusy: boolean;
+  endpointRetryAttempts: number;
+  endpointRetryLastAttemptAtUtc: string | null;
   fetchWorkspace: () => Promise<void>;
   fetchMe: () => Promise<void>;
   subscribeDecisionStreams: () => void;

@@ -324,7 +324,73 @@ exact:
   prop). That state now *fails* the sweep by name - the read answers in the same session the surface
   does not reflect - rather than being carried as a declared gap. Surfacing the read's own failure
   on the Source Center remains open, as does the same disclosure question on the other surfaces.
+  **Closed on 2026-09-27**: the surface now states the read's own pending, failure and measured
+  states; see the section below. The disclosure question on the other surfaces is untouched.
 - The interaction covers English desktop only; the catalog comparison covers both languages and all
   three viewports. The category filter's expected answer is the read's own `category` field, so the
   check proves the filter hides exactly the rows that field excludes - it does not re-derive the
   surface's category vocabulary, which `source_registry.py` owns.
+
+## 2026-09-27 — the Source Center states its own registry read, failure included
+
+The 2026-09-25 section left one thing open by name: a registry read that fails in the workspace
+batch left the surface holding no source and rendering "Total sources 0" with no error copy of its
+own. That state is now its own reading:
+
+- **A slice cannot tell a failed read from a measured zero.** The workspace batch clears `sources`
+  when its read fails (and the market lane's own refresh keeps the rows it holds), so the surface
+  had no way to distinguish "the platform says there are no sources" from "the platform never
+  answered". `app/model/sourceRegistryRead.ts` names the five states the store's facts support -
+  `unread`, `pending`, `failed`, a measured `empty`, a measured `ready` - and only a committed
+  reading may present a number (`hasReading`). The KPI strip and the catalog table are drawn only
+  for a committed reading; a failure that still holds rows keeps them and says they are the last
+  committed reading, and a failure with no rows presents nothing but the failure.
+- **The failure is stated in the surface**, with the shared endpoint vocabulary the shell's own
+  banner uses (`workspace.endpoint.sources` plus the safe code message - never the backend's prose,
+  never a raw loader key) and the store's existing bounded retry exposed for this read. The retry is
+  one control calling `retryFailedWorkspaceEndpoints`, disabled and `aria-busy` while its attempt is
+  in flight; the store keeps refusing a second concurrent attempt. No new endpoint, credential,
+  permission or loader was added.
+- **The measured empty registry is its own sentence.** The catalog's empty row said "No active
+  warnings" - a statement about the review queue - and now says the registry read answered with no
+  registered sources, so a measured zero cannot be read as a fresh registry.
+- **Bilingual and pending/empty/failed states are declared copy**, in both locales, asserted by the
+  web suite; the unread, pending and failed sentences are distinct in each locale.
+
+### How it is measured
+
+- **Executable states through the actual store** (`clients/web/tests/sourceRegistryRead.test.ts`):
+  a batch that has not answered is `pending` with no count; a successful empty read is `empty` and
+  is allowed to state zero; a refused read is `failed` with no count and the shared vocabulary; the
+  scoped retry recovers the read (disabled while its attempt is in flight, and a second caller
+  issues no request); losing the identity leaves the registry `unread` rather than carrying the
+  failure into the new session.
+- **The browser error path, refused by the harness itself** (`interaction/source-registry-failure`):
+  exactly `GET /api/sources` is intercepted and answered 503, nothing else the page reads; the
+  surface must declare `data-source-registry-state="failed"` with its notice, and must present no
+  measurement at all - no source row, no `data-empty-state="source-rows"` marker, no KPI strip; the
+  interception is then removed and the surface's own retry must render exactly the registry
+  `GET /api/sources` then serves, by each source's own `source_id`, with the notice gone. The
+  console entry the browser reports for the harness's own refusal is attributed to that exact
+  request URL (never added to the declared allowlist, which still carries only the pre-login 401)
+  and counted in the summary as an observation.
+- **The rules are pure, so their negative cases run without a browser**
+  (`scripts/uat/readToRender.mjs`: `evaluateRefusedRegistry`, `evaluateRegistryRecovery`;
+  `clients/web/tests/readToRender.test.ts`): a surface reporting any other state, a rendered row, a
+  measured-empty marker, a KPI strip, a missing retry or a disabled idle retry each fail by name,
+  and a recovery that keeps the notice, drops a returned source or renders a foreign one fails too.
+
+### Limits of this repair
+
+- Verified here by the web suite (646 tests, ten of them added by this repair), `tsc`, the repository
+  lint/contract tests (`tests/contract/test_browser_probe_paths.py` holds the refusal to the read
+  the catalog compares and to the component's own markers) and `node --check` on the harness;
+  **no live browser run was performed in this environment** (no Playwright installation, and the
+  local API/database were not exercised). The CI browser job is the first run in which the refusal
+  path is walked end to end.
+- The failure interaction covers English desktop only, like the other interactions; the pending and
+  unread copy is covered in both locales by the web suite and the locale parity gate.
+- The change is presentation-only: no route, permission, payload, schema, credential or ingestion
+  behaviour changed, and no source-registry write is performed by the check.
+- The same disclosure question on the other surfaces that render a shared slice (capacity, access,
+  research, agents and the remaining market cells) is untouched and stays open.

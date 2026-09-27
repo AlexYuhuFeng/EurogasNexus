@@ -1,6 +1,7 @@
 import { type FormEventHandler, useState } from "react";
 import type { SourceRunOutcome, SourceRunReadiness } from "@/app/model/sourceRunModel";
 import { inspectorSubjectFor } from "@/app/model/inspectorDetail";
+import type { SourceRegistryReadSurface } from "@/app/model/sourceRegistryRead";
 import { useInspectorStore } from "@/stores/inspector";
 import {
   EvidenceBlock,
@@ -57,6 +58,10 @@ interface SourceCenterProps {
   latestCapacityRows: CapacityObsDTO[];
   onSourceCategoryChange: (category: string, nextSourceId: string | null) => void;
   onSourceSelect: (sourceId: string) => void;
+  /** What the surface knows about its own registry read (pending / failed / measured). */
+  registryRead: SourceRegistryReadSurface;
+  /** The store's existing bounded retry path, offered here for this surface's own read. */
+  onRegistryRetry: () => void;
   onCredentialProviderChange: (providerId: string) => void;
   onCredentialLabelChange: (label: string) => void;
   onCredentialValueChange: (value: string) => void;
@@ -88,6 +93,69 @@ function sourceMode(source: SourceSystemDTO, t: (key: string) => string): string
   return t("sources.mode_public");
 }
 
+/**
+ * What the surface knows about its own registry read, stated in the surface itself.
+ *
+ * It renders in two cases only: the most recent read failed (with the shared endpoint vocabulary
+ * and the store's bounded retry, disabled while an attempt is in flight), or no committed reading
+ * exists yet (unread, or the read is in flight). Neither case may present a count, so the strip
+ * and the table are simply not drawn for them.
+ */
+function SourceRegistryNotice({
+  read,
+  t,
+  onRetry,
+}: {
+  read: SourceRegistryReadSurface;
+  t: (key: string) => string;
+  onRetry: () => void;
+}) {
+  const failed = read.state === "failed";
+  if (!failed && read.hasReading) return null;
+  return (
+    <div
+      className={failed ? "source-registry-state is-failed" : "source-registry-state"}
+      data-registry-notice={read.state}
+      role={failed ? "alert" : "status"}
+    >
+      <strong>{t("sources.registry.title")}</strong>
+      {read.noticeKey && <p>{t(read.noticeKey)}</p>}
+      {failed && (
+        <p className="source-registry-vocabulary">
+          {t(read.failureEndpointKey ?? "workspace.endpoint.unknown")}
+          {" · "}
+          {t(read.failureMessageKey ?? "workspace.failure.unknown")}
+        </p>
+      )}
+      {failed && (
+        <p className="muted">
+          {t(read.hasReading ? "sources.registry.failed_stale" : "sources.registry.failed_withheld")}
+        </p>
+      )}
+      {failed && (
+        <div className="source-registry-retry">
+          <button
+            type="button"
+            data-source-registry-retry="true"
+            disabled={read.retry.disabled}
+            aria-busy={read.retry.busy}
+            onClick={onRetry}
+          >
+            {t("sources.registry.retry")}
+          </button>
+          {(read.retry.busy || read.retry.attempts > 0) && (
+            <span className="source-registry-retry-meta">
+              {read.retry.attemptsLabel}
+              {read.retry.lastAttemptLabel ? ` · ${read.retry.lastAttemptLabel}` : ""}
+              {read.retry.runningLabel ? ` · ${read.retry.runningLabel}` : ""}
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function SourceCenter({
   t,
   sources,
@@ -113,6 +181,8 @@ export function SourceCenter({
   latestCapacityRows,
   onSourceCategoryChange,
   onSourceSelect,
+  registryRead,
+  onRegistryRetry,
   onCredentialProviderChange,
   onCredentialLabelChange,
   onCredentialValueChange,
@@ -157,21 +227,32 @@ export function SourceCenter({
     }
   };
   return (
-    <div className={`workspace-grid sources-page source-center source-view-${activeView}`}>
+    <div
+      className={`workspace-grid sources-page source-center source-view-${activeView}`}
+      // The surface declares what it knows about its own read, so a measurement can hold the
+      // failure path to a stated state instead of inferring it from the page's copy
+      // (`scripts/uat/browser_workflow_smoke.mjs`).
+      data-source-registry-state={registryRead.state}
+    >
       <div className="workspace-panel span-3 source-overview source-readiness-strip">
-        <MetricStrip
-          className="metric-grid four-column source-kpi-grid"
-          items={[
-            { label: t("sources.total_sources"), value: sourceStats.total },
-            { label: t("sources.workflow_ready"), value: sourceStats.active },
-            { label: t("sources.action_required"), value: attentionSources.length },
-            {
-              label: t("sources.runtime_records"),
-              value: sourceStats.records.toLocaleString(),
-              detail: `${simulatedOrPreviewSources} ${t("sources.preview_substitutes_active")}`,
-            },
-          ]}
-        />
+        <SourceRegistryNotice read={registryRead} t={t} onRetry={onRegistryRetry} />
+        {/* Counts are a measurement of a committed reading: a read that has not answered is not a
+            zero, and rows held from an earlier read are not a fresh count. */}
+        {registryRead.hasReading && (
+          <MetricStrip
+            className="metric-grid four-column source-kpi-grid"
+            items={[
+              { label: t("sources.total_sources"), value: sourceStats.total },
+              { label: t("sources.workflow_ready"), value: sourceStats.active },
+              { label: t("sources.action_required"), value: attentionSources.length },
+              {
+                label: t("sources.runtime_records"),
+                value: sourceStats.records.toLocaleString(),
+                detail: `${simulatedOrPreviewSources} ${t("sources.preview_substitutes_active")}`,
+              },
+            ]}
+          />
+        )}
       </div>
 
       <WorkspaceTabs
@@ -189,6 +270,7 @@ export function SourceCenter({
         onActivate={activateView}
       />
 
+      {registryRead.hasReading && (
       <div className="workspace-panel span-3 source-posture-board">
         <PanelHeader title={t("sources.posture_board")} meta={t("sources.next_action")} />
         <div className="source-category-filter source-posture-grid compact" aria-label={t("sources.categories")}>
@@ -218,17 +300,21 @@ export function SourceCenter({
           })}
         </div>
       </div>
+      )}
 
       {activeView !== "infrastructure" && (
       <div id="source-active-panel" role="tabpanel" aria-labelledby={`source-tab-${activeView}`} className="workspace-panel span-2 source-catalog-panel">
         <PanelHeader
           title={activeView === "attention" ? t("sources.attention_queue") : activeView === "access" ? t("sources.access_queue") : t("sources.registered_feeds")}
-          meta={`${displayedSources.length} / ${sources.length} · ${sourceStats.missingCredentials} ${t("sources.missing_credentials")}`}
+          meta={registryRead.hasReading
+            ? `${displayedSources.length} / ${sources.length} · ${sourceStats.missingCredentials} ${t("sources.missing_credentials")}`
+            : t("sources.registry.title")}
         />
         {/* Scrollable region: focusable so keyboard users can scroll the wide
             operations table, including in locales whose labels overflow it
             (axe: scrollable-region-focusable). */}
         <div className="source-operations-table-wrap" tabIndex={0} role="region" aria-label={t("sources.title")}>
+          {registryRead.hasReading ? (
           <table className="source-operations-table">
             <thead>
               <tr>
@@ -293,11 +379,14 @@ export function SourceCenter({
               ))}
               {displayedSources.length === 0 && (
                 <tr data-empty-state="source-rows">
-                  <td colSpan={9}><span>{t("review.no_warnings")}</span></td>
+                  <td colSpan={9}><span>{t(sources.length === 0 ? "sources.registry.empty" : "sources.registry.no_matches")}</span></td>
                 </tr>
               )}
             </tbody>
           </table>
+          ) : (
+            <p className="muted">{t(registryRead.noticeKey ?? "sources.registry.title")}</p>
+          )}
         </div>
       </div>
       )}

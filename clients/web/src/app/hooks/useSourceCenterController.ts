@@ -16,7 +16,26 @@ import {
   SOURCE_CATEGORIES,
   sourceNextActionKey,
 } from "@/app/index";
+import {
+  sourceRegistryReadSurface,
+  type SourceRegistryReadFacts,
+} from "@/app/model/sourceRegistryRead";
 import type { ApiState } from "@/stores/api";
+
+/**
+ * The registry lane's own read state, straight from the store: whether the workspace batch (or
+ * its bounded retry pass) is in flight, whether a pass has committed in this session, the failure
+ * recorded for the sources endpoint with its safe code, and the retry's bookkeeping. The surface
+ * the controller derives from it never prints a count for a read that has not answered.
+ */
+export type SourceCenterRegistryReadParams = Pick<
+  SourceRegistryReadFacts,
+  "loading" | "committedPasses" | "error" | "errorCode"
+> & {
+  retryBusy: boolean;
+  retryAttempts: number;
+  retryLastAttemptAtUtc: string | null;
+};
 
 interface SourceCenterControllerParams {
   sources: SourceSystemDTO[];
@@ -24,6 +43,9 @@ interface SourceCenterControllerParams {
   sourcePostureCategories: SourceCategoryPostureDTO[] | undefined;
   saveProviderCredential: ApiState["saveProviderCredential"];
   testProviderConnection: ApiState["testProviderConnection"];
+  registryRead: SourceCenterRegistryReadParams;
+  /** The store's existing bounded retry path; this surface only scopes the control to itself. */
+  retryFailedWorkspaceEndpoints: ApiState["retryFailedWorkspaceEndpoints"];
   language: string;
   t: TFunction;
 }
@@ -46,6 +68,8 @@ export function useSourceCenterController({
   sourcePostureCategories,
   saveProviderCredential,
   testProviderConnection,
+  registryRead,
+  retryFailedWorkspaceEndpoints,
   language,
   t,
 }: SourceCenterControllerParams) {
@@ -80,6 +104,21 @@ export function useSourceCenterController({
   }, [credentialProviders, selectedSource]);
   const sourceCategoryCounts = useMemo(() => buildSourceCategoryCounts(sources), [sources]);
   const sourcesByCategory = useMemo(() => buildSourcesByCategory(sources), [sources]);
+  const registryReadSurface = sourceRegistryReadSurface(
+    {
+      rowCount: sources.length,
+      loading: registryRead.loading,
+      committedPasses: registryRead.committedPasses,
+      error: registryRead.error,
+      errorCode: registryRead.errorCode,
+      retry: {
+        busy: registryRead.retryBusy,
+        attempts: registryRead.retryAttempts,
+        lastAttemptAtUtc: registryRead.retryLastAttemptAtUtc,
+      },
+    },
+    t,
+  );
 
   useEffect(() => {
     if (!selectedSourceCredentialProvider?.provider_id) return;
@@ -136,6 +175,7 @@ export function useSourceCenterController({
     sourceCategoryCounts,
     sourceStats,
     sourcePostureRows,
+    registryRead: registryReadSurface,
     filteredSources,
     selectedSource,
     selectedCredentialProvider,
@@ -151,6 +191,9 @@ export function useSourceCenterController({
     submitCredential,
     testProviderConnection: () => {
       if (credentialProvider) void testProviderConnection(credentialProvider);
+    },
+    retryRegistryRead: () => {
+      void retryFailedWorkspaceEndpoints();
     },
     sourceLabel,
     categoryProviderSummary,
