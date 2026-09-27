@@ -12,7 +12,13 @@ claim; partial rows retain an incomplete-read notice and the existing retry path
 Integration review also hid the aggregate row count for incomplete reads. Arithmetic,
 API, PostgreSQL and authority rules are unchanged. Independent verification: 668
 frontend tests, production build and 17 focused Python contracts passed before the
-final count-display adjustment. Browser failure/recovery CI is pending. The old
+final count-display adjustment; all 668 frontend tests also passed after it.
+Commit `0956367` passed CI `36328163664` (all five active jobs), including the
+injected capacity GET failure and retry recovery. Downloaded evidence reviewed:
+English 1440px capacity screen shows the measured-empty disclosure; Chinese 390px
+viewport has no visible overlap but its board is below the captured viewport, so
+that screenshot is not visual proof of the narrow board. Native packaging skipped.
+The old
 capacity exemption remains until joined-row acceptance covers both input reads;
 populated physical-data, storage/LNG and native desktop acceptance remain open.
 
