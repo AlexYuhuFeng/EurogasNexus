@@ -1,137 +1,252 @@
 {
-  "schema_version": 1,
-  "policy": "Mandatory gates are internal and must PASS or NOT_APPLICABLE for their channel. External gates remain PENDING_EXTERNAL until an evidence file referenced by the gate exists and records PASS. Stable publication is fail-closed on any pending external gate.",
+  "schema_version": 2,
+  "policy": "Mandatory gates are internal and must record PASS, or NOT_APPLICABLE only where this policy explicitly permits it. Every gate evidence file must be a schema-version 2 envelope (scripts/release/evidence_envelope.py) bound to the full tested commit SHA, the tested subject digest(s) for artifact/image-bound gates, the producing workflow/job/run identity, the producing environment and a fresh UTC timestamp. Envelope fields are self-declared text: the validator binds them to the release context, the actual release bundle files and these producer profiles, but that is not cryptographic provenance. External gates stay PENDING_EXTERNAL until an evidence envelope records PASS and carries an approval identity configured in authorized_external_approvals; a CLI boolean can never complete them. Stable publication is fail-closed on any pending or unverifiable gate.",
   "code_signing": {
     "stable": "authenticode_required_for_windows_exe",
     "preview": "unsigned_pending_external_permitted",
     "rc": "unsigned_pending_external_permitted"
   },
+  "evidence_policy": {
+    "envelope_schema_version": 2,
+    "max_age_days": 30,
+    "future_skew_minutes": 15
+  },
+  "producers": {
+    "validate": {
+      "workflow": "release.yml",
+      "job": "validate",
+      "environment_prefix": "github-actions/",
+      "require_run_identity": true
+    },
+    "reliability": {
+      "workflow": "release.yml",
+      "job": "reliability",
+      "environment_prefix": "github-actions/",
+      "require_run_identity": true
+    },
+    "dependency-scan": {
+      "workflow": "release.yml",
+      "job": "dependency-scan",
+      "environment_prefix": "github-actions/",
+      "require_run_identity": true
+    },
+    "web": {
+      "workflow": "release.yml",
+      "job": "web",
+      "environment_prefix": "github-actions/",
+      "require_run_identity": true
+    },
+    "assemble": {
+      "workflow": "release.yml",
+      "job": "assemble",
+      "environment_prefix": "github-actions/",
+      "require_run_identity": true
+    },
+    "container-acceptance": {
+      "workflow": "release.yml",
+      "job": "container-acceptance",
+      "environment_prefix": "github-actions/",
+      "require_run_identity": true
+    },
+    "dry-run": {
+      "workflow": "run_release_dry_run.py",
+      "job": "*",
+      "environment_prefix": "local-dry-run",
+      "require_run_identity": false,
+      "local_only": true
+    }
+  },
+  "authorized_external_approvals": [],
   "gates": [
     {
       "id": "G1",
       "name": "CI workflow",
       "type": "internal",
       "required_for": "rc",
-      "evidence": "ci-run.json"
+      "evidence": "ci-run.json",
+      "subject_kind": "source",
+      "not_applicable_allowed": false,
+      "producers": ["dry-run"]
     },
     {
       "id": "G2",
       "name": "Unit/integration tests",
       "type": "internal",
       "required_for": "all",
-      "evidence": "python-tests.json"
+      "evidence": "python-tests.json",
+      "subject_kind": "source",
+      "not_applicable_allowed": false,
+      "producers": ["validate", "dry-run"]
     },
     {
       "id": "G3",
       "name": "PostgreSQL migration",
       "type": "internal",
       "required_for": "all",
-      "evidence": "postgres-migration.json"
+      "evidence": "postgres-migration.json",
+      "subject_kind": "source",
+      "not_applicable_allowed": false,
+      "producers": ["reliability", "dry-run"]
     },
     {
       "id": "G4",
       "name": "Frontend build",
       "type": "internal",
       "required_for": "all",
-      "evidence": "web-build.json"
+      "evidence": "web-build.json",
+      "subject_kind": "source",
+      "not_applicable_allowed": false,
+      "producers": ["web", "dry-run"]
     },
     {
       "id": "G5",
       "name": "Desktop packaging",
       "type": "internal",
       "required_for": "all",
-      "evidence": "desktop-packaging.json"
+      "evidence": "desktop-packaging.json",
+      "subject_kind": "artifact",
+      "not_applicable_allowed": false,
+      "producers": ["dry-run"]
     },
     {
       "id": "G6",
       "name": "Installer smoke",
       "type": "internal",
       "required_for": "stable",
-      "evidence": "windows-installer-smoke.json"
+      "evidence": "windows-installer-smoke.json",
+      "subject_kind": "artifact",
+      "not_applicable_allowed": false,
+      "producers": []
     },
     {
       "id": "G7",
       "name": "Upgrade smoke",
       "type": "internal",
       "required_for": "stable",
-      "evidence": "upgrade-smoke.json"
+      "evidence": "upgrade-smoke.json",
+      "subject_kind": "artifact",
+      "not_applicable_allowed": false,
+      "producers": []
     },
     {
       "id": "G8",
       "name": "Security tests",
       "type": "internal",
       "required_for": "all",
-      "evidence": "security-tests.json"
+      "evidence": "security-tests.json",
+      "subject_kind": "source",
+      "not_applicable_allowed": false,
+      "producers": ["dry-run"]
     },
     {
       "id": "G9",
       "name": "Dependency vulnerability",
       "type": "internal",
       "required_for": "all",
-      "evidence": "vulnerability-scan.json"
+      "evidence": "vulnerability-scan.json",
+      "subject_kind": "source",
+      "not_applicable_allowed": false,
+      "producers": ["dependency-scan", "dry-run"]
     },
     {
       "id": "G10",
       "name": "SBOM",
       "type": "internal",
       "required_for": "all",
-      "evidence": "sbom.json"
+      "evidence": "sbom.json",
+      "subject_kind": "source",
+      "not_applicable_allowed": false,
+      "producers": ["dry-run"]
     },
     {
       "id": "G11",
       "name": "Provenance",
       "type": "internal",
       "required_for": "rc",
-      "evidence": "provenance.json"
+      "evidence": "provenance.json",
+      "subject_kind": "source",
+      "not_applicable_allowed": false,
+      "producers": ["dry-run"]
     },
     {
       "id": "G12",
       "name": "Checksums",
       "type": "internal",
       "required_for": "all",
-      "evidence": "checksums.json"
+      "evidence": "checksums.json",
+      "subject_kind": "artifact",
+      "not_applicable_allowed": false,
+      "producers": ["assemble", "dry-run"]
     },
     {
       "id": "G13",
       "name": "Backup/restore evidence",
       "type": "internal",
       "required_for": "stable",
-      "evidence": "backup-restore.json"
+      "evidence": "backup-restore.json",
+      "subject_kind": "artifact",
+      "not_applicable_allowed": false,
+      "producers": []
     },
     {
       "id": "G14",
       "name": "Performance budget",
       "type": "internal",
       "required_for": "all",
-      "evidence": "performance.json"
+      "evidence": "performance.json",
+      "subject_kind": "source",
+      "not_applicable_allowed": false,
+      "producers": ["reliability", "dry-run"]
     },
     {
       "id": "G15",
       "name": "External security acceptance",
       "type": "external",
       "required_for": "stable",
-      "evidence": "external-security-acceptance.json"
+      "evidence": "external-security-acceptance.json",
+      "subject_kind": "artifact",
+      "not_applicable_allowed": false,
+      "producers": []
     },
     {
       "id": "G16",
       "name": "Commercial provider certification",
       "type": "external",
       "required_for": "stable",
-      "evidence": "provider-certification.json"
+      "evidence": "provider-certification.json",
+      "subject_kind": "source",
+      "not_applicable_allowed": false,
+      "producers": []
     },
     {
       "id": "G17",
       "name": "Windows code signing",
       "type": "external",
       "required_for": "stable",
-      "evidence": "code-signing.json"
+      "evidence": "code-signing.json",
+      "subject_kind": "artifact",
+      "not_applicable_allowed": false,
+      "producers": []
     },
     {
       "id": "G18",
       "name": "User acceptance",
       "type": "external",
       "required_for": "stable",
-      "evidence": "uat.json"
+      "evidence": "uat.json",
+      "subject_kind": "artifact",
+      "not_applicable_allowed": false,
+      "producers": []
+    },
+    {
+      "id": "G19",
+      "name": "Container acceptance by digest",
+      "type": "internal",
+      "required_for": "rc",
+      "evidence": "container-acceptance.json",
+      "subject_kind": "image",
+      "not_applicable_allowed": false,
+      "producers": ["container-acceptance"]
     }
   ]
 }

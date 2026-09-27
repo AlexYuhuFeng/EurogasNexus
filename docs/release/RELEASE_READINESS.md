@@ -63,6 +63,18 @@ by a CLI flag.
   digest is supplied explicitly (`--image-digest sha256:...`):
   `--build-container` records the local image config id as a diagnostic only
   and never substitutes it for that published digest.
+- Gate evidence is a schema-version 2 envelope (PILOT-B): gate id, full tested
+  commit SHA, tested subject digest(s), producing workflow/job/run identity,
+  environment and a UTC production timestamp, all re-verified against the
+  release context and the actual bundle by
+  `scripts/release/validate_stable_release.py`. Status-only, old-format,
+  foreign, stale, future-dated, malformed, relabelled or unapproved evidence
+  fails closed; a missing file stays PENDING_EXTERNAL; `NOT_APPLICABLE` and
+  external PASS require explicit policy allowances (no approval identity is
+  configured today, so all external gates stay PENDING_EXTERNAL). Local
+  dry-run evidence is recorded with a local-only producer identity and is
+  rejected unless the maintainer passes the local-only flag; it never
+  authorises publication.
 - Container runtime image remains non-root and is built with BuildKit
   provenance/SBOM in CI; local Docker acceptance recorded in the dry-run.
 

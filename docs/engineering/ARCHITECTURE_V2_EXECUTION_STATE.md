@@ -5,6 +5,18 @@ Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical sli
 
 ## Current work
 
+PILOT-B1, September 28 (baseline `308797e`): DeepSeek added schema-v2 gate
+envelopes, subject-aware SHA/digest checks, freshness limits, producer policy and
+fail-closed handling of old evidence and NOT_APPLICABLE. Source tests remain
+source-bound; they are not relabelled as artifact installation tests. Independently
+ran release plus Markdown contracts: 152 passed, 3 Windows symlink cases skipped;
+focused Ruff and whitespace checks passed. CI pending for this commit.
+This is identity-consistency validation, NOT authenticated evidence provenance:
+producer and approver fields are self-declared. No external approver is configured.
+PILOT-B2 must verify authoritative same-SHA GitHub run/job metadata and protect
+external approval provenance; CA-02/03 are not fully closed. Release writers have
+not been exercised in an actual publication workflow. No release was published.
+
 PILOT-A implementation, September 28 (baseline `b5caa87`): operator ZIP now
 contains validated release identity; both Windows entrypoints resolve it without
 a checkout, pin the API image and reject conflicting bundle inputs. Review caught

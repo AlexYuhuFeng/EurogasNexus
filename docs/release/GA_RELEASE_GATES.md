@@ -3,7 +3,7 @@
 Machine-readable policy: `scripts/release/policy/stable_gate_policy.json`.
 Enforcement: `python scripts/release/validate_stable_release.py`.
 
-| Gate | Meaning | Stable mandatory | Current CR-12 state |
+| Gate | Meaning | Stable mandatory | CR-12-era state (historical) |
 | --- | --- | --- | --- |
 | G1 CI | trusted workflow run evidence | yes | PENDING_EXTERNAL (local dry-run only) |
 | G2 Unit/integration | full Python suite | yes | PASS (CR-13: 1316 passed/10 skipped) |
@@ -23,8 +23,22 @@ Enforcement: `python scripts/release/validate_stable_release.py`.
 | G16 Commercial provider certification | licensed provider live acceptance | yes | PENDING_EXTERNAL |
 | G17 Code signing | Authenticode-verified Windows installer | yes | PENDING_EXTERNAL |
 | G18 UAT | real trader/user acceptance | yes | PENDING_EXTERNAL |
+| G19 Container acceptance | immutable image digest inspected (amd64 + arm64) | RC/stable | digest-bound envelope written by the release `container-acceptance` job; not yet exercised by a release run |
+
+The state column above is a historical CR-12/CR-13 slice, not current
+disposition; the first-customer pilot plan is the current register.
 
 Gate status vocabulary is only `PASS`, `FAIL`, `PENDING_EXTERNAL`,
-`NOT_APPLICABLE`. External gates can only become PASS through an evidence file
-referenced by the policy and committed/deployed by the operator; a CLI boolean
-cannot mark them complete. Stable publication therefore fails closed today.
+`NOT_APPLICABLE`. PILOT-B requires every evidence file to be a schema-version 2
+envelope (`scripts/release/evidence_envelope.py`) produced by an authorised
+producer profile and bound to the full tested commit SHA, the tested subject
+digest(s) for artifact/image-bound gates, the workflow run identity, the
+producing environment and a fresh UTC timestamp. Missing evidence stays
+PENDING_EXTERNAL; status-only, old-format, foreign, stale, future-dated,
+malformed, relabelled or unapproved evidence fails closed. `NOT_APPLICABLE` is
+refused unless the policy explicitly allows it for that gate, and external
+gates can only become PASS through a bound envelope carrying an approval
+identity configured in `authorized_external_approvals` (currently empty, so all
+external gates stay PENDING_EXTERNAL). Envelope fields are self-declared text
+bound to identity the release run re-derives; that is not cryptographic
+provenance. Stable publication therefore fails closed today.

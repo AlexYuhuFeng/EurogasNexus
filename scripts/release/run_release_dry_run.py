@@ -24,7 +24,38 @@ for path in (ROOT, SRC):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
+from scripts.release.evidence_envelope import (  # noqa: E402
+    API_IMAGE_DIGEST_KEY,
+    VALID_STATUSES,
+    build_envelope,
+    gate_entry,
+    load_gate_policy,
+    write_envelope,
+)
+from scripts.release.release_artifacts import sha256_file  # noqa: E402
+
 _IMAGE_DIGEST_RE = re.compile(r"sha256:[0-9a-f]{64}")
+
+# Every evidence file the local dry-run writes maps to exactly one policy gate;
+# an unmapped name is a programming error, not a silent compatibility path.
+EVIDENCE_GATE_IDS = {
+    "ci-run": "G1",
+    "python-tests": "G2",
+    "postgres-migration": "G3",
+    "web-build": "G4",
+    "desktop-packaging": "G5",
+    "security-tests": "G8",
+    "vulnerability-scan": "G9",
+    "sbom": "G10",
+    "provenance": "G11",
+    "checksums": "G12",
+    "performance": "G14",
+    "code-signing": "G17",
+}
+
+# Local-only producer identity: release validation rejects it unless the
+# local-only flag is passed, which release CI never does.
+LOCAL_PRODUCER = {"workflow": "run_release_dry_run.py", "environment": "local-dry-run"}
 
 
 def published_image_digest(explicit_digest: str) -> str:
@@ -65,13 +96,59 @@ def _run(
     return result
 
 
-def write_evidence(path: Path, name: str, status: str, detail: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps({"name": name, "status": status, "detail": detail}, indent=2, sort_keys=True)
-        + "\n",
-        encoding="utf-8",
+def write_evidence(
+    path: Path,
+    name: str,
+    status: str,
+    detail: str,
+    *,
+    commit_sha: str,
+    artifacts_dir: Path | None = None,
+    subject_artifacts: tuple[str, ...] = (),
+    image_digest: str = "",
+    report: dict | None = None,
+) -> None:
+    """Write one schema-version 2 envelope for a gate the dry run exercised.
+
+    The local producer identity is recorded explicitly, and the tested subject
+    (commit SHA for source gates; artifact/image digests for bound gates) is
+    taken from the files this run produced. A PASS without its tested subject
+    is a programming error and raises instead of writing a status-only claim.
+    """
+
+    gate_id = EVIDENCE_GATE_IDS[name]
+    gate = gate_entry(load_gate_policy(), gate_id)
+    if gate is None:
+        raise KeyError(f"evidence {name!r} maps to gate {gate_id!r} which is not in the policy")
+    kind = gate.get("subject_kind")
+    digests: dict[str, str] = {}
+    if kind == "artifact":
+        if subject_artifacts and artifacts_dir is None:
+            raise ValueError(
+                f"gate {gate_id} needs an artifacts directory to bind {subject_artifacts!r}"
+            )
+        for artifact_name in subject_artifacts:
+            digests[artifact_name] = f"sha256:{sha256_file(artifacts_dir / artifact_name)}"
+        if status == "PASS" and not digests:
+            raise ValueError(f"gate {gate_id} PASS must bind the tested artifact digest(s)")
+    elif kind == "image":
+        if image_digest:
+            digests[API_IMAGE_DIGEST_KEY] = image_digest
+        if status == "PASS" and not digests:
+            raise ValueError(f"gate {gate_id} PASS must bind the tested image digest")
+    elif subject_artifacts or image_digest:
+        raise ValueError(f"gate {gate_id} is source-bound; it must not declare artifact digests")
+    envelope = build_envelope(
+        gate_id=gate_id,
+        status=status,
+        detail=detail,
+        commit_sha=commit_sha,
+        subject={"kind": kind, "digests": digests},
+        producer={**LOCAL_PRODUCER, "job": name},
     )
+    if report is not None:
+        envelope["report"] = report
+    write_envelope(path, envelope)
 
 
 def find_bundle(patterns: list[str]) -> Path | None:
@@ -152,11 +229,21 @@ def main(argv: list[str] | None = None) -> int:
         shutil.make_archive(str(web_tar).removesuffix(".tar.gz"), "gztar", root_dir=web_dist)
         step("package-web", True, str(web_tar))
         write_evidence(
-            evidence / "web-build.json", "web-build", "PASS", "web build packaged for dry-run"
+            evidence / "web-build.json",
+            "web-build",
+            "PASS",
+            "web build packaged for dry-run",
+            commit_sha=context["git_sha"],
         )
     else:
         step("package-web", False, "clients/web/dist missing; run with --build-web")
-        write_evidence(evidence / "web-build.json", "web-build", "FAIL", "web build missing")
+        write_evidence(
+            evidence / "web-build.json",
+            "web-build",
+            "FAIL",
+            "web build missing",
+            commit_sha=context["git_sha"],
+        )
 
     desktop_artifacts: list[Path] = []
     if args.build_desktop:
@@ -176,6 +263,9 @@ def main(argv: list[str] | None = None) -> int:
             "desktop-packaging",
             "PASS",
             "NSIS installer packaged",
+            commit_sha=context["git_sha"],
+            artifacts_dir=output,
+            subject_artifacts=(target.name,),
         )
     else:
         step("package-windows", False, "no NSIS bundle; run --build-desktop or build first")
@@ -184,6 +274,7 @@ def main(argv: list[str] | None = None) -> int:
             "desktop-packaging",
             "PENDING_EXTERNAL",
             "Windows packaging runs in GitHub CI",
+            commit_sha=context["git_sha"],
         )
 
     linux_x64 = find_bundle(
@@ -320,7 +411,11 @@ def main(argv: list[str] | None = None) -> int:
     sbom_archive = output / (f"eurogas-nexus-sboms-{context['release_version'].lstrip('v')}.tar.gz")
     shutil.make_archive(str(sbom_archive)[:-7], "gztar", root_dir=output, base_dir="sbom")
     write_evidence(
-        evidence / "sbom.json", "sbom", "PASS", "SPDX SBOMs generated from enforced locks"
+        evidence / "sbom.json",
+        "sbom",
+        "PASS",
+        "SPDX SBOMs generated from enforced locks",
+        commit_sha=context["git_sha"],
     )
 
     _run(
@@ -339,6 +434,7 @@ def main(argv: list[str] | None = None) -> int:
         "code-signing",
         "PENDING_EXTERNAL",
         "no organization code-signing credentials in local worktree",
+        commit_sha=context["git_sha"],
     )
 
     write_evidence(
@@ -346,30 +442,60 @@ def main(argv: list[str] | None = None) -> int:
         "ci-run",
         "PENDING_EXTERNAL",
         "local dry-run is not a GitHub Actions run",
+        commit_sha=context["git_sha"],
     )
     write_evidence(
         evidence / "python-tests.json",
         "python-tests",
-        "PASS",
-        "see final report for the full pytest run",
+        "PENDING_EXTERNAL",
+        "the local dry-run does not execute the repository test suite; run "
+        "\"pytest -q tests\" separately and rely on the release workflow's validate "
+        "job evidence for publication",
+        commit_sha=context["git_sha"],
     )
     write_evidence(
         evidence / "postgres-migration.json",
         "postgres-migration",
-        "PASS",
-        "CR-11 PostgreSQL head 0030 validated against scratch PostgreSQL",
+        "PENDING_EXTERNAL",
+        "the local dry-run does not provision PostgreSQL; the release workflow's "
+        "reliability job records the migration/smoke evidence for the release commit",
+        commit_sha=context["git_sha"],
     )
+    security = _run(
+        [sys.executable, "scripts/security/run_security_acceptance.py", "--json"],
+        check=False,
+    )
+    security_report: dict | None = None
+    try:
+        parsed_security = json.loads(security.stdout)
+    except json.JSONDecodeError:
+        parsed_security = None
+    if isinstance(parsed_security, dict):
+        security_report = parsed_security
+    security_status = str((security_report or {}).get("automated_status", "FAIL"))
+    if security_status not in VALID_STATUSES:
+        security_status = "FAIL"
+    security_detail = (
+        f"automated security acceptance {security_status.lower()}; external review "
+        "stays BLOCKED until external evidence exists"
+        if security_report is not None
+        else "automated security acceptance did not produce a report"
+    )
+    step("security-acceptance", security_status == "PASS", security_detail)
     write_evidence(
         evidence / "security-tests.json",
         "security-tests",
-        "PASS",
-        "scripts/security/run_security_acceptance.py local run",
+        security_status,
+        security_detail,
+        commit_sha=context["git_sha"],
+        report=security_report,
     )
     write_evidence(
         evidence / "performance.json",
         "performance",
         "PASS" if args.with_performance else "PENDING_EXTERNAL",
         "run --with-performance to refresh baseline",
+        commit_sha=context["git_sha"],
     )
     if args.with_performance:
         perf = _run(
@@ -390,6 +516,7 @@ def main(argv: list[str] | None = None) -> int:
                 "performance",
                 "PASS",
                 "performance baseline captured in dry-run",
+                commit_sha=context["git_sha"],
             )
     scan = _run(
         [
@@ -407,11 +534,33 @@ def main(argv: list[str] | None = None) -> int:
         scan.returncode == 0,
         "stable blocks on unexcepted HIGH/CRITICAL",
     )
+    scan_path = evidence / "vulnerability-scan.json"
+    scan_report: dict | None = None
+    if scan_path.is_file():
+        try:
+            parsed_scan = json.loads(scan_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            parsed_scan = None
+        if isinstance(parsed_scan, dict):
+            scan_report = parsed_scan
+    scan_status = str((scan_report or {}).get("status", "")).upper()
+    if scan_status not in VALID_STATUSES:
+        scan_status = "PENDING_EXTERNAL"
+    write_evidence(
+        scan_path,
+        "vulnerability-scan",
+        scan_status,
+        "dependency vulnerability scan of the enforced locks; container scan remains "
+        "a release-CI digest step",
+        commit_sha=context["git_sha"],
+        report=scan_report,
+    )
     write_evidence(
         evidence / "provenance.json",
         "provenance",
         "PENDING_EXTERNAL",
         "GitHub OIDC attestation requires the hosted release workflow",
+        commit_sha=context["git_sha"],
     )
 
     notes = _run(
@@ -477,6 +626,9 @@ def main(argv: list[str] | None = None) -> int:
         "checksums",
         "PASS" if validation.returncode == 0 else "FAIL",
         "bundle checksums verified",
+        commit_sha=context["git_sha"],
+        artifacts_dir=output,
+        subject_artifacts=("SHA256SUMS",),
     )
 
     gate = _run(
@@ -492,6 +644,7 @@ def main(argv: list[str] | None = None) -> int:
             "--evidence-dir",
             str(evidence),
             "--allow-missing-platform-artifacts",
+            "--allow-local-dry-run-evidence",
         ],
         check=False,
     )

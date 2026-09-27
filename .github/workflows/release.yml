@@ -92,6 +92,28 @@ jobs:
       - name: Tests
         run: pytest -q tests
 
+      - name: Record Python test evidence
+        shell: bash
+        run: |
+          ENVIRONMENT="github-actions/$(printf '%s/%s' "$RUNNER_OS" "$RUNNER_ARCH" | tr '[:upper:]' '[:lower:]')"
+          mkdir -p release-assets/release-evidence
+          python scripts/release/write_gate_evidence.py \
+            --gate-id G2 --status PASS \
+            --detail "full Python suite passed in the release validate job" \
+            --commit-sha "$GITHUB_SHA" \
+            --workflow release.yml --job validate \
+            --environment "$ENVIRONMENT" \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            --output release-assets/release-evidence/python-tests.json
+
+      - name: Upload Python test evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-validate-evidence
+          path: release-assets/release-evidence
+          if-no-files-found: error
+
       - name: Import API
         run: python -c "from apps.api.main import app; print('app import ok'); print(len(app.openapi()['paths']))"
 
@@ -142,14 +164,28 @@ jobs:
         run: python scripts/ops/load_smoke.py --requests 200 --concurrency 8 --p95-threshold-ms 1000
 
       - name: Record PostgreSQL/performance evidence
+        shell: bash
         run: |
+          ENVIRONMENT="github-actions/$(printf '%s/%s' "$RUNNER_OS" "$RUNNER_ARCH" | tr '[:upper:]' '[:lower:]')"
           mkdir -p release-evidence
-          python - <<'PY'
-          import json
-          from pathlib import Path
-          Path("release-evidence/postgres-migration.json").write_text(json.dumps({"name":"postgres-migration","status":"PASS","detail":"PostgreSQL 16 migrations and DB-backed smoke passed"}))
-          Path("release-evidence/performance.json").write_text(json.dumps({"name":"performance","status":"PASS","detail":"performance baseline and CI load smoke passed"}))
-          PY
+          python scripts/release/write_gate_evidence.py \
+            --gate-id G3 --status PASS \
+            --detail "PostgreSQL 16 migrations and DB-backed smoke passed" \
+            --commit-sha "$GITHUB_SHA" \
+            --workflow release.yml --job reliability \
+            --environment "$ENVIRONMENT" \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            --output release-evidence/postgres-migration.json
+          python scripts/release/write_gate_evidence.py \
+            --gate-id G14 --status PASS \
+            --detail "performance baseline and CI load smoke passed" \
+            --commit-sha "$GITHUB_SHA" \
+            --workflow release.yml --job reliability \
+            --environment "$ENVIRONMENT" \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            --output release-evidence/performance.json
 
       - name: Upload reliability evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -197,6 +233,22 @@ jobs:
         run: |
           CHANNEL=$(python -c "import json; print(json.load(open('release-context/release-context.json'))['channel'])")
           python scripts/release/scan_vulnerabilities.py --channel "$CHANNEL" --output release-evidence/vulnerability-scan.json
+
+      - name: Wrap scan evidence in a bound envelope
+        shell: bash
+        run: |
+          ENVIRONMENT="github-actions/$(printf '%s/%s' "$RUNNER_OS" "$RUNNER_ARCH" | tr '[:upper:]' '[:lower:]')"
+          STATUS=$(python -c "import json; print(json.load(open('release-evidence/vulnerability-scan.json'))['status'])")
+          python scripts/release/write_gate_evidence.py \
+            --gate-id G9 --status "$STATUS" \
+            --detail "pip/npm/cargo runtime scans; container scan remains a release-CI digest step" \
+            --commit-sha "$GITHUB_SHA" \
+            --workflow release.yml --job dependency-scan \
+            --environment "$ENVIRONMENT" \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            --report release-evidence/vulnerability-scan.json \
+            --output release-evidence/vulnerability-scan.json
 
       - name: Run Rust vulnerability scan
         uses: rustsec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998 # v2.0.0
@@ -274,6 +326,21 @@ jobs:
           RELEASE_VERSION=$(python -c "import json; print(json.load(open('release-context/release-context.json'))['release_version'].lstrip('v'))")
           mkdir -p release-assets
           tar -czf "release-assets/eurogas-nexus-web-${RELEASE_VERSION}.tar.gz" -C clients/web/dist .
+
+      - name: Record Web build evidence
+        shell: bash
+        run: |
+          ENVIRONMENT="github-actions/$(printf '%s/%s' "$RUNNER_OS" "$RUNNER_ARCH" | tr '[:upper:]' '[:lower:]')"
+          mkdir -p release-assets/release-evidence
+          python scripts/release/write_gate_evidence.py \
+            --gate-id G4 --status PASS \
+            --detail "frontend tests, bilingual key coverage and production build ran at this commit before packaging" \
+            --commit-sha "$GITHUB_SHA" \
+            --workflow release.yml --job web \
+            --environment "$ENVIRONMENT" \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            --output release-assets/release-evidence/web-build.json
 
       - name: Upload Web release asset
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -597,7 +664,8 @@ jobs:
       - deployment
       - reliability
       - dependency-scan
-    if: ${{ always() && needs.web.result == 'success' && needs.sign-windows.result == 'success' && needs.sign-linux.result == 'success' && needs.runtime-image.result == 'success' && needs.deployment.result == 'success' && needs.reliability.result == 'success' && needs.dependency-scan.result == 'success' }}
+      - container-acceptance
+    if: ${{ always() && needs.web.result == 'success' && needs.sign-windows.result == 'success' && needs.sign-linux.result == 'success' && needs.runtime-image.result == 'success' && needs.deployment.result == 'success' && needs.reliability.result == 'success' && needs.dependency-scan.result == 'success' && needs.container-acceptance.result == 'success' }}
     permissions:
       contents: read
 
@@ -674,6 +742,22 @@ jobs:
             --artifacts-dir release-assets \
             --sbom-dir release-assets/sbom
 
+      - name: Record checksum evidence
+        shell: bash
+        run: |
+          ENVIRONMENT="github-actions/$(printf '%s/%s' "$RUNNER_OS" "$RUNNER_ARCH" | tr '[:upper:]' '[:lower:]')"
+          python scripts/release/write_gate_evidence.py \
+            --gate-id G12 --status PASS \
+            --detail "final SHA256SUMS verified against the assembled bundle" \
+            --commit-sha "$GITHUB_SHA" \
+            --workflow release.yml --job assemble \
+            --environment "$ENVIRONMENT" \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            --artifacts-dir release-assets \
+            --subject-artifact SHA256SUMS \
+            --output release-assets/release-evidence/checksums.json
+
       - name: Generate release notes
         shell: bash
         run: |
@@ -735,17 +819,23 @@ jobs:
       - name: Inspect immutable digest and platforms
         shell: bash
         run: |
+          ENVIRONMENT="github-actions/$(printf '%s/%s' "$RUNNER_OS" "$RUNNER_ARCH" | tr '[:upper:]' '[:lower:]')"
           IMAGE=$(python -c "import json; print(json.load(open('image-metadata/image-metadata.json'))['image'])")
           DIGEST=$(python -c "import json; print(json.load(open('image-metadata/image-metadata.json'))['digest'])")
           docker buildx imagetools inspect "$IMAGE@$DIGEST" > inspect.txt
           grep -q 'linux/amd64' inspect.txt
           grep -q 'linux/arm64' inspect.txt
           mkdir -p release-evidence
-          python - <<'PY'
-          import json
-          from pathlib import Path
-          Path("release-evidence/container-acceptance.json").write_text(json.dumps({"name":"container-acceptance","status":"PASS","detail":"multi-arch digest inspected; amd64 and arm64 present"}))
-          PY
+          python scripts/release/write_gate_evidence.py \
+            --gate-id G19 --status PASS \
+            --detail "multi-arch digest inspected; amd64 and arm64 present" \
+            --commit-sha "$GITHUB_SHA" \
+            --workflow release.yml --job container-acceptance \
+            --environment "$ENVIRONMENT" \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            --image-digest "$DIGEST" \
+            --output release-evidence/container-acceptance.json
 
       - name: Upload container acceptance evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

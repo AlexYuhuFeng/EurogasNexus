@@ -112,6 +112,24 @@ reuses the old evidence or re-tags different source as the same version.
 CR-12 implements the evidence machinery and fail-closed stable gate. Automated
 cross-channel promotion itself remains an operator-controlled decision.
 
+PILOT-B version-types that evidence: every gate evidence file is a
+schema-version 2 envelope (`scripts/release/evidence_envelope.py`) written by
+`scripts/release/write_gate_evidence.py` or the local dry-run, and is verified
+against trusted inputs - the release context commit SHA, the shipped artifact
+bytes, the image metadata/manifest digest, the policy producer profiles and a
+30-day freshness window with a 15-minute future skew allowance. Source-bound
+gates bind the commit SHA only and may not carry artifact digests; artifact and
+image gates must bind the digest of the subject that was actually tested, so a
+source test cannot be relabelled as an artifact test. A missing evidence file
+stays PENDING_EXTERNAL; anything malformed, foreign, stale or produced by an
+unapproved identity fails closed, and `NOT_APPLICABLE` is permitted only where
+the policy says so. External PASS additionally requires an approval identity
+listed in `authorized_external_approvals`, which is intentionally empty until
+the organisation configures one. Envelope fields are self-declared text bound
+to identity the release run re-derives; they are not cryptographic provenance,
+and signed attestation / authoritative GitHub-run metadata checks remain
+residual work.
+
 ## 7. Artifact naming
 
 All names derive from `release-context.json`:
