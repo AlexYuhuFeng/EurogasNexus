@@ -134,7 +134,7 @@ rows are the `42d8144` reconciliation.
 | -- | --- | ---------------- | ---------------------- | ----------------------- | -------------- | ---------- | ------ |
 | CA-02 | P1 | Release engineering | PILOT-B replaced `load_evidence`: every gate evidence file must now be a schema-version 2 envelope (gate id, full 40-hex tested commit, typed subject with precise digest(s), producer workflow/job/run identity, environment, UTC timestamp) verified against the release context and the actual bundle, never against values declared in the same file; status-only/v1, non-object JSON, wrong gate id, foreign/short SHA, artifact relabelling, stale/future timestamps, unapproved producers and unapproved `NOT_APPLICABLE` fail closed, missing files stay PENDING_EXTERNAL | `python -m pytest tests/release -q` (149 passed, 3 Windows-symlink skips), including the new `tests/release/test_evidence_envelope.py` malformed/foreign/stale/unapproved/valid matrix and the writer CLI; focused Ruff passed | Gate evidence carries a versioned envelope binding commit SHA, artifact/bundle digest and workflow identity; mismatches fail closed | PILOT-A (identity exists first) | Fixed in code, engineering acceptance only: binding and negative cases pass; producer/approval fields are self-declared text (not cryptographic provenance) and external approval identities remain unconfigured |
 | CA-02 | P1 | Release engineering | PILOT-B replaced `load_evidence`: every gate evidence file must now be a schema-version 2 envelope (gate id, full 40-hex tested commit, typed subject with precise digest(s), producer workflow/job/run identity, environment, UTC timestamp) verified against the release context and the actual bundle, never against values declared in the same file; status-only/v1, non-object JSON, wrong gate id, foreign/short SHA, artifact relabelling, stale/future timestamps, unapproved producers and unapproved `NOT_APPLICABLE` fail closed, missing files stay PENDING_EXTERNAL. PILOT-B2 additionally re-derives G1's claimed CI run from the read-only GitHub API (`scripts/release/ci_run_verification.py`) | `python -m pytest tests/release -q` (196 passed, 3 Windows-symlink skips), including the PILOT-B2 matrix in `tests/release/test_ci_run_verification.py`; focused Ruff passed; one live read-only API verification of commit `4d30987` run `36345939410` observed (see the PILOT-B2 record) | Gate evidence carries a versioned envelope binding commit SHA, artifact/bundle digest and workflow identity; mismatches fail closed | PILOT-A (identity exists first); API binding for the other CI producers is still open | Partially fixed, engineering acceptance only: G1's claim is API-verified, but G2/G3/G4/G12/G19 producer run identity is still self-declared text (not cryptographic provenance) and external approval identities remain unconfigured |
-| CA-03 | P1 | Release engineering | `release.yml` web job runs `npm test` before build and packaging and records a same-SHA G4 envelope. PILOT-B2 makes the `validate` job record G1 from the read-only GitHub API for the exact commit's `ci.yml` push run and makes `validate_stable_release.py` re-derive it: completed/successful run, matching attempt, and all five required jobs - including `Browser acceptance (EN/ZH, 3 viewports)` - successful, never skipped | `tests/release/test_ci_run_verification.py` (wrong repo/workflow/SHA, failed/incomplete/skipped/missing jobs, pagination, stale attempt, malformed/API error, forged copy, local-dry-run bypass, writer round trip); policy/workflow job-name contract test; live read-only verification of run `36345939410` | Publication consumes browser/critical acceptance evidence for its own SHA, verified via authoritative GitHub run metadata | CA-02 envelope (done); release-run exercise of the writer/validator (not yet performed) | Partially fixed - same-SHA browser-acceptance binding exists and blocks stable promotion; no release run has exercised it, and the preview/RC publish job still does not consult the gate policy |
+| CA-03 | P1 | Release engineering | `release.yml` web job runs `npm test` before build and packaging and records a same-SHA G4 envelope. PILOT-B2 makes the `validate` job record G1 from the read-only GitHub API for the exact commit's `ci.yml` push run and makes `validate_stable_release.py` re-derive it: completed/successful run, matching attempt, and all five required jobs - including `Browser acceptance (EN/ZH, 3 viewports)` - successful, never skipped. PILOT-C runs that same validator in `publish-preview-rc` before its `gh release create` and makes G1 required for every published channel | `tests/release/test_ci_run_verification.py` (wrong repo/workflow/SHA, failed/incomplete/skipped/missing jobs, pagination, stale attempt, malformed/API error, forged copy, local-dry-run bypass, writer round trip); policy/workflow job-name contract test; live read-only verification of run `36345939410`; `tests/release/test_publication_gate_enforcement.py` (channel inheritance, parsed publish-step ordering and credentials, executed gate command fails without evidence, replayed step sequence never reaches the mocked release write) | Publication consumes browser/critical acceptance evidence for its own SHA, verified via authoritative GitHub run metadata | CA-02 envelope (done); release-run exercise of the writer/validator (not yet performed) | Partially fixed - same-SHA browser-acceptance binding exists, and PILOT-C makes every publish job consume the gate before writing a release; preview/RC now block on their mandatory evidence instead of publishing ungated; no release run has exercised the writer or gate |
 | CA-05 | P1 | Platform security | `src/eurogas_nexus/mcp/server.py` builds principal/role/scopes from `EUROGAS_NEXUS_AGENT_*` environment values and its own docstring declares calls are not re-authorised per user; checkpoint still lists organisation/portfolio/market/region scope as unsupported | Read module + `GET /api/me` scope report; pilot decision record | Pilot is single-customer, MCP is disabled or recorded as not offered; persisted service identity (D7) implemented or explicitly deferred | Pilot decision; ADR for service identity | Open - pilot-scope mitigation only, not closed |
 | CA-06 | P1 | Release engineering | `container-acceptance` inspects the immutable digest and platforms and now writes a G19 envelope binding that image digest; the validator recomputes it against `image-metadata.json` and `release-manifest.json`, and `assemble` waits for the job so the evidence is inside the bundle | Read jobs at `release.yml` assemble/container-acceptance plus the new envelope tests; boot/migration/smoke exercise still absent | Immutable digest boots, Alembic upgrades to head, authenticated read smoke passes, evidence assembled end to end in CI | PILOT-A identity; populated tenant not required | Partially fixed - digest inspection and binding done (G19 required for RC/stable); boot/migration/smoke acceptance depth open |
 | CA-10 | P1 | Deployment engineering | Literal TAB removed in PILOT-A at both entry points (and the same defect in the maintainer `build_release.ps1`); the operator ZIP policy (schema 2) ships eleven members: the ten reviewed files plus one generated `release-identity.json` (schema version, app/release version, channel, full commit SHA, API image `repository@sha256:` digest); the `deployment` workflow job now needs the `runtime-image` job and packages the ZIP from the resolved `release-context.json` plus the validated image-metadata digest | `python -m pytest tests/release -q` (108 passed, 3 Windows-symlink skips): real archive identity fields, fail-closed missing/malformed/conflicting identity and digest, no literal TAB, PowerShell parse of both entry points, extracted-bundle `Preflight` on a real temporary ZIP (identity resolves, `release_identity_source=bundle`, honest host blockers) | Bundle carries explicit release identity (version, channel, commit SHA, API image digest); the final ZIP SHA-256 stays external in `SHA256SUMS`/`release-manifest.json`, never inside the archive; extracted preflight resolves it with no source checkout or manual env var | None | Fixed in code, engineering acceptance only: extracted preflight resolves identity and reports host blockers; the runtime primitive's *complete* positive preflight is unverified in this sandbox (WMI access denied, docker engine pipe unreachable - pre-existing host-probe behaviour outside PILOT-A); no installation, upgrade or production-release acceptance claimed |
@@ -358,6 +358,67 @@ Residual and limits (not claimed as solved):
 - External approval identities remain unconfigured (`authorized_external_approvals`
   is empty), so every external gate stays PENDING_EXTERNAL and stable
   publication stays blocked.
+
+## PILOT-C implementation record (engineering evidence only, 2026-09-28)
+
+Baseline `efa7514`. Bounded change; no release, tag, publish, deployment,
+database write, credential use, workflow dispatch, commit or push. What the
+code now does:
+
+- `publish-preview-rc` runs the same gate as `publish-stable` before its
+  `gh release create`: `scripts/release/validate_stable_release.py` against the
+  assembled `release-final` bundle. The job gains only `actions: read` (for
+  G1's read-only API re-derivation) and the step-scoped `github.token`; there
+  is no `--allow-missing-platform-artifacts`, no
+  `--allow-local-dry-run-evidence`, no `continue-on-error` and no conditional
+  `if:` on the gate or the publish step, so a failing gate stops the job before
+  any release write.
+- The gate is an exact-SHA and exact-bundle check: the envelope commit must be
+  the release commit, artifact gates re-hash the shipped files, the image gate
+  must match `image-metadata.json`/`release-manifest.json`, and G1's same-SHA
+  CI claim is re-derived from the read-only Actions API. Preview/RC use the
+  same validator and policy as stable - no parallel or weaker approval path.
+- `stable_gate_policy.json` now declares `G1` with `required_for: all`, so
+  preview, RC and stable each require the same-SHA browser/critical acceptance
+  evidence for their own commit. Channel inheritance is unchanged: stable-only
+  external gates (G15-G18) are still not demanded of preview or RC, stable
+  still inherits every RC gate, and the signing policy is untouched.
+- Consequence, recorded rather than worked around: preview/RC publication now
+  blocks until its mandatory evidence exists. No CI job today produces G5
+  (desktop packaging), G8 (security tests) or G10 (SBOM), and G11 (provenance)
+  has no RC producer, so a preview/RC run fails the gate and publishes nothing.
+  That is the intended fail-closed behaviour; the missing producers are
+  follow-on work, and nothing was marked PASS or exempted to avoid it.
+
+Focused validation: `python -m pytest tests/release -q` -> 203 passed, 3
+Windows-symlink skips, including the new
+`tests/release/test_publication_gate_enforcement.py`: policy inheritance across
+all three channels (G1 required for each, stable-only externals not imposed on
+preview/RC), parsed publish-step ordering and step credentials, no bypass flag
+or `continue-on-error` anywhere in `release.yml`, the configured preview gate
+argument vector executed for real against a fixture bundle with no evidence
+(non-zero exit, G1 PENDING_EXTERNAL, mandatory-gates failure for preview), and a
+replayed step sequence in which the failing gate stops the job before the
+mocked `gh release create`. Required-job and permission contracts in
+`tests/release/test_ci_run_verification.py` were updated for the new
+`actions: read` holder. Focused `ruff check scripts/release tests/release .github`
+passed. The release workflow itself was not dispatched or exercised.
+
+Residual and limits (not claimed as solved):
+
+- G5/G8/G10 (and G11 for RC) have no CI producer, so preview and RC remain
+  blocked in practice. This change enforces policy; it does not create the
+  missing evidence and does not claim desktop, security-acceptance or SBOM
+  acceptance.
+- The `runtime-image` job still pushes the API image to GHCR from `validate`
+  alone, before the assembled-bundle gates exist. That registry write is
+  outside this brief's `gh release` scope and is recorded as an open
+  publication-path gap.
+- G2/G3/G4/G12/G19 envelopes still carry self-declared producer run identity;
+  only G1's claim is re-derived from the API.
+- No release run has exercised the writer, the gate or the publish path, so
+  CA-03's publication-time consumption is enforced in code and focused tests
+  only.
 
 ## What this plan does not claim
 

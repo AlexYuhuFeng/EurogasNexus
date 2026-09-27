@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "policy": "Mandatory gates are internal and must record PASS, or NOT_APPLICABLE only where this policy explicitly permits it. Every gate evidence file must be a schema-version 2 envelope (scripts/release/evidence_envelope.py) bound to the full tested commit SHA, the tested subject digest(s) for artifact/image-bound gates, the producing workflow/job/run identity, the producing environment and a fresh UTC timestamp. Envelope fields are self-declared text: the validator binds them to the release context, the actual release bundle files and these producer profiles, but that is not cryptographic provenance. G1 is stronger: its evidence must declare the verified CI run under report.ci_run, and the validator re-derives the run from the read-only GitHub API for the trusted repository and workflow at the exact release commit, requiring a completed successful run whose required jobs (including browser acceptance) all succeeded - a copied, stale or failed claim cannot pass, and missing/pending/unreachable state stays blocked. External gates stay PENDING_EXTERNAL until an evidence envelope records PASS and carries an approval identity configured in authorized_external_approvals; a CLI boolean can never complete them. Stable publication is fail-closed on any pending or unverifiable gate.",
+  "policy": "Mandatory gates are internal and must record PASS, or NOT_APPLICABLE only where this policy explicitly permits it. Every gate evidence file must be a schema-version 2 envelope (scripts/release/evidence_envelope.py) bound to the full tested commit SHA, the tested subject digest(s) for artifact/image-bound gates, the producing workflow/job/run identity, the producing environment and a fresh UTC timestamp. Envelope fields are self-declared text: the validator binds them to the release context, the actual release bundle files and these producer profiles, but that is not cryptographic provenance. G1 is stronger: its evidence must declare the verified CI run under report.ci_run, and the validator re-derives the run from the read-only GitHub API for the trusted repository and workflow at the exact release commit, requiring a completed successful run whose required jobs (including browser acceptance) all succeeded - a copied, stale or failed claim cannot pass, and missing/pending/unreachable state stays blocked. Every publication path (preview, RC and stable) runs this validator before its release write, so a channel publishes only the gates its own required_for rank demands; preview and RC therefore block until their mandatory evidence exists instead of publishing ungated. External gates stay PENDING_EXTERNAL until an evidence envelope records PASS and carries an approval identity configured in authorized_external_approvals; a CLI boolean can never complete them, and publication is fail-closed on any pending or unverifiable gate.",
   "code_signing": {
     "stable": "authenticode_required_for_windows_exe",
     "preview": "unsigned_pending_external_permitted",
@@ -85,7 +85,7 @@
       "id": "G1",
       "name": "CI workflow",
       "type": "internal",
-      "required_for": "rc",
+      "required_for": "all",
       "evidence": "ci-run.json",
       "subject_kind": "source",
       "not_applicable_allowed": false,

@@ -5,6 +5,19 @@ Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical sli
 
 ## Current work
 
+PILOT-C publication gates (baseline `efa7514`, September 28): preview/RC now
+invoke the existing promotion validator before GitHub Release writes; G1 is
+required for all published channels. Stable-only external/signing requirements
+remain channel-specific. Independent verification: 237 release/client-surface/
+Markdown tests passed, 3 symlink cases skipped; focused Ruff/whitespace passed.
+Tests execute the real validator on missing evidence and check configured step
+ordering; they are not execution of GitHub's publication runner. CI pending.
+Missing G5/G8/G10 (and RC G11) producers now intentionally block publication.
+Important open scope: runtime-image still pushes to GHCR before final bundle
+gates. Next assess candidate-image versus promoted-image lifecycle and add real
+missing evidence producers; do not exempt gates or fabricate PASS to publish.
+CA-03 is code-enforced for GitHub Releases, not end-to-end release acceptance.
+
 PILOT-B2 G1 verification (baseline `75e98a5`, September 28): same-SHA CI
 evidence is now re-derived from GitHub run/job metadata, including all five
 required jobs. Integration review required redirect refusal, attempt-specific

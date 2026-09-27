@@ -5,7 +5,7 @@ Enforcement: `python scripts/release/validate_stable_release.py`.
 
 | Gate | Meaning | Stable mandatory | CR-12-era state (historical) |
 | --- | --- | --- | --- |
-| G1 CI | trusted workflow run evidence: same-SHA GitHub API verification of the completed CI run and its required jobs | yes | FAIL/PENDING_EXTERNAL unless the API confirms the run; local dry-run only records PENDING_EXTERNAL |
+| G1 CI | trusted workflow run evidence: same-SHA GitHub API verification of the completed CI run and its required jobs | yes (every published channel) | FAIL/PENDING_EXTERNAL unless the API confirms the run; local dry-run only records PENDING_EXTERNAL |
 | G2 Unit/integration | full Python suite | yes | PASS (CR-13: 1316 passed/10 skipped) |
 | G3 PostgreSQL migration | migrations + DB smoke on PostgreSQL 16 | yes | PASS (CR-13 fresh scratch 50 integration tests) |
 | G4 Frontend build | Web build and packaging | yes | PASS (CR-13 web 50 tests + build) |
@@ -59,11 +59,21 @@ failed, skipped-job, re-run-to-a-newer-attempt, redirected, malformed or
 unreachable result stays blocked, and the local-dry-run flag never relaxes the
 API check. The claim is never read from a URL or metadata file supplied by the
 evidence: the API decides, so a copied envelope cannot pass on its own.
-`validate` and `publish-stable` are the only jobs carrying `actions: read` (the
-former to write G1's evidence, the latter only to re-derive it; `publish-stable`
-keeps `contents: write` for publication), and only those CI-verification steps
-receive `GH_TOKEN`. This binds the *source commit's* CI run, not acceptance of
-the packaged artifact or image (that remains G19/install/upgrade evidence), and
-the other release-job envelopes (G2/G3/G4/G12/G19) still carry self-declared
-producer run identity. Strict enforcement is stable-only today: the preview/RC
-publish job does not consult the gate policy. Signed attestation remains open.
+The jobs carrying `actions: read` are the G1 writer (`validate`) and the two
+publish jobs whose gates re-derive the claim; each CI-verification step receives
+`GH_TOKEN` and both publish jobs keep `contents: write` for the release write.
+This binds the *source commit's* CI run, not acceptance of the packaged artifact
+or image (that remains G19/install/upgrade evidence), and the other release-job
+envelopes (G2/G3/G4/G12/G19) still carry self-declared producer run identity.
+
+PILOT-C closes the publication path. `publish-preview-rc` now runs the same
+`validate_stable_release.py` gate as `publish-stable` before its `gh release
+create`, with no allow-missing, local-dry-run, `continue-on-error` or
+conditional-step escape, and G1 is required for every published channel.
+Preview and RC therefore block on their own channel's mandatory evidence
+instead of publishing ungated: today no CI job produces G5 (desktop packaging),
+G8 (security tests) or G10 (SBOM), and G11 (provenance) has no RC producer, so
+preview/RC runs fail the gate and publish nothing until those producers exist.
+Missing real evidence blocks; nothing is marked PASS, exempted or fabricated to
+turn the gate green, and no release was dispatched to exercise it. Signed
+attestation remains open.

@@ -55,7 +55,7 @@ Classification: `IMPLEMENTED`, `PARTIAL`, `MISSING`,
 | Installer tests | PARTIAL | Local NSIS build/package test path exists; clean-Windows install/upgrade/uninstall evidence remains deployment acceptance. |
 | Update tests | NOT_APPLICABLE | No updater ships; managed/offline path is documented. |
 | Compatibility checks | PARTIAL -> IMPLEMENTED | `/api/runtime/release`, client blocking screen, version-gate script. |
-| Stable promotion safeguards | MISSING -> IMPLEMENTED | `validate_stable_release.py`, fail-closed external gates, tag-only stable trigger. |
+| Release promotion safeguards | MISSING -> IMPLEMENTED | `validate_stable_release.py` runs in every publish job (preview/RC/stable) before its release write (PILOT-C), fail-closed external gates, tag-only stable trigger. |
 | Post-publish verification | MISSING -> IMPLEMENTED | `post_publish_verify.py` verifies assets, checksums, attestations and container digest. |
 | GitHub Environment protection | EXTERNAL_REPOSITORY_SETTING_REQUIRED | Workflow targets `environment: production`; reviewer/approval configuration cannot be proven from code. |
 | Code Owners enforcement | EXTERNAL_REPOSITORY_SETTING_REQUIRED | `CODEOWNERS` covers release/security paths; branch protection remains a repository setting. |
@@ -109,8 +109,12 @@ If a promotion rebuilds artifacts for a legitimate platform reason, the new
 run produces new provenance, new checksums, and a new manifest; it never
 reuses the old evidence or re-tags different source as the same version.
 
-CR-12 implements the evidence machinery and fail-closed stable gate. Automated
-cross-channel promotion itself remains an operator-controlled decision.
+CR-12 implements the evidence machinery and fail-closed stable gate. PILOT-C
+extends the same gate to the preview/RC publish job with no bypass flag, so
+every channel publishes only the evidence its own rank requires; preview and RC
+now block until their mandatory evidence (G5/G8/G10, and G11 for RC) is
+produced by a real CI producer. Automated cross-channel promotion itself
+remains an operator-controlled decision.
 
 PILOT-B version-types that evidence: every gate evidence file is a
 schema-version 2 envelope (`scripts/release/evidence_envelope.py`) written by

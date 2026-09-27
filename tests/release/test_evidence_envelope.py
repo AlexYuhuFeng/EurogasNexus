@@ -158,7 +158,9 @@ def test_missing_evidence_stays_pending_and_channel_inheritance_holds(tmp_path: 
         policy, evidence, "preview", context=release_context()
     )[0]}
     assert preview["G2"]["required"] is True
-    assert preview["G1"]["required"] is False
+    # CA-03: same-SHA CI acceptance is required for every published channel;
+    # stable-only external gates are still not demanded of preview.
+    assert preview["G1"]["required"] is True
     assert preview["G15"]["required"] is False
     stable = {row["id"]: row for row in evaluate_gates(
         policy, evidence, "stable", context=release_context()

@@ -876,8 +876,13 @@ jobs:
     runs-on: ubuntu-24.04
     needs: [resolve, assemble, attest, container-acceptance]
     if: ${{ always() && needs.resolve.result == 'success' && needs.assemble.result == 'success' && needs.attest.result == 'success' && needs.container-acceptance.result == 'success' && needs.resolve.outputs.channel != 'stable' }}
+    # actions: read exists only so the promotion gate below can re-derive G1's
+    # same-SHA CI verification from the read-only Actions API with the
+    # step-scoped workflow token; no publication path may write releases
+    # without that gate passing first.
     permissions:
       contents: write
+      actions: read
 
     steps:
       - name: Check out repository
@@ -906,6 +911,23 @@ jobs:
           fi
           TAG=$(python -c "import json; print(json.load(open('$CONTEXT'))['release_version'])")
           echo "tag=$TAG" >> "${GITHUB_OUTPUT}"
+
+      - name: Preview/RC promotion gate
+        # The same fail-closed validator that guards stable promotion runs here.
+        # A failing gate stops the job before the release write below, so no
+        # channel can publish without the evidence its own channel requires for
+        # this exact commit and bundle. No bypass flags: a missing or unverified
+        # gate blocks rather than publishing ungated.
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python scripts/release/validate_stable_release.py \
+            --context release-assets/release-context.json \
+            --artifacts-dir release-assets \
+            --sbom-dir release-assets/sbom \
+            --evidence-dir release-assets/release-evidence \
+            --repo "${GITHUB_REPOSITORY}"
 
       - name: Publish immutable prerelease
         shell: bash

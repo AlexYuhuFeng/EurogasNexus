@@ -94,6 +94,14 @@ and can smoke-test a local image, but the local image config id
 substituted for the published repository manifest digest in the bundle identity
 or the release manifest.
 
+Every release publish job (preview, RC and stable) runs the same
+`validate_stable_release.py` gate before its `gh release create`, with
+`actions: read` and the step-scoped workflow token, and never with
+`--allow-missing-platform-artifacts`, `--allow-local-dry-run-evidence` or
+`continue-on-error`. A failing gate stops the job, so preview/RC publication
+blocks until their own channel's mandatory evidence (same-SHA CI acceptance
+included) exists.
+
 ## UAT Validation
 
 ```bash

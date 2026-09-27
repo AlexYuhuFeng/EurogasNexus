@@ -747,19 +747,23 @@ def test_the_generic_writer_refuses_a_hand_written_ci_claim(tmp_path: Path) -> N
     assert not output.exists()
 
 
-def test_release_workflow_grants_actions_read_only_to_the_verification_jobs() -> None:
+def test_release_workflow_grants_actions_read_only_to_the_gate_jobs() -> None:
     workflow = yaml.safe_load(
         (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
     )
     assert workflow["permissions"] == {"contents": "read"}
     jobs = workflow["jobs"]
-    # The validate job writes G1's evidence from the read-only Actions API;
-    # publish-stable re-derives that claim in the strict gate. No other job may
-    # read the Actions API, and both keep exactly the permission they need.
+    # The validate job writes G1's evidence from the read-only Actions API; the
+    # publish jobs re-derive that claim in their promotion gates. No other job
+    # may read the Actions API, and each keeps exactly the permission it needs.
     assert jobs["validate"]["permissions"] == {"contents": "read", "actions": "read"}
+    assert jobs["publish-preview-rc"]["permissions"] == {
+        "contents": "write",
+        "actions": "read",
+    }
     assert jobs["publish-stable"]["permissions"] == {"contents": "write", "actions": "read"}
     for name, job in jobs.items():
-        if name in {"validate", "publish-stable"}:
+        if name in {"validate", "publish-preview-rc", "publish-stable"}:
             continue
         assert "actions" not in (job.get("permissions") or {}), name
     step = next(
@@ -781,6 +785,14 @@ def test_release_workflow_grants_actions_read_only_to_the_verification_jobs() ->
     assert gate_step["env"] == {"GH_TOKEN": "${{ github.token }}"}
     assert "validate_stable_release.py" in gate_step["run"]
     assert "--reject-existing-tag" in gate_step["run"]
+    preview_gate = next(
+        candidate
+        for candidate in jobs["publish-preview-rc"]["steps"]
+        if str(candidate.get("name", "")).startswith("Preview/RC promotion gate")
+    )
+    assert preview_gate["env"] == {"GH_TOKEN": "${{ github.token }}"}
+    assert "validate_stable_release.py" in preview_gate["run"]
+    assert "--reject-existing-tag" not in preview_gate["run"]
 
 
 # ---------------------------------------------------------------------------
