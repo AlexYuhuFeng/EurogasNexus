@@ -12,7 +12,9 @@ Cards now disclose bid/ask units. Independent review corrected the as-of compari
 to use the surface's own held instant, not require two polling reads to coincide;
 a regression case covers different valid read timestamps. Independent verification:
 656 frontend tests, production build, and 16 probe/Markdown contract tests passed.
-Browser CI is pending for this commit. Scope is six declared hubs and the displayed
+Commit `0ec65c4` passed CI `36296652435`: all five active jobs, including English/
+Chinese browser acceptance at three viewports and PostgreSQL integration. Native
+desktop packaging was skipped by the normal main-branch policy. Scope is six declared hubs and the displayed
 tenor; delivery periods, newest-row selection, FX/curve tables and native desktop
 remain unverified. This is not whole-market or production acceptance.
 
