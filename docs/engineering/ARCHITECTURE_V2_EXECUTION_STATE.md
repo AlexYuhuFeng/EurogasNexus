@@ -13,8 +13,10 @@ version-prefix acceptance and tagged repository inputs. ZIP checksum stays outsi
 the ZIP. Independent verification: 129 release/Markdown tests passed, 3 Windows
 symlink cases skipped; focused Ruff and whitespace checks passed. Tests include
 actual temporary ZIP extraction and PowerShell preflight/negative identity cases.
-Preflight host blockers are not installation acceptance. CI pending for this
-commit; release publication, actual install/upgrade/restore and provenance binding
+Preflight host blockers are not installation acceptance. Commit `f018849` passed
+CI `36341497382` (all five active jobs; native packaging skipped). This is normal
+main CI, not execution of the release publication workflow. Release publication,
+actual install/upgrade/restore and provenance binding
 remain open. Next implementation: PILOT-B same-SHA/digest evidence validation.
 
 First-customer pilot readiness (baseline `42d8144`, 2026-09-28): the single
