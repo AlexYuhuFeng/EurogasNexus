@@ -92,12 +92,26 @@ const isLaterTimestamp = (candidate: string, current: string | null | undefined)
   !current || Date.parse(candidate) > Date.parse(current)
 );
 
+/**
+ * The unit string a price is displayed with.
+ *
+ * The payload owns the currency and the unit; the client only decides how to print them together: a
+ * unit that already names its currency (`EUR/MWh`) is printed as it is, and a bare quantity is
+ * qualified with the payload's currency (`EUR/MWh`). Both the price text and the hub cards' unit
+ * declaration come from this one rule, so the browser sweep can hold what a card displays to the
+ * currency and unit of the row it priced.
+ */
+const displayPriceUnit = (currency: string, unit: string): string => {
+  const currencyCode = String(currency ?? "");
+  const unitName = String(unit ?? "");
+  return unitName.toUpperCase().includes(currencyCode.toUpperCase())
+    ? unitName
+    : `${currencyCode}/${unitName}`;
+};
+
 const formatPrice = (row: NormalizedMarketObsDTO | null): string => {
   if (!row) return "n/a";
-  const unit = row.unit.toUpperCase().includes(row.currency.toUpperCase())
-    ? row.unit
-    : `${row.currency}/${row.unit}`;
-  return `${row.price.toFixed(2)} ${unit}`;
+  return `${row.price.toFixed(2)} ${displayPriceUnit(row.currency, row.unit)}`;
 };
 
 const formatSpread = (value: number | null, unit?: string): string => {
@@ -483,6 +497,7 @@ export function MarketTerminal({
             <button
               key={`market-tenor-${tenor}`}
               type="button"
+              data-tenor={tenor}
               className={activeTenor === tenor ? "market-tenor-tab active" : "market-tenor-tab"}
               aria-pressed={activeTenor === tenor}
               onClick={() => setActiveTenor(tenor)}
@@ -491,7 +506,16 @@ export function MarketTerminal({
             </button>
           ))}
         </div>
-        <div className="market-terminal-strip" aria-label={t("market.terminal")}>
+        {/* The board prices one tenor at a time and one card per major hub. Both are declared on the
+            elements the operator sees (`data-board-tenor`, per card `data-price-tenor`), so the
+            browser sweep compares the payload's rows for the *displayed* scope instead of assuming
+            the board shows every row the projection serves. */}
+        <div
+          className="market-terminal-strip"
+          data-market-board="hub-prices"
+          data-board-tenor={activeTenor}
+          aria-label={t("market.terminal")}
+        >
           {priceRowsForStrip.map((row) => {
             const quote = latestQuoteByHubTenor.get(`${row.hub}:${row.tenor}`);
             const history = quoteHistoryByHubTenor.get(`${row.hub}:${row.tenor}`) ?? [];
@@ -501,22 +525,37 @@ export function MarketTerminal({
             const sourceDescription = simulated
               ? `${sourceLabel} · ${t("market.simulated_source")}`
               : sourceLabel;
+            // What the card priced, named for the scoped evidence: the row's own id in the slice it
+            // came from (`quotes` when an L1 quote is shown, `normalized_quotes` otherwise), or no id
+            // at all when the payload served this hub no row - an absence, not a zero.
+            const priced = quote ?? row.latest;
+            const pricedSlice = quote ? "quotes" : row.latest ? "normalized_quotes" : null;
+            const pricedUnit = priced
+              ? displayPriceUnit(priced.currency, priced.unit)
+              : null;
             return (
             <div
               key={`ticker-${row.hub}-${row.tenor}`}
+              data-record="market-hub-price"
+              data-record-slice={pricedSlice ?? undefined}
+              data-record-id={(quote?.quote_id ?? row.latest?.observation_id) ?? undefined}
+              data-price-tenor={row.tenor}
               className={`market-price-ticker ${quote || row.latest ? "is-live" : "is-waiting"} ${focusedHub && focusedHub === row.hub ? "hub-focused" : ""}`}
             >
-              <span>{row.hub}</span>
-              <strong>
+              <span data-price-hub-label>{row.hub}</span>
+              <strong data-price-value>
                 {quote
                   ? `${formatPriceValue(quote.bid_price)} / ${formatPriceValue(quote.ask_price)}`
                   : formatPrice(row.latest)}
               </strong>
-              <small>
-                {quote ? t("market.bid_ask") : tenorLabel(row.tenor, t)} · {t("market.quote_age")} {formatAge(quoteAgeSeconds(quote))}
+              <small data-price-meta>
+                {quote
+                  ? `${t("market.bid_ask")} · ${pricedUnit} · ${t("market.quote_age")} ${formatAge(quoteAgeSeconds(quote))}`
+                  : `${tenorLabel(row.tenor, t)} · ${t("market.quote_age")} ${formatAge(quoteAgeSeconds(quote))}`}
               </small>
               <div className="market-ticker-meta">
                 <em
+                  data-price-source
                   className={`market-source-pill ${simulated ? "simulated" : ""}`}
                   aria-label={sourceDescription}
                   title={sourceDescription}

@@ -19,9 +19,12 @@ import { fileURLToPath } from "node:url";
 
 import {
   collectVisibleElements,
+  collectQuotedBoard,
   evaluateRefusedRegistry,
   evaluateRegistryRecovery,
   evaluateReadToRender,
+  evaluateQuotedBoard,
+  marketBoardRows,
   readGroupRows,
   readSourceLabel,
 } from "./readToRender.mjs";
@@ -95,13 +98,31 @@ const VIEWPORTS = [
  * still shows the task the deep link opened. `exactRows` marks a read that is the surface's whole
  * row set rather than a bound over one, so a rendered row the read did not return fails too.
  *
+ * `displayedContext` names the shell element that states the Active Context the surfaces are
+ * showing (`data-context-gas-day`/`-product`/`-hub`). A signal that declares it has its probe read
+ * composed for exactly that context, the way the client lane composes it: a surface filtered to a
+ * focused hub or product is then compared with a payload read for the same context rather than with
+ * an unfiltered read from another context.
+ *
+ * `quotedBoard` declares the market workspace's numeric hub board: the hub scope it prices
+ * (`hubScope`), the cells that carry a price and the row they priced (`data-record="market-hub-price"`
+ * with its own id and slice), the tenor the board displays (`data-board-tenor`, held to the active
+ * tenor tab) and the projection as-of it states. Its verdict is `evaluateQuotedBoard`; see
+ * `readToRender.mjs` for the rules it enforces.
+ *
  * A surface without `readToRender` keeps the older whole-page check: it is weaker, and it is
  * why the declared functional gaps below stay declared.
  */
 const SURFACE_SIGNALS = {
   network: { heading: /network|market/i, apiPath: "/api/reference-network/edges?limit=5" },
   capacity: { heading: /capacity/i, apiPath: "/api/physical/capacity?limit=5" },
-  market: { heading: /market/i, apiPath: "/api/market/observations?limit=5" },
+  // The market workspace's numeric task (`curves`, the default landing view) prices its hub board
+  // from the market-context projection the market lane reads - not from `/api/market/observations`,
+  // which the lane never calls. `displayedContext` names the shell element that states the Active
+  // Context the surfaces are showing, so the probe reads that projection for the *displayed* gas
+  // day, product and hub; `quotedBoard` declares the hub scope the board prices and how its cards
+  // are compared with the rows they name.
+  market: { heading: /market/i, apiPath: "/api/projections/market-context", displayedContext: ".topbar-context-disclosure", quotedBoard: { hubScope: ["TTF", "NBP", "THE", "PEG", "ZTP", "PSV"] } },
   scenario: { heading: /decision/i, apiPath: "/api/decision-cases?limit=5" },
   // Match the client's upstream-terms read; this endpoint has no limit parameter. One persisted
   // contract is rendered in two places - the pool row the Portfolio Overview task draws from the
@@ -146,9 +167,12 @@ const SURFACE_SIGNALS = {
  * a *new* one fails the run rather than joining a silent list.
  */
 const KNOWN_FUNCTIONAL_GAPS = {
-  market:
-    "market observations return rows while every hub card renders n/a - recorded by the visual "
-    + "review and not yet fixed",
+  // The market hub board's gap was retired rather than moved: the declaration came from the visual
+  // review while the probe read `/api/market/observations` - an endpoint the market lane does not
+  // read - and the whole-page check could only match the page's own `n/a` copy. The board's cards
+  // are now compared with the rows of the market-context projection they priced (`quotedBoard`),
+  // for the displayed context and tenor, so a card that renders `n/a` for a served pair fails by
+  // name.
   capacity:
     "physical capacity returns rows while the operating board renders no rows and every KPI reads 0",
   access: "access users return rows while the Users table renders the empty row 'No users'",
@@ -362,7 +386,7 @@ async function inspectSurfaceFunction(
     return null;
   }
 
-  const state = await page.evaluate(async (path) => {
+  const state = await page.evaluate(async (probe) => {
     const pages = [...document.querySelectorAll(".workspace-page")];
     const displayed = pages.find((element) => {
       const style = getComputedStyle(element);
@@ -394,9 +418,47 @@ async function inspectSurfaceFunction(
     let apiRows = null;
     let apiStatus = null;
     let apiBody = null;
-    if (path) {
+    /**
+     * The request the surface's own read was issued under.
+     *
+     * A signal that names `displayedContext` states that the surface reads for the Active Context
+     * the shell is displaying, so the probe composes the same query the client lane composes
+     * (`app/model/projectionContext.ts`: the gas day always, the product unless it is "all", the hub
+     * only when one is focused). Reading a fixed, unfiltered path instead would compare a surface
+     * that is showing one context's rows with another context's payload.
+     */
+    let requestPath = probe.path;
+    let displayedContext = null;
+    let contextProblem = null;
+    if (probe.path && probe.contextSelector) {
+      const element = document.querySelector(probe.contextSelector);
+      const value = (name) => {
+        if (!element) return "";
+        const raw = element.getAttribute(name);
+        return raw === null || raw === undefined ? "" : String(raw).trim();
+      };
+      displayedContext = {
+        gasDay: value("data-context-gas-day"),
+        product: value("data-context-product"),
+        hub: value("data-context-hub"),
+      };
+      if (!element || displayedContext.gasDay === "") {
+        contextProblem =
+          `the displayed Active Context could not be read from '${probe.contextSelector}', so the`
+          + " surface's own read could not be issued for it";
+        requestPath = null;
+      } else {
+        const params = new URLSearchParams({ gas_day: displayedContext.gasDay });
+        if (displayedContext.product && displayedContext.product !== "all") {
+          params.set("delivery_product", displayedContext.product);
+        }
+        if (displayedContext.hub) params.set("hub", displayedContext.hub);
+        requestPath = `${probe.path}?${params.toString()}`;
+      }
+    }
+    if (requestPath) {
       try {
-        const response = await fetch(path, { credentials: "include" });
+        const response = await fetch(requestPath, { credentials: "include" });
         apiStatus = response.status;
         const body = await response.json();
         apiBody = body ?? null;
@@ -425,12 +487,17 @@ async function inspectSurfaceFunction(
       apiRows,
       apiStatus,
       apiBody,
+      requestPath,
+      contextProblem,
     };
-  }, signal.apiPath);
+  }, { path: signal.apiPath, contextSelector: signal.displayedContext ?? null });
 
   if (!state.displayed) {
     recordFailure(failures, scope, "the requested workspace page is not displayed");
     return state;
+  }
+  if (state.contextProblem) {
+    recordFailure(failures, scope, state.contextProblem);
   }
   if (state.markedWorkspace && state.markedWorkspace !== workspace) {
     // The deep link resolved to a different surface: the screenshot is evidence for the wrong page.
@@ -523,6 +590,66 @@ async function inspectSurfaceFunction(
     }
     for (const detail of compared?.failures ?? []) {
       recordFailure(failures, scope, detail);
+    }
+  } else if (signal.quotedBoard) {
+    // The market hub board's quoted values are compared with the rows of the projection the board
+    // priced (`readToRender.mjs`, `evaluateQuotedBoard`): the probe above read that projection for
+    // the *displayed* Active Context, and the board declares the tenor it prices and, per card, the
+    // row it priced. The verdict is about those rows: a card whose numbers, source, unit or pair do
+    // not match the row it names fails, a served pair no visible card prices fails, and a card with
+    // no price is accepted only when the read served that pair no row - so "unread", "not served"
+    // and "measured empty" cannot pass as each other. Rows outside the declared hub scope or the
+    // displayed tenor are reported as observations instead of being demanded of the board.
+    //
+    // The market lane reads this projection outside the workspace batch, so the batch's settled
+    // state above does not cover it: the sweep waits, bounded, for the surface to hold its own
+    // answer (the projection context it renders) instead of judging a board whose read is still in
+    // flight. A surface that never states a reading is a failure, not an exemption.
+    const boardSettled = await page
+      .waitForFunction(
+        () => {
+          const displayed = [...document.querySelectorAll(".workspace-page")].find((element) => {
+            const style = getComputedStyle(element);
+            const rect = element.getBoundingClientRect();
+            return style.display !== "none" && rect.width > 0 && rect.height > 0;
+          });
+          return Boolean(displayed && displayed.querySelector("[data-projection-as-of]"));
+        },
+        null,
+        { timeout: 20_000 },
+      )
+      .then(() => true)
+      .catch(() => false);
+    if (!boardSettled) {
+      recordFailure(
+        failures,
+        scope,
+        "the market projection's own reading never reached the surface (no projection context"
+        + " within 20s), so the board could not be compared with what it holds",
+      );
+    }
+    const board = await page.evaluate(collectQuotedBoard);
+    const market = marketBoardRows(state.apiBody, {
+      rowSelectors: ['[data-record="market-hub-price"]'],
+    });
+    const compared = evaluateQuotedBoard({
+      status: state.apiStatus,
+      hubScope: signal.quotedBoard.hubScope,
+      board,
+      slices: market.slices,
+      rows: market.rows,
+      problems: market.problems,
+      asOf: state.apiBody?.data?.as_of_utc ?? null,
+      source: readSourceLabel(state.apiBody),
+    });
+    for (const detail of compared?.observations ?? []) {
+      recordObservation(observations, `${scope}: ${detail}`);
+    }
+    for (const detail of compared?.failures ?? []) {
+      recordFailure(failures, scope, detail);
+    }
+    if (state.requestPath) {
+      recordObservation(observations, `${scope}: read ${state.requestPath}`);
     }
   } else if (state.apiRows !== null && state.apiRows > 0) {
     // The read has data. If the surface renders none of it, it is telling the operator the

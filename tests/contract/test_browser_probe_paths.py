@@ -76,6 +76,33 @@ GLOSSARY_DOMAIN = ROOT / "src" / "eurogas_nexus" / "domain" / "glossary.py"
 SOURCE_REGISTRY = ROOT / "src" / "eurogas_nexus" / "domain" / "ingestion" / "source_registry.py"
 SOURCE_ROUTE = ROOT / "src" / "eurogas_nexus" / "api" / "routes" / "public" / "sources.py"
 
+#: The market hub board's own read, the marker layer it declares its prices with, and the shell and
+#: strip elements the sweep reads the displayed context and the projection's as-of from.
+MARKET_PROJECTION = "/api/projections/market-context"
+MARKET_PROJECTION_BUILDER = (
+    ROOT / "src" / "eurogas_nexus" / "application" / "projections" / "market_context.py"
+)
+MARKET_READS = ROOT / "src" / "eurogas_nexus" / "application" / "projections" / "market_reads.py"
+MARKET_REPOSITORY = (
+    ROOT / "src" / "eurogas_nexus" / "db" / "repositories" / "market_intelligence.py"
+)
+MARKET_NORMALIZED_VIEW = (
+    ROOT / "src" / "eurogas_nexus" / "domain" / "market_intelligence" / "normalized_view.py"
+)
+MARKET_TERMINAL = WEB_SRC / "MarketTerminal.tsx"
+MARKET_COCKPIT_MODEL = (
+    ROOT / "clients" / "web" / "src" / "app" / "model" / "marketCockpitModel.ts"
+)
+PROJECTION_CONTEXT_MODEL = (
+    ROOT / "clients" / "web" / "src" / "app" / "model" / "projectionContext.ts"
+)
+WORKSPACE_TOP_BAR = WEB_SRC / "WorkspaceTopBar.tsx"
+PROJECTION_CONTEXT_STRIP = WEB_SRC / "ProjectionContextStrip.tsx"
+EVIDENCE_PRESENTATION = (
+    ROOT / "clients" / "web" / "src" / "app" / "model" / "evidencePresentation.ts"
+)
+READ_TO_RENDER = ROOT / "scripts" / "uat" / "readToRender.mjs"
+
 
 def _signals_source() -> str:
     match = SIGNALS_BLOCK.search(HARNESS.read_text(encoding="utf-8"))
@@ -418,6 +445,161 @@ def _portfolio_slice_keys() -> set[str]:
     match = PORTFOLIO_SLICE_ORDER.search(PORTFOLIO_SNAPSHOT_MODEL.read_text(encoding="utf-8"))
     assert match, "the portfolio snapshot model still declares its slice order"
     return set(SLICE_KEY.findall(match.group("body")))
+
+
+def _market_signal() -> str:
+    """The market workspace's signal entry, as the sweep declares it."""
+
+    match = re.search(r"^\s{2}market: \{(?P<body>.*)\},$", _signals_source(), re.MULTILINE)
+    assert match, "the sweep still declares the market workspace's signal"
+    return match.group("body")
+
+
+def _hub_scope_declaration() -> list[str]:
+    match = re.search(r"hubScope: \[(?P<body>[^\]]*)\]", _market_signal())
+    assert match, "the market signal declares the hub scope the board prices"
+    return re.findall(r'"([A-Z]+)"', match.group("body"))
+
+
+def _model_major_hubs() -> list[str]:
+    match = re.search(
+        r"MAJOR_MARKET_HUBS = \[(?P<body>[^\]]*)\]",
+        MARKET_COCKPIT_MODEL.read_text(encoding="utf-8"),
+    )
+    assert match, "the market cockpit model still declares its major hubs"
+    return re.findall(r'"([A-Z]+)"', match.group("body"))
+
+
+def test_the_market_probe_reads_the_projection_the_market_lane_reads() -> None:
+    """The hub board prices projection rows, not ``/api/market/observations``.
+
+    The market workspace's declared gap ("market observations return rows while every hub card
+    renders n/a") came from the visual review while the probe read
+    ``/api/market/observations?limit=5`` - an endpoint the market lane never calls: the lane reads
+    ``GET /api/projections/market-context`` (``api.marketContext`` in the client) and the board
+    prices the ``quotes``/``normalized_quotes`` slices of that payload. The probe now reads that
+    projection for the Active Context the shell is displaying, so the rows it compares with the
+    cards are the rows the surface was given.
+    """
+
+    probes = _declared_probes()
+    assert probes["market"] == MARKET_PROJECTION
+    assert not any(
+        target is not None and target.startswith("/api/market/observations")
+        for target in probes.values()
+    ), "no probe reads an endpoint the market lane does not call"
+
+    client = WEB_CLIENT.read_text(encoding="utf-8")
+    assert f'"{MARKET_PROJECTION.removeprefix("/api")}"' in client
+
+    # The projection serves the price sources the board displays: the L1 quotes and the
+    # backend-normalized view (hub/tenor owned by the backend, never re-derived in the sweep).
+    builder = MARKET_PROJECTION_BUILDER.read_text(encoding="utf-8")
+    for slice_name in ("quotes", "normalized_quotes"):
+        assert f'"{slice_name}": projection_slice(' in builder, (
+            f"the market projection still serves its {slice_name} slice"
+        )
+    reads = MARKET_READS.read_text(encoding="utf-8")
+    repository = MARKET_REPOSITORY.read_text(encoding="utf-8")
+    for field in ("quote_id", "bid_price", "ask_price", "currency", "unit", "source_system"):
+        assert f'"{field}": row.{field}' in repository, (
+            f"the quote payload still carries the {field} the card shows"
+        )
+    for field in ("observation_id", "price", "currency", "unit", "source_system"):
+        assert f'"{field}": row.{field}' in reads, (
+            f"the observation payload still carries the {field} the card shows"
+        )
+    normalized = MARKET_NORMALIZED_VIEW.read_text(encoding="utf-8")
+    for field in ('"hub": observation_hub(observation)', '"tenor": observation_tenor(observation)'):
+        assert field in normalized, f"the normalized view still places each row for {field}"
+
+
+def test_the_market_board_compares_the_pairs_the_sweep_declares() -> None:
+    """The scope the board is held to is the product's own hub set, and its markers exist.
+
+    The sweep compares the board's cards with the projection's rows for the *displayed* tenor and
+    the hubs the board declares, so the declaration must be the same set the component renders from
+    and the comparison must be the pure rule the web suite exercises - never a reading of the
+    page's copy.
+    """
+
+    declared = sorted(_hub_scope_declaration())
+    assert declared == sorted(_model_major_hubs())
+    assert declared == ["NBP", "PEG", "PSV", "THE", "TTF", "ZTP"]
+
+    terminal = MARKET_TERMINAL.read_text(encoding="utf-8")
+    for marker in (
+        'data-market-board="hub-prices"',
+        "data-board-tenor={activeTenor}",
+        "data-tenor={tenor}",
+        'data-record="market-hub-price"',
+        "data-record-slice={pricedSlice ?? undefined}",
+        "data-price-tenor={row.tenor}",
+        "data-price-hub-label",
+        "data-price-value",
+        "data-price-meta",
+        "data-price-source",
+    ):
+        assert marker in terminal, f"the market board declares {marker}"
+
+    harness = HARNESS.read_text(encoding="utf-8")
+    read_to_render = READ_TO_RENDER.read_text(encoding="utf-8")
+    for rule in ("collectQuotedBoard", "evaluateQuotedBoard", "marketBoardRows"):
+        assert f"export function {rule}(" in read_to_render, f"{rule} is declared"
+        assert rule in harness, f"the sweep applies {rule}"
+    # The verdict is the pure rule's: the page's copy is never the evidence.
+    assert "rendersNothing" in harness
+    assert harness.index("} else if (signal.quotedBoard) {") < harness.index("const rendersNothing")
+
+
+def test_the_market_board_is_issued_for_the_context_the_shell_displays() -> None:
+    """The probe is composed from the displayed Active Context, exactly as the client composes it.
+
+    A board filtered by the displayed tenor (and by a focused hub or product) must not be compared
+    with an unfiltered payload read for another context. The shell states the context it displays in
+    machine-readable form, the sweep composes the query from it with the client's own omission rule,
+    and a context it cannot read is a failure rather than a silent unfiltered read.
+    """
+
+    topbar = WORKSPACE_TOP_BAR.read_text(encoding="utf-8")
+    for attribute in (
+        "data-context-gas-day={gasDay}",
+        "data-context-product={deliveryProduct}",
+        'data-context-hub={hubId ?? ""}',
+    ):
+        assert attribute in topbar, f"the shell displays {attribute}"
+    assert ".topbar-context-disclosure" in _market_signal()
+
+    context_model = PROJECTION_CONTEXT_MODEL.read_text(encoding="utf-8")
+    assert (
+        'context.deliveryProduct === "all" ? {} : { product: context.deliveryProduct }'
+        in context_model
+    )
+    assert "context.hubId ? { hub: context.hubId } : {}" in context_model
+
+    harness = HARNESS.read_text(encoding="utf-8")
+    for attribute in ("data-context-gas-day", "data-context-product", "data-context-hub"):
+        assert attribute in harness, f"the probe reads the displayed {attribute}"
+    assert "contextProblem" in harness and "if (state.contextProblem)" in harness
+
+    # The as-of the surface states is the payload's own value, declared verbatim beside the
+    # formatted instant the strip displays.
+    strip = PROJECTION_CONTEXT_STRIP.read_text(encoding="utf-8")
+    assert "data-projection-as-of={asOf ?? undefined}" in strip
+    presentation = EVIDENCE_PRESENTATION.read_text(encoding="utf-8")
+    assert 'toISOString().slice(0, 19).replace("T", " ")' in presentation
+    assert "} UTC`;" in presentation
+    read_to_render = READ_TO_RENDER.read_text(encoding="utf-8")
+    assert "export function utcInstantLabel(" in read_to_render
+    assert 'toISOString().slice(0, 19).replace("T", " ")' in read_to_render
+
+    # The unit the card prints is composed by one rule, mirrored by the sweep: a unit that already
+    # names its currency is printed as it is, a bare quantity is qualified with the currency.
+    assert "export function displayPriceUnit(" in read_to_render
+    terminal = MARKET_TERMINAL.read_text(encoding="utf-8")
+    assert "const displayPriceUnit = (currency: string, unit: string): string" in terminal
+    assert "unitName.toUpperCase().includes(currencyCode.toUpperCase())" in terminal
+    assert "unitName.toUpperCase().includes(currencyCode.toUpperCase())" in read_to_render
 
 
 def test_the_refused_registry_probe_refuses_the_read_the_catalog_compares() -> None:

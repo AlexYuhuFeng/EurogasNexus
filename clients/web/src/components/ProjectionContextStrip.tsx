@@ -62,9 +62,12 @@ export function ProjectionContextStrip({
   const key = (suffix: string) => `${namespace}.${suffix}`;
 
   return (
+    // The payload's own as-of instant is carried verbatim beside the formatted one it displays: the
+    // browser sweep holds the displayed instant to the read it belongs to instead of parsing copy.
     <section
       className={className ? `projection-context ${className}` : "projection-context"}
       aria-label={t(key("title"))}
+      data-projection-as-of={asOf ?? undefined}
     >
       <div className="projection-context-summary">
         <span className="eyebrow">{t(key("title"))}</span>

@@ -18,11 +18,17 @@ import test from "node:test";
 
 import {
   collectVisibleElements,
+  collectQuotedBoard,
+  displayPriceUnit,
   evaluateRefusedRegistry,
   evaluateRegistryRecovery,
   evaluateReadToRender,
+  evaluateQuotedBoard,
+  marketBoardRows,
+  QUOTED_PRICE_TOLERANCE,
   readGroupRows,
   rowRecordId,
+  utcInstantLabel,
 } from "../../../scripts/uat/readToRender.mjs";
 
 /** One upstream resource term, as `GET /api/route-cost/upstream-contracts` returns it. */
@@ -659,6 +665,367 @@ test("a group that bounds its rows is not held to the whole row set", () => {
   assert.deepEqual(result.failures, []);
 });
 
+/**
+ * The market hub board's quoted-value evidence.
+ *
+ * The market workspace carried a declared gap until this comparison replaced it: "market
+ * observations return rows while every hub card renders n/a". The probe read
+ * `/api/market/observations`, an endpoint the market lane does not read at all, and the verdict was
+ * a whole-page match on the page's own `n/a` copy - so it could not say which hub was unpriced, and
+ * it compared nothing with the market-context projection the board actually prices from. These
+ * cases hold the replacement to the opposite answer on each way a board can lie about a price: a
+ * wrong number, another tenor or hub, a row the read did not return, a served pair no card prices,
+ * a hidden card, a missing source or unit, an as-of that is not the read's, and an unread
+ * projection that must not be read as a measured zero.
+ */
+
+/** One L1 quote, as the projection's `quotes` slice returns it. */
+const MARKET_QUOTE = {
+  quote_id: "sim-eex-ttf-dayahead-20260927T040000",
+  source_system: "EEX_Sim",
+  venue: "EEX",
+  instrument_id: "TTF-DA",
+  hub: "TTF",
+  product: "day-ahead",
+  bid_price: 42.1,
+  ask_price: 42.3,
+  currency: "EUR",
+  unit: "MWh",
+  observed_at_utc: "2026-09-27T04:00:00+00:00",
+};
+
+/** One normalized observation, as the projection's `normalized_quotes` slice returns it. */
+const MARKET_OBSERVATION = {
+  observation_id: "sim-trayport-psv-dayahead-20260927T040000",
+  hub: "PSV",
+  tenor: "day-ahead",
+  is_gas_price: true,
+  price: 32.4,
+  currency: "EUR",
+  unit: "EUR/MWh",
+  source_system: "Trayport_Sim",
+  market_venue: "Trayport",
+  observed_at_utc: "2026-09-27T04:00:00+00:00",
+};
+
+const MARKET_AS_OF = "2026-09-27T04:51:52.988900+00:00";
+const MARKET_AS_OF_LABEL = "2026-09-27 04:51:52 UTC";
+
+/** The hub scope the sweep declares, which `MAJOR_MARKET_HUBS` owns in the client. */
+const MARKET_HUB_SCOPE = ["TTF", "NBP", "THE", "PEG", "ZTP", "PSV"];
+
+function marketProjection(slices: Record<string, unknown>) {
+  return { data: { as_of_utc: MARKET_AS_OF, slices }, meta: { source: "runtime-postgresql" } };
+}
+
+/** One card's collected evidence, as `collectQuotedBoard` returns it. */
+function marketCard(options: Record<string, string>) {
+  return {
+    recordId: options.recordId ?? "",
+    slice: options.slice ?? "",
+    tenor: options.tenor ?? "day-ahead",
+    hub: options.hub ?? "TTF",
+    priceText: options.priceText ?? "",
+    metaText: options.metaText ?? "",
+    sourceText: options.sourceText ?? "",
+  };
+}
+
+function marketBoard(cells: Array<Record<string, string>>, overrides: Record<string, unknown> = {}) {
+  return {
+    boardTenor: "day-ahead",
+    activeTenorTab: "day-ahead",
+    asOf: MARKET_AS_OF,
+    asOfText: `Market context · As of ${MARKET_AS_OF_LABEL} · gas day 2026-09-27`,
+    cells,
+    ...overrides,
+  };
+}
+
+function compareMarket(
+  body: unknown,
+  board: unknown,
+  options: { status?: number; hubScope?: string[] } = {},
+) {
+  const market = marketBoardRows(body, {
+    rowSelectors: ['[data-record="market-hub-price"]'],
+  });
+  return evaluateQuotedBoard({
+    status: options.status ?? 200,
+    hubScope: options.hubScope ?? MARKET_HUB_SCOPE,
+    board,
+    slices: market.slices,
+    rows: market.rows,
+    problems: market.problems,
+    asOf: MARKET_AS_OF,
+    source: "runtime-postgresql",
+  });
+}
+
+/** The quote card and the normalized card the board renders for the two served pairs. */
+const MARKET_CARDS = [
+  marketCard({
+    recordId: MARKET_QUOTE.quote_id,
+    slice: "quotes",
+    hub: "TTF",
+    priceText: "42.100 / 42.300",
+    metaText: "Bid/ask · EUR/MWh · Quote age 3s",
+    sourceText: "EEX_Sim",
+  }),
+  marketCard({
+    recordId: MARKET_OBSERVATION.observation_id,
+    slice: "normalized_quotes",
+    hub: "PSV",
+    priceText: "32.40 EUR/MWh",
+    metaText: "Day ahead · Quote age n/a",
+    sourceText: "Trayport_Sim",
+  }),
+];
+
+const MARKET_BODY = marketProjection({
+  quotes: { available: true, rows: [MARKET_QUOTE] },
+  normalized_quotes: { available: true, rows: [MARKET_OBSERVATION] },
+});
+
+test("the hub board is held to the rows it priced, one card per declared hub", () => {
+  const result = compareMarket(MARKET_BODY, marketBoard(MARKET_CARDS));
+
+  assert.deepEqual(result.failures, []);
+  assert.match(result.observations.join(" | "), /the board priced 2 of its 6 declared hub\(s\)/);
+  assert.match(result.observations.join(" | "), /the surface states the projection's as-of/);
+});
+
+test("a card that shows another number than the row it names fails, naming both", () => {
+  const wrongPrice = [
+    { ...MARKET_CARDS[0], priceText: "44.100 / 44.300" },
+    MARKET_CARDS[1],
+  ];
+  const result = compareMarket(MARKET_BODY, marketBoard(wrongPrice));
+
+  assert.equal(result.failures.length, 1);
+  assert.match(result.failures[0], /hub card TTF shows 44\.1, 44\.3/);
+  assert.match(result.failures[0], new RegExp(`row '${MARKET_QUOTE.quote_id}' carries 42\\.1, 42\\.3`));
+});
+
+test("a card that prices another tenor, hub or row than it declares fails", () => {
+  // Another tenor than the board displays: the card would be a price for a chart the operator is
+  // not looking at.
+  const otherTenor = compareMarket(
+    MARKET_BODY,
+    marketBoard([{ ...MARKET_CARDS[0], tenor: "weekend" }, MARKET_CARDS[1]]),
+  );
+  assert.match(
+    otherTenor.failures.join(" | "),
+    /hub card TTF declares the tenor 'weekend' while the board prices 'day-ahead'/,
+  );
+
+  // A row that belongs to another hub: the id is real, the pair it is shown under is not.
+  const otherHub = compareMarket(
+    MARKET_BODY,
+    marketBoard([{ ...MARKET_CARDS[0], hub: "NBP" }, MARKET_CARDS[1]]),
+  );
+  assert.match(
+    otherHub.failures.join(" | "),
+    new RegExp(`hub card NBP prices NBP day-ahead from row '${MARKET_QUOTE.quote_id}'`),
+  );
+  assert.match(otherHub.failures.join(" | "), /places on TTF day-ahead/);
+
+  // A row this read did not return: a stale, other-context or foreign price.
+  const foreignRow = compareMarket(
+    MARKET_BODY,
+    marketBoard([
+      { ...MARKET_CARDS[0], recordId: "quote-from-another-read" },
+      MARKET_CARDS[1],
+    ]),
+  );
+  assert.match(foreignRow.failures.join(" | "), /this read did not return/);
+  assert.match(foreignRow.failures.join(" | "), /quote-from-another-read/);
+});
+
+test("a served pair the board does not price is a missing row, and an unpriced pair is honest", () => {
+  // The read served TTF day-ahead and PSV day-ahead; the board prices only TTF.
+  const missing = compareMarket(MARKET_BODY, marketBoard([MARKET_CARDS[0]]));
+  assert.equal(missing.failures.length, 1);
+  assert.match(
+    missing.failures[0],
+    /the read served 1 row\(s\) for PSV day-ahead \(200\) and the price board renders no card/,
+  );
+
+  // The board renders the card but prices nothing on it, while the read served that pair a row.
+  const unpriced = compareMarket(
+    MARKET_BODY,
+    marketBoard([MARKET_CARDS[0], { ...MARKET_CARDS[1], recordId: "", slice: "" }]),
+  );
+  assert.equal(unpriced.failures.length, 1);
+  assert.match(unpriced.failures[0], /hub card PSV: the read served 1 row\(s\) for PSV day-ahead/);
+  assert.match(unpriced.failures[0], /the card prices none of them/);
+
+  // A hub the read did not serve has nothing to price: "not served" is not a measured zero and the
+  // card that states it is not a failure.
+  const unserved = compareMarket(
+    MARKET_BODY,
+    marketBoard([
+      MARKET_CARDS[0],
+      MARKET_CARDS[1],
+      { ...marketCard({ hub: "NBP", priceText: "n/a", metaText: "Day ahead · Quote age n/a" }) },
+    ]),
+  );
+  assert.deepEqual(unserved.failures, []);
+  assert.match(unserved.observations.join(" | "), /the read served no row for NBP day-ahead/);
+});
+
+test("an unread projection is not a measured zero", () => {
+  const unread = compareMarket(MARKET_BODY, marketBoard(MARKET_CARDS), { status: 503 });
+  assert.equal(unread.failures.length, 1);
+  assert.match(unread.failures[0], /answered 503; the quoted-value comparison could not be measured/);
+
+  // Neither price slice served: an unmeasured market, reported as such - not as a board of zeros.
+  const unserved = compareMarket(
+    marketProjection({
+      quotes: { available: false, rows: [] },
+      normalized_quotes: { available: false, rows: [] },
+    }),
+    marketBoard([]),
+  );
+  assert.deepEqual(unserved.failures, []);
+  assert.match(unserved.observations.join(" | "), /neither the quote nor the normalized price slice/);
+});
+
+test("the board is not held to rows its own price rule excludes", () => {
+  // A non-gas row on a declared hub and the displayed tenor - a pence-per-therm NBP observation,
+  // for instance: the terminal prices gas prices only (`is_gas_price`, the backend's own flag), so
+  // the board owes that pair no card, and a card that prices it anyway fails.
+  const therm = {
+    ...MARKET_OBSERVATION,
+    observation_id: "sim-trayport-nbp-therm-20260927T040000",
+    hub: "NBP",
+    is_gas_price: false,
+    price: 48.1,
+    currency: "GBp",
+    unit: "GBp/therm",
+  };
+  const body = marketProjection({
+    quotes: { available: true, rows: [] },
+    normalized_quotes: { available: true, rows: [therm] },
+  });
+
+  const cardless = compareMarket(
+    body,
+    marketBoard([marketCard({ hub: "NBP", priceText: "n/a" })]),
+  );
+  assert.deepEqual(cardless.failures, []);
+  assert.match(
+    cardless.observations.join(" | "),
+    /excluded by the board's own price rule \(is_gas_price\)/,
+  );
+
+  const priced = compareMarket(
+    body,
+    marketBoard([
+      marketCard({
+        hub: "NBP",
+        recordId: therm.observation_id,
+        slice: "normalized_quotes",
+        priceText: "48.10 GBp/therm",
+        metaText: "Day ahead · Quote age n/a",
+        sourceText: therm.source_system,
+      }),
+    ]),
+  );
+  assert.equal(priced.failures.length, 1);
+  assert.match(priced.failures[0], /which the board's own gas-price rule excludes/);
+});
+
+test("a card's source, unit and the surface's as-of are held to the read", () => {
+  const wrongSource = compareMarket(
+    MARKET_BODY,
+    marketBoard([{ ...MARKET_CARDS[0], sourceText: "ICIS_Sim" }, MARKET_CARDS[1]]),
+  );
+  assert.equal(wrongSource.failures.length, 1);
+  assert.match(wrongSource.failures[0], /attributes the price to 'ICIS_Sim'/);
+  assert.match(wrongSource.failures[0], /carries 'EEX_Sim'/);
+
+  const withoutUnit = compareMarket(
+    MARKET_BODY,
+    marketBoard([
+      {
+        ...MARKET_CARDS[0],
+        metaText: "Bid/ask · Quote age 3s",
+      },
+      MARKET_CARDS[1],
+    ]),
+  );
+  assert.equal(withoutUnit.failures.length, 1);
+  assert.match(withoutUnit.failures[0], /without displaying its unit 'EUR\/MWh'/);
+
+  const staleAsOf = compareMarket(
+    MARKET_BODY,
+    marketBoard(MARKET_CARDS, { asOfText: "Market context · As of 2026-09-26 09:00:00 UTC" }),
+  );
+  assert.equal(staleAsOf.failures.length, 1);
+  assert.match(staleAsOf.failures[0], /the surface states as-of 'Market context · As of 2026-09-26/);
+  assert.match(staleAsOf.failures[0], new RegExp(MARKET_AS_OF_LABEL));
+
+  const noAsOf = compareMarket(
+    MARKET_BODY,
+    marketBoard(MARKET_CARDS, { asOf: "", asOfText: "" }),
+  );
+  assert.equal(noAsOf.failures.length, 1);
+  assert.match(noAsOf.failures[0], /the surface states no as-of instant/);
+
+  const earlierReading = compareMarket(
+    MARKET_BODY,
+    marketBoard(MARKET_CARDS, {
+      asOf: "2026-09-26T09:00:00Z",
+      asOfText: "Market context · As of 2026-09-26 09:00:00 UTC",
+    }),
+  );
+  assert.deepEqual(earlierReading.failures, [], "polling reads need not have identical as-of instants");
+});
+
+test("a hidden card is not evidence, and its pair is then unpriced", () => {
+  const evidence = collectQuotedBoardWithStub({
+    cards: [
+      stubMarketCard({
+        recordId: MARKET_QUOTE.quote_id,
+        slice: "quotes",
+        hub: "TTF",
+        priceText: "42.100 / 42.300",
+        metaText: "Bid/ask · EUR/MWh · Quote age 3s",
+        sourceText: "EEX_Sim",
+      }),
+      stubMarketCard({
+        recordId: MARKET_OBSERVATION.observation_id,
+        slice: "normalized_quotes",
+        hub: "PSV",
+        hidden: true,
+      }),
+    ],
+  });
+  assert.equal(evidence.cells.length, 1);
+  assert.equal(evidence.boardTenor, "day-ahead");
+  assert.equal(evidence.activeTenorTab, "day-ahead");
+  assert.equal(evidence.asOf, MARKET_AS_OF);
+
+  const result = compareMarket(MARKET_BODY, evidence);
+  assert.equal(result.failures.length, 1);
+  assert.match(result.failures[0], /the read served 1 row\(s\) for PSV day-ahead/);
+});
+
+test("the quoted-value mirrors follow the client's own unit and instant rules", () => {
+  // The component composes the unit it prints and the instant it displays; these two mirrors are
+  // what lets the sweep hold the *visible* text to the row's currency/unit and the read's as-of.
+  // `tests/contract/test_browser_probe_paths.py` holds them to the component.
+  assert.equal(displayPriceUnit("EUR", "MWh"), "EUR/MWh");
+  assert.equal(displayPriceUnit("eur", "EUR/MWh"), "EUR/MWh");
+  assert.equal(displayPriceUnit("", ""), null);
+  assert.equal(utcInstantLabel(MARKET_AS_OF), MARKET_AS_OF_LABEL);
+  assert.equal(utcInstantLabel("not-a-time"), null);
+  // The price tolerance is the surface's own display precision (two decimals), not a roundness
+  // allowance: half of the last displayed digit.
+  assert.equal(QUOTED_PRICE_TOLERANCE, 0.005);
+});
+
 /** Minimal element/document stubs: `collectVisibleElements` runs in the page and in here. */
 interface StubElement {
   textContent: string;
@@ -707,6 +1074,87 @@ function collectWithStub(
         },
       ],
     });
+  } finally {
+    (globalThis as { document?: unknown }).document = previous;
+  }
+}
+
+/** One hub card stub for `collectQuotedBoard`: declarations, copy and visibility. */
+function stubMarketCard(options: {
+  recordId?: string;
+  slice?: string;
+  tenor?: string;
+  hub?: string;
+  priceText?: string;
+  metaText?: string;
+  sourceText?: string;
+  hidden?: boolean;
+}) {
+  const style = { display: options.hidden ? "none" : "block", visibility: "visible" };
+  const parts: Record<string, { textContent: string }> = {
+    "[data-price-hub-label]": { textContent: options.hub ?? "" },
+    "[data-price-value]": { textContent: options.priceText ?? "" },
+    "[data-price-meta]": { textContent: options.metaText ?? "" },
+    "[data-price-source]": { textContent: options.sourceText ?? "" },
+  };
+  return {
+    textContent: "",
+    ownerDocument: { defaultView: { getComputedStyle: () => style } },
+    getBoundingClientRect: () => ({
+      width: options.hidden ? 0 : 240,
+      height: options.hidden ? 0 : 96,
+    }),
+    getAttribute: (name: string) => {
+      if (name === "data-record-id") return options.recordId ?? null;
+      if (name === "data-record-slice") return options.slice ?? null;
+      if (name === "data-price-tenor") return options.tenor ?? "day-ahead";
+      return null;
+    },
+    querySelector: (selector: string) => parts[selector] ?? null,
+  };
+}
+
+/**
+ * Run `collectQuotedBoard` against a stub displayed page, the way `collectWithStub` exercises the
+ * group collector: the market board's evidence is collected in the page too, so its own hidden-card
+ * and declaration rules are tested here rather than only in a browser.
+ */
+function collectQuotedBoardWithStub(spec: {
+  cards: Array<ReturnType<typeof stubMarketCard>>;
+  boardTenor?: string;
+  activeTenorTab?: string;
+  asOf?: string;
+  asOfText?: string;
+}) {
+  const board = {
+    textContent: "",
+    getAttribute: (name: string) => (name === "data-board-tenor" ? spec.boardTenor ?? "day-ahead" : null),
+  };
+  const tab = {
+    textContent: "",
+    getAttribute: (name: string) => (name === "data-tenor" ? spec.activeTenorTab ?? "day-ahead" : null),
+  };
+  const asOf = {
+    textContent: spec.asOfText ?? `As of ${MARKET_AS_OF_LABEL}`,
+    getAttribute: (name: string) => (name === "data-projection-as-of" ? spec.asOf ?? MARKET_AS_OF : null),
+  };
+  const page = {
+    ...stubRow(null, { width: 1440, height: 900 }),
+    querySelector: (selector: string) => {
+      if (selector === '[data-market-board="hub-prices"]') return board;
+      if (selector === '.market-tenor-tab[aria-pressed="true"]') return tab;
+      if (selector === "[data-projection-as-of]") return asOf;
+      return null;
+    },
+    querySelectorAll: (selector: string) =>
+      selector === '[data-record="market-hub-price"]' ? spec.cards : [],
+  };
+  const previous = (globalThis as { document?: unknown }).document;
+  (globalThis as { document?: unknown }).document = {
+    querySelectorAll: (selector: string) => (selector === ".workspace-page" ? [page] : []),
+  };
+  try {
+    return collectQuotedBoard();
   } finally {
     (globalThis as { document?: unknown }).document = previous;
   }

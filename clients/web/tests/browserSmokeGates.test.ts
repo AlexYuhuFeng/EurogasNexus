@@ -28,6 +28,11 @@ function declaredKeys(constantName: string): string[] {
   return [...body.matchAll(/^\s{2}([a-z_]+):/gm)].map((match) => match[1]);
 }
 
+/** The hub codes a declaration names, sorted: declarations may order hubs for display. */
+function sortedHubCodes(source: string): string[] {
+  return [...source.matchAll(/"([A-Z]+)"/g)].map((match) => match[1]).sort();
+}
+
 test("no workspace is exempt from rendering its own page", () => {
   // The repaired map page was the one declared here; the declaration is gone with the repair.
   assert.equal(source.includes("KNOWN_NON_RENDERING_WORKSPACES"), false);
@@ -129,10 +134,18 @@ test("the unrelated declared defects are still declared, for declared workspaces
 
   // The measured-and-open gaps this repair does not touch, recorded in
   // docs/release/FUNCTIONAL_ACCEPTANCE_REPORT.md.
-  for (const key of ["market", "agents", "access", "capacity", "research"]) {
+  for (const key of ["agents", "access", "capacity", "research"]) {
     assert.ok(declaredKeys("KNOWN_FUNCTIONAL_GAPS").includes(key), `functional gap kept: ${key}`);
   }
   assert.deepEqual(declaredKeys("KNOWN_SURFACE_DEFECTS").sort(), ["agents"]);
+
+  // The market board's gap is retired for the same reason as the glossary's and the sources': it
+  // was a statement about page copy ("every hub card renders n/a") produced while the probe read
+  // `/api/market/observations`, an endpoint the market lane never calls. The board's own cards are
+  // now compared with the market-context projection rows they priced (`quotedBoard`), so a card
+  // that shows no price for a pair the read served fails by name.
+  assert.equal(declaredKeys("KNOWN_FUNCTIONAL_GAPS").includes("market"), false);
+  assert.equal(declaredKeys("KNOWN_SURFACE_DEFECTS").includes("market"), false);
 
   // The glossary exemption (measured 2026-09-19) is retired, not moved: it was a statement about
   // page copy, and the surface's term index and wiki article are now compared with the surface's
@@ -335,6 +348,117 @@ test("the source catalog is compared by source id, in the task that renders the 
   assert.match(component, /data-record="source-detail"/);
   assert.match(component, /data-record-id=\{selectedSource\?\.source_id\}/);
   assert.match(component, /data-source-category=\{category\}/);
+});
+
+test("the market hub board is compared with the projection rows it priced, for the displayed context", () => {
+  // The market surface carried a declared functional gap from the visual review ("market
+  // observations return rows while every hub card renders n/a") while the probe read
+  // `/api/market/observations` - an endpoint the market lane never calls - and the verdict came
+  // from the page's own `n/a` copy. The numeric task (`curves`, the default landing view) prices
+  // its hub board from `GET /api/projections/market-context`, the read the lane performs, so the
+  // probe now reads that projection for the Active Context the shell displays and each card is
+  // compared with the row it priced (`evaluateQuotedBoard`, whose negative cases run in
+  // `readToRender.test.ts`).
+  const signals = block("const SURFACE_SIGNALS = {", "\n};");
+  const market = block("market: { heading: /market/i", "scenario: {");
+  assert.match(market, /apiPath: "\/api\/projections\/market-context"/);
+  assert.match(market, /displayedContext: "\.topbar-context-disclosure"/);
+  assert.match(market, /hubScope: \["TTF", "NBP", "THE", "PEG", "ZTP", "PSV"\]/);
+  // The lane's own read replaces the probe that read a different endpoint.
+  assert.doesNotMatch(signals, /apiPath: "\/api\/market\/observations/);
+  assert.doesNotMatch(market, /readToRender/);
+
+  // The declared hub scope is the product's own declared scope, not a second list invented for the
+  // sweep: both are the model's `MAJOR_MARKET_HUBS`.
+  const model = readFileSync(
+    new URL("../src/app/model/marketCockpitModel.ts", import.meta.url),
+    "utf8",
+  );
+  const declaredHubs = sortedHubCodes(/hubScope: \[[^\]]*\]/.exec(market)?.[0] ?? "");
+  assert.deepEqual(declaredHubs, ["NBP", "PEG", "PSV", "THE", "TTF", "ZTP"]);
+  assert.deepEqual(sortedHubCodes(/MAJOR_MARKET_HUBS = \[[^\]]*\]/.exec(model)?.[0] ?? ""), declaredHubs);
+
+  // The probe is issued for the context the surfaces are showing, composed the way the client lane
+  // composes it - and a context that cannot be read is a failure, never a silent unfiltered read.
+  const probe = block("const state = await page.evaluate(async (probe) => {", "if (!state.displayed) {");
+  for (const attribute of ["data-context-gas-day", "data-context-product", "data-context-hub"]) {
+    assert.ok(probe.includes(attribute), `the probe reads the displayed ${attribute}`);
+  }
+  assert.match(probe, /new URLSearchParams\(\{ gas_day: displayedContext\.gasDay \}\)/);
+  assert.match(probe, /if \(displayedContext\.product && displayedContext\.product !== "all"\) \{/);
+  assert.match(probe, /if \(displayedContext\.hub\) params\.set\("hub", displayedContext\.hub\);/);
+  assert.match(probe, /contextProblem =/);
+  assert.match(
+    source,
+    /if \(state\.contextProblem\) \{\s*recordFailure\(failures, scope, state\.contextProblem\);/,
+  );
+  // The omission rule the probe mirrors is the client's own projection-context mapping.
+  const contextModel = readFileSync(
+    new URL("../src/app/model/projectionContext.ts", import.meta.url),
+    "utf8",
+  );
+  assert.match(
+    contextModel,
+    /context\.deliveryProduct === "all" \? \{\} : \{ product: context\.deliveryProduct \}/,
+  );
+
+  // The verdict is the pure rule's, and it is recorded as failures and observations - never read
+  // out of the page's copy.
+  const branch = block("} else if (signal.quotedBoard) {", "} else if (state.apiRows !== null");
+  // The market lane reads its projection outside the workspace batch, so the batch's settled state
+  // does not cover it: the sweep waits, bounded, for the surface to hold its own reading, and a
+  // surface that never states one is a failure rather than a board judged mid-read.
+  assert.match(branch, /const boardSettled = await page/);
+  assert.match(branch, /displayed\.querySelector\("\[data-projection-as-of\]"\)/);
+  assert.match(branch, /the market projection's own reading never reached the surface/);
+  assert.match(branch, /await page\.evaluate\(collectQuotedBoard\)/);
+  assert.match(branch, /marketBoardRows\(state\.apiBody, \{/);
+  assert.match(branch, /hubScope: signal\.quotedBoard\.hubScope/);
+  assert.match(branch, /evaluateQuotedBoard\(\{/);
+  assert.match(branch, /asOf: state\.apiBody\?\.data\?\.as_of_utc \?\? null/);
+  assert.match(
+    branch,
+    /for \(const detail of compared\?\.failures \?\? \[\]\) \{\s*recordFailure\(failures, scope, detail\);/,
+  );
+  assert.ok(
+    source.indexOf("if (signal.readToRender) {") < source.indexOf("} else if (signal.quotedBoard) {"),
+    "the market branch is not the read-to-render branch's fallback",
+  );
+  assert.ok(
+    source.indexOf("} else if (signal.quotedBoard) {") < source.indexOf("const rendersNothing"),
+    "the market surface no longer reaches the whole-page heuristic",
+  );
+
+  // The markers the board and the check select are the components' own.
+  const terminal = readFileSync(new URL("../src/components/MarketTerminal.tsx", import.meta.url), "utf8");
+  for (const marker of [
+    'data-market-board="hub-prices"',
+    "data-board-tenor={activeTenor}",
+    "data-tenor={tenor}",
+    'data-record="market-hub-price"',
+    "data-record-slice={pricedSlice ?? undefined}",
+    "data-record-id={(quote?.quote_id ?? row.latest?.observation_id) ?? undefined}",
+    "data-price-tenor={row.tenor}",
+    "data-price-hub-label",
+    "data-price-value",
+    "data-price-meta",
+    "data-price-source",
+  ]) {
+    assert.ok(terminal.includes(marker), `the market board declares ${marker}`);
+  }
+  const topbar = readFileSync(new URL("../src/components/WorkspaceTopBar.tsx", import.meta.url), "utf8");
+  for (const attribute of [
+    "data-context-gas-day={gasDay}",
+    "data-context-product={deliveryProduct}",
+    'data-context-hub={hubId ?? ""}',
+  ]) {
+    assert.ok(topbar.includes(attribute), `the shell displays ${attribute}`);
+  }
+  const strip = readFileSync(
+    new URL("../src/components/ProjectionContextStrip.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(strip, /data-projection-as-of=\{asOf \?\? undefined\}/);
 });
 
 test("the refused-registry check refuses one read, and holds the surface to stating that failure", () => {

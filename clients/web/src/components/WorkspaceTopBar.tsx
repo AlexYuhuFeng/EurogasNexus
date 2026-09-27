@@ -174,8 +174,15 @@ export function WorkspaceTopBar({
           placeholder={t("map.search")}
         />
       )}
+      {/* The Active Context this shell is displaying, in machine-readable form. It is the context
+          every projection read is issued for (`app/model/projectionContext.ts`), so the browser
+          sweep can read the context the surfaces are showing and compare a payload read for that
+          context instead of a generic, unfiltered one. The labels beside it stay the display. */}
       <details
         className="topbar-context-disclosure"
+        data-context-gas-day={gasDay}
+        data-context-product={deliveryProduct}
+        data-context-hub={hubId ?? ""}
         open={!narrowHeader || contextDisclosureOpen}
         onToggle={(event) => {
           if (narrowHeader) setContextDisclosureOpen(event.currentTarget.open);

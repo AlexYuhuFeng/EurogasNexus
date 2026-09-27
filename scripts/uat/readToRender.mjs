@@ -33,6 +33,11 @@
  * The decision logic is pure so every negative case can be exercised without a browser
  * (`clients/web/tests/readToRender.test.ts`); `collectVisibleElements` is serialised into the
  * page by `page.evaluate` and exercised there against a stub document.
+ *
+ * The market hub board's quoted values are a second shape of the same rule: its cards name the row
+ * each priced (id and slice) and are compared with that row's own numbers, source and unit, for the
+ * tenor and hubs the board declares (`collectQuotedBoard`, `marketBoardRows`,
+ * `evaluateQuotedBoard`, below).
  */
 
 /** The attribute a rendered row carries its own record identifier in. */
@@ -406,4 +411,502 @@ export function evaluateRegistryRecovery(surface, wanted) {
     );
   }
   return failures;
+}
+
+/**
+ * Quoted-value evidence for the market hub board.
+ *
+ * The market workspace's numeric task (`curves`) prices one hub board from the authenticated
+ * `GET /api/projections/market-context` read the market lane already performs: one card per major
+ * hub, for the tenor the board is displaying, fed by the projection's `quotes` slice (L1 bid/ask)
+ * or - when no quote is served for that hub - its `normalized_quotes` slice. The sweep used to
+ * probe `/api/market/observations`, an endpoint this lane does not read, and judge the surface by
+ * the page's copy - so the declared gap ("market observations return rows while every hub card
+ * renders n/a", recorded by a visual review) could neither be confirmed nor retired by a row.
+ *
+ * What replaces it is scoped at both ends, because every market row set is filtered on purpose:
+ *
+ * - the probe reads the projection *for the displayed Active Context* (gas day, product, hub as the
+ *   shell shows them), so a focused board is never compared with another context's payload;
+ * - a card declares the tenor it prices (`data-price-tenor`) and the row it priced (its own id plus
+ *   the slice that id belongs to) - never a rendered label, and never a value read back out of the
+ *   payload it is supposed to prove;
+ * - the comparison is held to the board's declared hub scope (`hubScope`, the model's
+ *   `MAJOR_MARKET_HUBS`) and to the *displayed* tenor, which the board and its own active tenor tab
+ *   must agree on; rows of other hubs or other tenors are reported as observations instead of
+ *   failing a board that legitimately prices one tenor at a time;
+ * - a hub whose pair the read served must be priced by a visible card: a card that shows no price
+ *   for a served pair is the "missing rows" case, and a card whose own element is hidden is not
+ *   evidence at all;
+ * - a card that shows no row is only honest when the read served that pair no row: "not served" is
+ *   not a measured zero, and `status`, slice availability and per-slice problems are all reported
+ *   rather than collapsed into "no prices";
+ * - the board is held only to rows its own price rule admits: the terminal prices gas prices
+ *   (`is_gas_price`, the backend's own flag - a quotes row carries none and is admitted), so a
+ *   non-gas row on a declared hub is an observation rather than a card the board owes;
+ * - the visible price is compared with the row's own numbers (bid/ask, or the normalized price),
+ *   the visible source with the row's source system, the visible unit with the row's currency and
+ *   unit, and the surface's declared as-of with the instant it displays.
+ *
+ * Pure except for `collectQuotedBoard`, which the sweep serialises into the page.
+ */
+
+/**
+ * The price slices of the market-context projection, and the fields that make a row comparable.
+ *
+ * `valueFields` is exactly what the board prints for that slice: a quote card shows the row's
+ * bid/ask (with `n/a` for a side the payload does not carry), and a normalized card shows the row's
+ * price. The unit is composed by the one rule the surface prints it with (`displayPriceUnit`).
+ */
+const MARKET_PRICE_SLICE_SPECS = [
+  {
+    key: "quotes",
+    label: "quotes",
+    rowsPath: "data.slices.quotes",
+    recordIdField: "quote_id",
+    hubField: "hub",
+    tenorField: "product",
+    valueFields: ["bid_price", "ask_price"],
+    sourceField: "source_system",
+    fallbackSourceField: "venue",
+  },
+  {
+    key: "normalized_quotes",
+    label: "normalized quotes",
+    rowsPath: "data.slices.normalized_quotes",
+    recordIdField: "observation_id",
+    hubField: "hub",
+    tenorField: "tenor",
+    valueFields: ["price"],
+    sourceField: "source_system",
+    fallbackSourceField: "market_venue",
+  },
+];
+
+/** The tolerance a displayed number may sit from the payload's, mirroring the board's own digits. */
+export const QUOTED_PRICE_TOLERANCE = 0.005;
+
+function textOf(value) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function finiteOrNull(value) {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+/**
+ * The unit string the market surface prints a price with, for one payload row.
+ *
+ * The payload owns the currency and the unit; this mirror of the component's own rule (`a unit that
+ * already names its currency is printed as it is, a bare quantity is qualified with the currency`)
+ * exists so the sweep can require the *visible* text to carry the unit of the row the card priced.
+ * A row whose currency and unit are both blank has no displayable unit and answers `null`.
+ */
+export function displayPriceUnit(currency, unit) {
+  const currencyCode = typeof currency === "string" ? currency : "";
+  const unitName = typeof unit === "string" ? unit : "";
+  const composed = unitName.toUpperCase().includes(currencyCode.toUpperCase())
+    ? unitName
+    : `${currencyCode}/${unitName}`;
+  return composed.trim() === "" || composed === "/" ? null : composed;
+}
+
+/**
+ * The label the client's `formatUtcTimestamp` prints for an instant (`YYYY-MM-DD HH:MM:SS UTC`).
+ *
+ * The sweep needs the *displayed* as-of to be held to the read's own instant, and the only way to
+ * do that without parsing localized copy is to mirror the one formatter the client renders it with.
+ * `tests/contract/test_browser_probe_paths.py` holds the mirror to that formatter.
+ */
+export function utcInstantLabel(value) {
+  const parsed = new Date(String(value));
+  if (!Number.isFinite(parsed.getTime())) return null;
+  return `${parsed.toISOString().slice(0, 19).replace("T", " ")} UTC`;
+}
+
+/**
+ * The comparable price rows the market projection served, one entry per slice.
+ *
+ * A slice the backend did not serve is reported as unmeasured (`available: false`) rather than as
+ * an empty row set; a slice that carries rows without declaring availability, or a payload that is
+ * not this projection at all, is a `problem` the caller records as a failure. Rows that carry no
+ * id, no hub or no tenor stay in the returned list marked `comparable: false`, so the verdict can
+ * say how many served rows it could not place instead of dropping them silently.
+ */
+export function marketBoardRows(body, spec = {}) {
+  const rowSelectors = spec.rowSelectors ?? ['[data-record="market-hub-price"]'];
+  const slices = [];
+  const rows = [];
+  const problems = [];
+  for (const sliceSpec of MARKET_PRICE_SLICE_SPECS) {
+    const group = readGroupRows(body, {
+      label: sliceSpec.label,
+      rowsPath: sliceSpec.rowsPath,
+      recordIdField: sliceSpec.recordIdField,
+      rowSelectors,
+    });
+    slices.push({
+      key: sliceSpec.key,
+      label: sliceSpec.label,
+      readable: group.readable,
+      available: group.available,
+      rowCount: group.rows.length,
+      problems: group.problems,
+    });
+    for (const problem of group.problems) problems.push(`${sliceSpec.label}: ${problem}`);
+    if (!group.available) continue;
+    for (const row of group.rows) {
+      const id = rowRecordId(row, sliceSpec.recordIdField);
+      const hub = textOf(row?.[sliceSpec.hubField]).toUpperCase();
+      const tenor = textOf(row?.[sliceSpec.tenorField]).toLowerCase();
+      const source = textOf(row?.[sliceSpec.sourceField])
+        || textOf(row?.[sliceSpec.fallbackSourceField]);
+      rows.push({
+        slice: sliceSpec.key,
+        id,
+        hub,
+        tenor,
+        values: sliceSpec.valueFields.map((field) => finiteOrNull(row?.[field])),
+        currency: textOf(row?.currency),
+        unit: textOf(row?.unit),
+        source: source === "" ? null : source,
+        // The board's own price rule: the terminal prices gas-price rows only (the backend's
+        // `is_gas_price`); a quotes row carries no such field and is admitted.
+        boardEligible: row?.is_gas_price !== false,
+        comparable: Boolean(id) && hub !== "" && tenor !== "",
+      });
+    }
+  }
+  return { slices, rows, problems };
+}
+
+/**
+ * Collect the hub board's own visible evidence from the displayed page.
+ *
+ * Self-contained like `collectVisibleElements` (the sweep serialises this function into the page),
+ * so every selector and attribute name is a literal here. Only the displayed `.workspace-page` is
+ * evidence; a card that is hidden (`display: none`, `visibility: hidden`, zero size) is dropped,
+ * and each card's text is read from the elements the operator sees - the hub label, the price line,
+ * the meta line and the source pill - never from an attribute the surface could set without
+ * printing it. The declarations (`data-record-id`, `data-record-slice`, `data-price-tenor`) and the
+ * board's own displayed tenor come back beside the page's copy so the pure verdict can hold the two
+ * to each other.
+ */
+export function collectQuotedBoard() {
+  const isVisible = (element) => {
+    if (!element || typeof element.getBoundingClientRect !== "function") return false;
+    const view = element.ownerDocument && element.ownerDocument.defaultView;
+    const style = view && view.getComputedStyle ? view.getComputedStyle(element) : null;
+    if (style && (style.display === "none" || style.visibility === "hidden")) return false;
+    const rect = element.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
+  };
+  const text = (element) =>
+    (element ? String(element.textContent || "") : "").trim().replace(/\s+/g, " ");
+  const attribute = (element, name) => {
+    if (!element) return "";
+    const value = element.getAttribute(name);
+    return value === null || value === undefined ? "" : String(value).trim();
+  };
+  const pages = [...document.querySelectorAll(".workspace-page")];
+  const displayed = pages.find(isVisible);
+  if (!displayed) return null;
+
+  const cells = [];
+  for (const element of displayed.querySelectorAll('[data-record="market-hub-price"]')) {
+    if (!isVisible(element)) continue;
+    cells.push({
+      recordId: attribute(element, "data-record-id"),
+      slice: attribute(element, "data-record-slice"),
+      tenor: attribute(element, "data-price-tenor").toLowerCase(),
+      hub: text(element.querySelector("[data-price-hub-label]")).toUpperCase(),
+      priceText: text(element.querySelector("[data-price-value]")),
+      metaText: text(element.querySelector("[data-price-meta]")),
+      sourceText: text(element.querySelector("[data-price-source]")),
+    });
+  }
+  const asOfElement = displayed.querySelector("[data-projection-as-of]");
+  return {
+    boardTenor: attribute(
+      displayed.querySelector('[data-market-board="hub-prices"]'),
+      "data-board-tenor",
+    ).toLowerCase(),
+    activeTenorTab: attribute(
+      displayed.querySelector('.market-tenor-tab[aria-pressed="true"]'),
+      "data-tenor",
+    ).toLowerCase(),
+    asOf: attribute(asOfElement, "data-projection-as-of"),
+    asOfText: text(asOfElement),
+    cells,
+  };
+}
+
+/** The numbers a price line prints, in order; a unit such as `EUR/MWh` carries none. */
+function priceNumbers(text) {
+  return (String(text ?? "").match(/-?\d+(?:\.\d+)?/g) ?? []).map(Number);
+}
+
+/**
+ * The verdict for the hub board: does it price the payload's rows for the scope it displays?
+ *
+ * `board` is `collectQuotedBoard`'s evidence, `rows`/`slices`/`problems` are `marketBoardRows`'s,
+ * `asOf` is the projection payload's own `data.as_of_utc`, and `hubScope` is the board's declared
+ * hub set. Every failure names the hub, the row or the value it is about; anything the comparison
+ * could not measure (a slice the backend did not serve, rows outside the displayed scope, the
+ * distance between the surface's as-of and this read's) is an observation, never a pass.
+ */
+export function evaluateQuotedBoard({
+  status,
+  hubScope = [],
+  board = null,
+  slices = [],
+  rows = [],
+  problems = [],
+  asOf = null,
+  source = null,
+}) {
+  const failures = [];
+  const observations = [];
+  if (status !== 200) {
+    failures.push(
+      `the market projection answered ${status === null || status === undefined ? "nothing" : status}`
+      + "; the quoted-value comparison could not be measured",
+    );
+    return { failures, observations };
+  }
+  for (const problem of problems) failures.push(`market projection: ${problem}`);
+  if (!board) {
+    failures.push("the hub board's rendered evidence was not collected: the comparison measured nothing");
+    return { failures, observations };
+  }
+  const available = slices.filter((slice) => slice.available);
+  if (available.length === 0) {
+    observations.push(
+      "the backend served neither the quote nor the normalized price slice, so no quoted value"
+      + " could be compared (an unserved slice is not a measured zero)",
+    );
+    return { failures, observations };
+  }
+
+  const scope = hubScope.map((hub) => String(hub).trim().toUpperCase()).filter(Boolean);
+  const boardTenor = String(board.boardTenor ?? "").trim().toLowerCase();
+  const tabTenor = String(board.activeTenorTab ?? "").trim().toLowerCase();
+  if (boardTenor === "") {
+    failures.push(
+      "the price board does not declare the tenor it prices (data-board-tenor), so a filtered board"
+      + " could not be compared with the payload it was read from",
+    );
+  } else if (tabTenor !== boardTenor) {
+    failures.push(
+      `the price board prices '${boardTenor}' while its own active tenor tab declares`
+      + ` '${tabTenor || "(none)"}'`,
+    );
+  }
+
+  const comparable = rows.filter((row) => row.comparable);
+  const unplaceable = rows.length - comparable.length;
+  if (unplaceable > 0) {
+    observations.push(
+      `${unplaceable} served row(s) carry no record id, hub or tenor and could not be placed on the`
+      + " board",
+    );
+  }
+  const foreignHub = comparable.filter((row) => !scope.includes(row.hub));
+  if (foreignHub.length > 0) {
+    observations.push(
+      `${foreignHub.length} served row(s) name a hub the board does not declare`
+      + ` (${scope.join(", ")}) and were not compared`,
+    );
+  }
+  const otherTenor = comparable.filter(
+    (row) => scope.includes(row.hub) && row.tenor !== boardTenor,
+  );
+  if (otherTenor.length > 0) {
+    observations.push(
+      `${otherTenor.length} served row(s) for the declared hubs are another tenor than the`
+      + ` displayed '${boardTenor}' and were not compared`,
+    );
+  }
+  const inScope = comparable.filter(
+    (row) => scope.includes(row.hub) && row.tenor === boardTenor,
+  );
+  const excluded = inScope.filter((row) => row.boardEligible === false);
+  if (excluded.length > 0) {
+    observations.push(
+      `${excluded.length} served row(s) for the displayed pair(s) are excluded by the board's own`
+      + " price rule (is_gas_price) and were not demanded of it",
+    );
+  }
+
+  const rowsById = new Map();
+  const rowsByPair = new Map();
+  for (const row of inScope) {
+    rowsById.set(`${row.slice}|${row.id}`, row);
+    if (row.boardEligible === false) continue;
+    const pair = `${row.hub}|${row.tenor}`;
+    rowsByPair.set(pair, [...(rowsByPair.get(pair) ?? []), row]);
+  }
+
+  const cardsByHub = new Map();
+  for (const [index, cell] of (board.cells ?? []).entries()) {
+    const hub = String(cell.hub ?? "").trim().toUpperCase();
+    const where = `hub card ${hub || `#${index + 1}`}`;
+    const tenor = String(cell.tenor ?? "").trim().toLowerCase();
+    if (!scope.includes(hub)) {
+      failures.push(
+        `${where} prices a hub the board does not declare (${scope.join(", ") || "none"})`,
+      );
+      continue;
+    }
+    if (tenor !== boardTenor) {
+      failures.push(
+        `${where} declares the tenor '${tenor || "(none)"}' while the board prices '${boardTenor}'`,
+      );
+      continue;
+    }
+    if (cardsByHub.has(hub)) {
+      failures.push(`the price board renders more than one card for ${hub}`);
+      continue;
+    }
+    cardsByHub.set(hub, cell);
+    const served = rowsByPair.get(`${hub}|${tenor}`) ?? [];
+    if (cell.recordId === "") {
+      if (served.length > 0) {
+        failures.push(
+          `${where}: the read served ${served.length} row(s) for ${hub} ${tenor} (200) and the card`
+          + " prices none of them",
+        );
+      } else {
+        observations.push(
+          `${where}: the read served no row for ${hub} ${tenor}, so the card states the absence`
+          + " rather than a price",
+        );
+      }
+      continue;
+    }
+    if (!cell.slice) {
+      failures.push(`${where} names row '${cell.recordId}' without declaring which slice it came from`);
+      continue;
+    }
+    const row = rowsById.get(`${cell.slice}|${cell.recordId}`);
+    if (!row) {
+      failures.push(
+        `${where} prices ${hub} ${tenor} from row '${cell.recordId}' of slice '${cell.slice}', which`
+        + " this read did not return (stale, other-context or foreign row)",
+      );
+      continue;
+    }
+    if (row.hub !== hub || row.tenor !== tenor) {
+      failures.push(
+        `${where} prices ${hub} ${tenor} from row '${row.id}', which this read places on`
+        + ` ${row.hub} ${row.tenor}`,
+      );
+      continue;
+    }
+    if (row.boardEligible === false) {
+      failures.push(
+        `${where} prices row '${row.id}', which the board's own gas-price rule excludes`
+        + " (is_gas_price is false)",
+      );
+      continue;
+    }
+    const displayed = priceNumbers(cell.priceText);
+    const wanted = row.values.filter((value) => value !== null);
+    if (row.values.some((value) => value === null) && !/\bn\/a\b/i.test(cell.priceText)) {
+      failures.push(
+        `${where} shows '${cell.priceText || "(nothing)"}' while row '${row.id}' carries no value for`
+        + " one side of the price",
+      );
+      continue;
+    }
+    if (displayed.length !== wanted.length) {
+      failures.push(
+        `${where} shows ${displayed.length} number(s) (${cell.priceText || "(nothing)"}) while row`
+        + ` '${row.id}' carries ${wanted.length}: the two could not be compared`,
+      );
+      continue;
+    }
+    const wrong = wanted
+      .map((value, position) => ({ value, shown: displayed[position] }))
+      .filter((entry) => Math.abs(entry.shown - entry.value) > QUOTED_PRICE_TOLERANCE);
+    if (wrong.length > 0) {
+      failures.push(
+        `${where} shows ${wrong.map((entry) => entry.shown).join(", ")} while row '${row.id}' carries`
+        + ` ${wrong.map((entry) => entry.value).join(", ")}`,
+      );
+      continue;
+    }
+    const unit = displayPriceUnit(row.currency, row.unit);
+    if (unit === null) {
+      failures.push(
+        `${where} prices row '${row.id}', which carries no currency/unit to display the price in`,
+      );
+      continue;
+    }
+    if (!`${cell.priceText} ${cell.metaText}`.includes(unit)) {
+      failures.push(
+        `${where} prices row '${row.id}' without displaying its unit '${unit}'`
+        + ` ('${`${cell.priceText} ${cell.metaText}`.trim() || "(nothing)"}')`,
+      );
+      continue;
+    }
+    if (row.source === null) {
+      failures.push(`${where} prices row '${row.id}', which names no source system`);
+      continue;
+    }
+    if (cell.sourceText !== row.source) {
+      failures.push(
+        `${where} attributes the price to '${cell.sourceText || "(nothing)"}' while row '${row.id}'`
+        + ` carries '${row.source}'`,
+      );
+      continue;
+    }
+  }
+
+  const priced = [...cardsByHub.values()].filter((cell) => cell.recordId !== "").length;
+  observations.push(
+    `the board priced ${priced} of its ${scope.length} declared hub(s) from the read's rows`
+    + ` (displayed tenor '${boardTenor}', served: ${available
+      .map((slice) => slice.label ?? slice.key ?? "slice")
+      .join(", ")})`,
+  );
+
+  for (const hub of scope) {
+    if (!rowsByPair.has(`${hub}|${boardTenor}`)) continue;
+    if (cardsByHub.has(hub)) continue;
+    const served = rowsByPair.get(`${hub}|${boardTenor}`).length;
+    failures.push(
+      `the read served ${served} row(s) for ${hub} ${boardTenor} (200) and the price board renders no`
+      + " card for that hub",
+    );
+  }
+
+  if (asOf) {
+    const label = utcInstantLabel(board.asOf);
+    if (!board.asOf) {
+      failures.push(
+        "the surface states no as-of instant while the projection payload declares one",
+      );
+    } else if (label === null || utcInstantLabel(asOf) === null) {
+      failures.push(`the surface or read answered an unusable as-of instant`);
+    } else if (!String(board.asOfText ?? "").includes(label)) {
+      failures.push(
+        `the surface states as-of '${board.asOfText || "(nothing)"}' while the payload it declares`
+        + ` is '${board.asOf}' (${label})`,
+      );
+    } else {
+      observations.push(`the surface states the projection's as-of (${label})`);
+    }
+    // The lane polls, so the surface legitimately holds a payload read before this one; the distance
+    // between the two instants is reported rather than required to be zero.
+    const heldMs = Date.parse(String(board.asOf));
+    const readMs = Date.parse(String(asOf));
+    if (Number.isFinite(heldMs) && Number.isFinite(readMs)) {
+      observations.push(
+        `the surface's stated as-of is ${Math.round((readMs - heldMs) / 1000)}s before this read's`
+        + (source ? ` (read from ${source})` : ""),
+      );
+    }
+  }
+  return { failures, observations };
 }

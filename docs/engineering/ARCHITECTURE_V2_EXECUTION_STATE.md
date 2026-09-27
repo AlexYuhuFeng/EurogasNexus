@@ -5,6 +5,17 @@ Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical sli
 
 ## Current commercial acceptance checkpoint
 
+September 27 market evidence (baseline `6810b31`): DeepSeek replaced the obsolete
+whole-page market n/a exemption with scoped hub-board price evidence from the
+authenticated market-context projection, using the displayed gas day/product/hub.
+Cards now disclose bid/ask units. Independent review corrected the as-of comparison
+to use the surface's own held instant, not require two polling reads to coincide;
+a regression case covers different valid read timestamps. Independent verification:
+656 frontend tests, production build, and 16 probe/Markdown contract tests passed.
+Browser CI is pending for this commit. Scope is six declared hubs and the displayed
+tenor; delivery periods, newest-row selection, FX/curve tables and native desktop
+remain unverified. This is not whole-market or production acceptance.
+
 **NOT APPROVED FOR CUSTOMER PRODUCTION.** See [commercial acceptance audit](Architecture-V2/19_COMMERCIAL_ACCEPTANCE_AUDIT.md).
 This bounded audit fixes release-channel inheritance, frontend release checks,
 mandatory image-digest collection and customer deployment payload selection.

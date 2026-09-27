@@ -394,3 +394,123 @@ own. That state is now its own reading:
   behaviour changed, and no source-registry write is performed by the check.
 - The same disclosure question on the other surfaces that render a shared slice (capacity, access,
   research, agents and the remaining market cells) is untouched and stays open.
+
+## 2026-09-27 — the market hub board is measured against the projection it prices
+
+The market workspace carried the last copy-based declaration in the sweep: "market observations
+return rows while every hub card renders n/a - recorded by the visual review and not yet fixed". It
+was investigated against the store, the components, the projection contract and a read-only read of
+the local runtime database:
+
+- **The probe read an endpoint the lane does not call.** `SURFACE_SIGNALS.market` read
+  `/api/market/observations?limit=5`, while the market lane reads one coherent projection
+  (`GET /api/projections/market-context`, `api.marketContext`) and the numeric task (`curves` - the
+  market primary's default landing view) prices its hub board from that payload's `quotes` slice
+  (L1 bid/ask) or, for a hub with no quote, its `normalized_quotes` slice. The declaration itself
+  was a statement about an image, produced by the visual review; the whole-page heuristic could only
+  have matched the page's own `n/a` literals (`formatPrice`, `formatDelta`, `formatCadence` and the
+  empty FX row all render one), so it could say nothing about which hub was unpriced.
+- **The projection serves the pairs the board prices.** Read directly from the local runtime
+  database (read-only, no HTTP login and no writes): the `quotes` and `normalized_quotes` slices
+  each answered 500 rows covering all six major hubs for `day-ahead` - so on this deployment the
+  board had a row to price for every hub card, and the honest question is not "does it render
+  something" but "does the price it shows belong to the row it priced".
+- **The recorded symptom is not reproduced here, and it is not declared fixed.** The declaration
+  came from a review of a screenshot from a run whose payload and probe are not the ones this
+  environment can reproduce (the probe read a different endpoint, and this environment has no
+  Playwright installation), so whether every hub card still renders `n/a` on the CI fixture is
+  exactly what the new check decides rather than what this section assumes. What is established
+  here is that the *claim* can now be measured: a card that renders no price for a pair the read
+  served fails by name.
+
+### What replaces it
+
+The declaration is retired rather than moved. The market signal now declares `quotedBoard`, and the
+probe reads the projection the lane reads - for the Active Context the shell is displaying:
+
+- **The displayed request context is captured, not assumed.** The shell states the Active Context it
+  shows in machine-readable form (`data-context-gas-day/-product/-hub` on
+  `.topbar-context-disclosure`), and the sweep composes the projection query from it with the
+  client's own omission rule (product omitted when "all", hub omitted when unfocused -
+  `app/model/projectionContext.ts`). A focused board is therefore never compared with another
+  context's payload, and a context the sweep cannot read is a failure rather than a silent
+  unfiltered read.
+- **The board declares what it prices.** The strip declares the hub scope it prices (the model's
+  `MAJOR_MARKET_HUBS`) and the tenor it displays (`data-board-tenor`, held to its own active tenor
+  tab), and each card declares the row it priced - the record's own id and the slice it came from
+  (`quotes` or `normalized_quotes`) - its pair (`data-price-tenor`) and the elements the operator
+  reads (hub label, price, meta line, source pill).
+- **The verdict is per card and by value** (`evaluateQuotedBoard`): the visible price numbers must
+  be the row's own numbers (bid/ask for a quote, the normalized price otherwise; tolerance 0.005,
+  the surface's own two-decimal display), the visible source label must be the row's source system,
+  the visible text must carry the unit of the row's currency/unit, and the card's declared pair must
+  be the pair the read places that row on - at the tenor the board is showing.
+- **Missing, hidden and stale are separated from zero.** A pair the read served must be priced by a
+  visible card, so a card showing `n/a` for a served pair fails by name and a hidden card is not
+  evidence at all; a card that prices nothing is accepted only when the read served that pair no
+  row (stated as an observation, "not served" being different from a measured zero); a card naming a
+  row the read did not return fails (stale, other-context or foreign); an unread projection (any
+  status but 200) or a projection whose price slices were withheld is reported as *unmeasured*.
+  Rows of hubs or tenors outside the board's declared scope are counted as observations instead of
+  being demanded of a board that legitimately prices one tenor of six hubs at a time, and so are
+  served rows the board's own price rule excludes (the backend's `is_gas_price` flag, the same
+  predicate the terminal's filter reads) - a card that prices one anyway fails.
+- **The surface's own reading is waited for.** The market lane reads its projection outside the
+  workspace batch, so the batch's settled state does not cover it: the sweep waits, bounded, for
+  the surface to state a projection reading and fails if it never does, instead of judging a board
+  whose read is still in flight.
+
+### How it is measured
+
+- **Negative cases run without a browser** (`clients/web/tests/readToRender.test.ts`): wrong price
+  (named with both numbers), wrong tenor, wrong hub, a row the read did not return, a served pair
+  with no card, a card that prices nothing for a served pair, an unpriced pair the read did not
+  serve (honest), a hidden card, a wrong source, a missing unit, a stale or absent as-of, an unread
+  projection, a payload whose price slices were withheld, and a card pricing a row the board's own
+  gas-price rule excludes. The in-page collector is exercised against a stub page for the
+  hidden-card rule, like the group collector before it.
+- **The declaration is held to the product**: `clients/web/tests/browserSmokeGates.test.ts` asserts
+  the signal, the displayed-context capture, the branch wiring (the pure rule, failures and
+  observations, the bounded wait) and the components' markers;
+  `tests/contract/test_browser_probe_paths.py` holds the probe to the route the client declares, the
+  hub scope to `MAJOR_MARKET_HUBS`, the compared fields to the payload builders (`quote_id`,
+  `bid_price`, `ask_price`, `currency`, `unit`, `source_system`; `observation_id`, `price`, `hub`,
+  `tenor`), the context mapping to the client's own, and the unit/as-of mirrors to the client's
+  formatter and display rule.
+- **The rules were run against a real payload**: the projection read from the local runtime
+  database was replayed offline through `marketBoardRows` and `evaluateQuotedBoard` with the cards
+  built the way the component builds them (newest quote per hub/tenor, else the newest normalized
+  observation). The faithful board passed with no failure and named which slices it compared; a
+  tampered price failed naming both numbers and the row, and a dropped card failed naming the served
+  pair. This is a measurement of the *rules* against real data, not a browser run.
+
+### What did not change, and the limits of this repair
+
+- No API, database, permission, credential, route, payload or calculation change; no new page; no
+  ingestion or market-data write. One visible token changed: a bid/ask card now names the unit it
+  prices in (`… Bid/ask · EUR/MWh · Quote age 3s …`), because the check requires the unit of the
+  row to be visible and a bid/ask without a unit is not a readable quote. The FX table, the curve
+  lanes, the source matrix, the market overview's own hub board and the terminal table's other
+  columns are unchanged and not asserted.
+- Verified here by the web suite (656 tests, ten of them added for this board: nine board cases and
+  the sweep-declaration gate), `tsc` (exit 0), the repository lint and the full Python suite
+  (1,961 passed, 20 skipped, 1 failed - the pre-existing sandbox permission failure in the
+  Markdown-link module, which cannot write outside the repository root here and is unrelated to this
+  change). **No live browser run was performed in this environment** - Playwright is not
+  installed and child-process spawning is denied in this sandbox, so `vite build` and the default
+  isolated test runner cannot run here either; the CI browser job is the first run in which the
+  board is compared card by card, in both languages and at all three viewports.
+- The board is measured one displayed tenor at a time and only for the six declared hubs. A row of
+  another hub or tenor that the board does not show is reported as an observation; it is not
+  compared, and no claim is made about the curve lanes, the regional spread list or the source
+  matrix. Coverage requires a card for every served pair, but accepts whichever served row of that
+  pair the surface chose - the sweep does not re-derive the surface's "newest per pair" rule.
+- The value evidence is DOM text and the row's own numbers: a label clipped by CSS (`text-overflow`
+  on the source pill) still counts as displayed, and the as-of is compared with the instant the
+  surface itself declares (the lane polls, so the distance between the surface's reading and the
+  sweep's own read is reported as an observation, not required to be zero). The card's relative
+  "quote age" is computed from the browser's clock and is not compared, and the row's delivery
+  period (`period_start_utc`/`period_end_utc`) is not printed on the card, so the pair the check
+  holds is the row's own hub and tenor. Where a deployment holds no quote for a hub, the card falls
+  back to the normalized observation and is compared against that row; both paths are covered, and
+  neither is compared against a row from the other slice.
