@@ -11,10 +11,14 @@ review added negative controls requiring exactly one flows and one capacity read
 and changed count collection to visible text rather than a data attribute. Those
 controls failed before repair; all 674 frontend tests now pass. Production build
 and 17 probe/Markdown contracts passed independently. No calculation, API, schema,
-permissions or stored data changed. Browser CI pending for this milestone.
+permissions or stored data changed. Commit `873a9fa` passed CI `36337374074`:
+all five active jobs, including bilingual browser acceptance at three viewports
+and PostgreSQL integration. Native desktop packaging was skipped by main policy.
 The check covers an unfiltered first page, union membership/count and empty-read
 provenance, not sort correctness, later-page identity or populated live acceptance.
 An empty CI fixture is explicitly reported as such, not populated-data acceptance.
+Next: obtain read-only populated physical-data evidence without invented runtime
+observations, or address the remaining access/research/agents acceptance gaps.
 
 September 27 capacity disclosure implementation (baseline `d9a3971`): DeepSeek
 added operating-board read states and bilingual notices using existing store facts.
