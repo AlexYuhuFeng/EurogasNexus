@@ -5,6 +5,23 @@ Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical sli
 
 ## Current commercial acceptance checkpoint
 
+September 27 capacity diagnosis (baseline `acb48c8`, CI `36296989246` passed):
+PostgreSQL connectivity and revision `0036_job_records` verified. DeepSeek performed
+a read-only trace; integration review confirmed that CapacityWorkspace joins flows
+and capacity by point/direction, while the browser probe reads capacity alone.
+The operating board renders zero KPIs and a filter-empty sentence without its own
+read-lifecycle distinction. This is a confirmed disclosure gap, not proof that
+populated runtime rows fail to render. Existing CI artifacts do not capture the
+payload needed to prove populated capacity acceptance; seed inspection suggests
+that this case is unexercised. Keep the exemption until a scoped replacement exists.
+Next bounded task: disclose unread/pending/failed/partial/measured-empty states for
+the operating board using existing endpoint facts; suppress misleading zero KPIs
+when either required read fails. Preserve calculations, classification, thresholds,
+permissions and routes. Then compare visible joined keys against both reads, with
+filter/pagination-aware tests and injected GET failure/recovery coverage. Do not
+infer complete capacity coverage from an empty CI fixture. Storage/LNG views and
+populated live-browser verification remain separate acceptance work.
+
 September 27 market evidence (baseline `6810b31`): DeepSeek replaced the obsolete
 whole-page market n/a exemption with scoped hub-board price evidence from the
 authenticated market-context projection, using the displayed gas day/product/hub.
