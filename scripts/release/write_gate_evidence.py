@@ -97,6 +97,12 @@ def main(argv: list[str] | None = None) -> int:
             f"NOT_APPLICABLE is not permitted for gate {args.gate_id!r}; "
             "a policy change is required"
         )
+    if gate.get("verification") == "same_sha_ci_run":
+        return _fail(
+            f"gate {args.gate_id!r} requires authoritative same-SHA CI verification; "
+            "write it with scripts/release/write_ci_run_evidence.py so the run identity "
+            "comes from the GitHub API instead of a hand-written claim"
+        )
     if kind == "source" and (args.subject_artifact or args.image_digest):
         return _fail(
             f"gate {args.gate_id!r} is source-bound and must not declare artifact "

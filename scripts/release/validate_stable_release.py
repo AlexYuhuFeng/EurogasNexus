@@ -12,11 +12,21 @@ External gates remain PENDING_EXTERNAL until evidence carries an approval
 identity configured in the gate policy, and a boolean CLI flag can never mark
 an external gate complete.
 
+Gate G1 additionally requires authoritative same-SHA CI acceptance: its PASS
+evidence must declare the verified ``ci.yml`` run under ``report.ci_run``, and
+the validator re-derives that run from the read-only GitHub API for the trusted
+repository and workflow at the exact release commit. The API response decides -
+a run that is missing, pending, failed, re-run to a newer attempt, or missing a
+required job (including browser acceptance) fails, and a copied claim cannot
+pass on its own. The local-dry-run flag below relaxes only which producer
+profiles are accepted locally; it never relaxes this verification.
+
 Trust boundary: envelope fields are self-declared JSON text. This validator
 binds them to identity the release run re-derives (commit, artifact digests,
-image metadata) and to producer profiles declared in the policy, but it is not
-cryptographic provenance; signed attestation and authoritative GitHub-run
-metadata checks remain documented residual work.
+image metadata, and for G1 the GitHub API) and to producer profiles declared in
+the policy, but it is not cryptographic provenance: the other release-job
+envelopes (G2/G3/G4/G12/G19) still carry self-declared producer run identity.
+Signed attestation remains documented residual work.
 """
 
 from __future__ import annotations
@@ -25,6 +35,7 @@ import argparse
 import json
 import subprocess
 import sys
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -32,6 +43,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 from eurogas_nexus.release.versioning import parse_release_tag  # noqa: E402
+from scripts.release.ci_run_verification import (  # noqa: E402
+    CI_VERIFICATION_KIND,
+    api_from_environment,
+    load_ci_acceptance_spec,
+    repository_from_source_url,
+    verify_same_sha_ci_run,
+)
 from scripts.release.evidence_envelope import (  # noqa: E402
     API_IMAGE_DIGEST_KEY,
     EVIDENCE_SCHEMA_VERSION,
@@ -265,6 +283,53 @@ def _authorize_external_approval(envelope: dict, policy: dict) -> tuple[bool, st
     return True, ""
 
 
+def _verify_ci_acceptance(
+    *,
+    envelope: dict,
+    policy: dict,
+    context: dict | None,
+    ci_api_factory: Callable[[], tuple[object | None, str]] | None,
+) -> str:
+    """Re-derive a G1 same-SHA CI acceptance claim from the GitHub API.
+
+    Returns a failure detail, or ``""`` when the API confirms the claimed run.
+    The evidence file is never trusted for the run identity - it is compared
+    against the read-only API response for the trusted repository, workflow and
+    release commit.
+    """
+
+    try:
+        spec = load_ci_acceptance_spec(policy)
+    except ValueError as error:
+        return f"gate policy ci_acceptance section is invalid: {error}"
+    if context is None:
+        return "the release context is unavailable; the CI run cannot be bound to a commit"
+    context_repository = repository_from_source_url(context.get("source_repository"))
+    if context_repository != spec.repository:
+        return (
+            "the release context repository does not match the gate policy trusted "
+            "repository; same-SHA CI verification is restricted to the trusted repository"
+        )
+    report = envelope.get("report")
+    declared = report.get("ci_run") if isinstance(report, dict) else None
+    if not isinstance(declared, dict):
+        return (
+            "same-SHA CI evidence must declare the verified run under report.ci_run; "
+            "an undeclared claim cannot be re-verified against the GitHub API"
+        )
+    factory = ci_api_factory or (lambda: api_from_environment(spec))
+    try:
+        api, unavailable = factory()
+    except ValueError as error:
+        return f"GitHub API transport is unavailable: {error}"
+    if api is None:
+        return unavailable or "the GitHub API transport is unavailable"
+    verdict = verify_same_sha_ci_run(
+        api, spec, head_sha=str(context.get("git_sha", "")), declared=declared
+    )
+    return "" if verdict.ok else verdict.detail
+
+
 def evaluate_envelope(
     gate: dict,
     envelope: dict,
@@ -274,6 +339,7 @@ def evaluate_envelope(
     artifacts_dir: Path | None,
     local_dry_run: bool,
     now: datetime,
+    ci_api_factory: Callable[[], tuple[object | None, str]] | None = None,
 ) -> tuple[str, str]:
     """Validate one envelope against trusted context; return ``(state, detail)``."""
 
@@ -359,6 +425,21 @@ def evaluate_envelope(
         )
         if not authorised:
             return "FAIL", authorization_detail
+    verification = gate.get("verification")
+    if verification not in {None, "", CI_VERIFICATION_KIND}:
+        return "FAIL", f"gate {gate.get('id')!r} declares unsupported verification {verification!r}"
+    if verification == CI_VERIFICATION_KIND and status == "PASS":
+        # The producer above is only the release job that wrote the file; the
+        # CI acceptance claim itself is re-derived from the GitHub API here, so
+        # a copied envelope cannot pass on the strength of its own text.
+        ci_problem = _verify_ci_acceptance(
+            envelope=envelope,
+            policy=policy,
+            context=context,
+            ci_api_factory=ci_api_factory,
+        )
+        if ci_problem:
+            return "FAIL", ci_problem
     if gate.get("type") == "external":
         if status == "PASS":
             approved, approval_detail = _authorize_external_approval(envelope, policy)
@@ -383,6 +464,7 @@ def evaluate_gates(
     artifacts_dir: Path | None = None,
     local_dry_run: bool = False,
     now: datetime | None = None,
+    ci_api_factory: Callable[[], tuple[object | None, str]] | None = None,
 ) -> tuple[list[dict], bool]:
     rows = []
     failed = False
@@ -410,6 +492,7 @@ def evaluate_gates(
                 artifacts_dir=artifacts_dir,
                 local_dry_run=local_dry_run,
                 now=now,
+                ci_api_factory=ci_api_factory,
             )
         if not required:
             rows.append({**gate, "required": False, "state": state, "detail": detail})
@@ -487,6 +570,17 @@ def main(argv: list[str] | None = None) -> int:
         if args.reject_existing_tag and release_exists(context["release_version"], args.repo):
             errors.append(
                 f"stable release {context['release_version']} already exists; never overwrite"
+            )
+
+    try:
+        ci_spec = load_ci_acceptance_spec(policy)
+    except ValueError as exc:
+        errors.append(f"gate policy ci_acceptance section is invalid: {exc}")
+    else:
+        if args.repo != ci_spec.repository:
+            errors.append(
+                f"release repository {args.repo} is not the gate policy trusted repository "
+                f"{ci_spec.repository}; same-SHA CI verification is restricted to it"
             )
 
     manifest_path = Path(args.artifacts_dir) / "release-manifest.json"

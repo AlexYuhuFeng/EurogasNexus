@@ -5,7 +5,7 @@ Enforcement: `python scripts/release/validate_stable_release.py`.
 
 | Gate | Meaning | Stable mandatory | CR-12-era state (historical) |
 | --- | --- | --- | --- |
-| G1 CI | trusted workflow run evidence | yes | PENDING_EXTERNAL (local dry-run only) |
+| G1 CI | trusted workflow run evidence: same-SHA GitHub API verification of the completed CI run and its required jobs | yes | FAIL/PENDING_EXTERNAL unless the API confirms the run; local dry-run only records PENDING_EXTERNAL |
 | G2 Unit/integration | full Python suite | yes | PASS (CR-13: 1316 passed/10 skipped) |
 | G3 PostgreSQL migration | migrations + DB smoke on PostgreSQL 16 | yes | PASS (CR-13 fresh scratch 50 integration tests) |
 | G4 Frontend build | Web build and packaging | yes | PASS (CR-13 web 50 tests + build) |
@@ -42,3 +42,28 @@ identity configured in `authorized_external_approvals` (currently empty, so all
 external gates stay PENDING_EXTERNAL). Envelope fields are self-declared text
 bound to identity the release run re-derives; that is not cryptographic
 provenance. Stable publication therefore fails closed today.
+
+PILOT-B2 adds authoritative same-SHA CI binding for G1.
+`scripts/release/write_ci_run_evidence.py` (release `validate` job) records what
+the read-only GitHub API reports for the exact release commit's
+`.github/workflows/ci.yml` push run, and `validate_stable_release.py`
+re-derives that claim from the API in the strict `publish-stable` gate:
+completed and successful run, matching run attempt, trusted repository and
+workflow path, and every required job - including bilingual browser acceptance
+at three viewports - actually successful. Jobs are read from the
+attempt-specific jobs endpoint and the run is re-read afterwards, so a re-run
+that lands mid-verification (attempt, status, conclusion or head SHA changed)
+is refused; the transport refuses every HTTP redirect instead of following it,
+so the credential is never forwarded to a `Location` host. A missing, pending,
+failed, skipped-job, re-run-to-a-newer-attempt, redirected, malformed or
+unreachable result stays blocked, and the local-dry-run flag never relaxes the
+API check. The claim is never read from a URL or metadata file supplied by the
+evidence: the API decides, so a copied envelope cannot pass on its own.
+`validate` and `publish-stable` are the only jobs carrying `actions: read` (the
+former to write G1's evidence, the latter only to re-derive it; `publish-stable`
+keeps `contents: write` for publication), and only those CI-verification steps
+receive `GH_TOKEN`. This binds the *source commit's* CI run, not acceptance of
+the packaged artifact or image (that remains G19/install/upgrade evidence), and
+the other release-job envelopes (G2/G3/G4/G12/G19) still carry self-declared
+producer run identity. Strict enforcement is stable-only today: the preview/RC
+publish job does not consult the gate policy. Signed attestation remains open.

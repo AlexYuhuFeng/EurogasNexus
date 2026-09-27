@@ -133,7 +133,8 @@ rows are the `42d8144` reconciliation.
 | ID | Sev | Accountable role | Evidence inspected now | Verification / exercise | Exit condition | Dependency | Status |
 | -- | --- | ---------------- | ---------------------- | ----------------------- | -------------- | ---------- | ------ |
 | CA-02 | P1 | Release engineering | PILOT-B replaced `load_evidence`: every gate evidence file must now be a schema-version 2 envelope (gate id, full 40-hex tested commit, typed subject with precise digest(s), producer workflow/job/run identity, environment, UTC timestamp) verified against the release context and the actual bundle, never against values declared in the same file; status-only/v1, non-object JSON, wrong gate id, foreign/short SHA, artifact relabelling, stale/future timestamps, unapproved producers and unapproved `NOT_APPLICABLE` fail closed, missing files stay PENDING_EXTERNAL | `python -m pytest tests/release -q` (149 passed, 3 Windows-symlink skips), including the new `tests/release/test_evidence_envelope.py` malformed/foreign/stale/unapproved/valid matrix and the writer CLI; focused Ruff passed | Gate evidence carries a versioned envelope binding commit SHA, artifact/bundle digest and workflow identity; mismatches fail closed | PILOT-A (identity exists first) | Fixed in code, engineering acceptance only: binding and negative cases pass; producer/approval fields are self-declared text (not cryptographic provenance) and external approval identities remain unconfigured |
-| CA-03 | P1 | Release engineering | `release.yml` web job runs `npm test` before build and packaging and now records a same-SHA G4 envelope; `ci.yml` browser acceptance remains a separate workflow, so publication still does not consume a browser result for its own SHA | Inspect `release.yml` job graph; new workflow contract test in `tests/release/test_evidence_envelope.py`; same-SHA browser-consumption check does not exist yet | Publication consumes browser/critical acceptance evidence for its own SHA, verified via authoritative GitHub run metadata | CA-02 envelope (done); GitHub run-metadata verification (PILOT-B2) | Partially fixed - frontend suite plus same-SHA build evidence recorded; browser-acceptance same-SHA binding open, publication stays blocked |
+| CA-02 | P1 | Release engineering | PILOT-B replaced `load_evidence`: every gate evidence file must now be a schema-version 2 envelope (gate id, full 40-hex tested commit, typed subject with precise digest(s), producer workflow/job/run identity, environment, UTC timestamp) verified against the release context and the actual bundle, never against values declared in the same file; status-only/v1, non-object JSON, wrong gate id, foreign/short SHA, artifact relabelling, stale/future timestamps, unapproved producers and unapproved `NOT_APPLICABLE` fail closed, missing files stay PENDING_EXTERNAL. PILOT-B2 additionally re-derives G1's claimed CI run from the read-only GitHub API (`scripts/release/ci_run_verification.py`) | `python -m pytest tests/release -q` (196 passed, 3 Windows-symlink skips), including the PILOT-B2 matrix in `tests/release/test_ci_run_verification.py`; focused Ruff passed; one live read-only API verification of commit `4d30987` run `36345939410` observed (see the PILOT-B2 record) | Gate evidence carries a versioned envelope binding commit SHA, artifact/bundle digest and workflow identity; mismatches fail closed | PILOT-A (identity exists first); API binding for the other CI producers is still open | Partially fixed, engineering acceptance only: G1's claim is API-verified, but G2/G3/G4/G12/G19 producer run identity is still self-declared text (not cryptographic provenance) and external approval identities remain unconfigured |
+| CA-03 | P1 | Release engineering | `release.yml` web job runs `npm test` before build and packaging and records a same-SHA G4 envelope. PILOT-B2 makes the `validate` job record G1 from the read-only GitHub API for the exact commit's `ci.yml` push run and makes `validate_stable_release.py` re-derive it: completed/successful run, matching attempt, and all five required jobs - including `Browser acceptance (EN/ZH, 3 viewports)` - successful, never skipped | `tests/release/test_ci_run_verification.py` (wrong repo/workflow/SHA, failed/incomplete/skipped/missing jobs, pagination, stale attempt, malformed/API error, forged copy, local-dry-run bypass, writer round trip); policy/workflow job-name contract test; live read-only verification of run `36345939410` | Publication consumes browser/critical acceptance evidence for its own SHA, verified via authoritative GitHub run metadata | CA-02 envelope (done); release-run exercise of the writer/validator (not yet performed) | Partially fixed - same-SHA browser-acceptance binding exists and blocks stable promotion; no release run has exercised it, and the preview/RC publish job still does not consult the gate policy |
 | CA-05 | P1 | Platform security | `src/eurogas_nexus/mcp/server.py` builds principal/role/scopes from `EUROGAS_NEXUS_AGENT_*` environment values and its own docstring declares calls are not re-authorised per user; checkpoint still lists organisation/portfolio/market/region scope as unsupported | Read module + `GET /api/me` scope report; pilot decision record | Pilot is single-customer, MCP is disabled or recorded as not offered; persisted service identity (D7) implemented or explicitly deferred | Pilot decision; ADR for service identity | Open - pilot-scope mitigation only, not closed |
 | CA-06 | P1 | Release engineering | `container-acceptance` inspects the immutable digest and platforms and now writes a G19 envelope binding that image digest; the validator recomputes it against `image-metadata.json` and `release-manifest.json`, and `assemble` waits for the job so the evidence is inside the bundle | Read jobs at `release.yml` assemble/container-acceptance plus the new envelope tests; boot/migration/smoke exercise still absent | Immutable digest boots, Alembic upgrades to head, authenticated read smoke passes, evidence assembled end to end in CI | PILOT-A identity; populated tenant not required | Partially fixed - digest inspection and binding done (G19 required for RC/stable); boot/migration/smoke acceptance depth open |
 | CA-10 | P1 | Deployment engineering | Literal TAB removed in PILOT-A at both entry points (and the same defect in the maintainer `build_release.ps1`); the operator ZIP policy (schema 2) ships eleven members: the ten reviewed files plus one generated `release-identity.json` (schema version, app/release version, channel, full commit SHA, API image `repository@sha256:` digest); the `deployment` workflow job now needs the `runtime-image` job and packages the ZIP from the resolved `release-context.json` plus the validated image-metadata digest | `python -m pytest tests/release -q` (108 passed, 3 Windows-symlink skips): real archive identity fields, fail-closed missing/malformed/conflicting identity and digest, no literal TAB, PowerShell parse of both entry points, extracted-bundle `Preflight` on a real temporary ZIP (identity resolves, `release_identity_source=bundle`, honest host blockers) | Bundle carries explicit release identity (version, channel, commit SHA, API image digest); the final ZIP SHA-256 stays external in `SHA256SUMS`/`release-manifest.json`, never inside the archive; extracted preflight resolves it with no source checkout or manual env var | None | Fixed in code, engineering acceptance only: extracted preflight resolves identity and reports host blockers; the runtime primitive's *complete* positive preflight is unverified in this sandbox (WMI access denied, docker engine pipe unreachable - pre-existing host-probe behaviour outside PILOT-A); no installation, upgrade or production-release acceptance claimed |
@@ -266,6 +267,97 @@ Trust boundary and residual work (not claimed as solved):
   nor a credential.
 - Local dry-run evidence cannot authorise release and the local gate report
   therefore stays red until the corresponding CI evidence exists.
+
+## PILOT-B2 implementation record (engineering evidence only, 2026-09-28)
+
+Baseline `75e98a5`. Bounded change; no release, tag, publish, deployment,
+database migration, credential, commit or push. What the code now does:
+
+- `scripts/release/ci_run_verification.py` is the single read-only GitHub API
+  verification. It contacts only `api.github.com`, only under
+  `/repos/<owner>/<repo>/`, only for the policy's trusted repository, workflow
+  path, event and required-job list, with a request timeout, a bounded retry
+  count for transient/5xx/429 responses, bounded pagination and no credential
+  echoed into output or errors. It discovers the `ci.yml` push runs for the
+  exact release commit, requires every one of them to be `completed`/`success`
+  (so a pending or failed re-run blocks), and reads the verified attempt's jobs
+  from the attempt-specific jobs endpoint - never `filter=latest`, which can
+  switch attempt between the run read and the jobs read. After the jobs read it
+  re-reads the run and refuses any change to attempt, status, conclusion or
+  head SHA, so a re-run that lands mid-verification is rejected rather than
+  half-accepted. Each required job must be present exactly once with
+  `completed`/`success` - skipped, missing or failed jobs never count. A
+  declared run id, attempt or URL that disagrees with the API is refused, so a
+  stale attempt or a copied/forged envelope cannot pass. HTTP redirects are
+  refused by a custom no-redirect opener (any 3xx fails closed), because
+  urllib's default redirect handling re-sends the `Authorization` header to the
+  `Location` target, which is not limited to `api.github.com`; tests prove no
+  second request is issued for cross-host or same-host redirects.
+- The claim itself is never authoritative. The envelope's `detail`, URL and
+  metadata are inputs to compare against the API response, never the source of
+  truth; a missing, pending, failed, malformed or unreachable result stays
+  blocked and there is no offline-success fallback (test fixtures are injected
+  only in unit tests).
+- `scripts/release/write_ci_run_evidence.py` is the writer used by the release
+  `validate` job: it records what the API reports for `$GITHUB_SHA`, writing
+  `PASS` only with the verified run identity under `report.ci_run`, and
+  `FAIL`/`PENDING_EXTERNAL` otherwise. `validate` (the writer) and
+  `publish-stable` (the strict gate re-derivation below) are the only jobs that
+  carry `actions: read`, and only their CI-verification steps receive
+  `GH_TOKEN`; every other job keeps its existing permissions and channel
+  inheritance.
+- `validate_stable_release.py` re-derives G1 from the API whenever the evidence
+  claims PASS - including under `--allow-local-dry-run-evidence`, so the local
+  exception cannot bypass strict release verification. The reported
+  repository/context binding is also checked: a policy or `--repo` outside the
+  trusted repository fails closed.
+- `scripts/release/policy/stable_gate_policy.json` (schema 2) declares the
+  `ci_acceptance` contract (repository, host, workflow path, event, required
+  jobs, bounds) and the `ci-verification` producer profile; `G1` keeps
+  `required_for: rc` and `authorized_external_approvals` stays empty.
+  Desktop packaging is deliberately not a required job: the main-branch run
+  reports it as skipped and native packaging is not pilot acceptance.
+
+Focused validation: `python -m pytest tests/release -q` -> 196 passed, 3
+Windows-symlink skips, including the new `tests/release/test_ci_run_verification.py`
+matrix (wrong repository/workflow/SHA; failed, incomplete, skipped and missing
+jobs; multiple pages of runs and jobs; stale run attempt; the re-run race
+between the run read and the attempt-pinned jobs read; malformed payload and
+HTTP failures; a forged copy of a valid envelope; a policy/workflow job-name
+contract that fails on drift; the writer round trip; transport host/credential/
+retry bounds and redirect refusal with no second request) and the preserved
+negative envelope tests. Focused
+`ruff check scripts/release tests/release .github` passed. One read-only live
+API verification was performed with the production transport for commit
+`4d30987` (CI run `36345939410`, attempt 1): the verdict recorded the five
+required jobs, including `Browser acceptance (EN/ZH, 3 viewports)`, as
+successful; an unknown-SHA check and a tampered `report.ci_run.run_id` were
+both refused. The redirect-refusal and attempt-pinning corrections in this pass
+were validated with fixture transports only (including a real `urllib` opener
+with a stubbed network leg); no new live API call was made. No release
+workflow, publication or deployment was executed, so this remains code,
+focused-test and read-only API evidence - the first RC/release run must be
+observed before CI-level acceptance is claimed.
+
+Residual and limits (not claimed as solved):
+
+- The other release-run envelopes (G2/G3/G4/G12/G19) still carry self-declared
+  producer run identity; only G1's subject is re-derived from the API. CA-02 is
+  not claimed closed.
+- This verifies the *source commit's* CI run - including browser acceptance on
+  the exact commit - not acceptance of the packaged artifact, image or
+  installed bundle, and not populated, provider, live-market or native-desktop
+  acceptance.
+- No release run has exercised the writer or the strict gate; release
+  publication was not attempted. The preview/RC publish job still does not
+  consult the gate policy, so CA-03's publication-time consumption is enforced
+  for the stable path only.
+- Required job names are the exact names the Actions API reports; renaming a
+  `ci.yml` job requires a reviewed policy update, and the contract test fails
+  until they agree.
+- External approval identities remain unconfigured (`authorized_external_approvals`
+  is empty), so every external gate stays PENDING_EXTERNAL and stable
+  publication stays blocked.
 
 ## What this plan does not claim
 

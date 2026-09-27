@@ -5,6 +5,19 @@ Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical sli
 
 ## Current work
 
+PILOT-B2 G1 verification (baseline `75e98a5`, September 28): same-SHA CI
+evidence is now re-derived from GitHub run/job metadata, including all five
+required jobs. Integration review required redirect refusal, attempt-specific
+job reads with a post-read rerun check, and actions:read/token wiring on the
+stable gate itself. Independent tests: 199 release/Markdown passed, 3 symlink
+cases skipped; focused Ruff and whitespace passed. The hardened transport also
+verified real run `36346322788`, attempt 1, for the baseline SHA with all required
+jobs successful. CI pending for this implementation. No release was dispatched.
+Remaining: preview/RC publication does not yet consult these gates; other gate
+producers remain self-declared; external approvals are unconfigured. G1 verifies
+source CI, not artifact installation or customer workflow acceptance. Next:
+close publication-path enforcement before calling CA-03 complete.
+
 PILOT-B1, September 28 (baseline `308797e`): DeepSeek added schema-v2 gate
 envelopes, subject-aware SHA/digest checks, freshness limits, producer policy and
 fail-closed handling of old evidence and NOT_APPLICABLE. Source tests remain
