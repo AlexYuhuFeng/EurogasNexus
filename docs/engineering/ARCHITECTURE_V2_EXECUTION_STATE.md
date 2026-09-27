@@ -323,6 +323,13 @@ Fresh CI/browser verification is pending; error-path interaction is English desk
 while normal acceptance retains both languages and three viewports. Production
 release remains NOT APPROVED.
 
+Post-push verification: CI `36281436601` at `4cdb695` passed all five active
+jobs, including the injected registry failure and successful retry interaction.
+The normal catalog/selection/filter and glossary checks continue to pass.
+Desktop packaging was skipped; no release was produced. Next bounded task:
+replace the remaining market copy-based acceptance exemption with actual quote
+and price-basis evidence, retaining honest missing-data and entitlement states.
+
 ## Historical programme state
 V2 pack version: 2026-09 autonomous runner
 Current wave: Waves 0-10 have delivered slices. Wave 11 (RC/GA readiness) has not started.
