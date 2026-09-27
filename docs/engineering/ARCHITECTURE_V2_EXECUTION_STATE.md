@@ -10,7 +10,9 @@ envelopes, subject-aware SHA/digest checks, freshness limits, producer policy an
 fail-closed handling of old evidence and NOT_APPLICABLE. Source tests remain
 source-bound; they are not relabelled as artifact installation tests. Independently
 ran release plus Markdown contracts: 152 passed, 3 Windows symlink cases skipped;
-focused Ruff and whitespace checks passed. CI pending for this commit.
+focused Ruff and whitespace checks passed. Commit `4d30987` passed CI
+`36345939410`, all five active jobs; native packaging skipped. Normal main CI
+does not exercise the release publication workflow.
 This is identity-consistency validation, NOT authenticated evidence provenance:
 producer and approver fields are self-declared. No external approver is configured.
 PILOT-B2 must verify authoritative same-SHA GitHub run/job metadata and protect
