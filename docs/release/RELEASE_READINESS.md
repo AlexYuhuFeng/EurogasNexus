@@ -6,6 +6,9 @@
 The evidence below is historical, scoped to its dated ref, and does not certify
 Architecture V2. Current findings and acceptance requirements are recorded in
 [the commercial audit](../engineering/Architecture-V2/19_COMMERCIAL_ACCEPTANCE_AUDIT.md).
+First-customer pilot scope, milestones and the current blocker register are in
+[the first customer pilot plan](FIRST_CUSTOMER_PILOT_PLAN.md); it is planning,
+not approval, and it reuses the gates below.
 
 Status: `RELEASE CANDIDATE FOR TESTED LOCAL SCOPE`
 

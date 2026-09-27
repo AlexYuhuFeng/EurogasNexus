@@ -3,7 +3,19 @@
 Last updated: 2026-09-28
 Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical slice records below do not constitute current production approval.
 
-## Current commercial acceptance checkpoint
+## Current work
+
+First-customer pilot readiness (baseline `42d8144`, 2026-09-28): the single
+current scope, acceptance and blocker register is
+[the first-customer pilot plan](../release/FIRST_CUSTOMER_PILOT_PLAN.md). It is
+a planning and read-only reconciliation document; it does not approve a pilot
+or production release. CA-02/03/05/06/10 were re-checked against the code on
+that date, and the pilot plan records what is fixed, what is partially fixed
+and what remains open. The dated records below are historical evidence slices
+kept for provenance; where a dated record and the pilot plan disagree, the
+pilot plan's dated reconciliation wins.
+
+## Commercial acceptance records (historical; not current disposition)
 
 September 28 capacity joined-row evidence (baseline `99e56cb`): DeepSeek replaced
 the whole-page capacity exemption with a two-read union comparison. Integration
