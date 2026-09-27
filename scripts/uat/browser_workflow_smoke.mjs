@@ -18,8 +18,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
+  collectCapacityOperatingBoard,
   collectVisibleElements,
   collectQuotedBoard,
+  evaluateCapacityBoardRecovery,
+  evaluateRefusedCapacityBoard,
   evaluateRefusedRegistry,
   evaluateRegistryRecovery,
   evaluateReadToRender,
@@ -1777,6 +1780,182 @@ async function sourceRegistryFailureInteraction(page, failures) {
   return refusal;
 }
 
+/**
+ * The one read the capacity-board failure interaction refuses: `GET /api/physical/capacity`,
+ * query string or not - the capacity lane of the operating board's own join (`api.capacity`).
+ *
+ * It is deliberately not a broader path: the route carries no other method the check could reach,
+ * but a non-GET on this path is continued rather than refused.
+ */
+const CAPACITY_READ_ROUTE = /\/api\/physical\/capacity(\?.*)?$/;
+
+/**
+ * True when the operating board has recovered from the refused capacity read: no notice, and the
+ * state its two reads now support.
+ *
+ * Declared at module scope because the sweep serialises it into the page
+ * (`page.waitForFunction`), so it may not reference anything outside its own body. It is the
+ * bounded wait's condition, not the verdict: a run that never converges is reported by the caller
+ * through the pure recovery rule.
+ */
+function capacityBoardRecovered(wanted) {
+  const surface = document.querySelector("[data-capacity-read-state]");
+  const state = surface?.getAttribute("data-capacity-read-state") ?? "";
+  if (state !== wanted) return false;
+  return document.querySelector("[data-capacity-notice]") === null;
+}
+
+/**
+ * The operating board's failure path: the capacity read is refused by the harness itself, and the
+ * board must state which of its two required reads did not answer instead of presenting a joined
+ * zero - the recorded defect being a board of `0 / 0` with the filter sentence "No operating
+ * points match the current filters." while the capacity read had not answered
+ * (`docs/release/FUNCTIONAL_ACCEPTANCE_REPORT.md`, 2026-09-27 capacity diagnosis).
+ *
+ * Exactly one read is refused: `GET /api/physical/capacity`, the read the surface's own lane
+ * performs. The refusal is a real 503 the harness fulfils, so nothing about the application is
+ * mocked out - only the platform's answer for that one request. Then:
+ *
+ * - the board must declare `failed` (it holds no row) or `partial` (the flow read answered with
+ *   rows, which stay on screen as an explicitly incomplete reading) - never `ready`, `empty`,
+ *   `pending` or `unread` - with a notice naming the read that did not answer;
+ * - it must present no measurement: no KPI strip, no `data-empty-state="capacity-operating-points"`
+ *   marker, no filter result, and no row at all in the `failed` state;
+ * - it must offer its retry control, enabled while no attempt is in flight (the store's own path
+ *   refuses a second concurrent attempt, which the unit tests hold);
+ * - the harness removes the interception, and the board's own retry must leave it stating the
+ *   reading its two reads now support (`ready` when either served a row, the measured `empty` when
+ *   both answered with none) with the notice gone. The joined rows themselves are not compared
+ *   here: that is the scoped joined-row acceptance, a later milestone.
+ *
+ * The interaction clicks only the board's own retry control; no capacity, flow or reference write
+ * is performed.
+ */
+async function capacityBoardFailureInteraction(page, failures) {
+  const scope = "interaction/capacity-board-failure";
+  const refusal = {
+    url: null,
+    status: 503,
+    active: true,
+    refusals: 0,
+    consoleEntries: [],
+  };
+  const handler = async (route) => {
+    const request = route.request();
+    if (request.method() !== "GET") {
+      await route.continue();
+      return;
+    }
+    refusal.url = request.url();
+    refusal.refusals += 1;
+    await route.fulfill({
+      status: refusal.status,
+      contentType: "application/json",
+      body: JSON.stringify({ detail: { error: "service_unavailable" } }),
+    });
+  };
+  inducedReadRefusals.push(refusal);
+  await page.route(CAPACITY_READ_ROUTE, handler);
+  try {
+    await setLanguage(page, "en");
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(`${BASE}/?workspace=capacity`, { waitUntil: "domcontentloaded" });
+    const settled = await page
+      .waitForFunction(
+        () => [...document.querySelectorAll(".workspace-page")]
+          .some((element) => element.dataset.workspaceLoadState === "settled"),
+        null,
+        { timeout: 20_000 },
+      )
+      .then(() => true)
+      .catch(() => false);
+    if (!settled) {
+      recordFailure(
+        failures,
+        scope,
+        "the capacity workspace read never settled while the capacity read was refused",
+      );
+      return refusal;
+    }
+    if (refusal.refusals === 0) {
+      recordFailure(
+        failures,
+        scope,
+        "the harness's own refusal never reached the page: the board's capacity read is not the"
+        + " GET this check intercepts",
+      );
+      return refusal;
+    }
+
+    const refused = await page.evaluate(collectCapacityOperatingBoard);
+    if (!refused) {
+      recordFailure(failures, scope, "no workspace page was displayed to read the board from");
+      return refusal;
+    }
+    const refusedFailures = evaluateRefusedCapacityBoard(refused);
+    for (const detail of refusedFailures) recordFailure(failures, scope, detail);
+    if (refusedFailures.length > 0) {
+      // A board that does not state the failure (or offers no retry) cannot be walked further:
+      // the recovery half would be measured against a surface in an undefined state.
+      return refusal;
+    }
+
+    // The recovery half: the harness stops refusing, and the board's own retry must state the
+    // reading its two reads now support.
+    refusal.active = false;
+    await page.unroute(CAPACITY_READ_ROUTE, handler);
+    const served = await page.evaluate(async () => {
+      const rowCount = async (path) => {
+        const response = await fetch(path, { credentials: "include" });
+        if (!response.ok) return null;
+        const body = await response.json();
+        return Array.isArray(body?.data) ? body.data.length : null;
+      };
+      return {
+        capacityRows: await rowCount("/api/physical/capacity"),
+        flowsRows: await rowCount("/api/physical/flows"),
+      };
+    });
+    if (!Number.isFinite(served?.capacityRows) || !Number.isFinite(served?.flowsRows)) {
+      recordFailure(
+        failures,
+        scope,
+        "the platform's capacity and flow reads did not both answer once the harness stopped"
+        + " refusing them, so the board's recovery could not be compared",
+      );
+      return refusal;
+    }
+    const wanted = served.capacityRows + served.flowsRows > 0 ? "ready" : "empty";
+    await page.locator("[data-capacity-board-retry]").first().click();
+    const recovered = await page
+      .waitForFunction(capacityBoardRecovered, wanted, { timeout: 15_000 })
+      .then(() => true)
+      .catch(() => false);
+    if (!recovered) {
+      const state = await page.evaluate(() =>
+        document.querySelector("[data-capacity-read-state]")
+          ?.getAttribute("data-capacity-read-state") ?? "",
+      );
+      recordFailure(
+        failures,
+        scope,
+        `the board's own retry did not restore its reads (state '${state || "(no state)"}',`
+        + ` expected '${wanted}')`,
+      );
+    }
+    const surface = await page.evaluate(collectCapacityOperatingBoard);
+    for (const detail of evaluateCapacityBoardRecovery(surface, served)) {
+      recordFailure(failures, scope, detail);
+    }
+  } catch (error) {
+    recordFailure(failures, scope, error);
+  } finally {
+    refusal.active = false;
+    await page.unroute(CAPACITY_READ_ROUTE, handler).catch(() => {});
+  }
+  return refusal;
+}
+
 export async function runWorkflowSmoke() {
   mkdirSync(OUTPUT_DIR, { recursive: true });
   const browser = await chromium.launch({ headless: true });
@@ -1870,6 +2049,21 @@ export async function runWorkflowSmoke() {
       + ` read(s); the browser reported ${registryFailure.consoleEntries.length} console error(s)`
       + " for exactly that refused request (the harness's own induced failure, attributed by the"
       + " request URL it refused)",
+    );
+
+    // The operating board's failure path: the harness itself refuses `GET /api/physical/capacity`,
+    // the board must state that one of its two required reads did not answer instead of a joined
+    // zero, and its own scoped retry of the store's bounded path must restore the reading once the
+    // refusal is removed. The joined rows are a later milestone; this check makes no claim about
+    // them.
+    currentScope = "interaction/capacity-board-failure";
+    const capacityFailure = await capacityBoardFailureInteraction(page, failures);
+    recordObservation(
+      observations,
+      `interaction/capacity-board-failure: refused ${capacityFailure.refusals}`
+      + " GET /api/physical/capacity read(s); the browser reported"
+      + ` ${capacityFailure.consoleEntries.length} console error(s) for exactly that refused`
+      + " request (the harness's own induced failure, attributed by the request URL it refused)",
     );
 
     currentScope = "interaction/agent-research-review";

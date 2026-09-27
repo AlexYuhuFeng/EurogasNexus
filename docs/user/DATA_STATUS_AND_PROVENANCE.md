@@ -15,6 +15,13 @@ read that answered may present a count. A failed or not-yet-answered read is nev
 measured zero, and rows that are held from an earlier read are labelled as the last committed
 reading.
 
+The capacity operating board reads two slices, not one (physical flows and technical capacity), so
+it states which of them answered: counts, the row total and the filter sentence appear only when
+both did. A read that did not answer is named in the board itself with the read's own retry; the
+rows the other read holds may stay on screen, marked as an incomplete board, and a board whose two
+reads answered with no row says so as a measured empty result rather than as a filter that matched
+nothing.
+
 ## Status vocabulary
 
 - `FRESH/LATE/STALE/MISSING/NOT_EXPECTED`: backend-owned freshness evaluation.

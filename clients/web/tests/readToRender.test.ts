@@ -17,9 +17,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  collectCapacityOperatingBoard,
   collectVisibleElements,
   collectQuotedBoard,
   displayPriceUnit,
+  evaluateCapacityBoardRecovery,
+  evaluateRefusedCapacityBoard,
   evaluateRefusedRegistry,
   evaluateRegistryRecovery,
   evaluateReadToRender,
@@ -1262,4 +1265,303 @@ test("a recovered registry renders exactly its own read, with the failed notice 
     evaluateRegistryRecovery({ failedNotice: false, recordIds: [] }, wanted).join(" | "),
     /does not render 3 source\(s\)/,
   );
+});
+
+/** What the operating board reported while the harness refused its capacity read. */
+const REFUSED_CAPACITY_OK = {
+  state: "failed",
+  noticePresent: true,
+  noticeState: "failed",
+  noticeText: "Operating board read The board's flow and capacity reads did not answer",
+  vocabulary: "Capacity observations · Backend rejected the read",
+  rows: 0,
+  measuredEmpty: 0,
+  filterNoMatch: 0,
+  kpiStrips: 0,
+  retryControls: 1,
+  retryDisabled: false,
+};
+
+test("a refused capacity read passes only when the board states it and measures nothing", () => {
+  // The board's two honest answers: no rows held (failed), or the answered read's rows with the
+  // incompleteness stated (partial).
+  assert.deepEqual(evaluateRefusedCapacityBoard(REFUSED_CAPACITY_OK), []);
+  assert.deepEqual(
+    evaluateRefusedCapacityBoard({
+      ...REFUSED_CAPACITY_OK,
+      state: "partial",
+      noticeState: "partial",
+      rows: 3,
+    }),
+    [],
+    "a joined board may keep the answered read's rows, explicitly incomplete",
+  );
+
+  // The recorded defect: a board that reads as a measured zero for a read that never answered. A
+  // board reporting any other state fails by name, including the states that mean "no reading".
+  for (const state of ["ready", "empty", "pending", "unread", ""]) {
+    const failures = evaluateRefusedCapacityBoard({ ...REFUSED_CAPACITY_OK, state, noticeState: state });
+    assert.equal(failures.length, 1, state);
+    assert.match(failures[0], /reports '(ready|empty|pending|unread|\(no state\))'/);
+  }
+  assert.match(
+    evaluateRefusedCapacityBoard({}).join(" | "),
+    /reports '\(no state\)'/,
+    "a board that reports nothing is a failure, not a pass",
+  );
+
+  // A board that states the failure through another element, or states nothing at all, fails.
+  assert.match(
+    evaluateRefusedCapacityBoard({
+      ...REFUSED_CAPACITY_OK,
+      noticePresent: false,
+      noticeState: "",
+    }).join(" | "),
+    /declares '\(none\)'/,
+  );
+  assert.match(
+    evaluateRefusedCapacityBoard({ ...REFUSED_CAPACITY_OK, noticeText: "   " }).join(" | "),
+    /no failure notice/,
+  );
+  assert.match(
+    evaluateRefusedCapacityBoard({ ...REFUSED_CAPACITY_OK, vocabulary: "" }).join(" | "),
+    /names no endpoint/,
+  );
+
+  // Every claim a refused board could still present is its own failure.
+  assert.match(
+    evaluateRefusedCapacityBoard({ ...REFUSED_CAPACITY_OK, rows: 2 }).join(" | "),
+    /2 operating row\(s\) for a read that did not answer/,
+  );
+  assert.match(
+    evaluateRefusedCapacityBoard({ ...REFUSED_CAPACITY_OK, measuredEmpty: 1 }).join(" | "),
+    /measured-empty marker/,
+  );
+  assert.match(
+    evaluateRefusedCapacityBoard({ ...REFUSED_CAPACITY_OK, filterNoMatch: 1 }).join(" | "),
+    /filter result/,
+  );
+  assert.match(
+    evaluateRefusedCapacityBoard({ ...REFUSED_CAPACITY_OK, kpiStrips: 1 }).join(" | "),
+    /1 KPI strip/,
+  );
+  assert.match(
+    evaluateRefusedCapacityBoard({ ...REFUSED_CAPACITY_OK, retryControls: 0 }).join(" | "),
+    /offers no retry/,
+  );
+  assert.match(
+    evaluateRefusedCapacityBoard({ ...REFUSED_CAPACITY_OK, retryDisabled: true }).join(" | "),
+    /disabled while no retry is in flight/,
+  );
+
+  // Every defect is reported at once: one repair must not hide the next.
+  assert.equal(
+    evaluateRefusedCapacityBoard({
+      state: "ready",
+      noticePresent: false,
+      noticeState: "",
+      noticeText: "",
+      vocabulary: "",
+      rows: 2,
+      measuredEmpty: 1,
+      filterNoMatch: 1,
+      kpiStrips: 1,
+      retryControls: 0,
+      retryDisabled: null,
+    }).length,
+    8,
+  );
+});
+
+test("a recovered capacity board states the reading its two reads support", () => {
+  const measuredEmpty = {
+    state: "empty",
+    noticePresent: false,
+    noticeState: "",
+    noticeText: "",
+    vocabulary: "",
+    rows: 0,
+    measuredEmpty: 1,
+    filterNoMatch: 0,
+    kpiStrips: 1,
+    retryControls: 0,
+    retryDisabled: null,
+  };
+  assert.deepEqual(
+    evaluateCapacityBoardRecovery(measuredEmpty, { capacityRows: 0, flowsRows: 0 }),
+    [],
+    "both reads answered with no row: the board declares a measured empty result",
+  );
+  assert.deepEqual(
+    evaluateCapacityBoardRecovery(
+      { ...measuredEmpty, state: "ready", rows: 2, measuredEmpty: 0 },
+      { capacityRows: 1, flowsRows: 2 },
+    ),
+    [],
+    "either read's rows make the joined board ready",
+  );
+
+  // A state the reads do not support fails, naming both counts.
+  const wrongState = evaluateCapacityBoardRecovery(
+    { ...measuredEmpty, measuredEmpty: 0, rows: 1 },
+    { capacityRows: 3, flowsRows: 0 },
+  );
+  assert.equal(wrongState.length, 1);
+  assert.match(wrongState[0], /answered 3 capacity and 0 flow row\(s\).*'empty' instead of 'ready'/);
+  assert.match(
+    evaluateCapacityBoardRecovery(
+      { ...measuredEmpty, state: "ready", rows: 1, measuredEmpty: 0 },
+      { capacityRows: 0, flowsRows: 0 },
+    ).join(" | "),
+    /'ready' instead of 'empty'/,
+  );
+  // The two reads could not be read at all: the comparison fails rather than passing quietly.
+  assert.match(
+    evaluateCapacityBoardRecovery(measuredEmpty, { capacityRows: null, flowsRows: 0 }).join(" | "),
+    /could not be read/,
+  );
+
+  // The failed state's own furniture must be gone.
+  assert.match(
+    evaluateCapacityBoardRecovery({ ...measuredEmpty, noticePresent: true }, { capacityRows: 0, flowsRows: 0 }).join(" | "),
+    /notice survives/,
+  );
+  assert.match(
+    evaluateCapacityBoardRecovery({ ...measuredEmpty, retryControls: 1 }, { capacityRows: 0, flowsRows: 0 }).join(" | "),
+    /retry control survives/,
+  );
+  // A measured zero and a filter result are separate answers, in both directions.
+  assert.match(
+    evaluateCapacityBoardRecovery(
+      { ...measuredEmpty, state: "ready", rows: 1, measuredEmpty: 1 },
+      { capacityRows: 1, flowsRows: 0 },
+    ).join(" | "),
+    /measured-empty marker while its reads served rows/,
+  );
+  assert.match(
+    evaluateCapacityBoardRecovery({ ...measuredEmpty, measuredEmpty: 0 }, { capacityRows: 0, flowsRows: 0 }).join(" | "),
+    /does not declare its measured empty state/,
+  );
+  assert.match(
+    evaluateCapacityBoardRecovery({ ...measuredEmpty, filterNoMatch: 1 }, { capacityRows: 0, flowsRows: 0 }).join(" | "),
+    /filter result/,
+  );
+  // A measured board states its counts again, and a board with rows renders them.
+  assert.match(
+    evaluateCapacityBoardRecovery({ ...measuredEmpty, kpiStrips: 0 }, { capacityRows: 0, flowsRows: 0 }).join(" | "),
+    /states no measurement/,
+  );
+  assert.match(
+    evaluateCapacityBoardRecovery(
+      { ...measuredEmpty, state: "ready", rows: 0, measuredEmpty: 0 },
+      { capacityRows: 2, flowsRows: 0 },
+    ).join(" | "),
+    /renders none of them/,
+  );
+});
+
+/** One element stub carrying only what the board collector reads from the page. */
+function stubBoardElement(options: { attributes?: Record<string, string>; text?: string } = {}) {
+  return {
+    textContent: options.text ?? "",
+    getAttribute: (name: string) => options.attributes?.[name] ?? null,
+  };
+}
+
+/**
+ * Run `collectCapacityOperatingBoard` against a stub displayed page, the way the collectors above
+ * are exercised: the board's evidence is collected in the page, so the markers it reads must be
+ * the surface's declared ones rather than any row or copy the page happens to carry.
+ */
+function collectCapacityBoardWithStub(spec: {
+  state?: string;
+  notice?: { state: string; text: string } | null;
+  rows?: number;
+  measuredEmpty?: number;
+  filterNoMatch?: number;
+  kpiStrips?: number;
+  retryDisabled?: boolean | null;
+  visible?: boolean;
+}) {
+  const element = (attributes: Record<string, string>, text = "") => ({
+    ...stubBoardElement({ attributes, text }),
+    ownerDocument: { defaultView: { getComputedStyle: () => ({ display: "block", visibility: "visible" }) } },
+    getBoundingClientRect: () => ({ width: 120, height: 24 }),
+  });
+  const noticeElement = spec.notice
+    ? element({ "data-capacity-notice": spec.notice.state }, spec.notice.text)
+    : null;
+  const retryElement = spec.retryDisabled === undefined
+    ? null
+    : { ...element({ "data-capacity-board-retry": "true" }), disabled: spec.retryDisabled ?? false };
+  const spread = (count: number) => Array.from({ length: count }, () => element({}));
+  const page = {
+    ...element({}),
+    getBoundingClientRect: () => ({
+      width: spec.visible === false ? 0 : 1440,
+      height: spec.visible === false ? 0 : 900,
+    }),
+    querySelector: (selector: string) => {
+      if (selector === "[data-capacity-read-state]") {
+        return element({ "data-capacity-read-state": spec.state ?? "" });
+      }
+      if (selector === "[data-capacity-notice]") return noticeElement;
+      if (selector === ".capacity-board-vocabulary") {
+        return spec.notice ? element({}, spec.notice.text) : null;
+      }
+      if (selector === "[data-capacity-board-retry]") return retryElement;
+      return null;
+    },
+    querySelectorAll: (selector: string) => {
+      if (selector === '[data-record="capacity-point"]') return spread(spec.rows ?? 0);
+      if (selector === '[data-empty-state="capacity-operating-points"]') return spread(spec.measuredEmpty ?? 0);
+      if (selector === '[data-empty-state="capacity-filter-no-match"]') return spread(spec.filterNoMatch ?? 0);
+      if (selector === ".capacity-kpi-strip") return spread(spec.kpiStrips ?? 0);
+      if (selector === "[data-capacity-board-retry]") return retryElement ? [retryElement] : [];
+      return [];
+    },
+  };
+  const previous = (globalThis as { document?: unknown }).document;
+  (globalThis as { document?: unknown }).document = {
+    querySelectorAll: (selector: string) => (selector === ".workspace-page" ? [page] : []),
+  };
+  try {
+    return collectCapacityOperatingBoard();
+  } finally {
+    (globalThis as { document?: unknown }).document = previous;
+  }
+}
+
+test("the operating board's own markers are what the sweep reads", () => {
+  const collected = collectCapacityBoardWithStub({
+    state: "partial",
+    notice: { state: "partial", text: "One of the board's two reads did not answer." },
+    rows: 4,
+    kpiStrips: 0,
+    retryDisabled: false,
+  });
+  assert.equal(collected?.state, "partial");
+  assert.equal(collected?.noticePresent, true);
+  assert.equal(collected?.noticeState, "partial");
+  assert.match(collected?.noticeText ?? "", /did not answer/);
+  assert.equal(collected?.rows, 4);
+  assert.equal(collected?.kpiStrips, 0);
+  assert.equal(collected?.retryDisabled, false);
+  assert.deepEqual(evaluateRefusedCapacityBoard(collected), []);
+
+  // The measured-empty and filter markers are collected separately, and a board without them
+  // reports no marker rather than the page's copy.
+  const measured = collectCapacityBoardWithStub({
+    state: "empty",
+    notice: null,
+    measuredEmpty: 1,
+    kpiStrips: 1,
+  });
+  assert.equal(measured?.measuredEmpty, 1);
+  assert.equal(measured?.filterNoMatch, 0);
+  assert.equal(measured?.noticePresent, false);
+  assert.deepEqual(evaluateCapacityBoardRecovery(measured, { capacityRows: 0, flowsRows: 0 }), []);
+
+  // A hidden page is not evidence at all.
+  assert.equal(collectCapacityBoardWithStub({ state: "ready", visible: false }), null);
 });

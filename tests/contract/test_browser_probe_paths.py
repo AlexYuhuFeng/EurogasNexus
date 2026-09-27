@@ -17,6 +17,7 @@ payloads that carry them.
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
@@ -102,6 +103,15 @@ EVIDENCE_PRESENTATION = (
     ROOT / "clients" / "web" / "src" / "app" / "model" / "evidencePresentation.ts"
 )
 READ_TO_RENDER = ROOT / "scripts" / "uat" / "readToRender.mjs"
+
+#: The capacity operating board's own join and read disclosure: the component that renders the
+#: board, the model that names its states, and the cockpit that derives them from the store.
+CAPACITY_COMPONENT = WEB_SRC / "CapacityWorkspace.tsx"
+CAPACITY_BOARD_MODEL = (
+    ROOT / "clients" / "web" / "src" / "app" / "model" / "capacityOperatingBoardRead.ts"
+)
+MARKET_COCKPIT = WEB_SRC / "MarketCockpit.tsx"
+I18N = ROOT / "clients" / "web" / "src" / "i18n"
 
 
 def _signals_source() -> str:
@@ -641,3 +651,99 @@ def test_the_refused_registry_probe_refuses_the_read_the_catalog_compares() -> N
         assert marker in component, f"the surface declares {marker}"
     # The measured-empty marker the refusal must not present stays the group's declared one.
     assert 'data-empty-state="source-rows"' in component
+
+
+def test_the_capacity_probe_refuses_the_board_read_the_disclosure_names() -> None:
+    """The operating board's read disclosure, and the exemption it deliberately keeps.
+
+    The board's rows are a join of two reads (``flows`` and ``capacity``), so its exemption is not
+    retired by this change: the scoped joined-row comparison is a later milestone and the whole-page
+    declaration stays, still pinned to the probe path it was declared with. What is held here is
+    the disclosure path - the refusal names exactly the board's capacity read, the verdicts are the
+    pure rules the web suite exercises, and the markers they select are the component's own - plus
+    the parity of the copy in both locales.
+    """
+
+    harness = HARNESS.read_text(encoding="utf-8")
+    # The exemption is kept, and the probe that declared it is unchanged.
+    gaps = re.search(r"const KNOWN_FUNCTIONAL_GAPS = \{(?P<body>.*?)\n\};", harness, re.DOTALL)
+    assert gaps, "KNOWN_FUNCTIONAL_GAPS is still declared in the browser sweep"
+    assert re.search(r"^\s{2}capacity:", gaps.group("body"), re.MULTILINE), (
+        "the capacity exemption stays declared until a scoped joined-row replacement exists"
+    )
+    assert _declared_probes()["capacity"] == "/api/physical/capacity?limit=5"
+
+    # The refused route is one of the two reads the board joins, and it is the client lane's own
+    # read: both paths are declared by the client the surface uses.
+    client = WEB_CLIENT.read_text(encoding="utf-8")
+    for lane in ("/physical/flows", "/physical/capacity"):
+        assert f'"{lane}"' in client, f"the board's {lane} read is the client lane's own"
+    assert "const CAPACITY_READ_ROUTE = /\\/api\\/physical\\/capacity(\\?.*)?$/;" in harness
+    assert "await page.route(CAPACITY_READ_ROUTE, handler);" in harness
+    assert harness.count("await page.unroute(CAPACITY_READ_ROUTE, handler)") == 2, (
+        "the interception is removed in the recovery half and again in the finally"
+    )
+
+    # The verdicts are the pure rules the web suite exercises, not a reading of the page's copy.
+    read_to_render = READ_TO_RENDER.read_text(encoding="utf-8")
+    for rule in (
+        "collectCapacityOperatingBoard",
+        "evaluateRefusedCapacityBoard",
+        "evaluateCapacityBoardRecovery",
+    ):
+        assert f"export function {rule}(" in read_to_render, f"{rule} is declared"
+        assert rule in harness, f"the sweep applies {rule}"
+
+    # The states the model names, and the two reads they are derived from.
+    model = CAPACITY_BOARD_MODEL.read_text(encoding="utf-8")
+    assert '"flows", "capacity"' in model, "the board's required reads are declared together"
+    for state in ("unread", "pending", "failed", "partial", "empty", "ready"):
+        assert f'"{state}"' in model, f"the board's {state} state is declared"
+    assert 'from "@/app/model/endpointFailures"' in model, (
+        "the failure vocabulary is the shared one, not a second taxonomy"
+    )
+    assert "measurement" in model, "the measurement rule is declared with the states"
+
+    # The cockpit derives the surface from the store's own facts and offers the store's existing
+    # bounded retry: no new fetch machinery, and no calculation moved into the component.
+    cockpit = MARKET_COCKPIT.read_text(encoding="utf-8")
+    assert "capacityOperatingBoardRead(" in cockpit
+    assert "retryFailedWorkspaceEndpoints" in cockpit
+    assert "api.endpointErrors.capacity" in cockpit
+    assert "api.workspaceLoadsCommitted" in cockpit
+
+    # The markers the check selects are the board component's own, and its measured-empty and
+    # filter sentences are separate declared states.
+    component = CAPACITY_COMPONENT.read_text(encoding="utf-8")
+    for marker in (
+        "data-capacity-read-state={boardRead.state}",
+        "data-capacity-notice={read.state}",
+        'data-capacity-board-retry="true"',
+        'data-record="capacity-point"',
+        "data-record-id={row.key}",
+        "data-empty-state={boardEmptyState.marker}",
+        'key: "capacity.board.empty", marker: "capacity-operating-points"',
+        'key: "capacity.no_matching_points", marker: "capacity-filter-no-match"',
+    ):
+        assert marker in component, f"the operating board declares {marker}"
+
+    # Every sentence the board renders for its read states is declared in both locales, and the
+    # measured-empty sentence is not the filter sentence.
+    locales = {
+        name: json.loads((I18N / f"{name}.json").read_text(encoding="utf-8"))
+        for name in ("en", "zh")
+    }
+    for key in (
+        "capacity.board.title",
+        "capacity.board.unread",
+        "capacity.board.pending",
+        "capacity.board.failed",
+        "capacity.board.partial",
+        "capacity.board.empty",
+        "capacity.board.retry",
+    ):
+        assert locales["en"][key].strip(), f"en {key}"
+        assert locales["zh"][key].strip(), f"zh {key}"
+        assert locales["en"][key] != locales["zh"][key], f"{key} is untranslated"
+    assert locales["en"]["capacity.board.empty"] != locales["en"]["capacity.no_matching_points"]
+    assert locales["zh"]["capacity.board.empty"] != locales["zh"]["capacity.no_matching_points"]

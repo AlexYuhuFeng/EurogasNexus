@@ -74,6 +74,9 @@ export interface ApiStoreState {
   nodes: unknown[];
   /** The registry lane's rows, as the workspace batch and its retry pass leave them. */
   sources: unknown[];
+  /** The operating board's two joined reads, as the batch and its retry pass leave them. */
+  flows: unknown[];
+  capacity: unknown[];
   marketContext: Record<string, unknown> | null;
   portfolioSnapshot: Record<string, unknown> | null;
   reviewContext: Record<string, unknown> | null;

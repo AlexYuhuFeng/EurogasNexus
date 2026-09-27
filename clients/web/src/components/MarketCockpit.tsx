@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { WorkspaceHeader } from "@/components/ui";
 import { CapacityWorkspace } from "@/components/CapacityWorkspace";
+import { capacityOperatingBoardRead } from "@/app/model/capacityOperatingBoardRead";
 import { MarketTerminal } from "@/components/MarketTerminal";
 import { NetworkWorkspace } from "@/components/NetworkWorkspace";
 import { ReferenceNetworkCatalogue } from "@/components/ReferenceNetworkCatalogue";
@@ -459,6 +460,33 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
             tsoTariffs={api.tsoTariffs}
             storage={api.storage}
             lng={api.lng}
+            // The operating board joins the `flows` and `capacity` reads, so it states which of
+            // them answered from the store's own facts - the batch's failure records, its
+            // committed passes and the bounded retry's bookkeeping - as the Source Center does for
+            // its registry lane (`app/model/capacityOperatingBoardRead.ts`).
+            boardRead={capacityOperatingBoardRead(
+              {
+                flows: {
+                  rows: api.flows.length,
+                  error: api.endpointErrors.flows,
+                  errorCode: api.endpointErrorCodes.flows,
+                },
+                capacity: {
+                  rows: api.capacity.length,
+                  error: api.endpointErrors.capacity,
+                  errorCode: api.endpointErrorCodes.capacity,
+                },
+                loading: api.workspaceLoading,
+                committedPasses: api.workspaceLoadsCommitted,
+                retry: {
+                  busy: api.endpointRetryBusy,
+                  attempts: api.endpointRetryAttempts,
+                  lastAttemptAtUtc: api.endpointRetryLastAttemptAtUtc,
+                },
+              },
+              t,
+            )}
+            onRetryBoardRead={() => void api.retryFailedWorkspaceEndpoints()}
             t={t}
           />
         )}

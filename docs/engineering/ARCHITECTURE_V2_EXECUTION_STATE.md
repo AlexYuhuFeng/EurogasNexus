@@ -5,6 +5,17 @@ Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical sli
 
 ## Current commercial acceptance checkpoint
 
+September 27 capacity disclosure implementation (baseline `d9a3971`): DeepSeek
+added operating-board read states and bilingual notices using existing store facts.
+Required-read failures no longer display measured-zero KPIs or a false filter-empty
+claim; partial rows retain an incomplete-read notice and the existing retry path.
+Integration review also hid the aggregate row count for incomplete reads. Arithmetic,
+API, PostgreSQL and authority rules are unchanged. Independent verification: 668
+frontend tests, production build and 17 focused Python contracts passed before the
+final count-display adjustment. Browser failure/recovery CI is pending. The old
+capacity exemption remains until joined-row acceptance covers both input reads;
+populated physical-data, storage/LNG and native desktop acceptance remain open.
+
 September 27 capacity diagnosis (baseline `acb48c8`, CI `36296989246` passed):
 PostgreSQL connectivity and revision `0036_job_records` verified. DeepSeek performed
 a read-only trace; integration review confirmed that CapacityWorkspace joins flows

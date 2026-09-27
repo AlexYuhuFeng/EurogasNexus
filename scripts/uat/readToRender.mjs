@@ -414,6 +414,185 @@ export function evaluateRegistryRecovery(surface, wanted) {
 }
 
 /**
+ * What the capacity operating board reports about a read the harness itself refused.
+ *
+ * The board's rows are a join of two reads (`flows` and `capacity`), so its refusal is not the
+ * registry's case: when the other read answered with rows the board may keep them as an
+ * explicitly incomplete reading (`partial`), and when it holds none the board is `failed`.
+ * Neither state may present a measurement - no KPI strip, no measured-empty marker, no filter
+ * result - and both must state that a required read did not answer and offer the store's own
+ * bounded retry, enabled while no attempt is in flight. Rows are permitted only in the `partial`
+ * state, where they are the reading that did answer.
+ *
+ * Pure, so the negative cases run without a browser (`clients/web/tests/readToRender.test.ts`).
+ */
+export function evaluateRefusedCapacityBoard(surface) {
+  const failures = [];
+  const state = surface?.state ?? "";
+  if (state !== "failed" && state !== "partial") {
+    failures.push(
+      `the capacity read was refused and the operating board reports`
+      + ` '${state || "(no state)"}'`,
+    );
+  }
+  if (surface?.noticeState !== state || surface?.noticePresent !== true) {
+    failures.push(
+      `the board reports '${state || "(no state)"}' and its own notice declares`
+      + ` '${surface?.noticeState || "(none)"}'`,
+    );
+  }
+  if (!String(surface?.noticeText ?? "").trim()) {
+    failures.push("the board renders no failure notice for the refused capacity read");
+  }
+  if (!String(surface?.vocabulary ?? "").trim()) {
+    failures.push(
+      "the board's failure notice names no endpoint for the read that did not answer",
+    );
+  }
+  if (surface?.rows > 0 && state === "failed") {
+    failures.push(
+      `the board still renders ${surface.rows} operating row(s) for a read that did not answer`,
+    );
+  }
+  if (surface?.measuredEmpty > 0) {
+    failures.push(
+      "the board still presents its measured-empty marker for a read that did not answer",
+    );
+  }
+  if (surface?.filterNoMatch > 0) {
+    failures.push(
+      "the board still presents a filter result for a read that did not answer",
+    );
+  }
+  if (surface?.kpiStrips > 0) {
+    failures.push(
+      `the board still renders ${surface.kpiStrips} KPI strip(s) for a read that did not answer`,
+    );
+  }
+  if (surface?.retryControls === 0) {
+    failures.push("the board offers no retry for the refused capacity read");
+  } else if (surface?.retryDisabled === true) {
+    failures.push("the retry control is disabled while no retry is in flight");
+  }
+  return failures;
+}
+
+/**
+ * The recovery half: once the refusal is removed, the board's own retry must leave it state the
+ * reading its two reads now support - `ready` when either read served a row, the measured `empty`
+ * when both answered with none - with the failure notice and its retry gone.
+ *
+ * `served` names the rows the platform's two reads answer with after the refusal is removed
+ * (`capacityRows`, `flowsRows`), read in the same session by the caller; when either could not be
+ * read the comparison is a failure rather than a pass. The joined rows themselves are **not**
+ * compared here - that is the scoped joined-row acceptance, a later milestone - so this rule makes
+ * no claim about which rows the board rendered.
+ *
+ * Pure, so the negative cases run without a browser (`clients/web/tests/readToRender.test.ts`).
+ */
+export function evaluateCapacityBoardRecovery(surface, served) {
+  const failures = [];
+  const capacityRows = served?.capacityRows;
+  const flowsRows = served?.flowsRows;
+  if (!Number.isFinite(capacityRows) || !Number.isFinite(flowsRows)) {
+    failures.push(
+      "the platform's two reads could not be read once the refusal was removed, so the board's"
+      + " recovery could not be measured",
+    );
+    return failures;
+  }
+  const state = surface?.state ?? "";
+  const wanted = capacityRows + flowsRows > 0 ? "ready" : "empty";
+  if (state !== wanted) {
+    failures.push(
+      `the board's reads answered ${capacityRows} capacity and ${flowsRows} flow row(s) and the`
+      + ` board reports '${state || "(no state)"}' instead of '${wanted}'`,
+    );
+  }
+  if (surface?.noticePresent === true) {
+    failures.push("the failed-board notice survives the retry that recovered the reads");
+  }
+  if (surface?.retryControls > 0) {
+    failures.push("the retry control survives the retry that recovered the reads");
+  }
+  if (surface?.measuredEmpty > 0 && wanted === "ready") {
+    failures.push(
+      "the board presents its measured-empty marker while its reads served rows",
+    );
+  }
+  if (surface?.measuredEmpty === 0 && wanted === "empty") {
+    failures.push(
+      "both reads answered with no row and the board does not declare its measured empty state",
+    );
+  }
+  if (surface?.filterNoMatch > 0) {
+    failures.push(
+      "the board presents a filter result for reads that answered with no row at all",
+    );
+  }
+  if (surface?.kpiStrips === 0) {
+    failures.push("the board states no measurement after its reads recovered");
+  }
+  if (wanted === "ready" && surface?.rows === 0) {
+    failures.push(
+      "the reads served rows and the operating board renders none of them",
+    );
+  }
+  return failures;
+}
+
+/**
+ * Collect the operating board's own read state and its claims from the displayed page.
+ *
+ * Self-contained like the other collectors (the sweep serialises this function into the page),
+ * so every selector and attribute name is a literal here. Only the displayed `.workspace-page` is
+ * evidence; the notice's text is read from the element the operator sees, the row count only from
+ * the board's own row marker, and the measured-empty and filter markers are the surface's
+ * declared ones - never the page's copy and never another panel's rows.
+ */
+export function collectCapacityOperatingBoard() {
+  const isVisible = (element) => {
+    if (!element || typeof element.getBoundingClientRect !== "function") return false;
+    const view = element.ownerDocument && element.ownerDocument.defaultView;
+    const style = view && view.getComputedStyle ? view.getComputedStyle(element) : null;
+    if (style && (style.display === "none" || style.visibility === "hidden")) return false;
+    const rect = element.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
+  };
+  const attribute = (element, name) => {
+    if (!element) return "";
+    const value = element.getAttribute(name);
+    return value === null || value === undefined ? "" : String(value).trim();
+  };
+  const text = (element) =>
+    (element ? String(element.textContent || "") : "").trim().replace(/\s+/g, " ");
+  const displayed = [...document.querySelectorAll(".workspace-page")].find(isVisible);
+  if (!displayed) return null;
+
+  const notice = displayed.querySelector("[data-capacity-notice]");
+  return {
+    state: attribute(
+      displayed.querySelector("[data-capacity-read-state]"),
+      "data-capacity-read-state",
+    ),
+    noticePresent: notice !== null,
+    noticeState: attribute(notice, "data-capacity-notice"),
+    noticeText: text(notice),
+    vocabulary: text(displayed.querySelector(".capacity-board-vocabulary")),
+    rows: displayed.querySelectorAll('[data-record="capacity-point"]').length,
+    measuredEmpty: displayed.querySelectorAll(
+      '[data-empty-state="capacity-operating-points"]',
+    ).length,
+    filterNoMatch: displayed.querySelectorAll(
+      '[data-empty-state="capacity-filter-no-match"]',
+    ).length,
+    kpiStrips: displayed.querySelectorAll(".capacity-kpi-strip").length,
+    retryControls: displayed.querySelectorAll("[data-capacity-board-retry]").length,
+    retryDisabled: displayed.querySelector("[data-capacity-board-retry]")?.disabled ?? null,
+  };
+}
+
+/**
  * Quoted-value evidence for the market hub board.
  *
  * The market workspace's numeric task (`curves`) prices one hub board from the authenticated

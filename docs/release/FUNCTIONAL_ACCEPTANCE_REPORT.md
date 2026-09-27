@@ -514,3 +514,104 @@ probe reads the projection the lane reads - for the Active Context the shell is 
   holds is the row's own hub and tenor. Where a deployment holds no quote for a hub, the card falls
   back to the normalized observation and is compared against that row; both paths are covered, and
   neither is compared against a row from the other slice.
+
+## 2026-09-27 — the capacity operating board states its own read, failure included
+
+The 2026-09-27 capacity diagnosis left one confirmed defect in this report's own words: the
+operating board renders `0 / 0` and the sentence "No operating points match the current filters."
+without distinguishing a read that has not answered from a measured zero. The board's rows are a
+join of **two** workspace reads keyed `point_id:direction` (`flows` and `capacity`), and the batch
+clears the rows of a read that failed, so the surface had no way to tell "the platform served no
+operating point" from "the platform never answered the capacity read". That state is now its own
+reading:
+
+- **Six states name what the board knows** (`app/model/capacityOperatingBoardRead.ts`): `unread`,
+  `pending`, `failed`, `partial` (one required read did not answer and the other's rows are held),
+  a measured `empty`, and a measured `ready`. The facts are the ones the store already keeps - the
+  batch's failure records and safe codes for the two lanes, the committed-pass count and the
+  bounded retry's bookkeeping - exactly as the Source Center's registry lane derives its own.
+- **No count, KPI or filter result without both reads.** The board's KPI strip (including the
+  "latest operational update" instant), the `N / M` row count, the "no comparable live capacity
+  points" warning and the filter sentence are drawn only for a board whose two required reads both
+  answered. A read that did not answer can no longer appear as a board of zero - the recorded
+  defect could only ever be reached from a failed, unread or pending lane, because a committed
+  non-empty read always renders rows.
+- **A partial board keeps the reading that answered, and says so.** When the flow read answers and
+  the capacity read does not (or the other way round), the rows it holds stay on screen - the
+  arithmetic, the join key, the posture rule and the 85%/24h thresholds are unchanged - with an
+  explicit incomplete-read notice naming the read that did not answer. Nothing is claimed as the
+  complete joined board.
+- **Measured empty ≠ filter matched nothing.** A board whose two reads answered with no row states
+  that (its own sentence and its own `data-empty-state` marker); the filter sentence is made only
+  for a fully measured board whose filters exclude the rows it has, and under its own separate
+  marker. A read that did not answer makes neither claim.
+- **The failure is stated in the surface**, with the shared endpoint vocabulary the shell's banner
+  uses (`workspace.endpoint.capacity`/`flows` plus the safe code message - never the backend's
+  prose, never a raw loader key) and the store's existing bounded retry
+  (`retryFailedWorkspaceEndpoints`), disabled and `aria-busy` while its attempt is in flight. No
+  new endpoint, fetch path, credential, permission or loader was added, and no calculation moved
+  into the component.
+- **Bilingual**: every state's sentence is declared in both locales and asserted by the web suite;
+  the unread/pending/failed/partial sentences are distinct in each locale, and the measured-empty
+  sentence is not the filter sentence in either.
+
+### How it is measured
+
+- **Executable states through the actual store** (`clients/web/tests/capacityOperatingBoardRead.test.ts`):
+  a fresh session is `unread`; a batch in flight is `pending` with no reading; both reads answering
+  empty is a measured `empty` that may state zero; one refused read with the other read's rows held
+  is `partial` with the shared vocabulary and no KPI claim; both refused with no rows is `failed`
+  with nothing that reads as a count; the scoped retry recovers the board (disabled while its
+  attempt is in flight, and a second caller issues no request); losing the identity leaves the
+  board `unread` rather than carrying the failure into the new session. The pure states' negative
+  cases (precedence, `measured` gating, unknown failure codes, raw-key leakage) run in the same
+  file.
+- **The browser error path, refused by the harness itself** (`interaction/capacity-board-failure`):
+  exactly `GET /api/physical/capacity` is intercepted and answered 503, nothing else the page
+  reads; the board must declare `data-capacity-read-state="failed"` or `"partial"` with its notice
+  and the endpoint vocabulary, and must present no measurement at all - no KPI strip, no
+  `data-empty-state="capacity-operating-points"` marker, no filter result, and no row at all in the
+  `failed` state; the interception is then removed and the board's own retry must leave it stating
+  the reading its two reads then serve (`ready` when either served a row, the measured `empty` when
+  both answered with none). The console entry the browser reports for the harness's own refusal is
+  attributed to that exact request URL (never added to the declared allowlist) and counted in the
+  summary as an observation.
+- **The rules are pure, so their negative cases run without a browser**
+  (`scripts/uat/readToRender.mjs`: `collectCapacityOperatingBoard`, `evaluateRefusedCapacityBoard`,
+  `evaluateCapacityBoardRecovery`; `clients/web/tests/readToRender.test.ts`): a board reporting any
+  other state, a row it should not hold, a measured-empty marker, a filter claim, a KPI strip, a
+  missing or disabled retry, and a recovery that keeps the notice, claims a filter for a measured
+  empty read, drops the measured-empty marker, states no measurement or renders no row for rows its
+  reads served - each fails by name.
+- **The declaration is held to the product**: `clients/web/tests/browserSmokeGates.test.ts` asserts
+  the refusal route, the branch wiring (the pure rules, the fail-closed recovery read, no console
+  exemption) and the components' markers; `tests/contract/test_browser_probe_paths.py` holds the
+  refusal to the client lane's own `/physical/capacity` and `/physical/flows` reads, the six
+  states to the model, and the copy to both locale files.
+
+### What did not change, and the limits of this repair
+
+- **The exemption is not retired.** The capacity entry in `KNOWN_FUNCTIONAL_GAPS` stays declared
+  with its original probe, because the proper replacement - comparing the board's visible joined
+  keys against *both* reads - is a separate, larger milestone and is not claimed here. This change
+  adds a disclosure path and browser evidence for a refused read; it does **not** compare a single
+  returned row with a rendered row on this surface.
+- **Presentation and disclosure only**: no API, route, payload, database, migration, permission,
+  entitlement, credential or ingestion change, no new page and no new fetch machinery. The join
+  key, the three capacity roles, the utilization/booking/headroom arithmetic, the 85% constrained
+  threshold and the 24-hour staleness window are untouched, as are the storage and LNG views.
+- **Verified here by the web suite (668 tests, eleven of them for this board), `tsc` (exit 0), the
+  focused Python contract group (`tests/contract/test_browser_probe_paths.py`, 14 passed) and
+  `node --check` on both harness modules.** **No live browser run was performed in this
+  environment** - Playwright is not installed and child-process spawning is denied in this sandbox
+  - so the CI browser job is the first run in which the refusal path is walked end to end.
+- The refusal interaction covers English desktop only, like the other interactions; the pending,
+  unread and partial copy is covered in both locales by the web suite and the locale parity gate.
+- **The populated-deployment half stays unexercised here.** In the CI fixture the capacity and flow
+  reads answer with no rows, so the `failed` → `empty` recovery is what is walked; on a deployment
+  with ENTSOG ingestion the same check exercises the `partial` → `ready` path (rows kept, then the
+  joined reading restored) without comparing the rows themselves. Which `capacity_type` values
+  legitimately count as firm technical/booked, whether a measured-empty or failed board should keep
+  last-committed rows with a disclosure, whether points without TSO access/tariffs should be
+  excluded, and whether acceptance may seed physical observations at all remain parent decisions
+  and were deliberately not inferred.

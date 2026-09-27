@@ -7431,6 +7431,50 @@ button.glossary-related-chip {
   color: var(--warning);
 }
 
+/* The operating board's own read state, in place of the counts it cannot state: unread, in
+   flight, failed, or one of its two reads missing (the rows of the read that answered stay). */
+.capacity-board-state {
+  display: grid;
+  gap: 6px;
+  border-left: 3px solid var(--eg-hairline);
+  padding: 4px 0 4px 10px;
+}
+
+.capacity-board-state.is-failed {
+  border-left-color: var(--eg-danger);
+}
+
+.capacity-board-state strong {
+  color: var(--eg-ink);
+  font-size: 13px;
+}
+
+.capacity-board-state p {
+  margin: 0;
+}
+
+.capacity-board-state .capacity-board-vocabulary {
+  color: var(--eg-muted);
+  font-size: 11px;
+}
+
+.capacity-board-retry {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+
+.capacity-board-retry button[disabled] {
+  cursor: progress;
+  opacity: 0.65;
+}
+
+.capacity-board-retry-meta {
+  color: var(--eg-muted);
+  font-size: 11px;
+}
+
 .capacity-kpi-strip .issue strong,
 .utilization-critical {
   color: var(--danger);

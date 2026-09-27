@@ -522,3 +522,90 @@ test("the refused-registry check refuses one read, and holds the surface to stat
   assert.match(component, /data-registry-notice=\{read\.state\}/);
   assert.match(component, /data-source-registry-retry="true"/);
 });
+
+test("the refused capacity read leaves the board disclosing it, and the exemption stays declared", () => {
+  // The operating board's rows are a join of two reads, so its own exemption is not retired here -
+  // the scoped joined-row comparison is a later milestone. What is pinned instead is the
+  // disclosure path: the harness refuses exactly the board's capacity read, the board must state
+  // that a required read did not answer instead of a joined zero, and its own retry of the store's
+  // bounded path must restore the reading once the refusal is removed.
+  assert.ok(declaredKeys("KNOWN_FUNCTIONAL_GAPS").includes("capacity"));
+  assert.match(
+    block("const SURFACE_SIGNALS = {", "\n};"),
+    /capacity: \{ heading: \/capacity\/i, apiPath: "\/api\/physical\/capacity\?limit=5" \}/,
+    "the retired-later whole-page check keeps the declaration it still uses",
+  );
+
+  const interaction = block(
+    "async function capacityBoardFailureInteraction(",
+    "\nexport async function runWorkflowSmoke()",
+  );
+  // One path, one method, and it is the board's own read: anything else on this path reaches the
+  // application, and a non-GET there is continued rather than refused.
+  assert.ok(
+    source.includes("const CAPACITY_READ_ROUTE = /\\/api\\/physical\\/capacity(\\?.*)?$/;"),
+    "the refusal names the board's capacity read alone",
+  );
+  assert.match(interaction, /await page\.route\(CAPACITY_READ_ROUTE, handler\);/);
+  assert.match(interaction, /if \(request\.method\(\) !== "GET"\) \{[\s\S]{0,200}await route\.continue\(\);/);
+  // The interception is removed in the recovery half and again in the finally, so no later check
+  // runs against a page whose capacity read is still refused.
+  assert.equal(interaction.match(/await page\.unroute\(CAPACITY_READ_ROUTE, handler\)/g)?.length, 2);
+  assert.match(interaction, /await page\.locator\("\[data-capacity-board-retry\]"\)\.first\(\)\.click\(\);/);
+  // The refused board and the recovery are decided by the same pure rules whose negative cases run
+  // in the web suite (`readToRender.test.ts`), not by reading the page's copy.
+  assert.match(interaction, /const refusedFailures = evaluateRefusedCapacityBoard\(refused\);/);
+  assert.match(interaction, /const surface = await page\.evaluate\(collectCapacityOperatingBoard\);/);
+  assert.match(interaction, /evaluateCapacityBoardRecovery\(surface, served\)/);
+  // The recovery half reads the board's two own reads in the session it holds, and fails when
+  // either could not be read rather than passing on half an answer.
+  assert.match(interaction, /"\/api\/physical\/capacity"/);
+  assert.match(interaction, /"\/api\/physical\/flows"/);
+  assert.match(interaction, /did not both answer once the harness stopped/);
+  // A check that measured nothing says so: the refusal must have reached the page it refused.
+  assert.match(interaction, /if \(refusal\.refusals === 0\) \{/);
+  assert.match(interaction, /the harness's own refusal never reached the page/);
+  // Failures only: what the run could not measure is recorded at the call site as an observation.
+  assert.equal(interaction.includes("recordObservation("), false);
+  // The interaction clicks the board's own retry control only: no capacity, flow or reference
+  // write is performed by the check.
+  assert.equal(/\bPOST\b|\bPUT\b|\bPATCH\b|\bDELETE\b/.test(interaction), false);
+  assert.match(source, /currentScope = "interaction\/capacity-board-failure";/);
+  assert.match(source, /await capacityBoardFailureInteraction\(page, failures\);/);
+
+  // The console entry the browser reports for the harness's own refusal is attributed to that
+  // exact request and reported as an observation - never added to the declared allowlist.
+  const allowed = block("const ALLOWED_CONSOLE_ERRORS = [", "];");
+  assert.equal(allowed.includes("503"), false, "the induced refusal is not an exemption");
+  assert.equal(
+    source.match(/inducedReadRefusals\.push\(refusal\);/g)?.length,
+    2,
+    "both induced refusals are registered for attribution",
+  );
+
+  // The markers the check selects are the board component's own.
+  const component = readFileSync(
+    new URL("../src/components/CapacityWorkspace.tsx", import.meta.url),
+    "utf8",
+  );
+  for (const marker of [
+    "data-capacity-read-state={boardRead.state}",
+    "data-capacity-notice={read.state}",
+    'data-capacity-board-retry="true"',
+    'data-record="capacity-point"',
+    "data-record-id={row.key}",
+    "data-empty-state={boardEmptyState.marker}",
+  ]) {
+    assert.ok(component.includes(marker), `the operating board declares ${marker}`);
+  }
+  const collector = readFileSync(
+    new URL("../../../scripts/uat/readToRender.mjs", import.meta.url),
+    "utf8",
+  );
+  for (const marker of [
+    'data-empty-state="capacity-operating-points"',
+    'data-empty-state="capacity-filter-no-match"',
+  ]) {
+    assert.ok(collector.includes(marker), `the board's markers include ${marker}`);
+  }
+});

@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { EvidenceBlock, WorkspaceTabs } from "@/components/ui";
 import { CapacityContractBook } from "@/components/CapacityContractBook";
+import type { CapacityOperatingBoardReadSurface } from "@/app/model/capacityOperatingBoardRead";
 import { formatUtcTimestamp } from "@/app/model/evidencePresentation";
 import { inspectorSubjectFor } from "@/app/model/inspectorDetail";
 import { useInspectorStore } from "@/stores/inspector";
@@ -25,6 +26,14 @@ interface CapacityWorkspaceProps {
   tsoTariffs: TsoTariffDTO[];
   storage: StorageObsDTO[];
   lng: LngObsDTO[];
+  /**
+   * The operating board's own read state, derived by the cockpit from the store's facts
+   * (`app/model/capacityOperatingBoardRead.ts`): the board joins two reads, so it states which of
+   * them answered instead of presenting a joined zero.
+   */
+  boardRead: CapacityOperatingBoardReadSurface;
+  /** The store's existing bounded retry, offered for this board's own reads. */
+  onRetryBoardRead: () => void;
   t: Translate;
 }
 
@@ -221,6 +230,68 @@ function latestRowsByKey<T extends { observed_at_utc?: string; period_end_utc?: 
   return [...latest.values()];
 }
 
+/**
+ * What the board knows about its own two reads, stated in the board.
+ *
+ * A failure renders whenever a required read did not answer, and the unread/pending states render
+ * while no reading exists at all - the same rule the Source Center's registry notice follows. The
+ * KPI strip, the row count and the filter sentence are drawn only for a measured board (both
+ * required reads answered), so a read that did not answer is never presented as a board of zero;
+ * rows the answered read holds stay on screen with the incompleteness stated. The failure keeps
+ * the shared endpoint vocabulary and the store's bounded retry, disabled exactly while an attempt
+ * is in flight.
+ */
+function CapacityBoardStateNotice({
+  read,
+  t,
+  onRetry,
+}: {
+  read: CapacityOperatingBoardReadSurface;
+  t: Translate;
+  onRetry: () => void;
+}) {
+  const failed = read.state === "failed" || read.state === "partial";
+  if (!failed && read.hasReading) return null;
+  if (read.noticeKey === null) return null;
+  return (
+    <div
+      className={failed ? "capacity-board-state is-failed" : "capacity-board-state"}
+      data-capacity-notice={read.state}
+      role={failed ? "alert" : "status"}
+    >
+      <strong>{t("capacity.board.title")}</strong>
+      <p>{t(read.noticeKey)}</p>
+      {failed && (
+        <p className="capacity-board-vocabulary">
+          {read.failedReads
+            .map((failedRead) => `${t(failedRead.labelKey)} · ${t(failedRead.messageKey)}`)
+            .join(" · ")}
+        </p>
+      )}
+      {failed && (
+        <div className="capacity-board-retry">
+          <button
+            type="button"
+            data-capacity-board-retry="true"
+            disabled={read.retry.disabled}
+            aria-busy={read.retry.busy}
+            onClick={onRetry}
+          >
+            {t("capacity.board.retry")}
+          </button>
+          {(read.retry.busy || read.retry.attempts > 0) && (
+            <span className="capacity-board-retry-meta">
+              {read.retry.attemptsLabel}
+              {read.retry.lastAttemptLabel ? ` · ${read.retry.lastAttemptLabel}` : ""}
+              {read.retry.runningLabel ? ` · ${read.retry.runningLabel}` : ""}
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function CapacityWorkspace({
   flows,
   capacity,
@@ -228,6 +299,8 @@ export function CapacityWorkspace({
   tsoTariffs,
   storage,
   lng,
+  boardRead,
+  onRetryBoardRead,
   t,
 }: CapacityWorkspaceProps) {
   const inspector = useInspectorStore();
@@ -274,6 +347,18 @@ export function CapacityWorkspace({
   const activePage = Math.min(page, pageCount - 1);
   const pageStart = activePage * PAGE_SIZE;
   const visibleRows = filteredRows.slice(pageStart, pageStart + PAGE_SIZE);
+  const filtersApplied =
+    query.trim() !== "" || country !== "all" || operator !== "all" || posture !== "all";
+  // A filter claim is made only for a fully measured board, and a measured board whose two reads
+  // served no row states that instead: "the filters matched nothing" and "the runtime served
+  // nothing" are different answers, and a read that did not answer is neither.
+  const boardEmptyState = !boardRead.hasReading
+    ? null
+    : operatingRows.length === 0
+      ? { key: "capacity.board.empty", marker: "capacity-operating-points" }
+      : boardRead.measured && filtersApplied && filteredRows.length === 0
+        ? { key: "capacity.no_matching_points", marker: "capacity-filter-no-match" }
+        : null;
   const selected = operatingRows.find((row) => row.key === selectedKey) ?? filteredRows[0] ?? null;
   const selectedAccess = selected
     ? tsoAccess.filter((row) => row.point_id === selected.pointId || normalize(row.point_name) === normalize(selected.pointName))
@@ -307,7 +392,7 @@ export function CapacityWorkspace({
   const lngDtmi = latestLng.reduce((total, row) => total + (row.dtmi_twh ?? 0), 0);
 
   return (
-    <div className="capacity-page capacity-operations">
+    <div className="capacity-page capacity-operations" data-capacity-read-state={boardRead.state}>
       <section className="workspace-panel capacity-command-panel">
         <div className="capacity-view-header">
           <div>
@@ -351,6 +436,10 @@ export function CapacityWorkspace({
                 </button>
               ))}
             </div>
+            {/* Counts and their latest-update instant are a measurement of both required reads:
+                one that has not answered is not a zero, and the rows held from one read are not
+                the joined board. */}
+            {boardRead.measured && (
             <div className="capacity-kpi-strip">
               <div><span>{t("capacity.physical_flow_records")}</span><strong>{counts.flowPublished}</strong></div>
               <div><span>{t("capacity.technical_records")}</span><strong>{counts.technicalPublished}</strong></div>
@@ -359,7 +448,8 @@ export function CapacityWorkspace({
               <div className={counts.incomplete > 0 ? "warning" : ""}><span>{t("capacity.incomplete")}</span><strong>{counts.incomplete}</strong></div>
               <div><span>{t("capacity.latest_update")}</span><strong>{formatTimestamp(latestOperationalAt)}</strong></div>
             </div>
-            {counts.complete === 0 && (
+            )}
+            {boardRead.measured && counts.complete === 0 && operatingRows.length > 0 && (
               <div className="capacity-data-warning" role="status">
                 <strong>{t("capacity.no_comparable_title")}</strong>
                 <span>{t("capacity.no_comparable_body")}</span>
@@ -398,12 +488,14 @@ export function CapacityWorkspace({
           <section className="workspace-panel capacity-board-panel">
             <div className="panel-title-row">
               <div><h2>{t("capacity.operating_board")}</h2><p>{t("capacity.operating_board_note")}</p></div>
-              <span>{filteredRows.length} / {operatingRows.length}</span>
+              {boardRead.measured && <span>{filteredRows.length} / {operatingRows.length}</span>}
             </div>
-            {/* The rows are select buttons, so the container is a labelled group
-                rather than a table: claiming role="table" with button children
-                is invalid ARIA (axe: aria-required-children) and misleads
-                assistive technology. Selection is exposed with aria-pressed. */}
+            <CapacityBoardStateNotice read={boardRead} t={t} onRetry={onRetryBoardRead} />
+            {/* The rows are select buttons, so the container is a labelled group rather than a
+                table: claiming role="table" with button children is invalid ARIA
+                (axe: aria-required-children) and misleads assistive technology. Selection is
+                exposed with aria-pressed. Partial rows remain under the incomplete-read notice. */}
+            {boardRead.hasReading && (
             <div
               className="capacity-operating-table"
               tabIndex={0}
@@ -414,7 +506,7 @@ export function CapacityWorkspace({
                 <span>{t("panel.point")}</span><span>{t("panel.direction")}</span><span>{t("capacity.flow")}</span><span>{t("capacity.technical")}</span><span>{t("capacity.utilization")}</span><span>{t("capacity.booked")}</span><span>{t("capacity.headroom_short")}</span><span>{t("capacity.posture")}</span>
               </div>
               {visibleRows.map((row) => (
-                <button key={row.key} type="button" aria-pressed={selected?.key === row.key} className={selected?.key === row.key ? "capacity-operating-row active" : "capacity-operating-row"} onClick={() => setSelectedKey(row.key)}>
+                <button key={row.key} type="button" data-record="capacity-point" data-record-id={row.key} aria-pressed={selected?.key === row.key} className={selected?.key === row.key ? "capacity-operating-row active" : "capacity-operating-row"} onClick={() => setSelectedKey(row.key)}>
                   <span><strong>{row.pointName}</strong><small>{row.country} · {row.operator}</small></span>
                   <span>{row.direction}</span>
                   <span>{formatNumber(row.flowMcmD)}</span>
@@ -428,8 +520,13 @@ export function CapacityWorkspace({
                   <span><span className={`capacity-readiness capacity-readiness-${row.posture}`}>{t(`capacity.${row.posture}`)}</span></span>
                 </button>
               ))}
-              {filteredRows.length === 0 && <div className="capacity-empty-state">{t("capacity.no_matching_points")}</div>}
+              {boardEmptyState && (
+                <div className="capacity-empty-state" data-empty-state={boardEmptyState.marker}>
+                  {t(boardEmptyState.key)}
+                </div>
+              )}
             </div>
+            )}
             {filteredRows.length > 0 && (
               <div className="capacity-pagination" aria-label={t("capacity.pagination")}>
                 <span>{t("capacity.showing")} {pageStart + 1}-{Math.min(pageStart + PAGE_SIZE, filteredRows.length)} {t("capacity.of")} {filteredRows.length}</span>
@@ -523,7 +620,13 @@ export function CapacityWorkspace({
                   {selectedTariffs.length === 0 && <p>{t("capacity.no_tariff_record")}</p>}
                 </div>
               </>
-            ) : <div className="capacity-empty-state">{t("capacity.no_matching_points")}</div>}
+            ) : (
+              // The inspector holds no point to analyse: state what the board knows, never a
+              // filter result for a board whose reads have not both answered.
+              <div className="capacity-empty-state">
+                {t(boardEmptyState?.key ?? boardRead.noticeKey ?? "capacity.no_matching_points")}
+              </div>
+            )}
           </aside>
         </div>
       )}
