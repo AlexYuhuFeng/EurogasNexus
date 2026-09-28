@@ -13,8 +13,13 @@ page, checks axe/contrast/text fit/overlap at all three viewports, captures it a
 removes it before normal application screenshots. No market state or data changed.
 Parent verification: 683 frontend tests, production web build, 47 Python
 UAT/browser/Markdown contracts passed; whitespace clean. Build retains the existing
-ineffective dynamic import warning. Rendered CI verification pending; this fixture
-is component evidence, not proof of every populated workflow or theme combination.
+ineffective dynamic import warning. Commit `a834146` passed CI `36484351318`,
+all five active jobs; native packaging skipped. Downloaded browser evidence has
+zero failures and six EN/ZH desktop/mobile fixture screenshots; parent inspected
+English desktop and Chinese mobile images. Measured allocated/candidate/blocked
+ratios are 5.47/5.93/7.09. This fixture is component evidence, not proof of every
+populated workflow or theme combination; dark tokens have unit contrast checks,
+not a separately rendered dark-theme sweep.
 
 September 28 G10 inventory prerequisite (baseline `bb0ad4c`): DeepSeek corrected
 the existing lock-derived SBOM generator: nested/scoped npm identity, exact Cargo
