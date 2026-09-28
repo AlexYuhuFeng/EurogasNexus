@@ -32,11 +32,16 @@ import {
   evaluateRefusedCapacityBoard,
   evaluateRefusedRegistry,
   evaluateRegistryRecovery,
+  evaluateRouteBadgeContrast,
   evaluateReadToRender,
   evaluateQuotedBoard,
   marketBoardRows,
+  mountRouteBadgeFixture,
   readGroupRows,
   readSourceLabel,
+  removeRouteBadgeFixture,
+  ROUTE_BADGE_FIXTURE_ATTRIBUTE,
+  ROUTE_BADGE_STATES,
 } from "./readToRender.mjs";
 
 const require = createRequire(import.meta.url);
@@ -87,8 +92,8 @@ const WORKSPACES = [
 ];
 
 const LANGUAGES = [
-  { id: "en", htmlPrefix: "en" },
-  { id: "zh-CN", htmlPrefix: "zh" },
+  { id: "en", htmlPrefix: "en", i18n: "en.json" },
+  { id: "zh-CN", htmlPrefix: "zh", i18n: "zh.json" },
 ];
 
 const VIEWPORTS = [
@@ -342,10 +347,23 @@ async function setLanguage(page, language) {
   );
 }
 
-async function axeViolations(page) {
+/**
+ * Run axe over the whole document, or over one declared element.
+ *
+ * The context parameter exists for the route-state badge check: CI 36428725740's contrast defect
+ * lived in badge markup the seeded data only sometimes renders, so that check mounts the three
+ * states deterministically and holds axe to exactly that fixture. There is no axe exclusion and
+ * no rule or threshold change here - the same pinned axe-core, the same rule set, a declared
+ * context.
+ */
+async function axeViolations(page, contextSelector = null) {
   await page.addScriptTag({ content: axeSource });
-  return page.evaluate(async () => {
-    const result = await window.axe.run(document, {
+  return page.evaluate(async (selector) => {
+    const context = selector ? document.querySelector(selector) : document;
+    if (!context) {
+      throw new Error(`axe was asked to run over '${selector}', which the page does not render`);
+    }
+    const result = await window.axe.run(context, {
       runOnly: {
         type: "tag",
         values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"],
@@ -360,7 +378,32 @@ async function axeViolations(page) {
       html: violation.nodes.slice(0, 2).map((node) => node.html),
       failureSummary: violation.nodes.slice(0, 2).map((node) => node.failureSummary),
     }));
-  });
+  }, contextSelector);
+}
+
+/**
+ * The app's own labels for the three route states, read from the i18n file the client bundles.
+ *
+ * The badge fixture renders these exact strings, so the check measures the product's copy in
+ * each language instead of a label the harness invented; a missing label is a failure rather
+ * than a silently blank pill.
+ */
+function routeStateLabels(language) {
+  const source = JSON.parse(
+    readFileSync(
+      path.join(REPO_ROOT, "clients", "web", "src", "i18n", language.i18n),
+      "utf8",
+    ),
+  );
+  const labels = {};
+  for (const state of ROUTE_BADGE_STATES) {
+    const value = source[`home.route_state.${state}`];
+    if (typeof value !== "string" || value.trim() === "") {
+      throw new Error(`i18n ${language.i18n} carries no home.route_state.${state} label`);
+    }
+    labels[state] = value;
+  }
+  return labels;
 }
 
 
@@ -752,6 +795,54 @@ async function inspectSurfaceFunction(
   return state;
 }
 
+/**
+ * Render and measure the three route-state pills with the production stylesheet.
+ *
+ * CI 36428725740 reported the Chinese candidate pill as white on `#0ea5e9` (2.77 against the
+ * 4.5 the product requires) on a run whose seeded data happened to place a candidate path. The
+ * overlay's legend and pills only exist when the data does, so that defect was state-dependent:
+ * a run that renders no candidate would pass the whole-page axe sweep while saying nothing about
+ * the badge it never rendered. This check does not depend on the data. It mounts the overlay's own
+ * pill markup (`resource-route-state-pill` with its state class) with the app's own translated
+ * labels inside the displayed page, runs axe over exactly that fixture, measures each pill's
+ * computed colours, boxes and text fit, screenshots the fixture as evidence, removes it again (the
+ * page screenshot that follows is the app's own), and holds the measurements to
+ * `evaluateRouteBadgeContrast`. It runs for every language and viewport the sweep declares, so
+ * English and Chinese, desktop and 390px all render all three states.
+ */
+async function inspectRouteBadgeStates(page, language, viewport, failures, observations) {
+  const scope = `${language.id}/${viewport.id}/network:route-state-badges`;
+  const labels = routeStateLabels(language);
+  const fixture = await page.evaluate(mountRouteBadgeFixture, { labels });
+  let axeFailure = null;
+  if (fixture?.mounted === true) {
+    const violations = await axeViolations(page, `[${ROUTE_BADGE_FIXTURE_ATTRIBUTE}]`);
+    if (violations.length > 0) {
+      axeFailure = `axe violations in the mounted route-state badge fixture: ${JSON.stringify(violations)}`;
+    }
+    const screenshotDir = path.join(OUTPUT_DIR, safeName(language.id), viewport.id);
+    mkdirSync(screenshotDir, { recursive: true });
+    await page
+      .locator(`[${ROUTE_BADGE_FIXTURE_ATTRIBUTE}]`)
+      .screenshot({ path: path.join(screenshotDir, "network-route-state-pills.png") });
+    await page.evaluate(removeRouteBadgeFixture);
+  }
+  const { failures: measured, observations: measuredObservations } = evaluateRouteBadgeContrast({
+    fixture,
+    labels,
+  });
+  for (const detail of measuredObservations) {
+    recordObservation(observations, `${scope}: ${detail}`);
+  }
+  for (const detail of measured) {
+    recordFailure(failures, scope, detail);
+  }
+  if (axeFailure !== null) {
+    recordFailure(failures, scope, axeFailure);
+  }
+  return fixture;
+}
+
 async function inspectWorkspace(
   page,
   language,
@@ -869,6 +960,15 @@ async function inspectWorkspace(
   // surfaces it captured were empty.
   await inspectSurfaceFunction(page, workspace, failures, observations, functionalGaps);
 
+  // The route-state badges are only data-dependent markup for the rest of this check: the map
+  // overlay renders them when the fixture serves resource-pool paths, and CI 36428725740's
+  // contrast defect (white on `#0ea5e9`) hid in exactly that variation. The network page mounts
+  // the product's pill markup deterministically and measures it before the page screenshot, so
+  // the screenshot below still shows only the application.
+  const routeStateBadges = workspace === "network"
+    ? await inspectRouteBadgeStates(page, language, viewport, failures, observations)
+    : null;
+
   const screenshotDir = path.join(
     OUTPUT_DIR,
     safeName(language.id),
@@ -888,6 +988,7 @@ async function inspectWorkspace(
     h1Count: state.h1Count,
     scrollWidth: state.scrollWidth,
     clientWidth: state.clientWidth,
+    routeStateBadges,
   };
 }
 

@@ -642,3 +642,74 @@ test("the capacity board's joined rows are compared with both reads, and its ref
     assert.ok(collector.includes(marker), `the board's markers include ${marker}`);
   }
 });
+
+test("the route-state badges are rendered and measured in every language and viewport", () => {
+  // CI 36428725740 measured the Chinese candidate pill as white on `#0ea5e9` (2.77 against the
+  // 4.5 the product requires) on a run whose seeded data happened to place a candidate path. The
+  // overlay's legend and pills only exist when the data does, so a later run without a candidate
+  // could stay green without ever rendering the badge it failed on. The sweep now mounts the
+  // overlay's own pill markup with the app's own translated labels inside the displayed network
+  // page, runs axe scoped to exactly that fixture, screenshots it, removes it again, and holds
+  // the measured colours and boxes to the pure verdict whose negative cases run in
+  // `readToRender.test.ts`.
+  const check = block(
+    "async function inspectRouteBadgeStates(",
+    "\nasync function inspectWorkspace(",
+  );
+  // The labels are the app's own translations, read from the i18n files the client bundles: the
+  // fixture cannot measure a label the harness invented, and a language without labels fails.
+  assert.match(check, /const labels = routeStateLabels\(language\);/);
+  const labels = block("function routeStateLabels(", "\n}");
+  assert.match(labels, /"clients", "web", "src", "i18n", language\.i18n/);
+  assert.match(labels, /home\.route_state\.\$\{state\}/);
+  const languages = block("const LANGUAGES = [", "];");
+  assert.match(languages, /id: "en", htmlPrefix: "en", i18n: "en\.json"/);
+  assert.match(languages, /id: "zh-CN", htmlPrefix: "zh", i18n: "zh\.json"/);
+  // Mounted, axe-checked in its own declared context, screenshotted, removed again.
+  assert.match(check, /await page\.evaluate\(mountRouteBadgeFixture, \{ labels \}\)/);
+  assert.match(check, /axeViolations\(page, `\[\$\{ROUTE_BADGE_FIXTURE_ATTRIBUTE\}\]`\)/);
+  assert.match(check, /network-route-state-pills\.png/);
+  assert.match(check, /await page\.evaluate\(removeRouteBadgeFixture\)/);
+  assert.match(check, /evaluateRouteBadgeContrast\(\{\s*fixture,\s*labels,/);
+  // The verdict's failures are failures and its measurements are observations.
+  assert.match(
+    check,
+    /for \(const detail of measuredObservations\) \{\s*recordObservation\(observations, `\$\{scope\}: \$\{detail\}`\);/,
+  );
+  assert.match(check, /for \(const detail of measured\) \{\s*recordFailure\(failures, scope, detail\);/);
+  // The check runs for the network page only, before the app's own page screenshot, and its
+  // measurement travels in the run's results.
+  const workspaceCheck = source.slice(source.indexOf("async function inspectWorkspace("));
+  const call = workspaceCheck.indexOf('workspace === "network"');
+  assert.notEqual(call, -1, "the badge check is declared for the network workspace");
+  assert.match(
+    workspaceCheck.slice(call, call + 400),
+    /await inspectRouteBadgeStates\(page, language, viewport, failures, observations\)/,
+  );
+  const screenshot = workspaceCheck.indexOf("await page.screenshot({");
+  assert.ok(call < screenshot, "the badge check precedes the page screenshot");
+  assert.match(workspaceCheck, /routeStateBadges,/);
+
+  // The fixture is the overlay's own markup: the component renders the same classes the page
+  // function mounts, and the CSS the check measures is the stylesheet being built.
+  const collector = readFileSync(
+    new URL("../../../scripts/uat/readToRender.mjs", import.meta.url),
+    "utf8",
+  );
+  assert.match(collector, /"resource-route-state-pill " \+ state/);
+  assert.match(collector, /\[data-uat-route-state-fixture\]/);
+  const overlay = readFileSync(
+    new URL("../src/components/ResourcePoolPathOverlay.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(overlay, /className=\{`resource-route-state-pill \$\{path\.routeState\}`\}/);
+  const css = readFileSync(new URL("../src/styles/app.css", import.meta.url), "utf8");
+  assert.match(css, /\.resource-route-state-pill\.candidate \{\s*background: var\(--eg-badge-candidate-bg\);/);
+
+  // No axe exclusion, no disabled rule, no lowered threshold: the scoped run keeps the same
+  // pinned axe-core, rule set and tag list as the whole-page sweep.
+  const axe = block("async function axeViolations(", "\n}\n");
+  assert.match(axe, /values: \["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"\]/);
+  assert.equal(/exclude|threshold|disableRules/.test(axe), false);
+  assert.equal(source.includes("disableRules"), false);
+});

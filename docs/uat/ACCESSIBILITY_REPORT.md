@@ -15,6 +15,13 @@ The main CI workflow contains a deterministic `browser-acceptance` job. It:
 - injects axe-core 4.10.3 and checks WCAG 2 A/AA and WCAG 2.1 A/AA;
 - requires exactly one `main h1` on every workspace surface;
 - rejects document-level horizontal overflow;
+- renders the three route-state status pills (`allocated`, `candidate`,
+  `blocked`) deterministically on the Network workspace - the map overlay's own
+  pill markup with the app's English and Mandarin labels - and holds each to
+  WCAG AA text contrast, text fit, on-screen boxes, pairwise overlap and
+  distinct state colours, so a run whose data renders no candidate path cannot
+  hide an unreadable badge (axe still runs over the same pinned rule set; no
+  exclusion or threshold is used), writing `network-route-state-pills.png`;
 - exercises keyboard close/focus-return for the grouped Preferences menu and
   the narrow Context & status disclosure;
 - writes a screenshot for every workspace/language/viewport matrix cell plus a

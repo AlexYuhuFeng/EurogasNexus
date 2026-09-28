@@ -6668,19 +6668,31 @@ button.glossary-related-chip {
   background: var(--eg-muted);
 }
 
-.route-state-item.allocated i,
-.resource-route-state-pill.allocated {
+.route-state-item.allocated i {
   background: var(--eg-map-hub);
 }
 
-.route-state-item.candidate i,
-.resource-route-state-pill.candidate {
+.route-state-item.candidate i {
   background: var(--eg-map-standard);
 }
 
-.route-state-item.blocked i,
-.resource-route-state-pill.blocked {
+.route-state-item.blocked i {
   background: var(--warning);
+}
+
+/* The legend dots above keep the map palette (a dot carries no text); the text pills take the
+   badge palette below, because the 10px white label needs a background that reaches 4.5:1 -
+   white on `--eg-map-standard` measured 2.77 on CI 36428725740. */
+.resource-route-state-pill.allocated {
+  background: var(--eg-badge-allocated-bg);
+}
+
+.resource-route-state-pill.candidate {
+  background: var(--eg-badge-candidate-bg);
+}
+
+.resource-route-state-pill.blocked {
+  background: var(--eg-badge-blocked-bg);
 }
 
 .route-state-item strong {
@@ -6786,7 +6798,7 @@ button.glossary-related-chip {
 
 .resource-route-state-pill {
   border-radius: var(--eg-pill);
-  color: #ffffff;
+  color: var(--eg-badge-ink);
   font-size: 10px;
   font-style: normal;
   font-weight: 800;
@@ -7003,6 +7015,13 @@ button.glossary-related-chip {
   --eg-map-lng: #7c3aed;
   --eg-map-interconnector: #f97316;
   --eg-map-standard: #0ea5e9;
+  /* Route-state badge palette only: the map tokens above are lines, dots and chips. Each badge
+     background keeps its state hue but is dark enough for the pill's white 10px label
+     (allocated 5.47, candidate 5.93, blocked 7.09 against #ffffff). */
+  --eg-badge-ink: #ffffff;
+  --eg-badge-allocated-bg: #0f766e;
+  --eg-badge-candidate-bg: #0369a1;
+  --eg-badge-blocked-bg: #92400e;
 }
 
 :root.dark .cockpit-app {
@@ -7012,6 +7031,12 @@ button.glossary-related-chip {
   --eg-map-lng: #a78bfa;
   --eg-map-interconnector: #fb923c;
   --eg-map-standard: #38bdf8;
+  /* The dark map hues fail as badge backgrounds (1.86/2.14/2.15 against white), so the badges
+     darken instead: allocated 7.58, candidate 7.56, blocked 5.02 against #ffffff. */
+  --eg-badge-ink: #ffffff;
+  --eg-badge-allocated-bg: #115e59;
+  --eg-badge-candidate-bg: #075985;
+  --eg-badge-blocked-bg: #b45309;
 }
 
 .workspace-topbar-only {

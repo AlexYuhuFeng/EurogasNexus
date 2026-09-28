@@ -745,3 +745,77 @@ Limits and tradeoffs of this milestone:
   fixture's own message rather than falling back to an older-day window.
 - The 60-day historical block is untouched, including its pre-existing 04:00Z placement for the
   current day; the new mode neither reads nor rewrites it.
+
+## 2026-09-29 — the route-state badges carry their own contrast-verified palette
+
+CI 36428725740 (browser acceptance on `bb0ad4c`) reported one serious axe color-contrast failure:
+the Chinese candidate route pill (`.resource-route-state-pill.candidate`) rendered white on
+`#0ea5e9` — **2.77 against the 4.5** the product requires for its 10px label. The finding was
+state-dependent in a way the run itself could not pin down: the route-path overlay's legend and
+pills render only when the seeded runtime holds resource-pool paths, and whether any allocation
+produces a candidate path depends on the data — so a later run that renders no candidate could
+stay green without ever painting the badge the run failed on. That is the defect class this fix
+closes: not "a badge was unreadable once", but "the run could not say whether a badge is readable".
+
+- **Root cause.** One rule pair painted both a legend dot and a text pill:
+  `.route-state-item.candidate i, .resource-route-state-pill.candidate { background:
+  var(--eg-map-standard) }` (and the same shape for `allocated` and `blocked`). The map survey
+  hues are chosen for map lines, dots and layer chips; as a pill background they carry a white
+  10px label. In the light theme the candidate pair measured the reported 2.77; in the dark theme
+  all three were worse (`#2dd4bf` 1.86, `#38bdf8` 2.14, `#f59e0b` 2.15 against white).
+- **Fix — split the legend from the labelling.** The legend dots keep the unchanged map palette
+  (`--eg-map-hub`, `--eg-map-standard`, `--warning`); the pills take narrowly scoped badge tokens
+  declared beside the map tokens in both theme blocks — `--eg-badge-ink: #ffffff` and
+  `--eg-badge-{allocated,candidate,blocked}-bg` — with each state's hue kept and darkened until
+  white clears 4.5:1: light `#0f766e` 5.47 / `#0369a1` 5.93 / `#92400e` 7.09, dark `#115e59`
+  7.58 / `#075985` 7.56 / `#b45309` 5.02. No map colour, legend dot colour, route line, node or
+  chip was repainted, and no status, wording or classification changed.
+- **Rendered regression that data variation cannot hide.** `scripts/uat/browser_workflow_smoke.mjs`
+  now mounts the overlay's own pill markup (`<em class="resource-route-state-pill {state}">`, the
+  element `ResourcePoolPathOverlay` renders) with the app's own labels read from
+  `clients/web/src/i18n/en.json` and `zh.json`, inside the displayed network page, on every
+  language and viewport the sweep declares (EN/zh-CN × 1440/1920/390). It runs the same pinned
+  axe-core over exactly that fixture (same `wcag2a`/`wcag2aa`/`wcag21a`/`wcag21aa` tag set — no
+  exclusion, no disabled rule, no threshold lowered), measures each pill's computed colours,
+  boxes, text fit and pairwise overlap through `evaluateRouteBadgeContrast`
+  (`scripts/uat/readToRender.mjs`), writes `network-route-state-pills.png` beside the page
+  screenshot as visual evidence, removes the fixture again before the page itself is
+  screenshotted, and records the measurements in `summary.json` under the network results
+  (`routeStateBadges`). A missing state, a missing or wrong label, a translucent background, a
+  sub-4.5 ratio, a clipped label, overlapping pills, two states sharing a background, a pill off
+  the viewport or an unmounted fixture each fails by name — so "this run rendered no candidate"
+  can no longer pass as "the candidate badge is readable".
+- **Unit tests hold the tokens to the product.** `clients/web/tests/routeStateBadgeContrast.test.ts`
+  computes every published foreground/background pair's ratio from `app.css` for both themes with
+  the same contrast function the browser check measures with, asserts the 4.5 minimum, reproduces
+  the reported 2.77 as a negative control for white on `#0ea5e9`, and pins the map/legend palette
+  and legend-dot declarations as unchanged. `readToRender.test.ts` exercises the verdict's
+  negative cases (missing state, empty/mismatched label, translucent background, the 2.77
+  candidate, overlap, clipping, off-viewport, shared background, unmounted fixture) and runs the
+  mount/remove pair against a stub page; `browserSmokeGates.test.ts` holds the harness wiring
+  itself (i18n labels, scoped axe, fixture screenshot, removal before the page screenshot, no
+  exclusions).
+- **What did not change.** No API, payload, route, permission, database, migration, fixture row or
+  calculation: the change is CSS plus harness and tests, the badge fixture is DOM-only and removed
+  before every page screenshot, screenshot truth is untouched, and the map/legend survey palette
+  and map line/dot colours are unchanged. No axe exclusion or threshold was added, and no
+  acceptance threshold was lowered.
+
+Limits of this milestone:
+
+- **No local browser run was performed here** (Playwright and axe-core are not installed in this
+  environment, the network is restricted, and the sandbox refuses child-process spawns
+  entirely — including `net use`, which is why `vite build`'s Windows real-path probe also cannot
+  run here), so the rendered regression is wired into the existing CI `browser-acceptance` job
+  (`node scripts/uat/browser_workflow_smoke.mjs`) rather than claimed from this machine; that job
+  is the first execution of the new check. CI's `web-client-build` job is likewise the build and
+  full-suite runner.
+- **The fixture is a mounted render, not a seeded candidate path.** It measures the product's
+  markup, production stylesheet, theme tokens and translated labels inside the real network page,
+  but it does not fabricate the backend allocation that produces a candidate path; when the data
+  does render real pills, the whole-page axe sweep continues to check them too.
+- Verified locally by the web suite (683 passed, including the new badge token, verdict, mounting
+  and harness-wiring cases; `npm run test`'s per-file child spawn is blocked in this sandbox, so
+  the suite was run in-process with `node --test --test-isolation=none`), `tsc` exit 0, and
+  `node --check` on both harness modules. This record claims CSS, harness and unit verification;
+  it does not claim the CI browser result.

@@ -277,6 +277,322 @@ export function evaluateReadToRender({ status, groups, evidence = [], source = n
 }
 
 /**
+ * The route-state badge fixture: the map overlay's status pills, rendered and measured in the
+ * running page.
+ *
+ * CI 36428725740 measured the Chinese candidate pill as white on `#0ea5e9` - 2.77 against the
+ * 4.5 the product requires for its 10px label - but only because that run's seeded data happened
+ * to place a candidate path. The overlay's legend and pills are data-dependent, so a later run
+ * without a candidate could pass while rendering nothing to measure. This fixture makes the three
+ * states deterministic: `mountRouteBadgeFixture` renders exactly the pill markup
+ * `ResourcePoolPathOverlay` renders (`<em class="resource-route-state-pill {state}">label</em>`)
+ * with the labels the sweep read from the app's own `clients/web/src/i18n` files, inside the
+ * displayed workspace page - so the production stylesheet and its theme tokens are the ones in
+ * force - and `evaluateRouteBadgeContrast` holds the measured colours and boxes to the product's
+ * own minimum.
+ */
+
+/** The attribute the mounted badge fixture carries; the sweep's handle for axe and screenshots. */
+export const ROUTE_BADGE_FIXTURE_ATTRIBUTE = "data-uat-route-state-fixture";
+
+/** The three route states the product declares (`ResourcePoolMapPath["routeState"]`). */
+export const ROUTE_BADGE_STATES = ["allocated", "candidate", "blocked"];
+
+/** WCAG 2.x AA minimum for the badge's 10px text; never lowered, only published. */
+export const ROUTE_BADGE_MIN_CONTRAST = 4.5;
+
+/** The channels of a hex or `rgb()`/`rgba()` colour; null when the value is not a colour. */
+function colorChannels(color) {
+  const text = String(color ?? "").trim();
+  const hex = text.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+  if (hex) {
+    const digits = hex[1].length === 3
+      ? hex[1].split("").map((digit) => digit + digit).join("")
+      : hex[1];
+    return [0, 2, 4].map((at) => parseInt(digits.slice(at, at + 2), 16));
+  }
+  const rgb = text.match(/^rgba?\(\s*([0-9.]+)[,\s]+([0-9.]+)[,\s]+([0-9.]+)/i);
+  if (!rgb) return null;
+  const channels = rgb.slice(1, 4).map(Number);
+  if (!channels.every((value) => Number.isFinite(value) && value >= 0 && value <= 255)) return null;
+  return channels;
+}
+
+/** WCAG 2.x relative luminance of a colour; null when the value is not a usable opaque colour. */
+export function relativeLuminance(color) {
+  const channels = colorChannels(color);
+  if (!channels) return null;
+  const linear = channels.map((value) => {
+    const channel = value / 255;
+    return channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
+}
+
+/** WCAG 2.x contrast ratio between two colours; null when either cannot be read. */
+export function contrastRatio(foreground, background) {
+  const fg = relativeLuminance(foreground);
+  const bg = relativeLuminance(background);
+  if (fg === null || bg === null) return null;
+  const lighter = Math.max(fg, bg);
+  const darker = Math.min(fg, bg);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+/**
+ * Whether a computed colour is fully opaque.
+ *
+ * A translucent badge background makes its text ratio unmeasurable (whatever is behind it would
+ * be part of the contrast), so the verdict refuses it instead of measuring against a colour the
+ * browser never painted.
+ */
+export function isOpaqueColor(color) {
+  const text = String(color ?? "").trim();
+  const rgba = text.match(/^rgba\(\s*[0-9.]+[,\s]+[0-9.]+[,\s]+[0-9.]+[,\s/]+([0-9.]+%?)\s*\)$/i);
+  if (rgba) {
+    const raw = rgba[1];
+    const alpha = raw.endsWith("%") ? Number(raw.slice(0, -1)) / 100 : Number(raw);
+    return Number.isFinite(alpha) && alpha >= 1;
+  }
+  return /^rgb\(/i.test(text) || /^#[0-9a-f]{3}([0-9a-f]{3})?$/i.test(text);
+}
+
+/**
+ * Render the three route-state pills inside the displayed workspace page and measure them.
+ *
+ * Self-contained (the sweep serialises this function into the page), so every selector and
+ * attribute name is a literal here. The fixture is fixed-positioned on purpose: it has to be
+ * fully on screen at every viewport (390x844 included) so its screenshot and the box checks are
+ * evidence, and it is removed again before the sweep screenshots the page itself. The markup is
+ * the overlay's own: `<em class="resource-route-state-pill {state}">{label}</em>`.
+ */
+export function mountRouteBadgeFixture(spec) {
+  const labels = (spec && spec.labels) || {};
+  const existing = document.querySelector("[data-uat-route-state-fixture]");
+  if (existing) existing.remove();
+  const isVisible = (element) => {
+    const style = window.getComputedStyle(element);
+    const rect = element.getBoundingClientRect();
+    return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+  };
+  const host = [...document.querySelectorAll(".workspace-page")].find(isVisible);
+  if (!host) {
+    return {
+      mounted: false,
+      reason: "no displayed .workspace-page to render the route-state badge fixture inside",
+      states: [],
+    };
+  }
+  const container = document.createElement("div");
+  container.setAttribute("data-uat-route-state-fixture", "mounted");
+  container.setAttribute("role", "group");
+  container.setAttribute("aria-label", "route-state badge fixture");
+  Object.assign(container.style, {
+    position: "fixed",
+    top: "8px",
+    left: "8px",
+    zIndex: "2147483000",
+    display: "flex",
+    gap: "6px",
+    padding: "6px",
+    background: "transparent",
+  });
+  for (const state of ["allocated", "candidate", "blocked"]) {
+    const pill = document.createElement("em");
+    pill.className = "resource-route-state-pill " + state;
+    pill.setAttribute("data-route-state", state);
+    pill.textContent = String(labels[state] || "");
+    container.append(pill);
+  }
+  host.append(container);
+  const containerRect = container.getBoundingClientRect();
+  const states = [];
+  for (const pill of container.querySelectorAll("[data-route-state]")) {
+    const style = window.getComputedStyle(pill);
+    const rect = pill.getBoundingClientRect();
+    states.push({
+      state: pill.getAttribute("data-route-state"),
+      text: String(pill.textContent || "").trim(),
+      color: style.color,
+      backgroundColor: style.backgroundColor,
+      fontSize: style.fontSize,
+      fontWeight: style.fontWeight,
+      display: style.display,
+      visibility: style.visibility,
+      opacity: style.opacity,
+      clientWidth: pill.clientWidth,
+      clientHeight: pill.clientHeight,
+      scrollWidth: pill.scrollWidth,
+      scrollHeight: pill.scrollHeight,
+      box: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+    });
+  }
+  return {
+    mounted: true,
+    container: {
+      box: {
+        x: containerRect.x,
+        y: containerRect.y,
+        width: containerRect.width,
+        height: containerRect.height,
+      },
+    },
+    viewport: { width: window.innerWidth, height: window.innerHeight },
+    states,
+  };
+}
+
+/** Remove the mounted fixture, so nothing the sweep screenshots afterwards contains it. */
+export function removeRouteBadgeFixture() {
+  const fixture = document.querySelector("[data-uat-route-state-fixture]");
+  if (!fixture) return { removed: false };
+  fixture.remove();
+  return { removed: true };
+}
+
+/**
+ * The verdict for the mounted badge fixture: are the three route-state pills rendered with the
+ * product's own labels, readable at the required ratio, and laid out without overlap or clipping?
+ *
+ * `fixture` is `mountRouteBadgeFixture`'s measurement, `labels` the app's own translations the
+ * fixture was asked to render. Every failure names the state it is about; the measured colours
+ * and ratios travel as observations so a green run states what it measured. Pure, so the negative
+ * cases run without a browser (`clients/web/tests/readToRender.test.ts`).
+ */
+export function evaluateRouteBadgeContrast({ fixture, labels = {} }) {
+  const failures = [];
+  const observations = [];
+  if (!fixture) {
+    failures.push("the route-state badge fixture was not measured: the check collected nothing");
+    return { failures, observations };
+  }
+  if (fixture.mounted !== true) {
+    failures.push(
+      "the route-state badge fixture could not be mounted:"
+      + ` ${fixture.reason || "no reason reported"}`,
+    );
+    return { failures, observations };
+  }
+  const viewport = fixture.viewport || { width: 0, height: 0 };
+  const byState = new Map((fixture.states || []).map((entry) => [entry.state, entry]));
+  const backgrounds = new Map();
+  for (const state of ROUTE_BADGE_STATES) {
+    const entry = byState.get(state);
+    if (!entry) {
+      failures.push(`the route-state badge fixture rendered no ${state} pill`);
+      continue;
+    }
+    const expected = labels[state];
+    if (entry.text === "") {
+      failures.push(`the ${state} pill rendered no label text`);
+    } else if (expected !== undefined && entry.text !== expected) {
+      failures.push(
+        `the ${state} pill rendered '${entry.text || "(no text)"}' while the app's own label is`
+        + ` '${expected}'`,
+      );
+    }
+    if (
+      entry.display === "none"
+      || entry.visibility === "hidden"
+      || Number(entry.opacity) === 0
+      || !(Number(entry.box?.width) > 0 && Number(entry.box?.height) > 0)
+    ) {
+      failures.push(`the ${state} pill is not visible on the page`);
+    }
+    const box = entry.box || { x: 0, y: 0, width: 0, height: 0 };
+    const tolerance = 1;
+    if (
+      box.x < -tolerance
+      || box.y < -tolerance
+      || box.x + box.width > viewport.width + tolerance
+      || box.y + box.height > viewport.height + tolerance
+    ) {
+      failures.push(
+        `the ${state} pill sits outside the ${viewport.width}x${viewport.height} viewport at`
+        + ` ${Math.round(box.x)},${Math.round(box.y)} (${Math.round(box.width)}x${Math.round(box.height)})`,
+      );
+    }
+    if (!isOpaqueColor(entry.color) || !isOpaqueColor(entry.backgroundColor)) {
+      failures.push(
+        `the ${state} pill's colours are not opaque (text '${entry.color}', background`
+        + ` '${entry.backgroundColor}'), so its contrast cannot be measured`,
+      );
+    } else {
+      const ratio = contrastRatio(entry.color, entry.backgroundColor);
+      if (ratio === null) {
+        failures.push(
+          `the ${state} pill's colours could not be read (text '${entry.color}', background`
+          + ` '${entry.backgroundColor}')`,
+        );
+      } else {
+        observations.push(
+          `the ${state} pill renders '${entry.text}' at ${entry.color} on ${entry.backgroundColor}`
+          + ` (${ratio.toFixed(2)}:1, ${entry.fontSize} weight ${entry.fontWeight})`,
+        );
+        if (ratio < ROUTE_BADGE_MIN_CONTRAST) {
+          failures.push(
+            `the ${state} pill's text is ${ratio.toFixed(2)}:1 (${entry.color} on`
+            + ` ${entry.backgroundColor}); the product requires ${ROUTE_BADGE_MIN_CONTRAST}:1`,
+          );
+        }
+      }
+      backgrounds.set(state, entry.backgroundColor);
+    }
+    if (
+      Number(entry.scrollWidth) > Number(entry.clientWidth) + tolerance
+      || Number(entry.scrollHeight) > Number(entry.clientHeight) + tolerance
+    ) {
+      failures.push(
+        `the ${state} pill's label overflows its box (${entry.scrollWidth}x${entry.scrollHeight}`
+        + ` against ${entry.clientWidth}x${entry.clientHeight})`,
+      );
+    }
+  }
+  if (backgrounds.size === ROUTE_BADGE_STATES.length) {
+    const distinct = new Set(backgrounds.values());
+    if (distinct.size !== backgrounds.size) {
+      failures.push(
+        "the route-state pills share a background colour, so the states are not distinguishable:"
+        + ` ${[...backgrounds.entries()].map(([state, color]) => `${state}=${color}`).join(", ")}`,
+      );
+    }
+  }
+  const measured = ROUTE_BADGE_STATES
+    .map((state) => byState.get(state))
+    .filter(Boolean);
+  for (let first = 0; first < measured.length; first += 1) {
+    for (let second = first + 1; second < measured.length; second += 1) {
+      const a = measured[first].box || { x: 0, y: 0, width: 0, height: 0 };
+      const b = measured[second].box || { x: 0, y: 0, width: 0, height: 0 };
+      const overlapX = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
+      const overlapY = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
+      if (overlapX > 0.5 && overlapY > 0.5) {
+        failures.push(
+          `the ${measured[first].state} and ${measured[second].state} pills overlap by`
+          + ` ${overlapX.toFixed(1)}x${overlapY.toFixed(1)}px`,
+        );
+      }
+    }
+  }
+  const containerBox = fixture.container?.box;
+  if (
+    containerBox
+    && (
+      containerBox.x < -1
+      || containerBox.y < -1
+      || containerBox.x + containerBox.width > viewport.width + 1
+      || containerBox.y + containerBox.height > viewport.height + 1
+    )
+  ) {
+    failures.push(
+      "the route-state badge fixture is not fully inside the viewport, so its screenshot is not"
+      + " evidence of an on-screen render",
+    );
+  }
+  return { failures, observations };
+}
+
+/**
  * Collect each read group's own visible row evidence from the displayed page.
  *
  * Self-contained on purpose: the sweep serialises this function into the page

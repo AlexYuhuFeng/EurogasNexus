@@ -1,9 +1,20 @@
 # Architecture V2 Execution State
 
-Last updated: 2026-09-28
+Last updated: 2026-09-29
 Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical slice records below do not constitute current production approval.
 
 ## Current work
+
+September 29 route-state badge accessibility (baseline `9b0efb2`): DeepSeek
+separated allocated/candidate/blocked text badge tokens from unchanged map-dot
+colours in light/dark themes. The browser sweep now renders a clearly test-only
+three-state fixture with production CSS and actual EN/ZH labels on the Network
+page, checks axe/contrast/text fit/overlap at all three viewports, captures it and
+removes it before normal application screenshots. No market state or data changed.
+Parent verification: 683 frontend tests, production web build, 47 Python
+UAT/browser/Markdown contracts passed; whitespace clean. Build retains the existing
+ineffective dynamic import warning. Rendered CI verification pending; this fixture
+is component evidence, not proof of every populated workflow or theme combination.
 
 September 28 G10 inventory prerequisite (baseline `bb0ad4c`): DeepSeek corrected
 the existing lock-derived SBOM generator: nested/scoped npm identity, exact Cargo

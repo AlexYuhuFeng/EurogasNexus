@@ -20,17 +20,23 @@ import {
   collectCapacityOperatingBoard,
   collectVisibleElements,
   collectQuotedBoard,
+  contrastRatio,
   displayPriceUnit,
   evaluateCapacityBoardJoin,
   evaluateCapacityBoardRecovery,
   evaluateRefusedCapacityBoard,
   evaluateRefusedRegistry,
   evaluateRegistryRecovery,
+  evaluateRouteBadgeContrast,
   evaluateReadToRender,
   evaluateQuotedBoard,
   marketBoardRows,
+  mountRouteBadgeFixture,
   QUOTED_PRICE_TOLERANCE,
   readGroupRows,
+  removeRouteBadgeFixture,
+  ROUTE_BADGE_FIXTURE_ATTRIBUTE,
+  ROUTE_BADGE_MIN_CONTRAST,
   rowRecordId,
   utcInstantLabel,
 } from "../../../scripts/uat/readToRender.mjs";
@@ -1949,4 +1955,337 @@ test("the board's filter and sort context is captured, and a board that failed w
     board: null,
   }).failures.join(" | ");
   assert.match(unboarded, /no displayed workspace page carried the operating board/);
+});
+
+/**
+ * The route-state badge fixture: the pill markup the map overlay renders, mounted with the
+ * app's own labels and measured (CI 36428725740: the Chinese candidate pill was white on
+ * `#0ea5e9`, 2.77 against the required 4.5). The verdict below is what the sweep records, so
+ * each way a badge can hide - no fixture, no state, no text, wrong text, a translucent or
+ * failing background, an overlapping or clipped or off-screen pill, two states sharing a
+ * background - gets the failing answer rather than a pass.
+ */
+
+const BADGE_LABELS: Record<string, string> = {
+  allocated: "Allocated",
+  candidate: "Candidate",
+  blocked: "Blocked",
+};
+
+const BADGE_BACKGROUNDS: Record<string, string> = {
+  allocated: "rgb(15, 118, 110)",
+  candidate: "rgb(3, 105, 161)",
+  blocked: "rgb(146, 64, 14)",
+};
+
+interface BadgePillMeasurement {
+  state: string;
+  text: string;
+  color: string;
+  backgroundColor: string;
+  fontSize: string;
+  fontWeight: string;
+  display: string;
+  visibility: string;
+  opacity: string;
+  clientWidth: number;
+  clientHeight: number;
+  scrollWidth: number;
+  scrollHeight: number;
+  box: { x: number; y: number; width: number; height: number };
+}
+
+/** One pill measurement, shaped like `mountRouteBadgeFixture`'s, before an override. */
+function badgePill(
+  state: keyof typeof BADGE_LABELS,
+  overrides: Partial<BadgePillMeasurement> = {},
+): BadgePillMeasurement {
+  const index = ["allocated", "candidate", "blocked"].indexOf(state);
+  return {
+    state,
+    text: BADGE_LABELS[state],
+    color: "rgb(255, 255, 255)",
+    backgroundColor: BADGE_BACKGROUNDS[state],
+    fontSize: "10px",
+    fontWeight: "800",
+    display: "block",
+    visibility: "visible",
+    opacity: "1",
+    clientWidth: 60,
+    clientHeight: 16,
+    scrollWidth: 60,
+    scrollHeight: 16,
+    box: { x: 10 + index * 70, y: 10, width: 60, height: 16 },
+    ...overrides,
+  };
+}
+
+function badgeFixture(states: BadgePillMeasurement[] = [
+  badgePill("allocated"),
+  badgePill("candidate"),
+  badgePill("blocked"),
+]) {
+  return {
+    mounted: true,
+    container: { box: { x: 8, y: 8, width: 220, height: 28 } },
+    viewport: { width: 1440, height: 900 },
+    states,
+  };
+}
+
+test("the badge verdict passes the product's own colours and reports what it measured", () => {
+  const verdict = evaluateRouteBadgeContrast({ fixture: badgeFixture(), labels: BADGE_LABELS });
+  assert.deepEqual(verdict.failures, []);
+  assert.equal(verdict.observations.length, 3);
+  assert.match(
+    verdict.observations.join(" | "),
+    /the candidate pill renders 'Candidate' at rgb\(255, 255, 255\) on rgb\(3, 105, 161\)/,
+  );
+  // The verdict's own minimum is the product's, not a number a caller can lower.
+  assert.equal(ROUTE_BADGE_MIN_CONTRAST, 4.5);
+});
+
+test("the badge verdict fails the CI defect and every way a badge can hide", () => {
+  const failureOf = (states: BadgePillMeasurement[]) =>
+    evaluateRouteBadgeContrast({ fixture: badgeFixture(states), labels: BADGE_LABELS })
+      .failures.join(" | ");
+
+  // White on `#0ea5e9` is the measured 2.77 from CI 36428725740; the same contrast function
+  // answers it, so a green verdict cannot be a verdict that cannot see the defect.
+  assert.ok(Math.abs((contrastRatio("#ffffff", "#0ea5e9") as number) - 2.77) < 0.01);
+  assert.match(
+    failureOf([
+      badgePill("allocated"),
+      badgePill("candidate", { backgroundColor: "rgb(14, 165, 233)" }),
+      badgePill("blocked"),
+    ]),
+    /the candidate pill's text is 2\.77:1/,
+  );
+
+  // Data variation cannot hide the candidate: a missing state is a failure by name, not a pass.
+  assert.match(
+    failureOf([badgePill("allocated"), badgePill("blocked")]),
+    /rendered no candidate pill/,
+  );
+  // A translucent background would make the ratio unmeasurable; it is refused, not approximated.
+  assert.match(
+    failureOf([
+      badgePill("allocated", { backgroundColor: "rgba(3, 105, 161, 0.4)" }),
+      badgePill("candidate"),
+      badgePill("blocked"),
+    ]),
+    /allocated pill's colours are not opaque/,
+  );
+  assert.match(
+    failureOf([
+      badgePill("allocated"),
+      badgePill("candidate", { text: "" }),
+      badgePill("blocked"),
+    ]),
+    /candidate pill rendered no label text/,
+  );
+  // The label is the app's own translation, not any text the fixture chose.
+  assert.match(
+    failureOf([
+      badgePill("allocated"),
+      badgePill("candidate", { text: "候选" }),
+      badgePill("blocked"),
+    ]),
+    /candidate pill rendered '候选' while the app's own label is 'Candidate'/,
+  );
+  // Two pills that overlap, a label clipped by its own box, and a pill off the viewport each
+  // fail by name.
+  assert.match(
+    failureOf([
+      badgePill("allocated"),
+      badgePill("candidate", { box: { x: 20, y: 10, width: 60, height: 16 } }),
+      badgePill("blocked"),
+    ]),
+    /allocated and candidate pills overlap/,
+  );
+  assert.match(
+    failureOf([
+      badgePill("allocated"),
+      badgePill("candidate", { scrollWidth: 90 }),
+      badgePill("blocked"),
+    ]),
+    /candidate pill's label overflows its box/,
+  );
+  assert.match(
+    failureOf([
+      badgePill("allocated"),
+      badgePill("candidate"),
+      badgePill("blocked", { box: { x: 1400, y: 10, width: 60, height: 16 } }),
+    ]),
+    /blocked pill sits outside the 1440x900 viewport/,
+  );
+  // States that share one colour are not three states.
+  assert.match(
+    failureOf([
+      badgePill("allocated"),
+      badgePill("candidate", { backgroundColor: BADGE_BACKGROUNDS.allocated }),
+      badgePill("blocked"),
+    ]),
+    /share a background colour/,
+  );
+  // And a fixture that was never rendered or never mounted fails rather than passing vacuously.
+  assert.match(
+    evaluateRouteBadgeContrast({ fixture: null }).failures.join(" | "),
+    /not measured: the check collected nothing/,
+  );
+  assert.match(
+    evaluateRouteBadgeContrast({
+      fixture: { mounted: false, reason: "no displayed .workspace-page", states: [] },
+    }).failures.join(" | "),
+    /could not be mounted: no displayed \.workspace-page/,
+  );
+});
+
+/** Minimal element/document stubs: `mountRouteBadgeFixture` runs in the page and in here. */
+interface StubBadgeNode {
+  tagName: string;
+  className: string;
+  textContent: string;
+  attributes: Record<string, string>;
+  style: Record<string, string>;
+  children: StubBadgeNode[];
+  parentNode: StubBadgeNode | null;
+  removed: boolean;
+  clientWidth: number;
+  clientHeight: number;
+  scrollWidth: number;
+  scrollHeight: number;
+  setAttribute: (name: string, value: string) => void;
+  getAttribute: (name: string) => string | null;
+  append: (child: StubBadgeNode) => void;
+  remove: () => void;
+  getBoundingClientRect: () => { x: number; y: number; width: number; height: number };
+  querySelectorAll: (selector: string) => StubBadgeNode[];
+}
+
+function stubBadgeNode(tagName: string): StubBadgeNode {
+  const node: StubBadgeNode = {
+    tagName,
+    className: "",
+    textContent: "",
+    attributes: {},
+    style: {},
+    children: [],
+    parentNode: null,
+    removed: false,
+    clientWidth: tagName === "em" ? 68 : 220,
+    clientHeight: tagName === "em" ? 16 : 28,
+    scrollWidth: tagName === "em" ? 68 : 220,
+    scrollHeight: tagName === "em" ? 16 : 28,
+    setAttribute: (name, value) => {
+      node.attributes[name] = String(value);
+    },
+    getAttribute: (name) => node.attributes[name] ?? null,
+    append: (child) => {
+      child.parentNode = node;
+      node.children.push(child);
+    },
+    remove: () => {
+      if (node.parentNode) {
+        node.parentNode.children = node.parentNode.children.filter((child) => child !== node);
+      }
+      node.parentNode = null;
+      node.removed = true;
+    },
+    getBoundingClientRect: () => {
+      if (tagName !== "em") return { x: 8, y: 8, width: 220, height: 28 };
+      const order = ["allocated", "candidate", "blocked"];
+      const index = Math.max(0, order.indexOf(node.getAttribute("data-route-state") ?? ""));
+      return { x: 10 + index * 70, y: 10, width: 68, height: 16 };
+    },
+    querySelectorAll: (selector) =>
+      selector === "[data-route-state]"
+        ? node.children.filter((child) => child.getAttribute("data-route-state") !== null)
+        : [],
+  };
+  return node;
+}
+
+/** Run the mounting pair against a stub page, the way the sweep runs them in the browser. */
+function mountBadgesWithStub(labels: Record<string, string>, { pageVisible = true } = {}) {
+  const host = stubBadgeNode("div");
+  if (!pageVisible) host.getBoundingClientRect = () => ({ x: 0, y: 0, width: 0, height: 0 });
+  let fixtureNode: StubBadgeNode | null = null;
+  const computedStyle = (node: StubBadgeNode) => {
+    const state = node.getAttribute("data-route-state");
+    return {
+      color: "rgb(255, 255, 255)",
+      backgroundColor: state ? BADGE_BACKGROUNDS[state] : "rgba(0, 0, 0, 0)",
+      fontSize: "10px",
+      fontWeight: "800",
+      display: "block",
+      visibility: "visible",
+      opacity: "1",
+    };
+  };
+  const previousWindow = (globalThis as { window?: unknown }).window;
+  const previousDocument = (globalThis as { document?: unknown }).document;
+  (globalThis as { window?: unknown }).window = {
+    getComputedStyle: computedStyle,
+    innerWidth: 1440,
+    innerHeight: 900,
+  };
+  (globalThis as { document?: unknown }).document = {
+    querySelector: (selector: string) =>
+      selector === `[${ROUTE_BADGE_FIXTURE_ATTRIBUTE}]`
+      && fixtureNode !== null
+      && !fixtureNode.removed
+        ? fixtureNode
+        : null,
+    querySelectorAll: (selector: string) => (selector === ".workspace-page" ? [host] : []),
+    createElement: (tagName: string) => {
+      const node = stubBadgeNode(tagName);
+      if (tagName === "div") fixtureNode = node;
+      return node;
+    },
+  };
+  try {
+    const fixture = mountRouteBadgeFixture({ labels });
+    const container = fixtureNode;
+    const removed = removeRouteBadgeFixture();
+    return { fixture, removed, host, container };
+  } finally {
+    (globalThis as { window?: unknown }).window = previousWindow;
+    (globalThis as { document?: unknown }).document = previousDocument;
+  }
+}
+
+test("the badge fixture mounts the overlay's own pill markup and measures it", () => {
+  const { fixture, removed, host, container } = mountBadgesWithStub(BADGE_LABELS);
+  assert.equal(fixture.mounted, true);
+  assert.equal(host.children.length, 0, "the fixture leaves the page as it found it");
+  assert.equal(removed.removed, true);
+  assert.deepEqual(
+    fixture.states.map((state) => [state.state, state.text, state.color, state.backgroundColor]),
+    [
+      ["allocated", "Allocated", "rgb(255, 255, 255)", BADGE_BACKGROUNDS.allocated],
+      ["candidate", "Candidate", "rgb(255, 255, 255)", BADGE_BACKGROUNDS.candidate],
+      ["blocked", "Blocked", "rgb(255, 255, 255)", BADGE_BACKGROUNDS.blocked],
+    ],
+  );
+  // The mounted markup carries the classes `ResourcePoolPathOverlay` renders.
+  assert.equal(
+    (container?.children ?? []).map((pill) => pill.className).join(" | "),
+    "resource-route-state-pill allocated | resource-route-state-pill candidate"
+    + " | resource-route-state-pill blocked",
+  );
+  // And the measurements pass the same verdict the sweep records.
+  assert.deepEqual(
+    evaluateRouteBadgeContrast({ fixture, labels: BADGE_LABELS }).failures,
+    [],
+  );
+});
+
+test("a page that never displayed cannot pass the badge check for lack of a fixture", () => {
+  const { fixture } = mountBadgesWithStub(BADGE_LABELS, { pageVisible: false });
+  assert.equal(fixture.mounted, false);
+  assert.match(
+    evaluateRouteBadgeContrast({ fixture, labels: BADGE_LABELS }).failures.join(" | "),
+    /no displayed \.workspace-page to render the route-state badge fixture inside/,
+  );
 });
