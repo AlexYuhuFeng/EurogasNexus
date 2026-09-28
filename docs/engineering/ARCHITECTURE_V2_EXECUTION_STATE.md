@@ -12,7 +12,10 @@ the production environment. Integration review required explicit missing-manifes
 classification, full error inspection, structured original-byte index validation,
 finite timeouts and truthful unknown-state reporting. Parent verification:
 295 release/Markdown tests passed, 3 Windows symlink cases skipped; focused Ruff
-and whitespace clean. CI pending. Read-only public-registry inspection failed
+and whitespace clean. Commit `6e745cc` passed CI `36420360992`, attempt 2:
+all five active jobs, native packaging skipped. Attempt 1's dependency audit
+failed on PyPI HTTP 503; rerunning that job passed without code or gate changes.
+This CI does not execute release promotion. Read-only public-registry inspection failed
 with network EOF; no registry writes or release dispatch occurred. Live GHCR
 copy/digest/idempotency rehearsal, package visibility and exclusive-writer controls
 remain unverified. Missing gate producers and external approvals remain blockers.
