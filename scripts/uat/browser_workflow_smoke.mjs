@@ -5,6 +5,11 @@
 // - Vite dev server on :3000
 // - preview/UAT fixtures plus scripts/uat/seed_browser_identity.py
 // - Playwright + axe-core (CI installs exact versions outside the repo)
+// - a `python` on PATH and the UAT fixture environment (EUROGAS_NEXUS_ENV=development|test and
+//   EUROGAS_NEXUS_UAT_FIXTURE_ALLOWED=1): the governed research interaction re-stamps its
+//   agent-window fixture through `scripts/uat/seed_uat_fixture.py --agent-window-only` immediately
+//   before it files the run (see refreshAgentWindowFixture). Set EUROGAS_UAT_PYTHON to use another
+//   interpreter.
 //
 // The sweep is deliberately evidence-oriented: every declared workspace is
 // rendered in English and Mandarin at 1440x900, 1920x1080, and 390x844,
@@ -12,6 +17,7 @@
 // captured as a screenshot. It does not convert unavailable/licensed data into
 // a pass; it only verifies the UI state that the authenticated seeded runtime
 // actually exposes.
+import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -46,6 +52,20 @@ const OUTPUT_DIR =
   process.env.EUROGAS_UAT_OUTPUT_DIR ||
   path.resolve("artifacts", "uat-browser");
 const LANGUAGE_STORAGE_KEY = "eurogas.language.v1";
+const REPO_ROOT = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+);
+const PYTHON = process.env.EUROGAS_UAT_PYTHON || "python";
+const AGENT_WINDOW_SCRIPT = path.join(
+  REPO_ROOT,
+  "scripts",
+  "uat",
+  "seed_uat_fixture.py",
+);
+const AGENT_WINDOW_FLAG = "--agent-window-only";
+const AGENT_WINDOW_MAX_ATTEMPTS = 3;
 
 const WORKSPACES = [
   "network",
@@ -871,6 +891,98 @@ async function inspectWorkspace(
   };
 }
 
+/** The start of the UTC day an instant falls in: the day the fixture stamps and the run reads. */
+function utcDayStart(instant) {
+  return new Date(
+    Date.UTC(instant.getUTCFullYear(), instant.getUTCMonth(), instant.getUTCDate()),
+  );
+}
+
+/** The day an agent-window refresh reported, parsed from the line the fixture prints for it. */
+function agentWindowSummary(stdout) {
+  const prefix = "UAT agent window ready:";
+  const line = String(stdout || "")
+    .split("\n")
+    .find((entry) => entry.startsWith(prefix));
+  if (!line) return null;
+  const fields = Object.fromEntries(
+    line
+      .slice(prefix.length)
+      .trim()
+      .split(/\s+/)
+      .map((entry) => entry.split("="))
+      .filter((parts) => parts.length === 2),
+  );
+  const dayStart = new Date(fields.day_start || "");
+  if (Number.isNaN(dayStart.getTime()) || !fields.stamped_at || !fields.rows) {
+    return null;
+  }
+  return { dayStart, stampedAt: fields.stamped_at, rows: Number(fields.rows) };
+}
+
+/**
+ * Re-stamp the agent-only UAT fixture rows in the UTC day the governed research run will read.
+ *
+ * The orchestrator deliberately reads market observations from the start of its *current UTC day*
+ * (a production semantic this harness serves, not changes) and files its spread finding only from
+ * paired NBP/TTF timestamps inside that window. The job-start fixture seed runs minutes earlier and
+ * its samples can sit in a previous UTC day by the time this interaction files its run:
+ * CI36360322601 seeded at 2026-09-27T23:56:30Z, filed at 2026-09-28T00:01:04Z, and the run
+ * correctly blocked with INSUFFICIENT_HISTORY on a window the fixture no longer covered. The
+ * samples are therefore re-stamped here - through this harness's own fixture process, never through
+ * a product write endpoint - immediately before the run is filed, with every row at or before the
+ * clock that stamps it. The one interval that can invalidate the placement is a UTC midnight
+ * between the stamp and the run's own clock read, and that rollover is checked here, bounded, and
+ * explicit: the refresh is repeated while the harness day has moved past the day the fixture
+ * reported, and a rollover that survives the bound fails this interaction by that name instead of
+ * being covered with future-dated rows.
+ */
+function refreshAgentWindowFixture(failures, scope) {
+  for (let attempt = 1; attempt <= AGENT_WINDOW_MAX_ATTEMPTS; attempt += 1) {
+    const result = spawnSync(PYTHON, [AGENT_WINDOW_SCRIPT, AGENT_WINDOW_FLAG], {
+      cwd: REPO_ROOT,
+      encoding: "utf8",
+      env: process.env,
+      timeout: 120_000,
+    });
+    const lastLine = (value) =>
+      String(value || "").trim().split("\n").filter(Boolean).pop() || "";
+    if (result.error || result.status !== 0) {
+      recordFailure(
+        failures,
+        scope,
+        `agent window fixture refresh failed (${PYTHON} ${AGENT_WINDOW_FLAG}, exit ${result.status},`
+          + ` attempt ${attempt}/${AGENT_WINDOW_MAX_ATTEMPTS}):`
+          + ` ${result.error ? result.error.message : lastLine(result.stderr) || lastLine(result.stdout) || "(no output)"}`,
+      );
+      return null;
+    }
+    const summary = agentWindowSummary(result.stdout);
+    if (!summary) {
+      recordFailure(
+        failures,
+        scope,
+        `agent window fixture refresh printed no day it stamped: ${lastLine(result.stdout) || "(no output)"}`,
+      );
+      return null;
+    }
+    if (utcDayStart(new Date()).getTime() === summary.dayStart.getTime()) {
+      return { ...summary, attempts: attempt };
+    }
+    // UTC midnight passed between the stamp and this check: the refreshed samples belong to the day
+    // that just ended, so stamp again for the day this run's own clock read will cover.
+  }
+  recordFailure(
+    failures,
+    scope,
+    `the UTC day rolled over during the agent window fixture refresh (${AGENT_WINDOW_MAX_ATTEMPTS}`
+      + " bounded attempts): the samples cannot be placed inside the day the run will read, and this"
+      + " harness does not cover that with future-dated rows - the run reports the product's own"
+      + " INSUFFICIENT_HISTORY instead",
+  );
+  return null;
+}
+
 async function agentResearchE2E(page, failures) {
   const scope = "interaction/agent-research-review";
   const objective =
@@ -914,6 +1026,14 @@ async function agentResearchE2E(page, failures) {
       );
     }
 
+    // The fixture rows this run reads must sit in its own current UTC day, at or before the clock
+    // the run stamps its analysis with; the job-start seed cannot promise that (see
+    // refreshAgentWindowFixture). Re-stamp them here, immediately before the run is filed.
+    const windowFixture = refreshAgentWindowFixture(failures, scope);
+    if (!windowFixture) {
+      return null;
+    }
+
     const researchResponsePromise = page.waitForResponse(
       (response) =>
         response.url().includes("/api/agent/research") &&
@@ -929,8 +1049,16 @@ async function agentResearchE2E(page, failures) {
       );
     }
     if (researchBody?.data?.stage !== "READY_FOR_HUMAN_REVIEW") {
+      const rolledOver =
+        utcDayStart(new Date()).getTime() !== windowFixture.dayStart.getTime();
       throw new Error(
-        `agent research did not reach review gate: ${JSON.stringify(researchBody?.data ?? researchBody)}`,
+        `agent research did not reach review gate: ${JSON.stringify(researchBody?.data ?? researchBody)}`
+          + (rolledOver
+            ? " [UTC midnight passed between the fixture refresh (day"
+              + ` ${windowFixture.dayStart.toISOString()}) and this response: the refreshed samples`
+              + " no longer sit in the day the run read - a fixture-timing fact, not a product"
+              + " verdict]"
+            : ""),
       );
     }
     const resultPanel = page.locator(".agents-result-panel").first();
@@ -1071,6 +1199,12 @@ async function agentResearchE2E(page, failures) {
       reviewPackId: confirmedReplay.artifacts?.review_pack?.artifact_id || null,
       reviewDecisions: decisions,
       fixture: confirmedReplay.fixture || null,
+      windowFixture: {
+        dayStart: windowFixture.dayStart.toISOString(),
+        stampedAt: windowFixture.stampedAt,
+        rows: windowFixture.rows,
+        attempts: windowFixture.attempts,
+      },
     };
     writeFileSync(
       path.join(OUTPUT_DIR, "agent-research-e2e.json"),

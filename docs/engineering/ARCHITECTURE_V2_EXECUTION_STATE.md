@@ -5,6 +5,17 @@ Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical sli
 
 ## Current work
 
+September 28 CI fixture recovery (baseline `2d42cc1`): CI `36360322601`
+failed browser acceptance when the agent research interaction crossed UTC
+midnight after job-start seeding. All four other active jobs passed. DeepSeek
+revised the fixture to refresh only its labelled agent observations immediately
+before the interaction, through the gated fixture process, with bounded day
+rollover checks. No production history rules or clocks changed; future-dated
+sample workarounds were rejected. Independently verified 67 UAT, orchestrator,
+API and browser/Markdown contract tests, focused Ruff, Node syntax and whitespace.
+GitHub end-to-end verification is pending for this recovery. Remaining release
+blockers below are unchanged; this is not customer or production acceptance.
+
 PILOT-C publication gates (baseline `efa7514`, September 28): preview/RC now
 invoke the existing promotion validator before GitHub Release writes; G1 is
 required for all published channels. Stable-only external/signing requirements

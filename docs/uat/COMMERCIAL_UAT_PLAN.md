@@ -20,7 +20,14 @@ features.
   `0030_reliability_indexes`, development profile.
 - Fixture: `scripts/uat/seed_uat_fixture.py` (60 days of clearly simulated
   market/FX observations, gated to development/test with explicit
-  acknowledgement). Public ECB ingestion is used for current FX only.
+  acknowledgement). Public ECB ingestion is used for current FX only. The
+  governed research run reads the *current UTC day*, so the browser harness
+  re-stamps just the paired NBP/TTF day-ahead samples
+  (`--agent-window-only`) through its own fixture process immediately before
+  the run is filed - every sample at or before the clock that writes it, the
+  UTC-day rollover checked boundedly and explicitly, and a window the fixture
+  cannot fill honestly reported rather than covered with future-dated rows
+  (CI36360322601).
 - Frontend: Vite production build served through the normal `/api` boundary.
 - Viewport: 1440×900 baseline; core screens re-checked at 1920×1080.
 - Browser: Chromium headless for automated workflows; manual review remains

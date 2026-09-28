@@ -665,3 +665,83 @@ Limits of this milestone:
   the focused Python contract group (14 passed) and `node --check` on both harness modules. No
   live browser run was performed in this environment (Playwright unavailable), so CI browser
   evidence for the joined comparison is pending and not claimed.
+
+## 2026-09-28 — the browser UAT re-stamps its agent fixture for the run's own UTC day
+
+CI36360322601 (`2d42cc1`, commit landed 2026-09-27T23:55:39Z) failed only the browser job: the
+governed research interaction filed its run at 2026-09-28T00:01:04Z, five minutes after the fixture
+seed (23:56Z), and the run blocked — `agent research did not reach review gate`, stage `BLOCKED`,
+blocker `INSUFFICIENT_HISTORY`. The seed/query date-coordination diagnosis holds:
+
+- **Root cause (not a production defect).** The orchestrator deliberately reads market observations
+  from the start of the *current UTC day* (`market_rows(start_utc=datetime.now(UTC).replace(hour=0,
+  ...))`, no upper bound) and files a spread finding only from paired NBP/TTF timestamps inside that
+  window; both are unchanged here. The fixture wrote its paired samples inside the *seed* day only,
+  so once the run's own clock crossed UTC midnight the window it read held no paired history and the
+  run correctly refused to draft a strategy on no data. What the run needed was fixture/request date
+  coordination, not a weaker gate.
+- **Reproduced deterministically.** `tests/uat/test_uat_agent_fixture_window.py` injects the seed
+  instant and the orchestrator's own clock (isolated processes only): with the job-start placement
+  the CI run instant blocks with exactly `INSUFFICIENT_HISTORY`, and the midnight-day window holds
+  **0** paired timestamps. The negative control stays in the suite, so a regression of the placement
+  fails by name.
+- **The fix: re-stamp immediately before the interaction, never date rows into the future.** A first
+  attempt wrote a second sample set inside the UTC day that begins at midnight; that was rejected on
+  review, correctly, as an acceptance workaround — it dated fixture rows after the clock that wrote
+  them, and this record replaces it. `scripts/uat/seed_uat_fixture.py` now exposes
+  `--agent-window-only` (`refresh_agent_window`): it re-stamps the same ten paired samples — same
+  ids, so a refresh *moves* the set instead of accumulating one per day — inside the UTC day it is
+  run in, every sample at or before the clock read that stamps it. The browser harness
+  (`scripts/uat/browser_workflow_smoke.mjs`) runs that command through its own fixture process
+  immediately before it files the governed research run — never through a product write endpoint —
+  and then checks the rollover explicitly and boundedly: if the harness's UTC day has moved past the
+  day the fixture reported, it refreshes again, at most three attempts, and a rollover that survives
+  the bound fails the interaction by that name instead of being covered with future-dated rows. A
+  refused refresh (`exit 3`, e.g. a UTC day that has only just begun and cannot honestly hold two
+  paired instants) fails the interaction before submitting a research request. The negative-control
+  test separately verifies the product's `INSUFFICIENT_HISTORY` response to an empty day window.
+- **No production semantics touched.** No orchestrator, API, client, schema, migration, permission
+  or minimum-history change: the UTC-day read window, the `n >= 2` spread requirement and the
+  `INSUFFICIENT_HISTORY` block are untouched. The refresh adds no history the day does not have —
+  seeding at 23:59:58Z and reading at 00:00:02Z still blocks. The fixture emits exactly the rows it
+  always emitted for a given clock (`agent_dayahead_observation_rows` is the pre-fix placement,
+  extracted from `main`, pinned byte-for-byte by a frozen expectation), so the rest of the sweep and
+  every backtest/shadow read see what they saw; the refresh runs after them and only moves the
+  paired samples the governed research run reads.
+- **UAT environment safeguards reviewed and kept.** The full seed and the new mode both require
+  `EUROGAS_NEXUS_ENV=development|test` and `EUROGAS_NEXUS_UAT_FIXTURE_ALLOWED=1`, refuse
+  trial/release before opening a connection, write only `*_Sim` / `research_only` /
+  `simulated=true`-labelled rows, and use the existing `RUNTIME_STORE_DATABASE_URL`; the browser
+  job's environment already declares both settings, and no new credential, endpoint or datastore
+  was added. Unknown arguments are refused.
+- **Verified here by** `tests/uat/test_uat_agent_fixture_window.py` (placement never after its own
+  clock; in-day placement; the refresh's refused / recovers-when-elapsed / reseats-across-midnight
+  cases; the CI instants end to end through the real orchestrator — pre-fix blocks, refreshed
+  reaches the review gate with every accepted sample at or before the run's as-of instant; the
+  harness wiring contract; and a scratch-SQLite run of the labelled command in an isolated
+  process), the extended gate cases in `tests/uat/test_uat_fixture_gate.py`, `tests/uat` 30 passed,
+  `tests/integration/test_agent_orchestrator.py` plus `tests/api/test_agents_api.py` 20 passed, and
+  `ruff check .` plus `node --check` clean.
+
+Limits and tradeoffs of this milestone:
+
+- **A sub-second rollover window remains.** The refresh lands milliseconds before the run is filed;
+  a UTC midnight inside that gap still makes the run block — bounded, explicit, and reported by
+  name. This bounded fixture fix does not claim atomic coordination with the product's clock;
+  future-dated fixture rows were rejected in review.
+- **No live browser run and no local fixture seed were performed here** (Playwright is unavailable
+  in this environment, and the fixture writes need a migrated PostgreSQL runtime), so the fix is
+  verified at the placement, refresh, harness-contract and orchestrator levels, not by the sweep.
+  The CI browser job is the first end-to-end run; `interaction/agent-research-review` passing there
+  is acceptance evidence this record does not claim. The command-level test runs in an isolated
+  process against a scratch SQLite fixture database; no local runtime database was written.
+- **The refresh writes into the acceptance runtime's own tables** as a labelled test-fixture action
+  (simulated, research-only, stable ids). That is what the browser UAT is: a seeded acceptance
+  environment, not a production read; a deployment must not run this harness against a licensed
+  runtime and expect these rows to be authoritative.
+- **The harness now depends on a `python` on PATH** (override: `EUROGAS_UAT_PYTHON`) and on the UAT
+  fixture environment being set, because the refresh is a fixture action by design — the product
+  HTTP API stays read-only for the sweep. A refusal to refresh fails the interaction with the
+  fixture's own message rather than falling back to an older-day window.
+- The 60-day historical block is untouched, including its pre-existing 04:00Z placement for the
+  current day; the new mode neither reads nor rewrites it.
