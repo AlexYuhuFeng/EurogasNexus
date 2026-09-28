@@ -177,7 +177,16 @@ def test_publish_jobs_grant_only_the_release_write_and_the_ci_read() -> None:
         for name, job in jobs.items()
         if (job.get("permissions") or {}).get("actions") == "read"
     }
-    assert holders == {"validate", "publish-preview-rc", "publish-stable"}
+    # The image-promotion jobs re-run the same gate (and therefore the same
+    # read-only G1 re-derivation) before their tag write; no other job reads
+    # the Actions API.
+    assert holders == {
+        "validate",
+        "publish-preview-rc",
+        "publish-stable",
+        "promote-image",
+        "promote-image-stable",
+    }
 
 
 # ---------------------------------------------------------------------------

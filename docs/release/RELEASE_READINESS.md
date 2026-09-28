@@ -166,9 +166,13 @@ Every successful release workflow publishes:
 - `release-manifest.json`, `SHA256SUMS`, SPDX SBOM set,
   `THIRD_PARTY_NOTICES.md`, and GitHub attestation metadata.
 
-Container image tags: semantic `X.Y.Z[-channel]` and immutable `sha-<commit>`.
-Deployment manifests should prefer `@sha256:<digest>`; never use `latest` as
-rollback identity. The Server operator ZIP carries one generated
+Container image tags: the build pushes only a run-attempt-unique staging tag
+(`candidate-<run_id>-<attempt>`); the customer-facing `X.Y.Z[-channel]` tag is
+written only by the gate-first promotion job after a successful publish and
+post-publication verification, by copying the tested multi-platform digest
+(no rebuild), and the former `sha-<commit>` alias is retired. Deployment
+manifests should prefer `@sha256:<digest>`; never use `latest` as rollback
+identity. The Server operator ZIP carries one generated
 `release-identity.json` (schema version, application/release version, channel,
 full commit SHA, API image `repository@sha256:` digest) built from the resolved
 release context and the published image digest; both Windows entry points

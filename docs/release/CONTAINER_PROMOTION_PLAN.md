@@ -11,6 +11,11 @@ Parent register: [First customer pilot plan](FIRST_CUSTOMER_PILOT_PLAN.md)
 (PILOT-C residual: `runtime-image` writes GHCR before the bundle gates exist).
 Gate policy: [GA release gates](GA_RELEASE_GATES.md) (G19).
 
+Status: the bounded implementation slice is now in code (§9). Section 1-8
+remain the read-only baseline assessment and the design the slice implements;
+§9 records what is implemented, what it deliberately does not claim, and which
+registry behaviours still need a controlled rehearsal.
+
 ## 1. Current pipeline (evidence at this baseline)
 
 `.github/workflows/release.yml` (line numbers at `3bf13a6`):
@@ -180,3 +185,127 @@ No implementation, release, registry change, deletion or approval; no claim
 that GHCR enforces immutable tags, private visibility or digest stability; no
 pilot, production, commercial or legal certification. Candidate tags remain
 pre-approval exposure for every principal that can read the package.
+
+## 9. Implementation state
+
+Bounded slice implemented in code and focused tests,
+`tests/release/test_container_promotion.py`: the candidate-only build, the
+gate-first serialized promotion jobs, and the fail-closed promotion tool. It
+has **not** been exercised against a live registry, GitHub Release or workflow
+dispatch, and no release was published for it.
+
+### 9.1 Candidate-only build tags
+
+`runtime-image` pushes exactly one staging tag per attempt:
+`candidate-<run_id>-<attempt>` (`candidate-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}`).
+The semantic channel tag (`X.Y.Z` / `X.Y.Z-<channel>`) and the `sha-<full SHA>`
+alias are no longer written at build time. `sha-<commit>` alias naming is
+retired for this slice rather than promoted: a rebuild of the same source need
+not have the same digest, so an alias would be ambiguous. The immutable
+identity remains the `@sha256:` digest recorded in `image-metadata.json` /
+`release-manifest.json` and pinned inside the operator ZIP; every digest
+consumer already uses the digest, not a tag. Candidate exposure is staging,
+never approval: any principal that can read the package can see it.
+
+### 9.2 Gate-first serialized promotion
+
+Two new jobs run only after a successful publish **and** its post-publication
+verification (explicit `needs` on `post-publish-verify`, so promotion cannot
+race it):
+
+- `promote-image` (preview/RC), and
+- `promote-image-stable` (stable), which keeps the same `environment:
+  production` boundary the stable publish uses.
+
+Each job, in order: re-runs the same fail-closed
+`scripts/release/validate_stable_release.py` gate on the same `release-final`
+bundle (the tag write sits behind the gate; no bypass flag, and deliberately
+no `--reject-existing-tag`, because the release must already exist at this
+point), confirms the release read-only with `gh release view` (so a failed-job
+rerun after release creation still reaches promotion, and no tag is written
+without a successful release and gate), logs in to GHCR with the job-scoped
+`github.token`, and runs `scripts/release/promote_image.py`. Job permissions
+are exactly `contents: read`, `actions: read` (the gate's G1 re-derivation)
+and `packages: write`. The promotion result (image, tag, tested digest,
+observed digest, outcome, commands) is uploaded as the
+`release-promotion-result` artifact.
+
+### 9.3 Fail-closed promotion tool
+
+`scripts/release/promote_image.py` reads the tested digest from the bundle's
+`image-metadata/image-metadata.json` (never from a step output) and:
+
+1. validates image, digest, channel tag and timeout before any command runs -
+   refusing `latest`, `candidate-*` and the retired `sha-*` prefixes, and
+   requiring a finite positive timeout (the library entry point validates too,
+   not only the CLI); every command is an argv list (no shell) with a hard
+   timeout, so validated inputs are never re-parsed as shell text;
+2. inspects the tested digest with the documented `--raw` original-manifest
+   output of `docker buildx imagetools inspect` and hashes the served bytes -
+   never a reformatted rendering such as `--format '{{json .Manifest}}'`,
+   because a Go-marshalled reconstruction is not the content-addressed
+   original - requiring that hash to equal the tested digest, allowing for
+   exactly one CLI-appended trailing newline; the interpretation that matched
+   is applied to the tag in the same run so both digests share one explicitly
+   verified basis;
+3. parses those same bytes as JSON and requires a real image index
+   (`application/vnd.oci.image.index.v1+json` or the Docker manifest-list
+   media type) whose descriptors carry valid `sha256:` digests and report real
+   `linux/amd64` and `linux/arm64` platforms; `arm64/v8` counts as arm64,
+   `unknown/unknown` attestation descriptors are allowed and ignored, and any
+   absent or ambiguous field refuses the run;
+4. inspects the target tag and classifies the outcome over the full stdout and
+   stderr before any display truncation - only an explicit registry
+   manifest-missing marker (`MANIFEST_UNKNOWN` / "manifest unknown" wording,
+   optionally "manifest not found") counts as absence; a generic "not found" -
+   which can also mean a missing binary, an unreadable credential config or an
+   unclassified registry failure - refuses with no write, as do
+   authentication, permission, network, contextual HTTP 5xx, timeout and
+   unparseable or unclassified output;
+5. matching digest -> idempotent no-op PASS; a different observed digest ->
+   refuse the conflict untouched. Refusing is policy, not capability: the
+   registry credential itself is not restricted from overwriting the tag, and
+   an external writer racing the inspect/copy pair is not excluded;
+6. absent -> `docker buildx imagetools create --tag <name>:<channel>
+   <name>@<tested digest>` (manifest copy: no rebuild, no layer push), then
+   re-inspects and requires the exact tested digest with both platforms.
+
+A post-copy inspection that does not confirm the tested digest fails the run
+with escalation text instead of a success claim, and it does not prove that
+the tag exists: the tag state is UNKNOWN (it may resolve to the tested digest,
+to another digest, or not exist), so the run stops for manual inspection
+rather than retrying or repairing.
+
+### 9.4 Serialization and no false atomicity
+
+Both promotion jobs share the repository-wide concurrency group
+`eurogas-nexus-image-promotion` with `cancel-in-progress: false`, held across
+inspect/write/verify. GHCR check-then-write is not atomic and the lock cannot
+prevent an external writer: keeping this workflow the **exclusive writer** of
+the package (no manual or other-automation pushes to these tags) remains a
+documented operational prerequisite, and no atomicity is claimed for the
+check/write pair.
+
+### 9.5 Unverified here (open evidence before release acceptance)
+
+- The live behaviour of `docker buildx imagetools create` against GHCR
+  (whether the copied tag preserves the exact tested index digest and both
+  platforms) **has not been exercised against any registry**. The tool is
+  deliberately preparatory and fail-closed: if the copy cannot be verified
+  post-write, the run fails instead of claiming a promotion.
+- The exact bytes `docker buildx imagetools inspect --raw` prints (including
+  whether the CLI appends a trailing newline), the explicit manifest-missing
+  wording the registry client surfaces, and GHCR package visibility/read
+  principals (§7 D1) still need a controlled registry rehearsal; visibility is
+  not assumed, and any output shape the parser cannot classify refuses.
+- No workflow run, tag write or release was dispatched for this slice: all
+  evidence is code reading plus mocked-runner and workflow-parse tests.
+
+### 9.6 Consequences to reconcile (not fixed here)
+
+- The installer's source-development fallback (`Install-EurogasNexusServerRuntime.ps1`)
+  finds `X.Y.Z-preview` / `X.Y.Z-rc` only after a successful promotion (the
+  same tag as before, but later); its `X.Y.Z-stable` mismatch is unchanged and
+  remains §7 D5.
+- Pre-existing GHCR tags are untouched and no cleanup or deletion is
+  performed (§7 D3/D6).

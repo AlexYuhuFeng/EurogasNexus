@@ -71,6 +71,21 @@ and `image-metadata.json`. Deploy by digest, not by `latest`. Verify:
 docker buildx imagetools inspect ghcr.io/alexyuhufeng/eurogasnexus-api@sha256:<digest>
 ```
 
+The build pushes only a run-attempt-unique staging tag
+(`candidate-<run_id>-<attempt>`). The customer-facing channel tag
+(`X.Y.Z` / `X.Y.Z-<channel>`) is written only after the release was published
+and post-publish verification passed, by a gate-first job that copies the
+tested digest (`scripts/release/promote_image.py`) and then re-verifies the
+exact digest and both platforms - no rebuild, no deletion, and an observed
+conflicting tag is refused by the tool's policy (the job's registry credential
+itself could overwrite; an external writer racing the inspect/copy pair is not
+excluded). Promotion serializes repository-wide with cancellation off and must
+remain the exclusive writer of the package; GHCR check-then-write is not
+atomic. Exact index-digest preservation by `imagetools create` against GHCR is
+not yet verified by a controlled registry rehearsal, so the tool fails closed
+instead of assuming it. The former `sha-<commit>` alias naming is retired; the
+immutable identity is the `@sha256:` digest above.
+
 Keyless cosign container signing is not configured in CR-12 and is explicitly
 listed as an external gap.
 

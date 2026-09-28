@@ -754,8 +754,9 @@ def test_release_workflow_grants_actions_read_only_to_the_gate_jobs() -> None:
     assert workflow["permissions"] == {"contents": "read"}
     jobs = workflow["jobs"]
     # The validate job writes G1's evidence from the read-only Actions API; the
-    # publish jobs re-derive that claim in their promotion gates. No other job
-    # may read the Actions API, and each keeps exactly the permission it needs.
+    # publish jobs and the gate-first image-promotion jobs re-derive that claim
+    # in their promotion gates. No other job may read the Actions API, and each
+    # keeps exactly the permission it needs.
     assert jobs["validate"]["permissions"] == {"contents": "read", "actions": "read"}
     assert jobs["publish-preview-rc"]["permissions"] == {
         "contents": "write",
@@ -763,7 +764,13 @@ def test_release_workflow_grants_actions_read_only_to_the_gate_jobs() -> None:
     }
     assert jobs["publish-stable"]["permissions"] == {"contents": "write", "actions": "read"}
     for name, job in jobs.items():
-        if name in {"validate", "publish-preview-rc", "publish-stable"}:
+        if name in {
+            "validate",
+            "publish-preview-rc",
+            "publish-stable",
+            "promote-image",
+            "promote-image-stable",
+        }:
             continue
         assert "actions" not in (job.get("permissions") or {}), name
     step = next(

@@ -480,32 +480,20 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Set up Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Download release metadata
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: release-context
-          path: release-context
-
-      - name: Resolve image tags
+      - name: Resolve image name and candidate tag
         id: image
         shell: bash
         run: |
-          CONTEXT=release-context/release-context.json
-          APP_VERSION=$(python -c "import json; print(json.load(open('$CONTEXT'))['app_version'])")
-          CHANNEL=$(python -c "import json; print(json.load(open('$CONTEXT'))['channel'])")
           NAME=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/eurogasnexus-api
-          if [[ "$CHANNEL" == "stable" ]]; then
-            CHANNEL_TAG="$APP_VERSION"
-          else
-            CHANNEL_TAG="$APP_VERSION-$CHANNEL"
-          fi
+          # Run-attempt-unique staging tag. It is never the customer-facing
+          # channel tag and never an approval; the channel tag is written only
+          # by the gate-first promote jobs, after a successful publish, by
+          # copying the tested digest (no rebuild). A sha-<commit> alias is
+          # deliberately not written: a rebuild of the same source need not
+          # have the same digest, so the alias would be ambiguous.
+          CANDIDATE_TAG="candidate-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           echo "name=$NAME" >> "${GITHUB_OUTPUT}"
-          echo "channel_tag=$CHANNEL_TAG" >> "${GITHUB_OUTPUT}"
+          echo "candidate_tag=$CANDIDATE_TAG" >> "${GITHUB_OUTPUT}"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@1f40c72289eff860ee54a304f1438e3cff362e0a # v4.3.0
@@ -520,7 +508,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ github.token }}
 
-      - name: Build and publish API image
+      - name: Build and publish candidate API image
         id: build
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
@@ -531,8 +519,7 @@ jobs:
           provenance: true
           sbom: true
           tags: |
-            ${{ steps.image.outputs.name }}:${{ steps.image.outputs.channel_tag }}
-            ${{ steps.image.outputs.name }}:sha-${{ github.sha }}
+            ${{ steps.image.outputs.name }}:${{ steps.image.outputs.candidate_tag }}
 
       - name: Record image digest metadata
         shell: bash
@@ -1061,3 +1048,191 @@ jobs:
             --context release-context/release-context.json \
             --repo "${GITHUB_REPOSITORY}" \
             --verify-attestations
+
+  promote-image:
+    name: Promote tested image to the preview/RC tag
+    runs-on: ubuntu-24.04
+    needs: [resolve, post-publish-verify]
+    if: ${{ always() && needs.post-publish-verify.result == 'success' && needs.resolve.outputs.channel != 'stable' }}
+    # Repository-wide serialization of the promotion read/write: the group is
+    # deliberately not ref-scoped and cancellation stays off, so two promotion
+    # runs can never inspect-and-write the same package concurrently. The lock
+    # cannot prevent an external writer; keeping this workflow the exclusive
+    # writer of the package is a documented operational prerequisite.
+    concurrency:
+      group: eurogas-nexus-image-promotion
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      # actions: read exists only for the gate's read-only G1 re-derivation;
+      # no other permission is added to this job.
+      actions: read
+      packages: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Download final release bundle
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-final
+          path: release-assets
+
+      - name: Image promotion gate
+        # The same fail-closed validator the publish job ran, on the same
+        # bundle, before the registry login and before any tag write: the tag
+        # write is behind the gate. No bypass flag exists, and the release must
+        # already exist here, so the stable-only reject-existing-tag guard is
+        # deliberately not re-applied.
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python scripts/release/validate_stable_release.py \
+            --context release-assets/release-context.json \
+            --artifacts-dir release-assets \
+            --sbom-dir release-assets/sbom \
+            --evidence-dir release-assets/release-evidence \
+            --repo "${GITHUB_REPOSITORY}"
+
+      - name: Confirm the published release exists
+        # The release write precedes the tag write and is the state promotion
+        # needs; a failed-job rerun keeps the earlier successful publish, so
+        # this re-checks the release instead of re-publishing it. No tag is
+        # written unless the gate above passed and this release exists.
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG=$(python -c "import json; print(json.load(open('release-assets/release-context.json'))['release_version'])")
+          if ! gh release view "$TAG" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            echo "Release $TAG is not published; refusing to write the channel tag." >&2
+            exit 1
+          fi
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+
+      - name: Promote the tested digest to the channel tag
+        # Copies the tested multi-platform manifest; never builds and never
+        # pushes layers. Conflicts the tool can observe are refused by its
+        # policy - the job's registry credential itself could overwrite - and
+        # the run fails closed unless the tag re-inspects as the exact tested
+        # digest; an external writer racing the check is not excluded.
+        shell: bash
+        run: |
+          mkdir -p promotion-evidence
+          CHANNEL_TAG=$(python -c "import json; c=json.load(open('release-assets/release-context.json')); print(c['app_version'] if c['channel'] == 'stable' else c['app_version'] + '-' + c['channel'])")
+          python scripts/release/promote_image.py \
+            --metadata release-assets/image-metadata/image-metadata.json \
+            --tag "$CHANNEL_TAG" \
+            --result-output promotion-evidence/promotion-result.json
+
+      - name: Upload promotion result
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-promotion-result
+          path: promotion-evidence
+          if-no-files-found: warn
+
+  promote-image-stable:
+    name: Promote tested image to the stable tag (production)
+    runs-on: ubuntu-24.04
+    needs: [resolve, post-publish-verify]
+    if: ${{ always() && needs.post-publish-verify.result == 'success' && needs.resolve.outputs.channel == 'stable' }}
+    # Stable promotion keeps the production environment boundary the stable
+    # publish used; it never becomes a plain job that writes the stable tag
+    # without it.
+    environment: production
+    # Same repository-wide promotion lock as promote-image: both channels
+    # serialize against each other, cancellation off.
+    concurrency:
+      group: eurogas-nexus-image-promotion
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      actions: read
+      packages: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Download final release bundle
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-final
+          path: release-assets
+
+      - name: Image promotion gate
+        # Same gate command as the preview/RC promotion: the stable release
+        # already exists at this point, so --reject-existing-tag is not passed
+        # (a failed-job rerun after release creation must still promote).
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python scripts/release/validate_stable_release.py \
+            --context release-assets/release-context.json \
+            --artifacts-dir release-assets \
+            --sbom-dir release-assets/sbom \
+            --evidence-dir release-assets/release-evidence \
+            --repo "${GITHUB_REPOSITORY}"
+
+      - name: Confirm the published release exists
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG=$(python -c "import json; print(json.load(open('release-assets/release-context.json'))['release_version'])")
+          if ! gh release view "$TAG" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            echo "Release $TAG is not published; refusing to write the channel tag." >&2
+            exit 1
+          fi
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+
+      - name: Promote the tested digest to the channel tag
+        shell: bash
+        run: |
+          mkdir -p promotion-evidence
+          CHANNEL_TAG=$(python -c "import json; c=json.load(open('release-assets/release-context.json')); print(c['app_version'] if c['channel'] == 'stable' else c['app_version'] + '-' + c['channel'])")
+          python scripts/release/promote_image.py \
+            --metadata release-assets/image-metadata/image-metadata.json \
+            --tag "$CHANNEL_TAG" \
+            --result-output promotion-evidence/promotion-result.json
+
+      - name: Upload promotion result
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-promotion-result
+          path: promotion-evidence
+          if-no-files-found: warn

@@ -82,7 +82,7 @@ def draft_notes(context: dict) -> str:
         "## Rollback guidance",
         "",
         "Follow docs/operations/RELEASE_ROLLBACK.md; container rollback uses the",
-        "immutable sha-* tag recorded in release-manifest.json.",
+        "immutable @sha256: digest recorded in release-manifest.json.",
     ]
     return "\n".join(notes) + "\n"
 

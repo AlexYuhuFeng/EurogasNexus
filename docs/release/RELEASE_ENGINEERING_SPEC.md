@@ -32,8 +32,8 @@ Classification: `IMPLEMENTED`, `PARTIAL`, `MISSING`,
 | Hard-coded versions | PARTIAL -> IMPLEMENTED | Hard-coded `0.5.0` filenames/tags removed; docs use `{VERSION}` templates. |
 | Tag generation | PARTIAL | Legacy `v0.5-preview-<run>-<sha>` tags are historical; new tags use `vX.Y.Z[-rc.N|-preview.N.<sha>]`. |
 | Artifact naming | PARTIAL -> IMPLEMENTED | Names derive from `release-context.json`: `Eurogas-Nexus-Client-{release_version}-windows-x64-setup.exe`, etc. |
-| Mutable tags | PARTIAL | `0.5-preview` legacy tag no longer published; new images also carry `sha-<commit>`. |
-| Workflow permissions | PARTIAL -> IMPLEMENTED | Top-level `contents: read`; write only in publish/runtime-image/attestation jobs. |
+| Mutable tags | PARTIAL -> IMPLEMENTED | `0.5-preview` legacy tag no longer published; the build pushes only the run-attempt-unique staging tag `candidate-<run_id>-<attempt>`, and the channel tag is written only by the gate-first serialized promotion job after a successful publish, by copying the tested digest; `sha-<commit>` alias naming is retired. Live registry behaviour remains unverified. |
+| Workflow permissions | PARTIAL -> IMPLEMENTED | Top-level `contents: read`; write only in publish/runtime-image/image-promotion/attestation jobs (`packages: write` is held by `runtime-image`, `promote-image` and `promote-image-stable` only). |
 | Action pinning | MISSING -> IMPLEMENTED | Every release workflow action is pinned to a full commit SHA with the reviewed version in a comment. |
 | Runner pinning | PARTIAL -> IMPLEMENTED | Release jobs use `ubuntu-24.04`, `ubuntu-24.04-arm`, `windows-2025`. |
 | Toolchain pinning | PARTIAL -> IMPLEMENTED | Python `3.11.12`, Node `24.13.1`, Rust `1.94.0` via root `rust-toolchain.toml`; no `rustup install stable`. |
@@ -55,7 +55,7 @@ Classification: `IMPLEMENTED`, `PARTIAL`, `MISSING`,
 | Installer tests | PARTIAL | Local NSIS build/package test path exists; clean-Windows install/upgrade/uninstall evidence remains deployment acceptance. |
 | Update tests | NOT_APPLICABLE | No updater ships; managed/offline path is documented. |
 | Compatibility checks | PARTIAL -> IMPLEMENTED | `/api/runtime/release`, client blocking screen, version-gate script. |
-| Release promotion safeguards | MISSING -> IMPLEMENTED | `validate_stable_release.py` runs in every publish job (preview/RC/stable) before its release write (PILOT-C), fail-closed external gates, tag-only stable trigger. |
+| Release promotion safeguards | MISSING -> IMPLEMENTED | `validate_stable_release.py` runs in every publish job (preview/RC/stable) before its release write (PILOT-C) and again in both image-promotion jobs before the tag write, fail-closed external gates, tag-only stable trigger, conflicting-tag refusal. |
 | Post-publish verification | MISSING -> IMPLEMENTED | `post_publish_verify.py` verifies assets, checksums, attestations and container digest. |
 | GitHub Environment protection | EXTERNAL_REPOSITORY_SETTING_REQUIRED | Workflow targets `environment: production`; reviewer/approval configuration cannot be proven from code. |
 | Code Owners enforcement | EXTERNAL_REPOSITORY_SETTING_REQUIRED | `CODEOWNERS` covers release/security paths; branch protection remains a repository setting. |
@@ -175,6 +175,10 @@ itself.
 11. STABLE GATE (fail-closed for stable tags).
 12. PUBLISH (preview/RC prerelease; stable in `production` environment).
 13. POST-PUBLISH VERIFY (download, checksums, attestation, digest).
+14. IMAGE PROMOTION (after a successful publish and post-publish verification:
+    re-run the same fail-closed gate on the bundle, confirm the release, copy
+    the tested digest to the channel tag, then re-verify the exact digest and
+    platforms; serialized repository-wide with cancellation off).
 
 ## 10. Signing matrix
 
@@ -212,8 +216,25 @@ repository signing because no APT repository is published.
 
 ## 12. Container release
 
-- Semantic tag policy: stable `X.Y.Z`; preview/RC `X.Y.Z-<channel>`;
-  every build also receives immutable `sha-<commit>`.
+- Candidate tag policy: the build pushes only the run-attempt-unique staging
+  tag `candidate-<run_id>-<attempt>`. The customer-facing tag (stable `X.Y.Z`;
+  preview/RC `X.Y.Z-<channel>`) is written only by the gate-first promotion
+  job, after a successful publish and post-publication verification, by
+  copying the tested multi-platform digest - never by rebuilding, and an
+  observed conflicting tag is refused by the tool's policy (the job's registry
+  credential itself could overwrite; an external writer racing the
+  inspect/copy pair is not excluded). The former `sha-<commit>` alias is
+  retired: a rebuild of the same source need not have the same digest.
+- Promotion is fail-closed (`scripts/release/promote_image.py`): only an
+  explicit registry manifest-missing marker (`MANIFEST_UNKNOWN` / "manifest
+  unknown") is absence, a generic "not found" refuses, and authentication,
+  network and ambiguous outcomes refuse without a write; the tested digest and
+  both platforms must verify after the copy or the run fails with escalation
+  text and leaves the tag state UNKNOWN. The job serializes repository-wide
+  with cancellation off and must remain the exclusive writer of the package;
+  GHCR check-then-write is not atomic. The live behaviour of `imagetools
+  create` against GHCR (exact index-digest preservation) remains to be
+  verified in a controlled registry rehearsal.
 - Deployment manifests must prefer `image@sha256:<digest>`; mutable tags are
   convenience labels, not rollback identity.
 - Runtime image: non-root `eurogas` user, build-stage dependencies excluded
@@ -244,8 +265,11 @@ repository signing because no APT repository is published.
 ## 15. Immutable release and rollback
 
 - Never overwrite a published stable asset or tag; publish a new patch version.
-- Never replace a container semantic tag with different source without an
-  incident policy; rollback uses the immutable `sha-*` digest.
+- Never replace a container channel tag with different source without an
+  incident policy; the promotion job refuses an observed conflicting tag
+  untouched (policy refusal - the credential could overwrite). Rollback uses
+  the immutable `@sha256:` digest recorded in `image-metadata.json` /
+  `release-manifest.json`.
 - Desktop rollback: signed previous installer + documented compatibility;
   auto-updater rollback is intentionally not claimed.
 - Server/DB rollback follows `docs/operations/RELEASE_ROLLBACK.md`.

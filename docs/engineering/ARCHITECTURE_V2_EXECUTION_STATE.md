@@ -5,6 +5,20 @@ Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical sli
 
 ## Current work
 
+September 28 gated container promotion (baseline `46b277c`): DeepSeek implemented
+run-attempt-unique candidate tags and post-publication, gate-first channel-tag
+promotion. Both promotion jobs share repository-wide serialization; stable keeps
+the production environment. Integration review required explicit missing-manifest
+classification, full error inspection, structured original-byte index validation,
+finite timeouts and truthful unknown-state reporting. Parent verification:
+295 release/Markdown tests passed, 3 Windows symlink cases skipped; focused Ruff
+and whitespace clean. CI pending. Read-only public-registry inspection failed
+with network EOF; no registry writes or release dispatch occurred. Live GHCR
+copy/digest/idempotency rehearsal, package visibility and exclusive-writer controls
+remain unverified. Missing gate producers and external approvals remain blockers.
+Next supply real evidence producers and rehearse exact artifacts; no production
+approval follows from the tooling tests.
+
 September 28 container-promotion assessment (baseline `3bf13a6`): latest CI
 `36384507864` passed; repository synchronized and PostgreSQL container healthy.
 DeepSeek traced the early GHCR tag writes and their consumers. Reviewed proposal:

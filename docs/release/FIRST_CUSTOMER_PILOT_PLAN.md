@@ -410,14 +410,17 @@ Residual and limits (not claimed as solved):
   blocked in practice. This change enforces policy; it does not create the
   missing evidence and does not claim desktop, security-acceptance or SBOM
   acceptance.
-- The `runtime-image` job still pushes the API image to GHCR from `validate`
-  alone, before the assembled-bundle gates exist. That registry write is
-  outside this brief's `gh release` scope and is recorded as an open
-  publication-path gap; the read-only assessment and proposed lifecycle are
-  in [Container promotion plan](CONTAINER_PROMOTION_PLAN.md) (staged candidate
-  tags, gate-first digest-preserving promotion, conflicting-tag refusal and
-  the checks that must surround GHCR/GitHub Release writes; nothing
-  implemented).
+- The `runtime-image` job still writes GHCR from `validate` alone, but only a
+  run-attempt-unique staging candidate tag; the customer-facing channel tag is
+  now written exclusively by the gate-first, repository-serialized promotion
+  jobs after a successful publish and post-publication verification, and a
+  conflicting existing tag is refused untouched. The bounded slice is
+  implemented in code and focused tests
+  ([Container promotion plan](CONTAINER_PROMOTION_PLAN.md) §9); it has not
+  been exercised against a live registry or a real release run, exact
+  index-digest preservation by `imagetools create` on GHCR remains
+  unverified, and exclusive registry writers remain an operational
+  prerequisite. Candidate exposure is staging, not approval.
 - G2/G3/G4/G12/G19 envelopes still carry self-declared producer run identity;
   only G1's claim is re-derived from the API.
 - No release run has exercised the writer, the gate or the publish path, so
