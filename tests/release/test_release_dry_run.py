@@ -1,4 +1,4 @@
-"""The dry run may never fabricate a published image identity.
+"""The dry run may never fabricate a published image identity or G8 evidence.
 
 `run_release_dry_run.py --build-container` builds a local image and can only
 observe that build's local config id (`docker image inspect .Id`). That value
@@ -6,6 +6,11 @@ identifies local build state; it is not the digest of a published repository
 manifest and must never become operator-bundle identity or release-manifest
 image digests. These tests fake only the docker CLI so the rest of the dry run
 runs for real, and inspect the resulting archive and manifest.
+
+Gate G8 is recorded only by the executed ``tests/security`` suite runner
+(``scripts/release/run_security_evidence.py --local-dry-run``); these tests
+also stub that local run and assert that the dry run never declares G8 from the
+static security-acceptance diagnostic.
 """
 
 from __future__ import annotations
@@ -18,6 +23,7 @@ from pathlib import Path
 import pytest
 
 from scripts.release import run_release_dry_run as dry_run
+from scripts.release.evidence_envelope import build_envelope, write_envelope
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -33,6 +39,9 @@ def fake_cli(monkeypatch: pytest.MonkeyPatch, manifest_output: Path) -> list[lis
     the harness appends an explicit sandbox path so tests never write release
     artifacts into the working tree. The identity input itself
     (`--image-digest`) is passed through exactly as the dry run produced it.
+    The G8 runner is stubbed with a locally-valid dry-run envelope: the real
+    suite execution is covered by tests/release/test_security_evidence.py and
+    is asked only about the wiring here.
     """
 
     real_run = dry_run._run
@@ -47,6 +56,34 @@ def fake_cli(monkeypatch: pytest.MonkeyPatch, manifest_output: Path) -> list[lis
             if recorded[1:3] == ["image", "inspect"]:
                 return subprocess.CompletedProcess(command, 0, f"{LOCAL_BUILD_ID}\n", "")
             raise AssertionError(f"unexpected docker command: {command}")
+        if any(part.endswith("run_security_evidence.py") for part in recorded):
+            envelope = build_envelope(
+                gate_id="G8",
+                status="PASS",
+                detail="fixture local dry-run of the executed security suite",
+                commit_sha=flag_value(recorded, "--commit-sha"),
+                subject={"kind": "source", "digests": {}},
+                producer={
+                    "workflow": flag_value(recorded, "--workflow"),
+                    "job": flag_value(recorded, "--job"),
+                    "environment": flag_value(recorded, "--environment"),
+                    "run_id": "",
+                    "run_url": "",
+                },
+            )
+            envelope["report"] = {
+                "report_type": "pytest-security-suite",
+                "counts": {
+                    "tests": 3,
+                    "passed": 3,
+                    "failures": 0,
+                    "errors": 0,
+                    "skipped": 0,
+                },
+                "source_identity": {"release_eligible": False},
+            }
+            write_envelope(Path(flag_value(recorded, "--output")), envelope)
+            return subprocess.CompletedProcess(command, 0, "fixture g8 pass", "")
         if any(part.endswith("build_release_manifest.py") for part in recorded):
             command = [*command, "--output", str(manifest_output)]
         return real_run(command, cwd=cwd, check=check)
@@ -165,3 +202,53 @@ def test_dry_run_bundle_uses_the_explicit_published_digest_not_the_local_build_i
     assert flag_value(manifest_command, "--image-digest") == PUBLISHED_DIGEST
     manifest = json.loads((output / "release-manifest.json").read_text(encoding="utf-8"))
     assert manifest["runtime_images"][0]["digest"] == PUBLISHED_DIGEST
+
+
+def test_dry_run_records_g8_only_from_the_executed_suite_runner(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    output = tmp_path / "release-assets"
+    commands = fake_cli(monkeypatch, output / "release-manifest.json")
+
+    _, output, report = run_dry_run(tmp_path, "--build-container")
+
+    # Gate G8 comes from the declared runner under the local-only producer
+    # identity; the dirty-tree relaxation is explicit and never release-eligible.
+    runner_command = command_running(commands, "run_security_evidence.py")
+    assert flag_value(runner_command, "--workflow") == "run_release_dry_run.py"
+    assert flag_value(runner_command, "--job") == "security-tests"
+    assert flag_value(runner_command, "--environment") == "local-dry-run"
+    assert "--local-dry-run" in runner_command
+    assert "--status" not in runner_command
+    assert flag_value(runner_command, "--commit-sha") == report["git_sha"]
+    assert flag_value(runner_command, "--output") == str(
+        output / "release-evidence" / "security-tests.json"
+    )
+
+    evidence = json.loads(
+        (output / "release-evidence" / "security-tests.json").read_text(encoding="utf-8")
+    )
+    assert evidence["status"] == "PASS"
+    assert evidence["report"]["report_type"] == "pytest-security-suite"
+    assert evidence["report"]["source_identity"]["release_eligible"] is False
+
+    # The static acceptance check survives as a local diagnostic, written to
+    # the output root and never used as G8 evidence.
+    command_running(commands, "run_security_acceptance.py")
+    acceptance = json.loads(
+        (output / "security-acceptance-report.json").read_text(encoding="utf-8")
+    )
+    assert acceptance["report_type"] == "automated-security-acceptance"
+    assert evidence["report"]["report_type"] != acceptance["report_type"]
+    assert "diagnostic" in report_step(report, "security-acceptance")["detail"]
+    assert report_step(report, "security-tests")["ok"] is True
+
+    # The dry run never declares G8 itself: the evidence file maps to no
+    # generic writer entry, only to the runner invocation above.
+    source = (ROOT / "scripts" / "release" / "run_release_dry_run.py").read_text(
+        encoding="utf-8"
+    )
+    assert '"security-tests": "G8"' not in source
+    for command in commands:
+        if any(part.endswith("write_gate_evidence.py") for part in command):
+            assert "G8" not in command

@@ -5,6 +5,21 @@ Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical sli
 
 ## Current work
 
+September 28 G8 executed security evidence (baseline `7f36b37`): DeepSeek
+implemented the fixed security-suite producer and release validate-job wiring.
+Generic status-based G8 writing is refused; local dry runs use the same suite
+but cannot authorize release. Review added selection checks, pre/post checkout
+identity and tracked-cleanliness checks, secure scratch space and retained JUnit
+evidence. Parent verification: initial release/security/Markdown run 513 passed,
+3 skipped; final focused run 221 passed after the post-run dirty-tree fix.
+Overlapping test processes caused two temporary-directory collection failures;
+the isolated rerun passed. Do not overlap pytest sessions in this workspace.
+Actual default CLI execution: 183 security tests passed, zero skips/deselections,
+retained XML, local-only evidence under ignored .automation/runtime. Ruff and
+whitespace clean. CI pending; release workflow itself not dispatched. G8 remains
+source security evidence, not packaged-artifact or external pentest acceptance.
+Next: G10 SBOM evidence producer and remaining artifact/operational acceptance.
+
 September 28 gated container promotion (baseline `46b277c`): DeepSeek implemented
 run-attempt-unique candidate tags and post-publication, gate-first channel-tag
 promotion. Both promotion jobs share repository-wide serialization; stable keeps

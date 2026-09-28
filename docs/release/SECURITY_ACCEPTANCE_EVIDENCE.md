@@ -38,6 +38,55 @@ removing the private-network/VPN-only posture:
 
 Until all four are complete, server roles remain private-network/VPN-only.
 
+## Release gate G8 (automated security tests)
+
+The release bundle's `release-evidence/security-tests.json` (gate G8) is
+produced by `scripts/release/run_security_evidence.py`, which executes the
+fixed `tests/security` suite with `sys.executable -m pytest` and a JUnit XML
+report in an owner-only scratch workspace, and derives the gate status from
+that executed report plus the structured selection evidence written by its
+minimal pytest plugin. The release `validate` job runs it after the existing
+tests and before the evidence upload, so the file travels with the other
+evidence into `release-assets/release-evidence/`; the retained
+`security-tests.junit.xml` companion travels in the same directory and its
+SHA-256 is recorded in the envelope, so the hash stays auditable after the
+scratch workspace is removed.
+
+The producer fails closed with explicit FAIL evidence and a non-zero exit on a
+non-zero pytest exit, an empty suite, any failure/error or skipped case, a
+missing, malformed or count-inconsistent JUnit report, a bounded-timeout
+expiry, or any other tool error. It has no `--status` argument and cannot read
+a pre-existing report, and the generic writer refuses any gate that declares an
+`evidence_runner`, so G8 can never be a hand-written claim.
+
+The executed result cannot be filtered or declared:
+
+* a non-empty `PYTEST_ADDOPTS`/`PYTEST_PLUGINS` in the environment is refused
+  before anything runs, and the fixed command pins `-o addopts=` (plus
+  `--import-mode=importlib`) so repository or suite pytest configuration cannot
+  silently reduce the suite;
+* the plugin records the collected/selected/deselected counts and any cases
+  removed by collection hooks, and the producer fails on any deselection or
+  count drift against the JUnit report - a partial suite is not an executed
+  suite;
+* the requested `--commit-sha` is bound to the checked-out git HEAD before and
+  after the run, and release-context runs refuse a dirty tracked worktree. The
+  `--local-dry-run` mode of the maintainer dry-run records the dirty state
+  instead, requires the local-only producer identity declared in the gate
+  policy, marks the evidence `release_eligible: false` and is rejected by
+  strict validation; the release workflow never passes it.
+
+The evidence is source-bound (commit SHA, no artifact digests): it is the
+executed source security suite, and the checkout binding is source identity,
+not cryptographic provenance or signed attestation.
+
+This does **not** change the external review status above. G8 is not a
+penetration test, not an operator review of a real deployment and not
+packaged-artifact security acceptance; external security acceptance (G15),
+commercial provider certification (G16) and UAT (G18) remain
+PENDING_EXTERNAL until real external evidence and a configured approval
+identity exist.
+
 ## Posture switch
 
 `EUROGAS_NEXUS_DEPLOYMENT_POSTURE=security_accepted` is a precondition, not a

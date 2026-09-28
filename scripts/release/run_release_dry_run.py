@@ -44,7 +44,6 @@ EVIDENCE_GATE_IDS = {
     "postgres-migration": "G3",
     "web-build": "G4",
     "desktop-packaging": "G5",
-    "security-tests": "G8",
     "vulnerability-scan": "G9",
     "sbom": "G10",
     "provenance": "G11",
@@ -52,6 +51,9 @@ EVIDENCE_GATE_IDS = {
     "performance": "G14",
     "code-signing": "G17",
 }
+# G8 (security-tests.json) is deliberately absent: its evidence may only come
+# from scripts/release/run_security_evidence.py executing the fixed
+# tests/security suite (see main), never from a locally declared status.
 
 # Local-only producer identity: release validation rejects it unless the
 # local-only flag is passed, which release CI never does.
@@ -461,6 +463,8 @@ def main(argv: list[str] | None = None) -> int:
         "reliability job records the migration/smoke evidence for the release commit",
         commit_sha=context["git_sha"],
     )
+    # Automated static security-acceptance checks: diagnostic only, written to
+    # the dry-run output root. This is not gate evidence and cannot declare G8.
     security = _run(
         [sys.executable, "scripts/security/run_security_acceptance.py", "--json"],
         check=False,
@@ -475,20 +479,49 @@ def main(argv: list[str] | None = None) -> int:
     security_status = str((security_report or {}).get("automated_status", "FAIL"))
     if security_status not in VALID_STATUSES:
         security_status = "FAIL"
-    security_detail = (
-        f"automated security acceptance {security_status.lower()}; external review "
-        "stays BLOCKED until external evidence exists"
-        if security_report is not None
-        else "automated security acceptance did not produce a report"
-    )
+    if security_report is not None:
+        (output / "security-acceptance-report.json").write_text(
+            json.dumps(security_report, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        security_detail = (
+            f"automated security acceptance {security_status.lower()}; diagnostic "
+            "only, not gate G8; external review stays BLOCKED until external "
+            "evidence exists"
+        )
+    else:
+        security_detail = (
+            "automated security acceptance did not produce a report (diagnostic only)"
+        )
     step("security-acceptance", security_status == "PASS", security_detail)
-    write_evidence(
-        evidence / "security-tests.json",
+
+    # Gate G8 may only be recorded by its declared runner from an executed
+    # tests/security suite. --local-dry-run requires this local-only producer
+    # identity, records the local dirty state and marks the evidence not
+    # release-eligible; strict validation rejects the local-only identity, so
+    # this file can never authorise a release.
+    security_suite = _run(
+        [
+            sys.executable,
+            "scripts/release/run_security_evidence.py",
+            "--commit-sha",
+            context["git_sha"],
+            "--workflow",
+            "run_release_dry_run.py",
+            "--job",
+            "security-tests",
+            "--environment",
+            "local-dry-run",
+            "--local-dry-run",
+            "--output",
+            str(evidence / "security-tests.json"),
+        ],
+        check=False,
+    )
+    step(
         "security-tests",
-        security_status,
-        security_detail,
-        commit_sha=context["git_sha"],
-        report=security_report,
+        security_suite.returncode == 0,
+        (security_suite.stdout or security_suite.stderr).strip()[-250:],
     )
     write_evidence(
         evidence / "performance.json",

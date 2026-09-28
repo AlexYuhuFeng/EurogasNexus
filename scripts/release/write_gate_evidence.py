@@ -10,7 +10,9 @@ with NOT_APPLICABLE, or mark a PASS without binding the tested subject.
 
 The envelope is re-verified against the release context, the actual bundle and
 the gate policy by ``scripts/release/validate_stable_release.py``; this script
-only refuses obviously contradictory or malformed writer input.
+only refuses obviously contradictory or malformed writer input. A gate that
+declares an ``evidence_runner`` (G8) is refused outright: its result may only be
+recorded by that runner from an actual execution, never by a status argument.
 """
 
 from __future__ import annotations
@@ -102,6 +104,12 @@ def main(argv: list[str] | None = None) -> int:
             f"gate {args.gate_id!r} requires authoritative same-SHA CI verification; "
             "write it with scripts/release/write_ci_run_evidence.py so the run identity "
             "comes from the GitHub API instead of a hand-written claim"
+        )
+    if gate.get("evidence_runner"):
+        return _fail(
+            f"gate {args.gate_id!r} evidence must come from its dedicated runner "
+            f"{gate['evidence_runner']}; the generic writer cannot declare an "
+            "executed-result gate"
         )
     if kind == "source" and (args.subject_artifact or args.image_digest):
         return _fail(

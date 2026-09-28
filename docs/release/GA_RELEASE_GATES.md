@@ -71,9 +71,34 @@ PILOT-C closes the publication path. `publish-preview-rc` now runs the same
 create`, with no allow-missing, local-dry-run, `continue-on-error` or
 conditional-step escape, and G1 is required for every published channel.
 Preview and RC therefore block on their own channel's mandatory evidence
-instead of publishing ungated: today no CI job produces G5 (desktop packaging),
-G8 (security tests) or G10 (SBOM), and G11 (provenance) has no RC producer, so
-preview/RC runs fail the gate and publish nothing until those producers exist.
-Missing real evidence blocks; nothing is marked PASS, exempted or fabricated to
-turn the gate green, and no release was dispatched to exercise it. Signed
-attestation remains open.
+instead of publishing ungated: no CI job produces G5 (desktop packaging) or G10
+(SBOM), and G11 (provenance) has no RC producer, so preview/RC runs fail the
+gate and publish nothing until those producers exist. Missing real evidence
+blocks; nothing is marked PASS, exempted or fabricated to turn the gate green,
+and no release was dispatched to exercise it. Signed attestation remains open.
+
+G8 now has a real CI producer (2026-09-28, baseline `7f36b37`).
+`scripts/release/run_security_evidence.py` executes the fixed `tests/security`
+suite itself (`sys.executable -m pytest tests/security` with a JUnit XML report
+in an owner-only scratch workspace), derives the gate status from that executed
+report and its structured selection evidence, and writes the source-bound G8
+envelope with the executed counts, selection counts, case identifiers and
+report digest. The release `validate` job runs it after the existing tests and
+before the `release-validate-evidence` upload, so `security-tests.json` and its
+retained `security-tests.junit.xml` companion are carried into the assembled
+`release-assets/release-evidence/` directory the publication gate reads. It
+fails closed with explicit FAIL evidence and a non-zero exit on a non-zero
+pytest exit, an empty suite, any failure/error/skip, any deselection or case
+removed by a collection hook, a missing/malformed/count-inconsistent report or
+missing selection evidence, a dirty tracked worktree in release context, a
+commit that does not match the checked-out HEAD (checked before and after the
+run), a timeout or any other tool error; a non-empty
+`PYTEST_ADDOPTS`/`PYTEST_PLUGINS` is refused outright and `-o addopts=` pins
+the pytest configuration so the suite cannot be filtered, there is no
+`--status` input and no way to pass in a pre-existing report, and
+`write_gate_evidence.py` refuses any gate that declares an `evidence_runner`.
+The checkout binding is source identity, not cryptographic provenance. This is
+executed source security-test evidence only - not packaged-artifact security
+acceptance, not an installation test and not a penetration test - and it leaves
+G15/G16/G18 and every other external gate unchanged and PENDING_EXTERNAL. G5,
+G10 and G11 producers remain missing.

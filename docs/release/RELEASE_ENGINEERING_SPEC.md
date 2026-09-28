@@ -112,27 +112,40 @@ reuses the old evidence or re-tags different source as the same version.
 CR-12 implements the evidence machinery and fail-closed stable gate. PILOT-C
 extends the same gate to the preview/RC publish job with no bypass flag, so
 every channel publishes only the evidence its own rank requires; preview and RC
-now block until their mandatory evidence (G5/G8/G10, and G11 for RC) is
-produced by a real CI producer. Automated cross-channel promotion itself
-remains an operator-controlled decision.
+now block until their mandatory evidence (G5/G10, G11 for RC) is produced by a
+real CI producer. G8 (security tests) gained its real producer on 2026-09-28:
+`scripts/release/run_security_evidence.py` executes the fixed `tests/security`
+suite in the release `validate` job and records the executed result. That
+result cannot be filtered or declared: ambient `PYTEST_ADDOPTS`/`PYTEST_PLUGINS`
+are refused, repository/suite `addopts` are overridden by the fixed command,
+any deselection or case removed by a collection hook fails the gate, and the
+requested commit is bound to the checked-out git HEAD before and after the run
+(release context additionally requires a clean tracked worktree; the maintainer
+dry-run records the dirty state as not release-eligible instead). The remaining
+missing producers are G5, G10 and G11-for-RC. Automated cross-channel promotion
+itself remains an operator-controlled decision.
 
 PILOT-B version-types that evidence: every gate evidence file is a
 schema-version 2 envelope (`scripts/release/evidence_envelope.py`) written by
-`scripts/release/write_gate_evidence.py` or the local dry-run, and is verified
-against trusted inputs - the release context commit SHA, the shipped artifact
-bytes, the image metadata/manifest digest, the policy producer profiles and a
-30-day freshness window with a 15-minute future skew allowance. Source-bound
-gates bind the commit SHA only and may not carry artifact digests; artifact and
-image gates must bind the digest of the subject that was actually tested, so a
-source test cannot be relabelled as an artifact test. A missing evidence file
-stays PENDING_EXTERNAL; anything malformed, foreign, stale or produced by an
-unapproved identity fails closed, and `NOT_APPLICABLE` is permitted only where
-the policy says so. External PASS additionally requires an approval identity
-listed in `authorized_external_approvals`, which is intentionally empty until
-the organisation configures one. Envelope fields are self-declared text bound
-to identity the release run re-derives; they are not cryptographic provenance,
-and signed attestation / authoritative GitHub-run metadata checks remain
-residual work.
+`scripts/release/write_gate_evidence.py`, a dedicated gate runner
+(`scripts/release/write_ci_run_evidence.py` for G1,
+`scripts/release/run_security_evidence.py` for G8) or the local dry-run, and is
+verified against trusted inputs - the release context commit SHA, the shipped
+artifact bytes, the image metadata/manifest digest, the policy producer
+profiles and a 30-day freshness window with a 15-minute future skew allowance.
+Source-bound gates bind the commit SHA only and may not carry artifact digests;
+artifact and image gates must bind the digest of the subject that was actually
+tested, so a source test cannot be relabelled as an artifact test. The generic
+writer refuses any gate that declares an `evidence_runner`, so an executed
+result (G8) can never be replaced by a `--status` claim. A missing evidence
+file stays PENDING_EXTERNAL; anything malformed, foreign, stale or produced by
+an unapproved identity fails closed, and `NOT_APPLICABLE` is permitted only
+where the policy says so. External PASS additionally requires an approval
+identity listed in `authorized_external_approvals`, which is intentionally
+empty until the organisation configures one. Envelope fields are self-declared
+text bound to identity the release run re-derives; they are not cryptographic
+provenance, and signed attestation / authoritative GitHub-run metadata checks
+remain residual work.
 
 ## 7. Artifact naming
 

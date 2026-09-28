@@ -134,7 +134,33 @@ jobs:
             --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
             --output release-assets/release-evidence/ci-run.json
 
-      - name: Upload Python test evidence
+      - name: Record security test evidence
+        # The G8 envelope may only come from an executed pytest security suite:
+        # run_security_evidence.py launches tests/security itself in an
+        # owner-only scratch workspace, derives the status from the JUnit
+        # report plus its structured selection evidence (any deselection or
+        # cases removed by collection hooks fail the run), refuses a non-empty
+        # PYTEST_ADDOPTS/PYTEST_PLUGINS, pins -o addopts= so repository config
+        # cannot filter the suite, binds --commit-sha to the checked-out git
+        # HEAD before and after the run and refuses a dirty tracked worktree.
+        # It fails the job on a non-zero exit, an empty suite,
+        # failures/errors/skips, a malformed or count-inconsistent report, a
+        # timeout, or any other tool error. There is no --status input, no way
+        # to pass in a pre-existing report and no local-dry-run flag here; the
+        # retained security-tests.junit.xml companion travels in the same
+        # evidence directory and its hash is recorded in the envelope.
+        shell: bash
+        run: |
+          ENVIRONMENT="github-actions/$(printf '%s/%s' "$RUNNER_OS" "$RUNNER_ARCH" | tr '[:upper:]' '[:lower:]')"
+          python scripts/release/run_security_evidence.py \
+            --commit-sha "$GITHUB_SHA" \
+            --workflow release.yml --job validate \
+            --environment "$ENVIRONMENT" \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            --output release-assets/release-evidence/security-tests.json
+
+      - name: Upload validate evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: release-validate-evidence

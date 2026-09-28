@@ -384,11 +384,13 @@ code now does:
   external gates (G15-G18) are still not demanded of preview or RC, stable
   still inherits every RC gate, and the signing policy is untouched.
 - Consequence, recorded rather than worked around: preview/RC publication now
-  blocks until its mandatory evidence exists. No CI job today produces G5
-  (desktop packaging), G8 (security tests) or G10 (SBOM), and G11 (provenance)
-  has no RC producer, so a preview/RC run fails the gate and publishes nothing.
-  That is the intended fail-closed behaviour; the missing producers are
-  follow-on work, and nothing was marked PASS or exempted to avoid it.
+  blocks until its mandatory evidence exists. No CI job produced G5 (desktop
+  packaging), G8 (security tests) or G10 (SBOM) at this baseline, and G11
+  (provenance) has no RC producer, so a preview/RC run fails the gate and
+  publishes nothing. That is the intended fail-closed behaviour; the missing
+  producers are follow-on work, and nothing was marked PASS or exempted to
+  avoid it. G8 has since gained a real producer - see the G8 implementation
+  record below; G5/G10 (and G11 for RC) are still open.
 
 Focused validation: `python -m pytest tests/release -q` -> 203 passed, 3
 Windows-symlink skips, including the new
@@ -406,10 +408,11 @@ passed. The release workflow itself was not dispatched or exercised.
 
 Residual and limits (not claimed as solved):
 
-- G5/G8/G10 (and G11 for RC) have no CI producer, so preview and RC remain
-  blocked in practice. This change enforces policy; it does not create the
-  missing evidence and does not claim desktop, security-acceptance or SBOM
-  acceptance.
+- G5/G8/G10 (and G11 for RC) had no CI producer at this baseline, so preview
+  and RC remained blocked in practice. This change enforces policy; it does not
+  create the missing evidence and does not claim desktop, security-acceptance
+  or SBOM acceptance. G8 now has its executed-suite producer (G8 record below);
+  G5/G10/G11 producers are still missing.
 - The `runtime-image` job still writes GHCR from `validate` alone, but only a
   run-attempt-unique staging candidate tag; the customer-facing channel tag is
   now written exclusively by the gate-first, repository-serialized promotion
@@ -426,6 +429,123 @@ Residual and limits (not claimed as solved):
 - No release run has exercised the writer, the gate or the publish path, so
   CA-03's publication-time consumption is enforced in code and focused tests
   only.
+
+## G8 security-tests producer implementation record (engineering evidence only, 2026-09-28)
+
+Baseline `7f36b37`. Bounded change; no release, tag, publish, deployment,
+database write, secret, credential use, workflow dispatch, commit or push. What
+the code now does:
+
+- `scripts/release/run_security_evidence.py` records the G8 envelope only from
+  an actual execution of the fixed `tests/security` suite: it launches
+  `sys.executable -m pytest tests/security` with a JUnit XML report in an
+  owner-only scratch workspace, derives the status from that executed report
+  and from the structured selection evidence written by its minimal pytest
+  plugin, and keeps the executed counts, selection counts,
+  failing/erroring/skipped case identifiers and the report SHA-256 in the
+  schema-version 2 envelope. There is no `--status` argument, no parameter that
+  accepts a pre-existing report and no test-selection filter, so no caller can
+  declare the result - status-only `--status PASS` evidence for this gate is
+  refused by `write_gate_evidence.py`, which now rejects any gate that declares
+  an `evidence_runner`.
+- The executed suite cannot be silently filtered: a non-empty
+  `PYTEST_ADDOPTS`/`PYTEST_PLUGINS` is refused before anything runs, the fixed
+  command pins `-o addopts=` (plus `--import-mode=importlib`) so repository or
+  suite pytest configuration cannot reduce the suite, and the plugin records
+  the collected/selected/deselected counts plus any cases removed by collection
+  hooks. Any deselection, any hook-removed case, missing or malformed selection
+  evidence and any count drift against the JUnit report fail the gate: a
+  partial suite is not an executed suite.
+- It fails closed with explicit `FAIL` evidence and a non-zero exit on a
+  non-zero pytest exit, an empty suite, any failure/error/skip (a skipped
+  security case is not an executed case), any deselection, a missing, malformed
+  or count-inconsistent JUnit report (declared testsuite counts must equal the
+  `testcase` elements and their outcomes), a missing selection report, a
+  checked-out HEAD that does not match `--commit-sha` before or after the run,
+  a dirty tracked worktree in release context, a run that exceeds the bounded
+  1800-second timeout, or any other tool error. Nothing is marked PASS on a
+  tool error, and the generic writer can no longer produce G8 evidence at all.
+- The requested commit is bound to the checkout: `git rev-parse HEAD` must
+  equal `--commit-sha` before and after the execution and release-context runs
+  refuse a dirty tracked worktree. `--local-dry-run` (used only by the local
+  dry-run, which passes the local-only producer identity the strict validator
+  rejects) records the dirty state, marks the evidence `release_eligible:
+  false` and is not a status/report/selection bypass; the release workflow
+  never passes it and the workflow contract test asserts its absence. This is
+  checkout source identity, not cryptographic provenance or signed attestation.
+- The release `validate` job runs the producer after the existing tests and
+  before the `release-validate-evidence` upload, so `security-tests.json` now
+  travels in the same uploaded evidence directory as `python-tests.json` and
+  `ci-run.json`; the assembly job's `release-*` merge carries it into
+  `release-assets/release-evidence/`, where the publication gate reads the
+  policy-declared file. The executed JUnit XML is retained beside the envelope
+  as the deterministic companion `security-tests.junit.xml`, uploaded with the
+  same evidence artifact and hashed in the envelope, so the recorded digest
+  stays auditable after the scratch workspace is removed. A failing or
+  unevidenced suite stops the job before the upload, so no release path can
+  consume a G8 PASS that was not executed.
+- The evidence stays source-bound (`subject.kind = source`, no artifact
+  digests): it is the executed source security suite, not packaged-artifact
+  security acceptance, not an installation test and not a penetration test.
+  G15 (external security acceptance), G16 (provider certification), G18 (UAT)
+  and every other external gate are unchanged and still PENDING_EXTERNAL; the
+  policy's `authorized_external_approvals` stays empty.
+- The maintainer dry run now records G8 through the same runner:
+  `run_release_dry_run.py` invokes `run_security_evidence.py` with the
+  local-only producer identity and `--local-dry-run`, so the local dry-run
+  executes the real suite instead of labelling an unrelated static
+  security-acceptance report as G8. That static check
+  (`scripts/security/run_security_acceptance.py`) is still executed as a local
+  diagnostic and written to `security-acceptance-report.json` in the dry-run
+  output root; it is not gate evidence and can never declare G8, and the
+  dry-run's evidence-name-to-gate map no longer contains `security-tests`.
+
+Focused validation (revised slice, 2026-09-28): `python -m pytest tests/release
+-q` -> 327 passed, 3 Windows-symlink skips, including the rewritten
+`tests/release/test_security_evidence.py` (34 tests) and the new dry-run wiring
+test. The producer suite covers: injected-runner negatives for non-zero exit,
+empty suite, failures/errors, skips, missing/malformed report, declared-count
+mismatch, timeout and launch error; the environment guard (both variables,
+including via the shipped CLI) and the `-o addopts=` override against a suite
+`pytest.ini` that would otherwise run 1 of 3 cases; deselection refusal
+(fabricated evidence and a real collection hook that silently drops cases) and
+selection/`JUnit` count drift; wrong-SHA, dirty-worktree and HEAD-moved
+refusals (each proving the suite is not executed on a mismatch); the local
+dry-run mode (dirty state recorded, `release_eligible: false`, accepted only by
+the local validator); the retained companion and its hash; the default command,
+plugin environment and owner-only `mkdtemp` workspace helper; a tiny real
+pytest subprocess suite; an independent end-to-end run of the actual
+`tests/security` suite producing the PASS envelope (183 cases, zero
+deselected); and the policy/writer/workflow contracts. `python -m pytest
+tests/security -q` -> 183 passed as its own independent run. `ruff check .`
+passed. The local Markdown link contract still passes except the pre-existing
+sandbox-permission case that writes outside the workspace (unrelated to this
+slice; it also failed before it). Sandbox note: this environment denies child
+processes access to
+owner-only (0o700) directories, so the in-process tests inject a sandbox
+workspace factory for the child pytest run as the task brief allows, and the
+shipped CLI could only be exercised here on its refusal paths and dry-run
+wiring; the production `mkdtemp` path itself runs on developer machines and CI.
+No release workflow was dispatched; the producer was exercised on this
+worktree, not inside GitHub Actions.
+
+Residual and limits (not claimed as solved):
+
+- This is source-bound automated security-test evidence. It does not test a
+  packaged artifact or image, does not perform an external review and cannot
+  close G15/G16/G18 or the private-network/VPN-only posture switch.
+- G5 (desktop packaging), G10 (SBOM) and G11 (provenance for RC) still have no
+  CI producer, so preview/RC publication remains blocked by those gates.
+- The envelope's producer fields remain self-declared text; only G1 is
+  re-derived from authoritative GitHub API metadata.
+- The producer's owner-only (`mkdtemp`) scratch workspace is not exercised
+  end-to-end inside this sandboxed environment, which denies child processes
+  access to 0o700 directories: the child-running tests inject a sandbox
+  workspace factory, and the default path is exercised on developer machines
+  and CI, not here.
+- The release workflow has still not been dispatched, so the artifact
+  upload/merge path is verified in code and contract tests, not by an observed
+  run.
 
 ## What this plan does not claim
 
