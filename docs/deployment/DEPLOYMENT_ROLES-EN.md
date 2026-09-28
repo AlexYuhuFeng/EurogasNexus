@@ -27,6 +27,24 @@ The backend reads `EUROGAS_NEXUS_DEPLOYMENT_POSTURE`:
 true. The Windows deployment preflight remains unchanged in this repository
 until a real deployment completes external security acceptance.
 
+## Deployment environment profile
+
+The runtime definition in this bundle sets `EUROGAS_NEXUS_ENV=release` and
+`EUROGAS_NEXUS_API_PROFILE=release` for every service. These values are part of
+the customer-facing posture, not decoration:
+
+- they keep development-only surfaces out of a customer deployment. In
+  particular the model-context-protocol (MCP) tool surface is refused in
+  `trial`/`release` profiles until a persisted service identity exists, and the
+  refusal is enforced by the backend and the MCP adapter - not by documentation
+  alone;
+- an unset profile defaults to `development`, the developer default, which says
+  nothing about whether a deployment is safe to face a customer.
+
+Do not remove or override these two variables in a customer deployment. A
+deployment that really is a development or test worktree should say so
+explicitly instead of leaving the profile unset.
+
 ## Release asset selection
 
 The standalone Windows NSIS installer is **Client only**. Installing it creates

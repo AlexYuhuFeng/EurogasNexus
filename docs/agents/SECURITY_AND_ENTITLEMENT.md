@@ -15,6 +15,14 @@
 - `HUMAN_ONLY` review recording and `HUMAN_CONFIRMATION` freeze/shadow operations cannot
   be bypassed by an agent call.
 - MCP tool names and descriptions contain no SQL or execution vocabulary.
+- Customer-facing MCP profiles are refused entirely (first-customer-pilot finding CA-05):
+  when `EUROGAS_NEXUS_ENV` is `trial`/`release` or the API profile is `release`, the MCP
+  server resolves that through the authoritative settings and refuses `tools/list` and
+  `tools/call` - and every exported tool handler - before any audit, capability runtime,
+  SDK or provider call. An unknown or malformed profile fails closed, and no agent
+  role/scope grant or token re-enables the surface. This is a pilot-scope mitigation, not
+  a security acceptance: the persisted MCP service identity (decision D6) is still open.
+  Development, test and the `internal` profile keep the existing surface.
 
 ## What does *not* hold yet, stated plainly
 
@@ -41,4 +49,6 @@ MCP path. The corrections:
   is a broad default rather than a denial and is tracked with finding C5.
 
 Until the first two items are closed, treat MCP as deployment-trusted infrastructure
-rather than as a per-user surface, and grant it data scopes deliberately.
+rather than as a per-user surface, and grant it data scopes deliberately. In a
+customer-facing deployment (release profile) the platform does not offer the surface at
+all - see `MCP_SERVER.md` for the gate.

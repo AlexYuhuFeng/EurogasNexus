@@ -5,6 +5,18 @@ Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical sli
 
 ## Current work
 
+September 29 MCP pilot containment (baseline `0154806`): DeepSeek added
+authoritative-settings checks to JSON-RPC discovery/calls and exported tool
+handlers. Trial/release environments or release API profile refuse tools before
+handler/audit/network paths; malformed configuration refuses too. Developer/test
+defaults remain, with no additional role/scope override of the protected profile.
+Operator compose explicitly sets both release variables. Parent verification:
+227 MCP/security/Markdown tests passed, focused Ruff and whitespace clean. CI
+pending. CA-05 is mitigated for correctly configured customer deployments, not
+closed: persisted service identity, headless worker authority and host-operator
+configuration controls remain outstanding. No security approval or runtime
+deployment change is claimed.
+
 September 29 route-state badge accessibility (baseline `9b0efb2`): DeepSeek
 separated allocated/candidate/blocked text badge tokens from unchanged map-dot
 colours in light/dark themes. The browser sweep now renders a clearly test-only

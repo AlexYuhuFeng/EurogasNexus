@@ -9,6 +9,12 @@ consumer exactly like the CLI.
 
 Protocol implemented: ``initialize``, ``notifications/initialized``,
 ``tools/list``, ``tools/call``. No new dependencies.
+
+Deployment profile gate (first-customer-pilot finding CA-05): a customer-facing
+deployment profile (``trial``/``release`` environment, or the ``release`` API profile)
+refuses tool discovery and invocation - the exported tool handlers included - until the
+persisted MCP service identity of architecture decision D6 is built. Development and
+test worktrees keep the existing read-only surface.
 """
 
 from __future__ import annotations
@@ -33,6 +39,100 @@ def _base_url() -> str:
     import os
 
     return os.environ.get("EUROGAS_NEXUS_API_BASE_URL", DEFAULT_BASE_URL).rstrip("/")
+
+
+# ---------------------------------------------------------------------------
+# Deployment profile gate (first-customer-pilot finding CA-05)
+# ---------------------------------------------------------------------------
+#
+# MCP tools run as a deployment-configured service identity built from
+# ``EUROGAS_NEXUS_AGENT_*`` environment values, and the transport cannot carry the calling
+# user's identity (architecture findings C8, decision D6). Until the *persisted* service
+# identity exists, a customer-facing deployment does not offer MCP tools at all: an
+# environment-granted identity is an unowned authority, and an LLM-facing tool surface
+# acting on it is exactly the pilot gap CA-05 records. Development and test worktrees keep
+# the existing read-only surface.
+#
+# The profile is *resolved*, never re-derived: ``Settings`` is the authoritative reader of
+# ``EUROGAS_NEXUS_ENV``/``EUROGAS_NEXUS_API_PROFILE`` (validated literals with documented
+# defaults), so this gate cannot disagree with what the API itself believes. The allow-list
+# below is fail-closed by construction: only the named development profiles enable tools,
+# and a profile that cannot be resolved (unknown or malformed) is refused rather than
+# treated as the default.
+
+#: Deployment environments whose worktrees keep the development MCP tool surface.
+_MCP_TOOL_ENVIRONMENTS = frozenset({"development", "test"})
+#: API profiles whose worktrees keep the development MCP tool surface.
+_MCP_TOOL_API_PROFILES = frozenset({"development", "internal"})
+
+
+class MCPToolAccessDisabled(RuntimeError):
+    """Raised when a deployment profile that does not offer MCP tools is asked for one.
+
+    Raised rather than returned so an out-of-band caller of an exported tool handler
+    (``TOOLS``/``TOOLS_BY_NAME``) cannot mistake the refusal for a tool result.
+    """
+
+
+def tool_access_disabled_reason() -> str | None:
+    """Why this deployment does not offer MCP tools, or ``None`` when it does.
+
+    Customer-facing deployments (``trial``/``release`` environment, or the ``release``
+    API profile) refuse tool discovery and invocation until the persisted service
+    identity of decision D6 exists. The check reads the authoritative settings resolver
+    instead of re-reading the environment variables, and fails closed: a profile that
+    cannot be resolved (unknown or malformed) is refused, never treated as development.
+    """
+
+    from eurogas_nexus.core.config import Settings
+
+    try:
+        settings = Settings.from_env()
+    except Exception as exc:  # noqa: BLE001 - an unresolvable profile must fail closed
+        return (
+            "MCP tool access is disabled: the deployment profile could not be resolved "
+            f"({type(exc).__name__}); an unknown or malformed profile fails closed."
+        )
+    if settings.environment not in _MCP_TOOL_ENVIRONMENTS:
+        return (
+            f"MCP tool access is disabled in the {settings.environment!r} deployment "
+            "environment: MCP has no persisted service identity yet (decision D6), so a "
+            "customer-facing deployment does not offer its tools."
+        )
+    if settings.api_profile not in _MCP_TOOL_API_PROFILES:
+        return (
+            f"MCP tool access is disabled in the {settings.api_profile!r} API profile: "
+            "MCP has no persisted service identity yet (decision D6), so a customer-facing "
+            "deployment does not offer its tools."
+        )
+    return None
+
+
+def _require_tool_access() -> None:
+    """Refuse tool invocation unless the deployment profile offers MCP tools."""
+
+    reason = tool_access_disabled_reason()
+    if reason is not None:
+        raise MCPToolAccessDisabled(reason)
+
+
+def _access_checked_handler(
+    handler: Callable[[dict[str, Any]], Any],
+) -> Callable[[dict[str, Any]], Any]:
+    """Wrap one tool handler so the profile gate runs before any of its own code.
+
+    The JSON-RPC dispatcher checks the gate before its lookup/audit step, but the handlers
+    are exported (``TOOLS``/``TOOLS_BY_NAME``), so a caller can reach them without the
+    dispatcher. This wrapper keeps that path honest: in a disabled profile it refuses
+    before the handler body - and therefore before any capability runtime, SDK, provider
+    or network call - can run.
+    """
+
+    def guarded(arguments: dict[str, Any]) -> Any:
+        _require_tool_access()
+        return handler(arguments)
+
+    return guarded
 
 
 # ---------------------------------------------------------------------------
@@ -66,6 +166,14 @@ class MCPTool:
 
 #: The two postures a tool may declare. Anything else is a programming error.
 TOOL_POSTURES: frozenset[str] = frozenset({"runtime-authorised", "deployment-principal"})
+
+
+def _gate_tools(tools: tuple[MCPTool, ...]) -> tuple[MCPTool, ...]:
+    """Return the tools with the deployment-profile gate wrapped around every handler."""
+
+    return tuple(
+        replace(tool, handler=_access_checked_handler(tool.handler)) for tool in tools
+    )
 
 
 def _tool_list_sources(arguments: dict[str, Any]) -> Any:
@@ -556,7 +664,7 @@ _LEGACY_TOOLS: tuple[MCPTool, ...] = tuple(
 _CAPABILITY_TOOLS: tuple[MCPTool, ...] = ()
 _LEGACY_NAMES = {tool.name for tool in _CAPABILITY_TOOLS}
 _LEGACY_COMPAT_TOOLS = tuple(tool for tool in _LEGACY_TOOLS if tool.name not in _LEGACY_NAMES)
-TOOLS: tuple[MCPTool, ...] = (*_CAPABILITY_TOOLS, *_LEGACY_COMPAT_TOOLS)
+TOOLS: tuple[MCPTool, ...] = _gate_tools((*_CAPABILITY_TOOLS, *_LEGACY_COMPAT_TOOLS))
 TOOLS_BY_NAME: dict[str, MCPTool] = {tool.name: tool for tool in TOOLS}
 
 
@@ -682,7 +790,7 @@ _LEGACY_NAMES = {tool.name for tool in _CAPABILITY_TOOLS}
 _LEGACY_COMPAT_TOOLS = tuple(
     tool for tool in _LEGACY_TOOLS if tool.name not in _LEGACY_NAMES
 )
-TOOLS: tuple[MCPTool, ...] = (*_CAPABILITY_TOOLS, *_LEGACY_COMPAT_TOOLS)
+TOOLS: tuple[MCPTool, ...] = _gate_tools((*_CAPABILITY_TOOLS, *_LEGACY_COMPAT_TOOLS))
 TOOLS_BY_NAME: dict[str, MCPTool] = {tool.name: tool for tool in TOOLS}
 
 # ---------------------------------------------------------------------------
@@ -717,40 +825,56 @@ def handle_jsonrpc_line(line: str) -> str | None:
         return _error(request_id, -32600, "Invalid Request")
 
     if method == "initialize":
-        return json.dumps(
-            {
-                "jsonrpc": "2.0",
-                "id": request_id,
-                "result": {
-                    "protocolVersion": PROTOCOL_VERSION,
-                    "capabilities": {"tools": {"listChanged": False}},
-                    "serverInfo": {"name": SERVER_NAME, "version": SERVER_VERSION},
-                },
-            }
-        )
+        reason = tool_access_disabled_reason()
+        result: dict[str, Any] = {
+            "protocolVersion": PROTOCOL_VERSION,
+            # A disabled profile offers no tools capability rather than tools a client
+            # may not call (the same shape as a server without that capability).
+            "capabilities": {"tools": {"listChanged": False}} if reason is None else {},
+            "serverInfo": {"name": SERVER_NAME, "version": SERVER_VERSION},
+        }
+        if reason is not None:
+            # Say why, rather than leaving the client to infer it from an empty tool list.
+            result["instructions"] = reason
+        return json.dumps({"jsonrpc": "2.0", "id": request_id, "result": result})
     if method == "notifications/initialized":
         return None
     if method == "tools/list":
+        # Empty rather than an error: a client that skipped ``initialize``'s capabilities
+        # still learns there is nothing to call, and no handler is reachable from here.
+        reason = tool_access_disabled_reason()
+        listed: list[dict[str, Any]] = []
+        if reason is None:
+            listed = [
+                {
+                    "name": tool.name,
+                    "description": _published_description(tool),
+                    "inputSchema": tool.input_schema,
+                    # Published so a client can see how a tool is authorised rather
+                    # than assuming every tool re-authorises per user (finding C8).
+                    "posture": tool.posture,
+                }
+                for tool in TOOLS
+            ]
         return json.dumps(
             {
                 "jsonrpc": "2.0",
                 "id": request_id,
-                "result": {
-                    "tools": [
-                        {
-                            "name": tool.name,
-                            "description": _published_description(tool),
-                            "inputSchema": tool.input_schema,
-                            # Published so a client can see how a tool is authorised rather
-                            # than assuming every tool re-authorises per user (finding C8).
-                            "posture": tool.posture,
-                        }
-                        for tool in TOOLS
-                    ]
-                },
+                "result": {"tools": listed},
             }
         )
     if method == "tools/call":
+        reason = tool_access_disabled_reason()
+        if reason is not None:
+            # Refuse before the tool lookup, the audit write, the capability runtime, the
+            # SDK and every provider/network call: a disabled profile has no path that
+            # reaches a tool body, on this transport or through an exported handler.
+            return _error(
+                request_id,
+                -32000,
+                reason,
+                {"code": "mcp_tools_disabled"},
+            )
         params = message.get("params") or {}
         tool_name = params.get("name")
         tool = TOOLS_BY_NAME.get(tool_name or "")

@@ -2,6 +2,8 @@
 
 import json
 
+import pytest
+
 from eurogas_nexus.mcp.server import (
     TOOL_POSTURES,
     TOOLS,
@@ -9,6 +11,19 @@ from eurogas_nexus.mcp.server import (
     _published_description,
     handle_jsonrpc_line,
 )
+
+
+@pytest.fixture(autouse=True)
+def _development_profile(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Pin the surface this module exercises; the profile gate has its own module.
+
+    ``test_mcp_deployment_gate.py`` tests the customer-facing refusal. Without this pin a
+    workstation whose shell carries ``EUROGAS_NEXUS_ENV=release`` would see every test
+    here fail for a reason none of them is testing.
+    """
+
+    monkeypatch.setenv("EUROGAS_NEXUS_ENV", "development")
+    monkeypatch.setenv("EUROGAS_NEXUS_API_PROFILE", "development")
 
 
 def _send(request: dict) -> dict:
