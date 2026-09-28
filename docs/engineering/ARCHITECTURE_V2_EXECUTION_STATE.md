@@ -5,6 +5,16 @@ Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical sli
 
 ## Current work
 
+September 28 container-promotion assessment (baseline `3bf13a6`): latest CI
+`36384507864` passed; repository synchronized and PostgreSQL container healthy.
+DeepSeek traced the early GHCR tag writes and their consumers. Reviewed proposal:
+[Container promotion plan](../release/CONTAINER_PROMOTION_PLAN.md). Integration
+review requires run-attempt-unique candidates, no pre-gate SHA alias updates,
+serialized promotion and explicit external-writer controls. No workflow or
+registry changes were made. Next implement the bounded promotion change with
+negative tests and verify registry semantics before release acceptance. Existing
+evidence-producer and external approval blockers remain; production not approved.
+
 September 28 CI fixture recovery (baseline `2d42cc1`): CI `36360322601`
 failed browser acceptance when the agent research interaction crossed UTC
 midnight after job-start seeding. All four other active jobs passed. DeepSeek

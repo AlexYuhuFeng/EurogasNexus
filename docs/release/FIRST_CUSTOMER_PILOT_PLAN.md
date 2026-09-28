@@ -413,7 +413,11 @@ Residual and limits (not claimed as solved):
 - The `runtime-image` job still pushes the API image to GHCR from `validate`
   alone, before the assembled-bundle gates exist. That registry write is
   outside this brief's `gh release` scope and is recorded as an open
-  publication-path gap.
+  publication-path gap; the read-only assessment and proposed lifecycle are
+  in [Container promotion plan](CONTAINER_PROMOTION_PLAN.md) (staged candidate
+  tags, gate-first digest-preserving promotion, conflicting-tag refusal and
+  the checks that must surround GHCR/GitHub Release writes; nothing
+  implemented).
 - G2/G3/G4/G12/G19 envelopes still carry self-declared producer run identity;
   only G1's claim is re-derived from the API.
 - No release run has exercised the writer, the gate or the publish path, so
