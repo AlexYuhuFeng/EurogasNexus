@@ -31,8 +31,29 @@ Release-time dependency resolution is not allowed to float.
 
 `scripts/release/generate_sboms.py` produces SPDX 2.3 documents from the
 enforced locks for Python runtime, Web Node, Desktop Node, and Desktop Rust
-dependencies. `sbom-manifest.json` maps SBOMs to artifact families and
-`THIRD_PARTY_NOTICES.md` is generated from lock license metadata.
+dependencies, plus `THIRD_PARTY_NOTICES.md`. `sbom-manifest.json` records the
+component files, the SHA-256 and package count of every lock input, the
+inventory scope, and every lock entry excluded from the package lists. Purls
+follow the purl type conventions (npm names and scopes are lowercased with the
+scope `@` percent-encoded; PyPI names use the PEP 503 canonical form; Cargo
+crate names keep their case and underscores). Only the exact canonical
+crates.io index sources count as crates.io, so git, path, alternate-registry
+and lookalike registry URLs keep their raw `source` string instead of being
+labelled as crates.io packages. Missing, malformed or empty lock inputs fail
+the generator instead of emitting partial documents: a Cargo
+`source`/`checksum` of the wrong type or shape, a malformed npm entry,
+and any Python lock line that is not a fully parsed hash-pinned `name==version`
+requirement all refuse the run. npm `link: true` workspace links and this
+repository's own project entries are never silently dropped; they are recorded
+under the input's `excluded_entries`.
+
+This is a lock-derived inventory, not artifact-complete SBOM acceptance. It
+over-covers shipped artifacts (dev/build and non-target packages), Cargo.lock
+and the Python lock carry no license metadata, license texts are not included,
+and container-image OS packages and native/installer binaries are outside the
+inventory. The release manifest's per-artifact `sbom_ref` mapping is still
+empty and no CI job records G10 evidence from this generator; G10 stays open
+until artifact-complete evidence exists.
 
 ## Checksums
 

@@ -139,8 +139,11 @@ by a CLI flag.
 - `release-manifest.json` records version, channel, commit, schema revision,
   engine/schema versions, final SHA-256 hashes, signing state, SBOM refs,
   attestation ref, and immutable container digest.
-- SPDX 2.3 SBOMs are generated from the enforced locks; `THIRD_PARTY_NOTICES.md`
-  is generated; vulnerability scan evidence is separate from SBOM.
+- SPDX 2.3 SBOMs are generated from the enforced locks with lock-input hashes
+  and scope disclosures in `sbom-manifest.json`; `THIRD_PARTY_NOTICES.md`
+  states that license texts and container-image OS packages are out of scope;
+  vulnerability scan evidence is separate from SBOM. Artifact-complete SBOM
+  acceptance (G10) remains open.
 - Release artifacts are covered by final `SHA256SUMS` (including the manifest);
   GitHub OIDC build provenance is generated over the final bundle.
 - Windows code signing is policy-aware and explicitly `unsigned_pending_external`

@@ -214,8 +214,14 @@ repository signing because no APT repository is published.
 ## 11. SBOM, vulnerability scan, provenance
 
 - SBOM: SPDX 2.3 documents generated from `requirements-runtime.lock`, both
-  npm lockfiles, and `Cargo.lock`. `sbom-manifest.json` and the release
-  manifest map artifacts to SBOMs. `THIRD_PARTY_NOTICES.md` is generated.
+  npm lockfiles, and `Cargo.lock`. `sbom-manifest.json` records the component
+  files, lock-input SHA-256 values, package counts, the lock entries excluded
+  from the package lists, and inventory scope (dev/build over-inclusion,
+  unknown licenses, missing container-image OS and native-binary inventory);
+  the release manifest lists the SBOM files but its per-artifact `sbom_ref`
+  mapping is still empty.
+  `THIRD_PARTY_NOTICES.md` is generated from lock metadata and states that it
+  is not a license-text or legal-completeness review.
 - Vulnerability scan: separate evidence (`vulnerability-scan.json`) from
   pip-audit, npm audit, and cargo audit. Known exploitable CRITICAL/HIGH
   runtime findings block stable unless listed in

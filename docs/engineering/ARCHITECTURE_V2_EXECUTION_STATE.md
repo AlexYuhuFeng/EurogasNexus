@@ -5,6 +5,19 @@ Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical sli
 
 ## Current work
 
+September 28 G10 inventory prerequisite (baseline `bb0ad4c`): DeepSeek corrected
+the existing lock-derived SBOM generator: nested/scoped npm identity, exact Cargo
+registry provenance with TOML parsing, strict supported hash-pinned Python input,
+ecosystem-specific purls, unique document namespaces, UTC timestamps and input
+hashes. Review required malformed-entry refusal, explicit workspace-link
+exclusions and no crates.io identities for lookalike registries. Parent checks:
+69 focused release/Markdown tests passed, real-lock CLI generated four component
+documents, focused Ruff and whitespace clean. CI pending. No G10 PASS producer
+was added: per-artifact mapping, container OS/native inventory and license-text
+completeness remain open. Unsupported future lock syntax fails explicitly.
+Next close artifact mapping and source inventory validation before declaring any
+SBOM gate satisfied; do not substitute lock inventory for binary inspection.
+
 September 28 G8 executed security evidence (baseline `7f36b37`): DeepSeek
 implemented the fixed security-suite producer and release validate-job wiring.
 Generic status-based G8 writing is refused; local dry runs use the same suite
