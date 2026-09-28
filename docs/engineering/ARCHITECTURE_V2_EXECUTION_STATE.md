@@ -11,8 +11,9 @@ handlers. Trial/release environments or release API profile refuse tools before
 handler/audit/network paths; malformed configuration refuses too. Developer/test
 defaults remain, with no additional role/scope override of the protected profile.
 Operator compose explicitly sets both release variables. Parent verification:
-227 MCP/security/Markdown tests passed, focused Ruff and whitespace clean. CI
-pending. CA-05 is mitigated for correctly configured customer deployments, not
+227 MCP/security/Markdown tests passed, focused Ruff and whitespace clean.
+Commit `1b1d9ee` passed CI `36499995691`, all five active jobs; native packaging
+skipped. CA-05 is mitigated for correctly configured customer deployments, not
 closed: persisted service identity, headless worker authority and host-operator
 configuration controls remain outstanding. No security approval or runtime
 deployment change is claimed.
