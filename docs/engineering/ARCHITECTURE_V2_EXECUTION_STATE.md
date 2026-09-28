@@ -12,11 +12,20 @@ ecosystem-specific purls, unique document namespaces, UTC timestamps and input
 hashes. Review required malformed-entry refusal, explicit workspace-link
 exclusions and no crates.io identities for lookalike registries. Parent checks:
 69 focused release/Markdown tests passed, real-lock CLI generated four component
-documents, focused Ruff and whitespace clean. CI pending. No G10 PASS producer
+documents, focused Ruff and whitespace clean. Commit `bb06836` passed CI
+`36431395000`, all five active jobs; native packaging skipped. No G10 PASS producer
 was added: per-artifact mapping, container OS/native inventory and license-text
 completeness remain open. Unsupported future lock syntax fails explicitly.
 Next close artifact mapping and source inventory validation before declaring any
 SBOM gate satisfied; do not substitute lock inventory for binary inspection.
+
+New HMI follow-up from prior checkpoint CI `36428725740` (`bb0ad4c`): browser
+acceptance reported serious color-contrast failure for the Chinese candidate
+route pill (`.resource-route-state-pill.candidate` nested in `.allocated`), white
+on `#0ea5e9`, ratio 2.77 versus required 4.5. Latest CI passed without a UI change;
+that does not resolve this state-dependent defect. Next bounded HMI task: isolate
+inherited allocated-state styling, fix badge contrast and add rendered regression
+coverage without disabling axe or changing acceptance thresholds.
 
 September 28 G8 executed security evidence (baseline `7f36b37`): DeepSeek
 implemented the fixed security-suite producer and release validate-job wiring.
