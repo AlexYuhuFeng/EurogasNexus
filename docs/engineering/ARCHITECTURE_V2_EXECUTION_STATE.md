@@ -16,7 +16,9 @@ Overlapping test processes caused two temporary-directory collection failures;
 the isolated rerun passed. Do not overlap pytest sessions in this workspace.
 Actual default CLI execution: 183 security tests passed, zero skips/deselections,
 retained XML, local-only evidence under ignored .automation/runtime. Ruff and
-whitespace clean. CI pending; release workflow itself not dispatched. G8 remains
+whitespace clean. Commit `c5a7f2b` passed CI `36428138195`, all five active
+jobs on the first attempt; native packaging skipped. Release workflow itself
+was not dispatched. G8 remains
 source security evidence, not packaged-artifact or external pentest acceptance.
 Next: G10 SBOM evidence producer and remaining artifact/operational acceptance.
 
