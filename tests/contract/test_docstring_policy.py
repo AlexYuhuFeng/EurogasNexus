@@ -115,6 +115,7 @@ CHECKED_MODULES = [
     "domain/research/allocation.py",
     "domain/research/backtest.py",
     "domain/research/feasibility.py",
+    "domain/research/lng_cash_valuation.py",
     "domain/research/models.py",
     "domain/research/monitoring.py",
     "domain/research/netback.py",

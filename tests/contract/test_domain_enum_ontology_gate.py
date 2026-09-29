@@ -29,6 +29,15 @@ _REVIEWED_DOMAIN_STR_ENUMS: set[str] = {
     "eurogas_nexus.domain.observations.market:ObservationFreshness",
     "eurogas_nexus.domain.research.backtest:BacktestResultStatus",
     "eurogas_nexus.domain.research.feasibility:FeasibilityStatus",
+    # LNG cargo cash valuation (Architecture V2 LNG economics scope). This is
+    # the cash-flow-leg vocabulary of one deterministic decision-support
+    # primitive, not gas-market semantics: it deliberately reuses the value
+    # strings of the allowlisted research cost taxonomy
+    # (research/models.py:CostComponentType: fuel/transport/regas/storage/
+    # other) and adds only the cargo cash categories that taxonomy does not
+    # name (cargo purchase/sale, shipping, demurrage, boil-off). It stays
+    # beside its module instead of entering the GRM ontology.
+    "eurogas_nexus.domain.research.lng_cash_valuation:LngCashLegCategory",
     "eurogas_nexus.domain.research.models:AlertSeverity",
     "eurogas_nexus.domain.research.models:CandidateAction",
     "eurogas_nexus.domain.research.models:CostComponentType",

@@ -8,7 +8,7 @@
 | `src/eurogas_nexus/runtime_store` | Ephemeral runtime state contracts | Active contract definitions; runtime truth remains PostgreSQL |
 | `src/eurogas_nexus/api` | FastAPI app, route profiles, routes, dependencies | Active public/internal/dev route surfaces |
 | `src/eurogas_nexus/domain` | Pure domain models, calculations, and policy rules | Active, implemented domain areas only |
-| `src/eurogas_nexus/domain/research` | Research-only calculation package (route cost, feasibility, allocation, netback, nowcast, backtest, shadow run) | Active; consolidated from legacy `workflows/` |
+| `src/eurogas_nexus/domain/research` | Research-only calculation package (route cost, feasibility, allocation, netback, nowcast, backtest, shadow run, LNG cargo cash valuation) | Active; consolidated from legacy `workflows/`; [LNG cargo cash valuation source](../../src/eurogas_nexus/domain/research/lng_cash_valuation.py) is a bounded future-cash-flow primitive, not accounting or settlement |
 | `src/eurogas_nexus/application` | Workflow orchestration and application services | Active audit, retention, monitoring, source operations, storage/nomination composition |
 | `src/eurogas_nexus/application/workflows` | Ingestion-run workflow orchestration | Active |
 | `src/eurogas_nexus/ingestion` | Connectors, public-source ingestion, normalization | Active connector and normalization contracts; live calls remain gated |

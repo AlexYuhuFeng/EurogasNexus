@@ -5,6 +5,22 @@ Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical sli
 
 ## Current work
 
+September 30 LNG dated-cash valuation (baseline `53500ec`): DeepSeek added a
+pure versioned research-domain calculation with signed, uniquely identified
+cash-flow legs, explicit cross-currency FX and dated discount-factor provenance,
+contract/cargo/terminal/resource references and deterministic Decimal rounding.
+Outputs distinguish undiscounted cash from NPV, not netback/MTM/accounting.
+Parent reproduced and fixed ambient Decimal precision affecting the amount
+limit (`abs` -> context-free `copy_abs`), with a red-to-green regression.
+Parent verification: 171 focused/domain-contract/Markdown tests passed, Ruff
+and whitespace clean. Hand-computable synthetic case produces cash EUR10 and
+NPV EUR4.50. This does not certify commercial inputs or prevent economically
+duplicated costs with different IDs. Currency validation is code-shape only,
+not an authoritative ISO currency registry. No API/UI/persistence/live trades.
+Next compose delivered energy/losses and cargo cost/netback reconciliation with
+existing regas readiness, then expose via existing application/API workflows.
+Real-data and pilot acceptance blockers remain; no production approval claimed.
+
 September 29 live capture engineering milestone (baseline `28df41e`): reviewed
 DeepSeek's pending capture runner. It observes the browser's market projection
 response and matches its as-of to the rendered board, without refetching, fixture
