@@ -734,9 +734,17 @@ same fail-closed shape as an unconfigured deployment token — with the refusal 
 monitoring pipeline that silently stops analysing is better than one that silently acts without
 authority.
 
-**Implementation state: decided, not built.** Small and bounded: a settings entry, the principal
-resolution in the worker path, an authorisation check on the provider call, and tests for the
-refusal. It is listed here so the next slice implements *this* rule rather than a weaker one.
+**Implementation state: decided and built in code; deployment evidence open.** The worker path
+resolves `EUROGAS_NEXUS_WORKER_PRINCIPAL` against the persisted identity table and requires an
+ACTIVE **SERVICE** principal holding `analysis.query`, and the provider boundary in
+`application/monitoring_service.py` re-reads that row on every enrichment attempt, so a missing,
+stale, deactivated, downgraded, human-masquerading or forged acting identity is refused before a
+credential is loaded or a provider is called. Refusals and successful calls are audited under the
+persisted principal (`tests/security/test_worker_service_identity.py`). What is **not** yet
+evidence: a production deployment that provisions the identity and passes the variable to the
+worker (the shipped `deploy/runtime/compose.yaml` does not pass it to the worker container yet),
+and an exercised revocation on a live deployment. Until that is recorded this is code and test
+evidence, not deployment acceptance.
 
 ### D9 — which clock do the declared nomination-window masters mean?
 

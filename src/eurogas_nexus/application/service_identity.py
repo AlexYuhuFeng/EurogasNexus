@@ -16,6 +16,15 @@ provider with nobody's authority behind the call. That fail-closed shape is deli
 monitoring pipeline that stops analysing and says why is a broken feature, while one that
 silently spends a provider credential on behalf of nobody is a missing control.
 
+**Where the rule is enforced.** Not only where the attempt is scheduled. The scan gate decides
+whether to *try*, and the provider boundary (``monitoring_service.enrich_monitoring_alert``'s
+authority check) decides whether the call may actually happen: it re-reads the persisted identity
+so a revocation, deactivation or downgrade between scheduling and invocation takes effect
+immediately, and it checks that the acting principal the caller carries is the canonical persisted
+identity rather than trusting the dataclass it was handed. The configured identity must also be a
+**SERVICE** principal: a human (``USER``) identity named in the configuration is a masquerade the
+worker refuses, because a person's role is not a service authority and must not be spent headlessly.
+
 Note the difference from the interactive path on purpose: the compatibility deployment token is
 accepted there as the deployment's own configuration (finding C5), and a *service* identity here
 must hold ``analysis.query`` explicitly. A service principal exists precisely so that its
@@ -40,6 +49,12 @@ SERVICE_AUTHORITY_NOT_CONFIGURED = "service_principal_not_configured"
 SERVICE_AUTHORITY_UNKNOWN_PRINCIPAL = "service_principal_unknown"
 SERVICE_AUTHORITY_INACTIVE_PRINCIPAL = "service_principal_inactive"
 SERVICE_AUTHORITY_NOT_GRANTED = "service_authority_not_granted"
+#: Only a provisioned SERVICE principal may act headlessly; a human (``USER``) row is refused.
+SERVICE_AUTHORITY_HUMAN_PRINCIPAL = "service_principal_human_identity"
+#: The attempt carried no acting principal at all.
+SERVICE_AUTHORITY_ACTOR_MISSING = "service_actor_missing"
+#: The acting principal is not the configured, persisted service identity.
+SERVICE_AUTHORITY_ACTOR_MISMATCH = "service_actor_mismatch"
 
 
 @dataclass(frozen=True)
@@ -107,8 +122,8 @@ def resolve_service_authority(session: object | None) -> ServiceAuthority:
             refusal=SERVICE_AUTHORITY_NOT_CONFIGURED,
             detail=(
                 "No service principal is configured. Set "
-                f"{SERVICE_PRINCIPAL_ENV} to the name of an ACTIVE identity that holds the "
-                "analysis capability, or run the worker with "
+                f"{SERVICE_PRINCIPAL_ENV} to the name of an ACTIVE SERVICE identity that holds "
+                "the analysis capability, or run the worker with "
                 "enrichment disabled and accept that alerts stay unanalysed."
             ),
         )
@@ -126,6 +141,9 @@ def resolve_service_authority(session: object | None) -> ServiceAuthority:
 
     row = (
         session.query(IdentityPrincipalRecord)
+        # Re-read the persisted row on every resolution: a long-lived worker holds an authority
+        # dataclass across scans, and a cached instance must not hide a revocation or downgrade.
+        .populate_existing()
         .filter(IdentityPrincipalRecord.name == name)
         .one_or_none()
     )
@@ -147,9 +165,81 @@ def resolve_service_authority(session: object | None) -> ServiceAuthority:
                 "non-ACTIVE identity cannot act."
             ),
         )
+    principal_type = (getattr(row, "principal_type", "") or "").strip().upper()
+    if principal_type != "SERVICE":
+        return ServiceAuthority(
+            principal=None,
+            refusal=SERVICE_AUTHORITY_HUMAN_PRINCIPAL,
+            detail=(
+                f"The identity {name!r} is a {principal_type or 'UNKNOWN'} principal, and a "
+                "headless provider call runs only as a provisioned SERVICE principal. Provision "
+                f"a least-privilege SERVICE identity and name it in {SERVICE_PRINCIPAL_ENV}; a "
+                "human identity cannot act for the worker."
+            ),
+        )
 
     principal = _service_principal_from_row(row)
     return require_service_capability(principal)
+
+
+def bind_service_actor(
+    session: object | None,
+    actor: AuthenticatedPrincipal | None,
+) -> ServiceAuthority:
+    """Re-authorise one headless attempt and bind it to the persisted service identity.
+
+    每次提供方调用前重新读取持久化身份：停用、撤销或降权立即生效，即使调用方仍持有
+    扫描阶段解析出的旧对象；声明的主体必须与配置的规范身份一致。
+
+    This is the check a provider boundary runs before loading a credential or calling out. It
+    never grants anything *from* ``actor``: the returned authority is resolved from the
+    deployment's configured name and the persisted row, and only the caller's claim to *be*
+    that identity is checked. A missing, mismatched or forged actor is refused so an
+    unauthorised or unattributed process cannot spend a provider credential.
+
+    Args:
+        session: Open runtime-database session, or ``None`` when no database is configured.
+        actor: The principal the attempt claims to run as, as the caller resolved it earlier.
+
+    Returns:
+        A granted :class:`ServiceAuthority` naming the persisted service principal, or a
+        refusal code for the caller to report.
+    """
+
+    authority = resolve_service_authority(session)
+    if not authority.granted or authority.principal is None:
+        return authority
+    canonical = authority.principal
+    if actor is None:
+        return ServiceAuthority(
+            principal=None,
+            refusal=SERVICE_AUTHORITY_ACTOR_MISSING,
+            detail=(
+                "The attempt carried no acting principal. A provider call runs only as the "
+                f"identity named by {SERVICE_PRINCIPAL_ENV} ({canonical.name!r}), so the "
+                "caller must pass the identity it resolved instead of invoking a provider "
+                "with nobody attributed to it."
+            ),
+        )
+    claimed_id = getattr(actor, "principal_id", None)
+    claimed_name = getattr(actor, "name", None)
+    claimed_type = getattr(actor, "principal_type", None)
+    if (
+        claimed_id != canonical.principal_id
+        or claimed_name != canonical.name
+        or claimed_type != canonical.principal_type
+    ):
+        return ServiceAuthority(
+            principal=None,
+            refusal=SERVICE_AUTHORITY_ACTOR_MISMATCH,
+            detail=(
+                f"The attempt claims to run as {claimed_name!r} ({claimed_id!r}, "
+                f"{claimed_type!r}), but this deployment's service identity is "
+                f"{canonical.name!r} ({canonical.principal_id}, {canonical.principal_type}). "
+                "The configured identity is re-read from the database and only it may act."
+            ),
+        )
+    return authority
 
 
 def require_service_capability(principal: AuthenticatedPrincipal) -> ServiceAuthority:

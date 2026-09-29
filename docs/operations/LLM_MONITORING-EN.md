@@ -52,6 +52,33 @@ history, screenshots, reports, support tickets, or client local storage.
 for Server installation. Losing this encryption key makes existing
 credential rows unusable; rotate provider keys after restoring the runtime.
 
+## Worker Service Identity (Owner Decision D7)
+
+Alert enrichment runs under a named service identity, not the deployment token
+and not an unnamed process. Before any credential is loaded or provider call is
+made, the worker re-reads the identity named in `EUROGAS_NEXUS_WORKER_PRINCIPAL`
+from the runtime database and requires it to be an **ACTIVE SERVICE principal**
+(never a human `USER` identity) that holds `analysis.query` (an `ANALYST` role
+grants it). The identity is re-read on every enrichment attempt, so deactivating,
+disabling or downgrading it takes effect without restarting the worker.
+
+When the identity is missing or unusable, the worker reports `enrichment:
+refused` on its start-up line and `llm_enrichment_refused` with a declared reason
+on each scan (`service_principal_not_configured`, `service_principal_unknown`,
+`service_principal_inactive`, `service_principal_human_identity`,
+`service_authority_not_granted`), and records the refusal in the audit trail
+(`governance.ai_authority` / `monitoring.enrichment.refused`) without naming a
+credential. Alerts stay unanalysed (`pending`) instead of spending a provider
+call with nobody's authority behind it; scanning and persistence continue. A
+call that is allowed is attributed to the same persisted principal
+(`governance.ai_authority` / `monitoring.enrichment.provider_call`).
+
+Set `EUROGAS_NEXUS_WORKER_PRINCIPAL` in the `monitoring-worker` environment to
+the provisioned identity name. The shipped `deploy/runtime/compose.yaml` does
+not pass this variable to the worker container yet, so a compose deployment
+refuses enrichment until that deployment wiring exists; that wiring and a live
+revocation exercise are still open deployment work.
+
 ## Runtime Calls and Cost Control
 
 The worker does not call DeepSeek every 10 seconds for the same condition.

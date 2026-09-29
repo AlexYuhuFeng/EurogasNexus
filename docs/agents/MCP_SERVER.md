@@ -35,8 +35,11 @@ tokens are not authority for this gate. Development (`development`, `test`) and
 the `internal` API profile keep the existing read-only tool surface. This is a
 pilot-scope mitigation, not a permanent retirement of the MCP surface and not a
 security acceptance: the persisted MCP service identity of architecture decision
-D6 (and the headless worker identity of D7) remains open work, and the tools
-still act as a deployment-configured service principal, never the calling user.
+D6 remains open work, and the tools still act as a deployment-configured service
+principal, never the calling user. The headless worker identity of D7 now
+resolves a deployment-named persisted SERVICE principal and re-checks it at the
+provider boundary before any credential load or provider call; its production
+provisioning and revocation evidence remains open.
 
 Deployments that are intended to be customer-facing must state the release
 profile explicitly (`deploy/runtime/compose.yaml` sets both variables); an unset

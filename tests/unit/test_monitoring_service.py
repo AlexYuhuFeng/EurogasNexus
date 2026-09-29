@@ -8,36 +8,37 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from eurogas_nexus.application.monitoring_service import scan_monitoring_conditions
-from eurogas_nexus.application.service_identity import ServiceAuthority
+from eurogas_nexus.application.service_identity import SERVICE_PRINCIPAL_ENV
 from eurogas_nexus.db.base import Base
 from eurogas_nexus.db.models import (
     IngestionRunRecord,
     IntradayOpportunityRecord,
     MonitoringAlertRecord,
 )
+from eurogas_nexus.db.repositories.identity import create_identity_principal
 from eurogas_nexus.llm import DeepSeekCallResult
-from eurogas_nexus.security.identity import AuthenticatedPrincipal
+
+SERVICE_PRINCIPAL_NAME = "monitoring-test-worker"
 
 
-def _granted_authority() -> ServiceAuthority:
-    """The authority these tests run enrichment under (owner decision D7).
+def _provision_service_identity(session, monkeypatch) -> None:
+    """Provision the persisted SERVICE identity these enrichments act as (owner decision D7).
 
-    A provider call needs a named service identity holding the analysis capability; that rule
-    has its own tests, and here it is satisfied explicitly so these tests keep measuring
-    enrichment itself.
+    The provider boundary re-reads this row before every call and refuses anything that is not
+    the deployment's configured service principal, so the tests provision the identity rather
+    than hand-building an authority dataclass the boundary would (rightly) not trust.
     """
 
-    principal = AuthenticatedPrincipal(
-        principal_id="service:monitoring-test",
-        name="monitoring-test",
-        principal_type="SERVICE",
+    create_identity_principal(
+        session,
+        name=SERVICE_PRINCIPAL_NAME,
+        display_name="Monitoring Test Worker",
         role="ANALYST",
-        status="ACTIVE",
-        data_scopes=("*",),
-        roles=("ANALYST",),
-        auth_method="service_identity",
+        principal_type="SERVICE",
+        data_scopes=[],
     )
-    return ServiceAuthority(principal=principal, refusal="", detail="")
+    session.commit()
+    monkeypatch.setenv(SERVICE_PRINCIPAL_ENV, SERVICE_PRINCIPAL_NAME)
 
 
 def _opportunity(now: datetime) -> IntradayOpportunityRecord:
@@ -82,7 +83,7 @@ def _opportunity(now: datetime) -> IntradayOpportunityRecord:
     )
 
 
-def test_same_condition_is_deduplicated_and_enriched_once() -> None:
+def test_same_condition_is_deduplicated_and_enriched_once(monkeypatch) -> None:
     engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
     Base.metadata.create_all(engine)
     now = datetime(2026, 7, 22, 8, 0, tzinfo=UTC)
@@ -99,6 +100,7 @@ def test_same_condition_is_deduplicated_and_enriched_once() -> None:
         )
 
     with Session(engine) as session:
+        _provision_service_identity(session, monkeypatch)
         session.add(_opportunity(now))
         session.commit()
         first = scan_monitoring_conditions(
@@ -106,14 +108,12 @@ def test_same_condition_is_deduplicated_and_enriched_once() -> None:
             now_utc=now,
             api_key_loader=lambda _provider: "test-key",
             provider_call=provider_call,
-        service_authority=_granted_authority(),
         )
         second = scan_monitoring_conditions(
             session,
             now_utc=now + timedelta(seconds=10),
             api_key_loader=lambda _provider: "test-key",
             provider_call=provider_call,
-        service_authority=_granted_authority(),
         )
         alert = session.query(MonitoringAlertRecord).one()
 
@@ -133,7 +133,7 @@ def test_same_condition_is_deduplicated_and_enriched_once() -> None:
     assert alert.llm_summary_zh_cn == "请复核价差证据。"
 
 
-def test_source_failure_escalation_reopens_llm_enrichment() -> None:
+def test_source_failure_escalation_reopens_llm_enrichment(monkeypatch) -> None:
     engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
     Base.metadata.create_all(engine)
     now = datetime(2026, 7, 22, 8, 0, tzinfo=UTC)
@@ -148,6 +148,7 @@ def test_source_failure_escalation_reopens_llm_enrichment() -> None:
         )
 
     with Session(engine) as session:
+        _provision_service_identity(session, monkeypatch)
         session.add(
             IngestionRunRecord(
                 run_id="run-1",
@@ -164,7 +165,6 @@ def test_source_failure_escalation_reopens_llm_enrichment() -> None:
             now_utc=now,
             api_key_loader=lambda _provider: "test-key",
             provider_call=provider_call,
-        service_authority=_granted_authority(),
         )
         for index in (2, 3):
             event_time = now + timedelta(minutes=index)
@@ -184,7 +184,6 @@ def test_source_failure_escalation_reopens_llm_enrichment() -> None:
             now_utc=now + timedelta(minutes=4),
             api_key_loader=lambda _provider: "test-key",
             provider_call=provider_call,
-        service_authority=_granted_authority(),
         )
         alert = session.query(MonitoringAlertRecord).one()
 
@@ -194,12 +193,13 @@ def test_source_failure_escalation_reopens_llm_enrichment() -> None:
     assert alert.occurrence_count == 2
 
 
-def test_missing_deepseek_key_is_visible_without_provider_call() -> None:
+def test_missing_deepseek_key_is_visible_without_provider_call(monkeypatch) -> None:
     engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
     Base.metadata.create_all(engine)
     now = datetime(2026, 7, 22, 8, 0, tzinfo=UTC)
 
     with Session(engine) as session:
+        _provision_service_identity(session, monkeypatch)
         session.add(_opportunity(now))
         session.commit()
         result = scan_monitoring_conditions(
@@ -209,7 +209,6 @@ def test_missing_deepseek_key_is_visible_without_provider_call() -> None:
             provider_call=lambda **_kwargs: (_ for _ in ()).throw(
                 AssertionError("provider must not be called")
             ),
-        service_authority=_granted_authority(),
         )
         alert = session.query(MonitoringAlertRecord).one()
 

@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from eurogas_nexus.application.service_identity import (
     ServiceAuthority,
+    bind_service_actor,
     configured_service_principal_name,
     resolve_service_authority,
 )
@@ -32,6 +33,10 @@ from eurogas_nexus.security.provider_keys import load_provider_api_key
 
 ProviderCall = Callable[..., DeepSeekCallResult]
 ApiKeyLoader = Callable[[str], str | None]
+
+#: Declared :class:`DeepSeekCallResult` status for a call refused at the authority boundary
+#: (owner decision D7). ``error_code`` carries a declared ``service_identity`` refusal code.
+ENRICHMENT_AUTHORITY_REFUSED = "authority_refused"
 
 
 def scan_monitoring_conditions(
@@ -73,10 +78,18 @@ def scan_monitoring_conditions(
 
     enriched_count = 0
     enrichment_refusal = ""
+    enrichment_refusal_detail = ""
     if enrich_with_llm and max_llm_enrichments > 0:
         authority = service_authority or resolve_service_authority(session)
         if authority.granted:
-            enriched_count = _enrich_pending_alerts(
+            # The gate above decides whether to *try*; enrich_monitoring_alert re-checks the
+            # authority at the provider boundary, so a stale or forged gate cannot spend a
+            # credential and a boundary refusal is reported here rather than swallowed.
+            (
+                enriched_count,
+                enrichment_refusal,
+                enrichment_refusal_detail,
+            ) = _enrich_pending_alerts(
                 session,
                 rows,
                 now_utc=now,
@@ -89,6 +102,7 @@ def scan_monitoring_conditions(
             # Reported, not swallowed: the worker's own log is where an operator learns that no
             # provider call happened and which configuration would allow one.
             enrichment_refusal = authority.refusal
+            enrichment_refusal_detail = authority.detail
             _record_enrichment_refusal(session, authority, now_utc=now)
 
     return {
@@ -96,10 +110,7 @@ def scan_monitoring_conditions(
         "resolved_count": resolved_count,
         "llm_enriched_count": enriched_count,
         "llm_enrichment_refused": enrichment_refusal,
-        "llm_enrichment_refusal_detail": (
-            enrichment_refusal and (service_authority or resolve_service_authority(session)).detail
-        )
-        or "",
+        "llm_enrichment_refusal_detail": enrichment_refusal_detail,
     }
 
 
@@ -114,12 +125,35 @@ def enrich_monitoring_alert(
 ) -> DeepSeekCallResult:
     """Request a live DeepSeek explanation for one persisted alert.
 
-    ``actor`` is the identity the enrichment runs as (owner decision D7). It is carried so the run
-    is attributable to the service principal the deployment provisioned rather than to nobody: a
-    caller that reached this function without an authority is refused by the scan before this.
+    Owner decision D7 is enforced here, at the provider boundary where a credential is loaded and
+    a provider is called - not only in the scan that scheduled the attempt. ``actor`` is the
+    identity the caller resolved earlier; it must be the deployment's persisted service principal,
+    which is re-read on every attempt, so a revocation, deactivation or downgrade between
+    scheduling and invocation refuses the call even though the scheduling scan saw a granted
+    authority. Nothing from ``actor`` is trusted for the grant itself: the role, status and scopes
+    that authorise the call come from the persisted row, which is also the identity attributed.
+
+    A refusal returns ``DeepSeekCallResult(status=ENRICHMENT_AUTHORITY_REFUSED,
+    error_code=<declared service_identity code>)`` before any credential is loaded or any alert
+    field is changed, and records the refusal in the audit trail.
     """
 
     now = _as_utc(now_utc or datetime.now(UTC))
+    authority = bind_service_actor(session, actor)
+    if not authority.granted or authority.principal is None:
+        _record_enrichment_refusal(
+            session,
+            authority,
+            now_utc=now,
+            resource=f"monitoring_alert:{alert.alert_id}",
+            actor=actor,
+        )
+        return DeepSeekCallResult(
+            status=ENRICHMENT_AUTHORITY_REFUSED,
+            error_code=authority.refusal,
+        )
+
+    principal = authority.principal
     key_loader = api_key_loader or load_provider_api_key
     call = provider_call or invoke_deepseek
     api_key = key_loader("DEEPSEEK") or key_loader("LLM")
@@ -149,6 +183,7 @@ def enrich_monitoring_alert(
     else:
         warning = f"deepseek_enrichment:{result.error_code or result.status}"
         alert.warnings = list(dict.fromkeys([*(alert.warnings or []), warning]))
+    _record_enrichment_use(session, principal, alert, result, now_utc=now)
     session.commit()
     return result
 
@@ -321,12 +356,14 @@ def _enrich_pending_alerts(
     api_key_loader: ApiKeyLoader,
     provider_call: ProviderCall,
     actor: AuthenticatedPrincipal | None = None,
-) -> int:
+) -> tuple[int, str, str]:
     """Enrich eligible alerts under the acting service identity (owner decision D7).
 
-    ``actor`` is the principal the enrichment runs as. It is required for a *caller-driven* path
-    and supplied by the worker from its configured service identity; the parameter exists so the
-    acting identity travels with the call rather than being re-derived somewhere else.
+    ``actor`` is the principal the enrichment runs as; the provider boundary re-checks it against
+    the persisted identity before every call. Returns the enriched count and, when the boundary
+    refused, the declared refusal code plus a detail sentence for the caller's report. The loop
+    stops at the first refusal: the authority condition applies to every remaining alert, and one
+    refusal is one auditable event rather than a burst of duplicate ones.
     """
     retry_before = now_utc - timedelta(minutes=5)
     eligible = [
@@ -354,7 +391,13 @@ def _enrich_pending_alerts(
         )
         if result.status == "success":
             enriched += 1
-    return enriched
+        elif result.status == ENRICHMENT_AUTHORITY_REFUSED:
+            code = result.error_code or "service_authority_refused"
+            return enriched, code, (
+                f"refused at the provider boundary (reason={code}); see the "
+                "governance.ai_authority audit record for the identity and configuration detail"
+            )
+    return enriched, "", ""
 
 
 def _record_enrichment_refusal(
@@ -362,22 +405,30 @@ def _record_enrichment_refusal(
     authority: ServiceAuthority,
     *,
     now_utc: datetime,
+    resource: str = "monitoring_alerts",
+    actor: AuthenticatedPrincipal | None = None,
 ) -> None:
     """Record that enrichment was refused, and why.
 
     A refusal is an operational event: the deployment is running a monitoring pipeline whose
     analysis stage is disabled by configuration. Recording it is what stops that from looking like
-    "nothing to report".
+    "nothing to report". ``resource`` names the alert when the refusal came from the provider
+    boundary. ``actor``, when present, is the principal that *claimed* the call, so a mismatch is
+    attributed to the claimant rather than to a configured identity that never acted, and the
+    detail carries no credential, prompt or evidence content.
     """
 
     from eurogas_nexus.db.repositories.audit import record_audit_event
 
+    claimed_name = (getattr(actor, "name", "") or "").strip() if actor is not None else ""
     record_audit_event(
         session,
         event_type="governance.ai_authority",
         action="monitoring.enrichment.refused",
-        resource="monitoring_alerts",
-        principal=configured_service_principal_name() or "unconfigured",
+        resource=resource[:128],
+        principal=(
+            claimed_name or configured_service_principal_name() or "unconfigured"
+        )[:64],
         outcome="denied",
         severity="warning",
         detail=f"reason={authority.refusal}; {authority.detail}",
@@ -385,6 +436,42 @@ def _record_enrichment_refusal(
         now_utc=now_utc,
     )
     session.commit()
+
+
+def _record_enrichment_use(
+    session: Session,
+    principal: AuthenticatedPrincipal,
+    alert: MonitoringAlertRecord,
+    result: DeepSeekCallResult,
+    *,
+    now_utc: datetime,
+) -> None:
+    """Record one provider call against the service identity it actually ran as.
+
+    Called only after the authority boundary passed and the provider was invoked, so the row is
+    evidence about a call rather than a declaration that one was intended. It carries the
+    persisted principal's name, id and role - never the caller-supplied dataclass - and no
+    credential, prompt or evidence content.
+    """
+
+    from eurogas_nexus.db.repositories.audit import record_audit_event
+
+    record_audit_event(
+        session,
+        event_type="governance.ai_authority",
+        action="monitoring.enrichment.provider_call",
+        resource=f"monitoring_alert:{alert.alert_id}"[:128],
+        principal=principal.name[:64],
+        outcome="success" if result.status == "success" else "failed",
+        severity="info",
+        detail=(
+            f"actor_id={principal.principal_id}; role={principal.role}; "
+            f"provider={alert.llm_provider_id}; status={result.status}"
+            + (f"; error={result.error_code}" if result.error_code else "")
+        ),
+        source_system="monitoring-worker",
+        now_utc=now_utc,
+    )
 
 
 def _alert_enrichment_messages(alert: MonitoringAlertRecord) -> list[dict[str, str]]:

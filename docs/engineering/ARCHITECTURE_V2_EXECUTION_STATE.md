@@ -5,6 +5,18 @@ Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical sli
 
 ## Current work
 
+September 29 D7 provider-boundary authority (baseline `59ca893`): existing
+persisted worker identity resolution was already implemented; older descriptions
+of D7 as wholly unbuilt were stale. DeepSeek closed the actual gap: enrichment
+itself now re-reads an ACTIVE SERVICE principal with analysis.query, matches the
+supplied actor to that configured identity, refuses before credential/provider
+use and records attribution. Parent verification: 198 security/monitoring/API/
+Markdown tests passed; Ruff and whitespace clean. CI pending. This is a trusted
+worker-process authority check, not authentication against a malicious host
+operator. Live PostgreSQL revocation/deployment evidence remains open; default
+compose does not pass the principal setting, so enrichment remains disabled.
+No provider calls, runtime DB writes or deployment changes were performed.
+
 September 29 MCP pilot containment (baseline `0154806`): DeepSeek added
 authoritative-settings checks to JSON-RPC discovery/calls and exported tool
 handlers. Trial/release environments or release API profile refuse tools before

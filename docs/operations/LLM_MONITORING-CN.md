@@ -43,6 +43,28 @@ Eurogas Nexus 将 DeepSeek 作为确定性监控结果之上的受控分析层�
 Server 安装会生成 `EUROGAS_NEXUS_SECRET_KEY`，用于保护数据库中的供应商
 凭据。该加密密钥丢失后，原有凭据行无法解密，应在恢复运行时后轮换供应商密钥。
 
+## worker 服务身份（决策 D7）
+
+告警补充分析以部署命名的服务身份运行，而不是部署令牌或匿名进程。在加载任何凭据或
+调用提供方之前，worker 会从运行时数据库重新读取 `EUROGAS_NEXUS_WORKER_PRINCIPAL`
+指定的身份，并要求它是 **ACTIVE 的 SERVICE 主体**（不允许人工 `USER` 身份），且持有
+`analysis.query`（`ANALYST` 角色即可授予）。该身份在每次补充分析尝试时都会重新
+读取，因此停用、禁用或降权无需重启 worker 即时生效。
+
+身份缺失或不可用时，启动行会输出 `enrichment: refused`，每次扫描会以声明的原因输出
+`llm_enrichment_refused`（`service_principal_not_configured`、
+`service_principal_unknown`、`service_principal_inactive`、
+`service_principal_human_identity`、`service_authority_not_granted`），并把拒绝写入
+审计轨迹（`governance.ai_authority` / `monitoring.enrichment.refused`），且不写入
+凭据内容。告警保持未分析（`pending`），不会在无人授权的情况下消耗提供方调用；扫描与
+持久化继续进行。被允许的调用会归属到同一个持久化主体
+（`governance.ai_authority` / `monitoring.enrichment.provider_call`）。
+
+请在 `monitoring-worker` 环境中把 `EUROGAS_NEXUS_WORKER_PRINCIPAL` 设置为已配置的
+身份名称。当前 `deploy/runtime/compose.yaml` 尚未把该变量传入 worker 容器，因此
+compose 部署在完成该部署接线前会拒绝补充分析；该接线与真实撤销演练仍属未完成的部署
+工作。
+
 ## 调用频率与费用控制
 
 worker 不会每 10 秒对同一条件重复调用 DeepSeek：
