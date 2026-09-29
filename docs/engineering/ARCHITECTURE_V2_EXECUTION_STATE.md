@@ -5,6 +5,20 @@ Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical sli
 
 ## Current work
 
+September 29 WF-1 acceptance reconciliation (baseline `2c33699`): DeepSeek
+reviewed the market-to-portfolio projection/client/test paths, removed the
+duplicate CA-02 blocker and documented the read-only customer acceptance
+procedure in FIRST_CUSTOMER_PILOT_PLAN.md. Parent review narrowed pagination
+claims to the projection routes, corrected simulation detection, prohibited
+credential/customer-payload commits and made truncation refuse full-coverage
+acceptance. Parent verification: 44 projection API/application/Markdown tests
+passed; whitespace clean. PostgreSQL container observed healthy; no runtime
+data, provider, deployment or application behaviour changed. PB-01/PB-04 stay
+open. Next bounded task: add a read-only populated-deployment comparison mode
+reusing the existing board evaluator without fixture writes, with redacted
+local evidence and explicit truncation refusal. Pagination remains a separate
+gap; no customer or production approval follows from this documentation pass.
+
 September 29 D7 provider-boundary authority (baseline `59ca893`): existing
 persisted worker identity resolution was already implemented; older descriptions
 of D7 as wholly unbuilt were stale. DeepSeek closed the actual gap: enrichment

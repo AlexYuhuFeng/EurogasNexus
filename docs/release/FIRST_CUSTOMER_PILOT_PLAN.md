@@ -72,17 +72,153 @@ is proven today and the exercise that closes the gap.
 
 ### WF-1 - market evidence to portfolio
 
-- Surfaces: market cockpit over `GET /projections/market-context` and portfolio
-  over `GET /projections/portfolio-snapshot`
-  (`src/eurogas_nexus/api/routes/public/projections.py`).
-- Proven: scoped hub-board price evidence with bid/ask units from the
-  authenticated projection; portfolio read lifecycle; EN/ZH three-viewport
-  browser sweep on seeded fixtures.
-- Not proven: populated physical rows (capacity/orders/PnL), later pages, sort
-  correctness, or coverage beyond the six declared hubs and displayed tenor.
-- Exercise: read-only walk-through on the populated deployment that compares
-  displayed gas day, product and hub against both underlying reads, keeps as-of
-  instants explicit, and records what an empty/unread read looks like.
+- Surfaces: market cockpit over `GET /api/projections/market-context` and the
+  portfolio orders workspace over `GET /api/projections/portfolio-snapshot`
+  (`src/eurogas_nexus/api/routes/public/projections.py:58,104`); the market
+  cockpit also renders the source posture (`/api/sources`) and FX (`/api/market/fx`).
+- Proven (engineering evidence): scoped hub-board price evidence with bid/ask
+  units from the authenticated projection, one card per declared hub and the
+  displayed tenor, compared with the rows each card names - by exact id - for
+  the displayed context (`scripts/uat/readToRender.mjs:1451`,
+  `clients/web/tests/readToRender.test.ts`); portfolio projection slice
+  lifecycle including declared empty states (`scripts/uat/browser_workflow_smoke.mjs:178`);
+  EN/ZH three-viewport browser sweep on seeded fixtures
+  (`scripts/uat/browser_workflow_smoke.mjs`, CI job `Browser acceptance (EN/ZH, 3 viewports)`).
+- Not proven: populated physical rows on a customer deployment (screen orders,
+  PnL snapshots, resource-pool inputs), and coverage of the market board beyond
+  the six declared hubs and the four displayed tenors
+  (`clients/web/src/components/MarketTerminal.tsx:53-62`).
+- Not implemented (gap, not a control to rely on): the projection routes expose
+  no offset/cursor or `page` parameter and no sort parameter; list slices are
+  bounded (defaults 500/500/200 for orders/snapshots/contracts, 500 quotes and
+  observations), and `limits.truncated` cannot be paged through these projection
+  routes (`docs/api/API_CONVENTIONS.md`
+  "Pagination"). The workspace batch reads no market projection, so the market
+  cockpit's read-to-render comparison holds only where the browser sweep
+  issues it (seeded fixtures), and no automated check exists on a populated
+  deployment; PB-04 stays open.
+- Exercise: the read-only WF-1 acceptance procedure below, on the populated
+  deployment, recorded against PB-01/PB-04. It is a browser session plus
+  read-only API reads on the customer's entitled data; it is never run by
+  seeding fixtures.
+
+#### WF-1 read-only acceptance procedure (customer deployment)
+
+Scope: one read-only pass by the accountable pilot reviewer (or the customer
+operator the reviewer witnesses) on the populated deployment. No seed, fixture,
+import, migration or configuration command is run as part of acceptance; the
+read-only surfaces are the browser session the reviewer signs in to and the
+projection reads that session already issues. A command that mutates data is
+not an acceptance step even when it is available; the seeded in-repo sweep
+(`scripts/uat/browser_workflow_smoke.mjs` with
+`scripts/uat/seed_uat_fixture.py`/`scripts/uat/seed_browser_identity.py`) is
+engineering evidence only - the fixture gate refuses trial/release
+(`tests/uat/test_uat_fixture_gate.py`).
+
+1. **Persona and session.** Sign in as the customer's pilot trader/analyst
+   identity (a commercial role such as ANALYST). An identity holding only
+   platform administration is refused the market and orders surfaces by
+   `commercial_access_not_granted` (`src/eurogas_nexus/api/dependencies/commercial_access.py:32-58`)
+   - that refusal is the expected result for a permissions test, not an
+   acceptance failure. Confirm the deployment's declared entitlement set with
+   the read-only `GET /api/me` scope report before judging "no data".
+2. **Exact reads checked.** From the market workspace's numeric task
+   (`curves`, the default landing view) the reviewer compares the displayed
+   values with the session's own
+   `GET /api/projections/market-context` read, preserving actual gas-day,
+   delivery-product and hub query values (do not send empty placeholders).
+   From the orders workspace, `GET /api/projections/portfolio-snapshot`
+   (its `portfolio_id` filter narrows the `pnl_snapshots` slice only,
+   `src/eurogas_nexus/application/projections/portfolio_snapshot.py:197-201`).
+   The reviewer does not compare the projection against the legacy
+   `/api/market/observations`, `/api/portfolio/screen-orders` or
+   `/api/portfolio/pnl-snapshots` row-for-row: the projection is deliberately
+   narrower (the entitlement record it carries says which filter ran,
+   `entitlement.row_filter_applied`), so the two answers need not be equal.
+   Record every query actually sent, including defaults.
+3. **Identity checks per displayed value.** For each card on the market hub
+   board (one card per declared-hub/tenor pair for the active tenor tab): the card's
+   `data-record-id`/`data-record-slice` must name a row the projection served,
+   and the displayed price, bid/ask and unit must equal that row's own values.
+   The client prints a quote's currency/unit verbatim when the unit already
+   names the currency and otherwise as `currency/unit`
+   (`clients/web/src/components/MarketTerminal.tsx:104-115`); a card must not
+   show a value from a row with a different gas day, product, hub, tenor or
+   currency. A card with no served row must state absence (`n/a`), never a
+   stale value.
+4. **Gas day, product, tenor, as-of, source.** The shell's Active Context
+   (gas day, product, hub) must match the query the session sent and the
+   projection's `data.time_basis`/`data.active_context` echo; the board tenor
+   tab must match the payload rows compared (`data-board-tenor`,
+   `scripts/uat/readToRender.mjs` `collectQuotedBoard`); the payload's single
+   `data.as_of_utc` must be the instant the surfaces state
+   (`data-projection-as-of`), and every slice's freshness block is evaluated
+   against that same instant. Each displayed price must name its row's
+   `source_system`; a row's source identity must not be relabelled to another
+   feed.
+5. **Entitlement and simulation.** No restricted source may appear anywhere in
+   the projection response, and no entitled slice may be wider than the
+   underlying route (engineering anchors:
+   `tests/api/test_projections_api.py::test_projections_are_never_wider_than_the_underlying_routes`,
+   `tests/unit/test_projections_application.py`). Read, per slice,
+   `entitlement.row_filter_applied`, `filtered_out` (may be `null` when the
+   filter ran before the read, `src/eurogas_nexus/application/projections/market_context.py:574-598`)
+   and the payload `meta.warnings` (`ENTITLEMENT_FILTERED`, `SOURCE_STALE`,
+   `NO_MEASUREMENT`); a withheld-row count is disclosure, not a failure. Rows
+   whose `source_system` contains `_sim` case-insensitively (or whose `metadata_json.simulated` is
+   true) are simulated inputs, labelled in the UI
+   (`clients/web/src/components/MarketTerminal.tsx:63`, `:523-527`); a
+   populated deployment must say which rows are entitled vs simulated, and a
+   session served only simulated rows is a fixture rehearsal, not customer
+   acceptance. The `data_sources` slice states each source system and its
+   freshness state.
+6. **Empty, stale, unread, refused.** Expected honest states to record rather
+   than "fix": runtime DB not configured -> HTTP 200 with every slice
+   `available: false`, `MISSING` freshness and warning
+   `RUNTIME_DB_NOT_CONFIGURED`; configured but unreadable -> HTTP 503
+   `runtime_db_unavailable`; malformed gas day -> 422 `gas_day_invalid`; an
+   empty portfolio -> summary aggregates `null` plus
+   `VALUATION_EVIDENCE_MISSING`, never 0 (`tests/api/test_projections_api.py:403-436`);
+   insufficient entitlement -> the 403 codes above. A missing projection must
+   leave the surface's previous values in place and be qualified as degraded,
+   never rendered as an empty market (`clients/web/src/stores/api.ts:496-532`).
+   When data was expected and a read answers empty/stale, the acceptance
+   refuses that workflow until the deployment explains why.
+7. **Pagination and sort.** Confirm the reviewer understands there is no "later
+   page": list slices are bounded and ordered newest-first (market
+   observations by observed instant, then venue, then product,
+   `src/eurogas_nexus/application/projections/market_reads.py:147-217`; screen
+   orders by observed instant then venue and PnL snapshots by valuation then
+   portfolio, `src/eurogas_nexus/application/projections/portfolio_reads.py:38-59`),
+   and compare rendered ordering with the actual returned rows. If a slice
+   reports `truncated: true`, record it as a known gap; it cannot be walked by
+   these projection routes. Do not claim "all rows" or "sorted" beyond what the payload
+   and screen show.
+8. **Evidence retained (per run).** UTC date; reviewer and witness; persona
+   name/roles/scopes from `GET /api/me`; deployment host, app version and full
+   commit SHA; gas day, product, hub and tenor; the exact query strings and the
+   session's captured projection response bodies for the market and orders
+   reads; screenshots of both surfaces with the Active Context visible; the
+   per-card comparison notes from step 3; the entitlement/freshness/warning
+   readings from steps 4-6; and a statement that no data was written and no
+   mutation tool (seed, import, migration, deployment config) was run. Keep the
+   session's own network captures in access-controlled local evidence storage;
+   redact authorization headers, cookies and credentials before retention or
+   sharing, and do not commit customer payloads. Do not reconstruct a payload from the API
+   docs. This evidence feeds PB-01/PB-04 (rows, later pages and sort are
+   answered as "not implemented", not as "verified").
+9. **Pass / refuse.** PASS only when: the visited scope is populated with
+   entitled (non-simulated) rows; every displayed identity check in step 3
+   holds; as-of, gas day, product, tenor, unit/currency and source are
+   consistent per steps 4-5; every unreadable/empty/denied condition met was
+   declared as such; and the evidence of step 8 is retained against the exact
+   deployment SHA. A truncated result cannot pass full-coverage acceptance;
+   any limited-scope acceptance must explicitly name the excluded scope.
+   REFUSE (and record as a workflow gap, not an acceptance
+   pass) when data was expected but the projection, a card or the underlying
+   read is empty/stale/denied/unreachable; when any displayed value cannot be
+   tied to the row it names; when only simulated rows are served; or when the
+   evidence cannot be reproduced from the recorded payloads.
 
 ### WF-2 - constrained alternative review
 
@@ -142,11 +278,12 @@ Reconciled against code at `42d8144` on 2026-09-28 by reading the cited files.
 Severity: P1 blocks pilot, P2 important, P3 tracked. Accountable roles are
 roles, not invented people. CA IDs are the audit's; PB IDs are pilot-specific.
 CA-02/CA-03/CA-06 were re-checked in code at `308797e` by PILOT-B; the other
-rows are the `42d8144` reconciliation.
+rows are the `42d8144` reconciliation. The duplicate CA-02 row was collapsed
+to the PILOT-B2 text in the 2026-09-29 WF-1 reconciliation record; no blocker
+state changed in that pass.
 
 | ID | Sev | Accountable role | Evidence inspected now | Verification / exercise | Exit condition | Dependency | Status |
 | -- | --- | ---------------- | ---------------------- | ----------------------- | -------------- | ---------- | ------ |
-| CA-02 | P1 | Release engineering | PILOT-B replaced `load_evidence`: every gate evidence file must now be a schema-version 2 envelope (gate id, full 40-hex tested commit, typed subject with precise digest(s), producer workflow/job/run identity, environment, UTC timestamp) verified against the release context and the actual bundle, never against values declared in the same file; status-only/v1, non-object JSON, wrong gate id, foreign/short SHA, artifact relabelling, stale/future timestamps, unapproved producers and unapproved `NOT_APPLICABLE` fail closed, missing files stay PENDING_EXTERNAL | `python -m pytest tests/release -q` (149 passed, 3 Windows-symlink skips), including the new `tests/release/test_evidence_envelope.py` malformed/foreign/stale/unapproved/valid matrix and the writer CLI; focused Ruff passed | Gate evidence carries a versioned envelope binding commit SHA, artifact/bundle digest and workflow identity; mismatches fail closed | PILOT-A (identity exists first) | Fixed in code, engineering acceptance only: binding and negative cases pass; producer/approval fields are self-declared text (not cryptographic provenance) and external approval identities remain unconfigured |
 | CA-02 | P1 | Release engineering | PILOT-B replaced `load_evidence`: every gate evidence file must now be a schema-version 2 envelope (gate id, full 40-hex tested commit, typed subject with precise digest(s), producer workflow/job/run identity, environment, UTC timestamp) verified against the release context and the actual bundle, never against values declared in the same file; status-only/v1, non-object JSON, wrong gate id, foreign/short SHA, artifact relabelling, stale/future timestamps, unapproved producers and unapproved `NOT_APPLICABLE` fail closed, missing files stay PENDING_EXTERNAL. PILOT-B2 additionally re-derives G1's claimed CI run from the read-only GitHub API (`scripts/release/ci_run_verification.py`) | `python -m pytest tests/release -q` (196 passed, 3 Windows-symlink skips), including the PILOT-B2 matrix in `tests/release/test_ci_run_verification.py`; focused Ruff passed; one live read-only API verification of commit `4d30987` run `36345939410` observed (see the PILOT-B2 record) | Gate evidence carries a versioned envelope binding commit SHA, artifact/bundle digest and workflow identity; mismatches fail closed | PILOT-A (identity exists first); API binding for the other CI producers is still open | Partially fixed, engineering acceptance only: G1's claim is API-verified, but G2/G3/G4/G12/G19 producer run identity is still self-declared text (not cryptographic provenance) and external approval identities remain unconfigured |
 | CA-03 | P1 | Release engineering | `release.yml` web job runs `npm test` before build and packaging and records a same-SHA G4 envelope. PILOT-B2 makes the `validate` job record G1 from the read-only GitHub API for the exact commit's `ci.yml` push run and makes `validate_stable_release.py` re-derive it: completed/successful run, matching attempt, and all five required jobs - including `Browser acceptance (EN/ZH, 3 viewports)` - successful, never skipped. PILOT-C runs that same validator in `publish-preview-rc` before its `gh release create` and makes G1 required for every published channel | `tests/release/test_ci_run_verification.py` (wrong repo/workflow/SHA, failed/incomplete/skipped/missing jobs, pagination, stale attempt, malformed/API error, forged copy, local-dry-run bypass, writer round trip); policy/workflow job-name contract test; live read-only verification of run `36345939410`; `tests/release/test_publication_gate_enforcement.py` (channel inheritance, parsed publish-step ordering and credentials, executed gate command fails without evidence, replayed step sequence never reaches the mocked release write) | Publication consumes browser/critical acceptance evidence for its own SHA, verified via authoritative GitHub run metadata | CA-02 envelope (done); release-run exercise of the writer/validator (not yet performed) | Partially fixed - same-SHA browser-acceptance binding exists, and PILOT-C makes every publish job consume the gate before writing a release; preview/RC now block on their mandatory evidence instead of publishing ungated; no release run has exercised the writer or gate |
 | CA-05 | P1 | Platform security | `src/eurogas_nexus/mcp/server.py` builds principal/role/scopes from `EUROGAS_NEXUS_AGENT_*` environment values and its own docstring declares calls are not re-authorised per user; checkpoint still lists organisation/portfolio/market/region scope as unsupported. The pilot mitigation is now in code: the server resolves the deployment profile through the authoritative settings (`Settings.from_env`) and, in `trial`/`release` or the `release` API profile, refuses `initialize` tools capability, `tools/list` (empty) and `tools/call` (JSON-RPC `-32000`, `mcp_tools_disabled`) before audit/handler/runtime/SDK/provider, guards the exported `TOOLS`/`TOOLS_BY_NAME` handlers against direct invocation, fails closed on unknown/malformed profiles and ignores hostile `EUROGAS_NEXUS_AGENT_*` grants; development/test/internal keep the existing surface. For the headless worker (D7), `application/service_identity.py` resolves `EUROGAS_NEXUS_WORKER_PRINCIPAL` to a persisted ACTIVE SERVICE principal holding `analysis.query`, and `application/monitoring_service.py` re-reads it at the provider boundary before any credential load or provider call, refusing missing, unknown, inactive, human-type, downgraded and forged acting identities; the shipped `deploy/runtime/compose.yaml` does not pass that variable to the worker container yet | Read module + `GET /api/me` scope report; pilot decision record; `tests/unit/test_mcp_deployment_gate.py` (profile matrix dev/test vs trial/release/unset/invalid, hostile role/scopes, legacy + registry tools via JSON-RPC and direct handler, no audit/SDK/runtime side effects, stdio subprocess refusal and the CI handshake shape); `tests/security/test_worker_service_identity.py` (D7 boundary: missing, forged, revoked, downgraded and human-type identities refuse with zero credential/provider calls; a provisioned least-privilege run grants and audits its attribution) | Pilot is single-customer, MCP is disabled or recorded as not offered; persisted MCP service identity (D6) implemented or explicitly deferred; D7's worker identity provisioned in the pilot deployment with a revocation exercise recorded | Pilot decision; ADR for service identity | Mitigated - backend/adapter enforced disabling in customer-facing profiles; D7's worker identity resolution and provider-boundary enforcement exist in code with focused tests, while production provisioning/revocation deployment evidence and the persisted MCP service identity (D6) remain open; not closed, no security approval claimed |
@@ -567,3 +704,55 @@ Not a pilot or production approval; not legal advice; no certification. No
 populated, provider, live-market or native-desktop acceptance follows from any
 green CI run or unit test. Reconciliation here is code reading at `42d8144`, not
 a penetration test, full source audit or customer-environment execution.
+
+## WF-1 plan-reconciliation record (documentation only, 2026-09-29)
+
+Baseline `2c33699`. Bounded documentation change; no source behaviour, database,
+credential, provider, release or deployment change. What was corrected, by
+reading the implementation and tests:
+
+- the duplicate CA-02 blocker row was collapsed into the later PILOT-B2 row -
+  the one whose evidence already records G1's read-only GitHub API
+  re-derivation - so the API-verified account is retained once, not superseded
+  by the earlier text. Its remaining limits (G2/G3/G4/G12/G19 self-declared
+  producer identity, empty `authorized_external_approvals`) are unchanged.
+- WF-1's surface paths now carry the `/api` prefix the app actually mounts
+  (`src/eurogas_nexus/api/route_registration.py` includes the router). Claims
+  were re-scoped to what the inspected code and tests show: the browser
+  harness's quoted-board comparison (`scripts/uat/readToRender.mjs`,
+  `clients/web/tests/readToRender.test.ts`) and slice read-to-render groups
+  (`scripts/uat/browser_workflow_smoke.mjs`) exist, while offset/cursor
+  pagination and sort parameters do not exist anywhere in the projection
+  routes; `limits.truncated` is conservative and cannot be paged past. The
+  earlier "later pages" wording is therefore replaced by an explicit gap.
+- the WF-1 exercise is now the compact read-only acceptance procedure above,
+  reusing the existing harness where it applies and cleaving mutating fixture
+  tooling (blocked outside development/test by
+  `tests/uat/test_uat_fixture_gate.py`) from the read-only customer checks.
+
+Read for this record (implementation and tests inspected): the projection
+routes and application modules cited in WF-1; `projections/context.py`,
+`projections/envelope.py`, `projections/market_reads.py`,
+`projections/portfolio_reads.py`; `security/permissions.py`;
+`api/dependencies/commercial_access.py`, `row_entitlement.py`;
+`clients/web/src/api/client.ts`, `stores/api.ts`,
+`app/model/marketContextModel.ts`, `app/model/portfolioSnapshotModel.ts`,
+`components/MarketTerminal.tsx`, `components/MarketCockpit.tsx`;
+`scripts/uat/browser_workflow_smoke.mjs`, `scripts/uat/readToRender.mjs`,
+`scripts/uat/seed_uat_fixture.py`, `scripts/uat/seed_browser_identity.py`;
+`tests/api/test_projections_api.py`, `tests/unit/test_projections_application.py`,
+`tests/contract/test_browser_probe_paths.py`,
+`clients/web/tests/marketContextProjection.test.ts`,
+`clients/web/tests/portfolioSnapshotProjection.test.ts`,
+`clients/web/tests/browserSmokeGates.test.ts`,
+`clients/web/tests/readToRender.test.ts`,
+`clients/web/tests/tradingContextProjections.test.ts`, `tests/uat/`.
+
+Next narrow engineering task this review reveals: no automated acceptance
+compares the market cockpit's rendered hub board with the projection on a
+populated deployment (PB-04), and a truncated projection slice cannot be read
+further through these projection routes. Next implement a read-only populated-
+deployment comparison mode that reuses the existing board evaluator without
+fixture writes, retains redacted local evidence and refuses full-coverage
+acceptance when relevant slices are truncated. Pagination remains a separate
+engineering gap; the comparison mode must not silently waive it.
