@@ -5,6 +5,30 @@ Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical sli
 
 ## Current work
 
+September 29 user scope addition: European gas decision support must include
+LNG regasification business economics, netback and cash-value calculations.
+Existing `domain/route_cost/lng_regas.py` covers scenario/access/readiness inputs;
+`domain/research/netback.py` currently implements only market price minus route
+cost with optional FX multiplication. These do not prove complete cargo
+economics or cash-flow valuation. Reconcile and extend existing services, not
+a duplicate calculator/page: cargo purchase basis (FOB/DES), shipping and port
+costs, demurrage assumptions, boil-off/fuel and delivered energy, terminal
+regas/storage/send-out charges, downstream transport and hub sales, dated
+receipts/payments, FX basis, discounting/NPV and financing sensitivities.
+Distinguish netback per energy unit, total cargo margin, cash flow, discounted
+value and mark-to-market; prevent cost/loss double counting and require explicit
+valuation date, currency, energy basis, calendars, contract/terminal/resource
+references, source lineage and missing-input refusal. Include deterministic
+reference cases and alternative destination/supply comparisons. No execution,
+nomination submission or settlement authority is added. Next delegate a gap
+analysis and bounded implementation sequence after official-source adapter
+review; this is scope recorded, not functionality claimed complete.
+
+EEX parser worker completed; report:
+`.automation/runtime/worker_runs/eex-ngp-official-parser-20260929-213111.final.json`.
+Its parser/source-contract/test changes remain uncommitted pending independent
+review, alongside previously recorded live-capture changes. No worker active.
+
 September 29 user-directed real-source priority: prefer official real data to
 simulation. Existing `scripts/ops/ingest_public_sources.py` already implements
 live ENTSOG flow/capacity/reference ingestion with entitlement/certification
