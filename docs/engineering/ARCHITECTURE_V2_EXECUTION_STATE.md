@@ -1,9 +1,50 @@
 # Architecture V2 Execution State
 
-Last updated: 2026-09-29
+Last updated: 2026-09-30
 Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical slice records below do not constitute current production approval.
 
 ## Current work
+
+## Governing Product Goal (User Direction, September 30)
+
+Deliver Eurogas Nexus as a coherent, commercial, professional European gas
+trading decision-support solution. Controlled first-customer pilot readiness
+is an intermediate acceptance milestone, not the ultimate product boundary.
+Assess functional design, ontology, data, shared analytical capabilities,
+persona workflows, backend authority, visual UI/UX, existing features and
+installation/operations together. A collection of isolated calculators or
+passing component tests is not completion of this goal.
+
+Common calculations belong to shared, versioned domain capabilities: dated
+cash flows, currency conversion, discounting/cash value, energy conversion,
+cost allocation and valuation provenance. LNG/regas, pipeline supply,
+storage and portfolio strategies compose those capabilities through explicit
+business contracts rather than duplicating the mathematics. Reconcile with
+the existing ontology and canonical identifiers before introducing new types:
+cash-flow leg, money/currency, valuation date, delivery period, energy basis,
+contract, cargo, terminal, transport capacity, portfolio and resource pool.
+Persona or work mode affects workflow presentation, never backend authority.
+
+Next architecture review must examine the recently introduced
+`research/lng_cash_valuation.py`: its arithmetic is broadly reusable but its
+input contract currently requires LNG-specific references. Separate reusable
+valuation semantics from business-specific context through a bounded migration
+with compatibility tests; do not build another cash-value implementation.
+Review the pending LNG cargo composition against the shared-capability target
+before publishing it. Its fractional-cost regression currently fails because
+cost aggregation and per-leg cash rounding differ; resolve before acceptance.
+
+Acceptance requires integrated trader journeys, coherent shared components and
+HMI, consistent data/time/unit semantics, lawful real-source provenance,
+numerically reproducible decisions, permission-aware persona testing and
+verified customer artifacts/operations. Continue to delegate routine work to
+DeepSeek and independently verify results. Preserve existing release/security
+gates: no execution, nomination submission or settlement; no unsupported
+production approval, fabricated live data or silent expansion into Power.
+The existing pilot blocker register remains binding and must be reconciled
+with this broader product goal, not replaced by component-level success.
+
+## Milestone History
 
 September 30 LNG dated-cash valuation (baseline `53500ec`): DeepSeek added a
 pure versioned research-domain calculation with signed, uniquely identified
