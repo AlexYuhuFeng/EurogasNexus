@@ -11,7 +11,8 @@ of D7 as wholly unbuilt were stale. DeepSeek closed the actual gap: enrichment
 itself now re-reads an ACTIVE SERVICE principal with analysis.query, matches the
 supplied actor to that configured identity, refuses before credential/provider
 use and records attribution. Parent verification: 198 security/monitoring/API/
-Markdown tests passed; Ruff and whitespace clean. CI pending. This is a trusted
+Markdown tests passed; Ruff and whitespace clean. Commit `09f985a` passed CI
+`36502276994`, all five active jobs; native packaging skipped. This is a trusted
 worker-process authority check, not authentication against a malicious host
 operator. Live PostgreSQL revocation/deployment evidence remains open; default
 compose does not pass the principal setting, so enrichment remains disabled.
