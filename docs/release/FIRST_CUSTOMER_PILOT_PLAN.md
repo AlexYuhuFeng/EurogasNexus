@@ -67,6 +67,16 @@ only and is never provider or live-market acceptance.
 
 ## Pilot workflows (must be populated, not seeded-only)
 
+Local runtime observation, 2026-09-29 approximately 13:06 UTC (`dae6efe`):
+authenticated ANALYST reads against the development PostgreSQL deployment
+returned 500 rows in each market-observation/normalized-quote/quote slice, all
+marked simulated; all three slices were STALE and truncated. Portfolio orders
+and PnL snapshots returned zero rows/MISSING. This is evidence of a local test
+data gap, not an inventory of all stored rows or customer-environment evidence.
+No fixture refresh or business-data mutation was used to change the outcome.
+PB-01/PB-04 remain open; final acceptance requires governed, entitled populated
+inputs, not relabelled or freshly generated simulations.
+
 Current evidence is dominated by seeded/CI fixtures. Each workflow states what
 is proven today and the exercise that closes the gap.
 

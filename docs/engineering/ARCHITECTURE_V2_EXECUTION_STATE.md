@@ -5,6 +5,25 @@ Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical sli
 
 ## Current work
 
+September 29 live local read-only assessment (commit `dae6efe`): GitHub run
+`36566569503` succeeded in all five active jobs; native packaging skipped.
+The API and frontend were not listening. Existing local launcher verified
+PostgreSQL revision `0036_job_records` without migration and started the
+development API on loopback port 8000. Health reports authentication enforced.
+Using the existing encrypted local ANALYST credential, authenticated projection
+reads at approximately 13:06 UTC returned 500 rows each for market observations,
+normalized quotes and quotes; each slice was STALE and truncated, and all 500
+rows in each were marked simulated. This describes returned slices, not a full
+database inventory. Portfolio screen orders and PnL snapshots returned zero
+rows/MISSING; contracts returned one row/UNKNOWN, resources two rows/STALE.
+No fixture ingestion, migration or business-data writes were requested; ordinary
+request auditing may write operational records. Only aggregate findings retained,
+no credentials or response bodies. The frontend remains stopped.
+Consequently this local fixture deployment cannot close PB-01/PB-04. Continue
+engineering live capture/portfolio checks, but do not refresh simulations or
+invent portfolio records to turn customer acceptance green. Obtain entitled
+populated pilot inputs through the governed ingestion path for final acceptance.
+
 September 29 offline market capture comparison (baseline `d88bf05`): DeepSeek
 implemented `scripts/uat/compareCapturedBoard.mjs`, reusing the existing board
 evaluator. It reads operator-supplied evidence only, emits whitelisted counts
