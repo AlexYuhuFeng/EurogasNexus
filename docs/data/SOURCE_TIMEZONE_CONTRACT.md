@@ -32,6 +32,7 @@ Each source declares its timestamp semantics once, in `SOURCE_TIMEZONE_CONTRACTS
 | `ENTSOG` | `operationaldatas` | `Europe/Berlin` (the platform's CET/CEST) | `timeZone` (`CET`, `CEST`, `UTC`, `Z`) | read on the declared zone |
 | `ENTSOG` | `operatorpointdirections` | `Europe/Berlin` | `timeZone` | read on the declared zone |
 | `GIE` | `agsi`, `alsi` | **not proven** | — | **refused** |
+| `EEX` | `ttf-ngp-15min` (TTF NGP CSV) | **not proven** | — | **refused**; the NGP adapter keeps the raw `Timestamp Let` field and returns pending normalization (`docs/data/EEX_NGP_SOURCE_CONTRACT.md`) |
 | anything else | — | not proven | — | **refused** |
 
 The parser obeys the declaration:
@@ -106,6 +107,7 @@ fail-closed path makes that a visible failure rather than a silent hour.
 
 ## 6. Related records
 
+- `docs/data/EEX_NGP_SOURCE_CONTRACT.md` — the EEX TTF NGP declaration and its pending-zone rule.
 - `docs/product/GAS_DAY_CALENDAR_COMPATIBILITY.md` — the CAM gas-day calendars and their versions.
 - `docs/product/COMMERCIAL_READINESS_BACKLOG.md` — M0-P0 (calendar, complete) and M1-P0 (this).
 - `docs/product/PROFESSIONAL_AUDIENCE_REVIEW.md` — why this ranks first among next steps: every

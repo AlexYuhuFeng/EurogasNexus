@@ -140,6 +140,22 @@ SOURCE_TIMEZONE_CONTRACTS: tuple[SourceTimezoneContract, ...] = (
             "this repository, so a value without an offset is refused."
         ),
     ),
+    SourceTimezoneContract(
+        source_system="EEX",
+        datasets=("ttf-ngp-15min",),
+        # The official NGP CSV's `Timestamp Let` column has no established zone in this
+        # repository: the EEX methodology that defines the token has not been cited here, so a
+        # bare value is refused (the bounded NGP adapter keeps the raw field and returns pending
+        # normalization) rather than read on an assumed or host clock.
+        declared_zone=None,
+        zone_key=None,
+        supported_tokens=(("UTC", _UTC), ("Z", _UTC)),
+        evidence=(
+            "docs/data/EEX_NGP_SOURCE_CONTRACT.md section 4: no verified provider zone for the "
+            "EEX TTF NGP `Timestamp Let` column; a value without an offset is refused until "
+            "official EEX methodology evidence is recorded."
+        ),
+    ),
 )
 
 

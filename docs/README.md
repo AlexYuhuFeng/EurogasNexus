@@ -115,6 +115,7 @@ Architecture V2 is the binding target architecture and product-experience intera
 - [Point-in-time datasets](research/POINT_IN_TIME_DATASETS.md)
 - [ML readiness](research/ML_READINESS.md)
 - [Source timezone contract](data/SOURCE_TIMEZONE_CONTRACT.md)
+- [EEX TTF NGP source contract](data/EEX_NGP_SOURCE_CONTRACT.md)
 - [Agent capability contract](agents/CAPABILITY_CONTRACT.md)
 - [Agent-native architecture](agents/AGENT_NATIVE_ARCHITECTURE.md)
 - [Capability registry](agents/CAPABILITY_REGISTRY.md)

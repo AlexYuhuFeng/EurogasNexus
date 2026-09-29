@@ -5,6 +5,21 @@ Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical sli
 
 ## Current work
 
+September 29 EEX NGP parser engineering milestone (baseline `4d0e0cd`):
+DeepSeek implemented raw-preserving CSV parsing and guarded canonical mapping.
+Parent review rejected guessed DST fold/gap handling, unearned live freshness,
+an implicit gas-day calendar and unchecked Decimal-to-float overflow. Follow-up
+now refuses these cases, with explicit separate publication-zone and delivery-
+calendar evidence requirements. Parent verification: 64 ingestion/public-source/
+gate/Markdown tests passed; focused Ruff and whitespace clean. Worker final
+report wrapper classified its follow-up as fatal despite a structured report;
+actual files and independent tests, not that classification, were reviewed.
+No network/scheduler/DB write integration enabled. Default raw parsing remains
+possible, canonical mapping refuses unproven temporal semantics; rights and
+certification still unverified. Distinct provisional/final identities prevent
+same-key overwrite, but cross-poll revision selection is still an integration
+requirement. Live-capture changes remain separately uncommitted and under review.
+
 September 29 user scope addition: European gas decision support must include
 LNG regasification business economics, netback and cash-value calculations.
 Existing `domain/route_cost/lng_regas.py` covers scenario/access/readiness inputs;
