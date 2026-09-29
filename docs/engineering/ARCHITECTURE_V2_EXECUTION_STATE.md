@@ -5,6 +5,37 @@ Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical sli
 
 ## Current work
 
+September 29 user-directed real-source priority: prefer official real data to
+simulation. Existing `scripts/ops/ingest_public_sources.py` already implements
+live ENTSOG flow/capacity/reference ingestion with entitlement/certification
+gates; connector-shell classes are not the complete ingestion inventory.
+Official EEX gas transparency page links
+`https://gasandregistry.eex.com/Gas/NGP/TTF_NGP_15_Mins.csv`; a bounded read
+succeeded. Semicolon CSV columns: Gasday, IndexValue (EUR/MWh), IndexVolume
+(MWh), Status, Timestamp Let. Observed Final NGP and Temporary NGP statuses,
+including a temporary zero-volume/zero-value row. Do not treat that row as a
+tradable zero or this index as bid/ask. Timestamp timezone must be verified
+against official methodology before normalization; never infer it from host.
+Official source: https://www.eex.com/en/markets/natural-gas/gas-market-transparency
+describes current NGP downloads updated every 15 minutes. Commercial reuse
+rights remain distinct from public download availability.
+ENTSOG operationaldatas bounded probe returned HTTP 200 (no ingestion yet).
+Platform-specific terms, linked from ENTSOG's current terms page, expressly
+permit API automation subject to conditions and attribution/download date:
+https://transparency.entsog.eu/pdf/TRA0394_20161115_ENTSOG_TP_Privacy_TC_of_Use_Rev_3.pdf
+Next priority: DeepSeek implement a bounded EEX NGP adapter through existing
+ingestion, preserving status, gas day, units, volume, lineage and revision
+semantics; verify timezone and rights before enabling scheduled writes. Review
+existing ENTSOG certification and bounded date/filter coverage, do not bypass
+gates or regenerate simulations to fill missing real data.
+
+Pending local live-capture worker changes are preserved, not yet committed:
+report `.automation/runtime/worker_runs/live-market-capture-20260929-210840.final.json`.
+Parent fixed a process-test expected reason list (missing source label was
+correctly refused); focused comparator/live-runner/read-to-render suite passes.
+Full review and real-browser integration remain outstanding; do not claim the
+live capture runner accepted. No worker remains active.
+
 September 29 live local read-only assessment (commit `dae6efe`): GitHub run
 `36566569503` succeeded in all five active jobs; native packaging skipped.
 The API and frontend were not listening. Existing local launcher verified
