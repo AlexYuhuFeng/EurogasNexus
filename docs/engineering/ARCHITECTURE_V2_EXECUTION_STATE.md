@@ -30,9 +30,11 @@ Next architecture review must examine the recently introduced
 input contract currently requires LNG-specific references. Separate reusable
 valuation semantics from business-specific context through a bounded migration
 with compatibility tests; do not build another cash-value implementation.
-Review the pending LNG cargo composition against the shared-capability target
-before publishing it. Its fractional-cost regression currently fails because
-cost aggregation and per-leg cash rounding differ; resolve before acceptance.
+Review LNG cargo composition against the shared-capability target before API
+integration. The fractional-cost regression reproduced differing aggregate and
+per-leg rounding; September 30 correction rounds each cost before aggregation,
+matching the existing cash primitive. The composition reuses that primitive,
+but the generic valuation interface extraction remains outstanding.
 
 Acceptance requires integrated trader journeys, coherent shared components and
 HMI, consistent data/time/unit semantics, lawful real-source provenance,
@@ -45,6 +47,17 @@ The existing pilot blocker register remains binding and must be reconciled
 with this broader product goal, not replaced by component-level success.
 
 ## Milestone History
+
+September 30 cargo economics (baseline `bc099b2`): DeepSeek's pure composition
+reuses existing regas readiness and cash valuation, exposes purchased/delivered
+energy, explicit loss, cost inclusion checks, netback per purchased MWh, cargo
+margin and NPV. Parent fixed the red fractional-cost reconciliation regression;
+256 focused cash/cargo/readiness/domain-contract/Markdown tests passed, Ruff
+clean. Synthetic reference: purchased100/delivered90 MWh, purchase20/sale30
+EUR/MWh and costs150 EUR -> netback25.5 EUR/purchased-MWh, margin550 EUR,
+NPV550 EUR with unit discount factors. EUR-only, no API/UI/persistence or
+customer-input acceptance. The generic cash valuation extraction is next;
+do not copy this calculation into another business model.
 
 September 30 LNG dated-cash valuation (baseline `53500ec`): DeepSeek added a
 pure versioned research-domain calculation with signed, uniquely identified
