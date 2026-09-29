@@ -20,6 +20,7 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
+from urllib.parse import parse_qs, urlsplit
 
 from apps.api.main import app
 
@@ -103,6 +104,11 @@ EVIDENCE_PRESENTATION = (
     ROOT / "clients" / "web" / "src" / "app" / "model" / "evidencePresentation.ts"
 )
 READ_TO_RENDER = ROOT / "scripts" / "uat" / "readToRender.mjs"
+
+#: The live read-only capture runner and the two literal targets it declares.
+LIVE_CAPTURE_RUNNER = ROOT / "scripts" / "uat" / "captureLiveBoard.mjs"
+RUNNER_MARKET_PATH = re.compile(r'^const MARKET_CONTEXT_PATH = "(?P<path>[^"]+)";', re.MULTILINE)
+RUNNER_MARKET_ROUTE = re.compile(r'^const MARKET_ROUTE = "(?P<route>[^"]+)";', re.MULTILINE)
 
 #: The capacity operating board's own join and read disclosure: the component that renders the
 #: board, the model that names its states, and the cockpit that derives them from the store.
@@ -769,3 +775,67 @@ def test_the_capacity_probe_compares_the_board_with_both_of_its_reads() -> None:
         assert locales["en"][key] != locales["zh"][key], f"{key} is untranslated"
     assert locales["en"]["capacity.board.empty"] != locales["en"]["capacity.no_matching_points"]
     assert locales["zh"]["capacity.board.empty"] != locales["zh"]["capacity.no_matching_points"]
+
+
+def test_the_live_capture_runner_reads_the_market_route_the_app_serves() -> None:
+    """The live runner's captured read and navigation target are the application's own.
+
+    ``scripts/uat/captureLiveBoard.mjs`` opens one read-only browser session and captures the
+    market board with the exact ``GET /api/projections/market-context`` response that session
+    consumed. A capture that asked a path no route serves, or navigated a workspace/task that does
+    not mount the hub board, would record its own mistake as evidence. The runner is read from its
+    source and held against the served GET surface, the client literal it mirrors and the declared
+    numeric market task; it must also apply the sweep's own collector and the comparator's own
+    verdict, and must issue no read of its own - the evidence is the response the page consumed,
+    and a second HTTP read would be a different instant relabelled as that consumption.
+    """
+
+    source = LIVE_CAPTURE_RUNNER.read_text(encoding="utf-8")
+
+    captured = RUNNER_MARKET_PATH.search(source)
+    assert captured, "the live capture runner still declares the projection it captures"
+    assert captured.group("path") == MARKET_PROJECTION
+    assert captured.group("path") in _served_get_paths()
+    assert f'"{MARKET_PROJECTION.removeprefix("/api")}"' in WEB_CLIENT.read_text(encoding="utf-8")
+
+    route = RUNNER_MARKET_ROUTE.search(source)
+    assert route, "the live capture runner still declares the route it navigates"
+    query = parse_qs(urlsplit(route.group("route")).query)
+    assert query["workspace"] == ["market"], "the runner navigates the market workspace"
+    assert query["task"] == ["curves"], "the runner navigates the numeric market task"
+    navigation = (ROOT / "clients" / "web" / "src" / "workspaceNavigation.ts").read_text(
+        encoding="utf-8"
+    )
+    assert '"market"' in navigation, "the workspace the runner navigates is a declared page id"
+    cockpit_model = MARKET_COCKPIT_MODEL.read_text(encoding="utf-8")
+    assert '"overview", "curves", "network", "capacity"' in cockpit_model
+    assert 'DEFAULT_MARKET_TASK: MarketTask = "curves"' in cockpit_model, (
+        "the runner navigates the declared numeric landing task"
+    )
+    cockpit = MARKET_COCKPIT.read_text(encoding="utf-8")
+    assert '{task === "curves" && (' in cockpit and "<MarketTerminal" in cockpit, (
+        "the hub board the runner collects is mounted for the task it navigates"
+    )
+
+    # One collector and one comparison rule: the runner applies the sweep's own board collector
+    # and the comparator's own verdict, records the response from the session itself, and has no
+    # code path that reads, writes or captures anything besides the summary it prints.
+    assert 'import { collectQuotedBoard } from "./readToRender.mjs";' in source
+    assert "export function collectQuotedBoard()" in READ_TO_RENDER.read_text(encoding="utf-8")
+    assert "compareCapturedBoard" in source
+    assert 'page.on("response"' in source, "the consumed response is recorded from the session"
+    assert "fetch(" not in source, "the runner never issues the read itself"
+    # Request routing does not see WebSocket channels; the runner must guard them with Playwright's
+    # WebSocket routing (and fail closed when that API is unavailable), never run the session
+    # without a channel guard.
+    assert 'context.routeWebSocket("**/*"' in source, (
+        "the live runner guards WebSocket channels separately from request routing"
+    )
+    for forbidden in (
+        "credentials:",
+        "writeFileSync",
+        "addInitScript",
+        "localStorage",
+        ".screenshot(",
+    ):
+        assert forbidden not in source, f"the live runner never uses {forbidden}"

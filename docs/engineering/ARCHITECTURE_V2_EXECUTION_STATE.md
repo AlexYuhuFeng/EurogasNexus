@@ -5,6 +5,22 @@ Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical sli
 
 ## Current work
 
+September 29 live capture engineering milestone (baseline `28df41e`): reviewed
+DeepSeek's pending capture runner. It observes the browser's market projection
+response and matches its as-of to the rendered board, without refetching, fixture
+writes or raw-output persistence. Same-origin GET/HEAD requests only; WebSockets
+blocked before navigation, service workers disabled; unsupported guards refuse.
+Review added a whole-run watchdog for hung response bodies/evaluations and
+browser-close cleanup (not a claim of OS-level cancellation of a hung browser
+shutdown). Parent verification: full frontend Node suite passed; 18 Python
+browser/Markdown contracts passed. Installed pinned Playwright 1.55.0 in ignored
+local tools, then ran all 24 runner tests with Chromium: 24 passed, zero skipped,
+including synthetic HTTP and WebSocket refusal. No actual customer deployment
+capture or portfolio acceptance performed. EEX commit `28df41e` CI run
+`36578514601` completed successfully. Next business priority is LNG/regas
+valuation gap reconciliation and a bounded deterministic reference case; real
+source rights/time contracts and three populated workflows remain open.
+
 September 29 EEX NGP parser engineering milestone (baseline `4d0e0cd`):
 DeepSeek implemented raw-preserving CSV parsing and guarded canonical mapping.
 Parent review rejected guessed DST fold/gap handling, unearned live freshness,

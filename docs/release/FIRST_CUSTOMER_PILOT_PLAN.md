@@ -105,8 +105,9 @@ is proven today and the exercise that closes the gap.
   routes (`docs/api/API_CONVENTIONS.md`
   "Pagination"). The workspace batch reads no market projection, so the market
   cockpit's read-to-render comparison holds only where the browser sweep
-  issues it (seeded fixtures), and no automated check exists on a populated
-  deployment; PB-04 stays open.
+  issues it (seeded fixtures). A live, read-only capture runner now exists
+  (`scripts/uat/captureLiveBoard.mjs`, below) and has not been exercised against
+  a populated deployment here; PB-04 stays open.
 - Exercise: the read-only WF-1 acceptance procedure below, on the populated
   deployment, recorded against PB-01/PB-04. It is a browser session plus
   read-only API reads on the customer's entitled data; it is never run by
@@ -285,15 +286,107 @@ displayed hub scope and tenor, and nothing else. The `source.commit` /
 summary states `capture_authenticity`, `customer_acceptance`,
 `live_capture_automation`, `portfolio_workflow`, `other_hubs_and_tenors`,
 `non_price_slices`, `pagination_beyond_captured_slice` and
-`intended_context_selection` as unverified on every run. Still next steps:
-automating live capture of the response and the board (this tool reads a capture
-an operator has already made), and the portfolio half of WF-1 (the portfolio
-projection and the orders workspace) - neither is covered here. A pass is
-bounded captured-board comparison only, never customer acceptance.
+`intended_context_selection` as unverified on every run. The live capture runner
+below now automates capturing the response and the board - this tool remains for
+operator-made captures, including deployments where the live runner's read-only
+constraints cannot be met. The portfolio half of WF-1 (the portfolio projection
+and the orders workspace) is still not covered. A pass is bounded
+captured-board comparison only, never customer acceptance.
 
 Keep captures in access-controlled local evidence storage, redact credentials
 before retention and never commit customer payloads (step 8). The comparator
 reads only the file it is given and never writes or uploads one.
+
+#### WF-1 live browser capture runner (read-only engineering aid)
+
+`node scripts/uat/captureLiveBoard.mjs` is the bounded live half of the same
+comparison, and the reason `live_capture_automation` is dropped from the
+summary's `unverified` list when *it* forms the capture. One real browser
+session opens against a deployment the operator names, navigates the minimal
+existing market/curves route (`/?workspace=market&task=curves`, the numeric
+landing task that mounts the hub board,
+`clients/web/src/components/MarketCockpit.tsx`,
+`app/model/marketCockpitModel.ts`), captures the board the surface displayed
+(`collectQuotedBoard`) and the *exact* `GET /api/projections/market-context`
+response that session consumed - recorded from the page's own response events,
+never re-issued by the tool - then compares the two through
+`scripts/uat/compareCapturedBoard.mjs` (`marketBoardRows`/`evaluateQuotedBoard`,
+the rule the browser sweep applies). The board's stated as-of must equal a
+recorded response's own `data.as_of_utc`; the surface's 10-second projection
+poll can race the capture, so the runner retries, bounded, and refuses
+(`capture_race_unmatched`) rather than comparing a board with a response it did
+not consume. Issuing a second read is not a code path this tool has.
+
+Invocation takes no arguments (a credential or path on argv is refused
+unread); the caller configures it through the environment:
+
+- `EUROGAS_UAT_BASE_URL` (required, no default): `https://` anywhere, or
+  `http://` on a loopback host; a URL carrying credentials, a query or a
+  fragment is refused.
+- `EUROGAS_UAT_STORAGE_STATE` (required): the file path of a *preauthenticated*
+  Playwright storage state. The runner only checks that the file is readable and
+  hands the path to Playwright; it never reads, echoes, copies or writes the
+  session material. Keep it in access-controlled local storage and never commit
+  it.
+- `EUROGAS_UAT_CAPTURE_COMMIT` and `EUROGAS_UAT_CAPTURE_DEPLOYMENT` (required):
+  the operator-supplied labels for the capture's `source` block. They are
+  unattested, exactly as in the offline comparator, and never printed.
+- `EUROGAS_UAT_CAPTURE_TIMEOUT_MS` (optional, 1000..600000, default 120000) and
+  `EUROGAS_UAT_PLAYWRIGHT_PATH` (optional; the browser sweep's own convention -
+  CI pins `playwright@1.55.0` and chromium outside the repository).
+
+The session is held read-only in the order the guarantees are enforced: the
+storage state is supplied, never obtained - there is no login, seed, import,
+deployment, provider or mutation option; no init script is installed and no
+application state is written; before navigation every request is classified and
+only a same-origin `GET`/`HEAD` is continued, while everything else is aborted
+and reported (`readonly_guard_blocked`, `external_request_blocked`) and service
+workers are blocked, so a cached or synthetic response cannot stand in for the
+session's own read. **Any** refused request refuses the attempt, even when the
+board itself matched: a session the guard had to restrain is not the session the
+operator runs. Off-origin requests are blocked by default and no static-resource
+exception is offered yet, so a deployment that needs one refuses until such an
+allowance is explicitly justified and reviewed. Request routing does not see
+WebSocket channels, so they are guarded separately with Playwright's WebSocket
+routing (`browserContext.routeWebSocket`, available since 1.48 - CI pins
+1.55.0): every channel is closed before any server connection is made, a channel
+refuses the attempt (`websocket_blocked`) exactly as a blocked request does, and
+an installed Playwright without that API fails closed before navigation
+(`websocket_guard_unavailable`) rather than running unguarded. The browser is
+closed in `finally`; every navigation, evaluation, response-body parse, wait and
+retry is bounded; and a whole-run watchdog over the entire capture (launch,
+context, navigation, bodies, evaluation) closes the browser and refuses with the
+fixed `capture_timeout` code when the budget expires. A body parse or evaluation
+that never settles cannot be cancelled through any supported API, so the runner
+does not claim to cancel one: it stops *waiting*, closes the browser, and
+observes the abandoned operation's late settlement so it cannot surface as an
+unhandled rejection or a raw error.
+
+Prerequisites, and what their absence looks like: Playwright with a launchable
+chromium (absent or unlaunchable: invalid, `playwright_unavailable` /
+`capture_launch_failed`); a deployment that is up and reachable (a failed
+navigation is refused, `navigation_failed`); and an identity in the storage
+state that is already signed in and commercial-access-eligible for the market
+projection. A deployment whose session cannot be represented as a Playwright
+storage state - an interactive sign-in the tool deliberately does not perform,
+or a desktop-shell token held only in memory - is unsupported and the run
+refuses (`board_not_displayed`); that is a missing prerequisite to record, not a
+data finding, and the offline comparator with an operator-made capture remains
+the fallback. A degraded or unread projection refuses
+(`projection_status_not_200`, `consumed_response_unusable`) exactly as the
+offline comparator refuses it. A surface whose evaluation or response body
+never answers within the operation bounds refuses (`capture_timeout`), as does
+one that outlives the whole-run watchdog.
+
+Stdout carries the comparator's redacted summary only - status, counts and
+fixed reason codes; never a raw body, URL, header, cookie, storage state,
+record id or screenshot - and nothing is written anywhere. Exit codes are the
+comparator's (0 pass, 1 refused, 2 invalid). A live pass is a bounded
+captured-board comparison for the displayed hub scope and tenor and nothing
+else: `capture_authenticity` (storage state and source labels are
+operator-supplied), `customer_acceptance`, `intended_context_selection`,
+`other_hubs_and_tenors`, `non_price_slices`,
+`pagination_beyond_captured_slice` and `portfolio_workflow` stay unverified.
 
 ### WF-2 - constrained alternative review
 
@@ -831,3 +924,68 @@ deployment comparison mode that reuses the existing board evaluator without
 fixture writes, retains redacted local evidence and refuses full-coverage
 acceptance when relevant slices are truncated. Pagination remains a separate
 engineering gap; the comparison mode must not silently waive it.
+
+## WF-1 live capture runner implementation record (engineering evidence only, 2026-09-29)
+
+Baseline `0c3c7dd`. Bounded implementation; no application, API, database,
+permission or deployment change. What was added:
+
+- `scripts/uat/captureLiveBoard.mjs`: the live read-only capture runner described
+  above. It imports the browser sweep's own `collectQuotedBoard` and the
+  comparator's own `compareCapturedBoard`/`instantMs`, so there is one collector
+  and one comparison rule, not a second implementation of either. It records the
+  response the browser consumed through `page.on("response")`, matches the
+  board's stated as-of to that response with the comparator's own instant rule,
+  derives the capture's `hub_scope` from the displayed cards, and refuses
+  (`capture_race_unmatched` and friends) rather than substituting a refetch. The
+  route guard, the WebSocket guard (closed before any server connection; fails
+  closed when the API is unavailable), the URL policy, service-worker blocking,
+  the per-operation bounds on the response-body parse and `page.evaluate`, the
+  whole-run watchdog (`capture_timeout`, browser closed on deadline) and the
+  browser close are implemented as described above.
+- `scripts/uat/compareCapturedBoard.mjs`: two small additions and no behaviour
+  change for existing captures - `captureAttemptSummary` (the same redacted
+  summary shape with no coverage for a live attempt that could not form a
+  capture) and the export of the existing `instantMs` helper so the live match
+  uses the comparator's own as-of rule.
+- `clients/web/tests/liveBoardCaptureRunner.test.ts`: 24 focused cases. Twenty
+  run deterministically here against a mocked Playwright surface and an injected
+  clock: URL policy, request guard (mutation and off-origin refusals, allowed
+  same-origin reads, abort codes), environment validation, card-derived hub
+  scope, the response usability rule (query echo, status, projection identity),
+  the as-of match and its bounded retry both ways, the four capture-failure
+  classifications, the missing/unsettled board refusals, the deadline and
+  always-close paths, a never-settling response body / evaluation / navigation
+  (bounded return, fixed `capture_timeout`, browser closed, no capture timer
+  left behind, no unhandled rejection from the abandoned operation), the
+  WebSocket guard (channel closed and refused; fail-closed without the API),
+  and no-leak assertions over a canary-bearing payload, storage path, argv
+  token and base URL. Three synthetic loopback-fixture cases drive the real
+  Playwright and chromium end to end (a served board that passes, a page whose
+  POST is refused by the guard, and a page whose WebSocket channel is closed);
+  one process-level case checks the CLI wrapper's exit code and redaction.
+
+Verified in this environment, from `clients/web`: `node --test
+--test-isolation=none tests/liveBoardCaptureRunner.test.ts` - 20 passed, 0
+failed, 4 skipped with their reasons. `--test-isolation=none` was needed
+because this implementation sandbox denies the runner's default per-file child
+process; the CI invocation (`npm test`, `node --test "tests/*.test.ts"`) is
+unchanged. The three browser integration cases and the process case skipped
+because the sandbox also refuses to spawn a child process from Node (chromium
+reports `spawn EPERM` even though `playwright@1.55.0` and `chromium-1187` are
+present on disk), not because of a runner defect; the mocked cases above are
+the evidence that ran here. The full web suite ran the same way: 724 tests, 716
+passed, 4 skipped, and the four failures are the pre-existing comparator CLI
+cases, which fail in this sandbox at `spawnSync` (`status: null`, `EPERM`)
+before any comparator code runs - the comparator CLI itself was smoke-run from
+the shell and behaved unchanged. No live capture was attempted against any
+endpoint, no customer data exists in this repository, and the runner was not
+pointed at the local development deployment.
+
+Not verified, and not claimed: a live capture against the real application or a
+customer deployment; that a given deployment's session can be represented as a
+Playwright storage state; the behaviour running behind a subpath deployment;
+and any customer acceptance. The parent is expected to exercise the runner
+against the local fixture; if that run is blocked, the reason code it prints is
+the honest account of which prerequisite was missing, and the offline
+operator-capture path is unchanged and still the fallback.

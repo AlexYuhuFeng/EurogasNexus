@@ -25,6 +25,11 @@
  * because a capture is sensitive local operator evidence whose detail stays with the operator.
  * Nothing is written anywhere: the tool only reads the file it is given.
  *
+ * The live runner (`captureLiveBoard.mjs`) forms a capture from a real browser session and hands
+ * it to `compareCapturedBoard`, so the comparison rule stays single. When the runner cannot form a
+ * capture at all it reports through `captureAttemptSummary` - the same redacted shape, fixed codes
+ * only, no coverage.
+ *
  * Usage: node scripts/uat/compareCapturedBoard.mjs <capture.json>
  * Exit codes: 0 = pass, 1 = refused (well-formed capture that does not support acceptance),
  * 2 = invalid (unreadable/malformed/unsupported capture, or invalid invocation).
@@ -114,8 +119,14 @@ function isNonEmptyString(value) {
   return typeof value === "string" && value.trim() !== "";
 }
 
-/** Epoch milliseconds of an ISO instant, or `null` when the value is absent or unusable. */
-function instantMs(value) {
+/**
+ * Epoch milliseconds of an ISO instant, or `null` when the value is absent or unusable.
+ *
+ * The live capture runner matches the board's stated as-of to a recorded response with this same
+ * rule, so "the captured board and the captured response are one instant" cannot drift into two
+ * definitions.
+ */
+export function instantMs(value) {
   if (!isNonEmptyString(value)) return null;
   const parsed = Date.parse(value);
   return Number.isFinite(parsed) ? parsed : null;
@@ -426,6 +437,38 @@ function writeSummary(summary) {
 
 function invalidSummary(code) {
   return summarize("invalid", emptyCounts(), new Map([[code, 1]]), new Map());
+}
+
+/**
+ * The redacted summary for a live-capture attempt that could not be compared.
+ *
+ * `captureLiveBoard.mjs` forms a capture from a real browser session. When it cannot - an invalid
+ * invocation, a request the read-only guard refused, a surface that never stated its reading, or a
+ * board its consumed response could not be matched to - there is no capture to compare and no
+ * coverage to report. The summary keeps the comparator's own shape and carries fixed reason codes
+ * only: no path, URL, operator label, id or payload field can travel through it.
+ */
+export function captureAttemptSummary(verdict, codes) {
+  if (verdict !== "invalid" && verdict !== "refused") {
+    throw new Error("a live-capture attempt is either invalid or refused");
+  }
+  const reasons = codes instanceof Map ? [...codes.entries()] : [...codes];
+  if (reasons.length === 0) reasons.push(["capture_error", 1]);
+  for (const [code] of reasons) {
+    if (typeof code !== "string" || !/^[a-z][a-z0-9_]*$/.test(code)) {
+      throw new Error("a capture reason is a fixed identifier, never a value");
+    }
+  }
+  return {
+    comparator: "captured-market-board",
+    schema_version: CAPTURE_SCHEMA_VERSION,
+    verdict,
+    coverage: null,
+    reasons: reasons
+      .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+      .map(([code, count]) => ({ code, count })),
+    unverified: [...UNVERIFIED],
+  };
 }
 
 function main(argv) {

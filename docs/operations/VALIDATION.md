@@ -110,6 +110,11 @@ python scripts/uat/seed_uat_fixture.py          # development/test only, explici
 python -m pytest tests/evals tests/uat -q
 # Browser workflows (optional; requires Playwright and running dev servers):
 #   see scripts/uat/browser_workflow_smoke.mjs
+# Live read-only board capture (optional; requires Playwright + chromium, a preauthenticated
+# storage state file and an explicit target URL - see the pilot plan's WF-1 section):
+#   node scripts/uat/captureLiveBoard.mjs
+# Offline comparison of a capture an operator already made (no browser, no network):
+#   node scripts/uat/compareCapturedBoard.mjs <capture.json>
 ```
 
 Axe/Playwright evidence for CR-13 is recorded in
