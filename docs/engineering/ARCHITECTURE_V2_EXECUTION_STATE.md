@@ -5,6 +5,19 @@ Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical sli
 
 ## Current work
 
+September 29 offline market capture comparison (baseline `d88bf05`): DeepSeek
+implemented `scripts/uat/compareCapturedBoard.mjs`, reusing the existing board
+evaluator. It reads operator-supplied evidence only, emits whitelisted counts
+and reason codes, and refuses simulated, truncated, stale or mismatched relevant
+evidence. No network, database, seeding or provider calls. Parent review found
+non-object source metadata could pass; a regression reproduced it, then required
+object validation fixed it. Focused comparator/read-to-render tests, full frontend
+Node suite and three Markdown contract tests passed; whitespace clean. No live
+customer capture was tested. Supplied deployment/SHA labels are not attested;
+PASS means only a bounded captured-board comparison, never pilot approval.
+Next: live read-only capture integration and the portfolio half of WF-1; retain
+PB-01/PB-04 and pagination gaps. GitHub CI for this change is not yet verified.
+
 September 29 WF-1 acceptance reconciliation (baseline `2c33699`): DeepSeek
 reviewed the market-to-portfolio projection/client/test paths, removed the
 duplicate CA-02 blocker and documented the read-only customer acceptance

@@ -220,6 +220,71 @@ engineering evidence only - the fixture gate refuses trial/release
    tied to the row it names; when only simulated rows are served; or when the
    evidence cannot be reproduced from the recorded payloads.
 
+#### WF-1 offline capture comparator (read-only engineering aid)
+
+The first, bounded slice of populated comparison is offline and operator-run.
+`node scripts/uat/compareCapturedBoard.mjs <capture.json>` compares one
+operator-supplied capture locally and performs no browser navigation,
+networking, credential use, database access, seeding, subprocess or provider
+call. It writes nothing: the summary goes to stdout, and no capture is copied,
+uploaded or retained by the tool. The comparison itself is the harness's own
+board evaluator (`scripts/uat/readToRender.mjs`
+`marketBoardRows`/`evaluateQuotedBoard`, the rule the browser sweep applies),
+never a second implementation.
+
+The capture is one JSON object under the explicit schema version
+`eurogas-nexus.captured-market-board/v1`:
+
+```json
+{
+  "schema_version": "eurogas-nexus.captured-market-board/v1",
+  "source": { "commit": "<deployment commit SHA>", "deployment": "<operator label>" },
+  "hub_scope": ["TTF", "NBP", "THE", "PEG", "ZTP", "PSV"],
+  "projection": { "status": 200, "body": "<the exact market-context response body>" },
+  "board": {
+    "boardTenor": "day-ahead",
+    "activeTenorTab": "day-ahead",
+    "asOf": "<the payload's data.as_of_utc>",
+    "asOfText": "<the displayed projection as-of text>",
+    "cells": ["<one entry per visible card, as collectQuotedBoard returns it>"]
+  }
+}
+```
+
+An unknown capture-envelope or board key, an unsupported or absent schema
+version or an absent critical field is invalid (exit 2), rather than guessed.
+The comparator refuses (exit 1) a
+well-formed capture that cannot substantiate a comparison: a non-200 or empty
+response; an empty card set; no comparable served price
+for the displayed scope and tenor, or no card that actually prices one; a price
+slice a card depends on that is unavailable, truncated (`limits.truncated` -
+which cannot be paged through these projection routes) or not `FRESH`; simulated
+rows for the displayed scope (all-simulated and mixed reported separately;
+`_sim` case-insensitively, the quote payload's `simulated` flag, or simulated
+metadata); a board captured at a different instant than the response; or any
+failure from the shared evaluator (a price, unit, source, hub, tenor or
+card-to-row identity that does not match). An unreadable, non-JSON or malformed
+capture is invalid (exit 2), as is an invalid invocation. Stdout carries only
+status, counts and fixed reason codes - never row values, source strings, ids,
+URLs, headers, cookies or the evaluator's diagnostic strings - because a capture
+is sensitive local operator evidence.
+
+What a pass is: the captured board's cards match the captured response for the
+displayed hub scope and tenor, and nothing else. The `source.commit` /
+`source.deployment` strings are operator labels, not attested identity, and the
+summary states `capture_authenticity`, `customer_acceptance`,
+`live_capture_automation`, `portfolio_workflow`, `other_hubs_and_tenors`,
+`non_price_slices`, `pagination_beyond_captured_slice` and
+`intended_context_selection` as unverified on every run. Still next steps:
+automating live capture of the response and the board (this tool reads a capture
+an operator has already made), and the portfolio half of WF-1 (the portfolio
+projection and the orders workspace) - neither is covered here. A pass is
+bounded captured-board comparison only, never customer acceptance.
+
+Keep captures in access-controlled local evidence storage, redact credentials
+before retention and never commit customer payloads (step 8). The comparator
+reads only the file it is given and never writes or uploads one.
+
 ### WF-2 - constrained alternative review
 
 - Surfaces: route-cost what-if, resource-pool optimisation

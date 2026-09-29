@@ -1367,10 +1367,28 @@ export function marketBoardRows(body, spec = {}) {
         // `is_gas_price`); a quotes row carries no such field and is admitted.
         boardEligible: row?.is_gas_price !== false,
         comparable: Boolean(id) && hub !== "" && tenor !== "",
+        // The surface's own simulation rule, so a caller can refuse simulated inputs without
+        // reading the raw rows again (`simulatedMarketRow` below).
+        simulated: simulatedMarketRow(row),
       });
     }
   }
   return { slices, rows, problems };
+}
+
+/**
+ * Whether one market row is a simulated input, by the surface's own rule.
+ *
+ * Mirrors `MarketTerminal.isSimulatedSource` - a `_sim` source system, case-insensitively, or
+ * `metadata_json.simulated` - and adds the quote payload's own `simulated` flag, which the same
+ * component renders the simulated pill from. The browser sweep does not read this field; the
+ * offline captured-board comparator refuses simulated rows for the displayed scope with it.
+ */
+function simulatedMarketRow(row) {
+  const source = typeof row?.source_system === "string" ? row.source_system : "";
+  return source.toLowerCase().includes("_sim")
+    || row?.simulated === true
+    || row?.metadata_json?.simulated === true;
 }
 
 /**
