@@ -25,16 +25,21 @@ cash-flow leg, money/currency, valuation date, delivery period, energy basis,
 contract, cargo, terminal, transport capacity, portfolio and resource pool.
 Persona or work mode affects workflow presentation, never backend authority.
 
-Next architecture review must examine the recently introduced
-`research/lng_cash_valuation.py`: its arithmetic is broadly reusable but its
-input contract currently requires LNG-specific references. Separate reusable
-valuation semantics from business-specific context through a bounded migration
-with compatibility tests; do not build another cash-value implementation.
-Review LNG cargo composition against the shared-capability target before API
-integration. The fractional-cost regression reproduced differing aggregate and
-per-leg rounding; September 30 correction rounds each cost before aggregation,
-matching the existing cash primitive. The composition reuses that primitive,
-but the generic valuation interface extraction remains outstanding.
+The shared valuation extraction is implemented at `79100cf`:
+`research/cash_valuation.py` owns the arithmetic and the LNG adapter delegates
+to it. The sandbox research API followed at `8b91293`, retaining exact decimal
+strings and explicitly unresolved business-context references. The fractional
+cost regression is corrected by rounding each cost before aggregation, matching
+the cash primitive. These are engineering foundations, not an integrated trader
+workflow or production valuation approval.
+
+The typed web client transport is now connected to this contract. Next:
+integrate an explicit dated cash schedule into the existing decision/scenario workflow.
+Inspect the authenticated application before visual changes. Existing scenario
+prices and daily volumes do not establish payment dates, FX provenance or
+discount curves; never infer those missing inputs or duplicate the server math.
+Keep source assumptions, unresolved references and research status visible;
+invalidate results when their input or business context changes.
 
 Acceptance requires integrated trader journeys, coherent shared components and
 HMI, consistent data/time/unit semantics, lawful real-source provenance,
@@ -47,6 +52,21 @@ The existing pilot blocker register remains binding and must be reconciled
 with this broader product goal, not replaced by component-level success.
 
 ## Milestone History
+
+September 30 cash-valuation client foundation (baseline `8b91293`): DeepSeek
+added exact-string request/result DTOs and `api.cashValuation` through the
+existing authenticated transport. The request carries no decision-context or
+authority claim; the backend labels the response sandbox-only. No UI, browser
+storage, numerical duplication or new API route was introduced. Parent review
+checked the metadata against the actual response, narrowed an overbroad comment
+about other research routes, and identified the precision fixture explicitly as
+a transport stress case rather than an engine reference result. Parent validation:
+full frontend suite 727 passed / 3 skipped, TypeScript and production build passed;
+49 API/surface/markdown tests passed. Worker sandbox process-launch failures did
+not reproduce in the parent environment. The production build retains the
+existing mixed static/dynamic client-import warning. Authenticated UI inspection,
+dated-input editing, context invalidation and populated workflow acceptance
+remain outstanding. The preceding API commit's CI `36650976591` passed.
 
 September 30 shared valuation research API (baseline `79100cf`): DeepSeek
 added POST `/api/research/cash-valuation` through the existing research router

@@ -256,9 +256,9 @@ export interface ApiMeta {
   source_posture_summary?: SourcePostureSummaryDTO;
 }
 
-export interface ApiResponse<T> {
+export interface ApiResponse<T, M = ApiMeta> {
   data: T;
-  meta: ApiMeta;
+  meta: M;
 }
 
 export interface HealthDTO {
@@ -435,14 +435,14 @@ async function put<T>(path: string, body: unknown): Promise<ApiResponse<T>> {
   return parseResponse<ApiResponse<T>>(response);
 }
 
-async function post<T>(path: string, body: unknown, options: ApiRequestOptions = {}): Promise<ApiResponse<T>> {
+async function post<T, M = ApiMeta>(path: string, body: unknown, options: ApiRequestOptions = {}): Promise<ApiResponse<T, M>> {
   const res = await fetch(apiUrl(path), requestInit({
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
     signal: options.signal,
   }));
-  return parseResponse<ApiResponse<T>>(res);
+  return parseResponse<ApiResponse<T, M>>(res);
 }
 
 // --- Types ---
@@ -1983,6 +1983,147 @@ export interface NetbackOutcomeDTO {
 }
 
 /**
+ * The shared dated cash valuation (`POST /api/research/cash-valuation`).
+ *
+ * One typed transport for the sandbox-only adaptation of
+ * `domain/research/cash_valuation.py`. Every financial value - signed amounts, FX rates and
+ * discount factors - is an **exact decimal string on the wire in both directions**. The client
+ * never converts one to `number`, never parses one and never does cash arithmetic: a value that
+ * went through a binary float (or through JavaScript's 53-bit integer range) could not be
+ * re-stated exactly, which is the whole contract the route exists to keep. A repair of a value
+ * beyond safe integer precision is exactly what this boundary must not do, so the fields are
+ * `string` and the response is read, not recomputed.
+ *
+ * The business context entries are caller-supplied canonical `concept:value` strings. The
+ * backend echoes them without resolving, looking up, inferring or entitling them
+ * (`meta.references_verified` is always `false`), which is why the DTOs carry no entity types:
+ * nothing here is a resolved entity reference.
+ *
+ * `decision_context` is deliberately absent from the request DTO. The sandbox gate reads the
+ * raw JSON body and refuses a `RUNTIME_DECISION` claim before validation; this request model
+ * forbids even a `SANDBOX_SCENARIO` claim as an unknown field,
+ * so the only way to honour "SANDBOX_SCENARIO, never runtime-decision" is to send no context
+ * claim at all - the route itself is the sandbox, and the response states the context.
+ */
+export const CASH_VALUATION_LEG_CATEGORIES = [
+  "cargo_purchase",
+  "cargo_sale",
+  "shipping",
+  "transport",
+  "regas",
+  "storage",
+  "fuel",
+  "demurrage",
+  "boil_off",
+  "other",
+] as const;
+
+/** The cash-flow leg vocabulary `CashFlowLegCategory` declares. */
+export type CashValuationLegCategoryDTO = (typeof CASH_VALUATION_LEG_CATEGORIES)[number];
+
+/** Explicit FX reference of one cross-currency cash-flow leg (exact decimal string rate). */
+export interface CashValuationFxInputDTO {
+  /** Reporting-currency amount per one leg-currency unit, in the engine's declared direction. */
+  rate_reporting_per_leg: string;
+  /** Mandatory provenance of the quoted rate. */
+  source_reference: string;
+  /** Quote date `YYYY-MM-DD`; never after the valuation date. */
+  as_of: string;
+}
+
+/** One signed, dated cash-flow leg (inflow positive, outflow negative). */
+export interface CashValuationLegInputDTO {
+  leg_id: string;
+  category: CashValuationLegCategoryDTO;
+  /** Cash date `YYYY-MM-DD`. */
+  payment_date: string;
+  /** Exact decimal string; never a `number`. */
+  signed_amount: string;
+  /** Uppercase three-letter currency code of the leg amount. */
+  currency: string;
+  /** Mandatory provenance of the amount. */
+  source_reference: string;
+  /** Cross-currency FX block; absent for same-currency legs. */
+  fx?: CashValuationFxInputDTO;
+  description?: string;
+}
+
+/** One explicit discount factor for one payment date (exact decimal string, never inferred). */
+export interface CashValuationDiscountFactorInputDTO {
+  payment_date: string;
+  /** Exact decimal string; never a `number` and never a curve interpolation. */
+  factor: string;
+  curve_reference: string;
+  source_reference: string;
+  as_of: string;
+}
+
+export interface CashValuationRequestDTO {
+  /** Canonical `concept:value` references, echoed unverified; the backend resolves nothing. */
+  business_context: string[];
+  valuation_date: string;
+  reporting_currency: string;
+  legs: CashValuationLegInputDTO[];
+  discount_factors: CashValuationDiscountFactorInputDTO[];
+  model_version?: string;
+}
+
+/** One valued leg as the engine serialized it: Decimals are exact strings, dates are ISO dates. */
+export interface CashValuationLegValuationDTO {
+  leg_id: string;
+  category: CashValuationLegCategoryDTO;
+  payment_date: string;
+  currency: string;
+  signed_amount: string;
+  cash_amount_reporting_ccy: string;
+  present_value_reporting_ccy: string;
+  discount_factor: string;
+  discount_curve_reference: string;
+  discount_source_reference: string;
+  discount_as_of: string;
+  source_reference: string;
+  fx_rate_reporting_per_leg: string;
+  fx_source_reference: string;
+  fx_as_of: string | null;
+  description: string;
+}
+
+export interface CashValuationResultDTO {
+  research_only: boolean;
+  human_review_required: boolean;
+  model_version: string;
+  /** `ActionKind.COMPUTE_CASH_FLOW.value`. */
+  action: string;
+  business_context: string[];
+  valuation_date: string;
+  reporting_currency: string;
+  leg_valuations: CashValuationLegValuationDTO[];
+  total_undiscounted_cash_reporting_ccy: string;
+  net_present_value_reporting_ccy: string;
+  assumptions: string[];
+  warnings: string[];
+  source_references: string[];
+  lineage: string[];
+}
+
+/**
+ * The research sandbox envelope metadata this route adds to the shared `ApiMeta`.
+ *
+ * It states the boundary out loud instead of leaving it to the reader: the inputs are the
+ * caller's, the references are unverified (`false`), nothing is customer approval, and the
+ * decision context is the sandbox scenario.
+ */
+export interface CashValuationMetaDTO extends ApiMeta {
+  /** Always `"SANDBOX_SCENARIO"`; the route exists only in the sandbox. */
+  decision_context: "SANDBOX_SCENARIO";
+  caller_supplied: boolean;
+  references_verified: false;
+  customer_approval: false;
+  source_references: string[];
+  warnings: string[];
+}
+
+/**
  * The desk's optimisation assessments (register C14/D8).
  *
  * `POST /api/optimization/nomination-window` and `POST /api/optimization/storage-dispatch` are
@@ -3026,6 +3167,20 @@ export const api = {
 
   routeCost: (body: RouteCostRequestDTO) => post<RouteCostOutcomeDTO>("/research/route-cost", body),
   netback: (body: NetbackRequestDTO) => post<NetbackOutcomeDTO>("/research/netback", body),
+
+  /**
+   * Value explicit signed cash flows through the one shared cash engine (transport only).
+   *
+   * The body travels exactly as composed: every decimal stays the caller's own string, the
+   * route receives no `decision_context` claim (the request contract forbids unknown fields and
+   * the sandbox gate refuses a `RUNTIME_DECISION` claim, so the safe composition is to send
+   * none), and the answer's `meta.decision_context` is what labels the run `SANDBOX_SCENARIO`.
+   * A refusal rejects with the standard `ApiError` carrying the typed `detail`
+   * (`cash_valuation_input_invalid` / `cash_valuation_refused` and the engine's stable codes);
+   * nothing is persisted and no client arithmetic or parsing happens here.
+   */
+  cashValuation: (body: CashValuationRequestDTO, options?: ApiRequestOptions) =>
+    post<CashValuationResultDTO, CashValuationMetaDTO>("/research/cash-valuation", body, options),
 
   /**
    * The two desk assessments, and the run record that makes them checkable (register C14/D8).

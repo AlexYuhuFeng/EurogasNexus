@@ -82,9 +82,10 @@ Open gaps for future audited API integration:
   `CanonicalId("cargo", ...)`. Adding that entity class is an ontology-review
   decision.
 - The sandbox API route below exists; no persistence, scheduler, live source,
-  audit record or client surface (SDK/UI) is wired. The route is a pure
-  function of its request and must keep passing the existing
-  permission/entitlement gates.
+  audit record or UI/screen surface is wired. A typed web client transport
+  method exists (see below); it carries no page, component, store slice or
+  browser-stored input. The route is a pure function of its request and must
+  keep passing the existing permission/entitlement gates.
 - The capability composes only caller-supplied values; it does not resolve
   market prices, FX or discount curves, and it is not an accounting or
   settlement figure.
@@ -252,11 +253,47 @@ Wire-contract rules and refusals:
 Limitations (explicit):
 
 - No persistence, no database lookup, no provider/FX/curve fetch, no audit
-  record, no scheduler and no client surface (SDK/UI) is wired; the response
-  carries no wall-clock field, so equal requests produce equal payloads.
+  record, no scheduler and no UI surface is wired; the response carries no
+  wall-clock field, so equal requests produce equal payloads.
 - The output is undiscounted cash and NPV only — never netback,
   mark-to-market, margin, accounting, custody, approval, trade, nomination or
   settlement. `meta.customer_approval` is always `false`.
+
+## Client transport (web) — foundation only
+
+`clients/web/src/api/client.ts` carries the typed web transport:
+`api.cashValuation(body, options)` posts to `/api/research/cash-valuation`
+through the existing `post` helper, so auth headers, the base URL, the
+`ApiError` envelope and the research conventions are the same as every other
+call. `CashValuationRequestDTO`, `CashValuationLegInputDTO`,
+`CashValuationFxInputDTO`, `CashValuationDiscountFactorInputDTO`,
+`CashValuationResultDTO`, `CashValuationLegValuationDTO` and the
+`CashValuationMetaDTO` envelope keep every amount, FX rate, discount factor,
+total and present value a `string` in both directions. No client code parses
+one, converts one to `number` or performs cash arithmetic; the leg-category
+union mirrors the engine's declared vocabulary.
+
+The request composes no `decision_context` claim. The sandbox dependency
+refuses a `RUNTIME_DECISION` claim in the raw body, and the request contract
+forbids the field entirely (`extra_forbidden`) — even the truthful
+`SANDBOX_SCENARIO` value would be refused — so none is sent. The response's
+`meta.decision_context` is what labels the run, always `SANDBOX_SCENARIO`,
+beside `references_verified: false` and `customer_approval: false`.
+
+What is deliberately **not** present yet: any page, panel or form, any store
+slice or workflow, any persisted audit/customer record, any browser-stored
+cash input, and any draft-to-request validation helper. The parent reviews the
+authenticated UI before any visual change, and the backend remains the sole
+numerical engine.
+
+Validation: `clients/web/tests/cashValuationTransport.test.ts` drives the real
+`api/client.ts` module over a stubbed `fetch` (the existing
+`tests/support/apiStoreHarness.ts` loader): exact decimal strings beyond
+JavaScript's safe integer range survive the request and response as raw text,
+the sandbox context is sender-free and response-labelled, a typed refusal
+rejects as `ApiError` with the engine's `codes`, transport failures still
+reject, and the method composes no authority/persona field and writes nothing
+to browser storage.
 
 ## Business adapters
 
