@@ -2,11 +2,12 @@
 
 The D3 census measured client methods -> surfaces, and closed that set to zero. The other direction
 was never measured: a declared public route that no client calls. Run over the whole web source
-(stream subscriptions live in `stores/api.ts`, not in the transport), **34 of the 179 public paths
-are not reached from the web client**, and 16 of those are called by nobody at all. Both figures are
+(stream subscriptions live in `stores/api.ts`, not in the transport), **35 of the 180 public paths
+are not reached from the web client**, and 17 of those are called by nobody at all. Both figures are
 re-measured rather than carried forward, because the count moves whenever a route gains or loses a
 reader - the nomination-windows read left the unreached set with the desk's day board, and the route
-it reads is one public path more than the census had.
+it reads is one public path more than the census had; the sandbox cash-valuation bench joined the
+unreached set as a declared machine surface, because no client method calls it yet.
 
 This gate makes that state declared instead of accidental. Every public path must fall into exactly
 one bucket, and each non-obvious entry carries its reason:
@@ -69,6 +70,9 @@ MACHINE_SURFACE: dict[str, str] = {
     "/api/physical/outages": "outage read (SDK)",
     "/api/research/allocation": "research bench (SDK)",
     "/api/research/backtest": "research bench (SDK)",
+    "/api/research/cash-valuation": (
+        "shared cash-valuation research bench (machine callers; no screen surface)"
+    ),
     "/api/research/feasibility": "research bench (SDK)",
     "/api/research/monitoring": "research bench (SDK)",
     "/api/research/nowcast": "research bench (SDK)",

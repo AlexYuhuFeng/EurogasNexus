@@ -220,6 +220,20 @@ ERROR_CATALOGUE: dict[str, ErrorDefinition] = {
             ErrorFamily.VALIDATION,
             recoverability=Recoverability.AFTER_USER_ACTION,
         ),
+        # The sandbox cash-valuation route answers two typed refusals: wire-syntax
+        # violations of the exact decimal/date/category contract, and refusals of
+        # the shared cash engine (whose per-input codes travel in ``detail.codes``).
+        # Catalogued so both classify as VALIDATION the caller can act on.
+        _definition(
+            "cash_valuation_input_invalid",
+            ErrorFamily.VALIDATION,
+            recoverability=Recoverability.AFTER_USER_ACTION,
+        ),
+        _definition(
+            "cash_valuation_refused",
+            ErrorFamily.VALIDATION,
+            recoverability=Recoverability.AFTER_USER_ACTION,
+        ),
         # Generic HTTP failures an endpoint may raise without a domain code. They
         # exist so the error envelope never has to label a plain 404 or 409 as an
         # unclassified SYSTEM fault.

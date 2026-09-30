@@ -150,6 +150,7 @@ explicitly approves them.
 | `POST` | `/api/research/nowcast` | weather-adjusted pressure nowcast | planned |
 | `POST` | `/api/research/backtest` | strategy backtest | planned |
 | `POST` | `/api/research/shadow-run` | paper shadow run | planned |
+| `POST` | `/api/research/cash-valuation` | shared dated cash valuation (exact decimal strings; sandbox machine surface) | active |
 | `POST` | `/api/research/briefs` | research brief generation | planned |
 | `POST` | `/api/research/map-candidates` | map-ready research route candidates | planned |
 

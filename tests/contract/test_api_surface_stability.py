@@ -123,6 +123,7 @@ PINNED_PUBLIC_PATHS = {
     "/api/research/targets",
     "/api/research/targets/{target_id}",
     "/api/research/backtest",
+    "/api/research/cash-valuation",
     "/api/research/feasibility",
     "/api/research/monitoring",
     "/api/research/netback",

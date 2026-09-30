@@ -48,6 +48,18 @@ with this broader product goal, not replaced by component-level success.
 
 ## Milestone History
 
+September 30 shared valuation research API (baseline `79100cf`): DeepSeek
+added POST `/api/research/cash-valuation` through the existing research router
+and sandbox dependency. It calls the shared engine, uses bounded exact decimal
+string inputs/outputs, and explicitly identifies caller-supplied unresolved
+business references. Runtime-decision mode refuses; no entity lookup, valuation
+persistence, source ingestion or authority inferred from persona/context IDs.
+Parent verification: 240 API/security/surface/link tests passed; focused Ruff
+and whitespace clean. Surface inventory and EN/ZH error taxonomy updated.
+This is not persisted portfolio valuation or customer acceptance. Next wire
+the existing scenario workflow to this API with shared result presentation,
+without adding duplicate arithmetic or a disconnected calculator page.
+
 September 30 shared cash valuation (baseline `d8644bb`): DeepSeek extracted
 one `research/cash_valuation.py` engine; LNG validates its context then delegates
 through a compatibility adapter. Generic business context uses existing ontology

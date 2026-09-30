@@ -58,16 +58,19 @@ def _checks() -> list[dict]:
     )
     # Bound includes the development-only credential login
     # (/api/dev/auth/login); the internal and release profiles never mount it.
-    # 179 paths: 178 at Architecture V2 Waves 4-8 (the Data Platform surface
+    # 180 paths: 178 at Architecture V2 Waves 4-8 (the Data Platform surface
     # (/api/data-products, /api/analysis-snapshots*), the Decision Case surface
     # (/api/decision-cases*), the application projections (/api/projections/*) and
     # the unified job surface (/api/jobs*) joined the surface), plus the desk clock
     # read (/api/optimization/nomination-windows) added by the day view, which
-    # serves the declared nomination-window masters at the READ floor.
+    # serves the declared nomination-window masters at the READ floor, plus the
+    # sandbox cash-valuation research route (/api/research/cash-valuation), which
+    # adapts the one shared cash engine with exact decimal strings and no entity
+    # resolution.
     # The count is a deliberate pin: a new public path must be declared in
     # tests/contract/test_api_surface_stability.py and recorded in the API contract
     # evolution policy in the same change.
-    check("public_surface_bounded", len(paths) == 179, f"public paths={len(paths)}")
+    check("public_surface_bounded", len(paths) == 180, f"public paths={len(paths)}")
 
     from eurogas_nexus.security.permissions import permission_for_path
 
