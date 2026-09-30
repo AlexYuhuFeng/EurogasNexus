@@ -18,6 +18,14 @@ microbenchmark.
 | Dataops scheduler scan (24 sources) | 11.8ms | ≤ 100ms | ≤ 500ms | `scripts/ops/dataops_benchmark.py` |
 | Backtest throughput | recorded per engine benchmark | no universal budget | no broad gate | `scripts/ops/backtest_benchmark.py` |
 
+The Source Center row's before/after read on the live PostgreSQL store is owned
+by the parent review. The read shape changed on 2026-09-30 (grouped counts, a
+bounded per-source ingestion-run ranking, and database-side paging of
+`/api/ingestion-runs`); the worker-side statement/row-count evidence and the
+remaining measurement proposal are recorded in `PERFORMANCE_BASELINE.md` under
+"Source Center read shape (2026-09-30)". No budget number in this table was
+changed by that work.
+
 ## Non-goals
 
 - No p95 budgets below the measured p50.

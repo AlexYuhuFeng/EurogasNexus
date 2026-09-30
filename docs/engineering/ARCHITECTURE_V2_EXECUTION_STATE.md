@@ -72,6 +72,19 @@ with this broader product goal, not replaced by component-level success.
 
 ## Milestone History
 
+September 30 source-status read performance (baseline `f3b89bc`): DeepSeek
+replaced full ingestion-history ORM loading with per-source latest-run ranking,
+combined observation counts into grouped reads, and pushed history filtering
+and limits into SQL. Parent tests: 45 focused API/security/link checks passed;
+focused Ruff passed. Authenticated reads against existing PostgreSQL returned
+24 sources: before 6.539s; after API restart 1.327s, 0.363s and 0.351s. These
+are local observations, not controlled load or customer SLO acceptance. No DB
+migration or business-data write. Worker scratch SQLite diagnostics are test
+evidence only; PostgreSQL remains the sole runtime store. Startup/concurrent
+load verification remains open. Separate correctness gap: source-status reads
+recognise lowercase succeeded/failed but the scheduler emits uppercase states.
+Reconcile that vocabulary next with tests rather than mixing it into this fix.
+
 September 30 scenario-input integrity (baseline `22b9a42`): authenticated
 browser inspection found EUR labels on GBP-named draft fields. DeepSeek traced
 both request builders and found seven of eight visible draft controls affected

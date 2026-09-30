@@ -95,12 +95,15 @@ def list_ingestion_runs(
     source_id: str | None = Query(None),
     limit: int = Query(100, ge=1, le=1000),
 ) -> dict:
-    """List persisted ingestion runs from the runtime DB (bounded by limit)."""
+    """List persisted ingestion runs from the runtime DB (bounded by limit).
 
-    runs = _db_ingestion_runs()
-    if source_id:
-        runs = [run for run in runs if run["source_id"] == source_id]
-    return _envelope(runs[:limit], request, source=_source_label())
+    The source filter and the page limit are applied by the database; the
+    previous shape materialized every persisted run and sliced in Python, so
+    the read grew with total ingestion history instead of with the page size.
+    """
+
+    runs = _db_ingestion_runs(source_id=source_id, limit=limit)
+    return _envelope(runs, request, source=_source_label())
 
 
 def _envelope(
@@ -506,27 +509,26 @@ def _runtime_source_counts() -> dict[str, int]:
                 "Trayport",
                 "Trayport_Sim",
             ]
-            counts = {
-                system: session.query(MarketObservationRecord)
-                .filter(MarketObservationRecord.source_system == system)
-                .count()
-                for system in price_systems
-            }
+            # Grouped counts return the identical per-system numbers in one scan
+            # per table; the previous shape re-scanned the market history once
+            # per registered system (thirteen times) on every read.
+            market_counts = _row_counts_by_source_system(session, MarketObservationRecord)
+            counts = {system: market_counts.get(system, 0) for system in price_systems}
+            screen_order_counts = _row_counts_by_source_system(
+                session,
+                ScreenOrderObservationRecord,
+                ScreenOrderObservationRecord.source_system,
+                ScreenOrderObservationRecord.provider_id,
+            )
             for system in ("ICE_OCM", "ICE_OCM_Sim", "Trayport", "Trayport_Sim"):
-                counts[system] = counts.get(system, 0) + session.query(
-                    ScreenOrderObservationRecord
-                ).filter(
-                    (ScreenOrderObservationRecord.source_system == system)
-                    | (ScreenOrderObservationRecord.provider_id == system)
-                ).count()
-            weather_count = session.query(MarketObservationRecord).filter(
-                MarketObservationRecord.source_system == "Weather"
-            ).count()
+                counts[system] = counts.get(system, 0) + sum(
+                    row_count
+                    for (source_system, provider_id), row_count in screen_order_counts.items()
+                    if system in (source_system, provider_id)
+                )
             return {
                 **counts,
-                "ECB": session.query(MarketObservationRecord)
-                .filter(MarketObservationRecord.source_system == "ECB")
-                .count()
+                "ECB": market_counts.get("ECB", 0)
                 + session.query(FxObservationRecord)
                 .filter(FxObservationRecord.source_system == "ECB")
                 .count(),
@@ -572,11 +574,32 @@ def _runtime_source_counts() -> dict[str, int]:
                 "CNMCEnagas": session.query(TsoTariffRecord)
                 .filter(_spain_tariff_filter(TsoTariffRecord, or_))
                 .count(),
-                "Weather": weather_count,
+                "Weather": market_counts.get("Weather", 0),
                 "DEEPSEEK": 0,
             }
     except sqlalchemy_error:
         return {}
+
+
+def _row_counts_by_source_system(session: Any, model: Any, *dimensions: Any) -> dict[Any, int]:
+    """Return one grouped ``COUNT(*)`` read keyed by the given columns.
+
+    Replaces the per-registered-system ``COUNT(*)`` fan-out that scanned the
+    same table once per source system. With one dimension the key is the
+    column value; with several it is the value tuple.
+    """
+
+    from sqlalchemy import func
+
+    group_columns = dimensions or (model.source_system,)
+    counts: dict[Any, int] = {}
+    for row in session.query(*group_columns, func.count()).select_from(model).group_by(
+        *group_columns
+    ):
+        values = tuple(row)
+        key = values[0] if len(group_columns) == 1 else values[:-1]
+        counts[key] = int(values[-1])
+    return counts
 
 
 def _runtime_source_latest_observed() -> dict[str, str]:
@@ -770,18 +793,89 @@ def _credential_status_by_provider() -> dict[str, dict[str, Any]]:
 
 
 def _latest_ingestion_status_by_source() -> dict[str, dict[str, Any]]:
-    status: dict[str, dict[str, Any]] = {}
-    for run in _db_ingestion_runs():
-        bucket = status.setdefault(run["source_id"], {})
-        bucket.setdefault("latest", run)
-        if run["status"] == "succeeded" and "last_success_at_utc" not in bucket:
-            bucket["last_success_at_utc"] = run["finished_at_utc"] or run["started_at_utc"]
-        if run["status"] == "failed" and "last_failure_at_utc" not in bucket:
-            bucket["last_failure_at_utc"] = run["finished_at_utc"] or run["started_at_utc"]
-    return status
+    """Return per-source latest / latest-succeeded / latest-failed runs.
+
+    The Source Center needs one run per source for each of those three roles.
+    The previous shape loaded every persisted ingestion run through the ORM and
+    kept the first match per source in Python, so the read grew without bound
+    with ingestion history. The grouped reads below return at most one row per
+    source from the database and serialize them with the same repository
+    payload, keeping statuses, ordering and missing-vs-empty semantics intact.
+    """
+
+    if not _db_is_configured():
+        return {}
+
+    sqlalchemy_error = _sqlalchemy_error_type()
+    try:
+        from eurogas_nexus.db.models import IngestionRunRecord
+        from eurogas_nexus.db.repositories.dataops import ingestion_run_payload
+        from eurogas_nexus.db.session import get_session_factory
+
+        status: dict[str, dict[str, Any]] = {}
+        with get_session_factory()() as session:
+            latest_rows = _latest_run_per_source(session, IngestionRunRecord)
+            success_rows = _latest_run_per_source(session, IngestionRunRecord, status="succeeded")
+            failure_rows = _latest_run_per_source(session, IngestionRunRecord, status="failed")
+            for row in latest_rows:
+                status[row.source_id] = {"latest": ingestion_run_payload(row)}
+            for key, rows in (
+                ("last_success_at_utc", success_rows),
+                ("last_failure_at_utc", failure_rows),
+            ):
+                for row in rows:
+                    payload = ingestion_run_payload(row)
+                    bucket = status.setdefault(row.source_id, {})
+                    bucket[key] = payload["finished_at_utc"] or payload["started_at_utc"]
+        return status
+    except sqlalchemy_error:
+        return {}
 
 
-def _db_ingestion_runs() -> list[dict]:
+def _latest_run_per_source(session: Any, model: Any, *, status: str | None = None):
+    """Return the newest run per ``source_id`` in one bounded query.
+
+    ``row_number()`` ranks each source's runs by ``started_at_utc`` descending,
+    with ``run_id`` as a deterministic tie-break, and only rank 1 is hydrated.
+    Callers therefore materialize at most one row per source instead of the
+    whole persisted history; ``status`` narrows the ranking to one run status.
+    """
+
+    from sqlalchemy import func
+
+    ranked = session.query(
+        model.run_id.label("run_id"),
+        func.row_number()
+        .over(
+            partition_by=model.source_id,
+            order_by=(model.started_at_utc.desc(), model.run_id.desc()),
+        )
+        .label("source_rank"),
+    ).select_from(model)
+    if status is not None:
+        ranked = ranked.filter(model.status == status)
+    ranked_rows = ranked.subquery()
+    return (
+        session.query(model)
+        .join(ranked_rows, ranked_rows.c.run_id == model.run_id)
+        .filter(ranked_rows.c.source_rank == 1)
+        .all()
+    )
+
+
+def _db_ingestion_runs(
+    *,
+    source_id: str | None = None,
+    limit: int | None = None,
+) -> list[dict]:
+    """Read persisted ingestion runs newest first, bounded by the caller.
+
+    ``source_id`` filters on the persisted run column (the same value the
+    serialized payload exposes; an empty string keeps the legacy unfiltered
+    behaviour) and ``limit`` pages in the database, so the read no longer
+    materializes the full run history to return one page.
+    """
+
     if not _db_is_configured():
         return []
 
@@ -792,10 +886,15 @@ def _db_ingestion_runs() -> list[dict]:
         from eurogas_nexus.db.session import get_session_factory
 
         with get_session_factory()() as session:
-            rows = session.query(IngestionRunRecord).order_by(
-                IngestionRunRecord.started_at_utc.desc()
+            query = session.query(IngestionRunRecord).order_by(
+                IngestionRunRecord.started_at_utc.desc(),
+                IngestionRunRecord.run_id.desc(),
             )
-            return [ingestion_run_payload(row) for row in rows.all()]
+            if source_id:
+                query = query.filter(IngestionRunRecord.source_id == source_id)
+            if limit is not None:
+                query = query.limit(limit)
+            return [ingestion_run_payload(row) for row in query.all()]
     except sqlalchemy_error:
         return []
 
