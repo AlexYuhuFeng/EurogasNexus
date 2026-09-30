@@ -301,10 +301,14 @@ source_id, dataset, trigger_type (SCHEDULED|MANUAL|BACKFILL|RECOVERY|
 
 Read-model vocabulary (`/api/sources`, `/api/ingestion-runs`): the stored
 `status` is returned exactly as persisted, so provenance is never rewritten.
-The source read classifies it through the canonical `IngestionRunStatus` enum
-plus one explicit compatibility mapping for the four legacy lowercase
-spellings written by the pre-CR-09 public-source ingestor and simulator
-(`queued`/`running`/`succeeded`/`failed`); any other spelling stays unknown.
+Classification is owned once by
+`src/eurogas_nexus/domain/dataops/run_status.py`: the canonical
+`IngestionRunStatus` enum plus one explicit compatibility mapping for the four
+legacy lowercase spellings written by the pre-CR-09 public-source ingestor and
+simulator (`queued`/`running`/`succeeded`/`failed`); any other spelling stays
+unknown. The source read, the monitoring alert scanner, pipeline health and the
+metrics exporter classify through that module instead of each carrying its own
+rule; the schema and the stored values are unchanged (no migration).
 `SUCCEEDED_WITH_WARNINGS` is a success and may set `last_success_at_utc`, but
 the source keeps the explicit `last_ingestion_succeeded_with_warnings`
 diagnostic. `QUEUED`, `RUNNING`, `CANCELLED` and unknown values are never
@@ -316,6 +320,15 @@ the newest run of that role (`finished_at_utc`, falling back to
 then `run_id` as deterministic tie-breaks. The role ranking stays bounded by
 the number of sources per read. This is local implementation behavior, not
 production acceptance.
+
+The same vocabulary drives the downstream consumers, with these known
+limitations: the monitoring scanner (`_source_failure_candidates`) and
+`pipeline_health` read the newest 500 persisted runs globally, so their
+per-source `consecutive_failures` is a lower bound when history exceeds that
+window and a source with no run in the window is absent from those payloads;
+both group by `source_name` while the source read groups by `source_id`.
+`eurogas_ingestion_failures_total` counts classified failures across the full
+persisted table (exact, unbounded read).
 
 ## 9. Retry policy
 
@@ -474,6 +487,23 @@ No new external dependency. CR-09 adds:
   `eurogas_source_certification_state`. Labels are low-cardinality:
   `source_id`, `dataset`, `error_category`, `state` only. Never raw URLs,
   user emails, or observation ids.
+
+  `eurogas_ingestion_failures_total` classifies every persisted run through
+  the shared `domain/dataops/run_status.py` vocabulary, so canonical `FAILED`
+  and legacy `failed` rows are counted alike (its HELP text and the focused
+  exporter tests were updated together). The exporter still reads the full
+  persisted run history per scrape: the counts are exact rather than sampled,
+  but the read is unbounded and is the next optimisation candidate (no
+  profiling evidence exists yet).
+  `eurogas_source_consecutive_failures` is not computed from run history at
+  all - it reports the scheduler-owned
+  `source_runtime_states.consecutive_failures` counter, which remains the
+  authoritative streak and is not reconciled here against the bounded
+  run-history streak in the monitoring/pipeline-health payloads.
+  `eurogas_source_rows_received_total` and
+  `eurogas_source_rows_rejected_total` remain unlabelled global sums although
+  their HELP text says "by source"; changing that shape is out of scope for
+  this follow-through and is recorded as a remaining inconsistency.
 - Structured JSON data-operations events
   (`application/dataops_observability.emit_event`) with `timestamp`, `level`,
   `service`, `event`, `source_id`, `run_id`, `correlation_id`,

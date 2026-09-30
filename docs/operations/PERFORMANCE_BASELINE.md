@@ -136,6 +136,18 @@ the parent review; this file does not claim a live figure.
   failure. The newest success/failure is selected by the completion instant
   that `last_success_at_utc` / `last_failure_at_utc` expose. Evidence for this
   correction is the focused API test suite; it is not production acceptance.
+- The compatibility mapping now lives in
+  `domain/dataops/run_status.py` and is shared by the source read, the
+  monitoring alert scanner, `pipeline_health` and the Prometheus exporter, so
+  `FAILED` and `failed` count identically everywhere. Read shapes this does not
+  change: `monitoring_service._source_failure_candidates` and
+  `pipeline_health` still read the newest 500 persisted runs **globally**
+  (per-source streaks are lower bounds when history exceeds the window), and
+  `application/dataops_observability.prometheus_metrics` still loads the full
+  persisted run table per scrape for exact unlabelled totals. Both are
+  documented limitations, not measurements; a bounded per-source streak query
+  or an indexed `COUNT(*)` for the failure counter would be the next
+  optimisation candidates if profiling justifies them.
 
 ## Methodology rules
 

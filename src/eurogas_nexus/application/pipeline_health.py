@@ -12,6 +12,8 @@ from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
+from eurogas_nexus.domain.dataops.run_status import is_failed_run_status
+
 
 def pipeline_health(session: Session, *, now_utc: datetime | None = None) -> dict:
     """Aggregate pipeline health from runtime tables (read-only)."""
@@ -39,9 +41,15 @@ def pipeline_health(session: Session, *, now_utc: datetime | None = None) -> dic
     sources: list[dict] = []
     for source_name, rows in sorted(by_source.items()):
         latest = rows[0]
+        # ``status`` stays the raw stored value; the streak classifies each run
+        # through the shared run-status vocabulary so canonical ``FAILED`` and
+        # legacy ``failed`` count identically, while success, pending, cancelled
+        # and unknown stored values interrupt it. The read is bounded to the
+        # newest 500 persisted runs globally, so the streak is a lower bound
+        # when history exceeds that window (documented limitation).
         consecutive_failures = 0
         for row in rows:
-            if row.status != "failed":
+            if not is_failed_run_status(row.status):
                 break
             consecutive_failures += 1
         sources.append(

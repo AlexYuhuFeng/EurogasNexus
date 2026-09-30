@@ -108,6 +108,7 @@ def prometheus_metrics(session, *, now_utc: datetime | None = None) -> str:
     from eurogas_nexus.api.middleware.observability import http_metric_lines
     from eurogas_nexus.db.models import IngestionRunRecord, SourceRuntimeStateRecord
     from eurogas_nexus.domain.dataops.contracts import as_utc
+    from eurogas_nexus.domain.dataops.run_status import is_failed_run_status
 
     now = as_utc(now_utc or datetime.now(UTC))
     lines: list[str] = [*http_metric_lines()]
@@ -128,16 +129,22 @@ def prometheus_metrics(session, *, now_utc: datetime | None = None) -> str:
             ]
         )
     states = session.query(SourceRuntimeStateRecord).all()
+    # Full persisted-run read: the run totals below are exact all-history counts
+    # (not a sampled list), at the cost of loading the whole table per scrape.
     runs = session.query(IngestionRunRecord).all()
 
     lines.append("# HELP eurogas_ingestion_runs_total Total persisted ingestion runs.")
     lines.append("# TYPE eurogas_ingestion_runs_total counter")
     lines.append(f"eurogas_ingestion_runs_total {len(runs)}")
 
-    lines.append("# HELP eurogas_ingestion_failures_total Persisted failed ingestion runs.")
+    lines.append(
+        "# HELP eurogas_ingestion_failures_total Persisted ingestion runs "
+        "classified as failed."
+    )
     lines.append("# TYPE eurogas_ingestion_failures_total counter")
     lines.append(
-        f"eurogas_ingestion_failures_total {sum(1 for run in runs if run.status == 'FAILED')}"
+        "eurogas_ingestion_failures_total "
+        f"{sum(1 for run in runs if is_failed_run_status(run.status))}"
     )
 
     lines.append("# HELP eurogas_source_rows_received_total Rows received by source.")

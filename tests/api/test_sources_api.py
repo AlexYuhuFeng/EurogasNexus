@@ -1471,3 +1471,70 @@ def test_latest_ingestion_status_stays_bounded_with_mixed_status_spellings(
     for source_id in source_ids:
         assert status[source_id]["last_success_at_utc"] is not None
         assert status[source_id]["last_failure_at_utc"] is not None
+
+
+def test_legacy_lowercase_spellings_drive_the_same_read_outcomes(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression: each legacy spelling classifies as its canonical peer.
+
+    The compatibility mapping moved to the shared
+    ``domain/dataops/run_status.py`` vocabulary; the source read must keep
+    classifying the four legacy spellings exactly as before.
+    """
+
+    from datetime import UTC, datetime, timedelta
+
+    from sqlalchemy.orm import Session
+
+    engine, _ = _runtime_store(tmp_path, "runs-legacy-spellings.sqlite", monkeypatch)
+    base = datetime(2026, 7, 1, 16, 0, tzinfo=UTC)
+    with Session(engine) as session:
+        session.add_all(
+            [
+                _ingestion_run(
+                    "run-ecb-succeeded",
+                    "src-ecb",
+                    base,
+                    "succeeded",
+                    finished_at=base + timedelta(seconds=1),
+                ),
+                _ingestion_run(
+                    "run-entsog-failed",
+                    "src-entsog",
+                    base + timedelta(minutes=1),
+                    "failed",
+                    finished_at=base + timedelta(minutes=1, seconds=2),
+                ),
+                _ingestion_run(
+                    "run-bbl-queued", "src-bbl", base + timedelta(minutes=2), "queued"
+                ),
+                _ingestion_run(
+                    "run-iuk-running", "src-iuk", base + timedelta(minutes=3), "running"
+                ),
+            ]
+        )
+        session.commit()
+
+    ecb, _ = _source_from_endpoint("ECB")
+    assert ecb["last_ingestion_status"] == "succeeded"
+    assert ecb["connectivity_status"] != "failed"
+    assert ecb["last_success_at_utc"] == (base + timedelta(seconds=1)).isoformat()
+    assert ecb["last_failure_at_utc"] is None
+
+    entsog, _ = _source_from_endpoint("ENTSOG")
+    assert entsog["last_ingestion_status"] == "failed"
+    assert entsog["connectivity_status"] == "failed"
+    assert "last_ingestion_failed" in entsog["diagnostics"]
+    assert entsog["last_failure_at_utc"] == (base + timedelta(minutes=1, seconds=2)).isoformat()
+    assert entsog["last_success_at_utc"] is None
+
+    bbl, _ = _source_from_endpoint("BBL")
+    assert bbl["last_ingestion_status"] == "queued"
+    assert bbl["connectivity_status"] != "failed"
+    assert "last_ingestion_pending" in bbl["diagnostics"]
+
+    iuk, _ = _source_from_endpoint("IUK")
+    assert iuk["last_ingestion_status"] == "running"
+    assert iuk["connectivity_status"] != "failed"
+    assert "last_ingestion_pending" in iuk["diagnostics"]

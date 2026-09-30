@@ -214,3 +214,72 @@ def test_missing_deepseek_key_is_visible_without_provider_call(monkeypatch) -> N
 
     assert result["llm_enriched_count"] == 0
     assert alert.llm_status == "missing_credential"
+
+
+def test_source_failure_alerts_count_canonical_and_legacy_failures_identically() -> None:
+    """The shared vocabulary drives the alert condition and the streak count.
+
+    ``FAILED`` and legacy ``failed`` are the same failure outcome; pending,
+    cancelled, warning-qualified success and unknown stored values are not
+    failures and interrupt the streak. The raw stored status stays visible in
+    the evidence snapshot.
+    """
+
+    engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
+    Base.metadata.create_all(engine)
+    now = datetime(2026, 7, 22, 9, 0, tzinfo=UTC)
+    runs = [
+        # Two consecutive failures, canonical on top of legacy.
+        ("ENTSOG", "run-entsog-3", "FAILED", 3),
+        ("ENTSOG", "run-entsog-2", "failed", 2),
+        ("ENTSOG", "run-entsog-1", "SUCCEEDED", 1),
+        # Three consecutive failures, mixed spellings: critical.
+        ("GIE", "run-gie-3", "failed", 3),
+        ("GIE", "run-gie-2", "FAILED", 2),
+        ("GIE", "run-gie-1", "FAILED", 1),
+        # A warning-qualified success is not a failure alert.
+        ("ECB", "run-ecb-2", "SUCCEEDED_WITH_WARNINGS", 2),
+        ("ECB", "run-ecb-1", "FAILED", 1),
+        # Cancelled, unknown and pending runs are not failures, and each one
+        # interrupts the streak behind it.
+        ("BBL", "run-bbl-2", "CANCELLED", 2),
+        ("BBL", "run-bbl-1", "failed", 1),
+        ("IUK", "run-iuk-2", "MYSTERY", 2),
+        ("IUK", "run-iuk-1", "failed", 1),
+        ("GTS", "run-gts-2", "running", 2),
+        ("GTS", "run-gts-1", "FAILED", 1),
+    ]
+
+    with Session(engine) as session:
+        for source_name, run_id, status, minute in runs:
+            event_time = now + timedelta(minutes=minute)
+            session.add(
+                IngestionRunRecord(
+                    run_id=run_id,
+                    source_name=source_name,
+                    status=status,
+                    started_at_utc=event_time,
+                    finished_at_utc=event_time,
+                    notes="probe",
+                )
+            )
+        session.commit()
+        result = scan_monitoring_conditions(
+            session,
+            now_utc=now + timedelta(minutes=5),
+            enrich_with_llm=False,
+        )
+        alerts = session.query(MonitoringAlertRecord).order_by(
+            MonitoringAlertRecord.entity_id
+        ).all()
+
+    assert result["active_count"] == 2
+    assert [alert.entity_id for alert in alerts] == ["ENTSOG", "GIE"]
+
+    by_source = {alert.entity_id: alert for alert in alerts}
+    assert by_source["ENTSOG"].severity == "warning"
+    assert by_source["ENTSOG"].evidence_snapshot["consecutive_failures"] == 2
+    assert by_source["ENTSOG"].evidence_snapshot["status"] == "FAILED"
+    assert by_source["GIE"].severity == "critical"
+    assert by_source["GIE"].evidence_snapshot["consecutive_failures"] == 3
+    assert by_source["GIE"].evidence_snapshot["status"] == "failed"

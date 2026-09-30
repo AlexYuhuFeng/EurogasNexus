@@ -9,6 +9,12 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query, Request
 
 from eurogas_nexus.domain.dataops.contracts import IngestionRunStatus
+from eurogas_nexus.domain.dataops.run_status import (
+    FAILURE_RUN_STATUSES,
+    SUCCESS_RUN_STATUSES,
+    canonical_run_status,
+    stored_statuses_for,
+)
 from eurogas_nexus.domain.ingestion.certification import certification_gate
 from eurogas_nexus.domain.ingestion.source_registry import (
     CATEGORY_LABELS,
@@ -65,54 +71,6 @@ SOURCE_ID_BY_NAME = {
     "TRAYPORT SIM": "src-trayport-sim",
     "WEATHER": "src-weather",
 }
-
-#: Stored run statuses written by the pre-CR-09 writers (the public-source
-#: ingestor and the simulated market price writer). Canonical rows written by
-#: the CR-09 scheduler always use the ``IngestionRunStatus`` spelling; this is
-#: the only legacy compatibility mapping, and any other stored value stays
-#: unknown instead of being coerced into a lifecycle state.
-_LEGACY_RUN_STATUS_TO_CANONICAL: dict[str, IngestionRunStatus] = {
-    "queued": IngestionRunStatus.QUEUED,
-    "running": IngestionRunStatus.RUNNING,
-    "succeeded": IngestionRunStatus.SUCCEEDED,
-    "failed": IngestionRunStatus.FAILED,
-}
-
-_SUCCESS_RUN_STATUSES = (
-    IngestionRunStatus.SUCCEEDED,
-    IngestionRunStatus.SUCCEEDED_WITH_WARNINGS,
-)
-_FAILURE_RUN_STATUSES = (IngestionRunStatus.FAILED,)
-
-
-def _canonical_run_status(stored_status: str | None) -> IngestionRunStatus | None:
-    """Classify one stored run status; ``None`` means unknown.
-
-    Unknown is neither success nor failure and must stay visibly unknown: only
-    the canonical vocabulary and the explicit legacy mapping above are
-    recognised, never broad case/alias coercion.
-    """
-
-    if not isinstance(stored_status, str) or not stored_status:
-        return None
-    try:
-        return IngestionRunStatus(stored_status)
-    except ValueError:
-        return _LEGACY_RUN_STATUS_TO_CANONICAL.get(stored_status)
-
-
-def _stored_statuses_for(*canonical_statuses: IngestionRunStatus) -> tuple[str, ...]:
-    """Every stored spelling that classifies as the given canonical statuses."""
-
-    canonical = frozenset(canonical_statuses)
-    return tuple(
-        [status.value for status in canonical_statuses]
-        + [
-            stored
-            for stored, mapped in _LEGACY_RUN_STATUS_TO_CANONICAL.items()
-            if mapped in canonical
-        ]
-    )
 
 
 @router.get("/api/sources")
@@ -253,7 +211,7 @@ def _sources_with_runtime_status() -> list[dict]:
             credential_state,
             latest_run,
             last_success_with_warnings=(
-                _canonical_run_status(source_ingestion.get("last_success_status"))
+                canonical_run_status(source_ingestion.get("last_success_status"))
                 is IngestionRunStatus.SUCCEEDED_WITH_WARNINGS
             ),
         )
@@ -490,7 +448,7 @@ def _connectivity_status(
         return "credential_disabled"
     if (
         latest_run
-        and _canonical_run_status(latest_run.get("status")) is IngestionRunStatus.FAILED
+        and canonical_run_status(latest_run.get("status")) in FAILURE_RUN_STATUSES
     ):
         return "failed"
     if live_record_count > 0:
@@ -520,7 +478,7 @@ def _diagnostics(
     if credential_state == "disabled":
         diagnostics.append("credential_disabled")
     latest_status = (
-        _canonical_run_status(latest_run.get("status")) if latest_run else None
+        canonical_run_status(latest_run.get("status")) if latest_run else None
     )
     if latest_status is IngestionRunStatus.FAILED:
         diagnostics.append("last_ingestion_failed")
@@ -885,12 +843,14 @@ def _latest_ingestion_status_by_source() -> dict[str, dict[str, Any]]:
     source from the database and serialize them with the repository payload.
 
     Status vocabulary: canonical ``IngestionRunStatus`` values plus the one
-    explicit legacy mapping in this module. ``SUCCEEDED_WITH_WARNINGS`` counts
-    as a success (with the stored status and an explicit warning diagnostic
-    preserved on the read model); pending, cancelled and unknown stored values
-    are neither successes nor failures. The newest success/failure is selected
-    by completion instant, matching the ``last_*_at_utc`` values the read model
-    exposes. Rows with no run still produce no bucket (missing stays missing).
+    explicit legacy mapping owned by ``domain/dataops/run_status.py`` and shared
+    with the monitoring, pipeline-health and metrics consumers.
+    ``SUCCEEDED_WITH_WARNINGS`` counts as a success (with the stored status and
+    an explicit warning diagnostic preserved on the read model); pending,
+    cancelled and unknown stored values are neither successes nor failures. The
+    newest success/failure is selected by completion instant, matching the
+    ``last_*_at_utc`` values the read model exposes. Rows with no run still
+    produce no bucket (missing stays missing).
     """
 
     if not _db_is_configured():
@@ -908,12 +868,12 @@ def _latest_ingestion_status_by_source() -> dict[str, dict[str, Any]]:
             success_rows = _latest_run_per_source(
                 session,
                 IngestionRunRecord,
-                statuses=_stored_statuses_for(*_SUCCESS_RUN_STATUSES),
+                statuses=stored_statuses_for(*SUCCESS_RUN_STATUSES),
             )
             failure_rows = _latest_run_per_source(
                 session,
                 IngestionRunRecord,
-                statuses=_stored_statuses_for(*_FAILURE_RUN_STATUSES),
+                statuses=stored_statuses_for(*FAILURE_RUN_STATUSES),
             )
             for row in latest_rows:
                 status[row.source_id] = {"latest": ingestion_run_payload(row)}
@@ -1028,7 +988,7 @@ def _db_ingestion_runs(
 
 def _ingestion_run_payload(row) -> dict:
     source_id = _source_id_for_source_name(row.source_name)
-    canonical_status = _canonical_run_status(row.status)
+    canonical_status = canonical_run_status(row.status)
     return {
         "run_id": row.run_id,
         "source_id": source_id,
@@ -1039,7 +999,7 @@ def _ingestion_run_payload(row) -> dict:
         "records_ingested": _records_from_notes(row.notes),
         "records_failed": 0,
         "normalization": "normalized",
-        "error_message": (None if canonical_status in _SUCCESS_RUN_STATUSES else row.notes),
+        "error_message": (None if canonical_status in SUCCESS_RUN_STATUSES else row.notes),
         "source_reference": row.notes,
     }
 

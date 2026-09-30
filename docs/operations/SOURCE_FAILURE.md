@@ -50,6 +50,47 @@ Raw stored statuses are returned unchanged.
 - `last_success_at_utc` / `last_failure_at_utc` are the completion instants of
   the newest successful/failed run, not the newest start time.
 
+## Where the shared vocabulary applies
+
+`src/eurogas_nexus/domain/dataops/run_status.py` owns the single compatibility
+interpretation of `ingestion_runs.status` (canonical `IngestionRunStatus`
+spellings plus the four legacy lowercase ones, nothing else). The source read,
+the monitoring alert scanner, pipeline health and `/api/runtime/metrics`
+classify through it; raw stored statuses stay raw in every payload.
+
+- Monitoring (`application/monitoring_service.py`): the `ingestion_failed`
+  alert fires only when the newest requested run classifies as failed, and its
+  `consecutive_failures` counts the unbroken streak of classified failures.
+  `FAILED` and `failed` count identically; success, pending, cancelled and
+  unknown stored values interrupt the streak. Severity is `critical` from
+  three consecutive failures.
+- Pipeline health (`GET /api/runtime/pipeline-health`): the same streak rule;
+  the per-source `status` field remains the raw stored value.
+- Metrics (`eurogas_ingestion_failures_total`): counts every persisted run
+  that classifies as failed, canonical or legacy spelling alike.
+
+Known limitations, reported rather than fixed here:
+
+- Monitoring and pipeline health read the newest 500 persisted runs **globally**
+  (ordered by `started_at_utc`), not per source. Their `consecutive_failures`
+  is a lower bound whenever a streak extends past that window, and a source
+  with no run inside the window is absent from those payloads rather than
+  reported as zero. The authoritative streak remains
+  `source_runtime_states.consecutive_failures` (scheduler-owned, exposed as
+  `eurogas_source_consecutive_failures` and by `/api/sources`); the two are not
+  reconciled against each other today.
+- Monitoring and pipeline health group runs by `source_name`; the source read
+  groups by `source_id`. Rows written without a `source_id` (column default
+  `''`) - the pre-CR-09 public-source ingestor, the simulated market-price
+  writer and the market-positioning importer all write that way - can therefore
+  drive a monitoring alert while staying outside the per-source source-read
+  bucket, and free-text name variants would split one provider into separate
+  alert streaks.
+- The metrics exporter reads the full persisted run history per scrape: the
+  counts are exact, not sampled, but the read is unbounded.
+- `eurogas_source_rows_received_total` / `eurogas_source_rows_rejected_total`
+  are unlabelled global sums although their HELP text says "by source".
+
 ## Safe actions
 
 - Retry a failed run explicitly: `POST /api/sources/{source_id}/retry`.

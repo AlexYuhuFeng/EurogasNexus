@@ -26,6 +26,7 @@ from eurogas_nexus.db.repositories.monitoring import (
     resolve_absent_monitoring_alerts,
     upsert_monitoring_alert,
 )
+from eurogas_nexus.domain.dataops.run_status import is_failed_run_status
 from eurogas_nexus.domain.monitoring import MonitoringCandidate
 from eurogas_nexus.llm import DEEPSEEK_DEFAULT_MODEL, DeepSeekCallResult, invoke_deepseek
 from eurogas_nexus.security.identity import AuthenticatedPrincipal
@@ -286,6 +287,20 @@ def _strategy_candidates(session: Session) -> list[MonitoringCandidate]:
 
 
 def _source_failure_candidates(session: Session) -> list[MonitoringCandidate]:
+    """One alert candidate per source whose newest requested run failed.
+
+    "Newest" stays the newest requested run (``started_at_utc`` desc), while the
+    consecutive-failure count is the unbroken streak of runs that classify as
+    failed through the shared ``domain/dataops/run_status.py`` vocabulary, so
+    ``FAILED`` and the legacy ``failed`` spelling count identically. A run that
+    is not classified as a failure - including success, pending, cancelled and
+    unknown stored values - interrupts the streak, and the raw stored status
+    stays visible in the evidence snapshot. The read is bounded to the newest
+    500 persisted runs globally, so the streak is a lower bound whenever the
+    history exceeds that window (documented limitation, not an all-history
+    count).
+    """
+
     rows = (
         session.query(IngestionRunRecord)
         .order_by(IngestionRunRecord.started_at_utc.desc())
@@ -299,11 +314,11 @@ def _source_failure_candidates(session: Session) -> list[MonitoringCandidate]:
     candidates: list[MonitoringCandidate] = []
     for source_name, source_rows in runs_by_source.items():
         latest = source_rows[0]
-        if latest.status != "failed":
+        if not is_failed_run_status(latest.status):
             continue
         consecutive_failures = 0
         for row in source_rows:
-            if row.status != "failed":
+            if not is_failed_run_status(row.status):
                 break
             consecutive_failures += 1
         severity = "critical" if consecutive_failures >= 3 else "warning"

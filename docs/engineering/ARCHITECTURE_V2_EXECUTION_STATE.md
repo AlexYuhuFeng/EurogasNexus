@@ -72,6 +72,21 @@ with this broader product goal, not replaced by component-level success.
 
 ## Milestone History
 
+October 1 shared ingestion-status consumers (baseline `cd7c46c`): DeepSeek
+moved the compatibility rule into `domain/dataops/run_status.py`, reusing the
+canonical enum. Source reads, monitoring alerts, pipeline health and metrics
+now classify canonical/legacy failures consistently; raw statuses are retained.
+Parent review confirmed application consumers import domain, not API, and
+unknown/pending/cancelled statuses do not become failures. Parent verification:
+220 focused unit/API/architecture/documentation tests passed; focused Ruff
+passed. No DB writes, migration, provider calls or permission changes.
+This is not full operational acceptance. Remaining defects: historical writers
+can omit source_id while source reads group by ID and monitors by name; monitor
+and pipeline streaks sample 500 runs globally; metrics load all run history.
+Resolve identity/coverage and bounded aggregation before claiming reliable
+per-source health across a long-running customer deployment. Persona workflow
+and UI review remain required alongside these backend foundations.
+
 October 1 source status vocabulary (baseline `7bda19d`): DeepSeek reconciled
 source-read classification with the canonical ingestion lifecycle and the four
 declared legacy spellings. Canonical failures now affect connectivity and
