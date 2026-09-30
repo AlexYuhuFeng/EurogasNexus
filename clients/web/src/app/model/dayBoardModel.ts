@@ -21,6 +21,11 @@
  * - **an unread register is not an answered one.** "No decision is recorded" is a claim only the
  *   review register can support, so when the register was not read the section reports not-read and
  *   names no opportunity as unactioned.
+ * - **the compact strip states what the model established.** `dayBoardSummary` turns the three
+ *   sections into the always-visible states of the strip above the Decision workspace's tasks: the
+ *   window availability, the outstanding decision count (an unread register stays *unknown*, never
+ *   zero), the nearest deadline the strip is racing and the measured alert counts. It invents no
+ *   count and no deadline of its own; it only carries the counts and countdowns composed here.
  */
 
 import type {
@@ -33,6 +38,8 @@ import type {
   ReviewDecisionDTO,
 } from "@/api/client";
 import { readState, type ReadPosture } from "./readPosture.ts";
+
+type Translate = (key: string) => string;
 
 /** The opportunity status the desk acts on. Everything else is context, not work. */
 export const ACTIONABLE_OPPORTUNITY_STATUS = "ACTIONABLE_REVIEW";
@@ -481,5 +488,172 @@ export function dayBoardCountdown(deadlineUtc: string, nowUtc: string): DayBoard
     amount: Math.max(1, Math.floor(remaining / HOUR_MS)),
     labelKey: "day_board.countdown.in",
     unitKey: "day_board.countdown.unit_hours",
+  };
+}
+
+/**
+ * The whole measure as a surface states it: the word for the state and, when the state carries
+ * one, the amount in its unit. Both the detail row's countdown and the strip's nearest deadline
+ * are composed from this, so the two can never drift apart.
+ */
+export function dayBoardCountdownMeasure(countdown: DayBoardCountdown, t: Translate): string {
+  return countdown.unitKey === null
+    ? t(countdown.labelKey)
+    : `${t(countdown.labelKey)} ${countdown.amount} ${t(countdown.unitKey)}`;
+}
+
+/**
+ * How a state in the compact strip reads: neutral when the read measured something unremarkable,
+ * `muted` for an unread state, `warn` for a deadline inside the hour or a read the deployment
+ * could not serve, and `negative` for a deadline that has passed or a critical open alert.
+ */
+export type DayBoardSummaryTone = "neutral" | "muted" | "warn" | "negative";
+
+/** One always-visible state of the strip. The value is already translated; the tone is a class. */
+export interface DayBoardSummaryState {
+  readonly labelKey: string;
+  readonly value: string;
+  readonly tone: DayBoardSummaryTone;
+}
+
+/** The compact strip's three states: window availability, outstanding decisions, alerts. */
+export interface DayBoardSummary {
+  readonly windows: DayBoardSummaryState;
+  readonly decisions: DayBoardSummaryState;
+  readonly alerts: DayBoardSummaryState;
+}
+
+/** The tone a countdown state carries into the strip. */
+const COUNTDOWN_TONES: Readonly<Record<DayBoardCountdown["state"], DayBoardSummaryTone>> = {
+  overdue: "negative",
+  due: "warn",
+  minutes: "warn",
+  hours: "neutral",
+  unknown: "muted",
+};
+
+/**
+ * The nearest deadline the strip states: the countdown measure, qualified by the clock it was
+ * measured against - unless the deadline instant could not be read, in which case the strip says
+ * that rather than qualifying a measurement it does not have.
+ */
+function stripDeadline(
+  deadlineUtc: string,
+  measuredAtUtc: string,
+  t: Translate,
+): { readonly text: string; readonly tone: DayBoardSummaryTone } {
+  const countdown = dayBoardCountdown(deadlineUtc, measuredAtUtc);
+  const measure = dayBoardCountdownMeasure(countdown, t);
+  return {
+    text:
+      countdown.state === "unknown"
+        ? measure
+        : `${measure} (${t("day_board.summary.browser_clock")})`,
+    tone: COUNTDOWN_TONES[countdown.state],
+  };
+}
+
+/**
+ * The windows state. Availability first - not read, unavailable and a measured zero are three
+ * different statements - and, when the read carried windows, the earliest one's countdown, which
+ * is what keeps an overdue window out of the disclosure.
+ */
+function windowSummaryState(
+  clock: DayBoardClockSection,
+  measuredAtUtc: string,
+  t: Translate,
+): DayBoardSummaryState {
+  const labelKey = "day_board.summary.windows";
+  if (clock.posture === "not-read") {
+    return { labelKey, value: t("day_board.summary.windows_not_read"), tone: "muted" };
+  }
+  if (clock.posture === "runtime-db-not-configured") {
+    return { labelKey, value: t("day_board.summary.windows_unavailable"), tone: "warn" };
+  }
+  if (clock.rows.length === 0) {
+    return {
+      labelKey,
+      value:
+        clock.noWindowsReason === NOMINATION_WINDOWS_MISSING
+          ? t("day_board.summary.windows_none_declared")
+          : t("day_board.summary.windows_none_today"),
+      tone: "neutral",
+    };
+  }
+  const deadline = stripDeadline(clock.rows[0].closesAtUtc, measuredAtUtc, t);
+  return {
+    labelKey,
+    value: `${clock.rows.length} ${t("day_board.summary.windows_declared")} · ${deadline.text}`,
+    tone: deadline.tone,
+  };
+}
+
+/**
+ * The decisions state. An unread register is unknown, never zero; a register that cleared every
+ * actionable opportunity is its own measured state, and so is a read that published none
+ * (`actionable` and `decided` are different counts, so one sentence cannot cover both).
+ */
+function decisionSummaryState(
+  decisions: DayBoardDecisionSection,
+  measuredAtUtc: string,
+  t: Translate,
+): DayBoardSummaryState {
+  const labelKey = "day_board.summary.decisions";
+  if (decisions.posture === "not-read") {
+    return { labelKey, value: t("day_board.summary.decisions_unknown"), tone: "muted" };
+  }
+  if (decisions.rows.length > 0) {
+    const deadline = stripDeadline(decisions.rows[0].validUntilUtc, measuredAtUtc, t);
+    return {
+      labelKey,
+      value: `${decisions.rows.length} ${t("day_board.summary.decisions_awaiting")} · ${deadline.text}`,
+      tone: deadline.tone,
+    };
+  }
+  if (decisions.actionableCount > 0) {
+    return {
+      labelKey,
+      value: `${decisions.actionableCount} ${t("day_board.summary.decisions_decided")}`,
+      tone: "neutral",
+    };
+  }
+  return { labelKey, value: t("day_board.summary.decisions_none"), tone: "neutral" };
+}
+
+/** The alerts state: open count and critical severity, or the reason no count is shown. */
+function alertSummaryState(
+  alerts: DayBoardAlertSection,
+  t: Translate,
+): DayBoardSummaryState {
+  const labelKey = "day_board.summary.alerts";
+  if (alerts.posture === "runtime-db-not-configured") {
+    return { labelKey, value: t("day_board.summary.alerts_unavailable"), tone: "warn" };
+  }
+  if (
+    alerts.posture !== "measured" ||
+    alerts.openCount === null ||
+    alerts.criticalCount === null
+  ) {
+    return { labelKey, value: t("day_board.summary.alerts_unknown"), tone: "muted" };
+  }
+  return {
+    labelKey,
+    value: `${alerts.openCount} ${t("day_board.alerts.open")} · ${alerts.criticalCount} ${t(
+      "day_board.alerts.critical",
+    )}`,
+    tone: alerts.criticalCount > 0 ? "negative" : "neutral",
+  };
+}
+
+/**
+ * The compact strip's always-visible states, derived from the composed board. The strip hides
+ * nothing urgent: an overdue or imminent deadline, an unread register and a critical alert are all
+ * stated here, and the disclosure holds the evidence behind them.
+ */
+export function dayBoardSummary(model: DayBoardModel, t: Translate): DayBoardSummary {
+  return {
+    windows: windowSummaryState(model.clock, model.measuredAtUtc, t),
+    decisions: decisionSummaryState(model.decisions, model.measuredAtUtc, t),
+    alerts: alertSummaryState(model.alerts, t),
   };
 }

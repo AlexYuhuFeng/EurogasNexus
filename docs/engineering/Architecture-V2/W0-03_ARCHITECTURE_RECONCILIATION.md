@@ -542,6 +542,20 @@ deadline":
   occurrence is a calendar answer (the gas day is 23/24/25 hours long), so it is resolved beside the
   first one and the board states it once the window has closed, instead of leaving a client to add a
   day to a clock.
+- **The board is a compact strip, not a card** (October 1 HMI follow-up, baseline `cc7a36a`). A
+  narrow in-app first-view inspection showed the board consuming almost all of the Decision workspace
+  after navigation, pushing the scenario controls below the fold, and a deployment with no declared
+  window, no actionable opportunity and three warning alerts read "Every actionable opportunity
+  already carries a recorded decision". The default is now one unframed status row - window
+  availability (a measured zero, not-read and unavailable stay three different statements), the
+  outstanding decision count (unknown when the review register was not read, never `0`), the nearest
+  deadline with the same countdown descriptor the rows render, and measured open/critical alert
+  counts - and the evidence (row actions, evidence references, UTC instants, time-basis provenance
+  and the alert-centre pointer) stays behind a native `details`/`summary` disclosure. Urgent and
+  overdue deadlines and critical alerts are stated in the summary itself. Zero outstanding work is
+  now two different sentences: a read that published no actionable opportunity says so, and only a
+  register that cleared measured work says every actionable opportunity carries a decision. No new
+  read, path, permission or model semantics: the composition and countdown rules above are unchanged.
 - **The finding this exposed is D9 below**: the engine's field documentation claimed a *local*
   gas-day clock while the matcher compares UTC clock times.
 

@@ -29,6 +29,7 @@ import {
   dayBoardCountdown,
   dayBoardDecisions,
   dayBoardModel,
+  dayBoardSummary,
 } from "../src/app/model/dayBoardModel.ts";
 
 function readWebSource(relativePath: string): string {
@@ -37,6 +38,11 @@ function readWebSource(relativePath: string): string {
 
 const en = JSON.parse(readWebSource("i18n/en.json")) as Record<string, string>;
 const zh = JSON.parse(readWebSource("i18n/zh.json")) as Record<string, string>;
+
+/** The panel's translator, backed by the real locale values so the strip's wording is checked. */
+function translator(locale: Record<string, string>): (key: string) => string {
+  return (key) => locale[key] ?? `#${key}`;
+}
 
 const GAS_DAY = "2026-05-29";
 
@@ -523,6 +529,198 @@ test("the composed board keeps the three sections apart on one as-of", () => {
   assert.equal(dayBoardCountdown(model.clock.rows[0].closesAtUtc, model.measuredAtUtc).state, "overdue");
 });
 
+test("the strip states a measured zero without claiming a decision was taken", () => {
+  const model = dayBoardModel({
+    windowsRead: windowsRead({ window_masters_declared: 0, windows: [] }),
+    windowsMeta: measuredMeta({ warnings: [NOMINATION_WINDOWS_MISSING] }),
+    opportunities: [],
+    reviewDecisions: [],
+    reviewRegisterRead: true,
+    monitoringSummary: { ...SUMMARY, open_count: 0, critical_count: 0, warning_count: 0 },
+    monitoringMeta: measuredMeta(),
+    monitoringAlerts: [],
+    now: "2026-05-29T09:00:00+00:00",
+  });
+  const summary = dayBoardSummary(model, translator(en));
+
+  // A configured deployment that declares no master is a measured zero, and the strip says which
+  // measurement it is rather than leaving the count unstated.
+  assert.equal(summary.windows.value, en["day_board.summary.windows_none_declared"]);
+  assert.equal(summary.windows.tone, "neutral");
+  // Nothing was actionable, so nothing was decided: the strip does not borrow the sentence for a
+  // register that cleared work it actually held.
+  assert.equal(summary.decisions.value, en["day_board.summary.decisions_none"]);
+  assert.notEqual(summary.decisions.value, en["day_board.summary.decisions_decided"]);
+  assert.equal(summary.decisions.value.includes("decid"), false);
+  // Measured alert zeroes are stated as zeroes, and zero critical is not a critical tone.
+  assert.equal(
+    summary.alerts.value,
+    `0 ${en["day_board.alerts.open"]} · 0 ${en["day_board.alerts.critical"]}`,
+  );
+  assert.equal(summary.alerts.tone, "neutral");
+
+  const zhSummary = dayBoardSummary(model, translator(zh));
+  assert.equal(zhSummary.decisions.value, zh["day_board.summary.decisions_none"]);
+  assert.notEqual(zhSummary.decisions.value, zh["day_board.summary.decisions_decided"]);
+});
+
+test("a register that cleared every actionable opportunity says exactly that", () => {
+  const model = dayBoardModel({
+    windowsRead: windowsRead(),
+    windowsMeta: measuredMeta(),
+    opportunities: [opportunity({ opportunity_id: "opp-decided" })],
+    reviewDecisions: [decision("opp-decided")],
+    reviewRegisterRead: true,
+    monitoringSummary: SUMMARY,
+    monitoringMeta: measuredMeta(),
+    monitoringAlerts: [],
+    now: "2026-05-29T09:00:00+00:00",
+  });
+  const summary = dayBoardSummary(model, translator(en));
+
+  assert.equal(summary.decisions.value, `1 ${en["day_board.summary.decisions_decided"]}`);
+  assert.notEqual(summary.decisions.value, en["day_board.summary.decisions_none"]);
+});
+
+test("the strip keeps the nearest deadline, its overdue tone and critical alerts visible undisclosed", () => {
+  const model = dayBoardModel({
+    windowsRead: windowsRead({
+      windows: [windowRow({ closes_at_utc: "2026-05-29T08:30:00+00:00" })],
+    }),
+    windowsMeta: measuredMeta(),
+    opportunities: [opportunity({ valid_until_utc: "2026-05-29T09:45:00+00:00" })],
+    reviewDecisions: [],
+    reviewRegisterRead: true,
+    monitoringSummary: SUMMARY,
+    monitoringMeta: measuredMeta(),
+    monitoringAlerts: [alert()],
+    now: "2026-05-29T09:00:00+00:00",
+  });
+  const summary = dayBoardSummary(model, translator(en));
+
+  // The earliest window closed 30 minutes ago; the strip, not only the evidence, says so and
+  // carries the overdue tone. The measure is the same countdown descriptor the rows render.
+  assert.equal(
+    summary.windows.value,
+    `1 ${en["day_board.summary.windows_declared"]} · ${en["day_board.countdown.overdue"]} 30 ${en["day_board.countdown.unit_minutes"]} (${en["day_board.summary.browser_clock"]})`,
+  );
+  assert.equal(summary.windows.tone, "negative");
+
+  // One actionable opportunity is outstanding, valid for another 45 minutes.
+  assert.equal(
+    summary.decisions.value,
+    `1 ${en["day_board.summary.decisions_awaiting"]} · ${en["day_board.countdown.in"]} 45 ${en["day_board.countdown.unit_minutes"]} (${en["day_board.summary.browser_clock"]})`,
+  );
+  assert.equal(summary.decisions.tone, "warn");
+
+  // Open alerts and critical severity are stated, and a critical open alert is loud.
+  assert.equal(
+    summary.alerts.value,
+    `3 ${en["day_board.alerts.open"]} · 1 ${en["day_board.alerts.critical"]}`,
+  );
+  assert.equal(summary.alerts.tone, "negative");
+});
+
+test("an unread or unavailable read is unknown in the strip, never a zero", () => {
+  const model = dayBoardModel({
+    windowsRead: windowsRead({ window_masters_declared: 0, windows: [] }),
+    windowsMeta: measuredMeta({
+      source_references: ["runtime-db-not-configured"],
+      missing_inputs: ["RUNTIME_STORE_DATABASE_URL"],
+    }),
+    opportunities: [],
+    reviewDecisions: [],
+    reviewRegisterRead: false,
+    monitoringSummary: null,
+    monitoringMeta: null,
+    monitoringAlerts: [],
+    now: "2026-05-29T09:00:00+00:00",
+  });
+  const summary = dayBoardSummary(model, translator(zh));
+
+  assert.equal(summary.windows.value, zh["day_board.summary.windows_unavailable"]);
+  assert.equal(summary.windows.tone, "warn");
+  // The register was not read, so the strip says unknown - it never renders a decision count of
+  // zero for a read that never happened.
+  assert.equal(summary.decisions.value, zh["day_board.summary.decisions_unknown"]);
+  assert.equal(summary.decisions.value.includes("0"), false);
+  assert.equal(summary.decisions.tone, "muted");
+  assert.equal(summary.alerts.value, zh["day_board.summary.alerts_unknown"]);
+  assert.equal(summary.alerts.tone, "muted");
+
+  const unread = dayBoardSummary(
+    dayBoardModel({
+      windowsRead: null,
+      windowsMeta: null,
+      opportunities: [],
+      reviewDecisions: [],
+      reviewRegisterRead: false,
+      monitoringSummary: null,
+      monitoringMeta: null,
+      monitoringAlerts: [],
+      now: "2026-05-29T09:00:00+00:00",
+    }),
+    translator(en),
+  );
+  assert.equal(unread.windows.value, en["day_board.summary.windows_not_read"]);
+  assert.equal(unread.windows.tone, "muted");
+});
+
+test("the compact summary is a native disclosure whose states carry no nested control", () => {
+  const panel = readWebSource("components/decision/DayBoardPanel.tsx");
+
+  assert.match(panel, /<details className="day-board-disclosure">/);
+  const summary = /<summary className="day-board-summary">([\s\S]*?)<\/summary>/.exec(panel)?.[1] ?? "";
+  assert.ok(summary.length > 0, "the strip's summary is present");
+  // The compact strip is the default: the evidence starts closed, not forced open.
+  assert.equal(/<details[^>]*\sopen/.test(panel), false);
+  // The summary is the disclosure control. Anything interactive inside it would swallow the
+  // keyboard toggle, so the states are plain spans.
+  for (const banned of ["<button", "<a ", "<input", "<select", "onClick", "<details"]) {
+    assert.equal(summary.includes(banned), false, banned);
+  }
+  assert.match(summary, /<SummaryState state=\{summary\.windows\} t=\{t\} \/>/);
+  assert.match(summary, /<SummaryState state=\{summary\.decisions\} t=\{t\} \/>/);
+  assert.match(summary, /<SummaryState state=\{summary\.alerts\} t=\{t\} \/>/);
+  // The promotional eyebrow that used to head the panel is gone from the compact default.
+  assert.equal(panel.includes("day_board.eyebrow"), false);
+});
+
+test("the disclosure still carries the row actions, evidence, provenance and alert navigation", () => {
+  const panel = readWebSource("components/decision/DayBoardPanel.tsx");
+  const detailIndex = panel.indexOf('<div className="day-board-detail">');
+  assert.ok(detailIndex > 0, "the evidence disclosure exists");
+  const detail = panel.slice(detailIndex);
+
+  // Row actions hand the trader to the same tasks; the board still navigates and records nothing.
+  assert.match(detail, /onClick=\{\(\) => onOpenTask\("nomination"\)\}/);
+  assert.match(detail, /onClick=\{\(\) => onOpenTask\("review"\)\}/);
+  // Evidence, the declared instants and the UTC/time-basis provenance stay with the rows.
+  assert.match(detail, /t\("day_board\.evidence"\)/);
+  assert.match(detail, /formatUtcTimestamp\(row\.closesAtUtc\)/);
+  assert.match(detail, /formatUtcTimestamp\(row\.validUntilUtc\)/);
+  assert.match(detail, /t\("day_board\.basis"\)/);
+  assert.match(detail, /t\("day_board\.clock\.time_basis"\)/);
+  assert.match(detail, /t\("day_board\.clock\.time_basis_help"\)/);
+  // The alert centre keeps its list: the disclosure holds the measured counts and the pointer.
+  assert.equal(detail.includes("alert_id"), false);
+  assert.match(detail, /onClick=\{onOpenAlerts\}/);
+});
+
+test("the strip is unframed, wraps, and keeps a visible focus ring for the summary", () => {
+  const css = readFileSync(new URL("../src/styles/app.css", import.meta.url), "utf8");
+  const strip = /\.day-board \{([\s\S]*?)\}/.exec(css)?.[1] ?? "";
+  assert.ok(strip.length > 0, "the strip has a rule");
+  for (const framed of ["border", "box-shadow", "background"]) {
+    assert.equal(strip.includes(framed), false, `the default strip is unframed: ${framed}`);
+  }
+  // The summary is keyboard operable, so it has to show focus.
+  assert.match(css, /\.day-board-summary:focus-visible \{\s*outline: 2px solid var\(--eg-link\);/);
+  // The states and their values wrap rather than overflow a narrow viewport.
+  assert.match(css, /\.day-board-states \{[\s\S]*?flex-wrap: wrap;/);
+  assert.match(css, /\.day-board-state strong \{[\s\S]*?overflow-wrap: anywhere;/);
+});
+
 test("the three deployment states read differently, and the countdown names its clock", () => {
   const panel = readWebSource("components/decision/DayBoardPanel.tsx");
 
@@ -663,11 +861,14 @@ test("every board string is declared in both locales, and none carries a questio
   const panel = readWebSource("components/decision/DayBoardPanel.tsx");
   const model = readWebSource("app/model/dayBoardModel.ts");
 
+  // Every `day_board.*` key either surface names - in a `t(...)` call, a label key or a countdown
+  // descriptor - including the strip's own vocabulary.
   const keys = new Set<string>();
-  for (const match of panel.matchAll(/t\("([^"]+)"\)/g)) keys.add(match[1]);
-  for (const match of model.matchAll(/labelKey: "([^"]+)"/g)) keys.add(match[1]);
-  // The keys the panel composes from the model's descriptor are read through the same translator.
-  for (const match of model.matchAll(/"(day_board\.countdown\.[a-z_]+)"/g)) keys.add(match[1]);
+  for (const source of [panel, model]) {
+    for (const match of source.matchAll(/\b(day_board\.[a-z_]+(?:\.[a-z_]+)*)\b/g)) {
+      keys.add(match[1]);
+    }
+  }
   assert.ok(keys.size >= 30, `expected the board's vocabulary, saw ${keys.size}`);
 
   for (const key of keys) {

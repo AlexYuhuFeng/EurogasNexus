@@ -9136,38 +9136,121 @@ button.glossary-related-chip {
 }
 
 /* The day board: the desk's clock, inside the Decision workspace.
-   Rows are buttons, so the strip is keyboard reachable, and the countdown is styled apart from the
-   declared instant it is measured against. */
+   The default is a compact, unframed strip - the states the desk checks at a glance sit in a
+   native details/summary control, and the evidence behind them is disclosed on request. The
+   summary is keyboard operable, so it carries a visible focus ring; rows inside the disclosure
+   stay buttons, and the countdown is styled apart from the declared instant it is measured
+   against. */
 .day-board {
+  display: block;
+  min-width: 0;
+  color: var(--eg-ink);
+}
+
+.day-board-disclosure {
+  min-width: 0;
+}
+
+.day-board-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 14px;
+  min-width: 0;
+  border-radius: var(--eg-radius-sm);
+  cursor: pointer;
+  list-style: none;
+  padding: 5px 8px;
+}
+
+.day-board-summary::-webkit-details-marker,
+.day-board-summary::marker {
+  content: "";
+  display: none;
+}
+
+.day-board-summary:hover {
+  background: var(--eg-canvas-soft-2);
+}
+
+.day-board-summary:focus-visible {
+  outline: 2px solid var(--eg-link);
+  outline-offset: 1px;
+}
+
+.day-board-summary-title {
+  font-size: var(--text-control);
+}
+
+.day-board-states {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 14px;
+  min-width: 0;
+}
+
+.day-board-state {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 0;
+}
+
+.day-board-state small {
+  color: var(--eg-muted);
+  font-size: var(--text-meta);
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.day-board-state strong {
+  font-size: var(--text-meta);
+  overflow-wrap: anywhere;
+}
+
+.day-board-state.is-muted strong {
+  color: var(--eg-muted);
+}
+
+.day-board-state.is-warn strong {
+  color: var(--eg-warn);
+}
+
+.day-board-state.is-negative strong {
+  color: var(--eg-negative);
+}
+
+.day-board-summary-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--eg-muted);
+  font-size: var(--text-meta);
+}
+
+.day-board-chevron {
+  width: 0;
+  height: 0;
+  border-top: 3.5px solid transparent;
+  border-bottom: 3.5px solid transparent;
+  border-left: 4px solid currentColor;
+  transition: transform var(--motion-fast) ease;
+}
+
+.day-board-disclosure[open] .day-board-chevron {
+  transform: rotate(90deg);
+}
+
+.day-board-detail {
   display: grid;
   gap: 12px;
   min-width: 0;
-  border: 1px solid var(--eg-hairline);
-  border-radius: var(--eg-radius-md);
-  background: var(--eg-canvas);
-  box-shadow: var(--eg-shadow-2);
-  color: var(--eg-ink);
-  padding: 16px;
+  padding: 8px 8px 2px;
 }
 
-.day-board-heading h2 {
-  margin: 2px 0 0;
-  font-size: 17px;
-}
-
-.day-board-basis {
-  display: grid;
-  gap: 2px;
-  max-width: 340px;
-  text-align: right;
-  color: var(--eg-muted);
-  /* `.panel-title-row > span` styles every trailing span as an uppercase monospace chip; this one
-     is a sentence about which clock is which, so it resets that and keeps it only for the instant. */
-  font-family: inherit;
-  font-size: var(--text-meta);
-  text-transform: none;
-}
-
+/* The provenance line that stays with the evidence: which clock the deadlines belong to, which
+   clock the countdowns were measured against, and when the read happened. */
 .day-board-basis strong {
   color: var(--eg-ink);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;

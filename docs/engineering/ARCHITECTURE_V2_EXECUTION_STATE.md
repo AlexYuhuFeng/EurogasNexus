@@ -72,6 +72,23 @@ with this broader product goal, not replaced by component-level success.
 
 ## Milestone History
 
+October 1 professional workflow/HMI follow-through (baseline `cc7a36a`):
+DeepSeek compacted the day board into an unframed native disclosure with urgent
+status retained in its summary. Parent inspected the authenticated application,
+verified EN/ZH and keyboard toggle, and corrected missing-deadline wording.
+739 web tests passed, 3 skipped; production build passed. Browser viewport
+override was ineffective; observed 738x461 only, not full responsive acceptance.
+Expanded business acceptance is now recorded in
+[`TRADING_BUSINESS_ACCEPTANCE.md`](../product/TRADING_BUSINESS_ACCEPTANCE.md):
+tender economics, daily awarded-supply optimisation, LNG/regas, contract/rights
+lifecycle, financing/clearing, exchange arbitrage, shadow strategies and alerts.
+These are required journeys, not implemented coverage claims or extra pages.
+Next: inventory actual end-to-end support against this matrix and close the
+largest commercial gaps using shared ontology-backed capabilities. Cash schedule
+integration remains open. No execution or external contract mutation is added.
+Security-fix CI `36757155495` for `cc7a36a` completed successfully, including the
+dependency license/CVE audit; this closes the preceding CI regression only.
+
 October 1 dependency security correction (baseline `5223256`): DeepSeek
 updated only the build-lock urllib3 pin from 2.7.0 to 2.8.0 for the three
 vulnerabilities reported by CI (CVE-2026-97687/97688/97689). Parent independently

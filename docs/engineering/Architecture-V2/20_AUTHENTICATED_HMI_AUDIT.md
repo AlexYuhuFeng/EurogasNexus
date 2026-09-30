@@ -169,3 +169,50 @@ This is CI evidence, not a new local live-browser inspection or a passed UAT.
 Evidence is retained locally under `output/ci-35888959943`, excluded from Git.
 These failures are the next acceptance-repair priority. No exemptions were added,
 no workflow was disabled, and commercial disposition remains NOT APPROVED.
+
+## October 1 day-board density repair
+
+Baseline `cc7a36a`, a parent inspection in the narrow in-app browser. Finding: after
+navigation the Decision workspace's day board consumed almost all of the first
+view and pushed the scenario controls below it; the live deployment had no
+declared window, zero actionable and zero decided opportunities and three
+warning alerts, yet the board said every actionable opportunity already
+carried a recorded decision.
+
+DeepSeek's bounded repair makes the board a compact, unframed status strip
+inside the existing workspace (no new page, read, library or permission). The
+always-visible summary states truthful window availability, the outstanding
+decision count - `unknown` when the review register was not read, never `0` -
+the nearest deadline with the existing countdown descriptor, and measured open
+and critical alert counts. Overdue or imminent deadlines and critical open
+alerts are stated in the summary itself, not hidden behind the disclosure. The
+evidence the previous card carried - row actions into the nomination and review
+tasks, evidence references, UTC instants, declared time basis, the alert-centre
+pointer - remains available in a native `details`/`summary` disclosure, which
+the summary carries with no nested interactive element and with a visible focus
+ring. Zero outstanding work is now two distinct states in EN and ZH: a read
+that published no actionable opportunity no longer claims decisions were
+recorded, and only a register that cleared measured work says every actionable
+opportunity carries a decision.
+
+Verification: 27 focused day-board tests passed, including measured zero,
+positive, unavailable, overdue and critical cases, details semantics, the
+summary's non-interactive states and locale parity; the full local web suite
+ran 742 tests with 734 passing. The 4 failing `capturedBoardComparator` CLI
+tests and the Vite production build could not run in the worker sandbox, which
+denies child-process spawn (`EPERM`); both are environment limitations and must
+be run by the parent. TypeScript `--noEmit` passed. No live browser retest was
+performed by the worker: first-viewport density, disclosure behaviour,
+keyboard/focus and bilingual wrapping remain parent browser-QA items. This note
+is a repair record and does not approve customer production.
+
+Parent verification: full web suite 739 passed, 3 skipped; production build
+passed. Authenticated EN/ZH browser inspection confirmed the collapsed status
+strip, route options directly below it, and Enter/Space expansion/collapse.
+The observed viewport was 738x461; document width was 730 (no horizontal
+overflow in that state). The browser did not apply the requested 1440x900
+override, so desktop/mobile breakpoint acceptance is not claimed. Parent also
+corrected missing-window wording: deadlines cannot be assessed, rather than
+claiming no deadline exists. Screenshots are local evidence under
+`output/runtime/scenario-compact-oct1.jpg` and
+`output/runtime/scenario-compact-zh-oct1.jpg`, not customer data acceptance.
