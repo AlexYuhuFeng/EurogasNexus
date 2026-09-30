@@ -1386,6 +1386,17 @@ async function interactionChecks(page, failures) {
   try {
     const board = page.locator("section.day-board");
     await board.waitFor({ state: "visible", timeout: 10_000 });
+    const disclosure = board.locator("details.day-board-disclosure");
+    const summary = disclosure.locator("summary.day-board-summary");
+    await summary.waitFor({ state: "visible", timeout: 10_000 });
+    if (await disclosure.getAttribute("open") !== null) {
+      recordFailure(failures, "interaction/day-board", "evidence should start collapsed");
+    }
+    // Exercise the actual keyboard journey before checking the unchanged deadline evidence.
+    await summary.press("Enter");
+    if (await disclosure.getAttribute("open") === null) {
+      recordFailure(failures, "interaction/day-board", "Enter did not disclose the evidence");
+    }
     const deadlines = board.locator(".day-board-clock .day-board-deadline strong");
     await deadlines
       .first()
