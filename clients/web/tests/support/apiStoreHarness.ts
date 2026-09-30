@@ -13,6 +13,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createServer, type ViteDevServer } from "vite";
 
+import type { DecisionActionState } from "../../src/app/model/decisionActionModel.ts";
 import { apiRegistry, type MockApiCall, type MockApiHandler } from "./mockApiClient.ts";
 
 const WEB_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -66,6 +67,8 @@ export interface ApiStoreState {
   tradingContext: TradingContextValue;
   /** In-flight activity of any kind, including on-demand actions. */
   loading: boolean;
+  /** The store's shared, rendered-raw error string; the map's alert reads it. */
+  error: string | null;
   /** The workspace batch (or its retry pass) is in flight. */
   workspaceLoading: boolean;
   /** How many workspace batches have committed for this session. */
@@ -83,6 +86,11 @@ export interface ApiStoreState {
   screenOrders: unknown[];
   marketQuotes: unknown[];
   reviewDecisions: unknown[];
+  resourcePoolResult: unknown;
+  routeRecommendation: unknown;
+  /** The two governed computes' own lifecycle lanes, as the store leaves them. */
+  poolOptimizeAction: DecisionActionState;
+  routeCompareAction: DecisionActionState;
   endpointMeta: Record<string, unknown>;
   endpointErrors: Record<string, string>;
   endpointErrorCodes: Record<string, string>;
@@ -96,7 +104,8 @@ export interface ApiStoreState {
   refreshMarketData: () => Promise<void>;
   fetchReviewContext: () => Promise<void>;
   retryFailedWorkspaceEndpoints: () => Promise<void>;
-  optimizeResourcePool: (request: Record<string, unknown>) => Promise<void>;
+  optimizeResourcePool: (request: Record<string, unknown>, contextKey: string) => Promise<void>;
+  recommendRouteAllocation: (request: Record<string, unknown>, contextKey: string) => Promise<void>;
   publishTradingContext: (context: TradingContextValue) => void;
   refetchTradingContextProjections: () => Promise<void>;
 }

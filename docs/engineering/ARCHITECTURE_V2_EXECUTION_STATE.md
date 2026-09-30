@@ -72,6 +72,31 @@ with this broader product goal, not replaced by component-level success.
 
 ## Milestone History
 
+October 1 decision-run integrity and business coverage (baseline `7ce64b0`,
+with UAT disclosure correction `f65423b`): DeepSeek inventoried the eight
+business journeys and implemented separate compare/optimise action states,
+capability-aware presentation, duplicate prevention and successful-result
+context provenance. Parent tests: 754 web tests passed, 3 skipped; production
+build passed; 55 focused API/security/contract/link tests passed. Parent browser
+verified visible origin refusal with correlation ID, successful comparison
+after correcting the local launcher's explicit loopback origin, and stale-result
+notice plus withheld scenario economics after changing hub context.
+Important correction: the local ADMIN-labelled account has multiple persisted
+roles and `optimization.run`; its 403 was `origin_not_allowed`, not role denial.
+Admin-only denial remains fixture-test evidence, not a populated persona test.
+No backend permission was weakened; local API remains loopback-only with CSRF
+enabled. PostgreSQL revision 0036 was verified without migration.
+
+CI `36760762221` for `f65423b` passed, including the updated keyboard-disclosure
+browser journey. New action changes still require same-SHA CI. Coverage inventory
+is in `docs/product/TRADING_BUSINESS_ACCEPTANCE.md`; parent did not approve its
+proposed inferred payment dates/rate conventions. Next priorities: monitoring
+acknowledgement write permission and actor attribution; shadow acknowledgement
+must not trust body.actor; then explicit contract/payment semantics and retained
+input lineage for integrated dated cash. Strategy run provenance still stamps
+at request start and needs the same lifecycle review. Broader commercial data,
+persona, responsive, licensing and deployment acceptance remain open.
+
 October 1 professional workflow/HMI follow-through (baseline `cc7a36a`):
 DeepSeek compacted the day board into an unframed native disclosure with urgent
 status retained in its summary. Parent inspected the authenticated application,

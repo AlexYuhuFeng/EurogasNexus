@@ -8,6 +8,7 @@ import { warningLabel } from "@/app/warningLabel";
 import { CommercialWarningList } from "@/components/CommercialWarningList";
 import { DecisionCasePanel } from "@/components/DecisionCasePanel";
 import { DayBoardPanel } from "@/components/decision/DayBoardPanel";
+import { DecisionActionStatus } from "@/components/decision/DecisionActionStatus";
 import { NominationWindowPanel } from "@/components/decision/NominationWindowPanel";
 import { StorageDispatchPanel } from "@/components/decision/StorageDispatchPanel";
 import {
@@ -233,13 +234,12 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
   // primary slot instead of sitting inside the panel it reports on. The panels keep the
   // preflight verdicts and the results the runs produced; the actions that start a run are not
   // panel furniture.
-  const canCompareRoutes =
-    portfolio.hasPortfolioResources && portfolio.saleOptions.length > 0;
   const primaryAction =
     task === "optimize" ? (
       <button
         type="button"
         disabled={!portfolio.canRunPoolOptimizer}
+        title={portfolio.poolOptimizeGate.blockerKey ? t(portfolio.poolOptimizeGate.blockerKey) : undefined}
         onClick={portfolio.optimizeResourcePoolForCurrentContext}
       >
         {t("home.optimize_pool")}
@@ -247,8 +247,8 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
     ) : task === "scenario" ? (
       <button
         type="button"
-        disabled={!canCompareRoutes}
-        title={canCompareRoutes ? t("economics.compare_hint") : t("economics.compare_blocked")}
+        disabled={!portfolio.canCompareRoutes}
+        title={t(portfolio.routeCompareGate.blockerKey ?? "economics.compare_hint")}
         onClick={portfolio.recommendRouteAllocationForCurrentContext}
       >
         {t("economics.compare")}
@@ -299,6 +299,16 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
         />
         {task === "review" && <ReviewContextStrip projection={api.reviewContext} t={t} />}
         {task === "scenario" && (
+          <DecisionActionStatus
+            t={t}
+            labelKey="economics.compare"
+            state={portfolio.routeCompareAction}
+            blockerKey={portfolio.routeCompareGate.blockerKey}
+            hasResult={api.routeRecommendation !== null}
+            resultCurrent={!portfolio.routeRecommendationContextMismatch}
+          />
+        )}
+        {task === "scenario" && (
           <ScenarioWorkspace
             routeCandidates={api.routeCandidates}
             routeEconomics={portfolio.scenarioRouteEconomics}
@@ -308,10 +318,20 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
             resourcePoolResult={api.resourcePoolResult}
             saleOptionById={portfolio.saleOptionById}
             carriedRouteId={selection.routeId}
-            contextMismatch={portfolio.optimizerContextMismatch}
+            contextMismatch={portfolio.resultsContextMismatch}
             upstreamContracts={api.upstreamContracts}
             t={t}
             updateContractNumber={contractEditor.updateContractNumber}
+          />
+        )}
+        {task === "optimize" && (
+          <DecisionActionStatus
+            t={t}
+            labelKey="home.optimize_pool"
+            state={portfolio.poolOptimizeAction}
+            blockerKey={portfolio.poolOptimizeGate.blockerKey}
+            hasResult={api.resourcePoolResult !== null}
+            resultCurrent={!portfolio.optimizerContextMismatch}
           />
         )}
         {task === "optimize" && <OptimizeWorkspace controller={controller} />}
@@ -327,6 +347,7 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
             saleOptionById={portfolio.saleOptionById}
             reviewWarnings={portfolio.reviewWarnings}
             resourcePoolResult={api.resourcePoolResult}
+            poolResultContextMismatch={portfolio.optimizerContextMismatch}
             analysisResult={api.analysisResult}
             language={i18n.language}
             reviewDecisions={api.reviewDecisions}

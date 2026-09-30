@@ -24,6 +24,12 @@ import type { ContractDraft } from "@/app/index";
 import { selectScenarioRouteEconomics } from "@/app/model/scenarioRouteEconomics";
 import { buildCommercialDiagnostics } from "@/app/model/commercialWarnings";
 import { runtimeStoreStatus } from "@/app/model/dataPlaneStatus";
+import { compositionFromProfile } from "@/app/experience/experienceProfile";
+import {
+  decisionActionAvailable,
+  decisionComputeGate,
+  decisionResultContextMismatch,
+} from "@/app/model/decisionActionModel";
 import type { ApiState } from "@/stores/api";
 
 interface PortfolioDecisionModelParams {
@@ -48,7 +54,6 @@ export function usePortfolioDecisionModel({
   t,
 }: PortfolioDecisionModelParams) {
   const lastAutoOptimizerSignatureRef = useRef<string | null>(null);
-  const [optimizerResultContextKey, setOptimizerResultContextKey] = useState<string | null>(null);
   const [strategyResultContextKey, setStrategyResultContextKey] = useState<string | null>(null);
   const currentContextKey = useMemo(
     () => traderContextKey({ gasDay, deliveryProduct, hubId }),
@@ -145,24 +150,6 @@ export function usePortfolioDecisionModel({
     null;
   const purchasePrice = firstPortfolioResource?.contract_cost_gbp_mwh ?? null;
   const routeCharge = firstAllocationOption?.route_cost_gbp_mwh ?? selectedAllocation?.route_cost ?? null;
-  const scenarioRouteEconomics = useMemo(
-    () => selectScenarioRouteEconomics({
-      carriedRouteId: selectedRouteId,
-      selectedResourceId,
-      routeRecommendation: api.routeRecommendation,
-      resourcePoolResult: api.resourcePoolResult,
-      portfolioResources,
-      saleOptionById,
-    }),
-    [
-      api.resourcePoolResult,
-      api.routeRecommendation,
-      portfolioResources,
-      saleOptionById,
-      selectedResourceId,
-      selectedRouteId,
-    ],
-  );
   const firstStrategyTarget = api.strategyResult?.allocation_targets[0];
   const activeWarning = [
     ...(api.strategyResult?.warnings ?? []),
@@ -200,19 +187,66 @@ export function usePortfolioDecisionModel({
   const runtimeStore = runtimeStoreStatus(api.runtimeDb);
   const runtimeDbReady = runtimeStore === "ready";
   const optionBlockers = api.resourcePoolOptions?.blockers ?? [];
-  const canRunPoolOptimizer =
-    runtimeDbReady &&
-    hasPortfolioResources &&
-    saleOptions.length > 0 &&
-    optionBlockers.length === 0;
-  const optimizerResultContextMatches = resultContextMatches(
-    optimizerResultContextKey,
-    { gasDay, deliveryProduct, hubId },
+  // Two gates, one rule (`app/model/decisionActionModel.ts`): the identity's *declared*
+  // capability plus the action's actual inputs, and no run of the same action in flight. The
+  // profile is the composition `/api/me` returned for this identity; an absent profile fails
+  // closed rather than being read as permission. Nothing here is an authority check - the
+  // backend re-authorises each request - but it is what keeps a platform administrator from
+  // being offered (or automatically issuing) a commercial run the backend will refuse.
+  const composition = useMemo(
+    () => compositionFromProfile(api.currentUser?.experience),
+    [api.currentUser],
   );
-  const optimizerContextMismatch =
-    api.resourcePoolResult !== null && !optimizerResultContextMatches;
-  const routeContextMismatch =
-    api.routeRecommendation !== null && !optimizerResultContextMatches;
+  const poolInputReady =
+    runtimeDbReady && hasPortfolioResources && saleOptions.length > 0 && optionBlockers.length === 0;
+  const poolOptimizeGate = decisionComputeGate("optimize_pool", {
+    profileAvailable: composition.available,
+    capabilities: composition.effectiveCapabilities,
+    inputReady: poolInputReady,
+  });
+  const routeCompareGate = decisionComputeGate("compare_routes", {
+    profileAvailable: composition.available,
+    capabilities: composition.effectiveCapabilities,
+    inputReady: hasPortfolioResources && saleOptions.length > 0,
+  });
+  const canRunPoolOptimizer = decisionActionAvailable(poolOptimizeGate, api.poolOptimizeAction);
+  const canCompareRoutes = decisionActionAvailable(routeCompareGate, api.routeCompareAction);
+  // Each result carries its own provenance lane, so one action's run cannot relabel the
+  // other's payload and a failed retry cannot erase a context change.
+  const optimizerContextMismatch = decisionResultContextMismatch(
+    api.poolOptimizeAction,
+    api.resourcePoolResult !== null,
+    currentContextKey,
+  );
+  const routeRecommendationContextMismatch = decisionResultContextMismatch(
+    api.routeCompareAction,
+    api.routeRecommendation !== null,
+    currentContextKey,
+  );
+  // The Scenario panel's economics may only be derived from results that are current for the
+  // context on screen: a payload provenanced to another context is withheld from the selector
+  // (it reads "unavailable" and the panel states the mismatch) rather than presented as the
+  // economics of the context the trader is standing in.
+  const scenarioRouteEconomics = useMemo(
+    () => selectScenarioRouteEconomics({
+      carriedRouteId: selectedRouteId,
+      selectedResourceId,
+      routeRecommendation: routeRecommendationContextMismatch ? null : api.routeRecommendation,
+      resourcePoolResult: optimizerContextMismatch ? null : api.resourcePoolResult,
+      portfolioResources,
+      saleOptionById,
+    }),
+    [
+      api.resourcePoolResult,
+      api.routeRecommendation,
+      optimizerContextMismatch,
+      portfolioResources,
+      routeRecommendationContextMismatch,
+      saleOptionById,
+      selectedResourceId,
+      selectedRouteId,
+    ],
+  );
   const strategyContextMismatch =
     api.strategyResult !== null &&
     !resultContextMatches(strategyResultContextKey, { gasDay, deliveryProduct, hubId });
@@ -253,16 +287,20 @@ export function usePortfolioDecisionModel({
   );
 
   useEffect(() => {
+    // The automatic run is the same governed act as the header's: it happens only when the
+    // identity's declared capability and the pool's inputs allow it. An identity the backend
+    // refuses for commercial data is never sent a request on the user's behalf, so it never
+    // logs a 403 for an action nobody chose.
     if (!canRunPoolOptimizer || api.loading) return;
     if (lastAutoOptimizerSignatureRef.current === autoOptimizerSignature) return;
     lastAutoOptimizerSignatureRef.current = autoOptimizerSignature;
-    setOptimizerResultContextKey(currentContextKey);
-    void api.optimizeResourcePool(resourcePoolOptimizationRequest);
+    void api.optimizeResourcePool(resourcePoolOptimizationRequest, currentContextKey);
   }, [
     api.loading,
     api.optimizeResourcePool,
     autoOptimizerSignature,
     canRunPoolOptimizer,
+    currentContextKey,
     resourcePoolOptimizationRequest,
   ]);
 
@@ -332,13 +370,15 @@ export function usePortfolioDecisionModel({
   );
 
   function optimizeResourcePoolForCurrentContext() {
-    setOptimizerResultContextKey(currentContextKey);
-    void api.optimizeResourcePool(resourcePoolOptimizationRequest);
+    // Refused here for the same reason the control is disabled: an unavailable action must not
+    // issue a request, and a second click while one is in flight is the same question.
+    if (!canRunPoolOptimizer) return;
+    void api.optimizeResourcePool(resourcePoolOptimizationRequest, currentContextKey);
   }
 
   function recommendRouteAllocationForCurrentContext() {
-    setOptimizerResultContextKey(currentContextKey);
-    void api.recommendRouteAllocation(routeRecommendationRequest);
+    if (!canCompareRoutes) return;
+    void api.recommendRouteAllocation(routeRecommendationRequest, currentContextKey);
   }
 
   function evaluateStrategyForCurrentContext(overrides?: {
@@ -377,7 +417,9 @@ export function usePortfolioDecisionModel({
     selectedAllocation,
     poolAllocations,
     optimizerContextMismatch,
-    routeContextMismatch,
+    routeRecommendationContextMismatch,
+    /** Either result displayed by the Scenario panel is stale for the current context. */
+    resultsContextMismatch: optimizerContextMismatch || routeRecommendationContextMismatch,
     strategyContextMismatch,
     optimizeResourcePoolForCurrentContext,
     recommendRouteAllocationForCurrentContext,
@@ -395,6 +437,12 @@ export function usePortfolioDecisionModel({
     reviewWarnings,
     runtimeDbReady,
     canRunPoolOptimizer,
+    canCompareRoutes,
+    poolOptimizeGate,
+    routeCompareGate,
+    /** The two governed computes' own lifecycle, rendered next to the action and its result. */
+    poolOptimizeAction: api.poolOptimizeAction,
+    routeCompareAction: api.routeCompareAction,
     poolInputBlockers,
     commercialDiagnostics,
     resourcePoolMapPaths,

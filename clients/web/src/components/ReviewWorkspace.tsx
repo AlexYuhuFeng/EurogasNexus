@@ -25,6 +25,14 @@ interface ReviewWorkspaceProps {
   saleOptionById: Map<string, PortfolioSaleOptionDTO>;
   reviewWarnings: string[];
   resourcePoolResult: PortfolioOptimizationResultDTO | null;
+  /**
+   * Whether the pool result is provenanced to a trading context other than the one on screen.
+   *
+   * A reviewer may still inspect a past run, but the surface must say that the allocations and
+   * evidence below were not computed for the context currently selected rather than presenting
+   * them as its current figures.
+   */
+  poolResultContextMismatch: boolean;
   analysisResult: AnalysisResultDTO | null;
   language: string;
   reviewDecisions: ReviewDecisionDTO[];
@@ -73,6 +81,7 @@ export function ReviewWorkspace({
   saleOptionById,
   reviewWarnings,
   resourcePoolResult,
+  poolResultContextMismatch,
   analysisResult,
   language,
   reviewDecisions,
@@ -127,6 +136,14 @@ export function ReviewWorkspace({
       {carriedStrategyRunId && (
         <div className="workspace-panel span-3 review-context-banner" role="status" aria-live="polite">
           <span><small>{t("review.carried_strategy_run")}</small><strong>{carriedStrategyRunId}</strong></span>
+        </div>
+      )}
+      {poolResultContextMismatch && resourcePoolResult !== null && (
+        <div className="workspace-panel span-3 review-context-banner" role="status">
+          <span className="context-mismatch">
+            <strong>{t("context.result_mismatch")}</strong>
+            <small>{t("context.result_mismatch_hint")}</small>
+          </span>
         </div>
       )}
       <div className="workspace-panel span-2">

@@ -22,6 +22,10 @@ The current [`WorkspaceRenderer`](../../clients/web/src/app/workspaces/Workspace
 
 Placement is presentation, never authority: a header action is disabled by the same rule the panel it acts on reports, and every mutating call is re-authorised by the backend.
 
+### Run lifecycle beside a `compute` action
+
+A `compute` action's own state belongs with the action and the result it produces, not in global chrome and not nowhere: pending, refusal, failure (through the product error taxonomy, with the backend correlation id when supplied, never a raw exception string), and whether the result on screen was computed for the current trading context. A disabled control states its reason as visible text, because a disabled button cannot be focused and a tooltip therefore cannot reach a keyboard user. This is the geography of [`DecisionActionStatus`](../../clients/web/src/components/decision/DecisionActionStatus.tsx) for the Decision workspace's two governed runs; the rule is stated in [`COMMERCIAL_DECISION_WORKFLOW_SPEC.md`](../product/COMMERCIAL_DECISION_WORKFLOW_SPEC.md) section 26.
+
 ## Local filters and data actions
 
 Filters are local to the table, map, catalog, or evidence surface they change and sit immediately above that surface. A filter must identify its scope and preserve the current workspace/deep-link context. Numeric columns are right-aligned; text and status columns are left-aligned; units and time basis remain visible.

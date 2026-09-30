@@ -1,3 +1,5 @@
+import { IDLE_DECISION_ACTION_STATE } from "../app/model/decisionActionModel.ts";
+
 export const DEFAULT_WORKSPACE_READ_TIMEOUT_MS = 10_000;
 export const DEFAULT_LOGOUT_TIMEOUT_MS = 5_000;
 
@@ -96,6 +98,11 @@ export function resetIdentityScopedCaches<T>(monitoringSummary: T) {
     resourcePoolOptions: null,
     routeRecommendation: null,
     resourcePoolResult: null,
+    // The two governed computes' own lifecycle lanes are identity-scoped like the results
+    // they label: a refusal or a result provenanced to the closed session must not survive
+    // sign-out and be read as the next identity's.
+    poolOptimizeAction: IDLE_DECISION_ACTION_STATE,
+    routeCompareAction: IDLE_DECISION_ACTION_STATE,
     strategyResult: null,
     strategyRuns: [],
     strategySummary: null,

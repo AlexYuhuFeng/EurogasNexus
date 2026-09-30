@@ -104,11 +104,13 @@ test("a workspace header declares at most one primary action, and only a permitt
   // task: the optimiser run for Optimize, the route comparison for Scenario.
   assert.match(decision, /task === "optimize" \? \([\s\S]*?\) : task === "scenario" \? \(/);
   assert.match(decision, /onClick=\{portfolio\.recommendRouteAllocationForCurrentContext\}/);
-  assert.match(decision, /disabled=\{!canCompareRoutes\}/);
+  // The comparison's gate is the model's own rule (declared capability plus ready inputs),
+  // not a second opinion computed in the header.
+  assert.match(decision, /disabled=\{!portfolio\.canCompareRoutes\}/);
   assert.equal(
-    (decision.match(/economics\.compare"/g) ?? []).length,
+    (decision.match(/t\("economics\.compare"\)/g) ?? []).length,
     1,
-    "the primary action exists once",
+    "the primary action's label is rendered once",
   );
   // Exactly one `primaryAction=` binding, so the header cannot end up with two.
   assert.equal((decision.match(/primaryAction=\{/g) ?? []).length, 1);
@@ -120,11 +122,11 @@ test("a workspace header declares at most one primary action, and only a permitt
   assert.equal(mayOccupyPrimarySlot("compute"), true);
   assert.equal(mayOccupyPrimarySlot("lifecycle"), false);
   // The panel reports the run; it no longer starts it.
-  assert.equal(decision.includes("home.optimize_pool"), true);
+  assert.equal(decision.includes('t("home.optimize_pool")'), true);
   assert.equal(
-    (decision.match(/home\.optimize_pool/g) ?? []).length,
+    (decision.match(/t\("home\.optimize_pool"\)/g) ?? []).length,
     1,
-    "the primary action exists once",
+    "the primary action's label is rendered once",
   );
 
   const portfolio = readWebSource("components/PortfolioWorkspace.tsx");

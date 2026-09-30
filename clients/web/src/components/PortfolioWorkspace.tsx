@@ -112,12 +112,27 @@ function PortfolioOverview({ controller }: { controller: AppController }) {
 function PortfolioRoutes({ controller }: { controller: AppController }) {
   const { api, portfolio, selection, navigation, t } = controller;
   const routes = api.routeCandidates;
+  // Feasibility and allocated volume are claims about *this* context's economics, so they are
+  // derived only from results the client can prove were computed for it. A run provenanced to
+  // another trading context is withheld here and named stale, rather than presented as this
+  // route's current verdict.
+  const poolResult = portfolio.optimizerContextMismatch ? null : api.resourcePoolResult;
+  const recommendation = portfolio.routeRecommendationContextMismatch
+    ? null
+    : api.routeRecommendation;
+  const resultsStale = portfolio.resultsContextMismatch;
   return (
     <section className="workspace-panel commercial-routes-panel">
       <PanelHeader
         title={t("portfolio.route_comparison")}
         meta={`${routes.length} ${t("panel.routes")}`}
       />
+      {resultsStale && (
+        <div className="runtime-blocker-list compact" role="status">
+          <strong>{t("context.result_mismatch")}</strong>
+          <span>{t("context.result_mismatch_hint")}</span>
+        </div>
+      )}
       <div className="data-table commercial-route-table" tabIndex={0}>
         <div className="data-table-row header six">
           <span>{t("portfolio.route")}</span><span>{t("portfolio.path")}</span>
@@ -125,13 +140,13 @@ function PortfolioRoutes({ controller }: { controller: AppController }) {
           <span>{t("portfolio.quantity")}</span><span>{t("portfolio.margin")}</span>
         </div>
         {routes.map((route) => {
-          const allocation = api.resourcePoolResult?.allocations.find(
+          const allocation = poolResult?.allocations.find(
             (item) => item.option_id === route.route_id,
           );
           const feasibility = classifyRouteFeasibility(
             route,
-            api.routeRecommendation,
-            api.resourcePoolResult,
+            recommendation,
+            poolResult,
             api.resourcePoolOptions,
           );
           return (

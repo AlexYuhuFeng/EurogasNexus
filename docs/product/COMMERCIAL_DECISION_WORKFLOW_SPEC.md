@@ -239,6 +239,10 @@ optimizer calls are user-triggered. No N+1 API calls are introduced.
 - Attribution limited to components already isolated by backend.
 - No true portfolio master identity; current resource pool is the scope.
 - No visual-regression runner locally.
+- The strategy lab's own result context key (`strategyResultContextKey`) is
+  still stamped when a run starts rather than when one succeeds. The same defect
+  class as section 26, in a different action; it was outside this repair's scope
+  and remains open.
 - The Scenario panel only offers the one draft value an action consumes (the
   annual financing-rate fallback). `delivery_quantity_mwh_per_day`,
   `contract_price_gbp_mwh`, `delivery_tolerance_pct`,
@@ -248,3 +252,58 @@ optimizer calls are user-triggered. No N+1 API calls are introduced.
 - No implicit FX: sale-option prices and route costs travel with their own
   currency and unit; the client never converts them, and no client-side FX
   rate is invented.
+
+## 26. Action gate, run lifecycle and result provenance
+
+Added 2026-10-01 (bounded repair of the Decision workspace's two governed computes).
+An authenticated inspection found an enabled `Compare Options` whose click
+produced a 403 no surface showed; an automatic pool run was also refused.
+Parent verification found the local account has multiple persisted roles and
+the `optimization.run` capability despite its ADMIN display label. The observed
+refusal was `origin_not_allowed`, not a commercial-role denial. The local
+launcher omitted the web client's explicit loopback origin. Administration-only
+capability refusal is a separate tested case, not this live account's state.
+Tracing the
+report also found the shared result context key was stamped when a run
+*started*, so a failed retry after a context change made the previous result
+read as current, and one key served both actions, so a route comparison could
+relabel a pool result.
+
+`clients/web/src/app/model/decisionActionModel.ts` now owns the three rules:
+
+- **Gate.** A run is offered and issued only when the identity's declared
+  ExperienceProfile composition holds the capability the action's backend floor
+  requires (`optimization.run`), the action's own inputs are ready, and no run of
+  the same action is already in flight. The automatic pool run uses the same
+  rule as the header action, so an identity without the capability is never sent
+  a request on the user's behalf. This is presentation only: the backend
+  re-authorises every request, the route registry is unchanged, and an absent or
+  unparsed profile fails closed (the action is withheld, and the reason is shown
+  as text rather than only in a tooltip a keyboard user cannot reach).
+- **Lifecycle.** Each action has its own `idle -> pending -> success | failure`
+  lane. Pending disables the control and refuses a duplicate submission; a
+  refusal, validation failure or transport failure is rendered next to the
+  action through the product error taxonomy with the backend's correlation id
+  when it supplied one, and never as a raw exception string. These two actions
+  no longer write the store's global `error` string either, because that string
+  is rendered raw by the map's catch-all alert.
+- **Provenance.** A result is stamped with the trading-context key of the
+  request that *succeeded* - not the context in force when it started, and not
+  by the other action. Both lanes are cleared with the identity. Every surface
+  that presents these results (Scenario, Optimize, Review, Portfolio routes and
+  the map's decision rail) either withholds them or names them stale once the
+  context they were computed under no longer matches the context on screen;
+  `selectScenarioRouteEconomics` and `classifyRouteFeasibility` are fed only
+  results provenanced to the current context, so no stale payload is presented
+  as a current verdict.
+
+The request builders, their inputs and all arithmetic are unchanged, as are the
+backend's permission, commercial-access and fail-closed gates. No page, panel or
+datastore was added, and no execution, nomination or settlement semantics: both
+actions remain analytical decision-support computations over the persisted
+resource-pool read.
+
+The automatic pool run is retained as it was found: for an identity that holds
+the capability, the optimiser still runs automatically when the pool inputs'
+signature changes (no click required), now through the same gate and the same
+provenance; for an identity that does not hold it, no request is issued at all.

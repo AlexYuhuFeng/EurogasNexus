@@ -82,7 +82,7 @@ interface NetworkWorkspaceProps {
   reviewEvidenceItems: ReviewEvidenceItem[];
   marketLastUpdatedAtUtc: string | null;
   intradayOpportunities: IntradayOpportunityDTO[];
-  optimizerContextMismatch: boolean;
+  resultsContextMismatch: boolean;
   onResetSearch: () => void;
   onToggleLayer: (layer: string) => void;
   onOpenReview: () => void;
@@ -139,7 +139,7 @@ export function NetworkWorkspace({
   reviewEvidenceItems,
   marketLastUpdatedAtUtc,
   intradayOpportunities,
-  optimizerContextMismatch,
+  resultsContextMismatch,
   onResetSearch,
   onToggleLayer,
   onOpenReview,
@@ -246,7 +246,10 @@ export function NetworkWorkspace({
               workspace's primary action, so this panel hands the user over instead of running a
               second copy of the same act from the map. */}
           <p className="panel-copy">{t("network.optimizer_location")}</p>
-          {optimizerContextMismatch && (
+          {/* Both decision results the map draws from - the pool allocation and the route
+              recommendation - are only current for the trading context they were computed
+              under, so either lane being stale is stated here. */}
+          {resultsContextMismatch && (
             <div className="runtime-blocker-list compact">
               <strong>{t("context.result_mismatch")}</strong>
               <span>{t("context.result_mismatch_hint")}</span>

@@ -131,7 +131,10 @@ test("an on-demand action's loading does not make a committed workspace read as 
 
   const optimizer = deferred<unknown>();
   harness.answer("optimizeResourcePool", () => optimizer.promise);
-  const run = store.getState().optimizeResourcePool({ objective: "min_cost" });
+  const run = store.getState().optimizeResourcePool(
+    { objective: "min_cost" },
+    "gas-day:product:hub",
+  );
   await settle();
 
   // The action raises its own flag; the workspace's reading and its committed count stand.

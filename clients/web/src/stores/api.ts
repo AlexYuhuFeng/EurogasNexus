@@ -42,6 +42,14 @@ import {
 import { sourceRunOutcome, type SourceRunOutcome } from "@/app/model/sourceRunModel";
 import { runtimeStoreStatus } from "@/app/model/dataPlaneStatus";
 import {
+  IDLE_DECISION_ACTION_STATE,
+  decisionActionFailed,
+  decisionActionPending,
+  decisionActionSucceeded,
+  type DecisionActionState,
+} from "@/app/model/decisionActionModel";
+import { describeFailure } from "@/app/experience/errorPresentation";
+import {
   api,
   AnalysisRequestDTO,
   AnalysisResultDTO,
@@ -664,6 +672,17 @@ export interface ApiState {
   resourcePoolOptions: ResourcePoolOptionsDTO | null;
   routeRecommendation: RouteRecommendationResultDTO | null;
   resourcePoolResult: PortfolioOptimizationResultDTO | null;
+  /**
+   * Per-action lifecycle of the two governed route-cost computes the Decision workspace starts.
+   *
+   * Each lane owns its own run state and, with it, the trading-context key its **successful**
+   * result was computed under (`app/model/decisionActionModel.ts`). The two are separate on
+   * purpose: one shared provenance let a route comparison relabel a pool result (and a failed
+   * retry erase a context change), so a stale payload could read as current in the Scenario,
+   * Portfolio and Review surfaces.
+   */
+  poolOptimizeAction: DecisionActionState;
+  routeCompareAction: DecisionActionState;
   strategyResult: StrategyLabResultDTO | null;
   strategyRuns: StrategyRunDTO[];
   strategySummary: StrategySummaryDTO | null;
@@ -849,8 +868,27 @@ export interface ApiState {
   ) => Promise<void>;
   saveDraftContract: (contract: UpstreamContractInputDTO) => Promise<void>;
   recordReviewDecision: (body: ReviewDecisionInputDTO) => Promise<void>;
-  recommendRouteAllocation: (request: RouteRecommendationRequestDTO) => Promise<void>;
-  optimizeResourcePool: (request: PortfolioOptimizationRequestDTO) => Promise<void>;
+  /**
+   * Compare the sale options and recommend an allocation.
+   *
+   * `contextKey` is the trading-context key the request was built under; it becomes the
+   * result's provenance **only if the run succeeds**, so a context change is never erased by a
+   * failed retry and the surface can tell a current result from a stale one.
+   *
+   * A failure is kept in the action's own lane as its structured cause (`routeCompareAction`),
+   * which the surface renders through the product error taxonomy. The global `error` string is
+   * deliberately not set: the map renders that one raw, and a governed compute's refusal belongs
+   * next to the action with its correlation id, not as an exception string somewhere else.
+   */
+  recommendRouteAllocation: (
+    request: RouteRecommendationRequestDTO,
+    contextKey: string,
+  ) => Promise<void>;
+  /** Optimise the resource pool; `contextKey` carries the same successful-result provenance. */
+  optimizeResourcePool: (
+    request: PortfolioOptimizationRequestDTO,
+    contextKey: string,
+  ) => Promise<void>;
   evaluateStrategyLab: (scenario: StrategyLabRequestDTO) => Promise<void>;
   fetchStrategySummary: () => Promise<void>;
   fetchStrategyRuns: () => Promise<void>;
@@ -1067,6 +1105,8 @@ export const useApiStore = create<ApiState>((set, get) => ({
   resourcePoolOptions: null,
   routeRecommendation: null,
   resourcePoolResult: null,
+  poolOptimizeAction: IDLE_DECISION_ACTION_STATE,
+  routeCompareAction: IDLE_DECISION_ACTION_STATE,
   strategyResult: null,
   strategyRuns: [],
   strategySummary: null,
@@ -2151,31 +2191,67 @@ export const useApiStore = create<ApiState>((set, get) => ({
     }
   },
 
-  recommendRouteAllocation: async (request) => {
+  recommendRouteAllocation: async (request, contextKey) => {
     if (logoutInProgress) return;
+    // One run per action at a time: a second click while the first is in flight is the same
+    // question, not a new one, and the button is disabled for the same reason.
+    if (get().routeCompareAction.phase === "pending") return;
     const requestGeneration = identityReadCoordinator.capture();
-    set({ loading: true, error: null });
+    set((state) => ({
+      routeCompareAction: decisionActionPending(state.routeCompareAction, contextKey),
+      loading: true,
+      error: null,
+    }));
     try {
       const result = await api.recommendRouteAllocation(request);
       if (!followUpReadIsCurrent(requestGeneration)) return;
-      set({ routeRecommendation: result.data, meta: result.meta, loading: false });
+      set((state) => ({
+        routeRecommendation: result.data,
+        meta: result.meta,
+        loading: false,
+        routeCompareAction: decisionActionSucceeded(state.routeCompareAction, contextKey),
+      }));
     } catch (e) {
       if (!followUpReadIsCurrent(requestGeneration)) return;
-      set({ error: String(e), loading: false });
+      set((state) => ({
+        loading: false,
+        routeCompareAction: decisionActionFailed(
+          state.routeCompareAction,
+          e,
+          describeFailure(e).correlationId,
+        ),
+      }));
     }
   },
 
-  optimizeResourcePool: async (request) => {
+  optimizeResourcePool: async (request, contextKey) => {
     if (logoutInProgress) return;
+    if (get().poolOptimizeAction.phase === "pending") return;
     const requestGeneration = identityReadCoordinator.capture();
-    set({ loading: true, error: null });
+    set((state) => ({
+      poolOptimizeAction: decisionActionPending(state.poolOptimizeAction, contextKey),
+      loading: true,
+      error: null,
+    }));
     try {
       const result = await api.optimizeResourcePool(withoutLegacyFlag(request));
       if (!followUpReadIsCurrent(requestGeneration)) return;
-      set({ resourcePoolResult: result.data, meta: result.meta, loading: false });
+      set((state) => ({
+        resourcePoolResult: result.data,
+        meta: result.meta,
+        loading: false,
+        poolOptimizeAction: decisionActionSucceeded(state.poolOptimizeAction, contextKey),
+      }));
     } catch (e) {
       if (!followUpReadIsCurrent(requestGeneration)) return;
-      set({ error: String(e), loading: false });
+      set((state) => ({
+        loading: false,
+        poolOptimizeAction: decisionActionFailed(
+          state.poolOptimizeAction,
+          e,
+          describeFailure(e).correlationId,
+        ),
+      }));
     }
   },
 

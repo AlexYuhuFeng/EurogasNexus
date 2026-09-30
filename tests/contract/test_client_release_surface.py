@@ -344,10 +344,13 @@ def test_web_client_matches_design_reference_cockpit() -> None:
     assert 'activeWorkspace === "glossary"' in app
     assert 'activeWorkspace === "manual"' in app
     assert "resourcePoolOptimizationRequest" in app
-    assert "optimizeResourcePool(resourcePoolOptimizationRequest)" in app
+    # Every run carries the trading-context key it was built under, so a result can be
+    # provenanced to the context it was actually computed for (October 1 action-lifecycle
+    # repair; see COMMERCIAL_DECISION_WORKFLOW_SPEC.md section 26).
+    assert "optimizeResourcePool(resourcePoolOptimizationRequest, currentContextKey)" in app
     assert "lastAutoOptimizerSignatureRef" in app
     assert "autoOptimizerSignature" in app
-    assert "void api.optimizeResourcePool(resourcePoolOptimizationRequest)" in app
+    assert "void api.optimizeResourcePool(resourcePoolOptimizationRequest, currentContextKey)" in app
     assert "canRunPoolOptimizer" in app
     assert "poolInputBlockers" in app
     assert "runtimeDbReady" in app

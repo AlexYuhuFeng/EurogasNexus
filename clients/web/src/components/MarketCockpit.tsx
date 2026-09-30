@@ -431,7 +431,7 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
             reviewEvidenceItems={portfolio.reviewEvidenceItems}
             marketLastUpdatedAtUtc={api.marketLastUpdatedAtUtc}
             intradayOpportunities={api.intradayOpportunities}
-            optimizerContextMismatch={portfolio.optimizerContextMismatch}
+            resultsContextMismatch={portfolio.resultsContextMismatch}
             onResetSearch={() => controls.setSearchTerm("")}
             onToggleLayer={controls.toggleLayer}
             onOpenReview={() => navigation.openWorkspace("review")}
