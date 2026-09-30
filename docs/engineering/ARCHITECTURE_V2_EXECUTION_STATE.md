@@ -5,6 +5,25 @@ Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical sli
 
 ## Current work
 
+Completion standard (latest user direction): commercial delivery to a
+professional client, not only a controlled pilot. Require clear customer and
+operator documentation, maintainable architecture, tested clients and deployment
+settings, and evidence-backed licensing/legal claims. Review actual distributed
+dependencies and their obligations; unknown licence metadata is not clearance.
+The current third-party notices contain unresolved `NOASSERTION` entries and
+are not a completed legal/commercial-distribution review. Preserve the release
+blocker register and fail-closed publication gates.
+
+User acceptance must include end-to-end trader, researcher, risk/reviewer and
+administrator journeys across the supported gas business models. Check happy
+paths, missing/stale data, invalid inputs, changing context, permission denial,
+source provenance and numerical results. Professional UI/UX is a release
+requirement: consistent components and units, efficient action placement,
+keyboard access, responsive layout and truthful loading/error/result states.
+DeepSeek remains the implementation worker; parent review owns integration and
+acceptance. Neither passing component tests nor attractive screenshots prove
+commercial readiness.
+
 ## Governing Product Goal (User Direction, September 30)
 
 Deliver Eurogas Nexus as a coherent, commercial, professional European gas
@@ -52,6 +71,28 @@ The existing pilot blocker register remains binding and must be reconciled
 with this broader product goal, not replaced by component-level success.
 
 ## Milestone History
+
+September 30 scenario-input integrity (baseline `22b9a42`): authenticated
+browser inspection found EUR labels on GBP-named draft fields. DeepSeek traced
+both request builders and found seven of eight visible draft controls affected
+neither Compare Options nor Optimize. Those misleading controls are removed,
+while shared contract fields remain compatible. Both actions use persisted
+resource-pool inputs; the optimizer alone consumes the draft financing rate
+when the first saved upstream contract has no rate. A shared resolver now
+drives the request and source disclosure. Parent review made a saved rate
+read-only and displayed its actual value, and shortened EN/ZH disclosures.
+Full frontend suite: 732 passed / 3 skipped; TypeScript and production build
+passed; 37 focused documentation/surface/trader checks passed. Live local
+browser verification at the actual 738px viewport showed the saved 6% rate,
+read-only source and absence of the seven controls. Desktop/mobile overrides
+were not established by that browser, so this is not multi-viewport acceptance.
+No calculation was executed or business data changed during this verification.
+The data-source endpoint timed out after 10 seconds; investigate separately.
+Screenshot retained locally at `output/runtime/scenario-input-integrity.jpg`.
+Next: complete persona workflow and responsive checks, then the dated cash
+schedule integration. Financing-rate selection still uses the first saved
+contract, not a reviewed multi-contract funding policy; that limitation must
+be addressed before claiming portfolio-wide valuation accuracy.
 
 September 30 cash-valuation client foundation (baseline `8b91293`): DeepSeek
 added exact-string request/result DTOs and `api.cashValuation` through the

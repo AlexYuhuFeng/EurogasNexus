@@ -309,6 +309,7 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
             saleOptionById={portfolio.saleOptionById}
             carriedRouteId={selection.routeId}
             contextMismatch={portfolio.optimizerContextMismatch}
+            upstreamContracts={api.upstreamContracts}
             t={t}
             updateContractNumber={contractEditor.updateContractNumber}
           />

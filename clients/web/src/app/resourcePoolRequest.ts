@@ -4,22 +4,24 @@ import type {
   PortfolioSaleOptionDTO,
 } from "@/api/client";
 import type { ContractDraft } from "./defaultContractDraft";
-
-type UpstreamContractLike = {
-  annual_financing_rate_pct?: number | null;
-};
+import {
+  resolvePoolFinancingRate,
+  type FinancingRateSource,
+} from "./model/scenarioInputProvenance.ts";
 
 export function buildResourcePoolOptimizationRequest(
   contract: ContractDraft,
   portfolioResources: PortfolioResourceDTO[],
   saleOptions: PortfolioSaleOptionDTO[],
-  upstreamContracts: UpstreamContractLike[],
+  upstreamContracts: ReadonlyArray<FinancingRateSource>,
 ): PortfolioOptimizationRequestDTO {
   return {
     portfolio_id: "web-resource-pool",
     resources: portfolioResources,
     sale_options: saleOptions,
-    annual_financing_rate_pct: upstreamContracts[0]?.annual_financing_rate_pct ?? contract.annual_financing_rate_pct,
+    // The one draft value this request consumes, resolved by the same rule the Scenario
+    // panel displays (saved upstream contract rate first, draft as fallback).
+    annual_financing_rate_pct: resolvePoolFinancingRate(contract, upstreamContracts).pct,
     objective: "MAX_DAILY_PNL",
   };
 }

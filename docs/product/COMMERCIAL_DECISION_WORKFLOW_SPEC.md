@@ -106,6 +106,20 @@ optimization-run manifest already persisted by backend. Scenarios are named
 BASE, UPSIDE, DOWNSIDE, CUSTOM, but direction is explicit text, not
 automatic market meaning. Full scenario table persistence is deferred.
 
+Current implementation note (Decision workspace, Wave 9 and the September 30
+input-provenance correction). The Scenario task's panel no longer edits "the
+economics the actions send". Both of its actions compose from the persisted
+resource-pool read (`GET /api/route-cost/resource-pool/options`): resource
+volume, cost, location and TSO access; sale-option price, route cost and
+capacity with each value's own currency and unit; and, for the comparison,
+the first saved upstream contract's gas year. The one draft value the panel
+may still edit is the annual financing rate the pool optimiser uses when no
+saved upstream contract carries one, and the panel states that provenance
+live next to the control. `nbp_sale_price_gbp_mwh` and
+`physical_exit_sale_price_gbp_mwh` remain declared on the draft for import
+back-compatibility, but nothing consumes them and they are not part of the
+persisted contract payload, so they are neither editable nor shown as money.
+
 ## 10. Scenario shocks
 
 Structured overrides only:
@@ -120,9 +134,22 @@ No generic “shock everything” control.
 
 ## 11. Optimizer inputs
 
-The existing persisted optimizer request remains the input contract. The UI
-shows resource count, sale options, readiness blockers, route candidates and
-the current scenario assumptions before run.
+The existing persisted optimizer request remains the input contract:
+`PortfolioOptimizationScenario`, composed in the client by
+`buildResourcePoolOptimizationRequest` from the persisted resource-pool read
+(the resource and sale-option rows are passed through by reference) plus one
+rate. The rate is the first saved upstream contract's
+`annual_financing_rate_pct` when it carries one, otherwise the Scenario
+panel's draft fallback; it is percent per year used for early-cash value
+(`base_cost * rate / 100 * lag_days / 365`) and is never converted or scaled
+in the client. The UI shows resource count, sale options, readiness blockers,
+route candidates and the financing-rate provenance before run.
+
+Compare Options (`buildRouteRecommendationRequest`) sends only the persisted
+read: source and target points, the total pool volume, the first saved
+upstream contract's gas year, and the sale-option candidates with their own
+price/currency/unit and route-cost/currency/unit. No contract-draft value is
+part of that request.
 
 ## 12. Optimizer outputs
 
@@ -212,3 +239,12 @@ optimizer calls are user-triggered. No N+1 API calls are introduced.
 - Attribution limited to components already isolated by backend.
 - No true portfolio master identity; current resource pool is the scope.
 - No visual-regression runner locally.
+- The Scenario panel only offers the one draft value an action consumes (the
+  annual financing-rate fallback). `delivery_quantity_mwh_per_day`,
+  `contract_price_gbp_mwh`, `delivery_tolerance_pct`,
+  `nomination_tolerance_pct` and `screen_sale_cash_lag_days` are read from the
+  persisted resource-pool rows; `nbp_sale_price_gbp_mwh` and
+  `physical_exit_sale_price_gbp_mwh` have no consumer and are not persisted.
+- No implicit FX: sale-option prices and route costs travel with their own
+  currency and unit; the client never converts them, and no client-side FX
+  rate is invented.

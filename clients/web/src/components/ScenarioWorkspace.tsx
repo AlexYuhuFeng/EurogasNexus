@@ -3,8 +3,13 @@ import type {
   PortfolioSaleOptionDTO,
   RouteCandidateDTO,
   RouteRecommendationResultDTO,
+  UpstreamContractDTO,
 } from "@/api/client";
 import type { ContractDraft } from "@/app/index";
+import {
+  SCENARIO_EDITABLE_DRAFT_INPUTS,
+  resolvePoolFinancingRate,
+} from "@/app/model/scenarioInputProvenance";
 import type { ScenarioRouteEconomics } from "@/app/model/scenarioRouteEconomics";
 import type { ContractNumberKey } from "@/components/ContractWorkbench";
 
@@ -17,29 +22,21 @@ interface ScenarioWorkspaceProps {
   contract: ContractDraft;
   /**
    * The pool-optimiser run and the route comparison are the Decision workspace's primary
-   * actions, not this panel's: each is one `compute` consequence and each has one control. This
-   * panel configures the sandbox economics, reports the preflight blockers and shows the
-   * allocation the runs produced.
+   * actions, not this panel's: each is one `compute` consequence and each has one control.
+   * Both runs compose from the persisted resource-pool read; the only draft value this panel
+   * can send is the annual financing-rate fallback (`app/model/scenarioInputProvenance.ts`).
+   * The panel reports the preflight blockers and shows the allocation the runs produced.
    */
   poolInputBlockers: string[];
   resourcePoolResult: PortfolioOptimizationResultDTO | null;
   saleOptionById: Map<string, PortfolioSaleOptionDTO>;
   carriedRouteId: string | null;
   contextMismatch: boolean;
+  /** The saved upstream contracts the pool optimiser's financing rate may come from. */
+  upstreamContracts: UpstreamContractDTO[];
   t: Translate;
   updateContractNumber: (key: ContractNumberKey, value: string) => void;
 }
-
-const ECONOMIC_INPUTS: Array<{ key: ContractNumberKey; label: string }> = [
-  { key: "delivery_quantity_mwh_per_day", label: "economics.volume" },
-  { key: "contract_price_gbp_mwh", label: "economics.contract_price" },
-  { key: "nbp_sale_price_gbp_mwh", label: "economics.nbp_price" },
-  { key: "physical_exit_sale_price_gbp_mwh", label: "economics.physical_price" },
-  { key: "delivery_tolerance_pct", label: "economics.delivery_tolerance" },
-  { key: "nomination_tolerance_pct", label: "economics.nomination_tolerance" },
-  { key: "screen_sale_cash_lag_days", label: "economics.cash_lag" },
-  { key: "annual_financing_rate_pct", label: "economics.finance_rate" },
-];
 
 function moneyPerMwh(value: number | null): string {
   return value === null ? "n/a" : `GBP ${value.toFixed(2)}/MWh`;
@@ -61,9 +58,12 @@ export function ScenarioWorkspace({
   saleOptionById,
   carriedRouteId,
   contextMismatch,
+  upstreamContracts,
   t,
   updateContractNumber,
 }: ScenarioWorkspaceProps) {
+  const financingRate = resolvePoolFinancingRate(contract, upstreamContracts);
+
   return (
     <div className="workspace-grid scenario-page">
       {(carriedRouteId || contextMismatch) && (
@@ -115,10 +115,24 @@ export function ScenarioWorkspace({
       <div className="workspace-panel span-3">
         <div className="section-heading"><span className="eyebrow">{t("home.resource_pool")}</span><strong>{t("panel.route_allocation")}</strong></div>
         <div className="economics-grid wide">
-          {ECONOMIC_INPUTS.map(({ key, label }) => (
-            <label key={key}>{t(label)}<input type="number" value={contract[key] ?? ""} onChange={(event) => updateContractNumber(key, event.target.value)} /></label>
+          {/* The only draft value either action consumes is the annual financing-rate
+              fallback; the persisted resource-pool read supplies every other input. */}
+          {SCENARIO_EDITABLE_DRAFT_INPUTS.map(({ key, labelKey }) => (
+            <label key={key}>{t(labelKey)}<input
+              type="number"
+              min="0"
+              step="any"
+              value={financingRate.pct}
+              readOnly={financingRate.source === "saved_upstream_contract"}
+              onChange={(event) => updateContractNumber(key, event.target.value)}
+            /></label>
           ))}
         </div>
+        <p className="muted">
+          {financingRate.source === "saved_upstream_contract"
+            ? t("scenario.financing_rate_from_saved_contract")
+            : t("scenario.financing_rate_from_draft_fallback")}
+        </p>
         <p className="panel-copy">{t("scenario.compare_location")}</p>
         <p className="panel-copy">{t("scenario.optimizer_location")}</p>
         {poolInputBlockers.length > 0 && (
