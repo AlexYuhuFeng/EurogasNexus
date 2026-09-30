@@ -8,6 +8,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
+from eurogas_nexus.domain.dataops.contracts import IngestionRunStatus
 from eurogas_nexus.domain.ingestion.certification import certification_gate
 from eurogas_nexus.domain.ingestion.source_registry import (
     CATEGORY_LABELS,
@@ -64,6 +65,54 @@ SOURCE_ID_BY_NAME = {
     "TRAYPORT SIM": "src-trayport-sim",
     "WEATHER": "src-weather",
 }
+
+#: Stored run statuses written by the pre-CR-09 writers (the public-source
+#: ingestor and the simulated market price writer). Canonical rows written by
+#: the CR-09 scheduler always use the ``IngestionRunStatus`` spelling; this is
+#: the only legacy compatibility mapping, and any other stored value stays
+#: unknown instead of being coerced into a lifecycle state.
+_LEGACY_RUN_STATUS_TO_CANONICAL: dict[str, IngestionRunStatus] = {
+    "queued": IngestionRunStatus.QUEUED,
+    "running": IngestionRunStatus.RUNNING,
+    "succeeded": IngestionRunStatus.SUCCEEDED,
+    "failed": IngestionRunStatus.FAILED,
+}
+
+_SUCCESS_RUN_STATUSES = (
+    IngestionRunStatus.SUCCEEDED,
+    IngestionRunStatus.SUCCEEDED_WITH_WARNINGS,
+)
+_FAILURE_RUN_STATUSES = (IngestionRunStatus.FAILED,)
+
+
+def _canonical_run_status(stored_status: str | None) -> IngestionRunStatus | None:
+    """Classify one stored run status; ``None`` means unknown.
+
+    Unknown is neither success nor failure and must stay visibly unknown: only
+    the canonical vocabulary and the explicit legacy mapping above are
+    recognised, never broad case/alias coercion.
+    """
+
+    if not isinstance(stored_status, str) or not stored_status:
+        return None
+    try:
+        return IngestionRunStatus(stored_status)
+    except ValueError:
+        return _LEGACY_RUN_STATUS_TO_CANONICAL.get(stored_status)
+
+
+def _stored_statuses_for(*canonical_statuses: IngestionRunStatus) -> tuple[str, ...]:
+    """Every stored spelling that classifies as the given canonical statuses."""
+
+    canonical = frozenset(canonical_statuses)
+    return tuple(
+        [status.value for status in canonical_statuses]
+        + [
+            stored
+            for stored, mapped in _LEGACY_RUN_STATUS_TO_CANONICAL.items()
+            if mapped in canonical
+        ]
+    )
 
 
 @router.get("/api/sources")
@@ -198,7 +247,16 @@ def _sources_with_runtime_status() -> list[dict]:
         connectivity_status = _connectivity_status(source, count, credential_state, latest_run)
         source["connectivity_status"] = connectivity_status
         source["status"] = connectivity_status
-        source["diagnostics"] = _diagnostics(source, count, credential_state, latest_run)
+        source["diagnostics"] = _diagnostics(
+            source,
+            count,
+            credential_state,
+            latest_run,
+            last_success_with_warnings=(
+                _canonical_run_status(source_ingestion.get("last_success_status"))
+                is IngestionRunStatus.SUCCEEDED_WITH_WARNINGS
+            ),
+        )
     _attach_preview_substitute_status(sources)
     _attach_operational_status(sources)
     return sources
@@ -430,7 +488,10 @@ def _connectivity_status(
         return "needs_credential"
     if credential_state == "disabled":
         return "credential_disabled"
-    if latest_run and latest_run.get("status") == "failed":
+    if (
+        latest_run
+        and _canonical_run_status(latest_run.get("status")) is IngestionRunStatus.FAILED
+    ):
         return "failed"
     if live_record_count > 0:
         # Audit item 3: records alone do not make a source live. A source whose
@@ -450,14 +511,36 @@ def _diagnostics(
     live_record_count: int,
     credential_state: str,
     latest_run: dict[str, Any] | None,
+    *,
+    last_success_with_warnings: bool = False,
 ) -> list[str]:
     if credential_state == "missing":
         return ["credential_missing"]
     diagnostics: list[str] = []
     if credential_state == "disabled":
         diagnostics.append("credential_disabled")
-    if latest_run and latest_run.get("status") == "failed":
+    latest_status = (
+        _canonical_run_status(latest_run.get("status")) if latest_run else None
+    )
+    if latest_status is IngestionRunStatus.FAILED:
         diagnostics.append("last_ingestion_failed")
+    elif latest_status in (IngestionRunStatus.QUEUED, IngestionRunStatus.RUNNING):
+        # A pending run is neither success nor failure; say so instead of
+        # letting the previous outcome imply the run already finished.
+        diagnostics.append("last_ingestion_pending")
+    elif latest_status is IngestionRunStatus.CANCELLED:
+        diagnostics.append("last_ingestion_cancelled")
+    elif latest_status is IngestionRunStatus.SUCCEEDED_WITH_WARNINGS:
+        diagnostics.append("last_ingestion_succeeded_with_warnings")
+    elif latest_run is not None and latest_status is None:
+        diagnostics.append("last_ingestion_status_unknown")
+    if (
+        last_success_with_warnings
+        and "last_ingestion_succeeded_with_warnings" not in diagnostics
+    ):
+        # The exposed last_success_at_utc came from a warnings run; keep that
+        # success visibly qualified even when a newer failed/pending run exists.
+        diagnostics.append("last_ingestion_succeeded_with_warnings")
     if live_record_count > 0:
         diagnostics.append("live_records_available")
         if source["credential_requirements"] and not source["certification_allows_live"]:
@@ -799,8 +882,15 @@ def _latest_ingestion_status_by_source() -> dict[str, dict[str, Any]]:
     The previous shape loaded every persisted ingestion run through the ORM and
     kept the first match per source in Python, so the read grew without bound
     with ingestion history. The grouped reads below return at most one row per
-    source from the database and serialize them with the same repository
-    payload, keeping statuses, ordering and missing-vs-empty semantics intact.
+    source from the database and serialize them with the repository payload.
+
+    Status vocabulary: canonical ``IngestionRunStatus`` values plus the one
+    explicit legacy mapping in this module. ``SUCCEEDED_WITH_WARNINGS`` counts
+    as a success (with the stored status and an explicit warning diagnostic
+    preserved on the read model); pending, cancelled and unknown stored values
+    are neither successes nor failures. The newest success/failure is selected
+    by completion instant, matching the ``last_*_at_utc`` values the read model
+    exposes. Rows with no run still produce no bucket (missing stays missing).
     """
 
     if not _db_is_configured():
@@ -815,45 +905,82 @@ def _latest_ingestion_status_by_source() -> dict[str, dict[str, Any]]:
         status: dict[str, dict[str, Any]] = {}
         with get_session_factory()() as session:
             latest_rows = _latest_run_per_source(session, IngestionRunRecord)
-            success_rows = _latest_run_per_source(session, IngestionRunRecord, status="succeeded")
-            failure_rows = _latest_run_per_source(session, IngestionRunRecord, status="failed")
+            success_rows = _latest_run_per_source(
+                session,
+                IngestionRunRecord,
+                statuses=_stored_statuses_for(*_SUCCESS_RUN_STATUSES),
+            )
+            failure_rows = _latest_run_per_source(
+                session,
+                IngestionRunRecord,
+                statuses=_stored_statuses_for(*_FAILURE_RUN_STATUSES),
+            )
             for row in latest_rows:
                 status[row.source_id] = {"latest": ingestion_run_payload(row)}
-            for key, rows in (
-                ("last_success_at_utc", success_rows),
-                ("last_failure_at_utc", failure_rows),
-            ):
-                for row in rows:
-                    payload = ingestion_run_payload(row)
-                    bucket = status.setdefault(row.source_id, {})
-                    bucket[key] = payload["finished_at_utc"] or payload["started_at_utc"]
+            for row in success_rows:
+                payload = ingestion_run_payload(row)
+                bucket = status.setdefault(row.source_id, {})
+                bucket["last_success_at_utc"] = (
+                    payload["finished_at_utc"] or payload["started_at_utc"]
+                )
+                if payload["status"] == IngestionRunStatus.SUCCEEDED_WITH_WARNINGS.value:
+                    # Raw stored status of the run behind last_success_at_utc.
+                    # Only a warning-qualified success sets it, so plain
+                    # successes keep the previous bucket shape while the
+                    # warning case stays traceable for the diagnostics below.
+                    bucket["last_success_status"] = payload["status"]
+            for row in failure_rows:
+                payload = ingestion_run_payload(row)
+                bucket = status.setdefault(row.source_id, {})
+                bucket["last_failure_at_utc"] = (
+                    payload["finished_at_utc"] or payload["started_at_utc"]
+                )
         return status
     except sqlalchemy_error:
         return {}
 
 
-def _latest_run_per_source(session: Any, model: Any, *, status: str | None = None):
+def _latest_run_per_source(
+    session: Any,
+    model: Any,
+    *,
+    statuses: tuple[str, ...] | None = None,
+):
     """Return the newest run per ``source_id`` in one bounded query.
 
-    ``row_number()`` ranks each source's runs by ``started_at_utc`` descending,
-    with ``run_id`` as a deterministic tie-break, and only rank 1 is hydrated.
-    Callers therefore materialize at most one row per source instead of the
-    whole persisted history; ``status`` narrows the ranking to one run status.
+    ``row_number()`` ranks each source's runs and only rank 1 is hydrated, so
+    callers materialize at most one row per source instead of the whole
+    persisted history. The unscoped role ranks by ``started_at_utc`` (newest
+    requested run). ``statuses`` narrows the ranking to the stored spellings of
+    one canonical role and ranks by the completion instant
+    (``finished_at_utc`` with ``started_at_utc`` as the fallback for rows that
+    never finished), because that is the timestamp the read model exposes as
+    ``last_success_at_utc`` / ``last_failure_at_utc``. ``started_at_utc`` then
+    ``run_id`` break ties deterministically.
     """
 
     from sqlalchemy import func
 
+    if statuses is None:
+        order_by = (model.started_at_utc.desc(), model.run_id.desc())
+    else:
+        completion = func.coalesce(model.finished_at_utc, model.started_at_utc)
+        order_by = (
+            completion.desc(),
+            model.started_at_utc.desc(),
+            model.run_id.desc(),
+        )
     ranked = session.query(
         model.run_id.label("run_id"),
         func.row_number()
         .over(
             partition_by=model.source_id,
-            order_by=(model.started_at_utc.desc(), model.run_id.desc()),
+            order_by=order_by,
         )
         .label("source_rank"),
     ).select_from(model)
-    if status is not None:
-        ranked = ranked.filter(model.status == status)
+    if statuses is not None:
+        ranked = ranked.filter(model.status.in_(statuses))
     ranked_rows = ranked.subquery()
     return (
         session.query(model)
@@ -901,6 +1028,7 @@ def _db_ingestion_runs(
 
 def _ingestion_run_payload(row) -> dict:
     source_id = _source_id_for_source_name(row.source_name)
+    canonical_status = _canonical_run_status(row.status)
     return {
         "run_id": row.run_id,
         "source_id": source_id,
@@ -911,7 +1039,7 @@ def _ingestion_run_payload(row) -> dict:
         "records_ingested": _records_from_notes(row.notes),
         "records_failed": 0,
         "normalization": "normalized",
-        "error_message": None if row.status == "succeeded" else row.notes,
+        "error_message": (None if canonical_status in _SUCCESS_RUN_STATUSES else row.notes),
         "source_reference": row.notes,
     }
 

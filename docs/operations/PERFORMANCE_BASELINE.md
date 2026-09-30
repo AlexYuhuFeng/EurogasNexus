@@ -99,13 +99,14 @@ the parent review; this file does not claim a live figure.
 
 ### Replacement shapes
 
-- `_latest_run_per_source` ranks each source's runs with `row_number() OVER
-  (PARTITION BY source_id ORDER BY started_at_utc DESC, run_id DESC)` and
-  hydrates only rank 1. `run_id` is a new deterministic tie-break for runs that
-  share a `started_at_utc`; the previous shape left those ties to the database.
-  Latest / latest-succeeded / latest-failed results and the repository payload
-  are otherwise unchanged, and rows with no run still produce no bucket
-  (missing stays missing).
+- `_latest_run_per_source` ranks each source's runs with `row_number() OVER`
+  and hydrates only rank 1: the unscoped "latest" role orders by
+  `started_at_utc DESC, run_id DESC`, while the success/failure roles order by
+  the completion instant (`finished_at_utc` falling back to `started_at_utc`),
+  then `started_at_utc DESC, run_id DESC`. The repository payload and the
+  missing-vs-empty behaviour are unchanged, and rows with no run still produce
+  no bucket (missing stays missing). The role ordering is corrected in the
+  run-status milestone below.
 - `_row_counts_by_source_system` reads one grouped `COUNT(*)` per observation
   table. The four screen-order systems keep the previous `source_system ==
   system OR provider_id == system` semantics by combining grouped
@@ -123,12 +124,18 @@ the parent review; this file does not claim a live figure.
   each. The next useful measurement is `EXPLAIN (ANALYZE, BUFFERS)` for
   `GET /api/sources` on the live store, or `pg_stat_statements` sorted by total
   time, before changing any of them.
-- Pre-existing behaviour preserved deliberately: run-status matching in this
-  read recognises only the legacy lowercase `succeeded` / `failed` values. Runs
-  written by the CR-09 scheduler use uppercase `SUCCEEDED` / `FAILED`
-  (`IngestionRunStatus`), so they currently affect neither the failure
-  connectivity state nor the last-success/last-failure timestamps. Changing that
-  is a functional decision, not a performance fix, and was left for review.
+- Run-status classification (corrected 2026-10-01, after the bounded-read
+  milestone): the read model classifies each stored status through the
+  canonical `IngestionRunStatus` vocabulary plus one explicit compatibility
+  mapping for the four legacy lowercase spellings written by the pre-CR-09
+  ingestor and simulator (`queued`/`running`/`succeeded`/`failed`). Any other
+  stored value stays unknown. `SUCCEEDED_WITH_WARNINGS` counts as a success
+  (it can set `last_success_at_utc`) but stays visibly qualified with the
+  `last_ingestion_succeeded_with_warnings` diagnostic; `QUEUED`/`RUNNING`
+  (pending), `CANCELLED` and unknown statuses are never reported as success or
+  failure. The newest success/failure is selected by the completion instant
+  that `last_success_at_utc` / `last_failure_at_utc` expose. Evidence for this
+  correction is the focused API test suite; it is not production acceptance.
 
 ## Methodology rules
 

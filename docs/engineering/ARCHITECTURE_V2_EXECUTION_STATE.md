@@ -1,6 +1,6 @@
 # Architecture V2 Execution State
 
-Last updated: 2026-09-30
+Last updated: 2026-10-01
 Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical slice records below do not constitute current production approval.
 
 ## Current work
@@ -71,6 +71,23 @@ The existing pilot blocker register remains binding and must be reconciled
 with this broader product goal, not replaced by component-level success.
 
 ## Milestone History
+
+October 1 source status vocabulary (baseline `7bda19d`): DeepSeek reconciled
+source-read classification with the canonical ingestion lifecycle and the four
+declared legacy spellings. Canonical failures now affect connectivity and
+diagnostics; warning-qualified successes retain qualification. Pending,
+cancelled and unknown statuses are not success/failure outcomes. Stored status
+remains unchanged. Last-success/failure selection uses completion time with
+start-time fallback and deterministic ties; per-source materialization remains
+bounded. Parent review: 54 focused API/security/link tests passed. Read-only
+PostgreSQL execution matched the distinct source count and processed the local
+80,545 legacy-success rows without loading history into the read model. That
+store contains no canonical-status fixtures, so canonical cases are proven by
+focused tests, not live customer ingestion. No schema or business-data write.
+Remaining: monitoring_service, pipeline_health and dataops_observability still
+have inconsistent legacy/canonical matching. Move the compatibility rule into
+a shared domain-owned boundary when aligning those consumers; do not duplicate
+it or declare system-wide status consistency from this endpoint fix alone.
 
 September 30 source-status read performance (baseline `f3b89bc`): DeepSeek
 replaced full ingestion-history ORM loading with per-source latest-run ranking,

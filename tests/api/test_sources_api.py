@@ -978,3 +978,496 @@ def test_sources_response_keeps_run_status_semantics_with_configured_db(
     assert entsog["last_ingestion_message"] is None
     assert entsog["last_success_at_utc"] is None
     assert entsog["last_failure_at_utc"] is None
+
+
+# ---------------------------------------------------------------------------
+# Canonical run-status vocabulary on the source read model (correctness fix
+# after the bounded-read performance work).
+#
+# The CR-09 scheduler stores IngestionRunStatus spellings (QUEUED, RUNNING,
+# SUCCEEDED, SUCCEEDED_WITH_WARNINGS, FAILED, CANCELLED); the pre-CR-09
+# writers stored lowercase queued/running/succeeded/failed. These tests hold
+# the read model to classifying both spellings, selecting each role by its
+# exposed completion instant, and keeping warning, pending, cancelled and
+# unknown runs visibly qualified instead of silently successful.
+# ---------------------------------------------------------------------------
+
+
+def _source_from_endpoint(system: str) -> tuple[dict, dict]:
+    response = TestClient(create_app()).get("/api/sources")
+    assert response.status_code == 200
+    body = response.json()
+    sources = {item["source_system"]: item for item in body["data"]}
+    return sources[system], body
+
+
+def test_canonical_scheduler_statuses_drive_connectivity_and_timestamps(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Uppercase CR-09 statuses classify as their legacy lowercase peers."""
+
+    from datetime import UTC, datetime, timedelta
+
+    from sqlalchemy.orm import Session
+
+    engine, _ = _runtime_store(tmp_path, "runs-canonical.sqlite", monkeypatch)
+    base = datetime(2026, 7, 1, 8, 0, tzinfo=UTC)
+    with Session(engine) as session:
+        session.add_all(
+            [
+                _ingestion_run(
+                    "run-ecb-success",
+                    "src-ecb",
+                    base,
+                    "SUCCEEDED",
+                    finished_at=base + timedelta(seconds=2),
+                ),
+                _ingestion_run(
+                    "run-ecb-failure",
+                    "src-ecb",
+                    base + timedelta(minutes=1),
+                    "FAILED",
+                    finished_at=base + timedelta(minutes=1, seconds=3),
+                ),
+            ]
+        )
+        session.commit()
+
+    ecb, body = _source_from_endpoint("ECB")
+
+    assert body["meta"]["source_references"] == ["runtime-postgresql"]
+    # Raw stored status stays visible; classification drives the rest.
+    assert ecb["last_ingestion_status"] == "FAILED"
+    assert ecb["connectivity_status"] == "failed"
+    assert ecb["status"] == "failed"
+    assert "last_ingestion_failed" in ecb["diagnostics"]
+    assert ecb["last_success_at_utc"] == "2026-07-01T08:00:02+00:00"
+    assert ecb["last_failure_at_utc"] == "2026-07-01T08:01:03+00:00"
+
+
+def test_mixed_canonical_and_legacy_records_classify_consistently(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """One source per direction: canonical roles and legacy roles both apply."""
+
+    from datetime import UTC, datetime, timedelta
+
+    from sqlalchemy.orm import Session
+
+    from eurogas_nexus.api.routes.public import sources as sources_routes
+
+    engine, _ = _runtime_store(tmp_path, "runs-mixed.sqlite", monkeypatch)
+    base = datetime(2026, 7, 1, 9, 0, tzinfo=UTC)
+    with Session(engine) as session:
+        session.add_all(
+            [
+                # Legacy success, canonical failure on top of it.
+                _ingestion_run(
+                    "run-ecb-legacy-success",
+                    "src-ecb",
+                    base,
+                    "succeeded",
+                    finished_at=base + timedelta(seconds=1),
+                ),
+                _ingestion_run(
+                    "run-ecb-canonical-failure",
+                    "src-ecb",
+                    base + timedelta(minutes=1),
+                    "FAILED",
+                    finished_at=base + timedelta(minutes=1, seconds=2),
+                ),
+                # Canonical success, legacy failure on top of it.
+                _ingestion_run(
+                    "run-entsog-canonical-success",
+                    "src-entsog",
+                    base,
+                    "SUCCEEDED",
+                    finished_at=base + timedelta(seconds=4),
+                ),
+                _ingestion_run(
+                    "run-entsog-legacy-failure",
+                    "src-entsog",
+                    base + timedelta(minutes=2),
+                    "failed",
+                    finished_at=base + timedelta(minutes=2, seconds=5),
+                ),
+            ]
+        )
+        session.commit()
+
+    status = sources_routes._latest_ingestion_status_by_source()
+
+    ecb = status["src-ecb"]
+    assert ecb["latest"]["run_id"] == "run-ecb-canonical-failure"
+    assert ecb["latest"]["status"] == "FAILED"
+    assert ecb["last_success_at_utc"] == "2026-07-01T09:00:01+00:00"
+    assert ecb["last_failure_at_utc"] == "2026-07-01T09:01:02+00:00"
+
+    entsog = status["src-entsog"]
+    assert entsog["latest"]["run_id"] == "run-entsog-legacy-failure"
+    assert entsog["latest"]["status"] == "failed"
+    assert entsog["last_success_at_utc"] == "2026-07-01T09:00:04+00:00"
+    assert entsog["last_failure_at_utc"] == "2026-07-01T09:02:05+00:00"
+
+
+def test_newest_success_and_failure_use_the_exposed_completion_instant(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A later start must not win when its outcome finished earlier."""
+
+    from datetime import UTC, datetime, timedelta
+
+    from sqlalchemy.orm import Session
+
+    from eurogas_nexus.api.routes.public import sources as sources_routes
+
+    engine, _ = _runtime_store(tmp_path, "runs-completion.sqlite", monkeypatch)
+    base = datetime(2026, 7, 1, 10, 0, tzinfo=UTC)
+    with Session(engine) as session:
+        session.add_all(
+            [
+                _ingestion_run(
+                    "run-success-early-start",
+                    "src-ecb",
+                    base,
+                    "SUCCEEDED",
+                    finished_at=base + timedelta(minutes=30),
+                ),
+                _ingestion_run(
+                    "run-success-late-start",
+                    "src-ecb",
+                    base + timedelta(minutes=5),
+                    "SUCCEEDED",
+                    finished_at=base + timedelta(minutes=15),
+                ),
+                _ingestion_run(
+                    "run-failure-early-start",
+                    "src-ecb",
+                    base + timedelta(minutes=2),
+                    "FAILED",
+                    finished_at=base + timedelta(minutes=20),
+                ),
+                _ingestion_run(
+                    "run-failure-late-start",
+                    "src-ecb",
+                    base + timedelta(minutes=10),
+                    "FAILED",
+                    finished_at=base + timedelta(minutes=12),
+                ),
+            ]
+        )
+        session.commit()
+
+    ecb = sources_routes._latest_ingestion_status_by_source()["src-ecb"]
+
+    # Latest by start remains the newest requested run.
+    assert ecb["latest"]["run_id"] == "run-failure-late-start"
+    # Success/failure roles rank by the timestamp they expose, not by start.
+    assert ecb["last_success_at_utc"] == "2026-07-01T10:30:00+00:00"
+    assert ecb["last_failure_at_utc"] == "2026-07-01T10:20:00+00:00"
+
+
+def test_latest_run_role_ranking_has_deterministic_completion_ties(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Equal completion instants fall back to started_at then run_id desc."""
+
+    from datetime import UTC, datetime, timedelta
+
+    from sqlalchemy.orm import Session
+
+    from eurogas_nexus.api.routes.public import sources as sources_routes
+    from eurogas_nexus.db.models import IngestionRunRecord
+
+    engine, _ = _runtime_store(tmp_path, "runs-ties.sqlite", monkeypatch)
+    base = datetime(2026, 7, 1, 11, 0, tzinfo=UTC)
+    with Session(engine) as session:
+        session.add_all(
+            [
+                _ingestion_run(
+                    "run-tie-a",
+                    "src-ecb",
+                    base,
+                    "SUCCEEDED",
+                    finished_at=base + timedelta(minutes=5),
+                ),
+                _ingestion_run(
+                    "run-tie-b",
+                    "src-ecb",
+                    base,
+                    "SUCCEEDED",
+                    finished_at=base + timedelta(minutes=5),
+                ),
+                _ingestion_run("run-tie-newest", "src-ecb", base + timedelta(hours=1), "QUEUED"),
+            ]
+        )
+        session.commit()
+
+        ranked = sources_routes._latest_run_per_source(
+            session, IngestionRunRecord, statuses=("SUCCEEDED",)
+        )
+        latest = sources_routes._latest_run_per_source(session, IngestionRunRecord)
+
+    assert [row.run_id for row in ranked] == ["run-tie-b"]
+    assert [row.run_id for row in latest] == ["run-tie-newest"]
+
+
+def test_success_with_warnings_keeps_success_timestamp_but_stays_qualified(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """SUCCEEDED_WITH_WARNINGS is a success with an explicit diagnostic."""
+
+    from datetime import UTC, datetime, timedelta
+
+    from sqlalchemy.orm import Session
+
+    from eurogas_nexus.db.models import MarketObservationRecord
+
+    engine, _ = _runtime_store(tmp_path, "runs-warning.sqlite", monkeypatch)
+    now = datetime.now(UTC)
+    with Session(engine) as session:
+        session.add(
+            MarketObservationRecord(
+                observation_id="eex-sim-warning",
+                market_venue="EEX",
+                product="TTF day-ahead",
+                price=31.0,
+                unit="EUR/MWh",
+                currency="EUR",
+                period_start_utc=now - timedelta(hours=1),
+                period_end_utc=now,
+                observed_at_utc=now - timedelta(seconds=30),
+                source_system="EEX_Sim",
+                source_reference="sim:EEX:TTF:day-ahead:warning",
+                source_record_id="warning",
+                freshness="live",
+                quality_score=0.9,
+                research_only=False,
+                metadata_json={"hub": "TTF", "simulated": True},
+            )
+        )
+        session.add(
+            _ingestion_run(
+                "run-eex-sim-warning",
+                "src-eex-sim",
+                now - timedelta(minutes=1),
+                "SUCCEEDED_WITH_WARNINGS",
+                finished_at=now - timedelta(minutes=1) + timedelta(seconds=4),
+            )
+        )
+        session.commit()
+
+    eex_sim, _ = _source_from_endpoint("EEX_Sim")
+
+    assert eex_sim["last_ingestion_status"] == "SUCCEEDED_WITH_WARNINGS"
+    assert eex_sim["last_success_at_utc"] is not None
+    assert eex_sim["connectivity_status"] == "active"
+    assert "last_ingestion_succeeded_with_warnings" in eex_sim["diagnostics"]
+    assert eex_sim["workflow_ready"] is True
+
+
+def test_warning_qualified_success_stays_qualified_after_a_later_failure(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The exposed last_success_at_utc keeps its warning provenance."""
+
+    from datetime import UTC, datetime, timedelta
+
+    from sqlalchemy.orm import Session
+
+    engine, _ = _runtime_store(tmp_path, "runs-warning-then-failure.sqlite", monkeypatch)
+    base = datetime(2026, 7, 1, 13, 0, tzinfo=UTC)
+    warning_finished = base + timedelta(seconds=4)
+    with Session(engine) as session:
+        session.add_all(
+            [
+                _ingestion_run(
+                    "run-ecb-warning",
+                    "src-ecb",
+                    base,
+                    "SUCCEEDED_WITH_WARNINGS",
+                    finished_at=warning_finished,
+                ),
+                _ingestion_run(
+                    "run-ecb-failure",
+                    "src-ecb",
+                    base + timedelta(minutes=10),
+                    "FAILED",
+                    finished_at=base + timedelta(minutes=10, seconds=5),
+                ),
+            ]
+        )
+        session.commit()
+
+    ecb, _ = _source_from_endpoint("ECB")
+
+    assert ecb["last_ingestion_status"] == "FAILED"
+    assert ecb["connectivity_status"] == "failed"
+    assert ecb["last_success_at_utc"] == warning_finished.isoformat()
+    assert ecb["last_failure_at_utc"] == (base + timedelta(minutes=10, seconds=5)).isoformat()
+    assert "last_ingestion_failed" in ecb["diagnostics"]
+    assert "last_ingestion_succeeded_with_warnings" in ecb["diagnostics"]
+
+
+def test_pending_cancelled_and_unknown_runs_are_not_success_or_failure(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Non-terminal and unrecognised statuses stay visibly qualified."""
+
+    from datetime import UTC, datetime
+
+    from sqlalchemy.orm import Session
+
+    engine, _ = _runtime_store(tmp_path, "runs-non-terminal.sqlite", monkeypatch)
+    base = datetime(2026, 7, 1, 14, 0, tzinfo=UTC)
+    with Session(engine) as session:
+        session.add_all(
+            [
+                _ingestion_run("run-ecb-running", "src-ecb", base, "RUNNING"),
+                _ingestion_run("run-entsog-queued", "src-entsog", base, "QUEUED"),
+                _ingestion_run("run-bbl-cancelled", "src-bbl", base, "CANCELLED"),
+                _ingestion_run("run-iuk-blocked", "src-iuk", base, "BLOCKED"),
+            ]
+        )
+        session.commit()
+
+    ecb, _ = _source_from_endpoint("ECB")
+    assert ecb["last_ingestion_status"] == "RUNNING"
+    assert ecb["last_success_at_utc"] is None
+    assert ecb["last_failure_at_utc"] is None
+    assert "last_ingestion_pending" in ecb["diagnostics"]
+
+    entsog, _ = _source_from_endpoint("ENTSOG")
+    assert entsog["last_ingestion_status"] == "QUEUED"
+    assert entsog["last_success_at_utc"] is None
+    assert entsog["last_failure_at_utc"] is None
+    assert "last_ingestion_pending" in entsog["diagnostics"]
+
+    bbl, _ = _source_from_endpoint("BBL")
+    assert bbl["last_ingestion_status"] == "CANCELLED"
+    assert bbl["last_success_at_utc"] is None
+    assert bbl["last_failure_at_utc"] is None
+    assert "last_ingestion_cancelled" in bbl["diagnostics"]
+
+    iuk, _ = _source_from_endpoint("IUK")
+    assert iuk["last_ingestion_status"] == "BLOCKED"
+    assert iuk["last_success_at_utc"] is None
+    assert iuk["last_failure_at_utc"] is None
+    assert "last_ingestion_status_unknown" in iuk["diagnostics"]
+
+    # A warning success never marks a pending/cancelled/unknown run successful
+    # on its own, and no run status field is fabricated.
+    for source in (ecb, entsog, bbl, iuk):
+        assert "last_ingestion_succeeded_with_warnings" not in source["diagnostics"]
+
+
+def test_status_vocabulary_does_not_coerce_broad_aliases(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Only canonical spellings and the four legacy spellings classify."""
+
+    from datetime import UTC, datetime, timedelta
+
+    from sqlalchemy.orm import Session
+
+    engine, _ = _runtime_store(tmp_path, "runs-aliases.sqlite", monkeypatch)
+    base = datetime(2026, 7, 1, 15, 0, tzinfo=UTC)
+    with Session(engine) as session:
+        session.add_all(
+            [
+                _ingestion_run(
+                    "run-ngts-titlecase",
+                    "src-national-gas-nts",
+                    base,
+                    "Succeeded",
+                    finished_at=base + timedelta(seconds=1),
+                ),
+                _ingestion_run(
+                    "run-ngts-success-word",
+                    "src-national-gas-nts",
+                    base + timedelta(minutes=1),
+                    "SUCCESS",
+                    finished_at=base + timedelta(minutes=1, seconds=1),
+                ),
+                _ingestion_run(
+                    "run-ngts-lowercase-warning",
+                    "src-national-gas-nts",
+                    base + timedelta(minutes=2),
+                    "succeeded_with_warnings",
+                    finished_at=base + timedelta(minutes=2, seconds=1),
+                ),
+            ]
+        )
+        session.commit()
+
+    source, _ = _source_from_endpoint("NationalGasNTS")
+
+    assert source["last_ingestion_status"] == "succeeded_with_warnings"
+    assert source["last_success_at_utc"] is None
+    assert source["last_failure_at_utc"] is None
+    assert "last_ingestion_status_unknown" in source["diagnostics"]
+    assert "last_ingestion_succeeded_with_warnings" not in source["diagnostics"]
+
+
+def test_latest_ingestion_status_stays_bounded_with_mixed_status_spellings(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """History size must not set the rows or statements per read."""
+
+    from datetime import UTC, datetime, timedelta
+
+    from sqlalchemy import event
+    from sqlalchemy.engine import Engine
+    from sqlalchemy.orm import Session
+
+    from eurogas_nexus.api.routes.public import sources as sources_routes
+    from eurogas_nexus.db.models import IngestionRunRecord
+
+    engine, _ = _runtime_store(tmp_path, "runs-bounded-mixed.sqlite", monkeypatch)
+    base = datetime(2026, 7, 1, 16, 0, tzinfo=UTC)
+    source_ids = [f"src-{index}" for index in range(4)]
+    statuses = ["SUCCEEDED", "FAILED", "succeeded", "RUNNING", "MYSTERY"]
+    runs_per_source = 250
+    with Session(engine) as session:
+        for source_index, source_id in enumerate(source_ids):
+            for run_index in range(runs_per_source):
+                started = base + timedelta(minutes=source_index * runs_per_source + run_index)
+                session.add(
+                    _ingestion_run(
+                        f"run-{source_index}-{run_index}",
+                        source_id,
+                        started,
+                        statuses[run_index % len(statuses)],
+                        finished_at=started + timedelta(seconds=5),
+                    )
+                )
+        session.commit()
+
+    hydrations: list[str] = []
+    run_statements: list[str] = []
+
+    def _on_load(target, context) -> None:  # noqa: ANN001
+        hydrations.append(target.run_id)
+
+    def _on_statement(conn, cursor, statement, parameters, context, executemany) -> None:  # noqa: ANN001
+        if "ingestion_runs" in statement:
+            run_statements.append(" ".join(statement.split()))
+
+    event.listen(IngestionRunRecord, "load", _on_load)
+    event.listen(Engine, "before_cursor_execute", _on_statement)
+    try:
+        status = sources_routes._latest_ingestion_status_by_source()
+    finally:
+        event.remove(IngestionRunRecord, "load", _on_load)
+        event.remove(Engine, "before_cursor_execute", _on_statement)
+
+    assert set(status) == set(source_ids)
+    assert len(run_statements) == 3
+    for statement in run_statements:
+        assert "row_number() over" in statement.lower()
+        assert "source_rank" in statement
+    assert len(hydrations) <= len(source_ids) * 3
+    assert len(set(hydrations)) == len(hydrations)
+    for source_id in source_ids:
+        assert status[source_id]["last_success_at_utc"] is not None
+        assert status[source_id]["last_failure_at_utc"] is not None

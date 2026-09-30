@@ -299,6 +299,24 @@ source_id, dataset, trigger_type (SCHEDULED|MANUAL|BACKFILL|RECOVERY|
 `ingestion_run_issues` stores structured issues with `quality_code`,
 `severity`, `field`, `observation_reference`, `message`, `rule_version`.
 
+Read-model vocabulary (`/api/sources`, `/api/ingestion-runs`): the stored
+`status` is returned exactly as persisted, so provenance is never rewritten.
+The source read classifies it through the canonical `IngestionRunStatus` enum
+plus one explicit compatibility mapping for the four legacy lowercase
+spellings written by the pre-CR-09 public-source ingestor and simulator
+(`queued`/`running`/`succeeded`/`failed`); any other spelling stays unknown.
+`SUCCEEDED_WITH_WARNINGS` is a success and may set `last_success_at_utc`, but
+the source keeps the explicit `last_ingestion_succeeded_with_warnings`
+diagnostic. `QUEUED`, `RUNNING`, `CANCELLED` and unknown values are never
+reported as success or failure (`last_ingestion_pending`,
+`last_ingestion_cancelled`, `last_ingestion_status_unknown`).
+`last_success_at_utc` / `last_failure_at_utc` are the completion instants of
+the newest run of that role (`finished_at_utc`, falling back to
+`started_at_utc` for a run that never finished), ranked with `started_at_utc`
+then `run_id` as deterministic tie-breaks. The role ranking stays bounded by
+the number of sources per read. This is local implementation behavior, not
+production acceptance.
+
 ## 9. Retry policy
 
 `domain/dataops/retry.py` classifies failures before any retry:

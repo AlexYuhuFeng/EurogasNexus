@@ -32,6 +32,24 @@ existing public-source ingestor.
      recent raw archive hash (if retention permits).
    - `QUALITY_REJECTED`: inspect `ingestion_run_issues`.
 
+## Run-status vocabulary
+
+`ingestion_runs.status` is stored in the canonical `IngestionRunStatus`
+spellings (`QUEUED`, `RUNNING`, `SUCCEEDED`, `SUCCEEDED_WITH_WARNINGS`,
+`FAILED`, `CANCELLED`). The source read also accepts the four legacy lowercase
+spellings (`queued`/`running`/`succeeded`/`failed`) written by the pre-CR-09
+public-source ingestor and simulator; any other stored value stays unknown.
+Raw stored statuses are returned unchanged.
+
+- `SUCCEEDED_WITH_WARNINGS` is a success and may set `last_success_at_utc`,
+  but Source Center keeps it qualified with the
+  `last_ingestion_succeeded_with_warnings` diagnostic.
+- `QUEUED`/`RUNNING` show `last_ingestion_pending`, `CANCELLED` shows
+  `last_ingestion_cancelled`, and an unrecognised stored status shows
+  `last_ingestion_status_unknown`. None of these count as success or failure.
+- `last_success_at_utc` / `last_failure_at_utc` are the completion instants of
+  the newest successful/failed run, not the newest start time.
+
 ## Safe actions
 
 - Retry a failed run explicitly: `POST /api/sources/{source_id}/retry`.
