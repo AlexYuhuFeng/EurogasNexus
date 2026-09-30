@@ -48,6 +48,21 @@ with this broader product goal, not replaced by component-level success.
 
 ## Milestone History
 
+September 30 shared cash valuation (baseline `d8644bb`): DeepSeek extracted
+one `research/cash_valuation.py` engine; LNG validates its context then delegates
+through a compatibility adapter. Generic business context uses existing ontology
+`CanonicalId`; pipeline/portfolio/storage tests require no cargo/terminal IDs.
+Existing cash/refusal safeguards and deterministic Decimal arithmetic retained.
+Parent verification: 367 research/readiness/architecture/ontology/docstring/link
+tests passed, one optional test skipped; focused Ruff clean. Shared category and
+input aliases preserve import names but class repr/module identity changes.
+Money/PriceBasis/FxConversionRef remain float-based in the semantic kernel and
+are not used for exact cash arithmetic; that reconciliation and controlled cargo
+entity vocabulary remain open, documented in CASH_VALUATION_CAPABILITY.md.
+No API/UI/security authority or persistence added. Next expose the capability
+through existing audited application workflows with ontology/permission checks,
+then integrate the shared result presentation rather than another calculator.
+
 September 30 cargo economics (baseline `bc099b2`): DeepSeek's pure composition
 reuses existing regas readiness and cash valuation, exposes purchased/delivered
 energy, explicit loss, cost inclusion checks, netback per purchased MWh, cargo

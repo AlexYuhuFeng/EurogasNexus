@@ -17,6 +17,18 @@ from decimal import Decimal
 
 import pytest
 
+from eurogas_nexus.domain.ontology.semantic_kernel import CanonicalId
+from eurogas_nexus.domain.research.cash_valuation import (
+    CASH_VALUATION_MODEL_VERSION,
+    CashFlowLegCategory,
+    CashValuationDiscountFactorInput,
+    CashValuationError,
+    CashValuationFxInput,
+    CashValuationInput,
+    CashValuationLegInput,
+    CashValuationLegValuation,
+    compute_cash_valuation,
+)
 from eurogas_nexus.domain.research.lng_cash_valuation import (
     LNG_CASH_VALUATION_MODEL_VERSION,
     LngCargoCashValuationInput,
@@ -24,6 +36,7 @@ from eurogas_nexus.domain.research.lng_cash_valuation import (
     LngCashFxInput,
     LngCashLegCategory,
     LngCashLegInput,
+    LngCashLegValuation,
     LngCashValuationError,
     compute_lng_cargo_cash_valuation,
 )
@@ -732,3 +745,99 @@ def test_category_enum_reuses_existing_cost_taxonomy_values() -> None:
     assert {"cargo_purchase", "cargo_sale", "shipping", "demurrage", "boil_off"} <= (
         category_values
     )
+
+
+# ---------------------------------------------------------------------------
+# Shared-engine adapter compatibility (bounded extraction)
+# ---------------------------------------------------------------------------
+
+
+def test_lng_module_reexports_the_single_shared_definitions() -> None:
+    # 一个词表、一个错误类型、一套腿数据类：LNG 模块只做别名，不复制定义。
+    assert LngCashLegCategory is CashFlowLegCategory
+    assert LngCashValuationError is CashValuationError
+    assert LngCashFxInput is CashValuationFxInput
+    assert LngCashLegInput is CashValuationLegInput
+    assert LngCashDiscountFactorInput is CashValuationDiscountFactorInput
+    assert LngCashLegValuation is CashValuationLegValuation
+
+
+def test_lng_adapter_still_requires_its_mandatory_lng_context_and_input_type() -> None:
+    assert _codes(replace(_hand_case_input(), contract_id="   ")) == ("REFERENCE_MISSING",)
+    assert _codes(replace(_hand_case_input(), cargo_id="")) == ("REFERENCE_MISSING",)
+
+    # 共享引擎的通用输入（无 LNG id）绝不能被 LNG 入口静默接受。
+    generic = CashValuationInput(
+        business_context=(CanonicalId("portfolio", "portfolio-synthetic-1"),),
+        valuation_date=VALUATION_DATE,
+        reporting_currency="EUR",
+        legs=(
+            CashValuationLegInput(
+                leg_id="only-leg-1",
+                category=CashFlowLegCategory.OTHER,
+                payment_date=VALUATION_DATE,
+                signed_amount=Decimal("7.25"),
+                currency="EUR",
+                source_reference="synthetic-test-input:leg-1",
+            ),
+        ),
+        discount_factors=(_discount_factor(VALUATION_DATE, "1"),),
+    )
+    with pytest.raises(LngCashValuationError) as info:
+        compute_lng_cargo_cash_valuation(generic)  # type: ignore[arg-type]
+    assert info.value.codes == ("INPUT_TYPE_INVALID",)
+
+
+def test_lng_result_maps_shared_engine_output_field_for_field() -> None:
+    lng_result = compute_lng_cargo_cash_valuation(_hand_case_input())
+    engine_result = compute_cash_valuation(
+        CashValuationInput(
+            business_context=(
+                CanonicalId("contract", "contract-synthetic-lng-1"),
+                CanonicalId("cargo", "cargo-synthetic-1"),
+                CanonicalId("terminal", "terminal-synthetic-regas-1"),
+                CanonicalId("resource", "resource-synthetic-supply-1"),
+            ),
+            valuation_date=VALUATION_DATE,
+            reporting_currency="EUR",
+            legs=_hand_case_input().legs,
+            discount_factors=_hand_case_input().discount_factors,
+        )
+    )
+
+    assert (
+        lng_result.total_undiscounted_cash_reporting_ccy
+        == engine_result.total_undiscounted_cash_reporting_ccy
+    )
+    assert lng_result.net_present_value_reporting_ccy == (
+        engine_result.net_present_value_reporting_ccy
+    )
+    assert lng_result.leg_valuations == engine_result.leg_valuations
+    assert lng_result.assumptions == engine_result.assumptions
+    assert lng_result.warnings == engine_result.warnings
+    assert lng_result.source_references == engine_result.source_references
+    # LNG 业务身份与版本保持原样：result/modelversion/lineage 均向后兼容。
+    assert engine_result.model_version == CASH_VALUATION_MODEL_VERSION
+    assert lng_result.model_version == LNG_CASH_VALUATION_MODEL_VERSION
+    assert lng_result.lineage == ("lng-cargo-cash-valuation", LNG_CASH_VALUATION_MODEL_VERSION)
+    assert (lng_result.contract_id, lng_result.cargo_id) == (
+        "contract-synthetic-lng-1",
+        "cargo-synthetic-1",
+    )
+
+
+def test_lng_refusals_from_the_shared_engine_stay_lng_catchable() -> None:
+    hand_case = _hand_case_input()
+    incomplete = replace(
+        hand_case,
+        discount_factors=(
+            _discount_factor(VALUATION_DATE, "1"),
+            _discount_factor(SALE_DATE, "0.95"),
+        ),
+    )
+
+    with pytest.raises(LngCashValuationError) as info:
+        compute_lng_cargo_cash_valuation(incomplete)
+
+    assert isinstance(info.value, CashValuationError)
+    assert info.value.codes == ("DISCOUNT_FACTOR_MISSING_FOR_LEG_PAYMENT_DATE",)

@@ -29,15 +29,18 @@ _REVIEWED_DOMAIN_STR_ENUMS: set[str] = {
     "eurogas_nexus.domain.observations.market:ObservationFreshness",
     "eurogas_nexus.domain.research.backtest:BacktestResultStatus",
     "eurogas_nexus.domain.research.feasibility:FeasibilityStatus",
-    # LNG cargo cash valuation (Architecture V2 LNG economics scope). This is
-    # the cash-flow-leg vocabulary of one deterministic decision-support
-    # primitive, not gas-market semantics: it deliberately reuses the value
-    # strings of the allowlisted research cost taxonomy
+    # Shared dated cash valuation (Architecture V2 shared-capability scope).
+    # This is the cash-flow-leg vocabulary of the single deterministic
+    # decision-support engine, not gas-market semantics: it deliberately reuses
+    # the value strings of the allowlisted research cost taxonomy
     # (research/models.py:CostComponentType: fuel/transport/regas/storage/
-    # other) and adds only the cargo cash categories that taxonomy does not
-    # name (cargo purchase/sale, shipping, demurrage, boil-off). It stays
-    # beside its module instead of entering the GRM ontology.
-    "eurogas_nexus.domain.research.lng_cash_valuation:LngCashLegCategory",
+    # other) and names only the cargo cash categories that taxonomy does not
+    # cover (cargo purchase/sale, shipping, demurrage, boil-off). It stays
+    # beside the engine instead of entering the GRM ontology; the reviewed
+    # decision is unchanged from the earlier LNG-scope entry, whose enum was
+    # moved here verbatim (same members and values) when the shared engine was
+    # extracted. The LNG module now aliases this single definition.
+    "eurogas_nexus.domain.research.cash_valuation:CashFlowLegCategory",
     "eurogas_nexus.domain.research.models:AlertSeverity",
     "eurogas_nexus.domain.research.models:CandidateAction",
     "eurogas_nexus.domain.research.models:CostComponentType",

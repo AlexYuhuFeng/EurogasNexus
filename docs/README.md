@@ -62,6 +62,9 @@ behavior.
 - [Resource-pool contract EN](architecture/RESOURCE_POOL_CONTRACT-EN.md) /
   [CN](architecture/RESOURCE_POOL_CONTRACT-CN.md)
 - [Testing contract](architecture/TESTING_CONTRACT.md)
+- [Shared cash valuation capability](architecture/CASH_VALUATION_CAPABILITY.md) — the
+  single dated cash-flow/FX/discount engine, its LNG adapter and the ontology-reuse
+  boundary.
 - [Target product architecture](architecture/TARGET_PRODUCT_ARCHITECTURE.md)
 - [European network geometry policy](architecture/EUROPEAN_NETWORK_GEOMETRY_POLICY.md)
 - [Actor identity model](architecture/ACTOR_IDENTITY_MODEL.md) /
