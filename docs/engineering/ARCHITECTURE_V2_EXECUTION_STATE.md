@@ -72,6 +72,19 @@ with this broader product goal, not replaced by component-level success.
 
 ## Milestone History
 
+October 1 dependency security correction (baseline `5223256`): DeepSeek
+updated only the build-lock urllib3 pin from 2.7.0 to 2.8.0 for the three
+vulnerabilities reported by CI (CVE-2026-97687/97688/97689). Parent independently
+matched both distribution hashes against PyPI and found no direct urllib3 or
+affected proxy-configuration references in application/build code. Dependency
+policy and SBOM tests: 52 passed. No runtime dependency or security-gate change.
+The worker's isolated full-lock installation did not finish within the bounded
+review window and was stopped; no completed local CVE audit is claimed.
+Same-SHA CI dependency audit remains required. No commercial approval follows.
+Next user-facing work remains authenticated, populated trader workflow review:
+retain only necessary controls, explicit units/provenance and effective inputs;
+prioritize decision efficiency over additional panels or decorative content.
+
 October 1 shared ingestion-status consumers (baseline `cd7c46c`): DeepSeek
 moved the compatibility rule into `domain/dataops/run_status.py`, reusing the
 canonical enum. Source reads, monitoring alerts, pipeline health and metrics
