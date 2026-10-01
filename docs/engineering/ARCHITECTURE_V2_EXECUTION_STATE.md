@@ -72,6 +72,17 @@ with this broader product goal, not replaced by component-level success.
 
 ## Milestone History
 
+October 1 contract/payment integration preparation (baseline `509e703`):
+DeepSeek inspected contract CRUD, ontology and shared cash capabilities and
+produced [a proposed integration design](CONTRACT_PAYMENT_INTEGRATION_PLAN.md).
+Parent review corrected draft concurrency (separate edit counter), immutable
+retirement semantics, funding/discounting policy and incremental migration
+scope. Existing cash-engine and Markdown-link tests: 14 passed. This is design
+evidence only: no API, UI, migration, database write or payment convention was
+implemented. Next bounded task: review the immutable economic payload and
+legacy compatibility mapping before an additive revision migration; do not
+infer historic revisions or payment dates from the existing lag fields.
+
 October 1 alert acknowledgement authority (baseline `14cc3ce`, parent lint
 correction `da560bb`): DeepSeek added an explicit GOVERNED monitoring write
 permission and authenticated-principal attribution for monitoring and shadow

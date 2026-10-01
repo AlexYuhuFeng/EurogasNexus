@@ -331,3 +331,9 @@ engine or a sibling domain module; whether the new route is commercially
 available (GOVERNED) or gated for the pilot; and whether the revision-hash
 canonicalisation becomes the compatibility contract the later contract
 versioning milestone must preserve.
+
+**Reconciliation (2026-10-01):** the CS-1 proposal above is not approved and is
+re-scoped by the PROPOSED [contract revision and explicit payment terms
+integration plan](../engineering/CONTRACT_PAYMENT_INTEGRATION_PLAN.md); its
+rejection of inferred payment dates, the ACT/365 rate-to-factor shorthand and
+the end-of-window-plus-lag test remains binding. No implementation follows yet.
