@@ -117,6 +117,14 @@ worker 不会每 10 秒对同一条件重复调用 DeepSeek：
 - `POST /api/analysis/query`
 - `POST /api/reports/portfolio`
 
+`POST /api/monitoring/alerts/{alert_id}/acknowledge` 属于受治理写操作：需要
+`GOVERNED` 权限（ANALYST 下限），且仍在商业数据边界内，因此仅有平台管理角色的
+身份无法调用。确认人取自请求身份解析出的已认证主体，绝不采用请求体字段。状态
+迁移与其审计记录在同一事务中写入；审计记录包含主体、资源
+（`monitoring_alert:<alert_id>`）与请求关联 ID，可通过既有 `GET /api/audit`
+接口（`audit.read`/ADMIN）查询。重复确认保留最初的确认人与时间戳；已解决的告警
+不会被重新打开或确认。
+
 客户端不得直连 PostgreSQL，也不得直接调用 DeepSeek。
 
 Python SDK 从 `eurogas_nexus_sdk.monitoring` 导入：

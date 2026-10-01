@@ -50,6 +50,7 @@ assert refused.status_code in {401, 403, 503}, refused.status_code
 print("db-backed api smoke ok: an uncredentialed caller is refused")
 PY
 
-python -m pytest -q \
+EUROGAS_NEXUS_ACK_INTEGRATION_TEST=1 python -m pytest -q \
   tests/integration/test_postgres_backed_smoke.py \
+  tests/integration/test_monitoring_acknowledgement_postgres.py \
   tests/integration/test_research_entitlement_postgres.py

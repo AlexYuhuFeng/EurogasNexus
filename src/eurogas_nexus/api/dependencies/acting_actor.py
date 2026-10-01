@@ -19,7 +19,7 @@ be the same claim-by-typing the rule exists to prevent.
 
 from __future__ import annotations
 
-from fastapi import Request
+from fastapi import HTTPException, Request
 
 from eurogas_nexus.security.identity import (
     AuthenticatedPrincipal,
@@ -70,3 +70,40 @@ def acting_actor_name(request: Request, *, fallback: str = "operator") -> str:
     if authenticated and isinstance(identity, AuthenticatedPrincipal):
         return str(identity.principal_id)
     return fallback
+
+
+def require_acting_actor(request: Request) -> AuthenticatedPrincipal:
+    """The principal a governed write is recorded against, or refuse the request.
+
+    ``acting_actor`` always answers something; this variant is for writes whose attribution
+    must not be invented. A request with no principal attached - or with something that is
+    not a principal on ``state.identity`` - is refused **before** the write is attempted, so
+    an acknowledgement can never be persisted without an actor. The documented compatibility
+    principal for the deployment's own token is attached by the identity layer, so it is
+    accepted exactly as it is on every other governed write.
+
+    Args:
+        request: Incoming request, whose ``state.identity`` the authentication dependency
+            attaches when a principal was resolved.
+
+    Returns:
+        The principal the write is recorded against.
+
+    Raises:
+        HTTPException: 401 ``authentication_required`` when the request carries no attached
+            principal.
+    """
+
+    identity = getattr(request.state, "identity", None)
+    if not isinstance(identity, AuthenticatedPrincipal):
+        raise HTTPException(
+            status_code=401,
+            detail={
+                "error": "authentication_required",
+                "message": (
+                    "This write is recorded against the authenticated principal: the request "
+                    "carries no resolved identity, so it was refused before any state change."
+                ),
+            },
+        )
+    return acting_actor(request)

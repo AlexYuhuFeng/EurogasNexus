@@ -10,6 +10,7 @@ from uuid import uuid4
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
+from eurogas_nexus.api.dependencies.acting_actor import require_acting_actor
 from eurogas_nexus.api.dependencies.ai_authority import require_ai_authority
 from eurogas_nexus.llm import invoke_deepseek
 from eurogas_nexus.security.provider_keys import load_provider_api_key
@@ -83,19 +84,30 @@ def get_alert_summary() -> dict:
 
 
 @router.post("/api/monitoring/alerts/{alert_id}/acknowledge")
-def acknowledge_alert(alert_id: str) -> dict:
-    """Acknowledge one open monitoring alert.
+def acknowledge_alert(alert_id: str, request: Request) -> dict:
+    """Acknowledge one open monitoring alert under the authenticated principal.
 
     确认（acknowledge）一条告警，返回更新后的告警载荷。
 
+    Acknowledgement is a governed write (GOVERNED permission, ANALYST floor, inside the
+    commercial-data boundary): the actor is the authenticated principal - never a
+    caller-supplied name - and it is resolved before any database change. The state
+    transition and its audit event are written in one transaction, so a stored
+    acknowledgement always has exactly one attributable audit record naming the principal,
+    the alert and the request correlation id. A repeat, no-op or resolved alert changes
+    nothing and writes no second success record.
+
     Args:
         alert_id: Alert id to acknowledge.
+        request: Incoming request, carrying the authenticated principal and request id.
 
     Returns:
         Enveloped updated alert payload.
 
     Raises:
-        HTTPException: 404 when the alert does not exist.
+        HTTPException: 401 when the request carries no resolved identity (refused before
+            any database change), 404 when the alert does not exist, and 503 when the
+            runtime database is not configured.
     """
 
     from eurogas_nexus.db.repositories.monitoring import (
@@ -103,17 +115,65 @@ def acknowledge_alert(alert_id: str) -> dict:
         monitoring_alert_payload,
     )
 
+    principal = require_acting_actor(request)
+    now_utc = datetime.now(UTC)
     with _session() as session:
-        row = acknowledge_monitoring_alert(
-            session,
-            alert_id,
-            now_utc=datetime.now(UTC),
-        )
-        if row is None:
+        result = acknowledge_monitoring_alert(session, alert_id, now_utc=now_utc)
+        if result is None:
             raise _not_found(alert_id)
+        row, transitioned = result
+        if transitioned:
+            # In the same transaction on purpose: if the audit row cannot be written, the
+            # acknowledgement rolls back rather than persisting unattributed.
+            _record_acknowledgement_audit(
+                session,
+                request=request,
+                alert_id=alert_id,
+                principal_id=principal.principal_id,
+                role=principal.role,
+                now_utc=now_utc,
+            )
         session.commit()
         data = monitoring_alert_payload(row)
     return _env(data)
+
+
+def _record_acknowledgement_audit(
+    session,
+    *,
+    request: Request,
+    alert_id: str,
+    principal_id: str,
+    role: str,
+    now_utc: datetime,
+) -> None:
+    """Append the acknowledgement audit row into the transition's transaction.
+
+    The audit row is the attribution the alert itself cannot hold without a migration, so a
+    failure to write it must fail the acknowledgement: the caller propagates, the session
+    rolls back, and the alert stays open. It records the authenticated principal id, the
+    alert resource, the transition and the request correlation id - never a body value and
+    never alert content beyond the resource id.
+    """
+
+    from eurogas_nexus.db.repositories.audit import record_audit_event
+
+    request_id = getattr(request.state, "request_id", None)
+    record_audit_event(
+        session,
+        event_type="governance.monitoring",
+        principal=principal_id[:64],
+        action="monitoring.alert.acknowledge",
+        resource=f"monitoring_alert:{alert_id}"[:128],
+        outcome="acknowledged",
+        severity="info",
+        detail=f"actor_id={principal_id}; role={role}; transition=open->acknowledged",
+        source_system="monitoring",
+        now_utc=now_utc,
+        correlation_id=request_id[:64] if request_id else None,
+        before_summary={"status": "open"},
+        after_summary={"status": "acknowledged", "acknowledged_at_utc": now_utc.isoformat()},
+    )
 
 
 @router.post("/api/monitoring/alerts/{alert_id}/analysis")

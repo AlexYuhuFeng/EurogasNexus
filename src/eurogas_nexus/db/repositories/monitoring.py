@@ -166,10 +166,17 @@ def acknowledge_monitoring_alert(
     alert_id: str,
     *,
     now_utc: datetime,
-) -> MonitoringAlertRecord | None:
-    """Acknowledge an open alert (no-op for non-open alerts).
+) -> tuple[MonitoringAlertRecord, bool] | None:
+    """Acknowledge an open alert, at most once, and report whether it transitioned.
 
-    确认一条 open 状态的告警；非 open 状态保持不变。
+    确认一条 open 状态的告警；非 open 状态（含已确认、已恢复）保持不变。
+
+    The transition is a single conditional UPDATE (``status = 'open'``), so the database,
+    not a read-then-write in the process, decides who wins: concurrent acknowledgements
+    race on the row and exactly one moves it, which is what keeps one actor, one timestamp
+    and one success audit per acknowledgement. A repeat or no-op acknowledgement changes
+    nothing, so the original acknowledger and time are preserved; a resolved alert is never
+    reopened or acknowledged.
 
     Args:
         session: DB session.
@@ -177,18 +184,31 @@ def acknowledge_monitoring_alert(
         now_utc: Acknowledge time.
 
     Returns:
-        The updated record, or None when the alert does not exist.
+        ``(record, transitioned)`` where ``transitioned`` is True only when this call moved
+        the alert from open to acknowledged; None when no alert has that id.
     """
 
+    transitioned = (
+        session.query(MonitoringAlertRecord)
+        .filter(
+            MonitoringAlertRecord.alert_id == alert_id,
+            MonitoringAlertRecord.status == "open",
+        )
+        .update(
+            {
+                MonitoringAlertRecord.status: "acknowledged",
+                MonitoringAlertRecord.acknowledged_at_utc: now_utc,
+                MonitoringAlertRecord.updated_at_utc: now_utc,
+            },
+            synchronize_session=False,
+        )
+    )
+    # The conditional UPDATE bypasses the identity map, so reload before serializing.
+    session.expire_all()
     row = session.get(MonitoringAlertRecord, alert_id)
     if row is None:
         return None
-    if row.status == "open":
-        row.status = "acknowledged"
-        row.acknowledged_at_utc = now_utc
-        row.updated_at_utc = now_utc
-        session.flush()
-    return row
+    return row, transitioned == 1
 
 
 def monitoring_summary(session: Session) -> dict:

@@ -11,7 +11,7 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
-from eurogas_nexus.api.dependencies.acting_actor import acting_actor_name
+from eurogas_nexus.api.dependencies.acting_actor import acting_actor_name, require_acting_actor
 
 router = APIRouter(tags=["shadow-runtime"])
 
@@ -26,7 +26,12 @@ class ShadowMonitorCreateRequest(BaseModel):
 
 
 class ShadowAcknowledgeRequest(BaseModel):
-    """Acknowledge a shadow alert (I saw this; not an approval)."""
+    """Acknowledge a shadow alert (I saw this; not an approval).
+
+    ``actor`` is deprecated and ignored: the platform records the authenticated principal
+    instead, so a caller cannot attribute an acknowledgement to somebody else by typing a
+    name. The field is retained so existing clients that still send it keep working.
+    """
 
     actor: str = Field(default="operator", max_length=64)
 
@@ -229,20 +234,40 @@ def acknowledge_shadow_alert(
     body: ShadowAcknowledgeRequest,
     request: Request,
 ) -> dict:
-    """Acknowledge one shadow alert; never bypasses a risk blocker."""
+    """Acknowledge one shadow alert; never bypasses a risk blocker.
+
+    The recorded acknowledger is the authenticated principal (``state.identity``), never
+    the deprecated body ``actor``: a caller-typed name would be a claim the platform cannot
+    verify, and the audit trail must not repeat it as if it had. The transition and its
+    audit event are written in one transaction, so an acknowledgement that cannot be
+    attributed is rolled back rather than persisted.
+    """
 
     from eurogas_nexus.db.repositories import shadow
 
+    principal = require_acting_actor(request)
+    now_utc = datetime.now(UTC)
     with _session() as session:
         try:
-            data = shadow.acknowledge_alert(
+            data, transitioned = shadow.acknowledge_alert(
                 session,
                 alert_id=alert_id,
-                acknowledged_by=body.actor,
-                now_utc=datetime.now(UTC),
+                acknowledged_by=principal.principal_id,
+                now_utc=now_utc,
             )
         except ValueError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
+        if transitioned:
+            # Same transaction as the state change: an acknowledgement without its audit row
+            # must not survive, and a repeat/no-op writes no second success record.
+            _record_acknowledgement_audit(
+                session,
+                request,
+                alert_id=alert_id,
+                principal_id=principal.principal_id,
+                role=principal.role,
+                now_utc=now_utc,
+            )
     return _env(data, request, source="operator-input")
 
 
@@ -299,6 +324,43 @@ def _audit_action(request: Request, action: str, resource: str, outcome: str) ->
         )
     except Exception:
         return
+
+
+def _record_acknowledgement_audit(
+    session,
+    request: Request,
+    *,
+    alert_id: str,
+    principal_id: str,
+    role: str,
+    now_utc: datetime,
+) -> None:
+    """Append the shadow-acknowledgement audit row into the transition's transaction.
+
+    Unlike the best-effort ``_audit_action`` used for monitor lifecycle operations, this row
+    is written in the acknowledgement's own transaction and raises through to the caller: the
+    attribution must be as durable as the state it describes. It records the authenticated
+    principal id, the alert resource, the transition and the request correlation id.
+    """
+
+    from eurogas_nexus.db.repositories.audit import record_audit_event
+
+    request_id = getattr(request.state, "request_id", None)
+    record_audit_event(
+        session,
+        event_type="governance.strategy",
+        principal=principal_id[:64],
+        action="shadow.alert.acknowledge",
+        resource=f"shadow_alert:{alert_id}"[:128],
+        outcome="acknowledged",
+        severity="info",
+        detail=f"actor_id={principal_id}; role={role}; transition=OPEN->ACKNOWLEDGED",
+        source_system="shadow-runtime",
+        now_utc=now_utc,
+        correlation_id=request_id[:64] if request_id else None,
+        before_summary={"state": "OPEN"},
+        after_summary={"state": "ACKNOWLEDGED", "acknowledged_at_utc": now_utc.isoformat()},
+    )
 
 
 # --- session/envelope helpers ---------------------------------------------

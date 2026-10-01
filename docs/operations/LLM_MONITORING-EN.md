@@ -133,6 +133,18 @@ Clients use the stable `/api` surface:
 - `POST /api/analysis/query`
 - `POST /api/reports/portfolio`
 
+`POST /api/monitoring/alerts/{alert_id}/acknowledge` is a governed write: it
+requires the `GOVERNED` permission (ANALYST floor) and stays inside the
+commercial-data boundary, so a platform-administration-only identity cannot
+call it. The acknowledger is the authenticated principal resolved from the
+request identity - never a request-body field. The state transition and its
+audit record are written in one transaction; the record names the principal,
+the resource (`monitoring_alert:<alert_id>`) and the request correlation id,
+and is readable through the existing `GET /api/audit` surface
+(`audit.read`/ADMIN). A repeat acknowledgement preserves the original
+acknowledger and timestamp, and a resolved alert is not reopened or
+acknowledged.
+
 No client accesses PostgreSQL or DeepSeek directly.
 
 Python SDK users import from `eurogas_nexus_sdk.monitoring`:

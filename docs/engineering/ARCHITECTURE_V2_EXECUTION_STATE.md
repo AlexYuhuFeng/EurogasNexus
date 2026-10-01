@@ -72,6 +72,23 @@ with this broader product goal, not replaced by component-level success.
 
 ## Milestone History
 
+October 1 alert acknowledgement authority (baseline `14cc3ce`, parent lint
+correction `da560bb`): DeepSeek added an explicit GOVERNED monitoring write
+permission and authenticated-principal attribution for monitoring and shadow
+acknowledgements. Shadow body.actor remains accepted but ignored. Conditional
+updates prevent repeat acknowledgements from replacing the original timestamp
+or actor; successful transitions and audit_events insertion share a transaction.
+No schema migration or new datastore. Parent reviewed both paths and added an
+explicit PostgreSQL-test opt-in so local test runs cannot accidentally commit
+test alerts to the configured desk database. Parent verification: 47 focused
+security/API/link tests passed; 3 PostgreSQL tests skipped locally, to run in the
+disposable CI PostgreSQL job. Whole-repository Ruff passed. CI `36803887280`
+for `da560bb` passed; acknowledgement changes require new same-SHA evidence.
+No live alert was acknowledged and no local database was migrated. Remaining:
+show acknowledger in the client, complete assignment/escalation lifecycle,
+and verify populated persona flows. Shared payment semantics, contract revision
+history, lawful market data and broader commercial acceptance remain open.
+
 October 1 decision-run integrity and business coverage (baseline `7ce64b0`,
 with UAT disclosure correction `f65423b`): DeepSeek inventoried the eight
 business journeys and implemented separate compare/optimise action states,

@@ -534,17 +534,52 @@ def acknowledge_alert(
     alert_id: str,
     acknowledged_by: str,
     now_utc: datetime,
-) -> dict:
+) -> tuple[dict, bool]:
+    """Acknowledge one shadow alert, at most once, by the authenticated principal.
+
+    ``acknowledged_by`` comes from the caller's resolved principal, never from the request
+    body. The transition is a single conditional UPDATE (``state = 'OPEN'``), so concurrent
+    acknowledgements race on the row and exactly one wins; a repeat or no-op acknowledgement
+    preserves the original acknowledger and timestamp.
+
+    Args:
+        session: DB session.
+        alert_id: Shadow alert id.
+        acknowledged_by: Principal id of the authenticated acknowledger.
+        now_utc: Acknowledge time.
+
+    Returns:
+        ``(payload, transitioned)`` where ``transitioned`` is True only when this call moved
+        the alert from OPEN to ACKNOWLEDGED.
+
+    Raises:
+        ShadowRepositoryError: When the alert does not exist, or is RESOLVED - a resolved
+            alert is never reopened or acknowledged.
+    """
+
+    transitioned = (
+        session.query(StrategyShadowAlertRecord)
+        .filter(
+            StrategyShadowAlertRecord.alert_id == alert_id,
+            StrategyShadowAlertRecord.state == "OPEN",
+        )
+        .update(
+            {
+                StrategyShadowAlertRecord.state: "ACKNOWLEDGED",
+                StrategyShadowAlertRecord.acknowledged_at_utc: now_utc,
+                StrategyShadowAlertRecord.acknowledged_by: acknowledged_by,
+            },
+            synchronize_session=False,
+        )
+    )
+    # The conditional UPDATE bypasses the identity map, so reload before serializing.
+    session.expire_all()
     row = session.get(StrategyShadowAlertRecord, alert_id)
     if row is None:
         raise ShadowRepositoryError(f"Unknown shadow alert: {alert_id}")
-    if row.state == "RESOLVED":
+    if not transitioned and row.state == "RESOLVED":
         raise ShadowRepositoryError("Resolved alerts cannot be acknowledged")
-    row.state = "ACKNOWLEDGED"
-    row.acknowledged_at_utc = now_utc
-    row.acknowledged_by = acknowledged_by
-    session.flush()
-    return alert_payload(row)
+    return alert_payload(row), transitioned == 1
 
 
 def resolve_alert(

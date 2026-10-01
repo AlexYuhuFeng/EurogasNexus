@@ -250,6 +250,14 @@ Monitor create/pause/resume/retire and alert acknowledge are governed write
 surfaces. Reads stay in the current read permission family. Row data remains
 inside existing source entitlement boundaries.
 
+The recorded acknowledger is the authenticated principal
+(``state.identity``) - never the deprecated ``actor`` request field, which is
+accepted for compatibility and ignored. The transition and an
+``audit_events`` record naming the principal, the alert and the request
+correlation id are written in one transaction; a repeat or no-op
+acknowledgement preserves the original acknowledger and timestamp and writes
+no second success record. A resolved alert cannot be acknowledged.
+
 ## 20. No-execution guarantees
 
 Shadow runtime imports no execution/order/nomination adapter. Candidate rows

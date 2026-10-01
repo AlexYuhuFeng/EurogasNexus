@@ -18,11 +18,13 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
+from fastapi import HTTPException
 
 from eurogas_nexus.api.dependencies.acting_actor import (
     IDENTITY_AUTHENTICATED_FLAG,
     acting_actor,
     acting_actor_name,
+    require_acting_actor,
 )
 from eurogas_nexus.domain.identity.principal import (
     PrincipalValidationError,
@@ -98,3 +100,32 @@ def test_the_job_tracking_routes_share_one_actor_rule() -> None:
         source = (routes / name).read_text(encoding="utf-8")
         assert "acting_actor_name(request)" in source, name
         assert "str(identity.principal_id)" not in source, name
+
+
+def test_a_governed_write_refuses_a_request_with_no_resolved_identity() -> None:
+    """``require_acting_actor`` never invents an actor for a write that must be attributable."""
+
+    with pytest.raises(HTTPException) as raised:
+        require_acting_actor(_request())
+    assert raised.value.status_code == 401
+    assert raised.value.detail["error"] == "authentication_required"
+
+    # Something that is not a principal is not an identity either.
+    with pytest.raises(HTTPException) as raised_foreign:
+        require_acting_actor(_request(identity="not-a-principal"))
+    assert raised_foreign.value.status_code == 401
+
+
+def test_a_governed_write_accepts_the_resolved_and_compatibility_principals() -> None:
+    """A real identity is recorded as itself; the deployment-token principal keeps its posture."""
+
+    authenticated = require_acting_actor(
+        _request(
+            identity=_principal("principal-analyst", "analyst"),
+            **{IDENTITY_AUTHENTICATED_FLAG: True},
+        )
+    )
+    assert authenticated.principal_id == "principal-analyst"
+
+    compatibility = require_acting_actor(_request(identity=legacy_public_token_principal()))
+    assert compatibility.principal_id == "service:public-api"
