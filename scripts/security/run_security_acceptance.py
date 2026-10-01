@@ -66,11 +66,12 @@ def _checks() -> list[dict]:
     # serves the declared nomination-window masters at the READ floor, plus the
     # sandbox cash-valuation research route (/api/research/cash-valuation), which
     # adapts the one shared cash engine with exact decimal strings and no entity
-    # resolution.
+    # resolution. Two reviewed GOVERNED, contract-scoped revision reads bring
+    # the current total to 182; neither captures nor mutates evidence.
     # The count is a deliberate pin: a new public path must be declared in
     # tests/contract/test_api_surface_stability.py and recorded in the API contract
     # evolution policy in the same change.
-    check("public_surface_bounded", len(paths) == 180, f"public paths={len(paths)}")
+    check("public_surface_bounded", len(paths) == 182, f"public paths={len(paths)}")
 
     from eurogas_nexus.security.permissions import permission_for_path
 

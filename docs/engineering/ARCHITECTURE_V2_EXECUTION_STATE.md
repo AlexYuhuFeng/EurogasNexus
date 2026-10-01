@@ -72,6 +72,17 @@ with this broader product goal, not replaced by component-level success.
 
 ## Milestone History
 
+October 1 combined contract regression review (baseline `8bc0fcf`): parent ran
+API, security, integration, snapshot/migration and Markdown checks together:
+775 passed, 24 environment-dependent tests skipped, two security-acceptance
+tests failed because the deliberate route-count pin still said 180. The exact
+API inventory diff contains only the two reviewed GOVERNED revision reads.
+Updated that pin to 182 without relaxing equality or permission checks; all
+12 targeted security acceptance/revision authority/API-surface tests then
+passed. The whole combined suite was not rerun after this count-only repair.
+External security review remains blocked as documented; automated acceptance
+is not customer deployment approval.
+
 October 1 captured-revision reads (baseline `9160188`, CI `36873870921`
 passed including PostgreSQL): DeepSeek added contract-scoped list/detail reads
 with the existing GOVERNED commercial floor, bounded pagination, verified
