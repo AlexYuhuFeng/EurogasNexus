@@ -72,6 +72,15 @@ with this broader product goal, not replaced by component-level success.
 
 ## Milestone History
 
+October 1 full regression verification at `90e68c9`: parent executed the full
+Python suite without deselection: 2,681 passed, 28 skipped, two dependency
+deprecation warnings, no failures (569 seconds). Same-SHA CI `36876647980`
+passed validation, PostgreSQL integration, EN/ZH browser acceptance at three
+viewports, web build and dependency license/CVE checks. Native desktop build
+was skipped. Skipped local tests and external production acceptance remain
+unproven; this is regression evidence, not commercial approval. Next work
+remains stale-edit protection and visible contract revision inspection.
+
 October 1 combined contract regression review (baseline `8bc0fcf`): parent ran
 API, security, integration, snapshot/migration and Markdown checks together:
 775 passed, 24 environment-dependent tests skipped, two security-acceptance
