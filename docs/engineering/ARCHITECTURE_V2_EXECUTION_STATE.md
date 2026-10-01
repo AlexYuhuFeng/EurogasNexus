@@ -83,7 +83,12 @@ explicit PostgreSQL-test opt-in so local test runs cannot accidentally commit
 test alerts to the configured desk database. Parent verification: 47 focused
 security/API/link tests passed; 3 PostgreSQL tests skipped locally, to run in the
 disposable CI PostgreSQL job. Whole-repository Ruff passed. CI `36803887280`
-for `da560bb` passed; acknowledgement changes require new same-SHA evidence.
+for `da560bb` passed. Same-SHA CI `36805439885` for `4e04c3c` subsequently
+passed validation, EN/ZH browser acceptance at three viewports, dependency
+license/CVE audit, web build and PostgreSQL integration. The disposable
+PostgreSQL job executed 11 tests successfully, including the three new
+acknowledgement tests; these were not skipped. The desktop build was skipped,
+so this run is not native installation or desktop release acceptance.
 No live alert was acknowledged and no local database was migrated. Remaining:
 show acknowledger in the client, complete assignment/escalation lifecycle,
 and verify populated persona flows. Shared payment semantics, contract revision
