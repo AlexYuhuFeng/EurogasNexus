@@ -4,7 +4,18 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, String, Text
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from eurogas_nexus.db.base import Base
@@ -73,6 +84,40 @@ class UpstreamResourceContractRecord(Base):
     notes: Mapped[str | None] = mapped_column(Text(), nullable=True)
     created_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class UpstreamContractRevisionRecord(Base):
+    """One immutable captured economic revision of an upstream contract.
+
+    对应表 ``upstream_contract_revisions``；append-only 证据行：canonical
+    snapshot JSON + SHA-256 内容哈希 + 显式捕获来源（``legacy_capture``）。
+    后续 legacy upsert 覆盖 ``upstream_resource_contracts`` 时本行不变。
+    这里没有生命周期状态、没有 current pointer、没有 effective 日期：本表
+    只记录显式捕获时刻读取到的经济证据，不主张这些值过去何时生效。
+    """
+
+    __tablename__ = "upstream_contract_revisions"
+    __table_args__ = (
+        UniqueConstraint(
+            "contract_id", "revision_number", name="uq_upstream_contract_revision_number"
+        ),
+        Index("ix_upstream_contract_revisions_contract", "contract_id"),
+    )
+
+    contract_revision_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    contract_id: Mapped[str] = mapped_column(
+        String(128),
+        ForeignKey("upstream_resource_contracts.contract_id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    revision_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    schema_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    capture_origin: Mapped[str] = mapped_column(String(32), nullable=False)
+    snapshot_json: Mapped[str] = mapped_column(Text(), nullable=False)
+    display_metadata_json: Mapped[str] = mapped_column(Text(), nullable=False)
+    content_hash: Mapped[str] = mapped_column(String(128), nullable=False)
+    recorded_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    recorded_by: Mapped[str] = mapped_column(String(64), nullable=False)
 
 
 class CapacityProfileRecord(Base):

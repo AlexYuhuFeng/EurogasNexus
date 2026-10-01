@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from collections.abc import Mapping
+from dataclasses import dataclass
 from datetime import UTC, datetime
+from uuid import uuid4
 
 from sqlalchemy.orm import Session
 
@@ -13,7 +16,16 @@ from eurogas_nexus.db.models.route_cost import (
     LiveMarketMarkRecord,
     RouteCandidateRecord,
     TsoTariffRecord,
+    UpstreamContractRevisionRecord,
     UpstreamResourceContractRecord,
+)
+from eurogas_nexus.db.repositories.audit import record_audit_event
+from eurogas_nexus.domain.route_cost.contract_revision import (
+    CAPTURE_ORIGIN_LEGACY_CAPTURE,
+    ContractDisplayMetadata,
+    ContractRevisionPayloadError,
+    UpstreamContractEconomicSnapshot,
+    map_legacy_contract_payload,
 )
 from eurogas_nexus.domain.route_cost.enums import (
     CapacityProduct,
@@ -23,6 +35,64 @@ from eurogas_nexus.domain.route_cost.enums import (
 )
 from eurogas_nexus.domain.route_cost.live_markets import LiveMarketMark
 from eurogas_nexus.domain.route_cost.tariff_models import CapacityTariff
+
+#: Persisted capture outcomes. ``rejected`` writes nothing at all: an invalid
+#: or ambiguous legacy mapping is never stored as validated economics.
+CONTRACT_REVISION_CAPTURED = "captured"
+CONTRACT_REVISION_ALREADY_CAPTURED = "already_captured"
+CONTRACT_REVISION_REJECTED = "rejected"
+
+#: Stable refusal code for a legacy mapping that recorded ambiguity (the S1a
+#: mapper's ``mapping_issues``), such as non-empty notes that are not a JSON
+#: object. The specific recorded codes are repeated in the refusal detail.
+CONTRACT_REVISION_MAPPING_AMBIGUOUS = "contract_revision_mapping_ambiguous"
+
+#: Capture origins a stored revision may carry and still be served by a read.
+_VERIFIED_CAPTURE_ORIGINS = (CAPTURE_ORIGIN_LEGACY_CAPTURE,)
+
+
+class ContractRevisionPersistenceError(ValueError):
+    """A stored contract revision could not be captured or verified.
+
+    Attributes:
+        code: Stable machine-readable refusal code.
+        detail: Human-readable explanation of the refused value.
+    """
+
+    def __init__(self, code: str, detail: str) -> None:
+        """Build the refusal from a stable code and a human-readable detail."""
+
+        self.code = code
+        self.detail = detail
+        super().__init__(f"{code} ({detail})")
+
+
+@dataclass(frozen=True, slots=True)
+class ContractRevisionCaptureResult:
+    """Outcome of one explicit legacy-capture attempt.
+
+    Attributes:
+        outcome: :data:`CONTRACT_REVISION_CAPTURED` when this call inserted a
+            revision, :data:`CONTRACT_REVISION_ALREADY_CAPTURED` when the
+            identical economic content was already the contract's latest
+            revision (the original actor and timestamp are retained), or
+            :data:`CONTRACT_REVISION_REJECTED` when nothing was written (no
+            such contract row, an unmappable row or an ambiguous mapping).
+        revision: The persisted revision row, or ``None`` when rejected.
+        refusal_code: Stable code explaining a rejection, else ``None``.
+        refusal_detail: Human-readable rejection detail, else ``None``.
+    """
+
+    outcome: str
+    revision: UpstreamContractRevisionRecord | None
+    refusal_code: str | None = None
+    refusal_detail: str | None = None
+
+    @property
+    def created(self) -> bool:
+        """Whether this call inserted a new revision row."""
+
+        return self.outcome == CONTRACT_REVISION_CAPTURED
 
 
 def list_tso_tariffs(session: Session) -> list[CapacityTariff]:
@@ -139,6 +209,215 @@ def upsert_upstream_contract(session: Session, data: Mapping[str, object]) -> di
 
     session.flush()
     return _contract_payload(row)
+
+
+def capture_upstream_contract_revision(
+    session: Session,
+    contract_id: str,
+    *,
+    recorded_by: str,
+    recorded_at_utc: datetime,
+) -> ContractRevisionCaptureResult:
+    """Capture the current legacy contract row as one immutable revision.
+
+    把当前 legacy 契约行显式捕获为不可变经济修订；失败/歧义映射绝不写库。
+
+    The capture is explicit and caller-driven: nothing on startup, no route and
+    no backfill invokes it. It reads the supplied current
+    ``upstream_resource_contracts`` row, maps it with the strict S1a legacy
+    mapper and persists the canonical snapshot JSON plus its content hash. The
+    revision is evidence of the economics *at capture time*: the mutable legacy
+    upsert keeps overwriting the source row, and later row edits never change a
+    stored revision. No lifecycle status, current pointer or effective date is
+    written, because none is known.
+
+    Concurrency: the existing contract row is selected ``FOR UPDATE`` first, so
+    PostgreSQL serializes captures per contract and per-contract revision
+    numbers cannot collide. The select also asks the ORM to populate existing
+    instances, so a contract instance already loaded in the session's identity
+    map is re-read: a capture can never persist a stale row another committed
+    transaction has since updated. SQLite fixtures ignore ``FOR UPDATE``; the
+    PostgreSQL test covers the real lock.
+
+    Ambiguity: when the S1a mapper records any ``mapping_issues`` (for example
+    non-empty notes that are not a JSON object), the capture is refused with
+    :data:`CONTRACT_REVISION_MAPPING_AMBIGUOUS` and its detail before anything
+    is inserted or audited. The domain mapper is unchanged and still records
+    the issues; persisting them as validated economics is what is refused.
+
+    Idempotency: when the mapped content hash equals the contract's latest
+    captured revision, the stored revision is returned unchanged
+    (``already_captured``) - the original ``recorded_at_utc``/``recorded_by``
+    are retained, no new number is allocated and no second audit row is
+    written.
+
+    Audit: an accepted capture appends its audit row through ``record_audit_event``
+    in the caller's transaction, so the revision and its attribution commit or
+    roll back together. A rejected mapping writes neither the revision nor an
+    audit row; the caller inspects ``outcome``/``refusal_code``.
+
+    Args:
+        session: DB session; the caller owns the transaction boundary.
+        contract_id: Stable upstream contract identity whose current row is
+            captured.
+        recorded_by: Authenticated principal the capture is attributed to.
+        recorded_at_utc: Capture time; must be timezone-aware with a concrete
+            UTC offset, and is stored as UTC.
+
+    Returns:
+        The capture result; see :class:`ContractRevisionCaptureResult`.
+
+    Raises:
+        ContractRevisionPersistenceError: When a capture field is blank or
+            exceeds its column bound, when ``recorded_at_utc`` is naive or has
+            no concrete UTC offset, or when the idempotent repeat's stored
+            revision fails integrity verification.
+    """
+
+    identity = _capture_text(contract_id, "contract_id", 128)
+    actor = _capture_text(recorded_by, "recorded_by", 64)
+    if (
+        not isinstance(recorded_at_utc, datetime)
+        or recorded_at_utc.tzinfo is None
+        or recorded_at_utc.utcoffset() is None
+    ):
+        raise ContractRevisionPersistenceError(
+            "recorded_at_not_utc",
+            "recorded_at_utc must be a timezone-aware datetime with a concrete"
+            " UTC offset",
+        )
+    recorded_at = recorded_at_utc.astimezone(UTC)
+
+    # 契约行锁与强制刷新：PG 上 FOR UPDATE 串行化同一契约的并存捕获，保证编号
+    # 不冲突；populate_existing 保证 identity map 中已加载的旧行被重新读取，
+    # 不会把别的已提交事务写入前读取的旧值捕获成修订。SQLite 方言忽略
+    # FOR UPDATE（仅用于测试夹具）。
+    row = (
+        session.query(UpstreamResourceContractRecord)
+        .filter(UpstreamResourceContractRecord.contract_id == identity)
+        .populate_existing()
+        .with_for_update()
+        .one_or_none()
+    )
+    if row is None:
+        return ContractRevisionCaptureResult(
+            outcome=CONTRACT_REVISION_REJECTED,
+            revision=None,
+            refusal_code="contract_row_not_found",
+            refusal_detail=f"no upstream contract row exists for {identity!r}",
+        )
+
+    try:
+        mapped = map_legacy_contract_payload(_contract_payload(row))
+    except ContractRevisionPayloadError as exc:
+        # 不可映射的 legacy 行不得伪装成已验证经济内容：不写修订、不写审计。
+        return ContractRevisionCaptureResult(
+            outcome=CONTRACT_REVISION_REJECTED,
+            revision=None,
+            refusal_code=exc.code,
+            refusal_detail=exc.detail,
+        )
+
+    snapshot = mapped.economic_snapshot
+    if snapshot.mapping_issues:
+        # 歧义映射不得被捕获为已验证经济内容：在插入/审计之前拒绝，不写任何行。
+        return ContractRevisionCaptureResult(
+            outcome=CONTRACT_REVISION_REJECTED,
+            revision=None,
+            refusal_code=CONTRACT_REVISION_MAPPING_AMBIGUOUS,
+            refusal_detail=(
+                f"legacy contract {identity!r} mapped with issues"
+                f" [{', '.join(snapshot.mapping_issues)}]; an ambiguous mapping"
+                " is never stored as validated economic evidence"
+            ),
+        )
+    content_hash = snapshot.content_hash()
+    latest = _latest_contract_revision(session, identity)
+    if latest is not None and latest.content_hash == content_hash:
+        _verified_contract_revision_snapshot(latest)
+        return ContractRevisionCaptureResult(
+            outcome=CONTRACT_REVISION_ALREADY_CAPTURED,
+            revision=latest,
+        )
+
+    revision = UpstreamContractRevisionRecord(
+        contract_revision_id=f"contract-revision-{uuid4().hex[:20]}",
+        contract_id=identity,
+        revision_number=1 if latest is None else latest.revision_number + 1,
+        schema_version=snapshot.schema_version,
+        capture_origin=CAPTURE_ORIGIN_LEGACY_CAPTURE,
+        snapshot_json=snapshot.canonical_json(),
+        display_metadata_json=_display_metadata_json(mapped.display_metadata),
+        content_hash=content_hash,
+        recorded_at_utc=recorded_at,
+        recorded_by=actor,
+    )
+    session.add(revision)
+    session.flush()
+    _record_capture_audit(
+        session,
+        revision=revision,
+        previous_revision=latest,
+        recorded_by=actor,
+        recorded_at_utc=recorded_at,
+    )
+    return ContractRevisionCaptureResult(
+        outcome=CONTRACT_REVISION_CAPTURED,
+        revision=revision,
+    )
+
+
+def list_upstream_contract_revisions(session: Session, contract_id: str) -> list[dict]:
+    """List one contract's captured revisions, oldest number first, verified.
+
+    Every row is verified before it is returned (schema, content hash and
+    matching contract id), so a tampered snapshot is reported rather than
+    served as evidence.
+
+    Args:
+        session: DB session.
+        contract_id: Contract id filter.
+
+    Returns:
+        Verified revision payload dicts ordered by ``revision_number``.
+
+    Raises:
+        ContractRevisionPersistenceError: When a stored row fails verification.
+    """
+
+    rows = (
+        session.query(UpstreamContractRevisionRecord)
+        .filter(UpstreamContractRevisionRecord.contract_id == contract_id)
+        .order_by(UpstreamContractRevisionRecord.revision_number)
+        .all()
+    )
+    return [_verified_contract_revision_payload(row) for row in rows]
+
+
+def get_upstream_contract_revision(session: Session, contract_revision_id: str) -> dict:
+    """Read one captured revision with immutable-evidence verification.
+
+    Args:
+        session: DB session.
+        contract_revision_id: Revision id to read.
+
+    Returns:
+        The verified revision payload: revision identity, capture origin,
+        original recorder, display evidence and the canonical economic
+        snapshot.
+
+    Raises:
+        ContractRevisionPersistenceError: When no revision has that id or the
+            stored row fails verification.
+    """
+
+    row = session.get(UpstreamContractRevisionRecord, contract_revision_id)
+    if row is None:
+        raise ContractRevisionPersistenceError(
+            "contract_revision_not_found",
+            f"no captured contract revision exists for {contract_revision_id!r}",
+        )
+    return _verified_contract_revision_payload(row)
 
 
 def latest_market_marks(session: Session) -> list[LiveMarketMark]:
@@ -334,4 +613,221 @@ def _route_candidate_payload(row: RouteCandidateRecord) -> dict:
         "required_exit_point_name": row.required_exit_point_name,
         "required_tso_access": row.required_tso_access,
         "source_systems": row.source_systems,
+    }
+
+
+def _capture_text(value: object, name: str, max_length: int) -> str:
+    """Return one required capture field within its column bound.
+
+    Raises:
+        ContractRevisionPersistenceError: When the value is blank or longer
+            than the column it will be stored in (truncation would silently
+            rewrite the recorded actor or identity).
+    """
+
+    text = "" if value is None else str(value).strip()
+    if not text:
+        raise ContractRevisionPersistenceError(
+            f"{name}_blank", f"{name} is required and must not be blank"
+        )
+    if len(text) > max_length:
+        raise ContractRevisionPersistenceError(
+            f"{name}_too_long", f"{name} exceeds {max_length} characters"
+        )
+    return text
+
+
+def _latest_contract_revision(
+    session: Session, contract_id: str
+) -> UpstreamContractRevisionRecord | None:
+    """Return the highest-numbered captured revision of one contract, if any."""
+
+    return (
+        session.query(UpstreamContractRevisionRecord)
+        .filter(UpstreamContractRevisionRecord.contract_id == contract_id)
+        .order_by(UpstreamContractRevisionRecord.revision_number.desc())
+        .first()
+    )
+
+
+def _display_metadata_json(display: ContractDisplayMetadata) -> str:
+    """Serialize display evidence exactly as captured; never part of the hash."""
+
+    return json.dumps(
+        {
+            "contract_name": display.contract_name,
+            "operator_notes": display.operator_notes,
+        },
+        sort_keys=True,
+        ensure_ascii=False,
+    )
+
+
+def _record_capture_audit(
+    session: Session,
+    *,
+    revision: UpstreamContractRevisionRecord,
+    previous_revision: UpstreamContractRevisionRecord | None,
+    recorded_by: str,
+    recorded_at_utc: datetime,
+) -> None:
+    """Append the capture audit row into the caller's transaction.
+
+    A failure to write it must fail the capture: the caller propagates, the
+    session rolls back, and no revision persists without attribution.
+    """
+
+    record_audit_event(
+        session,
+        event_type="governance.contracts",
+        principal=recorded_by,
+        action="route_cost.contract.capture_revision",
+        resource=f"upstream_contract:{revision.contract_id}"[:128],
+        outcome="captured",
+        severity="info",
+        detail=(
+            f"contract_revision_id={revision.contract_revision_id};"
+            f" revision_number={revision.revision_number};"
+            f" capture_origin={revision.capture_origin};"
+            f" content_hash={revision.content_hash}"
+        ),
+        source_system="route-cost",
+        now_utc=recorded_at_utc,
+        before_summary=(
+            {
+                "latest_revision_number": previous_revision.revision_number,
+                "latest_content_hash": previous_revision.content_hash,
+            }
+            if previous_revision is not None
+            else None
+        ),
+        after_summary={
+            "contract_revision_id": revision.contract_revision_id,
+            "revision_number": revision.revision_number,
+            "content_hash": revision.content_hash,
+            "capture_origin": revision.capture_origin,
+        },
+    )
+
+
+def _snapshot_hash(snapshot_json: str) -> str:
+    """Return ``sha256:<hex>`` over the stored canonical snapshot text."""
+
+    digest = hashlib.sha256(snapshot_json.encode("utf-8")).hexdigest()
+    return f"sha256:{digest}"
+
+
+def _verified_contract_revision_snapshot(
+    row: UpstreamContractRevisionRecord,
+) -> UpstreamContractEconomicSnapshot:
+    """Decode and verify one stored revision's immutable economic evidence.
+
+    Verification is: reviewed capture origin, hash over the stored canonical
+    text, strict canonical/schema decode, matching contract id and schema
+    version, and a canonical round-trip hash. It is an integrity check on
+    stored evidence, never a signature.
+
+    Raises:
+        ContractRevisionPersistenceError: When the stored row fails any check.
+    """
+
+    if row.capture_origin not in _VERIFIED_CAPTURE_ORIGINS:
+        raise ContractRevisionPersistenceError(
+            "contract_revision_origin_unknown",
+            f"capture_origin {row.capture_origin!r} is not a reviewed origin",
+        )
+    stored_json = row.snapshot_json
+    if not isinstance(stored_json, str) or not stored_json:
+        raise ContractRevisionPersistenceError(
+            "contract_revision_snapshot_missing",
+            f"{row.contract_revision_id} has no stored snapshot JSON",
+        )
+    if _snapshot_hash(stored_json) != row.content_hash:
+        raise ContractRevisionPersistenceError(
+            "contract_revision_hash_mismatch",
+            f"{row.contract_revision_id} stored snapshot does not match its content hash",
+        )
+    try:
+        document = json.loads(stored_json)
+    except ValueError as exc:
+        raise ContractRevisionPersistenceError(
+            "contract_revision_snapshot_not_json",
+            f"{row.contract_revision_id} stored snapshot is not JSON",
+        ) from exc
+    try:
+        snapshot = UpstreamContractEconomicSnapshot.from_canonical_document(document)
+    except ContractRevisionPayloadError as exc:
+        raise ContractRevisionPersistenceError(
+            "contract_revision_snapshot_invalid",
+            f"{row.contract_revision_id} snapshot refused: {exc.code} ({exc.detail})",
+        ) from exc
+    if snapshot.contract_id != row.contract_id:
+        raise ContractRevisionPersistenceError(
+            "contract_revision_contract_id_mismatch",
+            f"{row.contract_revision_id} snapshot is for {snapshot.contract_id!r},"
+            f" not {row.contract_id!r}",
+        )
+    if snapshot.schema_version != row.schema_version:
+        raise ContractRevisionPersistenceError(
+            "contract_revision_schema_version_mismatch",
+            f"{row.contract_revision_id} snapshot schema {snapshot.schema_version!r}"
+            f" does not match stored {row.schema_version!r}",
+        )
+    if snapshot.content_hash() != row.content_hash:
+        raise ContractRevisionPersistenceError(
+            "contract_revision_hash_mismatch",
+            f"{row.contract_revision_id} snapshot does not round-trip to its content hash",
+        )
+    return snapshot
+
+
+def _verified_display_metadata(row: UpstreamContractRevisionRecord) -> dict:
+    """Decode the unhashed display evidence with shape checks only.
+
+    Display metadata is deliberately outside the economic hash (a rename must
+    not create a revision), so this is a shape check, not an integrity proof.
+    """
+
+    try:
+        display = json.loads(row.display_metadata_json)
+    except (TypeError, ValueError) as exc:
+        raise ContractRevisionPersistenceError(
+            "contract_revision_display_invalid",
+            f"{row.contract_revision_id} display evidence is not JSON",
+        ) from exc
+    if not isinstance(display, Mapping):
+        raise ContractRevisionPersistenceError(
+            "contract_revision_display_invalid",
+            f"{row.contract_revision_id} display evidence is not a JSON object",
+        )
+    contract_name = display.get("contract_name")
+    operator_notes = display.get("operator_notes")
+    if not isinstance(contract_name, str) or not contract_name.strip():
+        raise ContractRevisionPersistenceError(
+            "contract_revision_display_invalid",
+            f"{row.contract_revision_id} display evidence has no contract_name",
+        )
+    if operator_notes is not None and not isinstance(operator_notes, str):
+        raise ContractRevisionPersistenceError(
+            "contract_revision_display_invalid",
+            f"{row.contract_revision_id} display evidence has a non-text operator_notes",
+        )
+    return {"contract_name": contract_name, "operator_notes": operator_notes}
+
+
+def _verified_contract_revision_payload(row: UpstreamContractRevisionRecord) -> dict:
+    """Serialize one verified stored revision for a caller citing evidence."""
+
+    snapshot = _verified_contract_revision_snapshot(row)
+    return {
+        "contract_revision_id": row.contract_revision_id,
+        "contract_id": row.contract_id,
+        "revision_number": row.revision_number,
+        "schema_version": row.schema_version,
+        "capture_origin": row.capture_origin,
+        "content_hash": row.content_hash,
+        "recorded_at_utc": row.recorded_at_utc.isoformat(),
+        "recorded_by": row.recorded_by,
+        "display_metadata": _verified_display_metadata(row),
+        "snapshot": snapshot.canonical_document(),
     }

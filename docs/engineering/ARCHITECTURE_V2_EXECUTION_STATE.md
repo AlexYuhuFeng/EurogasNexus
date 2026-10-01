@@ -72,6 +72,21 @@ with this broader product goal, not replaced by component-level success.
 
 ## Milestone History
 
+October 1 revision persistence foundation (baseline `f396492`, whose CI
+`36865510283` passed): DeepSeek added expand-only migration
+`0037_contract_revisions`, explicit repository capture/read, per-contract row
+locking, idempotent repeat capture, canonical integrity checks and transactional
+audit. Parent review required rejection of mapping warnings, refresh of stale
+ORM instances before capture, audit-failure rollback coverage and qualified
+migration deployment claims. Parent verification: 81 focused tests passed,
+three PostgreSQL tests skipped locally; whole-repo Ruff passed. Disposable CI
+now includes revision repeat/change, concurrency and stale-instance tests.
+No local runtime migration or capture was performed. Existing contract writes
+still overwrite their legacy row; this is explicit captured evidence, not yet
+automatic revision history or lifecycle. Next: verify same-SHA PostgreSQL CI,
+then integrate governed contract writes with captured revisions and actor
+attribution, preserving API compatibility and fail-closed audit behavior.
+
 October 1 contract economic snapshot foundation (baseline `1676b98`):
 DeepSeek implemented `domain/route_cost/contract_revision.py` with an immutable
 economic payload, strict legacy mapping, explicit missing payment terms,

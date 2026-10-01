@@ -1,10 +1,12 @@
 """Immutable economic snapshot of one upstream resource contract revision.
 
 S1a of ``docs/engineering/CONTRACT_PAYMENT_INTEGRATION_PLAN.md`` (repository
-baseline ``1676b98``): the immutable economic payload a future contract
-revision will persist, plus a strict mapping from today's legacy contract
-payload. This slice defines the contract only — there is no DB model,
-migration, table, repository write, API, UI, audit or concurrency change.
+baseline ``1676b98``): the immutable economic payload a captured contract
+revision persists, plus a strict mapping from today's legacy contract payload.
+This module stays a pure domain contract — persistence is slice S1b
+(baseline ``f396492``) and lives in ``db/repositories/route_cost.py``, which
+stores this payload's canonical JSON/hash; no route, UI or startup wiring
+exists.
 
 Why: an upstream contract is currently one mutable row whose ``notes`` JSON
 carries three economic costs, so a valuation cannot cite an immutable economic
@@ -83,6 +85,12 @@ from decimal import Decimal, InvalidOperation
 from typing import Self
 
 CONTRACT_REVISION_SCHEMA_VERSION = "upstream-contract-revision/v1"
+
+#: Reviewed capture-origin label for the first persistence slice (S1b): the
+#: revision records what the mutable legacy row contained when a caller
+#: explicitly captured it. It is *not* a claim about when those economics
+#: applied; no effective date is recorded anywhere.
+CAPTURE_ORIGIN_LEGACY_CAPTURE = "legacy_capture"
 
 #: Reviewed provenance labels for the numeric representation of a snapshot.
 #: ``legacy_float64`` is the legacy capture path's precision ceiling: a value

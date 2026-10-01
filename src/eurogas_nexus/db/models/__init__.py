@@ -100,6 +100,7 @@ from eurogas_nexus.db.models.route_cost import (
     LiveMarketMarkRecord,
     RouteCandidateRecord,
     TsoTariffRecord,
+    UpstreamContractRevisionRecord,
     UpstreamResourceContractRecord,
 )
 from eurogas_nexus.db.models.shadow import (
@@ -310,6 +311,7 @@ __all__ = [
     "StrategyRunRecord",
     "TsoTariffRecord",
     "TopologyMarketMapping",
+    "UpstreamContractRevisionRecord",
     "UpstreamResourceContractRecord",
     "AgentChallengeReportRecord",
     "AgentResearchBudgetRecord",
