@@ -72,6 +72,17 @@ with this broader product goal, not replaced by component-level success.
 
 ## Milestone History
 
+October 1 cold-start initialization repair (baseline `109fe24`): DeepSeek
+added import-only, single-threaded dependency initialization in application
+lifespan and made the in-process load smoke execute that lifespan before its
+unchanged concurrent workload. No request warm-up, retry or relaxed threshold.
+Parent review and verification: 42 focused startup/import-safety/load-smoke/link
+tests passed; whole-repo Ruff passed. Fresh-process tests cover initialization
+ordering and concurrent requests. Local Python is 3.14: the exact Python 3.11
+import deadlock was not locally reproduced; same-SHA CI remains required.
+No database connection, migration or runtime data change was introduced.
+Harnesses that bypass ASGI lifespan remain outside this initialization contract.
+
 October 1 CI cold-start failure at `58afd8a`: run `36878083383` failed
 the validate job's in-process API load smoke. The traceback ends in Python
 3.11 `_ModuleLock('sqlalchemy.exc')` deadlock during concurrent first-request

@@ -1,8 +1,12 @@
 """FastAPI application factory."""
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from eurogas_nexus.api import runtime_dependencies
 from eurogas_nexus.api.dependencies.commercial_access import require_commercial_access
 from eurogas_nexus.api.dependencies.identity import require_identity
 from eurogas_nexus.api.dependencies.public_auth import require_public_api_auth
@@ -14,6 +18,22 @@ from eurogas_nexus.api.middleware.request_id import RequestIdMiddleware
 from eurogas_nexus.api.route_profiles import get_route_profile
 from eurogas_nexus.api.route_registration import register_routes
 from eurogas_nexus.core.config import Settings, get_settings
+
+
+@asynccontextmanager
+async def _application_lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    """Complete runtime dependency initialization before requests are served.
+
+    The runtime database imports stay lazy at each call site so importing the
+    API does not load the DB layer; running them here, once and
+    single-threaded, keeps concurrent first requests from racing in the import
+    machinery (CI run ``36878083383``, CPython 3.11 ``_ModuleLock`` deadlock).
+    The documented deployment server (uvicorn) runs this startup before it
+    accepts work, so no request thread is ever the first importer.
+    """
+
+    runtime_dependencies.initialize_runtime_dependencies()
+    yield
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -42,6 +62,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         redoc_url="/redoc" if route_profile.expose_docs else None,
         openapi_url="/openapi.json" if route_profile.expose_openapi else None,
         dependencies=dependencies,
+        lifespan=_application_lifespan,
     )
 
     app.state.settings = resolved_settings

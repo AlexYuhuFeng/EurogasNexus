@@ -4,6 +4,13 @@ Runs concurrent GETs against the FastAPI app via httpx's ASGI transport and
 reports latency percentiles. Gate-4 load baseline: catches pathological
 latency/error regressions in CI without standing up a server.
 
+The in-process target runs the application's ASGI lifespan startup before it
+fires requests, exactly like a server does: startup completes dependency
+initialization single-threaded, so the first concurrent requests cannot race
+in the import machinery (CI run 36878083383, CPython 3.11 ``_ModuleLock``
+deadlock). A workload that skipped startup would measure a lifecycle no
+deployment has.
+
 Usage:
     python scripts/ops/load_smoke.py [--requests N] [--concurrency C]
         [--p95-threshold-ms 500] [--error-rate-threshold 0.05]
@@ -63,10 +70,12 @@ def run_requests(
     """Fire ``total`` GETs across the smoke paths; return (latencies, errors).
 
     ``base_url`` selects a real HTTP target and bypasses the in-process
-    transport. When it is omitted, the in-process behavior is unchanged.
+    transport (the running server owns its own startup/shutdown). When it is
+    omitted, the app's lifespan startup runs once in this process before the
+    concurrent requests, mirroring uvicorn.
     """
 
-    async def runner() -> tuple[list[float], list[str]]:
+    async def fire() -> tuple[list[float], list[str]]:
         semaphore = asyncio.Semaphore(concurrency)
         latencies: list[float] = []
         errors: list[str] = []
@@ -103,6 +112,15 @@ def run_requests(
 
         await asyncio.gather(*(one(index) for index in range(total)))
         return latencies, errors
+
+    async def runner() -> tuple[list[float], list[str]]:
+        if base_url:
+            return await fire()
+
+        from apps.api.main import app
+
+        async with app.router.lifespan_context(app):
+            return await fire()
 
     return asyncio.run(runner())
 

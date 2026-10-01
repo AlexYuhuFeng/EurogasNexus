@@ -145,6 +145,34 @@ bash scripts/ops/run_served_load_smoke.sh
 `RUNTIME_STORE_DATABASE_URL` to smoke a PostgreSQL-backed instance; without it
 the server runs DB-less like the in-process CI job.
 
+## Cold-Start Initialization
+
+CI run `36878083383` (baseline `58afd8a`) failed the in-process API load smoke
+in a CPython 3.11 `_ModuleLock('sqlalchemy.exc')` import deadlock: eight
+concurrent first requests reached the lazily imported runtime database layer
+from FastAPI worker threads at the same time. The application lifespan startup
+now imports that graph once, on one thread, before the server accepts requests
+(`src/eurogas_nexus/api/runtime_dependencies.py`, invoked from the lifespan in
+`src/eurogas_nexus/api/app.py`). The in-process smoke runs the same lifespan,
+so it exercises the deployed lifecycle (uvicorn runs it too) instead of a
+lifecycle no deployment has.
+
+Initialization is import-only. It does not require
+`RUNTIME_STORE_DATABASE_URL`, does not create an engine, open a connection, run
+migrations or write state, and importing `apps.api.main` still loads neither
+SQLAlchemy nor the database package. The behavior is pinned by the
+fresh-process tests in `tests/contract/test_cold_start_initialization.py`.
+
+Evidence and limits: three cold in-process trials of
+`python scripts/ops/load_smoke.py --requests 200 --concurrency 8
+--p95-threshold-ms 1000` reported 200 ok / 0 errors each with p95 between 21.7
+and 26.1 ms, and a served uvicorn trial reported 120 ok / 0 errors. The
+original deadlock requires CPython 3.11; these local trials ran on CPython
+3.14, so they reproduce the cold-start import order (first sight of the
+database graph on the startup thread, never on a request worker) rather than
+the 3.11 deadlock itself. A harness that never runs the ASGI lifespan startup
+does not get this initialization and is not covered by the gate.
+
 ## Runtime DB Validation
 
 Command:

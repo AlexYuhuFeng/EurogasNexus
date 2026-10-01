@@ -3,6 +3,8 @@
 import importlib.util
 from pathlib import Path
 
+import pytest
+
 _load_smoke_path = (
     Path(__file__).resolve().parents[2] / "scripts" / "ops" / "load_smoke.py"
 )
@@ -29,6 +31,40 @@ def test_run_requests_in_process_returns_latencies_and_no_errors() -> None:
     assert len(latencies) == 20
     assert errors == []
     assert all(latency > 0 for latency in latencies)
+
+
+def test_run_requests_runs_application_startup_before_any_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Cold-start ordering: the app lifespan startup precedes the first request.
+
+    CI run 36878083383 deadlocked because the first concurrent requests, not
+    the startup, triggered the runtime database imports (CPython 3.11
+    ``_ModuleLock`` deadlock). The in-process smoke must therefore run the
+    application lifespan - the same startup uvicorn runs - before it fires its
+    workload.
+    """
+
+    from eurogas_nexus.api import runtime_dependencies
+
+    events: list[str] = []
+    real_caller_headers = load_smoke._caller_headers
+    monkeypatch.setattr(
+        runtime_dependencies,
+        "initialize_runtime_dependencies",
+        lambda: events.append("startup"),
+    )
+    monkeypatch.setattr(
+        load_smoke,
+        "_caller_headers",
+        lambda: (events.append("request"), real_caller_headers())[1],
+    )
+
+    latencies, errors = run_requests(2, 1, ("/api/health",))
+
+    assert len(latencies) == 2
+    assert errors == []
+    assert events == ["startup", "request", "request"]
 
 
 def test_run_requests_with_base_url_uses_real_http() -> None:
