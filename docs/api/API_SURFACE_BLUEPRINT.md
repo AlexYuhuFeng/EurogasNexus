@@ -144,6 +144,8 @@ explicitly approves them.
 | `POST` | `/api/route-cost/calculate` | explicit-leg route cost calculation | active |
 | `POST` | `/api/route-cost/recommend` | capacity-constrained sale-route recommendation | active |
 | `POST` | `/api/route-cost/resource-pool/optimize` | portfolio resource-pool allocation | active |
+| `GET` | `/api/route-cost/upstream-contracts/{contract_id}/revisions` | bounded, contract-scoped history of captured contract revisions (evidence only) | active |
+| `GET` | `/api/route-cost/upstream-contracts/{contract_id}/revisions/{contract_revision_id}` | one verified captured contract revision, scoped to its contract | active |
 | `POST` | `/api/research/netback` | indicative netback output | planned |
 | `POST` | `/api/research/feasibility` | feasibility output | planned |
 | `POST` | `/api/research/allocation` | allocation scenario output | planned |

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from eurogas_nexus.api.dependencies.acting_actor import require_acting_actor
@@ -35,6 +35,29 @@ from eurogas_nexus.domain.route_cost.route_optimizer import (
 from eurogas_nexus.domain.route_cost.schemas import RouteCostScenario
 
 router = APIRouter(tags=["route-cost"])
+
+#: Bounded page size for the captured-revision history read: a revision page is
+#: immutable economic evidence, so the route serves one bounded, ordered page
+#: instead of materializing a contract's whole capture history.
+CONTRACT_REVISION_PAGE_DEFAULT_LIMIT = 50
+CONTRACT_REVISION_PAGE_MAX_LIMIT = 200
+
+#: Every captured-revision read carries these warnings. A capture is explicit
+#: capture-time evidence, not a complete history, and it stores no payment
+#: terms - the read must say so rather than let a caller infer either.
+CONTRACT_REVISION_EVIDENCE_WARNINGS = (
+    "Captured revisions are explicit capture-time evidence, not a complete history of past"
+    " contract writes.",
+    "Captured economics carry no payment terms or effective dates; nothing here asserts when"
+    " the terms applied or when payment falls due.",
+)
+
+#: Added to a history page that returned no revision for an existing contract,
+#: so "nothing captured yet" is never read as "nothing was read".
+CONTRACT_REVISION_EMPTY_WARNING = (
+    "No revision has been captured for this contract; an empty page is not evidence that its"
+    " terms never changed."
+)
 
 
 class UpstreamContractUpsertRequest(BaseModel):
@@ -262,6 +285,149 @@ def upsert_upstream_contract(body: UpstreamContractUpsertRequest, request: Reque
             return _env(data, request, source="runtime-postgresql")
     except sqlalchemy_error as exc:
         raise _db_unavailable(exc) from exc
+
+
+@router.get("/api/route-cost/upstream-contracts/{contract_id}/revisions")
+def list_contract_revisions(
+    contract_id: str,
+    request: Request,
+    limit: int = Query(
+        default=CONTRACT_REVISION_PAGE_DEFAULT_LIMIT,
+        ge=1,
+        le=CONTRACT_REVISION_PAGE_MAX_LIMIT,
+    ),
+    offset: int = Query(default=0, ge=0),
+) -> dict:
+    """List one contract's captured economic revisions, oldest number first.
+
+    Reads the immutable capture evidence the governed write path stores - the
+    same verified repository read the write response cites - and never captures
+    anything itself: a read of a changed source row adds no revision and no
+    audit row. An unknown contract is 404 ``upstream_contract_not_found``; an
+    existing contract with nothing captured answers an empty, bounded page with
+    ``revision_count`` 0 and an explicit warning, so "no captures yet" is
+    never confused with "no such contract" or with an unread store.
+
+    ``limit``/``offset`` page the revision-number order and are pushed into the
+    query, so a contract with a long capture record materializes one bounded
+    page of snapshot evidence rather than its whole history.
+
+    Honest limits, carried as warnings: a captured revision is explicit
+    capture-time evidence of the row as the capture read it - not a complete
+    history before the first captured write - and it holds no payment terms or
+    effective dates.
+    """
+
+    if not _db_is_configured():
+        raise _runtime_db_required("read captured contract revisions")
+
+    sqlalchemy_error = _sqlalchemy_error_type()
+    try:
+        from eurogas_nexus.db.repositories.route_cost import (
+            ContractRevisionPersistenceError,
+            count_upstream_contract_revisions,
+            list_upstream_contract_revisions,
+            upstream_contract_exists,
+        )
+        from eurogas_nexus.db.session import get_session_factory
+
+        with get_session_factory()() as session:
+            if not upstream_contract_exists(session, contract_id):
+                raise HTTPException(
+                    status_code=404,
+                    detail={
+                        "error": "not_found",
+                        "code": "upstream_contract_not_found",
+                        "message": f"No upstream contract is stored for {contract_id!r}.",
+                    },
+                )
+            revision_count = count_upstream_contract_revisions(session, contract_id)
+            revisions = list_upstream_contract_revisions(
+                session,
+                contract_id,
+                limit=limit,
+                offset=offset,
+            )
+    except ContractRevisionPersistenceError as exc:
+        raise _contract_revision_read_failure(exc) from exc
+    except sqlalchemy_error as exc:
+        raise _db_unavailable(exc) from exc
+
+    warnings = list(CONTRACT_REVISION_EVIDENCE_WARNINGS)
+    if revision_count == 0:
+        warnings.append(CONTRACT_REVISION_EMPTY_WARNING)
+    data = {
+        "scope": "UPSTREAM_CONTRACT_REVISIONS",
+        "data_source": "runtime-postgresql",
+        "contract_id": contract_id,
+        "revision_count": revision_count,
+        "returned_count": len(revisions),
+        "has_more": offset + len(revisions) < revision_count,
+        "limit": limit,
+        "offset": offset,
+        "revisions": revisions,
+    }
+    return _env(data, request, source="runtime-postgresql", warnings=warnings)
+
+
+@router.get(
+    "/api/route-cost/upstream-contracts/{contract_id}/revisions/{contract_revision_id}"
+)
+def get_contract_revision(
+    contract_id: str,
+    contract_revision_id: str,
+    request: Request,
+) -> dict:
+    """Read one captured revision, explicitly scoped to its contract.
+
+    The revision id is only answered under the contract it was captured for: a
+    revision that belongs to a different contract is refused with the same 404
+    ``contract_revision_not_found`` as an unknown id, so the surface never
+    confirms that a revision exists under a contract the caller did not name.
+    The evidence row is verified by the existing repository read (reviewed
+    capture origin, stored hash, canonical decode and matching contract id and
+    schema version) before it is served.
+
+    An integrity-verification failure is a structured 409 carrying the
+    repository's stable code and a fixed message only: stored row content,
+    driver messages and SQL are never echoed. The response preserves the
+    capture origin, schema version, content hash, capture instant and original
+    recorder, and carries the same honest-limit warnings as the history read.
+    """
+
+    if not _db_is_configured():
+        raise _runtime_db_required("read a captured contract revision")
+
+    sqlalchemy_error = _sqlalchemy_error_type()
+    try:
+        from eurogas_nexus.db.repositories.route_cost import (
+            ContractRevisionPersistenceError,
+            get_upstream_contract_revision,
+        )
+        from eurogas_nexus.db.session import get_session_factory
+
+        with get_session_factory()() as session:
+            revision = get_upstream_contract_revision(
+                session,
+                contract_revision_id,
+                contract_id=contract_id,
+            )
+    except ContractRevisionPersistenceError as exc:
+        raise _contract_revision_read_failure(exc) from exc
+    except sqlalchemy_error as exc:
+        raise _db_unavailable(exc) from exc
+
+    data = {
+        **revision,
+        "scope": "UPSTREAM_CONTRACT_REVISION",
+        "data_source": "runtime-postgresql",
+    }
+    return _env(
+        data,
+        request,
+        source="runtime-postgresql",
+        warnings=CONTRACT_REVISION_EVIDENCE_WARNINGS,
+    )
 
 
 @router.get("/api/route-cost/resource-pool/options")
@@ -536,6 +702,57 @@ def _db_unavailable(exc: Exception) -> HTTPException:
             "code": "runtime_db_unavailable",
             "message": "Runtime database is configured but unavailable for route-cost reads.",
             "error_class": exc.__class__.__name__,
+        },
+    )
+
+
+def _runtime_db_required(action: str) -> HTTPException:
+    """503 refusal when a read that must be verified has no runtime store.
+
+    Captured revisions are evidence: without the runtime database there is
+    nothing to verify, so the read refuses instead of answering an empty page
+    that could be mistaken for "nothing was captured".
+    """
+
+    return HTTPException(
+        status_code=503,
+        detail={
+            "code": "runtime_db_not_configured",
+            "message": f"Runtime DB is required to {action}.",
+        },
+    )
+
+
+def _contract_revision_read_failure(exc: Exception) -> HTTPException:
+    """Stable, sanitized refusal for a revision read that cannot be served.
+
+    A missing revision - including a revision id scoped to a different
+    contract - is 404 ``contract_revision_not_found``, the same code and
+    message for both, so the surface never confirms that a revision exists
+    under a contract the caller did not name. Any other repository refusal is
+    an integrity-verification failure: 409 with the stable code and a fixed
+    message, never stored row content, driver text or SQL.
+    """
+
+    code = getattr(exc, "code", None) or "contract_revision_read_refused"
+    if code == "contract_revision_not_found":
+        return HTTPException(
+            status_code=404,
+            detail={
+                "error": "not_found",
+                "code": code,
+                "message": "No captured contract revision matches this contract and revision id.",
+            },
+        )
+    return HTTPException(
+        status_code=409,
+        detail={
+            "error": "conflict",
+            "code": code,
+            "message": (
+                "The stored contract revision failed immutable-evidence verification,"
+                " so it was refused rather than served."
+            ),
         },
     )
 

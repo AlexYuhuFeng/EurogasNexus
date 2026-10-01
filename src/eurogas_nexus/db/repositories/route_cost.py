@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from uuid import uuid4
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from eurogas_nexus.db.models.route_cost import (
@@ -184,6 +185,29 @@ def list_upstream_contracts(session: Session) -> list[dict]:
         UpstreamResourceContractRecord.updated_at_utc.desc()
     )
     return [_contract_payload(row) for row in rows.all()]
+
+
+def upstream_contract_exists(session: Session, contract_id: str) -> bool:
+    """Whether a mutable upstream contract row exists for this id.
+
+    The captured-revision read uses this to tell "this contract has no
+    revisions captured yet" apart from "no such contract", which a revision
+    query alone cannot distinguish.
+
+    Args:
+        session: DB session.
+        contract_id: Stable contract id.
+
+    Returns:
+        ``True`` when the contract identity itself is stored.
+    """
+
+    return (
+        session.query(UpstreamResourceContractRecord.contract_id)
+        .filter(UpstreamResourceContractRecord.contract_id == contract_id)
+        .first()
+        is not None
+    )
 
 
 def upsert_upstream_contract(session: Session, data: Mapping[str, object]) -> dict:
@@ -669,39 +693,96 @@ def upsert_upstream_contract_governed(
     )
 
 
-def list_upstream_contract_revisions(session: Session, contract_id: str) -> list[dict]:
+def list_upstream_contract_revisions(
+    session: Session,
+    contract_id: str,
+    *,
+    limit: int | None = None,
+    offset: int = 0,
+) -> list[dict]:
     """List one contract's captured revisions, oldest number first, verified.
 
-    Every row is verified before it is returned (schema, content hash and
-    matching contract id), so a tampered snapshot is reported rather than
-    served as evidence.
+    Every returned row is verified before it is served (schema, content hash
+    and matching contract id), so a tampered snapshot is reported rather than
+    served as evidence. ``limit``/``offset`` are pushed into the query, so a
+    contract with a long capture record materializes at most one bounded page
+    of snapshot evidence instead of its whole history.
+
+    Args:
+        session: DB session.
+        contract_id: Contract id filter.
+        limit: Maximum revisions to return, or ``None`` for the previous
+            unbounded repository behaviour. The read route always passes a
+            bounded page size.
+        offset: Revisions to skip, in revision-number order.
+
+    Returns:
+        Verified revision payload dicts ordered by ``revision_number``
+        ascending, with ``contract_revision_id`` as the deterministic
+        tie-break.
+
+    Raises:
+        ValueError: When ``limit`` is not positive or ``offset`` is negative.
+        ContractRevisionPersistenceError: When a stored row fails verification.
+    """
+
+    if limit is not None and limit < 1:
+        raise ValueError("limit must be a positive number of revisions")
+    if offset < 0:
+        raise ValueError("offset must not be negative")
+    query = (
+        session.query(UpstreamContractRevisionRecord)
+        .filter(UpstreamContractRevisionRecord.contract_id == contract_id)
+        .order_by(
+            UpstreamContractRevisionRecord.revision_number,
+            UpstreamContractRevisionRecord.contract_revision_id,
+        )
+    )
+    if offset:
+        query = query.offset(offset)
+    if limit is not None:
+        query = query.limit(limit)
+    return [_verified_contract_revision_payload(row) for row in query.all()]
+
+
+def count_upstream_contract_revisions(session: Session, contract_id: str) -> int:
+    """Count one contract's captured revisions without materializing snapshots.
 
     Args:
         session: DB session.
         contract_id: Contract id filter.
 
     Returns:
-        Verified revision payload dicts ordered by ``revision_number``.
-
-    Raises:
-        ContractRevisionPersistenceError: When a stored row fails verification.
+        Number of stored revisions for the contract.
     """
 
-    rows = (
-        session.query(UpstreamContractRevisionRecord)
+    return int(
+        session.query(func.count())
+        .select_from(UpstreamContractRevisionRecord)
         .filter(UpstreamContractRevisionRecord.contract_id == contract_id)
-        .order_by(UpstreamContractRevisionRecord.revision_number)
-        .all()
+        .scalar()
+        or 0
     )
-    return [_verified_contract_revision_payload(row) for row in rows]
 
 
-def get_upstream_contract_revision(session: Session, contract_revision_id: str) -> dict:
+def get_upstream_contract_revision(
+    session: Session,
+    contract_revision_id: str,
+    *,
+    contract_id: str | None = None,
+) -> dict:
     """Read one captured revision with immutable-evidence verification.
+
+    When ``contract_id`` is supplied the read is explicitly scoped to it: a
+    revision id that belongs to a different contract is refused with the same
+    ``contract_revision_not_found`` code as an unknown id, so the surface never
+    confirms that a revision exists under a contract the caller did not name.
 
     Args:
         session: DB session.
         contract_revision_id: Revision id to read.
+        contract_id: Contract id the revision must belong to, or ``None`` for
+            the unscoped repository read.
 
     Returns:
         The verified revision payload: revision identity, capture origin,
@@ -710,14 +791,15 @@ def get_upstream_contract_revision(session: Session, contract_revision_id: str) 
 
     Raises:
         ContractRevisionPersistenceError: When no revision has that id or the
-            stored row fails verification.
+            stored row fails verification or is not scoped to ``contract_id``.
     """
 
     row = session.get(UpstreamContractRevisionRecord, contract_revision_id)
-    if row is None:
+    if row is None or (contract_id is not None and row.contract_id != contract_id):
         raise ContractRevisionPersistenceError(
             "contract_revision_not_found",
-            f"no captured contract revision exists for {contract_revision_id!r}",
+            f"no captured contract revision {contract_revision_id!r} exists"
+            + (f" for contract {contract_id!r}" if contract_id is not None else ""),
         )
     return _verified_contract_revision_payload(row)
 

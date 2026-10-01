@@ -53,6 +53,23 @@ def test_upsert_upstream_contract_requires_runtime_db() -> None:
     assert response.json()["detail"]["code"] == "runtime_db_not_configured"
 
 
+def test_revision_reads_require_runtime_db() -> None:
+    """Captured-revision reads refuse an unverifiable store instead of faking empty."""
+
+    client = TestClient(create_app())
+
+    history = client.get(
+        "/api/route-cost/upstream-contracts/draft-contract/revisions"
+    )
+    single = client.get(
+        "/api/route-cost/upstream-contracts/draft-contract/revisions/draft-revision"
+    )
+
+    for response in (history, single):
+        assert response.status_code == 503
+        assert response.json()["detail"]["code"] == "runtime_db_not_configured"
+
+
 def test_get_tso_tariffs_can_filter_bbl_rows(monkeypatch) -> None:
     monkeypatch.setattr(
         route_cost_routes,

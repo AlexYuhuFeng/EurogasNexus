@@ -150,6 +150,19 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     ("/api/route-cost/route-candidates", Permission.READ),
     # GET lists + POST upserts contracts: policy-gated write surface.
     ("/api/route-cost/upstream-contracts", Permission.GOVERNED),
+    # Captured economic revisions are the evidence of the same commercial
+    # contract terms, so their reads keep the GOVERNED (ANALYST) floor and the
+    # commercial boundary of the contract row they belong to. Reading them is
+    # not a persona/work-mode decision: only the existing commercial read
+    # authority applies, and a VIEWER keeps the role refusal.
+    (
+        "/api/route-cost/upstream-contracts/{contract_id}/revisions",
+        Permission.GOVERNED,
+    ),
+    (
+        "/api/route-cost/upstream-contracts/{contract_id}/revisions/{contract_revision_id}",
+        Permission.GOVERNED,
+    ),
     ("/api/route-cost/resource-pool/options", Permission.READ),
     # --- unified data platform (Architecture V2 Wave 4) ---
     # The data product catalogue is a governed *declaration*: it names products,

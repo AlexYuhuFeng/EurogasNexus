@@ -1279,6 +1279,30 @@ export type UpstreamContractInputDTO = Omit<
 > & {
   notes?: string | null;
 };
+
+/**
+ * One captured immutable economic revision of an upstream contract (transport
+ * only). `snapshot` is the stored canonical document: exact decimal strings and
+ * null-versus-zero exactly as captured. This is capture-time evidence, not a
+ * complete history and not payment terms; do not derive dates or amounts here.
+ */
+export interface UpstreamContractRevisionDTO {
+  scope?: string; data_source?: string;
+  contract_revision_id: string; contract_id: string; revision_number: number;
+  schema_version: string; capture_origin: string; content_hash: string;
+  recorded_at_utc: string; recorded_by: string;
+  display_metadata: { contract_name: string; operator_notes: string | null };
+  snapshot: Record<string, unknown>;
+}
+
+/** One bounded, ordered page of a contract's captured revisions, oldest first. */
+export interface UpstreamContractRevisionListDTO {
+  scope: string; data_source: string; contract_id: string;
+  revision_count: number; returned_count: number; has_more: boolean;
+  limit: number; offset: number;
+  revisions: UpstreamContractRevisionDTO[];
+}
+
 export interface RouteRecommendationRequestDTO {
   request_id: string; source_point_id: string; target_point_id?: string | null;
   required_quantity_mwh_per_day: number; gas_year: string;
@@ -2922,6 +2946,38 @@ export const api = {
 
   saveUpstreamContract: (body: UpstreamContractInputDTO) =>
     post<UpstreamContractDTO>("/route-cost/upstream-contracts", body),
+
+  /**
+   * One bounded page of a contract's captured economic revisions, oldest
+   * first. The revisions are capture-time evidence: not a complete history
+   * and not payment terms. No capture is created by reading, and no revision
+   * is ever re-attributed; transport only, no client arithmetic.
+   */
+  upstreamContractRevisions: (
+    contractId: string,
+    params?: { limit?: number; offset?: number },
+    options?: ApiRequestOptions,
+  ) =>
+    get<UpstreamContractRevisionListDTO>(
+      `/route-cost/upstream-contracts/${encodeURIComponent(contractId)}/revisions`,
+      {
+        ...(params?.limit ? { limit: String(params.limit) } : {}),
+        ...(params?.offset ? { offset: String(params.offset) } : {}),
+      },
+      options,
+    ),
+
+  /** One captured revision, scoped to its contract; a cross-contract id is a 404. */
+  upstreamContractRevision: (
+    contractId: string,
+    contractRevisionId: string,
+    options?: ApiRequestOptions,
+  ) =>
+    get<UpstreamContractRevisionDTO>(
+      `/route-cost/upstream-contracts/${encodeURIComponent(contractId)}/revisions/${encodeURIComponent(contractRevisionId)}`,
+      undefined,
+      options,
+    ),
 
   resourcePoolOptions: (options?: ApiRequestOptions) => get<ResourcePoolOptionsDTO>("/route-cost/resource-pool/options", undefined, options),
 

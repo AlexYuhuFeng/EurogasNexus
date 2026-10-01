@@ -72,6 +72,19 @@ with this broader product goal, not replaced by component-level success.
 
 ## Milestone History
 
+October 1 captured-revision reads (baseline `9160188`, CI `36873870921`
+passed including PostgreSQL): DeepSeek added contract-scoped list/detail reads
+with the existing GOVERNED commercial floor, bounded pagination, verified
+snapshot evidence and typed client transport. Missing contract, empty history
+and cross-contract revision IDs have distinct appropriate outcomes; integrity
+failure refuses evidence. Parent corrected the empty-history warning on an
+out-of-range page. Parent tests: 26 backend/security/API/link tests and three
+client transport tests passed; whole-repo Ruff passed. Reads never capture or
+mutate rows. No visual history panel, expected-version precondition or local
+database migration was added. Next: stale-edit protection integrated with the
+existing editor, and visible revision inspection/citation, before extending
+payment schedules or claiming a complete contract lifecycle.
+
 October 1 governed contract-write integration (baseline `9271500`, CI
 `36869874054` passed including PostgreSQL): DeepSeek connected the existing
 upsert API to authenticated attribution, row locking, before/after economic

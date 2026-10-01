@@ -139,6 +139,8 @@ PINNED_PUBLIC_PATHS = {
     "/api/route-cost/route-candidates",
     "/api/route-cost/tso-tariffs",
     "/api/route-cost/upstream-contracts",
+    "/api/route-cost/upstream-contracts/{contract_id}/revisions",
+    "/api/route-cost/upstream-contracts/{contract_id}/revisions/{contract_revision_id}",
     "/api/runtime/db",
     "/api/runtime/dependencies",
     "/api/runtime/release",

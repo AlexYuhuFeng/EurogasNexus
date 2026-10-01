@@ -68,6 +68,8 @@ Windows/Linux 桌面外壳和双语运营文档。所有消费方都是同一契
 | `GET/POST /api/analysis-snapshots` | Architecture V2 Wave 4（统一数据平台） | `POST`（GOVERNED，ANALYST 门槛）按当前 Active Context 记录 Analysis Snapshot 描述符；`GET` 列出最近的描述符。`GET` 保持 READ 门槛，因为描述符是血缘/溯源元数据、不含商业数值；其引用的每个数值仍在各自的商业端点之后 |
 | `GET /api/analysis-snapshots/{snapshot_id}` | Architecture V2 Wave 4（统一数据平台） | 按可复现引用读取单个 Analysis Snapshot；未知引用返回 404 |
 | `POST /api/research/cash-valuation` | 共享现金流估值能力（2026-09-30） | 仅沙箱（GOVERNED、商业边界内 ANALYST 门槛）地适配全仓唯一的共享现金流引擎：业务上下文以调用方提供的规范 `concept:value` 引用声明（绝不解析、绝不断言权限——`meta.references_verified: false`），金额/FX 汇率/贴现因子一律为精确十进制字符串（拒绝 JSON number），日期为 ISO 日期，Decimal 一律以精确字符串序列化。拒绝均为类型化稳定码（线格式问题 `422 cash_valuation_input_invalid`；引擎拒绝 `422 cash_valuation_refused` 并在 `detail.codes` 给出引擎稳定码）。无持久化、无 provider、无审计记录、无交易/提名/结算语义；`meta.customer_approval` 恒为 `false`。详见 [CASH_VALUATION_CAPABILITY.md](CASH_VALUATION_CAPABILITY.md) |
+| `GET /api/route-cost/upstream-contracts/{contract_id}/revisions` | 合同修订集成（2026-10-01） | GOVERNED 级别（ANALYST 门槛）、位于商业边界内：有界地读取单个合同已捕获的不可变经济修订历史，按修订号升序（`limit` ≤ 200，配合 `offset`）。每行在返回前都经过校验（受审的捕获来源、存储哈希、规范解码、合同 id 与 schema 版本）；未知合同返回 404 `upstream_contract_not_found`，而已存在但尚无捕获的合同返回空页、`revision_count` 为 0 并附带显式警告。读取不会创建捕获、也不会改写归属。仅为诚实的证据：捕获不是完整历史，存储的经济条款 `payment_terms` 恒为 `null`——不推导、不暗示任何付款日期、贴现因子或估值 |
+| `GET /api/route-cost/upstream-contracts/{contract_id}/revisions/{contract_revision_id}` | 合同修订集成（2026-10-01） | GOVERNED 级别（ANALYST 门槛）读取单条经过校验的已捕获修订，并显式限定于 `contract_id`：属于其他合同的修订 id 与未知 id 一样返回 404 `contract_revision_not_found`。完整性校验失败时返回结构化 409，仅携带仓库稳定码与固定消息（绝不回显存储行内容、驱动文本或 SQL）。响应保留捕获来源、schema 版本、内容哈希、捕获时刻、原始记录人与原始操作备注 |
 
 ## 已声明的附加字段
 
