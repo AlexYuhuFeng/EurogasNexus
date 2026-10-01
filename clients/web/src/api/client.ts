@@ -1264,8 +1264,19 @@ export interface UpstreamContractDTO {
   variable_cost_gbp_mwh?: number; regas_fee_gbp_mwh?: number; fuel_loss_allowance_pct?: number;
   notes?: string | null;
   research_only?: boolean; human_review_required?: boolean;
+  // Additive write metadata: how the governed upsert classified this write and
+  // which captured economic revision is newest afterwards. Capture-time evidence,
+  // not a revision history or an edit-conflict protocol.
+  write_outcome?: "created" | "economics_updated" | "metadata_updated" | "unchanged";
+  latest_revision?: {
+    contract_revision_id: string; contract_id: string; revision_number: number;
+    capture_origin: string; content_hash: string; recorded_at_utc: string; recorded_by: string;
+  } | null;
 }
-export type UpstreamContractInputDTO = Omit<UpstreamContractDTO, "updated_at_utc" | "research_only" | "human_review_required"> & {
+export type UpstreamContractInputDTO = Omit<
+  UpstreamContractDTO,
+  "updated_at_utc" | "research_only" | "human_review_required" | "write_outcome" | "latest_revision"
+> & {
   notes?: string | null;
 };
 export interface RouteRecommendationRequestDTO {

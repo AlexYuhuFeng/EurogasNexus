@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
+from eurogas_nexus.api.dependencies.acting_actor import require_acting_actor
 from eurogas_nexus.api.dependencies.analysis_snapshot import (
     require_known_analysis_snapshot,
 )
@@ -181,7 +184,39 @@ def list_upstream_contracts(request: Request) -> dict:
 
 @router.post("/api/route-cost/upstream-contracts")
 def upsert_upstream_contract(body: UpstreamContractUpsertRequest, request: Request) -> dict:
-    """Persist an upstream resource contract for decision-support workflows."""
+    """Persist an upstream resource contract for decision-support workflows.
+
+    治理写入：覆盖前先捕获旧经济状态，覆盖后捕获新经济状态，审计与写入同一事务。
+
+    The write is governed and attributable: the actor is the authenticated
+    principal, resolved before any store access and never taken from the body.
+    The economic state currently stored is captured as an immutable revision
+    *before* it is overwritten and captured again afterwards, so both sides of
+    an overwrite are evidence; the captures and the mutation audit commit or
+    roll back with the write.
+
+    A write is refused with 409 and changes nothing when the stored terms
+    cannot be captured (an unmappable value or ambiguous stored notes):
+    overwriting them would destroy the only record of what they were. A replay
+    whose economics and display evidence are both identical leaves the source
+    row unchanged. If already captured, it adds no revision or audit; otherwise
+    it records the first legacy capture and its audit. Existing revision
+    attribution is preserved. A change that only touches display evidence
+    (contract name, raw operator notes) is audited without allocating a new
+    economic revision.
+
+    Request and response fields are unchanged; ``write_outcome`` and
+    ``latest_revision`` are additive metadata naming the outcome and the
+    contract's newest captured revision. Honest limits: this is capture-time
+    evidence, not yet an edit-conflict protocol or a revision lifecycle - there
+    is no expected-version check, no draft/frozen status and no complete
+    history before the first captured write.
+    """
+
+    # The actor is resolved from the authenticated identity before any store
+    # access: a caller-supplied name is never trusted (finding C13), and a
+    # request with no principal is refused before the write could be attempted.
+    principal = require_acting_actor(request)
 
     if not _db_is_configured():
         raise HTTPException(
@@ -194,16 +229,36 @@ def upsert_upstream_contract(body: UpstreamContractUpsertRequest, request: Reque
 
     sqlalchemy_error = _sqlalchemy_error_type()
     try:
-        from eurogas_nexus.db.repositories.route_cost import upsert_upstream_contract
+        from eurogas_nexus.db.repositories.route_cost import (
+            ContractRevisionPersistenceError,
+            upsert_upstream_contract_governed,
+        )
         from eurogas_nexus.db.session import get_session_factory
 
         with get_session_factory()() as session:
-            contract = upsert_upstream_contract(session, body.model_dump(mode="json"))
-            session.commit()
+            try:
+                result = upsert_upstream_contract_governed(
+                    session,
+                    body.model_dump(mode="json"),
+                    recorded_by=principal.principal_id,
+                    recorded_at_utc=datetime.now(UTC),
+                    correlation_id=getattr(request.state, "request_id", None),
+                )
+            except ContractRevisionPersistenceError as exc:
+                session.rollback()
+                raise _contract_write_refused(exc.code, exc.detail) from exc
+            if result.refused:
+                # Fail closed: the stored terms were not captured, so the row
+                # keeps them and nothing is committed under this request.
+                session.rollback()
+                raise _contract_write_refused(result.refusal_code, result.refusal_detail)
             data = {
-                **contract,
+                **result.contract,
                 "human_review_required": True,
+                "write_outcome": result.outcome,
+                "latest_revision": result.latest_revision,
             }
+            session.commit()
             return _env(data, request, source="runtime-postgresql")
     except sqlalchemy_error as exc:
         raise _db_unavailable(exc) from exc
@@ -481,6 +536,30 @@ def _db_unavailable(exc: Exception) -> HTTPException:
             "code": "runtime_db_unavailable",
             "message": "Runtime database is configured but unavailable for route-cost reads.",
             "error_class": exc.__class__.__name__,
+        },
+    )
+
+
+def _contract_write_refused(code: str | None, detail: str | None) -> HTTPException:
+    """Stable refusal for a governed contract write that failed closed.
+
+    The stored contract's current economics could not be captured as immutable
+    evidence, so overwriting them would destroy the only record of what they
+    were. The refusal names the capture code a client can act on, in the
+    catalogued ``conflict`` family, and changes nothing.
+    """
+
+    return HTTPException(
+        status_code=409,
+        detail={
+            "error": "conflict",
+            "code": code or "contract_revision_capture_refused",
+            "message": (
+                "The contract was not written: its stored terms could not be captured"
+                " as an immutable economic revision, so overwriting them could destroy"
+                " evidence. Nothing was changed."
+            ),
+            "reason": detail,
         },
     )
 

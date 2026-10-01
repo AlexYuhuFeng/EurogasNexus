@@ -34,8 +34,11 @@ from eurogas_nexus.db.models import (
 from eurogas_nexus.db.repositories.route_cost import (
     CONTRACT_REVISION_ALREADY_CAPTURED,
     CONTRACT_REVISION_CAPTURED,
+    GOVERNED_CONTRACT_CREATED,
+    GOVERNED_CONTRACT_ECONOMICS_UPDATED,
     capture_upstream_contract_revision,
     upsert_upstream_contract,
+    upsert_upstream_contract_governed,
 )
 
 pytestmark = pytest.mark.skipif(
@@ -213,3 +216,125 @@ def test_capture_refreshes_a_stale_identity_map_row_before_capturing() -> None:
     # The FOR UPDATE select must have re-read the committed row, not captured
     # the identity-map instance the session loaded before that commit.
     assert captured_price == "31.5"
+
+
+def _governed(
+    engine,
+    contract_id: str,
+    *,
+    actor: str,
+    price: float,
+    at: datetime,
+) -> dict:
+    """Run one governed upsert in its own transaction and return plain values."""
+
+    with Session(engine) as session:
+        result = upsert_upstream_contract_governed(
+            session,
+            _contract_payload(contract_id, price=price),
+            recorded_by=actor,
+            recorded_at_utc=at,
+        )
+        if result.refused:
+            plain = {
+                "outcome": result.outcome,
+                "revision_number": None,
+                "revision_id": None,
+                "content_hash": None,
+            }
+            session.rollback()
+            return plain
+        plain = {
+            "outcome": result.outcome,
+            "revision_number": result.latest_revision["revision_number"],
+            "revision_id": result.latest_revision["contract_revision_id"],
+            "content_hash": result.latest_revision["content_hash"],
+        }
+        session.commit()
+        return plain
+
+
+def test_governed_updates_serialize_on_the_contract_row_lock() -> None:
+    """Two concurrent governed overwrites both complete with unique numbers."""
+
+    engine = _engine()
+    contract_id = f"contract-it-{uuid4().hex[:12]}"
+    _seed_contract(engine, contract_id, price=29.75)
+
+    barrier = threading.Barrier(2)
+    prices = {"first": 31.5, "second": 33.25}
+
+    def _run(label: str) -> dict:
+        barrier.wait(timeout=10)
+        return _governed(
+            engine, contract_id, actor=f"trader-{label}", price=prices[label], at=_NOW
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures = {label: pool.submit(_run, label) for label in prices}
+        results = {label: future.result(timeout=30) for label, future in futures.items()}
+
+    # The pre-capture records the seeded state (revision 1); each overwrite then
+    # captures its own new state. Both writes are accepted, and the row lock -
+    # not optimistic retries - is what keeps the numbers from colliding.
+    assert sorted(
+        result["outcome"] for result in results.values()
+    ) == [GOVERNED_CONTRACT_ECONOMICS_UPDATED, GOVERNED_CONTRACT_ECONOMICS_UPDATED]
+
+    with Session(engine) as session:
+        revisions = (
+            session.query(UpstreamContractRevisionRecord)
+            .filter(UpstreamContractRevisionRecord.contract_id == contract_id)
+            .order_by(UpstreamContractRevisionRecord.revision_number)
+            .all()
+        )
+        assert [row.revision_number for row in revisions] == [1, 2, 3]
+        assert len({row.content_hash for row in revisions}) == 3
+        captured_prices = sorted(
+            json.loads(row.snapshot_json)["contract_price_gbp_mwh"] for row in revisions
+        )
+        assert captured_prices == ["29.75", "31.5", "33.25"]
+        row = session.get(UpstreamResourceContractRecord, contract_id)
+        assert row.contract_price_gbp_mwh in prices.values()
+
+
+def test_concurrent_governed_creates_never_leak_an_integrity_error() -> None:
+    """The create loser recovers as an update instead of failing the request."""
+
+    engine = _engine()
+    contract_id = f"contract-it-{uuid4().hex[:12]}"
+    prices = {"first": 30.0, "second": 31.0}
+
+    barrier = threading.Barrier(2)
+
+    def _run(label: str) -> dict:
+        barrier.wait(timeout=10)
+        return _governed(
+            engine, contract_id, actor=f"trader-{label}", price=prices[label], at=_NOW
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures = {label: pool.submit(_run, label) for label in prices}
+        # An IntegrityError escaping here would fail the request; the governed
+        # upsert must converge instead.
+        results = {label: future.result(timeout=30) for label, future in futures.items()}
+
+    assert sorted(
+        result["outcome"] for result in results.values()
+    ) == [GOVERNED_CONTRACT_CREATED, GOVERNED_CONTRACT_ECONOMICS_UPDATED]
+
+    with Session(engine) as session:
+        assert session.query(UpstreamResourceContractRecord).filter(
+            UpstreamResourceContractRecord.contract_id == contract_id
+        ).count() == 1
+        revisions = (
+            session.query(UpstreamContractRevisionRecord)
+            .filter(UpstreamContractRevisionRecord.contract_id == contract_id)
+            .order_by(UpstreamContractRevisionRecord.revision_number)
+            .all()
+        )
+        assert [row.revision_number for row in revisions] == [1, 2]
+        captured_prices = sorted(
+            json.loads(row.snapshot_json)["contract_price_gbp_mwh"] for row in revisions
+        )
+        assert captured_prices == ["30.0", "31.0"]

@@ -72,6 +72,19 @@ with this broader product goal, not replaced by component-level success.
 
 ## Milestone History
 
+October 1 governed contract-write integration (baseline `9271500`, CI
+`36869874054` passed including PostgreSQL): DeepSeek connected the existing
+upsert API to authenticated attribution, row locking, before/after economic
+capture and transactional mutation audits. Malformed stored terms refuse
+overwrite; metadata-only edits are audited; already-captured replays do not
+duplicate revisions. An unchanged uncaptured legacy row still gains its first
+capture, not a reconstructed historical revision. Parent: 67 focused tests
+passed and whole-repo Ruff passed. PostgreSQL concurrency cases await same-SHA
+CI. No local runtime migration/write occurred. Next: expected-version conflict
+protection and governed revision reads, then client history/citation; payment
+terms, complete lifecycle and commercial acceptance remain open. Direct legacy
+repository writes remain outside this API capture path.
+
 October 1 revision persistence foundation (baseline `f396492`, whose CI
 `36865510283` passed): DeepSeek added expand-only migration
 `0037_contract_revisions`, explicit repository capture/read, per-contract row

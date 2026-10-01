@@ -47,6 +47,23 @@ CONTRACT_REVISION_REJECTED = "rejected"
 #: object. The specific recorded codes are repeated in the refusal detail.
 CONTRACT_REVISION_MAPPING_AMBIGUOUS = "contract_revision_mapping_ambiguous"
 
+#: Governed-upsert outcomes (``upsert_upstream_contract_governed``).
+#: ``created`` and ``economics_updated`` inserted a captured revision;
+#: ``metadata_updated`` changed stored display evidence while the captured
+#: economics stayed identical; ``unchanged`` is a true replay that wrote
+#: nothing at all; ``refused`` failed closed and wrote nothing.
+GOVERNED_CONTRACT_CREATED = "created"
+GOVERNED_CONTRACT_ECONOMICS_UPDATED = "economics_updated"
+GOVERNED_CONTRACT_METADATA_UPDATED = "metadata_updated"
+GOVERNED_CONTRACT_UNCHANGED = "unchanged"
+GOVERNED_CONTRACT_REFUSED = "refused"
+
+#: Stored fields that are deliberately *outside* the captured economic
+#: evidence: the display name and the raw operator notes. A write that changes
+#: only these has no new economics to capture, but it is still an auditable
+#: mutation of the stored contract.
+_DISPLAY_ONLY_CONTRACT_FIELDS = frozenset({"contract_name", "notes"})
+
 #: Capture origins a stored revision may carry and still be served by a read.
 _VERIFIED_CAPTURE_ORIGINS = (CAPTURE_ORIGIN_LEGACY_CAPTURE,)
 
@@ -93,6 +110,43 @@ class ContractRevisionCaptureResult:
         """Whether this call inserted a new revision row."""
 
         return self.outcome == CONTRACT_REVISION_CAPTURED
+
+
+@dataclass(frozen=True, slots=True)
+class GovernedContractUpsertResult:
+    """Outcome of one governed insert/update of an upstream contract.
+
+    Attributes:
+        outcome: One of :data:`GOVERNED_CONTRACT_CREATED`,
+            :data:`GOVERNED_CONTRACT_ECONOMICS_UPDATED`,
+            :data:`GOVERNED_CONTRACT_METADATA_UPDATED`,
+            :data:`GOVERNED_CONTRACT_UNCHANGED` or
+            :data:`GOVERNED_CONTRACT_REFUSED`.
+        contract: The persisted contract payload, or ``None`` when refused.
+        latest_revision: Additive revision-identity metadata (plain values
+            only, safe to return across a commit) for the newest captured
+            revision after this call, or ``None`` when refused.
+        previous_revision: The contract's latest captured revision before this
+            call (``None`` when the contract had none, or when refused).
+        captured_revision: The newest captured revision after this call, or
+            ``None`` when refused.
+        refusal_code: Stable code explaining a refusal, else ``None``.
+        refusal_detail: Human-readable rejection detail, else ``None``.
+    """
+
+    outcome: str
+    contract: dict | None
+    latest_revision: dict | None
+    previous_revision: UpstreamContractRevisionRecord | None
+    captured_revision: UpstreamContractRevisionRecord | None
+    refusal_code: str | None = None
+    refusal_detail: str | None = None
+
+    @property
+    def refused(self) -> bool:
+        """Whether the write failed closed and nothing was written."""
+
+        return self.outcome == GOVERNED_CONTRACT_REFUSED
 
 
 def list_tso_tariffs(session: Session) -> list[CapacityTariff]:
@@ -148,67 +202,111 @@ def upsert_upstream_contract(session: Session, data: Mapping[str, object]) -> di
 
     now = datetime.now(UTC)
     contract_id = str(data["contract_id"])
+    values = _normalized_contract_values(data)
     row = session.get(UpstreamResourceContractRecord, contract_id)
     if row is None:
-        row = UpstreamResourceContractRecord(
-            contract_id=contract_id,
-            contract_name=str(data["contract_name"]),
-            resource_type=str(data["resource_type"]),
-            delivery_point_name=str(data["delivery_point_name"]),
-            gas_year=str(data["gas_year"]),
-            delivery_quantity_mwh_per_day=float(data["delivery_quantity_mwh_per_day"]),
-            contract_price_gbp_mwh=float(data["contract_price_gbp_mwh"]),
-            settlement_frequency=str(data["settlement_frequency"]),
-            upstream_payment_lag_days=int(data["upstream_payment_lag_days"]),
-            screen_sale_cash_lag_days=int(data["screen_sale_cash_lag_days"]),
-            delivery_tolerance_pct=float(data["delivery_tolerance_pct"]),
-            nomination_tolerance_pct=float(data["nomination_tolerance_pct"]),
-            tolerance_risk_allowance_gbp_mwh=_optional_float(
-                data.get("tolerance_risk_allowance_gbp_mwh")
-            ),
-            annual_financing_rate_pct=float(data["annual_financing_rate_pct"]),
-            owned_entry_capacity_mwh_per_day=_optional_float(
-                data.get("owned_entry_capacity_mwh_per_day")
-            ),
-            owned_exit_capacity_mwh_per_day=_optional_float(
-                data.get("owned_exit_capacity_mwh_per_day")
-            ),
-            allowed_exit_points=_string_list(data.get("allowed_exit_points")),
-            eligible_sale_modes=_string_list(data.get("eligible_sale_modes")),
-            notes=_merged_contract_notes(data),
-            created_at_utc=now,
-            updated_at_utc=now,
-        )
+        row = UpstreamResourceContractRecord(contract_id=contract_id, created_at_utc=now)
         session.add(row)
-    else:
-        row.contract_name = str(data["contract_name"])
-        row.resource_type = str(data["resource_type"])
-        row.delivery_point_name = str(data["delivery_point_name"])
-        row.gas_year = str(data["gas_year"])
-        row.delivery_quantity_mwh_per_day = float(data["delivery_quantity_mwh_per_day"])
-        row.contract_price_gbp_mwh = float(data["contract_price_gbp_mwh"])
-        row.settlement_frequency = str(data["settlement_frequency"])
-        row.upstream_payment_lag_days = int(data["upstream_payment_lag_days"])
-        row.screen_sale_cash_lag_days = int(data["screen_sale_cash_lag_days"])
-        row.delivery_tolerance_pct = float(data["delivery_tolerance_pct"])
-        row.nomination_tolerance_pct = float(data["nomination_tolerance_pct"])
-        row.tolerance_risk_allowance_gbp_mwh = _optional_float(
-            data.get("tolerance_risk_allowance_gbp_mwh")
-        )
-        row.annual_financing_rate_pct = float(data["annual_financing_rate_pct"])
-        row.owned_entry_capacity_mwh_per_day = _optional_float(
-            data.get("owned_entry_capacity_mwh_per_day")
-        )
-        row.owned_exit_capacity_mwh_per_day = _optional_float(
-            data.get("owned_exit_capacity_mwh_per_day")
-        )
-        row.allowed_exit_points = _string_list(data.get("allowed_exit_points"))
-        row.eligible_sale_modes = _string_list(data.get("eligible_sale_modes"))
-        row.notes = _merged_contract_notes(data)
-        row.updated_at_utc = now
+    _apply_contract_values(row, values)
+    row.updated_at_utc = now
 
     session.flush()
     return _contract_payload(row)
+
+
+def _normalized_contract_values(data: Mapping[str, object]) -> dict[str, object]:
+    """The stored column values one upsert writes, coerced exactly once.
+
+    Both the plain upsert and the governed upsert compare and apply these
+    values, so the field list and its coercions have one home.
+
+    Raises:
+        KeyError/ValueError: When required fields are missing/malformed.
+    """
+
+    return {
+        "contract_name": str(data["contract_name"]),
+        "resource_type": str(data["resource_type"]),
+        "delivery_point_name": str(data["delivery_point_name"]),
+        "gas_year": str(data["gas_year"]),
+        "delivery_quantity_mwh_per_day": float(data["delivery_quantity_mwh_per_day"]),
+        "contract_price_gbp_mwh": float(data["contract_price_gbp_mwh"]),
+        "settlement_frequency": str(data["settlement_frequency"]),
+        "upstream_payment_lag_days": int(data["upstream_payment_lag_days"]),
+        "screen_sale_cash_lag_days": int(data["screen_sale_cash_lag_days"]),
+        "delivery_tolerance_pct": float(data["delivery_tolerance_pct"]),
+        "nomination_tolerance_pct": float(data["nomination_tolerance_pct"]),
+        "tolerance_risk_allowance_gbp_mwh": _optional_float(
+            data.get("tolerance_risk_allowance_gbp_mwh")
+        ),
+        "annual_financing_rate_pct": float(data["annual_financing_rate_pct"]),
+        "owned_entry_capacity_mwh_per_day": _optional_float(
+            data.get("owned_entry_capacity_mwh_per_day")
+        ),
+        "owned_exit_capacity_mwh_per_day": _optional_float(
+            data.get("owned_exit_capacity_mwh_per_day")
+        ),
+        "allowed_exit_points": _string_list(data.get("allowed_exit_points")),
+        "eligible_sale_modes": _string_list(data.get("eligible_sale_modes")),
+        "notes": _merged_contract_notes(data),
+    }
+
+
+def _apply_contract_values(
+    row: UpstreamResourceContractRecord, values: Mapping[str, object]
+) -> None:
+    """Assign one normalized value set to a contract row (never commits)."""
+
+    for field, value in values.items():
+        setattr(row, field, value)
+
+
+def _insert_contract_row_if_absent(
+    session: Session,
+    contract_id: str,
+    values: Mapping[str, object],
+    now: datetime,
+) -> bool:
+    """Insert one contract row, doing nothing when the identity already exists.
+
+    ``INSERT ... ON CONFLICT (contract_id) DO NOTHING`` is the established
+    ingestion pattern (``db/repositories/public_ingestion_upsert.py``): a
+    concurrent create of the same identity is serialized by the primary key,
+    and the loser's statement simply inserts nothing. Unlike a failed ORM
+    flush, it leaves the session usable, so the same call can continue against
+    the committed row instead of leaking a constraint exception.
+
+    Returns:
+        Whether this call inserted the row (``False`` when the identity already
+        existed).
+
+    Raises:
+        ContractRevisionPersistenceError: When the runtime dialect has no
+            reviewed conflict-tolerant insert. PostgreSQL is the runtime store
+            and SQLite the focused-test fixture; nothing else is accepted.
+    """
+
+    dialect = session.get_bind().dialect.name
+    if dialect == "postgresql":
+        from sqlalchemy.dialects.postgresql import insert as dialect_insert
+    elif dialect == "sqlite":
+        from sqlalchemy.dialects.sqlite import insert as dialect_insert
+    else:
+        raise ContractRevisionPersistenceError(
+            "contract_create_dialect_unsupported",
+            f"{dialect!r} has no reviewed conflict-tolerant contract insert",
+        )
+    statement = (
+        dialect_insert(UpstreamResourceContractRecord)
+        .values(
+            contract_id=contract_id,
+            created_at_utc=now,
+            updated_at_utc=now,
+            **dict(values),
+        )
+        .on_conflict_do_nothing(index_elements=["contract_id"])
+    )
+    return session.execute(statement).rowcount == 1
 
 
 def capture_upstream_contract_revision(
@@ -276,29 +374,13 @@ def capture_upstream_contract_revision(
 
     identity = _capture_text(contract_id, "contract_id", 128)
     actor = _capture_text(recorded_by, "recorded_by", 64)
-    if (
-        not isinstance(recorded_at_utc, datetime)
-        or recorded_at_utc.tzinfo is None
-        or recorded_at_utc.utcoffset() is None
-    ):
-        raise ContractRevisionPersistenceError(
-            "recorded_at_not_utc",
-            "recorded_at_utc must be a timezone-aware datetime with a concrete"
-            " UTC offset",
-        )
-    recorded_at = recorded_at_utc.astimezone(UTC)
+    recorded_at = _capture_instant(recorded_at_utc)
 
     # 契约行锁与强制刷新：PG 上 FOR UPDATE 串行化同一契约的并存捕获，保证编号
     # 不冲突；populate_existing 保证 identity map 中已加载的旧行被重新读取，
     # 不会把别的已提交事务写入前读取的旧值捕获成修订。SQLite 方言忽略
     # FOR UPDATE（仅用于测试夹具）。
-    row = (
-        session.query(UpstreamResourceContractRecord)
-        .filter(UpstreamResourceContractRecord.contract_id == identity)
-        .populate_existing()
-        .with_for_update()
-        .one_or_none()
-    )
+    row = _locked_contract_row(session, identity)
     if row is None:
         return ContractRevisionCaptureResult(
             outcome=CONTRACT_REVISION_REJECTED,
@@ -364,6 +446,226 @@ def capture_upstream_contract_revision(
     return ContractRevisionCaptureResult(
         outcome=CONTRACT_REVISION_CAPTURED,
         revision=revision,
+    )
+
+
+def upsert_upstream_contract_governed(
+    session: Session,
+    data: Mapping[str, object],
+    *,
+    recorded_by: str,
+    recorded_at_utc: datetime,
+    correlation_id: str | None = None,
+) -> GovernedContractUpsertResult:
+    """Insert or update one upstream contract under captured economic revisions.
+
+    治理写入：覆盖前先捕获旧经济状态，覆盖后捕获新经济状态，审计与写入同一事务。
+
+    This is the write path behind ``POST /api/route-cost/upstream-contracts``.
+    It inserts or overwrites the mutable ``upstream_resource_contracts`` row
+    exactly like :func:`upsert_upstream_contract`, but the economic terms a
+    caller is about to replace are captured as an immutable revision first, and
+    the new terms are captured afterwards, so both sides of the overwrite are
+    evidence rather than a claim. The write itself grows no history: revisions
+    exist only because this path (or an explicit capture) recorded the row
+    states it observed.
+
+    Ordering: the contract row is locked (``SELECT ... FOR UPDATE`` plus
+    identity-map refresh) *before* the pre-capture and the edit, so the state
+    captured as "previous" is the state this transaction is about to replace,
+    never a stale read another committed writer has already superseded.
+
+    Fail-closed pre-capture: when the stored row does not map to a validated
+    economic snapshot (an unmappable value, or ambiguous notes recorded as
+    mapping issues), the call returns a ``refused`` result carrying the stable
+    ``refusal_code``/``refusal_detail`` and writes nothing at all. The stored
+    malformed terms are preserved for a separate remediation step instead of
+    being silently overwritten; the caller must roll the session back and
+    report the refusal.
+
+    Outcomes:
+
+    * a new identity is inserted, then captured once - there is no previous
+      state to capture;
+    * a changed row is captured first (if its stored state was not already the
+      latest revision) and captured again after the edit, which allocates the
+      next revision number under the row lock;
+    * a repeated request whose economics already equal the stored row adds no
+      revision and preserves the original recorder and timestamp of that
+      revision (the capture helper's idempotency);
+    * a request that changes only display evidence (contract name, raw operator
+      notes) adds no revision but is still audited, because otherwise the
+      mutation would leave no trace at all;
+    * a true replay leaves the source row unchanged and appends no mutation
+      audit; an uncaptured legacy row still receives its first capture and
+      capture audit. Already-captured replays write nothing.
+
+    Concurrency: the row lock serializes updates per contract, so revision
+    numbers cannot collide. Two concurrent creates of the same new identity
+    cannot both insert: the insert is conflict-tolerant (``ON CONFLICT DO
+    NOTHING``), so the loser's statement inserts nothing, the session stays
+    usable and the same call continues as an overwrite of the winner's
+    committed row instead of leaking a constraint exception.
+
+    Audit: every outcome except ``unchanged``/``refused`` appends one
+    ``route_cost.contract.upsert`` row (principal, correlation id, changed
+    fields and the newest revision identity) through the caller's session, and
+    every newly captured revision appends its own capture row. Both commit or
+    roll back with the contract write.
+
+    Args:
+        session: DB session; the caller owns the transaction boundary.
+        data: Contract fields in the upsert request shape.
+        recorded_by: Authenticated principal the write and captures are
+            attributed to; never a request-body value.
+        recorded_at_utc: Time of the write; must be timezone-aware with a
+            concrete UTC offset, and is stored as UTC.
+        correlation_id: Optional request correlation id for the write audit.
+
+    Returns:
+        The write result; see :class:`GovernedContractUpsertResult`.
+
+    Raises:
+        ContractRevisionPersistenceError: When the contract id or actor is
+            blank or exceeds its column bound, or when ``recorded_at_utc`` is
+            naive or has no concrete UTC offset - raised before any write - or
+            when the runtime dialect has no reviewed conflict-tolerant insert.
+        KeyError/ValueError: When required contract fields are missing or
+            malformed.
+    """
+
+    identity = _capture_text(data.get("contract_id"), "contract_id", 128)
+    actor = _capture_text(recorded_by, "recorded_by", 64)
+    recorded_at = _capture_instant(recorded_at_utc)
+    values = _normalized_contract_values(data)
+
+    row = _locked_contract_row(session, identity)
+    created = False
+    if row is None:
+        created = _insert_contract_row_if_absent(session, identity, values, recorded_at)
+        # Either this call inserted the row, or a concurrent create committed
+        # the same identity first: both cases read the stored row under the
+        # lock and continue, the second as an overwrite of the winner's row.
+        row = _locked_contract_row(session, identity)
+        if row is None:
+            raise ContractRevisionPersistenceError(
+                "contract_row_not_visible_after_insert",
+                f"contract {identity!r} could not be read back after its insert",
+            )
+
+    if created:
+        post = capture_upstream_contract_revision(
+            session,
+            identity,
+            recorded_by=actor,
+            recorded_at_utc=recorded_at,
+        )
+        if post.outcome == CONTRACT_REVISION_REJECTED:
+            return GovernedContractUpsertResult(
+                outcome=GOVERNED_CONTRACT_REFUSED,
+                contract=None,
+                latest_revision=None,
+                previous_revision=None,
+                captured_revision=None,
+                refusal_code=post.refusal_code,
+                refusal_detail=post.refusal_detail,
+            )
+        _record_governed_upsert_audit(
+            session,
+            contract_id=identity,
+            principal=actor,
+            outcome=GOVERNED_CONTRACT_CREATED,
+            previous_revision=None,
+            captured_revision=post.revision,
+            changed_fields=(),
+            recorded_at_utc=recorded_at,
+            correlation_id=correlation_id,
+        )
+        return GovernedContractUpsertResult(
+            outcome=GOVERNED_CONTRACT_CREATED,
+            contract=_contract_payload(row),
+            latest_revision=_revision_identity(post.revision),
+            previous_revision=None,
+            captured_revision=post.revision,
+        )
+
+    previous = capture_upstream_contract_revision(
+        session,
+        identity,
+        recorded_by=actor,
+        recorded_at_utc=recorded_at,
+    )
+    if previous.outcome == CONTRACT_REVISION_REJECTED:
+        # 旧经济状态不可映射时绝不覆盖：本调用不写任何行，调用方回滚并报告
+        # 稳定拒绝码，malformed 旧条款保留在原行中。
+        return GovernedContractUpsertResult(
+            outcome=GOVERNED_CONTRACT_REFUSED,
+            contract=None,
+            latest_revision=None,
+            previous_revision=None,
+            captured_revision=None,
+            refusal_code=previous.refusal_code,
+            refusal_detail=previous.refusal_detail,
+        )
+
+    changed_fields = tuple(
+        field
+        for field, value in values.items()
+        if getattr(row, field) != value
+    )
+    if not changed_fields:
+        # 真实重放：经济与展示证据均未变化，不写行、不写审计、保留原归属。
+        return GovernedContractUpsertResult(
+            outcome=GOVERNED_CONTRACT_UNCHANGED,
+            contract=_contract_payload(row),
+            latest_revision=_revision_identity(previous.revision),
+            previous_revision=previous.revision,
+            captured_revision=previous.revision,
+        )
+
+    _apply_contract_values(row, values)
+    row.updated_at_utc = recorded_at
+    session.flush()
+    post = capture_upstream_contract_revision(
+        session,
+        identity,
+        recorded_by=actor,
+        recorded_at_utc=recorded_at,
+    )
+    if post.outcome == CONTRACT_REVISION_REJECTED:
+        return GovernedContractUpsertResult(
+            outcome=GOVERNED_CONTRACT_REFUSED,
+            contract=None,
+            latest_revision=None,
+            previous_revision=previous.revision,
+            captured_revision=None,
+            refusal_code=post.refusal_code,
+            refusal_detail=post.refusal_detail,
+        )
+    # 分类以捕获结果为准：只有真的写入了新修订才是经济变更；捕获幂等说明
+    # 变化只落在未参与哈希的展示证据上。
+    outcome = (
+        GOVERNED_CONTRACT_ECONOMICS_UPDATED
+        if post.created
+        else GOVERNED_CONTRACT_METADATA_UPDATED
+    )
+    _record_governed_upsert_audit(
+        session,
+        contract_id=identity,
+        principal=actor,
+        outcome=outcome,
+        previous_revision=previous.revision,
+        captured_revision=post.revision,
+        changed_fields=changed_fields,
+        recorded_at_utc=recorded_at,
+        correlation_id=correlation_id,
+    )
+    return GovernedContractUpsertResult(
+        outcome=outcome,
+        contract=_contract_payload(row),
+        latest_revision=_revision_identity(post.revision),
+        previous_revision=previous.revision,
+        captured_revision=post.revision,
     )
 
 
@@ -635,6 +937,133 @@ def _capture_text(value: object, name: str, max_length: int) -> str:
             f"{name}_too_long", f"{name} exceeds {max_length} characters"
         )
     return text
+
+
+def _capture_instant(value: object) -> datetime:
+    """Return one capture instant as UTC.
+
+    Raises:
+        ContractRevisionPersistenceError: When the value is not a date-time,
+            is naive, or carries no concrete UTC offset (an aware ``tzinfo``
+            whose ``utcoffset`` is ``None`` is not an instant).
+    """
+
+    if (
+        not isinstance(value, datetime)
+        or value.tzinfo is None
+        or value.utcoffset() is None
+    ):
+        raise ContractRevisionPersistenceError(
+            "recorded_at_not_utc",
+            "recorded_at_utc must be a timezone-aware datetime with a concrete"
+            " UTC offset",
+        )
+    return value.astimezone(UTC)
+
+
+def _locked_contract_row(
+    session: Session, contract_id: str
+) -> UpstreamResourceContractRecord | None:
+    """Read one contract row under ``FOR UPDATE`` with an identity-map refresh.
+
+    PostgreSQL serializes concurrent captures and governed writes per contract,
+    and ``populate_existing`` re-reads a row already loaded in the session, so
+    a stale in-memory instance another committed writer has replaced is never
+    captured or overwritten. SQLite fixtures ignore the lock clause.
+    """
+
+    return (
+        session.query(UpstreamResourceContractRecord)
+        .filter(UpstreamResourceContractRecord.contract_id == contract_id)
+        .populate_existing()
+        .with_for_update()
+        .one_or_none()
+    )
+
+
+def _revision_identity(
+    revision: UpstreamContractRevisionRecord | None,
+) -> dict | None:
+    """Additive revision-identity metadata for a write response.
+
+    Plain values only, so the caller can build its response before committing:
+    this names the newest captured revision (identity, number, hash, recorder)
+    and is never a substitute for reading the verified snapshot payload.
+    """
+
+    if revision is None:
+        return None
+    return {
+        "contract_revision_id": revision.contract_revision_id,
+        "contract_id": revision.contract_id,
+        "revision_number": revision.revision_number,
+        "capture_origin": revision.capture_origin,
+        "content_hash": revision.content_hash,
+        "recorded_at_utc": revision.recorded_at_utc.isoformat(),
+        "recorded_by": revision.recorded_by,
+    }
+
+
+def _record_governed_upsert_audit(
+    session: Session,
+    *,
+    contract_id: str,
+    principal: str,
+    outcome: str,
+    previous_revision: UpstreamContractRevisionRecord | None,
+    captured_revision: UpstreamContractRevisionRecord | None,
+    changed_fields: tuple[str, ...],
+    recorded_at_utc: datetime,
+    correlation_id: str | None,
+) -> None:
+    """Append the governed-write audit row into the caller's transaction.
+
+    The capture audit names a revision; this row names the request: which
+    principal ran the governed upsert, under which correlation id, which stored
+    fields changed and which revision is newest afterwards. It carries field
+    *names*, never contract values. A failure to write it must fail the write:
+    the caller rolls back, so a stored mutation always has its audit row.
+    """
+
+    record_audit_event(
+        session,
+        event_type="governance.contracts",
+        principal=principal,
+        action="route_cost.contract.upsert",
+        resource=f"upstream_contract:{contract_id}"[:128],
+        outcome=outcome,
+        severity="info",
+        detail=(
+            f"outcome={outcome}; changed_fields={','.join(changed_fields) or 'none'};"
+            f" latest_revision_id="
+            f"{captured_revision.contract_revision_id if captured_revision else 'none'};"
+            f" latest_revision_number="
+            f"{captured_revision.revision_number if captured_revision else 'none'};"
+            f" latest_content_hash="
+            f"{captured_revision.content_hash if captured_revision else 'none'}"
+        ),
+        source_system="route-cost",
+        now_utc=recorded_at_utc,
+        correlation_id=correlation_id[:64] if correlation_id else None,
+        before_summary=(
+            {
+                "latest_revision_number": previous_revision.revision_number,
+                "latest_content_hash": previous_revision.content_hash,
+            }
+            if previous_revision is not None
+            else None
+        ),
+        after_summary=(
+            {
+                "latest_revision_id": captured_revision.contract_revision_id,
+                "latest_revision_number": captured_revision.revision_number,
+                "latest_content_hash": captured_revision.content_hash,
+                "changed_fields": list(changed_fields),
+            }
+            if captured_revision is not None
+            else None
+        ),
+    )
 
 
 def _latest_contract_revision(
