@@ -350,7 +350,9 @@ def test_web_client_matches_design_reference_cockpit() -> None:
     assert "optimizeResourcePool(resourcePoolOptimizationRequest, currentContextKey)" in app
     assert "lastAutoOptimizerSignatureRef" in app
     assert "autoOptimizerSignature" in app
-    assert "void api.optimizeResourcePool(resourcePoolOptimizationRequest, currentContextKey)" in app
+    assert (
+        "void api.optimizeResourcePool(resourcePoolOptimizationRequest, currentContextKey)" in app
+    )
     assert "canRunPoolOptimizer" in app
     assert "poolInputBlockers" in app
     assert "runtimeDbReady" in app
