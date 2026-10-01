@@ -72,6 +72,17 @@ with this broader product goal, not replaced by component-level success.
 
 ## Milestone History
 
+October 1 CI cold-start failure at `58afd8a`: run `36878083383` failed
+the validate job's in-process API load smoke. The traceback ends in Python
+3.11 `_ModuleLock('sqlalchemy.exc')` deadlock during concurrent first-request
+imports from `sources._runtime_source_counts` through `db.session`/`db.base`.
+Browser, web build, PostgreSQL and dependency checks passed. The earlier full
+suite and `90e68c9` CI pass remain historical evidence, not proof this race is
+resolved. Runtime PostgreSQL container is healthy. Next priority: reproduce
+in isolated cold processes and review application initialization versus ASGI
+lifespan handling in the smoke; do not hide the failure with arbitrary retries,
+serial requests or relaxed error thresholds. No code fix is claimed yet.
+
 October 1 full regression verification at `90e68c9`: parent executed the full
 Python suite without deselection: 2,681 passed, 28 skipped, two dependency
 deprecation warnings, no failures (569 seconds). Same-SHA CI `36876647980`
