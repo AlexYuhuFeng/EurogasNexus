@@ -72,6 +72,19 @@ with this broader product goal, not replaced by component-level success.
 
 ## Milestone History
 
+October 1 contract economic snapshot foundation (baseline `1676b98`):
+DeepSeek implemented `domain/route_cost/contract_revision.py` with an immutable
+economic payload, strict legacy mapping, explicit missing payment terms,
+null-versus-zero preservation, numeric provenance and deterministic versioned
+JSON/hash. Parent review required bounded decimal serialization and strict
+canonical decoding; DeepSeek added both with regression tests. Parent ran
+48 focused snapshot/cash/API/repository/link tests successfully and whole-repo
+Ruff passed. No runtime API, UI, optimizer arithmetic, database or migration
+changed. This foundation is not yet consumed by persisted contract revisions.
+Next: additive revision persistence and legacy capture with upgrade tests,
+followed by atomic guarded writes/audit; never reconstruct historical terms
+from current rows or treat a hash alone as revision history.
+
 October 1 contract/payment integration preparation (baseline `509e703`):
 DeepSeek inspected contract CRUD, ontology and shared cash capabilities and
 produced [a proposed integration design](CONTRACT_PAYMENT_INTEGRATION_PLAN.md).
