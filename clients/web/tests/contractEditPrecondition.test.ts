@@ -24,7 +24,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { buildContractPayload } from "../src/app/contractPayload.ts";
+import {
+  contractPayloadReadiness,
+  type ContractPayloadReadiness,
+} from "../src/app/contractPayload.ts";
 import { contractDraftFromRecord } from "../src/app/contractImport.ts";
 import { cloneDefaultContractDraft } from "../src/app/defaultContractDraft.ts";
 import {
@@ -59,9 +62,19 @@ function storedRecord(overrides: Record<string, unknown> = {}): Record<string, u
     tolerance_risk_allowance_gbp_mwh: 0.1,
     owned_entry_capacity_mwh_per_day: null,
     owned_exit_capacity_mwh_per_day: null,
+    // The write route carries the cost terms in the row's structured notes and the stored read
+    // surfaces them top-level. The fixture records them because a row without a recorded cost
+    // term is not transportable (`contractPayloadReadiness`).
+    variable_cost_gbp_mwh: 1.25,
+    regas_fee_gbp_mwh: 0.5,
+    fuel_loss_allowance_pct: 1.1,
     allowed_exit_points: ["NBP", "TTF"],
     eligible_sale_modes: ["TARGET_MARKET_SALE"],
-    notes: JSON.stringify({ source: "upstream_capture", unknown_term: { keep: 1 } }),
+    notes: JSON.stringify({
+      source: "upstream_capture",
+      unknown_term: { keep: 1 },
+      counterparty: "Recorded counterparty",
+    }),
     edit_token: TOKEN_A,
     ...overrides,
   };
@@ -75,18 +88,31 @@ function loadedDraft(overrides: Record<string, unknown> = {}): ContractDraft {
   );
 }
 
+/** The transportable payload of a complete fixture draft, through the editor's own boundary. */
+function payloadOf(
+  draft: ContractDraft,
+): NonNullable<ContractPayloadReadiness["payload"]> {
+  const readiness = contractPayloadReadiness(draft);
+  assert.equal(readiness.ready, true, "the fixture draft must be transportable");
+  assert.ok(readiness.payload, "a ready readiness result carries its payload");
+  return readiness.payload;
+}
+
 test("a new draft is create-only and clears any stored edit lease", () => {
   const draft = cloneDefaultContractDraft();
   assert.equal(draft.stored_edit, null);
   assert.equal(draftExpectedEditToken(draft), null);
-  assert.equal(buildContractPayload(draft).expected_edit_token, null);
+  // The payload path is asserted on a new draft the boundary can transport; the template's
+  // quantity is the operator-entered placeholder, so it is supplied here as an editor would.
+  const savable = { ...draft, delivery_quantity_mwh_per_day: 100 };
+  assert.equal(payloadOf(savable).expected_edit_token, null);
 });
 
 test("a stored load carries the token with its originating identity", () => {
   const draft = loadedDraft();
   assert.deepEqual(draft.stored_edit, { contract_id: "stored-contract-1", edit_token: TOKEN_A });
   assert.equal(draftExpectedEditToken(draft), TOKEN_A);
-  assert.equal(buildContractPayload(draft).expected_edit_token, TOKEN_A);
+  assert.equal(payloadOf(draft).expected_edit_token, TOKEN_A);
 });
 
 test("reset, import and a stored row without a token are create-only", () => {
@@ -105,7 +131,7 @@ test("reset, import and a stored row without a token are create-only", () => {
 
   const tokenless = loadedDraft({ edit_token: undefined });
   assert.equal(tokenless.stored_edit, null);
-  assert.equal(buildContractPayload(tokenless).expected_edit_token, null);
+  assert.equal(payloadOf(tokenless).expected_edit_token, null);
 });
 
 test("switching stored contracts replaces the lease instead of accumulating it", () => {
@@ -116,7 +142,7 @@ test("switching stored contracts replaces the lease instead of accumulating it",
   assert.equal(draftExpectedEditToken(second), TOKEN_B);
   // The first draft it replaced is untouched; no lease rode along with the new one.
   assert.equal(draftExpectedEditToken(first), TOKEN_A);
-  assert.equal(buildContractPayload(second).expected_edit_token, TOKEN_B);
+  assert.equal(payloadOf(second).expected_edit_token, TOKEN_B);
 });
 
 test("changing the contract id makes the draft create-only", () => {
@@ -125,7 +151,7 @@ test("changing the contract id makes the draft create-only", () => {
 
   // Even if a lease were still attached, a different identity never receives the token.
   assert.equal(draftExpectedEditToken(renamedIdentity), null);
-  assert.equal(buildContractPayload(renamedIdentity).expected_edit_token, null);
+  assert.equal(payloadOf(renamedIdentity).expected_edit_token, null);
 
   // The editor clears it as the id is typed, rather than relying on the payload check alone.
   const hook = readWebSource("app/hooks/useContractEditor.ts");

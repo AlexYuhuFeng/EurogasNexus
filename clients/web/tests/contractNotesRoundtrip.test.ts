@@ -19,7 +19,10 @@ import {
   contractDraftFromRecord,
   preservedNotesFromRecord,
 } from "../src/app/contractImport.ts";
-import { buildContractPayload } from "../src/app/contractPayload.ts";
+import {
+  contractPayloadReadiness,
+  type ContractPayloadReadiness,
+} from "../src/app/contractPayload.ts";
 import { cloneDefaultContractDraft } from "../src/app/defaultContractDraft.ts";
 
 /** A stored row's notes object: known keys, unknown nested terms and odd scalar values. */
@@ -64,11 +67,36 @@ function storedRecord(
     tolerance_risk_allowance_gbp_mwh: 0.1,
     owned_entry_capacity_mwh_per_day: null,
     owned_exit_capacity_mwh_per_day: null,
+    // The write route carries the cost terms in the row's structured notes and the stored read
+    // surfaces them top-level. The fixture records them because a row that records no cost term
+    // is not transportable (`contractPayloadReadiness`), and these tests compose payloads.
+    variable_cost_gbp_mwh: 1.25,
+    regas_fee_gbp_mwh: 0.5,
+    fuel_loss_allowance_pct: 1.1,
     allowed_exit_points: ["NBP", "TTF"],
     eligible_sale_modes: ["TARGET_MARKET_SALE"],
     notes,
     ...overrides,
   };
+}
+
+/**
+ * The transportable payload of a complete fixture draft, through the readiness boundary the
+ * editor itself uses. A fixture the boundary refuses fails the test instead of bypassing it.
+ */
+function payloadOf(draft: Parameters<typeof contractPayloadReadiness>[0]): NonNullable<ContractPayloadReadiness["payload"]> {
+  const readiness = contractPayloadReadiness(draft);
+  assert.equal(readiness.ready, true, "the fixture draft must be transportable");
+  assert.ok(readiness.payload, "a ready readiness result carries its payload");
+  return readiness.payload;
+}
+
+/**
+ * A new draft the boundary can transport: the template's quantity is the operator-entered
+ * placeholder, so the payload-path cases supply a volume the way an operator would.
+ */
+function completedNewDraft() {
+  return { ...cloneDefaultContractDraft(), delivery_quantity_mwh_per_day: 100 };
 }
 
 /** The one shape the backend accepts: `notes` serialized as a JSON object string. */
@@ -80,7 +108,7 @@ function savedNotes(payload: { notes: string }): Record<string, unknown> {
 
 test("a stored load keeps unknown notes fields through an edit and save", () => {
   const draft = contractDraftFromRecord(storedRecord(), cloneDefaultContractDraft(), "stored");
-  const payload = buildContractPayload(draft);
+  const payload = payloadOf(draft);
   const notes = savedNotes(payload);
 
   // Unknown provenance and terms survive verbatim, including nested objects and lists.
@@ -101,7 +129,7 @@ test("owned edits overlay stored note values and leave unknown fields untouched"
   const draft = contractDraftFromRecord(storedRecord(), cloneDefaultContractDraft(), "stored");
   // The same shape the hook's update helpers produce: a new draft object, one field changed.
   const edited = { ...draft, counterparty: "Edited in web editor", delivery_quantity_mwh_per_day: 1_234.5 };
-  const payload = buildContractPayload(edited);
+  const payload = payloadOf(edited);
   const notes = savedNotes(payload);
 
   assert.equal(notes.counterparty, "Edited in web editor");
@@ -113,18 +141,20 @@ test("owned edits overlay stored note values and leave unknown fields untouched"
 
 test("a stored source is preserved, never rewritten to the web capture", () => {
   const draft = contractDraftFromRecord(storedRecord(), cloneDefaultContractDraft(), "stored");
-  assert.equal(savedNotes(buildContractPayload(draft)).source, "upstream_confirmation_capture");
+  assert.equal(savedNotes(payloadOf(draft)).source, "upstream_confirmation_capture");
 
   // A null or falsy recorded origin is still stored evidence: it is not replaced either.
   for (const source of [null, "", false, 0]) {
-    const record = storedRecord(JSON.stringify({ source, custom: { keep: 1 } }));
-    const notes = savedNotes(buildContractPayload(contractDraftFromRecord(record, cloneDefaultContractDraft(), "stored")));
+    const record = storedRecord(
+      JSON.stringify({ source, custom: { keep: 1 }, counterparty: "Recorded counterparty" }),
+    );
+    const notes = savedNotes(payloadOf(contractDraftFromRecord(record, cloneDefaultContractDraft(), "stored")));
     assert.deepEqual(notes.source, source);
     assert.deepEqual(notes.custom, { keep: 1 });
   }
 
   // Only a draft with no stored notes object gets the editor's own explicit envelope.
-  const freshNotes = savedNotes(buildContractPayload(cloneDefaultContractDraft()));
+  const freshNotes = savedNotes(payloadOf(completedNewDraft()));
   assert.equal(freshNotes.source, "web_contract_capture");
   assert.equal(freshNotes.decision_support_only, true);
   assert.equal(freshNotes.human_review_required, true);
@@ -132,7 +162,7 @@ test("a stored source is preserved, never rewritten to the web capture", () => {
 
 test("null, false and zero recorded values are preserved as recorded", () => {
   const notes = savedNotes(
-    buildContractPayload(contractDraftFromRecord(storedRecord(), cloneDefaultContractDraft(), "stored")),
+    payloadOf(contractDraftFromRecord(storedRecord(), cloneDefaultContractDraft(), "stored")),
   );
   assert.equal(notes.null_term, null);
   assert.equal(notes.false_term, false);
@@ -144,13 +174,20 @@ test("null, false and zero recorded values are preserved as recorded", () => {
 
 test("switching contracts replaces the preserved base instead of accumulating", () => {
   const first = contractDraftFromRecord(storedRecord(), cloneDefaultContractDraft(), "stored");
-  const secondRecord = storedRecord(JSON.stringify({ source: "second_capture", second_only: { n: 2 } }), {
-    contract_id: "stored-contract-2",
-    contract_name: "Stored contract 2",
-  });
+  const secondRecord = storedRecord(
+    JSON.stringify({
+      source: "second_capture",
+      second_only: { n: 2 },
+      counterparty: "Second counterparty",
+    }),
+    {
+      contract_id: "stored-contract-2",
+      contract_name: "Stored contract 2",
+    },
+  );
   // Even reusing the previous draft object as the base, the load adopts only the new row.
   const second = contractDraftFromRecord(secondRecord, first, "stored");
-  const notes = savedNotes(buildContractPayload(second));
+  const notes = savedNotes(payloadOf(second));
 
   assert.equal(notes.source, "second_capture");
   assert.deepEqual(notes.second_only, { n: 2 });
@@ -161,10 +198,10 @@ test("switching contracts replaces the preserved base instead of accumulating", 
 
 test("a new draft after a stored load clears the preserved base", () => {
   const loaded = contractDraftFromRecord(storedRecord(), cloneDefaultContractDraft(), "stored");
-  const fresh = cloneDefaultContractDraft();
+  const fresh = completedNewDraft();
   assert.notEqual(fresh.preserved_notes, loaded.preserved_notes);
   assert.equal(fresh.preserved_notes, null);
-  const notes = savedNotes(buildContractPayload(fresh));
+  const notes = savedNotes(payloadOf(fresh));
 
   assert.equal(notes.source, "web_contract_capture");
   assert.equal(notes.counterparty, "Operator draft counterparty");
@@ -183,7 +220,7 @@ test("a file import starts a fresh capture and clears the loaded row's notes", (
     loaded,
   );
   assert.equal(imported.preserved_notes, null);
-  const notes = savedNotes(buildContractPayload(imported));
+  const notes = savedNotes(payloadOf(imported));
 
   // The previously loaded row's evidence cannot ride into the imported draft's save.
   assert.equal("capture_reference" in notes, false);
@@ -204,17 +241,27 @@ test("non-object stored notes are kept as operator notes; blank notes preserve n
     ["[1,2,3]", "[1,2,3]"],
     [42, "42"],
   ] as Array<[unknown, string]>) {
-    const draft = contractDraftFromRecord(storedRecord(stored), cloneDefaultContractDraft(), "stored");
-    const notes = savedNotes(buildContractPayload(draft));
+    // A raw-notes row still needs its other required terms recorded to compose a payload; the
+    // counterparty fixture lands where the stored read would carry it (the notes/record merge).
+    const draft = contractDraftFromRecord(
+      storedRecord(stored, { counterparty: "Recorded counterparty" }),
+      cloneDefaultContractDraft(),
+      "stored",
+    );
+    const notes = savedNotes(payloadOf(draft));
     assert.equal(notes.operator_notes, raw, `notes=${JSON.stringify(stored)}`);
     assert.equal("source" in notes, false, `no origin is invented for notes=${JSON.stringify(stored)}`);
   }
 
   // Nothing stored means nothing to preserve: the save is a fresh web capture.
   for (const stored of [null, "", "   "]) {
-    const draft = contractDraftFromRecord(storedRecord(stored), cloneDefaultContractDraft(), "stored");
+    const draft = contractDraftFromRecord(
+      storedRecord(stored, { counterparty: "Recorded counterparty" }),
+      cloneDefaultContractDraft(),
+      "stored",
+    );
     assert.equal(draft.preserved_notes, null);
-    const notes = savedNotes(buildContractPayload(draft));
+    const notes = savedNotes(payloadOf(draft));
     assert.equal(notes.source, "web_contract_capture");
     assert.equal("operator_notes" in notes, false);
   }
@@ -225,22 +272,32 @@ test("non-object stored notes are kept as operator notes; blank notes preserve n
   // A stored empty JSON object is still a stored object: the editor adds only its own
   // fields and invents no origin for it.
   const emptyObject = savedNotes(
-    buildContractPayload(contractDraftFromRecord(storedRecord("{}"), cloneDefaultContractDraft(), "stored")),
+    payloadOf(
+      contractDraftFromRecord(
+        storedRecord("{}", { counterparty: "Recorded counterparty" }),
+        cloneDefaultContractDraft(),
+        "stored",
+      ),
+    ),
   );
   assert.equal("source" in emptyObject, false);
   assert.equal("operator_notes" in emptyObject, false);
-  assert.equal(emptyObject.counterparty, "");
+  assert.equal(emptyObject.counterparty, "Recorded counterparty");
 });
 
 test("copying is structural: no record aliasing and no prototype pollution", () => {
   const nested = { floor_gbp_mwh: 0 };
-  const record = storedRecord({ source: "object_form_capture", nested_container: nested });
+  const record = storedRecord({
+    source: "object_form_capture",
+    nested_container: nested,
+    counterparty: "Recorded counterparty",
+  });
   const draft = contractDraftFromRecord(record, cloneDefaultContractDraft(), "stored");
   assert.ok(draft.preserved_notes);
   assert.notEqual(draft.preserved_notes, record.notes);
   assert.notEqual(draft.preserved_notes.nested_container, nested);
 
-  const payload = buildContractPayload(draft);
+  const payload = payloadOf(draft);
   // The payload is a snapshot: mutating the draft's base (or the record it came from)
   // after the build cannot change what was already built.
   (draft.preserved_notes.nested_container as { floor_gbp_mwh: number }).floor_gbp_mwh = 999;
@@ -254,9 +311,11 @@ test("copying is structural: no record aliasing and no prototype pollution", () 
   assert.ok(polluted);
   assert.equal(Object.getPrototypeOf(polluted), Object.prototype);
   assert.equal(Object.prototype.hasOwnProperty.call(polluted, "__proto__"), true);
-  const pollutedPayload = buildContractPayload(
+  const pollutedPayload = payloadOf(
     contractDraftFromRecord(
-      storedRecord('{"__proto__":{"polluted":true},"constructor":{"prototype":{"polluted":true}},"legit":1}'),
+      storedRecord(
+        '{"__proto__":{"polluted":true},"constructor":{"prototype":{"polluted":true}},"legit":1,"counterparty":"Recorded counterparty"}',
+      ),
       cloneDefaultContractDraft(),
       "stored",
     ),
@@ -271,7 +330,12 @@ test("copying is structural: no record aliasing and no prototype pollution", () 
 
 test("the editor keeps one payload path and the base travels with the draft", () => {
   const hook = readFileSync(new URL("../src/app/hooks/useContractEditor.ts", import.meta.url), "utf8");
-  assert.match(hook, /const contractPayload = useMemo\(\(\) => buildContractPayload\(contract\), \[contract\]\);/);
+  // The readiness result is the editor's one payload path: the save transports its payload and
+  // no second composition exists beside it.
+  assert.match(
+    hook,
+    /const payloadReadiness = useMemo\(\(\) => contractPayloadReadiness\(contract\), \[contract\]\);/,
+  );
   // No second copy of the preserved base lives in the hook: it is replaced with the draft
   // on load and cleared with the draft on new/import, so it cannot go stale on its own.
   assert.equal(hook.includes("preserved_notes"), false);

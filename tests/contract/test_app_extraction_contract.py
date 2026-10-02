@@ -70,7 +70,6 @@ def test_contract_import_module_is_wired_into_app() -> None:
     for helper in [
         "stringFromRecord",
         "numberFromRecord",
-        "nullableNumberFromRecord",
         "stringArrayFromRecord",
         "notesRecordFromRecord",
         "contractDraftFromRecord",
@@ -94,7 +93,11 @@ def test_contract_payload_builder_is_wired_into_app() -> None:
 
     owner_text = _read(CONTRACT_EDITOR_TS)
     module_text = _read(CONTRACT_PAYLOAD_TS)
-    assert "buildContractPayload(contract)" in owner_text
+    assert "contractPayloadReadiness(contract)" in owner_text
+    assert "contractPayloadReadiness(contractRef.current)" in owner_text
+    assert "if (!readiness.ready || readiness.payload === null) return;" in owner_text
+    assert "export function contractPayloadReadiness" in module_text
+    assert "payload: buildContractPayload(contract)" in module_text
     assert "export function buildContractPayload" in module_text
     for phrase in [
         "resource_type: contract.resource_type",

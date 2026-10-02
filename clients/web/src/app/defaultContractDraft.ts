@@ -2,6 +2,14 @@ import type { ContractDraft as ContractDraftModel } from "./model/contractDraftM
 
 export type ContractDraft = ContractDraftModel;
 
+/**
+ * The operator-entry template for a new manual draft.
+ *
+ * These are explicit pre-filled entry defaults for a *new* draft, not recorded contract facts:
+ * stored hydration never inherits them, and a file import keeps them only for terms the file
+ * genuinely omits (the import overlay; see `contractImport.ts`). The numeric terms are validated
+ * against the governed write route before a save.
+ */
 export const defaultContractDraft: ContractDraft = {
   contract_id: "operator-ttf-supply-2025",
   contract_name: "Operator TTF supply 2025",

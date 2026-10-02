@@ -102,12 +102,12 @@ interface ContractWorkbenchProps {
 }
 
 function formatQuantity(value: number | null | undefined): string {
-  if (value === null || value === undefined || Number.isNaN(value)) return "n/a";
+  if (value === null || value === undefined || !Number.isFinite(value)) return "n/a";
   return `${Math.round(value).toLocaleString()} MWh/d`;
 }
 
 function formatMoney(value: number | null | undefined): string {
-  if (value === null || value === undefined || Number.isNaN(value)) return "n/a";
+  if (value === null || value === undefined || !Number.isFinite(value)) return "n/a";
   return value.toFixed(2);
 }
 
@@ -262,16 +262,16 @@ export function ContractWorkbench({
               <label>{t("contracts.physical_exit_point")}<input value={contract.physical_exit_point_name} onChange={(event) => updateContractText("physical_exit_point_name", event.target.value)} /></label>
             </div></fieldset>}
             {clauseView === "quantity" && <fieldset><legend>{t("contracts.quantity_tolerance")}</legend><p>{t("contracts.section_help.quantity")}</p><div className="contract-field-grid">
-              <label>{t("economics.volume")}<input type="number" min="0" value={contract.delivery_quantity_mwh_per_day} onChange={(event) => updateContractNumber("delivery_quantity_mwh_per_day", event.target.value)} /></label>
-              <label>{t("economics.delivery_tolerance")}<input type="number" min="0" value={contract.delivery_tolerance_pct} onChange={(event) => updateContractNumber("delivery_tolerance_pct", event.target.value)} /></label>
-              <label>{t("economics.nomination_tolerance")}<input type="number" min="0" value={contract.nomination_tolerance_pct} onChange={(event) => updateContractNumber("nomination_tolerance_pct", event.target.value)} /></label>
-              <label>{t("contracts.fuel_loss")}<input type="number" min="0" max="99.99" value={contract.fuel_loss_allowance_pct} onChange={(event) => updateContractNumber("fuel_loss_allowance_pct", event.target.value)} /></label>
+              <label>{t("economics.volume")}<input type="number" min="0" value={contract.delivery_quantity_mwh_per_day ?? ""} onChange={(event) => updateContractNumber("delivery_quantity_mwh_per_day", event.target.value)} /></label>
+              <label>{t("economics.delivery_tolerance")}<input type="number" min="0" value={contract.delivery_tolerance_pct ?? ""} onChange={(event) => updateContractNumber("delivery_tolerance_pct", event.target.value)} /></label>
+              <label>{t("economics.nomination_tolerance")}<input type="number" min="0" value={contract.nomination_tolerance_pct ?? ""} onChange={(event) => updateContractNumber("nomination_tolerance_pct", event.target.value)} /></label>
+              <label>{t("contracts.fuel_loss")}<input type="number" min="0" max="99.99" value={contract.fuel_loss_allowance_pct ?? ""} onChange={(event) => updateContractNumber("fuel_loss_allowance_pct", event.target.value)} /></label>
             </div><div className="contract-model-boundary">{t("contracts.minimum_take_not_modeled")}</div></fieldset>}
             {clauseView === "costs" && <fieldset><legend>{t("contracts.price_costs")}</legend><p>{t("contracts.section_help.costs")}</p><div className="contract-field-grid">
-              <label>{t("economics.contract_price")}<input type="number" min="0" value={contract.contract_price_gbp_mwh} onChange={(event) => updateContractNumber("contract_price_gbp_mwh", event.target.value)} /></label>
-              <label>{t("contracts.balancing_allowance")}<input type="number" min="0" value={contract.tolerance_risk_allowance_gbp_mwh} onChange={(event) => updateContractNumber("tolerance_risk_allowance_gbp_mwh", event.target.value)} /></label>
-              <label>{t("contracts.variable_cost")}<input type="number" min="0" value={contract.variable_cost_gbp_mwh} onChange={(event) => updateContractNumber("variable_cost_gbp_mwh", event.target.value)} /></label>
-              <label>{t("contracts.regas_fee")}<input type="number" min="0" value={contract.regas_fee_gbp_mwh} onChange={(event) => updateContractNumber("regas_fee_gbp_mwh", event.target.value)} /></label>
+              <label>{t("economics.contract_price")}<input type="number" min="0" value={contract.contract_price_gbp_mwh ?? ""} onChange={(event) => updateContractNumber("contract_price_gbp_mwh", event.target.value)} /></label>
+              <label>{t("contracts.balancing_allowance")}<input type="number" min="0" value={contract.tolerance_risk_allowance_gbp_mwh ?? ""} onChange={(event) => updateContractNumber("tolerance_risk_allowance_gbp_mwh", event.target.value)} /></label>
+              <label>{t("contracts.variable_cost")}<input type="number" min="0" value={contract.variable_cost_gbp_mwh ?? ""} onChange={(event) => updateContractNumber("variable_cost_gbp_mwh", event.target.value)} /></label>
+              <label>{t("contracts.regas_fee")}<input type="number" min="0" value={contract.regas_fee_gbp_mwh ?? ""} onChange={(event) => updateContractNumber("regas_fee_gbp_mwh", event.target.value)} /></label>
             </div></fieldset>}
             {clauseView === "capacity" && <fieldset><legend>{t("contracts.capacity_rights")}</legend><p>{t("contracts.section_help.capacity")}</p><div className="contract-field-grid">
               <label>{t("contracts.terminal_access")}<input value={contract.terminal_access} onChange={(event) => updateContractText("terminal_access", event.target.value)} /></label>
@@ -281,9 +281,9 @@ export function ContractWorkbench({
             </div></fieldset>}
             {clauseView === "settlement" && <fieldset><legend>{t("contracts.settlement_cash")}</legend><p>{t("contracts.section_help.settlement")}</p><div className="contract-field-grid">
               <label>{t("contracts.settlement_frequency")}<select value={contract.settlement_frequency} onChange={(event) => updateContractText("settlement_frequency", event.target.value)}><option value="daily">daily</option><option value="weekly">weekly</option><option value="monthly">monthly</option></select></label>
-              <label>{t("economics.cash_lag")}<input type="number" min="0" value={contract.screen_sale_cash_lag_days} onChange={(event) => updateContractNumber("screen_sale_cash_lag_days", event.target.value)} /></label>
-              <label>{t("contracts.upstream_payment_lag")}<input type="number" min="0" value={contract.upstream_payment_lag_days} onChange={(event) => updateContractNumber("upstream_payment_lag_days", event.target.value)} /></label>
-              <label>{t("economics.finance_rate")}<input type="number" min="0" value={contract.annual_financing_rate_pct} onChange={(event) => updateContractNumber("annual_financing_rate_pct", event.target.value)} /></label>
+              <label>{t("economics.cash_lag")}<input type="number" min="0" value={contract.screen_sale_cash_lag_days ?? ""} onChange={(event) => updateContractNumber("screen_sale_cash_lag_days", event.target.value)} /></label>
+              <label>{t("contracts.upstream_payment_lag")}<input type="number" min="0" value={contract.upstream_payment_lag_days ?? ""} onChange={(event) => updateContractNumber("upstream_payment_lag_days", event.target.value)} /></label>
+              <label>{t("economics.finance_rate")}<input type="number" min="0" value={contract.annual_financing_rate_pct ?? ""} onChange={(event) => updateContractNumber("annual_financing_rate_pct", event.target.value)} /></label>
               <label className="span-2">{t("contracts.governing_law")}<input value={contract.governing_law} onChange={(event) => updateContractText("governing_law", event.target.value)} /></label>
             </div></fieldset>}
             {clauseView === "restrictions" && <fieldset><legend>{t("contracts.restrictions")}</legend><p>{t("contracts.section_help.restrictions")}</p><div className="contract-field-grid">

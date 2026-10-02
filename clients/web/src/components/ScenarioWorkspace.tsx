@@ -122,7 +122,7 @@ export function ScenarioWorkspace({
               type="number"
               min="0"
               step="any"
-              value={financingRate.pct}
+              value={financingRate.pct ?? ""}
               readOnly={financingRate.source === "saved_upstream_contract"}
               onChange={(event) => updateContractNumber(key, event.target.value)}
             /></label>
@@ -131,7 +131,9 @@ export function ScenarioWorkspace({
         <p className="muted">
           {financingRate.source === "saved_upstream_contract"
             ? t("scenario.financing_rate_from_saved_contract")
-            : t("scenario.financing_rate_from_draft_fallback")}
+            : financingRate.source === "draft_fallback"
+              ? t("scenario.financing_rate_from_draft_fallback")
+              : t("scenario.financing_rate_unknown")}
         </p>
         <p className="panel-copy">{t("scenario.compare_location")}</p>
         <p className="panel-copy">{t("scenario.optimizer_location")}</p>

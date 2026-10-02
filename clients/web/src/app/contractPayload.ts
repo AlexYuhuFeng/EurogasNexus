@@ -1,5 +1,87 @@
+import type { UpstreamContractInputDTO } from "@/api/client";
 import type { ContractDraft } from "./defaultContractDraft";
-import { draftExpectedEditToken } from "./model/contractDraftModel.ts";
+import {
+  contractValidationIssueKeys,
+  draftExpectedEditToken,
+  isRecordedNumber,
+} from "./model/contractDraftModel.ts";
+
+/**
+ * The numeric terms the governed write route requires as finite numbers
+ * (`api/routes/public/route_cost.py::UpstreamContractUpsertRequest`).
+ *
+ * `tolerance_risk_allowance_gbp_mwh` and the owned capacities are deliberately absent: the
+ * route types them `float | None`, so a draft that leaves them blank sends an explicit `null`
+ * rather than an assumed zero. The three cost terms carried in the row's structured notes
+ * (`variable_cost_gbp_mwh`, `regas_fee_gbp_mwh`, `fuel_loss_allowance_pct`) have a route
+ * default of `0` and no null form, so an unrecorded value must not be sent at all.
+ */
+const REQUIRED_RECORDED_TERMS = [
+  "delivery_quantity_mwh_per_day",
+  "contract_price_gbp_mwh",
+  "delivery_tolerance_pct",
+  "nomination_tolerance_pct",
+  "variable_cost_gbp_mwh",
+  "regas_fee_gbp_mwh",
+  "fuel_loss_allowance_pct",
+  "upstream_payment_lag_days",
+  "screen_sale_cash_lag_days",
+  "annual_financing_rate_pct",
+] as const;
+
+type RequiredRecordedTerm = (typeof REQUIRED_RECORDED_TERMS)[number];
+
+/**
+ * A draft whose required numeric terms are all recorded finite numbers.
+ *
+ * This is the strict payload boundary: `buildContractPayload` accepts only this shape, and the
+ * only producer of it is `contractPayloadReadiness`, which narrows with the same recorded-value
+ * rule the validation issue list reports. An unknown required term therefore cannot reach the
+ * composer at all.
+ */
+export type RecordedContractDraft = Omit<ContractDraft, RequiredRecordedTerm> & {
+  readonly [Term in RequiredRecordedTerm]: number;
+};
+
+/**
+ * Whether a draft may be transported, and the exact request when it may.
+ *
+ * `ready: false` carries a `null` payload and the draft's own validation issue keys, so a
+ * caller never has to invent a second completeness rule: an unrecorded (or out-of-bounds)
+ * required term is refused with the same reason the workbench shows.
+ */
+export interface ContractPayloadReadiness {
+  readonly ready: boolean;
+  readonly payload: UpstreamContractInputDTO | null;
+  readonly issueKeys: readonly string[];
+}
+
+/**
+ * The reviewed draft as a transportable request, or why it is not one.
+ *
+ * The validation rule decides policy (`contractValidationIssueKeys`), and the type guard below
+ * narrows the draft for the composer. The guard can only accept what validation accepts - it
+ * checks presence/finiteness, never a weaker bound - so `ready` and the save rule cannot
+ * disagree in the direction that matters: a draft validation refuses is never ready.
+ */
+export function contractPayloadReadiness(contract: ContractDraft): ContractPayloadReadiness {
+  const issueKeys = contractValidationIssueKeys(contract);
+  if (issueKeys.length > 0 || !isRecordedContractDraft(contract)) {
+    return { ready: false, payload: null, issueKeys };
+  }
+  return { ready: true, payload: buildContractPayload(contract), issueKeys: [] };
+}
+
+/**
+ * Whether every required numeric term is a recorded finite number.
+ *
+ * This is the boundary's own presence check, not a second completeness opinion: validation
+ * already requires each of these terms to be finite and in bounds, so this can only narrow a
+ * draft validation has accepted.
+ */
+export function isRecordedContractDraft(contract: ContractDraft): contract is RecordedContractDraft {
+  return REQUIRED_RECORDED_TERMS.every((term) => isRecordedNumber(contract[term]));
+}
 
 /**
  * The reviewed draft as the governed write path receives it.
@@ -21,8 +103,11 @@ import { draftExpectedEditToken } from "./model/contractDraftModel.ts";
  * `expected_edit_token` is the opaque token read with this draft's stored identity, or
  * `null` (new draft, import, changed id) - create-only on the backend, never an overwrite.
  * It is not the captured revision number and is never derived from editor fields.
+ *
+ * Only a `RecordedContractDraft` is accepted: every numeric field the route requires as a
+ * number is one here, so this composer has no `null` to coerce and no default to invent.
  */
-export function buildContractPayload(contract: ContractDraft) {
+export function buildContractPayload(contract: RecordedContractDraft): UpstreamContractInputDTO {
   const preserved = contract.preserved_notes;
   const notes: Record<string, unknown> = {
     ...preserved,

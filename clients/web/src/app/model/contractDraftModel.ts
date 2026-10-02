@@ -25,7 +25,22 @@ export interface StoredContractEdit {
   readonly edit_token: string;
 }
 
-/** The reviewed draft a user edits before it is persisted. */
+/**
+ * The reviewed draft a user edits before it is persisted.
+ *
+ * Every numeric term is `number | null`, and the two states are different facts:
+ *
+ * * a `number` is a *recorded* value. An explicit `0` is a recorded zero and stays `0`;
+ * * `null` is *unknown*: nothing recorded in the stored row, or a control the operator has
+ *   cleared. An unknown required term is shown blank, blocks the save through
+ *   `contractValidationIssueKeys`, and is never composed into a request - the governed write
+ *   route's defaults would otherwise record a `0` nobody entered (`contractPayload.ts`).
+ *
+ * `owned_entry_capacity_mwh_per_day`, `owned_exit_capacity_mwh_per_day` and
+ * `tolerance_risk_allowance_gbp_mwh` additionally keep their documented `null` meaning for an
+ * *optional* route field: "not declared". The write route types each of them `float | None`,
+ * so a blank control is representable as recorded absence rather than an assumed zero.
+ */
 export interface ContractDraft {
   contract_id: string;
   contract_name: string;
@@ -34,10 +49,10 @@ export interface ContractDraft {
   contract_type: string;
   delivery_point_name: string;
   gas_year: string;
-  delivery_quantity_mwh_per_day: number;
-  contract_price_gbp_mwh: number;
-  nbp_sale_price_gbp_mwh: number;
-  physical_exit_sale_price_gbp_mwh: number;
+  delivery_quantity_mwh_per_day: number | null;
+  contract_price_gbp_mwh: number | null;
+  nbp_sale_price_gbp_mwh: number | null;
+  physical_exit_sale_price_gbp_mwh: number | null;
   physical_exit_point_name: string;
   title_transfer_point: string;
   beach_delivery_point: string;
@@ -48,16 +63,16 @@ export interface ContractDraft {
   document_status: string;
   source_reference: string;
   governing_law: string;
-  delivery_tolerance_pct: number;
-  nomination_tolerance_pct: number;
-  tolerance_risk_allowance_gbp_mwh: number;
-  variable_cost_gbp_mwh: number;
-  regas_fee_gbp_mwh: number;
-  fuel_loss_allowance_pct: number;
+  delivery_tolerance_pct: number | null;
+  nomination_tolerance_pct: number | null;
+  tolerance_risk_allowance_gbp_mwh: number | null;
+  variable_cost_gbp_mwh: number | null;
+  regas_fee_gbp_mwh: number | null;
+  fuel_loss_allowance_pct: number | null;
   settlement_frequency: string;
-  upstream_payment_lag_days: number;
-  screen_sale_cash_lag_days: number;
-  annual_financing_rate_pct: number;
+  upstream_payment_lag_days: number | null;
+  screen_sale_cash_lag_days: number | null;
+  annual_financing_rate_pct: number | null;
   owned_entry_capacity_mwh_per_day: number | null;
   owned_exit_capacity_mwh_per_day: number | null;
   allowed_exit_points: string[];
@@ -91,6 +106,13 @@ export interface ContractDraft {
  * Keys, not messages: the same rule then serves the panel's issue list and any other surface
  * that needs to know whether the draft is complete, with no second chance for the two to
  * disagree about what a valid draft is.
+ *
+ * The numeric bounds are the existing governed write route's own request bounds
+ * (`api/routes/public/route_cost.py::UpstreamContractUpsertRequest`), not a new financial
+ * convention: `delivery_quantity` above 0, prices/costs/tolerances/rates at 0 or above, fuel
+ * loss in [0, 100), whole-day lags, and the route's nullable fields (`tolerance_risk_allowance`,
+ * owned capacities) allowed to stay blank. A term that is not a recorded finite number is
+ * reported exactly like a term outside its bound: it blocks the save instead of being sent.
  */
 export function contractValidationIssueKeys(contract: ContractDraft): string[] {
   const issues: string[] = [];
@@ -99,15 +121,90 @@ export function contractValidationIssueKeys(contract: ContractDraft): string[] {
   if (!contract.counterparty.trim()) issues.push("contracts.validation.counterparty");
   if (!contract.delivery_point_name.trim()) issues.push("contracts.validation.delivery_point");
   if (!contract.gas_year.trim()) issues.push("contracts.validation.gas_year");
-  if (contract.delivery_quantity_mwh_per_day <= 0) issues.push("contracts.validation.volume");
-  if (contract.contract_price_gbp_mwh < 0) issues.push("contracts.validation.price");
-  if (contract.variable_cost_gbp_mwh < 0 || contract.regas_fee_gbp_mwh < 0) {
+  if (
+    !isRecordedNumber(contract.delivery_quantity_mwh_per_day) ||
+    contract.delivery_quantity_mwh_per_day <= 0
+  ) {
+    issues.push("contracts.validation.volume");
+  }
+  if (!isNonNegativeTerm(contract.contract_price_gbp_mwh)) {
+    issues.push("contracts.validation.price");
+  }
+  if (
+    !isNonNegativeTerm(contract.variable_cost_gbp_mwh) ||
+    !isNonNegativeTerm(contract.regas_fee_gbp_mwh) ||
+    !isBlankOrNonNegativeTerm(contract.tolerance_risk_allowance_gbp_mwh)
+  ) {
     issues.push("contracts.validation.costs");
   }
-  if (contract.fuel_loss_allowance_pct < 0 || contract.fuel_loss_allowance_pct >= 100) {
+  if (
+    !isRecordedNumber(contract.fuel_loss_allowance_pct) ||
+    contract.fuel_loss_allowance_pct < 0 ||
+    contract.fuel_loss_allowance_pct >= 100
+  ) {
     issues.push("contracts.validation.fuel_loss");
   }
+  if (
+    !isNonNegativeTerm(contract.delivery_tolerance_pct) ||
+    !isNonNegativeTerm(contract.nomination_tolerance_pct)
+  ) {
+    issues.push("contracts.validation.tolerance");
+  }
+  if (
+    !isWholeDayCount(contract.upstream_payment_lag_days) ||
+    !isWholeDayCount(contract.screen_sale_cash_lag_days)
+  ) {
+    issues.push("contracts.validation.cash_lag");
+  }
+  if (!isNonNegativeTerm(contract.annual_financing_rate_pct)) {
+    issues.push("contracts.validation.financing_rate");
+  }
+  if (
+    !isBlankOrNonNegativeTerm(contract.owned_entry_capacity_mwh_per_day) ||
+    !isBlankOrNonNegativeTerm(contract.owned_exit_capacity_mwh_per_day)
+  ) {
+    issues.push("contracts.validation.capacity");
+  }
   return issues;
+}
+
+/**
+ * Whether a draft term is a recorded finite number.
+ *
+ * `null` is the draft's explicit unknown state; `NaN` and `±Infinity` are not representable
+ * values for the write route's float fields. Both count as "not recorded", so a cleared
+ * control or a poisoned value blocks the save rather than being coerced to `0`.
+ */
+export function isRecordedNumber(value: number | null): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+/** A required route field: recorded and at 0 or above. */
+function isNonNegativeTerm(value: number | null): boolean {
+  return isRecordedNumber(value) && value >= 0;
+}
+
+/** An optional route field (`float | None`): blank is allowed, a recorded value is at 0 or above. */
+function isBlankOrNonNegativeTerm(value: number | null): boolean {
+  return value === null || isNonNegativeTerm(value);
+}
+
+/** A whole-day count, as the write route's `int >= 0` fields require. */
+function isWholeDayCount(value: number | null): boolean {
+  return isRecordedNumber(value) && Number.isInteger(value) && value >= 0;
+}
+
+/**
+ * The number a cleared or invalid numeric control holds.
+ *
+ * An empty control is unknown (`null`), never `0`; a non-finite entry (`1e999`, `NaN`) is not
+ * a recordable value either. A `0` the operator actually typed stays `0`, so an explicit zero
+ * is reported as itself by validation and saved as itself.
+ */
+export function draftNumberFromInput(value: string): number | null {
+  if (!value.trim()) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 /**

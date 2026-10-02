@@ -18,8 +18,10 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import type { PortfolioResourceDTO, PortfolioSaleOptionDTO } from "../src/api/client.ts";
-import { buildContractPayload } from "../src/app/contractPayload.ts";
-import { defaultContractDraft } from "../src/app/defaultContractDraft.ts";
+import {
+  contractPayloadReadiness,
+  type ContractPayloadReadiness,
+} from "../src/app/contractPayload.ts";
 import type { ContractDraft } from "../src/app/model/contractDraftModel.ts";
 import {
   SCENARIO_EDITABLE_DRAFT_INPUTS,
@@ -30,6 +32,16 @@ import { buildRouteRecommendationRequest } from "../src/app/routeRecommendationR
 
 function readWebSource(relativePath: string): string {
   return readFileSync(new URL(`../src/${relativePath}`, import.meta.url), "utf8");
+}
+
+/** The transportable payload of a complete fixture draft, through the editor's own boundary. */
+function payloadOf(
+  draft: ContractDraft,
+): NonNullable<ContractPayloadReadiness["payload"]> {
+  const readiness = contractPayloadReadiness(draft);
+  assert.equal(readiness.ready, true, "the fixture draft must be transportable");
+  assert.ok(readiness.payload, "a ready readiness result carries its payload");
+  return readiness.payload;
 }
 
 function draft(overrides: Partial<ContractDraft> = {}): ContractDraft {
@@ -179,7 +191,7 @@ test("every draft number the panel no longer offers leaves both requests unchang
 
   // Two of the removed controls were not even persisted with the contract: the draft keeps
   // them for import back-compatibility, but the saved payload never carried them.
-  const payload = buildContractPayload(defaultContractDraft) as Record<string, unknown>;
+  const payload = payloadOf(draft()) as Record<string, unknown>;
   assert.equal("nbp_sale_price_gbp_mwh" in payload, false);
   assert.equal("physical_exit_sale_price_gbp_mwh" in payload, false);
   assert.equal("annual_financing_rate_pct" in payload, true);
@@ -257,7 +269,7 @@ test("the Scenario panel offers the consumed input, names the provenance, and dr
   assert.equal((source.match(/updateContractNumber\(/g) ?? []).length, 1);
   assert.match(source, /SCENARIO_EDITABLE_DRAFT_INPUTS/);
   assert.match(source, /resolvePoolFinancingRate\(contract, upstreamContracts\)/);
-  assert.match(source, /value=\{financingRate\.pct\}/);
+  assert.match(source, /value=\{financingRate\.pct \?\? ""\}/);
   assert.match(source, /readOnly=\{financingRate\.source === "saved_upstream_contract"\}/);
   for (const removedField of [
     "delivery_quantity_mwh_per_day",
@@ -274,6 +286,44 @@ test("the Scenario panel offers the consumed input, names the provenance, and dr
   assert.match(source, /t\("scenario\.financing_rate_from_draft_fallback"\)/);
   assert.match(source, /t\("scenario\.compare_location"\)/);
   assert.match(source, /t\("scenario\.optimizer_location"\)/);
+});
+
+test("an unrecorded financing rate is refused, never run as a 0% fallback", () => {
+  // A draft whose rate control was cleared (or a stored row that never recorded one) has no
+  // rate to send: the resolution is explicit `unknown` and the optimiser request is refused.
+  const unrecorded = draft({ annual_financing_rate_pct: null });
+  assert.deepEqual(resolvePoolFinancingRate(unrecorded, []), {
+    pct: null,
+    source: "unknown",
+  });
+  assert.equal(
+    buildResourcePoolOptimizationRequest(unrecorded, POOL_RESOURCES, SALE_OPTIONS, []),
+    null,
+    "an unknown rate never becomes a request with 0%",
+  );
+
+  // A saved rate that is not a finite number is not a recorded rate either: the request is
+  // refused rather than relabelled with the draft's own rate.
+  const notANumber = [{ annual_financing_rate_pct: Number.NaN }];
+  assert.deepEqual(resolvePoolFinancingRate(draft({ annual_financing_rate_pct: 7.5 }), notANumber), {
+    pct: null,
+    source: "unknown",
+  });
+  assert.equal(
+    buildResourcePoolOptimizationRequest(draft({ annual_financing_rate_pct: 7.5 }), POOL_RESOURCES, SALE_OPTIONS, notANumber),
+    null,
+  );
+
+  // A saved null falls back to the draft only while the draft itself records a rate.
+  const nullSaved = [{ annual_financing_rate_pct: null }];
+  assert.deepEqual(resolvePoolFinancingRate(draft({ annual_financing_rate_pct: 7.5 }), nullSaved), {
+    pct: 7.5,
+    source: "draft_fallback",
+  });
+  assert.deepEqual(resolvePoolFinancingRate(draft({ annual_financing_rate_pct: null }), nullSaved), {
+    pct: null,
+    source: "unknown",
+  });
 });
 
 test("the panel's vocabulary is translated and the false EUR/MWh labels are gone", () => {

@@ -5,6 +5,30 @@ Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical sli
 
 ## Current work
 
+### Unknown contract numeric terms (2026-10-02)
+
+DeepSeek implemented nullable numeric draft terms on baseline `56337f6`.
+Stored hydration no longer borrows template rates, costs, quantities or lags;
+clearing a numeric control produces unknown rather than zero. Validation follows
+the existing backend numeric bounds; the save hook checks payload readiness
+before transport. Pool optimization refuses an unknown financing rate rather
+than substituting zero. Optional capacity/allowance null semantics remain those
+of the existing API; server-side allowance-null-to-zero remains an explicit gap.
+
+Parent reviewed mapping, payload boundary and scenario consumers. Independent
+standard web suite: 817 passed, 3 skipped; production build passed with the
+existing ineffective-dynamic-import warning. Local services were down and were
+restarted against existing PostgreSQL without migration. Authenticated browser
+inspection of the saved preview contract showed missing variable/regas costs
+blank. Clearing its price kept the control blank, added a validation issue and
+left Save disabled. No contract write was performed. Screenshot evidence is
+local `output/runtime/contract-unknown-numeric-desktop.png`; this verifies the
+numeric state, not complete responsive or conflict/reconciliation acceptance.
+
+Prior commit `56337f6` passed GitHub run `36997296510`. Remaining commercial
+gaps include stale simulated market inputs, negative-price/currency policy,
+dated payment integration, full persona workflows and release/legal clearance.
+
 ### Post-save authentication denial (2026-10-02)
 
 Baseline `f23292a` passed GitHub CI run `36970264979`. Parent found and

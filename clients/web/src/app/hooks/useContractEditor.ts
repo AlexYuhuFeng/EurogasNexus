@@ -3,14 +3,14 @@ import type { ChangeEvent } from "react";
 import type { TFunction } from "i18next";
 import type { UpstreamContractDTO, UpstreamContractInputDTO } from "@/api/client";
 import {
-  buildContractPayload,
+  contractPayloadReadiness,
   cloneDefaultContractDraft,
   contractDraftFromRecord,
   contractRecordFromImportedFile,
 } from "@/app/index";
 import type { ContractDraft } from "@/app/index";
 import { preservedNotesFromRecord } from "@/app/contractImport";
-import { applyContractSaveResult } from "@/app/model/contractDraftModel";
+import { applyContractSaveResult, draftNumberFromInput } from "@/app/model/contractDraftModel";
 import type { ContractListKey, ContractNumberKey, ContractTextKey } from "@/components/ContractWorkbench";
 
 export function useContractEditor(
@@ -25,7 +25,9 @@ export function useContractEditor(
   const [contractImportMessage, setContractImportMessage] = useState<string | null>(null);
   const [draftDirty, setDraftDirty] = useState(false);
   const [contract, setContract] = useState<ContractDraft>(() => cloneDefaultContractDraft());
-  const contractPayload = useMemo(() => buildContractPayload(contract), [contract]);
+  // The readiness result is the one payload path: the save uses it and the surface could report
+  // it, so there is no second composition that could disagree with the transport.
+  const payloadReadiness = useMemo(() => contractPayloadReadiness(contract), [contract]);
   // Two counters decide whether a save result still belongs to the shown draft:
   //   * the session counts draft replacements and identity edits (a stored load, a reset, a
   //     file import, a typed contract id). A result from an earlier session is refused even
@@ -53,10 +55,11 @@ export function useContractEditor(
   }
 
   function updateContractNumber(key: ContractNumberKey, value: string) {
-    const nullable = key === "owned_entry_capacity_mwh_per_day" || key === "owned_exit_capacity_mwh_per_day";
     draftGenerationRef.current += 1;
     setDraftDirty(true);
-    commitDraft((current) => ({ ...current, [key]: value === "" && nullable ? null : value === "" ? 0 : Number(value) }));
+    // A cleared control is unknown (`null`), never `0`; an explicit zero the operator typed is
+    // recorded as `0` and stays one.
+    commitDraft((current) => ({ ...current, [key]: draftNumberFromInput(value) }));
   }
 
   function updateContractText(key: ContractTextKey, value: string) {
@@ -127,12 +130,17 @@ export function useContractEditor(
    */
   async function saveContract(): Promise<void> {
     if (saveInFlightRef.current) return;
+    // The disabled action is a presentation of this rule, not the guard: an invocation that
+    // bypasses the button (keyboard commit, a future caller) must not transport a draft whose
+    // required numeric terms are unknown or outside the write route's bounds.
+    const readiness = contractPayloadReadiness(contractRef.current);
+    if (!readiness.ready || readiness.payload === null) return;
+    const payload = readiness.payload;
     const submitted = {
       contractId: contractRef.current.contract_id.trim(),
       session: draftSessionRef.current,
       generation: draftGenerationRef.current,
     };
-    const payload = buildContractPayload(contractRef.current);
     saveInFlightRef.current = true;
     try {
       const saved = await saveContractDraft(payload);
@@ -158,7 +166,7 @@ export function useContractEditor(
 
   return {
     contract,
-    contractPayload,
+    payloadReadiness,
     draftDirty,
     contractImportRef,
     contractImportMessage,

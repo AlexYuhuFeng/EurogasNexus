@@ -5,23 +5,32 @@ export function stringFromRecord(record: Record<string, unknown>, key: string, f
   return typeof value === "string" && value.trim() ? value.trim() : fallback;
 }
 
-export function numberFromRecord(record: Record<string, unknown>, key: string, fallback: number): number {
-  const value = record[key];
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string" && value.trim() && Number.isFinite(Number(value))) return Number(value);
-  return fallback;
-}
-
-export function nullableNumberFromRecord(
+/**
+ * Read one numeric term from a record, keeping "omitted" and "supplied" apart.
+ *
+ * * A key the record does not carry (or carries as `undefined`) is genuinely omitted and keeps
+ *   the caller's fallback - the working draft's value on the file-import overlay, or `null` for
+ *   stored hydration, which must not inherit template terms.
+ * * A finite number, or a non-blank string that parses to one, is recorded as it stands
+ *   (an explicit `0` stays `0`).
+ * * Any other *supplied* value - `null`, `false`, `""`, `NaN`, `±Infinity`, a non-numeric
+ *   string - is not a recordable number and maps to `null` (unknown). It never falls back to a
+ *   template or draft value, so a stored row or an import that states an invalid term cannot
+ *   silently present a different number as recorded.
+ */
+export function numberFromRecord(
   record: Record<string, unknown>,
   key: string,
   fallback: number | null,
 ): number | null {
   const value = record[key];
-  if (value == null || value === "") return fallback;
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string" && Number.isFinite(Number(value))) return Number(value);
-  return fallback;
+  if (value === undefined) return fallback;
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
 }
 
 export function stringArrayFromRecord(record: Record<string, unknown>, key: string, fallback: string[]): string[] {
@@ -145,6 +154,12 @@ export function contractDraftFromRecord(
   const mergedRecord = { ...notesRecordFromRecord(record), ...record };
   const text = (key: string, fromDraft: string) =>
     stringFromRecord(mergedRecord, key, base === "stored" ? "" : fromDraft);
+  // Stored hydration has no template numeric fallback: a term the row does not record stays
+  // unknown (`null`) instead of inheriting the working template's rate/cost/lag/tolerance/
+  // quantity/price. The import overlay keeps the current draft's value for a genuinely
+  // omitted key; a supplied invalid value maps to unknown either way (`numberFromRecord`).
+  const number = (key: string, fromDraft: number | null) =>
+    numberFromRecord(mergedRecord, key, base === "stored" ? null : fromDraft);
   return {
     ...current,
     // The preserved base belongs to where the draft came from, not to what it says: a
@@ -174,45 +189,40 @@ export function contractDraftFromRecord(
     source_reference: text("source_reference", current.source_reference),
     governing_law: text("governing_law", current.governing_law),
     gas_year: text("gas_year", current.gas_year),
-    delivery_quantity_mwh_per_day: numberFromRecord(
-      mergedRecord,
+    delivery_quantity_mwh_per_day: number(
       "delivery_quantity_mwh_per_day",
       current.delivery_quantity_mwh_per_day,
     ),
-    contract_price_gbp_mwh: numberFromRecord(mergedRecord, "contract_price_gbp_mwh", current.contract_price_gbp_mwh),
-    delivery_tolerance_pct: numberFromRecord(mergedRecord, "delivery_tolerance_pct", current.delivery_tolerance_pct),
-    nomination_tolerance_pct: numberFromRecord(mergedRecord, "nomination_tolerance_pct", current.nomination_tolerance_pct),
-    tolerance_risk_allowance_gbp_mwh: numberFromRecord(
-      mergedRecord,
+    contract_price_gbp_mwh: number("contract_price_gbp_mwh", current.contract_price_gbp_mwh),
+    nbp_sale_price_gbp_mwh: number("nbp_sale_price_gbp_mwh", current.nbp_sale_price_gbp_mwh),
+    physical_exit_sale_price_gbp_mwh: number(
+      "physical_exit_sale_price_gbp_mwh",
+      current.physical_exit_sale_price_gbp_mwh,
+    ),
+    delivery_tolerance_pct: number("delivery_tolerance_pct", current.delivery_tolerance_pct),
+    nomination_tolerance_pct: number("nomination_tolerance_pct", current.nomination_tolerance_pct),
+    tolerance_risk_allowance_gbp_mwh: number(
       "tolerance_risk_allowance_gbp_mwh",
       current.tolerance_risk_allowance_gbp_mwh,
     ),
-    variable_cost_gbp_mwh: numberFromRecord(mergedRecord, "variable_cost_gbp_mwh", current.variable_cost_gbp_mwh),
-    regas_fee_gbp_mwh: numberFromRecord(mergedRecord, "regas_fee_gbp_mwh", current.regas_fee_gbp_mwh),
-    fuel_loss_allowance_pct: numberFromRecord(mergedRecord, "fuel_loss_allowance_pct", current.fuel_loss_allowance_pct),
+    variable_cost_gbp_mwh: number("variable_cost_gbp_mwh", current.variable_cost_gbp_mwh),
+    regas_fee_gbp_mwh: number("regas_fee_gbp_mwh", current.regas_fee_gbp_mwh),
+    fuel_loss_allowance_pct: number("fuel_loss_allowance_pct", current.fuel_loss_allowance_pct),
     settlement_frequency: text("settlement_frequency", current.settlement_frequency),
-    upstream_payment_lag_days: numberFromRecord(
-      mergedRecord,
-      "upstream_payment_lag_days",
-      current.upstream_payment_lag_days,
-    ),
-    screen_sale_cash_lag_days: numberFromRecord(
-      mergedRecord,
+    upstream_payment_lag_days: number("upstream_payment_lag_days", current.upstream_payment_lag_days),
+    screen_sale_cash_lag_days: number(
       "screen_sale_cash_lag_days",
       current.screen_sale_cash_lag_days,
     ),
-    annual_financing_rate_pct: numberFromRecord(
-      mergedRecord,
+    annual_financing_rate_pct: number(
       "annual_financing_rate_pct",
       current.annual_financing_rate_pct,
     ),
-    owned_entry_capacity_mwh_per_day: nullableNumberFromRecord(
-      mergedRecord,
+    owned_entry_capacity_mwh_per_day: number(
       "owned_entry_capacity_mwh_per_day",
       current.owned_entry_capacity_mwh_per_day,
     ),
-    owned_exit_capacity_mwh_per_day: nullableNumberFromRecord(
-      mergedRecord,
+    owned_exit_capacity_mwh_per_day: number(
       "owned_exit_capacity_mwh_per_day",
       current.owned_exit_capacity_mwh_per_day,
     ),

@@ -98,6 +98,9 @@ export function usePortfolioDecisionModel({
     ),
     [api.normalizedMarkets, deliveryProduct, gasDay, hubId],
   );
+  // Null when the draft's annual financing rate is unknown and no saved contract rate applies:
+  // the optimiser action then has no valid input and is gated closed rather than run with an
+  // invented 0% rate (`buildResourcePoolOptimizationRequest`).
   const resourcePoolOptimizationRequest = useMemo(
     () => buildResourcePoolOptimizationRequest(
       contract,
@@ -198,7 +201,11 @@ export function usePortfolioDecisionModel({
     [api.currentUser],
   );
   const poolInputReady =
-    runtimeDbReady && hasPortfolioResources && saleOptions.length > 0 && optionBlockers.length === 0;
+    runtimeDbReady &&
+    hasPortfolioResources &&
+    saleOptions.length > 0 &&
+    optionBlockers.length === 0 &&
+    resourcePoolOptimizationRequest !== null;
   const poolOptimizeGate = decisionComputeGate("optimize_pool", {
     profileAvailable: composition.available,
     capabilities: composition.effectiveCapabilities,
@@ -255,8 +262,12 @@ export function usePortfolioDecisionModel({
     if (runtimeStore === "unknown") blockers.push(t("home.blocker_runtime_unknown"));
     else if (!runtimeDbReady) blockers.push(t("home.blocker_runtime_db"));
     blockers.push(...(api.resourcePoolOptions?.blockers ?? []));
+    // One governed input is the draft's own financing-rate fallback: while neither the draft nor
+    // a saved contract records a rate, the optimiser has no request to send and says so here
+    // instead of calculating an early-cash term from a rate nobody entered.
+    if (resourcePoolOptimizationRequest === null) blockers.push(t("scenario.financing_rate_unknown"));
     return blockers;
-  }, [api.resourcePoolOptions, runtimeDbReady, runtimeStore, t]);
+  }, [api.resourcePoolOptions, resourcePoolOptimizationRequest, runtimeDbReady, runtimeStore, t]);
   const commercialDiagnostics = useMemo(
     () => buildCommercialDiagnostics({
       poolInputBlockers,
@@ -281,9 +292,9 @@ export function usePortfolioDecisionModel({
         option.route_cost_gbp_mwh,
         option.capacity_limit_mwh_per_day,
       ]),
-      financingRate: resourcePoolOptimizationRequest.annual_financing_rate_pct,
+      financingRate: resourcePoolOptimizationRequest?.annual_financing_rate_pct ?? null,
     }),
-    [portfolioResources, resourcePoolOptimizationRequest.annual_financing_rate_pct, saleOptions],
+    [portfolioResources, resourcePoolOptimizationRequest, saleOptions],
   );
 
   useEffect(() => {
@@ -291,7 +302,7 @@ export function usePortfolioDecisionModel({
     // identity's declared capability and the pool's inputs allow it. An identity the backend
     // refuses for commercial data is never sent a request on the user's behalf, so it never
     // logs a 403 for an action nobody chose.
-    if (!canRunPoolOptimizer || api.loading) return;
+    if (!canRunPoolOptimizer || api.loading || resourcePoolOptimizationRequest === null) return;
     if (lastAutoOptimizerSignatureRef.current === autoOptimizerSignature) return;
     lastAutoOptimizerSignatureRef.current = autoOptimizerSignature;
     void api.optimizeResourcePool(resourcePoolOptimizationRequest, currentContextKey);
@@ -372,7 +383,7 @@ export function usePortfolioDecisionModel({
   function optimizeResourcePoolForCurrentContext() {
     // Refused here for the same reason the control is disabled: an unavailable action must not
     // issue a request, and a second click while one is in flight is the same question.
-    if (!canRunPoolOptimizer) return;
+    if (!canRunPoolOptimizer || resourcePoolOptimizationRequest === null) return;
     void api.optimizeResourcePool(resourcePoolOptimizationRequest, currentContextKey);
   }
 

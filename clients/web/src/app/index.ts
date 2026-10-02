@@ -1,5 +1,5 @@
 export { buildAnalysisPayload } from "./analysisPayload";
-export { buildContractPayload } from "./contractPayload";
+export { buildContractPayload, contractPayloadReadiness } from "./contractPayload";
 export { cloneDefaultContractDraft, defaultContractDraft } from "./defaultContractDraft";
 export type { ContractDraft } from "./defaultContractDraft";
 export {

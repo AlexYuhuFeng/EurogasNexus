@@ -419,7 +419,12 @@ test("the automatic pool run is issued only through the gated, provenance-carryi
     model,
     /const canRunPoolOptimizer = decisionActionAvailable\(poolOptimizeGate, api\.poolOptimizeAction\);/,
   );
-  assert.match(model, /if \(!canRunPoolOptimizer \|\| api\.loading\) return;/);
+  // The auto-run is additionally refused while the draft/saved financing rate is unknown (no
+  // composed request exists): it never issues a run with an invented rate.
+  assert.match(
+    model,
+    /if \(!canRunPoolOptimizer \|\| api\.loading \|\| resourcePoolOptimizationRequest === null\) return;/,
+  );
   assert.match(model, /const canCompareRoutes = decisionActionAvailable\(routeCompareGate, api\.routeCompareAction\);/);
   // Both call sites carry the context key, and neither stamps a key before the request: the
   // provenance is the store's, written only when a run succeeds.
@@ -434,7 +439,7 @@ test("the automatic pool run is issued only through the gated, provenance-carryi
   // The gate handlers refuse to start an unavailable action at all.
   assert.match(
     model,
-    /function optimizeResourcePoolForCurrentContext\(\) \{\s*\/\/[\s\S]*?\s*if \(!canRunPoolOptimizer\) return;/,
+    /function optimizeResourcePoolForCurrentContext\(\) \{\s*\/\/[\s\S]*?\s*if \(!canRunPoolOptimizer \|\| resourcePoolOptimizationRequest === null\) return;/,
   );
   assert.match(
     model,

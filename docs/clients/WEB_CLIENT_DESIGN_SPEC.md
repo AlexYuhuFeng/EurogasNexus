@@ -245,11 +245,32 @@ Content:
   entitlement, and warning state;
 - persisted resource-term library loaded through backend API.
 
-Current implemented calculation contract (2026-09-01):
+Current implemented calculation contract (updated 2026-10-02):
 
 - required client-side persistence checks cover resource id/name,
   counterparty, delivery point, gas year, positive daily quantity,
-  non-negative costs, and a fuel-loss percentage below 100%;
+  non-negative price/costs/tolerances/financing rate and allowance, whole-day
+  cash lags, and a fuel-loss percentage below 100%. The numeric bounds are the
+  governed write route's own request bounds
+  (`UpstreamContractUpsertRequest`), not new financial conventions;
+- numeric terms are either *recorded* or *unknown*. A term a stored row does
+  not record hydrates blank - it never inherits the template's financing rate,
+  cost, lag, tolerance, quantity or price - and a cleared numeric control is
+  unknown rather than `0`. An explicitly entered `0` is a recorded zero and
+  stays `0`. An unknown required term blocks the save, shows blank/unknown, and
+  is never composed into a request (`app/contractPayload.ts`, whose readiness
+  result is required before the transport call). `tolerance_risk_allowance_gbp_mwh`
+  and owned entry/exit capacities keep their documented nullable "not declared"
+  meaning (the route types them `float | None`);
+- the write route cannot represent an unrecorded variable cost, regas fee or
+  fuel-loss term (its request model defaults them to `0` and has no null form),
+  so a stored row that never recorded one must have it entered before the editor
+  can save; until then the draft is reported as not ready;
+- the pool optimiser consumes exactly one draft number, the annual financing
+  rate fallback. While neither the first saved upstream contract nor the draft
+  records a rate, the optimiser request is refused and the surface reports the
+  missing rate instead of running with an invented `0%` (no silent early-cash
+  term);
 - `resource_type` is a controlled value rather than a hard-coded pipeline
   import, and entry/exit capacity plus route restrictions are editable;
 - variable cost and regas fee are persisted through PostgreSQL-backed resource
@@ -266,6 +287,11 @@ Current implemented calculation contract (2026-09-01):
 - minimum-take, take-or-pay, make-up/carry-forward, interruption, and
   force-majeure obligations are not yet represented by this resource-pool
   optimizer. The UI must disclose that boundary and must not approximate it.
+
+Out of scope of this editor contract, and unchanged: the existing
+non-negative contract-price policy and the GBP/MWh price units. This change did
+not alter either; negative prices and price-unit policy remain outside this
+task's scope and are flagged separately.
 
 The page may use API field names such as `contract_id` and
 `upstream-contracts` internally for compatibility, but user-facing copy should
