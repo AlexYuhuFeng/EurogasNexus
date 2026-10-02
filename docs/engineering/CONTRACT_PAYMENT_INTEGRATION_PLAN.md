@@ -278,6 +278,15 @@ Implemented as recorded below.
   was in flight survive; the draft is cleared dirty only when it was not touched since
   submission. A conflict keeps the draft and shows an explicit EN/ZH reload-and-reconcile
   notice; there is no automatic retry, no overwrite and no success message on failure.
+  The save notice itself is draft-scoped, not merely identity-scoped: a draft transition
+  (stored load, reset, import or a typed contract id) releases a save still in flight from
+  publishing it, and a newer save takes the claim, so a late answer cannot show a conflict,
+  success or refresh-failure notice against a different draft. A committed write whose notice
+  was taken away still returns the saved contract to the submitting editor - whose own
+  draft-session guard decides whether it lands - and still refreshes the same-identity
+  contract library; identity invalidation remains the separate guard that drops the response
+  entirely. This notice claim guards nothing but the notice: it is not the identity
+  generation, and stale workspace or library reads are handled by their own lanes.
 - Evidence: [`tests/unit/test_contract_edit_token.py`](../../tests/unit/test_contract_edit_token.py)
   (token coverage, per-field invalidation, instant normalization, malformed/unsupported
   values); [`tests/integration/test_route_cost_contract_write_revisions.py`](../../tests/integration/test_route_cost_contract_write_revisions.py)
@@ -288,7 +297,10 @@ Implemented as recorded below.
   (opt-in disposable-PostgreSQL concurrent same-token updates, fresh-token reconciliation and
   concurrent create refusal); [`clients/web/tests/contractEditPrecondition.test.ts`](../../clients/web/tests/contractEditPrecondition.test.ts)
   (client lease lifecycle, ID-change safety, in-flight edit preservation, conflict
-  classification and preservation, stale/failed save never folding or clearing dirty).
+  classification and preservation, stale/failed save never folding or clearing dirty), and
+  [`clients/web/tests/contractSaveFlow.test.ts`](../../clients/web/tests/contractSaveFlow.test.ts)
+  (real-store async flow: committed write vs failed follow-up read, draft-transition notice
+  ownership, same-id reload, overlapping saves and identity invalidation).
 - Deployment: no migration (the schema is unchanged), no startup hook, no backfill, no new
   dependency and no runtime database write in this slice. The PostgreSQL-authoritative cases
   run only in the existing disposable-database opt-in job, never against a workstation store.

@@ -5,6 +5,28 @@ Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical sli
 
 ## Current work
 
+### Draft-scoped save feedback (2026-10-02)
+
+Same-commit GitHub CI for `1672872` passed in run `36956647438`, including
+PostgreSQL integration, browser acceptance, validation, web build and dependency
+audit; native builds were skipped. This does not cover the complete interactive
+conflict/reconciliation journey. Parent attempted local inspection: the existing
+tab stalled at Checking session; after restarting the owned development API
+(PostgreSQL unchanged), existing-tab evaluation and fresh-tab navigation both
+timed out. API startup completed successfully. No visual acceptance claimed.
+
+Code review found that clearing feedback on draft replacement did not prevent
+an older pending save from publishing its conflict/success against the replacement.
+DeepSeek added separate feedback and save-attempt sequence guards; parent
+reviewed the diff and independently passed 29 focused client tests. Identity
+invalidation still drops commercial results entirely. A committed write can
+refresh the library without publishing a notice on the wrong draft.
+
+Remaining: authenticated conflict/reconciliation visual QA; the save-driven
+library refresh is still unsequenced against other reads, and the shared loading
+flag is not universally action-scoped. These are not covered by the feedback
+guard. Continue toward full commercial acceptance, not only test completion.
+
 ### Contract stale-edit protection (2026-10-02)
 
 DeepSeek implemented the reviewed state-token precondition on baseline

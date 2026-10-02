@@ -157,6 +157,25 @@ const MARKET_REFRESH_ERROR_PREFIX = "Market refresh partial:";
 /** How many recent Analysis Snapshots the reproducibility picker offers. */
 const SNAPSHOT_PICKER_LIMIT = 25;
 let logoutInProgress = false;
+/**
+ * Which contract save owns the editor's save feedback, and which save still owns `loading`.
+ *
+ * `saveDraftContract` publishes a draft-scoped notice ("… persisted for decision support", the
+ * reload-and-reconcile conflict, or a failed save's error), and `clearContractSaveFeedback` is
+ * the editor saying it has moved to another draft. A save may publish its notice only while it
+ * is still the newest claim on it: a draft transition or a newer save takes the claim away, so
+ * a late answer from a superseded save must not show a notice against whatever draft is held
+ * now. `contractSaveAttemptSequence` is the same kind of claim for the busy flag alone, so a
+ * superseded attempt cannot settle a `loading` a newer action owns.
+ *
+ * This is publication ownership, not a security generation: `identityReadCoordinator` stays the
+ * only guard for whether a response may be written at all, and the two are deliberately
+ * separate. A committed write still returns its saved contract (the submitting editor's own
+ * draft-session guard decides whether it lands) and still refreshes the same-identity contract
+ * library; only the notice is draft-scoped.
+ */
+let contractSaveFeedbackSequence = 0;
+let contractSaveAttemptSequence = 0;
 
 function timestampMs(value: string): number {
   const parsed = Date.parse(value);
@@ -764,7 +783,9 @@ export interface ApiState {
    *
    * The editor calls this when it moves to another draft (stored load, reset, import or a
    * typed contract id): the notice names the draft it was about, so it must not show on
-   * whatever the surface holds next.
+   * whatever the surface holds next. It also takes the notice away from a save still in
+   * flight - the answer that has not arrived yet is about the draft that was left, so it must
+   * not publish it there either.
    */
   clearContractSaveFeedback: () => void;
   /** The last queued ingestion run, as the source surface shows it. */
@@ -889,6 +910,12 @@ export interface ApiState {
    * included) on success, or `null` when the save failed or its response was dropped as
    * stale. A failed save never reports success: the message/conflict state is set here and
    * the caller's draft stays untouched.
+   *
+   * The message/conflict notice belongs to the draft session that submitted the save: a
+   * draft transition or a newer save takes that notice away, so a late answer cannot publish
+   * it against another draft. A committed write whose notice was taken away still returns its
+   * saved contract and refreshes the same-identity library, so the editor's own session guard
+   * decides whether the result still belongs to the shown draft.
    */
   saveDraftContract: (contract: UpstreamContractInputDTO) => Promise<UpstreamContractDTO | null>;
   recordReviewDecision: (body: ReviewDecisionInputDTO) => Promise<void>;
@@ -2172,12 +2199,24 @@ export const useApiStore = create<ApiState>((set, get) => ({
     }
   },
 
-  clearContractSaveFeedback: () =>
-    set({ contractSaveMessage: null, contractSaveConflict: false }),
+  clearContractSaveFeedback: () => {
+    // The editor moved to another draft: the notice is dropped, and whatever save is still in
+    // flight loses its claim to publish one - the answer it is waiting for is about the draft
+    // that was left, even when the new draft reads the same contract id.
+    contractSaveFeedbackSequence += 1;
+    set({ contractSaveMessage: null, contractSaveConflict: false });
+  },
 
   saveDraftContract: async (contract) => {
     if (logoutInProgress) return null;
     const requestGeneration = identityReadCoordinator.capture();
+    // Claim the draft-scoped notice and the busy flag for this save. An older save's late
+    // answer is then refused both: it may not publish its notice against a draft it no longer
+    // belongs to, and it may not settle a `loading` a newer action now owns.
+    const feedbackSequence = ++contractSaveFeedbackSequence;
+    const attemptSequence = ++contractSaveAttemptSequence;
+    const ownsFeedback = () => feedbackSequence === contractSaveFeedbackSequence;
+    const ownsLoading = () => attemptSequence === contractSaveAttemptSequence;
     set({
       contractSaveMessage: null,
       contractSaveConflict: false,
@@ -2191,26 +2230,37 @@ export const useApiStore = create<ApiState>((set, get) => ({
     if (!write.ok) {
       if (!followUpReadIsCurrent(requestGeneration)) return null;
       // A stale-edit refusal keeps the draft and names the reconciliation step instead of
-      // showing a raw error string or pretending the save succeeded.
+      // showing a raw error string or pretending the save succeeded. It is published only
+      // while this save still owns the notice: an editor that moved to another draft must not
+      // be told the draft it left conflicted.
       const conflict = contractSaveFailureKind(write.error) === "contract_edit_conflict";
       set({
-        error: String(write.error),
-        contractSaveMessage: conflict ? null : String(write.error),
-        contractSaveConflict: conflict,
-        loading: false,
+        ...(ownsFeedback()
+          ? {
+              error: String(write.error),
+              contractSaveMessage: conflict ? null : String(write.error),
+              contractSaveConflict: conflict,
+            }
+          : {}),
+        ...(ownsLoading() ? { loading: false } : {}),
       });
       return null;
     }
     const saved = write.value;
     // The write itself committed: a guard here drops it only when the identity session that
     // issued it is gone. From this point, a failed follow-up read is a refresh problem, not a
-    // save failure - the saved contract (with its refreshed token) is still returned.
+    // save failure - the saved contract (with its refreshed token) is still returned, so the
+    // editor's own draft-session guard decides whether the result still belongs to the shown
+    // draft even when this save no longer owns the notice.
     if (!followUpReadIsCurrent(requestGeneration)) return null;
     set({
-      meta: saved.meta,
-      contractSaveMessage: `${saved.data.contract_id} persisted for decision support.`,
-      contractSaveConflict: false,
-      loading: false,
+      ...(ownsLoading() ? { meta: saved.meta, loading: false } : {}),
+      ...(ownsFeedback()
+        ? {
+            contractSaveMessage: `${saved.data.contract_id} persisted for decision support.`,
+            contractSaveConflict: false,
+          }
+        : {}),
     });
     try {
       const [upstreamContracts, resourcePoolOptions] = await Promise.all([
@@ -2220,6 +2270,9 @@ export const useApiStore = create<ApiState>((set, get) => ({
       // Identity invalidation must drop both the snapshot and the returned commercial
       // record; returning it could repopulate an editor after logout.
       if (!followUpReadIsCurrent(requestGeneration)) return null;
+      // The committed write updated this identity's library even when the notice moved to
+      // another draft, so the same-identity library data is still published: only the notice
+      // is draft-scoped.
       set({
         upstreamContracts: upstreamContracts.data,
         resourcePoolOptions: resourcePoolOptions.data,
@@ -2227,10 +2280,14 @@ export const useApiStore = create<ApiState>((set, get) => ({
     } catch (e) {
       if (!followUpReadIsCurrent(requestGeneration)) return null;
       // Saved, but the library refresh failed: reported in its own lane, without claiming the
-      // write failed or dropping the success message the saved result earned.
-      set({
-        error: `${saved.data.contract_id} was saved, but refreshing the contract library failed: ${String(e)}`,
-      });
+      // write failed or dropping the success message the saved result earned. The report
+      // belongs to the save that owns the editor's notice; a superseded save must not raise
+      // its refresh failure against whatever draft the editor holds now.
+      if (ownsFeedback()) {
+        set({
+          error: `${saved.data.contract_id} was saved, but refreshing the contract library failed: ${String(e)}`,
+        });
+      }
     }
     return saved.data;
   },

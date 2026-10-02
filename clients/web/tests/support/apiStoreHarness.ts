@@ -72,6 +72,8 @@ export interface ApiStoreState {
   /** The contract editor's save notice and stale-edit conflict flag. */
   contractSaveMessage: string | null;
   contractSaveConflict: boolean;
+  /** The contract library, as the save's follow-up read or the workspace batch leaves it. */
+  upstreamContracts: unknown[];
   /** The workspace batch (or its retry pass) is in flight. */
   workspaceLoading: boolean;
   /** How many workspace batches have committed for this session. */

@@ -379,12 +379,19 @@ test("editor transitions clear the previous save's store notice", () => {
   const beginAt = hook.indexOf("function beginDraftSession()");
   const clearAt = hook.indexOf("clearContractSaveFeedback?.()");
   assert.ok(beginAt > 0 && clearAt > beginAt, "the transition helper clears the store notice");
-  // ... and that action clears both the message and the conflict flag.
+  // ... and that action clears both the message and the conflict flag, while releasing any
+  // save still in flight from publishing its own notice on the new draft.
   const store = readWebSource("stores/api.ts");
-  assert.match(
-    store,
-    /clearContractSaveFeedback: \(\) =>\s*set\(\{ contractSaveMessage: null, contractSaveConflict: false \}\)/,
+  const clearAction = store.slice(
+    store.indexOf("clearContractSaveFeedback: () => {"),
+    store.indexOf("saveDraftContract: async"),
   );
+  const feedbackClaimAt = clearAction.indexOf("contractSaveFeedbackSequence += 1;");
+  const clearSetAt = clearAction.indexOf(
+    "set({ contractSaveMessage: null, contractSaveConflict: false });",
+  );
+  assert.ok(feedbackClaimAt > 0, "the transition releases an in-flight save's feedback claim");
+  assert.ok(clearSetAt > feedbackClaimAt, "the claim is released before the notice is cleared");
 });
 
 test("the conflict is surfaced through the bilingual reconciliation notice", () => {
