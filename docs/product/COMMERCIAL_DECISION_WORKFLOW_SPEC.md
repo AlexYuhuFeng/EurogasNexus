@@ -395,3 +395,89 @@ Limits, stated so they are not overstated:
   provenance posture over the existing request contracts; the automatic pool run
   still starts from the existing input signature, and a result that goes stale
   is re-run by the user's action.
+
+## 28. Bounded wait for the governed computes, and decision-stream disposal
+
+Added 2026-10-03 (bounded reliability slice on baseline `c11a2cb`). An
+authenticated local inspection found workspace reads timing out at ten seconds,
+`Compare Options` pending for minutes, and no matching POST in the API access log,
+while API and Vite were listening and `/api/health` through `:3000` answered in
+15 ms. That evidence does not prove a backend deadlock or a stream cause, and this
+slice does not claim one. It repairs a confirmed client-side lifecycle gap and
+bounds the wait.
+
+**The confirmed gap.** `recommendRouteAllocation` and `optimizeResourcePool`
+called their POST transports without a timeout or `AbortSignal`. Each action holds
+a per-action pending lane that disables the primary control, so one answer that
+never arrived could keep the action disabled indefinitely, with no outcome and no
+explanation. The transports now accept the existing `ApiRequestOptions`, and each
+store run is wrapped in the existing `withAbortTimeout` helper with a named
+deadline, `DEFAULT_DECISION_COMPUTE_TIMEOUT_MS` in
+`clients/web/src/stores/workspaceLoading.ts` (30 seconds); the store's test-only
+`timeoutMs` override configures a shorter bound.
+
+Exact behaviour on expiry: the deadline aborts the request signal the transport
+received, the pending lane becomes a failure, `loading` is cleared, and the failure
+is carried in the action's own lane through the existing error taxonomy - the
+shared rendered-raw `error` string is not set. The previous result and its
+provenance are untouched. The older result remains stale if its input identity
+differs from the inputs on screen; a timeout does not relabel it. The helper rejects even when the transport ignores the
+abort signal, and a completion that lands after the deadline commits nothing (no
+result, no provenance): the run is already decided, and the timeout issues no retry
+and no duplicate write. This is a client waiting bound, not a cancellation - the
+backend may still be computing a timed-out run, and nothing is sent to stop it.
+The deadline applies only to these two governed computes, not to writes whose
+server-side effect is uncertain (contract saves keep their own write lifecycle;
+logout keeps its own existing bound).
+
+The expiry failure is a typed client error, `ClientWaitTimeoutError`
+(`workspaceLoading.ts`), carrying the stable code `CLIENT_WAIT_TIMEOUT` and its own
+taxonomy scalars and copy keys, so `errorPresentation` classifies it exactly like a
+catalogued backend code - no message parsing, no regex on the exception string - and
+the four-question presentation reads accurately without leaking the raw exception.
+EN and zh-CN state that the deadline expired and the client stopped waiting, that
+the server may still be working on the timed-out run, that the previous result is
+unchanged, and that no retry was sent automatically. No correlation id is invented,
+and nothing claims the server cancelled the run. The helper's historical
+`Operation timed out after <n>ms.` message is preserved for its existing callers
+(logout), which only need the wait to end.
+
+The strategy evaluation is deliberately not bounded in this slice: it persists a
+run before answering, so a client deadline would create an ambiguous commit (the
+run could still be recorded), and its surface offers no pending guard to release.
+It remains an open, separately bounded item.
+
+**Stream disposal.** `decisionStreamClosers` is module-scoped:
+`subscribeDecisionStreams` closes the closers it can see before opening its three
+EventSources, and every identity change closes them, but a Vite hot replacement
+creates a new module instance whose closer list is empty while the replaced
+instance's streams stay open - three more per replacement, each holding a
+connection to the same origin. The store now registers an `import.meta.hot.dispose`
+hook that closes through the same `closeDecisionStreams` owner; it is dev-only and
+idempotent. A browser reload never goes through hot replacement, so the hook is not
+evidence about the live fault.
+
+**Remaining root-cause uncertainty (not resolved by this slice).** The live
+observation is compatible with several causes: a request stalled outside the store
+(proxy or browser connection handling), an authenticated backend computation that
+never answered, or client connection-pool saturation. One concrete risk: each tab
+opens three long-lived EventSource streams to the same origin, and the local setup
+serves the app and the `/api` proxy over HTTP/1.1 with a limited browser connection
+pool per origin; enough tabs, or accumulated orphaned streams, can queue
+ordinary requests behind the streams so they never reach the server. That is a
+hazard to verify with a browser network capture and a multi-tab test, not a proven
+cause. No stream protocol, transport multiplexing, broadcast infrastructure,
+query-token or authentication change was made in this slice.
+
+Evidence for this section: focused store tests (deadline release, typed-error code,
+rendered bilingual copy, transport abort, late-answer discard, provenance
+preservation, unchanged structured API failures, identity change during a timeout,
+manual retry with the earlier request resolving late, stream replacement and
+identity disposal) pass; `tsc --noEmit` passes; the Python error-vocabulary
+contract gate passes (the new keys are client-side additions; the backend
+catalogue is unchanged). Independent parent validation passed the standard web
+suite (842 passed, 3 skipped), including the CLI comparator tests, and production
+build. The Python contract suite had 499 passing tests and one outdated call-shape
+assertion; after updating that assertion, all eight tests in its file passed.
+Live browser acceptance of this slice remains open. No backend
+API/schema or runtime database write was made.

@@ -117,8 +117,16 @@ export interface ApiStoreState {
   refreshMarketData: () => Promise<void>;
   fetchReviewContext: () => Promise<void>;
   retryFailedWorkspaceEndpoints: () => Promise<void>;
-  optimizeResourcePool: (request: Record<string, unknown>, contextKey: string) => Promise<void>;
-  recommendRouteAllocation: (request: Record<string, unknown>, contextKey: string) => Promise<void>;
+  optimizeResourcePool: (
+    request: Record<string, unknown>,
+    contextKey: string,
+    options?: { timeoutMs?: number },
+  ) => Promise<void>;
+  recommendRouteAllocation: (
+    request: Record<string, unknown>,
+    contextKey: string,
+    options?: { timeoutMs?: number },
+  ) => Promise<void>;
   evaluateStrategyLab: (
     scenario: Record<string, unknown>,
   ) => Promise<Record<string, unknown> | null>;
@@ -175,6 +183,7 @@ export async function loadApiStore(): Promise<ApiStoreHarness> {
   const vite = await harnessServer();
   const registry = apiRegistry();
   registry.calls.length = 0;
+  registry.streamCloses.length = 0;
   for (const method of Object.keys(registry.handlers)) delete registry.handlers[method];
   for (const path of Object.keys(registry.streams)) delete registry.streams[path];
   // Identity resolves before any workspace batch, and the batch's own follow-up identity read must

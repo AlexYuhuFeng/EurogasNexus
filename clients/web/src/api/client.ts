@@ -2997,11 +2997,11 @@ export const api = {
 
   resourcePoolOptions: (options?: ApiRequestOptions) => get<ResourcePoolOptionsDTO>("/route-cost/resource-pool/options", undefined, options),
 
-  recommendRouteAllocation: (body: RouteRecommendationRequestDTO) =>
-    post<RouteRecommendationResultDTO>("/route-cost/recommend", body),
+  recommendRouteAllocation: (body: RouteRecommendationRequestDTO, options?: ApiRequestOptions) =>
+    post<RouteRecommendationResultDTO>("/route-cost/recommend", body, options),
 
-  optimizeResourcePool: (body: PortfolioOptimizationRequestDTO) =>
-    post<PortfolioOptimizationResultDTO>("/route-cost/resource-pool/optimize", body),
+  optimizeResourcePool: (body: PortfolioOptimizationRequestDTO, options?: ApiRequestOptions) =>
+    post<PortfolioOptimizationResultDTO>("/route-cost/resource-pool/optimize", body, options),
 
   evaluateStrategyLab: (body: StrategyLabRequestDTO) =>
     post<StrategyLabResultDTO>("/strategy-lab/evaluate", body),

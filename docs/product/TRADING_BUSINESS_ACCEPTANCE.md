@@ -354,3 +354,15 @@ exposes no immutable snapshot, revision hash or read token for the composed
 resource-pool payload, so this proves the inputs the caller sent and believed,
 not the backend's read at execution time; contract revision history and the
 other gaps listed above remain open.
+
+**Bounded-wait note (2026-10-03):** the two governed Decision computes now wait
+on a named client deadline (`DEFAULT_DECISION_COMPUTE_TIMEOUT_MS`, 30 s) and hand
+an `AbortSignal` to their transports. On expiry the pending action is released as
+a classified failure, the previous result and its provenance are kept, a late
+answer commits nothing, and no retry is issued. A timeout means no answer arrived
+within the client's bound; it does not prove the backend stopped computing, and it
+does not yet explain the live pending/no-POST observation. The strategy evaluation
+remains unbounded because it persists a run (an ambiguous commit), the multi-tab
+HTTP/1 stream-connection risk is recorded but unverified, and live browser
+acceptance of these computes remains open
+([section 28](COMMERCIAL_DECISION_WORKFLOW_SPEC.md)).

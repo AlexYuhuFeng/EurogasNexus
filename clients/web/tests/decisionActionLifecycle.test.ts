@@ -603,15 +603,17 @@ test("the store writes provenance only on a successful response", () => {
 
   assert.match(
     store,
-    /recommendRouteAllocation: async \(request, provenanceKey\) => \{[\s\S]*?if \(get\(\)\.routeCompareAction\.phase === "pending"\) return;[\s\S]*?routeCompareAction: decisionActionPending\(state\.routeCompareAction, provenanceKey\)/,
+    /recommendRouteAllocation: async \(request, provenanceKey, options\) => \{[\s\S]*?if \(get\(\)\.routeCompareAction\.phase === "pending"\) return;[\s\S]*?routeCompareAction: decisionActionPending\(state\.routeCompareAction, provenanceKey\)/,
+  );
+  // The awaited request runs under the bounded client deadline and receives its signal, while the
+  // provenance is still stamped only after that answer: a timeout cannot relabel a prior result.
+  assert.match(
+    store,
+    /const result = await withAbortTimeout\(\s*\(signal\) => api\.recommendRouteAllocation\(request, \{ signal \}\),\s*decisionComputeTimeoutMs\(options\?\.timeoutMs\),\s*\);[\s\S]{0,300}?routeCompareAction: decisionActionSucceeded\(state\.routeCompareAction, provenanceKey\)/,
   );
   assert.match(
     store,
-    /const result = await api\.recommendRouteAllocation\(request\);[\s\S]{0,300}?routeCompareAction: decisionActionSucceeded\(state\.routeCompareAction, provenanceKey\)/,
-  );
-  assert.match(
-    store,
-    /const result = await api\.optimizeResourcePool\(withoutLegacyFlag\(request\)\);[\s\S]{0,300}?poolOptimizeAction: decisionActionSucceeded\(state\.poolOptimizeAction, provenanceKey\)/,
+    /const result = await withAbortTimeout\(\s*\(signal\) => api\.optimizeResourcePool\(withoutLegacyFlag\(request\), \{ signal \}\),\s*decisionComputeTimeoutMs\(options\?\.timeoutMs\),\s*\);[\s\S]{0,300}?poolOptimizeAction: decisionActionSucceeded\(state\.poolOptimizeAction, provenanceKey\)/,
   );
   assert.match(store, /poolOptimizeAction: decisionActionFailed\(\s*state\.poolOptimizeAction,\s*e,\s*describeFailure\(e\)\.correlationId,\s*\)/);
   assert.match(store, /routeCompareAction: decisionActionFailed\(\s*state\.routeCompareAction,\s*e,\s*describeFailure\(e\)\.correlationId,\s*\)/);

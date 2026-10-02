@@ -117,6 +117,7 @@ const CODE_CAUSES: Readonly<Record<string, string>> = {
   runtime_db_unavailable: "errors.cause.runtime_store_unreachable",
   AGENT_BUDGET_EXCEEDED: "errors.cause.agent_budget_reached",
   JOB_FAILED: "errors.cause.job_step_failed",
+  CLIENT_WAIT_TIMEOUT: "errors.cause.wait_deadline_expired",
 };
 
 export function describeApiError(body: ApiErrorBody | null | undefined): ErrorPresentation {
@@ -176,6 +177,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * `ApiError` (top-level envelope plus `detail`), an `ApiFailureDTO`, a bare body dict, or
  * just the `detail`. This is the one place that reassembles them, so a surface never has
  * to guess and can never silently lose the correlation id.
+ *
+ * The stable code may also sit on an error that is not an API failure at all - the client's
+ * own `ClientWaitTimeoutError` carries a code and taxonomy scalars - so its own taxonomy
+ * fields are read beside `detail` and `body`.
  */
 export function apiErrorBodyFrom(cause: unknown): ApiErrorBody | null {
   if (!isRecord(cause)) return null;
@@ -186,7 +191,8 @@ export function apiErrorBodyFrom(cause: unknown): ApiErrorBody | null {
   const merged: Record<string, unknown> = {
     // The endpoint's own detail first: it names the code a route declared.
     ...(detail ?? {}),
-    // Then the failure's own taxonomy scalars, which the envelope repeats.
+    // Then the failure's own taxonomy scalars, which every envelope shape repeats - including a
+    // failure the client raised locally, which has no `detail`/`body` at all.
     ...taxonomyFields(cause),
     ...(envelope ?? {}),
     ...(direct ?? {}),

@@ -2,6 +2,49 @@ import { IDLE_DECISION_ACTION_STATE } from "../app/model/decisionActionModel.ts"
 
 export const DEFAULT_WORKSPACE_READ_TIMEOUT_MS = 10_000;
 export const DEFAULT_LOGOUT_TIMEOUT_MS = 5_000;
+/**
+ * How long the two governed Decision computes wait for an answer.
+ *
+ * A run holds a per-action pending lane that disables the primary control, so an answer that
+ * never arrives must not keep it disabled indefinitely. This is a waiting bound: on expiry the
+ * client stops waiting and says so, and the backend may still be computing. Contract saves and
+ * logout deliberately keep their own existing bounds.
+ */
+export const DEFAULT_DECISION_COMPUTE_TIMEOUT_MS = 30_000;
+
+/**
+ * The deadline one governed decision compute run is held to: a supplied positive finite bound
+ * (the store's tests do), otherwise the named default - never unbounded.
+ */
+export function decisionComputeTimeoutMs(overrideMs?: number): number {
+  return typeof overrideMs === "number" && Number.isFinite(overrideMs) && overrideMs > 0
+    ? overrideMs
+    : DEFAULT_DECISION_COMPUTE_TIMEOUT_MS;
+}
+
+/**
+ * A client wait bound expired before its operation answered.
+ *
+ * The stable code (catalogue name `CLIENT_WAIT_TIMEOUT`) and the taxonomy scalars travel on the
+ * error itself, so the existing error presentation classifies it exactly like a backend failure
+ * once `errorPresentation.apiErrorBodyFrom` picks these fields up. The message keeps the
+ * historical `withAbortTimeout` wording, but no surface renders it.
+ */
+export class ClientWaitTimeoutError extends Error {
+  readonly code = "CLIENT_WAIT_TIMEOUT";
+  readonly family = "DEPENDENCY";
+  readonly severity = "error";
+  readonly recoverability = "retry";
+  readonly message_key = "errors.CLIENT_WAIT_TIMEOUT.message";
+  readonly action_key = "errors.CLIENT_WAIT_TIMEOUT.action";
+  readonly timeoutMs: number;
+
+  constructor(timeoutMs: number) {
+    super(`Operation timed out after ${timeoutMs}ms.`);
+    this.name = "ClientWaitTimeoutError";
+    this.timeoutMs = timeoutMs;
+  }
+}
 
 export function isIdentityDeniedMessage(message: string): boolean {
   return /^API (401|403)\b/.test(message);
@@ -162,7 +205,7 @@ export async function withAbortTimeout<T>(
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => {
     timeoutId = setTimeout(() => {
-      reject(new Error(`Operation timed out after ${timeoutMs}ms.`));
+      reject(new ClientWaitTimeoutError(timeoutMs));
       controller.abort();
     }, timeoutMs);
   });

@@ -115,6 +115,7 @@ import {
   DEFAULT_LOGOUT_TIMEOUT_MS,
   AUTHENTICATED_AUTH_STATE,
   commitWorkspaceLoad,
+  decisionComputeTimeoutMs,
   identityDeniedWorkspaceReset,
   isIdentityGateOpen,
   loadWorkspaceEndpoint,
@@ -193,6 +194,16 @@ function latestTimestamp(values: Array<string | null | undefined>): string | nul
 function closeDecisionStreams() {
   decisionStreamClosers.forEach((close) => close());
   decisionStreamClosers = [];
+}
+
+/**
+ * Dev-only: a Vite hot replacement creates a new module instance whose closer list is empty,
+ * so the replaced instance closes its own streams instead of orphaning them.
+ */
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    closeDecisionStreams();
+  });
 }
 
 function startWorkspaceLoad() {
@@ -714,6 +725,11 @@ const PROJECTION_LANE_APPLIERS: Record<
   },
 };
 
+/** Optional per-run bound for a governed decision compute; unusable values keep the default. */
+type DecisionComputeRequestOptions = {
+  timeoutMs?: number;
+};
+
 export interface ApiState {
   authState: AuthState;
   authStatus: AuthStatusSnapshot;
@@ -997,21 +1013,27 @@ export interface ApiState {
    * which the surface renders through the product error taxonomy. The global `error` string is
    * deliberately not set: the map renders that one raw, and a governed compute's refusal belongs
    * next to the action with its correlation id, not as an exception string somewhere else.
+   *
+   * The run is held to a bounded client deadline (the transport receives an AbortSignal; expiry
+   * releases the pending lane as this typed timeout failure, not a cancellation of server work,
+   * and a late answer commits nothing).
    */
   recommendRouteAllocation: (
     request: RouteRecommendationRequestDTO,
     provenanceKey: string,
+    options?: DecisionComputeRequestOptions,
   ) => Promise<void>;
   /**
    * Optimise the resource pool.
    *
    * `provenanceKey` carries the same successful-result provenance as `recommendRouteAllocation`;
    * the held result is withheld from current metrics while it does not match this caller's
-   * current inputs.
+   * current inputs. The same bounded client deadline applies.
    */
   optimizeResourcePool: (
     request: PortfolioOptimizationRequestDTO,
     provenanceKey: string,
+    options?: DecisionComputeRequestOptions,
   ) => Promise<void>;
   /**
    * Evaluate the strategy lab scenario.
@@ -2427,7 +2449,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
     }
   },
 
-  recommendRouteAllocation: async (request, provenanceKey) => {
+  recommendRouteAllocation: async (request, provenanceKey, options) => {
     if (logoutInProgress) return;
     // One run per action at a time: a second click while the first is in flight is the same
     // question, not a new one, and the button is disabled for the same reason.
@@ -2439,7 +2461,13 @@ export const useApiStore = create<ApiState>((set, get) => ({
       error: null,
     }));
     try {
-      const result = await api.recommendRouteAllocation(request);
+      // The bounded wait releases the pending lane when the answer does not arrive; the transport
+      // receives the signal, and the helper rejects even if the transport ignores it. A late
+      // answer settles nothing: the race is already decided, so only the failure is published.
+      const result = await withAbortTimeout(
+        (signal) => api.recommendRouteAllocation(request, { signal }),
+        decisionComputeTimeoutMs(options?.timeoutMs),
+      );
       if (!followUpReadIsCurrent(requestGeneration)) return;
       set((state) => ({
         routeRecommendation: result.data,
@@ -2460,7 +2488,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
     }
   },
 
-  optimizeResourcePool: async (request, provenanceKey) => {
+  optimizeResourcePool: async (request, provenanceKey, options) => {
     if (logoutInProgress) return;
     if (get().poolOptimizeAction.phase === "pending") return;
     const requestGeneration = identityReadCoordinator.capture();
@@ -2470,7 +2498,10 @@ export const useApiStore = create<ApiState>((set, get) => ({
       error: null,
     }));
     try {
-      const result = await api.optimizeResourcePool(withoutLegacyFlag(request));
+      const result = await withAbortTimeout(
+        (signal) => api.optimizeResourcePool(withoutLegacyFlag(request), { signal }),
+        decisionComputeTimeoutMs(options?.timeoutMs),
+      );
       if (!followUpReadIsCurrent(requestGeneration)) return;
       set((state) => ({
         resourcePoolResult: result.data,

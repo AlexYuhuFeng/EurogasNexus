@@ -5,6 +5,42 @@ Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical sli
 
 ## Current work
 
+### Bounded decision waits and stream disposal (2026-10-03)
+
+Baseline `c11a2cb` passed GitHub CI run `37030801017`: backend validation,
+PostgreSQL integration, EN/ZH browser acceptance at three viewports, web build
+and dependency audit passed; native desktop build was skipped.
+
+DeepSeek implemented a 30-second client wait bound for Compare/Optimize using
+the existing abort helper and optional transport signal. Timeout releases the
+action, preserves prior result/provenance, suppresses late answers and never
+automatically retries. A parent-requested repair added typed timeout vocabulary
+and bilingual explanation of uncertain server completion. Vite module disposal
+now closes its owned decision streams. Strategy persisted-run timeout handling
+is still open because completion must be reconciled rather than blindly retried.
+
+Independent parent evidence: 842 web tests passed, 3 skipped; production build
+passed with the existing dynamic-import warning. Python contract suite: 499
+passed and one old call-shape assertion failed. The assertion was updated to
+include the cancellation signal without removing the legacy-payload check;
+all eight tests in that file then passed. `git diff --check` passed.
+
+Runtime diagnosis: authenticated development-login probes through the local
+Vite proxy returned HTTP 200 for identity (48ms), monitoring summary (42ms), and
+pipeline health (1095ms). PostgreSQL/API availability is therefore not the same
+as the observed browser problem. Existing role-key probes returned 403; their
+provisioning/expiry needs separate verification before persona acceptance.
+The existing browser tab and one fresh tab both timed out during browser
+inspection/navigation/screenshot operations. No successful local visual
+acceptance is claimed, and neither HMR nor connection saturation is proven as
+the cause. No runtime contracts, market rows or schema were changed.
+
+Next: verify this commit's CI, recover browser inspection and retest Compare /
+Optimize success, timeout, changed-input freshness and reconnect at desktop/mobile
+widths; then continue the documented integrated trading-workflow programme.
+Commercial delivery remains unproven; do not substitute this reliability slice
+for LNG/tender/cash/strategy/persona and release/legal acceptance.
+
 ### Decision result input freshness (2026-10-02)
 
 DeepSeek implemented this bounded slice on `3351ee1`, followed by a parent-requested

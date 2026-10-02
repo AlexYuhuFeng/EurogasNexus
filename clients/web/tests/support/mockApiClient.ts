@@ -17,6 +17,8 @@ export interface MockApiRegistry {
   readonly calls: MockApiCall[];
   readonly handlers: Record<string, MockApiHandler>;
   readonly streams: Record<string, Record<string, (payload: unknown) => void>>;
+  /** Stream paths closed through the mock's handle, in order - replacement/identity cleanup. */
+  readonly streamCloses: string[];
 }
 
 /**
@@ -27,7 +29,7 @@ export interface MockApiRegistry {
  */
 export function apiRegistry(): MockApiRegistry {
   const global = globalThis as { __eurogasMockApi?: MockApiRegistry };
-  global.__eurogasMockApi ??= { calls: [], handlers: {}, streams: {} };
+  global.__eurogasMockApi ??= { calls: [], handlers: {}, streams: {}, streamCloses: [] };
   return global.__eurogasMockApi;
 }
 
@@ -50,10 +52,15 @@ export const api = new Proxy({} as Record<string, (...args: unknown[]) => Promis
   },
 });
 
-/** Streams are not opened in these tests; the store only has to be able to close one. */
+/** No stream is opened over the network; the registry is the whole stream handle. */
 export function openEventStream(path: string, handlers: Record<string, (payload: unknown) => void>): { close: () => void } {
   apiRegistry().streams[path] = handlers;
-  return { close: () => { delete apiRegistry().streams[path]; } };
+  return {
+    close: () => {
+      apiRegistry().streamCloses.push(path);
+      delete apiRegistry().streams[path];
+    },
+  };
 }
 
 /** Session material belongs to the api client in the product; the store only hands a token over. */

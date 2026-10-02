@@ -169,6 +169,6 @@ def test_api_store_does_not_send_research_only_payload_field() -> None:
 
     store_text = _read(API_STORE_TS)
     assert "withoutLegacyFlag" in store_text
-    assert "api.optimizeResourcePool(withoutLegacyFlag(request))" in store_text
+    assert "api.optimizeResourcePool(withoutLegacyFlag(request), { signal })" in store_text
     assert "api.evaluateStrategyLab(withoutLegacyFlag(scenario))" in store_text
     assert "research_only" not in store_text
