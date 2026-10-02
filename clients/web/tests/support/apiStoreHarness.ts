@@ -91,6 +91,8 @@ export interface ApiStoreState {
   screenOrders: unknown[];
   marketQuotes: unknown[];
   reviewDecisions: unknown[];
+  /** The pooled-resource view, as the portfolio projection (or a context clear) leaves it. */
+  resourcePoolOptions: Record<string, unknown> | null;
   resourcePoolResult: unknown;
   routeRecommendation: unknown;
   /** The two governed computes' own lifecycle lanes, as the store leaves them. */

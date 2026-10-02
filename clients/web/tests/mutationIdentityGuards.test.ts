@@ -17,7 +17,9 @@ const MUTATIONS = [
 const FOLLOW_UP_READS: Record<string, string> = {
   saveProviderCredential: "api.credentialProviders()",
   testProviderConnection: "api.credentialProviders()",
-  saveDraftContract: "api.upstreamContracts()",
+  // The library refresh now goes through the bounded read wrapper (timeout and
+  // outcome), so the call is the loader itself rather than a bare invocation.
+  saveDraftContract: "api.upstreamContracts",
   recordReviewDecision: "api.reviewDecisions()",
 };
 

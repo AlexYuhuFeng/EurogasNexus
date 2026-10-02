@@ -5,6 +5,25 @@ Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical sli
 
 ## Current work
 
+### Contract library read ordering (2026-10-02)
+
+DeepSeek completed the bounded read-ordering repair on baseline `83bcc59`.
+Parent reviewed all changed store paths. Workspace loads, endpoint retries and
+post-save reads now share contract-library request ownership. Committed writes
+invalidate earlier reads; superseded responses cannot replace rows or endpoint
+records. Failed latest reads retain last-good rows with a recorded error rather
+than reporting an empty library. The save refresh uses the existing portfolio
+projection for pooled resources, preserving its context and identity guards.
+Parent additionally guarded the obsolete refresh-error notice.
+
+Independent validation: standard web suite 806 passed, 3 skipped; production
+build passed with the existing ineffective-dynamic-import warning. Seven new
+behavioral tests cover cross-path ordering, latest-read failure, retry, identity
+invalidation and context change. No runtime DB write or schema/API change.
+Previous commit `83bcc59` passed GitHub run `36958604057`. Authenticated visual
+conflict/reconciliation acceptance remains outstanding; shared loading ownership
+is still not universally action-scoped. Commercial readiness remains open.
+
 ### Draft-scoped save feedback (2026-10-02)
 
 Same-commit GitHub CI for `1672872` passed in run `36956647438`, including

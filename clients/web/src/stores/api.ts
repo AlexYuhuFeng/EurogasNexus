@@ -333,6 +333,71 @@ function claimProjectionLanes(
   return claims;
 }
 
+/**
+ * The contract library's own read lane (`upstreamContracts`).
+ *
+ * The workspace batch, its bounded retry and a committed save's refresh all answer the same
+ * question, and their answers can return out of order. As in a projection lane the newest request
+ * owns the field; the difference is the invalidation a committed write performs: every library
+ * read dispatched before the write is a pre-write read and loses its claim even when the save's
+ * own refresh is never dispatched, so a late pre-write answer cannot replace the library the
+ * write just changed. A claim is tested, not held, so a dropped answer leaves the last rows in
+ * place rather than publishing an empty library.
+ */
+let contractLibrarySequence = 0;
+
+interface ContractLibraryClaim {
+  readonly sequence: number;
+  readonly identityGeneration: number;
+}
+
+/** Claim the library lane for one read, in the tick that dispatches it. */
+function claimContractLibrary(): ContractLibraryClaim {
+  contractLibrarySequence += 1;
+  return {
+    sequence: contractLibrarySequence,
+    identityGeneration: identityReadCoordinator.capture(),
+  };
+}
+
+/** A committed write turns every library read already in flight into a pre-write read. */
+function invalidateContractLibraryReads(): void {
+  contractLibrarySequence += 1;
+}
+
+/** Whether a library answer may still be written: newest in the lane, for the identity that asked. */
+function contractLibraryClaimIsCurrent(claim: ContractLibraryClaim): boolean {
+  return (
+    claim.sequence === contractLibrarySequence &&
+    followUpReadIsCurrent(claim.identityGeneration)
+  );
+}
+
+/** Whether a pass's claim still owns the library (`true` when the pass did not read it). */
+function contractLibraryClaimHolds(claim: ContractLibraryClaim | undefined): boolean {
+  return claim === undefined || contractLibraryClaimIsCurrent(claim);
+}
+
+/** Claim the library lane for a pass about to read it, when the pass reads it at all. */
+function claimContractLibraryFor(
+  loaders: ReadonlyArray<readonly [string, WorkspaceApiLoader]>,
+): ContractLibraryClaim | undefined {
+  return loaders.some(([key]) => key === "upstreamContracts")
+    ? claimContractLibrary()
+    : undefined;
+}
+
+/**
+ * A committed write turns every pooled-resource read already in flight into a pre-write read.
+ *
+ * The resource view is a slice of the portfolio projection, so the lane's own sequence is what
+ * the save's canonical re-read claims; a batch dispatched before the write can then no longer
+ * publish the payload it read before the contract changed.
+ */
+function invalidatePortfolioLaneReads(): void {
+  projectionLanes.portfolioSnapshot.sequence += 1;
+}
+
 /** The lanes this session has asked for. */
 function requestedProjectionLanes(): ProjectionLaneKey[] {
   return (Object.keys(projectionLanes) as ProjectionLaneKey[]).filter(
@@ -1328,6 +1393,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
     // whatever the store holds when it returns.
     const batchLoaders = workspaceLoaders(projectionRequestContext(get().tradingContext));
     const claims = claimProjectionLanes(batchLoaders);
+    const libraryClaim = claimContractLibraryFor(batchLoaders);
     const outcomes = await loadWorkspaceEndpoints(batchLoaders, {
       signal: load.signal,
       timeoutMs: DEFAULT_WORKSPACE_READ_TIMEOUT_MS,
@@ -1356,6 +1422,10 @@ export const useApiStore = create<ApiState>((set, get) => ({
     // change's own re-read), the batch writes neither its payload nor its record, and the state
     // keeps the reading it has - the re-read replaces it with the current context's payload.
     const portfolioIsCurrent = projectionClaimHolds(claims.portfolioSnapshot);
+    // The contract library is a claimed read too: a batch dispatched before a committed save
+    // (or superseded by a newer library read) writes neither its rows nor its record, and a
+    // failed read keeps the last good rows with the failure recorded rather than an empty library.
+    const libraryIsCurrent = contractLibraryClaimHolds(libraryClaim);
     // Requested projections own their rows, even if the legacy batch started later.
     const marketLaneIsCurrent = !projectionLanes.marketContext.requested;
     const reviewLaneIsCurrent = !projectionLanes.reviewContext.requested;
@@ -1417,7 +1487,9 @@ export const useApiStore = create<ApiState>((set, get) => ({
       routes: (slices.routes ?? []) as RouteEligibilityDTO[],
       routeCandidates: (slices.routeCandidates ?? []) as RouteCandidateDTO[],
       tsoTariffs: (slices.tsoTariffs ?? []) as TsoTariffDTO[],
-      upstreamContracts: (slices.upstreamContracts ?? []) as UpstreamContractDTO[],
+      ...(libraryIsCurrent && slices.upstreamContracts !== undefined
+        ? { upstreamContracts: (slices.upstreamContracts ?? []) as UpstreamContractDTO[] }
+        : {}),
       resourcePoolOptions: portfolioLane.resourcePoolOptions,
       glossaryTerms: (slices.glossaryTerms ?? []) as GlossaryTermDTO[],
       runtimeDb: (slices.runtimeDb ?? null) as RuntimeDbStatusDTO | null,
@@ -1436,6 +1508,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
         ...outcomes.filter(({ key }) => projectionOwnsLegacyKey(key)).map(({ key }) => key),
         ...(portfolioIsCurrent ? [] : ["portfolioSnapshot"]),
         ...(marketLaneIsCurrent ? [] : ["fxRates"]),
+        ...(libraryIsCurrent ? [] : ["upstreamContracts"]),
       ])),
       meta: batchMeta.referenceNodes ?? null,
       dataStatus: resolvedStatus,
@@ -1478,6 +1551,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
     }));
     try {
       const claims = claimProjectionLanes(retryableLoaders);
+      const libraryClaim = claimContractLibraryFor(retryableLoaders);
       const outcomes = await loadWorkspaceEndpoints(retryableLoaders, {
         signal: load.signal,
         timeoutMs: DEFAULT_WORKSPACE_READ_TIMEOUT_MS,
@@ -1492,7 +1566,10 @@ export const useApiStore = create<ApiState>((set, get) => ({
       // A projection lane a newer request owns is neither written nor recorded by this pass: the
       // context change's own re-read is the answer for the context the caller is standing in.
       const written = outcomes.filter(({ key }) =>
-        !projectionOwnsLegacyKey(key) && projectionClaimHolds(claims[key as ProjectionLaneKey]),
+        key === "upstreamContracts"
+          ? contractLibraryClaimHolds(libraryClaim)
+          : !projectionOwnsLegacyKey(key) &&
+            projectionClaimHolds(claims[key as ProjectionLaneKey]),
       );
       set((state) => {
         const patch: Partial<ApiState> = {};
@@ -2262,32 +2339,47 @@ export const useApiStore = create<ApiState>((set, get) => ({
           }
         : {}),
     });
+    // The write committed: every read of the affected fields already in flight is a pre-write
+    // read and loses its claim. The refresh below claims both lanes at its own dispatch, so a
+    // newer read (a later workspace batch, or a newer save's refresh) supersedes it in turn.
+    invalidateContractLibraryReads();
+    invalidatePortfolioLaneReads();
+    const libraryClaim = claimContractLibrary();
+    // The pooled resource view is re-read through its canonical portfolio projection - the same
+    // read the batch and the context change use - rather than a competing pool-options write.
+    const portfolioRead = reReadPortfolioSnapshot(projectionRequestContext(get().tradingContext));
+    const library = await loadWorkspaceEndpoint(api.upstreamContracts, {
+      retries: 0,
+      timeoutMs: DEFAULT_WORKSPACE_READ_TIMEOUT_MS,
+    });
     try {
-      const [upstreamContracts, resourcePoolOptions] = await Promise.all([
-        api.upstreamContracts(),
-        api.resourcePoolOptions(),
-      ]);
-      // Identity invalidation must drop both the snapshot and the returned commercial
-      // record; returning it could repopulate an editor after logout.
-      if (!followUpReadIsCurrent(requestGeneration)) return null;
-      // The committed write updated this identity's library even when the notice moved to
-      // another draft, so the same-identity library data is still published: only the notice
-      // is draft-scoped.
+      await portfolioRead;
+    } catch {
+      // The portfolio lane records its own read outcome where every endpoint failure is
+      // recorded; a client-side mapping throw here must not turn a committed save into a
+      // failure, so the saved result is still returned below.
+    }
+    // Identity invalidation must drop both the snapshot and the returned commercial
+    // record; returning it could repopulate an editor after logout.
+    if (!followUpReadIsCurrent(requestGeneration)) return null;
+    // The committed write updated this identity's library even when the notice moved to
+    // another draft, so the same-identity library data is still published: only the notice
+    // is draft-scoped. A failed or superseded read keeps the last good rows and records the
+    // failure where every other endpoint failure is recorded - never an empty library.
+    if (contractLibraryClaimIsCurrent(libraryClaim)) {
+      set((state) => ({
+        ...endpointRecordsAfterPass(state, [{ key: "upstreamContracts", outcome: library }]),
+        ...(library.ok ? { upstreamContracts: library.value.data } : {}),
+      }));
+    }
+    // Saved, but the library refresh failed: reported in its own lane, without claiming the
+    // write failed or dropping the success message the saved result earned. The report
+    // belongs to the save that owns the editor's notice; a superseded save must not raise
+    // its refresh failure against whatever draft the editor holds now.
+    if (!library.ok && ownsFeedback() && contractLibraryClaimIsCurrent(libraryClaim)) {
       set({
-        upstreamContracts: upstreamContracts.data,
-        resourcePoolOptions: resourcePoolOptions.data,
+        error: `${saved.data.contract_id} was saved, but refreshing the contract library failed: ${library.error.message}`,
       });
-    } catch (e) {
-      if (!followUpReadIsCurrent(requestGeneration)) return null;
-      // Saved, but the library refresh failed: reported in its own lane, without claiming the
-      // write failed or dropping the success message the saved result earned. The report
-      // belongs to the save that owns the editor's notice; a superseded save must not raise
-      // its refresh failure against whatever draft the editor holds now.
-      if (ownsFeedback()) {
-        set({
-          error: `${saved.data.contract_id} was saved, but refreshing the contract library failed: ${String(e)}`,
-        });
-      }
     }
     return saved.data;
   },

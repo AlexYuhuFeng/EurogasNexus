@@ -305,6 +305,51 @@ Implemented as recorded below.
   dependency and no runtime database write in this slice. The PostgreSQL-authoritative cases
   run only in the existing disposable-database opt-in job, never against a workstation store.
 
+## 14. Bounded stale-read ordering repair (client read lanes, baseline `83bcc59`)
+
+Parent review of S1e's client slice found that the committed save's library refresh was not
+sequenced against other reads: `saveDraftContract` re-read `upstreamContracts` and
+`resourcePoolOptions` after the write and published both unconditionally, while the workspace
+batch, its retry pass and the context-change re-reads wrote the same fields from their own
+answers. A read dispatched before the write could resolve after the save's refresh and replace
+the library rows (carrying pre-write edit tokens) and the pooled resource view with its pre-write
+reading. This slice fixes that ordering; it adds no capability.
+
+- Contract library lane: `upstreamContracts` now has its own claim sequence in
+  [`stores/api.ts`](../../clients/web/src/stores/api.ts), like a projection lane. The workspace
+  batch and its bounded retry claim it at dispatch; a committed write bumps the sequence before
+  its refresh, so every read dispatched before the write loses its claim even when this save's
+  refresh never lands. Only the newest claim writes rows and the endpoint record; a superseded
+  answer writes neither.
+- Failed reads: a failed library read no longer clears the rows (the batch previously published
+  `[]` for a failed slice). The last good rows stay and the failure is recorded in
+  `endpointErrors.upstreamContracts` (retryable through the existing bounded control); the save
+  refresh reports "… was saved, but refreshing the contract library failed: …" in its own lane.
+- Pooled resource view: the save's refresh no longer calls the pool-options route. It re-reads
+  the canonical portfolio projection through the existing `reReadPortfolioSnapshot` lane read -
+  the same read the batch and a context change use - so the pool block arrives with its slice
+  freshness, entitlement and source metadata. A committed write bumps the portfolio lane's
+  sequence, so a batch dispatched before the write retains the lane instead of publishing its
+  pre-write payload, and a context change still clears the lane and drops any older-context
+  answer.
+- Unchanged: the committed save result (with its refreshed edit token) is still returned to the
+  submitting editor - with no write retry and no draft clearing - even when the refresh read
+  fails or is superseded; the S1e notice claim is unchanged; identity invalidation still drops
+  the library, the pool view and the returned record.
+- No API, schema, permission, migration, dependency or runtime database write; the claimed reads
+  are client-side ordering only.
+- Evidence:
+  [`contractLibraryReadOrder.test.ts`](../../clients/web/tests/contractLibraryReadOrder.test.ts)
+  drives the real store with only the HTTP boundary mocked and its answers deferred: a pre-write
+  batch resolving after the save cannot republish; a batch dispatched after the refresh
+  supersedes it; a newer save's refresh supersedes a delayed earlier one; a failed latest read
+  keeps the last good rows and records the failure while a late older answer cannot resurrect
+  stale rows; identity invalidation drops the pool view as well as the library; a context switch
+  drops the refresh's older-context pool view while the context re-read answers.
+- Honest limits: the shared `loading` flag is still not action-scoped (recorded in the execution
+  state), and the save's success notice is still published before its refresh answers - the
+  notice is draft-scoped, not refresh-scoped.
+
 ## Open decisions (parent/reviewer)
 
 Capture/replay clarification: an unchanged, previously uncaptured legacy row
