@@ -26,11 +26,12 @@ interface ReviewWorkspaceProps {
   reviewWarnings: string[];
   resourcePoolResult: PortfolioOptimizationResultDTO | null;
   /**
-   * Whether the pool result is provenanced to a trading context other than the one on screen.
+   * Whether the pool result is provenanced to inputs other than the ones the client now knows
+   * (trading context, saved-contract revision, pool/market read, financing input).
    *
-   * A reviewer may still inspect a past run, but the surface must say that the allocations and
-   * evidence below were not computed for the context currently selected rather than presenting
-   * them as its current figures.
+   * A reviewer may still inspect a past run through its persisted record, but the surface must
+   * say that the live allocations and evidence below were not computed for the current inputs
+   * rather than presenting them as its current figures.
    */
   poolResultContextMismatch: boolean;
   analysisResult: AnalysisResultDTO | null;
@@ -101,6 +102,11 @@ export function ReviewWorkspace({
   onRecordDecision,
   onInspectEvidence,
 }: ReviewWorkspaceProps) {
+  // One posture with the workspace model: a payload the client cannot provenance to the inputs
+  // it now knows is not evidence for this context's review. The allocations prop is already
+  // gated by the model; the evidence pack below reads the same gate, while the banner above
+  // names what is being withheld. Nothing is substituted with a figure.
+  const poolResult = poolResultContextMismatch ? null : resourcePoolResult;
   const [entityType, setEntityType] = useState<ReviewDecisionInputDTO["entity_type"]>("strategy_run");
   const [entityId, setEntityId] = useState(carriedStrategyRunId ?? latestStrategyRunId ?? "");
   const [note, setNote] = useState("");
@@ -184,37 +190,37 @@ export function ReviewWorkspace({
           <strong>{t("review.evidence_pack")}</strong>
         </div>
         <p className="panel-copy">{t("review.evidence_help")}</p>
-        {resourcePoolResult ? (
+        {poolResult ? (
           <div className="review-evidence-grid" aria-label={t("review.evidence_pack")}>
             <div className="review-evidence-row">
               <span className="review-evidence-key">{t("review.status")}</span>
-              <strong className="review-evidence-value">{resourcePoolResult.status}</strong>
+              <strong className="review-evidence-value">{poolResult.status}</strong>
             </div>
             <div className="review-evidence-row">
               <span className="review-evidence-key">{t("review.algorithm")}</span>
-              <strong className="review-evidence-value">{resourcePoolResult.algorithm}</strong>
+              <strong className="review-evidence-value">{poolResult.algorithm}</strong>
             </div>
             <div className="review-evidence-row">
               <span className="review-evidence-key">{t("review.optimality")}</span>
-              <strong className="review-evidence-value">{resourcePoolResult.optimality}</strong>
+              <strong className="review-evidence-value">{poolResult.optimality}</strong>
             </div>
             <div className="review-evidence-row">
               <span className="review-evidence-key">{t("review.allocated_volume")}</span>
-              <strong className="review-evidence-value">{resourcePoolResult.total_allocated_mwh_per_day.toLocaleString()} MWh/d</strong>
+              <strong className="review-evidence-value">{poolResult.total_allocated_mwh_per_day.toLocaleString()} MWh/d</strong>
             </div>
             <div className="review-evidence-row review-evidence-row-full">
               <span className="review-evidence-key">{t("review.missing_inputs")}</span>
               <ul className="review-evidence-list">
-                {resourcePoolResult.missing_inputs.length > 0
-                  ? resourcePoolResult.missing_inputs.map((item) => <li className="review-evidence-item" key={`missing-${item}`}>{item}</li>)
+                {poolResult.missing_inputs.length > 0
+                  ? poolResult.missing_inputs.map((item) => <li className="review-evidence-item" key={`missing-${item}`}>{item}</li>)
                   : <li className="review-evidence-item">{t("review.none")}</li>}
               </ul>
             </div>
             <div className="review-evidence-row review-evidence-row-full">
               <span className="review-evidence-key">{t("review.assumptions")}</span>
               <ul className="review-evidence-list">
-                {resourcePoolResult.assumptions.length > 0
-                  ? resourcePoolResult.assumptions.map((item) => <li className="review-evidence-item" key={`assumption-${item}`}>{item}</li>)
+                {poolResult.assumptions.length > 0
+                  ? poolResult.assumptions.map((item) => <li className="review-evidence-item" key={`assumption-${item}`}>{item}</li>)
                   : <li className="review-evidence-item">{t("review.none")}</li>}
               </ul>
             </div>
@@ -225,20 +231,20 @@ export function ReviewWorkspace({
                 items={[
                   {
                     label: t("evidence.lineage"),
-                    value: resourcePoolResult.source_refs.length > 0
-                      ? resourcePoolResult.source_refs.slice(0, 8).join(" · ")
+                    value: poolResult.source_refs.length > 0
+                      ? poolResult.source_refs.slice(0, 8).join(" · ")
                       : t("review.none"),
                     wide: true,
                   },
                   {
                     label: t("evidence.review_boundary"),
-                    value: resourcePoolResult.human_review_required
+                    value: poolResult.human_review_required
                       ? t("settings.human_review")
                       : t("review.none"),
                   },
                   {
                     label: t("evidence.research_boundary"),
-                    value: resourcePoolResult.research_only
+                    value: poolResult.research_only
                       ? t("settings.decision_support_only")
                       : t("review.none"),
                   },
@@ -246,6 +252,10 @@ export function ReviewWorkspace({
               />
             </div>
           </div>
+        ) : poolResultContextMismatch && resourcePoolResult !== null ? (
+          // A held payload that is not this context's is named as withheld, not shown as
+          // evidence and not replaced with a fabricated empty run.
+          <p className="panel-copy">{t("decision.action.result_stale")}</p>
         ) : (
           <p className="panel-copy">{t("review.no_pool_result")}</p>
         )}

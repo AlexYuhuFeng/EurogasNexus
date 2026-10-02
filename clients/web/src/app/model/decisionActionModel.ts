@@ -19,12 +19,16 @@
  * 2. **The lifecycle.** `idle -> pending -> success | failure`, with the failure's structured
  *    cause kept for the governed error presentation, so a refusal is rendered next to the
  *    action instead of vanishing.
- * 3. **The result's provenance.** A result is stamped with the trading-context key of the
- *    request **that succeeded**, never with the context in force when it was started, and never
- *    by a run of the other action. A prior result therefore stays visibly stale after a context
- *    change even when a retry fails, and one action's completion cannot relabel the other's
- *    result.
+ * 3. **The result's provenance.** A result is stamped with the provenance key of the request
+ *    **that succeeded**, never with the context in force when it was started, and never by a run of
+ *    the other action. That key is the trading-context key plus the canonical identity of the
+ *    caller-known effective inputs (`app/model/decisionResultProvenance.ts`), so a contract
+ *    revision, a refreshed pool/market read or a financing-input change makes the held result
+ *    stale exactly as a context change does. A prior result therefore stays visibly stale even
+ *    when a retry fails, and one action's completion cannot relabel the other's result.
  */
+
+import { decisionProvenanceMismatch } from "./decisionResultProvenance.ts";
 
 /** The two `compute` acts the Decision workspace owns. */
 export type DecisionComputeActionId = "optimize_pool" | "compare_routes";
@@ -80,13 +84,15 @@ export type DecisionActionPhase = "idle" | "pending" | "success" | "failure";
 /** One action's lifecycle: what it is doing, and what its last accepted result belongs to. */
 export interface DecisionActionState {
   readonly phase: DecisionActionPhase;
-  /** Trading-context key the run in flight was requested under; null when none is in flight. */
+  /** Provenance key the run in flight was requested under; null when none is in flight. */
   readonly requestContextKey: string | null;
   /**
-   * Trading-context key of the last result this action *succeeded* with.
+   * Provenance key of the last result this action *succeeded* with: trading context plus the
+   * caller-known input identity the request was composed from.
    *
    * Null until one did, and deliberately not re-stamped by a failed retry: a result keeps the
-   * context it was computed under, so a context change cannot be erased by an unsuccessful run.
+   * inputs it was computed under, so an input or context change cannot be erased by an
+   * unsuccessful run.
    */
   readonly resultContextKey: string | null;
   /** The last failure's structured cause, presented through `errorPresentation`. */
@@ -103,35 +109,35 @@ export const IDLE_DECISION_ACTION_STATE: DecisionActionState = Object.freeze({
   correlationId: null,
 });
 
-/** A run started for one context. The previous result keeps its own provenance. */
+/** A run started for one provenance key. The previous result keeps its own provenance. */
 export function decisionActionPending(
   state: DecisionActionState,
-  contextKey: string,
+  provenanceKey: string,
 ): DecisionActionState {
   return {
     ...state,
     phase: "pending",
-    requestContextKey: contextKey,
+    requestContextKey: provenanceKey,
     error: null,
     correlationId: null,
   };
 }
 
 /**
- * A matching-context response arrived: stamp the result with the context it was computed under.
+ * A response arrived for this action: stamp the result with the inputs it was computed under.
  *
  * `requestContextKey` - what the run was started with - is the provenance, not whatever context
- * the user has moved to while it was in flight. A result computed for the context the caller has
- * left is therefore reported stale rather than relabelled current.
+ * or inputs are in force after it lands. A result computed for inputs the caller has since left
+ * is therefore reported stale rather than relabelled current.
  */
 export function decisionActionSucceeded(
   state: DecisionActionState,
-  contextKey: string,
+  provenanceKey: string,
 ): DecisionActionState {
   return {
     phase: "success",
     requestContextKey: null,
-    resultContextKey: contextKey,
+    resultContextKey: provenanceKey,
     error: null,
     correlationId: null,
   };
@@ -161,16 +167,16 @@ export function decisionActionAvailable(
 }
 
 /**
- * Whether the result the surface holds is *not* current for the context the caller stands in.
+ * Whether the result the surface holds is *not* current for the inputs the caller now knows.
  *
  * `hasResult` is the store's own fact (a payload exists); a result whose provenance the client
- * cannot vouch for counts as stale, so an unlabelled payload is never presented as current.
+ * cannot vouch for counts as stale, so an unlabelled payload - or one whose caller-known input
+ * identity is no longer composed (null current key) - is never presented as current.
  */
 export function decisionResultContextMismatch(
   state: DecisionActionState,
   hasResult: boolean,
-  currentContextKey: string,
+  currentProvenanceKey: string | null,
 ): boolean {
-  if (!hasResult) return false;
-  return state.resultContextKey === null || state.resultContextKey !== currentContextKey;
+  return decisionProvenanceMismatch(hasResult, state.resultContextKey, currentProvenanceKey);
 }

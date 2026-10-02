@@ -12,6 +12,9 @@ const MUTATIONS = [
   "recordReviewDecision",
   "recommendRouteAllocation",
   "optimizeResourcePool",
+  // The strategy evaluation's follow-up reads go through the store's own summary/runs actions,
+  // so the ordering check below has no `api.` call to key on; the generation guards still apply.
+  "evaluateStrategyLab",
 ] as const;
 
 const FOLLOW_UP_READS: Record<string, string> = {

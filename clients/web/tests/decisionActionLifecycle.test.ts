@@ -15,6 +15,16 @@
  * store-level cases run the real store through the harness, with the HTTP boundary mocked and
  * every answer settled by hand - source assertions alone could not show that a stale completion
  * writes nothing or that a second submission issues no second request.
+ *
+ * The follow-up extends the stamp from the trading context to the caller-known input identity
+ * (`app/model/decisionResultProvenance.ts`; see `decisionResultProvenance.test.ts` for the
+ * canonicalisation and request-builder cases): a completion that lands after a saved contract
+ * revision, pool/market read or financing input changed commits under the request-time key and
+ * reads stale for the inputs now on screen, and every consumer reads the model's gated values
+ * rather than the raw lanes. The store-level cases also hold the strategy evaluation to its
+ * identity generation: an answer that lands after a session invalidation commits nothing -
+ * result, metadata, error, loading or follow-up reads - and reports no answer, so the caller
+ * stamps no provenance for it.
  */
 
 import assert from "node:assert/strict";
@@ -184,6 +194,9 @@ test("provenance is stamped by the successful request, and a failed retry cannot
 
   // A payload whose provenance the client cannot vouch for is stale, not current.
   assert.equal(decisionResultContextMismatch(IDLE_DECISION_ACTION_STATE, true, "ctx-a"), true);
+  // The same holds when the caller's current inputs cannot compose a key at all (for example
+  // the financing input became unknown): nothing can be vouched for, so the payload is stale.
+  assert.equal(decisionResultContextMismatch(succeeded, true, null), true);
   // No payload at all is not a mismatch: there is nothing to mislabel.
   assert.equal(decisionResultContextMismatch(failed, false, "ctx-b"), false);
 });
@@ -383,6 +396,40 @@ test("a completion that lands after the context changed is stamped with the cont
   assert.equal(decisionResultContextMismatch(state.poolOptimizeAction, true, "ctx-b"), true);
 });
 
+test("a completion that lands after the inputs changed is stamped with the inputs it was sent with", async () => {
+  const harness = await loadApiStore();
+  const store = authenticated(harness);
+  const answer = deferred<unknown>();
+  harness.answer("optimizeResourcePool", () => answer.promise);
+
+  // The same trading context, two input identities: the caller edits a saved contract revision
+  // (or the pool read refreshes) while the run is in flight.
+  const keyBefore = "optimize_pool::2026-10-01|day-ahead|NBP::request-a";
+  const keyAfter = "optimize_pool::2026-10-01|day-ahead|NBP::request-b";
+  const run = store.getState().optimizeResourcePool({ objective: "min_cost" }, keyBefore);
+  await settle();
+  answer.resolve({ data: { status: "OPTIMAL", allocations: [{ option_id: "route-1" }] }, meta: {} });
+  await run;
+  await settle();
+
+  const state = store.getState();
+  assert.equal(state.poolOptimizeAction.phase, "success");
+  assert.equal(
+    state.poolOptimizeAction.resultContextKey,
+    keyBefore,
+    "the committed run keeps the request-time inputs, not whatever replaced them",
+  );
+  assert.equal(
+    decisionResultContextMismatch(state.poolOptimizeAction, state.resourcePoolResult !== null, keyBefore),
+    false,
+  );
+  assert.equal(
+    decisionResultContextMismatch(state.poolOptimizeAction, state.resourcePoolResult !== null, keyAfter),
+    true,
+    "the landed result must read stale for the inputs the caller now knows",
+  );
+});
+
 test("a completion that lands after the identity changed writes no result and no provenance", async () => {
   const harness = await loadApiStore();
   const store = authenticated(harness);
@@ -410,6 +457,88 @@ test("a completion that lands after the identity changed writes no result and no
   assert.equal(state.poolOptimizeAction.resultContextKey, null);
 });
 
+test("a strategy evaluation that succeeds after the identity changed commits nothing and starts no follow-up", async () => {
+  const harness = await loadApiStore();
+  const store = authenticated(harness);
+  const answer = deferred<unknown>();
+  harness.answer("evaluateStrategyLab", () => answer.promise);
+
+  const run = store.getState().evaluateStrategyLab({ scenario_id: "scenario-a" });
+  await settle();
+  assert.equal(requested(harness, "evaluateStrategyLab"), 1, "the evaluation is in flight");
+  assert.equal(store.getState().loading, true, "the run holds the shared busy flag");
+
+  // The session is invalidated while the evaluation is still in flight.
+  harness.answer("me", () => Promise.reject(new Error("API 401: unauthenticated")));
+  await store.getState().fetchMe();
+  await settle();
+
+  answer.resolve({ data: { status: "OK", allocation_targets: [] }, meta: { source: "evaluation" } });
+  assert.equal(await run, null, "a superseded identity's evaluation reports no answer");
+  await settle();
+
+  const state = store.getState();
+  assert.equal(state.strategyResult, null, "the stale result is not committed");
+  assert.equal(state.meta, null, "its metadata is not committed either");
+  assert.equal(state.error, null, "nor is the shared error");
+  assert.equal(state.loading, false, "nor is the busy flag");
+  assert.equal(requested(harness, "strategySummary"), 0, "no summary follow-up for a dropped answer");
+  assert.equal(requested(harness, "strategyRuns"), 0, "no runs follow-up either");
+});
+
+test("a strategy evaluation that fails after the identity changed records no error", async () => {
+  const harness = await loadApiStore();
+  const store = authenticated(harness);
+  const answer = deferred<unknown>();
+  harness.answer("evaluateStrategyLab", () => answer.promise);
+
+  const run = store.getState().evaluateStrategyLab({ scenario_id: "scenario-a" });
+  await settle();
+
+  harness.answer("me", () => Promise.reject(new Error("API 401: unauthenticated")));
+  await store.getState().fetchMe();
+  await settle();
+
+  answer.reject(new Error("API 500: strategy evaluation failed"));
+  assert.equal(await run, null, "a superseded identity's failure reports no answer");
+  await settle();
+
+  const state = store.getState();
+  assert.equal(state.error, null, "the stale failure is not written");
+  assert.equal(state.loading, false);
+  assert.equal(state.strategyResult, null);
+  assert.equal(requested(harness, "strategySummary"), 0);
+  assert.equal(requested(harness, "strategyRuns"), 0);
+});
+
+test("a strategy evaluation for the current identity commits its result and launches the follow-ups", async () => {
+  const harness = await loadApiStore();
+  const store = authenticated(harness);
+  const result = { status: "OK", allocation_targets: [{ resource_id: "resource-1" }] };
+  harness.answer("evaluateStrategyLab", () => ({
+    data: result,
+    meta: { source_references: ["strategy-run-1"] },
+  }));
+  harness.answer("strategySummary", () => ({ data: { cumulative_pnl_gbp: 12.5 }, meta: {} }));
+  harness.answer("strategyRuns", () => ({ data: [{ run_id: "strategy-run-1" }], meta: {} }));
+
+  assert.deepEqual(
+    await store.getState().evaluateStrategyLab({ scenario_id: "scenario-a" }),
+    result,
+  );
+  await settle();
+
+  const state = store.getState();
+  assert.deepEqual(state.strategyResult, result);
+  assert.deepEqual(state.meta, { source_references: ["strategy-run-1"] });
+  assert.deepEqual(state.strategySummary, { cumulative_pnl_gbp: 12.5 });
+  assert.deepEqual(state.strategyRuns, [{ run_id: "strategy-run-1" }]);
+  assert.equal(state.loading, false);
+  assert.equal(state.error, null);
+  assert.equal(requested(harness, "strategySummary"), 1);
+  assert.equal(requested(harness, "strategyRuns"), 1);
+});
+
 test("the automatic pool run is issued only through the gated, provenance-carrying path", () => {
   const model = readWebSource("app/model/usePortfolioDecisionModel.ts");
 
@@ -420,31 +549,53 @@ test("the automatic pool run is issued only through the gated, provenance-carryi
     /const canRunPoolOptimizer = decisionActionAvailable\(poolOptimizeGate, api\.poolOptimizeAction\);/,
   );
   // The auto-run is additionally refused while the draft/saved financing rate is unknown (no
-  // composed request exists): it never issues a run with an invented rate.
+  // composed request exists), or while the inputs cannot compose a provenance key: it never
+  // issues a run with an invented rate or an unlabelled provenance.
   assert.match(
     model,
     /if \(!canRunPoolOptimizer \|\| api\.loading \|\| resourcePoolOptimizationRequest === null\) return;/,
   );
+  assert.match(model, /if \(optimizerProvenanceKey === null\) return;/);
   assert.match(model, /const canCompareRoutes = decisionActionAvailable\(routeCompareGate, api\.routeCompareAction\);/);
-  // Both call sites carry the context key, and neither stamps a key before the request: the
-  // provenance is the store's, written only when a run succeeds.
+  // Both call sites carry the per-action provenance key - trading context plus the canonical
+  // input identity of the request being sent (`app/model/decisionResultProvenance.ts`) - and
+  // neither stamps a key before the request: the provenance is the store's, written only when a
+  // run succeeds.
+  assert.match(
+    model,
+    /const optimizerProvenanceKey = useMemo\([\s\S]*?"optimize_pool",\s*currentContextKey,\s*decisionInputIdentity\(\{/,
+  );
+  assert.match(
+    model,
+    /const compareProvenanceKey = useMemo\([\s\S]*?"compare_routes",[\s\S]*?decisionInputIdentity\(\{/,
+  );
   assert.equal(
-    (model.match(/api\.optimizeResourcePool\(resourcePoolOptimizationRequest, currentContextKey\)/g) ?? [])
+    (model.match(/savedContracts: api\.upstreamContracts/g) ?? []).length,
+    4,
+    "both governed actions and both strategy call sites bind the saved-contract revision",
+  );
+  assert.equal(
+    (model.match(/api\.optimizeResourcePool\(resourcePoolOptimizationRequest, optimizerProvenanceKey\)/g) ?? [])
       .length,
     2,
     "the automatic run and the header action are the only callers",
   );
-  assert.match(model, /api\.recommendRouteAllocation\(routeRecommendationRequest, currentContextKey\)/);
+  assert.match(model, /api\.recommendRouteAllocation\(routeRecommendationRequest, compareProvenanceKey\)/);
   assert.equal(model.includes("setOptimizerResultContextKey"), false);
   // The gate handlers refuse to start an unavailable action at all.
   assert.match(
     model,
-    /function optimizeResourcePoolForCurrentContext\(\) \{\s*\/\/[\s\S]*?\s*if \(!canRunPoolOptimizer \|\| resourcePoolOptimizationRequest === null\) return;/,
+    /function optimizeResourcePoolForCurrentContext\(\) \{\s*\/\/[\s\S]*?\s*if \(!canRunPoolOptimizer \|\| resourcePoolOptimizationRequest === null\) return;\s*if \(optimizerProvenanceKey === null\) return;/,
   );
   assert.match(
     model,
     /function recommendRouteAllocationForCurrentContext\(\) \{\s*if \(!canCompareRoutes\) return;/,
   );
+  // The strategy evaluation stamps its own provenance key only after a successful answer, built
+  // from the payload actually sent: a failure cannot relabel the previous strategy result.
+  assert.match(model, /const payload = strategyEvaluationPayload\(overrides\);/);
+  assert.match(model, /if \(completed\) setStrategyResultContextKey\(provenanceKey\);/);
+  assert.equal(model.includes("setStrategyResultContextKey(currentContextKey)"), false);
 });
 
 test("the store writes provenance only on a successful response", () => {
@@ -452,18 +603,34 @@ test("the store writes provenance only on a successful response", () => {
 
   assert.match(
     store,
-    /recommendRouteAllocation: async \(request, contextKey\) => \{[\s\S]*?if \(get\(\)\.routeCompareAction\.phase === "pending"\) return;[\s\S]*?routeCompareAction: decisionActionPending\(state\.routeCompareAction, contextKey\)/,
+    /recommendRouteAllocation: async \(request, provenanceKey\) => \{[\s\S]*?if \(get\(\)\.routeCompareAction\.phase === "pending"\) return;[\s\S]*?routeCompareAction: decisionActionPending\(state\.routeCompareAction, provenanceKey\)/,
   );
   assert.match(
     store,
-    /const result = await api\.recommendRouteAllocation\(request\);[\s\S]{0,300}?routeCompareAction: decisionActionSucceeded\(state\.routeCompareAction, contextKey\)/,
+    /const result = await api\.recommendRouteAllocation\(request\);[\s\S]{0,300}?routeCompareAction: decisionActionSucceeded\(state\.routeCompareAction, provenanceKey\)/,
   );
   assert.match(
     store,
-    /const result = await api\.optimizeResourcePool\(withoutLegacyFlag\(request\)\);[\s\S]{0,300}?poolOptimizeAction: decisionActionSucceeded\(state\.poolOptimizeAction, contextKey\)/,
+    /const result = await api\.optimizeResourcePool\(withoutLegacyFlag\(request\)\);[\s\S]{0,300}?poolOptimizeAction: decisionActionSucceeded\(state\.poolOptimizeAction, provenanceKey\)/,
   );
   assert.match(store, /poolOptimizeAction: decisionActionFailed\(\s*state\.poolOptimizeAction,\s*e,\s*describeFailure\(e\)\.correlationId,\s*\)/);
   assert.match(store, /routeCompareAction: decisionActionFailed\(\s*state\.routeCompareAction,\s*e,\s*describeFailure\(e\)\.correlationId,\s*\)/);
+  // The strategy run returns its result or null, so the caller's stamp is written only by a run
+  // that produced one; a refusal leaves the previous result's provenance in place.
+  assert.match(
+    store,
+    /return result\.data;[\s\S]{0,200}?catch \(e\) \{[\s\S]{0,120}?return null;/,
+  );
+  // The strategy answer is also held to the identity that asked: both the success and the
+  // failure path test `followUpReadIsCurrent` before any write (or follow-up read).
+  assert.match(
+    store,
+    /const result = await api\.evaluateStrategyLab\(withoutLegacyFlag\(scenario\)\);[\s\S]{0,160}?if \(!followUpReadIsCurrent\(requestGeneration\)\) return null;[\s\S]{0,300}?strategyResult: result\.data/,
+  );
+  assert.match(
+    store,
+    /catch \(e\) \{\s*if \(!followUpReadIsCurrent\(requestGeneration\)\) return null;\s*set\(\{ error: String\(e\), loading: false \}\);/,
+  );
   // The identity reset drops both lanes with the results they label.
   const reset = readWebSource("stores/workspaceLoading.ts");
   assert.match(reset, /poolOptimizeAction: IDLE_DECISION_ACTION_STATE,/);
@@ -502,17 +669,58 @@ test("the Decision surface renders the action's own state next to the action and
   assert.equal(status.includes("state.error.message"), false);
 });
 
-test("Portfolio's route verdicts are derived only from results provenanced to this context", () => {
+test("every consumer derives from the model's results provenanced to the current inputs", () => {
+  const model = readWebSource("app/model/usePortfolioDecisionModel.ts");
   const portfolio = readWebSource("components/PortfolioWorkspace.tsx");
+  const market = readWebSource("components/MarketCockpit.tsx");
+  const decision = readWebSource("components/DecisionWorkspace.tsx");
+  const review = readWebSource("components/ReviewWorkspace.tsx");
 
+  // One gate in the model: a payload whose provenance is not the inputs the caller now knows is
+  // withheld (null) rather than presented as current. The gate covers the strategy result too.
+  assert.match(
+    model,
+    /const currentResourcePoolResult = optimizerContextMismatch \? null : api\.resourcePoolResult;/,
+  );
+  assert.match(
+    model,
+    /const currentRouteRecommendation = routeRecommendationContextMismatch\s*\? null\s*: api\.routeRecommendation;/,
+  );
+  assert.match(
+    model,
+    /const currentStrategyResult = strategyContextMismatch \? null : api\.strategyResult;/,
+  );
+  // The derived figures the map and the Portfolio strip display read the gated values.
+  assert.match(model, /currentResourcePoolResult\?\.total_net_pnl_gbp_per_day \?\?/);
+  assert.match(model, /const firstStrategyTarget = currentStrategyResult\?\.allocation_targets\[0\];/);
+
+  // Portfolio's route verdicts and PnL metrics read the model's provenanced values...
   assert.match(
     portfolio,
-    /const poolResult = portfolio\.optimizerContextMismatch \? null : api\.resourcePoolResult;/,
+    /const poolResult = portfolio\.currentResourcePoolResult;/,
   );
   assert.match(
     portfolio,
-    /const recommendation = portfolio\.routeRecommendationContextMismatch\s*\?\s*null\s*:\s*api\.routeRecommendation;/,
+    /const recommendation = portfolio\.currentRouteRecommendation;/,
   );
   assert.match(portfolio, /classifyRouteFeasibility\(\s*route,\s*recommendation,\s*poolResult,\s*api\.resourcePoolOptions,\s*\)/);
   assert.match(portfolio, /const allocation = poolResult\?\.allocations\.find\(/);
+  assert.match(portfolio, /money\(poolResult\?\.total_net_pnl_gbp_per_day, "\/d"\)/);
+  // ...the map does the same for its decision rail and strategy signal, and states a stale
+  // strategy result rather than showing the previous one as live...
+  assert.match(market, /routeRecommendation=\{portfolio\.currentRouteRecommendation\}/);
+  assert.match(market, /resourcePoolResult=\{portfolio\.currentResourcePoolResult\}/);
+  assert.match(market, /strategyResult=\{portfolio\.currentStrategyResult\}/);
+  assert.match(market, /strategyContextMismatch=\{portfolio\.strategyContextMismatch\}/);
+  assert.equal(market.includes("routeRecommendation={api.routeRecommendation}"), false);
+  assert.equal(market.includes("resourcePoolResult={api.resourcePoolResult}"), false);
+  // ...the Scenario and Optimize panels read the same gated payloads...
+  assert.match(decision, /routeRecommendation=\{portfolio\.currentRouteRecommendation\}/);
+  assert.match(decision, /resourcePoolResult=\{portfolio\.currentResourcePoolResult\}/);
+  assert.match(decision, /const result = portfolio\.currentResourcePoolResult;/);
+  // ...and the Review task gates its evidence pack with the same flag, naming a withheld run
+  // instead of presenting it as evidence.
+  assert.match(review, /const poolResult = poolResultContextMismatch \? null : resourcePoolResult;/);
+  assert.match(review, /poolResultContextMismatch && resourcePoolResult !== null/);
+  assert.match(review, /\{poolResult \? \(/);
 });

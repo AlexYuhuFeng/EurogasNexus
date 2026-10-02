@@ -78,6 +78,8 @@ interface NetworkWorkspaceProps {
   firstPoolAllocation: PoolAllocation | null;
   firstStrategyTarget: StrategyTarget | undefined;
   strategyResult: StrategyLabResultDTO | null;
+  /** The held strategy result was not computed from the inputs the caller now knows. */
+  strategyContextMismatch: boolean;
   activeWarning: string | null;
   reviewEvidenceItems: ReviewEvidenceItem[];
   marketLastUpdatedAtUtc: string | null;
@@ -135,6 +137,7 @@ export function NetworkWorkspace({
   firstPoolAllocation,
   firstStrategyTarget,
   strategyResult,
+  strategyContextMismatch,
   activeWarning,
   reviewEvidenceItems,
   marketLastUpdatedAtUtc,
@@ -462,14 +465,24 @@ export function NetworkWorkspace({
               <div className="panel decision-signal-panel">
                 <div className="panel-title-row">
                   <h2>{t("home.signal")}</h2>
-                  <span>{firstStrategyTarget ? t("data.live") : t("result.snapshot")}</span>
+                  <span>
+                    {strategyContextMismatch
+                      ? t("data.stale")
+                      : firstStrategyTarget
+                        ? t("data.live")
+                        : t("result.snapshot")}
+                  </span>
                 </div>
                 <div className="net-pnl-card">
                   <span>{t("home.strategy_process")}</span>
                   <strong>
                     {firstStrategyTarget ? `${firstStrategyTarget.market_bucket} ${firstStrategyTarget.target_allocation_pct.toFixed(1)}%` : t("home.not_running")}
                   </strong>
-                  <small>{strategyResult?.candidate_action_for_review ?? t("home.signal_idle")}</small>
+                  <small>
+                    {strategyContextMismatch
+                      ? t("context.result_mismatch_hint")
+                      : strategyResult?.candidate_action_for_review ?? t("home.signal_idle")}
+                  </small>
                 </div>
               </div>
             </>

@@ -340,3 +340,17 @@ re-scoped by the PROPOSED [contract revision and explicit payment terms
 integration plan](../engineering/CONTRACT_PAYMENT_INTEGRATION_PLAN.md); its
 rejection of inferred payment dates, the ACT/365 rate-to-factor shorthand and
 the end-of-window-plus-lag test remains binding. No implementation follows yet.
+
+**Result-invalidation note (2026-10-02):** the HMI acceptance rule *"Changing
+contract version, scenario inputs or market context must invalidate or clearly
+mark old results"* is now implemented for the two governed Decision computes
+(`Compare Options`, `Optimize Resource Pool`) and the strategy evaluation
+through one shared client-side input identity over the caller-known effective
+inputs (exact request plus saved-contract edit tokens and market-read marks) in
+[decisionResultProvenance.ts](../../clients/web/src/app/model/decisionResultProvenance.ts),
+consumed by the Decision, Portfolio, Review and map surfaces
+([section 27](COMMERCIAL_DECISION_WORKFLOW_SPEC.md)). Limitation: the backend
+exposes no immutable snapshot, revision hash or read token for the composed
+resource-pool payload, so this proves the inputs the caller sent and believed,
+not the backend's read at execution time; contract revision history and the
+other gaps listed above remain open.

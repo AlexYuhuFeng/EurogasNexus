@@ -13,7 +13,7 @@ def test_app_builder_barrel_exports_extracted_modules() -> None:
 
     barrel_text = APP_INDEX_TS.read_text(encoding="utf-8-sig")
     for export_line in [
-        'export { buildContractPayload } from "./contractPayload";',
+        'export { buildContractPayload, contractPayloadReadiness } from "./contractPayload";',
         'export { cloneDefaultContractDraft, defaultContractDraft } from "./defaultContractDraft";',
         'export type { ContractDraft } from "./defaultContractDraft";',
         "contractDraftFromRecord,",

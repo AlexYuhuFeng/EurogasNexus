@@ -987,9 +987,11 @@ export interface ApiState {
   /**
    * Compare the sale options and recommend an allocation.
    *
-   * `contextKey` is the trading-context key the request was built under; it becomes the
-   * result's provenance **only if the run succeeds**, so a context change is never erased by a
-   * failed retry and the surface can tell a current result from a stale one.
+   * `provenanceKey` is the caller's provenance key for the request it is sending - trading
+   * context plus the canonical input identity of the request
+   * (`app/model/decisionResultProvenance.ts`); it becomes the result's provenance **only if the
+   * run succeeds**, so a context or input change is never erased by a failed retry and the
+   * surface can tell a current result from a stale one.
    *
    * A failure is kept in the action's own lane as its structured cause (`routeCompareAction`),
    * which the surface renders through the product error taxonomy. The global `error` string is
@@ -998,14 +1000,27 @@ export interface ApiState {
    */
   recommendRouteAllocation: (
     request: RouteRecommendationRequestDTO,
-    contextKey: string,
+    provenanceKey: string,
   ) => Promise<void>;
-  /** Optimise the resource pool; `contextKey` carries the same successful-result provenance. */
+  /**
+   * Optimise the resource pool.
+   *
+   * `provenanceKey` carries the same successful-result provenance as `recommendRouteAllocation`;
+   * the held result is withheld from current metrics while it does not match this caller's
+   * current inputs.
+   */
   optimizeResourcePool: (
     request: PortfolioOptimizationRequestDTO,
-    contextKey: string,
+    provenanceKey: string,
   ) => Promise<void>;
-  evaluateStrategyLab: (scenario: StrategyLabRequestDTO) => Promise<void>;
+  /**
+   * Evaluate the strategy lab scenario.
+   *
+   * Returns the result the run produced, or null when it was refused or failed. The caller
+   * stamps its own provenance key only on a non-null answer, so a failure cannot relabel a
+   * previously successful result.
+   */
+  evaluateStrategyLab: (scenario: StrategyLabRequestDTO) => Promise<StrategyLabResultDTO | null>;
   fetchStrategySummary: () => Promise<void>;
   fetchStrategyRuns: () => Promise<void>;
   fetchGlossaryContext: (
@@ -2412,14 +2427,14 @@ export const useApiStore = create<ApiState>((set, get) => ({
     }
   },
 
-  recommendRouteAllocation: async (request, contextKey) => {
+  recommendRouteAllocation: async (request, provenanceKey) => {
     if (logoutInProgress) return;
     // One run per action at a time: a second click while the first is in flight is the same
     // question, not a new one, and the button is disabled for the same reason.
     if (get().routeCompareAction.phase === "pending") return;
     const requestGeneration = identityReadCoordinator.capture();
     set((state) => ({
-      routeCompareAction: decisionActionPending(state.routeCompareAction, contextKey),
+      routeCompareAction: decisionActionPending(state.routeCompareAction, provenanceKey),
       loading: true,
       error: null,
     }));
@@ -2430,7 +2445,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
         routeRecommendation: result.data,
         meta: result.meta,
         loading: false,
-        routeCompareAction: decisionActionSucceeded(state.routeCompareAction, contextKey),
+        routeCompareAction: decisionActionSucceeded(state.routeCompareAction, provenanceKey),
       }));
     } catch (e) {
       if (!followUpReadIsCurrent(requestGeneration)) return;
@@ -2445,12 +2460,12 @@ export const useApiStore = create<ApiState>((set, get) => ({
     }
   },
 
-  optimizeResourcePool: async (request, contextKey) => {
+  optimizeResourcePool: async (request, provenanceKey) => {
     if (logoutInProgress) return;
     if (get().poolOptimizeAction.phase === "pending") return;
     const requestGeneration = identityReadCoordinator.capture();
     set((state) => ({
-      poolOptimizeAction: decisionActionPending(state.poolOptimizeAction, contextKey),
+      poolOptimizeAction: decisionActionPending(state.poolOptimizeAction, provenanceKey),
       loading: true,
       error: null,
     }));
@@ -2461,7 +2476,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
         resourcePoolResult: result.data,
         meta: result.meta,
         loading: false,
-        poolOptimizeAction: decisionActionSucceeded(state.poolOptimizeAction, contextKey),
+        poolOptimizeAction: decisionActionSucceeded(state.poolOptimizeAction, provenanceKey),
       }));
     } catch (e) {
       if (!followUpReadIsCurrent(requestGeneration)) return;
@@ -2477,14 +2492,26 @@ export const useApiStore = create<ApiState>((set, get) => ({
   },
 
   evaluateStrategyLab: async (scenario) => {
+    if (logoutInProgress) return null;
+    // The run is asked by one identity, like the other governed computes: a sign-out or a
+    // session invalidation while it is in flight drops the answer entirely - result, metadata,
+    // the shared `loading`/`error` and the summary/runs follow-ups - and reports that the run
+    // produced nothing, so the caller stamps no provenance for it (`followUpReadIsCurrent`).
+    const requestGeneration = identityReadCoordinator.capture();
     set({ loading: true, error: null });
     try {
       const result = await api.evaluateStrategyLab(withoutLegacyFlag(scenario));
+      if (!followUpReadIsCurrent(requestGeneration)) return null;
       set({ strategyResult: result.data, meta: result.meta, loading: false });
       void get().fetchStrategySummary();
       void get().fetchStrategyRuns();
+      // The answer, not a handle: the caller stamps the provenance of the request it made only
+      // when the run actually produced one, so a failure leaves the prior result's key alone.
+      return result.data;
     } catch (e) {
+      if (!followUpReadIsCurrent(requestGeneration)) return null;
       set({ error: String(e), loading: false });
+      return null;
     }
   },
 

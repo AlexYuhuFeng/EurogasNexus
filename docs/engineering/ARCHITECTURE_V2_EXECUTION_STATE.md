@@ -5,6 +5,37 @@ Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical sli
 
 ## Current work
 
+### Decision result input freshness (2026-10-02)
+
+DeepSeek implemented this bounded slice on `3351ee1`, followed by a parent-requested
+session-safety repair. Compare and Optimize results now carry canonical identities
+of their caller-known request inputs, saved-contract tokens and exposed market
+observations. Shared selectors withhold mismatched results from current economics
+across Scenario, Portfolio, Network and Review. Unknown values remain unavailable,
+not zero. Strategy evaluation responses are discarded after identity invalidation,
+including errors and follow-up reads; real-store deferred tests cover this boundary.
+
+Independent parent validation: standard web suite 830 passed, 3 skipped; production
+build passed (existing ineffective-dynamic-import warning); Python contract suite
+500 passed. `git diff --check` passed. The two assertion/comment failures in the
+previous `3351ee1` CI run are repaired here; that previous run was not green.
+
+Limits: identities describe client-known inputs, not immutable server snapshots.
+Strategy overrides are conservatively stale against the default payload, and no
+current surface calls that evaluation helper. Raw strategy provenance in the
+persisted-run detail still needs explicit freshness treatment before wiring it to
+a new evaluation surface. No backend API/schema or runtime contract writes.
+
+Live acceptance remains OPEN: PostgreSQL accepts connections, but the authenticated
+browser reported monitoring/pipeline/nomination read timeouts. Compare Options
+remained pending for several minutes without a final result. The API process was
+reachable (an unmatched route promptly returned 404), which is not proof that
+authenticated computations are healthy. Local evidence:
+`output/runtime/decision-freshness-pending.png`. Next bounded task: diagnose the
+browser-to-API request lifecycle, restore bounded completion/failure, then verify
+changed-input freshness through the real UI at desktop and mobile widths. Do not
+treat these automated checks as completed live trading-workflow acceptance.
+
 ### Unknown contract numeric terms (2026-10-02)
 
 DeepSeek implemented nullable numeric draft terms on baseline `56337f6`.

@@ -344,14 +344,25 @@ def test_web_client_matches_design_reference_cockpit() -> None:
     assert 'activeWorkspace === "glossary"' in app
     assert 'activeWorkspace === "manual"' in app
     assert "resourcePoolOptimizationRequest" in app
-    # Every run carries the trading-context key it was built under, so a result can be
-    # provenanced to the context it was actually computed for (October 1 action-lifecycle
-    # repair; see COMMERCIAL_DECISION_WORKFLOW_SPEC.md section 26).
-    assert "optimizeResourcePool(resourcePoolOptimizationRequest, currentContextKey)" in app
+    # Every run carries the provenance key it was built under - the trading context plus the
+    # canonical identity of the caller-known inputs (October 1 action-lifecycle repair plus the
+    # input-identity follow-up; see COMMERCIAL_DECISION_WORKFLOW_SPEC.md sections 26 and 27), so
+    # a result can be provenanced to the inputs it was actually computed for.
+    assert "const optimizerProvenanceKey = useMemo(" in app
+    assert "decisionInputIdentity({" in app
+    assert (
+        "api.optimizeResourcePool(resourcePoolOptimizationRequest, optimizerProvenanceKey)"
+        in app
+    )
+    assert (
+        "api.recommendRouteAllocation(routeRecommendationRequest, compareProvenanceKey)"
+        in app
+    )
     assert "lastAutoOptimizerSignatureRef" in app
     assert "autoOptimizerSignature" in app
     assert (
-        "void api.optimizeResourcePool(resourcePoolOptimizationRequest, currentContextKey)" in app
+        "void api.optimizeResourcePool(resourcePoolOptimizationRequest, optimizerProvenanceKey)"
+        in app
     )
     assert "canRunPoolOptimizer" in app
     assert "poolInputBlockers" in app

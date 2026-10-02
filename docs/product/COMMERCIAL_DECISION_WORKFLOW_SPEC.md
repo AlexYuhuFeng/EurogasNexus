@@ -239,10 +239,11 @@ optimizer calls are user-triggered. No N+1 API calls are introduced.
 - Attribution limited to components already isolated by backend.
 - No true portfolio master identity; current resource pool is the scope.
 - No visual-regression runner locally.
-- The strategy lab's own result context key (`strategyResultContextKey`) is
-  still stamped when a run starts rather than when one succeeds. The same defect
-  class as section 26, in a different action; it was outside this repair's scope
-  and remains open.
+- The strategy lab's own result key (`strategyResultContextKey`) is stamped
+  only by a successful answer and now carries the payload identity
+  (section 27). The evaluate action exists in the model but no surface in the
+  current build starts it; the strategy views read persisted runs and the
+  summary, not this in-memory result.
 - The Scenario panel only offers the one draft value an action consumes (the
   annual financing-rate fallback). `delivery_quantity_mwh_per_day`,
   `contract_price_gbp_mwh`, `delivery_tolerance_pct`,
@@ -307,3 +308,90 @@ The automatic pool run is retained as it was found: for an identity that holds
 the capability, the optimiser still runs automatically when the pool inputs'
 signature changes (no click required), now through the same gate and the same
 provenance; for an identity that does not hold it, no request is issued at all.
+
+## 27. Input identity: result provenance beyond the trading context
+
+Added 2026-10-02 (bounded follow-up to section 26). Parent/user direction:
+changing a contract revision, scenario inputs or market context must invalidate
+or clearly mark old results on **all** consumers, not only Scenario. Repository
+inspection showed section 26's provenance key covered only `gasDay|product|hub`,
+while the two governed computes are composed from the persisted resource-pool
+read: an edited saved contract, a refreshed pool or market read, or a changed
+financing input left the previous result displayed as current on the Portfolio
+PnL strip, the Optimize task, the map's decision rail, Review and Scenario.
+
+`clients/web/src/app/model/decisionResultProvenance.ts` now owns the input
+identity, and `decisionActionModel.ts` keeps only the gate and lifecycle rules.
+
+- **What is bound.** The caller-known effective inputs, canonicalised
+  deterministically: the exact request object the client will send, the identity
+  tokens of the saved upstream contracts the pool read is composed from
+  (`contract_id@edit_token`, falling back to `updated_at_utc`, else a stated
+  `unavailable` marker) and the market-read marks behind the sale options
+  (`option_id`, price, observation instant, source system/reference, freshness,
+  quality score, simulated flag). Object keys and explicitly unordered string
+  collections (`required_tso_access`, `accessible_tsos`, ...) are sorted; every
+  other array keeps its order; numbers, `null`, `false` and `0` are preserved (a
+  recorded `null` is not an absent field).
+- **What each action binds** (inventory of the request builders):
+  - `Optimize Resource Pool` (`buildResourcePoolOptimizationRequest`): the
+    persisted resource-pool read (all resources and sale options, by reference),
+    plus `annual_financing_rate_pct` resolved as the first saved contract's rate,
+    else the draft fallback; the request is refused, and no key composed, when
+    neither records a rate.
+  - `Compare Options` (`buildRouteRecommendationRequest`): the first resource's
+    point and TSO access, the sale-option candidates (price, cost, capacity,
+    access), the summed pool volume and the first saved contract's `gas_year`.
+  - the strategy evaluation: the payload actually sent (scenario resource
+    context, price observations, components, risk control, and the shadow PnL
+    the run continues from).
+- **What must not invalidate.** A draft field no request consumes (section 25's
+  list) cannot change either identity, and a re-read that returns the same values
+  yields the same identity by design. The draft financing rate is part of the
+  optimiser identity only while it is the rate the request carries; when a saved
+  contract rate governs, editing the draft is inert.
+- **The one rule.** A run is stamped with `scope::trading-context::input-identity`
+  only when it **succeeds**; `decisionProvenanceMismatch` marks a held result
+  stale unless its key equals the key of the inputs the caller now knows, and an
+  unknown key on either side is stale (a request that can no longer be composed
+  has no current key, so the held result cannot be vouched for). The store
+  stamps only what the caller passed at request time, so a run completing after
+  an edit stays historical rather than being published against the new inputs.
+- **The consumers.** `usePortfolioDecisionModel` derives
+  `currentResourcePoolResult`, `currentRouteRecommendation` and
+  `currentStrategyResult` (null while stale) and computes the Portfolio
+  PnL/margin, sale/purchase/route-charge and first-strategy-target values from
+  them. Scenario, Optimize, Review, the Portfolio overview/routes and the map's
+  decision rail read those gated values, not the raw store lanes; a withheld
+  payload is named stale and never replaced by `0` (the Optimize "unallocated"
+  figure is `n/a`, not `0`, while no current run exists). Warnings and the
+  review evidence pack are gated with the same rule. The strategy key is now
+  stamped only by a successful answer, and the map's strategy signal shows
+  `Stale` instead of `Live` while it does not match.
+
+The strategy evaluation also carries its identity generation, like the two
+governed computes: an answer that lands after a sign-out or a session
+invalidation is dropped whole - no result, metadata, `loading`/`error` write or
+summary/runs follow-up - and the caller receives no answer, so it stamps no
+provenance. An evaluation started with caller overrides is stamped with the
+identity of the payload actually sent; the model's current key is composed from
+the default payload, so an overridden run is withheld as stale rather than
+relabelled current. That is the conservative posture, not an equivalence claim
+between the two payloads, and no surface in the current build passes overrides.
+
+Limits, stated so they are not overstated:
+
+- The backend exposes no immutable snapshot, revision hash or read token for the
+  composed resource-pool payload or the market rows behind it. The identity
+  proves which inputs the caller sent and believed; it is not server-verified
+  proof of what the backend read or executed against, and no hash is presented
+  as such.
+- A saved row exposing neither an edit token nor `updated_at_utc` contributes a
+  constant marker; the client cannot prove such a row unchanged.
+- The route comparison request still falls back to `manual_cost: 0` for a sale
+  option that carries no route cost (the existing backend contract default); the
+  persisted read normally carries one.
+- No backend route, permission, schema or datastore changed. This is a client
+  provenance posture over the existing request contracts; the automatic pool run
+  still starts from the existing input signature, and a result that goes stale
+  is re-run by the user's action.

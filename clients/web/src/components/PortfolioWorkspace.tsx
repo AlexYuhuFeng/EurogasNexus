@@ -29,6 +29,10 @@ function PortfolioOverview({ controller }: { controller: AppController }) {
   const { api, portfolio, selection, navigation, t } = controller;
   const resources = portfolio.portfolioResources;
   const totalVolume = portfolio.totalPoolVolume;
+  // The pool metrics are statements about the current inputs, so they read the provenanced
+  // payload only: a stale result is withheld (n/a) and announced below, never displayed as
+  // this context's figures and never substituted with 0.
+  const poolResult = portfolio.currentResourcePoolResult;
   const weightedCost = resources.length
     ? resources.reduce(
         (total, resource) =>
@@ -39,17 +43,26 @@ function PortfolioOverview({ controller }: { controller: AppController }) {
       ) / Math.max(totalVolume, 1)
     : null;
   const diagnostics = portfolio.commercialDiagnostics;
+  const resultsStale =
+    portfolio.resultsContextMismatch &&
+    (api.resourcePoolResult !== null || api.routeRecommendation !== null);
 
   return (
     <div className="commercial-overview">
       <section className="commercial-metric-strip" aria-label={t("portfolio.overview")}>
         <span><small>{t("home.pool_volume")}</small><strong>{totalVolume.toLocaleString()} MWh/d</strong></span>
         <span><small>{t("portfolio.weighted_cost")}</small><strong>{weightedCost === null ? "n/a" : `${weightedCost.toFixed(2)} GBP/MWh`}</strong></span>
-        <span><small>{t("portfolio.allocated")}</small><strong>{api.resourcePoolResult?.total_allocated_mwh_per_day?.toLocaleString() ?? "n/a"} MWh/d</strong></span>
-        <span><small>{t("portfolio.unallocated")}</small><strong>{api.resourcePoolResult?.total_unallocated_mwh_per_day?.toLocaleString() ?? "n/a"} MWh/d</strong></span>
-        <span><small>{t("portfolio.net_indicative")}</small><strong>{money(api.resourcePoolResult?.total_net_pnl_gbp_per_day, "/d")}</strong></span>
+        <span><small>{t("portfolio.allocated")}</small><strong>{poolResult?.total_allocated_mwh_per_day?.toLocaleString() ?? "n/a"} MWh/d</strong></span>
+        <span><small>{t("portfolio.unallocated")}</small><strong>{poolResult?.total_unallocated_mwh_per_day?.toLocaleString() ?? "n/a"} MWh/d</strong></span>
+        <span><small>{t("portfolio.net_indicative")}</small><strong>{money(poolResult?.total_net_pnl_gbp_per_day, "/d")}</strong></span>
         <span><small>{t("portfolio.warnings")}</small><strong>{diagnostics.length}</strong></span>
       </section>
+      {resultsStale && (
+        <div className="runtime-blocker-list compact" role="status">
+          <strong>{t("context.result_mismatch")}</strong>
+          <span>{t("context.result_mismatch_hint")}</span>
+        </div>
+      )}
       <section className="workspace-panel">
         <PanelHeader
           title={t("portfolio.resource_pool")}
@@ -113,13 +126,11 @@ function PortfolioRoutes({ controller }: { controller: AppController }) {
   const { api, portfolio, selection, navigation, t } = controller;
   const routes = api.routeCandidates;
   // Feasibility and allocated volume are claims about *this* context's economics, so they are
-  // derived only from results the client can prove were computed for it. A run provenanced to
-  // another trading context is withheld here and named stale, rather than presented as this
-  // route's current verdict.
-  const poolResult = portfolio.optimizerContextMismatch ? null : api.resourcePoolResult;
-  const recommendation = portfolio.routeRecommendationContextMismatch
-    ? null
-    : api.routeRecommendation;
+  // derived only from the model's provenanced results: a run whose inputs the client can no
+  // longer vouch for is withheld here and named stale, rather than presented as this route's
+  // current verdict.
+  const poolResult = portfolio.currentResourcePoolResult;
+  const recommendation = portfolio.currentRouteRecommendation;
   const resultsStale = portfolio.resultsContextMismatch;
   return (
     <section className="workspace-panel commercial-routes-panel">

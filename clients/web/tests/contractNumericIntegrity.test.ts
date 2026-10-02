@@ -15,8 +15,7 @@
  *   (`UpstreamContractUpsertRequest`) and a non-recorded required term blocks the save;
  * * the payload boundary refuses any draft validation refuses, before transport.
  *
- * Backend-bound parity is asserted against the bounds written into the route at
- * `src/eurogas_nexus/api/routes/public/route_cost.py::UpstreamContractUpsertRequest`; this
+ * Backend-bound parity uses the published `UpstreamContractUpsertRequest` numeric bounds; this
  * suite cannot import the Python route, so each bound below is transcribed from it and the
  * route remains the authority.
  */

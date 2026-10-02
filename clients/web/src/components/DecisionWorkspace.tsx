@@ -38,14 +38,17 @@ function money(value: number | null | undefined, suffix = ""): string {
 }
 
 function OptimizeWorkspace({ controller }: { controller: AppController }) {
-  const { api, portfolio, t, navigation } = controller;
-  const result = api.resourcePoolResult;
+  const { portfolio, t, navigation } = controller;
+  // Only a pool result provenanced to the inputs the caller now knows feeds these metrics: a
+  // stale payload is withheld (n/a), never shown as this context's figures and never
+  // substituted with 0. The action status above the panel states the staleness.
+  const result = portfolio.currentResourcePoolResult;
   const allocations = portfolio.poolAllocations;
   const blockers = portfolio.poolInputBlockers;
-  const unallocated = result?.total_unallocated_mwh_per_day ?? 0;
+  const unallocated = result?.total_unallocated_mwh_per_day ?? null;
   const unallocatedReasons = blockers.length
     ? blockers
-    : unallocated > 0
+    : unallocated !== null && unallocated > 0
       ? ["NO_ECONOMIC_DESTINATION_OR_CONSTRAINT_BOUND"]
       : [];
 
@@ -53,7 +56,7 @@ function OptimizeWorkspace({ controller }: { controller: AppController }) {
     <div className="commercial-overview">
       <section className="commercial-metric-strip" aria-label={t("decision.optimize")}>
         <span><small>{t("portfolio.allocated")}</small><strong>{result?.total_allocated_mwh_per_day?.toLocaleString() ?? "n/a"} MWh/d</strong></span>
-        <span><small>{t("portfolio.unallocated")}</small><strong>{unallocated.toLocaleString()} MWh/d</strong></span>
+        <span><small>{t("portfolio.unallocated")}</small><strong>{unallocated === null ? "n/a" : `${unallocated.toLocaleString()} MWh/d`}</strong></span>
         <span><small>{t("portfolio.net_indicative")}</small><strong>{money(result?.total_net_pnl_gbp_per_day, "/d")}</strong></span>
         <span><small>{t("portfolio.status")}</small><strong>{result?.status ?? t("home.pending")}</strong></span>
         <span><small>{t("portfolio.warnings")}</small><strong>{result?.warnings.length ?? 0}</strong></span>
@@ -312,10 +315,10 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
           <ScenarioWorkspace
             routeCandidates={api.routeCandidates}
             routeEconomics={portfolio.scenarioRouteEconomics}
-            routeRecommendation={api.routeRecommendation}
+            routeRecommendation={portfolio.currentRouteRecommendation}
             contract={contractEditor.contract}
             poolInputBlockers={portfolio.poolInputBlockers}
-            resourcePoolResult={api.resourcePoolResult}
+            resourcePoolResult={portfolio.currentResourcePoolResult}
             saleOptionById={portfolio.saleOptionById}
             carriedRouteId={selection.routeId}
             contextMismatch={portfolio.resultsContextMismatch}
@@ -342,6 +345,10 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
           <StorageDispatchPanel t={t} assessment={dispatch} record={optimizationRun} />
         )}
         {task === "review" && (
+          /* The raw pool payload is handed to the review panel only so it can state that a stale
+             run is being withheld; the panel gates its allocations and evidence pack with the
+             same provenance flag (`poolResultContextMismatch`) and never presents the raw
+             payload as current evidence. */
           <ReviewWorkspace
             allocations={portfolio.poolAllocations}
             saleOptionById={portfolio.saleOptionById}

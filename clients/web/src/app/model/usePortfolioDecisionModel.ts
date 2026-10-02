@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { TFunction } from "i18next";
 import { warningLabel } from "@/app/warningLabel";
 import {
-  resultContextMatches,
   traderContextKey,
   type DeliveryProductId,
   type SupportedHubId,
@@ -30,6 +29,11 @@ import {
   decisionComputeGate,
   decisionResultContextMismatch,
 } from "@/app/model/decisionActionModel";
+import {
+  decisionInputIdentity,
+  decisionProvenanceKey,
+  decisionProvenanceMismatch,
+} from "@/app/model/decisionResultProvenance";
 import type { ApiState } from "@/stores/api";
 
 interface PortfolioDecisionModelParams {
@@ -130,15 +134,127 @@ export function usePortfolioDecisionModel({
     [contextMarkets, contract, liveMark, portfolioResources, selectedResourceId],
   );
 
-  const selectedAllocation = api.routeRecommendation?.allocations[0] ?? null;
-  const poolAllocations = api.resourcePoolResult?.allocations ?? [];
+  /**
+   * The provenance key a run is stamped with: which act, the trading context, and the canonical
+   * identity of the caller-known inputs the request was composed from
+   * (`app/model/decisionResultProvenance.ts`). A saved-contract revision, a refreshed pool read,
+   * a moved market mark or the financing input changes the key, so a result that lands afterwards
+   * stays stale instead of being relabelled current; a draft field no request consumes changes
+   * nothing. The two governed actions carry distinct keys because their requests consume
+   * different inputs.
+   */
+  const optimizerProvenanceKey = useMemo(
+    () =>
+      resourcePoolOptimizationRequest === null
+        ? null
+        : decisionProvenanceKey(
+            "optimize_pool",
+            currentContextKey,
+            decisionInputIdentity({
+              request: resourcePoolOptimizationRequest,
+              savedContracts: api.upstreamContracts,
+              marketReads: saleOptions,
+            }),
+          ),
+    [api.upstreamContracts, currentContextKey, resourcePoolOptimizationRequest, saleOptions],
+  );
+  const compareProvenanceKey = useMemo(
+    () =>
+      decisionProvenanceKey(
+        "compare_routes",
+        currentContextKey,
+        decisionInputIdentity({
+          request: routeRecommendationRequest,
+          savedContracts: api.upstreamContracts,
+          marketReads: saleOptions,
+        }),
+      ),
+    [api.upstreamContracts, currentContextKey, routeRecommendationRequest, saleOptions],
+  );
+  /**
+   * The strategy evaluation request as it will actually be sent (the scenario plus the shadow
+   * PnL the run continues from). Its identity is built from this payload, so a contract
+   * revision, pool read or market observation change invalidates a shown strategy result too.
+  */
+  function strategyEvaluationPayload(overrides?: {
+    risk_control?: Record<string, unknown>;
+    bar_minutes?: number;
+  }) {
+    return {
+      ...strategyScenario,
+      risk_control: {
+        ...(strategyScenario.risk_control ?? {}),
+        ...(overrides?.risk_control ?? {}),
+      },
+      existing_shadow_pnl_gbp: api.strategySummary?.cumulative_pnl_gbp ?? 0,
+      components: overrides?.bar_minutes
+        ? strategyScenario.components.map((component) => ({
+            ...component,
+            target_bar_minutes: overrides.bar_minutes,
+          }))
+        : strategyScenario.components,
+    };
+  }
+  /**
+   * The current key is composed from the *default* payload (`strategyEvaluationPayload()`).
+   *
+   * An evaluation started with overrides sends a payload this key does not describe: it is
+   * stamped with the identity of the payload actually sent, so a successful overridden run does
+   * not match and is withheld as stale (`currentStrategyResult` null) rather than presented as
+   * the default payload's result. That is the conservative posture, not an equivalence claim -
+   * the overridden and default payloads are different requests - and no surface in this build
+   * calls the evaluation with overrides.
+   */
+  const strategyProvenanceKey = useMemo(
+    () =>
+      decisionProvenanceKey(
+        "strategy_evaluation",
+        currentContextKey,
+        decisionInputIdentity({
+          request: strategyEvaluationPayload(),
+          savedContracts: api.upstreamContracts,
+        }),
+      ),
+    [api.strategySummary, api.upstreamContracts, currentContextKey, strategyScenario],
+  );
+  // Each result carries its own provenance lane, so one action's run cannot relabel the other's
+  // payload and a failed retry cannot erase a context or input change. One rule decides
+  // staleness (`decisionProvenanceMismatch`): a held result is current only while its key equals
+  // the key of the inputs the caller now knows.
+  const optimizerContextMismatch = decisionResultContextMismatch(
+    api.poolOptimizeAction,
+    api.resourcePoolResult !== null,
+    optimizerProvenanceKey,
+  );
+  const routeRecommendationContextMismatch = decisionResultContextMismatch(
+    api.routeCompareAction,
+    api.routeRecommendation !== null,
+    compareProvenanceKey,
+  );
+  const strategyContextMismatch = decisionProvenanceMismatch(
+    api.strategyResult !== null,
+    strategyResultContextKey,
+    strategyProvenanceKey,
+  );
+  // The one derived posture every consumer reads: a payload whose provenance is not the caller's
+  // current inputs is withheld from current metrics - never substituted with 0 - and the surface
+  // states that it is stale. The scenario selector, the map's decision rail, the Portfolio PnL
+  // strip, the Review evidence pack and the warning lists read these values, not the raw lanes.
+  const currentResourcePoolResult = optimizerContextMismatch ? null : api.resourcePoolResult;
+  const currentRouteRecommendation = routeRecommendationContextMismatch
+    ? null
+    : api.routeRecommendation;
+  const currentStrategyResult = strategyContextMismatch ? null : api.strategyResult;
+
+  const selectedAllocation = currentRouteRecommendation?.allocations[0] ?? null;
+  const poolAllocations = currentResourcePoolResult?.allocations ?? [];
   const firstPoolAllocation = poolAllocations[0] ?? null;
   const firstPortfolioResource = portfolioResources[0] ?? null;
   const firstAllocationOption = firstPoolAllocation
     ? saleOptionById.get(firstPoolAllocation.option_id)
     : null;
   const rawDecisionPnl =
-    api.resourcePoolResult?.total_net_pnl_gbp_per_day ??
+    currentResourcePoolResult?.total_net_pnl_gbp_per_day ??
     (selectedAllocation?.netback !== undefined && selectedAllocation?.netback !== null
       ? selectedAllocation.netback * selectedAllocation.allocated_mwh_per_day
       : null) ??
@@ -153,9 +269,9 @@ export function usePortfolioDecisionModel({
     null;
   const purchasePrice = firstPortfolioResource?.contract_cost_gbp_mwh ?? null;
   const routeCharge = firstAllocationOption?.route_cost_gbp_mwh ?? selectedAllocation?.route_cost ?? null;
-  const firstStrategyTarget = api.strategyResult?.allocation_targets[0];
+  const firstStrategyTarget = currentStrategyResult?.allocation_targets[0];
   const activeWarning = [
-    ...(api.strategyResult?.warnings ?? []),
+    ...(currentStrategyResult?.warnings ?? []),
     ...(api.meta?.warnings ?? []),
   ][0] ?? null;
   const { latestCapacityRows } = useMemo(
@@ -171,18 +287,18 @@ export function usePortfolioDecisionModel({
   );
   const reviewWarnings = useMemo(
     () => buildReviewWarnings(
-      api.resourcePoolResult,
-      api.routeRecommendation,
-      api.strategyResult,
+      currentResourcePoolResult,
+      currentRouteRecommendation,
+      currentStrategyResult,
       api.analysisResult,
       api.meta,
     ),
     [
       api.analysisResult,
       api.meta,
-      api.resourcePoolResult,
-      api.routeRecommendation,
-      api.strategyResult,
+      currentResourcePoolResult,
+      currentRouteRecommendation,
+      currentStrategyResult,
     ],
   );
   // Three states, not two: a status read that has not answered is not a disconnection, and the
@@ -218,45 +334,28 @@ export function usePortfolioDecisionModel({
   });
   const canRunPoolOptimizer = decisionActionAvailable(poolOptimizeGate, api.poolOptimizeAction);
   const canCompareRoutes = decisionActionAvailable(routeCompareGate, api.routeCompareAction);
-  // Each result carries its own provenance lane, so one action's run cannot relabel the
-  // other's payload and a failed retry cannot erase a context change.
-  const optimizerContextMismatch = decisionResultContextMismatch(
-    api.poolOptimizeAction,
-    api.resourcePoolResult !== null,
-    currentContextKey,
-  );
-  const routeRecommendationContextMismatch = decisionResultContextMismatch(
-    api.routeCompareAction,
-    api.routeRecommendation !== null,
-    currentContextKey,
-  );
   // The Scenario panel's economics may only be derived from results that are current for the
-  // context on screen: a payload provenanced to another context is withheld from the selector
-  // (it reads "unavailable" and the panel states the mismatch) rather than presented as the
-  // economics of the context the trader is standing in.
+  // inputs on screen: a payload with another provenance is withheld from the selector (it reads
+  // "unavailable" and the panel states the mismatch) rather than presented as this context's
+  // economics.
   const scenarioRouteEconomics = useMemo(
     () => selectScenarioRouteEconomics({
       carriedRouteId: selectedRouteId,
       selectedResourceId,
-      routeRecommendation: routeRecommendationContextMismatch ? null : api.routeRecommendation,
-      resourcePoolResult: optimizerContextMismatch ? null : api.resourcePoolResult,
+      routeRecommendation: currentRouteRecommendation,
+      resourcePoolResult: currentResourcePoolResult,
       portfolioResources,
       saleOptionById,
     }),
     [
-      api.resourcePoolResult,
-      api.routeRecommendation,
-      optimizerContextMismatch,
+      currentResourcePoolResult,
+      currentRouteRecommendation,
       portfolioResources,
-      routeRecommendationContextMismatch,
       saleOptionById,
       selectedResourceId,
       selectedRouteId,
     ],
   );
-  const strategyContextMismatch =
-    api.strategyResult !== null &&
-    !resultContextMatches(strategyResultContextKey, { gasDay, deliveryProduct, hubId });
   const poolInputBlockers = useMemo(() => {
     const blockers: string[] = [];
     if (runtimeStore === "unknown") blockers.push(t("home.blocker_runtime_unknown"));
@@ -272,10 +371,15 @@ export function usePortfolioDecisionModel({
     () => buildCommercialDiagnostics({
       poolInputBlockers,
       options: api.resourcePoolOptions,
-      optimizer: api.resourcePoolResult,
-      recommendation: api.routeRecommendation,
+      optimizer: currentResourcePoolResult,
+      recommendation: currentRouteRecommendation,
     }),
-    [api.resourcePoolOptions, api.resourcePoolResult, api.routeRecommendation, poolInputBlockers],
+    [
+      api.resourcePoolOptions,
+      currentResourcePoolResult,
+      currentRouteRecommendation,
+      poolInputBlockers,
+    ],
   );
   const autoOptimizerSignature = useMemo(
     () => JSON.stringify({
@@ -303,15 +407,18 @@ export function usePortfolioDecisionModel({
     // refuses for commercial data is never sent a request on the user's behalf, so it never
     // logs a 403 for an action nobody chose.
     if (!canRunPoolOptimizer || api.loading || resourcePoolOptimizationRequest === null) return;
+    // The key the run is requested under, not the trading context alone: if this changes while
+    // the run is in flight, the answer is committed with the old key and reads stale.
+    if (optimizerProvenanceKey === null) return;
     if (lastAutoOptimizerSignatureRef.current === autoOptimizerSignature) return;
     lastAutoOptimizerSignatureRef.current = autoOptimizerSignature;
-    void api.optimizeResourcePool(resourcePoolOptimizationRequest, currentContextKey);
+    void api.optimizeResourcePool(resourcePoolOptimizationRequest, optimizerProvenanceKey);
   }, [
     api.loading,
     api.optimizeResourcePool,
     autoOptimizerSignature,
     canRunPoolOptimizer,
-    currentContextKey,
+    optimizerProvenanceKey,
     resourcePoolOptimizationRequest,
   ]);
 
@@ -353,14 +460,14 @@ export function usePortfolioDecisionModel({
 
     reviewWarnings.forEach((warning) => add(t("home.evidence_warning"), warningLabel(warning, t)));
     poolInputBlockers.forEach((blocker) => add(t("home.evidence_blocker"), blocker));
-    (api.resourcePoolResult?.missing_inputs ?? []).forEach(
+    (currentResourcePoolResult?.missing_inputs ?? []).forEach(
       (input) => add(t("home.evidence_missing_input"), input),
     );
-    (api.routeRecommendation?.assumptions ?? []).forEach(
+    (currentRouteRecommendation?.assumptions ?? []).forEach(
       (assumption) => add(t("home.evidence_assumption"), assumption),
     );
     [
-      ...(api.resourcePoolResult?.source_refs ?? []),
+      ...(currentResourcePoolResult?.source_refs ?? []),
       ...(api.meta?.source_references ?? []),
       ...Object.values(api.endpointMeta).flatMap((item) => item.source_references ?? []),
     ].forEach((sourceRef) => add(t("home.evidence_source"), sourceRef));
@@ -369,8 +476,8 @@ export function usePortfolioDecisionModel({
   }, [
     api.endpointMeta,
     api.meta,
-    api.resourcePoolResult,
-    api.routeRecommendation,
+    currentResourcePoolResult,
+    currentRouteRecommendation,
     poolInputBlockers,
     reviewWarnings,
     t,
@@ -384,32 +491,35 @@ export function usePortfolioDecisionModel({
     // Refused here for the same reason the control is disabled: an unavailable action must not
     // issue a request, and a second click while one is in flight is the same question.
     if (!canRunPoolOptimizer || resourcePoolOptimizationRequest === null) return;
-    void api.optimizeResourcePool(resourcePoolOptimizationRequest, currentContextKey);
+    if (optimizerProvenanceKey === null) return;
+    void api.optimizeResourcePool(resourcePoolOptimizationRequest, optimizerProvenanceKey);
   }
 
   function recommendRouteAllocationForCurrentContext() {
     if (!canCompareRoutes) return;
-    void api.recommendRouteAllocation(routeRecommendationRequest, currentContextKey);
+    void api.recommendRouteAllocation(routeRecommendationRequest, compareProvenanceKey);
   }
 
   function evaluateStrategyForCurrentContext(overrides?: {
     risk_control?: Record<string, unknown>;
     bar_minutes?: number;
   }) {
-    setStrategyResultContextKey(currentContextKey);
-    void api.evaluateStrategyLab({
-      ...strategyScenario,
-      risk_control: {
-        ...(strategyScenario.risk_control ?? {}),
-        ...(overrides?.risk_control ?? {}),
-      },
-      existing_shadow_pnl_gbp: api.strategySummary?.cumulative_pnl_gbp ?? 0,
-      components: overrides?.bar_minutes
-        ? strategyScenario.components.map((component) => ({
-            ...component,
-            target_bar_minutes: overrides.bar_minutes,
-          }))
-        : strategyScenario.components,
+    // `overrides` are stamped with the identity of the payload actually sent; that differs from
+    // the model's default-payload current key, so an overridden run is withheld as stale by the
+    // rule above instead of being relabelled current (no equivalence is claimed).
+    const payload = strategyEvaluationPayload(overrides);
+    const provenanceKey = decisionProvenanceKey(
+      "strategy_evaluation",
+      currentContextKey,
+      decisionInputIdentity({
+        request: payload,
+        savedContracts: api.upstreamContracts,
+      }),
+    );
+    void api.evaluateStrategyLab(payload).then((completed) => {
+      // Stamped only by a run that actually produced a result: a refused or failed evaluation
+      // leaves the previous result and its own provenance key in place.
+      if (completed) setStrategyResultContextKey(provenanceKey);
     });
   }
 
@@ -429,9 +539,17 @@ export function usePortfolioDecisionModel({
     poolAllocations,
     optimizerContextMismatch,
     routeRecommendationContextMismatch,
-    /** Either result displayed by the Scenario panel is stale for the current context. */
+    /** Either governed result the surfaces display is stale for the current inputs. */
     resultsContextMismatch: optimizerContextMismatch || routeRecommendationContextMismatch,
     strategyContextMismatch,
+    /**
+     * The one provenance gate every consumer reads: each is null while the held payload was not
+     * computed from the inputs the caller now knows, so stale economics are withheld rather than
+     * relabelled current or replaced with 0.
+     */
+    currentResourcePoolResult,
+    currentRouteRecommendation,
+    currentStrategyResult,
     optimizeResourcePoolForCurrentContext,
     recommendRouteAllocationForCurrentContext,
     evaluateStrategyForCurrentContext,

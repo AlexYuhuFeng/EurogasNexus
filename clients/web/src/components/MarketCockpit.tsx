@@ -414,9 +414,9 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
             screenOrderCount={api.screenOrders.length}
             upstreamContractCount={api.upstreamContracts.length}
             networkGeometryState={portfolio.networkGeometryState}
-            routeRecommendation={api.routeRecommendation}
+            routeRecommendation={portfolio.currentRouteRecommendation}
             decisionPnl={portfolio.decisionPnl}
-            resourcePoolResult={api.resourcePoolResult}
+            resourcePoolResult={portfolio.currentResourcePoolResult}
             poolAllocations={portfolio.poolAllocations}
             saleOptionById={portfolio.saleOptionById}
             hasPortfolioResources={portfolio.hasPortfolioResources}
@@ -426,7 +426,8 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
             routeCharge={portfolio.routeCharge}
             firstPoolAllocation={portfolio.firstPoolAllocation}
             firstStrategyTarget={portfolio.firstStrategyTarget}
-            strategyResult={api.strategyResult}
+            strategyResult={portfolio.currentStrategyResult}
+            strategyContextMismatch={portfolio.strategyContextMismatch}
             activeWarning={portfolio.activeWarning}
             reviewEvidenceItems={portfolio.reviewEvidenceItems}
             marketLastUpdatedAtUtc={api.marketLastUpdatedAtUtc}
