@@ -49,6 +49,57 @@ export function notesRecordFromRecord(record: Record<string, unknown>): Record<s
   }
 }
 
+/**
+ * The persisted row's own notes object to carry through an editor save, or `null` when
+ * there is nothing to preserve.
+ *
+ * A missing or blank notes value preserves nothing. A stored JSON object is copied so the
+ * draft never aliases the record it was read from and no stored key can reach a prototype.
+ * A non-empty value that is not a JSON object - free text, malformed JSON, an array or a
+ * scalar - is kept as raw operator notes under the write path's existing `operator_notes`
+ * key (`db/repositories/route_cost.py::_merged_contract_notes`), which is exactly where
+ * the same value lands when raw text is written through the API, so a save cannot silently
+ * discard it.
+ */
+export function preservedNotesFromRecord(record: Record<string, unknown>): Record<string, unknown> | null {
+  const notes = record.notes;
+  if (notes === null || notes === undefined) return null;
+  if (typeof notes === "object" && !Array.isArray(notes)) {
+    return cloneNotesJson(notes as Record<string, unknown>);
+  }
+  const raw = (typeof notes === "string" ? notes : JSON.stringify(notes) ?? "").trim();
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return cloneNotesJson(parsed as Record<string, unknown>);
+    }
+  } catch {
+    // Not JSON text: the raw value keeps its place under the operator-notes convention.
+  }
+  return { operator_notes: raw };
+}
+
+/**
+ * A fresh, structural copy of a stored notes object.
+ *
+ * The copy goes through the JSON parser rather than a recursive merge: the input is JSON
+ * data, no key is ever assigned onto `Object.prototype`, and the result can alias neither
+ * the record nor the draft. A value the parser cannot round-trip falls back to a shallow
+ * copy; stored notes are JSON text in the runtime, so that branch is defensive only.
+ */
+function cloneNotesJson(notes: Record<string, unknown>): Record<string, unknown> {
+  try {
+    const cloned = JSON.parse(JSON.stringify(notes)) as unknown;
+    if (cloned && typeof cloned === "object" && !Array.isArray(cloned)) {
+      return cloned as Record<string, unknown>;
+    }
+  } catch {
+    // Fall through to the shallow copy.
+  }
+  return { ...notes };
+}
+
 export function sourceReferenceFromRecord(record: Record<string, unknown>): string {
   const notes = notesRecordFromRecord(record);
   const sourceReference = stringFromRecord({ ...notes, ...record }, "source_reference", "");
@@ -79,6 +130,11 @@ export function contractDraftFromRecord(
     stringFromRecord(mergedRecord, key, base === "stored" ? "" : fromDraft);
   return {
     ...current,
+    // The preserved base belongs to where the draft came from, not to what it says: a
+    // stored load adopts that record's own notes and clears an earlier row's; every other
+    // base (the file-import overlay) clears it too, so notes never ride along from a
+    // previously loaded contract into an import or a new draft.
+    preserved_notes: base === "stored" ? preservedNotesFromRecord(record) : null,
     contract_id: text("contract_id", current.contract_id),
     contract_name: text("contract_name", current.contract_name),
     resource_type: text("resource_type", current.resource_type),

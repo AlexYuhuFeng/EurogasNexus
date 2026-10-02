@@ -5,6 +5,21 @@ Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical sli
 
 ## Current work
 
+### Contract notes preservation (2026-10-02)
+
+DeepSeek implemented a bounded repair on baseline `35091c9`; parent reviewed
+the diff and independently passed 37 focused web tests and `npx tsc --noEmit`.
+Saved-row hydration carries its own notes object into the draft; payload
+construction preserves unknown nested fields and recorded source while overlaying
+editor-owned fields. Contract switches replace the base; new drafts and file
+imports clear it. Non-object notes are retained under `operator_notes`.
+No API/schema change or runtime database write was performed for this slice.
+This is mapper/payload evidence, not a new end-to-end browser-save acceptance.
+Still open: stale-edit conflict protection, missing numeric-field semantics,
+import preservation beyond known fields, and refreshing the notes base after save
+to avoid metadata-only changes caused by serialization order. Commercial
+readiness remains open; continue with bounded contract integrity work.
+
 Completion standard (latest user direction): commercial delivery to a
 professional client, not only a controlled pilot. Require clear customer and
 operator documentation, maintainable architecture, tested clients and deployment

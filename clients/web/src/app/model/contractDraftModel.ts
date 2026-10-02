@@ -49,6 +49,18 @@ export interface ContractDraft {
   owned_exit_capacity_mwh_per_day: number | null;
   allowed_exit_points: string[];
   eligible_sale_modes: string[];
+  /**
+   * The persisted row's own `notes` JSON object, kept only so a save can put back the
+   * fields this editor does not own (unknown provenance/terms, `operator_notes` prose).
+   *
+   * The editor neither renders nor edits it. `buildContractPayload` starts from a copy of
+   * it and overlays only the fields this surface owns, so stored evidence survives the next
+   * save instead of being replaced by the editor's own capture envelope. It is assigned on
+   * every stored load and cleared by a new draft or a file import - replaced, never
+   * accumulated - so a save cannot carry a previously loaded contract's notes into another
+   * record.
+   */
+  preserved_notes: Record<string, unknown> | null;
 }
 
 /**

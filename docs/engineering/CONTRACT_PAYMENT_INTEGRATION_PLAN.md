@@ -186,19 +186,41 @@ backend arithmetic, page or translation change:
   the draft until it is entered; an absent `document_status` displays the panel's existing
   `MANUAL_DRAFT` draft label, which is a display fallback, not a recorded status.
 
-Honest limit recorded separately, not repaired here: the editor's save replaces the entire `notes`
-value with its `web_contract_capture` JSON ([`contractPayload.ts`](../../clients/web/src/app/contractPayload.ts)),
-so note keys the editor does not know — for example this row's
-`preview_portfolio_contract:not_customer_data` marker — are overwritten by an editor save. A saved
-round trip of unrecognised operator notes is therefore still lossy on this write path.
+Honest limit recorded at baseline `9e0b26e`, repaired at baseline `35091c9` (bounded editor-integrity
+task): the editor's save used to replace the entire `notes` value with its `web_contract_capture`
+JSON ([`contractPayload.ts`](../../clients/web/src/app/contractPayload.ts)), overwriting note keys it
+did not know — for example this row's `preview_portfolio_contract:not_customer_data` marker. The
+save now starts from the row's own JSON object instead. A stored load carries it onto the draft as
+`preserved_notes` (a structural copy, never a recursive merge, so no stored key can reach a
+prototype and no draft aliases the record it was read from), and `buildContractPayload` copies that
+object and overlays only the fields the editor owns, so unknown provenance/terms and nested values
+survive a load/edit/save round trip. A stored `source` is preserved verbatim rather than rewritten
+to `web_contract_capture`; only a draft with no stored object — a new draft, a file-import overlay,
+or a row whose notes carry no JSON object — gets the explicit editor envelope. A stored value that
+is not a JSON object (free text, malformed JSON, an array or a scalar) is kept as raw operator notes
+under the write path's existing `operator_notes` key, which is where the API puts the same text, so
+nothing is silently lost. A new draft and a file import clear the base instead of carrying a
+previously loaded row's notes. No edit marker was added: the captured revision already records the
+write's `recorded_by`/`capture_origin`, and the editor's own metadata (document name, status, source
+reference) travels in the fields it owns. Backend payload shape, numeric semantics and the governed
+upsert are unchanged.
 
-Evidence: [`clients/web/tests/contractImport.test.ts`](../../clients/web/tests/contractImport.test.ts)
+Mapping-repair evidence: [`clients/web/tests/contractImport.test.ts`](../../clients/web/tests/contractImport.test.ts)
 maps the live row's stored shape and pins absent-text blanking, preserved recorded values,
 invalid/non-object notes treated as absent, list isolation, explicit `null` remaining `null`, the
 unchanged file-import overlay and the unchanged new-draft template; a source check pins both
 `useContractEditor.ts` call sites. Focused run: 9 tests passed and `tsc --noEmit` passed; the full
 local web suite ran 758 passed with the four pre-existing sandbox-blocked `capturedBoardComparator`
 CLI spawn tests failing on `EPERM` only. No migration, client dependency or API surface changed.
+
+Round-trip evidence: [`clients/web/tests/contractNotesRoundtrip.test.ts`](../../clients/web/tests/contractNotesRoundtrip.test.ts)
+pins unknown nested fields through load/edit/save, owned edits overriding stored values, preserved
+`null`/`false`/`zero` values, a stored `source` never rewritten, contract switching and
+new-draft/import resets, the `operator_notes` policy for non-object and malformed notes, and
+structural copying without record aliasing or prototype pollution. Focused run: 10 new tests passed,
+the five related web test files passed (37 tests), and `tsc --noEmit` passed; the full local web
+suite ran 768 passed with only the four pre-existing sandbox-blocked `capturedBoardComparator` CLI
+spawn tests failing. No migration, client dependency or API surface changed.
 
 ## Open decisions (parent/reviewer)
 

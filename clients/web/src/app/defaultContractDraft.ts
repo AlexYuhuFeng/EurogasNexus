@@ -38,6 +38,9 @@ export const defaultContractDraft: ContractDraft = {
   owned_exit_capacity_mwh_per_day: null,
   allowed_exit_points: ["NBP", "TTF"],
   eligible_sale_modes: ["TARGET_MARKET_SALE", "LOCAL_MARKET_SALE", "REROUTE_SALE"],
+  // A new draft has no stored notes to preserve, so a save writes the explicit
+  // `web_contract_capture` envelope; see `contractPayload.ts`.
+  preserved_notes: null,
 };
 
 export function cloneDefaultContractDraft(): ContractDraft {
