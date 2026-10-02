@@ -268,6 +268,23 @@ test("identity invalidation during the refresh drops the pool view as well as th
   assert.equal(state.authState, "unauthenticated");
 });
 
+test("a contract-library authentication denial clears the session and drops the saved result", async () => {
+  const harness = await loadApiStore();
+  const store = authenticated(harness);
+  harness.answer("saveUpstreamContract", () => envelope(CONTRACT));
+  harness.answer("portfolioSnapshot", () => envelope(portfolioProjection("prior-session", ["option-a"])));
+  harness.answer("upstreamContracts", () => {
+    throw new Error("API 401: session expired");
+  });
+
+  const result = await store.getState().saveDraftContract({ contract_id: CONTRACT.contract_id });
+  assert.equal(result, null);
+  assert.equal(store.getState().authState, "unauthenticated");
+  assert.deepEqual(store.getState().upstreamContracts, []);
+  assert.equal(store.getState().resourcePoolOptions, null);
+  assert.equal(store.getState().contractSaveMessage, null);
+});
+
 test("a context switch drops the save refresh's older-context pool view", async () => {
   const harness = await loadApiStore();
   const store = authenticated(harness);

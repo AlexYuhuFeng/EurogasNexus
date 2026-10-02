@@ -5,6 +5,20 @@ Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical sli
 
 ## Current work
 
+### Post-save authentication denial (2026-10-02)
+
+Baseline `f23292a` passed GitHub CI run `36970264979`. Parent found and
+reproduced an uncovered case: a 401 from the contract-library refresh alone
+left the session open and returned the saved commercial record to the editor.
+Applied the existing identity-denial reset to this path, after verifying its
+request identity is still current. The regression now passes, clears cached
+contract/pool data and suppresses the returned record. Updated the exact
+identity-invalidation inventory from eight to nine sites; reset assertions
+remain intact. Independent focused client suite: 20 passed; TypeScript passed.
+No schema, API, permission widening or runtime database write. This narrow
+security fix was implemented directly because delegation overhead exceeded it.
+Interactive conflict/reconciliation acceptance and commercial blockers remain open.
+
 ### Contract library read ordering (2026-10-02)
 
 DeepSeek completed the bounded read-ordering repair on baseline `83bcc59`.

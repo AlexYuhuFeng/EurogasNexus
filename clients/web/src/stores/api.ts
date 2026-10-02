@@ -2362,6 +2362,15 @@ export const useApiStore = create<ApiState>((set, get) => ({
     // Identity invalidation must drop both the snapshot and the returned commercial
     // record; returning it could repopulate an editor after logout.
     if (!followUpReadIsCurrent(requestGeneration)) return null;
+    const identityReset = identityDeniedWorkspaceReset(
+      [{ key: "upstreamContracts", outcome: library }],
+      DEFAULT_MONITORING_SUMMARY,
+    );
+    if (identityReset) {
+      invalidateIdentitySession();
+      set({ ...identityReset, authErrorKey: SESSION_EXPIRED_KEY });
+      return null;
+    }
     // The committed write updated this identity's library even when the notice moved to
     // another draft, so the same-identity library data is still published: only the notice
     // is draft-scoped. A failed or superseded read keeps the last good rows and records the
