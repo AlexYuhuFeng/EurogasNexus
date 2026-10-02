@@ -28,12 +28,13 @@ export function stringArrayFromRecord(record: Record<string, unknown>, key: stri
   const value = record[key];
   if (Array.isArray(value)) {
     const items = value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
-    return items.length > 0 ? items : fallback;
+    return items.length > 0 ? items : [...fallback];
   }
   if (typeof value === "string" && value.trim()) {
     return value.split(",").map((item) => item.trim()).filter(Boolean);
   }
-  return fallback;
+  // A fresh copy in the fallback branch too, so a mapped draft never aliases the base draft.
+  return [...fallback];
 }
 
 export function notesRecordFromRecord(record: Record<string, unknown>): Record<string, unknown> {
@@ -57,27 +58,44 @@ export function sourceReferenceFromRecord(record: Record<string, unknown>): stri
   return rawNotes.startsWith("{") || rawNotes.startsWith("[") ? "" : rawNotes;
 }
 
-export function contractDraftFromRecord(record: Record<string, unknown>, current: ContractDraft): ContractDraft {
+/**
+ * Which value an absent text field takes when a record is merged into a draft.
+ *
+ * `"draft"` (the default) is the file-import path: the record overlays the working draft, so
+ * an unstated term keeps the draft's value. `"stored"` hydrates a persisted record: absent
+ * text clears to blank, because a stored row must not be presented with template facts
+ * (counterparty, agreement form, governing law, source document, index basis, title transfer,
+ * terminal access, ...) that its columns and notes do not hold.
+ */
+export type ContractRecordBase = "draft" | "stored";
+
+export function contractDraftFromRecord(
+  record: Record<string, unknown>,
+  current: ContractDraft,
+  base: ContractRecordBase = "draft",
+): ContractDraft {
   const mergedRecord = { ...notesRecordFromRecord(record), ...record };
+  const text = (key: string, fromDraft: string) =>
+    stringFromRecord(mergedRecord, key, base === "stored" ? "" : fromDraft);
   return {
     ...current,
-    contract_id: stringFromRecord(mergedRecord, "contract_id", current.contract_id),
-    contract_name: stringFromRecord(mergedRecord, "contract_name", current.contract_name),
-    resource_type: stringFromRecord(mergedRecord, "resource_type", current.resource_type),
-    counterparty: stringFromRecord(mergedRecord, "counterparty", current.counterparty),
-    contract_type: stringFromRecord(mergedRecord, "contract_type", current.contract_type),
-    delivery_point_name: stringFromRecord(mergedRecord, "delivery_point_name", current.delivery_point_name),
-    physical_exit_point_name: stringFromRecord(mergedRecord, "physical_exit_point_name", current.physical_exit_point_name),
-    title_transfer_point: stringFromRecord(mergedRecord, "title_transfer_point", current.title_transfer_point),
-    beach_delivery_point: stringFromRecord(mergedRecord, "beach_delivery_point", current.beach_delivery_point),
-    index_basis: stringFromRecord(mergedRecord, "index_basis", current.index_basis),
-    terminal_access: stringFromRecord(mergedRecord, "terminal_access", current.terminal_access),
-    capacity_expiry: stringFromRecord(mergedRecord, "capacity_expiry", current.capacity_expiry),
-    document_name: stringFromRecord(mergedRecord, "document_name", current.document_name),
-    document_status: stringFromRecord(mergedRecord, "document_status", current.document_status),
-    source_reference: stringFromRecord(mergedRecord, "source_reference", current.source_reference),
-    governing_law: stringFromRecord(mergedRecord, "governing_law", current.governing_law),
-    gas_year: stringFromRecord(mergedRecord, "gas_year", current.gas_year),
+    contract_id: text("contract_id", current.contract_id),
+    contract_name: text("contract_name", current.contract_name),
+    resource_type: text("resource_type", current.resource_type),
+    counterparty: text("counterparty", current.counterparty),
+    contract_type: text("contract_type", current.contract_type),
+    delivery_point_name: text("delivery_point_name", current.delivery_point_name),
+    physical_exit_point_name: text("physical_exit_point_name", current.physical_exit_point_name),
+    title_transfer_point: text("title_transfer_point", current.title_transfer_point),
+    beach_delivery_point: text("beach_delivery_point", current.beach_delivery_point),
+    index_basis: text("index_basis", current.index_basis),
+    terminal_access: text("terminal_access", current.terminal_access),
+    capacity_expiry: text("capacity_expiry", current.capacity_expiry),
+    document_name: text("document_name", current.document_name),
+    document_status: text("document_status", current.document_status),
+    source_reference: text("source_reference", current.source_reference),
+    governing_law: text("governing_law", current.governing_law),
+    gas_year: text("gas_year", current.gas_year),
     delivery_quantity_mwh_per_day: numberFromRecord(
       mergedRecord,
       "delivery_quantity_mwh_per_day",
@@ -94,7 +112,7 @@ export function contractDraftFromRecord(record: Record<string, unknown>, current
     variable_cost_gbp_mwh: numberFromRecord(mergedRecord, "variable_cost_gbp_mwh", current.variable_cost_gbp_mwh),
     regas_fee_gbp_mwh: numberFromRecord(mergedRecord, "regas_fee_gbp_mwh", current.regas_fee_gbp_mwh),
     fuel_loss_allowance_pct: numberFromRecord(mergedRecord, "fuel_loss_allowance_pct", current.fuel_loss_allowance_pct),
-    settlement_frequency: stringFromRecord(mergedRecord, "settlement_frequency", current.settlement_frequency),
+    settlement_frequency: text("settlement_frequency", current.settlement_frequency),
     upstream_payment_lag_days: numberFromRecord(
       mergedRecord,
       "upstream_payment_lag_days",

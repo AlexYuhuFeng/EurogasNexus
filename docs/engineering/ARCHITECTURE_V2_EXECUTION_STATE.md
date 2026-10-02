@@ -72,6 +72,19 @@ with this broader product goal, not replaced by component-level success.
 
 ## Milestone History
 
+October 2 saved-contract hydration correction (baseline `9e0b26e`): live
+inspection found absent saved counterparty/agreement fields inherited template
+facts. DeepSeek separated saved-record text hydration from draft/import
+overlay; absent saved text now stays blank. Parent: nine mapping tests and
+TypeScript check passed; authenticated browser confirmed blank counterparty
+and agreement, with the required-counterparty save blocker. No contract was
+saved. Numeric fallback semantics, unknown-note preservation, stale-edit
+protection and visible revision history remain separate open work.
+Local runtime was backed up and upgraded from 0036 to 0037 before this
+inspection; read-only validation passed and API/web servers were restarted.
+The backup remains gitignored under `.automation/runtime`. Startup-fix CI
+`36884303474` passed on Python 3.11, including both load-smoke modes.
+
 October 1 cold-start initialization repair (baseline `109fe24`): DeepSeek
 added import-only, single-threaded dependency initialization in application
 lifespan and made the in-process load smoke execute that lifespan before its

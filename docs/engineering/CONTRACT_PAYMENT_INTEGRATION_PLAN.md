@@ -156,6 +156,50 @@ The read half of the S1 transition is implemented on the existing route-cost con
 - Deployment: no migration is required — S1d reads the S1b table — and nothing runs on startup or backfills.
 - Evidence: [`tests/security/test_contract_revision_read_authority.py`](../../tests/security/test_contract_revision_read_authority.py) pins the GOVERNED commercial declaration, the VIEWER role refusal, the ADMIN-without-commercial-role refusal, the uncredentialed release refusal and the compatibility-principal read. [`tests/integration/test_route_cost_contract_revision_reads.py`](../../tests/integration/test_route_cost_contract_revision_reads.py) runs the real routes against SQLite for verified history evidence (metadata, exact decimals and warnings), the 404-versus-empty distinction, cross-contract scoping, a tampered stored snapshot (stable 409 code with no leaked driver text), bounded paging with an unchanged revision/audit count, and original-actor preservation across a second principal. Reading captures nothing in any of these cases; the PostgreSQL-authoritative locking/verification cases remain covered by the existing disposable CI job.
 
+## 12. Live-observed client record-mapping repair (baseline `9e0b26e`)
+
+A read-only authenticated observation in the Portfolio Resources Library: loading the persisted
+`preview-portfolio-contract-ttf-pool-2025` row into the terms editor displayed
+`Operator draft counterparty` and `EFET physical supply`. Cause: the client record mapper
+[`contractDraftFromRecord`](../../clients/web/src/app/contractImport.ts) merged the record onto
+`cloneDefaultContractDraft()`, so every term the stored columns and `notes` do not carry fell back
+to the new-draft template. That row records none of counterparty, agreement form, governing law,
+source document/reference, index basis, title transfer, beach delivery point, physical exit point,
+terminal access, capacity expiry or document status, so template text was presented as if it were
+recorded terms.
+
+Repair — client mapper and its saved-record call site only; no route, schema, permission,
+backend arithmetic, page or translation change:
+
+- `contractDraftFromRecord` now takes an explicit base. `"draft"` (the file-import path, unchanged)
+  keeps the working draft's value for a term the record does not state; `"stored"` (the editor's
+  saved-record load) clears every absent text field to blank, so the panel's existing `n/a`,
+  `manual entry` and `no source reference` fallbacks show "unavailable" instead of an invented
+  fact. Recorded values — stored columns and structured `notes` fields — are preserved.
+- Numeric and list semantics are unchanged: an explicit `null` capacity stays `null` rather than
+  becoming zero, the other numeric fields keep their existing fallback, `cloneDefaultContractDraft()`
+  keeps the new-draft defaults, and no backend or optimiser arithmetic was touched. List reads now
+  return fresh arrays, so a hydrated draft never aliases the base draft or the record it was mapped
+  from.
+- Consequences stated plainly: a stored row that does not record a validation-required term (this
+  row records no counterparty) now shows it blank, and the existing save rule refuses to persist
+  the draft until it is entered; an absent `document_status` displays the panel's existing
+  `MANUAL_DRAFT` draft label, which is a display fallback, not a recorded status.
+
+Honest limit recorded separately, not repaired here: the editor's save replaces the entire `notes`
+value with its `web_contract_capture` JSON ([`contractPayload.ts`](../../clients/web/src/app/contractPayload.ts)),
+so note keys the editor does not know — for example this row's
+`preview_portfolio_contract:not_customer_data` marker — are overwritten by an editor save. A saved
+round trip of unrecognised operator notes is therefore still lossy on this write path.
+
+Evidence: [`clients/web/tests/contractImport.test.ts`](../../clients/web/tests/contractImport.test.ts)
+maps the live row's stored shape and pins absent-text blanking, preserved recorded values,
+invalid/non-object notes treated as absent, list isolation, explicit `null` remaining `null`, the
+unchanged file-import overlay and the unchanged new-draft template; a source check pins both
+`useContractEditor.ts` call sites. Focused run: 9 tests passed and `tsc --noEmit` passed; the full
+local web suite ran 758 passed with the four pre-existing sandbox-blocked `capturedBoardComparator`
+CLI spawn tests failing on `EPERM` only. No migration, client dependency or API surface changed.
+
 ## Open decisions (parent/reviewer)
 
 Capture/replay clarification: an unchanged, previously uncaptured legacy row

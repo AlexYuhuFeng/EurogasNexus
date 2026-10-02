@@ -36,7 +36,9 @@ export function useContractEditor(t: TFunction) {
   }
 
   function loadPersistedContract(saved: UpstreamContractDTO) {
-    setContract(contractDraftFromRecord(saved as unknown as Record<string, unknown>, cloneDefaultContractDraft()));
+    // A persisted row hydrates with the `"stored"` base: terms the row does not carry stay
+    // blank instead of inheriting this template's draft facts.
+    setContract(contractDraftFromRecord(saved as unknown as Record<string, unknown>, cloneDefaultContractDraft(), "stored"));
     setDraftDirty(false);
     setContractImportMessage(`${saved.contract_id} ${t("contracts.loaded_for_edit")}`);
   }
