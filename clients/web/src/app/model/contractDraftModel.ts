@@ -12,6 +12,19 @@
  * so the panel keeps owning presentation while the rule stays testable without a browser.
  */
 
+import { apiErrorDetailCode } from "../experience/errorPresentation.ts";
+
+/**
+ * The stored identity and opaque edit token a draft was loaded from.
+ *
+ * The token belongs to one stored contract row, so the identity travels with it: a draft
+ * whose contract id changed is create-only and must never send the old row's token.
+ */
+export interface StoredContractEdit {
+  readonly contract_id: string;
+  readonly edit_token: string;
+}
+
 /** The reviewed draft a user edits before it is persisted. */
 export interface ContractDraft {
   contract_id: string;
@@ -61,6 +74,15 @@ export interface ContractDraft {
    * record.
    */
   preserved_notes: Record<string, unknown> | null;
+  /**
+   * The stored row's own identity plus the opaque edit token this draft was loaded from,
+   * or `null` for a new draft, a file import or a changed/unknown identity.
+   *
+   * A save sends it as `expected_edit_token`, so the governed write refuses a draft whose
+   * row changed after it was read instead of overwriting it. New draft, import, reset and
+   * contract-id edit all clear it: a token never binds a different identity.
+   */
+  stored_edit: StoredContractEdit | null;
 }
 
 /**
@@ -172,4 +194,97 @@ export function contractSaveState(input: {
     canSave: !readOnlyLibrary && input.runtimeDbReady && !input.loading && issues.length === 0,
     statusKey,
   };
+}
+
+/**
+ * The edit token a save must send for this draft, or null for a create-only save.
+ *
+ * The token belongs to the identity it was read from: a draft whose contract id no longer
+ * equals the stored identity (the user typed another id, or a load/import replaced the
+ * draft) is create-only, so a stale token can never bind it to a different stored row.
+ */
+export function draftExpectedEditToken(contract: ContractDraft): string | null {
+  const identity = contract.contract_id.trim();
+  const stored = contract.stored_edit;
+  if (!stored || stored.contract_id !== identity) return null;
+  const token = stored.edit_token.trim();
+  return token || null;
+}
+
+/** How one contract save resolved against the stored row. */
+export interface ContractSaveApplication {
+  /** The draft after the saved response is folded in; editor fields are never overwritten. */
+  readonly contract: ContractDraft;
+  /**
+   * True only when the response belongs to the submitted draft session and no editor act
+   * happened after the submitted generation.
+   */
+  readonly clearDirty: boolean;
+}
+
+/**
+ * Fold one successful save response into the current draft.
+ *
+ * The response is applied only to the *draft session* that submitted it. A session is replaced
+ * by a stored load, a reset, a file import or a contract-id edit - acts that rebind what the
+ * draft is about - while a field edit only advances the generation within the same session.
+ * So a same-ID reload, a reset/import, or an id typed away and back (A -> B -> A) is a
+ * different session even when `contract_id` reads the same again: that response belongs to a
+ * draft that no longer exists, is not folded in, and cannot clear dirty.
+ *
+ * Within the same session only the lease (stored identity + opaque token) and the preserved
+ * notes base are taken from the response: the editor-owned fields stay exactly as the user has
+ * them, so edits made while the request was in flight are never destroyed and adopt the
+ * refreshed token. `clearDirty` is true only when the generation is still the submitted one;
+ * an edit during the request leaves the draft dirty because that edit is not what was saved.
+ */
+export function applyContractSaveResult(input: {
+  readonly current: ContractDraft;
+  readonly savedContractId: string;
+  readonly savedEditToken: string | null;
+  readonly savedPreservedNotes: Record<string, unknown> | null;
+  readonly submittedContractId: string;
+  /** The draft session that submitted the save (`currentSession` must still be it). */
+  readonly submittedSession: number;
+  readonly currentSession: number;
+  readonly submittedGeneration: number;
+  readonly currentGeneration: number;
+}): ContractSaveApplication {
+  if (
+    input.current.contract_id.trim() !== input.submittedContractId ||
+    input.savedContractId !== input.submittedContractId ||
+    input.currentSession !== input.submittedSession
+  ) {
+    return { contract: input.current, clearDirty: false };
+  }
+  const token =
+    typeof input.savedEditToken === "string" && input.savedEditToken.trim()
+      ? input.savedEditToken.trim()
+      : null;
+  return {
+    contract: {
+      ...input.current,
+      stored_edit: token ? { contract_id: input.savedContractId, edit_token: token } : null,
+      preserved_notes: input.savedPreservedNotes,
+    },
+    clearDirty: input.currentGeneration === input.submittedGeneration,
+  };
+}
+
+/** The save-failure kinds a surface must present differently. */
+export type ContractSaveFailureKind = "contract_edit_conflict" | "other";
+
+/**
+ * Classify a failed contract save from the backend's stable codes.
+ *
+ * The governed write answers 409 `contract_edit_conflict` (the stored row changed or the
+ * request conflicts with the stored identity) and `contract_edit_token_malformed` (the
+ * supplied lease is not a token this API issues). Both mean: the draft was kept and must be
+ * reconciled against a fresh read - never silently retried against the same stale token.
+ */
+export function contractSaveFailureKind(cause: unknown): ContractSaveFailureKind {
+  const code = apiErrorDetailCode(cause);
+  return code === "contract_edit_conflict" || code === "contract_edit_token_malformed"
+    ? "contract_edit_conflict"
+    : "other";
 }

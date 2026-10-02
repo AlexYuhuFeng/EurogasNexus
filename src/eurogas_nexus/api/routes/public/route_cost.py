@@ -18,6 +18,10 @@ from eurogas_nexus.application.resource_pool import (
     read_resource_pool_inputs,
     value_in_gbp,
 )
+from eurogas_nexus.domain.route_cost.contract_edit_token import (
+    CONTRACT_EDIT_CONFLICT,
+    CONTRACT_EDIT_TOKEN_MALFORMED,
+)
 from eurogas_nexus.domain.route_cost.enums import SourceResourceType
 from eurogas_nexus.domain.route_cost.lng_regas import (
     LngRegasScenario,
@@ -82,6 +86,8 @@ class UpstreamContractUpsertRequest(BaseModel):
         allowed_exit_points: Allowed exit points.
         eligible_sale_modes: Eligible sale modes.
         notes: Operator notes, or None.
+        expected_edit_token: Opaque edit token from a stored-contract read, or
+            None for a create-only request. See the write route's docstring.
     """
 
     contract_id: str = Field(min_length=1, max_length=128)
@@ -106,6 +112,7 @@ class UpstreamContractUpsertRequest(BaseModel):
     regas_fee_gbp_mwh: float = Field(default=0, ge=0)
     fuel_loss_allowance_pct: float = Field(default=0, ge=0, lt=100)
     notes: str | None = None
+    expected_edit_token: str | None = None
 
 
 @router.get("/api/route-cost/tso-tariffs")
@@ -200,7 +207,11 @@ def list_upstream_contracts(request: Request) -> dict:
         from eurogas_nexus.db.session import get_session_factory
 
         with get_session_factory()() as session:
-            return _env(list_upstream_contracts(session), request, source="runtime-postgresql")
+            return _env(
+                list_upstream_contracts(session, include_edit_token=True),
+                request,
+                source="runtime-postgresql",
+            )
     except sqlalchemy_error as exc:
         raise _db_unavailable(exc) from exc
 
@@ -228,12 +239,32 @@ def upsert_upstream_contract(body: UpstreamContractUpsertRequest, request: Reque
     (contract name, raw operator notes) is audited without allocating a new
     economic revision.
 
-    Request and response fields are unchanged; ``write_outcome`` and
+    Stale-edit precondition: ``expected_edit_token`` is the opaque token a
+    stored-contract read returned. Omitted or null means **create-only** - an
+    existing identity is refused rather than overwritten, and a concurrent
+    create that loses the identity race is refused rather than taking over the
+    winner's row. A supplied token for an identity with no stored row is
+    refused without inserting. A supplied token that no longer matches the
+    locked row (a stale read, another writer, or a metadata/notes-only edit) is
+    refused with 409 ``contract_edit_conflict`` before any capture, audit or
+    mutation; a malformed token is refused with 409
+    ``contract_edit_token_malformed`` before any store access. Both refusals
+    are stable and sanitized: no stored value, stale payload or commercial
+    figure is returned, and there is no overwrite bypass.
+
+    The response keeps every existing field; ``write_outcome`` and
     ``latest_revision`` are additive metadata naming the outcome and the
-    contract's newest captured revision. Honest limits: this is capture-time
-    evidence, not yet an edit-conflict protocol or a revision lifecycle - there
-    is no expected-version check, no draft/frozen status and no complete
-    history before the first captured write.
+    contract's newest captured revision, and the stored-contract payloads
+    (GET and write response) additionally carry the opaque ``edit_token``. The
+    request gains one additive optional field, ``expected_edit_token``: a
+    request without it is create-only, never an overwrite.
+    Honest limits: the token is a bounded stale-edit precondition over the
+    single mutable row, not a cryptographic signature and not a lifecycle
+    counter, and this is still capture-time evidence rather than a
+    draft/frozen revision lifecycle or a complete history before the first
+    captured write. The plain repository
+    ``upsert_upstream_contract`` remains an internal compatibility path that
+    enforces no token; only this route is the public governed write.
     """
 
     # The actor is resolved from the authenticated identity before any store
@@ -260,12 +291,15 @@ def upsert_upstream_contract(body: UpstreamContractUpsertRequest, request: Reque
 
         with get_session_factory()() as session:
             try:
+                data = body.model_dump(mode="json")
+                expected_edit_token = data.pop("expected_edit_token", None)
                 result = upsert_upstream_contract_governed(
                     session,
-                    body.model_dump(mode="json"),
+                    data,
                     recorded_by=principal.principal_id,
                     recorded_at_utc=datetime.now(UTC),
                     correlation_id=getattr(request.state, "request_id", None),
+                    expected_edit_token=expected_edit_token,
                 )
             except ContractRevisionPersistenceError as exc:
                 session.rollback()
@@ -760,12 +794,39 @@ def _contract_revision_read_failure(exc: Exception) -> HTTPException:
 def _contract_write_refused(code: str | None, detail: str | None) -> HTTPException:
     """Stable refusal for a governed contract write that failed closed.
 
-    The stored contract's current economics could not be captured as immutable
-    evidence, so overwriting them would destroy the only record of what they
-    were. The refusal names the capture code a client can act on, in the
-    catalogued ``conflict`` family, and changes nothing.
+    Two families share the 409 status and are deliberately distinct:
+
+    * an edit-precondition failure (``contract_edit_conflict`` /
+      ``contract_edit_token_malformed``) answers one fixed, sanitized message:
+      the caller must read the stored contract again and reconcile; no stored
+      value, stale payload or commercial figure is echoed.
+    * a capture failure (the stored terms could not be captured as immutable
+      evidence) names the capture code a client can act on, in the catalogued
+      ``conflict`` family; overwriting those terms could destroy the only
+      record of what they were, so nothing changes.
     """
 
+    if code in (CONTRACT_EDIT_CONFLICT, CONTRACT_EDIT_TOKEN_MALFORMED):
+        message = (
+            "The contract was not written: the supplied edit token is not one"
+            " this API issues. Read the stored contract again and supply the"
+            " token from that read."
+            if code == CONTRACT_EDIT_TOKEN_MALFORMED
+            else (
+                "The contract was not written: the stored contract changed since"
+                " the edit token was read, or the request conflicts with the"
+                " stored identity. Read the stored contract again and reconcile"
+                " the draft before saving."
+            )
+        )
+        return HTTPException(
+            status_code=409,
+            detail={
+                "error": "conflict",
+                "code": code,
+                "message": message,
+            },
+        )
     return HTTPException(
         status_code=409,
         detail={

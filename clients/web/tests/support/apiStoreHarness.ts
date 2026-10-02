@@ -69,6 +69,9 @@ export interface ApiStoreState {
   loading: boolean;
   /** The store's shared, rendered-raw error string; the map's alert reads it. */
   error: string | null;
+  /** The contract editor's save notice and stale-edit conflict flag. */
+  contractSaveMessage: string | null;
+  contractSaveConflict: boolean;
   /** The workspace batch (or its retry pass) is in flight. */
   workspaceLoading: boolean;
   /** How many workspace batches have committed for this session. */
@@ -108,6 +111,10 @@ export interface ApiStoreState {
   recommendRouteAllocation: (request: Record<string, unknown>, contextKey: string) => Promise<void>;
   publishTradingContext: (context: TradingContextValue) => void;
   refetchTradingContextProjections: () => Promise<void>;
+  saveDraftContract: (
+    contract: Record<string, unknown>,
+  ) => Promise<Record<string, unknown> | null>;
+  clearContractSaveFeedback: () => void;
 }
 
 export interface TestApiStore {

@@ -48,6 +48,7 @@ import {
   decisionActionSucceeded,
   type DecisionActionState,
 } from "@/app/model/decisionActionModel";
+import { contractSaveFailureKind } from "@/app/model/contractDraftModel";
 import { describeFailure } from "@/app/experience/errorPresentation";
 import {
   api,
@@ -751,6 +752,21 @@ export interface ApiState {
   error: string | null;
   credentialMessage: string | null;
   contractSaveMessage: string | null;
+  /**
+   * True when the last contract save was refused as a stale-edit conflict.
+   *
+   * The draft is kept and the surface says the stored contract changed (or already exists)
+   * and must be read again before reconciling; there is no automatic retry or overwrite.
+   */
+  contractSaveConflict: boolean;
+  /**
+   * Drop a finished save's message/conflict notice.
+   *
+   * The editor calls this when it moves to another draft (stored load, reset, import or a
+   * typed contract id): the notice names the draft it was about, so it must not show on
+   * whatever the surface holds next.
+   */
+  clearContractSaveFeedback: () => void;
   /** The last queued ingestion run, as the source surface shows it. */
   sourceRunOutcome: SourceRunOutcome | null;
   /**
@@ -866,7 +882,15 @@ export interface ApiState {
     question: string,
     language: "en" | "zh-CN",
   ) => Promise<void>;
-  saveDraftContract: (contract: UpstreamContractInputDTO) => Promise<void>;
+  /**
+   * Save one reviewed contract draft through the governed write.
+   *
+   * Returns the server's saved contract (its refreshed `edit_token` and stored `notes`
+   * included) on success, or `null` when the save failed or its response was dropped as
+   * stale. A failed save never reports success: the message/conflict state is set here and
+   * the caller's draft stays untouched.
+   */
+  saveDraftContract: (contract: UpstreamContractInputDTO) => Promise<UpstreamContractDTO | null>;
   recordReviewDecision: (body: ReviewDecisionInputDTO) => Promise<void>;
   /**
    * Compare the sale options and recommend an allocation.
@@ -1161,6 +1185,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
   error: null,
   credentialMessage: null,
   contractSaveMessage: null,
+  contractSaveConflict: false,
   sourceRunOutcome: null,
   jobs: [],
   dataProducts: null,
@@ -2147,29 +2172,67 @@ export const useApiStore = create<ApiState>((set, get) => ({
     }
   },
 
+  clearContractSaveFeedback: () =>
+    set({ contractSaveMessage: null, contractSaveConflict: false }),
+
   saveDraftContract: async (contract) => {
-    if (logoutInProgress) return;
+    if (logoutInProgress) return null;
     const requestGeneration = identityReadCoordinator.capture();
-    set({ contractSaveMessage: null, loading: true, error: null });
+    set({
+      contractSaveMessage: null,
+      contractSaveConflict: false,
+      loading: true,
+      error: null,
+    });
+    const write = await api.saveUpstreamContract(contract).then(
+      (value) => ({ ok: true as const, value }),
+      (error: unknown) => ({ ok: false as const, error }),
+    );
+    if (!write.ok) {
+      if (!followUpReadIsCurrent(requestGeneration)) return null;
+      // A stale-edit refusal keeps the draft and names the reconciliation step instead of
+      // showing a raw error string or pretending the save succeeded.
+      const conflict = contractSaveFailureKind(write.error) === "contract_edit_conflict";
+      set({
+        error: String(write.error),
+        contractSaveMessage: conflict ? null : String(write.error),
+        contractSaveConflict: conflict,
+        loading: false,
+      });
+      return null;
+    }
+    const saved = write.value;
+    // The write itself committed: a guard here drops it only when the identity session that
+    // issued it is gone. From this point, a failed follow-up read is a refresh problem, not a
+    // save failure - the saved contract (with its refreshed token) is still returned.
+    if (!followUpReadIsCurrent(requestGeneration)) return null;
+    set({
+      meta: saved.meta,
+      contractSaveMessage: `${saved.data.contract_id} persisted for decision support.`,
+      contractSaveConflict: false,
+      loading: false,
+    });
     try {
-      const saved = await api.saveUpstreamContract(contract);
-      if (!followUpReadIsCurrent(requestGeneration)) return;
       const [upstreamContracts, resourcePoolOptions] = await Promise.all([
         api.upstreamContracts(),
         api.resourcePoolOptions(),
       ]);
-      if (!followUpReadIsCurrent(requestGeneration)) return;
+      // Identity invalidation must drop both the snapshot and the returned commercial
+      // record; returning it could repopulate an editor after logout.
+      if (!followUpReadIsCurrent(requestGeneration)) return null;
       set({
         upstreamContracts: upstreamContracts.data,
         resourcePoolOptions: resourcePoolOptions.data,
-        meta: saved.meta,
-        contractSaveMessage: `${saved.data.contract_id} persisted for decision support.`,
-        loading: false,
       });
     } catch (e) {
-      if (!followUpReadIsCurrent(requestGeneration)) return;
-      set({ error: String(e), contractSaveMessage: String(e), loading: false });
+      if (!followUpReadIsCurrent(requestGeneration)) return null;
+      // Saved, but the library refresh failed: reported in its own lane, without claiming the
+      // write failed or dropping the success message the saved result earned.
+      set({
+        error: `${saved.data.contract_id} was saved, but refreshing the contract library failed: ${String(e)}`,
+      });
     }
+    return saved.data;
   },
 
   recordReviewDecision: async (body) => {

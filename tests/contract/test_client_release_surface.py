@@ -1317,7 +1317,12 @@ def test_web_client_contracts_page_is_task_led_resource_terms_workbench() -> Non
     # workspace header owns the action and the panel only renders and reports it.
     assert "primaryAction={primaryAction}" in portfolio_workspace
     assert 'const primaryAction =\n    task === "resources" ? (' in portfolio_workspace
-    assert "api.saveDraftContract(contractEditor.contractPayload)" in portfolio_workspace
+    # The header performs the save through the shared rule; the hook owns the request so it
+    # can fold the server's refreshed edit lease back into the draft (S1e precondition).
+    assert (
+        "contractSaveStateForDraft.canSave && void contractEditor.saveContract()"
+        in portfolio_workspace
+    )
     assert 't("contracts.action.save")' in portfolio_workspace
     assert 't("contracts.action.save")' not in workbench
     assert 'import type { ContractDraft } from "@/app/index";' in app
@@ -1620,7 +1625,10 @@ def test_web_client_resource_pool_options_are_backend_owned() -> None:
     ).read_text(encoding="utf-8")
     # Wave 9 action geography: the workspace header performs the save through the shared
     # save rule, so the panel it acts on no longer carries the payload or the call.
-    assert "api.saveDraftContract(contractEditor.contractPayload)" in portfolio_workspace_source
+    assert (
+        "contractSaveStateForDraft.canSave && void contractEditor.saveContract()"
+        in portfolio_workspace_source
+    )
     assert "contractSaveStateForDraft.canSave" in portfolio_workspace_source
     assert "saveDraftContract(contractPayload)" not in app_and_contracts
     assert "contractSaveMessage" in portfolio_workspace_source

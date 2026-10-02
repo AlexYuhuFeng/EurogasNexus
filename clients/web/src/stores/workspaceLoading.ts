@@ -143,6 +143,7 @@ export function resetIdentityScopedCaches<T>(monitoringSummary: T) {
     error: null,
     credentialMessage: null,
     contractSaveMessage: null,
+    contractSaveConflict: false,
     // The reset leaves a new, unread session: nothing has been read about the runtime store yet.
     dataStatus: "unknown" as const,
   };

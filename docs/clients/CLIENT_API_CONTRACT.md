@@ -195,6 +195,18 @@ Clients may use this route to save resource inputs, then refresh:
 - `GET /api/route-cost/upstream-contracts`;
 - `GET /api/route-cost/resource-pool/options`.
 
+Editing a stored contract requires the opaque `edit_token` from
+`GET /api/route-cost/upstream-contracts`: the client sends it back as
+`expected_edit_token`. It covers the whole persisted row (identity, economics,
+display metadata, raw operator notes and the updated instant), not the captured
+revision number, so any persisted change invalidates it. Omitted or null means
+create-only and never overwrites an existing identity. The backend answers
+`409 contract_edit_conflict` for a missing/stale precondition and
+`409 contract_edit_token_malformed` for a value that is not this API's token;
+both write nothing, keep the draft, and require a fresh read before
+reconciliation - clients must not retry the same stale token or treat the
+failure as success.
+
 This route must not be described as trade capture, order entry, nomination,
 approval, settlement, or an ETRM contract master.
 

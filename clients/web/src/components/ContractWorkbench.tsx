@@ -90,6 +90,8 @@ interface ContractWorkbenchProps {
   contractImportRef: RefObject<HTMLInputElement | null>;
   contractImportMessage: string | null;
   contractSaveMessage: string | null;
+  /** The last save was refused as a stale-edit conflict (`stores/api.ts`). */
+  contractSaveConflict: boolean;
   t: Translate;
   updateContractText: (key: ContractTextKey, value: string) => void;
   updateContractNumber: (key: ContractNumberKey, value: string) => void;
@@ -125,7 +127,8 @@ export function ContractWorkbench({
   firstPoolAllocation, runtimeDbReady, loading, draftDirty, selectedResourceId,
   taskView, onTaskViewChange, viewFacts, saveState,
   onOpenStrategyForResource, contractImportRef, contractImportMessage,
-  contractSaveMessage, t, updateContractText, updateContractNumber, updateContractList,
+  contractSaveMessage, contractSaveConflict, t,
+  updateContractText, updateContractNumber, updateContractList,
   resetContractDraft, importContractDraftFile, loadPersistedContract,
 }: ContractWorkbenchProps) {
   // Wave 9: object detail goes to the canonical Inspector instead of growing a third
@@ -205,6 +208,12 @@ export function ContractWorkbench({
       </section>
 
       <div className="contract-feedback" role="status" aria-live="polite"><strong>{saveStatus}</strong><span>{contractSaveMessage ?? contractImportMessage ?? t("contracts.save_hint")}</span></div>
+      {contractSaveConflict && (
+        <div className="runtime-blocker-list compact" role="alert">
+          <strong>{t("contracts.edit_conflict_title")}</strong>
+          <span>{t("contracts.edit_conflict_detail")}</span>
+        </div>
+      )}
       <nav className="contract-task-tabs" aria-label={t("contracts.workspace_views")}>
         {taskTabs.map(([key, label]) => <button key={key} type="button" className={taskView === key ? "active" : ""} onClick={() => onTaskViewChange(key)}>{label}</button>)}
       </nav>

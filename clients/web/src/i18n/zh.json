@@ -1313,6 +1313,8 @@
   "contracts.no_source_reference": "无来源引用",
   "contracts.review_uploaded_text": "上传文本需要人工复核后才能使用。",
   "contracts.save_hint": "通过后端写入 PostgreSQL 并刷新资源池方案，仍需人工复核。",
+  "contracts.edit_conflict_title": "已保存资源已变更",
+  "contracts.edit_conflict_detail": "该资源自读取后已被修改或已存在，本次草稿未写入；草稿已保留。请从资源库重新加载已保存资源，核对并调整草稿后再保存。",
   "contracts.preview": "预览",
   "contracts.counterparty": "对手方",
   "contracts.beach_delivery": "海岸交付",

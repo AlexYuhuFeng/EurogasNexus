@@ -1,4 +1,5 @@
 import type { ContractDraft } from "./defaultContractDraft";
+import { draftExpectedEditToken } from "./model/contractDraftModel.ts";
 
 /**
  * The reviewed draft as the governed write path receives it.
@@ -16,6 +17,10 @@ import type { ContractDraft } from "./defaultContractDraft";
  * write path already attributes the write itself (`recorded_by`, `capture_origin` on the
  * captured revision), and the editor's own metadata (document name/status/source reference)
  * travels in the fields it owns.
+ *
+ * `expected_edit_token` is the opaque token read with this draft's stored identity, or
+ * `null` (new draft, import, changed id) - create-only on the backend, never an overwrite.
+ * It is not the captured revision number and is never derived from editor fields.
  */
 export function buildContractPayload(contract: ContractDraft) {
   const preserved = contract.preserved_notes;
@@ -63,5 +68,6 @@ export function buildContractPayload(contract: ContractDraft) {
     regas_fee_gbp_mwh: contract.regas_fee_gbp_mwh,
     fuel_loss_allowance_pct: contract.fuel_loss_allowance_pct,
     notes: JSON.stringify(notes),
+    expected_edit_token: draftExpectedEditToken(contract),
   };
 }

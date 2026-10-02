@@ -1,6 +1,6 @@
 # Contract Revision and Explicit Payment Terms — Integration Plan
 
-Status: **S1a, S1b, S1c and S1d implemented (immutable economic payload definition with legacy compatibility mapping; additive revision storage with an explicit repository capture/read operation; the governed contract write that captures both sides of an overwrite with atomic attribution; and the bounded, contract-scoped read surface over the captured evidence); the remaining slices are PROPOSED for architecture review and are not approved or implemented.** Bounded preparation from [Architecture V2 execution state](ARCHITECTURE_V2_EXECUTION_STATE.md) and the [European Gas Trading Business Acceptance](../product/TRADING_BUSINESS_ACCEPTANCE.md) matrix, audited at repository baseline `509e703`; S1a was implemented at baseline `1676b98` and is recorded in section 8, S1b at baseline `f396492` and is recorded in section 9, S1c after baseline `9271500` and is recorded in section 10, S1d after baseline `9160188` and is recorded in section 11. The S1b migration is expand-only storage; there is no backfill, UI, valuation citation, checkpoint or release artefact beyond it. S1c is *not* an optimistic edit-conflict protocol, a revision lifecycle or a complete history; its honest limits are listed in section 10. S1d reads evidence only — it captures nothing, changes no schema and asserts no payment terms.
+Status: **S1a, S1b, S1c, S1d and the bounded S1e edit-token precondition are implemented (immutable economic payload definition with legacy compatibility mapping; additive revision storage with an explicit repository capture/read operation; the governed contract write that captures both sides of an overwrite with atomic attribution; the bounded, contract-scoped read surface over the captured evidence; and a stale-edit precondition on that governed write); the remaining slices are PROPOSED for architecture review and are not approved or implemented.** Bounded preparation from [Architecture V2 execution state](ARCHITECTURE_V2_EXECUTION_STATE.md) and the [European Gas Trading Business Acceptance](../product/TRADING_BUSINESS_ACCEPTANCE.md) matrix, audited at repository baseline `509e703`; S1a was implemented at baseline `1676b98` and is recorded in section 8, S1b at baseline `f396492` and is recorded in section 9, S1c after baseline `9271500` and is recorded in section 10, S1d after baseline `9160188` and is recorded in section 11, and S1e after baseline `6b5258d` and is recorded in section 13. The S1b migration is expand-only storage; there is no backfill, UI, valuation citation, checkpoint or release artefact beyond it. S1c is *not* a revision lifecycle or a complete history; its honest limits are listed in section 10, and S1e narrows only its write precondition (section 13) without turning it into a lifecycle. S1d reads evidence only — it captures nothing, changes no schema and asserts no payment terms.
 
 Scope: contract/right lifecycle for pipeline-gas and LNG tender decision support, plus explicit payment-term semantics feeding the shared dated cash valuation. Boundary: decision support only — no trade execution, tender submission, capacity reservation, nomination or settlement; an internal revision is never an amendment to a legally binding agreement.
 
@@ -137,7 +137,7 @@ The third part of slice S1 — the guarded write transition on the existing rout
 - Fail-closed pre-capture: when the stored row does not map to a validated economic snapshot — an unmappable value or the S1a `mapping_issues` ambiguity such as non-object notes — the request is refused with 409 (`error: "conflict"`, `code:` the stable capture refusal, e.g. `contract_revision_mapping_ambiguous`), the session is rolled back and nothing at all is written: no contract overwrite, no revision, no audit row. The malformed stored terms are preserved rather than destroyed. Honest limit: there is **no repair path yet** — a refused contract can only be remediated by a separate, still-proposed write/remediation step; it is not silently repairable through this route.
 - Audit: a newly captured revision appends its existing `route_cost.contract.capture_revision` row. Each accepted write that changed something additionally appends exactly one `route_cost.contract.upsert` row naming the principal, the request correlation id, the changed field *names* (never values) and the newest revision identity, with a before/after revision summary. A metadata-only change is therefore auditable even though its capture is idempotent; a true replay appends no second mutation audit. All rows are written through the caller's session, so an audit-writer failure rolls the whole write back (row, revision and audits together).
 - Concurrency: per-contract updates are serialized by the row lock, so concurrent governed overwrites cannot allocate the same revision number. Two concurrent creates of the same new identity cannot both insert either: the insert is conflict-tolerant (`INSERT ... ON CONFLICT (contract_id) DO NOTHING`, the pattern `db/repositories/public_ingestion_upsert.py` already uses), so the loser's statement inserts nothing, the session stays usable — unlike after a failed ORM flush, which forces a whole-transaction rollback — and the same call re-reads the winner's committed row under the lock and continues as an overwrite; no `IntegrityError` reaches the caller. A dialect without a reviewed conflict-tolerant insert refuses with a stable code rather than guessing.
-- Honest limits (still open): this is **capture-time evidence, not history**. A stored revision records the row as the capture read it; there is no complete history before the first captured write, no `DRAFT|FROZEN|SUPERSEDED` lifecycle, no effective windows, no `current_revision_id` pointer, no freeze/retire/supersede and no payment terms. There is **no optimistic edit conflict**: the route has no `expected_edit_version`/ETag precondition, so a last-writer-wins overwrite still succeeds silently (each overwrite is now evidenced and audited, but competing writers are not detected). Read transitions (a route path that serves revisions) are not implemented, so revisions are reachable through the repository read helpers only. The plain [`upsert_upstream_contract`](../../src/eurogas_nexus/db/repositories/route_cost.py) remains an ungoverned repository function used for fixtures and seeding; it is not a route and must not become an API write path.
+- Honest limits (still open): this is **capture-time evidence, not history**. A stored revision records the row as the capture read it; there is no complete history before the first captured write, no `DRAFT|FROZEN|SUPERSEDED` lifecycle, no effective windows, no `current_revision_id` pointer, no freeze/retire/supersede and no payment terms. There is **no revision-level optimistic edit conflict** (no `expected_edit_version` and no draft/frozen state); the route's *bounded* stale-edit precondition was added later and is recorded in section 13 — a same-row last-writer-wins overwrite is now refused only when the writer's opaque row token no longer matches, not because a revision lifecycle detected anything. Read transitions (a route path that serves revisions) are not implemented, so revisions are reachable through the repository read helpers only. The plain [`upsert_upstream_contract`](../../src/eurogas_nexus/db/repositories/route_cost.py) remains an ungoverned repository function used for fixtures and seeding; it is not a route and must not become an API write path.
 - Deployment: no migration is required for S1c — it uses the S1b table — and nothing runs on startup or backfills. The PostgreSQL-authoritative cases run in the existing disposable CI job.
 - Evidence: [`tests/security/test_contract_write_attribution.py`](../../tests/security/test_contract_write_attribution.py) covers the identity-less refusal before store access (with a configured store), the ignored body actor, the VIEWER refusal and the ADMIN-without-commercial-role refusal. [`tests/integration/test_route_cost_contract_write_revisions.py`](../../tests/integration/test_route_cost_contract_write_revisions.py) runs the real route against SQLite for creation (one revision, one capture audit, one mutation audit), identical replay (nothing written, attribution preserved), economic change (previous snapshot untouched, next revision, both audits, correlation id), metadata-only change (audited without a new revision), malformed stored terms (409, row preserved, no revision, no audit), audit-writer failure rollback for both update and creation, and the create-race recovery (a commit appearing mid-flight continues as an overwrite instead of failing). [`tests/integration/test_contract_revision_capture_postgres.py`](../../tests/integration/test_contract_revision_capture_postgres.py) adds the opt-in PostgreSQL cases for concurrent governed overwrites (unique numbering under the row lock) and concurrent governed creates (convergence without a leaked `IntegrityError`). Focused runs pass 13 new tests locally (SQLite); the PostgreSQL cases are skipped without the disposable-database opt-in and require same-SHA CI evidence.
 
@@ -221,6 +221,77 @@ structural copying without record aliasing or prototype pollution. Focused run: 
 the five related web test files passed (37 tests), and `tsc --noEmit` passed; the full local web
 suite ran 768 passed with only the four pre-existing sandbox-blocked `capturedBoardComparator` CLI
 spawn tests failing. No migration, client dependency or API surface changed.
+
+## 13. S1e implemented — bounded stale-edit precondition on the governed write (after baseline `6b5258d`)
+
+The parent architect decision for this slice: keep the existing endpoint, database schema and
+governed transaction; add an opaque edit token to the saved-contract reads and the write
+response; the token covers **all** mutable persisted fields (identity, economics, display
+metadata, raw operator notes, updated instant), not the economic revision alone; compare it
+under the existing row lock *before* capture, audit or mutation; refuse rather than overwrite.
+Implemented as recorded below.
+
+- Token definition: [`contract_edit_token.py`](../../src/eurogas_nexus/domain/route_cost/contract_edit_token.py)
+  hashes (SHA-256) a canonical JSON document carrying the schema discriminator
+  `upstream-contract-edit-token/v1` plus every persisted column of
+  `upstream_resource_contracts`, in the table's own order. A focused test asserts the covered
+  field tuple equals the model's column set, so a column added later cannot silently escape the
+  precondition. Decimal-free values are canonicalized without guessing: booleans, non-finite
+  floats, non-text list entries and other types are refused; stored instants normalize to
+  offset-less UTC text, so PostgreSQL's aware read and the SQLite fixture's naive read of the
+  same instant produce the same token.
+- Read/write surface: `GET /api/route-cost/upstream-contracts` returns each row's `edit_token`
+  and the governed write response carries it alongside `write_outcome`/`latest_revision`. The
+  repository read's `include_edit_token` flag keeps the other payload consumers (portfolio and
+  scenario projections, resource-pool composition, agent context) at their previous shape.
+- Precondition outcomes (all checked on the locked, refreshed row):
+  `expected_edit_token` omitted/`null` means **create-only** and an existing identity is
+  refused; a supplied token with no stored row is refused without inserting; a supplied token
+  that no longer matches the row (stale read, another writer, or a metadata/notes-only edit)
+  is refused; a malformed token is refused before any store access. A concurrent create loser
+  (`INSERT ... ON CONFLICT DO NOTHING` inserted nothing) is refused rather than taking over
+  the winner's row. A matching token proceeds through the unchanged S1c capture/audit
+  transaction.
+- Refusals are sanitized: HTTP 409 with `error: "conflict"` and the stable codes
+  `contract_edit_conflict` / `contract_edit_token_malformed`, one fixed message each. No
+  stored value, current commercial figure, stale payload or offered overwrite is returned, and
+  no bypass exists. The existing capture-refusal codes (`contract_revision_mapping_ambiguous`
+  and friends) are unchanged.
+- Authority, acting principal, authorization and the audit transaction are unchanged; the
+  precondition is one more refusal *inside* the same governed transaction, not a second write
+  path. `require_acting_actor` still runs first.
+- Compatibility path, stated honestly: the plain repository
+  [`upsert_upstream_contract`](../../src/eurogas_nexus/db/repositories/route_cost.py) remains an
+  explicit internal function for fixtures and seeding and enforces no token; only the public
+  route is the governed write, and no API surface exposes the plain function.
+- Honest limits: the token is an integrity/identity check on the mutable row within this
+  deployment's storage. It is **not** cryptographic authenticity (anyone who can read the row
+  can recompute it), **not** a monotonic lifecycle counter (it carries no ordering and is not
+  the captured revision number), and not a substitute for the proposed
+  `DRAFT|FROZEN|SUPERSEDED` lifecycle, effective windows, payment terms or valuation
+  citation. It guards one mutable legacy row, nothing else.
+- Client: the typed Web transport declares `edit_token` on the saved contract and
+  `expected_edit_token` on the write payload. The stored draft carries the token *with its
+  originating contract identity*; a new draft, a reset, a file import or a changed contract
+  id clears it (create-only). A successful save folds only the refreshed lease and preserved
+  notes from the server response - never the editor fields - so edits made while the request
+  was in flight survive; the draft is cleared dirty only when it was not touched since
+  submission. A conflict keeps the draft and shows an explicit EN/ZH reload-and-reconcile
+  notice; there is no automatic retry, no overwrite and no success message on failure.
+- Evidence: [`tests/unit/test_contract_edit_token.py`](../../tests/unit/test_contract_edit_token.py)
+  (token coverage, per-field invalidation, instant normalization, malformed/unsupported
+  values); [`tests/integration/test_route_cost_contract_write_revisions.py`](../../tests/integration/test_route_cost_contract_write_revisions.py)
+  (stable token across read/write/fresh-session, economics-only and metadata-only
+  invalidation, stale update leaves row/revisions/audit unchanged, create-only refusal,
+  nonexistent-row refusal, malformed-token refusal, create-race loser refusal, unknown-notes
+  preservation); [`tests/integration/test_contract_revision_capture_postgres.py`](../../tests/integration/test_contract_revision_capture_postgres.py)
+  (opt-in disposable-PostgreSQL concurrent same-token updates, fresh-token reconciliation and
+  concurrent create refusal); [`clients/web/tests/contractEditPrecondition.test.ts`](../../clients/web/tests/contractEditPrecondition.test.ts)
+  (client lease lifecycle, ID-change safety, in-flight edit preservation, conflict
+  classification and preservation, stale/failed save never folding or clearing dirty).
+- Deployment: no migration (the schema is unchanged), no startup hook, no backfill, no new
+  dependency and no runtime database write in this slice. The PostgreSQL-authoritative cases
+  run only in the existing disposable-database opt-in job, never against a workstation store.
 
 ## Open decisions (parent/reviewer)
 

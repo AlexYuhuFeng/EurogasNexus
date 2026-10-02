@@ -41,6 +41,9 @@ export const defaultContractDraft: ContractDraft = {
   // A new draft has no stored notes to preserve, so a save writes the explicit
   // `web_contract_capture` envelope; see `contractPayload.ts`.
   preserved_notes: null,
+  // A new draft has no stored identity or edit token: its first save is create-only.
+  // See `contractDraftModel.ts::draftExpectedEditToken`.
+  stored_edit: null,
 };
 
 export function cloneDefaultContractDraft(): ContractDraft {

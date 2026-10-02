@@ -347,7 +347,7 @@ test("the workspace header owns the save action, and the panel is the only surfa
   assert.match(workspace, /title=\{t\(contractSaveStateForDraft\.statusKey\)\}/);
   assert.match(
     workspace,
-    /onClick=\{\(\) =>\s*contractSaveStateForDraft\.canSave && api\.saveDraftContract\(contractEditor\.contractPayload\),?\s*\}/,
+    /onClick=\{\(\) =>\s*contractSaveStateForDraft\.canSave && void contractEditor\.saveContract\(\),?\s*\}/,
   );
   assert.match(workspace, /primaryAction=\{primaryAction\}/);
   // The panel receives the facts and the state rather than computing them again.

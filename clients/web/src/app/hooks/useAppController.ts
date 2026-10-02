@@ -33,7 +33,10 @@ export function useAppController() {
     principalId: api.currentUser?.principal_id ?? null,
   });
   const controls = useCockpitControls();
-  const contractEditor = useContractEditor(t);
+  // The editor receives the store's governed-save action and its feedback reset: the hook
+  // folds the server's refreshed edit lease and preserved notes into the draft it owns, and
+  // clears the previous draft's save notice when the editor moves to another one.
+  const contractEditor = useContractEditor(t, api.saveDraftContract, api.clearContractSaveFeedback);
 
   // Identity resolution is published for the desktop shell (window signal).
   useIdentitySignal(api.authState, api.currentUser?.principal_id ?? null);

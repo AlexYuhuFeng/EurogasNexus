@@ -1060,6 +1060,8 @@
   "contracts.no_source_reference": "No source reference",
   "contracts.review_uploaded_text": "Uploaded text requires human review before use.",
   "contracts.save_hint": "Save through the backend to refresh PostgreSQL resource-pool options. Human review remains required.",
+  "contracts.edit_conflict_title": "Saved resource changed",
+  "contracts.edit_conflict_detail": "This draft was not written because the stored resource changed or already exists since it was read. Your draft has been kept. Reload the stored resource from the library and reconcile your edits before saving again.",
   "contracts.preview": "Preview",
   "contracts.counterparty": "Counterparty",
   "contracts.beach_delivery": "Beach delivery",

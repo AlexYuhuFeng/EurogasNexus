@@ -5,7 +5,11 @@ throw-away database; these run the same repository capture against the
 configured runtime store (CI: the PostgreSQL 16 service) because the
 per-contract revision numbering guarantee - "two concurrent captures cannot
 allocate the same number" - and the stale-identity-map refresh are properties
-of the database read and row lock, not of the process. Like the other
+of the database read and row lock, not of the process. The governed write's
+edit-token precondition is exercised the same way: two writers holding the same
+read token must serialize on the row lock with exactly one accepted update, and
+two concurrent creates of one identity must leave the loser refused rather than
+overwriting the winner. Like the other
 integration tests, this module is skipped unless a PostgreSQL URL and the
 explicit capture-test opt-in are configured. These tests commit synthetic rows
 and must target a disposable test database, never a developer's running desk
@@ -36,7 +40,9 @@ from eurogas_nexus.db.repositories.route_cost import (
     CONTRACT_REVISION_CAPTURED,
     GOVERNED_CONTRACT_CREATED,
     GOVERNED_CONTRACT_ECONOMICS_UPDATED,
+    GOVERNED_CONTRACT_REFUSED,
     capture_upstream_contract_revision,
+    contract_edit_token,
     upsert_upstream_contract,
     upsert_upstream_contract_governed,
 )
@@ -111,6 +117,15 @@ def _capture(engine, contract_id: str, *, actor: str, at: datetime) -> dict:
             "recorded_by": result.revision.recorded_by,
             "recorded_at_utc": result.revision.recorded_at_utc,
         }
+
+
+def _edit_token(engine, contract_id: str) -> str:
+    """Read one stored contract's current edit token in its own transaction."""
+
+    with Session(engine) as session:
+        row = session.get(UpstreamResourceContractRecord, contract_id)
+        assert row is not None
+        return contract_edit_token(row)
 
 
 def test_repeat_capture_is_idempotent_and_the_changed_row_gets_the_next_number() -> None:
@@ -225,6 +240,7 @@ def _governed(
     actor: str,
     price: float,
     at: datetime,
+    expected_edit_token: str | None = None,
 ) -> dict:
     """Run one governed upsert in its own transaction and return plain values."""
 
@@ -234,10 +250,12 @@ def _governed(
             _contract_payload(contract_id, price=price),
             recorded_by=actor,
             recorded_at_utc=at,
+            expected_edit_token=expected_edit_token,
         )
         if result.refused:
             plain = {
                 "outcome": result.outcome,
+                "refusal_code": result.refusal_code,
                 "revision_number": None,
                 "revision_id": None,
                 "content_hash": None,
@@ -246,6 +264,7 @@ def _governed(
             return plain
         plain = {
             "outcome": result.outcome,
+            "refusal_code": None,
             "revision_number": result.latest_revision["revision_number"],
             "revision_id": result.latest_revision["contract_revision_id"],
             "content_hash": result.latest_revision["content_hash"],
@@ -254,12 +273,19 @@ def _governed(
         return plain
 
 
-def test_governed_updates_serialize_on_the_contract_row_lock() -> None:
-    """Two concurrent governed overwrites both complete with unique numbers."""
+def test_governed_updates_with_one_read_token_serialize_and_refuse_the_loser() -> None:
+    """One row lock, one winner: the second stale-token write changes nothing.
+
+    Both writers read the same token before writing, so exactly one may take the
+    row lock and update; the other must refuse with ``contract_edit_conflict``
+    instead of silently overwriting the winner. The loser adds no revision and
+    no audit row, and the winner's numbering stays unique.
+    """
 
     engine = _engine()
     contract_id = f"contract-it-{uuid4().hex[:12]}"
     _seed_contract(engine, contract_id, price=29.75)
+    shared_token = _edit_token(engine, contract_id)
 
     barrier = threading.Barrier(2)
     prices = {"first": 31.5, "second": 33.25}
@@ -267,19 +293,99 @@ def test_governed_updates_serialize_on_the_contract_row_lock() -> None:
     def _run(label: str) -> dict:
         barrier.wait(timeout=10)
         return _governed(
-            engine, contract_id, actor=f"trader-{label}", price=prices[label], at=_NOW
+            engine,
+            contract_id,
+            actor=f"trader-{label}",
+            price=prices[label],
+            at=_NOW,
+            expected_edit_token=shared_token,
         )
 
     with ThreadPoolExecutor(max_workers=2) as pool:
         futures = {label: pool.submit(_run, label) for label in prices}
         results = {label: future.result(timeout=30) for label, future in futures.items()}
 
-    # The pre-capture records the seeded state (revision 1); each overwrite then
-    # captures its own new state. Both writes are accepted, and the row lock -
-    # not optimistic retries - is what keeps the numbers from colliding.
     assert sorted(
         result["outcome"] for result in results.values()
-    ) == [GOVERNED_CONTRACT_ECONOMICS_UPDATED, GOVERNED_CONTRACT_ECONOMICS_UPDATED]
+    ) == [GOVERNED_CONTRACT_ECONOMICS_UPDATED, GOVERNED_CONTRACT_REFUSED]
+    loser = next(
+        result
+        for result in results.values()
+        if result["outcome"] == GOVERNED_CONTRACT_REFUSED
+    )
+    assert loser["refusal_code"] == "contract_edit_conflict"
+    winner_label = next(
+        label
+        for label, result in results.items()
+        if result["outcome"] == GOVERNED_CONTRACT_ECONOMICS_UPDATED
+    )
+    winner_price = prices[winner_label]
+
+    with Session(engine) as session:
+        revisions = (
+            session.query(UpstreamContractRevisionRecord)
+            .filter(UpstreamContractRevisionRecord.contract_id == contract_id)
+            .order_by(UpstreamContractRevisionRecord.revision_number)
+            .all()
+        )
+        # The seed capture plus the one accepted update: the refusal added none.
+        assert [row.revision_number for row in revisions] == [1, 2]
+        captured_prices = sorted(
+            json.loads(row.snapshot_json)["contract_price_gbp_mwh"] for row in revisions
+        )
+        assert captured_prices == ["29.75", f"{winner_price}"]
+        row = session.get(UpstreamResourceContractRecord, contract_id)
+        assert row.contract_price_gbp_mwh == winner_price
+        audits = (
+            session.query(AuditEventRecord)
+            .filter(AuditEventRecord.resource == f"upstream_contract:{contract_id}")
+            .count()
+        )
+        # The seed capture, the accepted update's capture and its mutation audit;
+        # the refused writer added nothing.
+        assert audits == 3
+
+
+def test_a_fresh_read_token_allows_the_next_governed_update_after_a_refusal() -> None:
+    """The narrowing is reconciled by reading again, not by retrying the stale token."""
+
+    engine = _engine()
+    contract_id = f"contract-it-{uuid4().hex[:12]}"
+    _seed_contract(engine, contract_id, price=29.75)
+
+    first_token = _edit_token(engine, contract_id)
+    first = _governed(
+        engine,
+        contract_id,
+        actor="trader-a",
+        price=31.5,
+        at=_NOW,
+        expected_edit_token=first_token,
+    )
+    assert first["outcome"] == GOVERNED_CONTRACT_ECONOMICS_UPDATED
+    assert first["revision_number"] == 2
+
+    stale = _governed(
+        engine,
+        contract_id,
+        actor="trader-b",
+        price=33.25,
+        at=_NOW,
+        expected_edit_token=first_token,
+    )
+    assert stale["outcome"] == GOVERNED_CONTRACT_REFUSED
+    assert stale["refusal_code"] == "contract_edit_conflict"
+
+    fresh = _governed(
+        engine,
+        contract_id,
+        actor="trader-b",
+        price=33.25,
+        at=_NOW,
+        expected_edit_token=_edit_token(engine, contract_id),
+    )
+    assert fresh["outcome"] == GOVERNED_CONTRACT_ECONOMICS_UPDATED
+    assert fresh["revision_number"] == 3
 
     with Session(engine) as session:
         revisions = (
@@ -290,16 +396,14 @@ def test_governed_updates_serialize_on_the_contract_row_lock() -> None:
         )
         assert [row.revision_number for row in revisions] == [1, 2, 3]
         assert len({row.content_hash for row in revisions}) == 3
-        captured_prices = sorted(
+        captured_prices = [
             json.loads(row.snapshot_json)["contract_price_gbp_mwh"] for row in revisions
-        )
+        ]
         assert captured_prices == ["29.75", "31.5", "33.25"]
-        row = session.get(UpstreamResourceContractRecord, contract_id)
-        assert row.contract_price_gbp_mwh in prices.values()
 
 
-def test_concurrent_governed_creates_never_leak_an_integrity_error() -> None:
-    """The create loser recovers as an update instead of failing the request."""
+def test_concurrent_governed_creates_refuse_the_loser_without_taking_over() -> None:
+    """One create wins; the loser refuses rather than overwriting the winner."""
 
     engine = _engine()
     contract_id = f"contract-it-{uuid4().hex[:12]}"
@@ -316,25 +420,49 @@ def test_concurrent_governed_creates_never_leak_an_integrity_error() -> None:
     with ThreadPoolExecutor(max_workers=2) as pool:
         futures = {label: pool.submit(_run, label) for label in prices}
         # An IntegrityError escaping here would fail the request; the governed
-        # upsert must converge instead.
+        # upsert must instead answer the stable conflict refusal.
         results = {label: future.result(timeout=30) for label, future in futures.items()}
 
     assert sorted(
         result["outcome"] for result in results.values()
-    ) == [GOVERNED_CONTRACT_CREATED, GOVERNED_CONTRACT_ECONOMICS_UPDATED]
+    ) == [GOVERNED_CONTRACT_CREATED, GOVERNED_CONTRACT_REFUSED]
+    loser = next(
+        result
+        for result in results.values()
+        if result["outcome"] == GOVERNED_CONTRACT_REFUSED
+    )
+    assert loser["refusal_code"] == "contract_edit_conflict"
+    winner_price = prices[
+        next(
+            label
+            for label, result in results.items()
+            if result["outcome"] == GOVERNED_CONTRACT_CREATED
+        )
+    ]
 
     with Session(engine) as session:
-        assert session.query(UpstreamResourceContractRecord).filter(
-            UpstreamResourceContractRecord.contract_id == contract_id
-        ).count() == 1
+        assert (
+            session.query(UpstreamResourceContractRecord)
+            .filter(UpstreamResourceContractRecord.contract_id == contract_id)
+            .count()
+            == 1
+        )
+        row = session.get(UpstreamResourceContractRecord, contract_id)
+        # The winner's row is intact: the loser overwrote and captured nothing.
+        assert row.contract_price_gbp_mwh == winner_price
         revisions = (
             session.query(UpstreamContractRevisionRecord)
             .filter(UpstreamContractRevisionRecord.contract_id == contract_id)
-            .order_by(UpstreamContractRevisionRecord.revision_number)
             .all()
         )
-        assert [row.revision_number for row in revisions] == [1, 2]
-        captured_prices = sorted(
-            json.loads(row.snapshot_json)["contract_price_gbp_mwh"] for row in revisions
+        assert [row.revision_number for row in revisions] == [1]
+        assert json.loads(revisions[0].snapshot_json)[
+            "contract_price_gbp_mwh"
+        ] == f"{winner_price}"
+        audits = (
+            session.query(AuditEventRecord)
+            .filter(AuditEventRecord.resource == f"upstream_contract:{contract_id}")
+            .count()
         )
-        assert captured_prices == ["30.0", "31.0"]
+        # One capture audit and one mutation audit for the winner; none for the loser.
+        assert audits == 2

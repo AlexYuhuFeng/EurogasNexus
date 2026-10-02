@@ -1264,6 +1264,11 @@ export interface UpstreamContractDTO {
   variable_cost_gbp_mwh?: number; regas_fee_gbp_mwh?: number; fuel_loss_allowance_pct?: number;
   notes?: string | null;
   research_only?: boolean; human_review_required?: boolean;
+  // Opaque stale-edit token of the stored row (GET and write response). It
+  // covers every persisted field of the contract, is not the captured revision
+  // number, and is sent back as `expected_edit_token` when this row is edited.
+  // A create-only save omits it.
+  edit_token?: string;
   // Additive write metadata: how the governed upsert classified this write and
   // which captured economic revision is newest afterwards. Capture-time evidence,
   // not a revision history or an edit-conflict protocol.
@@ -1275,9 +1280,20 @@ export interface UpstreamContractDTO {
 }
 export type UpstreamContractInputDTO = Omit<
   UpstreamContractDTO,
-  "updated_at_utc" | "research_only" | "human_review_required" | "write_outcome" | "latest_revision"
+  | "updated_at_utc"
+  | "research_only"
+  | "human_review_required"
+  | "write_outcome"
+  | "latest_revision"
+  | "edit_token"
 > & {
   notes?: string | null;
+  /**
+   * The edit token read for the stored contract this save updates, or null for
+   * a create-only save. Omitting or nulling it never overwrites an existing
+   * identity: the backend answers 409 `contract_edit_conflict`.
+   */
+  expected_edit_token?: string | null;
 };
 
 /**

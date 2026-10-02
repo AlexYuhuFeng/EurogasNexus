@@ -21,6 +21,13 @@ from eurogas_nexus.db.models.route_cost import (
     UpstreamResourceContractRecord,
 )
 from eurogas_nexus.db.repositories.audit import record_audit_event
+from eurogas_nexus.domain.route_cost.contract_edit_token import (
+    CONTRACT_EDIT_CONFLICT,
+    CONTRACT_EDIT_TOKEN_FIELDS,
+    ContractEditTokenError,
+    canonical_contract_edit_token,
+    validate_contract_edit_token,
+)
 from eurogas_nexus.domain.route_cost.contract_revision import (
     CAPTURE_ORIGIN_LEGACY_CAPTURE,
     ContractDisplayMetadata,
@@ -132,6 +139,10 @@ class GovernedContractUpsertResult:
         captured_revision: The newest captured revision after this call, or
             ``None`` when refused.
         refusal_code: Stable code explaining a refusal, else ``None``.
+            ``contract_edit_conflict`` names a failed edit precondition (create
+            against an existing identity, a token for a nonexistent identity,
+            or a stale token) and ``contract_revision_mapping_ambiguous`` names
+            stored terms that could not be captured; both wrote nothing.
         refusal_detail: Human-readable rejection detail, else ``None``.
     """
 
@@ -171,11 +182,18 @@ def list_tso_tariffs(session: Session) -> list[CapacityTariff]:
     return [_tariff_from_record(row) for row in rows.all()]
 
 
-def list_upstream_contracts(session: Session) -> list[dict]:
+def list_upstream_contracts(
+    session: Session, *, include_edit_token: bool = False
+) -> list[dict]:
     """List upstream resource contracts, newest update first.
 
     Args:
         session: DB session.
+        include_edit_token: When ``True`` each payload additionally carries the
+            row's opaque ``edit_token`` (the stale-edit precondition the
+            governed write compares). The dedicated contract read route asks
+            for it; other consumers (projections, resource-pool composition,
+            agent context) keep the previous payload shape.
 
     Returns:
         List of contract payload dicts.
@@ -184,7 +202,10 @@ def list_upstream_contracts(session: Session) -> list[dict]:
     rows = session.query(UpstreamResourceContractRecord).order_by(
         UpstreamResourceContractRecord.updated_at_utc.desc()
     )
-    return [_contract_payload(row) for row in rows.all()]
+    return [
+        _contract_payload(row, include_edit_token=include_edit_token)
+        for row in rows.all()
+    ]
 
 
 def upstream_contract_exists(session: Session, contract_id: str) -> bool:
@@ -212,6 +233,12 @@ def upstream_contract_exists(session: Session, contract_id: str) -> bool:
 
 def upsert_upstream_contract(session: Session, data: Mapping[str, object]) -> dict:
     """Insert or update one upstream resource contract (no commit).
+
+    This is the explicit internal compatibility path used by fixtures, seeding
+    and tests: it enforces no edit-token precondition and must never be exposed
+    as an API write path. The public route always calls
+    :func:`upsert_upstream_contract_governed`, which requires the token read
+    from the stored row before it overwrites anything.
 
     Args:
         session: DB session.
@@ -297,8 +324,9 @@ def _insert_contract_row_if_absent(
     ingestion pattern (``db/repositories/public_ingestion_upsert.py``): a
     concurrent create of the same identity is serialized by the primary key,
     and the loser's statement simply inserts nothing. Unlike a failed ORM
-    flush, it leaves the session usable, so the same call can continue against
-    the committed row instead of leaking a constraint exception.
+    flush, it leaves the session usable, so the caller can decide what a lost
+    create race means (the governed write refuses it) instead of leaking a
+    constraint exception.
 
     Returns:
         Whether this call inserted the row (``False`` when the identity already
@@ -480,6 +508,7 @@ def upsert_upstream_contract_governed(
     recorded_by: str,
     recorded_at_utc: datetime,
     correlation_id: str | None = None,
+    expected_edit_token: str | None = None,
 ) -> GovernedContractUpsertResult:
     """Insert or update one upstream contract under captured economic revisions.
 
@@ -493,6 +522,28 @@ def upsert_upstream_contract_governed(
     evidence rather than a claim. The write itself grows no history: revisions
     exist only because this path (or an explicit capture) recorded the row
     states it observed.
+
+    Edit precondition (stale-edit protection): ``expected_edit_token`` is the
+    opaque token a contract read returned for the stored row. It is checked
+    under the same row lock and *before* any capture, audit or mutation:
+
+    * omitted/``None`` means **create-only**. An existing identity is refused
+      with :data:`CONTRACT_EDIT_CONFLICT` and nothing is written; a concurrent
+      create that loses the identity race is refused the same way instead of
+      overwriting the winner's row.
+    * supplied for an identity with no stored row is refused with
+      :data:`CONTRACT_EDIT_CONFLICT` without inserting anything.
+    * supplied but not matching the locked row's current token (a stale read,
+      another writer, or a metadata/notes-only edit since the read) is refused
+      with :data:`CONTRACT_EDIT_CONFLICT`; the row, its revisions and its audit
+      trail are unchanged.
+
+    A malformed token (not ``sha256:`` + 64 lowercase hex) is refused before
+    any store access with :data:`CONTRACT_EDIT_TOKEN_MALFORMED`. Both refusals
+    are stable, sanitized codes; the refusal detail names no stored value. The
+    precondition is honored only by this governed path - the plain
+    :func:`upsert_upstream_contract` remains an explicit internal compatibility
+    path and must never become an API write path.
 
     Ordering: the contract row is locked (``SELECT ... FOR UPDATE`` plus
     identity-map refresh) *before* the pre-capture and the edit, so the state
@@ -527,9 +578,9 @@ def upsert_upstream_contract_governed(
     Concurrency: the row lock serializes updates per contract, so revision
     numbers cannot collide. Two concurrent creates of the same new identity
     cannot both insert: the insert is conflict-tolerant (``ON CONFLICT DO
-    NOTHING``), so the loser's statement inserts nothing, the session stays
-    usable and the same call continues as an overwrite of the winner's
-    committed row instead of leaking a constraint exception.
+    NOTHING``), so the loser's statement inserts nothing and the session stays
+    usable. That loser returns a :data:`CONTRACT_EDIT_CONFLICT` refusal
+    instead of continuing as an overwrite of the winner's committed row.
 
     Audit: every outcome except ``unchanged``/``refused`` appends one
     ``route_cost.contract.upsert`` row (principal, correlation id, changed
@@ -545,6 +596,8 @@ def upsert_upstream_contract_governed(
         recorded_at_utc: Time of the write; must be timezone-aware with a
             concrete UTC offset, and is stored as UTC.
         correlation_id: Optional request correlation id for the write audit.
+        expected_edit_token: Opaque token from a stored-contract read, or
+            ``None`` for a create-only request. See the precondition above.
 
     Returns:
         The write result; see :class:`GovernedContractUpsertResult`.
@@ -553,7 +606,8 @@ def upsert_upstream_contract_governed(
         ContractRevisionPersistenceError: When the contract id or actor is
             blank or exceeds its column bound, or when ``recorded_at_utc`` is
             naive or has no concrete UTC offset - raised before any write - or
-            when the runtime dialect has no reviewed conflict-tolerant insert.
+            when the runtime dialect has no reviewed conflict-tolerant insert,
+            or when a supplied edit token is malformed.
         KeyError/ValueError: When required contract fields are missing or
             malformed.
     """
@@ -562,20 +616,50 @@ def upsert_upstream_contract_governed(
     actor = _capture_text(recorded_by, "recorded_by", 64)
     recorded_at = _capture_instant(recorded_at_utc)
     values = _normalized_contract_values(data)
+    expected_token: str | None = None
+    if expected_edit_token is not None:
+        try:
+            expected_token = validate_contract_edit_token(expected_edit_token)
+        except ContractEditTokenError as exc:
+            raise ContractRevisionPersistenceError(exc.code, exc.detail) from exc
 
+    # 编辑前置条件在行锁下、任何捕获/审计/变更之前检查：token 与当前持久化行状态不一致
+    # 时本调用不写任何行（不插入、不覆盖、不捕获、不审计）。
     row = _locked_contract_row(session, identity)
     created = False
     if row is None:
+        if expected_token is not None:
+            # 携带 token 的请求只更新已存在的行：行不存在即拒绝，绝不插入。
+            return _contract_edit_conflict_result(
+                f"no upstream contract row exists for {identity!r}; a token from a"
+                " read can only update the stored contract it was read from"
+            )
         created = _insert_contract_row_if_absent(session, identity, values, recorded_at)
-        # Either this call inserted the row, or a concurrent create committed
-        # the same identity first: both cases read the stored row under the
-        # lock and continue, the second as an overwrite of the winner's row.
+        if not created:
+            # 创建竞争的失败方绝不覆盖赢家：create-only 请求只创建，不接管。
+            return _contract_edit_conflict_result(
+                f"contract {identity!r} was created by a concurrent write;"
+                " a create-only request never overwrites the winner"
+            )
+        # This call inserted the row: read it back under the lock and continue.
         row = _locked_contract_row(session, identity)
         if row is None:
             raise ContractRevisionPersistenceError(
                 "contract_row_not_visible_after_insert",
                 f"contract {identity!r} could not be read back after its insert",
             )
+    elif expected_token is None:
+        # 省略/空 token 意味着仅创建：绝不覆盖已存在的身份。
+        return _contract_edit_conflict_result(
+            f"contract {identity!r} already exists; read it first and supply the"
+            " edit token from that read to update it"
+        )
+    elif contract_edit_token(row) != expected_token:
+        # 不返回旧载荷、当前商业值或差异细节：仅稳定拒绝码，调用方重新读取后协调。
+        return _contract_edit_conflict_result(
+            f"contract {identity!r} has changed since the supplied edit token was"
+            " read; read the stored contract again and reconcile the draft"
+        )
 
     if created:
         post = capture_upstream_contract_revision(
@@ -607,7 +691,7 @@ def upsert_upstream_contract_governed(
         )
         return GovernedContractUpsertResult(
             outcome=GOVERNED_CONTRACT_CREATED,
-            contract=_contract_payload(row),
+            contract=_contract_payload(row, include_edit_token=True),
             latest_revision=_revision_identity(post.revision),
             previous_revision=None,
             captured_revision=post.revision,
@@ -641,7 +725,7 @@ def upsert_upstream_contract_governed(
         # 真实重放：经济与展示证据均未变化，不写行、不写审计、保留原归属。
         return GovernedContractUpsertResult(
             outcome=GOVERNED_CONTRACT_UNCHANGED,
-            contract=_contract_payload(row),
+            contract=_contract_payload(row, include_edit_token=True),
             latest_revision=_revision_identity(previous.revision),
             previous_revision=previous.revision,
             captured_revision=previous.revision,
@@ -686,7 +770,7 @@ def upsert_upstream_contract_governed(
     )
     return GovernedContractUpsertResult(
         outcome=outcome,
-        contract=_contract_payload(row),
+        contract=_contract_payload(row, include_edit_token=True),
         latest_revision=_revision_identity(post.revision),
         previous_revision=previous.revision,
         captured_revision=post.revision,
@@ -905,9 +989,42 @@ def _mark_from_record(row: LiveMarketMarkRecord) -> LiveMarketMark:
     )
 
 
-def _contract_payload(row: UpstreamResourceContractRecord) -> dict:
+def contract_edit_token(row: UpstreamResourceContractRecord) -> str:
+    """Opaque stale-edit token of one stored upstream-contract row.
+
+    The token covers every persisted column - identity, economics, display
+    metadata, raw operator notes and the created/updated instants - so any
+    persisted change, including a metadata-only edit, changes it. It is the
+    token the contract read returns and the governed write compares under the
+    row lock. See
+    :mod:`eurogas_nexus.domain.route_cost.contract_edit_token` for its honest
+    limits (integrity/identity check, not a signature or lifecycle counter).
+    """
+
+    return canonical_contract_edit_token(
+        {field: getattr(row, field) for field in CONTRACT_EDIT_TOKEN_FIELDS}
+    )
+
+
+def _contract_edit_conflict_result(detail: str) -> GovernedContractUpsertResult:
+    """Fail-closed result for a failed edit precondition: nothing was written."""
+
+    return GovernedContractUpsertResult(
+        outcome=GOVERNED_CONTRACT_REFUSED,
+        contract=None,
+        latest_revision=None,
+        previous_revision=None,
+        captured_revision=None,
+        refusal_code=CONTRACT_EDIT_CONFLICT,
+        refusal_detail=detail,
+    )
+
+
+def _contract_payload(
+    row: UpstreamResourceContractRecord, *, include_edit_token: bool = False
+) -> dict:
     notes = _contract_notes(row.notes)
-    return {
+    payload = {
         "contract_id": row.contract_id,
         "contract_name": row.contract_name,
         "resource_type": row.resource_type,
@@ -934,6 +1051,9 @@ def _contract_payload(row: UpstreamResourceContractRecord) -> dict:
         },
         "updated_at_utc": row.updated_at_utc.isoformat(),
     }
+    if include_edit_token:
+        payload["edit_token"] = contract_edit_token(row)
+    return payload
 
 
 _STRUCTURED_NOTE_FIELDS = (

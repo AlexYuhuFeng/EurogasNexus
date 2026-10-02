@@ -120,6 +120,23 @@ export function sourceReferenceFromRecord(record: Record<string, unknown>): stri
  */
 export type ContractRecordBase = "draft" | "stored";
 
+/**
+ * The stored identity and opaque edit token of one persisted record, or `null`.
+ *
+ * The token is only usable together with the identity it was read from: both must be
+ * non-empty strings on the record, or the draft stays create-only. A stored record without
+ * a token (an older deployment) fails closed into a create-only save rather than sending
+ * anything else.
+ */
+function storedEditFromRecord(
+  record: Record<string, unknown>,
+): { contract_id: string; edit_token: string } | null {
+  const contractId = typeof record.contract_id === "string" ? record.contract_id.trim() : "";
+  const editToken = typeof record.edit_token === "string" ? record.edit_token.trim() : "";
+  if (!contractId || !editToken) return null;
+  return { contract_id: contractId, edit_token: editToken };
+}
+
 export function contractDraftFromRecord(
   record: Record<string, unknown>,
   current: ContractDraft,
@@ -135,6 +152,11 @@ export function contractDraftFromRecord(
     // base (the file-import overlay) clears it too, so notes never ride along from a
     // previously loaded contract into an import or a new draft.
     preserved_notes: base === "stored" ? preservedNotesFromRecord(record) : null,
+    // The edit lease belongs to the stored record this draft was loaded from: a
+    // `"stored"` load adopts that record's identity+token, and every other base
+    // (file import, record overlay) clears it, so a save can never send a
+    // previously loaded contract's token for another identity.
+    stored_edit: base === "stored" ? storedEditFromRecord(record) : null,
     contract_id: text("contract_id", current.contract_id),
     contract_name: text("contract_name", current.contract_name),
     resource_type: text("resource_type", current.resource_type),

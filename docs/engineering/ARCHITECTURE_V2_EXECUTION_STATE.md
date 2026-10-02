@@ -5,6 +5,30 @@ Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical sli
 
 ## Current work
 
+### Contract stale-edit protection (2026-10-02)
+
+DeepSeek implemented the reviewed state-token precondition on baseline
+`6b5258d`, then repaired parent findings in normal Node import resolution,
+same-identity draft replacement, and committed-write/failed-refresh handling.
+Parent additionally corrected an expired-identity refresh returning commercial
+data to the editor. Existing public updates now require the read token;
+missing/null means create-only, including concurrent creates. The row lock
+guards comparison before capture, audit or mutation. The token covers all
+persisted columns, including metadata and timestamps; it is not a signature
+or monotonic lifecycle version. No schema change or runtime database write.
+
+Independent evidence: 40 token/API tests passed; standard `npm test` passed
+794 with 3 skipped; production build passed (existing ineffective dynamic-import
+warning); after the parent identity correction, 21 targeted client tests passed.
+PostgreSQL concurrency and browser acceptance require same-commit CI; the new
+conflict notice has not yet received authenticated visual acceptance. The broader
+security/client-release suite passed 246 tests; focused Ruff passed. Earlier notes-preservation commit
+`6b5258d` passed GitHub CI run `36953137737`.
+
+Next: verify the conflict journey in the running application, including safe
+reload/reconciliation and feedback scope while switching drafts. Numeric missing
+values, revision-history presentation and full commercial acceptance remain open.
+
 ### Contract notes preservation (2026-10-02)
 
 DeepSeek implemented a bounded repair on baseline `35091c9`; parent reviewed

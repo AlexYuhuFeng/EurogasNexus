@@ -32,7 +32,11 @@ function actionBody(name: string): string {
 test("mutation responses are committed only for their identity generation", () => {
   for (const name of MUTATIONS) {
     const body = actionBody(name);
-    assert.match(body, /if \(logoutInProgress\) return;/, `${name} needs a logout guard`);
+    assert.match(
+      body,
+      /if \(logoutInProgress\) return/,
+      `${name} needs a logout guard`,
+    );
     assert.equal(
       body.match(/identityReadCoordinator\.capture\(\)/g)?.length,
       1,

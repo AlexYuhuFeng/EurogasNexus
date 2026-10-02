@@ -229,7 +229,7 @@ export function PortfolioWorkspace({ controller }: { controller: AppController }
         disabled={!contractSaveStateForDraft.canSave}
         title={t(contractSaveStateForDraft.statusKey)}
         onClick={() =>
-          contractSaveStateForDraft.canSave && api.saveDraftContract(contractEditor.contractPayload)
+          contractSaveStateForDraft.canSave && void contractEditor.saveContract()
         }
       >
         {t("contracts.action.save")}
@@ -286,6 +286,7 @@ export function PortfolioWorkspace({ controller }: { controller: AppController }
             contractImportRef={contractEditor.contractImportRef}
             contractImportMessage={contractEditor.contractImportMessage}
             contractSaveMessage={api.contractSaveMessage}
+            contractSaveConflict={api.contractSaveConflict}
             t={t}
             updateContractText={contractEditor.updateContractText}
             updateContractNumber={contractEditor.updateContractNumber}

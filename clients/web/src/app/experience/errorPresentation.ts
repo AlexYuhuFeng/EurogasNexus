@@ -203,6 +203,24 @@ export function describeFailure(
   return describeApiError(apiErrorBodyFrom(cause) ?? { error: fallbackCode });
 }
 
+/**
+ * The endpoint's own `detail.code` (or `detail.error`), wherever the failure carries it.
+ *
+ * The taxonomy envelope repeats a code at the top level, but the endpoint's `detail` may
+ * carry a more specific stable code the catalogue does not repeat (for example a governed
+ * write's `contract_edit_conflict`). A caller that must distinguish those codes reads them
+ * here instead of parsing the flattened error message.
+ */
+export function apiErrorDetailCode(cause: unknown): string | null {
+  if (!isRecord(cause)) return null;
+  const detail = isRecord(cause.detail) ? cause.detail : null;
+  if (!detail) return null;
+  const code = detail.code;
+  if (typeof code === "string" && code.trim()) return code.trim();
+  const error = detail.error;
+  return typeof error === "string" && error.trim() ? error.trim() : null;
+}
+
 /** The four answers a surface renders, plus the correlation id a user can quote. */
 export interface ErrorText {
   readonly title: string;
