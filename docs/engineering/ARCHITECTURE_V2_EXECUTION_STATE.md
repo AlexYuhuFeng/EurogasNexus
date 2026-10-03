@@ -5,6 +5,33 @@ Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical sli
 
 ## Current work
 
+### Payment persistence compatibility specification (2026-10-03)
+
+Specification only; no implementation, migration, runtime, schema, test or
+client change. DeepSeek replaced the ambiguous S2b transition sketch in
+[CONTRACT_PAYMENT_INTEGRATION_PLAN.md](CONTRACT_PAYMENT_INTEGRATION_PLAN.md)
+section 15 with a precise implementation contract grounded in the current code:
+omission of the new payment-terms field preserves stored terms while explicit
+`null` clears them (inspect `model_fields_set`; do not globally change existing
+fields' replacement semantics or apply `exclude_unset` to the whole request); canonical
+revision documents always include `payment_terms` — v1 stays strictly null with
+its pinned bytes/hash and version-dispatched v2 accepts only a strict S2a
+document or null, with no parent inference during decode; additive nullable
+storage with no backfill; and the existing edit-token-before-capture, atomic
+capture/audit ordering extended to cover the terms carrier. Two integration
+decisions remain open for the implementing slice: the terms carrier and its
+edit-token version, and whether untouched legacy rows keep v1 encoding or
+accept a disclosed conversion revision (today's capture idempotency compares
+content hashes, so schema conversion alone must not silently allocate a
+revision). Integration pending. Focused gates: `git diff --check` clean, the repo-wide
+markdown link check and the docs-alignment contract tests passed (one
+negative sandbox fixture test cannot write outside the workspace; that
+failure is environment-limited, not a link failure).
+Parent review narrowed omission handling to the new field only and retained
+authorization ordering. Independent docs/architecture alignment checks:
+18 passed (two existing deprecation warnings); diff check passed. Runtime
+PostgreSQL accepts connections. Baseline `d9a7363` CI run `37097891754` passed.
+
 ### Explicit payment-term domain foundation S2a (2026-10-03)
 
 Baseline `a04f99a` passed GitHub CI run `37087566428`. DeepSeek implemented the

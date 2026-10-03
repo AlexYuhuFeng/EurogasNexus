@@ -1,6 +1,6 @@
 # Contract Revision and Explicit Payment Terms — Integration Plan
 
-Status: **S1a, S1b, S1c, S1d, the bounded S1e edit-token precondition and the S2a typed explicit-payment-terms foundation are implemented (immutable economic payload definition with legacy compatibility mapping; additive revision storage with an explicit repository capture/read operation; the governed contract write that captures both sides of an overwrite with atomic attribution; the bounded, contract-scoped read surface over the captured evidence; a stale-edit precondition on that governed write; and the strict, versioned payment-terms model — including its explicit per-item flow direction — plus its reviewed ontology vocabulary, defined and tested with no persistence, route, client or date resolution); S2b and the remaining slices are PROPOSED for architecture review and are not approved or implemented.** Bounded preparation from [Architecture V2 execution state](ARCHITECTURE_V2_EXECUTION_STATE.md) and the [European Gas Trading Business Acceptance](../product/TRADING_BUSINESS_ACCEPTANCE.md) matrix, audited at repository baseline `509e703`; S1a was implemented at baseline `1676b98` and is recorded in section 8, S1b at baseline `f396492` and is recorded in section 9, S1c after baseline `9271500` and is recorded in section 10, S1d after baseline `9160188` and is recorded in section 11, S1e after baseline `6b5258d` and is recorded in section 13, and S2a at baseline `a04f99a` and is recorded in section 15. The S1b migration is expand-only storage; there is no backfill, UI, valuation citation, checkpoint or release artefact beyond it. S1c is *not* a revision lifecycle or a complete history; its honest limits are listed in section 10, and S1e narrows only its write precondition (section 13) without turning it into a lifecycle. S1d reads evidence only — it captures nothing, changes no schema and asserts no payment terms. S2a is a declared-rule type only: nothing is persisted, exposed, resolved or rendered, and it is not a usable payment workflow.
+Status: **S1a, S1b, S1c, S1d, the bounded S1e edit-token precondition and the S2a typed explicit-payment-terms foundation are implemented (immutable economic payload definition with legacy compatibility mapping; additive revision storage with an explicit repository capture/read operation; the governed contract write that captures both sides of an overwrite with atomic attribution; the bounded, contract-scoped read surface over the captured evidence; a stale-edit precondition on that governed write; and the strict, versioned payment-terms model — including its explicit per-item flow direction — plus its reviewed ontology vocabulary, defined and tested with no persistence, route, client or date resolution); S2b now carries a precise implementation contract grounded in the audited code (section 15, specification only — not approved and not implemented), and the remaining slices are PROPOSED for architecture review.** Bounded preparation from [Architecture V2 execution state](ARCHITECTURE_V2_EXECUTION_STATE.md) and the [European Gas Trading Business Acceptance](../product/TRADING_BUSINESS_ACCEPTANCE.md) matrix, audited at repository baseline `509e703`; S1a was implemented at baseline `1676b98` and is recorded in section 8, S1b at baseline `f396492` and is recorded in section 9, S1c after baseline `9271500` and is recorded in section 10, S1d after baseline `9160188` and is recorded in section 11, S1e after baseline `6b5258d` and is recorded in section 13, and S2a at baseline `a04f99a` and is recorded in section 15. The S1b migration is expand-only storage; there is no backfill, UI, valuation citation, checkpoint or release artefact beyond it. S1c is *not* a revision lifecycle or a complete history; its honest limits are listed in section 10, and S1e narrows only its write precondition (section 13) without turning it into a lifecycle. S1d reads evidence only — it captures nothing, changes no schema and asserts no payment terms. S2a is a declared-rule type only: nothing is persisted, exposed, resolved or rendered, and it is not a usable payment workflow.
 
 Scope: contract/right lifecycle for pipeline-gas and LNG tender decision support, plus explicit payment-term semantics feeding the shared dated cash valuation. Boundary: decision support only — no trade execution, tender submission, capacity reservation, nomination or settlement; an internal revision is never an amendment to a legally binding agreement.
 
@@ -72,7 +72,7 @@ Gaps: no contract-revision or valuation-citation concept exists. The payment-ter
 ## 3. Smallest incremental slices
 
 1. **S1 — revision foundation**, split into independently reviewed tasks: first define the immutable payload and compatibility mapping (implemented, S1a), then additive storage with an explicit capture/read operation, upgrade tests and atomic audit (implemented, S1b — no backfill), then guarded write/read transitions on the existing routes (write transition implemented as S1c — section 10; bounded revision reads implemented as S1d — section 11; the bounded stale-edit token precondition on that write implemented as S1e — section 13; the monotonic draft edit-version conflict remains proposed). Do not drop existing economic columns or replace all CRUD in one change. Define a captured legacy revision honestly as capture-time evidence, not historical reconstruction. Freeze/retire and route-level PostgreSQL concurrency acceptance follow before valuation citation is enabled.
-2. **S2 — explicit payment terms** on the revision, with refusal codes and read-only exposure in the revision payload. S2a (the strict typed declared-rule model, its reviewed vocabulary and stable refusal codes, with no persistence, API, UI, client or date resolution) is implemented — section 15. S2b (carry the terms inside an immutable revision additively, keep v1 bytes/hashes readable, expose them read-only) remains PROPOSED and is described at the end of section 15; freeze/retire lifecycle and the anchor-calendar resolver stay prerequisites before any valuation may cite terms.
+2. **S2 — explicit payment terms** on the revision, with refusal codes and read-only exposure in the revision payload. S2a (the strict typed declared-rule model, its reviewed vocabulary and stable refusal codes, with no persistence, API, UI, client or date resolution) is implemented — section 15. S2b (carry the terms inside an immutable revision additively, keep v1 bytes/hashes readable, expose them read-only) remains unimplemented and unapproved; its implementation contract, open integration decisions and focused test matrix are at the end of section 15. Freeze/retire lifecycle and the anchor-calendar resolver stay prerequisites before any valuation may cite terms.
 3. **S3 — composition**: frozen revision + valuation date + explicit delivery window/quantity basis + explicit FX and discount inputs → `compute_cash_valuation`; cite revision/hash; refuse when terms are absent.
 4. **S4 — existing Decision workspace wiring**; no new top-level page, no client arithmetic.
 5. **S5 — capacity/TSO/slot rights write path** reusing S1/S2 semantics.
@@ -442,29 +442,124 @@ supplied by the operator, never a market default and never a legal conclusion.
   exist and a resolver is reviewed; commercial/legal review of the anchor
   vocabulary (open decision 1) remains required for that use.
 
-### S2b transition proposal (next reviewed slice, not implemented)
+### S2b implementation contract (specification only — not implemented, not approved)
 
-Additive only; no v1 artefact may change:
+This replaces the earlier transition sketch, which wrongly equated a field
+omitted from a **write request** with a field omitted from a **canonical
+revision document**. The two omissions are separate contracts and are specified
+separately below; nothing here is implemented, approved or claimed to exist.
 
-1. Add a **new** revision schema version (`upstream-contract-revision/v2`)
-   whose existing `payment_terms` field can carry this module's document
-   instead of being restricted to null. Decoding dispatches on `schema_version`:
-   `upstream-contract-revision/v1` documents remain decodable and their stored
-   content hashes remain verifiable exactly as today.
-2. A v2 document that omits the field, or carries `payment_terms: null`, keeps
-   every existing economic field and its serialized spelling unchanged (only
-   the schema version itself is the new one); when a successor revision is
-   composed from a parent that declared terms, omitting the field **preserves
-   the parent's declared terms** rather than clearing them. Clearing is
-   representable only as an explicit operator statement, never as an omission.
-3. The capture path maps operator-declared terms through this module's strict
-   builder before persisting; refusal codes stay this module's codes and no
-   partial or empty schedule is ever stored (`payment_terms` absent means "not
-   stated", never an empty schedule).
-4. Read-only exposure of the terms in the captured revision payload follows,
-   with the same capture-time-evidence warnings. Valuation citation stays
-   blocked until the revision lifecycle (freeze/current pointer) and the
-   anchor-calendar resolver are reviewed.
+**Write requests (mutable row): omission preserves, explicit `null` clears.**
+
+- Omission of the new `payment_terms` field preserves its stored value.
+  The current route uses `body.model_dump(mode="json")`, which includes
+  defaults. Inspect `model_fields_set` to distinguish absence, and remove only
+  an omitted `payment_terms` from the normalized update. Do not apply
+  `exclude_unset` globally or change existing fields' replacement semantics.
+- Explicit `payment_terms: null` deliberately clears the declaration to
+  "not stated". This rule does not redefine other nullable fields.
+- A supplied non-null `payment_terms` object is validated by the S2a strict
+  builder/decoder *before* any capture, audit or mutation; any S2a refusal
+  fails the whole write with its stable, sanitized code, and no partial or
+  empty schedule is stored (S2a already refuses an empty declaration).
+- A new row with the field omitted stores no declaration (unavailable/`null`).
+  No anchor, calendar, day count, date, amount or valuation is inferred
+  anywhere in the write path; S2b never resolves a rule.
+
+**Canonical revision documents: always carry `payment_terms`; decode never
+fills a hole.**
+
+- Every canonical document of every schema version includes `payment_terms`. A
+  missing field is a field-set violation, never "preserve the parent" and never
+  "not stated"; v1's strict field-set check already enforces this and the v2
+  decoder keeps the same exact-set rule. `null` is the only representation of
+  "no declaration".
+- v1 is frozen: field set, strict `payment_terms: null`, canonical bytes and
+  the pinned golden hash (`sha256:0da96e…`, [`test_contract_payment_terms.py`](../../tests/unit/test_contract_payment_terms.py))
+  do not change.
+- Decoding dispatches on `schema_version`: v1 documents decode exactly as today
+  and are never rewritten or upgraded in memory; v2 documents accept either the
+  S2a canonical document (strict decode) or `null`. Decode never consults a
+  parent revision, the mutable row or any default.
+- Encoding a v2 document with no declared terms writes `payment_terms: null`,
+  never an omitted key. Whether the writer keeps emitting v1 while no terms are
+  declared is the conversion decision below.
+
+**Storage and rollout: additive, nullable, no backfill.**
+
+- Additive nullable storage only, with `NULL`/absent meaning "not stated". No
+  backfill and no fabricated history: existing rows stay `NULL` and no past
+  terms are invented.
+- Existing stored v1 revision rows are never rewritten; their bytes and hashes
+  remain verifiable exactly as today. The Alembic change is expand-only,
+  applies through the existing PostgreSQL release process, and adds no startup
+  hook or runtime write.
+- Reviewed next implementation scope (no claim that any part exists): the terms
+  carrier and its edit-token coverage; the write-request presence contract; v2
+  encode/decode dispatch; the repository capture/hash comparison; read-only
+  exposure of declared terms. Lifecycle (freeze/current pointer), date
+  resolution and valuation citation stay out of scope.
+
+**Integration decisions (review required; the current code does not decide
+them).**
+
+- **Untouched legacy rows:** `capture_upstream_contract_revision` compares the
+  mapped snapshot hash with the latest revision, so a writer that starts
+  emitting v2 merely because S2b shipped would allocate a revision for an
+  untouched row solely because of schema conversion. The implementing slice
+  must choose and disclose either (a) keep v1 encoding while no terms are
+  declared, so untouched rows stay byte-identical and gain nothing, or (b)
+  accept a conversion revision labelled as conversion, not economics. This
+  document picks neither and claims no conversion path.
+- **Storage carrier:** preserving terms on omission requires the current
+  declaration on the mutable row, so the carrier must be covered by the edit
+  token (which covers every persisted column;
+  [`test_contract_edit_token.py`](../../tests/unit/test_contract_edit_token.py)
+  fails until the field tuple matches) together with the
+  `upstream-contract-edit-token/v1` version decision. Whether the carrier is a
+  new nullable column or another reviewed form is decided by the implementing
+  slice.
+
+**Preconditions, atomicity, failure behaviour.**
+
+- Ordering is unchanged and extended: authenticated actor (never from the body)
+  → row lock (`FOR UPDATE` + refresh) → edit-token check → pre-capture of the
+  stored state *including stored terms* → mutation → post-capture (v2 with the
+  new terms) → audit; one transaction, all-or-nothing. Any refusal writes
+  nothing: no row change, revision or audit.
+- The token covers the terms carrier, so a terms-only edit by another writer
+  invalidates a stale draft with the existing 409 `contract_edit_conflict`; no
+  bypass exists.
+- Corrupt persisted terms (bad JSON, unknown schema/field, hash mismatch,
+  non-canonical spelling) fail closed on read and write with a stable code and
+  a fixed message; stored values, supplied content, driver text and reprs are
+  never echoed, and a failed pre-capture leaves the malformed stored terms in
+  place for remediation, as the ambiguous-mapping refusal does today. Malformed
+  supplied terms refuse with S2a's sanitized codes before business mutation;
+  existing authentication and authorization ordering remains unchanged.
+
+**Reads.** Declared terms appear read-only in captured revision payloads after
+strict decode and hash verification, under the existing capture-time-evidence
+warnings. No date resolution and no valuation citation (still blocked on the
+revision lifecycle and the anchor-calendar resolver — open decisions 1 and 3).
+
+**Focused tests matrix (no new SQLite coverage).**
+
+| # | Case | Expected |
+| --- | --- | --- |
+| 1 | create with declared terms, and without | declaration captured; omission stores null; nothing inferred |
+| 2 | set terms on an existing row | previous and new state captured; one mutation audit; the v2 revision carries the declaration |
+| 3 | omit terms while changing another field | stored terms preserved (presence read before defaults) |
+| 4 | explicit `null` | stored terms deliberately cleared, distinguishable from omission |
+| 5 | stale edit token after a terms edit | 409 `contract_edit_conflict`; row, revisions and audit unchanged |
+| 6 | denied permission | existing GOVERNED refusal; no write, capture or audit |
+| 7 | forced failure after pre-capture or mutation | full rollback: no row change, revision or audit |
+| 8 | malformed supplied terms | S2a sanitized refusal; nothing stored; no supplied value echoed |
+| 9 | corrupt persisted terms | fail closed on read and write; fixed message; no leak |
+| 10 | v1 golden and v2 roundtrip | pinned v1 bytes/hash unchanged; v2 with a document and with null round-trip byte-identically |
+| 11 | migration (PostgreSQL, opt-in disposable DB) | expand-only applies; pre-existing v1 rows still verify; no backfill |
+
+No client, UI, permission, valuation or lifecycle work belongs to this slice.
 
 ## Open decisions (parent/reviewer)
 
@@ -480,3 +575,5 @@ Review constraints: the semantic kernel's `Money`/FX magnitudes use floats; reus
 3. Whether valuation citations need a persisted run record or the existing analysis-snapshot/decision-case lineage suffices.
 4. Whether `ContractRevision`/`PaymentTerms` become ontology concepts or slots on the existing binding — S2a answers the payment-terms half by declaring `ContractPaymentTerms`/`PaymentScheduleItem` as unbound ontology concepts (section 15); the revision identity remains undecided.
 5. Migration path for `notes`-embedded economic fields without breaking current read payloads.
+6. S2b storage carrier and edit-token version: preserving terms on omission requires the current declaration on the mutable row, so the carrier must be covered by the edit token (`CONTRACT_EDIT_TOKEN_FIELDS` plus the `upstream-contract-edit-token/v1` version decision). Whether it is a new nullable column or another reviewed form is decided by the implementing slice (section 15, integration decisions).
+7. S2b legacy conversion: whether an untouched legacy row keeps v1 encoding while no terms are declared, or accepts a disclosed conversion revision at its next write. The current capture idempotency compares content hashes, so this choice decides whether schema conversion alone can allocate a revision (section 15, integration decisions, option a/b).
