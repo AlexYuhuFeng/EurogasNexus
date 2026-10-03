@@ -22,7 +22,7 @@ def test_the_preflight_reports_the_head_instead_of_crashing(monkeypatch, capsys)
 
     import scripts.ops.migration_preflight as preflight
 
-    assert preflight.alembic_head() == "0037_contract_revisions"
+    assert preflight.alembic_head() == "0038_contract_payment_terms"
 
     # A docstring line that starts with "revision" must not be read as the assignment: this is
     # the exact shape that used to raise IndexError.
@@ -44,7 +44,7 @@ def test_the_preflight_without_a_database_reports_rather_than_fails(monkeypatch,
 
     report = json.loads(capsys.readouterr().out)
     assert status == 1, "a deployment with no store is not ready to migrate"
-    assert report["source_head"] == "0037_contract_revisions"
+    assert report["source_head"] == "0038_contract_payment_terms"
     assert report["database_url_present"] is False
     assert report["ok"] is False
     assert "RUNTIME_STORE_DATABASE_URL is not configured." in report["warnings"]

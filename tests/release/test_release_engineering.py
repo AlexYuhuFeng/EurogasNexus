@@ -96,8 +96,8 @@ def test_stable_dispatch_is_rejected_and_tag_mismatch_is_rejected() -> None:
         )
 
 
-def test_latest_alembic_revision_is_head_0037() -> None:
-    assert latest_alembic_revision() == "0037_contract_revisions"
+def test_latest_alembic_revision_is_head_0038() -> None:
+    assert latest_alembic_revision() == "0038_contract_payment_terms"
 
 
 def test_revision_resolution_ignores_prose_that_starts_with_revision(tmp_path, monkeypatch) -> None:

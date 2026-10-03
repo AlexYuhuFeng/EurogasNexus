@@ -96,7 +96,7 @@ function historyResponse(): Record<string, unknown> {
       source_references: ["runtime-postgresql"],
       warnings: [
         "Captured revisions are explicit capture-time evidence, not a complete history of past contract writes.",
-        "Captured economics carry no payment terms or effective dates; nothing here asserts when the terms applied or when payment falls due.",
+        "Captured economics carry, at most, the operator-declared payment terms captured with them and no effective dates; nothing here asserts when the terms applied or resolves a payment date.",
       ],
     },
   };

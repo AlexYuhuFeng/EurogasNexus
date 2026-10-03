@@ -8,7 +8,10 @@ own contract:
 * it covers exactly the persisted contract columns (a column added without a
   token-version decision fails here);
 * every persisted category - economics, identity, display metadata, raw
-  operator notes and the updated instant - changes it;
+  operator notes, the declared payment-terms carrier and the updated instant -
+  changes it;
+* the schema discriminator is the post-S2b ``v2`` value, so a token issued by
+  the previous field set can never compare equal to one issued now;
 * one stored instant canonicalizes identically whether a driver returns it
   timezone-aware or naive;
 * malformed supplied tokens are refused with the stable code, never compared
@@ -60,6 +63,7 @@ def _state(**overrides: object) -> dict[str, object]:
         "allowed_exit_points": ["NBP", "TTF"],
         "eligible_sale_modes": ["TARGET_MARKET_SALE", "LOCAL_MARKET_SALE"],
         "notes": '{"operator_notes": "operator draft", "variable_cost_gbp_mwh": 0.75}',
+        "payment_terms_json": None,
         "created_at_utc": _NOW,
         "updated_at_utc": _NOW,
     }
@@ -82,7 +86,10 @@ def test_equal_states_hash_to_one_token_and_the_schema_is_discriminated() -> Non
     assert first == second
     assert first.startswith(CONTRACT_EDIT_TOKEN_PREFIX)
     assert len(first) == len(CONTRACT_EDIT_TOKEN_PREFIX) + 64
-    assert CONTRACT_EDIT_TOKEN_SCHEMA.startswith("upstream-contract-edit-token/")
+    # S2b added the payment-terms carrier to the covered field set, so the
+    # schema discriminator is v2 and a pre-upgrade token is stale by
+    # construction (there is no v1 fallback comparison).
+    assert CONTRACT_EDIT_TOKEN_SCHEMA == "upstream-contract-edit-token/v2"
 
 
 @pytest.mark.parametrize(
@@ -107,6 +114,15 @@ def test_equal_states_hash_to_one_token_and_the_schema_is_discriminated() -> Non
         ("allowed_exit_points", ["NBP"]),
         ("eligible_sale_modes", ["LOCAL_MARKET_SALE"]),
         ("notes", '{"operator_notes": "renamed"}'),
+        (
+            "payment_terms_json",
+            '{"items":[{"cash_flow_category":"PURCHASE","date_specification":'
+            '{"final_payable_date":"2026-11-30","kind":"EXPLICIT_DATE",'
+            '"source_reference":"invoice"},'
+            '"flow_direction":"OUTFLOW","item_id":"supply","source_reference":"invoice"}],'
+            '"quantity_basis_reference":"invoiced",'
+            '"schema_version":"contract-payment-terms/v1"}',
+        ),
         ("updated_at_utc", _NOW + timedelta(seconds=1)),
     ],
 )

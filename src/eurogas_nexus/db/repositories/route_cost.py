@@ -34,6 +34,7 @@ from eurogas_nexus.domain.route_cost.contract_revision import (
     ContractRevisionPayloadError,
     UpstreamContractEconomicSnapshot,
     map_legacy_contract_payload,
+    with_declared_payment_terms,
 )
 from eurogas_nexus.domain.route_cost.enums import (
     CapacityProduct,
@@ -42,6 +43,10 @@ from eurogas_nexus.domain.route_cost.enums import (
     TariffStatus,
 )
 from eurogas_nexus.domain.route_cost.live_markets import LiveMarketMark
+from eurogas_nexus.domain.route_cost.payment_terms import (
+    ContractPaymentTerms,
+    ContractPaymentTermsError,
+)
 from eurogas_nexus.domain.route_cost.tariff_models import CapacityTariff
 
 #: Persisted capture outcomes. ``rejected`` writes nothing at all: an invalid
@@ -54,6 +59,13 @@ CONTRACT_REVISION_REJECTED = "rejected"
 #: mapper's ``mapping_issues``), such as non-empty notes that are not a JSON
 #: object. The specific recorded codes are repeated in the refusal detail.
 CONTRACT_REVISION_MAPPING_AMBIGUOUS = "contract_revision_mapping_ambiguous"
+
+#: Stable refusal code for stored payment terms that fail strict canonical
+#: verification (not JSON, not the reviewed document shape, or not the exact
+#: canonical spelling). Corruption is refused on read and write and is never
+#: silently treated as "not stated", so a failed pre-capture preserves the
+#: malformed declaration for a separate remediation step.
+CONTRACT_PAYMENT_TERMS_CORRUPT = "contract_payment_terms_corrupt"
 
 #: Governed-upsert outcomes (``upsert_upstream_contract_governed``).
 #: ``created`` and ``economics_updated`` inserted a captured revision;
@@ -92,6 +104,17 @@ class ContractRevisionPersistenceError(ValueError):
         super().__init__(f"{code} ({detail})")
 
 
+class ContractPaymentTermsRefusal(ContractRevisionPersistenceError):
+    """A supplied payment-terms declaration the strict S2a decoder refused.
+
+    Raised before any store access, so a malformed declaration never reaches
+    the row lock, a capture, an audit or a mutation. The carried
+    ``code``/``detail`` are the payment-terms module's own stable, sanitized
+    refusal: it names only fixed schema labels, safe item indices/counts and
+    stable codes, never a supplied value, field name or repr.
+    """
+
+
 @dataclass(frozen=True, slots=True)
 class ContractRevisionCaptureResult:
     """Outcome of one explicit legacy-capture attempt.
@@ -102,7 +125,9 @@ class ContractRevisionCaptureResult:
             identical economic content was already the contract's latest
             revision (the original actor and timestamp are retained), or
             :data:`CONTRACT_REVISION_REJECTED` when nothing was written (no
-            such contract row, an unmappable row or an ambiguous mapping).
+            such contract row, an unmappable row, an ambiguous mapping or a
+            stored payment-terms declaration that fails canonical
+            verification).
         revision: The persisted revision row, or ``None`` when rejected.
         refusal_code: Stable code explaining a rejection, else ``None``.
         refusal_detail: Human-readable rejection detail, else ``None``.
@@ -240,6 +265,13 @@ def upsert_upstream_contract(session: Session, data: Mapping[str, object]) -> di
     :func:`upsert_upstream_contract_governed`, which requires the token read
     from the stored row before it overwrites anything.
 
+    Field presence governs the payment-terms carrier for this path too: a
+    ``payment_terms`` key that is absent leaves the stored declaration alone
+    (a new row simply has none), an explicit ``None`` clears it, and a mapping
+    must be a strict canonical ``contract-payment-terms/v1`` document that is
+    stored as its own canonical JSON. No other field's replacement semantics
+    change: every field present in ``data`` is still written.
+
     Args:
         session: DB session.
         data: Contract fields (see UpstreamContractUpsertRequest).
@@ -258,6 +290,8 @@ def upsert_upstream_contract(session: Session, data: Mapping[str, object]) -> di
     if row is None:
         row = UpstreamResourceContractRecord(contract_id=contract_id, created_at_utc=now)
         session.add(row)
+    else:
+        _decoded_stored_payment_terms(row)
     _apply_contract_values(row, values)
     row.updated_at_utc = now
 
@@ -271,11 +305,19 @@ def _normalized_contract_values(data: Mapping[str, object]) -> dict[str, object]
     Both the plain upsert and the governed upsert compare and apply these
     values, so the field list and its coercions have one home.
 
+    The declared payment-terms carrier follows presence semantics: the key is
+    written only when the caller supplied ``payment_terms``, so an omitted key
+    preserves whatever the row stores (and a new row keeps the column's
+    nullable default). ``payment_terms: null`` deliberately clears; a mapping
+    is decoded strictly and stored as its own canonical JSON.
+
     Raises:
         KeyError/ValueError: When required fields are missing/malformed.
+        ContractPaymentTermsRefusal: When a supplied ``payment_terms``
+            declaration is not a strict canonical document.
     """
 
-    return {
+    values: dict[str, object] = {
         "contract_name": str(data["contract_name"]),
         "resource_type": str(data["resource_type"]),
         "delivery_point_name": str(data["delivery_point_name"]),
@@ -301,6 +343,9 @@ def _normalized_contract_values(data: Mapping[str, object]) -> dict[str, object]
         "eligible_sale_modes": _string_list(data.get("eligible_sale_modes")),
         "notes": _merged_contract_notes(data),
     }
+    if "payment_terms" in data:
+        values["payment_terms_json"] = _encoded_payment_terms(data["payment_terms"])
+    return values
 
 
 def _apply_contract_values(
@@ -395,6 +440,18 @@ def capture_upstream_contract_revision(
     is inserted or audited. The domain mapper is unchanged and still records
     the issues; persisting them as validated economics is what is refused.
 
+    Declared payment terms: ``upstream_resource_contracts.payment_terms_json``
+    is decoded strictly first. When it is ``NULL`` the capture is exactly the
+    v1 capture the legacy mapper produces, so untouched legacy state never
+    allocates a schema-only revision. When it holds a declared declaration,
+    the mapped economics are re-encoded as one explicit
+    ``upstream-contract-revision/v2`` snapshot carrying the shared
+    :class:`ContractPaymentTerms` value (the same canonical bytes the read
+    verifies). A stored declaration that fails strict canonical verification
+    is refused with :data:`CONTRACT_PAYMENT_TERMS_CORRUPT` before anything is
+    inserted or audited: corruption is never captured as "no terms" and is
+    never silently cleared.
+
     Idempotency: when the mapped content hash equals the contract's latest
     captured revision, the stored revision is returned unchanged
     (``already_captured``) - the original ``recorded_at_utc``/``recorded_by``
@@ -442,7 +499,17 @@ def capture_upstream_contract_revision(
         )
 
     try:
+        declared_terms = _decoded_stored_payment_terms(row)
         mapped = map_legacy_contract_payload(_contract_payload(row))
+    except ContractRevisionPersistenceError as exc:
+        # 存储的申报条款不是规范文档时按损坏拒绝：不写修订、不写审计，
+        # 也绝不把损坏值当成“未申报”或清空。
+        return ContractRevisionCaptureResult(
+            outcome=CONTRACT_REVISION_REJECTED,
+            revision=None,
+            refusal_code=exc.code,
+            refusal_detail=exc.detail,
+        )
     except ContractRevisionPayloadError as exc:
         # 不可映射的 legacy 行不得伪装成已验证经济内容：不写修订、不写审计。
         return ContractRevisionCaptureResult(
@@ -453,6 +520,10 @@ def capture_upstream_contract_revision(
         )
 
     snapshot = mapped.economic_snapshot
+    if declared_terms is not None:
+        # 当前存储申报了条款：同一经济内容按显式 v2 快照捕获；未申报时保持
+        # v1 字节不变，未触碰的 legacy 状态不会仅因 schema 变化新增修订。
+        snapshot = with_declared_payment_terms(snapshot, declared_terms)
     if snapshot.mapping_issues:
         # 歧义映射不得被捕获为已验证经济内容：在插入/审计之前拒绝，不写任何行。
         return ContractRevisionCaptureResult(
@@ -552,11 +623,23 @@ def upsert_upstream_contract_governed(
 
     Fail-closed pre-capture: when the stored row does not map to a validated
     economic snapshot (an unmappable value, or ambiguous notes recorded as
-    mapping issues), the call returns a ``refused`` result carrying the stable
-    ``refusal_code``/``refusal_detail`` and writes nothing at all. The stored
-    malformed terms are preserved for a separate remediation step instead of
-    being silently overwritten; the caller must roll the session back and
-    report the refusal.
+    mapping issues) - or when its stored payment-terms declaration fails strict
+    canonical verification - the call returns a ``refused`` result carrying
+    the stable ``refusal_code``/``refusal_detail`` and writes nothing at all.
+    The stored malformed terms are preserved for a separate remediation step
+    instead of being silently overwritten, and a corrupt declaration is never
+    treated as "not stated" even when the request asked to clear it; the
+    caller must roll the session back and report the refusal.
+
+    Declared payment terms follow presence semantics: the request body is
+    normalized by the route, which removes an omitted ``payment_terms`` key
+    before this call, so an omitted key preserves the stored declaration, an
+    explicit ``null`` clears it, and a canonical document validates strictly
+    and is stored as its own canonical JSON. Every other request field keeps
+    its existing replacement semantics. A declared change is part of the
+    economics: the post-capture records a v2 snapshot, the captured hash
+    covers the declaration, and a terms-only edit is an ``economics_updated``
+    outcome, not a metadata change.
 
     Outcomes:
 
@@ -1023,7 +1106,23 @@ def _contract_edit_conflict_result(detail: str) -> GovernedContractUpsertResult:
 def _contract_payload(
     row: UpstreamResourceContractRecord, *, include_edit_token: bool = False
 ) -> dict:
+    """Serialize one stored contract row for a read or a write response.
+
+    Display evidence is passed through as stored; the declared payment terms
+    are decoded strictly, so a corrupt stored declaration refuses the whole
+    payload with a stable code instead of being served as "not stated". The
+    economic costs embedded in the notes JSON stay on the top level exactly as
+    the previous payload produced them. ``include_edit_token`` adds the row's
+    opaque stale-edit token (see
+    :mod:`eurogas_nexus.domain.route_cost.contract_edit_token`).
+
+    Raises:
+        ContractRevisionPersistenceError: When the stored payment-terms text
+            is not a canonical declaration (``contract_payment_terms_corrupt``).
+    """
+
     notes = _contract_notes(row.notes)
+    payment_terms = _decoded_stored_payment_terms(row)
     payload = {
         "contract_id": row.contract_id,
         "contract_name": row.contract_name,
@@ -1044,6 +1143,9 @@ def _contract_payload(
         "allowed_exit_points": row.allowed_exit_points,
         "eligible_sale_modes": row.eligible_sale_modes,
         "notes": row.notes,
+        "payment_terms": (
+            None if payment_terms is None else payment_terms.canonical_document()
+        ),
         **{
             field: notes[field]
             for field in _STRUCTURED_NOTE_FIELDS
@@ -1084,6 +1186,77 @@ def _merged_contract_notes(data: Mapping[str, object]) -> str | None:
         if field in data and data[field] is not None:
             notes[field] = data[field]
     return json.dumps(notes, sort_keys=True) if notes else None
+
+
+def _encoded_payment_terms(value: object) -> str | None:
+    """Encode one supplied declaration as the canonical text to store.
+
+    ``None`` is the explicit "not stated" clear. Any other value must be a
+    strict canonical ``contract-payment-terms/v1`` document accepted by the
+    shared S2a decoder; the stored text is that declaration's own canonical
+    JSON, so an exact token and a strict replay are possible. Validation
+    happens here, before any row lock, capture, audit or mutation, and a
+    refusal carries the decoder's own stable, sanitized code - never the
+    supplied content.
+
+    Raises:
+        ContractPaymentTermsRefusal: When the supplied value is not a mapping
+            or the mapping is not a strict canonical document.
+    """
+
+    if value is None:
+        return None
+    if not isinstance(value, Mapping):
+        raise ContractPaymentTermsRefusal(
+            "canonical_not_mapping",
+            "payment_terms must be a canonical contract-payment-terms document"
+            " object or null",
+        )
+    try:
+        terms = ContractPaymentTerms.from_canonical_document(value)
+    except ContractPaymentTermsError as exc:
+        raise ContractPaymentTermsRefusal(exc.code, exc.detail) from None
+    return terms.canonical_json()
+
+
+def _decoded_stored_payment_terms(
+    row: UpstreamResourceContractRecord,
+) -> ContractPaymentTerms | None:
+    """Decode one stored declaration strictly, or refuse the stored row.
+
+    ``NULL`` is "not stated". Any stored text that is not JSON, not the
+    reviewed document shape or not the exact canonical spelling produced by
+    serialization is refused with :data:`CONTRACT_PAYMENT_TERMS_CORRUPT` and a
+    fixed message. A stored declaration is never silently treated as absent,
+    never repaired in place and never rewritten by a read: the corrupt text is
+    preserved for a separate remediation step.
+
+    Raises:
+        ContractRevisionPersistenceError: With
+            :data:`CONTRACT_PAYMENT_TERMS_CORRUPT` when the stored text is not
+            a canonical declaration.
+    """
+
+    text = row.payment_terms_json
+    if text is None:
+        return None
+    if isinstance(text, str) and text:
+        try:
+            document = json.loads(text)
+        except ValueError:
+            document = None
+        if isinstance(document, Mapping):
+            try:
+                terms = ContractPaymentTerms.from_canonical_document(document)
+            except ContractPaymentTermsError:
+                terms = None
+            if terms is not None and terms.canonical_json() == text:
+                return terms
+    raise ContractRevisionPersistenceError(
+        CONTRACT_PAYMENT_TERMS_CORRUPT,
+        "the stored payment terms are not a canonical declared-terms document;"
+        " they are refused rather than treated as not stated",
+    )
 
 
 def _optional_float(value: object) -> float | None:

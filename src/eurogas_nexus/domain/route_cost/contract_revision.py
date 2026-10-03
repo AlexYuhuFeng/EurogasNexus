@@ -102,7 +102,7 @@ import hashlib
 import json
 import math
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from decimal import Decimal, InvalidOperation
 from typing import Self
 
@@ -1072,4 +1072,44 @@ def map_legacy_contract_payload(contract: Mapping[str, object]) -> LegacyContrac
     return LegacyContractSnapshot(
         display_metadata=display_metadata,
         economic_snapshot=economic_snapshot,
+    )
+
+
+def with_declared_payment_terms(
+    snapshot: UpstreamContractEconomicSnapshot,
+    payment_terms: ContractPaymentTerms,
+) -> UpstreamContractEconomicSnapshot:
+    """Return the same economics as an explicit v2 snapshot carrying the terms.
+
+    This is the only conversion the S2b persistence integration performs: a
+    captured legacy payload (always mapped as v1) is re-encoded as
+    ``upstream-contract-revision/v2`` with one already-validated
+    :class:`ContractPaymentTerms` declaration. Nothing else changes - the
+    decimals, list order, source precision and mapping issues stay exactly as
+    mapped - and no v1 snapshot is ever mutated: the returned snapshot is a new
+    immutable value. A caller must not use this to upgrade v1 evidence in
+    place; the persisted v1 rows keep their bytes and hashes.
+
+    Args:
+        snapshot: The mapped economic snapshot whose economics are preserved.
+        payment_terms: The validated declaration the v2 snapshot carries.
+
+    Returns:
+        A new v2 snapshot with identical economics and the declared terms.
+
+    Raises:
+        ContractRevisionPayloadError: When ``payment_terms`` is not a validated
+            :class:`ContractPaymentTerms` value.
+    """
+
+    if not isinstance(payment_terms, ContractPaymentTerms):
+        raise ContractRevisionPayloadError(
+            "payment_terms_not_typed",
+            "payment_terms must be a validated ContractPaymentTerms value; a raw"
+            " mapping or any other object is never accepted as declared terms",
+        )
+    return replace(
+        snapshot,
+        schema_version=CONTRACT_REVISION_SCHEMA_VERSION_V2,
+        payment_terms=payment_terms,
     )

@@ -11,9 +11,16 @@ return and the governed write compares under the existing row lock.
 
 Design: a stable canonical JSON document - a schema discriminator plus every
 persisted column of ``upstream_resource_contracts`` (identity, economics,
-display metadata, raw operator notes, created/updated instants) - hashed with
-SHA-256. Any persisted change, economic or metadata-only, produces a different
-token.
+display metadata, raw operator notes, the declared payment-terms carrier,
+created/updated instants) - hashed with SHA-256. Any persisted change, economic
+or metadata-only, produces a different token.
+
+Schema version history: ``v1`` covered the row before the S2b payment-terms
+carrier existed. ``v2`` adds that column to the covered field set, so a token
+loaded before the upgrade can never compare equal after it: a stale draft
+holding a ``v1`` token is refused with the same stable conflict code and must
+be reloaded. There is deliberately no fallback that compares a ``v1`` token on
+the ``v2`` field set.
 
 Honest limitations, stated rather than implied:
 
@@ -40,8 +47,10 @@ from datetime import UTC, datetime
 
 #: Canonical schema discriminator of the edit-token document. Changing the
 #: covered field set or the canonicalization requires a new version, so a token
-#: from an older shape can never compare equal to a newer one.
-CONTRACT_EDIT_TOKEN_SCHEMA = "upstream-contract-edit-token/v1"
+#: from an older shape can never compare equal to a newer one. ``v2`` added
+#: ``payment_terms_json`` to the covered columns (S2b), so every token loaded
+#: from a pre-upgrade read is stale by construction and must be reloaded.
+CONTRACT_EDIT_TOKEN_SCHEMA = "upstream-contract-edit-token/v2"
 
 #: Token text prefix; the digest is lowercase hex SHA-256.
 CONTRACT_EDIT_TOKEN_PREFIX = "sha256:"
@@ -79,6 +88,7 @@ CONTRACT_EDIT_TOKEN_FIELDS = (
     "allowed_exit_points",
     "eligible_sale_modes",
     "notes",
+    "payment_terms_json",
     "created_at_utc",
     "updated_at_utc",
 )

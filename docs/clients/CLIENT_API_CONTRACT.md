@@ -198,14 +198,27 @@ Clients may use this route to save resource inputs, then refresh:
 Editing a stored contract requires the opaque `edit_token` from
 `GET /api/route-cost/upstream-contracts`: the client sends it back as
 `expected_edit_token`. It covers the whole persisted row (identity, economics,
-display metadata, raw operator notes and the updated instant), not the captured
-revision number, so any persisted change invalidates it. Omitted or null means
-create-only and never overwrites an existing identity. The backend answers
-`409 contract_edit_conflict` for a missing/stale precondition and
-`409 contract_edit_token_malformed` for a value that is not this API's token;
-both write nothing, keep the draft, and require a fresh read before
-reconciliation - clients must not retry the same stale token or treat the
-failure as success.
+display metadata, raw operator notes, the declared payment terms and the updated
+instant), not the captured revision number, so any persisted change invalidates
+it. Omitted or null means create-only and never overwrites an existing
+identity. The backend answers `409 contract_edit_conflict` for a
+missing/stale precondition and `409 contract_edit_token_malformed` for a value
+that is not this API's token; both write nothing, keep the draft, and require a
+fresh read before reconciliation - clients must not retry the same stale token
+or treat the failure as success. The token schema is
+`upstream-contract-edit-token/v2` since the payment-terms carrier was added, so
+a token read before that upgrade is stale by construction and must be reloaded;
+there is no fallback.
+
+The same route carries an optional `payment_terms` field: a strict canonical
+`contract-payment-terms/v1` document (or `null` to clear). **Omission preserves
+the stored declaration**, so a client that does not send the field never erases
+it; explicit `null` clears it deliberately. A malformed declaration is refused
+`422` with a stable, sanitized code in `detail.error` before anything is
+written, and its contents are never echoed. `GET` returns the strictly decoded
+`payment_terms` document or `null`; a stored declaration that fails canonical
+verification refuses the read `409 contract_payment_terms_corrupt` rather than
+reporting "not stated". Nothing here resolves a payment date or a valuation.
 
 This route must not be described as trade capture, order entry, nomination,
 approval, settlement, or an ETRM contract master.

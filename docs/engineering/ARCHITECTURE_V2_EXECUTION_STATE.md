@@ -5,6 +5,33 @@ Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical sli
 
 ## Current work
 
+### Payment-term persistence backend (2026-10-04)
+
+Baseline `b8a875c` passed CI run `37139274490`. DeepSeek implemented nullable
+canonical-text storage through expand-only migration 0038, field-specific
+set/preserve/clear request handling, decoded contract reads and governed revision
+capture. Terms produce v2 economic snapshots; NULL produces v1, including after
+an explicit clear. Existing v1 evidence is never rewritten, and untouched legacy
+rows gain no schema-only revision. Edit-token schema v2 covers the new carrier:
+open drafts must reload after deployment; no old-token fallback is permitted.
+
+Parent review found and closed an internal-helper corruption bypass: stored
+terms must validate before either public or internal updates, even when clearing.
+The regression test verifies corrupt evidence remains unchanged. Independent
+validation: full backend suite 2813 passed, 30 skipped, two existing deprecation
+warnings; focused payment integration 13 passed; web suite 842 passed, three
+skipped; production web build passed with the existing dynamic-import warning.
+Ruff and diff checks passed. No runtime migration or business mutation occurred.
+
+Deployment remains gated on same-commit CI, especially the opt-in PostgreSQL
+migration/capture suite. Local runtime is still on schema 0037: do not restart
+the new backend against it before a reviewed backup and migration. The new DDL
+unit test uses the repository's disposable SQLite test pattern, not a runtime
+store and not evidence of PostgreSQL acceptance. No UI editing, date resolution,
+cash valuation composition or lifecycle approval is claimed. Next: verify CI,
+apply the reviewed runtime upgrade with backup, and validate authenticated
+set/preserve/clear behavior before exposing payment terms in the existing UI.
+
 ### Revision v2 domain compatibility (2026-10-04)
 
 Baseline `02c378e` passed CI run `37121199581`. DeepSeek added explicit v2

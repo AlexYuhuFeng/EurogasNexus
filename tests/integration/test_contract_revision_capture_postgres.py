@@ -43,9 +43,15 @@ from eurogas_nexus.db.repositories.route_cost import (
     GOVERNED_CONTRACT_REFUSED,
     capture_upstream_contract_revision,
     contract_edit_token,
+    list_upstream_contract_revisions,
     upsert_upstream_contract,
     upsert_upstream_contract_governed,
 )
+from eurogas_nexus.domain.route_cost.contract_revision import (
+    CONTRACT_REVISION_SCHEMA_VERSION,
+    CONTRACT_REVISION_SCHEMA_VERSION_V2,
+)
+from eurogas_nexus.domain.route_cost.payment_terms import ContractPaymentTerms
 
 pytestmark = pytest.mark.skipif(
     not os.environ.get("RUNTIME_STORE_DATABASE_URL", "").startswith("postgresql")
@@ -231,6 +237,61 @@ def test_capture_refreshes_a_stale_identity_map_row_before_capturing() -> None:
     # The FOR UPDATE select must have re-read the committed row, not captured
     # the identity-map instance the session loaded before that commit.
     assert captured_price == "31.5"
+
+
+def test_declared_terms_governed_write_captures_v2_and_keeps_v1_evidence() -> None:
+    """S2b on the real store: canonical carrier text, v2 capture, v1 row intact."""
+
+    engine = _engine()
+    contract_id = f"contract-it-{uuid4().hex[:12]}"
+    _seed_contract(engine, contract_id)
+    first = _capture(engine, contract_id, actor="trader-a", at=_NOW)
+    assert first["outcome"] == CONTRACT_REVISION_CAPTURED
+
+    document = {
+        "schema_version": "contract-payment-terms/v1",
+        "quantity_basis_reference": "invoiced_quantity",
+        "items": [
+            {
+                "item_id": "supply-1",
+                "cash_flow_category": "cargo_purchase",
+                "flow_direction": "OUTFLOW",
+                "source_reference": "contract clause 5.1",
+                "date_specification": {
+                    "kind": "EXPLICIT_DATE",
+                    "final_payable_date": "2026-11-30",
+                    "source_reference": "invoice INV-2026-0042",
+                },
+            }
+        ],
+    }
+    with Session(engine) as session:
+        result = upsert_upstream_contract_governed(
+            session,
+            {
+                **_contract_payload(contract_id, price=31.5),
+                "payment_terms": document,
+            },
+            recorded_by="trader-b",
+            recorded_at_utc=_NOW + timedelta(hours=1),
+            expected_edit_token=_edit_token(engine, contract_id),
+        )
+        assert result.outcome == GOVERNED_CONTRACT_ECONOMICS_UPDATED
+        session.commit()
+
+    with Session(engine) as session:
+        row = session.get(UpstreamResourceContractRecord, contract_id)
+        # The carrier holds the declaration's own canonical JSON text.
+        assert row.payment_terms_json == ContractPaymentTerms.from_canonical_document(
+            document
+        ).canonical_json()
+        revisions = list_upstream_contract_revisions(session, contract_id)
+        # The pre-existing v1 revision still verifies unchanged; only the new
+        # revision the declared write captured is v2.
+        assert revisions[0]["schema_version"] == CONTRACT_REVISION_SCHEMA_VERSION
+        assert revisions[0]["snapshot"]["payment_terms"] is None
+        assert revisions[-1]["schema_version"] == CONTRACT_REVISION_SCHEMA_VERSION_V2
+        assert revisions[-1]["snapshot"]["payment_terms"] == document
 
 
 def _governed(

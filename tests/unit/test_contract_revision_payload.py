@@ -918,3 +918,49 @@ def test_v2_terms_stay_immutable_and_documents_are_fresh_copies() -> None:
     document["payment_terms"]["items"].append({"item_id": "forged"})  # type: ignore[index,union-attr]
     document["payment_terms"]["items"][0]["item_id"] = "rewritten"  # type: ignore[index,union-attr]
     assert snapshot.canonical_document()["payment_terms"] == terms.canonical_document()
+
+
+def test_with_declared_payment_terms_reencodes_mapped_economics_as_v2() -> None:
+    """S2b's only conversion: unchanged mapped economics plus declared terms."""
+
+    mapped = _mapped_snapshot(_legacy_payload())
+    terms = _v2_terms()
+    converted = contract_revision.with_declared_payment_terms(mapped, terms)
+
+    # A new immutable value; the mapped v1 snapshot is untouched.
+    assert converted is not mapped
+    assert mapped.schema_version == CONTRACT_REVISION_SCHEMA_VERSION
+    assert mapped.payment_terms is None
+    assert converted.schema_version == CONTRACT_REVISION_SCHEMA_VERSION_V2
+    assert converted.payment_terms == terms
+
+    # Every economic field, the precision label and the mapping issues survive.
+    original_document = mapped.canonical_document()
+    converted_document = converted.canonical_document()
+    for key, value in original_document.items():
+        if key in {"schema_version", "payment_terms"}:
+            continue
+        assert converted_document[key] == value, key
+    assert converted_document["payment_terms"] == terms.canonical_document()
+
+    # The v2 bytes decode back to the identical declaration and hash.
+    rebuilt = UpstreamContractEconomicSnapshot.from_canonical_document(
+        converted_document
+    )
+    assert rebuilt.canonical_json() == converted.canonical_json()
+    assert rebuilt.content_hash() == converted.content_hash()
+    assert converted.content_hash() not in {
+        mapped.content_hash(),
+        _v2_snapshot().content_hash(),
+    }
+
+
+def test_with_declared_payment_terms_refuses_untyped_terms_without_echoing() -> None:
+    mapped = _mapped_snapshot(_legacy_payload())
+    raw_document = {**_v2_terms().canonical_document(), "note": _SENTINEL}
+
+    with pytest.raises(ContractRevisionPayloadError) as refused:
+        contract_revision.with_declared_payment_terms(mapped, raw_document)  # type: ignore[arg-type]
+
+    assert refused.value.code == "payment_terms_not_typed"
+    assert _SENTINEL not in str(refused.value)

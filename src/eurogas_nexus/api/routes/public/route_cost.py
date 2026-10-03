@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
@@ -47,13 +48,15 @@ CONTRACT_REVISION_PAGE_DEFAULT_LIMIT = 50
 CONTRACT_REVISION_PAGE_MAX_LIMIT = 200
 
 #: Every captured-revision read carries these warnings. A capture is explicit
-#: capture-time evidence, not a complete history, and it stores no payment
-#: terms - the read must say so rather than let a caller infer either.
+#: capture-time evidence, not a complete history, and a captured declaration is
+#: stored evidence rather than a resolved payment date - the read must say so
+#: rather than let a caller infer either.
 CONTRACT_REVISION_EVIDENCE_WARNINGS = (
     "Captured revisions are explicit capture-time evidence, not a complete history of past"
     " contract writes.",
-    "Captured economics carry no payment terms or effective dates; nothing here asserts when"
-    " the terms applied or when payment falls due.",
+    "Captured economics carry, at most, the operator-declared payment terms captured with them"
+    " and no effective dates; nothing here asserts when the terms applied or resolves a"
+    " payment date.",
 )
 
 #: Added to a history page that returned no revision for an existing contract,
@@ -86,6 +89,16 @@ class UpstreamContractUpsertRequest(BaseModel):
         allowed_exit_points: Allowed exit points.
         eligible_sale_modes: Eligible sale modes.
         notes: Operator notes, or None.
+        payment_terms: Optional strict canonical
+            ``contract-payment-terms/v1`` declaration document, or ``None`` to
+            clear a stored declaration. Omitted means "preserve the stored
+            declaration": presence is read from ``model_fields_set`` so an
+            older client that does not know the field never erases it. The
+            nested document is validated by the shared strict decoder (not by
+            Pydantic), so a malformed declaration is refused with a stable,
+            sanitized code and never echoed back. Deliberately untyped here:
+            a wrong-typed value must reach the domain refusal, not produce a
+            framework validation error that repeats the raw input.
         expected_edit_token: Opaque edit token from a stored-contract read, or
             None for a create-only request. See the write route's docstring.
     """
@@ -112,6 +125,7 @@ class UpstreamContractUpsertRequest(BaseModel):
     regas_fee_gbp_mwh: float = Field(default=0, ge=0)
     fuel_loss_allowance_pct: float = Field(default=0, ge=0, lt=100)
     notes: str | None = None
+    payment_terms: Any = None
     expected_edit_token: str | None = None
 
 
@@ -191,7 +205,14 @@ def list_route_candidates(request: Request) -> dict:
 
 @router.get("/api/route-cost/upstream-contracts")
 def list_upstream_contracts(request: Request) -> dict:
-    """List DB-backed upstream resource contracts."""
+    """List DB-backed upstream resource contracts.
+
+    Each payload carries the stored contract fields, the opaque ``edit_token``
+    and the strictly decoded declared ``payment_terms`` (the canonical
+    ``contract-payment-terms/v1`` document, or ``null`` for "not stated"). A
+    stored declaration that fails canonical verification refuses the read with
+    a stable, sanitized 409 rather than being served as absent.
+    """
 
     if not _db_is_configured():
         return _env(
@@ -203,7 +224,10 @@ def list_upstream_contracts(request: Request) -> dict:
 
     sqlalchemy_error = _sqlalchemy_error_type()
     try:
-        from eurogas_nexus.db.repositories.route_cost import list_upstream_contracts
+        from eurogas_nexus.db.repositories.route_cost import (
+            ContractRevisionPersistenceError,
+            list_upstream_contracts,
+        )
         from eurogas_nexus.db.session import get_session_factory
 
         with get_session_factory()() as session:
@@ -212,6 +236,8 @@ def list_upstream_contracts(request: Request) -> dict:
                 request,
                 source="runtime-postgresql",
             )
+    except ContractRevisionPersistenceError as exc:
+        raise _contract_read_failure(exc) from exc
     except sqlalchemy_error as exc:
         raise _db_unavailable(exc) from exc
 
@@ -258,11 +284,27 @@ def upsert_upstream_contract(body: UpstreamContractUpsertRequest, request: Reque
     (GET and write response) additionally carry the opaque ``edit_token``. The
     request gains one additive optional field, ``expected_edit_token``: a
     request without it is create-only, never an overwrite.
+
+    Declared payment terms: the request gains one additive optional field,
+    ``payment_terms``. Omitted (or sent by a client that does not know it)
+    preserves the stored declaration; explicit ``null`` clears it; a strict
+    canonical ``contract-payment-terms/v1`` document is validated by the
+    shared decoder before any row lock, capture, audit or mutation and stored
+    as its own canonical JSON. A declared change is captured as an explicit
+    ``upstream-contract-revision/v2`` revision and the response carries the
+    decoded declaration; a row whose stored declaration is corrupt fails
+    closed on read and write and is never silently cleared. No date is
+    resolved and no valuation runs here.
+
     Honest limits: the token is a bounded stale-edit precondition over the
     single mutable row, not a cryptographic signature and not a lifecycle
     counter, and this is still capture-time evidence rather than a
     draft/frozen revision lifecycle or a complete history before the first
-    captured write. The plain repository
+    captured write. The edit-token schema is ``v2`` since this slice added the
+    terms carrier to the covered columns: tokens loaded before the upgrade are
+    stale by construction, so a client holding one is refused with the
+    existing conflict code and must reload the contract - there is no
+    fallback. The plain repository
     ``upsert_upstream_contract`` remains an internal compatibility path that
     enforces no token; only this route is the public governed write.
     """
@@ -284,6 +326,7 @@ def upsert_upstream_contract(body: UpstreamContractUpsertRequest, request: Reque
     sqlalchemy_error = _sqlalchemy_error_type()
     try:
         from eurogas_nexus.db.repositories.route_cost import (
+            ContractPaymentTermsRefusal,
             ContractRevisionPersistenceError,
             upsert_upstream_contract_governed,
         )
@@ -292,6 +335,11 @@ def upsert_upstream_contract(body: UpstreamContractUpsertRequest, request: Reque
         with get_session_factory()() as session:
             try:
                 data = body.model_dump(mode="json")
+                # Omission preserves the stored declaration; only this field
+                # inspects presence, and no global exclude_unset is applied, so
+                # every other field keeps its existing replacement semantics.
+                if "payment_terms" not in body.model_fields_set:
+                    data.pop("payment_terms", None)
                 expected_edit_token = data.pop("expected_edit_token", None)
                 result = upsert_upstream_contract_governed(
                     session,
@@ -301,6 +349,9 @@ def upsert_upstream_contract(body: UpstreamContractUpsertRequest, request: Reque
                     correlation_id=getattr(request.state, "request_id", None),
                     expected_edit_token=expected_edit_token,
                 )
+            except ContractPaymentTermsRefusal as exc:
+                session.rollback()
+                raise _contract_terms_refused(exc.code, exc.detail) from exc
             except ContractRevisionPersistenceError as exc:
                 session.rollback()
                 raise _contract_write_refused(exc.code, exc.detail) from exc
@@ -787,6 +838,57 @@ def _contract_revision_read_failure(exc: Exception) -> HTTPException:
                 "The stored contract revision failed immutable-evidence verification,"
                 " so it was refused rather than served."
             ),
+        },
+    )
+
+
+def _contract_read_failure(exc: Exception) -> HTTPException:
+    """Stable, sanitized refusal for a stored-contract read that failed closed.
+
+    The failed read here is a stored payment-terms declaration that is not a
+    canonical document: serving the row would present corruption as "no terms
+    stated", so the whole read refuses with the repository's stable code and a
+    fixed message. Stored text, driver messages and SQL are never echoed, and
+    the malformed declaration is preserved in storage for a separate
+    remediation step.
+    """
+
+    code = getattr(exc, "code", None) or "contract_read_refused"
+    return HTTPException(
+        status_code=409,
+        detail={
+            "error": "conflict",
+            "code": code,
+            "message": (
+                "The stored contract could not be read: its stored payment terms"
+                " failed canonical verification, so the row was refused rather"
+                " than served with the declaration treated as absent."
+            ),
+        },
+    )
+
+
+def _contract_terms_refused(code: str, detail: str) -> HTTPException:
+    """Stable, sanitized refusal for a supplied payment-terms declaration.
+
+    The declaration is validated by the shared strict decoder *before* the row
+    lock, any capture, audit or mutation, so a refused write changes nothing.
+    The code is the decoder's own stable code and the reason is the decoder's
+    sanitized detail (fixed schema labels, safe item indices/counts and stable
+    codes only - never a supplied value, field name or repr), so a malformed
+    nested document is not echoed back to the caller.
+    """
+
+    return HTTPException(
+        status_code=422,
+        detail={
+            "error": code,
+            "message": (
+                "The contract was not written: the supplied payment terms are not"
+                " a strict canonical contract-payment-terms document. Nothing was"
+                " changed."
+            ),
+            "reason": detail,
         },
     )
 
