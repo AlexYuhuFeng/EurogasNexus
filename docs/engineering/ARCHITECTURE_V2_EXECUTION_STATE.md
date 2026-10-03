@@ -1,9 +1,33 @@
 # Architecture V2 Execution State
 
-Last updated: 2026-10-03
+Last updated: 2026-10-04
 Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical slice records below do not constitute current production approval.
 
 ## Current work
+
+### Revision v2 domain compatibility (2026-10-04)
+
+Baseline `02c378e` passed CI run `37121199581`. DeepSeek added explicit v2
+snapshot construction and strict version-dispatched decoding using the shared
+payment-term model. Default construction and legacy mapping remain v1; pinned
+v1 canonical bytes/hash are unchanged. Both versions require the complete field
+set. V2 accepts validated terms or null, never omitted terms, inferred dates or
+parent inheritance. Nested invalid terms and unknown versions have sanitized
+refusals. No duplicate economic model or new dependency was introduced.
+
+Parent review corrected the payment-term docstring's misleading additional-field
+wording: v2 uses the existing required field. Independent validation: 1211 unit
+and contract tests and 42 focused revision integration tests passed, with two
+existing deprecation warnings per suite. These tests do not establish live
+PostgreSQL v2 persistence, which is not implemented. Runtime PostgreSQL accepts
+connections; no runtime schema or business record was changed.
+
+Next: implement the additive storage carrier, edit-token coverage and governed
+write/read integration with field-specific preserve/set/clear semantics. Resolve
+the documented legacy-conversion policy before capture wiring. No current writer
+emits v2. Date resolution, lifecycle, valuation composition, UI/persona acceptance
+and commercial delivery remain pending; this is only the domain compatibility
+step, not a usable payment workflow.
 
 ### Payment persistence compatibility specification (2026-10-03)
 

@@ -19,9 +19,14 @@ replay.
 
 Boundaries and non-claims (see the plan's missing-input policy):
 
-* No payment terms are inferred. ``payment_terms`` is always ``null`` in this
-  schema version: the legacy lag integers are captured verbatim as legacy cash
-  lags, never as dates, anchors, calendars or day counts.
+* No payment terms are inferred. In the default ``upstream-contract-
+  revision/v1`` schema (also the schema every legacy mapping produces)
+  ``payment_terms`` is always ``null``: the legacy lag integers are captured
+  verbatim as legacy cash lags, never as dates, anchors, calendars or day
+  counts. The v2 compatibility step (same complete field set) may carry terms
+  only when a caller explicitly declares schema v2 and supplies a validated
+  :class:`ContractPaymentTerms` value or ``null``; this module re-encodes that
+  declaration strictly but never infers, defaults, resolves or converts one.
 * No historical validity is invented. No effective/recorded date is part of
   the snapshot; the legacy row's ``updated_at_utc`` is the last row update
   time, not migration time, and it says nothing about when the economics
@@ -49,9 +54,11 @@ original typed precision of a value stored as a binary float is not
 recoverable.
 
 Canonical replay: every ``Decimal`` serializes as an exact decimal string, list
-order is preserved, the schema version and ``payment_terms: null`` are always
-included, and :meth:`UpstreamContractEconomicSnapshot.content_hash` is SHA-256
-over that canonical JSON (sorted keys, no insignificant whitespace, UTF-8).
+order is preserved, the schema version and ``payment_terms`` are always
+included (``null``, or in v2 the strict nested ``contract-payment-terms/v1``
+canonical document), and :meth:`UpstreamContractEconomicSnapshot.content_hash`
+is SHA-256 over that canonical JSON (sorted keys, no insignificant whitespace,
+UTF-8).
 Serialization is memory-safe: a generous documented storage guard — never a
 market or accounting rule — refuses a coefficient or plain-notation length
 beyond what this schema could store *before* any value is formatted, so a
@@ -60,6 +67,20 @@ unbounded memory. Decoding is the strict inverse: it accepts only the exact
 plain-notation spelling serialization produces (no whitespace padding,
 underscores, plus sign or exponent notation). The hash is an integrity/identity
 check for an immutable revision — never a signature.
+
+Version compatibility (domain-only step, before any storage/write/read
+integration): default construction and the legacy mapping stay v1 and v1
+bytes/hashes are unchanged (pinned by a golden test). An explicit v2
+construction accepts only a validated payment-terms value or ``null``, and the
+canonical decoder dispatches on the exact schema version: every version
+requires the exact complete field set including ``payment_terms`` (a missing
+field is a field-set violation, never inherited from a parent revision), v1
+requires ``null`` terms, and v2 requires ``null`` or a strict nested
+``contract-payment-terms/v1`` canonical document. Unknown versions and invalid
+terms fail closed with fixed sanitized codes and messages that never echo the
+supplied content. No version is converted into another, no parent revision or
+mutable row is consulted during decode, and this step claims no persistence,
+write-path, read-path, date resolution, cash math or lifecycle integration.
 
 Boundary with the current notes parser: ``db/repositories/route_cost.py`` and
 ``application/resource_pool.py`` parse the same notes column, but this pure
@@ -70,8 +91,9 @@ object is recorded as an explicit mapping issue instead of being silently
 treated as empty. ``tests/unit/test_contract_revision_payload.py`` asserts the
 structured note field names stay in sync with the repository.
 
-The module is pure: standard library only, no I/O, no clock, no randomness;
-identical inputs produce byte-identical canonical JSON and hashes.
+The module is pure domain code: the standard library plus the reviewed sibling
+payment-terms domain module, no I/O, no clock, no randomness; identical inputs
+produce byte-identical canonical JSON and hashes.
 """
 
 from __future__ import annotations
@@ -84,7 +106,22 @@ from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from typing import Self
 
+from eurogas_nexus.domain.route_cost.payment_terms import (
+    ContractPaymentTerms,
+    ContractPaymentTermsError,
+)
+
 CONTRACT_REVISION_SCHEMA_VERSION = "upstream-contract-revision/v1"
+
+#: Schema version that may carry explicitly declared payment terms. It is never
+#: produced by default construction, the legacy mapping or any conversion: a
+#: caller must declare it and supply a validated terms value or ``null``.
+CONTRACT_REVISION_SCHEMA_VERSION_V2 = "upstream-contract-revision/v2"
+
+#: Every version this module accepts; both declare the same complete field set.
+_REVIEWED_REVISION_SCHEMA_VERSIONS = frozenset(
+    {CONTRACT_REVISION_SCHEMA_VERSION, CONTRACT_REVISION_SCHEMA_VERSION_V2}
+)
 
 #: Reviewed capture-origin label for the first persistence slice (S1b): the
 #: revision records what the mutable legacy row contained when a caller
@@ -428,9 +465,13 @@ class UpstreamContractEconomicSnapshot:
 
     Every field is economic or structural contract content. Display metadata is
     deliberately absent (:class:`ContractDisplayMetadata`), and so are dates:
-    this schema version records no effective/recorded validity and no payment
-    terms (``payment_terms`` is always ``null``), because none may be inferred
-    from the legacy lag integers.
+    no effective/recorded validity is recorded, and payment terms are never
+    inferred from the legacy lag integers. The default
+    ``upstream-contract-revision/v1`` schema (also what the legacy mapping
+    produces) always stores ``payment_terms: null``; only an explicit,
+    caller-declared ``upstream-contract-revision/v2`` snapshot may carry a
+    validated :class:`ContractPaymentTerms` value or ``null``, and it is never
+    derived from v1 automatically.
 
     Attributes:
         contract_id: Stable upstream contract identity (the existing
@@ -469,9 +510,13 @@ class UpstreamContractEconomicSnapshot:
             capture ceiling, not a per-value type check.
         mapping_issues: Ordered stable codes describing how the legacy mapping
             had to qualify this record (for example unparseable notes).
-        schema_version: Fixed payload schema version, included in the hash.
-        payment_terms: Always ``None`` in this schema version: explicit
-            unavailability, not an omitted value.
+        schema_version: Reviewed payload schema version, included in the hash.
+            Defaults to ``upstream-contract-revision/v1``; v2 must be requested
+            explicitly and is required to carry payment terms.
+        payment_terms: ``None`` (no declaration) or, in v2 only, a validated
+            :class:`ContractPaymentTerms` value. v1 refuses non-null terms, so
+            ``None`` is always explicit unavailability, never an omitted value
+            or an inferred schedule.
     """
 
     contract_id: str
@@ -496,8 +541,10 @@ class UpstreamContractEconomicSnapshot:
     fuel_loss_allowance_pct: Decimal | None = None
     numeric_source_precision: str = SOURCE_PRECISION_EXACT_DECIMAL
     mapping_issues: tuple[str, ...] = ()
-    schema_version: str = field(init=False, default=CONTRACT_REVISION_SCHEMA_VERSION)
-    payment_terms: None = field(init=False, default=None)
+    schema_version: str = field(
+        default=CONTRACT_REVISION_SCHEMA_VERSION, kw_only=True
+    )
+    payment_terms: ContractPaymentTerms | None = field(default=None, kw_only=True)
 
     def __post_init__(self) -> None:
         """Validate every field and deep-freeze the sequence fields.
@@ -507,7 +554,8 @@ class UpstreamContractEconomicSnapshot:
                 numeric value is not an exact finite ``Decimal`` (bools and
                 floats included), a lag is not a whole number, a list entry is
                 not a string, the schema version or source precision is
-                unknown, or payment terms were supplied.
+                unknown, v1 was given non-null payment terms, or v2 was given
+                an untyped payment-terms object.
         """
 
         for name in _TEXT_FIELD_NAMES:
@@ -538,25 +586,39 @@ class UpstreamContractEconomicSnapshot:
                 f"numeric_source_precision must be one of "
                 f"{sorted(_REVIEWED_SOURCE_PRECISIONS)}, got {precision!r}",
             )
-        if self.schema_version != CONTRACT_REVISION_SCHEMA_VERSION:
+        version = self.schema_version
+        if not isinstance(version, str) or version not in _REVIEWED_REVISION_SCHEMA_VERSIONS:
             raise ContractRevisionPayloadError(
-                "schema_version_mismatch",
-                f"schema_version is fixed at {CONTRACT_REVISION_SCHEMA_VERSION!r}"
-                " for this module",
+                "schema_version_unknown",
+                "schema_version must be one of the reviewed revision schema"
+                f" versions {sorted(_REVIEWED_REVISION_SCHEMA_VERSIONS)}",
             )
-        if self.payment_terms is not None:
+        if version == CONTRACT_REVISION_SCHEMA_VERSION:
+            if self.payment_terms is not None:
+                raise ContractRevisionPayloadError(
+                    "payment_terms_present",
+                    f"payment_terms must be null in {CONTRACT_REVISION_SCHEMA_VERSION};"
+                    f" declare {CONTRACT_REVISION_SCHEMA_VERSION_V2} explicitly to"
+                    " carry validated declared terms",
+                )
+        elif self.payment_terms is not None and not isinstance(
+            self.payment_terms, ContractPaymentTerms
+        ):
             raise ContractRevisionPayloadError(
-                "payment_terms_present",
-                "payment_terms is always None in this schema version; terms"
-                " arrive in a later reviewed slice",
+                "payment_terms_not_typed",
+                "payment_terms must be null or a validated ContractPaymentTerms"
+                " value; a raw mapping or any other object is never accepted as"
+                " declared terms",
             )
 
     def canonical_document(self) -> dict[str, object]:
         """Return the canonical, JSON-ready body of this snapshot.
 
         Every ``Decimal`` becomes an exact decimal string, lists keep their
-        recorded order, and the schema version and ``payment_terms: null`` are
-        always present. The returned dict and its lists are fresh copies.
+        recorded order, and the schema version and ``payment_terms`` are always
+        present (``null``, or in v2 a fresh strict nested
+        ``contract-payment-terms/v1`` document). The returned dict and its
+        lists are fresh copies.
 
         Returns:
             A JSON-ready document whose key set is fixed by this schema version.
@@ -575,7 +637,11 @@ class UpstreamContractEconomicSnapshot:
             "eligible_sale_modes": list(self.eligible_sale_modes),
             "numeric_source_precision": self.numeric_source_precision,
             "mapping_issues": list(self.mapping_issues),
-            "payment_terms": None,
+            "payment_terms": (
+                None
+                if self.payment_terms is None
+                else self.payment_terms.canonical_document()
+            ),
         }
         for name in _DECIMAL_FIELD_NAMES:
             document[name] = _decimal_text(getattr(self, name), name)
@@ -597,10 +663,10 @@ class UpstreamContractEconomicSnapshot:
 
         The hash covers the recorded economic content — schema version, stable
         contract identity, every captured field, numeric source precision and
-        mapping issues — and deliberately excludes display metadata. It is
-        independent of payload key order and of the ambient decimal context,
-        and it is an integrity/identity check for an immutable revision, never
-        a signature.
+        mapping issues, plus the declared payment terms in v2 — and deliberately
+        excludes display metadata. It is independent of payload key order and
+        of the ambient decimal context, and it is an integrity/identity check
+        for an immutable revision, never a signature.
         """
 
         digest = hashlib.sha256(self.canonical_json().encode("utf-8")).hexdigest()
@@ -612,8 +678,13 @@ class UpstreamContractEconomicSnapshot:
 
         Strict so a persisted revision cannot be silently half-read: the field
         set must match exactly, decimal fields must be exact strings (never
-        JSON numbers), list entries must be strings, lags must be integers and
-        ``payment_terms`` must be null.
+        JSON numbers), list entries must be strings, lags must be integers, and
+        ``payment_terms`` must match the declared version — ``null`` for v1,
+        ``null`` or one strict nested ``contract-payment-terms/v1`` canonical
+        document for v2. The version identifier is dispatched on exactly:
+        unknown versions and invalid nested terms fail closed with fixed
+        sanitized codes, and a missing field is a field-set violation, never
+        inherited from a parent revision or the mutable row.
 
         Args:
             document: A document produced by :meth:`canonical_document` (or the
@@ -641,17 +712,22 @@ class UpstreamContractEconomicSnapshot:
                 f"missing={missing} unexpected={unexpected}",
             )
         version = document["schema_version"]
-        if version != CONTRACT_REVISION_SCHEMA_VERSION:
+        if not isinstance(version, str) or version not in _REVIEWED_REVISION_SCHEMA_VERSIONS:
             raise ContractRevisionPayloadError(
-                "canonical_schema_version_mismatch",
-                f"document schema_version is {version!r}, expected"
-                f" {CONTRACT_REVISION_SCHEMA_VERSION!r}",
+                "canonical_schema_version_unknown",
+                "schema_version must be one of the reviewed revision schema"
+                f" versions {sorted(_REVIEWED_REVISION_SCHEMA_VERSIONS)}",
             )
-        if document["payment_terms"] is not None:
-            raise ContractRevisionPayloadError(
-                "canonical_payment_terms_present",
-                "canonical payment_terms must be null in this schema version",
-            )
+        if version == CONTRACT_REVISION_SCHEMA_VERSION:
+            if document["payment_terms"] is not None:
+                raise ContractRevisionPayloadError(
+                    "canonical_payment_terms_present",
+                    "canonical payment_terms must be null in"
+                    f" {CONTRACT_REVISION_SCHEMA_VERSION}",
+                )
+            terms: ContractPaymentTerms | None = None
+        else:
+            terms = _canonical_payment_terms(document["payment_terms"])
         numbers = {
             name: _canonical_decimal(document[name], name)
             for name in _DECIMAL_FIELD_NAMES
@@ -691,6 +767,8 @@ class UpstreamContractEconomicSnapshot:
                 document["mapping_issues"], "mapping_issues"
             ),
             numeric_source_precision=precision,
+            schema_version=version,
+            payment_terms=terms,
             **numbers,
             **lags,
         )
@@ -738,6 +816,37 @@ def _canonical_decimal(value: object, name: str) -> Decimal | None:
             " serialization produces",
         )
     return parsed
+
+
+def _canonical_payment_terms(value: object) -> ContractPaymentTerms | None:
+    """Decode one v2 ``payment_terms`` value: ``null`` or a strict S2a document.
+
+    The nested document is validated by the reviewed payment-terms module's own
+    strict decoder (exact field sets, reviewed vocabulary, canonical spellings,
+    bounds), so a raw mapping can never bypass validation and no field is
+    filled from a default, a parent revision or the mutable row. Anything else
+    — a non-mapping value or a document the nested decoder refuses — fails
+    closed with one fixed code and message: the nested refusal's code, labels
+    and any rejected contents are deliberately not propagated, so no untrusted
+    content can reach a caller through this path.
+    """
+
+    if value is None:
+        return None
+    if not isinstance(value, Mapping):
+        raise ContractRevisionPayloadError(
+            "canonical_payment_terms_invalid",
+            "payment_terms must be null or a canonical contract-payment-terms"
+            " document object",
+        )
+    try:
+        return ContractPaymentTerms.from_canonical_document(value)
+    except ContractPaymentTermsError:
+        raise ContractRevisionPayloadError(
+            "canonical_payment_terms_invalid",
+            "payment_terms is not a valid canonical contract-payment-terms"
+            " document",
+        ) from None
 
 
 def _legacy_decimal(value: object, name: str) -> Decimal:

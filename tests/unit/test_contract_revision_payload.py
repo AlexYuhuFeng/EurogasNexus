@@ -14,14 +14,23 @@ from __future__ import annotations
 import json
 import math
 from dataclasses import FrozenInstanceError, fields
+from datetime import date
 from decimal import ROUND_DOWN, Decimal, localcontext
 
 import pytest
 
+from eurogas_nexus.domain.ontology.vocabulary import (
+    BusinessDayConvention,
+    PaymentAnchorEvent,
+    PaymentFlowDirection,
+    PaymentOffsetDayKind,
+)
+from eurogas_nexus.domain.research.cash_valuation import CashFlowLegCategory
 from eurogas_nexus.domain.route_cost import contract_revision
 from eurogas_nexus.domain.route_cost.contract_revision import (
     CANONICAL_DECIMAL_NOT_CANONICAL,
     CONTRACT_REVISION_SCHEMA_VERSION,
+    CONTRACT_REVISION_SCHEMA_VERSION_V2,
     DECIMAL_STORAGE_BOUNDS_EXCEEDED,
     LEGACY_NOTES_NOT_STRUCTURED,
     LEGACY_STRUCTURED_VALUE_CONFLICT,
@@ -32,6 +41,12 @@ from eurogas_nexus.domain.route_cost.contract_revision import (
     ContractRevisionPayloadError,
     UpstreamContractEconomicSnapshot,
     map_legacy_contract_payload,
+)
+from eurogas_nexus.domain.route_cost.payment_terms import (
+    AnchoredPaymentRule,
+    ContractPaymentTerms,
+    ExplicitPaymentDate,
+    PaymentScheduleItem,
 )
 
 _NOTE_COSTS = {
@@ -571,9 +586,9 @@ def test_canonical_roundtrip_is_lossless_and_strict() -> None:
 
     with pytest.raises(ContractRevisionPayloadError) as wrong_version:
         UpstreamContractEconomicSnapshot.from_canonical_document(
-            {**document, "schema_version": "upstream-contract-revision/v2"}
+            {**document, "schema_version": "upstream-contract-revision/v3"}
         )
-    assert wrong_version.value.code == "canonical_schema_version_mismatch"
+    assert wrong_version.value.code == "canonical_schema_version_unknown"
 
 
 def test_canonical_decode_rejects_noncanonical_decimal_spellings() -> None:
@@ -637,3 +652,269 @@ def test_structured_note_field_names_match_the_legacy_repository() -> None:
         contract_revision._STRUCTURED_ECONOMIC_NOTE_FIELDS
         == _STRUCTURED_NOTE_FIELDS
     )
+
+
+# ---------------------------------------------------------------------------
+# Revision v2 compatibility (domain-only step, no storage/write/read wiring)
+# ---------------------------------------------------------------------------
+
+#: Untrusted marker: refusals must never echo it back.
+_SENTINEL = "sentinel-value-that-must-never-be-echoed"
+
+#: Golden v2 canonical bytes: the v1 field set with the strict nested
+#: ``contract-payment-terms/v1`` document. Any change to this literal means the
+#: v2 layout or the nested document shape was silently altered.
+_REVISION_V2_GOLDEN_JSON = (
+    '{"allowed_exit_points":["NBP","TTF"],"annual_financing_rate_pct":"6",'
+    '"contract_id":"ttf-supply-2025","contract_price_gbp_mwh":"29.75",'
+    '"delivery_point_name":"TTF","delivery_quantity_mwh_per_day":"125.5",'
+    '"delivery_tolerance_pct":"2","eligible_sale_modes":["TARGET_MARKET_SALE",'
+    '"LOCAL_MARKET_SALE"],"fuel_loss_allowance_pct":null,"gas_year":"2025+",'
+    '"mapping_issues":[],"nomination_tolerance_pct":"1",'
+    '"numeric_source_precision":"exact_decimal",'
+    '"owned_entry_capacity_mwh_per_day":null,"owned_exit_capacity_mwh_per_day":null,'
+    '"payment_terms":{"items":[{"cash_flow_category":"cargo_purchase",'
+    '"date_specification":{"final_payable_date":"2026-11-30","kind":"EXPLICIT_DATE",'
+    '"source_reference":"invoice INV-2026-0042"},"flow_direction":"OUTFLOW",'
+    '"item_id":"item-1","source_reference":"contract schedule 1"},'
+    '{"cash_flow_category":"cargo_sale",'
+    '"date_specification":{"anchor_event":"INVOICE_DATE","anchor_offset_days":20,'
+    '"business_day_convention":"FOLLOWING",'
+    '"calendar_reference":"uk-bank-holidays-2026","kind":"ANCHORED_RULE",'
+    '"offset_day_kind":"BUSINESS_DAYS","source_reference":"contract clause 7.2"},'
+    '"flow_direction":"INFLOW","item_id":"item-2",'
+    '"source_reference":"contract clause 7.2"}],'
+    '"quantity_basis_reference":"invoice_quantity",'
+    '"schema_version":"contract-payment-terms/v1"},"regas_fee_gbp_mwh":null,'
+    '"resource_type":"PIPELINE_IMPORT",'
+    '"schema_version":"upstream-contract-revision/v2","screen_sale_cash_lag_days":1,'
+    '"settlement_frequency":"monthly","tolerance_risk_allowance_gbp_mwh":null,'
+    '"upstream_payment_lag_days":20,"variable_cost_gbp_mwh":null}'
+)
+_REVISION_V2_GOLDEN_HASH = (
+    "sha256:335c0bfde35817ae0c52b51da58aa85ac48bd3ef79ce949ec5fd2e5c9e4c5988"
+)
+
+
+def _v2_terms() -> ContractPaymentTerms:
+    """Build one valid declared schedule covering both date shapes."""
+
+    return ContractPaymentTerms(
+        quantity_basis_reference="invoice_quantity",
+        items=(
+            PaymentScheduleItem(
+                item_id="item-1",
+                cash_flow_category=CashFlowLegCategory.CARGO_PURCHASE,
+                flow_direction=PaymentFlowDirection.OUTFLOW,
+                source_reference="contract schedule 1",
+                date_specification=ExplicitPaymentDate(
+                    final_payable_date=date(2026, 11, 30),
+                    source_reference="invoice INV-2026-0042",
+                ),
+            ),
+            PaymentScheduleItem(
+                item_id="item-2",
+                cash_flow_category=CashFlowLegCategory.CARGO_SALE,
+                flow_direction=PaymentFlowDirection.INFLOW,
+                source_reference="contract clause 7.2",
+                date_specification=AnchoredPaymentRule(
+                    anchor_event=PaymentAnchorEvent.INVOICE_DATE,
+                    anchor_offset_days=20,
+                    offset_day_kind=PaymentOffsetDayKind.BUSINESS_DAYS,
+                    business_day_convention=BusinessDayConvention.FOLLOWING,
+                    calendar_reference="uk-bank-holidays-2026",
+                    source_reference="contract clause 7.2",
+                ),
+            ),
+        ),
+    )
+
+
+def _v2_snapshot(terms: ContractPaymentTerms | None = None) -> UpstreamContractEconomicSnapshot:
+    """Build one exact-decimal v2 snapshot (null terms unless given)."""
+
+    return _snapshot(
+        schema_version=CONTRACT_REVISION_SCHEMA_VERSION_V2,
+        payment_terms=terms,
+    )
+
+
+def _nested_reversed_keys(value: object) -> object:
+    """Return a JSON-ish structure with every dict key order reversed."""
+
+    if isinstance(value, dict):
+        return {key: _nested_reversed_keys(value[key]) for key in reversed(list(value))}
+    if isinstance(value, list):
+        return [_nested_reversed_keys(entry) for entry in value]
+    return value
+
+
+def test_default_construction_and_legacy_mapping_stay_v1() -> None:
+    """v2 is never produced by default and never converted in memory."""
+
+    direct = _snapshot()
+    mapped = _mapped_snapshot(_legacy_payload())
+
+    for snapshot in (direct, mapped):
+        assert snapshot.schema_version == CONTRACT_REVISION_SCHEMA_VERSION
+        assert snapshot.payment_terms is None
+        assert snapshot.canonical_document()["payment_terms"] is None
+
+
+def test_v2_canonical_bytes_and_hash_are_pinned() -> None:
+    snapshot = _v2_snapshot(_v2_terms())
+
+    assert snapshot.canonical_json() == _REVISION_V2_GOLDEN_JSON
+    assert snapshot.content_hash() == _REVISION_V2_GOLDEN_HASH
+
+    document = json.loads(_REVISION_V2_GOLDEN_JSON)
+    assert document["schema_version"] == CONTRACT_REVISION_SCHEMA_VERSION_V2
+    assert document["payment_terms"]["schema_version"] == (  # type: ignore[index]
+        "contract-payment-terms/v1"
+    )
+    rebuilt = UpstreamContractEconomicSnapshot.from_canonical_document(document)
+    assert rebuilt.canonical_json() == _REVISION_V2_GOLDEN_JSON
+    assert rebuilt.content_hash() == _REVISION_V2_GOLDEN_HASH
+
+
+def test_v2_with_declared_terms_roundtrips_byte_identically() -> None:
+    terms = _v2_terms()
+    # Exact precision and recorded order survive the nested v2 document.
+    precise = Decimal("29.75000000000000000000000000000000000001")
+    snapshot = _snapshot(
+        contract_price_gbp_mwh=precise,
+        schema_version=CONTRACT_REVISION_SCHEMA_VERSION_V2,
+        payment_terms=terms,
+    )
+
+    document = snapshot.canonical_document()
+    assert document["schema_version"] == CONTRACT_REVISION_SCHEMA_VERSION_V2
+    assert document["payment_terms"] == terms.canonical_document()
+    assert document["contract_price_gbp_mwh"] == (
+        "29.75000000000000000000000000000000000001"
+    )
+    assert document["eligible_sale_modes"] == [
+        "TARGET_MARKET_SALE",
+        "LOCAL_MARKET_SALE",
+    ]
+
+    parsed = json.loads(snapshot.canonical_json())
+    rebuilt = UpstreamContractEconomicSnapshot.from_canonical_document(parsed)
+    assert rebuilt == snapshot
+    assert rebuilt.payment_terms == terms
+    assert rebuilt.canonical_json() == snapshot.canonical_json()
+    assert rebuilt.content_hash() == snapshot.content_hash()
+
+    # Key order never matters, including inside the nested terms document.
+    from_shuffled = UpstreamContractEconomicSnapshot.from_canonical_document(
+        _nested_reversed_keys(parsed)  # type: ignore[arg-type]
+    )
+    assert from_shuffled.canonical_json() == snapshot.canonical_json()
+    assert from_shuffled.content_hash() == snapshot.content_hash()
+
+
+def test_v2_null_terms_roundtrip_and_hash_separates_version_and_terms() -> None:
+    v1 = _snapshot()
+    v2_null = _v2_snapshot()
+    v2_terms = _v2_snapshot(_v2_terms())
+
+    assert v2_null.canonical_document()["payment_terms"] is None
+    rebuilt = UpstreamContractEconomicSnapshot.from_canonical_document(
+        json.loads(v2_null.canonical_json())
+    )
+    assert rebuilt == v2_null
+    assert rebuilt.canonical_json() == v2_null.canonical_json()
+    assert rebuilt.content_hash() == v2_null.content_hash()
+
+    # The schema version is part of the hash, and null is not "the same as"
+    # declared terms: three distinct snapshots, three distinct hashes.
+    hashes = {v1.content_hash(), v2_null.content_hash(), v2_terms.content_hash()}
+    assert len(hashes) == 3
+
+
+def test_v1_refuses_terms_and_v2_refuses_untyped_terms_without_echoing() -> None:
+    terms = _v2_terms()
+
+    # v1 (also the default) refuses non-null terms; the caller must ask for v2.
+    with pytest.raises(ContractRevisionPayloadError) as via_v1:
+        _snapshot(payment_terms=terms)
+    assert via_v1.value.code == "payment_terms_present"
+
+    # A raw mapping is never accepted as declared terms, in either version.
+    for schema_version in (CONTRACT_REVISION_SCHEMA_VERSION, CONTRACT_REVISION_SCHEMA_VERSION_V2):
+        with pytest.raises(ContractRevisionPayloadError) as raw_mapping:
+            _snapshot(
+                schema_version=schema_version,
+                payment_terms={"quantity_basis_reference": _SENTINEL, "items": []},
+            )
+        expected = (
+            "payment_terms_present"
+            if schema_version == CONTRACT_REVISION_SCHEMA_VERSION
+            else "payment_terms_not_typed"
+        )
+        assert raw_mapping.value.code == expected
+        assert _SENTINEL not in str(raw_mapping.value)
+
+
+def test_v2_canonical_decode_fails_closed_on_invalid_terms() -> None:
+    document = _v2_snapshot().canonical_document()
+
+    invalid_values: list[object] = [
+        [],  # a list is never a terms document
+        "contract-payment-terms/v1",  # a bare version string is not a document
+        {},  # empty field set
+        {"schema_version": _SENTINEL},  # untrusted version value
+    ]
+    nested = _v2_terms().canonical_document()
+    nested["unexpected"] = _SENTINEL
+    invalid_values.append(nested)
+
+    for invalid in invalid_values:
+        with pytest.raises(ContractRevisionPayloadError) as excinfo:
+            UpstreamContractEconomicSnapshot.from_canonical_document(
+                {**document, "payment_terms": invalid}
+            )
+        assert excinfo.value.code == "canonical_payment_terms_invalid"
+        assert _SENTINEL not in str(excinfo.value)
+
+
+def test_every_version_requires_the_payment_terms_field() -> None:
+    """A missing field is a field-set violation, never parent inheritance."""
+
+    for snapshot in (_mapped_snapshot(_legacy_payload()), _v2_snapshot()):
+        document = snapshot.canonical_document()
+        without_terms = {
+            key: value for key, value in document.items() if key != "payment_terms"
+        }
+        with pytest.raises(ContractRevisionPayloadError) as excinfo:
+            UpstreamContractEconomicSnapshot.from_canonical_document(without_terms)
+        assert excinfo.value.code == "canonical_field_set_mismatch"
+        assert "payment_terms" in excinfo.value.detail
+
+
+def test_unknown_versions_fail_closed_without_echoing_untrusted_content() -> None:
+    with pytest.raises(ContractRevisionPayloadError) as construction:
+        _snapshot(schema_version=_SENTINEL)
+    assert construction.value.code == "schema_version_unknown"
+    assert _SENTINEL not in str(construction.value)
+
+    v1_document = _mapped_snapshot(_legacy_payload()).canonical_document()
+    with pytest.raises(ContractRevisionPayloadError) as decode:
+        UpstreamContractEconomicSnapshot.from_canonical_document(
+            {**v1_document, "schema_version": _SENTINEL}
+        )
+    assert decode.value.code == "canonical_schema_version_unknown"
+    assert _SENTINEL not in str(decode.value)
+
+
+def test_v2_terms_stay_immutable_and_documents_are_fresh_copies() -> None:
+    terms = _v2_terms()
+    snapshot = _v2_snapshot(terms)
+
+    with pytest.raises(FrozenInstanceError):
+        snapshot.payment_terms = None  # type: ignore[assignment]
+
+    document = snapshot.canonical_document()
+    document["payment_terms"]["items"].append({"item_id": "forged"})  # type: ignore[index,union-attr]
+    document["payment_terms"]["items"][0]["item_id"] = "rewritten"  # type: ignore[index,union-attr]
+    assert snapshot.canonical_document()["payment_terms"] == terms.canonical_document()

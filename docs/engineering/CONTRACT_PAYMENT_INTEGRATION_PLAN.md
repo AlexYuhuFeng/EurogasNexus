@@ -408,7 +408,9 @@ supplied by the operator, never a market default and never a legal conclusion.
   route, permission, client, UI, migration, composition, valuation citation
   and any lifecycle. The S1a `upstream-contract-revision/v1` schema is
   untouched: its canonical documents still carry `payment_terms: null` and its
-  bytes and hashes remain readable (pinned as a golden test below).
+  bytes and hashes remain readable (pinned as a golden test below). A separate
+  domain-only v2 compatibility step is recorded at the end of this section; it
+  adds no storage, write-path, read-path or migration behaviour.
 - Ontology: [`concepts.py`](../../src/eurogas_nexus/domain/ontology/concepts.py)
   declares `ContractPaymentTerms` and `PaymentScheduleItem`;
   [`relations.py`](../../src/eurogas_nexus/domain/ontology/relations.py) adds
@@ -447,7 +449,10 @@ supplied by the operator, never a market default and never a legal conclusion.
 This replaces the earlier transition sketch, which wrongly equated a field
 omitted from a **write request** with a field omitted from a **canonical
 revision document**. The two omissions are separate contracts and are specified
-separately below; nothing here is implemented, approved or claimed to exist.
+separately below; none of the storage, write, read or migration behaviour below
+is implemented, approved or claimed to exist — the domain-only v2 encode/decode
+step recorded at the end of this section is the only part of this contract
+implemented so far.
 
 **Write requests (mutable row): omission preserves, explicit `null` clears.**
 
@@ -494,11 +499,14 @@ fills a hole.**
   remain verifiable exactly as today. The Alembic change is expand-only,
   applies through the existing PostgreSQL release process, and adds no startup
   hook or runtime write.
-- Reviewed next implementation scope (no claim that any part exists): the terms
-  carrier and its edit-token coverage; the write-request presence contract; v2
-  encode/decode dispatch; the repository capture/hash comparison; read-only
-  exposure of declared terms. Lifecycle (freeze/current pointer), date
-  resolution and valuation citation stay out of scope.
+- Reviewed next implementation scope: the terms carrier and its edit-token
+  coverage; the write-request presence contract; the repository capture/hash
+  comparison and read-only exposure of declared terms remain unimplemented —
+  no claim that any part of them exists. The v2 encode/decode dispatch is now
+  implemented at the domain layer only (see the domain-only subsection at the
+  end of this section); its storage, write-path and read-path integration is
+  still pending. Lifecycle (freeze/current pointer), date resolution and
+  valuation citation stay out of scope.
 
 **Integration decisions (review required; the current code does not decide
 them).**
@@ -560,6 +568,54 @@ revision lifecycle and the anchor-calendar resolver — open decisions 1 and 3).
 | 11 | migration (PostgreSQL, opt-in disposable DB) | expand-only applies; pre-existing v1 rows still verify; no backfill |
 
 No client, UI, permission, valuation or lifecycle work belongs to this slice.
+
+### S2b domain-only step implemented — explicit revision v2 encode/decode (baseline `02c378e`)
+
+This completes only the v2 compatibility step of the contract above, entirely
+inside
+[`contract_revision.py`](../../src/eurogas_nexus/domain/route_cost/contract_revision.py)
+and its focused unit suite. It implements no storage carrier, migration, write
+request handling, repository capture/hash comparison, API, route, client or
+read exposure, and no stored row can carry v2 until a reviewed storage slice
+writes one.
+
+- v1 stays frozen: default construction and `map_legacy_contract_payload`
+  still produce `upstream-contract-revision/v1` with `payment_terms: null`,
+  and the v1 canonical bytes/hash are unchanged (the pinned golden
+  `sha256:0da96e…` test still passes). v1 construction refuses non-null terms
+  with the existing `payment_terms_present` refusal.
+- Explicit v2: `UpstreamContractEconomicSnapshot` gains keyword-only
+  `schema_version` (default v1) and `payment_terms` (default `null`) fields
+  plus the `CONTRACT_REVISION_SCHEMA_VERSION_V2`
+  (`upstream-contract-revision/v2`) constant. V2 is only produced when a caller
+  declares it: there is no automatic v1→v2 conversion, no in-memory upgrade
+  during decode and no parent or mutable-row lookup. V2 accepts `null` or a
+  validated `ContractPaymentTerms` value; a raw mapping or any other object is
+  refused with a sanitized `payment_terms_not_typed` refusal.
+- Canonical decode dispatches on the exact `schema_version` string. Every
+  version requires the exact complete field set including `payment_terms`; a
+  missing field is `canonical_field_set_mismatch`, never "preserve the parent"
+  and never "not stated". v1 requires `null`
+  (`canonical_payment_terms_present`); v2 requires `null` or a strict nested
+  `contract-payment-terms/v1` canonical document decoded by S2a's own strict
+  decoder. Unknown or untyped versions are refused with
+  `canonical_schema_version_unknown` and a fixed message that no longer echoes
+  the supplied value, and any invalid or non-document terms value is refused
+  with the single fixed `canonical_payment_terms_invalid` code and message;
+  nested refusal codes, labels and contents are deliberately not propagated.
+- Encoding a v2 snapshot writes the strict nested canonical document or
+  `null`. Decimal exactness and list order are preserved, and the content hash
+  covers the version, the economics and the declared terms. Byte-identical
+  roundtrips are asserted for v2 with terms and with `null`, including
+  nested-key-order independence and immutable/fresh-copy semantics, and the v2
+  fixture's canonical bytes/hash are pinned by a golden test alongside the v1
+  pin.
+- Evidence: focused tests in
+  [`tests/unit/test_contract_revision_payload.py`](../../tests/unit/test_contract_revision_payload.py).
+  The one previously pinned unsupported-version assertion now uses an actually
+  unknown `v3` version, because v2 is accepted by design.
+- Not claimed: persistence, migration, write-preserve/clear semantics, read
+  exposure, date resolution, cash math, valuation citation or any lifecycle.
 
 ## Open decisions (parent/reviewer)
 

@@ -30,12 +30,13 @@ unknown fields or values, non-canonical spellings, duplicate item ids and
 oversized input. Refusals carry stable codes and sanitized details: no
 supplied value, field name or object repr is echoed back.
 
-Persistence/API transition (S2b, not implemented here): terms are intended to
-travel inside an immutable contract revision. The existing
-``upstream-contract-revision/v1`` schema stays byte-identical
-(``payment_terms`` always null); a later reviewed slice adds a new schema
-version carrying this document as one additional field, where absence means
-"not stated", never an empty schedule.
+Persistence/API transition (S2b): terms are intended to travel inside an
+immutable contract revision. The existing ``upstream-contract-revision/v1``
+schema stays byte-identical (``payment_terms`` always null); the reviewed
+``upstream-contract-revision/v2`` domain schema now allows this document in the
+existing required ``payment_terms`` field (or ``null`` for "not stated";
+omission and an empty schedule are invalid), while storage, write-path and
+read-path integration remain unimplemented.
 
 The module is pure: standard library plus the reviewed vocabulary and the
 shared cash category enum; no I/O, no clock, no randomness.
