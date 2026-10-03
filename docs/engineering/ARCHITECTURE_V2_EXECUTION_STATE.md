@@ -1,9 +1,34 @@
 # Architecture V2 Execution State
 
-Last updated: 2026-10-01
+Last updated: 2026-10-03
 Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical slice records below do not constitute current production approval.
 
 ## Current work
+
+### Explicit payment-term domain foundation S2a (2026-10-03)
+
+Baseline `a04f99a` passed GitHub CI run `37087566428`. DeepSeek implemented the
+reviewed S2a declared-term model and ontology vocabulary/concepts. Each ordered
+schedule item records evidence, cash-flow category, explicit INFLOW/OUTFLOW
+direction and either a final payable date or an unresolved anchored rule.
+Offsets, day kind and roll conventions are explicit; calendars are required
+when used. No anchor date, amount, annual-rate convention or cash value is inferred.
+
+Parent review required explicit direction independent of category, sanitized
+refusals, and shorter implementation commentary. DeepSeek repaired those issues;
+parent added rejection of invalid Unicode surrogates before UTF-8 serialization.
+Independent validation: 108 focused model/ontology/revision tests, then 1202
+unit and contract tests passed; focused Ruff and diff checks passed. Existing
+revision v1 canonical bytes/hash are pinned unchanged by a golden test.
+
+This is a domain foundation, NOT an integrated payment workflow. No database,
+migration, contract write, valuation math or client change was made. The new
+ontology concepts are deliberately not bound to nonexistent storage tables.
+S2b still needs additive revision-schema handling, explicit write/preserve/clear
+semantics and governed read/write integration; older clients omitting terms must
+not erase them. S3 citation/composition still requires an explicit lifecycle
+decision and reviewed date resolution. Keep browser/persona/commercial release
+gates open; do not promote these tests into end-to-end acceptance evidence.
 
 ### Business acceptance reconciliation (2026-10-03)
 

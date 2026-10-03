@@ -161,6 +161,84 @@ class AuctionTiming(StrEnum):
 CAPACITY_PRODUCT_EXTENSIONS: frozenset[str] = frozenset({"WEEKLY"})
 
 
+# --- Contract payment-term vocabulary (S2a declared-rule representation) ----
+#
+# Parent design review for the S2a unit: explicit payment terms are evidence
+# supplied by the operator, never a market default and never a legal
+# conclusion. These finite vocabularies name what a declared rule may say.
+# None of them supplies an anchor fact (invoice, delivery or meter date),
+# resolves a date, or asserts a market/contract calendar: a rule may not be
+# used for valuation until the required anchor facts and calendar versions
+# exist and a resolver has been reviewed. The single implementation lives in
+# ``domain/route_cost/payment_terms.py``; this is the reviewed vocabulary it
+# consumes, not a parallel taxonomy.
+
+
+class PaymentAnchorEvent(StrEnum):
+    """Reviewed anchor events a declared payment rule may reference.
+
+    The event names *which* contractual fact the operator declared (for
+    example the invoice date); it never supplies the fact itself, so no
+    invoice, delivery-period or meter-read date is inferred or defaulted.
+    """
+
+    INVOICE_DATE = "INVOICE_DATE"
+    DELIVERY_PERIOD_START = "DELIVERY_PERIOD_START"
+    DELIVERY_PERIOD_END = "DELIVERY_PERIOD_END"
+    METER_READ_DATE = "METER_READ_DATE"
+
+
+class PaymentOffsetDayKind(StrEnum):
+    """Whether a declared anchor offset counts calendar or business days.
+
+    A business-day count requires an explicit calendar reference on the rule;
+    no counting convention is defaulted.
+    """
+
+    CALENDAR_DAYS = "CALENDAR_DAYS"
+    BUSINESS_DAYS = "BUSINESS_DAYS"
+
+
+class BusinessDayConvention(StrEnum):
+    """Explicit business-day adjustment convention of a declared rule.
+
+    ``NONE`` means the declared date is used exactly as stated and is never
+    rolled; the other values roll onto a business day of the rule's explicit
+    calendar reference. No convention is defaulted.
+    """
+
+    NONE = "NONE"
+    FOLLOWING = "FOLLOWING"
+    MODIFIED_FOLLOWING = "MODIFIED_FOLLOWING"
+    PRECEDING = "PRECEDING"
+
+
+class PaymentDateSpecificationKind(StrEnum):
+    """Discriminator of a declared payment date specification.
+
+    Exactly one shape applies per schedule item: an operator-stated final
+    payable date, or a rule anchored to a reviewed event.
+    """
+
+    EXPLICIT_DATE = "EXPLICIT_DATE"
+    ANCHORED_RULE = "ANCHORED_RULE"
+
+
+class PaymentFlowDirection(StrEnum):
+    """Declared direction of one payment item's money flow.
+
+    Defined from the contract-holder/reporting entity's perspective:
+    ``INFLOW`` is money received, ``OUTFLOW`` is money paid out. The direction
+    is stated per item and never inferred from the cash-flow category; a
+    refund or reimbursement can reverse the category's usual sign, so future
+    composition must validate any signed amount against this explicit
+    declaration rather than deriving a sign from the category.
+    """
+
+    INFLOW = "INFLOW"
+    OUTFLOW = "OUTFLOW"
+
+
 class StatusKind(StrEnum):
     """Unified result status semantics for optimizers and workflows.
 

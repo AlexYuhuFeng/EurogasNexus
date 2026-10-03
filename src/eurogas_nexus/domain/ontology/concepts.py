@@ -8,10 +8,11 @@ built-in types, so a concept's shape is machine-checkable rather than prose.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 
 from eurogas_nexus.domain.ontology.vocabulary import (
+    BusinessDayConvention,
     CapacityProduct,
     CapacityScope,
     Currency,
@@ -22,6 +23,10 @@ from eurogas_nexus.domain.ontology.vocabulary import (
     FlowKind,
     MarketHub,
     NodeType,
+    PaymentAnchorEvent,
+    PaymentDateSpecificationKind,
+    PaymentFlowDirection,
+    PaymentOffsetDayKind,
     PriceType,
     ProductKind,
     ProductTenor,
@@ -82,6 +87,44 @@ CONCEPTS: tuple[Concept, ...] = (
             Slot("all_in_cost_gbp_mwh", float),
             Slot("settlement_frequency", str),
             Slot("delivery_mode", DeliveryMode, "0..1"),
+        ),
+    ),
+    Concept(
+        "ContractPaymentTerms",
+        "Contract Payment Terms",
+        "Operator-declared payment schedule of one upstream contract: stable item ids, "
+        "explicit date rules and mandatory evidence; never a market default or legal conclusion.",
+        "上游合同由操作员申报的付款计划：稳定条目 ID、显式日期规则与强制证据；"
+        "绝非市场默认或法律结论。",
+        (
+            Slot("quantity_basis_reference", str),
+            Slot("schedule_items", "PaymentScheduleItem", "0..n"),
+        ),
+    ),
+    Concept(
+        "PaymentScheduleItem",
+        "Payment Schedule Item",
+        "One declared payable line: a stable id, one shared cash-flow category, an explicit "
+        "flow direction and exactly one explicit date specification (an explicit final date "
+        "or an anchored rule).",
+        "一条申报付款条目：稳定 ID、一个共享现金流类别、一个显式资金流向，以及恰一个显式"
+        "日期规格（显式最终日期或锚点规则）。",
+        (
+            Slot("item_id", str),
+            # Shared cash-flow category value (CashFlowLegCategory); kept as str
+            # here because the research vocabulary is not an ontology enum.
+            Slot("cash_flow_category", str),
+            # INFLOW/OUTFLOW from the contract-holder/reporting entity's
+            # perspective; never inferred from the category.
+            Slot("flow_direction", PaymentFlowDirection),
+            Slot("source_reference", str),
+            Slot("date_specification_kind", PaymentDateSpecificationKind),
+            Slot("final_payable_date", date, "0..1"),
+            Slot("anchor_event", PaymentAnchorEvent, "0..1"),
+            Slot("anchor_offset_days", int, "0..1"),
+            Slot("offset_day_kind", PaymentOffsetDayKind, "0..1"),
+            Slot("business_day_convention", BusinessDayConvention, "0..1"),
+            Slot("calendar_reference", str, "0..1"),
         ),
     ),
     Concept(

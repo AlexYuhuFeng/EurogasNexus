@@ -1,6 +1,6 @@
 # Contract Revision and Explicit Payment Terms — Integration Plan
 
-Status: **S1a, S1b, S1c, S1d and the bounded S1e edit-token precondition are implemented (immutable economic payload definition with legacy compatibility mapping; additive revision storage with an explicit repository capture/read operation; the governed contract write that captures both sides of an overwrite with atomic attribution; the bounded, contract-scoped read surface over the captured evidence; and a stale-edit precondition on that governed write); the remaining slices are PROPOSED for architecture review and are not approved or implemented.** Bounded preparation from [Architecture V2 execution state](ARCHITECTURE_V2_EXECUTION_STATE.md) and the [European Gas Trading Business Acceptance](../product/TRADING_BUSINESS_ACCEPTANCE.md) matrix, audited at repository baseline `509e703`; S1a was implemented at baseline `1676b98` and is recorded in section 8, S1b at baseline `f396492` and is recorded in section 9, S1c after baseline `9271500` and is recorded in section 10, S1d after baseline `9160188` and is recorded in section 11, and S1e after baseline `6b5258d` and is recorded in section 13. The S1b migration is expand-only storage; there is no backfill, UI, valuation citation, checkpoint or release artefact beyond it. S1c is *not* a revision lifecycle or a complete history; its honest limits are listed in section 10, and S1e narrows only its write precondition (section 13) without turning it into a lifecycle. S1d reads evidence only — it captures nothing, changes no schema and asserts no payment terms.
+Status: **S1a, S1b, S1c, S1d, the bounded S1e edit-token precondition and the S2a typed explicit-payment-terms foundation are implemented (immutable economic payload definition with legacy compatibility mapping; additive revision storage with an explicit repository capture/read operation; the governed contract write that captures both sides of an overwrite with atomic attribution; the bounded, contract-scoped read surface over the captured evidence; a stale-edit precondition on that governed write; and the strict, versioned payment-terms model — including its explicit per-item flow direction — plus its reviewed ontology vocabulary, defined and tested with no persistence, route, client or date resolution); S2b and the remaining slices are PROPOSED for architecture review and are not approved or implemented.** Bounded preparation from [Architecture V2 execution state](ARCHITECTURE_V2_EXECUTION_STATE.md) and the [European Gas Trading Business Acceptance](../product/TRADING_BUSINESS_ACCEPTANCE.md) matrix, audited at repository baseline `509e703`; S1a was implemented at baseline `1676b98` and is recorded in section 8, S1b at baseline `f396492` and is recorded in section 9, S1c after baseline `9271500` and is recorded in section 10, S1d after baseline `9160188` and is recorded in section 11, S1e after baseline `6b5258d` and is recorded in section 13, and S2a at baseline `a04f99a` and is recorded in section 15. The S1b migration is expand-only storage; there is no backfill, UI, valuation citation, checkpoint or release artefact beyond it. S1c is *not* a revision lifecycle or a complete history; its honest limits are listed in section 10, and S1e narrows only its write precondition (section 13) without turning it into a lifecycle. S1d reads evidence only — it captures nothing, changes no schema and asserts no payment terms. S2a is a declared-rule type only: nothing is persisted, exposed, resolved or rendered, and it is not a usable payment workflow.
 
 Scope: contract/right lifecycle for pipeline-gas and LNG tender decision support, plus explicit payment-term semantics feeding the shared dated cash valuation. Boundary: decision support only — no trade execution, tender submission, capacity reservation, nomination or settlement; an internal revision is never an amendment to a legally binding agreement.
 
@@ -19,7 +19,7 @@ Scope: contract/right lifecycle for pipeline-gas and LNG tender decision support
 | LNG composition | Delegates to the shared engine; payment dates are caller-supplied plain dates at/after the valuation date; every declared date needs an explicit factor; readiness missing inputs refuse fail-closed | `domain/research/lng_cash_valuation.py`; `domain/research/lng_cargo_economics.py::LngCargoEconomicsInput`, `::_validate_payment_date`, `::_validate_discount_coverage`; `domain/route_cost/lng_regas.py::assess_lng_regas_readiness` |
 | Permissions | Contract upsert/list is GOVERNED inside the commercial-data prefixes; admin-alone refused; `/api/contracts/` stays READ; research valuation is GOVERNED | `security/permissions.py`; `api/dependencies/commercial_access.py` |
 
-Missing: revision lifecycle (statuses, effective windows, freeze/retire/supersede), a current-revision pointer and revision citation on valuations; governed capacity/TSO/slot write paths; explicit payment terms (anchor, calendar, business-day adjustment, day count, quantity basis, FX date rule, curve provenance); optimistic edit-conflict detection on the existing contract write route (the bounded stale-edit token precondition is implemented as S1e — section 13; a monotonic draft edit-version protocol remains missing); composition from a frozen revision into `CashValuationInput`. S1b (section 9) stores explicit capture events with atomic audit, S1c (section 10) makes the existing write route capture both sides of an overwrite under the authenticated actor, S1d (section 11) exposes the captured evidence through bounded, contract-scoped reads, and S1e (section 13) refuses a stale edit before capture, but none of them closes the remaining items.
+Missing: revision lifecycle (statuses, effective windows, freeze/retire/supersede), a current-revision pointer and revision citation on valuations; governed capacity/TSO/slot write paths; explicit payment terms (anchor, calendar, business-day adjustment, day count, quantity basis, flow direction, FX date rule, curve provenance); optimistic edit-conflict detection on the existing contract write route (the bounded stale-edit token precondition is implemented as S1e — section 13; a monotonic draft edit-version protocol remains missing); composition from a frozen revision into `CashValuationInput`. S1b (section 9) stores explicit capture events with atomic audit, S1c (section 10) makes the existing write route capture both sides of an overwrite under the authenticated actor, S1d (section 11) exposes the captured evidence through bounded, contract-scoped reads, and S1e (section 13) refuses a stale edit before capture, but none of them closes the remaining items.
 
 ## 2. Proposed design
 
@@ -51,11 +51,12 @@ Terms are part of the frozen revision and all-or-nothing; composition refuses wh
 | Offset | `anchor_offset_days` | Explicit, `>= 0`, applied only per the reviewed anchor definition |
 | Calendar / roll | `calendar_reference`, `business_day_convention` (e.g. none/following/modified following) | Required when adjustment matters; no implicit weekend/holiday rule |
 | Quantity basis | `quantity_basis_reference` | Declared invoiced/scheduled/delivered basis; never assumed |
+| Flow direction | `flow_direction` (`INFLOW`/`OUTFLOW`, from the contract-holder/reporting-entity perspective) | Explicit per item; never inferred from the cash-flow category (a refund or reimbursement can reverse the category's usual sign); composition must validate the signed amount against it |
 | Day count | `day_count_convention` | Required whenever an annual rate becomes a period amount; no 365 default |
 | FX | leg currency, `rate`, `as_of`, `source_reference` | Already required by `CashValuationFxInput`; never defaulted |
 | Discount | per-date `factor`, `curve_reference`, `source_reference`, `as_of` | Already required by `CashValuationDiscountFactorInput`; every leg date covered |
 
-The end-of-window-plus-lag construction must not become a default convention (the acceptance document's review note); a delivery window alone produces no payment dates. The revision stores the declared rule; composition records the values actually used.
+The end-of-window-plus-lag construction must not become a default convention (the acceptance document's review note); a delivery window alone produces no payment dates. The revision stores the declared rule; composition records the values actually used. S2a implemented this table's schedule/category/direction/anchor/offset/convention/quantity-basis subset as a typed declared-rule model — section 15 records the exact names, the fields deliberately absent (day count, FX, discount, amount) and the honest limits.
 
 ### 2.5 Reuse the shared cash capability; funding vs discounting
 
@@ -66,12 +67,12 @@ The end-of-window-plus-lag construction must not become a default convention (th
 
 Reuse: `UpstreamResourceContract` (bound to `upstream_resource_contracts` in `domain/ontology/bindings.py`), `CapacityProfile`, `CompanyTsoAccess`, `TsoTariff`, `FxObservation`, `LngRegasScenario`, `RouteCandidate`, plus semantic-kernel `CanonicalId`, `ExternalIdentifier` (with `valid_from`/`valid_to`), `Money`, `Measure` (`domain/ontology/semantic_kernel.py`).
 
-Gaps: no contract-revision, payment-terms or valuation-citation concept exists. Preferred order: (1) express revision as bound data (id + number) with slots on the existing `UpstreamResourceContract` binding; (2) only if a distinct entity is unavoidable, register `ContractRevision`/`PaymentTerms` through ontology review (`bindings.py` slot→column maps; the enum/ontology gate records reviews). Cash-flow categories are the frozen research vocabulary `CashFlowLegCategory` in `cash_valuation.py`, not ontology; clients must not define parallel business types.
+Gaps: no contract-revision or valuation-citation concept exists. The payment-terms half was decided by S2a (section 15): `ContractPaymentTerms` and `PaymentScheduleItem` are declared in `concepts.py`/`relations.py` as **unbound** declared-rule concepts — deliberately no `bindings.py` entry, because no table exists. The contract-revision identity stays gap 1: express revision as bound data (id + number) with slots on the existing `UpstreamResourceContract` binding; only if a distinct entity is unavoidable, register `ContractRevision` through ontology review (`bindings.py` slot→column maps; the enum/ontology gate records reviews). Cash-flow categories are the frozen research vocabulary `CashFlowLegCategory` in `cash_valuation.py`, not ontology; clients must not define parallel business types.
 
 ## 3. Smallest incremental slices
 
 1. **S1 — revision foundation**, split into independently reviewed tasks: first define the immutable payload and compatibility mapping (implemented, S1a), then additive storage with an explicit capture/read operation, upgrade tests and atomic audit (implemented, S1b — no backfill), then guarded write/read transitions on the existing routes (write transition implemented as S1c — section 10; bounded revision reads implemented as S1d — section 11; the bounded stale-edit token precondition on that write implemented as S1e — section 13; the monotonic draft edit-version conflict remains proposed). Do not drop existing economic columns or replace all CRUD in one change. Define a captured legacy revision honestly as capture-time evidence, not historical reconstruction. Freeze/retire and route-level PostgreSQL concurrency acceptance follow before valuation citation is enabled.
-2. **S2 — explicit payment terms** on the revision, with refusal codes and read-only exposure in the revision payload.
+2. **S2 — explicit payment terms** on the revision, with refusal codes and read-only exposure in the revision payload. S2a (the strict typed declared-rule model, its reviewed vocabulary and stable refusal codes, with no persistence, API, UI, client or date resolution) is implemented — section 15. S2b (carry the terms inside an immutable revision additively, keep v1 bytes/hashes readable, expose them read-only) remains PROPOSED and is described at the end of section 15; freeze/retire lifecycle and the anchor-calendar resolver stay prerequisites before any valuation may cite terms.
 3. **S3 — composition**: frozen revision + valuation date + explicit delivery window/quantity basis + explicit FX and discount inputs → `compute_cash_valuation`; cite revision/hash; refuse when terms are absent.
 4. **S4 — existing Decision workspace wiring**; no new top-level page, no client arithmetic.
 5. **S5 — capacity/TSO/slot rights write path** reusing S1/S2 semantics.
@@ -350,6 +351,121 @@ reading. This slice fixes that ordering; it adds no capability.
   state), and the save's success notice is still published before its refresh answers - the
   notice is draft-scoped, not refresh-scoped.
 
+## 15. S2a implemented — typed explicit payment-terms foundation (baseline `a04f99a`)
+
+S2a defines and tests the strict, immutable, versioned declaration of what an
+operator states about when contract payments fall due. It is a **typed
+foundation only**: nothing is persisted, exposed by an API, rendered in a
+client or resolved into a date, and no valuation may use it. The parent design
+review for this unit is recorded here: explicit payment terms are evidence
+supplied by the operator, never a market default and never a legal conclusion.
+
+- Source: [`payment_terms.py`](../../src/eurogas_nexus/domain/route_cost/payment_terms.py)
+  defines `ContractPaymentTerms` (schema version `contract-payment-terms/v1`:
+  one declared `quantity_basis_reference` plus ordered schedule items),
+  `PaymentScheduleItem` (stable `item_id`, shared `CashFlowLegCategory`,
+  explicit `flow_direction`, mandatory item evidence, exactly one date
+  specification) and the two discriminated date shapes: `ExplicitPaymentDate`
+  (ISO plain date plus evidence of that final payable date) and
+  `AnchoredPaymentRule` (reviewed anchor event, explicit non-negative integral
+  offset, explicit `CALENDAR_DAYS`/`BUSINESS_DAYS` offset kind, explicit
+  `NONE`/`FOLLOWING`/`MODIFIED_FOLLOWING`/`PRECEDING` convention, and a
+  calendar reference only when the count or roll needs one).
+- Reviewed vocabulary:
+  [`vocabulary.py`](../../src/eurogas_nexus/domain/ontology/vocabulary.py)
+  gains `PaymentAnchorEvent`, `PaymentOffsetDayKind`, `BusinessDayConvention`
+  and `PaymentDateSpecificationKind`, plus `PaymentFlowDirection`
+  (`INFLOW`/`OUTFLOW` from the contract-holder/reporting-entity perspective,
+  stated per item). Cash-flow categories reuse the shared, frozen
+  `CashFlowLegCategory` of the cash engine (purchase versus sale and the other
+  categories) and never determine the direction: a refund or reimbursement can
+  reverse the category's usual sign, so future composition must validate the
+  signed amount against the explicit declaration. No parallel or client-side
+  taxonomy exists, and no day-count, FX, discount, amount, accrual or sign
+  field is carried.
+- Explicit refusals (stable codes, sanitized messages): unknown enum values, a
+  plain string where an enum member is required, boolean/float/negative or
+  oversized offsets, an explicit date supplied as `datetime`, a calendar
+  missing when a business-day count or roll needs it, a calendar supplied
+  when nothing needs it, blank/missing/oversized evidence at item and
+  specification level, duplicate item ids, an empty or oversized schedule,
+  non-item entries, an unsupported schema version, and canonical documents
+  with missing, extra or mixed fields, non-canonical date spellings (compact,
+  padded or datetime), numeric dates or boolean offsets. Refusal details are
+  sanitized: they name only fixed schema labels, safe item indices/counts and
+  stable codes, never the supplied value, field name or a repr, and a
+  malformed mapping or non-string key is refused with the same stable code
+  instead of raising `TypeError`.
+- Canonical replay: `canonical_document()`/`canonical_json()` emit compact
+  sorted-key UTF-8 JSON that preserves item order and strings verbatim;
+  invalid Unicode surrogates are refused before serialization;
+  `from_canonical_document()` is the strict inverse and refuses non-canonical
+  spellings and duplicate ids, and refuses an oversized item array before
+  decoding it, so a persisted declaration cannot be silently half-read or
+  expanded into unbounded work.
+- Deliberately not implemented: date resolution (no anchor fact is inferred
+  and no calendar/holiday rule exists), persistence, revision schema change,
+  route, permission, client, UI, migration, composition, valuation citation
+  and any lifecycle. The S1a `upstream-contract-revision/v1` schema is
+  untouched: its canonical documents still carry `payment_terms: null` and its
+  bytes and hashes remain readable (pinned as a golden test below).
+- Ontology: [`concepts.py`](../../src/eurogas_nexus/domain/ontology/concepts.py)
+  declares `ContractPaymentTerms` and `PaymentScheduleItem`;
+  [`relations.py`](../../src/eurogas_nexus/domain/ontology/relations.py) adds
+  `UpstreamResourceContract declares ContractPaymentTerms` and
+  `ContractPaymentTerms contains PaymentScheduleItem`. They are **not** bound
+  to any table — no migration exists for them — and the eventual immutable
+  revision that will carry them is not yet an ontology concept.
+- Evidence: [`tests/unit/test_contract_payment_terms.py`](../../tests/unit/test_contract_payment_terms.py)
+  covers every accepted date shape (all four anchor events, all four
+  conventions, calendar-day and business-day forms, zero offset), order and
+  purchase/sale preservation, category/direction independence (every category
+  with either direction, including purchase and sale refund reversals),
+  mandatory direction (omission refused, no default), raw-string and
+  unknown-value refusals, canonical direction roundtrip, frozen value
+  semantics, sentinel refusals proving untrusted values/keys are never echoed,
+  malformed-mapping handling, verbatim string preservation, deterministic
+  replay, every refusal above, the absence of amount/rate/day-count/sign
+  fields and of date resolution, and the pinned S1a v1 golden bytes/hash
+  (`sha256:0da96e194d9ed9028ece91da0be5df11b6cea640225934e63160c59013b136a2`),
+  which must not change. [`tests/unit/test_ontology.py`](../../tests/unit/test_ontology.py)
+  pins the new concepts as declared-but-unbound and the new relations as
+  resolving; no new entry is needed in the out-of-ontology enum review gate
+  because the vocabulary lives in the ontology package.
+- Honest limits: this is a declared-rule representation, not a contract
+  calendar, not a payment workflow and not evidence that any payment date is
+  correct. A direction is an operator declaration, not a validated sign: the
+  schema carries no amount, so composition must validate any signed amount
+  against `flow_direction` rather than infer one. Explicit schedule dates
+  alone do not assert quantities or full cost completeness. A rule may not be
+  used for valuation until the required anchor facts and calendar versions
+  exist and a resolver is reviewed; commercial/legal review of the anchor
+  vocabulary (open decision 1) remains required for that use.
+
+### S2b transition proposal (next reviewed slice, not implemented)
+
+Additive only; no v1 artefact may change:
+
+1. Add a **new** revision schema version (`upstream-contract-revision/v2`)
+   whose existing `payment_terms` field can carry this module's document
+   instead of being restricted to null. Decoding dispatches on `schema_version`:
+   `upstream-contract-revision/v1` documents remain decodable and their stored
+   content hashes remain verifiable exactly as today.
+2. A v2 document that omits the field, or carries `payment_terms: null`, keeps
+   every existing economic field and its serialized spelling unchanged (only
+   the schema version itself is the new one); when a successor revision is
+   composed from a parent that declared terms, omitting the field **preserves
+   the parent's declared terms** rather than clearing them. Clearing is
+   representable only as an explicit operator statement, never as an omission.
+3. The capture path maps operator-declared terms through this module's strict
+   builder before persisting; refusal codes stay this module's codes and no
+   partial or empty schedule is ever stored (`payment_terms` absent means "not
+   stated", never an empty schedule).
+4. Read-only exposure of the terms in the captured revision payload follows,
+   with the same capture-time-evidence warnings. Valuation citation stays
+   blocked until the revision lifecycle (freeze/current pointer) and the
+   anchor-calendar resolver are reviewed.
+
 ## Open decisions (parent/reviewer)
 
 Capture/replay clarification: an unchanged, previously uncaptured legacy row
@@ -359,8 +475,8 @@ identical replays add neither a revision nor a mutation audit.
 
 Review constraints: the semantic kernel's `Money`/FX magnitudes use floats; reuse identifiers and vocabulary, not those numeric representations for exact cash arithmetic. Preserve Decimal/string transport. Mutable metadata and document references must be snapshotted when cited as valuation evidence. The proposed lifecycle vocabulary must distinguish retirement from supersession before implementation.
 
-1. Anchor vocabulary, calendar, business-day convention and day-count set — require commercial/legal review; none is asserted here.
+1. Anchor vocabulary, calendar, business-day convention and day-count set — S2a now implements the anchor-event set, the offset-day kinds, the four conventions and the explicit-calendar rule as an internal declared-rule representation (section 15); commercial/legal review remains required before any rule resolves a date or feeds a valuation, and the day-count set for rate→factor conversion is still unasserted because S2a carries no day count at all.
 2. Revision numbering per contract versus per right (capacity/TSO/slot).
 3. Whether valuation citations need a persisted run record or the existing analysis-snapshot/decision-case lineage suffices.
-4. Whether `ContractRevision`/`PaymentTerms` become ontology concepts or slots on the existing binding.
+4. Whether `ContractRevision`/`PaymentTerms` become ontology concepts or slots on the existing binding — S2a answers the payment-terms half by declaring `ContractPaymentTerms`/`PaymentScheduleItem` as unbound ontology concepts (section 15); the revision identity remains undecided.
 5. Migration path for `notes`-embedded economic fields without breaking current read payloads.

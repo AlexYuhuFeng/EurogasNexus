@@ -34,6 +34,15 @@ class Relation:
 
 RELATIONS: tuple[Relation, ...] = (
     Relation("UpstreamResourceContract", "feeds", "ResourcePool", "0..n"),
+    Relation(
+        "UpstreamResourceContract",
+        "declares",
+        "ContractPaymentTerms",
+        "0..1",
+        "one declared schedule per contract revision; the immutable revision entity"
+        " that will carry it is not yet an ontology concept",
+    ),
+    Relation("ContractPaymentTerms", "contains", "PaymentScheduleItem", "0..n"),
     Relation("ResourcePool", "allocates_to", "RouteCandidate", "0..n"),
     Relation(
         "RouteCandidate",

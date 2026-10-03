@@ -63,3 +63,38 @@ def test_candidate_actions_never_overlap_forbidden_actions() -> None:
 def test_constraints_have_callable_validators() -> None:
     for constraint in CONSTRAINTS:
         assert callable(constraint.validator)
+
+
+def test_contract_payment_terms_concepts_are_declared_without_invented_tables() -> None:
+    """S2a payment terms are a declared-rule ontology, not a datastore.
+
+    The typed model lives in ``domain/route_cost/payment_terms.py``; the
+    concepts intentionally have no table binding because no persistence slice
+    has been reviewed or implemented. The item's money-flow direction is the
+    reviewed vocabulary slot, never inferred from the cash-flow category.
+    """
+
+    from eurogas_nexus.domain.ontology import CONCEPT_TABLE_BINDINGS
+    from eurogas_nexus.domain.ontology.vocabulary import PaymentFlowDirection
+
+    ids = _concept_ids()
+    assert {"ContractPaymentTerms", "PaymentScheduleItem"} <= ids
+    assert "ContractPaymentTerms" not in CONCEPT_TABLE_BINDINGS
+    assert "PaymentScheduleItem" not in CONCEPT_TABLE_BINDINGS
+
+    item_concept = next(
+        concept for concept in CONCEPTS if concept.concept_id == "PaymentScheduleItem"
+    )
+    slots = {slot.name: slot for slot in item_concept.slots}
+    assert slots["flow_direction"].type is PaymentFlowDirection
+    assert {member.value for member in PaymentFlowDirection} == {"INFLOW", "OUTFLOW"}
+
+
+def test_contract_payment_terms_relations_are_declared() -> None:
+    triples = {
+        (relation.subject, relation.predicate, relation.object)
+        for relation in RELATIONS
+    }
+
+    assert ("UpstreamResourceContract", "declares", "ContractPaymentTerms") in triples
+    assert ("ContractPaymentTerms", "contains", "PaymentScheduleItem") in triples
