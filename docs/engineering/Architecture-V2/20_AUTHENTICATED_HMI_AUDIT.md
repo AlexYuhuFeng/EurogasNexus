@@ -216,3 +216,40 @@ corrected missing-window wording: deadlines cannot be assessed, rather than
 claiming no deadline exists. Screenshots are local evidence under
 `output/runtime/scenario-compact-oct1.jpg` and
 `output/runtime/scenario-compact-zh-oct1.jpg`, not customer data acceptance.
+
+## October 3 identity-key and read-permission probe (parent, read-only)
+
+Baseline `15c81cd`, clean worktree. The persona keys were exercised against the
+existing PostgreSQL-backed development API without business-record mutations,
+migrations or permission changes. Normal authentication bookkeeping may update
+key-use metadata. No credential value, key id or username is recorded here.
+
+- Six local vault persona identity keys each returned `GET /api/me` HTTP 200
+  with the expected roles when supplied as `X-Eurogas-Identity` alongside the
+  existing deployment key as `X-Eurogas-Api-Key`.
+- `GET /api/route-cost/upstream-contracts` (GOVERNED, ANALYST floor): multi-role
+  admin 200, viewer 403, analyst 200, reviewer 403, operator 200, admin-only
+  identity 403.
+- `GET /api/route-cost/resource-pool/options` (READ, VIEWER floor): multi-role
+  admin/viewer/analyst/reviewer/operator 200; admin-only identity 403.
+- The refusals match the declared floors and the commercial-data boundary
+  (`/api/route-cost/` is commercial data, so an identity holding administration
+  alone is refused), rather than a missing, expired, revoked or unprovisioned
+  key.
+
+Correction to the earlier checkpoint reading: the 403s previously observed on
+role-key probes were a probe header error, not a provisioning or expiry defect.
+The identity key had been sent as `Authorization: Bearer`, which the deployment
+gate consumes first and verifies against the deployment token, so the request
+was refused as an invalid deployment token before identity resolution. The
+credential-header contract is now stated in `docs/operations/API_KEYS.md`
+(identity key only in `X-Eurogas-Identity`; deployment token in
+`X-Eurogas-Api-Key`, `Authorization: Bearer` or the SSE query form).
+
+Limits of this evidence: `/api/me` plus two authenticated GETs. It is not a
+persona business walkthrough, it exercises no mutation, and it proves nothing
+about permitted/denied write behaviour per role. No browser walkthrough is
+newly verified: the existing tab and a fresh tab both timed out during
+inspection in this window and the root cause is open. CI for `15c81cd` passed
+in run `37033382839`; this is regression evidence, not populated
+persona acceptance. Disposition remains NOT APPROVED.

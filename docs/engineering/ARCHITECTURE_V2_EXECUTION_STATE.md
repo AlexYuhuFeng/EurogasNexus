@@ -5,6 +5,29 @@ Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical sli
 
 ## Current work
 
+### Business acceptance reconciliation (2026-10-03)
+
+Commit `15c81cd` passed GitHub CI run `37033382839`. DeepSeek reconciled all
+eight required business journeys against current code, corrected stale contract
+concurrency claims, and retained missing integration and commercial-release
+gates. No journey is claimed end-to-end verified. The API-key runbook now
+distinguishes deployment credentials from per-principal identity headers.
+Parent documentation-link/alignment and permission-registry checks: 29 passed.
+
+Parent live read probes authenticated all six existing test identities with
+their expected roles. Contract reads admitted ANALYST/OPERATOR and the multi-role
+test account; VIEWER, REVIEWER and ADMIN-only were refused. Resource-pool reads
+admitted the commercial roles and refused ADMIN-only. This corrects the earlier
+probe's misplaced identity key in the deployment Bearer header; no key rotation
+or permission expansion was needed. These are narrow authentication/read checks,
+not full persona or mutation acceptance. Browser inspection remains unverified.
+
+Next business integration unit follows the existing contract-payment plan S2:
+review explicit payment vocabulary, then preserve caller-declared terms without
+invented anchors/calendars. S3 must connect captured contract evidence to the
+shared dated-cash engine, with lifecycle prerequisites resolved explicitly.
+Do not treat current primitives as an integrated tender/LNG/cash workflow.
+
 ### Bounded decision waits and stream disposal (2026-10-03)
 
 Baseline `c11a2cb` passed GitHub CI run `37030801017`: backend validation,
@@ -28,8 +51,9 @@ all eight tests in that file then passed. `git diff --check` passed.
 Runtime diagnosis: authenticated development-login probes through the local
 Vite proxy returned HTTP 200 for identity (48ms), monitoring summary (42ms), and
 pipeline health (1095ms). PostgreSQL/API availability is therefore not the same
-as the observed browser problem. Existing role-key probes returned 403; their
-provisioning/expiry needs separate verification before persona acceptance.
+as the observed browser problem. Existing role-key probes initially returned 403
+because they used the wrong header; the later reconciliation above verifies the
+correct dual-header flow without changing credentials.
 The existing browser tab and one fresh tab both timed out during browser
 inspection/navigation/screenshot operations. No successful local visual
 acceptance is claimed, and neither HMR nor connection saturation is proven as
