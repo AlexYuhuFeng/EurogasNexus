@@ -5,6 +5,34 @@ Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical sli
 
 ## Current work
 
+### Local schema 0038 rollout and persona reads (2026-10-04)
+
+Commit `9de6b4d` passed CI run `37158444065`: PostgreSQL integration,
+backend validation, dependency audit, web build and EN/ZH browser acceptance
+at three viewports succeeded. Native desktop packaging was skipped.
+
+Parent created a custom-format PostgreSQL backup in ignored local runtime
+storage (`.automation/runtime/eurogas-before-0038-20261004.dump`); the archive
+catalogue is readable (429 entries), but no restore rehearsal is claimed.
+Applied the exact Alembic 0038 revision with a five-second database lock timeout.
+The first command failed before connecting because the source import path was
+missing; after setting the project source path the migration succeeded.
+Verified schema 0038, one existing contract, zero declared payment terms and
+zero captured revisions, matching pre-upgrade counts with no backfill.
+
+No API listener was present on port 8000. Started the existing hidden local
+launcher against the upgraded PostgreSQL store. All six local UAT identities
+returned HTTP 200 from `/api/me`; contract reads admitted the multi-role,
+ANALYST and OPERATOR accounts and refused VIEWER, REVIEWER and ADMIN-only
+with 403. Permitted responses include `payment_terms`. Credentials remained
+in the local encrypted vault. Authentication can update key-use metadata;
+these checks performed no business-record mutations.
+
+Next: authenticated live set/preserve/clear acceptance using explicitly labelled
+test contracts, then payment-term presentation in the existing contract workflow.
+No live mutation acceptance, local browser walkthrough, backup restore, payment
+date resolution or cash valuation integration is asserted by this checkpoint.
+
 ### Payment-term persistence backend (2026-10-04)
 
 Baseline `b8a875c` passed CI run `37139274490`. DeepSeek implemented nullable
