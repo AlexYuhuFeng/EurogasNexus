@@ -73,6 +73,7 @@ function draft(overrides: Partial<ContractDraft> = {}): ContractDraft {
     eligible_sale_modes: ["TARGET_MARKET_SALE", "LOCAL_MARKET_SALE", "REROUTE_SALE"],
     preserved_notes: null,
     stored_edit: null,
+    persisted_payment_terms: null,
     ...overrides,
   };
 }

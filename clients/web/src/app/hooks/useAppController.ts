@@ -35,8 +35,15 @@ export function useAppController() {
   const controls = useCockpitControls();
   // The editor receives the store's governed-save action and its feedback reset: the hook
   // folds the server's refreshed edit lease and preserved notes into the draft it owns, and
-  // clears the previous draft's save notice when the editor moves to another one.
-  const contractEditor = useContractEditor(t, api.saveDraftContract, api.clearContractSaveFeedback);
+  // clears the previous draft's save notice when the editor moves to another one. The
+  // principal id scopes the draft's persisted-payment-terms carrier to the identity session
+  // that read it, so a sign-out or switch cannot present the previous session's declaration.
+  const contractEditor = useContractEditor(
+    t,
+    api.saveDraftContract,
+    api.clearContractSaveFeedback,
+    api.currentUser?.principal_id ?? null,
+  );
 
   // Identity resolution is published for the desktop shell (window signal).
   useIdentitySignal(api.authState, api.currentUser?.principal_id ?? null);

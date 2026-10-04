@@ -1,6 +1,6 @@
 # Contract Revision and Explicit Payment Terms — Integration Plan
 
-Status: **S1a, S1b, S1c, S1d, the bounded S1e edit-token precondition, the S2a typed explicit-payment-terms foundation and the S2b persistence integration are implemented (immutable economic payload definition with legacy compatibility mapping; additive revision storage with an explicit repository capture/read operation; the governed contract write that captures both sides of an overwrite with atomic attribution; the bounded, contract-scoped read surface over the captured evidence; a stale-edit precondition on that governed write; the strict, versioned payment-terms model — including its explicit per-item flow direction — plus its reviewed ontology vocabulary; and the additive nullable terms carrier on the mutable contract row with edit-token v2, set/preserve/clear write semantics, v1/v2 capture policy and read-only exposure of strictly decoded declarations). The remaining slices are PROPOSED for architecture review.** Bounded preparation from [Architecture V2 execution state](ARCHITECTURE_V2_EXECUTION_STATE.md) and the [European Gas Trading Business Acceptance](../product/TRADING_BUSINESS_ACCEPTANCE.md) matrix, audited at repository baseline `509e703`; S1a was implemented at baseline `1676b98` and is recorded in section 8, S1b at baseline `f396492` and is recorded in section 9, S1c after baseline `9271500` and is recorded in section 10, S1d after baseline `9160188` and is recorded in section 11, S1e after baseline `6b5258d` and is recorded in section 13, S2a at baseline `a04f99a` and is recorded in section 15, and S2b after baseline `b8a875c` and is recorded at the end of section 15. The S1b and S2b migrations are expand-only storage; there is no backfill, UI, valuation citation, checkpoint or release artefact beyond them. S1c is *not* a revision lifecycle or a complete history; its honest limits are listed in section 10, and S1e narrows only its write precondition (section 13) without turning it into a lifecycle. S1d reads evidence only — it captures nothing and changes no schema. S2a is a declared-rule type and S2b persists and serves that declaration as contract evidence: neither resolves a date, composes a valuation or works without the client's own declaration, and S2b is backend capability only — no UI, date resolution, valuation or revision lifecycle exists, so this is not a usable payment workflow.
+Status: **S1a, S1b, S1c, S1d, the bounded S1e edit-token precondition, the S2a typed explicit-payment-terms foundation, the S2b persistence integration and the S2c read-only client presentation are implemented (immutable economic payload definition with legacy compatibility mapping; additive revision storage with an explicit repository capture/read operation; the governed contract write that captures both sides of an overwrite with atomic attribution; the bounded, contract-scoped read surface over the captured evidence; a stale-edit precondition on that governed write; the strict, versioned payment-terms model — including its explicit per-item flow direction — plus its reviewed ontology vocabulary; the additive nullable terms carrier on the mutable contract row with edit-token v2, set/preserve/clear write semantics, v1/v2 capture policy and read-only exposure of strictly decoded declarations; and read-only presentation of the persisted declaration inside the existing settlement section, with no editing, date resolution or valuation). The remaining slices are PROPOSED for architecture review.** Bounded preparation from [Architecture V2 execution state](ARCHITECTURE_V2_EXECUTION_STATE.md) and the [European Gas Trading Business Acceptance](../product/TRADING_BUSINESS_ACCEPTANCE.md) matrix, audited at repository baseline `509e703`; S1a was implemented at baseline `1676b98` and is recorded in section 8, S1b at baseline `f396492` and is recorded in section 9, S1c after baseline `9271500` and is recorded in section 10, S1d after baseline `9160188` and is recorded in section 11, S1e after baseline `6b5258d` and is recorded in section 13, S2a at baseline `a04f99a` and is recorded in section 15, S2b after baseline `b8a875c` and is recorded at the end of section 15, and S2c after baseline `4a42df1` and is recorded in section 16. The S1b and S2b migrations are expand-only storage; there is no backfill, valuation citation, checkpoint or release artefact beyond them. S1c is *not* a revision lifecycle or a complete history; its honest limits are listed in section 10, and S1e narrows only its write precondition (section 13) without turning it into a lifecycle. S1d reads evidence only — it captures nothing and changes no schema. S2a is a declared-rule type, S2b persists and serves that declaration as contract evidence, and S2c displays it: none of them resolves a date, composes a valuation or works without the client's own declaration, so this is still not a usable payment workflow — it is stored, served and now read-only presented evidence.
 
 Scope: contract/right lifecycle for pipeline-gas and LNG tender decision support, plus explicit payment-term semantics feeding the shared dated cash valuation. Boundary: decision support only — no trade execution, tender submission, capacity reservation, nomination or settlement; an internal revision is never an amendment to a legally binding agreement.
 
@@ -72,7 +72,7 @@ Gaps: no contract-revision or valuation-citation concept exists. The payment-ter
 ## 3. Smallest incremental slices
 
 1. **S1 — revision foundation**, split into independently reviewed tasks: first define the immutable payload and compatibility mapping (implemented, S1a), then additive storage with an explicit capture/read operation, upgrade tests and atomic audit (implemented, S1b — no backfill), then guarded write/read transitions on the existing routes (write transition implemented as S1c — section 10; bounded revision reads implemented as S1d — section 11; the bounded stale-edit token precondition on that write implemented as S1e — section 13; the monotonic draft edit-version conflict remains proposed). Do not drop existing economic columns or replace all CRUD in one change. Define a captured legacy revision honestly as capture-time evidence, not historical reconstruction. Freeze/retire and route-level PostgreSQL concurrency acceptance follow before valuation citation is enabled.
-2. **S2 — explicit payment terms** on the revision, with refusal codes and read-only exposure in the revision payload. S2a (the strict typed declared-rule model, its reviewed vocabulary and stable refusal codes, with no persistence, API, UI, client or date resolution) is implemented — section 15. S2b (carry the terms inside an immutable revision additively, keep v1 bytes/hashes readable, expose them read-only) is implemented after baseline `b8a875c` — section 15: the nullable carrier, edit-token v2, presence-based write semantics, v1/v2 capture policy and strictly verified read exposure. S2b remains backend capability only, with no UI, no date resolution and no valuation. Freeze/retire lifecycle and the anchor-calendar resolver stay prerequisites before any valuation may cite terms.
+2. **S2 — explicit payment terms** on the revision, with refusal codes and read-only exposure in the revision payload. S2a (the strict typed declared-rule model, its reviewed vocabulary and stable refusal codes, with no persistence, API, UI, client or date resolution) is implemented — section 15. S2b (carry the terms inside an immutable revision additively, keep v1 bytes/hashes readable, expose them read-only) is implemented after baseline `b8a875c` — section 15: the nullable carrier, edit-token v2, presence-based write semantics, v1/v2 capture policy and strictly verified read exposure. S2c (read-only presentation of the persisted declaration inside the existing Settlement and cash section) is implemented after baseline `4a42df1` — section 16: typed transport and draft mapping, per-item explicit-date / unresolved-anchored-rule rows, unavailable-versus-not-declared semantics, session-scoped draft state, and no editing, no date resolution, no valuation and no save-payload change. Neither S2b nor S2c is a payment workflow. Freeze/retire lifecycle and the anchor-calendar resolver stay prerequisites before any valuation may cite terms.
 3. **S3 — composition**: frozen revision + valuation date + explicit delivery window/quantity basis + explicit FX and discount inputs → `compute_cash_valuation`; cite revision/hash; refuse when terms are absent.
 4. **S4 — existing Decision workspace wiring**; no new top-level page, no client arithmetic.
 5. **S5 — capacity/TSO/slot rights write path** reusing S1/S2 semantics.
@@ -770,6 +770,81 @@ store was touched by the implementation.
   tests successfully against a freshly migrated disposable PostgreSQL database;
   fixture teardown left zero contract, revision, principal, key and audit rows.
   Same-commit CI remains a separate gate recorded in the checkpoint.
+
+## 16. S2c implemented — read-only declared payment terms in the existing Settlement and cash section (after baseline `4a42df1`)
+
+The stored declaration is now presented where the operator already reads cash
+terms — Portfolio > Resources > Terms > 07 Settlement and cash, below the
+existing settlement-frequency, cash-lag, financing-rate and governing-law
+controls. **This is read-only client presentation, not a payment workflow**: it
+adds no page, section, API, role, schema, dependency or numeric change, and
+resolves no date or value.
+
+- Transport and mapping: `UpstreamContractDTO` gains the optional typed
+  `payment_terms` (`PaymentTermsDTO` / `PaymentDateSpecificationDTO` /
+  `PaymentScheduleItemDTO` in
+  [`clients/web/src/api/client.ts`](../../clients/web/src/api/client.ts)); the
+  write input type omits it and
+  [`buildContractPayload`](../../clients/web/src/app/contractPayload.ts) never
+  emits it, so every existing save omits the field and the route's
+  omission-preserves rule keeps the stored declaration untouched. No editing or
+  clearing control exists.
+- Read states: [`contractPaymentTerms.ts`](../../clients/web/src/app/model/contractPaymentTerms.ts)
+  decodes a stored read into four distinct facts — `declared`, `not_declared`
+  (the route answered `null`), `unavailable` (the response carried no field) and
+  `malformed` (present but not verifiable). Verification is a strict
+  transport-shape gate that mirrors the backend decoder, not date resolution or
+  valuation: exact field sets at the document, item and date-specification
+  levels (an extra or missing field refuses the declaration); the reviewed
+  backend vocabulary spellings for the cash-flow category, flow direction,
+  anchor event, offset day kind, business-day convention and date kind; the
+  declared storage guards (at most 1,000 items, 2,000 characters per reference
+  or item id, at most a 36,525-day offset); a real canonical plain `YYYY-MM-DD`
+  calendar date (year 0000 and impossible days such as 02-31 are refused); a
+  non-empty unique-item schedule with exactly one recognised date shape per
+  item; and the rule's own calendar semantics (a calendar reference is required
+  when a business-day count or a roll convention needs one and is refused when
+  nothing uses it). Verified strings are re-emitted exactly as declared and only
+  canonical fields are accepted, so nothing is trimmed, defaulted or invented.
+  A malformed declaration is refused and never coerced into an empty or partial
+  schedule, and the backend's existing corrupt-read refusal (409
+  `contract_payment_terms_corrupt`) remains the server-side gate.
+- Draft loading: a stored load carries that record's own decoded read; a new
+  draft, a file import, a typed contract-id change and a record switch replace
+  or clear it, so one record's terms never ride into another draft. A sign-out
+  or principal switch clears the carrier in `useContractEditor` (via
+  `contractDraftAfterIdentityChange`), so a later session cannot present the
+  previous session's declaration.
+- Presentation
+  ([`ContractPaymentTerms.tsx`](../../clients/web/src/components/ContractPaymentTerms.tsx)):
+  a compact labelled list per declared item — item id, cash-flow category,
+  INFLOW/OUTFLOW, item evidence, the terms-level quantity-basis reference, and
+  exactly one date shape: an explicit declared final payable date with its own
+  evidence, or an unresolved anchored rule with anchor event, offset, offset day
+  kind, business-day convention and calendar reference. An explicit warning
+  states that anchored rules are not calculated payable dates; long evidence
+  wraps safely; EN/ZH labels live in the two locales. The existing lag fields
+  remain estimate inputs to the unchanged cash-timing calculation and are
+  explicitly distinguished from the declared schedule — no numeric calculation
+  changed.
+- Limits: no editing, clearing, date resolution, cash valuation, revision
+  lifecycle or persona acceptance claim. Captured revisions still carry only the
+  terms declared at capture time; S3 composition remains blocked on open
+  decisions 1 and 3.
+- Evidence: [`contractPaymentTerms.test.ts`](../../clients/web/tests/contractPaymentTerms.test.ts)
+  covers the typed read states (including malformed refusals for unexpected or
+  missing fields, unknown vocabulary spellings, oversized schedule/text/offset,
+  impossible dates and missing/unused calendars), draft load/import/switch
+  semantics, identity reset, payload omission, semantic markup and wrapping, and
+  EN/ZH content; the changed contract/import/payload fixtures were updated in
+  place. Verification in the worker environment: the TypeScript check passed and
+  the full web suite ran 859 tests with 851 passing and 4 skipped (the four
+  remaining failures are pre-existing CLI tests that spawn a child process,
+  which the worker sandbox blocks; the Vite build config-load step hits the same
+  sandbox constraint, so bundle verification remains the parent's gate). The
+  parent's real-browser inspection of the rendered section is still pending —
+  the parent's browser reload timed out and visual acceptance has not been
+  claimed — and the programme checkpoint records it.
 
 ## Open decisions (parent/reviewer)
 

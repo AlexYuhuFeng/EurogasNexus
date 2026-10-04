@@ -1,4 +1,5 @@
 import type { ContractDraft } from "./defaultContractDraft";
+import { paymentTermsReadFromRecord } from "./model/contractPaymentTerms.ts";
 
 export function stringFromRecord(record: Record<string, unknown>, key: string, fallback: string): string {
   const value = record[key];
@@ -172,6 +173,11 @@ export function contractDraftFromRecord(
     // (file import, record overlay) clears it, so a save can never send a
     // previously loaded contract's token for another identity.
     stored_edit: base === "stored" ? storedEditFromRecord(record) : null,
+    // The persisted declaration belongs to the stored record too: a `"stored"` load decodes
+    // this record's own `payment_terms` (absent / null / declared / unverifiable, kept apart),
+    // and every other base clears it - an imported file's `payment_terms` key is draft input,
+    // not stored evidence, and must not present another record's declaration.
+    persisted_payment_terms: base === "stored" ? paymentTermsReadFromRecord(record) : null,
     contract_id: text("contract_id", current.contract_id),
     contract_name: text("contract_name", current.contract_name),
     resource_type: text("resource_type", current.resource_type),

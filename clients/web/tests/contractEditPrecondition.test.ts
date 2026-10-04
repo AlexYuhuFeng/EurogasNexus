@@ -155,7 +155,10 @@ test("changing the contract id makes the draft create-only", () => {
 
   // The editor clears it as the id is typed, rather than relying on the payload check alone.
   const hook = readWebSource("app/hooks/useContractEditor.ts");
-  assert.match(hook, /\(key === "contract_id" \? \{ stored_edit: null \}/);
+  assert.match(
+    hook,
+    /\(key === "contract_id"\s*\?\s*\{ stored_edit: null, persisted_payment_terms: null \}/,
+  );
 });
 
 test("a successful save refreshes the lease and preserved notes but keeps in-flight edits", () => {

@@ -1,9 +1,40 @@
 # Architecture V2 Execution State
 
-Last updated: 2026-10-04
+Last updated: 2026-10-05
 Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical slice records below do not constitute current production approval.
 
 ## Current work
+
+### Read-only payment-term UI implementation; visual gate open (2026-10-05)
+
+Baseline `4a42df1` passed CI run `37204497285`. Parent restored the stopped
+Vite preview at port 3000 and authenticated with the existing local UAT vault.
+Inspected Portfolio > Resources > Library and Settlement and cash. The original
+screen showed legacy lag/financing inputs without declared schedules. Existing
+monitoring-alert, monitoring-summary and pipeline-health timeout banners also
+appeared; their cause remains unresolved.
+
+DeepSeek added read-only payment-term presentation within the existing settlement
+section, EN/ZH labels, strict transport validation, distinct missing/null/malformed
+states and reset handling for record/draft/identity changes. Existing save payloads
+omit payment_terms and therefore preserve the server declaration. No date/cash
+calculation, edit/clear control, backend change or new page was introduced.
+Parent review required repair of permissive enum/field/date/bounds validation;
+DeepSeek added exact shape and reviewed-value checks plus focused regressions.
+
+Independent final web suite: 856 passed, three skipped; production build passed
+with the existing dynamic-import warning. Before the validation-only repair,
+59 documentation/client-surface/browser-path contract checks passed. Diff check
+passed. No business records were mutated. Runtime remains PostgreSQL schema 0038.
+
+Visual acceptance is NOT complete: browser interaction worked for the original
+screen, but reload timed out before the newly implemented panel could be
+confirmed. Do not claim desktop/mobile or populated-schedule screenshots passed.
+Next: recover browser inspection, confirm the actual new panel in EN/ZH at
+desktop/mobile widths, exercise declared and absent schedules in an isolated
+fixture environment, and investigate recurring monitoring read timeouts.
+Raw transport enum labels in the detail list also warrant trader-facing copy
+review. This milestone is implemented and automated-tested, not release-approved.
 
 ### Authenticated PostgreSQL payment-term acceptance (2026-10-04)
 

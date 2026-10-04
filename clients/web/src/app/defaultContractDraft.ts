@@ -52,6 +52,9 @@ export const defaultContractDraft: ContractDraft = {
   // A new draft has no stored identity or edit token: its first save is create-only.
   // See `contractDraftModel.ts::draftExpectedEditToken`.
   stored_edit: null,
+  // A new draft was not read from a stored record, so it carries no persisted declared
+  // payment terms to present; see `contractDraftModel.ts::ContractDraft`.
+  persisted_payment_terms: null,
 };
 
 export function cloneDefaultContractDraft(): ContractDraft {

@@ -3878,6 +3878,83 @@ body {
   font-size: 11px;
 }
 
+.contract-payment-terms {
+  min-width: 0;
+  margin-top: 20px;
+  border-top: 1px solid var(--eg-hairline);
+  padding-top: 14px;
+}
+
+.contract-payment-terms > .section-heading {
+  margin-bottom: 8px;
+}
+
+.contract-payment-schedule {
+  display: grid;
+  gap: 0;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.contract-payment-item {
+  min-width: 0;
+  border-top: 1px solid var(--eg-hairline);
+  padding: 10px 0;
+}
+
+.contract-payment-item-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.contract-payment-item-head strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--eg-ink);
+  font-size: 12px;
+}
+
+.contract-payment-direction {
+  color: var(--eg-muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.contract-payment-facts {
+  display: grid;
+  margin: 8px 0 0;
+}
+
+.contract-payment-facts > div {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  gap: 10px;
+  padding: 5px 0;
+}
+
+.contract-payment-facts dt,
+.contract-payment-facts dd {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.contract-payment-facts dt {
+  color: var(--eg-muted);
+}
+
+.contract-payment-facts dd {
+  margin: 0;
+  color: var(--eg-ink);
+  text-align: right;
+}
+
 .contract-impact-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -4030,6 +4107,14 @@ body {
   .contract-field-grid,
   .contract-impact-grid {
     grid-template-columns: 1fr;
+  }
+
+  .contract-payment-facts > div {
+    grid-template-columns: 1fr;
+  }
+
+  .contract-payment-facts dd {
+    text-align: left;
   }
 
   .contract-field-grid label.span-2 {

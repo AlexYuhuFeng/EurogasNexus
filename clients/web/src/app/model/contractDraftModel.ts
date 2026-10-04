@@ -13,6 +13,7 @@
  */
 
 import { apiErrorDetailCode } from "../experience/errorPresentation.ts";
+import type { PaymentTermsReadState } from "./contractPaymentTerms.ts";
 
 /**
  * The stored identity and opaque edit token a draft was loaded from.
@@ -98,6 +99,33 @@ export interface ContractDraft {
    * contract-id edit all clear it: a token never binds a different identity.
    */
   stored_edit: StoredContractEdit | null;
+  /**
+   * The declared payment terms read with the stored record this draft was loaded from.
+   *
+   * `null` means this draft is not a stored load (a new draft, a file import, a typed
+   * contract-id change, an unsaved draft whose identity session ended): no persisted
+   * declaration is shown, and one record's terms can never ride into another draft. A stored
+   * load carries the decoded read state -
+   * `declared`, `not_declared`, `unavailable` or `malformed` - so "nothing was read" and
+   * "nothing is recorded" stay different facts
+   * (`app/model/contractPaymentTerms.ts`). The read is presentation only: the save builder
+   * omits `payment_terms` entirely (omission preserves the stored declaration) and no editing,
+   * clearing, date resolution or cash math happens in the client.
+   */
+  persisted_payment_terms: PaymentTermsReadState | null;
+}
+
+/**
+ * The draft after the authenticated identity session changed (sign-out or another principal).
+ *
+ * The persisted declaration is commercial evidence read for one identity session, so it does
+ * not survive sign-out even though the rest of the editor draft is not identity-scoped. Only
+ * this carrier is cleared: the bounded change keeps the presented declaration from outliving
+ * the session that read it without altering the draft's existing save semantics.
+ */
+export function contractDraftAfterIdentityChange(contract: ContractDraft): ContractDraft {
+  if (contract.persisted_payment_terms === null) return contract;
+  return { ...contract, persisted_payment_terms: null };
 }
 
 /**

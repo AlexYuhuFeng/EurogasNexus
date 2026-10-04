@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
 import type { TFunction } from "i18next";
 import type { UpstreamContractDTO, UpstreamContractInputDTO } from "@/api/client";
@@ -10,7 +10,11 @@ import {
 } from "@/app/index";
 import type { ContractDraft } from "@/app/index";
 import { preservedNotesFromRecord } from "@/app/contractImport";
-import { applyContractSaveResult, draftNumberFromInput } from "@/app/model/contractDraftModel";
+import {
+  applyContractSaveResult,
+  contractDraftAfterIdentityChange,
+  draftNumberFromInput,
+} from "@/app/model/contractDraftModel";
 import type { ContractListKey, ContractNumberKey, ContractTextKey } from "@/components/ContractWorkbench";
 
 export function useContractEditor(
@@ -20,6 +24,14 @@ export function useContractEditor(
   ) => Promise<UpstreamContractDTO | null>,
   /** Drop a previous save's store feedback when the editor moves to another draft. */
   clearContractSaveFeedback?: () => void,
+  /**
+   * The authenticated principal this editor session belongs to, or `null` when signed out.
+   *
+   * The stored declared payment terms are evidence read for one identity session, so a
+   * sign-out or a principal switch drops that carrier from the draft even though the rest of
+   * the editor draft is not identity-scoped.
+   */
+  identityKey: string | null = null,
 ) {
   const contractImportRef = useRef<HTMLInputElement>(null);
   const [contractImportMessage, setContractImportMessage] = useState<string | null>(null);
@@ -40,6 +52,16 @@ export function useContractEditor(
   // Latest committed draft, kept synchronous by `commitDraft`: a save response folded in
   // before React renders a queued edit must not clobber that edit.
   const contractRef = useRef(contract);
+  // The identity the draft's stored read was loaded under. A change (sign-out, another
+  // principal) clears the persisted declaration carrier; nothing else in the draft is
+  // identity-scoped, so this stays a bounded reset.
+  const draftIdentityRef = useRef(identityKey);
+
+  useEffect(() => {
+    if (draftIdentityRef.current === identityKey) return;
+    draftIdentityRef.current = identityKey;
+    commitDraft(contractDraftAfterIdentityChange);
+  }, [identityKey]);
 
   function commitDraft(update: (current: ContractDraft) => ContractDraft) {
     const next = update(contractRef.current);
@@ -70,9 +92,12 @@ export function useContractEditor(
     setDraftDirty(true);
     commitDraft((current) => ({
       ...current,
-      // The stored edit token belongs to the identity it was read from: typing another
-      // contract id makes this draft create-only, never an update of the old row.
-      ...(key === "contract_id" ? { stored_edit: null } : {}),
+      // The stored edit token and the persisted declared terms belong to the identity they
+      // were read from: typing another contract id makes this draft create-only - never an
+      // update of the old row, and never a presentation of the old row's declaration.
+      ...(key === "contract_id"
+        ? { stored_edit: null, persisted_payment_terms: null }
+        : {}),
       [key]: value,
     }));
   }

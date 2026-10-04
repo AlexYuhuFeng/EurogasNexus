@@ -1263,6 +1263,12 @@ export interface UpstreamContractDTO {
   allowed_exit_points: string[]; eligible_sale_modes: string[]; updated_at_utc?: string;
   variable_cost_gbp_mwh?: number; regas_fee_gbp_mwh?: number; fuel_loss_allowance_pct?: number;
   notes?: string | null;
+  // The operator-declared payment terms the stored row carries: the strict canonical
+  // `contract-payment-terms/v1` document, or `null` for "not stated". Optional because a
+  // response from a deployment that predates the carrier carries no field at all, which is
+  // "unknown", never "nothing declared"; the model that decides that is
+  // `app/model/contractPaymentTerms.ts`.
+  payment_terms?: PaymentTermsDTO | null;
   research_only?: boolean; human_review_required?: boolean;
   // Opaque stale-edit token of the stored row (GET and write response). It
   // covers every persisted field of the contract, is not the captured revision
@@ -1278,6 +1284,53 @@ export interface UpstreamContractDTO {
     capture_origin: string; content_hash: string; recorded_at_utc: string; recorded_by: string;
   } | null;
 }
+
+/**
+ * One declared date specification of a payment-schedule item (read-only transport).
+ *
+ * Exactly one shape applies, discriminated by `kind`: an operator-stated final payable date,
+ * or a rule anchored to a reviewed event that has **not** been resolved into a date. This is
+ * the decoded stored declaration, not a calculation: the client neither resolves an anchor
+ * nor derives an amount or date from these fields.
+ */
+export type PaymentDateSpecificationDTO =
+  | {
+      kind: "EXPLICIT_DATE";
+      final_payable_date: string;
+      source_reference: string;
+    }
+  | {
+      kind: "ANCHORED_RULE";
+      anchor_event: string;
+      anchor_offset_days: number;
+      offset_day_kind: string;
+      business_day_convention: string;
+      calendar_reference: string | null;
+      source_reference: string;
+    };
+
+/** One declared payable line of a stored payment schedule (read-only transport). */
+export interface PaymentScheduleItemDTO {
+  item_id: string;
+  cash_flow_category: string;
+  flow_direction: "INFLOW" | "OUTFLOW";
+  source_reference: string;
+  date_specification: PaymentDateSpecificationDTO;
+}
+
+/**
+ * The stored `contract-payment-terms/v1` declaration a contract read may carry.
+ *
+ * Field names, enum spellings and the single date shape are the backend domain model's, not a
+ * client taxonomy: the client decodes this document strictly before rendering it and defines
+ * no parallel vocabulary or calculator.
+ */
+export interface PaymentTermsDTO {
+  schema_version: string;
+  quantity_basis_reference: string;
+  items: PaymentScheduleItemDTO[];
+}
+
 export type UpstreamContractInputDTO = Omit<
   UpstreamContractDTO,
   | "updated_at_utc"
@@ -1286,6 +1339,10 @@ export type UpstreamContractInputDTO = Omit<
   | "write_outcome"
   | "latest_revision"
   | "edit_token"
+  // Declared payment terms are read-only in this client: omission preserves the stored
+  // declaration (the write route reads presence from `model_fields_set`), so no save builder
+  // may set or clear them until an explicit editing workflow is reviewed.
+  | "payment_terms"
 > & {
   notes?: string | null;
   /**

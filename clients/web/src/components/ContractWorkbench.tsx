@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import type { ChangeEvent, RefObject } from "react";
 import type { PortfolioResourceDTO, UpstreamContractDTO } from "@/api/client";
+import { ContractPaymentTerms } from "@/components/ContractPaymentTerms";
 import { inspectorSubjectFor } from "@/app/model/inspectorDetail";
 import {
   contractValidationIssueKeys,
@@ -285,7 +286,7 @@ export function ContractWorkbench({
               <label>{t("contracts.upstream_payment_lag")}<input type="number" min="0" value={contract.upstream_payment_lag_days ?? ""} onChange={(event) => updateContractNumber("upstream_payment_lag_days", event.target.value)} /></label>
               <label>{t("economics.finance_rate")}<input type="number" min="0" value={contract.annual_financing_rate_pct ?? ""} onChange={(event) => updateContractNumber("annual_financing_rate_pct", event.target.value)} /></label>
               <label className="span-2">{t("contracts.governing_law")}<input value={contract.governing_law} onChange={(event) => updateContractText("governing_law", event.target.value)} /></label>
-            </div></fieldset>}
+            </div><ContractPaymentTerms read={contract.persisted_payment_terms} t={t} /></fieldset>}
             {clauseView === "restrictions" && <fieldset><legend>{t("contracts.restrictions")}</legend><p>{t("contracts.section_help.restrictions")}</p><div className="contract-field-grid">
               <label className="span-2">{t("contracts.allowed_exit_points")}<input value={contract.allowed_exit_points.join(", ")} onChange={(event) => updateContractList("allowed_exit_points", event.target.value)} /></label>
               <label className="span-2">{t("contracts.eligible_sale_modes")}<input value={contract.eligible_sale_modes.join(", ")} onChange={(event) => updateContractList("eligible_sale_modes", event.target.value)} /></label>

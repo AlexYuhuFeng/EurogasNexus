@@ -63,6 +63,7 @@ function draft(overrides: Partial<ContractDraft> = {}): ContractDraft {
     owned_exit_capacity_mwh_per_day: null,
     allowed_exit_points: ["TTF"],
     eligible_sale_modes: ["SCREEN"],
+    persisted_payment_terms: null,
     ...overrides,
   };
 }
