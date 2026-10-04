@@ -5,6 +5,29 @@ Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical sli
 
 ## Current work
 
+### Backup restore and PostgreSQL revision rehearsal (2026-10-04)
+
+Baseline `2ee5096` passed CI run `37172384085`. Parent restored the pre-0038
+custom-format backup into a newly created isolated PostgreSQL database
+`eurogas_restore_0037_20261004`, using `pg_restore --exit-on-error`. Restore
+succeeded. Verified schema 0037, one contract, zero revisions and absence of
+the new payment-terms column, matching the recorded backup baseline.
+
+Applied Alembic 0038 to that restored copy, then independently ran all seven
+opt-in tests in `test_contract_revision_capture_postgres.py`: seven passed,
+with two existing deprecation warnings. This includes real PostgreSQL declared
+term capture as v2 with prior v1 evidence preserved, alongside existing revision
+idempotency/concurrency checks. Removed the isolated rehearsal database after
+completion. The application's database remains at 0038 with one contract, no
+declared terms and zero revisions; no synthetic contracts entered its resource
+pool. The ignored local backup remains available.
+
+This is a successful local restore-and-upgrade rehearsal, not a measured RTO/RPO
+certification or a full customer disaster-recovery exercise. Authenticated live
+set/preserve/clear and browser persona acceptance remain pending. Next: exercise
+those workflows against an isolated authenticated test instance before adding
+payment-term presentation to the existing contract workspace.
+
 ### Local schema 0038 rollout and persona reads (2026-10-04)
 
 Commit `9de6b4d` passed CI run `37158444065`: PostgreSQL integration,
