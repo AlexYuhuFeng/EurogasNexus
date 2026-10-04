@@ -5,6 +5,29 @@ Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical sli
 
 ## Current work
 
+### Authenticated PostgreSQL payment-term acceptance (2026-10-04)
+
+Baseline `94f2180` passed CI run `37187187784`. DeepSeek added three opt-in
+PostgreSQL-backed HTTP/TestClient tests and wired them into the existing
+PostgreSQL CI job. Real database-backed identity keys exercise ANALYST/OPERATOR
+set/preserve/clear, v1/v2 history, actor attribution, stale conflicts,
+VIEWER/ADMIN-only denial and sanitized malformed-term refusals. No production
+code or permission changed. Parent strengthened refusal comparisons to include
+every persisted contract column.
+
+Independent verification: initialized a separate disposable PostgreSQL database
+through Alembic head; all three acceptance tests passed, including a rerun after
+the assertion improvement. Initial teardown verification found zero contract,
+revision, principal, key and audit rows. Removed the disposable database after
+testing; the application's database was not used. Thirteen documentation/link
+checks passed, as did focused Ruff. Same-commit CI remains pending.
+
+These are authenticated in-process HTTP tests backed by real PostgreSQL, not a
+live-network browser/persona walkthrough. Next: inspect the running contract UI
+and implement coherent payment-term presentation there, preserving field-presence
+semantics and explicit unresolved-date warnings. Date resolution, cash valuation,
+revision lifecycle and full commercial trading journeys remain open.
+
 ### Backup restore and PostgreSQL revision rehearsal (2026-10-04)
 
 Baseline `2ee5096` passed CI run `37172384085`. Parent restored the pre-0038

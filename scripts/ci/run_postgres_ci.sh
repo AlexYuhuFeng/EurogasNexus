@@ -52,8 +52,10 @@ PY
 
 EUROGAS_NEXUS_ACK_INTEGRATION_TEST=1 \
 EUROGAS_NEXUS_CONTRACT_REVISION_INTEGRATION_TEST=1 \
+EUROGAS_NEXUS_PAYMENT_TERMS_INTEGRATION_TEST=1 \
 python -m pytest -q \
   tests/integration/test_postgres_backed_smoke.py \
   tests/integration/test_monitoring_acknowledgement_postgres.py \
   tests/integration/test_research_entitlement_postgres.py \
-  tests/integration/test_contract_revision_capture_postgres.py
+  tests/integration/test_contract_revision_capture_postgres.py \
+  tests/integration/test_contract_payment_terms_acceptance_postgres.py

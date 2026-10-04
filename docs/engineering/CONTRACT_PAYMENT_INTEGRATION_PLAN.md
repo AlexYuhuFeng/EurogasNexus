@@ -726,6 +726,51 @@ is asserted anywhere.
   readiness claim. S3 remains blocked on the lifecycle and the anchor-calendar
   resolver (open decisions 1 and 3).
 
+### S2b acceptance — authenticated payment-term HTTP journey over the disposable PostgreSQL store
+
+The S2b semantics above are proved against SQLite fixtures; this slice adds the
+authenticated acceptance journey on the *real* configured store. It is
+**evidence only**: no production code changed, no migration ran and no runtime
+store was touched by the implementation.
+
+- Suite:
+  [`tests/integration/test_contract_payment_terms_acceptance_postgres.py`](../../tests/integration/test_contract_payment_terms_acceptance_postgres.py).
+  Release-profile HTTP clients authenticate with DB-backed
+  ``X-Eurogas-Identity`` keys created in the store - never a dependency
+  override or a fabricated actor. Each test owns UUID-labelled synthetic
+  contracts and principals, and the fixture deletes exactly those rows
+  (revisions and audits included) in teardown, pass or fail.
+- Opt-in and execution: the module skips unless
+  ``RUNTIME_STORE_DATABASE_URL`` is a PostgreSQL URL and
+  ``EUROGAS_NEXUS_PAYMENT_TERMS_INTEGRATION_TEST=1``, so collection without a
+  disposable store skips cleanly; the existing disposable CI job
+  (`scripts/ci/run_postgres_ci.sh`) sets the flag and adds the module, so the
+  suite actually runs in CI. It runs no migrations and must never target a
+  developer's runtime database.
+- Journey proved: ANALYST create-without-terms captures v1; ANALYST declare
+  with a fresh read token stores the declaration's own canonical text and
+  captures v2; an OPERATOR metadata edit and an ANALYST economic edit that
+  omit the field preserve the stored declaration (no terms change, carried
+  revision stays v2); an OPERATOR explicit clear stores NULL and captures a
+  v1 snapshot again, leaving the declared evidence in its earlier revision;
+  a stale token answers 409 ``contract_edit_conflict`` with the row,
+  revisions, hashes and audit rows identical; the revision list/detail reads
+  replay v1/v2/v2/v1 with each original recorder; the mutation and capture
+  audit rows name only the authenticated principals, and an omitted field
+  never appears in ``changed_fields``.
+- Authority and refusals proved: VIEWER is refused 403
+  ``identity_role_forbidden`` and an administration-only identity 403
+  ``commercial_access_not_granted``, both leaving the row and its evidence
+  untouched; malformed supplied declarations (unknown field, unknown enum
+  value, non-mapping) answer 422 with the shared decoder's stable sanitized
+  code, the sentinel text is never echoed and nothing is written.
+- Honest limits: this is authenticated storage/authority acceptance, not
+  trader acceptance, UI walkthrough, date resolution or valuation; it asserts
+  no payable date and no revision lifecycle. Parent verification ran all three
+  tests successfully against a freshly migrated disposable PostgreSQL database;
+  fixture teardown left zero contract, revision, principal, key and audit rows.
+  Same-commit CI remains a separate gate recorded in the checkpoint.
+
 ## Open decisions (parent/reviewer)
 
 Capture/replay clarification: an unchanged, previously uncaptured legacy row
