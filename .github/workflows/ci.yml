@@ -9,6 +9,9 @@ on:
 permissions:
   contents: read
 
+env:
+  RUST_TOOLCHAIN: "1.94.0"
+
 jobs:
   validate:
     runs-on: ubuntu-latest
@@ -87,6 +90,8 @@ jobs:
 
       - name: Set up Rust for locked metadata audit
         uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
 
       - name: Rust license policy audit (desktop crate graph, fail-closed)
         run: python scripts/ci/audit_dependencies.py --cargo-lock clients/desktop/src-tauri/Cargo.lock
@@ -347,6 +352,8 @@ jobs:
 
       - name: Set up Rust (pinned by rust-toolchain.toml)
         uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
 
       - name: Enforce Cargo.lock
         working-directory: clients/desktop

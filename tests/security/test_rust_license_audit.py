@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import json
 import re
+import tomllib
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -1034,3 +1035,23 @@ def test_workflows_remain_valid_yaml() -> None:
         payload = yaml.safe_load(text)
         assert isinstance(payload, dict), workflow
         assert "jobs" in payload, workflow
+
+
+def test_all_rust_setup_actions_supply_the_repository_toolchain_pin() -> None:
+    pin = tomllib.loads((ROOT / "rust-toolchain.toml").read_text(encoding="utf-8"))["toolchain"][
+        "channel"
+    ]
+    for workflow in ("ci.yml", "release.yml"):
+        payload = yaml.safe_load(
+            (ROOT / ".github/workflows" / workflow).read_text(encoding="utf-8")
+        )
+        assert payload["env"]["RUST_TOOLCHAIN"] == pin
+        setups = [
+            step
+            for job in payload["jobs"].values()
+            for step in job.get("steps", [])
+            if step.get("uses", "").startswith("dtolnay/rust-toolchain@")
+        ]
+        assert len(setups) == 2
+        for step in setups:
+            assert step["with"]["toolchain"] == "${{ env.RUST_TOOLCHAIN }}"
