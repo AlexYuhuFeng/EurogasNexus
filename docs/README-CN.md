@@ -169,6 +169,7 @@ Architecture V2 是绑定的目标架构与产品体验交互权威（ADR-0016�
 - [决策复核](user/DECISION_REVIEW.md)
 - [数据状态与来源](user/DATA_STATUS_AND_PROVENANCE.md)
 - [商业 UAT 计划](uat/COMMERCIAL_UAT_PLAN.md)
+- [已申报付款可视化验收固定数据](uat/DECLARED_PAYMENT_VISUAL_ACCEPTANCE.md)
 - [交易员 UAT 脚本](uat/TRADER_UAT_SCRIPT.md)
 - [UAT 反馈模板](uat/UAT_FEEDBACK_TEMPLATE.md)
 - [RC 缺陷登记](uat/RC_DEFECT_REGISTER.md)

@@ -216,6 +216,7 @@ Operational procedures and operator-facing guides:
 - [Decision review](user/DECISION_REVIEW.md)
 - [Data status and provenance](user/DATA_STATUS_AND_PROVENANCE.md)
 - [Commercial UAT plan](uat/COMMERCIAL_UAT_PLAN.md)
+- [Declared-payment visual acceptance fixtures](uat/DECLARED_PAYMENT_VISUAL_ACCEPTANCE.md)
 - [Trader UAT script](uat/TRADER_UAT_SCRIPT.md)
 - [UAT feedback template](uat/UAT_FEEDBACK_TEMPLATE.md)
 - [RC defect register](uat/RC_DEFECT_REGISTER.md)

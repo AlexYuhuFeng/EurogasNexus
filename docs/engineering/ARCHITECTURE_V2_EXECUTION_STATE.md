@@ -1,9 +1,33 @@
 # Architecture V2 Execution State
 
-Last updated: 2026-10-05
+Last updated: 2026-10-06
 Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical slice records below do not constitute current production approval.
 
 ## Current work
+
+### Isolated populated-payment fixtures (2026-10-06)
+
+Previous turn made evidence progress by calibrating responsive viewports, but
+did not complete populated-schedule acceptance. DeepSeek now added opt-in
+`scripts/uat/seed_declared_payment_uat_fixture.py`, focused tests and the linked
+`docs/uat/DECLARED_PAYMENT_VISUAL_ACCEPTANCE.md` runbook. Two clearly synthetic
+contracts cover explicit dates, unresolved anchors, mixed directions and long
+evidence using the canonical domain and existing repository fixture path.
+No application UI/API, authority, numerical calculation or dependency changed.
+Dedicated PostgreSQL naming, explicit URL, acknowledgement, schema and existing
+contract guards prevent ordinary runtime seeding; customer bundle excludes UAT
+scripts. Parent removed argument echo and corrected post-commit failure claims.
+
+Independent checks: 89 fixture/packaging tests passed, three skipped; Ruff and
+diff checks passed. Created disposable `eurogas_uat_payment_visual_20261006`,
+migrated through 0038, seeded twice and verified two rows with two declarations.
+Existing `eurogas_nexus` remains one contract with zero declared schedules.
+Initial driver attempts failed before connecting; use the installed `pg8000`
+driver for local execution. The isolated database is retained for visual QA;
+no isolated API/browser identity has yet been started/created. Next: run the
+normal authenticated app against that isolated database on separate ports,
+verify both schedules in EN/ZH at measured desktop/mobile widths, then remove
+the disposable environment. Seeding is not UI or commercial acceptance.
 
 ### Responsive viewport calibration and mobile empty-state check (2026-10-05)
 
