@@ -5,6 +5,28 @@ Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical sli
 
 ## Current work
 
+### Live Rust CI setup repair; runner queued (2026-10-06)
+
+Previous turn made progress by implementing the Rust gate but had no live
+Cargo evidence. `706f721` now runs that same locked metadata check in ordinary
+CI dependency-audit, without publishing a release. Actual run `37363241489`
+revealed the pinned dtolnay action failed because its required toolchain input
+was missing. The license command was skipped: this was not a license verdict.
+
+Parent repaired all four Rust setup sites in CI/release, supplying the existing
+1.94.0 repository pin explicitly. `69a49a0` includes a structural regression
+ensuring action inputs and rust-toolchain.toml agree. Independent focused Rust
+gate/release-engineering tests: 92 passed. No dependencies, lock versions or
+license policy relaxed. This small workflow repair was implemented directly.
+
+Replacement run `37363927598`, tested SHA
+`69a49a09fe90e2f7c8479254298b65c80ff451e1`, is verified queued after two
+four-minute waits. Dependency job `111944603619` has not run; preserve this
+handle and inspect it next rather than dispatching a duplicate. Local Cargo
+remains unavailable. Live Rust licence coverage is still unverified, as are
+native installation, full notices and populated payment-screen acceptance.
+No overall commercial approval is asserted.
+
 ### Rust metadata license gate; live collection pending (2026-10-06)
 
 Baseline `3065dfd` passed CI run `37359921913`; previous turn made progress
