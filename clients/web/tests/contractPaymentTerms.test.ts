@@ -33,9 +33,18 @@ import {
 } from "../src/app/model/contractDraftModel.ts";
 import {
   CONTRACT_PAYMENT_TERMS_SCHEMA_VERSION,
+  PAYMENT_TERMS_ANCHOR_EVENTS,
+  PAYMENT_TERMS_BUSINESS_DAY_CONVENTIONS,
+  PAYMENT_TERMS_CASH_FLOW_CATEGORIES,
+  PAYMENT_TERMS_OFFSET_DAY_KINDS,
   paymentTermsReadFromRecord,
   paymentTermsReadFromValue,
 } from "../src/app/model/contractPaymentTerms.ts";
+import {
+  paymentTermVocabularyLabel,
+  paymentTermVocabularyLabelKey,
+  type PaymentTermsVocabularyKind,
+} from "../src/app/model/paymentTermsPresentation.ts";
 
 function readWebSource(relativePath: string): string {
   return readFileSync(new URL(`../src/${relativePath}`, import.meta.url), "utf8");
@@ -659,4 +668,172 @@ test("both locales declare the translated read-only vocabulary", () => {
   assert.match(en["contracts.payment_terms.date_kind.anchored"], /not a payable date/);
   assert.match(zh["contracts.payment_terms.date_kind.anchored"], /并非应付日期/);
   assert.match(zh["contracts.payment_terms.estimate_distinction"], /估算输入/);
+});
+
+/** Every reviewed vocabulary: the decoder's own spelling tuple and the displayed transport field. */
+const REVIEWED_VOCABULARIES: Array<[PaymentTermsVocabularyKind, readonly string[]]> = [
+  ["cash_flow_category", PAYMENT_TERMS_CASH_FLOW_CATEGORIES],
+  ["anchor_event", PAYMENT_TERMS_ANCHOR_EVENTS],
+  ["offset_day_kind", PAYMENT_TERMS_OFFSET_DAY_KINDS],
+  ["business_day_convention", PAYMENT_TERMS_BUSINESS_DAY_CONVENTIONS],
+];
+
+function localeRecords(): { en: Record<string, string>; zh: Record<string, string> } {
+  return {
+    en: JSON.parse(readWebSource("i18n/en.json")) as Record<string, string>,
+    zh: JSON.parse(readWebSource("i18n/zh.json")) as Record<string, string>,
+  };
+}
+
+test("every reviewed transport spelling has exactly one human-readable EN/ZH label", () => {
+  const { en, zh } = localeRecords();
+  const labelKeys = new Set<string>();
+  for (const [kind, values] of REVIEWED_VOCABULARIES) {
+    assert.ok(values.length > 0, `${kind} has a reviewed vocabulary`);
+    for (const value of values) {
+      const key = paymentTermVocabularyLabelKey(kind, value);
+      assert.ok(key, `${kind}/${value}: a reviewed spelling must have a label key`);
+      assert.match(
+        key,
+        /^contracts\.payment_terms\.[a-z_]+\.[a-z_]+$/,
+        `${kind}/${value}: label key namespace`,
+      );
+      assert.equal(labelKeys.has(key), false, `${kind}/${value}: no two spellings share a label`);
+      labelKeys.add(key);
+
+      assert.ok(en[key]?.trim(), `en ${key}`);
+      assert.ok(zh[key]?.trim(), `zh ${key}`);
+      assert.notEqual(en[key], value, `en ${key} must read as a label, not the raw token`);
+      assert.notEqual(zh[key], value, `zh ${key} must read as a label, not the raw token`);
+      assert.notEqual(en[key], zh[key], `${key} must be translated, not copied`);
+
+      // The wrapper resolves through exactly that key and returns the declared translation.
+      const requested: string[] = [];
+      const label = paymentTermVocabularyLabel(kind, value, (requestedKey) => {
+        requested.push(requestedKey);
+        return en[requestedKey] ?? "";
+      });
+      assert.deepEqual(requested, [key], `${kind}/${value}: one lookup for one spelling`);
+      assert.equal(label, en[key], `${kind}/${value}: the label is the declared translation`);
+    }
+  }
+  // Ten cash-flow categories, four anchor events, two offset day kinds, four conventions.
+  assert.equal(labelKeys.size, 20, "the whole reviewed vocabulary is labelled");
+});
+
+test("an unreviewed runtime spelling is never given a known label or another meaning", () => {
+  for (const [kind, values] of REVIEWED_VOCABULARIES) {
+    const translate = () => "translated label";
+    assert.equal(paymentTermVocabularyLabelKey(kind, "mystery"), null, `${kind}: unknown key`);
+    assert.equal(
+      paymentTermVocabularyLabel(kind, "mystery", translate),
+      "mystery",
+      `${kind}: an unknown runtime value stays raw`,
+    );
+    // Every reviewed spelling belongs to exactly one vocabulary: a spelling of another field is
+    // not silently re-read as this field's value.
+    for (const [otherKind, otherValues] of REVIEWED_VOCABULARIES) {
+      if (otherKind === kind) continue;
+      for (const value of otherValues) {
+        if ((values as readonly string[]).includes(value)) continue;
+        assert.equal(
+          paymentTermVocabularyLabelKey(kind, value),
+          null,
+          `${kind} must not accept the ${otherKind} spelling ${value}`,
+        );
+        assert.equal(
+          paymentTermVocabularyLabel(kind, value, translate),
+          value,
+          `${kind}/${value}: a foreign spelling stays raw`,
+        );
+      }
+    }
+  }
+});
+
+test("labels are presentation only: decoded spellings and evidence are never mutated", () => {
+  const document = declaredTerms([EXPLICIT_ITEM, ANCHORED_ITEM]);
+  const before = JSON.parse(JSON.stringify(document)) as Record<string, unknown>;
+  const read = paymentTermsReadFromValue(document);
+  assert.equal(read.state, "declared");
+  if (read.state !== "declared") return;
+  const { en } = localeRecords();
+  const label = (kind: PaymentTermsVocabularyKind, value: string) =>
+    paymentTermVocabularyLabel(kind, value, (key) => en[key] ?? key);
+
+  for (const item of read.terms.items) {
+    label("cash_flow_category", item.cash_flow_category);
+    if (item.date_specification.kind === "ANCHORED_RULE") {
+      label("anchor_event", item.date_specification.anchor_event);
+      label("offset_day_kind", item.date_specification.offset_day_kind);
+      label("business_day_convention", item.date_specification.business_day_convention);
+    }
+  }
+
+  // Rendering-time lookups rewrite nothing: the transport document and the decoded declaration
+  // still carry the exact reviewed spellings and every evidence string verbatim.
+  assert.deepEqual(document, before, "the transport document is never rewritten by labelling");
+  assert.deepEqual(read.terms, before, "the decoded declaration still carries the raw spellings");
+  assert.deepEqual(read.terms.items, [EXPLICIT_ITEM, ANCHORED_ITEM]);
+  assert.equal(read.terms.items[0].source_reference, EXPLICIT_ITEM.source_reference);
+  assert.equal(read.terms.items[1].source_reference, ANCHORED_ITEM.source_reference);
+  const anchored = read.terms.items[1].date_specification;
+  assert.equal(anchored.kind, "ANCHORED_RULE");
+  if (anchored.kind !== "ANCHORED_RULE") return;
+  assert.equal(anchored.source_reference, ANCHORED_ITEM.date_specification.source_reference);
+  assert.equal(anchored.calendar_reference, ANCHORED_ITEM.date_specification.calendar_reference);
+});
+
+test("the schedule detail list renders reviewed labels instead of raw transport spellings", () => {
+  const panel = readWebSource("components/ContractPaymentTerms.tsx");
+  for (const [kind, property] of [
+    ["cash_flow_category", "item.cash_flow_category"],
+    ["anchor_event", "specification.anchor_event"],
+    ["offset_day_kind", "specification.offset_day_kind"],
+    ["business_day_convention", "specification.business_day_convention"],
+  ]) {
+    // Source formatting is not part of the contract, so the call is matched across line breaks.
+    assert.match(
+      panel,
+      new RegExp(
+        `paymentTermVocabularyLabel\\(\\s*"${kind}",\\s*${property.replace(/\./g, "\\.")},\\s*t,?\\s*\\)`,
+      ),
+      `${kind} must be displayed through its label`,
+    );
+    assert.equal(panel.includes(`value={${property}}`), false, `${kind} must not render raw`);
+  }
+  // Stored evidence and reference strings are still rendered exactly as declared.
+  for (const marker of [
+    "value={item.source_reference}",
+    "value={specification.source_reference}",
+    "value={specification.final_payable_date}",
+    "value={String(specification.anchor_offset_days)}",
+    "specification.calendar_reference ??",
+  ]) {
+    assert.ok(panel.includes(marker), marker);
+  }
+});
+
+test("the item header keeps the translated direction without a duplicate fact row", () => {
+  const panel = readWebSource("components/ContractPaymentTerms.tsx");
+  const headAt = panel.indexOf("contract-payment-item-head");
+  const directionAt = panel.indexOf("contract-payment-direction");
+  const factsAt = panel.indexOf("contract-payment-facts");
+  assert.ok(
+    headAt > 0 && directionAt > headAt && factsAt > directionAt,
+    "the translated direction stays announced in the item header",
+  );
+  assert.ok(
+    panel.includes("directionLabel(item.flow_direction, t)"),
+    "the header still shows the translated direction",
+  );
+  assert.ok(
+    panel.includes("contracts.payment_terms.direction.inflow"),
+    "the direction vocabulary stays translated",
+  );
+  assert.equal(
+    panel.includes('label={t("contracts.payment_terms.direction")}'),
+    false,
+    "the direction is not repeated as a second fact row",
+  );
 });

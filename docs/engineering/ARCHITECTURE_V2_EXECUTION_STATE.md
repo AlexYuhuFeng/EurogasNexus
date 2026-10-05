@@ -5,6 +5,21 @@ Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical sli
 
 ## Current work
 
+### Payment-rule presentation labels (2026-10-05)
+
+Baseline `898c2f2` passed CI run `37224098361`. DeepSeek replaced raw category,
+anchor, day-kind and roll-convention codes in the read-only payment panel with
+exhaustive EN/ZH label mappings and removed the duplicate direction fact row.
+Decoder and presentation share the reviewed client vocabulary. Stored values
+and evidence remain verbatim; no API, math, permission or database change.
+
+Independent full web suite: 861 passed, three skipped. Production build passed
+with the existing dynamic-import warning. Parent reviewed the mapping and
+decoder changes; unsupported values never borrow another known label. Real
+browser populated-schedule and responsive acceptance remain open, as recorded
+below. Next work must prioritize that visual gate and recurring browser/read
+timeouts rather than treating unit/build success as commercial readiness.
+
 ### Read-only payment-term UI implementation; visual gate open (2026-10-05)
 
 Baseline `4a42df1` passed CI run `37204497285`. Parent restored the stopped

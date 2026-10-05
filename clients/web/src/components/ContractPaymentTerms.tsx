@@ -9,6 +9,7 @@
 
 import type { PaymentScheduleItemDTO } from "@/api/client";
 import type { PaymentTermsReadState } from "@/app/model/contractPaymentTerms";
+import { paymentTermVocabularyLabel } from "@/app/model/paymentTermsPresentation";
 
 type Translate = (key: string) => string;
 
@@ -42,6 +43,11 @@ function PaymentScheduleItem({ item, t }: { item: PaymentScheduleItemDTO; t: Tra
   const specification = item.date_specification;
   return (
     <li className="contract-payment-item">
+      {/*
+        The header states the item's flow direction once; the fact list below does not repeat
+        it. The translated label itself carries the meaning (money received / money paid out),
+        so the direction stays readable and accessible without a duplicate row.
+      */}
       <div className="contract-payment-item-head">
         <strong>{item.item_id}</strong>
         <span className="contract-payment-direction">
@@ -51,11 +57,7 @@ function PaymentScheduleItem({ item, t }: { item: PaymentScheduleItemDTO; t: Tra
       <dl className="contract-payment-facts">
         <PaymentTermFact
           label={t("contracts.payment_terms.category")}
-          value={item.cash_flow_category}
-        />
-        <PaymentTermFact
-          label={t("contracts.payment_terms.direction")}
-          value={directionLabel(item.flow_direction, t)}
+          value={paymentTermVocabularyLabel("cash_flow_category", item.cash_flow_category, t)}
         />
         <PaymentTermFact
           label={t("contracts.payment_terms.item_evidence")}
@@ -84,7 +86,7 @@ function PaymentScheduleItem({ item, t }: { item: PaymentScheduleItemDTO; t: Tra
             />
             <PaymentTermFact
               label={t("contracts.payment_terms.anchor_event")}
-              value={specification.anchor_event}
+              value={paymentTermVocabularyLabel("anchor_event", specification.anchor_event, t)}
             />
             <PaymentTermFact
               label={t("contracts.payment_terms.anchor_offset")}
@@ -92,11 +94,15 @@ function PaymentScheduleItem({ item, t }: { item: PaymentScheduleItemDTO; t: Tra
             />
             <PaymentTermFact
               label={t("contracts.payment_terms.offset_day_kind")}
-              value={specification.offset_day_kind}
+              value={paymentTermVocabularyLabel("offset_day_kind", specification.offset_day_kind, t)}
             />
             <PaymentTermFact
               label={t("contracts.payment_terms.business_day_convention")}
-              value={specification.business_day_convention}
+              value={paymentTermVocabularyLabel(
+                "business_day_convention",
+                specification.business_day_convention,
+                t,
+              )}
             />
             <PaymentTermFact
               label={t("contracts.payment_terms.calendar_reference")}

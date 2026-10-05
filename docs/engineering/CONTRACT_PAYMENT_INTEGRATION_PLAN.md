@@ -845,6 +845,18 @@ resolves no date or value.
   parent's real-browser inspection of the rendered section is still pending —
   the parent's browser reload timed out and visual acceptance has not been
   claimed — and the programme checkpoint records it.
+- Readable labels (follow-up inside S2c): the reviewed cash-flow category,
+  anchor event, offset day kind and business-day convention spellings display
+  through exhaustive EN/ZH label maps in
+  [`paymentTermsPresentation.ts`](../../clients/web/src/app/model/paymentTermsPresentation.ts),
+  typed against the decoder's exported vocabulary tuples, so a reviewed
+  spelling cannot lack a label and a label map cannot cover a spelling the
+  decoder refuses; an unreviewed runtime value keeps its raw spelling rather
+  than borrowing another vocabulary's meaning. The item header states the
+  direction once — its translated label carries "money received" / "money paid
+  out" — and the duplicated direction fact row is removed. Stored spellings,
+  evidence strings and the save payload are untouched. The focused suite adds
+  label coverage, unknown-value, no-mutation and source-wiring checks.
 
 ## Open decisions (parent/reviewer)
 

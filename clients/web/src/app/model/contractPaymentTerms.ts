@@ -69,9 +69,14 @@ const ANCHORED_RULE_FIELDS = [
  *
  * These are the frozen transport values of the shared domain enums, not a client taxonomy:
  * nothing here is translated, defaulted or derived from another field, and a value outside the
- * set makes the declaration unverifiable instead of presenting an invented meaning.
+ * reviewed vocabulary makes the declaration unverifiable instead of presenting an invented
+ * meaning.
+ *
+ * The exported spellings are the single source of the decoder's membership and of the
+ * exhaustive presentation label maps, so every spelling this client verifies has a declared
+ * label and a label map can never cover a spelling the decoder refuses.
  */
-const CASH_FLOW_CATEGORIES: ReadonlySet<string> = new Set([
+export const PAYMENT_TERMS_CASH_FLOW_CATEGORIES = [
   "cargo_purchase",
   "cargo_sale",
   "shipping",
@@ -82,20 +87,28 @@ const CASH_FLOW_CATEGORIES: ReadonlySet<string> = new Set([
   "demurrage",
   "boil_off",
   "other",
-]);
-const ANCHOR_EVENTS: ReadonlySet<string> = new Set([
+] as const;
+export type PaymentTermsCashFlowCategory = (typeof PAYMENT_TERMS_CASH_FLOW_CATEGORIES)[number];
+
+export const PAYMENT_TERMS_ANCHOR_EVENTS = [
   "INVOICE_DATE",
   "DELIVERY_PERIOD_START",
   "DELIVERY_PERIOD_END",
   "METER_READ_DATE",
-]);
-const OFFSET_DAY_KINDS: ReadonlySet<string> = new Set(["CALENDAR_DAYS", "BUSINESS_DAYS"]);
-const BUSINESS_DAY_CONVENTIONS: ReadonlySet<string> = new Set([
+] as const;
+export type PaymentTermsAnchorEvent = (typeof PAYMENT_TERMS_ANCHOR_EVENTS)[number];
+
+export const PAYMENT_TERMS_OFFSET_DAY_KINDS = ["CALENDAR_DAYS", "BUSINESS_DAYS"] as const;
+export type PaymentTermsOffsetDayKind = (typeof PAYMENT_TERMS_OFFSET_DAY_KINDS)[number];
+
+export const PAYMENT_TERMS_BUSINESS_DAY_CONVENTIONS = [
   "NONE",
   "FOLLOWING",
   "MODIFIED_FOLLOWING",
   "PRECEDING",
-]);
+] as const;
+export type PaymentTermsBusinessDayConvention =
+  (typeof PAYMENT_TERMS_BUSINESS_DAY_CONVENTIONS)[number];
 
 /** Stable reasons a present declaration was refused; never a caller-supplied value. */
 export type PaymentTermsMalformedReason =
@@ -173,8 +186,8 @@ function boundedEvidence(value: unknown): value is string {
 }
 
 /** One reviewed vocabulary spelling; the value itself is never transformed or defaulted. */
-function knownSpelling(value: unknown, known: ReadonlySet<string>): value is string {
-  return typeof value === "string" && known.has(value);
+function knownSpelling(value: unknown, known: readonly string[]): value is string {
+  return typeof value === "string" && known.includes(value);
 }
 
 function isLeapYear(year: number): boolean {
@@ -268,7 +281,7 @@ function decodeScheduleItem(
   const itemId = raw.item_id;
   if (!boundedEvidence(itemId)) return "item_id";
   const category = raw.cash_flow_category;
-  if (!knownSpelling(category, CASH_FLOW_CATEGORIES)) return "category";
+  if (!knownSpelling(category, PAYMENT_TERMS_CASH_FLOW_CATEGORIES)) return "category";
   const direction = raw.flow_direction;
   if (direction !== "INFLOW" && direction !== "OUTFLOW") return "direction";
   const itemEvidence = raw.source_reference;
@@ -296,7 +309,7 @@ function decodeScheduleItem(
   }
   if (!exactFieldSet(specification, ANCHORED_RULE_FIELDS)) return "specification_fields";
   const anchorEvent = specification.anchor_event;
-  if (!knownSpelling(anchorEvent, ANCHOR_EVENTS)) return "anchor_event";
+  if (!knownSpelling(anchorEvent, PAYMENT_TERMS_ANCHOR_EVENTS)) return "anchor_event";
   const offset = specification.anchor_offset_days;
   if (
     typeof offset !== "number" ||
@@ -307,9 +320,11 @@ function decodeScheduleItem(
     return "anchor_offset";
   }
   const dayKind = specification.offset_day_kind;
-  if (!knownSpelling(dayKind, OFFSET_DAY_KINDS)) return "offset_day_kind";
+  if (!knownSpelling(dayKind, PAYMENT_TERMS_OFFSET_DAY_KINDS)) return "offset_day_kind";
   const convention = specification.business_day_convention;
-  if (!knownSpelling(convention, BUSINESS_DAY_CONVENTIONS)) return "business_day_convention";
+  if (!knownSpelling(convention, PAYMENT_TERMS_BUSINESS_DAY_CONVENTIONS)) {
+    return "business_day_convention";
+  }
   // The calendar requirement is the declared rule's own: a business-day count or a roll
   // convention needs an explicit calendar reference, and a rule that needs none must not
   // declare one. Nothing is defaulted in either direction.
