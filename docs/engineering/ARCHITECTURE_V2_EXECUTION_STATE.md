@@ -5,6 +5,31 @@ Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical sli
 
 ## Current work
 
+### Python license-audit metadata coverage (2026-10-06)
+
+Baseline `69d1b2d` passed CI run `37356928297`; previous turn made progress
+through fixture safety repairs. With isolated browser startup still blocked,
+parent inspected an independent delivery gate. The Python license scanner
+ignored License-Expression and could report success for an empty scan. DeepSeek
+replaced line parsing with the standard-library email parser, applied modern
+expression precedence, included all License classifiers and rejected empty,
+missing, unreadable or structurally malformed metadata. Existing restricted-term
+and unknown-license review policies were preserved; no legal exception or
+dependency was approved. Parent checked against the linked PyPA specification.
+
+Independent validation: 26 dependency-audit tests and 45 SBOM tests passed;
+Ruff passed. Local scan inspected 63 installed Python distributions without
+detecting restricted terms. This is not the locked Linux release environment
+or an artifact-specific legal review. Worker also reported 234 security tests
+passing; parent did not rerun that entire suite. No runtime/DB/UI change.
+
+Remaining delivery gaps: scanner does not cover Node/Rust or full license texts,
+vendored/native/container dependencies. Generated THIRD_PARTY_NOTICES is only
+a lock inventory, explicitly without license texts; unknown licenses remain
+review-required, not approved. Next independent release work should close
+artifact-specific license/notice coverage without fabricating clearance or
+changing licensing terms. Populated-schedule visual acceptance remains open.
+
 ### Fixture safeguards and readiness-claim correction (2026-10-06)
 
 Baseline `c0a8397` passed CI run `37355393169`. Previous turn was progress:
