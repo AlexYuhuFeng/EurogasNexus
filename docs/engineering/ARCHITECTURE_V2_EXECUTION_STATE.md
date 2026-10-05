@@ -5,6 +5,25 @@ Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical sli
 
 ## Current work
 
+### Responsive viewport calibration and mobile empty-state check (2026-10-05)
+
+Baseline `31c7889` remains equal to fetched origin/main and passed CI run
+`37287258664`; no active DeepSeek worker or autonomous supervisor was found.
+The authenticated browser session still renders the existing stored contract.
+Calibrated this browser's viewport override against actual `innerWidth` and
+`innerHeight`: requested 2808x1950 yields 1440x1000 CSS pixels; requested
+761x1646 yields 390x844. This factor is session-specific, not an application
+breakpoint rule. Always measure actual dimensions before asserting acceptance.
+
+At measured 390x844, visually inspected the persisted-null payment panel,
+estimate disclaimer and validation list: text wraps without overlap; root
+scroll width is 382 pixels, within the viewport. Desktop DOM measurement at
+1440x1000 places the payment panel within the viewport, but its screenshot did
+not expose the lower panel, so desktop visual acceptance remains open. Reset
+the temporary override. No application code, runtime records or permissions
+changed. Next bounded task: isolated populated-schedule fixtures and EN/ZH
+visual checks, including desktop panel capture; retain all existing open gates.
+
 ### Payment-panel browser inspection recovered (2026-10-05)
 
 Baseline `a5bc752` passed CI run `37261964065`. A fresh authenticated browser
