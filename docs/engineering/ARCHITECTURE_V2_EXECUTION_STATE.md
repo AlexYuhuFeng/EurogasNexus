@@ -5,6 +5,31 @@ Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical sli
 
 ## Current work
 
+### Rust metadata license gate; live collection pending (2026-10-06)
+
+Baseline `3065dfd` passed CI run `37359921913`; previous turn made progress
+on client lock enforcement. DeepSeek added a release dependency-scan gate using
+Cargo metadata with --locked, format version 1 and --all-features, matching the
+existing structured lock inventory by exact name/version/source. Missing tools,
+timeouts, failed/malformed/incomplete collection, duplicate/mismatched identities
+and missing/restricted license declarations fail. No dependency or lock changed.
+
+Parent required a second worker pass: only the root package matching the audited
+Cargo.toml name/version and exact resolved manifest path may be excluded;
+workspace membership or a familiar project name cannot exempt a third party.
+Raw Cargo failure output is withheld to avoid disclosing private source details.
+Parent also made unreviewed git/path/alternate-registry provenance a failure,
+not a warning-only successful exit. No licensing exception was granted.
+
+Independent verification: 185 focused Python/npm/Rust audit and SBOM tests
+passed; Ruff, diff check and Markdown links passed. Actual local Cargo gate
+returned failure because Cargo is not installed, as designed. No live Rust
+license audit, native build or artifact notice acceptance is claimed. Release
+runner execution must supply that evidence; full license texts, bundled/native
+and container components and artifact-specific redistribution review remain
+open. Populated business-workflow visual gates also remain open. The overall
+commercial-delivery objective is not complete.
+
 ### Client lock license gate (2026-10-06)
 
 Baseline `e7a0d2f` passed CI run `37358375534`; prior turn made progress on

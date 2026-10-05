@@ -281,6 +281,17 @@ jobs:
         # dependency-scan gates the assemble/packaging job that needs it.
         run: python scripts/ci/audit_dependencies.py --npm-lock clients/web/package-lock.json --npm-lock clients/desktop/package-lock.json
 
+      - name: Rust license policy audit (desktop crate graph, fail-closed)
+        # Collects `cargo metadata --locked --format-version 1 --all-features
+        # --manifest-path clients/desktop/src-tauri/Cargo.toml` (no --no-deps)
+        # through the audit's bounded argv subprocess, matches every Cargo.lock
+        # third-party crate by exact name/version/source identity and fails on
+        # restricted, missing, unknown or file-only declared licenses. Full
+        # build/dev/all-feature resolve coverage is conservative, not
+        # shipped-artifact proof. Runs before the scan evidence is wrapped and
+        # published below.
+        run: python scripts/ci/audit_dependencies.py --cargo-lock clients/desktop/src-tauri/Cargo.lock
+
       - name: Install pip-audit from hash-pinned lock
         run: python -m pip install --require-hashes -r requirements-build.lock
 
