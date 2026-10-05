@@ -1020,15 +1020,12 @@ def test_release_cargo_license_gate_is_wired_after_rust_setup_and_before_evidenc
     assert rust_setup < audit_at < wrap_at < upload_at
 
 
-def test_ci_dependency_audit_stays_free_of_a_rust_toolchain_install() -> None:
-    # Bounded slice: the CI dependency-audit job installs no Rust toolchain, so
-    # this gate ships to the release runner only; the fixture tests above pin
-    # the behaviour and no live local cargo result is claimed anywhere.
+def test_ci_runs_the_live_locked_rust_audit_after_toolchain_setup() -> None:
     section = _job_section("ci.yml", "dependency-audit")
-
-    assert "--cargo-lock" not in section
-    assert "Set up Rust" not in section
-    assert "dtolnay/rust-toolchain" not in section
+    assert section.count(CARGO_LOCK_COMMAND) == 1
+    assert "dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772" in section
+    assert section.index("Set up Rust") < section.index(CARGO_LOCK_COMMAND)
+    assert "continue-on-error" not in section
 
 
 def test_workflows_remain_valid_yaml() -> None:

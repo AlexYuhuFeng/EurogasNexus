@@ -85,6 +85,12 @@ jobs:
       - name: CVE audit (pip-audit)
         run: python -m pip_audit
 
+      - name: Set up Rust for locked metadata audit
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
+
+      - name: Rust license policy audit (desktop crate graph, fail-closed)
+        run: python scripts/ci/audit_dependencies.py --cargo-lock clients/desktop/src-tauri/Cargo.lock
+
   integration-postgres:
     name: PostgreSQL integration
     runs-on: ubuntu-latest

@@ -136,8 +136,9 @@ clients/desktop/src-tauri/Cargo.toml` (no `--no-deps`) through an argv
 subprocess with an explicit timeout. `--locked` turns a stale lock into a hard
 failure, so the audited inventory and the Cargo-resolved graph must agree. The
 release workflow runs this gate after the Rust toolchain setup and before scan
-evidence is published; the CI `dependency-audit` job deliberately installs no
-Rust toolchain, so no live result is claimed outside the release runner.
+evidence is published. Ordinary CI also runs the same command after pinned
+toolchain setup, so failures can be discovered without attempting publication.
+A configured workflow is not a passed audit: inspect its actual job result.
 Gate failures report only the exit/status and a safe instruction: raw `cargo`
 stderr or exception payloads are deliberately not echoed, because they can
 contain private registry URLs or credentials.
