@@ -5,6 +5,26 @@ Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical sli
 
 ## Current work
 
+### Payment-panel browser inspection recovered (2026-10-05)
+
+Baseline `a5bc752` passed CI run `37261964065`. A fresh authenticated browser
+session successfully displayed the new panel in Portfolio > Resources >
+Settlement and cash. Confirmed distinct unsaved-draft and persisted-null
+messages by loading the existing preview contract from Library. The stored
+view explicitly separates declared schedules from legacy lag-based estimates;
+no payment schedule was inferred and no business record was changed.
+
+Screenshot inspection confirmed the persisted-null panel and its estimate
+disclosure were readable without overlap at the observed 738 CSS-pixel width.
+Requested viewport overrides did not match browser-reported dimensions
+(1440x1000 reported 738x513; 390x844 reported 200x433), so these observations
+do not constitute desktop/mobile breakpoint acceptance. Override was reset.
+Populated schedules, EN/ZH visual parity and intended responsive breakpoints
+remain open. Use isolated fixtures for declared schedules; do not add invented
+terms to the existing preview contract. Earlier monitoring timeouts remain an
+unresolved investigation, not a demonstrated backend outage. Next: establish
+reliable CSS viewport sizing and complete that isolated visual acceptance.
+
 ### Payment-rule presentation labels (2026-10-05)
 
 Baseline `898c2f2` passed CI run `37224098361`. DeepSeek replaced raw category,
