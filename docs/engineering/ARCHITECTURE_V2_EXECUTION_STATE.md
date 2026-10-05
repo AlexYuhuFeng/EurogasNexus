@@ -5,6 +5,32 @@ Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical sli
 
 ## Current work
 
+### Fixture safeguards and readiness-claim correction (2026-10-06)
+
+Baseline `c0a8397` passed CI run `37355393169`. Previous turn was progress:
+populated fixtures were seeded and verified in isolated PostgreSQL. This turn's
+attempt to start a separate authenticated API/web instance was rejected by
+execution policy before command execution. Ports 8001/3001 have no listeners;
+do not assume an isolated identity or server exists. No alternate launch path
+was attempted. Populated EN/ZH browser acceptance remains open.
+
+Independent review found the fixture's environment blacklist did not enforce
+its development/test-only claim. DeepSeek replaced it with an explicit allowlist
+(unset/blank also refused), tightened ownership to the two exact IDs and added
+sanitized missing/invalid-driver handling. Refusal tests prove no engine/session
+creation, known driver failures redact secrets, and programming defects remain
+visible. Runbook cleanup now uses exact IDs, not broad prefix deletion. Parent
+corrected stale exit-code wording and the commercial backlog's claim that all
+internal work was complete; historical implementation labels are not customer
+acceptance evidence.
+
+Independent selected tests: 133 passed, three skipped; Ruff, diff check and
+all 270 Markdown link checks passed. No product runtime or DB mutation this
+turn. Retain the isolated fixture database for authorized visual QA when the
+launch restriction is resolved; do not bypass that restriction. Meanwhile the
+business acceptance matrix and pilot blocker register contain independent
+implementation/release work, so this does not block the overall programme.
+
 ### Isolated populated-payment fixtures (2026-10-06)
 
 Previous turn made evidence progress by calibrating responsive viewports, but

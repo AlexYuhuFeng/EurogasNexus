@@ -3,14 +3,18 @@
 `scripts/uat/seed_declared_payment_uat_fixture.py` prepares the open real-browser
 declared-payment visual acceptance. Nothing in this module claims that acceptance:
 the tests hold the seed script to its isolation gates (explicit PostgreSQL URL,
-dedicated database-name prefix, explicit acknowledgement, no runtime/default
-target, no SQLite, no schema creation, no provider calls), to its contamination
-guard, and to the reviewed payment-terms domain - the schedules must round-trip
-through the canonical decoder, mix INFLOW/OUTFLOW, carry long clearly synthetic
-evidence, and stay valid for the repository fixture path.
+dedicated database-name prefix, explicit acknowledgement, explicit
+development/test environment, no runtime/default target, no SQLite, no schema
+creation, no provider calls), to its exact-id ownership guard, to its sanitized
+driver/connection failure reporting, and to the reviewed payment-terms domain -
+the schedules must round-trip through the canonical decoder, mix INFLOW/OUTFLOW,
+carry long clearly synthetic evidence, and stay valid for the repository fixture
+path.
 
-No database or network is touched: refusal tests run before any connection is
-attempted, and the fixture checks call pure domain/repository helpers only.
+No database server is touched: the in-process refusal tests prove every
+configuration refusal returns before engine/session creation, and the fixture
+checks call pure domain/repository helpers only. The end-to-end driver tests can
+only request connections no server accepts.
 """
 
 from __future__ import annotations
@@ -25,6 +29,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from sqlalchemy.exc import NoSuchModuleError, OperationalError
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts" / "uat" / "seed_declared_payment_uat_fixture.py"
@@ -83,6 +88,31 @@ def _run(env: dict[str, str], *arguments: str) -> subprocess.CompletedProcess:
     )
 
 
+def _clear_fixture_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    for name in (
+        "RUNTIME_STORE_DATABASE_URL",
+        "DATABASE_URL",
+        "EUROGAS_NEXUS_DB_DSN",
+        "EUROGAS_NEXUS_ENV",
+        "EUROGAS_NEXUS_UAT_FIXTURE_ALLOWED",
+    ):
+        monkeypatch.delenv(name, raising=False)
+
+
+def _forbid_database_access(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """Replace engine/session entry points with a spy that fails if reached."""
+
+    calls: list[str] = []
+
+    def _unexpected(**_: Any) -> Any:
+        calls.append("database access")
+        raise AssertionError("the refusal must happen before any database access")
+
+    monkeypatch.setattr(FIXTURE, "get_engine", _unexpected)
+    monkeypatch.setattr(FIXTURE, "get_session_factory", _unexpected)
+    return calls
+
+
 # --- guard refusals (configuration gates run before any connection) ----------------
 
 
@@ -111,17 +141,62 @@ def test_fixture_requires_the_acknowledgement_flag() -> None:
     assert "EUROGAS_NEXUS_UAT_FIXTURE_ALLOWED" in result.stdout
 
 
-@pytest.mark.parametrize("environment", ["trial", "release"])
-def test_fixture_is_blocked_in_trial_and_release(environment: str) -> None:
-    result = _run(
-        {
-            "EUROGAS_NEXUS_ENV": environment,
-            "EUROGAS_NEXUS_UAT_FIXTURE_ALLOWED": "1",
-            "RUNTIME_STORE_DATABASE_URL": _url("eurogas_uat_payment_visual"),
-        }
-    )
+def test_environment_gate_refuses_everything_except_development_and_test() -> None:
+    for allowed in ("development", "DEVELOPMENT", "  Test  ", "\tdevelopment\n"):
+        assert FIXTURE.environment_refusal(allowed) is None
+    for refused in (
+        None,
+        "",
+        "   ",
+        "production",
+        "staging",
+        "trial",
+        "release",
+        "prod",
+        "dev",
+        "preview",
+        "development2",
+        "test-environment",
+    ):
+        refusal = FIXTURE.environment_refusal(refused)
+        assert refusal is not None, refused
+        assert "'development'" in refusal and "'test'" in refusal
+        assert "Nothing was written" in refusal
+
+
+@pytest.mark.parametrize(
+    "environment",
+    [None, "", "   ", "production", "staging", "trial", "release", "arbitrary-value"],
+)
+def test_fixture_refuses_environment_before_reading_the_database_url(
+    environment: str | None,
+) -> None:
+    env = {
+        "EUROGAS_NEXUS_UAT_FIXTURE_ALLOWED": "1",
+        "RUNTIME_STORE_DATABASE_URL": _url("eurogas_uat_payment_visual"),
+    }
+    if environment is not None:
+        env["EUROGAS_NEXUS_ENV"] = environment
+    result = _run(env)
     assert result.returncode == 2
-    assert "blocked in trial/release" in result.stdout
+    output = result.stdout + result.stderr
+    assert "EUROGAS_NEXUS_ENV" in output
+    assert "'development'" in output and "'test'" in output
+    assert "fixture-secret" not in output
+    assert "postgresql://" not in output
+
+
+@pytest.mark.parametrize(
+    "environment",
+    ["development", "Development", "  DEVELOPMENT  ", "test", "TEST", "\tTest\n"],
+)
+def test_fixture_accepts_only_normalized_development_or_test(environment: str) -> None:
+    # With no URL the run must pass the environment gate and stop at the URL gate.
+    result = _run({"EUROGAS_NEXUS_ENV": environment, "EUROGAS_NEXUS_UAT_FIXTURE_ALLOWED": "1"})
+    assert result.returncode == 2
+    output = result.stdout + result.stderr
+    assert "RUNTIME_STORE_DATABASE_URL" in output
+    assert "must be set explicitly to 'development' or 'test'" not in output
 
 
 def test_fixture_refuses_the_default_runtime_database_without_printing_credentials() -> None:
@@ -185,6 +260,188 @@ def test_fixture_refuses_unknown_arguments() -> None:
     assert "secret-user" not in result.stdout + result.stderr
 
 
+@pytest.mark.parametrize(
+    ("env", "arguments", "fragment"),
+    [
+        ({}, (), "EUROGAS_NEXUS_ENV"),
+        ({"EUROGAS_NEXUS_ENV": ""}, (), "EUROGAS_NEXUS_ENV"),
+        ({"EUROGAS_NEXUS_ENV": "   "}, (), "EUROGAS_NEXUS_ENV"),
+        ({"EUROGAS_NEXUS_ENV": "production"}, (), "EUROGAS_NEXUS_ENV"),
+        ({"EUROGAS_NEXUS_ENV": "staging"}, (), "EUROGAS_NEXUS_ENV"),
+        ({"EUROGAS_NEXUS_ENV": "trial"}, (), "EUROGAS_NEXUS_ENV"),
+        ({"EUROGAS_NEXUS_ENV": "release"}, (), "EUROGAS_NEXUS_ENV"),
+        ({"EUROGAS_NEXUS_ENV": "arbitrary"}, (), "EUROGAS_NEXUS_ENV"),
+        (
+            {
+                "EUROGAS_NEXUS_ENV": "development",
+                "RUNTIME_STORE_DATABASE_URL": _url("eurogas_uat_payment_visual"),
+            },
+            (),
+            "EUROGAS_NEXUS_UAT_FIXTURE_ALLOWED",
+        ),
+        (
+            {"EUROGAS_NEXUS_ENV": "test", "EUROGAS_NEXUS_UAT_FIXTURE_ALLOWED": "1"},
+            (),
+            "RUNTIME_STORE_DATABASE_URL",
+        ),
+        (
+            {
+                "EUROGAS_NEXUS_ENV": "test",
+                "EUROGAS_NEXUS_UAT_FIXTURE_ALLOWED": "1",
+                "RUNTIME_STORE_DATABASE_URL": _url("eurogas_nexus"),
+            },
+            (),
+            "default runtime database",
+        ),
+        (
+            {
+                "EUROGAS_NEXUS_ENV": "test",
+                "EUROGAS_NEXUS_UAT_FIXTURE_ALLOWED": "1",
+                "RUNTIME_STORE_DATABASE_URL": "sqlite:///never_used.sqlite3",
+            },
+            (),
+            "PostgreSQL",
+        ),
+        (
+            {
+                "EUROGAS_NEXUS_ENV": "test",
+                "EUROGAS_NEXUS_UAT_FIXTURE_ALLOWED": "1",
+                "RUNTIME_STORE_DATABASE_URL": _url("eurogas_nexus_uat"),
+            },
+            (),
+            FIXTURE.DATABASE_NAME_PREFIX,
+        ),
+        (
+            {
+                "EUROGAS_NEXUS_ENV": "test",
+                "EUROGAS_NEXUS_UAT_FIXTURE_ALLOWED": "1",
+                "RUNTIME_STORE_DATABASE_URL": "mysql://fixture-user:fixture-secret@127.0.0.1/eurogas",
+            },
+            (),
+            "PostgreSQL",
+        ),
+        (
+            {
+                "EUROGAS_NEXUS_ENV": "test",
+                "EUROGAS_NEXUS_UAT_FIXTURE_ALLOWED": "1",
+                "RUNTIME_STORE_DATABASE_URL": "not a database url",
+            },
+            (),
+            "could not be parsed",
+        ),
+        (
+            {
+                "EUROGAS_NEXUS_ENV": "test",
+                "EUROGAS_NEXUS_UAT_FIXTURE_ALLOWED": "1",
+                "RUNTIME_STORE_DATABASE_URL": _url("eurogas_uat_payment_visual"),
+            },
+            ("--unexpected",),
+            "Unexpected command-line arguments",
+        ),
+    ],
+)
+def test_configuration_refusals_return_before_any_database_access(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    env: dict[str, str],
+    arguments: tuple[str, ...],
+    fragment: str,
+) -> None:
+    calls = _forbid_database_access(monkeypatch)
+    _clear_fixture_environment(monkeypatch)
+    for name, value in env.items():
+        monkeypatch.setenv(name, value)
+
+    result = FIXTURE.main(list(arguments))
+
+    captured = capsys.readouterr()
+    text = captured.out + captured.err
+    assert result == FIXTURE.EXIT_CONFIGURATION_REFUSAL
+    assert fragment in text
+    assert calls == []
+    assert "fixture-user" not in text
+    assert "fixture-secret" not in text
+    assert "postgresql://" not in text
+    assert "Traceback" not in text
+
+
+@pytest.mark.parametrize(
+    "driver_error",
+    [
+        ModuleNotFoundError("No module named 'psycopg2'"),
+        NoSuchModuleError("Can't load plugin: sqlalchemy.dialects:postgresql.notadriver"),
+        OperationalError(
+            "BEGIN",
+            {},
+            OSError(
+                "connection failed for postgresql://fixture-user:fixture-secret@127.0.0.1"
+                ":5432/eurogas_uat_payment_visual"
+            ),
+        ),
+    ],
+    ids=["unavailable-driver", "invalid-driver", "connection-failure"],
+)
+def test_engine_and_connection_failures_are_sanitized(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    driver_error: Exception,
+) -> None:
+    _clear_fixture_environment(monkeypatch)
+    monkeypatch.setenv("EUROGAS_NEXUS_ENV", "test")
+    monkeypatch.setenv("EUROGAS_NEXUS_UAT_FIXTURE_ALLOWED", "1")
+    monkeypatch.setenv("RUNTIME_STORE_DATABASE_URL", _url("eurogas_uat_payment_visual"))
+
+    def _raise(**_: Any) -> Any:
+        raise driver_error
+
+    monkeypatch.setattr(FIXTURE, "get_engine", _raise)
+
+    result = FIXTURE.main([])
+
+    captured = capsys.readouterr()
+    text = captured.out + captured.err
+    assert result == FIXTURE.EXIT_DATABASE_FAILURE
+    assert "could not be reached or written" in text
+    assert "fixture-user" not in text
+    assert "fixture-secret" not in text
+    assert "postgresql://" not in text
+    assert "No module named" not in text
+    assert "Can't load plugin" not in text
+    assert "connection failed" not in text
+    assert "Traceback" not in text
+
+
+@pytest.mark.parametrize(
+    "driver_url",
+    [
+        "postgresql+notadriver://fixture-user:fixture-secret@127.0.0.1:5432/eurogas_uat_payment_visual",
+        # Whether or not psycopg2 is installed, this cannot reach a database: an
+        # unavailable DBAPI fails at engine creation and an installed one finds
+        # no server on this port.
+        "postgresql+psycopg2://fixture-user:fixture-secret@127.0.0.1:54329/eurogas_uat_payment_visual",
+    ],
+    ids=["invalid-driver", "unavailable-driver"],
+)
+def test_fixture_reports_driver_failures_without_echoing_url_or_exception(
+    driver_url: str,
+) -> None:
+    result = _run(
+        {
+            "EUROGAS_NEXUS_ENV": "test",
+            "EUROGAS_NEXUS_UAT_FIXTURE_ALLOWED": "1",
+            "RUNTIME_STORE_DATABASE_URL": driver_url,
+        }
+    )
+    output = result.stdout + result.stderr
+    assert result.returncode == 4
+    assert "fixture-user" not in output
+    assert "fixture-secret" not in output
+    assert "postgresql://" not in output
+    assert "No module named" not in output
+    assert "Can't load plugin" not in output
+    assert "Traceback" not in output
+
+
 def test_target_decision_accepts_only_a_prefixed_postgresql_name() -> None:
     assert (
         FIXTURE.database_target_refusal(
@@ -208,14 +465,29 @@ def test_target_decision_accepts_only_a_prefixed_postgresql_name() -> None:
         assert "isolated-host" not in refusal
 
 
-def test_owner_guard_refuses_foreign_records_without_echoing_them() -> None:
-    owned = [fixture.contract_id for fixture in FIXTURE.fixture_contracts()]
-    assert FIXTURE.target_owner_refusal(owned) is None
+def test_owner_guard_accepts_only_the_two_exact_fixture_ids() -> None:
+    owned = sorted(FIXTURE.OWNED_CONTRACT_IDS)
+    assert owned == [
+        "uat-declared-payment-anchored-rules-v1",
+        "uat-declared-payment-explicit-dates-v1",
+    ]
+    assert owned == sorted(fixture.contract_id for fixture in FIXTURE.fixture_contracts())
     assert FIXTURE.target_owner_refusal([]) is None
-    refusal = FIXTURE.target_owner_refusal([*owned, "customer-supply-contract-2025"])
-    assert refusal is not None
-    assert "customer-supply-contract-2025" not in refusal
-    assert "nothing was written" in refusal
+    assert FIXTURE.target_owner_refusal(owned) is None
+    assert FIXTURE.target_owner_refusal([*reversed(owned), *owned]) is None
+
+    for foreign in (
+        # Similar ids that merely share the prefix are foreign, not fixture data.
+        "uat-declared-payment-explicit-dates-v2",
+        "uat-declared-payment-anchored-rules-v1-extra",
+        "uat-declared-payment-",
+        "uat-declared-payment",
+        "customer-supply-contract-2025",
+    ):
+        refusal = FIXTURE.target_owner_refusal([*owned, foreign])
+        assert refusal is not None, foreign
+        assert foreign not in refusal
+        assert "nothing was written" in refusal
 
 
 # --- fixture/domain validity -------------------------------------------------------

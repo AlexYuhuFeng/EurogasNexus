@@ -51,13 +51,21 @@ evidence. Fresh repository evidence may re-order entries with a dated note.
 
 ## Current run
 
-See `docs/engineering/ARCHITECTURE_V2_EXECUTION_STATE.md` for the programme's current state: every
-CR in the ledger above is delivered, and the Architecture V2 waves are complete except the halves
-this environment cannot verify (the native desktop build and the external release items). The
-earlier pointer here named CR-15 / P14 alone, which stopped being true once CR-11 to CR-14 landed;
-`docs/product/SCHEDULED_AGENT_STATE.md` remains the record for that milestone. `M1-P0` (ENTSOG
-timezone normalization) is the one P0 still `ready` rather than `complete`, and
-[PROFESSIONAL_AUDIENCE_REVIEW](PROFESSIONAL_AUDIENCE_REVIEW.md) ranks it first among next steps.
+2026-10-06 correction: the ledger above records historical implementation
+milestones, not whole-product acceptance. It does not prove that all internal
+work is complete. M1-P0 is marked complete in its evidence row; the former
+summary calling it the remaining ready P0 was stale.
+
+Use the [execution checkpoint](../engineering/ARCHITECTURE_V2_EXECUTION_STATE.md)
+for current implementation and verification work, the
+[business acceptance matrix](TRADING_BUSINESS_ACCEPTANCE.md) for required trader
+journeys and coverage gaps, and the
+[pilot blocker register](../release/FIRST_CUSTOMER_PILOT_PLAN.md) for delivery
+gates. Populated payment-schedule visual acceptance, complete commercial
+workflows, native-client validation and external release evidence remain open
+where those records lack verified completion. The product is not approved for
+customer production. `SCHEDULED_AGENT_STATE.md` remains historical evidence,
+not an override of these current gates.
 
 ## Evidence policy
 

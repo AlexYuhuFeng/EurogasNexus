@@ -37,7 +37,10 @@ exercised by this fixture.
 
 Exit code 2 (configuration/usage):
 
-- `EUROGAS_NEXUS_ENV` is `trial` or `release`;
+- `EUROGAS_NEXUS_ENV` is unset, blank, or anything other than `development` or
+  `test` after normalization (surrounding whitespace stripped,
+  case-insensitive) - production, staging, trial, release and arbitrary values
+  are all refused before the database URL is even read;
 - `EUROGAS_NEXUS_UAT_FIXTURE_ALLOWED` is not `1`;
 - `RUNTIME_STORE_DATABASE_URL` is unset - the script never falls back to
   `DATABASE_URL` or `EUROGAS_NEXUS_DB_DSN`, so a default runtime store is never
@@ -52,13 +55,18 @@ Exit code 3 (target refusal, nothing written):
 - the target lacks the reviewed schema (`upstream_resource_contracts`, or its
   `payment_terms_json` carrier) - apply the reviewed migrations to the isolated
   database first; the script never migrates or creates a database;
-- the target already holds any upstream contract record outside this fixture's
-  own `uat-declared-payment-` ids - the contamination guard for shared
-  databases.
+- the target already holds any upstream contract record whose id is not exactly
+  one of the two fixture ids `uat-declared-payment-explicit-dates-v1` /
+  `uat-declared-payment-anchored-rules-v1` - the contamination guard for shared
+  databases. Ownership is the exact ids, not a prefix: an id that merely shares
+  the `uat-declared-payment-` prefix is foreign and refused.
 
-Exit code 4: the isolated database operation or read-back verification failed.
-Rows may already be committed if read-back failed; inspect the isolated target
-before retrying. The message is sanitized and the connection URL is never printed.
+Exit code 4: the isolated database could not be reached or written - engine
+creation, an unavailable or invalid database driver selection, the connection,
+or the read-back verification failed. Rows may already be committed if
+read-back failed; inspect the isolated target before retrying. The message is
+fixed and sanitized: neither the connection URL, credentials, nor exception
+text (including a missing or invalid driver) is printed.
 
 The script prints only the target database *name*, the seeded ids and the
 decoded item counts. It does not create identities, weaken authentication,
@@ -79,18 +87,24 @@ commercial UAT scratch database):
    `scripts/uat/seed_browser_identity.py` (separate gate; this fixture does not
    create principals).
 
+The URL must select a PostgreSQL driver installed in the operator environment
+(the reviewed runtime driver is `pg8000`, so use `postgresql+pg8000://...` when
+that is the installed driver). An unavailable or invalid driver selection is
+refused with the sanitized exit 4 above and never echoes the URL.
+
 Seed:
 
 ```bash
 EUROGAS_NEXUS_ENV=development \
 EUROGAS_NEXUS_UAT_FIXTURE_ALLOWED=1 \
-RUNTIME_STORE_DATABASE_URL=postgresql://<user>@<host>:5432/eurogas_uat_payment_visual_20261006 \
+RUNTIME_STORE_DATABASE_URL=postgresql+pg8000://<user>@<host>:5432/eurogas_uat_payment_visual_20261006 \
 python scripts/uat/seed_declared_payment_uat_fixture.py
 ```
 
-The contamination guard refuses a target that already holds any contract
-outside the fixture's own ids, so run this script before any other seed script
-that inserts contracts into the same database (or give it its own database).
+The contamination guard refuses a target that already holds any contract id
+other than the fixture's two exact ids, so run this script before any other
+seed script that inserts contracts into the same database (or give it its own
+database).
 
 Then start the normal development runtime against the same isolated database
 and open Portfolio > Resources > Terms > Settlement and cash, loading each
@@ -98,13 +112,38 @@ and open Portfolio > Resources > Terms > Settlement and cash, loading each
 
 Cleanup (fixture-scoped; never run against a shared or runtime database):
 
+The preferred cleanup is dropping the whole disposable database, and only after
+independently verifying - outside this fixture - that the target is the isolated
+disposable database created for this fixture and that it holds nothing else of
+value.
+
+If the database must be kept, delete only the fixture's two exact contract ids
+and only rows that reference exactly those ids. The repository fixture path
+writes no revision and no audit rows, so normally only the last statement
+matches; the revision rows reference the contract with `ON DELETE RESTRICT`,
+so they are removed first when they exist:
+
 ```sql
-DELETE FROM upstream_contract_revisions WHERE contract_id LIKE 'uat-declared-payment-%';
-DELETE FROM audit_events WHERE resource LIKE 'upstream_contract:uat-declared-payment-%';
-DELETE FROM upstream_resource_contracts WHERE contract_id LIKE 'uat-declared-payment-%';
+-- Only if another component wrote rows for exactly these fixture ids:
+DELETE FROM upstream_contract_revisions
+ WHERE contract_id IN (
+   'uat-declared-payment-explicit-dates-v1',
+   'uat-declared-payment-anchored-rules-v1'
+ );
+DELETE FROM audit_events
+ WHERE resource IN (
+   'upstream_contract:uat-declared-payment-explicit-dates-v1',
+   'upstream_contract:uat-declared-payment-anchored-rules-v1'
+ );
+DELETE FROM upstream_resource_contracts
+ WHERE contract_id IN (
+   'uat-declared-payment-explicit-dates-v1',
+   'uat-declared-payment-anchored-rules-v1'
+ );
 ```
 
-The simpler and preferred cleanup is dropping the whole disposable database.
+Do not use prefix or `LIKE` deletion against a shared database, and never run
+cleanup against `eurogas_nexus` or the commercial UAT scratch database.
 
 ## 4. Visual acceptance still open
 

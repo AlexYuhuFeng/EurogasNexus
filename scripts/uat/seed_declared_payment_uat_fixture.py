@@ -19,7 +19,10 @@ execution, nomination or settlement.
 
 Isolation and safety (configuration and pre-write target refusals write nothing):
 
-* ``EUROGAS_NEXUS_ENV`` must not be trial/release;
+* ``EUROGAS_NEXUS_ENV`` must be set explicitly to ``development`` or ``test``
+  (normalized: surrounding whitespace stripped, case-insensitive); unset, blank,
+  production, staging, trial, release and any other value are refused before the
+  database URL is even read;
 * ``EUROGAS_NEXUS_UAT_FIXTURE_ALLOWED=1`` must acknowledge synthetic UAT data;
 * ``RUNTIME_STORE_DATABASE_URL`` must be set explicitly - this script never
   falls back to ``DATABASE_URL`` or ``EUROGAS_NEXUS_DB_DSN``, so a developer's
@@ -30,9 +33,15 @@ Isolation and safety (configuration and pre-write target refusals write nothing)
 * the target schema must already carry the reviewed migrations (including the
   ``payment_terms_json`` carrier); the script never migrates and never creates
   a database;
-* the target must hold no upstream contract record outside this fixture's own
-  ``uat-declared-payment-`` ids, so a shared or customer database cannot be
-  contaminated: the guard refuses and writes nothing.
+* ownership is the two exact fixture contract ids: the target must hold no
+  upstream contract record whose id is not exactly one of them, so a shared or
+  customer database cannot be contaminated (an id that merely shares the
+  ``uat-declared-payment-`` prefix is still foreign): the guard refuses and
+  writes nothing.
+
+Engine creation and connection failures - including a selected database driver
+that is unavailable or invalid - are reported with one fixed, sanitized message
+that echoes neither the connection URL, credentials, nor exception text.
 
 The declarations are built with the reviewed domain types and their strict
 canonical serialization, then written through the existing repository fixture
@@ -41,10 +50,10 @@ point), so no payment-term semantics are duplicated here. The script prints only
 the target database *name* (never the URL or credentials) and the seeded ids.
 
 Exit codes: 0 seeded and verified; 2 configuration/usage refusal; 3 target
-refusal (missing reviewed schema, non-fixture records, or a seed that could not
-be verified through the repository read path); 4 the isolated database could
-not be reached or written (sanitized message). Configuration and target guards
-run before any write.
+refusal (missing reviewed schema or non-fixture records); 4 the isolated database could
+not be reached or written, including engine creation, an unavailable or invalid
+driver selection, a failed connection and a failed read-back (sanitized
+message). Configuration and target guards run before any write.
 
 Honest limits: seeded rows are synthetic evidence for visual inspection only.
 EN/ZH parity, desktop/mobile viewports and real-browser rendering remain
@@ -95,14 +104,21 @@ from eurogas_nexus.domain.route_cost.payment_terms import (  # noqa: E402
 #: consulted, so an operator must name the isolated target on purpose.
 DATABASE_URL_ENV = "RUNTIME_STORE_DATABASE_URL"
 
+#: The only environments in which this fixture may ever touch a database, after
+#: normalization (whitespace stripped, lowercased). Everything else - unset,
+#: blank, production, staging, trial, release and arbitrary values - is refused.
+ALLOWED_ENVIRONMENTS = frozenset({"development", "test"})
+
 #: The same acknowledgement the other UAT fixture scripts require.
 ACKNOWLEDGEMENT_ENV = "EUROGAS_NEXUS_UAT_FIXTURE_ALLOWED"
 
-#: Contract ids this fixture owns. The prefix doubles as the contamination
-#: guard: a target holding any other upstream contract is refused.
+#: Contract ids this fixture owns. Ownership is exactly these ids: the guard
+#: refuses a target holding any record that is not one of them, including ids
+#: that merely share the ``uat-declared-payment-`` prefix.
 CONTRACT_ID_PREFIX = "uat-declared-payment-"
 EXPLICIT_CONTRACT_ID = f"{CONTRACT_ID_PREFIX}explicit-dates-v1"
 ANCHORED_CONTRACT_ID = f"{CONTRACT_ID_PREFIX}anchored-rules-v1"
+OWNED_CONTRACT_IDS = frozenset({EXPLICIT_CONTRACT_ID, ANCHORED_CONTRACT_ID})
 
 #: Dedicated test-database name prefix, deliberately distinct from the
 #: commercial UAT scratch database and from the default runtime database.
@@ -365,27 +381,49 @@ def database_target_refusal(database_url: str) -> str | None:
     return None
 
 
+def environment_refusal(environment: str | None) -> str | None:
+    """Refuse every environment except an explicit development/test declaration.
+
+    The value is normalized (surrounding whitespace stripped, lowercased) so
+    ordinary shell spelling variants are accepted, but nothing is assumed: an
+    unset or blank variable, production, staging, trial, release and any
+    arbitrary value are refused before the database URL is read, let alone a
+    connection attempted. A ``None`` return means the environment gate passed.
+    """
+
+    normalized = (environment or "").strip().lower()
+    if normalized in ALLOWED_ENVIRONMENTS:
+        return None
+    return (
+        "Refusing: EUROGAS_NEXUS_ENV must be set explicitly to 'development' or 'test'"
+        f" (normalized); received {normalized!r}. Production, staging, trial, release,"
+        " unset/blank values and anything else are refused. Nothing was written."
+    )
+
+
 def target_owner_refusal(existing_contract_ids: Iterable[str]) -> str | None:
     """Refuse a target that already holds upstream contracts this fixture does not own.
 
-    The count is reported; no stored identifier is echoed, because the guard
-    exists so an operator can decide what to do with their own data rather than
-    have it reinterpreted as fixture data.
+    Ownership is the two exact fixture contract ids, never an id prefix: a
+    stored record with a similar id is treated as foreign. The count is
+    reported; no stored identifier is echoed, because the guard exists so an
+    operator can decide what to do with their own data rather than have it
+    reinterpreted as fixture data.
     """
 
-    foreign_ids = sorted(
+    foreign_count = len(
         {
             contract_id
             for contract_id in existing_contract_ids
-            if not contract_id.startswith(CONTRACT_ID_PREFIX)
+            if contract_id not in OWNED_CONTRACT_IDS
         }
     )
-    if foreign_ids:
+    if foreign_count:
         return (
-            f"Refusing: the target database already holds {len(foreign_ids)} upstream contract"
-            " record(s) that are not this fixture's (they do not carry the"
-            f" {CONTRACT_ID_PREFIX!r} prefix); nothing was written. Point the fixture at its own"
-            " disposable database instead of reusing a shared one."
+            f"Refusing: the target database already holds {foreign_count} upstream contract"
+            " record(s) that are not this fixture's two exact contract ids; nothing was"
+            " written. Point the fixture at its own disposable database instead of reusing a"
+            " shared one."
         )
     return None
 
@@ -485,10 +523,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         return EXIT_CONFIGURATION_REFUSAL
 
-    environment = os.getenv("EUROGAS_NEXUS_ENV", "development").strip().lower()
-    if environment in {"trial", "release"}:
-        print("Declared-payment UAT fixtures are blocked in trial/release environments.")
+    refusal = environment_refusal(os.getenv("EUROGAS_NEXUS_ENV"))
+    if refusal is not None:
+        print(refusal)
         return EXIT_CONFIGURATION_REFUSAL
+
     if os.getenv(ACKNOWLEDGEMENT_ENV, "").strip() != "1":
         print(f"Set {ACKNOWLEDGEMENT_ENV}=1 to acknowledge synthetic declared-payment UAT data.")
         return EXIT_CONFIGURATION_REFUSAL
@@ -505,21 +544,32 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(refusal)
         return EXIT_CONFIGURATION_REFUSAL
 
-    database_name = make_url(database_url).database or ""
-    engine = get_engine(database_url=database_url)
-    session_factory = get_session_factory(engine=engine)
+    engine: Engine | None = None
     try:
+        database_name = make_url(database_url).database or ""
+        engine = get_engine(database_url=database_url)
+        session_factory = get_session_factory(engine=engine)
         return _seed(engine, session_factory, database_name)
-    except SQLAlchemyError:
+    except (SQLAlchemyError, ImportError):
+        # Expected operator/configuration failure classes only. SQLAlchemyError
+        # covers engine creation, unavailable databases, connection and
+        # read-back failures, and an invalid driver selection
+        # (``NoSuchModuleError``); ImportError/ModuleNotFoundError covers a
+        # selected DBAPI driver that is not installed, which the engine imports
+        # during creation. Programming defects keep propagating. The message is
+        # fixed: neither the URL, a credential, nor any exception text is echoed.
         print(
-            "The isolated database operation failed. Rows may have been committed before"
-            " read-back failed; inspect the isolated target before retrying. Check its migrations"
-            " and that its credentials are correct. The connection URL is never printed.",
+            "The isolated database could not be reached or written: engine creation, the"
+            " connection, or the read-back verification failed. Check that the selected database"
+            " driver is installed and that the isolated target is reachable and migrated. Rows"
+            " may have been committed before read-back failed; inspect the isolated target before"
+            " retrying. The connection URL is never printed.",
             file=sys.stderr,
         )
         return EXIT_DATABASE_FAILURE
     finally:
-        engine.dispose()
+        if engine is not None:
+            engine.dispose()
 
 
 if __name__ == "__main__":
