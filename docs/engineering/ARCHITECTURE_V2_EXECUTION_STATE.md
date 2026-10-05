@@ -5,6 +5,28 @@ Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical sli
 
 ## Current work
 
+### Client lock license gate (2026-10-06)
+
+Baseline `e7a0d2f` passed CI run `37358375534`; prior turn made progress on
+Python license metadata detection. DeepSeek added repeatable `--npm-lock`
+mode to the existing audit, reusing the SBOM npm inventory reader and restricted
+term policy. Both exact client locks are now audited in CI dependency-audit
+and release dependency-scan before its evidence upload; release assembly already
+requires that job. Missing/malformed locks, missing or non-string declarations,
+restricted terms and file-only references fail. Parent additionally rejected
+unknown placeholders and custom LicenseRef references, with six regressions.
+No licence exceptions, dependencies or application behavior changed.
+
+Independent verification: 115 audit/SBOM tests passed; Ruff and actual both-lock
+command passed (98 third-party entries, two project roots excluded). Coverage
+includes dev/optional lock entries and is not shipped-artifact proof. Python
+unknown-license behavior is unchanged. Rust, vendored/native/container packages,
+full license texts and customer-artifact notice review remain open. Do not
+interpret a clean metadata gate as commercial or redistribution clearance.
+Populated-payment browser acceptance remains open under the earlier launch
+restriction. Next: artifact-specific Rust/license-text evidence and release
+notice delivery, while preserving all business acceptance gates.
+
 ### Python license-audit metadata coverage (2026-10-06)
 
 Baseline `69d1b2d` passed CI run `37356928297`; previous turn made progress

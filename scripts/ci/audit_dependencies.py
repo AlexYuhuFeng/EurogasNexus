@@ -1,9 +1,23 @@
 """Offline dependency license audit against docs/policies/DEPENDENCY_POLICY.md.
 
-Scans an installed Python site-packages directory (default ``.deps``) by
-reading each ``*.dist-info/METADATA`` with the standard library email parser,
-and fails closed on license text matching the restricted set (GPL-family,
-SSPL, BUSL, Elastic, Redis-RSAL, Commons-Clause, PolyForm).
+Python mode (default / positional argument) scans an installed Python
+site-packages directory (default ``.deps``) by reading each
+``*.dist-info/METADATA`` with the standard library email parser, and fails
+closed on license text matching the restricted set (GPL-family, SSPL, BUSL,
+Elastic, Redis-RSAL, Commons-Clause, PolyForm).
+
+npm mode (``--npm-lock PATH``, repeatable) audits the exact npm
+``package-lock.json`` files named on the command line with the shared
+structured lock inventory reader from ``scripts.release.generate_sboms``: the
+reader's package identity, nesting/scoping and workspace-link exclusion
+behaviour is reused, not re-implemented. Every inventory entry must carry a
+non-blank string license that is not ``UNLICENSED``, is not a file-only
+reference such as ``SEE LICENSE IN ...``, and contains no restricted term
+anywhere -- an ``OR``/``WITH`` expression is never approved because one branch
+is permissive. The npm inventory covers the whole lock file, dev and optional
+entries included: that is conservative lock coverage, not shipped-artifact
+proof, and only the named lock files are read (never an installed
+``node_modules``).
 
 Per the Core Metadata specification, a ``License-Expression`` header replaces
 the legacy ``License`` header and takes precedence when both are present; every
@@ -12,15 +26,19 @@ or repeated headers follow email/RFC 5322 rules instead of ad-hoc line
 parsing.
 
 This is a review-required detection, not a legal determination: a clean result
-means "no restricted license terms were detected in the scanned Python
-metadata", not a commercial clearance. It does not read full license texts and
-does not cover Node or Rust dependencies; see the dependency policy for the
-scope and its outstanding limitations. Unknown licenses are listed for review;
-missing, unreadable or malformed metadata -- including a target with no
-distribution metadata at all -- fails closed, because nothing was audited.
+means "no restricted license terms were detected in the scanned metadata",
+not a commercial clearance. It does not read full license texts and does not
+cover Rust dependencies or artifact redistribution; see the dependency policy
+for the scope and its outstanding limitations. Unknown Python licenses are
+listed for review; missing, unreadable or malformed Python metadata -- including
+a target with no distribution metadata at all -- fails closed, because nothing
+was audited. An npm lock the shared reader cannot fully inventory also fails
+closed, and neither mode interprets SPDX ``OR``/``WITH`` expressions legally.
 
 Usage:
     python scripts/ci/audit_dependencies.py [site_packages_dir]
+    python scripts/ci/audit_dependencies.py --npm-lock clients/web/package-lock.json \
+        --npm-lock clients/desktop/package-lock.json
 """
 
 from __future__ import annotations
@@ -28,6 +46,7 @@ from __future__ import annotations
 import email
 import email.errors
 import email.policy
+import re
 import sys
 from pathlib import Path
 
@@ -59,6 +78,17 @@ FORBIDDEN_CLASSIFIER_TERMS = (
 LICENSE_CLASSIFIER_PREFIX = "License ::"
 LICENSE_EXPRESSION_HEADER = "License-Expression"
 LEGACY_LICENSE_HEADER = "License"
+
+NPM_LOCK_FLAG = "--npm-lock"
+
+#: License values that name a file instead of an expression. ``SEE LICENSE IN``
+#: is caught separately (it can carry any file name); this pattern catches bare
+#: license-file references such as ``LICENSE``, ``./LICENSE.md``,
+#: ``docs/COPYING`` or ``NOTICE.txt``.
+_NPM_FILE_REFERENCE_RE = re.compile(
+    r"(?:[A-Za-z0-9._-]+/)*(?:licen[cs]e|copying|notice)(?:[._-][A-Za-z0-9._-]+)*",
+    re.IGNORECASE,
+)
 
 
 def _dist_info_dirs(site_packages: Path) -> list[Path]:
@@ -183,8 +213,8 @@ def audit(site_packages: Path) -> int:
 
     print(f"Audited {len(ok) + len(unknowns) + len(violations) + len(problems)} packages")
     print(
-        "Scope: installed Python dist-info metadata only; Node, Rust and full "
-        "license text review are not covered."
+        "Scope: installed Python dist-info metadata only; this scan does not cover "
+        "npm locks (use --npm-lock), Rust or full license texts."
     )
     if unknowns:
         print("UNKNOWN LICENSE (requires review; not a clearance):")
@@ -207,10 +237,160 @@ def audit(site_packages: Path) -> int:
     return 0
 
 
+def _npm_license_problem(value: object) -> str | None:
+    """Return a fail-closed reason for one npm license value, or None.
+
+    Reasons cover missing, blank and non-string values, the explicit
+    ``UNLICENSED`` marker, file-only references pending review, and restricted
+    terms anywhere in the expression -- including inside an ``OR``/``WITH``
+    combination, which is never approved because one branch is permissive.
+    """
+
+    if value is None:
+        return "missing 'license' value"
+    if not isinstance(value, str):
+        return f"non-string 'license' value ({type(value).__name__})"
+    expression = value.strip()
+    if not expression:
+        return "blank 'license' value"
+    lowered = expression.casefold()
+    if lowered in {"unknown", "none", "noassertion", "n/a"} or "licenseref-" in lowered:
+        return "unreviewed license placeholder or custom license reference"
+    if lowered == "unlicensed":
+        return "explicit UNLICENSED (npm private-package marker)"
+    if lowered.startswith("see license in") or _NPM_FILE_REFERENCE_RE.fullmatch(expression):
+        return f"file-only license reference {expression!r} (pending review)"
+    hit = _forbidden_hit(expression, FORBIDDEN_LICENSE_TERMS) or _forbidden_hit(
+        expression, FORBIDDEN_CLASSIFIER_TERMS
+    )
+    if hit is not None:
+        return f"restricted term {hit!r} in {expression!r}"
+    return None
+
+
+def audit_npm_locks(lock_paths: list[Path]) -> int:
+    """Audit npm ``package-lock.json`` licenses with the shared lock reader.
+
+    Each named lock is parsed by ``scripts.release.generate_sboms.npm_packages``
+    so package identity, nested/scoped resolution and workspace
+    (``link: true``) exclusions keep their single implementation; missing,
+    malformed, empty or uninventoriable locks fail closed through that reader.
+    Every remaining inventory entry, dev and optional entries included, must
+    pass the strict license gate in :func:`_npm_license_problem`.
+
+    Returns:
+        Exit code: 0 when every third-party entry in every given lock carries a
+        non-restricted, non-file-reference string license, 1 when any lock
+        could not be inventoried or any entry fails the npm license gate.
+    """
+
+    # Imported here so the Python metadata audit stays dependency-light and a
+    # broken lock-tooling import cannot change the Python-mode behaviour. The
+    # repository root goes on sys.path because running this file as a script
+    # puts only ``scripts/ci`` there, unlike ``-m`` or pytest.
+    repository_root = Path(__file__).resolve().parents[2]
+    if str(repository_root) not in sys.path:
+        sys.path.insert(0, str(repository_root))
+    from scripts.release.generate_sboms import SbomInputError, npm_packages
+
+    if not lock_paths:
+        print("No npm lock paths given.")
+        print("Refusing to report a clean audit: nothing was audited.")
+        return 1
+
+    problems: list[str] = []
+    violations: list[str] = []
+    ok: list[str] = []
+    excluded = 0
+    inventoried = 0
+    for lock_path in lock_paths:
+        try:
+            inventory = npm_packages(lock_path)
+        except SbomInputError as error:
+            problems.extend(f"{lock_path}: {message}" for message in error.errors)
+            continue
+        inventoried += 1
+        excluded += len(inventory.excluded)
+        for item in inventory.packages:
+            identity = f"{item['name']}@{item['version']}"
+            problem = _npm_license_problem(item.get("license"))
+            if problem is None:
+                ok.append(f"{lock_path}: {identity}: {item['license']}")
+            else:
+                violations.append(f"{lock_path}: {identity}: {problem}")
+
+    print(
+        f"Audited {len(ok) + len(violations)} npm third-party package entries "
+        f"from {inventoried} of {len(lock_paths)} lock file(s)."
+    )
+    print(
+        f"Excluded {excluded} non-third-party lock entries (workspace links and "
+        "this repository's own project packages) per the shared inventory reader."
+    )
+    print(
+        "Scope: package-lock.json inventories for exactly the given lock files, "
+        "including dev and optional entries and every nested or scoped duplicate. "
+        "This is conservative lock coverage, not a shipped-artifact proof, and it "
+        "reads lock-declared expressions only: no full license texts, no SPDX "
+        "legal interpretation of OR/WITH and no redistribution clearance."
+    )
+    if problems:
+        print("LOCK PROBLEMS (fail-closed; these locks were not audited):")
+        print("  " + "\n  ".join(sorted(problems)))
+    if violations:
+        print(
+            "NPM LICENSE PROBLEMS (fail-closed; review-required detection, not a "
+            "legal determination):"
+        )
+        print("  " + "\n  ".join(sorted(violations)))
+    if problems or violations:
+        return 1
+    print(
+        "npm license policy: OK (no restricted, missing, UNLICENSED or file-only "
+        "license values detected in the scanned lock inventories; conservative "
+        "lock coverage, not a commercial or redistribution clearance)"
+    )
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
-    """CLI entry point for the dependency audit."""
+    """CLI entry point for the dependency audit.
+
+    ``main(["site-packages-dir"])`` keeps the original Python metadata audit,
+    including its default of ``.deps``. ``main(["--npm-lock", path, ...])``
+    switches to the npm lock audit for the exact lock files given; combining
+    the two forms is refused instead of guessing which audit was meant.
+    """
     args = list(argv) if argv is not None else sys.argv[1:]
-    target = args[0] if args else ".deps"
+    npm_locks: list[Path] = []
+    positional: list[str] = []
+    index = 0
+    while index < len(args):
+        argument = args[index]
+        if argument == NPM_LOCK_FLAG:
+            if index + 1 >= len(args) or not args[index + 1].strip():
+                print(f"{NPM_LOCK_FLAG} requires a lock path argument")
+                return 2
+            npm_locks.append(Path(args[index + 1]))
+            index += 2
+        elif argument.startswith(f"{NPM_LOCK_FLAG}="):
+            value = argument.split("=", 1)[1]
+            if not value.strip():
+                print(f"{NPM_LOCK_FLAG} requires a lock path argument")
+                return 2
+            npm_locks.append(Path(value))
+            index += 1
+        else:
+            positional.append(argument)
+            index += 1
+
+    if npm_locks:
+        if positional:
+            print("choose either a site-packages directory or --npm-lock paths, not both")
+            return 2
+        return audit_npm_locks(npm_locks)
+
+    target = positional[0] if positional else ".deps"
     site_packages = Path(target)
     if not site_packages.is_dir():
         print(f"site-packages directory not found: {site_packages}")

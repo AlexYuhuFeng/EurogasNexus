@@ -76,6 +76,12 @@ jobs:
       - name: License policy audit (fail-closed)
         run: python scripts/ci/audit_dependencies.py "$(python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')"
 
+      - name: Node license policy audit (both client locks, fail-closed)
+        # Audits exactly the checked-in lock files through the shared structured
+        # lock inventory reader; dev/optional entries included, so this is
+        # conservative lock coverage rather than shipped-artifact proof.
+        run: python scripts/ci/audit_dependencies.py --npm-lock clients/web/package-lock.json --npm-lock clients/desktop/package-lock.json
+
       - name: CVE audit (pip-audit)
         run: python -m pip_audit
 
