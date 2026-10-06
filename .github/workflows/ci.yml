@@ -96,6 +96,58 @@ jobs:
       - name: Rust license policy audit (desktop crate graph, fail-closed)
         run: python scripts/ci/audit_dependencies.py --cargo-lock clients/desktop/src-tauri/Cargo.lock
 
+  python-license-texts:
+    name: Python license text evidence (runtime lock)
+    # Runs in the ordinary main-branch CI run and uploads review evidence without
+    # adding a requirement to the release acceptance gate (ci_acceptance in
+    # scripts/release/policy/stable_gate_policy.json): the artifact is review
+    # evidence, not legal approval or a customer package certification. Promoting
+    # it into that gate is a deliberate release-policy edit (add the job name to
+    # required_jobs and drop this condition), never an automatic consequence.
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.11.12"
+
+      - name: Install the runtime lock into an isolated venv
+        # Only requirements-runtime.lock is installed, hash-checked, into a throwaway
+        # venv: the collected texts must come from exactly those locked distributions,
+        # never from the runner's or a developer's environment.
+        run: |
+          python -m venv "$RUNNER_TEMP/python-license-venv"
+          "$RUNNER_TEMP/python-license-venv/bin/python" -m pip install --require-hashes -r requirements-runtime.lock
+
+      - name: Collect license/notice texts from the locked venv
+        # The collector exits non-zero when any locked package yields no usable text
+        # evidence. That is a finding and must fail this job rather than be masked;
+        # the manifest and any partial texts are still written for review.
+        run: |
+          venv_purelib="$("$RUNNER_TEMP/python-license-venv/bin/python" -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')"
+          python scripts/release/collect_python_license_texts.py \
+            --site-packages "$venv_purelib" \
+            --output-dir artifacts/python-license-texts \
+            --runtime-lock requirements-runtime.lock
+
+      - name: Upload Python license text evidence
+        # Runs even when collection failed so the incomplete manifest and partial
+        # texts remain available; a missing report is an upload error. The artifact
+        # is review evidence, not legal approval and not a customer package
+        # certification, and release publishing does not consume it.
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: eurogas-nexus-python-license-texts
+          path: artifacts/python-license-texts
+          if-no-files-found: error
+          retention-days: 7
+
   integration-postgres:
     name: PostgreSQL integration
     runs-on: ubuntu-latest

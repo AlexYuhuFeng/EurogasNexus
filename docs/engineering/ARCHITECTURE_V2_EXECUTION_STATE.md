@@ -5,6 +5,26 @@ Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical sli
 
 ## Current work
 
+### Isolated runtime license evidence in CI (2026-10-06)
+
+Verified baseline 68b3365 and fetched origin. CI 37396728223 passed validate,
+browser acceptance, PostgreSQL integration and web build. Dependency audit
+failed only on the existing r-efi 5.3.0/6.0.0 declared-license findings; no
+waiver or legal determination was made.
+
+DeepSeek added an independent main-push CI evidence job: hash-install the
+runtime lock in a throwaway venv, collect texts against its exact purelib,
+and upload even incomplete reports without masking failure. Existing pinned
+actions are reused. Release publishing and required acceptance jobs are
+unchanged; evidence collection is not redistribution clearance.
+
+Parent reviewed workflow, tests and docs; 38 focused tests passed with two
+Windows symlink-privilege skips, and focused Ruff passed. Live runner evidence
+for this new job remains pending. Next: inspect its uploaded manifest, review
+remaining license findings, then integrate verified notice evidence into
+customer artifacts. Business, populated-screen and native-delivery gates
+remain open; no commercial approval is asserted.
+
 ### Live Rust findings and Python notice evidence (2026-10-06)
 
 Previous turn was progress plus a verified wait. Run `37363927598` has now

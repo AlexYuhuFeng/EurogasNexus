@@ -7,6 +7,12 @@ duplicate and version-mismatched distributions, missing/malformed
 METADATA/RECORD, non-overwrite of the output directory, exact copied
 bytes/hashes and deterministic manifests. They are not installed/locked
 coverage on the release runner and not legal clearance.
+
+The final section pins the ordinary-CI wiring structurally: an independent
+``python-license-texts`` job installs only the hash-pinned runtime lock into a
+throwaway venv, collects against that venv's purelib and always uploads the
+report and texts, failing on missing evidence rather than masking it. The
+artifact remains review evidence, never legal approval or release publishing.
 """
 
 from __future__ import annotations
@@ -14,17 +20,31 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
+import yaml
 
 from scripts.release.collect_python_license_texts import _license_basename_matches, collect, main
 
 DIGEST = "0" * 64
 FIXED_NOW = datetime(2026, 10, 6, 12, 0, 0, tzinfo=UTC)
+ROOT = Path(__file__).resolve().parents[2]
+WORKFLOWS = ROOT / ".github" / "workflows"
+
+COLLECTOR_SCRIPT = "scripts/release/collect_python_license_texts.py"
+RUNTIME_LOCK_INSTALL = "--require-hashes -r requirements-runtime.lock"
+EVIDENCE_JOB = "python-license-texts"
+EVIDENCE_VENV = "$RUNNER_TEMP/python-license-venv"
+EVIDENCE_OUTPUT_DIR = "artifacts/python-license-texts"
+EVIDENCE_ARTIFACT_NAME = "eurogas-nexus-python-license-texts"
+
+JOB_HEADER_RE = re.compile(r"^  ([a-z0-9][a-z0-9-]*):$", re.MULTILINE)
+ACTION_PIN_RE = re.compile(r"^[a-z0-9-]+/[a-z0-9-]+@[0-9a-f]{40}$")
 
 
 @pytest.mark.parametrize(
@@ -709,3 +729,152 @@ def test_cli_runs_complete_fixture(tmp_path) -> None:
 
     assert code == 0
     assert read_manifest(output)["status"] == "complete"
+
+
+def _workflow(name: str) -> dict:
+    payload = yaml.safe_load((WORKFLOWS / name).read_text(encoding="utf-8"))
+    assert isinstance(payload, dict), name
+    return payload
+
+
+def _job_section(workflow: str, job: str) -> str:
+    text = (WORKFLOWS / workflow).read_text(encoding="utf-8")
+    headers = list(JOB_HEADER_RE.finditer(text))
+    for index, header in enumerate(headers):
+        if header.group(1) == job:
+            end = headers[index + 1].start() if index + 1 < len(headers) else len(text)
+            return text[header.start() : end]
+    raise AssertionError(f"job {job!r} not found in {workflow}")
+
+
+def _step(workflow: str, job: str, name: str) -> dict:
+    for step in _workflow(workflow)["jobs"][job]["steps"]:
+        if step.get("name") == name:
+            return step
+    raise AssertionError(f"step {name!r} not found in {workflow}:{job}")
+
+
+def test_ci_python_license_text_job_is_independent_and_reuses_pinned_actions() -> None:
+    payload = _workflow("ci.yml")
+    assert EVIDENCE_JOB in payload["jobs"]
+    job = payload["jobs"][EVIDENCE_JOB]
+
+    assert job["runs-on"] == "ubuntu-latest"
+    # Independent evidence job: it runs on its own and cannot mask another job's
+    # failure (or be masked by one) through needs/continue-on-error.
+    assert "needs" not in job
+    assert "continue-on-error" not in job
+    # Event-conditional on purpose: the review-evidence artifact must not alter
+    # the release acceptance required-job set (ci_acceptance in
+    # scripts/release/policy/stable_gate_policy.json), so the job stays out of
+    # the always-run set that the release gate requires.
+    assert job["if"] == "github.event_name == 'push'"
+
+    pinned: dict[str, str] = {}
+    for other in payload["jobs"].values():
+        for step in other.get("steps", []):
+            uses = step.get("uses")
+            if uses:
+                action = uses.split("@", 1)[0]
+                assert pinned.setdefault(action, uses) == uses, action
+
+    job_actions = {
+        step["uses"].split("@", 1)[0]: step["uses"]
+        for step in job["steps"]
+        if "uses" in step
+    }
+    # No new third-party action is introduced: the job reuses the repository's
+    # existing pinned checkout/setup/upload actions at the same SHAs.
+    assert set(job_actions) == {
+        "actions/checkout",
+        "actions/setup-python",
+        "actions/upload-artifact",
+    }
+    for action, uses in job_actions.items():
+        assert uses == pinned[action], action
+        assert ACTION_PIN_RE.match(uses), uses
+
+    assert _step("ci.yml", EVIDENCE_JOB, "Set up Python")["with"]["python-version"] == "3.11.12"
+
+
+def test_ci_python_license_text_job_installs_only_the_hash_checked_runtime_lock() -> None:
+    section = _job_section("ci.yml", EVIDENCE_JOB)
+    install = _step("ci.yml", EVIDENCE_JOB, "Install the runtime lock into an isolated venv")
+    command = install["run"]
+
+    assert f'python -m venv "{EVIDENCE_VENV}"' in command
+    assert f'"{EVIDENCE_VENV}/bin/python" -m pip install {RUNTIME_LOCK_INSTALL}' in command
+
+    # Exactly one install, into the throwaway venv, from the runtime lock alone:
+    # no dev extras, no build/dev locks and no global tooling as evidence.
+    assert section.count("-m pip install") == 1
+    for forbidden in (
+        '".[dev]"',
+        "-e .",
+        "requirements.lock",
+        "requirements-build.lock",
+        "pip_audit",
+        "pip-audit",
+        "pytest",
+        "ruff",
+        "npm",
+        "playwright",
+    ):
+        assert forbidden not in section, forbidden
+
+
+def test_ci_python_license_text_evidence_uses_the_locked_venv_purelib_and_fresh_output() -> None:
+    collect = _step(
+        "ci.yml", EVIDENCE_JOB, "Collect license/notice texts from the locked venv"
+    )
+    command = collect["run"]
+
+    assert 'print(sysconfig.get_paths()["purelib"])' in command
+    assert f'"{EVIDENCE_VENV}/bin/python" -c' in command
+    assert '--site-packages "$venv_purelib"' in command
+    assert f"--output-dir {EVIDENCE_OUTPUT_DIR}" in command
+    assert "--runtime-lock requirements-runtime.lock" in command
+    assert command.count(COLLECTOR_SCRIPT) == 1
+    # The collector runs under the pinned setup-python interpreter and scans the
+    # venv; the runner's own site-packages is never the evidence source.
+    lines = [line.strip() for line in command.splitlines()]
+    assert f"python {COLLECTOR_SCRIPT} \\" in lines
+
+    # The collector refuses an existing output directory, so the evidence
+    # directory may only be mentioned by the collection step and the upload.
+    section = _job_section("ci.yml", EVIDENCE_JOB)
+    assert section.count(EVIDENCE_OUTPUT_DIR) == 2
+    assert section.index(EVIDENCE_OUTPUT_DIR) > section.index(
+        "Collect license/notice texts from the locked venv"
+    )
+
+
+def test_ci_python_license_text_upload_always_runs_and_missing_files_fail() -> None:
+    upload = _step("ci.yml", EVIDENCE_JOB, "Upload Python license text evidence")
+
+    # An incomplete collection also uploads its manifest/partial texts, and a
+    # missing report is an upload error: evidence cannot silently disappear.
+    assert upload["if"] == "always()"
+    assert upload["with"]["name"] == EVIDENCE_ARTIFACT_NAME
+    assert upload["with"]["path"] == EVIDENCE_OUTPUT_DIR
+    assert upload["with"]["if-no-files-found"] == "error"
+
+    section = _job_section("ci.yml", EVIDENCE_JOB)
+    assert section.index("Upload Python license text evidence") > section.index(
+        "Collect license/notice texts from the locked venv"
+    )
+    assert "continue-on-error" not in section
+
+
+def test_ci_python_license_text_artifact_is_not_wired_into_release_publishing() -> None:
+    release = (WORKFLOWS / "release.yml").read_text(encoding="utf-8")
+
+    assert COLLECTOR_SCRIPT not in release
+    assert EVIDENCE_ARTIFACT_NAME not in release
+    assert EVIDENCE_OUTPUT_DIR not in release
+
+
+def test_ci_python_license_text_evidence_inputs_exist() -> None:
+    assert (ROOT / "requirements-runtime.lock").is_file()
+    assert (ROOT / COLLECTOR_SCRIPT).is_file()
+    assert EVIDENCE_JOB in _workflow("ci.yml")["jobs"]

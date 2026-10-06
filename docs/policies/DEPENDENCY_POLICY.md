@@ -187,7 +187,7 @@ Coverage and its limits:
 
 Metadata reference: [cargo metadata](https://doc.rust-lang.org/stable/cargo/commands/cargo-metadata.html).
 
-### Python license text collection (installed evidence, not wired into releases)
+### Python license text collection (CI review evidence, not release publishing)
 
 `python scripts/release/collect_python_license_texts.py --site-packages <dir>
 --output-dir <new-dir> [--runtime-lock requirements-runtime.lock]` collects the
@@ -218,9 +218,26 @@ Limits: this is technical evidence collection, not legal clearance or a
 redistribution review. It does not interpret license terms, verify that a
 copied text is complete or authoritative, or cover packages outside the
 runtime lock, the build/test toolchain, vendored source, native/installer
-binaries or container contents. It is deliberately not invoked by CI or the
-release workflow until installed/locked coverage has been verified on the
-release runner.
+binaries or container contents.
+
+Ordinary CI has an independent `python-license-texts` job in
+`.github/workflows/ci.yml`, run on main-branch pushes, that executes the
+collector without installing the project or any dev tooling: it creates a
+throwaway virtual environment, installs **only** the hash-pinned
+`requirements-runtime.lock` into it with `--require-hashes`, and collects
+texts against that environment's `purelib` into a fresh
+`artifacts/python-license-texts` directory, so the evidence cannot come from
+the runner's or a developer's environment. A run that cannot produce a text
+for every locked package fails the job and is not masked; the `manifest.json`
+and any partial texts are still uploaded as the
+`eurogas-nexus-python-license-texts` workflow artifact, and a missing report
+is an upload error. That artifact is review evidence only: it is not legal
+approval and not a certification of any customer package, the job is
+deliberately not part of the release acceptance required jobs, and the
+release workflow does not invoke the collector or consume the artifact. CI
+collection of the runtime-lock texts does not replace the outstanding
+artifact-level redistribution review of bundled `LICENSE`/`NOTICE` files and
+of non-Python/native/container components.
 
 What the audits do not cover, and therefore cannot clear:
 
@@ -238,8 +255,8 @@ What the audits do not cover, and therefore cannot clear:
 
 Until the Rust full license texts and the artifact-level redistribution
 review have been completed, a clean audit result (including the npm and cargo
-declared-license gates) must not be reported as full delivery license
-compliance.
+declared-license gates and the CI runtime-lock text collection) must not be
+reported as full delivery license compliance.
 
 ## Review Requirements
 

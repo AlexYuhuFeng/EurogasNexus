@@ -41,8 +41,12 @@ This is technical evidence collection, not legal clearance: it does not
 determine license obligations, does not prove the copied texts are complete or
 authoritative, and does not cover packages outside the runtime lock,
 vendored/native/OS/container components or build/test-only Python tooling.
-Release publishing is intentionally not wired to this utility until installed/
-locked coverage has been verified on the release runner.
+Ordinary CI runs this collector on main-branch pushes as an independent
+review-evidence job against a hash-installed runtime-lock venv (see
+``.github/workflows/ci.yml``); an incomplete collection fails that job and
+still uploads the manifest and any partial texts. Release publishing is
+intentionally not wired to this utility until installed/locked coverage has
+been verified on the release runner.
 
 Usage:
     python scripts/release/collect_python_license_texts.py \
