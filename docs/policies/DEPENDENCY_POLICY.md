@@ -256,6 +256,21 @@ this delivery. This remains technical evidence inside the artifact, not legal
 clearance: it does not cover the container's OS packages, native components,
 Node/Rust dependency texts or any redistribution conclusion.
 
+The delivered evidence is re-verified by
+`scripts/release/verify_python_license_texts.py` in the release
+`container-acceptance` job before the G19 PASS envelope is written: the
+verifier executes inside the immutable `IMAGE@DIGEST` on linux/amd64 with
+`docker run --rm --network none` under the image's own default non-root user,
+re-derives the locked name/version inventory with the same shared structured
+lock reader, and requires a complete manifest, the exact shipped
+`requirements-runtime.lock` digest, one `collected` entry per locked package
+with no recorded problems, consistent counts, safe relative destinations with
+no symlink/junction escapes and matching bytes/hash/size for every delivered
+file with no unrecorded files. Tampered, incomplete, extra or missing evidence
+fails the job, and the check never waives a license finding. The multi-arch
+index is still inspected for amd64 and arm64 presence, but only the amd64
+image is executed; no arm64 execution is claimed.
+
 What the audits do not cover, and therefore cannot clear:
 
 - Rust/crate dependencies beyond the declared-license metadata of the desktop

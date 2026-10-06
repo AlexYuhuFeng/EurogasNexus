@@ -23,7 +23,7 @@ Enforcement: `python scripts/release/validate_stable_release.py`.
 | G16 Commercial provider certification | licensed provider live acceptance | yes | PENDING_EXTERNAL |
 | G17 Code signing | Authenticode-verified Windows installer | yes | PENDING_EXTERNAL |
 | G18 UAT | real trader/user acceptance | yes | PENDING_EXTERNAL |
-| G19 Container acceptance | immutable image digest inspected (amd64 + arm64) | RC/stable | digest-bound envelope written by the release `container-acceptance` job; not yet exercised by a release run |
+| G19 Container acceptance | immutable image digest inspected (amd64 + arm64 entries); delivered Python notice evidence executed and verified inside the amd64 image (arm64 entries are not executed) | RC/stable | digest-bound envelope written by the release `container-acceptance` job only after the in-image notice verification passes; not yet exercised by a release run |
 
 The state column above is a historical CR-12/CR-13 slice, not current
 disposition; the first-customer pilot plan is the current register.

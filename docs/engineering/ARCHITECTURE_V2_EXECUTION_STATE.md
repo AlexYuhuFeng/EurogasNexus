@@ -5,6 +5,26 @@ Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical sli
 
 ## Current work
 
+### Delivered notice integrity acceptance (2026-10-06)
+
+Previous turn made progress: cc16f55 delivered Python texts in the API image.
+DeepSeek added a read-only verifier using the shared lock inventory and path
+helpers. It checks exact package coverage, lock digest, complete status,
+counts, safe recorded paths, file hashes/sizes and unrecorded files. Release
+container acceptance executes it in IMAGE@DIGEST with network disabled on
+amd64 before writing G19 PASS. Evidence explicitly distinguishes arm64 manifest
+presence from executed amd64 validation; no arm64 execution is claimed.
+
+Parent reviewed code/workflow and independently ran 16 focused tests (one
+Windows privilege skip), Ruff and diff checks. Rebuilt the local image and
+executed its verifier as the image's default user with --network none:
+30 locked packages and 34 files verified. Local image manifest list digest:
+sha256:f12a2b819f896459f59c67f8536fc323b07065938f3e5c7b9b11bc5c9a543a28.
+No image was published and no running service changed. Remote release-job
+execution is pending. This does not waive r-efi findings or establish legal
+clearance; non-Python notices, native/multi-platform delivery and business/HMI
+acceptance remain incomplete.
+
 ### Python notices delivered in API image (2026-10-06)
 
 Previous turn made progress by verifying runner collection. DeepSeek now wired

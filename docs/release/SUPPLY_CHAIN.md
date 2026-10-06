@@ -69,6 +69,22 @@ native binaries, Node/Rust dependency texts or the artifact-level
 redistribution review, and it changes no release gate or publishing
 behaviour. It is not legal clearance.
 
+The release `container-acceptance` job executes
+`scripts/release/verify_python_license_texts.py` inside the immutable
+`IMAGE@DIGEST` (linux/amd64, `docker run --rm --network none`, the image's own
+default non-root user) before the G19 PASS envelope is written. The verifier
+is read-only, uses no network and prints no secrets: it re-reads the delivered
+manifest, re-derives the locked package name/version inventory with the same
+shared structured lock reader as the collector, and requires a complete
+manifest, the exact shipped `requirements-runtime.lock` digest, one
+`collected` entry per locked package with no recorded problems, consistent
+counts, safe relative `texts/` destinations with no symlink/junction escapes
+and matching bytes/hash/size for every delivered file with no extra or missing
+files. Any mismatch fails the job and blocks the G19 PASS; the check makes no
+legal-clearance claim and waives no license finding. The multi-arch index is
+inspected for amd64 and arm64 presence, but only the amd64 image contents are
+executed, so no arm64 execution is claimed.
+
 ## Checksums
 
 `SHA256SUMS` is generated **after** final signing/packaging and covers every

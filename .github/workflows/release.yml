@@ -882,16 +882,38 @@ jobs:
       - name: Inspect immutable digest and platforms
         shell: bash
         run: |
-          ENVIRONMENT="github-actions/$(printf '%s/%s' "$RUNNER_OS" "$RUNNER_ARCH" | tr '[:upper:]' '[:lower:]')"
           IMAGE=$(python -c "import json; print(json.load(open('image-metadata/image-metadata.json'))['image'])")
           DIGEST=$(python -c "import json; print(json.load(open('image-metadata/image-metadata.json'))['digest'])")
           docker buildx imagetools inspect "$IMAGE@$DIGEST" > inspect.txt
           grep -q 'linux/amd64' inspect.txt
           grep -q 'linux/arm64' inspect.txt
+
+      - name: Execute notice verification in the immutable amd64 image
+        # The delivered Python license/notice evidence is verified by running
+        # the verifier that ships inside the very image the digest identifies:
+        # no network, no mounts, and the image's own default non-root user. A
+        # non-zero verifier exit fails this step, so the G19 PASS below exists
+        # only after the amd64 image contents were executed and accepted.
+        # Only amd64 is executed here; the arm64 index entry is checked for
+        # manifest presence and is not claimed as executed.
+        shell: bash
+        run: |
+          set -euo pipefail
+          IMAGE=$(python -c "import json; print(json.load(open('image-metadata/image-metadata.json'))['image'])")
+          DIGEST=$(python -c "import json,re; d=json.load(open('image-metadata/image-metadata.json'))['digest']; assert re.fullmatch(r'sha256:[0-9a-f]{64}', d), 'invalid image digest'; print(d)")
+          docker run --rm --network none --platform linux/amd64 \
+            "$IMAGE@$DIGEST" \
+            python scripts/release/verify_python_license_texts.py
+
+      - name: Record container acceptance evidence
+        shell: bash
+        run: |
+          ENVIRONMENT="github-actions/$(printf '%s/%s' "$RUNNER_OS" "$RUNNER_ARCH" | tr '[:upper:]' '[:lower:]')"
+          DIGEST=$(python -c "import json; print(json.load(open('image-metadata/image-metadata.json'))['digest'])")
           mkdir -p release-evidence
           python scripts/release/write_gate_evidence.py \
             --gate-id G19 --status PASS \
-            --detail "multi-arch digest inspected; amd64 and arm64 present" \
+            --detail "multi-arch manifest inspected; amd64 and arm64 entries present; Python notice evidence executed and verified inside the amd64 image at this digest with no network and the default non-root user; arm64 image contents were not executed; technical evidence only, not legal clearance" \
             --commit-sha "$GITHUB_SHA" \
             --workflow release.yml --job container-acceptance \
             --environment "$ENVIRONMENT" \

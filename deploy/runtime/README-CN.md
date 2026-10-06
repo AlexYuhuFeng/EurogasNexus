@@ -14,4 +14,12 @@
 这些是技术性声明，不构成法律结论。可用
 `docker run --rm --entrypoint cat <镜像>` 加上上述 `manifest.json` 路径查看。
 
+可用
+`docker run --rm --network none <镜像> python scripts/release/verify_python_license_texts.py`
+校验镜像内交付的证据；该工具默认使用上述路径和镜像自身的
+`requirements-runtime.lock`，发现篡改、不完整、多余或缺失证据时以非零状态退出，
+属于技术性校验，不构成法律结论。发布 `container-acceptance` 作业在写入 G19
+PASS 之前，会在 linux/amd64 镜像摘要内执行同一命令；arm64 条目仅核对清单是否
+存在，不在其中执行。
+
 完整流程见 `docs/deployment/DEPLOYMENT_ROLES-CN.md`。

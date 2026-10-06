@@ -18,4 +18,13 @@ the image build. These are technical notices, not legal clearance. Inspect
 them with `docker run --rm --entrypoint cat <image>` followed by the
 `manifest.json` path above.
 
+Verify the delivered evidence in a pulled image with
+`docker run --rm --network none <image> python scripts/release/verify_python_license_texts.py`.
+The verifier defaults to the paths above and the image's own
+`requirements-runtime.lock` copy; it exits non-zero on tampered, incomplete,
+extra or missing evidence and is a technical check, not legal clearance. The
+release `container-acceptance` job runs the same command inside the
+linux/amd64 image digest before writing the G19 PASS; the arm64 entry is only
+checked for manifest presence and is not executed.
+
 See `docs/deployment/DEPLOYMENT_ROLES-EN.md` for the supported workflow.
