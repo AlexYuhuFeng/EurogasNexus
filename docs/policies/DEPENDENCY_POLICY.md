@@ -187,6 +187,41 @@ Coverage and its limits:
 
 Metadata reference: [cargo metadata](https://doc.rust-lang.org/stable/cargo/commands/cargo-metadata.html).
 
+### Python license text collection (installed evidence, not wired into releases)
+
+`python scripts/release/collect_python_license_texts.py --site-packages <dir>
+--output-dir <new-dir> [--runtime-lock requirements-runtime.lock]` collects the
+actual installed license/notice text files for the exact
+`requirements-runtime.lock` name/version inventory. The lock is read with the
+shared structured lock reader, `METADATA` is parsed with the standard library
+email parser and `RECORD` as CSV. Evidence comes from the matching
+distribution's `License-File` headers (resolved at the PEP 639
+`<dist-info>/licenses/` location or the legacy `<dist-info>/` location, and
+still required to be listed in that distribution's own `RECORD`) or, only
+when a distribution declares no `License-File` headers, from its `RECORD`
+entries whose basename is a recognized license/notice/copying/copyright name.
+
+Both input paths are explicit; nothing is downloaded, installed or invented,
+and the output directory must not already exist. Absolute, traversal,
+non-portable, symlinked/junctioned or unrecorded paths are refused, and
+RECORD rows outside the site-packages tree (pip records installed console
+scripts at paths such as `../../Scripts/*.exe`) are disclosed and skipped,
+never followed; missing, duplicate, version-mismatched or metadata-broken
+distributions leave the package unresolved with an explicit recorded reason.
+A run that does not collect at least one text for every locked package exits
+non-zero, but still writes `manifest.json` plus any partial texts, clearly
+marked `status: incomplete`. The manifest records only relative paths, the
+lock SHA-256, the exact lock name/version, the installed dist-info directory,
+the declared-license evidence and the SHA-256 of every copied file.
+
+Limits: this is technical evidence collection, not legal clearance or a
+redistribution review. It does not interpret license terms, verify that a
+copied text is complete or authoritative, or cover packages outside the
+runtime lock, the build/test toolchain, vendored source, native/installer
+binaries or container contents. It is deliberately not invoked by CI or the
+release workflow until installed/locked coverage has been verified on the
+release runner.
+
 What the audits do not cover, and therefore cannot clear:
 
 - Rust/crate dependencies beyond the declared-license metadata of the desktop

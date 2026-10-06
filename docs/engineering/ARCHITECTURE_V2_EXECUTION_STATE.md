@@ -5,6 +5,35 @@ Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical sli
 
 ## Current work
 
+### Live Rust findings and Python notice evidence (2026-10-06)
+
+Previous turn was progress plus a verified wait. Run `37363927598` has now
+executed dependency job `111944603619`: toolchain setup succeeded and all 434
+third-party lock identities were audited. 432 passed declared-term checks;
+r-efi 5.3.0 and 6.0.0 failed the existing conservative policy because their
+expressions are `MIT OR Apache-2.0 OR LGPL-2.1-or-later`. This is a review
+finding, not proof that LGPL obligations necessarily apply under every choice.
+Do not waive the gate or choose a licensing alternative without documented
+review of actual terms/artifacts. No exception was added. The same run's
+validate job found an import-order error in the Rust test; parent fixed it.
+
+DeepSeek added an optional Python license-text collector using exact runtime
+lock identities, installed METADATA/RECORD, recorded License-File declarations
+and bounded legacy basenames. It copies original bytes with hashes, refuses
+path escapes/reparse points and existing output directories, and preserves
+explicitly incomplete reports. Parent excluded code/executable suffixes from
+legacy basename matching. No publishing integration or legal approval claimed.
+
+Independent tests: 103 passed, two Windows symlink-privilege skips; Ruff passed.
+Actual local collection at `output/runtime/python-license-review-20261006`
+collected 30 files for 27/30 locked packages and returned incomplete. Installed
+greenlet 3.5.6, SQLAlchemy 2.0.54 and uvicorn 0.53.0 differ from lock versions
+3.5.5, 2.0.52 and 0.52.4 respectively; no substitution was accepted. Existing
+runtime environment was not modified. Next: collect in a freshly locked release
+environment, independently review licensing alternatives for both r-efi versions,
+then integrate complete notice evidence into actual customer artifacts. Keep
+all unresolved business/visual/native delivery gates open.
+
 ### Live Rust CI setup repair; runner queued (2026-10-06)
 
 Previous turn made progress by implementing the Rust gate but had no live
