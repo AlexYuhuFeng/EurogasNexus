@@ -5,6 +5,24 @@ Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical sli
 
 ## Current work
 
+### Explicit optimiser financing rate (2026-10-06)
+
+Previous turn identified an undeclared 6% financing default. DeepSeek removed
+that default at the resource-pool scenario boundary and added strict finite
+numeric validation. Omitted/null/boolean/string/nonfinite inputs are refused;
+explicit zero remains valid. API error serialization now renders nonfinite
+echoed values safely so rejection returns 422 rather than a serialization error.
+SDK/API docs and compatibility notes describe the tightening; known test
+scenarios supply their rates explicitly. No financing assumption was inserted
+in a production caller and no lag/cost semantics were changed.
+
+Parent independently ran the resource-pool unit, adjacent API and persisted-run
+API tests: 50 passed. Focused Ruff passed. This fixes an input-integrity defect,
+not the missing dated cash schedule/NPV integration. Next inspect implicit
+payment lags and unknown-to-zero resource costs before composing more financial
+results. Full business/persona acceptance and unresolved licensing gates remain
+open; commercial readiness is not established.
+
 ### Trader cash-workflow audit and next defect (2026-10-06)
 
 Previous turn made progress on delivered-notice acceptance. CI 37404138721

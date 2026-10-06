@@ -2,8 +2,15 @@
 
 The engine is an exact min-cost flow, so the documented greedy counterexample
 now resolves to the global optimum; status never claims SUCCESS while volume
-remains unallocated, and unknown capacity/access fails closed.
+remains unallocated, and unknown capacity/access fails closed. The annual
+financing rate is a required explicit input: scenario fixtures that make no
+financing claim carry an explicit ``0``, and omitted/non-finite/non-numeric
+rates are refused at the model boundary instead of receiving the removed 6.0
+default.
 """
+
+import pytest
+from pydantic import ValidationError
 
 from eurogas_nexus.domain.ontology.vocabulary import CapacityStatus
 from eurogas_nexus.domain.route_cost.enums import DeliveryMode, SourceResourceType
@@ -19,6 +26,7 @@ def test_resource_pool_allocates_best_margin_across_multiple_upstreams() -> None
     result = optimize_resource_pool(
         PortfolioOptimizationScenario(
             portfolio_id="pool-1",
+            annual_financing_rate_pct=0,
             resources=[
                 PortfolioResource(
                     resource_id="ttf-pipeline-a",
@@ -86,6 +94,7 @@ def test_resource_pool_skips_inaccessible_tso_options() -> None:
     result = optimize_resource_pool(
         PortfolioOptimizationScenario(
             portfolio_id="pool-access",
+            annual_financing_rate_pct=0,
             resources=[
                 PortfolioResource(
                     resource_id="ttf-pipeline-a",
@@ -126,6 +135,7 @@ def test_resource_pool_fails_closed_when_tso_access_unknown() -> None:
     result = optimize_resource_pool(
         PortfolioOptimizationScenario(
             portfolio_id="pool-unknown-access",
+            annual_financing_rate_pct=0,
             resources=[
                 PortfolioResource(
                     resource_id="ttf-pipeline-a",
@@ -164,6 +174,7 @@ def test_resource_pool_fails_closed_when_capacity_unknown() -> None:
     result = optimize_resource_pool(
         PortfolioOptimizationScenario(
             portfolio_id="pool-unknown-capacity",
+            annual_financing_rate_pct=0,
             resources=[
                 PortfolioResource(
                     resource_id="ttf-pipeline-a",
@@ -201,6 +212,7 @@ def test_resource_pool_never_mixes_currencies() -> None:
     result = optimize_resource_pool(
         PortfolioOptimizationScenario(
             portfolio_id="pool-currency",
+            annual_financing_rate_pct=0,
             resources=[
                 PortfolioResource(
                     resource_id="ttf-pipeline-a",
@@ -241,6 +253,7 @@ def test_resource_pool_accepts_matching_non_gbp_currencies() -> None:
     result = optimize_resource_pool(
         PortfolioOptimizationScenario(
             portfolio_id="pool-eur",
+            annual_financing_rate_pct=0,
             resources=[
                 PortfolioResource(
                     resource_id="ttf-pipeline-a",
@@ -289,6 +302,7 @@ def test_exact_solver_beats_greedy_on_pairwise_capacity_conflict() -> None:
     result = optimize_resource_pool(
         PortfolioOptimizationScenario(
             portfolio_id="pool-conflict",
+            annual_financing_rate_pct=0,
             resources=[
                 PortfolioResource(
                     resource_id="resource-a",
@@ -435,3 +449,115 @@ def test_resource_pool_includes_variable_cost_and_fuel_loss_uplift() -> None:
     allocation = result.allocations[0]
     assert allocation.total_cost_gbp_mwh == 22.1053
     assert allocation.net_margin_gbp_mwh == 7.8947
+
+
+# ---------------------------------------------------------------------------
+# Explicit financing-rate boundary (audited implicit 6% default defect)
+# ---------------------------------------------------------------------------
+
+_SCENARIO_BASE: dict[str, object] = {
+    "portfolio_id": "pool-rate",
+    "resources": [],
+    "sale_options": [],
+}
+
+
+def test_scenario_requires_an_explicit_financing_rate() -> None:
+    """Omission is refused: there is no server-side default rate."""
+
+    with pytest.raises(ValidationError) as excinfo:
+        PortfolioOptimizationScenario.model_validate(dict(_SCENARIO_BASE))
+
+    assert "annual_financing_rate_pct" in str(excinfo.value)
+
+
+@pytest.mark.parametrize(
+    "invalid_rate",
+    [
+        None,
+        True,
+        False,
+        "6",
+        "6.0",
+        "",
+        "  ",
+        float("nan"),
+        float("inf"),
+        float("-inf"),
+    ],
+)
+def test_scenario_refuses_unknown_or_non_finite_financing_rates(
+    invalid_rate: object,
+) -> None:
+    """Null, booleans, strings and non-finite values never become a rate."""
+
+    with pytest.raises(ValidationError):
+        PortfolioOptimizationScenario.model_validate(
+            {**_SCENARIO_BASE, "annual_financing_rate_pct": invalid_rate}
+        )
+
+
+def test_scenario_accepts_an_explicit_integer_financing_rate() -> None:
+    """A JSON integer is an explicit number and is accepted as such."""
+
+    scenario = PortfolioOptimizationScenario.model_validate(
+        {**_SCENARIO_BASE, "annual_financing_rate_pct": 6}
+    )
+
+    assert scenario.annual_financing_rate_pct == 6.0
+
+
+def _early_cash_scenario(annual_financing_rate_pct: float) -> PortfolioOptimizationScenario:
+    return PortfolioOptimizationScenario(
+        portfolio_id="pool-early-cash",
+        annual_financing_rate_pct=annual_financing_rate_pct,
+        resources=[
+            PortfolioResource(
+                resource_id="resource-a",
+                resource_name="Resource A",
+                resource_type=SourceResourceType.PIPELINE_IMPORT,
+                delivery_mode=DeliveryMode.PHYSICAL_ENTRY_DELIVERY,
+                location_point_name="TTF",
+                available_quantity_mwh_per_day=1_000,
+                contract_cost_gbp_mwh=25,
+                delivery_tolerance_pct=0,
+                nomination_tolerance_pct=0,
+                upstream_payment_lag_days=30,
+                screen_sale_cash_lag_days=0,
+            )
+        ],
+        sale_options=[
+            PortfolioSaleOption(
+                option_id="ttf-local",
+                label="TTF local sale",
+                delivery_mode=DeliveryMode.VIRTUAL_HUB_SALE,
+                target_point_name="TTF",
+                sale_price_gbp_mwh=30,
+                capacity_status=CapacityStatus.NOT_REQUIRED,
+            )
+        ],
+    )
+
+
+def test_explicit_zero_financing_rate_is_a_recorded_zero() -> None:
+    """An explicitly supplied 0 stays 0: no financing credit is invented."""
+
+    result = optimize_resource_pool(_early_cash_scenario(0))
+
+    allocation = result.allocations[0]
+    assert allocation.early_cash_value_gbp_mwh == 0.0
+    assert allocation.total_cost_gbp_mwh == 25.0
+    assert allocation.net_margin_gbp_mwh == 5.0
+
+
+def test_explicit_nonzero_financing_rate_credits_the_early_cash_term() -> None:
+    """A declared positive rate still produces the documented credit."""
+
+    # 25 GBP/MWh × 10%/yr × 30 lag days / 365 = 0.2055 GBP/MWh (4 dp).
+    result = optimize_resource_pool(_early_cash_scenario(10))
+
+    allocation = result.allocations[0]
+    assert allocation.early_cash_value_gbp_mwh == 0.2055
+    assert allocation.total_cost_gbp_mwh == 24.7945
+    assert allocation.net_margin_gbp_mwh == 5.2055
+    assert any("no default rate" in assumption for assumption in result.assumptions)

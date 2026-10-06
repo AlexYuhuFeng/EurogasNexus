@@ -22,7 +22,7 @@ from __future__ import annotations
 import math
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from eurogas_nexus.domain.constraints.access import (
     inaccessible_tsos,
@@ -158,8 +158,12 @@ class PortfolioOptimizationScenario(BaseModel):
         portfolio_id: Portfolio identifier the result is attributed to.
         resources: Available procurement resources.
         sale_options: Candidate selling options.
-        annual_financing_rate_pct: Annual financing rate for early-cash
-            valuation (default 6.0).
+        annual_financing_rate_pct: REQUIRED annual financing rate for early-cash
+            valuation, in percent per year. There is deliberately no default:
+            the rate credits unit margin, so a server-filled value would price a
+            margin from an assumption the caller never declared. Omission,
+            ``null``, booleans, strings and non-finite numbers are refused; an
+            explicit ``0`` is a recorded zero (a zero early-cash term).
         objective: Objective key (only ``MAX_DAILY_PNL`` is implemented).
         analysis_snapshot_id: Optional Analysis Snapshot this run was computed
             against. When supplied the caller asserts the reproducibility
@@ -171,10 +175,42 @@ class PortfolioOptimizationScenario(BaseModel):
     portfolio_id: str
     resources: list[PortfolioResource]
     sale_options: list[PortfolioSaleOption]
-    annual_financing_rate_pct: float = 6.0
+    annual_financing_rate_pct: float
     objective: str = "MAX_DAILY_PNL"
     analysis_snapshot_id: str | None = None
     research_only: bool = True
+
+    @field_validator("annual_financing_rate_pct", mode="before")
+    @classmethod
+    def _require_explicit_financing_rate(cls, value: object) -> object:
+        """Refuse anything but an explicitly supplied finite number.
+
+        The early-cash term credits unit margin, so the rate must be a value
+        the caller actually recorded. ``bool`` is refused before the numeric
+        check (``True``/``False`` would otherwise coerce to ``1.0``/``0.0``),
+        and strings are refused rather than parsed, so a blank or unknown rate
+        can never silently become a numeric assumption. Only the wire format's
+        own number types (``int``/``float``) are accepted, so a Python-level
+        numeric type such as ``Decimal`` is refused rather than coerced.
+        ``NaN`` and ±infinity are refused here because the wire format can
+        carry them.
+
+        显式融资利率校验：只接受调用方明确提供的有限数值；布尔、字符串、
+        空值与非有限值一律拒绝，绝不静默转换成费率。
+        """
+
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise ValueError(
+                "annual_financing_rate_pct must be an explicitly supplied finite"
+                " number in percent per year (booleans, strings, null and other"
+                " non-JSON-number types are not accepted); the optimiser holds no"
+                " default rate"
+            )
+        if isinstance(value, float) and not math.isfinite(value):
+            raise ValueError(
+                f"annual_financing_rate_pct must be finite, got {value!r}"
+            )
+        return value
 
 
 class PortfolioAllocation(BaseModel):
@@ -407,6 +443,10 @@ def optimize_resource_pool(
             "currency and unit; mismatched pairs are excluded (fail-closed).",
             "Cross-zone routes require confirmed TSO access and known capacity; "
             "unknown access or capacity blocks the pair.",
+            "Early-cash value uses the caller-supplied annual financing rate "
+            "(percent per year) over the declared payment/sale lag difference; "
+            "the optimiser holds no default rate and a run without an explicit "
+            "finite rate is refused at the request boundary.",
             "The result is decision support only; it does not execute trades "
             "or nominations.",
         ],

@@ -477,6 +477,31 @@ corrected inline above; the substantive facts at `15c81cd` are:
   [test_route_cost_contract_revision_reads.py](../../tests/integration/test_route_cost_contract_revision_reads.py).
   Passing focused tests are not journey acceptance.
 
+### Dated reconciliation note — optimiser financing-rate boundary (2026-10-06)
+
+At baseline `2b826e7`, the resource-pool optimiser request
+(`PortfolioOptimizationScenario`, served by
+`POST /api/route-cost/resource-pool/optimize`) carried a server-side default
+`annual_financing_rate_pct = 6.0`, and the early-cash term credits unit margin
+(`base_cost × rate / 100 × max(upstream_lag − screen_lag, 0) / 365`). A direct
+API/SDK caller that omitted the rate therefore received a margin computed from
+an assumption it never declared, while the Web request builder already refused
+an unknown rate. The field is now required and must be an explicit finite
+number: omission, `null`, booleans, strings and `NaN`/±infinity are refused
+`422` before the run, and an explicitly supplied `0` is a recorded zero (a zero
+early-cash term) rather than "unknown". The result's assumptions state the
+explicit-rate basis.
+
+This corrects a request boundary; it does not add a financing model. No dated
+cash-need profile, day-count convention, discount factor, NPV or all-in funding
+comparison is produced or claimed, and the early-cash value remains a single
+scalar allowance with unchanged sign semantics. Evidence:
+[test_resource_pool_optimization.py](../../tests/unit/test_resource_pool_optimization.py)
+(explicit zero, explicit non-zero and refusal cases) and
+[test_route_cost_adjacent_api.py](../../tests/api/test_route_cost_adjacent_api.py)
+(`422` for omitted/`null`/boolean/string/`NaN`/±infinity; an explicit zero
+returns no financing credit).
+
 ### Persona identity and read-permission evidence (parent, live, 2026-10-03, read-only)
 
 Against the existing PostgreSQL-backed development API, without business-record

@@ -94,6 +94,7 @@ Windows/Linux 桌面外壳和双语运营文档。所有消费方都是同一契
 |---|---|---|
 | 除凭据豁免路径外的所有 `/api` 路径 | **未出示任何凭据的调用方被拒绝。** 在 D1 之前，`development` 与 `internal` 剖面根本不安装认证，会把该调用方当作兼容主体（数据范围 `("*",)`、角色 `OPERATOR`）提供服务。现在：已配置部署令牌时返回 401 `public_api_token_missing`；未配置任何令牌时 fail-closed 返回 503 `public_api_token_not_configured`；身份依赖另外保留 401 `authentication_required` 作为兜底。豁免路径为 `/api/auth/*`、`/api/dev/auth/*`、`/api/health`（含 `live`/`ready`）、`/api/dev/health` 与 `/api/internal/health` | 业主决定 D1：默认标识调用方，而"信任网络"是部署自己声明并会被上报的选择。SDK、CLI、MCP 与 Web 客户端不受影响——它们本就出示部署令牌或会话 |
 | `/api/internal/*`（12 条路径） | **补上此前不存在的权限声明。** `internal` 剖面未安装路由权限闸门，因此这些路径从未解析过权限；安装闸门后暴露出：已挂载却未登记的路径会返回 500 `permission_not_declared` | 登记表是执行依据而非文档。每条登记都与该路由自身在处理器中已执行的底线一致（`validate_internal_operator_headers`），因此此前能访问者不会被新增拒绝 |
+| `POST /api/route-cost/resource-pool/optimize` | **请求必须携带显式且有限的 `annual_financing_rate_pct`。** 该字段不再有服务端默认值：省略该字段，或发送 `null`、布尔值、字符串（含空串）、`NaN` 或 ±无穷大，都会被请求校验以 `422` 拒绝，而不再被填入此前隐含的 `6.0`。显式提供的 `0` 会被接受，并被视为已记录的零（早收现金项为零）。其余字段、符号约定与算术规则均未改变 | 优化器把 `base_cost × rate / 100 × max(upstream_lag − screen_lag, 0) / 365` 计入单位边际，因此服务端填入的费率会用调用方从未声明的假设计算边际。Web 客户端本已拒绝未知费率并发送已解析的值，因此不受影响；直接 API/SDK 调用方现在必须声明其想要的费率。该边界变更记录于 2026-10-06 的业务验收对账说明；它不建立任何有日期的现金需求曲线、日算惯例、贴现因子或 NPV |
 
 ## 被拒绝的请求字段
 

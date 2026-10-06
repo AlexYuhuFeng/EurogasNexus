@@ -1,5 +1,8 @@
 """Route-cost adjacent API tests."""
 
+import json
+
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 
@@ -14,6 +17,7 @@ HEADERS = {"X-Eurogas-Api-Key": PUBLIC_TOKEN}
 #: tests below (the same shape as the delivered allocation test).
 OPTIMIZATION_SCENARIO = {
     "portfolio_id": "api-pool",
+    "annual_financing_rate_pct": 0,
     "resources": [
         {
             "resource_id": "beach-a",
@@ -92,6 +96,7 @@ def test_resource_pool_optimization_api_returns_allocations() -> None:
         "/api/route-cost/resource-pool/optimize",
         json={
             "portfolio_id": "api-pool",
+            "annual_financing_rate_pct": 0,
             "resources": [
                 {
                     "resource_id": "beach-a",
@@ -128,6 +133,8 @@ def test_resource_pool_optimization_api_returns_allocations() -> None:
     assert data["status"] == "PARTIAL"
     assert "PORTFOLIO_VOLUME_UNALLOCATED" in data["warnings"]
     assert data["allocations"][0]["allocated_quantity_mwh_per_day"] == 6000
+    # The explicit zero rate is a recorded zero: no early-cash credit appears.
+    assert data["allocations"][0]["early_cash_value_gbp_mwh"] == 0
     # No reproducibility reference was cited, so the additive field is absent:
     # a caller that cites nothing keeps the previous payload exactly.
     assert "analysis_snapshot_id" not in data
@@ -259,3 +266,74 @@ def test_resource_pool_optimization_runs_untracked_without_a_runtime_db(monkeypa
     assert response.status_code == 200
     assert response.json()["data"]["status"] == "PARTIAL"
     assert "analysis_snapshot_id" not in response.json()["data"]
+
+
+# ---------------------------------------------------------------------------
+# Explicit financing-rate boundary (audited implicit 6% default defect)
+# ---------------------------------------------------------------------------
+
+
+def test_resource_pool_optimization_refuses_an_omitted_financing_rate() -> None:
+    """The removed 6.0 default must not be filled in by the request boundary."""
+
+    client = TestClient(create_app())
+    body = {
+        key: value
+        for key, value in OPTIMIZATION_SCENARIO.items()
+        if key != "annual_financing_rate_pct"
+    }
+
+    response = client.post("/api/route-cost/resource-pool/optimize", json=body)
+
+    assert response.status_code == 422
+    assert any(
+        "annual_financing_rate_pct" in str(error["loc"])
+        for error in response.json()["detail"]
+    )
+
+
+def test_resource_pool_optimization_refuses_a_null_financing_rate() -> None:
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/api/route-cost/resource-pool/optimize",
+        json={**OPTIMIZATION_SCENARIO, "annual_financing_rate_pct": None},
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.parametrize("invalid_rate", [True, False, "6", "6.0", "", "  "])
+def test_resource_pool_optimization_refuses_non_numeric_financing_rates(
+    invalid_rate: object,
+) -> None:
+    """A boolean or string never becomes a rate through silent coercion."""
+
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/api/route-cost/resource-pool/optimize",
+        json={**OPTIMIZATION_SCENARIO, "annual_financing_rate_pct": invalid_rate},
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.parametrize("non_finite", ["NaN", "Infinity", "-Infinity"])
+def test_resource_pool_optimization_refuses_non_finite_financing_rates(
+    non_finite: str,
+) -> None:
+    """JSON can carry NaN/±Infinity tokens; the boundary refuses them."""
+
+    client = TestClient(create_app())
+    body = json.dumps(
+        {**OPTIMIZATION_SCENARIO, "annual_financing_rate_pct": float(non_finite)}
+    )
+
+    response = client.post(
+        "/api/route-cost/resource-pool/optimize",
+        content=body,
+        headers={"Content-Type": "application/json"},
+    )
+
+    assert response.status_code == 422

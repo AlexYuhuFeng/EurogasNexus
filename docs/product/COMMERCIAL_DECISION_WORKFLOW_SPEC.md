@@ -142,8 +142,11 @@ rate. The rate is the first saved upstream contract's
 `annual_financing_rate_pct` when it carries one, otherwise the Scenario
 panel's draft fallback; it is percent per year used for early-cash value
 (`base_cost * rate / 100 * lag_days / 365`) and is never converted or scaled
-in the client. The UI shows resource count, sale options, readiness blockers,
-route candidates and the financing-rate provenance before run.
+in the client. The backend requires that field: a scenario request without an
+explicit finite rate is refused `422`, so the client's refusal of an unknown
+rate mirrors the server boundary rather than substituting a hidden default.
+The UI shows resource count, sale options, readiness blockers, route candidates
+and the financing-rate provenance before run.
 
 Compare Options (`buildRouteRecommendationRequest`) sends only the persisted
 read: source and target points, the total pool volume, the first saved

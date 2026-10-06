@@ -34,6 +34,7 @@ logging and monitoring keep seeing the real failure.
 
 from __future__ import annotations
 
+import math
 from typing import Any
 from uuid import uuid4
 
@@ -155,6 +156,9 @@ def _jsonable_detail(detail: Any) -> Any:
     FastAPI hands the handler the raw errors, whose `ctx` can hold exception objects. They are
     stringified rather than dropped: an operator diagnosing a refused body needs to see which
     value was rejected, and the field list is the caller's own input, not platform state.
+    A non-finite float in the echoed input (`NaN`/±`Infinity` tokens the wire format can carry)
+    is echoed as its text form for the same reason: `JSONResponse` cannot serialise it, and a
+    refused body must answer 422 rather than break the response.
     """
 
     if isinstance(detail, list):
@@ -165,9 +169,21 @@ def _jsonable_detail(detail: Any) -> Any:
                     **item,
                     "ctx": {key: str(value) for key, value in item["ctx"].items()},
                 }
-            cleaned.append(item)
+            cleaned.append(_json_safe_value(item))
         return cleaned
-    return detail
+    return _json_safe_value(detail)
+
+
+def _json_safe_value(value: Any) -> Any:
+    """Return ``value`` with non-serialisable floats replaced by their text form."""
+
+    if isinstance(value, float) and not math.isfinite(value):
+        return repr(value)
+    if isinstance(value, dict):
+        return {key: _json_safe_value(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe_value(item) for item in value]
+    return value
 
 
 def _operator_detail(detail: Any, *, operator: bool) -> str | None:

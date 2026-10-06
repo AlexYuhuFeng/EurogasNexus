@@ -368,6 +368,7 @@ def test_resource_pool_and_route_optimizer_use_status_kind_values() -> None:
     pool_result = optimize_resource_pool(
         PortfolioOptimizationScenario(
             portfolio_id="p",
+            annual_financing_rate_pct=0,
             resources=[
                 PortfolioResource(
                     resource_id="r1",

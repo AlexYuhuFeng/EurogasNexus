@@ -393,6 +393,10 @@ def assess_lng_regas(base_url: str, **kwargs) -> LngRegasReadinessResult:
 def optimize_resource_pool(base_url: str, **kwargs) -> PortfolioOptimizationResult:
     """Optimize the allocation of a resource pool across destinations.
 
+    The request must carry an explicit finite ``annual_financing_rate_pct``
+    (percent per year): the backend holds no default rate and refuses a request
+    without one, so the caller declares the early-cash assumption it wants.
+
     Args:
         base_url: Base URL of the backend server.
         **kwargs: Pool and destination fields forwarded to the optimize API.

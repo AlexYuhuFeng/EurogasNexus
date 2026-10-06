@@ -610,6 +610,12 @@ def post_resource_pool_optimization(
 ) -> dict:
     """Optimize multi-upstream resource-pool allocation across selling options.
 
+    The scenario must carry an explicit finite ``annual_financing_rate_pct``
+    (percent per year) for the early-cash term: the optimiser holds no default,
+    so omission, ``null``, booleans, strings, ``NaN`` or ±infinity are refused
+    as request validation errors (422) instead of being priced from an
+    undeclared assumption. An explicit ``0`` is a recorded zero.
+
     When the caller supplies an ``analysis_snapshot_id`` (Architecture V2 Wave 4)
     the reference is verified against persisted Analysis Snapshots before the run
     and echoed on the result, so a produced allocation cites the version set it
