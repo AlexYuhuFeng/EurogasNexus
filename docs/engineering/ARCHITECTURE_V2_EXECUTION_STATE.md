@@ -5,6 +5,25 @@ Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical sli
 
 ## Current work
 
+### Runtime notice collection verified on runner (2026-10-06)
+
+Previous goal turn made progress: fab7c38 added isolated CI collection.
+Run 37400746982, job 112067149706, now succeeded on that exact commit.
+Downloaded eurogas-nexus-python-license-texts to ignored local evidence path
+output/runtime/ci-license-evidence-37400746982. Manifest reports 30/30 locked
+packages, 34 files, zero unresolved/incomplete packages and no global problems.
+Parent independently verified all 34 copied-file SHA256 hashes and byte sizes.
+The runtime-lock digest agrees with the current repository:
+aa8d28434e737bef37fc31bea3e9b46d1d0174cd6a15c32d7731a1800c7a6058.
+
+This closes runner collection verification only, not legal clearance or
+artifact-level notice delivery. Web and PostgreSQL jobs passed; validate and
+browser jobs were still running at inspection; dependency audit failed.
+Do not infer whole-run success. Next implementation should bind complete
+notice evidence to the exact customer build and include it in delivered
+artifacts with tamper/mismatch tests. The r-efi review and non-Python/native
+license coverage remain open, as do business and visual acceptance gates.
+
 ### Isolated runtime license evidence in CI (2026-10-06)
 
 Verified baseline 68b3365 and fetched origin. CI 37396728223 passed validate,
