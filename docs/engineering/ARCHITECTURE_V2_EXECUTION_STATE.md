@@ -5,6 +5,33 @@ Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical sli
 
 ## Current work
 
+### Trader cash-workflow audit and next defect (2026-10-06)
+
+Previous turn made progress on delivered-notice acceptance. CI 37404138721
+passed validate, web, browser, PostgreSQL and Python notice evidence; dependency
+audit remains failed. Commercial readiness is not established.
+
+DeepSeek traced current tender/contract cash paths at 8606581; detailed ignored
+report: .automation/runtime/tender-cash-current-audit.md. Parent independently
+confirmed a material semantic mismatch: PortfolioOptimizationInput defaults
+annual_financing_rate_pct to 6.0, and the early-cash formula uses it to credit
+margin. The web request builder instead refuses an unknown financing rate.
+Thus direct API callers can obtain a result based on an undeclared assumption.
+Next bounded implementation: require an explicit finite financing rate at the
+optimiser boundary, preserve explicit zero, reconcile internal callers/tests,
+and prove omission/null/nonfinite inputs cannot create a financing credit.
+Also review implicit payment-lag assumptions before extending composition.
+
+The broader audit confirms declared payment terms remain read-only declarations:
+no persisted-contract-to-cash-engine composition or frontend cash engine caller.
+Unknown-to-zero resource cost composition and the scalar cash-credit label
+need separate correction. Do not adopt the worker's suggested new endpoint
+without resolving these semantics and the existing integration-plan decisions.
+Its suggested SQLite fixture is not authorised; retain PostgreSQL-only runtime
+and use existing domain fixtures or PostgreSQL for new integration coverage.
+Worker reports 247 relevant tests passed; parent has reviewed code evidence,
+not independently rerun that suite. No complete trader journey is claimed.
+
 ### Delivered notice integrity acceptance (2026-10-06)
 
 Previous turn made progress: cc16f55 delivered Python texts in the API image.
