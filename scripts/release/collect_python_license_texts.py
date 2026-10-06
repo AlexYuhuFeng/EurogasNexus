@@ -44,9 +44,12 @@ vendored/native/OS/container components or build/test-only Python tooling.
 Ordinary CI runs this collector on main-branch pushes as an independent
 review-evidence job against a hash-installed runtime-lock venv (see
 ``.github/workflows/ci.yml``); an incomplete collection fails that job and
-still uploads the manifest and any partial texts. Release publishing is
-intentionally not wired to this utility until installed/locked coverage has
-been verified on the release runner.
+still uploads the manifest and any partial texts. Release publishing consumes
+no report from this utility: that CI artifact stays review evidence. The API
+runtime image (``deploy/runtime/Dockerfile.api``) also runs this collector in
+its final runtime stage for delivery, against that stage's own installed
+purelib and the lock shipped in the image, and a missing or incomplete
+collection fails the image build.
 
 Usage:
     python scripts/release/collect_python_license_texts.py \

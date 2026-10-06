@@ -5,6 +5,27 @@ Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical sli
 
 ## Current work
 
+### Python notices delivered in API image (2026-10-06)
+
+Previous turn made progress by verifying runner collection. DeepSeek now wired
+the existing collector into the final API image stage, after runtime dependency
+and project installation. Incomplete collection fails the build. Original texts
+and their lock-bound manifest ship at
+/usr/share/licenses/eurogas-nexus/python-license-texts. Operator EN/CN and
+supply-chain documentation describe scope and remaining obligations.
+
+Parent verification: 45 focused tests passed, two Windows privilege skips;
+Ruff passed. Unlike the worker sandbox, parent Docker access succeeded.
+Built eurogas-nexus:notice-verification locally, without publishing or altering
+running services. Image manifest list digest:
+sha256:d2a645661fd901062fa45c9a913f778727ad807c39d784346ea2bbc2ede3710f.
+A network-disabled temporary container running as default UID 999 read all
+34 files for 30/30 packages; every hash/size and the shipped runtime lock digest
+matched. No unresolved collection entries. The verification container exited
+and was removed. This is local single-platform evidence, not multi-arch release
+acceptance or legal clearance. Rust/Node/native/OS notices, r-efi review,
+customer-artifact redistribution review and business/HMI acceptance remain open.
+
 ### Runtime notice collection verified on runner (2026-10-06)
 
 Previous goal turn made progress: fab7c38 added isolated CI collection.

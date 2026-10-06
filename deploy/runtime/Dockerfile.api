@@ -43,6 +43,23 @@ COPY alembic ./alembic
 COPY apps ./apps
 COPY scripts ./scripts
 
+# Collect the license/notice texts of the locked runtime dependencies from this
+# runtime stage's own installed purelib (after the locked dependency install and
+# the project wheel, never the builder stage). The collector exits non-zero when
+# a locked package yields no usable text, so a missing or incomplete collection
+# fails the image build instead of shipping partial notices. The evidence ships
+# inside the image under the documented licenses directory (see
+# docs/policies/DEPENDENCY_POLICY.md): manifest.json records the
+# requirements-runtime.lock SHA-256 and every copied text's source, size and
+# SHA-256, and texts/ holds the original copied bytes.
+RUN set -eu; \
+    purelib="$(python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')"; \
+    python scripts/release/collect_python_license_texts.py \
+        --site-packages "$purelib" \
+        --output-dir /usr/share/licenses/eurogas-nexus/python-license-texts \
+        --runtime-lock requirements-runtime.lock \
+    && chmod -R a+rX /usr/share/licenses/eurogas-nexus/python-license-texts
+
 RUN chown -R eurogas:eurogas /app
 USER eurogas
 

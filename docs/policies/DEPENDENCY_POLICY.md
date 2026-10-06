@@ -234,10 +234,27 @@ and any partial texts are still uploaded as the
 is an upload error. That artifact is review evidence only: it is not legal
 approval and not a certification of any customer package, the job is
 deliberately not part of the release acceptance required jobs, and the
-release workflow does not invoke the collector or consume the artifact. CI
-collection of the runtime-lock texts does not replace the outstanding
-artifact-level redistribution review of bundled `LICENSE`/`NOTICE` files and
-of non-Python/native/container components.
+release workflow neither consumes the CI artifact nor treats the collector as
+a release gate; the collector runs again inside the image build for delivery
+(below). CI collection of the runtime-lock texts does not replace the
+outstanding artifact-level redistribution review of bundled
+`LICENSE`/`NOTICE` files and of non-Python/native/container components.
+
+The runtime API image (`deploy/runtime/Dockerfile.api`) runs the same
+collector in its final runtime stage, after the hash-pinned
+`requirements-runtime.lock` install and the project wheel install and never in
+the builder stage, against that stage interpreter's own purelib
+(`sysconfig.get_paths()["purelib"]`, not a venv, `.deps` or a developer
+environment). The evidence is delivered inside the image at
+`/usr/share/licenses/eurogas-nexus/python-license-texts`: `manifest.json` plus
+the original `texts/` bytes, with the manifest recording the SHA-256 of the
+`requirements-runtime.lock` copy shipped at `/app/requirements-runtime.lock`,
+so the in-image evidence is bound to the delivered lock digest. A missing or
+incomplete collection exits non-zero and fails the image build instead of
+shipping partial notices; no lock, base image or release gate is changed for
+this delivery. This remains technical evidence inside the artifact, not legal
+clearance: it does not cover the container's OS packages, native components,
+Node/Rust dependency texts or any redistribution conclusion.
 
 What the audits do not cover, and therefore cannot clear:
 

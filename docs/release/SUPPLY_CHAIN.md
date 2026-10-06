@@ -55,6 +55,20 @@ inventory. The release manifest's per-artifact `sbom_ref` mapping is still
 empty and no CI job records G10 evidence from this generator; G10 stays open
 until artifact-complete evidence exists.
 
+## Container license/notice texts
+
+The API image build (`deploy/runtime/Dockerfile.api`) collects the locked
+Python runtime dependencies' license/notice texts from the runtime stage's own
+site-packages into the delivered image at
+`/usr/share/licenses/eurogas-nexus/python-license-texts`: `manifest.json`
+records the `requirements-runtime.lock` SHA-256 and every copied text's
+source, size and SHA-256, and `texts/` holds the copied bytes. A missing or
+incomplete collection exits non-zero and fails the image build. This is Python
+runtime-lock text evidence only: it does not cover base-image OS packages,
+native binaries, Node/Rust dependency texts or the artifact-level
+redistribution review, and it changes no release gate or publishing
+behaviour. It is not legal clearance.
+
 ## Checksums
 
 `SHA256SUMS` is generated **after** final signing/packaging and covers every
