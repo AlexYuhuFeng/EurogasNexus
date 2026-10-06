@@ -820,15 +820,29 @@ def route_capacity_limit(candidate: dict) -> float | None:
     return min(capacities) if capacities else None
 
 
-def screen_cash_lag_days(contracts: list[dict]) -> int:
-    """Return the shortest screen-sale cash lag among eligible contracts."""
+def screen_cash_lag_days(contracts: list[dict]) -> int | None:
+    """Return the shortest declared screen-sale cash lag, or ``None`` if unknown.
 
-    lags = [
-        int(contract["screen_sale_cash_lag_days"])
-        for contract in contracts
-        if isinstance(contract.get("screen_sale_cash_lag_days"), int)
-    ]
-    return min(lags) if lags else 1
+    Only a contract that declares a strict whole-day, non-negative integer
+    contributes a candidate lag. Booleans are refused as candidates
+    (``isinstance(True, int)`` is true, so a boolean would otherwise count as
+    one/zero days), a negative value is not a receipt lag, and floats or
+    strings are never parsed. A missing or ``None`` declaration is *unknown*:
+    when no eligible contract declares a usable lag the result is ``None``,
+    which the optimiser request carries as an explicit unknown that refuses
+    the pair — never the removed implicit one-day default.
+
+    只接受显式声明的非负整数天候选；布尔、负数、浮点与字符串不作为候选，
+    未知一律返回 ``None``，绝不回填默认值。
+    """
+
+    lags: list[int] = []
+    for contract in contracts:
+        value = contract.get("screen_sale_cash_lag_days")
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            continue
+        lags.append(value)
+    return min(lags) if lags else None
 
 
 def active_company_tsos(rows: Sequence[Any]) -> list[str]:

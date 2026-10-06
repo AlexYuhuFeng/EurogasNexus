@@ -1416,7 +1416,7 @@ export interface PortfolioSaleOptionDTO {
   sale_price_observed_at_utc?: string | null; sale_price_freshness?: string | null;
   sale_price_quality_score?: number | null; sale_price_simulated?: boolean;
   sale_price_source_family?: string | null;
-  capacity_limit_mwh_per_day?: number | null; screen_sale_cash_lag_days?: number;
+  capacity_limit_mwh_per_day?: number | null; screen_sale_cash_lag_days?: number | null;
   required_tso_access?: string[]; source_refs?: string[];
   eligible_resource_ids?: string[];
 }

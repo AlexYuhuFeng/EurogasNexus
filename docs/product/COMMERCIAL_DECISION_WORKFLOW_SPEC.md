@@ -145,6 +145,12 @@ panel's draft fallback; it is percent per year used for early-cash value
 in the client. The backend requires that field: a scenario request without an
 explicit finite rate is refused `422`, so the client's refusal of an unknown
 rate mirrors the server boundary rather than substituting a hidden default.
+The backend requires the declared payment/sale lag days on those same passed
+through rows (`upstream_payment_lag_days` per resource,
+`screen_sale_cash_lag_days` per sale option, or an explicit unknown): the
+previously implicit 20/1 day defaults are removed, a pair whose effective
+sale-cash lag is unknown is refused and reported, and the composed read passes
+an unknown lag through as `null`.
 The UI shows resource count, sale options, readiness blockers, route candidates
 and the financing-rate provenance before run.
 

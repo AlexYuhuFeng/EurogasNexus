@@ -5,6 +5,24 @@ Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical sli
 
 ## Current work
 
+### Explicit optimiser payment timing (2026-10-06)
+
+Previous turn fixed the financing rate. CI 37406836127 passed application,
+browser, PostgreSQL, web and Python evidence jobs; dependency audit still failed.
+DeepSeek removed optimiser 20-day upstream and 1-day sale-lag defaults. Upstream
+lag is now required; option lag must be explicitly declared as integer or null.
+Strict nonnegative integer validation preserves zero and refuses coercion.
+Unknown effective sale timing excludes the pair with missing-input evidence;
+an explicit resource override still works. Application composition returns null
+instead of inventing one day, and ignores invalid lag candidates.
+
+Parent independently ran 100 focused domain/composition/API tests, all passed.
+Parent aligned the web DTO to permit the nullable response. No visual behavior
+was changed. This remains lag-based research valuation, not a resolved contract
+cash schedule or NPV. Stored-contract defaults, cross-contract minimum-lag
+aggregation, unknown cost inputs and populated persona acceptance still need
+review; no commercial approval is claimed.
+
 ### Explicit optimiser financing rate (2026-10-06)
 
 Previous turn identified an undeclared 6% financing default. DeepSeek removed

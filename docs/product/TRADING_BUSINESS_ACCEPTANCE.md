@@ -502,6 +502,47 @@ scalar allowance with unchanged sign semantics. Evidence:
 (`422` for omitted/`null`/boolean/string/`NaN`/±infinity; an explicit zero
 returns no financing credit).
 
+### Dated reconciliation note — optimiser payment/sale lag boundary (2026-10-06)
+
+At the same boundary, `PortfolioOptimizationScenario` also carried server-side
+defaults `upstream_payment_lag_days = 20` (resource) and
+`screen_sale_cash_lag_days = 1` (sale option). Both feed the same early-cash
+term (`base_cost × rate / 100 × max(upstream_lag − screen_lag, 0) / 365`), so a
+direct API/SDK caller that omitted either lag received a margin computed from a
+lag it never declared. Both are now explicit declarations: every resource must
+carry `upstream_payment_lag_days`, every sale option must carry
+`screen_sale_cash_lag_days` as whole non-negative days or an explicit `null`
+(unknown), and the optional per-resource `screen_sale_cash_lag_days` override
+keeps the same whole-day rule when supplied. Booleans (which Python counts as
+integers), floats, strings and negatives are refused `422`; an explicit `0` is
+a recorded zero. A pair whose effective lag stays unknown — no resource
+override and an option lag declared `null` — is refused and reported
+(`SALE_CASH_LAG_MISSING` / `SALE_CASH_LAG_UNKNOWN`) instead of being credited
+with an assumed receipt day; assuming a zero-day sale lag would produce the
+largest possible credit. An explicit resource override still keeps the pair
+usable when the option lag is unknown. The composed
+`GET /api/route-cost/resource-pool/options` read no longer substitutes the
+removed one-day default: an unknown eligible-contract lag is composed as
+`null`, and booleans/negatives are not counted as candidate lags.
+
+Remaining limitations, unchanged by this boundary fix: the early-cash value is
+still a single scalar allowance over a lag-day difference — no dated cash-need
+profile, day-count convention, discount factor or NPV is produced; the
+composition passes a persisted contract lag through to the resource override
+without re-validating it, so a corrupt stored lag reaches the optimiser request
+and is refused there (`422`) rather than at composition time; and the web
+client's `PortfolioSaleOptionDTO.screen_sale_cash_lag_days` TypeScript type
+still declares `number` although the read can now compose `null` (the client
+passes the value through without reading it). Evidence:
+[test_resource_pool_optimization.py](../../tests/unit/test_resource_pool_optimization.py)
+(explicit lags, coercion refusals, per-pair unknown refusal, override
+semantics),
+[test_resource_pool_composition.py](../../tests/unit/test_resource_pool_composition.py)
+(unknown composed as `null`; booleans/negatives not counted) and
+[test_route_cost_adjacent_api.py](../../tests/api/test_route_cost_adjacent_api.py)
+(`422` refusals and the refused-pair result). Passing focused tests are not
+journey acceptance.
+
 ### Persona identity and read-permission evidence (parent, live, 2026-10-03, read-only)
 
 Against the existing PostgreSQL-backed development API, without business-record

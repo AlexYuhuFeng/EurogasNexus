@@ -396,6 +396,10 @@ def optimize_resource_pool(base_url: str, **kwargs) -> PortfolioOptimizationResu
     The request must carry an explicit finite ``annual_financing_rate_pct``
     (percent per year): the backend holds no default rate and refuses a request
     without one, so the caller declares the early-cash assumption it wants.
+    Payment/sale lags are declared inputs too: every resource must state
+    ``upstream_payment_lag_days`` and every sale option
+    ``screen_sale_cash_lag_days`` (whole non-negative days, or ``None`` for an
+    explicit unknown), and a pair whose effective lag stays unknown is refused.
 
     Args:
         base_url: Base URL of the backend server.

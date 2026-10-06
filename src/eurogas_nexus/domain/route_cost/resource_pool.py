@@ -40,6 +40,43 @@ _TOLERANCE = 1e-9
 _EPSILON = 1e-9
 
 
+def _strict_lag_days(value: object, field_name: str) -> int:
+    """Return one explicitly declared whole-day lag, refusing coercion traps.
+
+    A lag prices the early-cash term, so only a strict non-negative integer
+    counts as a declaration: ``bool`` is refused even though
+    ``isinstance(True, int)`` is true (``True`` would otherwise become one
+    day), floats and strings are refused rather than parsed or truncated, and
+    ``None`` is refused here so the caller decides whether the field itself is
+    optional. An explicit ``0`` is a recorded zero, never "unknown".
+
+    显式天数校验：只接受调用方明确提供的非负整数天；布尔、浮点、字符串与
+    空值一律拒绝，绝不静默转换成滞后天数或默认值。
+    """
+
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(
+            f"{field_name} must be an explicitly declared whole number of days"
+            " (booleans, floats, strings and null are not accepted)"
+        )
+    if value < 0:
+        raise ValueError(f"{field_name} must be non-negative, got {value!r}")
+    return value
+
+
+def _optional_lag_days(value: object, field_name: str) -> int | None:
+    """Return one declared optional lag, or ``None`` when it is not set.
+
+    ``None`` means "this side declares no lag", never a default: the pair
+    semantics decide whether the other side's declaration supplies the
+    effective lag for the pair.
+    """
+
+    if value is None:
+        return None
+    return _strict_lag_days(value, field_name)
+
+
 class PortfolioResource(BaseModel):
     """One procurement resource available to the portfolio.
 
@@ -58,7 +95,13 @@ class PortfolioResource(BaseModel):
         delivery_tolerance_pct: Delivery tolerance, or None when unknown.
         nomination_tolerance_pct: Nomination tolerance, or None when unknown.
         tolerance_risk_allowance_gbp_mwh: Risk allowance for tolerances.
-        upstream_payment_lag_days: Payment lag of the upstream contract.
+        upstream_payment_lag_days: REQUIRED declared payment lag of the
+            upstream contract, in whole days. There is deliberately no
+            default: the lag prices the early-cash term, so a filled-in value
+            would credit margin from a term the caller never declared.
+        screen_sale_cash_lag_days: Optional per-resource override of the sale
+            cash-receipt lag, in whole days; ``None`` when this resource does
+            not override it (the sale option's declared lag then applies).
         settlement_frequency: Settlement frequency (e.g. ``monthly``).
         required_tso_access: TSO access codes the route requires.
         accessible_tsos: Company's accessible TSOs, or None when unknown.
@@ -80,13 +123,37 @@ class PortfolioResource(BaseModel):
     delivery_tolerance_pct: float | None = None
     nomination_tolerance_pct: float | None = None
     tolerance_risk_allowance_gbp_mwh: float = 0.0
-    upstream_payment_lag_days: int = 20
-    screen_sale_cash_lag_days: int | None = Field(default=None, ge=0)
+    upstream_payment_lag_days: int
+    screen_sale_cash_lag_days: int | None = None
     settlement_frequency: str = "monthly"
     required_tso_access: list[str] = Field(default_factory=list)
     accessible_tsos: list[str] | None = None
     pricing_method: str = "FIXED_PRICE"
     source_refs: list[str] = Field(default_factory=list)
+
+    @field_validator("upstream_payment_lag_days", mode="before")
+    @classmethod
+    def _require_upstream_payment_lag_days(cls, value: object) -> object:
+        """Refuse anything but an explicitly declared whole-day payment lag.
+
+        The field has no default: omission is a request error, and a supplied
+        value must be a strict non-negative integer (see
+        :func:`_strict_lag_days`) so a boolean or string can never become a
+        lag the caller did not declare.
+        """
+
+        return _strict_lag_days(value, "upstream_payment_lag_days")
+
+    @field_validator("screen_sale_cash_lag_days", mode="before")
+    @classmethod
+    def _validate_screen_sale_cash_lag_days(cls, value: object) -> object:
+        """Validate the optional per-resource sale-cash lag override.
+
+        ``None`` keeps the field unset (the sale option's lag then applies);
+        a supplied value must be a strict non-negative whole number of days.
+        """
+
+        return _optional_lag_days(value, "screen_sale_cash_lag_days")
 
 
 class PortfolioSaleOption(BaseModel):
@@ -104,7 +171,12 @@ class PortfolioSaleOption(BaseModel):
         route_cost_gbp_mwh: Route cost in the same currency/unit.
         capacity_limit_mwh_per_day: Network capacity limit, or None.
         capacity_status: Capacity state; see the validator below.
-        screen_sale_cash_lag_days: Cash receipt lag of the sale.
+        screen_sale_cash_lag_days: REQUIRED declaration of the sale's cash
+            receipt lag, in whole days, or an explicit ``None`` when the
+            caller does not know it. There is deliberately no numeric default:
+            a pair whose effective lag (resource override, else this
+            declaration) stays unknown is refused and reported, never credited
+            from an assumed receipt day.
         required_tso_access: TSO access codes the route requires.
         eligible_resource_ids: Resource ids allowed to use this option; empty means all.
         source_refs: Provenance references for the option data.
@@ -123,10 +195,22 @@ class PortfolioSaleOption(BaseModel):
     route_cost_gbp_mwh: float = 0.0
     capacity_limit_mwh_per_day: float | None = None
     capacity_status: CapacityStatus = CapacityStatus.UNKNOWN
-    screen_sale_cash_lag_days: int = 1
+    screen_sale_cash_lag_days: int | None
     required_tso_access: list[str] = Field(default_factory=list)
     eligible_resource_ids: list[str] = Field(default_factory=list)
     source_refs: list[str] = Field(default_factory=list)
+
+    @field_validator("screen_sale_cash_lag_days", mode="before")
+    @classmethod
+    def _validate_screen_sale_cash_lag_days(cls, value: object) -> object:
+        """Require an explicit declaration: whole days, or an explicit ``None``.
+
+        Omission is a request error (no default), and a supplied value must be
+        a strict non-negative integer; ``None`` is the declared unknown that
+        the solver refuses per pair unless the resource overrides the lag.
+        """
+
+        return _optional_lag_days(value, "screen_sale_cash_lag_days")
 
     @model_validator(mode="after")
     def _infer_capacity_status(self) -> PortfolioSaleOption:
@@ -156,8 +240,13 @@ class PortfolioOptimizationScenario(BaseModel):
 
     Attributes:
         portfolio_id: Portfolio identifier the result is attributed to.
-        resources: Available procurement resources.
-        sale_options: Candidate selling options.
+        resources: Available procurement resources. Each one must declare its
+            ``upstream_payment_lag_days`` (whole days, no default) and may
+            declare a ``screen_sale_cash_lag_days`` override.
+        sale_options: Candidate selling options. Each one must declare its
+            ``screen_sale_cash_lag_days`` (whole days, or an explicit ``None``
+            for unknown); a pair whose effective lag (resource override, else
+            this declaration) is unknown is refused, never defaulted.
         annual_financing_rate_pct: REQUIRED annual financing rate for early-cash
             valuation, in percent per year. There is deliberately no default:
             the rate credits unit margin, so a server-filled value would price a
@@ -378,10 +467,20 @@ def optimize_resource_pool(
                     f"PRICE_COST_UNIT_MISMATCH:{resource.resource_id}:{option.option_id}"
                 )
                 continue
+            screen_lag_days = _effective_screen_lag_days(resource, option)
+            if screen_lag_days is None:
+                # 双方都没有声明卖出回款滞后：早收现金项无法计算，禁止假设。
+                missing_inputs.append(
+                    f"SALE_CASH_LAG_MISSING:{resource.resource_id}:{option.option_id}"
+                )
+                warnings.append(
+                    f"SALE_CASH_LAG_UNKNOWN:{resource.resource_id}:{option.option_id}"
+                )
+                continue
             early_cash = _early_cash_value_gbp_mwh(
                 resource,
-                option,
                 annual_financing_rate_pct=scenario.annual_financing_rate_pct,
+                screen_sale_cash_lag_days=screen_lag_days,
             )
             total_cost = (
                 resource.contract_cost_gbp_mwh
@@ -447,6 +546,10 @@ def optimize_resource_pool(
             "(percent per year) over the declared payment/sale lag difference; "
             "the optimiser holds no default rate and a run without an explicit "
             "finite rate is refused at the request boundary.",
+            "Payment and sale-cash lags are declared inputs with no default; a "
+            "pair whose effective sale-cash lag is undeclared is refused and "
+            "reported (missing input), never credited with an assumed receipt "
+            "day.",
             "The result is decision support only; it does not execute trades "
             "or nominations.",
         ],
@@ -863,32 +966,51 @@ def _resource_warnings(resource: PortfolioResource) -> list[str]:
     return warnings
 
 
-def _early_cash_value_gbp_mwh(
+def _effective_screen_lag_days(
     resource: PortfolioResource,
     option: PortfolioSaleOption,
+) -> int | None:
+    """Effective sale-cash lag of one resource -> option pair, or ``None``.
+
+    The resource-level override wins; otherwise the sale option's declared lag
+    applies. ``None`` means neither side declares a lag for this pair, so the
+    pair must be refused rather than credited with an assumed receipt day
+    (assuming the sale is paid on the delivery day would produce the largest
+    possible early-cash credit).
+
+    该配对的卖出回款滞后：资源覆盖优先，否则用期权声明的滞后；双方都未
+    声明时返回 ``None``，调用方必须拒绝该配对。
+    """
+
+    if resource.screen_sale_cash_lag_days is not None:
+        return resource.screen_sale_cash_lag_days
+    return option.screen_sale_cash_lag_days
+
+
+def _early_cash_value_gbp_mwh(
+    resource: PortfolioResource,
     *,
     annual_financing_rate_pct: float,
+    screen_sale_cash_lag_days: int,
 ) -> float:
     """Financing value of earlier cash receipt per MWh.
 
     早收现金价值：上游付款滞后与销售回款滞后之差（天）乘以融资利率，
     折算为每 MWh 的成本抵减；滞后差为负时取 0（不产生负抵减）。
+    两个滞后天数都必须由调用方显式声明；任何一方未知时不得调用本函数。
 
     Args:
-        resource: The upstream resource.
-        option: The selling option.
+        resource: The upstream resource (supplies the declared payment lag).
         annual_financing_rate_pct: Annual financing rate in percent.
+        screen_sale_cash_lag_days: The pair's effective sale-cash lag in whole
+            days, already resolved by the caller from the resource override or
+            the sale option's declaration.
 
     Returns:
         Round(4) early-cash credit per MWh in the cost currency/unit.
     """
 
-    screen_lag_days = (
-        resource.screen_sale_cash_lag_days
-        if resource.screen_sale_cash_lag_days is not None
-        else option.screen_sale_cash_lag_days
-    )
-    lag_days = max(resource.upstream_payment_lag_days - screen_lag_days, 0)
+    lag_days = max(resource.upstream_payment_lag_days - screen_sale_cash_lag_days, 0)
     annual_rate = annual_financing_rate_pct / 100
     base_cost = (
         resource.contract_cost_gbp_mwh

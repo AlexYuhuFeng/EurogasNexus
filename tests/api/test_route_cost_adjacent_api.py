@@ -14,7 +14,10 @@ PUBLIC_TOKEN = "test-public-api-token"
 HEADERS = {"X-Eurogas-Api-Key": PUBLIC_TOKEN}
 
 #: The resource-pool optimisation scenario used by the citation and tracking
-#: tests below (the same shape as the delivered allocation test).
+#: tests below (the same shape as the delivered allocation test). The payment
+#: and sale-cash lags restate the previously implicit 20/1 defaults explicitly:
+#: the request boundary no longer fills them in, and the scenario's zero
+#: financing rate makes the early-cash term zero regardless of the lags.
 OPTIMIZATION_SCENARIO = {
     "portfolio_id": "api-pool",
     "annual_financing_rate_pct": 0,
@@ -27,6 +30,7 @@ OPTIMIZATION_SCENARIO = {
             "location_point_name": "Generic beach terminal",
             "available_quantity_mwh_per_day": 10000,
             "contract_cost_gbp_mwh": 25,
+            "upstream_payment_lag_days": 20,
             "delivery_tolerance_pct": 2,
             "nomination_tolerance_pct": 1,
             "accessible_tsos": ["Example TSO"],
@@ -41,6 +45,7 @@ OPTIMIZATION_SCENARIO = {
             "sale_price_gbp_mwh": 29,
             "route_cost_gbp_mwh": 1.4,
             "capacity_limit_mwh_per_day": 6000,
+            "screen_sale_cash_lag_days": 1,
             "required_tso_access": ["Example TSO"],
         }
     ],
@@ -106,6 +111,7 @@ def test_resource_pool_optimization_api_returns_allocations() -> None:
                     "location_point_name": "Generic beach terminal",
                     "available_quantity_mwh_per_day": 10000,
                     "contract_cost_gbp_mwh": 25,
+                    "upstream_payment_lag_days": 20,
                     "delivery_tolerance_pct": 2,
                     "nomination_tolerance_pct": 1,
                     "accessible_tsos": ["Example TSO"],
@@ -120,6 +126,7 @@ def test_resource_pool_optimization_api_returns_allocations() -> None:
                     "sale_price_gbp_mwh": 29,
                     "route_cost_gbp_mwh": 1.4,
                     "capacity_limit_mwh_per_day": 6000,
+                    "screen_sale_cash_lag_days": 1,
                     "required_tso_access": ["Example TSO"],
                 }
             ],
@@ -337,3 +344,161 @@ def test_resource_pool_optimization_refuses_non_finite_financing_rates(
     )
 
     assert response.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# Explicit payment/sale lag boundary (audited implicit 20/1 default defect)
+# ---------------------------------------------------------------------------
+
+
+def _scenario_without_resource_field(field: str) -> dict:
+    """The delivered scenario with one resource field removed."""
+
+    resource = {
+        key: value
+        for key, value in OPTIMIZATION_SCENARIO["resources"][0].items()
+        if key != field
+    }
+    return {**OPTIMIZATION_SCENARIO, "resources": [resource]}
+
+
+def _scenario_with_resource_field(field: str, value: object) -> dict:
+    """The delivered scenario with one resource field overridden."""
+
+    resource = {**OPTIMIZATION_SCENARIO["resources"][0], field: value}
+    return {**OPTIMIZATION_SCENARIO, "resources": [resource]}
+
+
+def _scenario_with_option_field(field: str, value: object) -> dict:
+    """The delivered scenario with one sale-option field overridden."""
+
+    option = {**OPTIMIZATION_SCENARIO["sale_options"][0], field: value}
+    return {**OPTIMIZATION_SCENARIO, "sale_options": [option]}
+
+
+def test_resource_pool_optimization_refuses_an_omitted_payment_lag() -> None:
+    """The removed 20-day default must not be filled in by the boundary."""
+
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/api/route-cost/resource-pool/optimize",
+        json=_scenario_without_resource_field("upstream_payment_lag_days"),
+    )
+
+    assert response.status_code == 422
+    assert any(
+        "upstream_payment_lag_days" in str(error["loc"])
+        for error in response.json()["detail"]
+    )
+
+
+def test_resource_pool_optimization_refuses_an_omitted_sale_cash_lag() -> None:
+    """The removed one-day default must not be filled in by the boundary."""
+
+    client = TestClient(create_app())
+    option = {
+        key: value
+        for key, value in OPTIMIZATION_SCENARIO["sale_options"][0].items()
+        if key != "screen_sale_cash_lag_days"
+    }
+
+    response = client.post(
+        "/api/route-cost/resource-pool/optimize",
+        json={**OPTIMIZATION_SCENARIO, "sale_options": [option]},
+    )
+
+    assert response.status_code == 422
+    assert any(
+        "screen_sale_cash_lag_days" in str(error["loc"])
+        for error in response.json()["detail"]
+    )
+
+
+@pytest.mark.parametrize("invalid_lag", [None, True, False, 20.0, "20", -1])
+def test_resource_pool_optimization_refuses_coerced_payment_lags(
+    invalid_lag: object,
+) -> None:
+    """Null, booleans, floats, strings and negatives never become a lag."""
+
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/api/route-cost/resource-pool/optimize",
+        json=_scenario_with_resource_field("upstream_payment_lag_days", invalid_lag),
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.parametrize("invalid_lag", [True, False, 1.0, "1", -1])
+def test_resource_pool_optimization_refuses_coerced_sale_cash_lags(
+    invalid_lag: object,
+) -> None:
+    """A sale option accepts whole days or an explicit null, nothing else."""
+
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/api/route-cost/resource-pool/optimize",
+        json=_scenario_with_option_field("screen_sale_cash_lag_days", invalid_lag),
+    )
+
+    assert response.status_code == 422
+
+
+def test_resource_pool_optimization_refuses_a_negative_resource_override() -> None:
+    """The optional per-resource override is held to the same whole-day rule."""
+
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/api/route-cost/resource-pool/optimize",
+        json=_scenario_with_resource_field("screen_sale_cash_lag_days", -2),
+    )
+
+    assert response.status_code == 422
+
+
+def test_resource_pool_optimization_refuses_an_option_pair_with_unknown_lag() -> None:
+    """An explicit unknown option lag with no override refuses the pair."""
+
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/api/route-cost/resource-pool/optimize",
+        json=_scenario_with_option_field("screen_sale_cash_lag_days", None),
+    )
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["status"] == "BLOCKED"
+    assert data["allocations"] == []
+    assert "SALE_CASH_LAG_MISSING:beach-a:hub-a" in data["missing_inputs"]
+    assert "SALE_CASH_LAG_UNKNOWN:beach-a:hub-a" in data["warnings"]
+
+
+def test_resource_pool_optimization_uses_the_resource_override_for_unknown_option_lag() -> None:
+    """A declared override keeps the pair usable when the option lag is null."""
+
+    client = TestClient(create_app())
+    body = _scenario_with_option_field("screen_sale_cash_lag_days", None)
+    # Declare the same scenario with an explicit zero override and a rate that
+    # would credit 25 GBP/MWh × 10%/yr × 20 days / 365 if the lags were used.
+    body["annual_financing_rate_pct"] = 10
+    body = {
+        **body,
+        "resources": [
+            {
+                **body["resources"][0],
+                "upstream_payment_lag_days": 20,
+                "screen_sale_cash_lag_days": 0,
+            }
+        ],
+    }
+
+    response = client.post("/api/route-cost/resource-pool/optimize", json=body)
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["allocations"][0]["early_cash_value_gbp_mwh"] == 0.1370

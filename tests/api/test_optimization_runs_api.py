@@ -378,6 +378,7 @@ def test_resource_pool_and_route_optimizer_use_status_kind_values() -> None:
                     location_point_name="TTF",
                     available_quantity_mwh_per_day=100,
                     contract_cost_gbp_mwh=25,
+                    upstream_payment_lag_days=20,
                     delivery_tolerance_pct=0,
                     nomination_tolerance_pct=0,
                 )
@@ -390,6 +391,7 @@ def test_resource_pool_and_route_optimizer_use_status_kind_values() -> None:
                     target_point_name="TTF",
                     sale_price_gbp_mwh=30,
                     capacity_limit_mwh_per_day=50,
+                    screen_sale_cash_lag_days=1,
                 )
             ],
         )

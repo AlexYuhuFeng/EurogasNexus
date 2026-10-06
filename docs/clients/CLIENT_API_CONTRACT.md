@@ -178,6 +178,12 @@ parse the database or bypass this API.
 - `variable_cost_gbp_mwh` as variable cost plus regas fee;
 - `fuel_loss_allowance_pct` as a separate delivered-unit cost input;
 - resource-specific `screen_sale_cash_lag_days`;
+- each sale option's `screen_sale_cash_lag_days`: the shortest lag the eligible
+  contracts declare, or `null` when none declares a usable whole-day lag. The
+  optimiser request (`POST /api/route-cost/resource-pool/optimize`) requires
+  declared payment/sale lag days; an unknown lag is refused per pair rather
+  than replaced by a default, and a resource-level `screen_sale_cash_lag_days`
+  override still supplies the lag for its pairs when the option's is unknown;
 - route-level `eligible_resource_ids`, derived from each persisted resource's
   delivery point and allowed exits;
 - `route_topology_kind`, with `LOCAL_MARKET_DISPOSITION` for a same-point sale

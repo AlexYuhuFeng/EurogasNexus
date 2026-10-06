@@ -616,6 +616,14 @@ def post_resource_pool_optimization(
     as request validation errors (422) instead of being priced from an
     undeclared assumption. An explicit ``0`` is a recorded zero.
 
+    Payment/sale lags are declared inputs as well: every resource must carry an
+    explicit ``upstream_payment_lag_days`` and every sale option an explicit
+    ``screen_sale_cash_lag_days`` (whole non-negative days, or an explicit
+    ``null`` for unknown). The previous implicit ``20``/``1`` day defaults are
+    removed; a pair whose effective sale-cash lag stays unknown (no resource
+    override and no option declaration) is refused and reported as a missing
+    input instead of receiving an assumed receipt day.
+
     When the caller supplies an ``analysis_snapshot_id`` (Architecture V2 Wave 4)
     the reference is verified against persisted Analysis Snapshots before the run
     and echoed on the result, so a produced allocation cites the version set it
