@@ -3503,7 +3503,8 @@ body {
 
 .contract-library-row {
   display: grid;
-  grid-template-columns: minmax(0, 1.5fr) minmax(86px, 0.55fr) minmax(82px, 0.55fr) auto;
+  /* One shared column set for the header and every row; the last track is the row actions cell. */
+  grid-template-columns: var(--contract-library-columns);
   align-items: center;
   gap: 12px;
   width: 100%;
@@ -3511,7 +3512,6 @@ body {
   border-radius: var(--eg-radius-md);
   background: var(--eg-canvas-soft);
   color: var(--eg-body);
-  cursor: pointer;
   padding: 10px 12px;
   text-align: left;
 }
@@ -3521,7 +3521,7 @@ body {
   background: var(--eg-canvas);
 }
 
-.contract-library-row span {
+.contract-library-row > span {
   display: grid;
   min-width: 0;
   gap: 3px;
@@ -3986,17 +3986,23 @@ body {
 }
 
 .contract-library-view {
+  /* Single source of truth for the library's shared column tracks, inherited by the header and
+     every row. The header must never hold a competing list, or header cells drift away from their
+     values (05_CONTRACT_FLOW_RECHECK P2). The four data tracks are consumed by the row's load
+     control, which carries all four data cells; the last track is the row actions cell. */
+  --contract-library-columns:
+    minmax(240px, 1.55fr)
+    minmax(130px, 0.62fr)
+    minmax(120px, 0.62fr)
+    minmax(150px, 0.72fr)
+    minmax(120px, 1fr);
   min-height: 420px;
   padding: 18px;
 }
 
-.contract-library-header,
-.contract-library-view .contract-library-row {
-  grid-template-columns: minmax(240px, 1.55fr) minmax(130px, 0.62fr) minmax(120px, 0.62fr) minmax(150px, 0.72fr);
-}
-
 .contract-library-header {
   display: grid;
+  grid-template-columns: var(--contract-library-columns);
   gap: 12px;
   border-bottom: 1px solid var(--eg-hairline);
   color: var(--eg-muted);
@@ -4098,7 +4104,7 @@ body {
   }
 
   .contract-library-view .contract-library-row {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -4149,7 +4155,17 @@ body {
   }
 
   .contract-library-view .contract-library-row {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .contract-library-load {
+    /* The single mobile track stacks the four data cells; the header is hidden at this width, so
+       no header/cell alignment is at stake. */
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .contract-library-row-actions {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -5381,6 +5397,11 @@ body {
   margin-top: 12px;
 }
 
+.credential-connection-products {
+  display: grid;
+  gap: 4px;
+}
+
 .credential-form.horizontal {
   grid-template-columns: 1fr 1fr 1.4fr auto;
 }
@@ -5792,14 +5813,7 @@ button.glossary-related-chip {
     flex: 1 1 120px;
   }
 
-  .contract-library-row {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .contract-library-row > span:first-child {
-    grid-column: 1 / -1;
-  }
-
+  /* The library row's mobile tracks are declared once, with `.contract-library-header`. */
   .contract-library-row em {
     justify-self: start;
   }
@@ -8640,13 +8654,22 @@ button.glossary-related-chip {
   padding: 4px 8px;
 }
 
-.contract-library-row {
-  grid-template-columns: minmax(0, 1fr) auto;
+.contract-library-row-actions {
+  /* The row's last track. Two buttons, never nested inside the load control, so the row keeps both
+     Strategy and Inspector without nesting interactive controls. */
+  display: grid;
+  min-width: 0;
+  justify-items: stretch;
+  gap: 6px;
 }
 
 .contract-library-load {
   display: grid;
-  grid-template-columns: minmax(240px, 1.55fr) minmax(130px, 0.62fr) minmax(120px, 0.62fr) minmax(150px, 0.72fr);
+  /* The load control is the keyboard/focus path that loads a persisted term, and it carries the
+     row's four data cells. It spans the shared tracks and consumes them via subgrid, so it must
+     not invent its own list of widths. */
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
   align-items: center;
   gap: 12px;
   min-width: 0;
@@ -8662,6 +8685,17 @@ button.glossary-related-chip {
   display: grid;
   min-width: 0;
   gap: 3px;
+}
+
+@media (min-width: 901px) {
+  .contract-library-load {
+    grid-column: 1 / span 4;
+  }
+
+  .contract-library-row-actions {
+    grid-column: 5;
+    grid-row: 1;
+  }
 }
 
 .contract-library-load strong {

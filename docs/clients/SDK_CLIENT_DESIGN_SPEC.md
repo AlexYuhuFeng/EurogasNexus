@@ -1,4 +1,4 @@
-﻿# Python SDK Client Design Spec
+# Python SDK Client Design Spec
 
 ## Objective
 

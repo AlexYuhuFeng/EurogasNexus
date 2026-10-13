@@ -9,7 +9,11 @@ from sqlalchemy.orm import Session
 from eurogas_nexus.api.app import create_app
 from eurogas_nexus.core.config import Settings
 from eurogas_nexus.db.base import Base
-from eurogas_nexus.db.models import MarketObservationRecord
+from eurogas_nexus.db.models import (
+    MarketObservationRecord,
+    StrategyDataSnapshotRecord,
+    StrategyRunRecord,
+)
 
 PUBLIC_TOKEN = "test-public-api-token"
 HEADERS = {"X-Eurogas-Api-Key": PUBLIC_TOKEN}
@@ -45,6 +49,33 @@ def _definition_body() -> dict:
                         "time_window_start": "05:00",
                         "time_window_end": "05:30",
                     },
+                    # CR-04 engine/2 needs a complete frozen per-leg target
+                    # mapping. Rolling current-gas-day targets are declared here
+                    # so the seeded gas-day windows below match exactly.
+                    "evidence_targets": [
+                        {
+                            "leg_id": "day_ahead",
+                            "price_names": ["SAP"],
+                            "role": "DELIVERY_PRICE",
+                            "hub": "NBP",
+                            "tenor": "day-ahead",
+                            "price_basis": "MID",
+                            "target_basis": "GAS_DAY",
+                            "calendar_id": "EU-CAM-UTC-2025",
+                            "gas_day_offset": 0,
+                        },
+                        {
+                            "leg_id": "intraday",
+                            "price_names": ["ICE_OCM"],
+                            "role": "DELIVERY_PRICE",
+                            "hub": "NBP",
+                            "tenor": "within-day",
+                            "price_basis": "MID",
+                            "target_basis": "GAS_DAY",
+                            "calendar_id": "EU-CAM-UTC-2025",
+                            "gas_day_offset": 0,
+                        },
+                    ],
                 }
             ],
             "parameter_definitions": [],
@@ -94,9 +125,10 @@ def _seed_observations(tmp_path, monkeypatch, database_url: str) -> None:
     engine = create_engine(database_url, future=True)
     with Session(engine) as session:
         for day in range(2):
-            observed = datetime(2026, 7, 1, 4, 30, tzinfo=UTC) + timedelta(
-                days=day
-            )
+            # EU-CAM-UTC-2025 gas day in July (BST): 04:00Z to 04:00Z.
+            delivery_start = datetime(2026, 7, 1 + day, 4, 0, tzinfo=UTC)
+            delivery_end = datetime(2026, 7, 2 + day, 4, 0, tzinfo=UTC)
+            observed = datetime(2026, 7, 1 + day, 4, 30, tzinfo=UTC)
             for observation_id, source, venue, price, tenor in [
                 ("ice", "ICE_OCM_Sim", "ICE OCM", 30.0 + day, "within-day"),
                 ("sap", "SAP_Sim", "SAP", 25.0 + day, "day-ahead"),
@@ -109,8 +141,8 @@ def _seed_observations(tmp_path, monkeypatch, database_url: str) -> None:
                         price=price,
                         unit="GBP/MWh",
                         currency="GBP",
-                        period_start_utc=observed,
-                        period_end_utc=observed + timedelta(hours=24),
+                        period_start_utc=delivery_start,
+                        period_end_utc=delivery_end,
                         observed_at_utc=observed,
                         source_system=source,
                         source_reference=f"bt:{observation_id}:{day}",
@@ -120,6 +152,10 @@ def _seed_observations(tmp_path, monkeypatch, database_url: str) -> None:
                         metadata_json={
                             "hub": "NBP",
                             "tenor": tenor,
+                            # Explicit CR-04 evidence metadata: the target-aware
+                            # selector never infers a role or basis.
+                            "evidence_role": "DELIVERY_PRICE",
+                            "price_basis": "MID",
                             "price_timing": (
                                 "instant"
                                 if observation_id == "ice"
@@ -166,25 +202,44 @@ def test_create_backtest_run_and_retrieve_events_series_attribution(
     assert run.status_code == 200, run.text
     data = run.json()["data"]
     assert data["run_type"] == "BACKTEST"
-    assert data["backtest_engine_version"] == "backtest-engine/1"
+    # CR-04 engine/2: a declared frozen version now runs the target-aware
+    # selector. The seeded gas-day windows are the same admissible evidence the
+    # legacy name-only selector used, so the financial expectations below are
+    # unchanged; only the engine identity and the evidence provenance move.
+    assert data["backtest_engine_version"] == "backtest-engine/2"
     assert data["status"] == "COMPLETED_WITH_WARNINGS"
     assert data["manifest_json"]["parameters"] == {}
     assert data["backtest_metrics"]["evaluation_count"] == 2
     assert data["backtest_metrics"]["candidate_decision_count"] == 2
-    assert data["backtest_metrics"]["gross_indicative_pnl_gbp"] == 1850.0
+    # Reviewer-readable delta versus engine/1 (see result.md): the legacy name-only
+    # selector averaged every same-name row available at T, so decision 2 averaged
+    # SAP {25, 26} -> 25.5 and ICE {30, 31} -> 30.5 (gross 1850). Engine/2 admits
+    # exactly the one row per leg whose half-open interval equals the resolved
+    # target, so decision 2 values SAP 26.0 / ICE 31.0 (gross 1900, +50).
+    assert data["backtest_metrics"]["gross_indicative_pnl_gbp"] == 1900.0
     assert data["backtest_metrics"]["modeled_costs_gbp"] == 100.0
-    assert data["backtest_metrics"]["net_indicative_pnl_gbp"] == 1750.0
+    assert data["backtest_metrics"]["net_indicative_pnl_gbp"] == 1800.0
+    assert data["manifest_json"]["evidence"]["evidence_selection"]["rules_version"] == (
+        "target-evidence-selection/v1"
+    )
+    assert len(data["manifest_json"]["evidence"]["evidence_selection"]["target_declarations"]) == 2
     run_id = data["run_id"]
 
     events = client.get(f"/api/strategy-runs/{run_id}/events")
     assert events.status_code == 200
     assert [row["decision_sequence"] for row in events.json()["data"]] == [1, 2]
     assert events.json()["data"][0]["outcome"] == "COMPLETED_WITH_WARNINGS"
+    # The resolved target and per-leg selection reason survive the round trip
+    # through the existing event JSON (no migration).
+    trace = events.json()["data"][0]["evidence_selection_trace"]
+    assert {item["price_name"] for item in trace} == {"SAP", "ICE_OCM"}
+    assert all(item["outcome"] == "MATCHED" for item in trace)
+    assert trace[0]["resolved_start_utc"] == "2026-07-01T04:00:00Z"
 
     series = client.get(f"/api/strategy-runs/{run_id}/series")
     assert series.status_code == 200
     assert len(series.json()["data"]) == 2
-    assert series.json()["data"][1]["cumulative_net_indicative_pnl_gbp"] == 1750.0
+    assert series.json()["data"][1]["cumulative_net_indicative_pnl_gbp"] == 1800.0
 
     attribution = client.get(f"/api/strategy-runs/{run_id}/attribution")
     assert attribution.status_code == 200
@@ -297,6 +352,8 @@ def test_experiment_create_get_and_run_link(tmp_path, monkeypatch) -> None:
         json=_backtest_payload(version_id, experiment_id=experiment_id),
     )
     assert run.status_code == 200, run.text
+    # The experiment-grouped entry point runs the same engine/2 path.
+    assert run.json()["data"]["backtest_engine_version"] == "backtest-engine/2"
     run_id = run.json()["data"]["run_id"]
 
     fetched = client.get(f"/api/backtest-experiments/{experiment_id}")
@@ -350,7 +407,8 @@ def test_backtest_run_echoes_the_snapshot_it_was_computed_against(
     assert data["analysis_snapshot_id"] == snapshot_id
     # The citation is an echo, not a second computation: the run is unchanged.
     assert data["backtest_metrics"]["evaluation_count"] == 2
-    assert data["backtest_metrics"]["net_indicative_pnl_gbp"] == 1750.0
+    # Engine/2 one-row-per-leg selection at decision 2 (delta documented above).
+    assert data["backtest_metrics"]["net_indicative_pnl_gbp"] == 1800.0
 
 
 def test_backtest_run_refuses_an_unknown_snapshot_reference(tmp_path, monkeypatch) -> None:
@@ -425,3 +483,42 @@ def test_backtest_run_job_commits_the_snapshot_it_cited(tmp_path, monkeypatch) -
     assert len(rows) == 1
     assert rows[0]["snapshot_id"] == snapshot_id
     assert rows[0]["output_refs"] == [f"strategy_run:{run.json()['data']['run_id']}"]
+
+
+def test_backtest_run_refuses_a_period_that_has_not_occurred(
+    tmp_path, monkeypatch
+) -> None:
+    # BACKTEST_ENGINE_SPEC section 1 promises a historical evaluation. A window
+    # ending after the request instant is not historical, and the run must be
+    # refused before any evidence snapshot or run row is written.
+    database_url = _configure_db(tmp_path, monkeypatch)
+    client = TestClient(create_app())
+    version_id = _create_frozen_version(client)
+    _seed_observations(tmp_path, monkeypatch, database_url)
+
+    now = datetime.now(UTC).replace(microsecond=0)
+    refused = client.post(
+        "/api/strategy-runs",
+        json=_backtest_payload(
+            version_id,
+            evaluation_period_start_utc=(now - timedelta(days=1)).isoformat(),
+            evaluation_period_end_utc=(now + timedelta(days=30)).isoformat(),
+        ),
+    )
+
+    assert refused.status_code == 422, refused.text
+    detail = refused.json()["detail"]
+    assert detail["code"] == "backtest_request_invalid"
+    assert "after the request time" in detail["message"]
+
+    # No run row, evidence snapshot or tracked job survives the refusal.
+    engine = create_engine(database_url, future=True)
+    with Session(engine) as session:
+        assert session.query(StrategyRunRecord).count() == 0
+        assert session.query(StrategyDataSnapshotRecord).count() == 0
+
+    jobs = TestClient(create_app(Settings(api_profile="release"))).get(
+        "/api/jobs", params={"kind": "BACKTEST"}, headers=HEADERS
+    )
+    assert jobs.status_code == 200
+    assert jobs.json()["data"] == []

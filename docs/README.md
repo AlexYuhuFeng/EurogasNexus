@@ -228,6 +228,11 @@ Operational procedures and operator-facing guides:
 ## Release, security, and deployment
 
 - [Release readiness](release/RELEASE_READINESS.md)
+- [Vendor remediation acceptance record](release/VENDOR_REMEDIATION_ACCEPTANCE.md) — the reviewing
+  firm's item-by-item record of findings, changes, and the command that proves each change
+- [Re-evaluation verdict](release/acceptance/00_REEVALUATION_VERDICT.md) — which release gates are
+  closed and which still depend on something outside the code, with the four perspective reports
+  beside it
 - [Release engineering specification](release/RELEASE_ENGINEERING_SPEC.md)
 - [Release channels](release/RELEASE_CHANNELS.md)
 - [GA release gates](release/GA_RELEASE_GATES.md)

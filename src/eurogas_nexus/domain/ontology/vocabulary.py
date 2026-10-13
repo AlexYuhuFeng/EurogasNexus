@@ -525,6 +525,36 @@ class StrategyRunStatus(StrEnum):
     CANCELLED = "CANCELLED"
 
 
+class StrategyEvidenceTargetRole(StrEnum):
+    """What one declared strategy price leg is evidence *of*.
+
+    The role is declared, never inferred from a series name: a deliverable
+    quote and a published assessment are different evidence even when they
+    carry the same product label.
+    """
+
+    DELIVERY_PRICE = "DELIVERY_PRICE"
+    REFERENCE_LEVEL = "REFERENCE_LEVEL"
+
+
+class StrategyEvidenceTargetBasis(StrEnum):
+    """How one declared evidence target resolves to a delivery interval.
+
+    ``EXPLICIT_INTERVAL`` states the interval's UTC endpoints directly.
+
+    ``GAS_DAY`` rolls the target relative to the decision gas day using an
+    explicit canonical calendar and an explicit offset: ``0`` is the gas day
+    containing the decision time, ``1`` the following gas day. The interval is
+    resolved through the canonical gas-day calendar, never by adding 24 hours,
+    so DST 23/25-hour days are correct. Month/quarter tenor rolls need their own
+    convention validation and are added by a later slice; they are refused
+    rather than guessed.
+    """
+
+    EXPLICIT_INTERVAL = "EXPLICIT_INTERVAL"
+    GAS_DAY = "GAS_DAY"
+
+
 class ParameterType(StrEnum):
     """Primitive type of a strategy parameter."""
 

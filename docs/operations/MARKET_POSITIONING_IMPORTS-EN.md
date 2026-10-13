@@ -1,4 +1,4 @@
-﻿# Market Positioning Imports
+# Market Positioning Imports
 
 ## Purpose
 

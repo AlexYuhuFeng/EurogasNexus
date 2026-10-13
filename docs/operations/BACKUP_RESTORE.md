@@ -43,15 +43,22 @@ python scripts/ops/backup_restore_drill.py `
   --target-database-url postgresql+pg8000://user:pass@127.0.0.1:5432/nexus_restore_drill
 ```
 
-For a local Docker PostgreSQL without `pg_dump` on the host:
+For the current local Docker PostgreSQL without `pg_dump` on the host,
+provision a separate disposable drill database and supply its connection through
+the process environment. Never target the retained application database:
 
 ```powershell
 python scripts/ops/backup_restore_drill.py `
-  --target-database-url postgresql+pg8000://eurogas:eurogas_dev@127.0.0.1:5432/nexus_restore_drill `
-  --pg-docker-container eurogas-nexus-db
+  --target-database-url $env:EUROGAS_RESTORE_DRILL_DATABASE_URL `
+  --pg-docker-container eurogas-nexus-postgres
 ```
 
-Recorded CR-11 drill evidence:
+The current local container uses loopback port `51356` and externally managed
+credentials; it has no default development password. Start it through
+`scripts/ops/Start-LocalAcceptance.ps1`. The drill target must be distinct from
+`nexus_browser` and all other retained project databases.
+
+Historical CR-11 drill evidence (not the current container configuration):
 
 ```text
 source:      postgresql+pg8000://eurogas:***@127.0.0.1:5432/eurogas_nexus_cr10
@@ -75,6 +82,12 @@ elapsed:     2.816s
       snapshot (append-only tables are the canary for silent data loss).
 
 ## Retention
+
+For the user's current workstation migration, the explicit instruction is to
+delete old embedded data and migration backups after successful migration and
+application verification. Do not apply the generic retention policy below to
+those migration copies. This local instruction does not establish a customer
+production backup policy.
 
 Keep at least 7 daily dumps for preview/trial. CR-11 engineering RPO target is
 ≤24h with a measured local restore of 2.8s for the current scratch database

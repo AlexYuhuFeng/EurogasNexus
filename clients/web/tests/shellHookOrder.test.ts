@@ -15,7 +15,7 @@
  */
 
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync } from "node:fs";
+import { readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -29,10 +29,18 @@ function readWebSource(relativePath: string): string {
   return readFileSync(new URL(`src/${relativePath}`, ROOT), "utf8");
 }
 
-function tsxFiles(directory: string): string[] {
-  return readdirSync(directory, { withFileTypes: true, recursive: true })
-    .filter((entry) => entry.isFile() && entry.name.endsWith(".tsx"))
-    .map((entry) => path.join(entry.parentPath ?? directory, entry.name))
+function tsxFiles(directory: string, visited = new Set<string>()): string[] {
+  const resolved = realpathSync(directory);
+  if (visited.has(resolved)) return [];
+  visited.add(resolved);
+  return readdirSync(directory, { withFileTypes: true })
+    .flatMap((entry) => {
+      const filename = path.join(directory, entry.name);
+      // Windows reparse-point files can be reported as symbolic links by Dirent.
+      const kind = entry.isSymbolicLink() ? statSync(filename) : entry;
+      if (kind.isDirectory()) return tsxFiles(filename, visited);
+      return kind.isFile() && entry.name.endsWith(".tsx") ? [filename] : [];
+    })
     .sort();
 }
 

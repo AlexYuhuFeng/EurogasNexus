@@ -121,7 +121,59 @@ class DatasetSpec(BaseModel):
                 "forecast origin count exceeds the service limit of "
                 f"{MAX_DATASET_ORIGINS} origins"
             )
+        self._validate_splits(start, end)
         return self
+
+    def _validate_splits(self, start: datetime, end: datetime) -> None:
+        """Refuse a split specification that cannot govern anything.
+
+        `split_specs` was declared and never read: a caller could name a training window
+        and a held-back window, and the build would ignore both in silence. For a
+        time-series engineer that is worse than having no split control, because the
+        specification looks like it is in force and the resulting dataset is used as
+        though the holdout were real.
+
+        These are the checks that make a declaration meaningful without pretending the
+        engine enforces a training policy it does not: each split must lie inside the
+        dataset's own period, must not be inverted, and must not overlap another split --
+        an overlap would put one observation in two roles and is the ordinary way a
+        holdout ceases to be held back. Leakage control itself remains the caller's
+        responsibility and is reported through `leakage_issues`; what changes here is that
+        a nonsense specification is refused instead of ignored.
+        """
+
+        if not self.split_specs:
+            return
+
+        seen: list[tuple[str, datetime, datetime]] = []
+        for split in self.split_specs:
+            split_start = _utc(split.start)
+            split_end = _utc(split.end)
+
+            if split_end <= split_start:
+                raise ValueError(
+                    f"split {split.name!r}: end must be after start"
+                )
+            if split_start < start or split_end > end:
+                raise ValueError(
+                    f"split {split.name!r}: [{split_start.isoformat()}, "
+                    f"{split_end.isoformat()}) lies outside the dataset period "
+                    f"[{start.isoformat()}, {end.isoformat()})"
+                )
+            if split.embargo_before < timedelta(0) or split.gap_after < timedelta(0):
+                raise ValueError(
+                    f"split {split.name!r}: embargo_before and gap_after must be "
+                    "non-negative"
+                )
+
+            for other_name, other_start, other_end in seen:
+                if split_start < other_end and other_start < split_end:
+                    raise ValueError(
+                        f"split {split.name!r} overlaps split {other_name!r}; an "
+                        "observation cannot belong to two splits, and an overlapping "
+                        "holdout is not held back"
+                    )
+            seen.append((split.name, split_start, split_end))
 
     def content_hash(self) -> str:
         encoded = json.dumps(self.model_dump(mode="json"), sort_keys=True, default=str).encode(
@@ -203,7 +255,70 @@ class DatasetBuildResult:
             # Recorded for lineage because the requested policy id alone does not
             # prove which registered definition was applied.
             "resampling_policy": _json_safe(self.resampling_policy),
+            # What the declared splits actually cover. Without this a caller who named a
+            # training and a held-back window had no way to see that both had been
+            # ignored: the specification was accepted and the rows carried no marker.
+            "split_coverage": self.split_coverage(),
         }
+
+    def split_coverage(self) -> list[dict[str, Any]]:
+        """Report how many rows each declared split covers, and which rows belong to none.
+
+        The rows themselves are not reorganised. A dataset is a point-in-time materialised
+        table, and regrouping it here would change what the snapshot's content hash
+        describes; what a caller needs is to know whether the split it declared actually
+        selects anything before it trains on it.
+        """
+
+        if not self.spec.split_specs:
+            return []
+
+        def observed_at(row: dict[str, Any]) -> datetime | None:
+            for key in ("observed_at", "available_at", "event_time_utc", "observed_at_utc"):
+                value = row.get(key)
+                if isinstance(value, str):
+                    try:
+                        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+                    except ValueError:
+                        continue
+                    return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+                if isinstance(value, datetime):
+                    return value if value.tzinfo else value.replace(tzinfo=UTC)
+            return None
+
+        assigned = [False] * len(self.rows)
+        report: list[dict[str, Any]] = []
+        for split in self.spec.split_specs:
+            matched = 0
+            for index, row in enumerate(self.rows):
+                stamp = observed_at(row)
+                if stamp is None:
+                    continue
+                if split.contains(stamp):
+                    matched += 1
+                    assigned[index] = True
+            report.append(
+                {
+                    "name": split.name,
+                    "start": _json_safe(split.start),
+                    "end": _json_safe(split.end),
+                    "row_count": matched,
+                    "embargo_before_seconds": int(split.embargo_before.total_seconds()),
+                    "gap_after_seconds": int(split.gap_after.total_seconds()),
+                }
+            )
+
+        report.append(
+            {
+                "name": "(unassigned)",
+                "start": None,
+                "end": None,
+                "row_count": sum(1 for flag in assigned if not flag),
+                "embargo_before_seconds": 0,
+                "gap_after_seconds": 0,
+            }
+        )
+        return report
 
 
 FeatureComputer = Callable[

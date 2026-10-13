@@ -253,6 +253,30 @@
   font-size: var(--text-control);
 }
 
+/* Materialization status and training qualification are deliberately separate
+   claims: this block reports the second one next to the first, never as a
+   restatement of it. */
+.research-qualification {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  border-left: 3px solid var(--eg-hairline);
+  padding-left: var(--space-2);
+}
+
+.research-qualification strong {
+  color: var(--eg-body);
+  font-size: var(--text-control);
+}
+
+.research-qualification-unavailable {
+  border-left-color: var(--eg-warn, var(--warning));
+}
+
+.research-qualification-available {
+  border-left-color: var(--eg-positive, var(--accent));
+}
+
 .research-export-controls {
   display: grid;
   gap: var(--space-2);

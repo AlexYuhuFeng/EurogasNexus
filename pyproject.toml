@@ -25,6 +25,12 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
+    # Line coverage is release evidence, not a quality score. The reviewed figure comes
+    # from the CI `coverage` job and travels with the run, so a reviewer can see which
+    # modules the suite actually exercises instead of trusting a summary claim. It is
+    # evidence only: no threshold gate is enforced, because a mandated percentage would
+    # reward tests written to raise the number rather than to find defects.
+    "pytest-cov>=6.0,<8.0",
     "pyyaml>=6.0,<7.0",
     "rdflib>=7.0,<8.0",
     "ruff>=0.5,<1.0",
@@ -51,7 +57,23 @@ target-version = "py311"
 # rather than as product code (it is neither accepted nor reverted by the architecture
 # programme). Linting it would report hundreds of style findings in scripts nobody maintains
 # and drown the findings that matter in `src/`, `tests/` and `scripts/`.
-exclude = [".automation"]
+#
+# The `.dnx-*` entries are local dependency targets (hash-locked installs, a throwaway target
+# used to verify the locked install sequence, a build-tool target, a local npm, an embedded
+# PostgreSQL and its data directory, and captured test evidence). They are Git-ignored, but ruff
+# reads the filesystem rather than Git, so without these entries `ruff check .` reports tens of
+# thousands of findings inside third-party packages - which reads as "the project does not lint"
+# and hides the real ones.
+#
+# The glob covers every local working directory in one entry rather than naming them.
+# An explicit list has been wrong three times in this repository's remediation: each
+# time a new local target was created (.dnx-verify, then .dnx-audit, then .dnx-cov)
+# `ruff check .` went red with thousands of findings inside third-party packages, and
+# each time the fix was to append one more name. A glob cannot be forgotten.
+exclude = [
+    ".automation",
+    ".dnx-*",
+]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]

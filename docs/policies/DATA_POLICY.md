@@ -1,4 +1,4 @@
-﻿# Data Policy
+# Data Policy
 
 ## Source Of Truth
 

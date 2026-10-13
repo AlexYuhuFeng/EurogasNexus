@@ -39,6 +39,7 @@ def main() -> int:
         MINIMUM_SUPPORTED_CLIENT_VERSION,
         MINIMUM_SUPPORTED_SERVER_VERSION,
         STRATEGY_SCHEMA_VERSION,
+        TARGET_BACKTEST_ENGINE_VERSION,
     )
     from eurogas_nexus.security.permissions import permission_for_path
 
@@ -54,7 +55,8 @@ def main() -> int:
         "database_schema_revision": DB_SCHEMA_REVISION,
         "minimum_supported_client": MINIMUM_SUPPORTED_CLIENT_VERSION,
         "minimum_supported_server": MINIMUM_SUPPORTED_SERVER_VERSION,
-        "backtest_engine_version": BACKTEST_ENGINE_VERSION,
+        "backtest_engine_version": TARGET_BACKTEST_ENGINE_VERSION,
+        "legacy_backtest_engine_version": BACKTEST_ENGINE_VERSION,
         "strategy_schema_version": STRATEGY_SCHEMA_VERSION,
     }
     print(json.dumps(manifest, indent=2, sort_keys=True))

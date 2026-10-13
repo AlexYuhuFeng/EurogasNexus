@@ -23,6 +23,24 @@ from eurogas_nexus.db.repositories.identity import (
 PUBLIC_TOKEN = "test-public-api-token"
 
 
+def test_deployment_token_refusals_are_actionable_auth_failures(monkeypatch) -> None:
+    monkeypatch.setenv("EUROGAS_NEXUS_PUBLIC_API_TOKEN", PUBLIC_TOKEN)
+    client = TestClient(create_app(Settings(api_profile="release", allow_anonymous_callers=False)))
+    for headers, status, code in (
+        ({}, 401, "public_api_token_missing"),
+        ({"X-Eurogas-Api-Key": "invalid-test-token"}, 403, "public_api_token_invalid"),
+    ):
+        response = client.get("/api/credentials/providers", headers=headers)
+        assert response.status_code == status
+        body = response.json()
+        assert body["detail"]["error"] == code
+        assert body["error"] == code
+        assert body["family"] == "AUTH"
+        assert body["recoverability"] == "after_user_action"
+        assert body["correlation_id"] == response.headers["x-request-id"]
+        assert "invalid-test-token" not in response.text
+
+
 def _prepare(tmp_path, monkeypatch) -> str:
     db_path = tmp_path / "error-envelope.sqlite"
     database_url = f"sqlite+pysqlite:///{db_path.as_posix()}"

@@ -18,6 +18,7 @@ import {
   TRANSACTION_COST_TREATMENTS,
   strategyBacktestReadiness,
   strategyBacktestRequest,
+  strategyEvidenceDeclarationComplete,
   type StrategyBacktestDraft,
 } from "../src/app/model/strategyBacktestModel.ts";
 
@@ -106,6 +107,55 @@ test("a run in flight blocks the next one and never hides a real precondition", 
   ]);
 });
 
+function declaredDefinition(): Record<string, unknown> {
+  return {
+    components: [
+      {
+        component_type: "OCM_VS_DAY_AHEAD",
+        extension_json: {
+          day_ahead_price_names: ["SAP"],
+          intraday_price_names: ["ICE_OCM"],
+        },
+        evidence_targets: [
+          { leg_id: "day_ahead", price_names: ["SAP"] },
+          { leg_id: "intraday", price_names: ["ICE_OCM"] },
+        ],
+      },
+    ],
+  };
+}
+
+test("the preflight discloses an obviously undeclared frozen target", () => {
+  // The server remains the authority, but a surface that shows READY while the
+  // declaration is missing reads as a working run that is then refused.
+  assert.equal(strategyEvidenceDeclarationComplete(declaredDefinition()), true);
+  assert.equal(
+    readiness({ evidenceDeclared: false }).blockerKeys[0],
+    "strategy_lab.blocker.evidence_target_missing",
+  );
+  assert.equal(readiness({ evidenceDeclared: true }).canRun, true);
+  // Undefined keeps previous callers on the server's answer.
+  assert.equal(readiness().canRun, true);
+});
+
+test("declaration completeness is a read-only projection of the backend rule", () => {
+  const partial = declaredDefinition();
+  (partial.components as Record<string, unknown>[])[0].evidence_targets = [
+    { leg_id: "day_ahead", price_names: ["SAP"] },
+  ];
+  assert.equal(strategyEvidenceDeclarationComplete(partial), false);
+
+  const noTargets = declaredDefinition();
+  delete (noTargets.components as Record<string, unknown>[])[0].evidence_targets;
+  assert.equal(strategyEvidenceDeclarationComplete(noTargets), false);
+
+  const unmapped = declaredDefinition();
+  (unmapped.components as Record<string, unknown>[])[0].component_type = "SOMETHING_ELSE";
+  assert.equal(strategyEvidenceDeclarationComplete(unmapped), false);
+
+  assert.equal(strategyEvidenceDeclarationComplete(undefined), false);
+});
+
 test("the request carries the configured assumptions and nothing invented", () => {
   const request = strategyBacktestRequest(
     draft({
@@ -148,7 +198,7 @@ test("the workspace hosts the action and the panel only configures and reports",
   assert.match(workspace, /const \[backtestDraft, setBacktestDraft\] = useState<StrategyBacktestDraft>/);
   assert.match(
     workspace,
-    /const backtestReadiness = strategyBacktestReadiness\(\{\s*draft: backtestDraft,\s*frozen: controller\.selectedVersion\?\.status === "FROZEN",\s*running: controller\.loading,\s*\}\);/s,
+    /const backtestReadiness = strategyBacktestReadiness\(\{[\s\S]*?draft: backtestDraft,[\s\S]*?frozen: controller\.selectedVersion\?\.status === "FROZEN",[\s\S]*?evidenceDeclared: strategyEvidenceDeclarationComplete\([\s\S]*?controller\.selectedVersion\?\.definition_json,[\s\S]*?running: controller\.loading,[\s\S]*?\}\);/,
   );
   assert.match(workspace, /primaryAction=\{primaryAction\}/);
   assert.match(workspace, /onDraftChange=\{setBacktestDraft\}/);
@@ -175,6 +225,10 @@ test("every new strategy string exists in both locales, and says something diffe
     "strategy_lab.blocker.period",
     "strategy_lab.blocker.transaction_cost",
     "strategy_lab.blocker.in_flight",
+    "strategy_lab.blocker.evidence_target_missing",
+    "strategy_lab.data_coverage",
+    "strategy_lab.evaluation_completion_help",
+    "strategy_lab.legacy_engine_disclosure",
   ]) {
     assert.ok(en[key], `en is missing ${key}`);
     assert.ok(zh[key], `zh is missing ${key}`);

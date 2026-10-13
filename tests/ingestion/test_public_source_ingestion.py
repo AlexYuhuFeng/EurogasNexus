@@ -2,6 +2,9 @@
 
 from datetime import UTC, datetime
 
+import pytest
+
+from eurogas_nexus.domain.ingestion.source_timezone import SourceTimezoneError
 from eurogas_nexus.ingestion.public_sources import (
     ecb_market_observations_from_xml,
     entsog_capacity_observations_from_json,
@@ -167,6 +170,113 @@ def test_gie_agsi_json_is_normalized_into_storage_observations() -> None:
     assert rows[0]["period_start_utc"] == datetime(2026, 5, 29, 4, 0, tzinfo=UTC)
     assert rows[0]["period_end_utc"] == datetime(2026, 5, 30, 4, 0, tzinfo=UTC)
     assert rows[0]["metadata_json"]["calendar_version"] == "EU-CAM-UTC-2025"
+
+
+def _gie_agsi_payload(*, updated_at: str) -> dict:
+    return {
+        "data": [
+            {
+                "code": "EU",
+                "name": "EU",
+                "gasDayStart": "2026-05-29",
+                "gasDayEnd": "2026-05-30",
+                "gasInStorage": "650.25",
+                "workingGasVolume": "1100.50",
+                "full": "59.1",
+                "updatedAt": updated_at,
+            }
+        ]
+    }
+
+
+def _gie_alsi_payload(*, updated_at: str) -> dict:
+    return {
+        "data": [
+            {
+                "code": "EU",
+                "name": "EU LNG",
+                "gasDayStart": "2026-05-29",
+                "gasDayEnd": "2026-05-30",
+                "inventory": {"lng": "9.5", "gwh": "42.5"},
+                "sendOut": "3.4",
+                "dtmi": {"lng": "14.4", "gwh": "65.0"},
+                "updatedAt": updated_at,
+            }
+        ]
+    }
+
+
+def test_gie_agsi_bare_updated_at_is_not_read_as_utc_and_uses_the_receipt() -> None:
+    """The live provider sends a bare ``updatedAt``; the receipt substitutes, visibly."""
+
+    receipt = datetime(2026, 10, 9, 22, 45, tzinfo=UTC)
+
+    rows = gie_storage_observations_from_json(
+        _gie_agsi_payload(updated_at="2026-05-29 12:00:00"),
+        observed_at_utc=receipt,
+    )
+
+    assert rows[0]["observed_at_utc"] == receipt
+    assert rows[0]["observed_at_utc"] != datetime(2026, 5, 29, 12, 0, tzinfo=UTC)
+    assert rows[0]["metadata_json"]["availability_basis"] == "response_receipt"
+    assert rows[0]["metadata_json"]["provider_updated_at_zone"] == "unproven"
+    # The provider's own stamp is preserved verbatim for later reconciliation.
+    assert rows[0]["metadata_json"]["updatedAt"] == "2026-05-29 12:00:00"
+
+
+def test_gie_agsi_offset_updated_at_is_trusted_and_marked_proven() -> None:
+    receipt = datetime(2026, 10, 9, 22, 45, tzinfo=UTC)
+
+    rows = gie_storage_observations_from_json(
+        _gie_agsi_payload(updated_at="2026-05-29T14:00:00+02:00"),
+        observed_at_utc=receipt,
+    )
+
+    assert rows[0]["observed_at_utc"] == datetime(2026, 5, 29, 12, 0, tzinfo=UTC)
+    assert rows[0]["metadata_json"]["availability_basis"] == "provider_updated_at"
+    assert rows[0]["metadata_json"]["provider_updated_at_zone"] == "provider_offset"
+
+
+def test_gie_alsi_bare_updated_at_uses_the_receipt() -> None:
+    receipt = datetime(2026, 10, 9, 22, 45, tzinfo=UTC)
+
+    rows = gie_lng_observations_from_json(
+        _gie_alsi_payload(updated_at="2026-05-29 12:00:00"),
+        observed_at_utc=receipt,
+    )
+
+    assert rows[0]["observed_at_utc"] == receipt
+    assert rows[0]["metadata_json"]["availability_basis"] == "response_receipt"
+
+
+def test_gie_alsi_bare_updated_at_without_a_receipt_is_refused() -> None:
+    """No receipt means no substitute: the M1-P0 refusal is preserved."""
+
+    with pytest.raises(SourceTimezoneError) as refusal:
+        gie_lng_observations_from_json(
+            _gie_alsi_payload(updated_at="2026-05-29 12:00:00")
+        )
+
+    assert refusal.value.code == "unprovable_source_timezone"
+
+
+def test_gie_duplicate_and_revised_records_share_one_natural_key() -> None:
+    """A revised record is not a new row: the natural key is product+code+gas day."""
+
+    receipt = datetime(2026, 10, 9, 22, 45, tzinfo=UTC)
+    original = _gie_agsi_payload(updated_at="2026-05-29T10:00:00+02:00")["data"][0]
+    revised = {**original, "gasInStorage": "700.00", "updatedAt": "2026-05-29T14:00:00+02:00"}
+
+    rows = gie_storage_observations_from_json(
+        {"data": [original, revised]}, observed_at_utc=receipt
+    )
+
+    assert len(rows) == 2
+    assert {row["observation_id"] for row in rows} == {"gie-agsi-EU-2026-05-29"}
+    assert {row["inventory_twh"] for row in rows} == {650.25, 700.0}
+    assert {row["period_start_utc"] for row in rows} == {
+        datetime(2026, 5, 29, 4, 0, tzinfo=UTC)
+    }
 
 
 def test_gie_alsi_json_is_normalized_into_lng_observations() -> None:

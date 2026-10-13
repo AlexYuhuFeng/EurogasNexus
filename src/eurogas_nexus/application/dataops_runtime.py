@@ -163,7 +163,10 @@ def execute_claimed_runs(
                 now_utc=now,
                 sleeper=sleep,
             )
-            if outcome["status"] == IngestionRunStatus.SUCCEEDED.value:
+            if outcome["status"] in {
+                IngestionRunStatus.SUCCEEDED.value,
+                IngestionRunStatus.SUCCEEDED_WITH_WARNINGS.value,
+            }:
                 job.add_output(f"ingestion_run:{run.run_id}")
             else:
                 job.mark_failed(

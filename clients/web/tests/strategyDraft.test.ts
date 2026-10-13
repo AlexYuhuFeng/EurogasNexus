@@ -29,7 +29,7 @@ function readWebSource(relativePath: string): string {
 }
 
 function form(overrides: Partial<StrategyDesignFormState> = {}): StrategyDesignFormState {
-  return { ...DEFAULT_STRATEGY_FORM, name: "OCM vs DA", ...overrides };
+  return { ...DEFAULT_STRATEGY_FORM, name: "OCM vs DA", resourceId: "explicit-test-resource", resourceName: "Test resource", resourceQuantity: "100", resourceCost: "20", ...overrides };
 }
 
 /**
@@ -174,7 +174,7 @@ test("the request body carries the form and nothing invented", () => {
     { code: "TRANSACTION_COST", treatment: "MODELED_COST", amount_gbp_mwh: 0.4 },
     { code: "SLIPPAGE", treatment: "UNAVAILABLE", amount_gbp_mwh: null },
   ]);
-  assert.equal(body.resource_contexts?.[0].resource_id, "res-1");
+  assert.equal(body.resource_contexts?.[0].resource_id, "explicit-test-resource");
   // The name a first save uses is decided once, here, rather than at the call site.
   assert.equal(strategyDraftName(form({ name: "  " })), "Untitled strategy");
 });
@@ -206,9 +206,9 @@ test("the workspace hosts the save and the panel keeps only the guarded acts", (
   // The draft and its rule live with the action.
   assert.match(hook, /export function useStrategyDesignDraft\(/);
   assert.match(hook, /const readiness = strategyDraftReadiness\(\{ validation, busy, frozen \}\);/);
-  assert.match(hook, /if \(!readiness\.canSave\) return;/);
+  assert.match(hook, /if \(!readiness\.canSave \|\| saveInFlight\.current\) return;/);
   assert.match(hook, /const body = strategyDraftBody\(form\);/);
-  assert.match(workspace, /const designDraft = useStrategyDesignDraft\(\{ controller, selection, t \}\);/);
+  assert.match(readWebSource("app/workspaces/WorkspaceRenderer.tsx"), /const designDraft = useStrategyDesignDraft\(/);
   assert.match(workspace, /controller\.task === "design" && !designDraft\.frozen \? \(/);
   assert.match(workspace, /onClick=\{\(\) => void designDraft\.saveDraft\(\)\}/);
   assert.match(workspace, /draft=\{designDraft\}/);

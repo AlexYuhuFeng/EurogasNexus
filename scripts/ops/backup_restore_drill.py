@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -50,7 +51,19 @@ def _parts(database_url: str) -> dict:
 
 
 def _pg_env(database_url: str) -> dict:
-    return {"PGPASSWORD": _parts(database_url)["password"]}
+    """Environment for a pg_dump/pg_restore child process.
+
+    The password is added to the inherited environment rather than replacing it. An
+    earlier version returned ``{"PGPASSWORD": ...}`` alone, and passing that as
+    ``env=`` removed ``PATH`` from the child: on Windows the process could not even be
+    created (``FileNotFoundError [WinError 2]``), and elsewere ``pg_dump`` reported
+    ``could not find a "pg_dump" to execute``. The drill therefore failed on every
+    platform regardless of whether the PostgreSQL client tools were installed.
+    """
+
+    environment = dict(os.environ)
+    environment["PGPASSWORD"] = _parts(database_url)["password"]
+    return environment
 
 
 def create_database_if_missing(database_url: str, *, docker_container: str | None = None) -> bool:
@@ -98,10 +111,23 @@ def create_database_if_missing(database_url: str, *, docker_container: str | Non
             ).scalar()
             if exists:
                 return False
-        with engine.connect().execution_options(
+
+        # `CREATE DATABASE` cannot run inside a transaction, and PostgreSQL refuses it
+        # with 25001 when it does. The isolation level is set on a dedicated engine
+        # rather than through `Connection.execution_options`, because the per-connection
+        # form reaches the driver only through SQLAlchemy's isolation-level plugin path
+        # and a reviewer running this drill observed 25001 with it while a direct probe
+        # did not. An engine-level setting is applied when each connection is created, so
+        # the statement's isolation is a property of the engine instead of of the call
+        # site, and the ambiguity disappears.
+        ddl_engine = get_engine(maintenance_dsn).execution_options(
             isolation_level="AUTOCOMMIT"
-        ) as connection:
-            connection.exec_driver_sql(f'CREATE DATABASE "{database}"')
+        )
+        try:
+            with ddl_engine.connect() as connection:
+                connection.exec_driver_sql(f'CREATE DATABASE "{database}"')
+        finally:
+            ddl_engine.dispose()
         return True
     finally:
         engine.dispose()

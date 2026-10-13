@@ -587,7 +587,21 @@ def _build_materialized(client, spec: dict | None = None) -> dict:
 
 
 def test_dataset_build_registers_format_specific_artifact(client, tmp_path) -> None:
-    """CR14-ARTIFACT-001: a materialized build persists a real artifact."""
+    """CR14-ARTIFACT-001: a materialized build persists a real artifact.
+
+    The registered format set is capability-derived, not environment-assumed:
+    ``artifact_formats()`` omits Parquet when the optional pyarrow adapter is
+    importable-false and includes it otherwise. Asserting the capability
+    contract keeps this test meaningful in both the CI gate environment (runtime
+    extras only) and a full ``--all-extras`` environment, where the previous
+    hard-coded ``== ["csv"]`` assertion failed even though the behaviour was
+    correct.
+    """
+
+    from eurogas_nexus.application.research_artifacts import artifact_formats
+
+    expected_formats = list(artifact_formats())
+    assert expected_formats in (["csv"], ["parquet", "csv"])
 
     body = _build_materialized(client)
     snapshot_id = body["dataset_snapshot_id"]
@@ -597,14 +611,20 @@ def test_dataset_build_registers_format_specific_artifact(client, tmp_path) -> N
         stored = repo.get_dataset_snapshot(session, snapshot_id)
         parquet = repo.get_dataset_artifact(session, snapshot_id, "parquet")
         assert stored is not None
-        # pyarrow is an optional extra; CSV is always available in this environment.
-        assert [artifact.format for artifact in artifacts] == ["csv"]
-        artifact = artifacts[0]
-        assert artifact.sha256 and len(artifact.sha256) == 64
-        assert stored.artifact_ref == artifact.artifact_path
-        assert parquet is None
-        artifact_path = artifact.artifact_path
-        artifact_sha256 = artifact.sha256
+        # Every advertised format is registered. The registry read order is not
+        # the declared precedence, so the sets are compared, not the sequences.
+        assert sorted(artifact.format for artifact in artifacts) == sorted(expected_formats)
+        # A Parquet artifact exists exactly when the adapter is available.
+        assert (parquet is not None) == ("parquet" in expected_formats)
+        # The precedence-defining first format owns the snapshot's artifact_ref.
+        first_artifact = next(
+            item for item in artifacts if item.format == expected_formats[0]
+        )
+        assert stored.artifact_ref == first_artifact.artifact_path
+        assert first_artifact.sha256 and len(first_artifact.sha256) == 64
+        csv_artifact = next(item for item in artifacts if item.format == "csv")
+        artifact_path = csv_artifact.artifact_path
+        artifact_sha256 = csv_artifact.sha256
 
     written = tmp_path / "research-artifacts" / artifact_path
     assert written.is_file()
@@ -614,7 +634,7 @@ def test_dataset_build_registers_format_specific_artifact(client, tmp_path) -> N
 
     detail = client.get(f"/api/research/datasets/{snapshot_id}")
     assert detail.status_code == 200
-    assert detail.json()["data"]["artifact_ref"] == artifact_path
+    assert detail.json()["data"]["artifact_ref"] == stored.artifact_ref
     assert str(tmp_path) not in artifact_path
 
 
@@ -630,6 +650,15 @@ def test_dataset_export_matches_requested_format_or_fails_closed(
     """
 
     from eurogas_nexus.api.routes.public import research_data
+    from eurogas_nexus.application import research_artifacts
+
+    # Whether "parquet" is an unregistered format depends on the build
+    # capability: with the optional pyarrow adapter importable the build
+    # registers Parquet as well, and this test would then assert the wrong
+    # branch. Pin the capability to CSV-only so the FORMAT_NOT_REGISTERED path is
+    # exercised deterministically in both the CI gate environment (runtime extras)
+    # and a full ``--all-extras`` environment.
+    monkeypatch.setattr(research_artifacts, "artifact_formats", lambda: ("csv",))
 
     body = _build_materialized(client)
     snapshot_id = body["dataset_snapshot_id"]
@@ -646,7 +675,7 @@ def test_dataset_export_matches_requested_format_or_fails_closed(
         lambda _definitions: {"export_policy": "EXPORT_ALLOWED", "policy_source": "test"},
     )
 
-    # parquet was never registered for this snapshot: fail closed, no null ref.
+    # parquet is not among the stored artifacts: fail closed, no null ref.
     unavailable = client.post(
         f"/api/research/datasets/{snapshot_id}/export", json={"format": "parquet"}
     )

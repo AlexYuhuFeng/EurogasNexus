@@ -49,6 +49,9 @@ import {
   researchSpecFingerprint,
   researchSpecFromDraft,
   researchSpecMissingInputs,
+  researchTrainingQualification,
+  researchTrainingReasonKey,
+  researchTrainingStatusKey,
   researchValidationOutcome,
   safeResearchErrorMessage,
 } from "@/app/model/researchDataModel";
@@ -166,6 +169,40 @@ function metadataStringList(metadata: Record<string, unknown>, key: string): str
 
 function DetailValue({ label, value }: { label: string; value: string }) {
   return <div className="research-detail-value"><dt>{label}</dt><dd>{value}</dd></div>;
+}
+
+/**
+ * The training qualification, shown beside — never instead of — the
+ * materialization status. A `COMPLETE` snapshot that is not trainable reads as
+ * "training unavailable" with the concrete reasons, and a snapshot whose quality
+ * metadata proves nothing reads as "not established" rather than ready.
+ */
+function TrainingQualificationNote({
+  t,
+  qualification,
+}: {
+  t: Translate;
+  qualification: ReturnType<typeof researchTrainingQualification>;
+}) {
+  const stateClass = qualification.status === "available"
+    ? "research-qualification-available"
+    : qualification.status === "unavailable"
+      ? "research-qualification-unavailable"
+      : "research-qualification-unknown";
+  return (
+    <div className={`research-qualification ${stateClass}`} role="status">
+      <strong>{t("research.training_qualification")}</strong>
+      <span>{t(researchTrainingStatusKey(qualification.status))}</span>
+      {qualification.status === "available" && (
+        <span className="research-muted">{t("research.training_qualification_scope")}</span>
+      )}
+      {qualification.reasons.length > 0 && (
+        <ul className="research-detail-list">
+          {qualification.reasons.map((reason) => <li key={reason}>{t(researchTrainingReasonKey(reason))}</li>)}
+        </ul>
+      )}
+    </div>
+  );
 }
 
 function ResearchIssueList({ t, groups }: { t: Translate; groups: ResearchIssueGroup[] }) {
@@ -292,6 +329,7 @@ function ResearchSpecPanel({
           <>
             <p className="research-artifact-result" role="status"><strong>{t("research.build_created")}</strong> {buildState.summary.datasetSnapshotId}</p>
             <p className="research-muted">{t("research.build_created_help")}</p>
+            <TrainingQualificationNote t={t} qualification={buildState.summary.trainingQualification} />
             <dl className="research-detail-grid">
               <DetailValue label={t("research.name")} value={researchDisplayValue(buildState.summary.datasetSpecId, t("research.unknown"))} />
               <DetailValue label={t("research.spec_hash")} value={researchDisplayValue(buildState.summary.specHash, t("research.unknown"))} />
@@ -447,6 +485,16 @@ function DatasetDetailRail({
   const lineage = metadataStringList(metadata, "lineage");
   const warnings = quality.warnings.length ? quality.warnings : metadataStringList(metadata, "warnings");
   const qualityReport = quality.quality_report && typeof quality.quality_report === "object" ? quality.quality_report : {};
+  // The qualification is derived from the persisted quality metadata (and the
+  // snapshot's own coverage field), so the rail never states it from the
+  // materialization status or from fields the detail answer does not carry.
+  const trainingQualification = researchTrainingQualification(
+    {
+      qualityReport,
+      leakageIssues: quality.leakage_issues,
+    },
+    detail.coverage,
+  );
   const policy = detail.entitlement_envelope?.export_policy;
   const exportDecision = researchExportDecision(policy);
   const contentHash = detail.content_hash ?? metadata.content_hash;
@@ -474,6 +522,12 @@ function DatasetDetailRail({
           <DetailValue label={t("research.rights")} value={researchDisplayValue(policy, t("research.unknown"))} />
           <DetailValue label={t("research.artifact_reference")} value={researchDisplayValue(detail.artifact_ref, t("research.unknown"))} />
         </dl>
+      </section>
+
+      <section className="research-detail-section" aria-labelledby="research-training">
+        <h3 id="research-training">{t("research.training_qualification")}</h3>
+        <p className="research-muted">{t("research.training_qualification_help")}</p>
+        <TrainingQualificationNote t={t} qualification={trainingQualification} />
       </section>
 
       <section className="research-detail-section" aria-labelledby="research-lineage">
@@ -522,11 +576,17 @@ function DatasetCatalog({ t, datasets, loading, error, selectedId, onSelect }: {
       <div className="research-table-wrap" tabIndex={0} role="region" aria-labelledby="research-dataset-table-title">
         <table className="research-semantic-table" aria-busy={loading}>
           <caption className="visually-hidden">{t("research.dataset_snapshots")}</caption>
-          <thead><tr><th scope="col">{t("research.name")}</th><th scope="col">{t("research.rows")}</th><th scope="col">{t("research.columns")}</th><th scope="col">{t("research.coverage")}</th><th scope="col">{t("research.temporal_integrity")}</th><th scope="col">{t("research.created")}</th><th scope="col">{t("research.status")}</th></tr></thead>
+          <thead><tr><th scope="col">{t("research.name")}</th><th scope="col">{t("research.rows")}</th><th scope="col">{t("research.columns")}</th><th scope="col">{t("research.coverage")}</th><th scope="col">{t("research.training_qualification")}</th><th scope="col">{t("research.temporal_integrity")}</th><th scope="col">{t("research.created")}</th><th scope="col">{t("research.status")}</th></tr></thead>
           <tbody>
-            {loading && <tr><td colSpan={7} className="research-state-row">{t("status.loading")}</td></tr>}
-            {!loading && datasets.map((dataset) => <tr key={dataset.dataset_snapshot_id} className={selectedId === dataset.dataset_snapshot_id ? "selected" : undefined} aria-selected={selectedId === dataset.dataset_snapshot_id} tabIndex={0} onClick={() => onSelect(dataset.dataset_snapshot_id)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onSelect(dataset.dataset_snapshot_id); } }}><th scope="row"><button type="button" className="research-row-button" onClick={() => onSelect(dataset.dataset_snapshot_id)}>{dataset.dataset_spec_id}</button></th><td>{researchDisplayValue(dataset.row_count, t("research.unknown"))}</td><td>{researchDisplayValue(dataset.column_count, t("research.unknown"))}</td><td>{formatCoverage(dataset.coverage, t("research.unknown"))}</td><td><StatusBadge variant="pipeline" status={dataset.temporal_integrity.toLowerCase()}>{dataset.temporal_integrity}</StatusBadge></td><td>{formatDate(dataset.created_at_utc, t("research.unknown"))}</td><td>{dataset.status}</td></tr>)}
-            {!loading && datasets.length === 0 && <tr><td colSpan={7} className="research-state-row">{t("research.no_datasets")}</td></tr>}
+            {loading && <tr><td colSpan={8} className="research-state-row">{t("status.loading")}</td></tr>}
+            {/* The catalog holds coverage and status only. Coverage above zero is not
+                proof of trainability, and the materialization status is not one either,
+                so a row without a proven blocker reads "not established" -- never ready. */}
+            {!loading && datasets.map((dataset) => {
+              const qualification = researchTrainingQualification({}, dataset.coverage);
+              return <tr key={dataset.dataset_snapshot_id} className={selectedId === dataset.dataset_snapshot_id ? "selected" : undefined} aria-selected={selectedId === dataset.dataset_snapshot_id} tabIndex={0} onClick={() => onSelect(dataset.dataset_snapshot_id)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onSelect(dataset.dataset_snapshot_id); } }}><th scope="row"><button type="button" className="research-row-button" onClick={() => onSelect(dataset.dataset_snapshot_id)}>{dataset.dataset_spec_id}</button></th><td>{researchDisplayValue(dataset.row_count, t("research.unknown"))}</td><td>{researchDisplayValue(dataset.column_count, t("research.unknown"))}</td><td>{formatCoverage(dataset.coverage, t("research.unknown"))}</td><td>{t(researchTrainingStatusKey(qualification.status))}</td><td><StatusBadge variant="pipeline" status={dataset.temporal_integrity.toLowerCase()}>{dataset.temporal_integrity}</StatusBadge></td><td>{formatDate(dataset.created_at_utc, t("research.unknown"))}</td><td>{dataset.status}</td></tr>;
+            })}
+            {!loading && datasets.length === 0 && <tr><td colSpan={8} className="research-state-row">{t("research.no_datasets")}</td></tr>}
           </tbody>
         </table>
       </div>

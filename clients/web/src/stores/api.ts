@@ -191,6 +191,37 @@ function latestTimestamp(values: Array<string | null | undefined>): string | nul
   return latestTimestampMs > 0 ? new Date(latestTimestampMs).toISOString() : null;
 }
 
+/**
+ * Render one connection-test outcome from the backend's own shape. GIE answers with a bounded
+ * per-product aggregate (connectivity is never a certification claim); the LLM providers answer
+ * with a single `connection_status`. The message never contains a credential or payload.
+ */
+function connectionTestMessage(
+  providerId: string,
+  data: {
+    connection_status?: string;
+    connection_error_code?: string | null;
+    connection?: {
+      ok: boolean;
+      error_code: string | null;
+      products: Array<{ product: string; ok: boolean; record_count: number }>;
+    };
+  },
+): string {
+  if (data.connection) {
+    if (!data.connection.ok) {
+      return `${providerId} live connection failed: ${data.connection.error_code ?? "unknown"}`;
+    }
+    const perProduct = data.connection.products
+      .map((product) => `${product.product}:${product.ok ? "ok" : "failed"}(${product.record_count})`)
+      .join(" ");
+    return `${providerId} live connection passed (bounded page per product${perProduct ? `: ${perProduct}` : ""}).`;
+  }
+  return data.connection_status === "success"
+    ? `${providerId} live connection passed.`
+    : `${providerId} live connection failed: ${data.connection_error_code ?? data.connection_status ?? "unknown"}`;
+}
+
 function closeDecisionStreams() {
   decisionStreamClosers.forEach((close) => close());
   decisionStreamClosers = [];
@@ -851,6 +882,16 @@ export interface ApiState {
   streamingActive: boolean;
   error: string | null;
   credentialMessage: string | null;
+  /**
+   * The most recent bounded connection-test aggregate (GIE shape), rendered per product by the
+   * Source Center. It is cleared when a new test starts; it never carries a credential or payload.
+   */
+  credentialConnection: {
+    providerId: string;
+    ok: boolean;
+    errorCode: string | null;
+    products: Array<{ product: string; ok: boolean; record_count: number; bounded_partial: boolean }>;
+  } | null;
   contractSaveMessage: string | null;
   /**
    * True when the last contract save was refused as a stale-edit conflict.
@@ -1313,6 +1354,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
   streamingActive: false,
   error: null,
   credentialMessage: null,
+  credentialConnection: null,
   contractSaveMessage: null,
   contractSaveConflict: false,
   sourceRunOutcome: null,
@@ -2252,7 +2294,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
   testProviderConnection: async (providerId) => {
     if (logoutInProgress) return;
     const requestGeneration = identityReadCoordinator.capture();
-    set({ credentialMessage: null });
+    set({ credentialMessage: null, credentialConnection: null });
     try {
       const result = await api.testCredentialConnection(providerId);
       if (!followUpReadIsCurrent(requestGeneration)) return;
@@ -2260,9 +2302,20 @@ export const useApiStore = create<ApiState>((set, get) => ({
       if (!followUpReadIsCurrent(requestGeneration)) return;
       set({
         credentialProviders: credentialProviders.data,
-        credentialMessage: result.data.connection_status === "success"
-          ? `${providerId} live connection passed.`
-          : `${providerId} live connection failed: ${result.data.connection_error_code ?? result.data.connection_status}`,
+        credentialMessage: connectionTestMessage(providerId, result.data),
+        credentialConnection: result.data.connection
+          ? {
+              providerId,
+              ok: result.data.connection.ok,
+              errorCode: result.data.connection.error_code,
+              products: result.data.connection.products.map((product) => ({
+                product: product.product,
+                ok: product.ok,
+                record_count: product.record_count,
+                bounded_partial: product.bounded_partial,
+              })),
+            }
+          : null,
       });
     } catch (e) {
       if (!followUpReadIsCurrent(requestGeneration)) return;

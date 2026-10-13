@@ -339,6 +339,21 @@ def _fx_factor(
     return 1.0 / latest.rate
 
 
+def matches_fill_policy(
+    row: BacktestObservation,
+    policy: FillPricePolicy,
+) -> bool:
+    """Shared historical fill-price predicate.
+
+    ``as_of_price_observations`` (engine/1) and the target-aware (engine/2)
+    selector both call this one implementation. It is deliberately not
+    duplicated: the declared ``fill_price_policy`` must mean the same thing in
+    both selection paths, and ``NEXT_ELIGIBLE`` stays permissive for both.
+    """
+
+    return _matches_fill_policy(row, policy)
+
+
 def _matches_fill_policy(
     row: BacktestObservation,
     policy: FillPricePolicy,

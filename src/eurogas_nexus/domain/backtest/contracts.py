@@ -9,7 +9,13 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    SerializerFunctionWrapHandler,
+    model_serializer,
+    model_validator,
+)
 
 from eurogas_nexus.domain.market.gas_day import (
     DEFAULT_GAS_DAY_CALENDAR,
@@ -24,6 +30,11 @@ from eurogas_nexus.domain.ontology.vocabulary import (
 )
 
 BACKTEST_ENGINE_VERSION = "backtest-engine/1"
+#: Target-aware selection. This is the version an *application* historical run
+#: uses once the frozen definition declares a complete per-leg target mapping.
+#: The engine/1 constant above stays the deterministic legacy helper identity;
+#: it is never relabelled and the target path never claims engine/1 numerics.
+TARGET_BACKTEST_ENGINE_VERSION = "backtest-engine/2"
 
 
 class BacktestPeriod(BaseModel):
@@ -123,7 +134,15 @@ class BacktestEconomicAssumptions(BaseModel):
 
 
 class BacktestObservation(BaseModel):
-    """One normalized historical price observation eligible for the engine."""
+    """One normalized historical price observation eligible for the engine.
+
+    ``evidence_role`` and ``price_basis`` are the *normalized* CR-04 evidence
+    classification (deliverable versus reference, and the quotation basis such
+    as MID/BID/ASK). They are ``None`` when the source did not carry explicit
+    metadata, which blocks a target-aware leg rather than guessing. They are
+    also omitted from serialization when ``None`` so a legacy observation's
+    stored JSON shape is unchanged.
+    """
 
     observation_id: str
     source_system: str
@@ -144,6 +163,21 @@ class BacktestObservation(BaseModel):
     source_reference: str = ""
     simulated: bool = False
     temporal_integrity: TemporalIntegrityStatus = TemporalIntegrityStatus.APPROXIMATE
+    evidence_role: str | None = None
+    price_basis: str | None = None
+
+    @model_serializer(mode="wrap")
+    def _serialize_observation(
+        self, handler: SerializerFunctionWrapHandler
+    ) -> dict[str, Any]:
+        """Omit the new normalized evidence fields when they are unknown."""
+
+        data = handler(self)
+        for key in ("evidence_role", "price_basis"):
+            if data.get(key) is None:
+                data.pop(key, None)
+        return data
+
 
 
 class BacktestFxRate(BaseModel):
@@ -253,8 +287,24 @@ class BacktestDecisionEvent(BaseModel):
     resource_evidence_refs: list[str] = Field(default_factory=list)
     cost_trace: list[dict[str, Any]] = Field(default_factory=list)
     attribution: list[dict[str, Any]] = Field(default_factory=list)
+    evidence_selection_trace: list[dict[str, Any]] = Field(default_factory=list)
     research_only: bool = True
     human_review_required: bool = True
+
+    @model_serializer(mode="wrap")
+    def _serialize_event(
+        self, handler: SerializerFunctionWrapHandler
+    ) -> dict[str, Any]:
+        """Omit the selection trace when there is none.
+
+        A legacy engine/1 event (and any shadow event) keeps its existing JSON
+        shape; only a target-aware event carries the trace.
+        """
+
+        data = handler(self)
+        if not data.get("evidence_selection_trace"):
+            data.pop("evidence_selection_trace", None)
+        return data
 
 
 class BacktestSeriesPoint(BaseModel):
@@ -301,6 +351,22 @@ class BacktestMetricSet(BaseModel):
     risk_metric_not_applicable_reasons: list[str] = Field(default_factory=list)
     warning_counts: dict[str, int] = Field(default_factory=dict)
     temporal_integrity: str = "INSUFFICIENT"
+    # Honest evidence diagnostics over the persisted decision events. The
+    # legacy ``data_coverage`` remains completion/all evaluations; these are
+    # independent and never presented as fresh observed coverage.
+    #
+    # * ``distinct_admitted_price_refs`` — size of the union of every event's
+    #   ``price_evidence_refs`` (distinct references admitted anywhere in the
+    #   run), not a count of distinct market products.
+    # * ``events_reusing_admitted_price_refs`` — number of events, in decision
+    #   sequence order, that cite at least one reference already admitted by an
+    #   earlier event in the same run (denominator: all events).
+    # * ``events_with_simulated_evidence`` — number of events whose warnings
+    #   contain ``SOURCE_ENTITLEMENT_SIMULATED``, i.e. at least one selected row
+    #   was simulated (denominator: all events).
+    distinct_admitted_price_refs: int = 0
+    events_reusing_admitted_price_refs: int = 0
+    events_with_simulated_evidence: int = 0
 
 
 class BacktestRunDefinition(BaseModel):

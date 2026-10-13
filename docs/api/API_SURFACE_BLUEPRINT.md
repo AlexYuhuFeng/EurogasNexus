@@ -1,4 +1,4 @@
-﻿# API Surface Blueprint
+# API Surface Blueprint
 
 ## Purpose
 

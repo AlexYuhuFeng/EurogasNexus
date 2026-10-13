@@ -19,6 +19,7 @@ param(
     [string]$ApiImage,
     [string]$ApiImageArchivePath,
     [switch]$LocalHttpOnly,
+    # Obsolete compatibility parameter: customer simulation is always refused.
     [switch]$EnableSimulatedPrices,
     [switch]$SkipPublicData,
     [switch]$PurgeData,
@@ -27,6 +28,10 @@ param(
 
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
+
+if ($EnableSimulatedPrices) {
+    throw "CUSTOMER_SIMULATION_FORBIDDEN: -EnableSimulatedPrices is no longer supported. Use only the separate development/test source-checkout workflow. No installation work was performed."
+}
 
 # Release identity (PILOT-A). A released operator ZIP carries
 # release-identity.json at the bundle root: schema version, application and
@@ -320,6 +325,12 @@ function Initialize-RuntimeFiles {
     $postgresPassword = if ($existing.POSTGRES_PASSWORD) { $existing.POSTGRES_PASSWORD } else { New-HexSecret 32 }
     $secretKey = if ($existing.EUROGAS_NEXUS_SECRET_KEY) { $existing.EUROGAS_NEXUS_SECRET_KEY } else { New-HexSecret 32 }
     $internalToken = if ($existing.EUROGAS_NEXUS_INTERNAL_API_TOKEN) { $existing.EUROGAS_NEXUS_INTERNAL_API_TOKEN } else { New-HexSecret 32 }
+    # The API profile is named, so every caller must present a credential: without a
+    # public token the runtime refuses to start and the readiness probe cannot
+    # authenticate. This file is the only environment the stack receives, so omitting
+    # the variable here made every documented installation path fail at the compose
+    # `config-check` step before the API container was ever created.
+    $publicApiToken = if ($existing.EUROGAS_NEXUS_PUBLIC_API_TOKEN) { $existing.EUROGAS_NEXUS_PUBLIC_API_TOKEN } else { New-HexSecret 32 }
     $lines = @(
         "EUROGAS_NEXUS_API_IMAGE=$ApiImage"
         "EUROGAS_NEXUS_VERSION=$PackageVersion"
@@ -334,14 +345,27 @@ function Initialize-RuntimeFiles {
         "SERVER_NAME=$ServerName"
         "EUROGAS_NEXUS_SECRET_KEY=$secretKey"
         "EUROGAS_NEXUS_INTERNAL_API_TOKEN=$internalToken"
+        "EUROGAS_NEXUS_PUBLIC_API_TOKEN=$publicApiToken"
     )
+    # Preserve an operator's SSO configuration on Repair. Forward the same named
+    # values through Compose so config-check sees partial blocks before migration.
+    foreach ($name in @(
+        "EUROGAS_NEXUS_OIDC_ISSUER", "EUROGAS_NEXUS_OIDC_CLIENT_ID",
+        "EUROGAS_NEXUS_OIDC_CLIENT_SECRET", "EUROGAS_NEXUS_OIDC_REDIRECT_URI",
+        "EUROGAS_NEXUS_OIDC_AUDIENCE", "EUROGAS_NEXUS_OIDC_ROLE_CLAIM",
+        "EUROGAS_NEXUS_OIDC_SCOPE_CLAIM", "EUROGAS_NEXUS_OIDC_PROVISIONING_MODE",
+        "EUROGAS_NEXUS_OIDC_APPROVED_DOMAINS", "EUROGAS_NEXUS_OIDC_GROUPS_ROLE_MAP",
+        "EUROGAS_NEXUS_OIDC_GROUPS_SCOPE_MAP", "EUROGAS_NEXUS_OIDC_ALLOW_HTTP"
+    )) {
+        if ($existing.ContainsKey($name)) { $lines += "$name=$($existing[$name])" }
+    }
     [IO.File]::WriteAllLines($EnvironmentFile, $lines, [Text.UTF8Encoding]::new($false))
     Protect-EnvironmentFile
     [ordered]@{
         deployment_mode = "server"
         api_base_url = $ApiBaseUrl
         compose_file = $ComposeFile
-        simulated_prices_enabled = [bool]$EnableSimulatedPrices
+        simulated_prices_enabled = $false
         public_data_workers_enabled = -not [bool]$SkipPublicData
         server_name = $ServerName
         https_port = $HttpsPort
@@ -404,6 +428,8 @@ function Install-OrRepairRuntime {
         Invoke-Compose @("pull", "postgres")
     }
     Invoke-Compose @("up", "-d", "postgres")
+    # --no-deps skips Compose's migration dependency, so run the gate explicitly.
+    Invoke-Compose @("run", "--rm", "--no-deps", "config-check")
     Invoke-Compose @("run", "--rm", "--no-deps", "migrate")
     Invoke-Compose @("up", "-d", "--no-deps", "api")
     Invoke-Compose @(
@@ -412,13 +438,6 @@ function Install-OrRepairRuntime {
     )
     if (-not $UseLocalHttp -and $DeploymentRole -eq "Server") {
         Invoke-Compose @("--profile", "server", "up", "-d", "--no-deps", "gateway")
-    }
-    if ($EnableSimulatedPrices) {
-        Invoke-Compose @("--profile", "tools", "run", "--rm", "--no-deps", "preview-seed")
-        Invoke-Compose @("--profile", "simulated-prices", "up", "-d", "--no-deps", "simulated-prices")
-    }
-    else {
-        Invoke-Compose @("--profile", "simulated-prices", "stop", "simulated-prices")
     }
     $null = Wait-ApiReady
     $health = Wait-PublicApiReady
@@ -451,7 +470,7 @@ function Install-OrRepairRuntime {
         api_base_url = $ApiBaseUrl
         api_status = $health.status
         api_version = $health.version
-        simulated_prices_enabled = [bool]$EnableSimulatedPrices
+        simulated_prices_enabled = $false
         public_data_ingestion_requested = -not [bool]$SkipPublicData
         public_data_workers_enabled = -not [bool]$SkipPublicData
         monitoring_worker_enabled = $true

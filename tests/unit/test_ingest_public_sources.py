@@ -100,3 +100,82 @@ def test_record_run_writes_run_row_and_audit_event() -> None:
     assert audit_event.action == "public_source_ingest"
     assert audit_event.principal == "operator"
     assert audit_event.outcome == "succeeded"
+
+
+def _gie_raw_payload() -> dict:
+    return {
+        "data": [
+            {
+                "code": "EU",
+                "name": "EU",
+                "gasDayStart": "2026-05-29",
+                "gasDayEnd": "2026-05-30",
+                "gasInStorage": "650.25",
+                "workingGasVolume": "1100.50",
+                "updatedAt": "2026-05-29 12:00:00",
+            }
+        ]
+    }
+
+
+def test_normalize_gie_page_attaches_page_lineage_and_receipt() -> None:
+    from types import SimpleNamespace
+
+    from eurogas_nexus.ingestion.gie_transport import GieProduct
+
+    script = _load_script()
+    receipt = datetime(2026, 10, 9, 22, 45, tzinfo=UTC)
+    page = SimpleNamespace(
+        raw_payload=_gie_raw_payload(),
+        received_at_utc=receipt,
+        page=1,
+        size=300,
+        last_page=193,
+        total_on_page=1,
+    )
+
+    rows = script._normalize_gie_page(GieProduct.agsi(), page)
+
+    assert len(rows) == 1
+    assert rows[0]["observed_at_utc"] == receipt
+    metadata = rows[0]["metadata_json"]
+    assert metadata["source_page"] == 1
+    assert metadata["source_page_size"] == 300
+    assert metadata["provider_last_page"] == 193
+    assert metadata["source_receipt_at_utc"] == receipt.isoformat()
+    assert metadata["availability_basis"] == "response_receipt"
+
+
+def _real_gie_row() -> dict:
+    return {
+        "observation_id": "gie-agsi-EU-2026-05-29",
+        "source_system": "GIE",
+        "metadata_json": {"availability_basis": "response_receipt"},
+    }
+
+
+def test_reject_synthetic_gie_rows_accepts_real_provider_rows() -> None:
+    script = _load_script()
+
+    script._reject_synthetic_gie_rows([_real_gie_row()], product="AGSI")
+
+
+@pytest.mark.parametrize(
+    "override",
+    [
+        {"observation_id": "mock-gie-agsi-EU-2026-05-29"},
+        {"observation_id": "sim-gie-agsi-EU-2026-05-29"},
+        {"source_system": "EEX_Sim"},
+        {"metadata_json": {"simulated": True}},
+        {"metadata_json": {"mock": True}},
+    ],
+)
+def test_reject_synthetic_gie_rows_refuses_mock_sim_and_cross_source(
+    override: dict,
+) -> None:
+    script = _load_script()
+
+    with pytest.raises(RuntimeError):
+        script._reject_synthetic_gie_rows(
+            [{**_real_gie_row(), **override}], product="AGSI"
+        )

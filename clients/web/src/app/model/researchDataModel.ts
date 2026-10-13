@@ -375,6 +375,188 @@ export function researchValidationOutcome(value: unknown): ResearchValidationOut
   };
 }
 
+// --- Training qualification -------------------------------------------------
+//
+// A materialized snapshot and a usable training dataset are two different
+// claims. The build/materialize status ("COMPLETE") says the artifact exists;
+// it says nothing about whether the rows can be trained on. This derivation
+// reads only the quality metadata a caller actually holds and returns one of
+// three states:
+//
+// - ``unavailable``: the metadata (or the coverage/status field the surface
+//   does hold) proves the snapshot is not trainable, with concrete reasons;
+// - ``not_established``: the metadata this surface holds does not prove either
+//   way, so nothing may be claimed -- never "ready" by default;
+// - ``available``: the quality metadata holds no blocker, no data is missing and
+//   a positive observed share was established. Even then this is a statement
+//   about training inputs only: it never asserts model, out-of-sample, or
+//   production suitability, which no field here measures.
+
+export type ResearchTrainingQualificationStatus = "available" | "unavailable" | "not_established";
+
+export interface ResearchTrainingQualification {
+  status: ResearchTrainingQualificationStatus;
+  reasons: string[];
+}
+
+export type ResearchTrainingReasonCode =
+  | "qualification_unknown_quality"
+  | "qualification_materialization_blocked"
+  | "qualification_all_values_missing"
+  | "qualification_zero_coverage"
+  | "qualification_below_minimum_coverage"
+  | "qualification_leakage_blockers"
+  | "qualification_temporal_insufficient";
+
+/** The single mapping from a reason code to its translation key. */
+export function researchTrainingReasonKey(reason: string): string {
+  return `research.${reason}`;
+}
+
+/** The translation key for the qualification status itself. */
+export function researchTrainingStatusKey(
+  status: ResearchTrainingQualificationStatus,
+): string {
+  switch (status) {
+    case "available":
+      return "research.training_available";
+    case "unavailable":
+      return "research.training_unavailable";
+    default:
+      return "research.training_not_established";
+  }
+}
+
+function qualificationStatusText(value: unknown): string {
+  return safeText(value).toUpperCase();
+}
+
+/**
+ * Read a finite number from an unknown payload, accepting the numeric strings a
+ * transport may hand back. ``null`` means the field was absent or unusable.
+ */
+function qualityNumber(value: unknown): number | null {
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "string") {
+    const parsed = Number(value.trim());
+    return value.trim() !== "" && Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+/** The quality evidence the workspace holds for one snapshot. */
+export interface ResearchQualityEvidence {
+  qualityReport?: Record<string, unknown> | null;
+  leakageIssues?: ReadonlyArray<Record<string, unknown>> | null;
+}
+
+function countLeakageBlockers(
+  issues: ReadonlyArray<Record<string, unknown>> | null | undefined,
+): number {
+  if (!Array.isArray(issues)) return 0;
+  return issues.filter((issue) => qualificationStatusText(issue?.severity) === "BLOCKER").length;
+}
+
+/** The temporal integrity states the quality report can legitimately carry. */
+const KNOWN_TEMPORAL_STATES = new Set([
+  "TEMPORAL_VERIFIED",
+  "TEMPORAL_APPROXIMATE",
+  "TEMPORAL_INSUFFICIENT",
+]);
+
+/**
+ * A finite share in the closed unit interval, or ``null`` when the field was
+ * absent, unusable or outside a coverage fraction's meaningful range. A value
+ * outside 0..1 proves nothing about coverage, so it can never support a
+ * positive qualification.
+ */
+function qualityUnitInterval(value: unknown): number | null {
+  const parsed = qualityNumber(value);
+  return parsed !== null && parsed >= 0 && parsed <= 1 ? parsed : null;
+}
+
+/**
+ * Derive the training qualification from one snapshot's quality evidence.
+ *
+ * ``coverage`` is the list-level field the catalog holds; it is only ever used
+ * as a negative signal (a proven zero observed share), never as proof that a
+ * dataset is trainable. The snapshot's materialization status is reported
+ * separately by the surface and is deliberately not read here as a quality
+ * verdict, so the two claims cannot be confused.
+ */
+export function researchTrainingQualification(
+  evidence: ResearchQualityEvidence,
+  coverage: number | null | undefined = null,
+): ResearchTrainingQualification {
+  const report = asRecord(evidence.qualityReport);
+  const reportKeys = report ? Object.keys(report) : [];
+  const leakageReported = Array.isArray(evidence.leakageIssues);
+  const leakageBlockers = countLeakageBlockers(evidence.leakageIssues);
+
+  const observed = report ? qualityNumber(report.observed_values) : null;
+  const rows = report ? qualityNumber(report.rows) : null;
+  const missing = report ? qualityNumber(report.missing_values) : null;
+  const reportCoverage = report ? qualityNumber(report.coverage) : null;
+  const declaredCoverage = report ? qualityUnitInterval(report.coverage) : null;
+  const declaredMinimum = report ? qualityUnitInterval(report.minimum_coverage) : null;
+
+  const buildBlocked = report?.build_blocked === true;
+  const buildBlockerDeclared = report?.build_blocked === false;
+  const temporalState = report ? qualificationStatusText(report.temporal_integrity) : "";
+  const temporalKnown = KNOWN_TEMPORAL_STATES.has(temporalState);
+  const allValuesMissing =
+    (observed !== null && observed <= 0)
+    || (rows !== null && rows > 0 && missing !== null && missing >= rows);
+  const zeroCoverage =
+    (reportCoverage !== null && reportCoverage <= 0)
+    || (typeof coverage === "number" && Number.isFinite(coverage) && coverage <= 0);
+  const belowMinimum =
+    declaredCoverage !== null && declaredMinimum !== null && declaredCoverage < declaredMinimum;
+  const temporalInsufficient = temporalState.includes("TEMPORAL_INSUFFICIENT");
+
+  const reasons: string[] = [];
+  if (buildBlocked) reasons.push("qualification_materialization_blocked");
+  if (leakageBlockers > 0) reasons.push("qualification_leakage_blockers");
+  if (allValuesMissing) reasons.push("qualification_all_values_missing");
+  if (zeroCoverage) reasons.push("qualification_zero_coverage");
+  if (belowMinimum) reasons.push("qualification_below_minimum_coverage");
+  if (temporalInsufficient) reasons.push("qualification_temporal_insufficient");
+
+  // A positive qualification needs the report to have actually declared each
+  // piece of evidence, not merely to lack a blocker: an explicit
+  // ``build_blocked: false``, a recognised temporal state, a real leakage array,
+  // a finite coverage inside 0..1, that coverage at or above a declared minimum
+  // (also inside 0..1) and a positive observed count. A partially populated
+  // report — for example ``{coverage: 0.5, observed_values: 1}`` with no
+  // blocker flag, no temporal metadata, no minimum and no leakage array — is
+  // held evidence that proves nothing, so it stays ``not_established``. Missing
+  // values may remain in a positively qualified input; this is a statement
+  // about recorded quality only, never readiness.
+  const adequate =
+    reportKeys.length > 0
+    && buildBlockerDeclared
+    && temporalKnown
+    && leakageReported
+    && declaredCoverage !== null
+    && declaredCoverage > 0
+    && declaredMinimum !== null
+    && observed !== null
+    && observed > 0
+    && !allValuesMissing
+    && !belowMinimum;
+
+  if (reasons.length > 0) return { status: "unavailable", reasons };
+  if (adequate) return { status: "available", reasons: [] };
+  return { status: "not_established", reasons: ["qualification_unknown_quality"] };
+}
+
+/** Whether the surface holds enough evidence to state a qualification at all. */
+export function researchTrainingQualificationKnown(
+  qualification: ResearchTrainingQualification,
+): boolean {
+  return qualification.status !== "not_established";
+}
+
 // --- Build gating -----------------------------------------------------------
 
 export type ResearchBuildGateReason =
@@ -437,6 +619,8 @@ export interface ResearchBuildSummary {
   rowCount: number | null;
   columnCount: number | null;
   availableFormats: string[] | null;
+  /** Training qualification read from the build answer's own quality evidence. */
+  trainingQualification: ResearchTrainingQualification;
 }
 
 function numberOrNull(value: unknown): number | null {
@@ -461,6 +645,17 @@ export function researchBuildSummary(value: unknown): ResearchBuildSummary | nul
     rowCount: numberOrNull(payload.row_count),
     columnCount: numberOrNull(payload.column_count),
     availableFormats: researchAvailableFormats(payload),
+    // The build answer carries quality_report / leakage_issues / warnings; the
+    // summary turns them into the training qualification instead of dropping them.
+    trainingQualification: researchTrainingQualification(
+      {
+        qualityReport: asRecord(payload.quality_report),
+        leakageIssues: Array.isArray(payload.leakage_issues)
+          ? (payload.leakage_issues as Array<Record<string, unknown>>)
+          : null,
+      },
+      numberOrNull(payload.coverage),
+    ),
   };
 }
 

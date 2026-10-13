@@ -146,6 +146,15 @@ export function StrategyBacktestWorkspace({
         </button>
       </div>
 
+      {/* The run is the workspace header's action, so the server's refusal has to be reported
+          here rather than swallowed: the button re-enabling with no explanation reads as a
+          successful no-op. The heading is localised and the backend's own safe message follows. */}
+      {controller.error && (
+        <p className="strategy-error" role="alert">
+          <strong>{t("strategy_lab.run_refused")}</strong> {controller.error}
+        </p>
+      )}
+
       {mode === "configure" && (
         <section className="workspace-panel strategy-backtest-config">
           <h2>{t("strategy_lab.backtest_config")}</h2>
@@ -236,10 +245,26 @@ export function StrategyBacktestWorkspace({
               <div><span>{t("strategy_lab.gross_indicative_pnl")}</span><strong>{formatSignedMoney(metrics.gross_indicative_pnl_gbp)}</strong></div>
               <div><span>{t("strategy_lab.modeled_costs")}</span><strong>{formatSignedMoney(metrics.modeled_costs_gbp)}</strong></div>
               <div><span>{t("strategy_lab.max_drawdown")}</span><strong>{formatSignedMoney(metrics.max_drawdown_gbp)}</strong></div>
-              <div><span>{t("strategy_lab.data_coverage")}</span><strong>{((metrics.data_coverage ?? 0) * 100).toFixed(1)}%</strong></div>
+              <div title={t("strategy_lab.evaluation_completion_help")}>
+                <span>{t("strategy_lab.data_coverage")}</span>
+                <strong>{((metrics.data_coverage ?? 0) * 100).toFixed(1)}%</strong>
+              </div>
               <div><span>{t("strategy_lab.evaluations")}</span><strong>{metrics.evaluation_count}</strong></div>
               <div><span>{t("strategy_lab.blocked_decisions")}</span><strong>{metrics.blocked_decision_count}</strong></div>
             </section>
+          )}
+          {/* Honest engine/2 evidence diagnostics. `data_coverage` above is
+              evaluation completion, not fresh market coverage. */}
+          {run.backtest_engine_version === "backtest-engine/2" && metrics && (
+            <p className="muted">
+              {t("strategy_lab.evidence_diagnostics")}:{" "}
+              {t("strategy_lab.evidence_diagnostics_distinct")}{" "}
+              {metrics.distinct_admitted_price_refs ?? 0} ·{" "}
+              {t("strategy_lab.evidence_diagnostics_reused")}{" "}
+              {metrics.events_reusing_admitted_price_refs ?? 0} ·{" "}
+              {t("strategy_lab.evidence_diagnostics_simulated")}{" "}
+              {metrics.events_with_simulated_evidence ?? 0}
+            </p>
           )}
           {details?.series.length ? (
             <section className="workspace-panel">
@@ -457,6 +482,12 @@ export function StrategyBacktestWorkspace({
 
       <section className="workspace-panel strategy-run-history">
         <h2>{t("strategy_lab.run_history")}</h2>
+        {/* Existing engine/1 history is disclosed for what it is: those runs
+            used the legacy name-only temporal selection, not the declared
+            target of an engine/2 run. It is not relabelled or rewritten. */}
+        {controller.backtestRuns.some(
+          (item) => item.backtest_engine_version === "backtest-engine/1",
+        ) && <p className="muted">{t("strategy_lab.legacy_engine_disclosure")}</p>}
         {controller.backtestRuns.length === 0 ? (
           <p className="muted">{t("strategy_lab.no_runs")}</p>
         ) : (

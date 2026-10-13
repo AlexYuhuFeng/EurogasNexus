@@ -1,4 +1,4 @@
-﻿# Product Boundary Policy
+# Product Boundary Policy
 
 Eurogas Nexus is research-only decision support for European gas resource
 analysis. It is not an execution, trading, legal, approval, nomination, or ETRM

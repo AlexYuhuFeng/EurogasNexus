@@ -6,6 +6,8 @@ import json
 import subprocess
 from types import SimpleNamespace
 
+import pytest
+
 from eurogas_nexus.domain.dataops.contracts import FailureCategory
 from scripts.ops.run_dataops_scheduler import (
     _SOURCE_ARGS,
@@ -47,9 +49,7 @@ def test_ingestor_attempt_classifies_bad_json_as_bad_response() -> None:
     def fake_runner(command, **kwargs):
         return SimpleNamespace(returncode=0, stdout="not-json", stderr="")
 
-    result = run_ingestor_attempt(fake_runner)(
-        {"source_id": "src-ecb", "run_id": "run-1"}, 1
-    )
+    result = run_ingestor_attempt(fake_runner)({"source_id": "src-ecb", "run_id": "run-1"}, 1)
 
     assert result.succeeded is False
     assert result.classification == FailureCategory.BAD_RESPONSE
@@ -69,3 +69,98 @@ def test_run_loop_blocks_without_database(monkeypatch, capsys) -> None:
     assert result == 2
     captured = capsys.readouterr()
     assert "database_url_missing" not in captured.out  # emit was suppressed
+
+
+def test_entsog_missing_window_is_configuration_failure_before_subprocess():
+    attempt = run_ingestor_attempt(
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("Unbounded ENTSOG subprocess"))
+    )
+    result = attempt({"source_id": "src-entsog", "run_id": "run-one"}, 1)
+    assert not result.succeeded and result.classification == FailureCategory.CONFIGURATION
+    assert "entsog_window_required" in result.error_message
+
+
+@pytest.mark.parametrize(
+    "report",
+    [
+        [],
+        {"ok": True, "sources": []},
+        {"ok": True, "sources": {}},
+        {"ok": False, "sources": {"ECB": {"records": 1}}},
+        {"ok": True, "sources": {"ECB": None}},
+        {"ok": True, "sources": {"ECB": {"records": True}}},
+        {"ok": True, "sources": {"ECB": {"records": -1}}},
+        {"ok": True, "sources": {"ECB": {"records": "1"}}},
+    ],
+)
+def test_scheduler_refuses_invalid_report_shapes_and_counters(report):
+    result = run_ingestor_attempt(
+        lambda *args, **kwargs: SimpleNamespace(returncode=0, stdout=json.dumps(report), stderr="")
+    )({"source_id": "src-ecb"}, 1)
+    assert not result.succeeded and result.classification == FailureCategory.BAD_RESPONSE
+
+
+def test_entsog_window_pass_through_preserves_partial_warning_and_actual_counts():
+    commands = []
+
+    def runner(command, **kwargs):
+        commands.append(command)
+        return SimpleNamespace(
+            returncode=0,
+            stderr="",
+            stdout=json.dumps(
+                {
+                    "ok": True,
+                    "sources": {
+                        "ENTSOG": {
+                            "records": 3,
+                            "received_records": 4,
+                            "skipped_records": 1,
+                            "inserted": 1,
+                            "unchanged": 2,
+                            "complete": False,
+                            "status": "SUCCEEDED_WITH_WARNINGS",
+                        }
+                    },
+                }
+            ),
+        )
+
+    result = run_ingestor_attempt(runner, entsog_from="2026-10-10", entsog_to="2026-10-11")(
+        {"source_id": "src-entsog"}, 1
+    )
+    command = commands[0]
+    assert command[command.index("--entsog-from") + 1] == "2026-10-10"
+    assert command[command.index("--entsog-to") + 1] == "2026-10-11"
+    assert result.succeeded and result.rows_received == 4 and result.rows_accepted == 3
+    assert result.rows_rejected == 1 and result.rows_inserted == 1 and result.duplicate_count == 2
+    assert result.quality_issues[0].quality_code == "entsog_bounded_partial"
+
+
+def test_scheduler_loop_does_not_label_failed_configuration_as_ok(monkeypatch):
+    from contextlib import nullcontext
+
+    from scripts.ops import run_dataops_scheduler as scheduler
+
+    monkeypatch.setattr(scheduler, "resolve_database_url", lambda: "configured")
+    monkeypatch.setattr(
+        scheduler,
+        "get_session_factory",
+        lambda: lambda: nullcontext(SimpleNamespace(commit=lambda: None)),
+    )
+    monkeypatch.setattr(scheduler, "scan_scheduler", lambda *args, **kwargs: {})
+    monkeypatch.setattr(
+        scheduler,
+        "execute_claimed_runs",
+        lambda *args, **kwargs: {
+            "outcomes": [
+                {"source_id": "src-entsog", "status": "FAILED", "error_category": "CONFIGURATION"}
+            ]
+        },
+    )
+    reports = []
+    assert scheduler.run_loop(interval_seconds=60, max_iterations=1, emit=reports.append) == 2
+    assert json.loads(reports[0])["status"] == "degraded"
+    assert json.loads(reports[0])["configuration_blocks"] == {
+        "src-entsog": "entsog_window_required"
+    }

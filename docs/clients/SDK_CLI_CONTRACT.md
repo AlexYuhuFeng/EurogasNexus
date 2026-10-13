@@ -1,4 +1,4 @@
-﻿# SDK CLI Contract
+# SDK CLI Contract
 
 ## Purpose
 

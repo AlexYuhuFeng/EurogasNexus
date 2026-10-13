@@ -11,12 +11,153 @@
 import type { StrategyLabController } from "@/app/model/useStrategyLab";
 import type { StrategyDesignDraft } from "@/app/model/useStrategyDesignDraft";
 import {
+  STRATEGY_EVIDENCE_LEGS,
+  STRATEGY_EVIDENCE_TARGET_BASES,
+  STRATEGY_GAS_DAY_CALENDARS,
+  STRATEGY_GAS_DAY_OFFSETS,
+  type StrategyEvidenceDeclarationState,
+} from "@/app/model/strategyDraftModel";
+import {
   STRATEGY_DESCRIPTION_MAX_LENGTH,
   STRATEGY_NAME_MAX_LENGTH,
   type StrategyIdentityMetadata,
 } from "@/app/model/useStrategyIdentityMetadata";
 
 type Translate = (key: string) => string;
+
+/**
+ * The opt-in fields of one leg's evidence declaration.
+ *
+ * The declaration states *how* the target interval is resolved: an explicit
+ * fixed UTC interval, or a rolling gas day with an explicit canonical calendar
+ * and 0/1 offset. Month/quarter rolls are not implemented and are not offered.
+ */
+function EvidenceDeclarationFields({
+  declaration,
+  disabled,
+  onChange,
+  t,
+}: {
+  declaration: StrategyEvidenceDeclarationState;
+  disabled: boolean;
+  onChange: (
+    field: keyof StrategyEvidenceDeclarationState,
+    value: string | boolean,
+  ) => void;
+  t: Translate;
+}) {
+  const off = disabled || !declaration.enabled;
+  const rolling = declaration.targetBasis === "GAS_DAY";
+  return (
+    <div className="strategy-form-grid">
+      <label>
+        {t("strategy_lab.evidence.role")}
+        <select
+          value={declaration.role}
+          disabled={off}
+          onChange={(event) => onChange("role", event.target.value)}
+        >
+          <option value="">{t("strategy_lab.evidence.role_unset")}</option>
+          <option value="DELIVERY_PRICE">{t("strategy_lab.evidence.role_delivery")}</option>
+          <option value="REFERENCE_LEVEL">{t("strategy_lab.evidence.role_reference")}</option>
+        </select>
+      </label>
+      <label>
+        {t("strategy_lab.evidence.hub")}
+        <input
+          value={declaration.hub}
+          disabled={off}
+          onChange={(event) => onChange("hub", event.target.value)}
+        />
+      </label>
+      <label>
+        {t("strategy_lab.evidence.tenor")}
+        <input
+          value={declaration.tenor}
+          disabled={off}
+          onChange={(event) => onChange("tenor", event.target.value)}
+        />
+      </label>
+      <label>
+        {t("strategy_lab.evidence.price_basis")}
+        <input
+          value={declaration.priceBasis}
+          disabled={off}
+          onChange={(event) => onChange("priceBasis", event.target.value)}
+        />
+      </label>
+      <label>
+        {t("strategy_lab.evidence.target_basis")}
+        <select
+          value={declaration.targetBasis}
+          disabled={off}
+          onChange={(event) => onChange("targetBasis", event.target.value)}
+        >
+          {STRATEGY_EVIDENCE_TARGET_BASES.map((basis) => (
+            <option key={basis} value={basis}>
+              {t(`strategy_lab.evidence.basis_${basis.toLowerCase()}`)}
+            </option>
+          ))}
+        </select>
+      </label>
+      {rolling ? (
+        <>
+          <label>
+            {t("strategy_lab.evidence.calendar")}
+            <select
+              value={declaration.calendarId}
+              disabled={off}
+              onChange={(event) => onChange("calendarId", event.target.value)}
+            >
+              {STRATEGY_GAS_DAY_CALENDARS.map((calendar) => (
+                <option key={calendar} value={calendar}>
+                  {calendar}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            {t("strategy_lab.evidence.offset")}
+            <select
+              value={declaration.gasDayOffset}
+              disabled={off}
+              onChange={(event) => onChange("gasDayOffset", event.target.value)}
+            >
+              {STRATEGY_GAS_DAY_OFFSETS.map((offset) => (
+                <option key={offset} value={offset}>
+                  {offset === "0"
+                    ? t("strategy_lab.evidence.offset_current")
+                    : t("strategy_lab.evidence.offset_next")}
+                </option>
+              ))}
+            </select>
+          </label>
+        </>
+      ) : (
+        <>
+          <label>
+            {t("strategy_lab.evidence.start_utc")}
+            <input
+              type="datetime-local"
+              value={declaration.deliveryStartUtc}
+              disabled={off}
+              onChange={(event) => onChange("deliveryStartUtc", event.target.value)}
+            />
+          </label>
+          <label>
+            {t("strategy_lab.evidence.end_utc")}
+            <input
+              type="datetime-local"
+              value={declaration.deliveryEndUtc}
+              disabled={off}
+              onChange={(event) => onChange("deliveryEndUtc", event.target.value)}
+            />
+          </label>
+        </>
+      )}
+    </div>
+  );
+}
 
 interface StrategyDesignWorkspaceProps {
   controller: StrategyLabController;
@@ -42,6 +183,29 @@ export function StrategyDesignWorkspace({
 
   return (
     <div className="strategy-design">
+      {draft.pendingContract && (
+        <section className="workspace-panel" aria-label={t("strategy_lab.handoff.title")}>
+          <h2>{t("strategy_lab.handoff.title")}</h2>
+          <p>{draft.pendingContract.contract_name} · {draft.pendingContract.contract_id}</p>
+          <p>{t("strategy_lab.handoff.explanation")}</p>
+          {draft.dirty && <p role="status">{t("strategy_lab.handoff.dirty")}</p>}
+          <button type="button" disabled={draft.dirty || busy} onClick={draft.acceptContract}>
+            {t("strategy_lab.handoff.start")}
+          </button>
+          <button type="button" className="secondary-button" onClick={draft.cancelContract}>
+            {t("strategy_lab.handoff.keep")}
+          </button>
+        </section>
+      )}
+      {draft.resourceOrigin && (
+        <section className="workspace-panel" aria-label={t("strategy_lab.handoff.native_terms")}>
+          <h2>{t("strategy_lab.handoff.native_terms")}</h2>
+          <p>{draft.resourceOrigin.contract_id} · {draft.resourceOrigin.delivery_point_name}</p>
+          {form.resourceBasisBlocked ? <p role="status">{t("strategy_lab.handoff.incompatible")}</p> :
+            <p>{draft.resourceOrigin.delivery_quantity_mwh_per_day} MWh/day · {draft.resourceOrigin.contract_price_gbp_mwh} GBP/MWh</p>}
+          <p>{t("strategy_lab.handoff.cost_required")}</p>
+        </section>
+      )}
       <div className="strategy-validation-summary">
         <span>{t("strategy_lab.validation")}</span>
         <span className="status-badge status-blocked">{validation.blockerKeys.length} {t("strategy_lab.blockers")}</span>
@@ -78,6 +242,49 @@ export function StrategyDesignWorkspace({
           <label>{t("strategy_lab.window_start")}<input value={form.windowStart} disabled={frozen} onChange={(event) => set("windowStart", event.target.value)} /></label>
           <label>{t("strategy_lab.window_end")}<input value={form.windowEnd} disabled={frozen} onChange={(event) => set("windowEnd", event.target.value)} /></label>
           <label>{t("strategy_lab.bar_minutes")}<input type="number" value={form.barMinutes} disabled={frozen} onChange={(event) => set("barMinutes", event.target.value)} /></label>
+        </div>
+        {/* CR-04 per-leg evidence declarations. The declaration is what makes
+            historical evidence selection target-aware: engine/2 resolves each
+            leg's target interval independently of available quotes. The copy
+            states which bases are supported and which are not. */}
+        <div className="strategy-evidence">
+          <span className="eyebrow">{t("strategy_lab.evidence.title")}</span>
+          <p className="panel-copy">{t("strategy_lab.evidence.intro")}</p>
+          <p className="muted">{t("strategy_lab.evidence.unsupported")}</p>
+          {form.evidenceRedeclarationRequired && (
+            <p className="strategy-error" role="alert">
+              {t("strategy_lab.blocker.evidence_redeclare")}
+            </p>
+          )}
+          {STRATEGY_EVIDENCE_LEGS.map((leg) => {
+            const declaration = form[leg.stateKey];
+            return (
+              <fieldset key={leg.legId} className="strategy-evidence-leg" disabled={frozen}>
+                <legend>{t(leg.titleKey)}</legend>
+                <label className="strategy-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={declaration.enabled}
+                    disabled={frozen}
+                    onChange={(event) => draft.setEvidenceField(leg.stateKey, "enabled", event.target.checked)}
+                  />
+                  {t("strategy_lab.evidence.opt_in")}
+                </label>
+                <p className="panel-copy">
+                  {leg.legId} · {t("strategy_lab.evidence.names_source")}
+                </p>
+                <EvidenceDeclarationFields
+                  declaration={declaration}
+                  disabled={false}
+                  onChange={(field, value) => draft.setEvidenceField(leg.stateKey, field, value)}
+                  t={t}
+                />
+              </fieldset>
+            );
+          })}
+          {form.preservedEvidenceTargets.length > 0 && (
+            <p className="muted">{t("strategy_lab.evidence.preserved")}</p>
+          )}
         </div>
       </section>
       <section className="workspace-panel">

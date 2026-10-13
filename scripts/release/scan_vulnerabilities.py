@@ -190,7 +190,20 @@ def main(argv: list[str] | None = None) -> int:
         "container": {
             "tool": "trivy",
             "status": "TOOL_UNAVAILABLE",
-            "detail": "container scan must run against the final pushed digest in release CI",
+            # Stated as it is, not as it should be. No container scanner is
+            # installed or executed by any workflow: release.yml's
+            # `container-acceptance` job inspects the immutable digest and runs the
+            # notice verifier inside the image, and nothing scans it for CVEs. The
+            # earlier detail text said the container scan "must run against the
+            # final pushed digest in release CI", which read as though such a step
+            # existed. `policy_ok` blocks `stable` on this status, so a stable
+            # release cannot be promoted while the gap is open, but preview and RC
+            # publish with the gap recorded here.
+            "detail": (
+                "no container scanner is installed or run by any workflow; the "
+                "image is not CVE-scanned, and stable promotion stays blocked on "
+                "this status"
+            ),
         },
     }
     outcomes = {

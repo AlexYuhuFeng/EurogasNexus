@@ -101,6 +101,16 @@ ERROR_CATALOGUE: dict[str, ErrorDefinition] = {
     for defn in (
         # --- authentication and identity ---
         _definition(
+            "public_api_token_missing",
+            ErrorFamily.AUTH,
+            recoverability=Recoverability.AFTER_USER_ACTION,
+        ),
+        _definition(
+            "public_api_token_invalid",
+            ErrorFamily.AUTH,
+            recoverability=Recoverability.AFTER_USER_ACTION,
+        ),
+        _definition(
             "unauthenticated",
             ErrorFamily.AUTH,
             recoverability=Recoverability.AFTER_USER_ACTION,
@@ -251,6 +261,31 @@ ERROR_CATALOGUE: dict[str, ErrorDefinition] = {
         ),
         _definition(
             "validation_failed",
+            ErrorFamily.VALIDATION,
+            recoverability=Recoverability.AFTER_USER_ACTION,
+        ),
+        # CR-04 historical backtest: the frozen definition declares no per-leg
+        # evidence target, so the caller forks and declares rather than the
+        # platform guessing one. Catalogued so the refusal is explained.
+        _definition(
+            "target_delivery_not_declared",
+            ErrorFamily.VALIDATION,
+            recoverability=Recoverability.AFTER_USER_ACTION,
+        ),
+        # The bounded first engine/2 supports exactly one OCM_VS_DAY_AHEAD
+        # component: the engine flattens observations and evaluates by
+        # price_name, so a multi-component definition could cross-pollinate
+        # hubs/targets. Refused before any evidence load; not a per-component
+        # engine claim.
+        _definition(
+            "target_component_scope_unsupported",
+            ErrorFamily.VALIDATION,
+            recoverability=Recoverability.AFTER_USER_ACTION,
+        ),
+        # One price name declared in two leg roles cannot be represented by the
+        # price-name-keyed evaluation; the frozen mapping must be resolved first.
+        _definition(
+            "target_evidence_mapping_ambiguous",
             ErrorFamily.VALIDATION,
             recoverability=Recoverability.AFTER_USER_ACTION,
         ),

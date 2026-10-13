@@ -1538,3 +1538,76 @@ def test_legacy_lowercase_spellings_drive_the_same_read_outcomes(
     assert iuk["last_ingestion_status"] == "running"
     assert iuk["connectivity_status"] != "failed"
     assert "last_ingestion_pending" in iuk["diagnostics"]
+
+
+def test_gie_source_status_reflects_externally_configured_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An external owner key must stop the source status claiming the key is missing."""
+
+    monkeypatch.delenv("GIE_API_KEY_FILE", raising=False)
+    monkeypatch.setenv("GIE_API_KEY", "external-owner-key-value")
+    client = TestClient(create_app())
+
+    gie = next(
+        item for item in client.get("/api/sources").json()["data"] if item["source_system"] == "GIE"
+    )
+
+    assert gie["credential_state"] == "configured"
+    assert gie["diagnostics"] != ["credential_missing"]
+    # No secret value or external path is exposed by the registry read.
+    assert "external-owner-key-value" not in client.get("/api/sources").text
+
+
+def test_gie_source_status_stays_missing_without_any_configuration(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("GIE_API_KEY", raising=False)
+    monkeypatch.delenv("GIE_API_KEY_FILE", raising=False)
+    client = TestClient(create_app())
+
+    gie = next(
+        item for item in client.get("/api/sources").json()["data"] if item["source_system"] == "GIE"
+    )
+
+    assert gie["credential_state"] == "missing"
+    assert gie["connectivity_status"] == "needs_credential"
+
+
+def test_gie_source_status_respects_a_disabled_runtime_operation_with_external_key(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    """An external env key must not re-enable an operator-disabled source operation.
+
+    The registry status is derived through the same shared runtime resolver as the
+    credential API and the fetch boundary, so ``GIE_API_KEY`` alone cannot make a
+    deliberately disabled source look configured.
+    """
+
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+
+    from eurogas_nexus.db.base import Base
+    from eurogas_nexus.db.repositories.dataops import ensure_source_runtime_state
+    from eurogas_nexus.domain.dataops.registry import source_definitions
+
+    database_url = f"sqlite+pysqlite:///{(tmp_path / 'sources-runtime.sqlite').as_posix()}"
+    engine = create_engine(database_url, future=True)
+    Base.metadata.create_all(engine)
+    definition = next(item for item in source_definitions() if item.source_id == "src-gie")
+    with Session(engine) as session:
+        state = ensure_source_runtime_state(session, definition)
+        state.enabled = False
+        session.commit()
+
+    monkeypatch.setenv("RUNTIME_STORE_DATABASE_URL", database_url)
+    monkeypatch.setenv("GIE_API_KEY", "external-owner-key-value")
+    monkeypatch.delenv("GIE_API_KEY_FILE", raising=False)
+
+    response = TestClient(create_app()).get("/api/sources")
+    gie = next(
+        item for item in response.json()["data"] if item["source_system"] == "GIE"
+    )
+
+    assert gie["credential_state"] != "configured"
+    assert "external-owner-key-value" not in response.text

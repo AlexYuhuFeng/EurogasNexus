@@ -1,0 +1,14 @@
+# Coverage tooling, kept in its own lock so it never enters the runtime image.
+#
+# Why a separate lock rather than adding these to the `dev` extra: regenerating
+# `requirements.lock` with `uv --all-extras` also refreshes every other dependency,
+# and that run moved sqlalchemy 2.0.52 -> 2.1.3, fastapi 0.141.1 -> 0.142.2 and
+# starlette 1.6.0 -> 1.7.0 in `requirements-runtime.lock`. Shipping an unvalidated
+# major-version change to the API image is a separate decision with its own review;
+# it must not ride along with a measurement request.
+#
+# Versions are bounded to the same ranges the `dev` extra declares, so the resolved
+# graph matches what the test environment already installs. pytest itself is a
+# shared dependency: this file must not raise its floor above the `dev` extra's.
+coverage>=7.0,<8.0
+pytest-cov>=6.0,<8.0

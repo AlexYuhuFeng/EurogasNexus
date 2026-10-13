@@ -129,8 +129,9 @@ def test_default_paths_match_the_dockerfile_delivery_paths() -> None:
     assert output_match and output_match.group(1) == DEFAULT_EVIDENCE_DIR
     assert lock_match and lock_match.group(1) == DEFAULT_RUNTIME_LOCK
     assert not Path(DEFAULT_RUNTIME_LOCK).is_absolute()
-    # The verifier ships in the image through the existing scripts copy.
-    assert "COPY scripts ./scripts" in text
+    # The verifier ships through the explicit customer script selection.
+    assert "scripts/release/verify_python_license_texts.py \\" in text
+    assert "COPY scripts ./scripts" not in text
     assert (ROOT / VERIFIER).is_file()
 
 

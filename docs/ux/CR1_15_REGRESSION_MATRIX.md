@@ -107,7 +107,7 @@ sidecar.
 | Desktop packaging | `npm run build -- --bundles ${{ matrix.bundle }}` | PR-only desktop CI job; requires the CI matrix OS/bundle and packaging prerequisites |
 | i18n parity | `python scripts/uat/check_i18n_parity.py` | `docs/operations/VALIDATION.md`; not a CI step in `.github/workflows/ci.yml` |
 | UAT/evals | `python -m pytest tests/evals tests/uat -q` | UAT validation docs; deterministic fixtures, not live provider/browser acceptance |
-| Optional browser smoke | `EUROGAS_UAT_PLAYWRIGHT_PATH=/tmp/eurogas-uat/node_modules/playwright/index.js node scripts/uat/browser_workflow_smoke.mjs` | `scripts/uat/browser_workflow_smoke.mjs`; requires separately installed Playwright, API on `:8000`, Vite on `:3000`, and seeded UAT data; not CI |
+| Optional browser smoke | `EUROGAS_UAT_PLAYWRIGHT_PATH=scripts/ci/browser-acceptance/node_modules/playwright/index.js node scripts/uat/browser_workflow_smoke.mjs` | `scripts/uat/browser_workflow_smoke.mjs`; requires Playwright installed from `scripts/ci/browser-acceptance` (`pnpm install --frozen-lockfile`), API on `:8000`, Vite on `:3000`, and seeded UAT data; not CI |
 | Runtime DB preflight | `python scripts/ops/validate_runtime_db.py --json` | `docs/operations/VALIDATION.md`; read-only and requires configured runtime DB |
 | Migration preflight | `python scripts/ops/migration_preflight.py --json` | validation docs; requires runtime DB/configuration |
 | Compatibility | `python scripts/release/compatibility_check.py` | validation docs / CR-11 release rollback procedure |

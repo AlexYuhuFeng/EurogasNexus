@@ -3,6 +3,7 @@
 import importlib.util
 from datetime import UTC, datetime
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 SCRIPT_PATH = (
@@ -48,6 +49,111 @@ def test_gate_blockers_deny_unknown_sources(tmp_path, monkeypatch) -> None:
     blockers = script._gate_blockers(session, "SomeVendor")
 
     assert blockers and blockers[0].startswith("entitlement:")
+
+
+def test_gie_gate_still_requires_certification(tmp_path, monkeypatch) -> None:
+    """The new real GIE transport keeps the fail-closed certification gate."""
+
+    script = _load_script()
+    session = MagicMock()
+    query = MagicMock()
+    query.filter.return_value.first.return_value = None
+    session.query.return_value = query
+
+    blockers = script._gate_blockers(session, "GIE")
+
+    assert blockers == ["certification:certification_stage_not_live_validated"]
+
+
+def test_gie_gate_allows_live_only_with_both_required_checks(monkeypatch) -> None:
+    script = _load_script()
+    session = MagicMock()
+
+    from eurogas_nexus.db.repositories import certification as certification_repo
+
+    monkeypatch.setattr(
+        certification_repo,
+        "latest_certification",
+        lambda session, source: {
+            "stage": "live_validated",
+            "checks": ["simulated_shape_match", "live_sample_validation"],
+        },
+    )
+    assert script._gate_blockers(session, "GIE") == []
+
+    monkeypatch.setattr(
+        certification_repo,
+        "latest_certification",
+        lambda session, source: {
+            "stage": "live_validated",
+            "checks": ["simulated_shape_match"],
+        },
+    )
+    blockers = script._gate_blockers(session, "GIE")
+
+    assert blockers and blockers[0].startswith("certification:missing_required_checks")
+
+
+def _allow_live_certification(monkeypatch) -> None:
+    from eurogas_nexus.db.repositories import certification as certification_repo
+
+    monkeypatch.setattr(
+        certification_repo,
+        "latest_certification",
+        lambda session, source: {
+            "stage": "live_validated",
+            "checks": ["simulated_shape_match", "live_sample_validation"],
+        },
+    )
+
+
+def test_gate_blocks_an_explicitly_disabled_source_operation(monkeypatch) -> None:
+    """An operator-disabled GIE runtime operation blocks the live entry itself."""
+
+    script = _load_script()
+    session = MagicMock()
+    session.query.return_value.filter.return_value.one_or_none.return_value = (
+        SimpleNamespace(enabled=False)
+    )
+    _allow_live_certification(monkeypatch)
+
+    assert script._gate_blockers(session, "GIE") == ["source_operation_disabled"]
+
+
+def test_gate_blocks_an_unreadable_source_runtime_state(monkeypatch) -> None:
+    """An unreadable runtime state is not a confirmed permit, so it blocks too."""
+
+    script = _load_script()
+    session = MagicMock()
+    session.query.side_effect = RuntimeError("runtime state store unavailable")
+    _allow_live_certification(monkeypatch)
+
+    assert script._gate_blockers(session, "GIE") == ["source_state_unreadable"]
+
+
+def test_gate_absent_runtime_state_is_no_override(monkeypatch) -> None:
+    """An absent runtime row leaves the existing certification gate in charge."""
+
+    script = _load_script()
+    session = MagicMock()
+    session.query.return_value.filter.return_value.one_or_none.return_value = None
+    _allow_live_certification(monkeypatch)
+
+    assert script._gate_blockers(session, "GIE") == []
+
+
+def test_gate_blocks_an_explicitly_disabled_public_source_operation(
+    monkeypatch,
+) -> None:
+    """The same runtime gate applies to a public family such as ECB."""
+
+    script = _load_script()
+    session = MagicMock()
+    session.query.return_value.filter.return_value.one_or_none.return_value = (
+        SimpleNamespace(enabled=False)
+    )
+
+    assert script._gate_blockers(session, "ECB") == ["source_operation_disabled"]
 
 
 def test_archive_raw_payload_writes_row(tmp_path, monkeypatch) -> None:

@@ -96,8 +96,12 @@ def test_stable_dispatch_is_rejected_and_tag_mismatch_is_rejected() -> None:
         )
 
 
-def test_latest_alembic_revision_is_head_0038() -> None:
-    assert latest_alembic_revision() == "0038_contract_payment_terms"
+def test_latest_alembic_revision_matches_the_declared_schema_revision() -> None:
+    """The scanned head must equal the revision the product advertises."""
+
+    from eurogas_nexus.release.constants import DB_SCHEMA_REVISION
+
+    assert latest_alembic_revision() == DB_SCHEMA_REVISION
 
 
 def test_revision_resolution_ignores_prose_that_starts_with_revision(tmp_path, monkeypatch) -> None:

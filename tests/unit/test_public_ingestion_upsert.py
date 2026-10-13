@@ -14,10 +14,13 @@ from eurogas_nexus.db.models import (
     MarketObservationRecord,
     NodeFacilityMapping,
     ReferenceNode,
+    StorageObservationRecord,
 )
 from eurogas_nexus.db.repositories.public_ingestion_upsert import (
+    GieRevisionRaceError,
     replace_reference_snapshot,
     upsert_observation_rows,
+    upsert_revision_safe_observation_rows,
 )
 
 
@@ -121,3 +124,115 @@ def test_reference_snapshot_requires_source_system_column() -> None:
             source_system="ENTSOG",
         )
     session.execute.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Revision-safe GIE race fallback (REAL-SOURCES-02 review)
+#
+# The conflict/re-read path retries once when the conflicting transaction rolled
+# back. The retry must be *confirmed*: a second ``ON CONFLICT DO NOTHING`` that
+# also reports no affected row is never booked as an insert.
+# ---------------------------------------------------------------------------
+
+
+def _gie_row() -> dict:
+    return {
+        "observation_id": "gie-agsi-EU-2026-10-10",
+        "source_dataset": "AGSI",
+        "facility_id": "EU",
+        "facility_name": "EU",
+        "country": "EU",
+        "inventory_twh": 650.25,
+        "working_capacity_twh": 1100.5,
+        "fill_pct": 59.1,
+        "injection_twh_d": 0.0025,
+        "withdrawal_twh_d": 0.0012,
+        "period_start_utc": datetime(2026, 10, 10, tzinfo=UTC),
+        "period_end_utc": datetime(2026, 10, 11, tzinfo=UTC),
+        "observed_at_utc": datetime(2026, 10, 10, 6, tzinfo=UTC),
+        "source_system": "GIE",
+        "source_reference": "gie-agsi-api",
+        "source_record_id": "EU-2026-10-10",
+        "freshness": "live",
+        "research_only": True,
+        "metadata_json": {},
+    }
+
+
+class _ScriptedResult:
+    def __init__(self, *, rowcount: int = 0, mapping: dict | None = None) -> None:
+        self.rowcount = rowcount
+        self._mapping = mapping
+
+    def mappings(self):
+        return self
+
+    def first(self):
+        return self._mapping
+
+
+class _ScriptedSession:
+    """Session double returning a fixed sequence of execute() results."""
+
+    def __init__(self, *results: _ScriptedResult) -> None:
+        self._results = list(results)
+        self.calls = 0
+
+    def execute(self, statement, *args, **kwargs):  # noqa: ANN002, ANN003 - stub
+        self.calls += 1
+        return self._results.pop(0)
+
+
+def _no_row() -> _ScriptedResult:
+    return _ScriptedResult(mapping=None)
+
+
+def _conflict() -> _ScriptedResult:
+    return _ScriptedResult(rowcount=0)
+
+
+def _inserted() -> _ScriptedResult:
+    return _ScriptedResult(rowcount=1)
+
+
+def test_revision_safe_race_retry_never_books_an_unconfirmed_insert() -> None:
+    """Two unconfirmed DO NOTHINGs with no re-readable row fail closed."""
+
+    session = _ScriptedSession(
+        _no_row(),  # first read: key absent
+        _conflict(),  # insert conflicts (winner uncommitted)
+        _no_row(),  # re-read: winner rolled back
+        _conflict(),  # retry also conflicts (another writer holds the key)
+        _no_row(),  # re-read: still not readable
+    )
+
+    with pytest.raises(GieRevisionRaceError) as refusal:
+        upsert_revision_safe_observation_rows(
+            session, StorageObservationRecord, [_gie_row()]
+        )
+
+    assert refusal.value.code == "gie_revision_race_unresolved"
+
+
+def test_revision_safe_race_retry_counts_a_confirmed_insert() -> None:
+    """When the retry really writes the row, the confirmed insert is reported."""
+
+    session = _ScriptedSession(_no_row(), _conflict(), _no_row(), _inserted())
+
+    outcome = upsert_revision_safe_observation_rows(
+        session, StorageObservationRecord, [_gie_row()]
+    )
+
+    assert outcome == {"inserted": 1, "unchanged": 0}
+
+
+def test_revision_safe_race_reread_verifies_the_committed_row() -> None:
+    """A conflict whose committed row is unchanged is verified, never re-inserted."""
+
+    session = _ScriptedSession(_no_row(), _conflict(), _ScriptedResult(mapping=_gie_row()))
+
+    outcome = upsert_revision_safe_observation_rows(
+        session, StorageObservationRecord, [_gie_row()]
+    )
+
+    assert outcome == {"inserted": 0, "unchanged": 1}

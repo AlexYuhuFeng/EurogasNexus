@@ -5,10 +5,11 @@ import type { StrategyLabSelection } from "@/app/model/useStrategyLab";
 import {
   strategyBacktestReadiness,
   strategyBacktestRequest,
+  strategyEvidenceDeclarationComplete,
   type StrategyBacktestDraft,
 } from "@/app/model/strategyBacktestModel";
 import { StrategyDesignWorkspace } from "./StrategyDesignWorkspace";
-import { useStrategyDesignDraft } from "@/app/model/useStrategyDesignDraft";
+import type { StrategyDesignDraft } from "@/app/model/useStrategyDesignDraft";
 import { useStrategyIdentityMetadata } from "@/app/model/useStrategyIdentityMetadata";
 import { workspaceHeaderTitleLevel } from "@/app/experience/workspacePatterns";
 import { StrategyBacktestWorkspace } from "./StrategyBacktestWorkspace";
@@ -27,6 +28,7 @@ interface StrategyLabWorkspaceProps {
   gasDay: string;
   language: string;
   t: Translate;
+  designDraft: StrategyDesignDraft;
 }
 
 const TASK_LABEL_KEYS: Record<StrategyTaskId, string> = {
@@ -42,6 +44,7 @@ export function StrategyLabWorkspace({
   gasDay,
   language,
   t,
+  designDraft,
 }: StrategyLabWorkspaceProps) {
   const tabs = useMemo(
     () =>
@@ -66,12 +69,16 @@ export function StrategyLabWorkspace({
   const backtestReadiness = strategyBacktestReadiness({
     draft: backtestDraft,
     frozen: controller.selectedVersion?.status === "FROZEN",
+    // Disclose an obviously undeclared target in the preflight; the server's
+    // structured refusal remains the authority.
+    evidenceDeclared: strategyEvidenceDeclarationComplete(
+      controller.selectedVersion?.definition_json,
+    ),
     running: controller.loading,
   });
-  // The Design task's `persist` act is saving the draft, so its draft lives here too: the panel
-  // renders the form and the validation verdict, and this workspace performs the write. The two
+  // The Design draft is retained by the renderer across visits to other workspaces;
+  // this workspace hosts its save action and the panel renders its validation. The two
   // `lifecycle` acts on that surface (freeze, fork) stay bounded in the panel by design.
-  const designDraft = useStrategyDesignDraft({ controller, selection, t });
   // The strategy identity's own metadata edit is a second `persist` on a different object, so its
   // state lives here with the other rules the workspace owns and the Design panel renders it.
   const identityMetadata = useStrategyIdentityMetadata({ controller });

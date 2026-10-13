@@ -9,6 +9,37 @@ developer and operator validation. This does not mean the API connects during
 import, CI requires PostgreSQL, Docker is started automatically, or migrations
 run without an explicit command.
 
+## Canonical Local Docker Runtime
+
+The single local project entry is:
+
+```powershell
+powershell -File scripts/ops/Start-LocalAcceptance.ps1
+```
+
+It starts or reuses the canonical Docker PostgreSQL container defined by the
+root `docker-compose.yml`:
+
+- container `eurogas-nexus-postgres`, project `eurogas-nexus-pg`;
+- official `postgres:16-alpine`, loopback only on `127.0.0.1:51356`;
+- external verified volume `eurogas-nexus-postgres-data`, so a missing volume
+  fails closed instead of silently creating an empty database;
+- `PGDATA=/var/lib/postgresql/data/pgdata`;
+- `scram-sha-256` for local and host authentication, no trust;
+- superuser password from an ignored file secret, never a literal;
+- `default_text_search_config=pg_catalog.simple`, preserving the verified source
+  cluster's text-search behaviour (the Alpine template default is `english`).
+
+The application DSN is supplied through the ignored `.dnx-out/user-uat.env`; it
+is read into the process and never printed. `deploy/runtime/compose.yaml` stays
+the separate production release deployment template and is not this local
+instance. Docker is started only by the explicit launcher or `docker compose up
+-d`, never automatically by app import or tests.
+
+The verified volume is retained acceptance evidence: `docker compose down -v`
+and any other volume removal must not be run against it. Destructive reset
+belongs to an explicitly disposable scratch database or throwaway container.
+
 ## Absolute Rules
 
 - PostgreSQL is the runtime source of truth.
@@ -110,6 +141,11 @@ The same reconciliation from the command line
 (`python scripts/ops/validate_runtime_db.py --json`, redacted output above) reports
 `table_inspection=performed`, no missing tables and no warnings against the local
 runtime database.
+
+That block is a historical observation of an earlier local posture, not a claim
+about the current canonical Docker instance. Re-run the command through
+`scripts/ops/Start-LocalAcceptance.ps1` for fresh evidence; do not edit the past
+observation to match.
 
 This evidence means the running backend process can reach the configured
 PostgreSQL runtime database and sees the required schema. It does not mean each

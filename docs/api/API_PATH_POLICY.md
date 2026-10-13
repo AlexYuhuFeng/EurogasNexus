@@ -1,4 +1,4 @@
-﻿# API Path Policy
+# API Path Policy
 
 ## Decision
 

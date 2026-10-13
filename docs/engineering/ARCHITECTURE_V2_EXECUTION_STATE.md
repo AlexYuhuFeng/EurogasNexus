@@ -1,9 +1,424 @@
 # Architecture V2 Execution State
 
-Last updated: 2026-10-06
+Last updated: 2026-10-13
 Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical slice records below do not constitute current production approval.
 
 ## Current work
+### Independent customer initialization run found two failing cases (2026-10-13)
+
+Parent ran tests/release/test_customer_initialization.py during implementation:
+16 passed,2 failed (complete OIDC and allow_http cases). Synthetic client-secret
+comparison sees doubled dollar signs in Compose config serialization. This is not yet
+proof of actual container credential corruption: delivery agent must verify effective
+runtime value with synthetic credentials in an isolated existing image, without database
+or mounts, before correcting implementation or serialization expectations. No customer
+initialization pass claimed from this invocation; final rerun remains required.
+
+### Actual persisted strategy recovery evidence arrived (2026-10-13)
+
+Parent inspected save-retry-recheck.json: same owned strategy now has real DRAFT
+version strategy-version-d3425ca270a84a698437, reload hash
+sha256:91e44ea4b654ee6309ac5603ad0faa00b27309f960329127051061f37b7dabff.
+Persisted resource is exact owned LNG UAT id, quantity987 and explicit synthetic
+all-in cost31.125 GBP/MWh. This proves recorded save/reload, not market compatibility
+or backtest readiness. Worker deliberately lost the successful version response and
+reconciled the stored version. Final correction still must refuse an ambiguous earlier
+POST followed by empty read and preserve uncertainty across reload; backend durable
+idempotency/cross-client reliability remains open. Final original-row comparison pending.
+
+### Response-loss race remains a strategy-save gate (2026-10-13)
+
+Parent reviewed new strategyDraftSave helper and focused tests. Stable client identity
+and exact-version recovery address acknowledged/lost-after-commit cases, but an empty
+GET after an ambiguous POST does not prove the original transaction cannot still commit.
+Agent must handle this race without a blind second version POST; the current fixture's
+"aborted before server" label is not evidence a browser can distinguish that outcome.
+Durable idempotency or an explicit unresolved-outcome recovery path is required before
+claiming robust retry. The36 reported focused passes do not close this uncovered case.
+
+ENTSOG agent acknowledged replay review: remove memory fallback, require persisted
+scheduled anchor, pass frozen rolling anchor to child and persist open-day qualification
+with warning status in ingestion-run evidence. Await implementation/integrated checks.
+
+### Rolling-window independent tests and replay review (2026-10-13)
+
+Parent independently ran tests/ingestion/test_entsog_window.py:25 passed. This proves
+the bounded date/calendar helper cases only. Review found scheduler fallback anchors
+stored in a128-entry memory cache cannot establish restart-safe replay (eviction and
+object-id reuse also matter). Existing ENTSOG agent was instructed to require persisted
+scheduled time or persist the chosen anchor, rather than claim durability from this cache.
+Parent also requested open-current-day qualification in persisted ingestion evidence:
+stdout-only warnings while the child receives explicit dates are not sufficient provenance.
+Integrated worker/scheduler acceptance remains pending these corrections and tests.
+
+### Duplicate strategy retry reproduced in actual browser (2026-10-13)
+
+Contract agent reproduced the pre-fix failure and parent located save-retry-baseline.json:
+first create succeeded with owned DEV UAT identity strategy-d82b5a9a7a09403a;
+controlled version-request abort followed by Save retry attempted a second strategy POST.
+The guard aborted that second request, preventing a duplicate database identity. Exactly
+one new owned identity without a version is retained for completing the corrected workflow;
+do not recreate it. db-save-before.json now also covers original strategies alongside the
+prior six groups. Correction and persisted reload verification remain in progress.
+
+### Strategy retry review expanded to unknown server outcomes (2026-10-13)
+
+Parent traced selectedStrategy to cached strategies.find(id), so an acknowledged create
+followed by a failed version POST can also leave selectedStrategy null and duplicate
+identity creation on retry. Existing API permits explicit strategy_id and refuses duplicates;
+version creation instead allocates a fresh UUID/number on every call, without idempotency.
+Contract agent received these findings: preserve acknowledged identity independently of
+list hydration, test lagging reads, and reconcile or explicitly block ambiguous version
+responses rather than blindly retrying. No exactly-once claim is supported yet.
+
+### Installer regression confirmed; bounded rolling policy defined (2026-10-13)
+
+Parent confirmed customer Windows Install-OrRepairRuntime still invokes removed
+preview-seed/simulated-prices services, including default stop of the absent service
+after migration/API startup. Delivery agent owns correction across wrapper/installer
+and command-plan checks, including rejecting obsolete simulation requests before side
+effects. Artifact exclusion alone did not prove customer installation works.
+
+ENTSOG continuation proposes opt-in1..30 prior gas days plus open current day using
+existing EU-CAM calendar, fixed per iteration/retry and scheduler scheduled_for_utc.
+Parent requires actual worker/scheduler option propagation, refusal of invalid/naive
+scheduled timestamps, DST/rollover tests and explicit distinction between provider date
+envelopes and canonical UTC intervals. No source enable, silent revision replacement or
+snapshot consistency claim. Implementation and tests remain pending.
+
+### Independent handoff mapping checks and customer initialization audit (2026-10-13)
+
+Parent independently ran strategyResourceHandoff.test.ts:3 passed, including no fabricated
+resource defaults, exact native mapping and incompatible EUR/therm/daily-unit refusal.
+Compared all eight current ENTSOG production file hashes with the verified image evidence:
+all match at this check; upcoming rolling-policy changes will require revalidation.
+Existing delivery agent now audits customer initialization/provenance paths for accidental
+development seeding, without touching or cleaning the existing database. Contract-save
+retry/persistence and rolling-policy agents remain running; no duplicate workers started.
+
+### Current image and bounded handoff reviewed; persisted-save gap next (2026-10-13)
+
+Parent inspected current image verification evidence and independently inspected immutable
+image03aba6f566ff07e59822669bd669da56f2f14cd3f9e51c46ab3586afc56ae8c1:
+amd64, user eurogas. Worker recorded both isolated actual image verifiers exit0, eight
+ENTSOG production hashes matching handoff and zero drift across479 captured inputs.
+This supersedes the pre-integration image limitation for that captured source only.
+
+Report15 and final-validation evidence now record38 actual handoff checks passing and
+all six DB groups unchanged including UAT additions. Parent inspected draft ownership,
+deliberate handoff and native-unit mapping code. Persisted strategy save is still unproven:
+the previous browser mapping used an intercepted create reply and aborted version write.
+Code review identifies a possible retry trap after createStrategy succeeds but createVersion
+fails: selected strategy has no version and retry reports frozen-version error. Existing
+contract agent owns reproducing/fixing retry and actual owned-UAT persisted save/reload,
+with originals preserved and no backtest/execution. Existing ENTSOG agent owns bounded
+rolling-window/replay policy continuation. No final supplier or Astra sign-off/push.
+
+### Existing execution handles resumed (2026-10-13 17:27 +08)
+
+After the reported reset hint, resumed only the existing delivery and contract Sol
+handles; both now report running. No matching DeepSeek/supervisor process was found.
+Same PostgreSQL container49881d31b917 remains healthy. Delivery owns the final-source
+image rebuild and immutable-ID checks; contract agent owns safe selected-resource
+binding and browser rechecks against existing UAT records. These are pending tasks,
+not newly passed gates. No new installation, data cleanup, duplicate supervisor or push.
+
+### Heartbeat checkpoint: confirmed binding failure and execution quota (2026-10-13 14:23 +08)
+
+Read entrypoint/state and actual agent status. ENTSOG agent completed its handoff;
+delivery and contract agents ended with usage-limit errors (reported retry hint 16:22),
+not active work. No new workers or supervisors started. Parent inspected final contract
+evidence:149 workflow checks, three generic resource journeys, all three strategy handoffs
+still showing res-1 despite selected contract URLs. Final six-group preservation JSON
+has no missing/changed original rows. Report15 now distinguishes this current failed
+binding gate from the historical Docker interruption. Safe draft binding remains unfixed.
+
+Post-ENTSOG artifact test log records16 passed. No rebuilt-image verification has been
+delivered; previously verified image remains pre-integration and is not final acceptance.
+Resume existing agent handles when available, inspect partial files before edits/builds,
+and complete binding correction plus current-source image verification. No push, release,
+old-data deletion, source enable or full acceptance claimed. Astra review remains open.
+
+### ENTSOG follow-up independently checked (2026-10-13)
+
+Agent reports9real PostgreSQL tests passed after recovery (2.84s),38focused dispatch/scheduler checks after the final error-shape and worker-exit fixes. Parent inspected the new failed-iteration counter/nonzero return and independently reran public-worker/dataops-scheduler tests: **21 PASS**. Delivery agent now owns rebuilding the same local acceptance tag from a fresh explicit-input context after final ENTSOG hash coordination, with immutable-ID verification and no database mounts.
+
+Parent opened contract `HUB-POOL-09-binding-failure.png`: actual form still shows res-1/Resource1/100MWh-d/20GBP-MWh. This verifies the binding failure visually. Contract agent was instructed that a correction must not copy EUR costs into GBP fields or invent FX; currency/unit mismatches require explicit handling before a new unsaved draft is valid. Existing saved/frozen drafts must not be retargeted silently.
+
+### PostgreSQL evidence recovered; routing clarified (2026-10-13)
+
+Parent inspected new `entsog-transport-20261013/postgresql-verification.json`: configured target127.0.0.1:51356/nexus_verify, pytest exit0, public-table fingerprints unchanged, no new test schemas remaining. This supersedes the earlier unavailable-DB evidence for that invocation; await agent's final test-count and worker-exit correction handoff before accepting the combined slice. Parent also added the owner's Sol routing amendment to CODEX_ENTRYPOINT itself, so its historical DeepSeek prose no longer misdirects a future resume. No change to STOP/security/architecture gates.
+
+### Integration review follow-up (2026-10-13)
+
+Parent inspected ENTSOG archival/savepoint/semantic-field integration and scheduler propagation. Found a remaining worker observability defect: `run_public_ingestion_worker.run_worker` logs exhausted retries but returns0 for a bounded invocation when no configuration block exists. Sent the existing integration agent a focused correction/regression request; preserve continuous supervision while bounded failure must return nonzero. Do not count it closed until tests pass.
+
+Contract agent reports post-recovery exact original-ID/hash comparison passed across all six baseline groups; the same HUB record resumed without repeat writes, and Pipeline terms created/edited/reloaded. LNG and final handoff assertions still in progress; no full business acceptance inferred.
+
+### Shared Docker recovery and interrupted acceptance (2026-10-13)
+
+Docker Desktop stopped during contract testing and ENTSOG transaction verification. Parent used the official `docker desktop restart --timeout 45` (exit0), then verified same container49881d31b917 healthy on51356 and `Start-LocalAcceptance.ps1 -CheckOnly` PASS: API23180/Web16436 reused, ready, container ID unchanged. No volume/data reset, fallback database or cleanup. Both existing agents resumed only interrupted work.
+
+Contract report15 records45checks and two completed writes to its sole Hub CONTRACT_POOL surrogate `DNX-UAT-BIZ-20261013-20261013T032343560Z-HUB-POOL`; Pipeline/LNG writes were zero at interruption. Resume existing checkpoint, compare originals first, never duplicate saves. ENTSOG integrated mocked/unit suites199PASS; nine PG-only tests were skipped while DB unavailable and now must actually run. GIE hashes preserved. Fixed-window scheduling is implemented; rolling policy, reference snapshot semantics, rebuild and Astra review remain open.
+
+### Actual local image verification passed (2026-10-13 11:22 +08)
+
+Materialized-context Docker build completed despite agent quota interruption; parent verified no build process remained and the image existed. Local immutable image ID `sha256:9a0d90a205aefe07d01b497e041667e735646b65f12c9d388a4f5c601a6ca9b2`, amd64, default user eurogas. Parent executed both verifiers by this ID with `--rm --network none --read-only`, no mounts/credentials: customer artifact PASS; notice verifier confirmed30locked packages/34textfiles and runtime lock SHA256 `aa8d28434e737bef37fc31bea3e9b46d1d0174cd6a15c32d7731a1800c7a6058`. Evidence build log/context manifest plus `customer-artifact-20261013/parent-image-verification.json`. Local image ID is not a published registry release or legal clearance. Image captures pre-ENTSOG-integration source; rebuild after integration remains necessary. No database change.
+
+ENTSOG integration and contract UI agents resumed their existing handles after terminal quota errors and reported reset time; no DeepSeek/new supervisor. Inspect partial work before repeating actions. Astra final review, customer DB provenance and complete business workflows remain open.
+
+### Next coordinated business and ingestion gates (2026-10-13)
+
+Sol GIE agent moves to actual Hub/Pipeline Tender/LNG contract workflow acceptance under existing UI capabilities and the contract/payment plan. Explicitly labelled UAT records may be created/edited; original contracts and cited history must be fingerprint-preserved. Missing business fields/retirement remain failures, not inferred equivalents. No execution/nomination/settlement, role grants or destructive delete. Contract UI/report ownership is separate from ENTSOG and release work.
+
+ENTSOG integration proposes mandatory explicit from/to windows. Parent inspected both current worker and dataops scheduler: neither currently passes them. Agent must address pass-through/preflight and disclose any remaining rolling-window scheduling gap; a repeatedly failing worker must not be represented as working ingestion. No historical full-backfill claim. Docker delivery agent continues materialized-context image verification concurrently with source-hash evidence.
+
+### Actual Docker artifact build started, context compatibility failure (2026-10-13)
+
+Parent attempted `docker build --progress=plain -f deploy/runtime/Dockerfile.api -t eurogas-nexus-acceptance:20261013 .` after checking `.dnx*` context exclusions. BuildKit failed before reading the Dockerfile: `invalid file request Dockerfile.api`; the file is a Windows reparse point. No image was built and no DB/container changed. Log `customer-artifact-20261013/docker-build.log`. Sol delivery agent now owns a materialized explicit-input build context, image build and network-disabled/non-root verifiers, with captured source hashes because ENTSOG integration is concurrently changing the shared ingestor. No broad repository/secret/data copy or second database; no image push. This is an execution compatibility issue, not permission to retry policy-rejected data deletion.
+
+### Independent review of Sol deliverables (2026-10-13)
+
+GIE bounded actual UI slice delivered: parent opened `gie-ui-20261013/external-after-connection.png`, confirming readable separate AGSI/ALSI results, disabled credential form, Connected alongside Unverified certification and bounded-page disclosure. Worker recorded15postfix browser checks,112backend/11frontend checks and six GIE-table fingerprints unchanged. This closes only the recorded connectivity/read-only UI slice; certification, ingestion and broad supplier acceptance remain open.
+
+Parent independently reran ENTSOG transport **88 tests PASS**. Same agent now owns coordinated ingestor integration, preserving GIE behavior and gates, exact page archives/receipt lineage, explicit partial results and no partial reference replacement; no live ingestion authorized.
+
+Parent independently verified delivered401-member wheel policy and SHA256 `1bb66ca347a1df0f1a765cf199b2b1ee3db500d40f479637394b2cee241ce413`. Initial artifact test attempts under DSH Python failed because setuptools is absent there, not because wheel checks passed. Rerun using existing `C:/Users/qqshu/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/python.exe` (installed setuptools84/wheel0.48 matching lock), PYTHONPATH `.dnx-deps;src;packages/python-sdk/src;.`: **16 artifact tests PASS**, including actual wheel build/offline import. No new install. Docker image execution, customer DB provenance and Astra final integration remain open.
+
+### Sol work resumed with concrete findings (2026-10-13 05:19 +08)
+
+All three previous Sol handles were terminal usage-limit errors; parent resumed the same handles after the reported reset hint, with no DeepSeek/supervisor process found. New tool-backed progress: ENTSOG bounded official probes show `total=count=2` on distinct limit2 pages, so total cannot be treated as global row count; transport must disclose absent snapshot consistency. Delivery review found snapshot metadata imports SIMULATOR_VERSION from the generator; parent authorized constant extraction preserving the exact value before artifact exclusion, rather than shipping broken imports. GIE verified API24120/Web16436 ready; external GIE key path is absent from ignored runtime config, so record missing state then configure path-only/restart verified API through the single launcher for actual UI evidence. No source enable, ingestion, certification or push.
+
+Parent completed pending frontend error-presentation/locale checks after the deployment-token taxonomy correction: **13 passed**, zero skipped. Browser acceptance remains distinct and pending.
+
+### Deployment-token error classification corrected (2026-10-12)
+
+The live unauthenticated probe exposed a real presentation defect: missing deployment token correctly refused401 but emitted top-level UNCLASSIFIED_ERROR/SYSTEM. Added the existing missing/invalid token codes to AUTH/after_user_action, with EN/ZH recovery guidance. API regression verifies missing401/invalid403, preserved detail code, correlation and no supplied-token echo; focused envelope/taxonomy suites **18 passed**. No authentication policy changed. Running API was not restarted during GIE UI work; post-restart live classification remains to verify.
+
+ENTSOG Sol agent terminated with model-capacity error before delivering changes; it is not running. GIE Sol confirmed successful reads and active UI preparation after its retry. Preserve this distinction from earlier agent-status snapshots.
+
+### Live unauthenticated source-boundary probe (2026-10-12)
+
+Parent tested the running loopback API without deployment token, identity key or session: GET `/api/me`, `/api/sources`, `/api/credentials/providers` and POST `/api/credentials/GIE/connection-test` all returned **401**. Evidence `.dnx-out/unauth-source-boundaries-20261012.json`. This proves only unauthenticated refusal for these four requests; it does not prove authenticated role separation, absence of downstream side effects, secret-safe success payloads or browser workflow acceptance. No credential was supplied and no data/source setting was changed.
+
+### Previously skipped browser-harness checks executed (2026-10-12)
+
+The full frontend suite's three skips were dependency resolution, not unavailable browser installation: `liveBoardCaptureRunner.test.ts` could not resolve Playwright from the web package. Parent supplied its supported `EUROGAS_UAT_PLAYWRIGHT_PATH` pointing to the existing `scripts/ci/browser-acceptance/node_modules/playwright/index.js`, without installing anything. Focused host run: **24 passed, zero skipped**, including real Chromium local synthetic-fixture response comparison, mutation refusal and WebSocket closure. Evidence `.dnx-out/frontend-browser-harness-20261012.log`. Together with the prior full run this exercises all 921 collected tests, but does not claim one zero-skip full invocation or actual customer/persona UI acceptance. These three are development harness fixtures only.
+
+### Host frontend suite and customer-artifact follow-up (2026-10-12)
+
+After repairing the Windows reparse-point scanner, parent ran the full existing web test command with the installed Node runtime: **921 tests, 918 passed, 3 skipped, 0 failed**, exit0. Evidence `.dnx-out/frontend-host-20261012.log`; this is automated frontend evidence, not browser/persona completion. Future edits require relevant rechecks.
+
+Direct inspection confirmed customer Compose still declares preview-seed/simulated-prices, Dockerfile copies every script, and Docker context exclusions omit local `.dnx-*` artifacts. Sol `/root/sol_delivery` owns a bounded release/build remediation and artifact-content tests, preserving explicit dev-only simulation and runtime dependencies. No deletion of local data, no Docker cleanup retry, no source enable or customer-release approval. Other Sol ownership remains GIE actual UI and isolated ENTSOG transport respectively.
+
+### Existing acceptance runtime restored (2026-10-12)
+
+Initial Docker Desktop Linux named-pipe read failed while Desktop reported running; subsequent bounded inspection found the existing database healthy without any restart/install. Root ran the tracked `Start-LocalAcceptance.ps1`: same container `49881d31b917`, PostgreSQL loopback51356 healthy, API8000 ready, Web3000 HTTP200, `container_id_unchanged=true`. No old data deletion or new database. CheckOnly had correctly refused the absent API beforehand. GIE Sol agent received one follow-up retry after its terminal capacity error, with the live runtime handoff; actual browser result remains unproven. ENTSOG Sol agent was confirmed running separately, with isolated module/test ownership.
+
+### Frontend hook-order evidence repaired (2026-10-12)
+
+Host reproduced the reported `shellHookOrder.test.ts` failure: AppShell count was zero, while the general scan passed. Actual Node Dirent inspection of `src/app/shell/AppShell.tsx` returned isFile=false/isSymbolicLink=true on this Windows reparse-point file. The scanner now resolves link metadata with statSync, walks directories explicitly and guards realpath cycles; both existing tests pass (2/2), preserving the hook/identity assertions. No application behavior changed. This repairs a false-negative coverage gap and the failing assertion, not full frontend acceptance.
+
+Sol GIE agent `/root/sol_gie_workflow` terminated with model capacity error before delivering browser evidence. Do not describe it as actively testing. Separate Sol `/root/sol_entsog` was assigned the already planned ENTSOG transport gaps in isolated new module/tests, without shared ingestor edits or live ingestion; poll its actual status before continuation. No DeepSeek restart.
+
+### Owner routing update and real GIE UI continuation (2026-10-12)
+
+The human explicitly replaced DeepSeek implementation with GPT-6.1 Sol in this chat. This supersedes the older DeepSeek-primary routing for this task; do not launch further DeepSeek workers. Astra retains architecture/final integration review when available. Existing work and all acceptance/security gates remain in scope.
+
+GPT-6.1 Sol agent `/root/sol_gie_workflow` now owns the bounded continuation of the existing GIE plan: inspect the delivered corrections, exercise the actual SourceCenter external-credential and per-product connectivity workflow, fix defects and preserve browser evidence. No live DB ingestion, source enable, certification change or push is authorized by this slice. Prior runtime census showed no headless worker/supervisor or API/Vite process; revalidate before starting the existing single local launcher. The primary checkpoint remains parent-owned. This is execution progress, not Astra integration sign-off or supplier acceptance.
+
+### REAL-SOURCES-02 correction delivered; final integration review pending (2026-10-11)
+
+Supersedes the active-worker statements below. DeepSeek correction worker exec25327/PID4008 is terminal with `workflow-review-final.txt` and `result-workflow-review.md` in `.dnx-out/real-sources-20261010/`; process census found no active headless worker or supervisor. Astra identified runtime operator-disable bypass, editable external credentials and zero-normalization false success; the worker reports these corrected. Parent host verification on 2026-10-11 reran six focused Python suites (transport, credential status, connection API, ingestion credential gate, upsert and revision-safe ingestion): **126 passed**, plus both focused frontend suites: **11 passed**. These are automated checks, not actual browser workflow acceptance.
+
+Astra integration reviewer hit its usage limit (reported next availability Oct15 21:51); no quota bypass or alternate-model sign-off is claimed. Preserve the completed corrections for its review. Next: inspect corrected runtime authorization and normalization boundaries, run actual SourceCenter external-key/per-product connection workflow against the reviewed local runtime, then legitimate certification and ingestion gates. No live ingestion, source enable, certification, commit or push in this continuation. Existing shellHookOrder failure and full supplier acceptance remain open. Docker cleanup remains policy-blocked and must not be retried through another tool.
+
+### REAL-SOURCES-02 safe GIE workflow active (2026-10-10)
+
+Prior reviewer-fix worker44126/PID10872 is terminal exit0. Corrected GIE fetch transport accepted for its bounded fetch-only scope: reviewer host140tests PASS including4actual PostgreSQL isolated-schema persistence tests, config/env/diff gates PASS. Reviewer read-only live probe through corrected transport returned30records each AGSI/ALSI, explicit complete=false; evidence `.dnx-out/real-sources-20261010/reviewer-provider-probe.json`. No actual live ingestion/certification. Existing generic upsert's revised-value overwrite with old first-seen is confirmed, not accepted as temporal safety.
+
+Sole active next DeepSeek worker exec58574/PID22396 (started11:08:30 +08) runs `.dnx-out/real-sources-20261010/workflow-brief.md`; stdout `workflow-final.txt`, stderr `workflow-diagnostic.log`. Scope: GIE-specific insert/unchanged-row preservation/revision refusal with atomicity, exact archive lineage, external credential-safe status and existing SourceCenter real per-product connection-test. No schema change, businessDB ingestion, certification/entitlement changes, source enable or service restart by worker. Follow-up actual UI and legitimate certification/ingestion gates remain reviewer work. Parent researches official attribution/reference and EEX transport. Docker cleanup remains blocked independently below.
+
+### REAL-SOURCES-01 reviewer corrections active (2026-10-10)
+
+Worker `71050` / PID `2412` is terminal. Its source census and initial GIE transport are delivered but not accepted: reviewer host 96 focused tests pass, while review found redirect/plain-HTTP credential leakage risk, untrusted error-body echo, record-budget and pagination validation gaps, and aggregate receipt backdating. Sole follow-up worker exec `44126` / PID `10872` (started 10:53:37 +08), DSH `session-b871c124-6143-4bbe-8b62-3120610db3e9`, runs `.dnx-out/real-sources-20261010/review-fix-brief.md`; outputs `review-fix-final.txt` and `review-fix-diagnostic.log`. It must prove credential boundaries before further live probes and test actual upsert first-seen/revision semantics. No live ingestion/certification or customer-ready claim. The prior active-worker paragraph below is historical and superseded by this follow-up.
+
+The sole active DeepSeek implementation worker is exec session `71050`, Windows PID `2412` (started 2026-10-10 06:38:17 +08), DSH session `session-bd596bbb-0dec-4c97-ab46-f154ac16d860`. PID was verified live after launch. Brief: `.dnx-out/real-sources-20261010/brief.md`; final and diagnostic files are in the same directory. DSH buffers final output, so zero-byte final output alone is not failure. Verify process/session before starting another worker.
+
+Bounded scope: complete source census, real AGSI/ALSI fetch transport integrated with existing public-source ingestion, external credential-file support, documented pagination/truncation handling, actual receipt timestamps, and focused tests. Preserve entitlement/certification gates; live validation is bounded read-only provider probing, not DB ingestion or production certification. GIE keys stay outside the repository and must never appear in output. Parent is independently reviewing official EEX Hub transport/terms; worker does not edit the commercial protocol gap document. Customer simulation exclusion and remaining source implementations stay explicit outstanding gates. Docker cleanup remains blocked below and must not be bypassed.
+
+### Docker migration accepted; cleanup blocked by tool policy (2026-10-10)
+
+Authoritative current state superseding earlier pending-cutover notes:all9 databases are restored and verified; final source/Docker gate passed2026-10-09T14:36:50Z and cutover93418 succeeded. Root Compose/tracked `scripts/ops/Start-LocalAcceptance.ps1` is the single local entry. Container49881d31b917 on127.0.0.1:51356 is healthy, API21664/Web21744 are ready and reused by repeated startup. Old Windows PG is stopped and not a fallback. DeepSeek3511/PID21508 is terminal; no active worker at this checkpoint.
+
+Final actual UI31085 passed, with viewed contract Library2 rows, saved run history and dataset catalogue4 rows, plus authenticated exact2contracts/3versions/7runs/4snapshots and unchanged IDs after reload. Automatic optimization POSTs are explicitly permitted/recorded after equivalence; this is not a read-only UI run. All92 original main-table records verified after UI:89 complete table hashes unchanged, original422audit/214job/69session rows individually preserved by in-memory comparison to the dump, only14audit/10automatic jobs/4sessions added. Other8 databases have0 unexpected differences. Host19 focused tests/config-contract/Compose/Markdown/diff checks pass. Current-data actual repository selection/numerical parity passes at9 limits; locale differences and future tie risks remain bounded and disclosed. Report11 contains full final evidence.
+
+The explicitly authorized cleanup is **BLOCKED_TOOL_POLICY**, not awaiting user approval. All18 resolved repository-contained targets (423754945bytes) remain:old data, cold copy,14dumps and2obsolete backups. Automatic review rejected both the native PowerShell batch and a narrowed exact literal old-data path, before execution, stating only `blocked by policy`. Do not bypass that refusal using another tool/agent. Current volume/live secrets and non-data evidence remain excluded; container temporary dump count0. Evidence: `.dnx-out/docker-postgres-cluster-20261008/evidence/cleanup-{manifest,result}.json`. Continue independent all-source/default/fallback and broader product acceptance work while this execution-layer cleanup blocker is unresolved. No push/merge or production certification.
+
+### Resume observation 2026-10-10T04:48+08:00
+
+This supersedes the stale pre-cutover status below. Docker PostgreSQL is healthy
+on loopback51356 after the reviewed cutover; the embedded source was stopped.
+DeepSeek3511 completed the root Compose/tracked `Start-LocalAcceptance.ps1`
+implementation. Host cutover93418 succeeded, and the reviewer reported a second
+startup reusing the same container/processes. Actual browser evidence at
+`.dnx-out/docker-postgres-cluster-20261008/evidence/` records the first attempt
+blocking automatic optimization POSTs and the second attempt passing after
+explicitly permitting those existing computations. The latter correctly records
+`read_only_after_login=false`: login/session and automatic job side effects must
+not be described as a purely read-only run. Original business-record hash
+verification after that run, final screenshot review, authorized deletion of old
+embedded data/all project migration backups, and final migration report remain
+to be confirmed. Do not delete the active Docker volume or live credentials.
+Astra resumed after its quota reset; do not start a second worker/supervisor.
+
+### Docker cluster restore review in progress (2026-10-09)
+
+**Host execution update 2026-10-09T10:46Z:** prior DeepSeek34961/PID10844 is terminal. Host38464 actually restored all7 additional project databases, exit0; host90941 actually collected container inventories and compared all9 databases: every stable structural/data line matched (2070 per project DB;14 for `postgres`). Its sole false gate was rejecting the approved read-only Compose file-secret bind. Reviewer precisely allowlisted the resolved secret source, destination `/run/secrets/pg_superuser_password` and `RW=false`, retaining all other bind rejection, and added real container ID/structured mount provenance. Source `default_text_search_config=pg_catalog.simple` is now explicitly preserved via the Docker postgres command. Host61419 recreated only the same review container/volume on51357, recollected actual inventories, and canonical gate **PASS match=true/failure_count0 at10:45:55Z**. Remaining three explicit platform differences: Windows/Alpine collation+ctype, lc_messages, and PG16.2→16.15. No API/Web restart, cutover or deletion yet. Sole new DeepSeek3511/PID21508 started10:44:44Z for root Compose/tracked local startup/docs plus actual locale semantic probes, from `single-start-brief.md`; it must not execute cutover or modify the reviewed cluster scripts. Locale semantic review and actual API/UI cutover checks remain before cleanup.
+
+Reviewer successfully restored the final `nexus_browser` dump into the existing Docker Desktop official PostgreSQL16-alpine container `eurogas-nexus-postgres`, named volume `eurogas-nexus-postgres-data`, isolated loopback port51357. The final dump is607443 bytes, SHA256 `b7bb35880206a06a12fdef35e32845da94deb0edeb130172703ffde3589124b9`; the older ce2b hash below is superseded. All92 table counts and whole-row fingerprints match, as do the preserved version/run/snapshot hashes. Initial full inventory gate is **not yet passed**: the only discrepancy is the constraint fingerprint, whose worker SQL hashes `conrelid::text` (an internal OID). Stable qualified-name/definition comparison must replace that invalid cross-restore check; it must not simply be ignored.
+
+The existing source cluster was found stopped and recovered with its existing PG16.2 binaries for read-only final verification; source143-line inventory still exactly equals the snapshot. A cluster census discovered7 additional project databases (`nexus_diag`, `nexus_ops_drill_fixed`, `nexus_ops_drill_restore`, `nexus_ops_migdrill`, `nexus_ops_restore`, `nexus_test`, `nexus_verify`) besides `nexus_browser` and `postgres`. These must also migrate and verify before the old cluster is deleted; inspect `postgres` for user objects too. Sole DeepSeek worker session34961/PID10844, harness session `session-ef2dfed0-c8ca-4e35-af83-17562a79a123`, is preparing complete cluster backup/restore/structural verification and hardened cutover/UI checks from `.dnx-out/docker-postgres-20261008/cluster-review-brief.md`. Worker25938/PID17652 is no longer active. API/Web remain stopped; no cutover or cleanup has occurred.
+
+Normal startup still needs consolidation: root `docker-compose.yml` currently describes a separate development database/container on5432 and old docs recommend that command. After the verified migration, align the local root entry and launcher with the retained Docker database; preserve the separate production release deployment contract. Do not claim Docker startup is unified merely because an ignored UAT launcher was changed.
+
+### User priority: Docker PostgreSQL and all-source fallback scope (2026-10-08)
+Live migration progress: DeepSeek25938 generated a snapshot-consistent607443-byte custom dump (SHA256 ce2b0e3da6bc730965e6ae42d0edad832aa96d4424072b442aa2ae2dd35569fb),92-table inventory A/B equal and440-line pg_restore catalog; catalog success is not restore success. Reviewer extra inventory confirms only public user schema,198 indexes,plpgsql1.0,no sequences/large objects. DS sandbox cannot write Docker named pipe, but reviewer host session46059 executed the reviewed same script successfully: official postgres:16-alpine pulled first attempt42s, digest sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea. This supersedes older TLS/network blocker and sandbox-only diagnostic. Container restore/cutover still pending; embedded source remains authoritative. Existing nexus superuser privilege is a separate least-privilege delivery gate, not certified safe by preservation.
+
+Additional user scope for following data-source work: European TSO connectors where they provide material live/unique flow, capacity, maintenance, outage or inventory data beyond existing ENTSOG coverage; read-only data only, no nomination/execution. User supplied GIE credential is stored outside repository at C:/Users/qqshu/.eurogas-nexus/secrets/gie-api-key.txt with current-user ACL. Read value only into memory, x-key header, no values in briefs/logs/artifacts. Verify IIP, AGSI and ALSI entitlements individually; do not infer a key works across products. Reuse existing scripts/ops/ingest_public_sources.py and its scheduler path instead of duplicating ECB/ENTSOG/GIE pipelines.
+User later explicitly instructs: after successful full restore verification, API/UI cutover and confirmed old PostgreSQL shutdown, delete the old project embedded data and project migration backups/cold copies/dumps; retain no rollback data copy. This supersedes the earlier post-success cold-backup retention plan only. Before cleanup, inventory and resolve exact absolute paths under this repository, verify each intended old-data/backup target; exclude the new Docker volume, unrelated files and non-data migration evidence. Until success, preserve the source DB and backups. No repeat confirmation is required. Current prepare worker25938/PID17652 is instructed not to delete or cut over; the reviewed next phase will perform the authorized cleanup only after its success gates. Also review all non-system schemas, extensions, large objects, sequences, roles/ACLs rather than claim all-data verification solely from public-table fingerprints.
+
+Latest user request prioritizes moving the existing Windows embedded database into the existing Docker Desktop, with a single normal runtime startup path. Docker contexts default/desktop-linux are connections to the same engine, not duplicate installations. Preserve embedded data/binaries and fresh logical backups until official PG16 container restore and all-table evidence are reviewed; no destructive reset. Current bounded worker brief `.dnx-out/docker-postgres-20261008/brief.md` prepares backup, bounded official-image pull, isolated loopback restore and reversible cutover plan. It must NOT cut over or restart the API before review. Engine2 report10 is complete for its bounded scope; business writes are paused during migration preparation.
+
+The user also extends the data-source policy to every registered and active source: healthy authorized high-frequency API first, genuine compatible lawful default/fallback where one exists, and explicit unavailability where none exists. Never synthetic substitution or cross-product/unit/measurement substitution. Preserve origin, delays, receipt/availability and point-in-time lineage. EEX Market Data Hub is requested as a default/API fallback; official FAQ intraday delay is15 minutes (60-second polling does not mean minute market latency), other daily update timings/product-code distinctions and redistribution rights must be verified. The full registry census and first EEX adapter/fallback task follow this higher-priority DB request, using COMMERCIAL_CONNECTOR_PROTOCOL_GAPS.md without claiming public access establishes customer redistribution rights.
+
+### Engine replacement requirement (user instruction, 2026-10-08)
+
+After engine/2 passes the required acceptance gates, replace engine/1 as the sole production backtest execution path. Do not leave two permanent selectable production backtest engines. Preserve historical run records, original engine identifiers and provenance; any legacy verification code must be isolated from new production run entrypoints and justified by an explicit historical-replay requirement. Before replacement, inventory API, agent, experiment, scheduled and client entrypoints, verify engine/2 parity within the approved product scope, expected numerical deltas, no stale-product reuse, rollback/release evidence and old-record immutability. Do not switch merely because a focused test subset passes. This direction does not authorize rewriting old records or silently changing separately defined scenario/EVALUATION semantics. The customer delivery ban on simulated fixtures remains mandatory.
+
+
+### Customer delivery requirement and engine2 integration (latest 2026-10-08)
+
+User explicitly added: commercial data adapters must support actual provider interface modes, ready for valid credentials; simulation is ONLY for development/testing and is NOT customer deliverable. Mandatory remaining gate: official provider protocol mappings and auth/entitlements/pagination/incremental/rate-limit/error/revision/unit/timezone/provenance verification, plus fixture/mock exclusion from customer artifacts, Compose defaults, profiles, seeds and data exports. Do not guess private APIs or claim credential-free live certification. Parent coordinates provider gap discovery; no scope reduction.
+
+Both engine2 workers44267/37937 are terminal and reviewed. Final host104 Python +36 frontend tests, tsc and focused diff pass (initial130 overlaps, not an additive count). Fill policy now applies to primary/fallback, carry age uses exact timedelta, ambiguous multi-component/name mappings fail closed, release metadata identifies public2/legacy1. Independent HEAD/current legacy control remains identical except new diagnostics (3 events/net2850). **Actual UI19 assertions PASS:** v2 unchanged produced engine2 BLOCKED run87cca8dc3e0848cebec1f607; one explicitly developer-only SIMULATED day-ahead cross-source v3 `strategy-version-3453edffca7a470281e9` saved/reloaded/frozen and produced COMPLETED_WITH_WARNINGS run6e1740d44c8c4ec8a5b8688e. Two existing simulated MID quotes matched the canonical target and availability; no market data inserted. Screenshots viewed. DB full-row hashes of old2 versions/5 runs unchanged; counts3 versions/7 runs, two new referenced snapshots and manifest hashes verified. Report10 gives exact evidence/limits. The temporary total refusal is ended for supported declarations, NOT full engine/customer acceptance.
+
+### Target-aware engine/2 first slice (2026-10-08, implementation history)
+
+Worker44267 executed `.dnx-out/target-engine2-20261008/brief.md`, then reviewer corrections were delegated to37937; both ended. Report10 is now the authoritative bounded result. Supported first targets are fixed intervals and explicit canonical GAS_DAY current/next offsets; rolling month/quarter, full hourly workflows, older-forward retrieval and reference-source mapping remain open. Original v2 `GBP/MWh` was retained and blocked honestly, not corrected in place. Next work: complete applicable product/engine gates and production-entrypoint replacement audit, customer simulation exclusion and real-provider adapters using `docs/release/acceptance/COMMERCIAL_CONNECTOR_PROTOCOL_GAPS.md`, alongside the original contract retirement, personas, Hub/Pipeline/LNG, dataset/OOS and release scope. No active worker or push at this checkpoint. Root/user architecture approval remains in force.
+
+### Target declaration phase 1 (2026-10-08, bounded verification complete)
+
+DeepSeek worker65374 ended exit0. Typed fixed-interval declarations and transitional guard are reviewed, with small reviewer fixes for serializer projections, duplicate name case, exact server-side fork copy and unsafe form projections. Host82 Python focused tests + 2 additional regressions (schema rerun30), frontend26, tsc and focused Ruff/diff pass. Actual UI12 final assertions prove legacy422, one fork v2 (`strategy-version-8ac5841afb524165b38f`), declaration save/reload/freeze and declared422 unavailable; two selector-related attempts are disclosed in report09, not product failures. Read-only hashes show original frozen version and5 runs unchanged; versions1→2, runs5. Screenshots reviewed. Engine still1; all new historical runs temporarily refused. Ten old service-success tests conflict with this development state, so this is NOT stable-release acceptance or a push point. Immediate next work is approved product-aware selector/engine2/provenance restoring valid declared runs, then rolling/day-ahead/hour/month support and the complete remaining vendor scope. No repeat architecture approval required.
+
+### CR-04 approved direction and independent API-key UAT (2026-10-08)
+
+User explicitly approved `docs/product/BACKTEST_TEMPORAL_AMENDMENT_PROPOSAL.md` with “同意架构修改提案”, first recorded `2026-10-07T23:49:57Z`, confirmed by root. This satisfies the material CR-04 amendment STOP for this direction only: per-leg backend target ownership, legacy frozen new-run refusal and fork-to-declare, product-aware selection, engine/2 provenance, old record preservation and explicit bounded reuse. No repeat approval is needed; unrelated security, numerical-surprise and Golden tolerance STOPs remain. Future-window guard is delivered. No engine/2 claim until actual selection and provenance are implemented and reviewed.
+
+**API-key lifecycle completed:** report08 now records both actual UI attempts. First attempt used an incomplete header combination, correctly failed 401 and was UI-revoked. Corrected second attempt passed 30 assertions using deployment plus identity headers; authentication resolved the intended principal, UI revoke persisted, and the same correct headers subsequently returned **403 identity_key_revoked with no principal**. Read-only DB confirms both owned keys revoked. Roles/principal scopes unchanged, no active test key or saved bearer. Inspected safe issued/revoked screenshots; targeted artifact scan zero full-bearer matches. Owner-column payload gap and key-scope attenuation/negative persona verification remain open; this is lifecycle acceptance only. Evidence `.dnx-out/uat-access-20261008/`, including separate first-attempt artifacts. No worker active at this checkpoint.
+
+**Local recovery:** reused the existing embedded PostgreSQL and launcher after processes stopped; no initialization or installation. Corrected launcher Windows pg_ctl waiting to wait for the control process only, avoiding `Start-Process -Wait` waiting indefinitely on the PostgreSQL descendant. Recovered existing data, API ready/Web200 verified. This is a local acceptance stack, not a Docker database or production deployment. No commit/push. Contract retirement and the complete remaining vendor-acceptance scope remain active.
+
+### Historical backtest boundary slice (2026-10-08, verified)
+
+Report07 records accepted CR-04 authority and the unresolved delivery-product mapping. A proposed universal delivery-window-contains-decision filter was withdrawn before product changes because it would incorrectly reject legitimate day-ahead/forward quotes. The first worker was stopped; one replacement worker implements only historical BACKTEST end <= application request clock, structured UI refusal and focused tests. No numerical price-selection changes authorized by this slice. Future-window rejection does not close stale evidence reuse inside historical periods; that remains the next architecture decision. No full acceptance, old-run rewrite, install or push.
+
+**Completed host recheck 04:51 local:** replacement worker ended. Reviewed API source loaded by restarting only recognized local uvicorn through existing launcher (API20524, Web5052, PG5400). Actual UI future POST422 with clear alert and unchanged four run IDs; one historical control POST200 created `strategy-run-1330aed95b0d4b7483d878e8`, persisted/reopened after reload. READ ONLY DB hashes show all old run rows unchanged, run/snapshot counts each4→5. Host48 Python+10 frontend tests and tsc pass; screenshots viewed. API/agent callers cannot pass client-selected request clock. Report07 gives concrete per-leg target-delivery proposal; ambiguous missing target declarations/tenor rolls require reviewed CR-04 design amendment before numerical implementation. Historical stale reuse and misleading effective-coverage interpretation remain open, alongside all original retirement/Hub-LNG/research/API/permissions/delivery scope.
+
+### Research workflow host execution (2026-10-07, current)
+
+**Final slice update 2026-10-08:** Both actual UI workflows completed; business verdict remains PARTIAL/blocked. Dataset qualification remediation is implemented/reviewed and same-snapshot read-only screenshots show Training unavailable alongside materialized COMPLETE. Host 24 focused tests + tsc pass. No server-side training gate is claimed because there is no research-snapshot training consumer. Strategy second run over the future year reports 100% coverage and constant GBP872.1812/event; independent READ ONLY DB trace proves 365 events share one price-reference set, with matched observations ending 2026-10-06 before the future window. Coverage is completed/all events, not effective fresh market coverage. No strategy numerical change made; next architecture slice must resolve temporal eligibility vs explicit scenario projection. The worker's initial SKIP-policy explanation was rejected/corrected. Two sequential DeepSeek workers have exited. Existing launcher restored Vite after atomic-edit watcher EBUSY; API ready and Web200. Details/files/evidence/limits in report06. No commit/push. Remaining retirement/Hub-LNG/API/permission/full-delivery scope persists.
+
+See `docs/release/acceptance/06_RESEARCH_FLOW_RECHECK.md`. Actual UI dataset validation/build/rebuild/reload succeeded with one new named spec and one immutable snapshot; repeated build is idempotent and old snapshots unchanged. Training fitness fails: COMPLETE materialization, build_blocked=true, 0% coverage, 100% missing, 365 leakage issues. Simulated indicator is present. Split UI and actual OOS separation remain unverified. Strategy first UI run persisted (16.2% coverage, warnings); two script defects were corrected without duplicating that run, and the second-window check completed as described above. Evidence lives in `.dnx-out/uat-research-20261007/`. The materialization/training-readiness qualification was subsequently delivered; the remaining priority is strategy temporal eligibility, as described above. This is partial workflow evidence, not production acceptance; fixture privileges are ADMIN+ANALYST only.
+
+### Authenticated contract create/update recheck (2026-10-07)
+
+DeepSeek's bounded script was reviewed and actually executed on the host at
+10:33 UTC against the recovered local runtime. Fresh Chromium login, UI create,
+authenticated GET, full reload, UI edit/save, second GET/reload and pool rendering
+passed 35 assertions. Actual contract POSTs were two HTTP 200 writes: created
+revision 1 and economics_updated revision 2. Read-only PostgreSQL independently
+confirmed quantity 1234, edited cost 31.4 and both captured revisions. The sole
+pre-existing contract remained unchanged by nonsecret field fingerprint.
+The clearly named `DNX-UAT-20261007-20261007T103302Z` record remains in the pool.
+
+All six fresh PNGs were inspected. Evidence and exact limits are recorded in
+`docs/release/acceptance/05_CONTRACT_FLOW_RECHECK.md`; local machine evidence is
+`.dnx-out/uat-contract-20261007/`. Verdict remains PARTIAL: no UI/API retirement
+or removal exists, and screenshots exposed materially misaligned library
+headers/values (P2, subsequently repaired below). Existing integration plan section 2.3 prohibits hard delete;
+follow-up lifecycle work must retain audit, concurrency and historical references.
+The worker's alleged served-i18n drift was disproved by explicit overrides in
+`clients/web/src/i18n/index.ts`. No new installation, reseed, migration, hard
+delete or commit/push occurred.
+
+DeepSeek corrected the header/row layout in ContractWorkbench.tsx and app.css.
+The integration reviewer caught a remaining Actions placement error in an actual
+browser capture and made the small desktop grid-span correction. Final host
+read-only captures at 1440 and 390 were both inspected; desktop four data columns
+and Actions align within 1px, with no document horizontal overflow at either
+width. Independent 60 frontend tests, TypeScript noEmit and focused diff checks
+passed. Full-tree diff checking still flags a pre-existing EOF blank line in
+dataops_observability.py. A Vite watch EBUSY on a worker temporary edit directory
+required restarting the existing server, not a new installation. The same test
+record was reused without additional business writes.
+
+The interim 00_REEVALUATION_VERDICT now distinguishes historical rendering
+coverage from full workflow acceptance, retains engineering gaps, and no longer
+infers absence of a contracting entity/agreement from a personal GitHub account.
+Current next bounded task: DeepSeek prepares a real strategy run/dataset build
+workflow script; host executes, checks persisted artifacts and inspects screenshots.
+Retirement, other domain workflows and release acceptance remain active work;
+a scope/page sweep cannot close these gates. No headless worker remains running.
+
+### Local database recovery and next acceptance boundary (2026-10-07)
+
+HEAD remains `b9977bc35cad2f89f9a9363fd001a6cc825f533d`. The large
+pre-existing uncommitted remediation set is preserved and is not yet accepted
+as a whole. No commit or push was made in this bounded environment task.
+
+Docker Desktop is reachable, but two bounded official PostgreSQL image pulls
+failed at the Docker CDN with TLS handshake timeouts. No Docker database was
+created. Reused the existing Windows embedded PostgreSQL 16.2 binaries and
+`.dnx-pgdata`; copied the stopped data directory to the ignored
+`.dnx-out/pg-cold-backup-20261007` before recovery (7182 files, 207607354 bytes).
+PostgreSQL completed automatic WAL recovery and accepts connections only on
+127.0.0.1:51356. Existing `nexus_browser` was already at
+`0039_identity_api_key_hash_width`; key_hash width is 80. Read-only counts show
+one upstream contract and zero contract revisions. No migration, reset, seed,
+business mutation or new installation was performed.
+
+A custom-format logical backup is also retained at
+`.dnx-out/recovery-20261007/nexus-browser-recovered.dump` (480446 bytes;
+SHA256 ff401b044fbb2af3bb1b52fdf4558cbda54c83b29474091bdd9c5b63b4f28649).
+Its 440-line pg_restore catalogue is readable; no restore drill is claimed.
+Both backups are local recovery evidence, never source/distribution artifacts.
+
+The single reviewed local startup entry is
+`.dnx-out/recovery-20261007/start-reviewed.ps1`: reuse existing data and installed
+PG/Python/Node, start only absent listeners, require database/API readiness,
+and expose API 127.0.0.1:8000 plus Web 127.0.0.1:3000. The API reuses the prior
+ignored UAT environment without changing credentials or grants. Independent
+checks returned /api/health HTTP 200 with authentication enforced and
+/api/health/ready HTTP 200 with runtime_db and required_tables both ok;
+Web returned HTTP 200. This is a local acceptance environment, not production
+or Docker deployment acceptance and not an authenticated workflow verdict.
+
+DeepSeek Harness headless execution was verified using the installed dsh.cmd
+and deepseek-flash. Its bounded worker created local launcher attempts, but
+its sandbox child-process/lifetime behavior was unsuitable for persistent
+servers. The worker was stopped; the proposed Vite process shim was rejected
+and removed. Servers now run from the permitted host execution environment.
+No second supervisor was created. For subsequent bounded DeepSeek tasks, keep
+implementation in the worker and persistent server control in the host.
+
+Next: inspect the existing remediation diff and run current authenticated
+Playwright user journeys against this recovered environment, including
+contracts, strategy runs, API credential management and datasets. Preserve
+all original Architecture V2 hard STOP conditions. Old acceptance reports
+remain historical evidence; no full UX, commercial or release approval is
+inferred from this recovery. Docker image networking, existing licensing
+findings and all unverified user journeys remain open.
 
 ### Explicit optimiser payment timing (2026-10-06)
 

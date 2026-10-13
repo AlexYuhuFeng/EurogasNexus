@@ -84,6 +84,7 @@ def runtime_release_metadata(request: Request) -> dict:
         RUN_SCHEMA_VERSION,
         SOLVER_VERSION,
         STRATEGY_SCHEMA_VERSION,
+        TARGET_BACKTEST_ENGINE_VERSION,
     )
 
     settings = getattr(request.app.state, "settings", Settings())
@@ -99,7 +100,11 @@ def runtime_release_metadata(request: Request) -> dict:
             "database_schema_revision": DB_SCHEMA_REVISION,
             "minimum_supported_client": MINIMUM_SUPPORTED_CLIENT_VERSION,
             "minimum_supported_server": MINIMUM_SUPPORTED_SERVER_VERSION,
-            "backtest_engine_version": BACKTEST_ENGINE_VERSION,
+            # The public application historical run executes engine/2. The
+            # legacy engine/1 helper identity is reported separately so stored
+            # engine/1 runs are never relabelled.
+            "backtest_engine_version": TARGET_BACKTEST_ENGINE_VERSION,
+            "legacy_backtest_engine_version": BACKTEST_ENGINE_VERSION,
             "strategy_schema_version": STRATEGY_SCHEMA_VERSION,
             "strategy_run_schema_version": RUN_SCHEMA_VERSION,
             "solver_version": SOLVER_VERSION,

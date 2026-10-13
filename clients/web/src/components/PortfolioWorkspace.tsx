@@ -187,7 +187,10 @@ function PortfolioRoutes({ controller }: { controller: AppController }) {
   );
 }
 
-export function PortfolioWorkspace({ controller }: { controller: AppController }) {
+export function PortfolioWorkspace({ controller, onOpenStrategyForResource }: {
+  controller: AppController;
+  onOpenStrategyForResource: (resourceId: string) => void;
+}) {
   const { t, api, portfolio, selection, navigation, contractEditor } = controller;
   const [task, setTask] = useState<PortfolioTask>(() =>
     portfolioTaskFromLocation(window.location.search),
@@ -292,7 +295,7 @@ export function PortfolioWorkspace({ controller }: { controller: AppController }
             saveState={contractSaveStateForDraft}
             onOpenStrategyForResource={(resourceId) => {
               selection.setResourceId(resourceId);
-              navigation.openWorkspace("strategy");
+              onOpenStrategyForResource(resourceId);
             }}
             contractImportRef={contractEditor.contractImportRef}
             contractImportMessage={contractEditor.contractImportMessage}

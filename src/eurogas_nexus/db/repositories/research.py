@@ -25,6 +25,16 @@ from eurogas_nexus.db.models import (
 )
 
 
+class DatasetSnapshotConflict(RuntimeError):
+    """Raised when a snapshot id is reused for content with a different hash.
+
+    A snapshot id is content-addressed, so the same id must always describe the same
+    bytes. Reusing it for different content is a real conflict and must be refused
+    rather than resolved to the stored row, because the caller would otherwise receive a
+    snapshot built from inputs it did not ask for.
+    """
+
+
 def _now() -> datetime:
     return datetime.now(UTC)
 
@@ -282,9 +292,47 @@ def persist_dataset_snapshot(
     dependencies: list[dict[str, str]],
     issues: list[dict[str, str]],
     artifacts: list[dict[str, str]],
-) -> DatasetSnapshotRecord:
+) -> tuple[DatasetSnapshotRecord, bool]:
+    """Persist one immutable snapshot, or return the identical one already stored.
+
+    Returns:
+        ``(row, created)``. ``created`` is False when an equivalent snapshot already
+        existed, which is what makes a repeated build idempotent.
+
+    Why this is not a plain insert
+    ------------------------------
+    The snapshot id is content-addressed: it embeds a hash of the specification and the
+    rows, so building the same dataset twice produces the same id. A second insert then
+    violated ``dataset_snapshots_pkey`` with ``23505 duplicate key value``, and because
+    the route caught only `KeyError`, `TypeError`, `ValueError` and
+    `DatasetRegistryError`, the SQLAlchemy `IntegrityError` escaped as an unhandled 500.
+    The client rendered a generic system error with no structured issues, so the user saw
+    "the backend rejected this build" and an empty panel naming nothing.
+
+    Colliding on the id is the design working, not failing: an immutable snapshot has one
+    identity per byte of content. So the collision is resolved to the existing row rather
+    than treated as an error, and a rebuild of unchanged inputs returns the snapshot that
+    already exists instead of a duplicate or a failure.
+
+    A *different* content hash under the same id is a genuine conflict and still raises,
+    because silently returning a snapshot built from other inputs would be worse than
+    refusing.
+    """
+
+    snapshot_id = metadata["dataset_snapshot_id"]
+    content_hash = metadata["content_hash"]
+    existing = session.get(DatasetSnapshotRecord, snapshot_id)
+    if existing is not None:
+        if existing.content_hash != content_hash:
+            raise DatasetSnapshotConflict(
+                "dataset_snapshot_id "
+                f"{snapshot_id!r} already exists with content hash "
+                f"{existing.content_hash!r}, but this build produced {content_hash!r}"
+            )
+        return existing, False
+
     row = DatasetSnapshotRecord(
-        dataset_snapshot_id=metadata["dataset_snapshot_id"],
+        dataset_snapshot_id=snapshot_id,
         dataset_spec_id=metadata["dataset_spec_id"],
         spec_hash=metadata["dataset_spec_version"].split("@")[-1],
         ontology_version=metadata["ontology_version"],
@@ -293,7 +341,7 @@ def persist_dataset_snapshot(
         column_count=metadata["column_count"],
         coverage=metadata["quality_report"]["coverage"],
         temporal_integrity=metadata["quality_report"]["temporal_integrity"],
-        content_hash=metadata["content_hash"],
+        content_hash=content_hash,
         entitlement_envelope=metadata["entitlement_envelope"],
         metadata_json=metadata,
         artifact_ref=artifacts[0]["artifact_path"] if artifacts else None,
@@ -335,7 +383,7 @@ def persist_dataset_snapshot(
             )
         )
     session.flush()
-    return row
+    return row, True
 
 
 def list_dataset_snapshots(session: Session) -> list[DatasetSnapshotRecord]:

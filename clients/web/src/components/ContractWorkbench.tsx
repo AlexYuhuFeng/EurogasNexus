@@ -344,7 +344,10 @@ export function ContractWorkbench({
               <p className="panel-copy">{t("contracts.selected_unavailable")}</p>
             </section>
           )}
-          <div className="contract-library-header" aria-hidden="true"><span>{t("contracts.resource_term")}</span><span>{t("economics.volume")}</span><span>{t("economics.contract_price")}</span><span>{t("panel.status")}</span></div>
+          {/* One shared column set for the header and every row: the load control owns the four
+              data cells and the row's last track is the actions cell, so a header can never drift
+              away from the values underneath it (`docs/release/acceptance/05_CONTRACT_FLOW_RECHECK.md`, P2). */}
+          <div className="contract-library-header" aria-hidden="true"><span>{t("contracts.resource_term")}</span><span>{t("economics.volume")}</span><span>{t("economics.contract_price")}</span><span>{t("panel.status")}</span><span>{t("strategy_lab.actions")}</span></div>
           <div className="contract-library-list">{upstreamContracts.map((saved) => {
             const resourceInPool = portfolioResources.some((resource) => resource.resource_id === saved.contract_id);
             const selected = selectedResourceId === saved.contract_id || saved.contract_id === contract.contract_id;
@@ -364,30 +367,32 @@ export function ContractWorkbench({
                   <span><strong>{formatMoney(saved.contract_price_gbp_mwh)}</strong><small>GBP/MWh</small></span>
                   <span><strong>{t("contracts.persisted")}</strong><small>{formatTimestamp(saved.updated_at_utc)}</small></span>
                 </button>
-                <button
-                  type="button"
-                  className="contract-library-handoff"
-                  disabled={!resourceInPool}
-                  title={resourceInPool ? t("contracts.open_in_strategy") : t("contracts.open_in_strategy_unavailable")}
-                  onClick={() => onOpenStrategyForResource(saved.contract_id)}
-                >
-                  {t("contracts.open_in_strategy")}
-                </button>
-                <button
-                  type="button"
-                  className="contract-library-handoff"
-                  onClick={() => {
-                    const subject = inspectorSubjectFor(
-                      "contract",
-                      saved.contract_id,
-                      saved.contract_name,
-                      "contracts",
-                    );
-                    if (subject) inspector.open(subject);
-                  }}
-                >
-                  {t("contracts.inspect")}
-                </button>
+                <div className="contract-library-row-actions">
+                  <button
+                    type="button"
+                    className="contract-library-handoff"
+                    disabled={!resourceInPool}
+                    title={resourceInPool ? t("contracts.open_in_strategy") : t("contracts.open_in_strategy_unavailable")}
+                    onClick={() => onOpenStrategyForResource(saved.contract_id)}
+                  >
+                    {t("contracts.open_in_strategy")}
+                  </button>
+                  <button
+                    type="button"
+                    className="contract-library-handoff"
+                    onClick={() => {
+                      const subject = inspectorSubjectFor(
+                        "contract",
+                        saved.contract_id,
+                        saved.contract_name,
+                        "contracts",
+                      );
+                      if (subject) inspector.open(subject);
+                    }}
+                  >
+                    {t("contracts.inspect")}
+                  </button>
+                </div>
               </div>
             );
           })}{upstreamContracts.length === 0 && <p className="panel-copy" data-empty-state="contract-library">{t("contracts.no_saved_contracts")}</p>}</div>

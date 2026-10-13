@@ -1199,6 +1199,29 @@ export interface CredentialProviderDTO {
   default_model?: string | null;
   configured: boolean; status: string; redacted_preview: string | null;
   last_tested_at_utc: string | null; last_test_status: string | null;
+  label?: string | null;
+  /** Whether the backend actually implements a live connection test for this provider. */
+  connection_test_supported?: boolean;
+  /** GIE-only: how the credential was resolved (env | file | credential_store | missing | ...). */
+  credential_source_kind?: string;
+  /** GIE-only: stable diagnostic codes, never secret content. */
+  credential_diagnostics?: string[];
+  /** GIE-only: declared backend support flags (connection_test, agsi, alsi). */
+  support_flags?: string[];
+  /** GIE-only: the existing certification gate state, reported separately from connectivity. */
+  certification?: { stage: string; allows_live: boolean; reason: string } | null;
+}
+
+export interface GieConnectionProductDTO {
+  product: string; ok: boolean; error_code: string | null; http_status: number | null;
+  record_count: number; normalized_rows: number; provider_last_page: number | null;
+  page_size: number | null; complete: boolean | null; bounded_partial: boolean;
+  response_date: string | null;
+}
+
+export interface GieConnectionTestDTO {
+  ok: boolean; error_code: string | null; products: GieConnectionProductDTO[];
+  tested_at_utc: string; bounded?: boolean; market_data_persisted?: boolean;
 }
 
 export interface RouteEligibilityDTO {
@@ -1553,11 +1576,23 @@ export interface StrategyRegistryParameterDTO {
   sensitivity_allowed?: boolean;
 }
 
+/** One frozen per-leg delivery declaration (CR-04 temporal amendment). */
+export interface StrategyEvidenceTargetDTO {
+  leg_id: string; price_names: string[]; role: string; hub: string; tenor: string;
+  price_basis: string; target_basis: string;
+  /** EXPLICIT_INTERVAL only: the aware UTC half-open interval endpoints. */
+  delivery_start_utc?: string | null; delivery_end_utc?: string | null;
+  /** GAS_DAY only: the explicit canonical calendar and 0/1 gas-day offset. */
+  calendar_id?: string | null; gas_day_offset?: number | null;
+}
+
 export interface StrategyRegistryComponentDTO {
   component_id: string; component_type: string; role?: string; hubs?: string[];
   tenors?: string[]; price_basis?: string | null; resource_id?: string | null;
   parameter_refs?: string[]; required_evidence?: string[];
   extension_json?: Record<string, unknown>;
+  /** The API accepts JSON objects here; this surface only writes the typed shape. */
+  evidence_targets?: (StrategyEvidenceTargetDTO | Record<string, unknown>)[] | null;
 }
 
 export interface StrategyVersionDefinitionDTO {
@@ -1647,6 +1682,10 @@ export interface BacktestMetricSetDTO {
   risk_metric_not_applicable_reasons?: string[];
   warning_counts?: Record<string, number>;
   temporal_integrity?: string;
+  /** Honest evidence diagnostics; never presented as fresh observed coverage. */
+  distinct_admitted_price_refs?: number;
+  events_reusing_admitted_price_refs?: number;
+  events_with_simulated_evidence?: number;
 }
 
 export interface BacktestDecisionEventDTO {
@@ -2988,10 +3027,13 @@ export const api = {
     })).then((res) => parseResponse<ApiResponse<CredentialProviderDTO>>(res)),
 
   testCredentialConnection: (providerId: string) =>
-    post<CredentialProviderDTO & { connection_status: string; connection_error_code: string | null }>(
-      `/credentials/${providerId}/connection-test`,
-      {},
-    ),
+    post<
+      CredentialProviderDTO & {
+        connection_status?: string;
+        connection_error_code?: string | null;
+        connection?: GieConnectionTestDTO;
+      }
+    >(`/credentials/${providerId}/connection-test`, {}),
 
   monitoringAlerts: (options?: ApiRequestOptions) =>
     get<MonitoringAlertDTO[]>("/monitoring/alerts", { limit: "100" }, options),
@@ -3509,6 +3551,7 @@ export interface RuntimeReleaseDTO {
   minimum_supported_client: string;
   minimum_supported_server: string;
   backtest_engine_version: string;
+  legacy_backtest_engine_version: string;
   strategy_schema_version: string;
   strategy_run_schema_version: string;
   solver_version: string;

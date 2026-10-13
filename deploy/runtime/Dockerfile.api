@@ -12,10 +12,12 @@ RUN python -m pip install --no-cache-dir --require-hashes \
     -r requirements-build.lock \
     -r requirements-runtime.lock
 
-COPY pyproject.toml README.md ./
+COPY pyproject.toml setup.py README.md ./
 COPY src ./src
 COPY packages ./packages
-RUN python -m pip wheel --no-deps --no-build-isolation . --wheel-dir /wheels
+COPY scripts/release/verify_customer_artifact.py scripts/release/runtime_artifact_policy.json ./scripts/release/
+RUN python -m pip wheel --no-deps --no-build-isolation . --wheel-dir /wheels \
+    && python scripts/release/verify_customer_artifact.py --wheel /wheels/eurogas_nexus-*.whl
 
 # Runtime stage: install only the locked runtime dependencies and the wheel.
 FROM python:3.11-slim
@@ -41,7 +43,34 @@ RUN python -m pip install --no-cache-dir --no-deps --no-index \
 COPY alembic.ini ./
 COPY alembic ./alembic
 COPY apps ./apps
-COPY scripts ./scripts
+# Explicit customer script payload. Do not restore a recursive scripts copy:
+# it would ship development seeds, simulators and UAT fixtures in image layers.
+COPY scripts/ops/backup_restore_drill.py \
+     scripts/ops/backup_runtime.py \
+     scripts/ops/check_config.py \
+     scripts/ops/ingest_public_sources.py \
+     scripts/ops/materialize_reference_edges.py \
+     scripts/ops/migration_preflight.py \
+     scripts/ops/prune_audit_events.py \
+     scripts/ops/prune_job_records.py \
+     scripts/ops/prune_runtime_data.py \
+     scripts/ops/recover_stale_jobs.py \
+     scripts/ops/refresh_cost_observations.py \
+     scripts/ops/run_dataops_scheduler.py \
+     scripts/ops/run_monitoring_worker.py \
+     scripts/ops/run_public_ingestion_worker.py \
+     scripts/ops/run_shadow_scheduler.py \
+     scripts/ops/validate_runtime_db.py ./scripts/ops/
+COPY scripts/ci/audit_dependencies.py ./scripts/ci/
+COPY scripts/release/collect_python_license_texts.py \
+     scripts/release/compatibility_check.py \
+     scripts/release/generate_sboms.py \
+     scripts/release/release_artifacts.py \
+     scripts/release/release_metadata.py \
+     scripts/release/smoke_release.py \
+     scripts/release/verify_python_license_texts.py \
+     scripts/release/verify_customer_artifact.py \
+     scripts/release/runtime_artifact_policy.json ./scripts/release/
 
 # Collect the license/notice texts of the locked runtime dependencies from this
 # runtime stage's own installed purelib (after the locked dependency install and
@@ -59,6 +88,10 @@ RUN set -eu; \
         --output-dir /usr/share/licenses/eurogas-nexus/python-license-texts \
         --runtime-lock requirements-runtime.lock \
     && chmod -R a+rX /usr/share/licenses/eurogas-nexus/python-license-texts
+
+# Actual installed package + copied tool inventory and transitive imports.
+# Neither verifier connects to the database or a provider.
+RUN python scripts/release/verify_customer_artifact.py
 
 RUN chown -R eurogas:eurogas /app
 USER eurogas

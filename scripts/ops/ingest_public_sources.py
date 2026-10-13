@@ -7,11 +7,15 @@ provider payload for lineage (raw -> canonical audit trail).
 Fail-closed gates (audit item 4): every live source passes the entitlement
 check, and export-restricted sources (ENTSOG, GIE) additionally require a
 certification record whose gate allows live; blocked sources are recorded as
-failed runs, never silently skipped.
+failed runs, never silently skipped. An explicitly disabled (or unreadable)
+source runtime operation also blocks, and the GIE credential-fetch boundary
+refuses an operator-disabled stored credential or disabled source operation
+regardless of GIE_API_KEY/GIE_API_KEY_FILE precedence.
 
-Ingestion is re-run safe (idempotent): observation rows upsert by natural
-primary key with first-seen ``observed_at_utc``, and reference snapshots
-replace only the ENTSOG scope, only when the new payload is non-empty.
+ENTSOG and GIE observations append absent natural keys and verify unchanged
+keys; semantic revisions are refused until append-only history is available.
+ENTSOG reference replacement requires exhausted, nonempty bounded queries.
+Exhaustion proves traversal completion only; snapshot consistency is unproven.
 """
 
 from __future__ import annotations
@@ -36,7 +40,6 @@ from eurogas_nexus.db.models import (
     IngestionRunRecord,
     LngObservationRecord,
     MarketObservationRecord,
-    ProviderCredentialRecord,
     ReferenceFacility,
     ReferenceMarketHub,
     ReferenceNode,
@@ -44,9 +47,14 @@ from eurogas_nexus.db.models import (
     StorageObservationRecord,
 )
 from eurogas_nexus.db.repositories.audit import record_audit_event
+from eurogas_nexus.db.repositories.entsog_observation_persistence import (
+    EntsogObservationPersistenceError,
+)
 from eurogas_nexus.db.repositories.public_ingestion_upsert import (
+    GieRevisionRequiresHistoryError,
     replace_reference_snapshot,
     upsert_observation_rows,
+    upsert_revision_safe_observation_rows,
 )
 from eurogas_nexus.db.session import (
     create_session_factory,
@@ -54,15 +62,29 @@ from eurogas_nexus.db.session import (
     redact_database_url,
     resolve_database_url,
 )
+from eurogas_nexus.ingestion.entsog_ingestion import (
+    EntsogIngestionError,
+    archive_entsog_pages,
+    persist_entsog_observations,
+    persist_entsog_reference,
+)
+from eurogas_nexus.ingestion.entsog_transport import (
+    EntsogFetchResult,
+    EntsogTransportError,
+    fetch_entsog_dataset,
+)
+from eurogas_nexus.ingestion.entsog_window import EntsogWindowPolicy
+from eurogas_nexus.ingestion.gie_transport import (
+    GIE_SOURCE_ID,
+    GieApiKey,
+    GieProduct,
+    GieTransportError,
+    fetch_gie_product,
+    resolve_gie_runtime_api_key,
+)
 from eurogas_nexus.ingestion.public_sources import (
     ecb_fx_observations_from_xml,
     ecb_market_observations_from_xml,
-    entsog_capacity_observations_from_json,
-    entsog_flow_observations_from_json,
-    entsog_market_hubs_from_connectionpoints,
-    entsog_reference_facilities_from_connectionpoints,
-    entsog_reference_nodes_from_connectionpoints,
-    entsog_tso_access_points_from_json,
     gie_lng_observations_from_json,
     gie_storage_observations_from_json,
 )
@@ -79,8 +101,10 @@ ENTSOG_CONNECTION_POINTS_URL = "https://transparency.entsog.eu/api/v1/connection
 ENTSOG_OPERATOR_POINT_DIRECTIONS_URL = (
     "https://transparency.entsog.eu/api/v1/operatorpointdirections"
 )
-GIE_AGSI_EU_URL = "https://agsi.gie.eu/api/data/EU"
-GIE_ALSI_EU_URL = "https://alsi.gie.eu/api/data/EU"
+GIE_AGSI_EU_URL = "https://agsi.gie.eu/api"
+GIE_ALSI_EU_URL = "https://alsi.gie.eu/api"
+GIE_AGSI_PRODUCT = GieProduct.agsi(GIE_AGSI_EU_URL)
+GIE_ALSI_PRODUCT = GieProduct.alsi(GIE_ALSI_EU_URL)
 ENTSOG_CAPACITY_INDICATORS = (
     "Firm Technical",
     "Firm Booked",
@@ -108,6 +132,16 @@ def main() -> int:
         help="Source to ingest. May be repeated. Default: all.",
     )
     parser.add_argument("--limit", type=int, default=20, help="Bounded record limit per source.")
+    parser.add_argument(
+        "--entsog-from", help="Explicit ENTSOG observation query date (YYYY-MM-DD)."
+    )
+    parser.add_argument("--entsog-to", help="Explicit ENTSOG observation query date (YYYY-MM-DD).")
+    parser.add_argument("--entsog-lookback-gas-days", type=int)
+    parser.add_argument(
+        "--entsog-window-anchor", help="Aware rolling run timestamp; frozen across retries."
+    )
+    parser.add_argument("--entsog-page-size", type=int, default=100)
+    parser.add_argument("--entsog-max-pages", type=int, default=50)
     parser.add_argument("--json", action="store_true", help="Print a JSON report.")
     args = parser.parse_args()
 
@@ -129,11 +163,14 @@ def main() -> int:
     engine = None
     session_factory = None
     started = datetime.now(UTC)
+    if args.entsog_lookback_gas_days is not None and args.entsog_window_anchor is None:
+        args.entsog_window_anchor = started.isoformat()
     report: dict[str, Any] = {
         "ok": False,
         "redacted_database_url": redact_database_url(database_url),
         "sources": {},
         "warnings": [],
+        "failures": [],
     }
     try:
         engine = get_engine(database_url)
@@ -162,10 +199,39 @@ def main() -> int:
                     )
                     selected -= names
             gate_session.commit()
-        gie_key = _resolve_gie_key(session_factory) if selected & {"gie-agsi", "gie-alsi"} else None
-        if selected & {"gie-agsi", "gie-alsi"} and not gie_key:
-            report["warnings"].append("GIE key missing; skipped GIE AGSI/ALSI ingestion.")
-            selected -= {"gie-agsi", "gie-alsi"}
+        gie_key: str | None = None
+        if selected & {"gie-agsi", "gie-alsi"}:
+            failure_code = "gie_credential_missing"
+            try:
+                resolved_key = _resolve_gie_api_key(session_factory)
+            except GieTransportError as exc:
+                resolved_key = None
+                failure_code = exc.code
+                report["failures"].append({"source": "GIE", "code": exc.code})
+                report["warnings"].append(
+                    f"GIE credential configuration failed ({exc.code}); AGSI/ALSI were "
+                    "not fetched and no synthetic data was substituted."
+                )
+            if resolved_key is None:
+                if failure_code == "gie_credential_missing":
+                    report["failures"].append({"source": "GIE", "code": failure_code})
+                    report["warnings"].append(
+                        "GIE key missing; AGSI/ALSI ingestion failed explicitly."
+                    )
+                with session_factory() as failure_session:
+                    for blocked_name in ("GIE-AGSI", "GIE-ALSI"):
+                        _record_run(
+                            failure_session,
+                            blocked_name,
+                            "failed",
+                            started,
+                            0,
+                            f"credential:{failure_code}",
+                        )
+                    failure_session.commit()
+                selected -= {"gie-agsi", "gie-alsi"}
+            else:
+                gie_key = resolved_key.value
 
         with httpx.Client(
             timeout=30.0,
@@ -219,234 +285,92 @@ def main() -> int:
                             "dataset": "fx-reference-rates",
                         }
 
-                if "entsog-reference" in selected:
-                    connection_payload = _fetch_json(
-                        client,
-                        ENTSOG_CONNECTION_POINTS_URL,
-                        params={"limit": str(max(args.limit, 1000)), "extended": "1"},
-                    )
-                    direction_payload = _fetch_json(
-                        client,
-                        ENTSOG_OPERATOR_POINT_DIRECTIONS_URL,
-                        params={"limit": str(max(args.limit, 1000)), "hasData": "1"},
-                    )
-                    _archive_raw_payload(
-                        session,
-                        source_system="ENTSOG",
-                        dataset="connectionpoints",
-                        source_reference="entsog-connectionpoints",
-                        payload_json=connection_payload,
-                        record_count=0,
-                        received_at=started,
-                    )
-                    _archive_raw_payload(
-                        session,
-                        source_system="ENTSOG",
-                        dataset="operatorpointdirections",
-                        source_reference="entsog-operatorpointdirections",
-                        payload_json=direction_payload,
-                        record_count=0,
-                        received_at=started,
-                    )
-                    node_rows = entsog_reference_nodes_from_connectionpoints(
-                        connection_payload
-                    )
-                    facility_rows = entsog_reference_facilities_from_connectionpoints(
-                        connection_payload
-                    )
-                    hub_rows = entsog_market_hubs_from_connectionpoints(connection_payload)
-                    tso_access_rows = entsog_tso_access_points_from_json(direction_payload)
-                    run_id = _new_run_id("ENTSOG-reference")
-                    node_rows = _stamp_lineage(
-                        node_rows, run_id=run_id, adapter_version="public-source-ingestor/1"
-                    )
-                    facility_rows = _stamp_lineage(
-                        facility_rows, run_id=run_id, adapter_version="public-source-ingestor/1"
-                    )
-                    hub_rows = _stamp_lineage(
-                        hub_rows, run_id=run_id, adapter_version="public-source-ingestor/1"
-                    )
-                    tso_access_rows = _stamp_lineage(
-                        tso_access_rows, run_id=run_id, adapter_version="public-source-ingestor/1"
-                    )
-                    reference_summary = _replace_reference_network(
-                        session,
-                        nodes=node_rows,
-                        facilities=facility_rows,
-                        hubs=hub_rows,
-                        tso_access_points=tso_access_rows,
-                    )
-                    if reference_summary["skipped_tables"]:
+                for entsog_route in ("entsog-reference", "entsog", "entsog-capacity"):
+                    if entsog_route in selected:
+                        _ingest_entsog_source(
+                            client, session, route=entsog_route, args=args,
+                            started=started, report=report,
+                        )
+
+                for gie_route, gie_product in (
+                    ("gie-agsi", GIE_AGSI_PRODUCT),
+                    ("gie-alsi", GIE_ALSI_PRODUCT),
+                ):
+                    if gie_route not in selected:
+                        continue
+                    source_name = f"GIE-{gie_product.product}"
+                    try:
+                        gie_result = fetch_gie_product(
+                            client,
+                            product=gie_product,
+                            api_key=gie_key or "",
+                            max_records=args.limit,
+                        )
+                    except GieTransportError as exc:
+                        # Explicit failure: a missing credential, a 401/403/429, a
+                        # timeout, an empty/malformed/truncated/mismatched response
+                        # or an inconsistent page sequence. Synthetic data is never
+                        # substituted.
+                        _record_run(
+                            session,
+                            source_name,
+                            "failed",
+                            started,
+                            0,
+                            f"transport:{exc.code}",
+                        )
+                        report["failures"].append(
+                            {"source": source_name, "code": exc.code}
+                        )
                         report["warnings"].append(
-                            "ENTSOG reference payload empty for "
-                            + ", ".join(reference_summary["skipped_tables"])
-                            + "; existing rows kept."
+                            f"{source_name} fetch failed explicitly ({exc.code}); "
+                            "no synthetic data was substituted."
                         )
-                    _record_run(
-                        session,
-                        "ENTSOG",
-                        "succeeded",
-                        started,
-                        len(node_rows)
-                        + len(facility_rows)
-                        + len(hub_rows)
-                        + len(tso_access_rows),
-                        "entsog-reference-network",
-                        run_id=run_id,
+                        continue
+
+                    model = (
+                        StorageObservationRecord
+                        if gie_product.product == "AGSI"
+                        else LngObservationRecord
                     )
-                    reference_record_count = (
-                        len(node_rows)
-                        + len(facility_rows)
-                        + len(hub_rows)
-                        + len(tso_access_rows)
-                    )
-                    report["sources"]["ENTSOG-reference"] = {
-                        "records": reference_record_count,
-                        "dataset": "connectionpoints/operatorpointdirections",
+                    report["sources"][source_name] = {
+                        "records": 0,
+                        "dataset": gie_product.product,
+                        "pages_fetched": len(gie_result.pages),
+                        "provider_last_page": gie_result.provider_last_page,
+                        "page_size": gie_result.page_size,
+                        "pages_allowed": gie_result.pages_allowed,
+                        "record_capacity": gie_result.record_capacity,
+                        "operator_record_budget": gie_result.budget_records,
+                        "complete": gie_result.complete,
+                        "stop_reason": gie_result.stop_reason,
+                        "partial_reason": gie_result.partial_reason,
                     }
+                    if not gie_result.complete:
+                        report["warnings"].append(
+                            f"{source_name} fetched {len(gie_result.pages)} of "
+                            f"{gie_result.provider_last_page} provider pages within the "
+                            f"operator budget ({gie_result.budget_records} records, "
+                            f"capacity {gie_result.record_capacity}); this is an honest "
+                            "bounded partial result, not full history."
+                        )
 
-                if "entsog" in selected:
-                    flow_payload = _fetch_json(
-                        client,
-                        ENTSOG_OPERATIONAL_URL,
-                        params={"limit": str(args.limit), "indicator": "Physical Flow"},
-                    )
-                    _archive_raw_payload(
+                    persist_outcome = _persist_gie_product(
                         session,
-                        source_system="ENTSOG",
-                        dataset="operationaldatas",
-                        source_reference="entsog-operationaldatas",
-                        payload_json=flow_payload,
-                        record_count=0,
-                        received_at=started,
+                        product=gie_product,
+                        source_name=source_name,
+                        gie_result=gie_result,
+                        model=model,
+                        started=started,
                     )
-                    rows = entsog_flow_observations_from_json(flow_payload)
-                    if not rows:
-                        raise RuntimeError("ENTSOG returned no physical-flow observations.")
-                    run_id = _new_run_id("ENTSOG")
-                    rows = _stamp_lineage(
-                        rows, run_id=run_id, adapter_version="public-source-ingestor/1"
-                    )
-                    upsert_observation_rows(session, FlowObservationRecord, rows)
-                    _record_run(
-                        session,
-                        "ENTSOG",
-                        "succeeded",
-                        started,
-                        len(rows),
-                        "entsog-operationaldatas",
-                        run_id=run_id,
-                    )
-                    report["sources"]["ENTSOG"] = {"records": len(rows), "dataset": "flows"}
-
-                if "entsog-capacity" in selected:
-                    capacity_rows: list[dict[str, Any]] = []
-                    for indicator in ENTSOG_CAPACITY_INDICATORS:
-                        capacity_rows.extend(
-                            entsog_capacity_observations_from_json(
-                                _fetch_json(
-                                    client,
-                                    ENTSOG_OPERATIONAL_URL,
-                                    params={"limit": str(args.limit), "indicator": indicator},
-                                )
-                            )
-                        )
-                    run_id = _new_run_id("ENTSOG-capacity")
-                    capacity_rows = _stamp_lineage(
-                        capacity_rows, run_id=run_id, adapter_version="public-source-ingestor/1"
-                    )
-                    upsert_observation_rows(session, CapacityObservationRecord, capacity_rows)
-                    _record_run(
-                        session,
-                        "ENTSOG",
-                        "succeeded",
-                        started,
-                        len(capacity_rows),
-                        "entsog-operationaldatas-capacity",
-                        run_id=run_id,
-                    )
-                    report["sources"]["ENTSOG-capacity"] = {
-                        "records": len(capacity_rows),
-                        "dataset": "capacity",
-                    }
-
-                if "gie-agsi" in selected:
-                    payload = _fetch_json(
-                        client,
-                        GIE_AGSI_EU_URL,
-                        params={"limit": str(args.limit)},
-                        headers={"x-key": gie_key},
-                    )
-                    _archive_raw_payload(
-                        session,
-                        source_system="GIE",
-                        dataset="AGSI",
-                        source_reference="gie-agsi-api",
-                        payload_json=payload,
-                        record_count=0,
-                        received_at=started,
-                    )
-                    rows = gie_storage_observations_from_json(payload)
-                    if not rows:
-                        _record_run(session, "GIE-AGSI", "failed", started, 0, "empty_response")
-                        report["warnings"].append("GIE AGSI returned no observations.")
-                    else:
-                        run_id = _new_run_id("GIE-AGSI")
-                        rows = _stamp_lineage(
-                            rows, run_id=run_id, adapter_version="public-source-ingestor/1"
-                        )
-                        upsert_observation_rows(session, StorageObservationRecord, rows)
-                        _record_run(
-                            session,
-                            "GIE-AGSI",
-                            "succeeded",
-                            started,
-                            len(rows),
-                            "gie-agsi-api",
-                        run_id=run_id,
-                        )
-                        report["sources"]["GIE-AGSI"] = {"records": len(rows), "dataset": "AGSI"}
-
-                if "gie-alsi" in selected:
-                    payload = _fetch_json(
-                        client,
-                        GIE_ALSI_EU_URL,
-                        params={"limit": str(args.limit)},
-                        headers={"x-key": gie_key},
-                    )
-                    _archive_raw_payload(
-                        session,
-                        source_system="GIE",
-                        dataset="ALSI",
-                        source_reference="gie-alsi-api",
-                        payload_json=payload,
-                        record_count=0,
-                        received_at=started,
-                    )
-                    rows = gie_lng_observations_from_json(payload)
-                    if not rows:
-                        _record_run(session, "GIE-ALSI", "failed", started, 0, "empty_response")
-                        report["warnings"].append("GIE ALSI returned no observations.")
-                    else:
-                        run_id = _new_run_id("GIE-ALSI")
-                        rows = _stamp_lineage(
-                            rows, run_id=run_id, adapter_version="public-source-ingestor/1"
-                        )
-                        upsert_observation_rows(session, LngObservationRecord, rows)
-                        _record_run(
-                            session,
-                            "GIE-ALSI",
-                            "succeeded",
-                            started,
-                            len(rows),
-                            "gie-alsi-api",
-                        run_id=run_id,
-                        )
-                        report["sources"]["GIE-ALSI"] = {"records": len(rows), "dataset": "ALSI"}
+                    report["sources"][source_name].update(persist_outcome["counts"])
+                    if persist_outcome["failure"] is not None:
+                        report["failures"].append(persist_outcome["failure"])
+                        report["warnings"].append(persist_outcome["warning"])
 
                 session.commit()
 
-        report["ok"] = True
+        report["ok"] = not report["failures"]
         return _emit(report, as_json=args.json)
     except (httpx.HTTPError, SQLAlchemyError, ValueError, RuntimeError) as exc:
         report["error"] = exc.__class__.__name__
@@ -529,7 +453,9 @@ def _gate_blockers(session, source_system: str) -> list[str]:
 
     Entitlement is checked for every source; export-restricted sources
     (ENTSOG, GIE) additionally require a certification record whose gate
-    allows live ingestion. Any blocker means the source must not be fetched.
+    allows live ingestion. An explicit operator disable of the source's runtime
+    operation also blocks, and an unreadable runtime state is never treated as a
+    confirmed permit. Any blocker means the source must not be fetched.
     """
 
     from eurogas_nexus.governance.entitlement import (
@@ -545,6 +471,8 @@ def _gate_blockers(session, source_system: str) -> list[str]:
     if not decision.granted:
         blockers.append(f"entitlement:{decision.scope.value}")
         return blockers
+
+    blockers.extend(_source_runtime_blockers(session, source_system))
 
     if source_system not in CERTIFICATION_REQUIRED_SOURCES:
         return blockers
@@ -563,6 +491,40 @@ def _gate_blockers(session, source_system: str) -> list[str]:
     return blockers
 
 
+#: Registry id of the runtime operation that owns each fail-closed gate family.
+SOURCE_RUNTIME_ID_BY_FAMILY = {
+    "ECB": "src-ecb",
+    "ENTSOG": "src-entsog",
+    "GIE": GIE_SOURCE_ID,
+}
+
+
+def _source_runtime_blockers(session, source_system: str) -> list[str]:
+    """Return the fail-closed operator runtime state for one source family.
+
+    An explicit operator disable blocks the live entry. An unreadable runtime
+    state is also blocked -- with its own code -- because an unknown state is not
+    a confirmed permit. An absent state row is *no override* and does not block.
+    """
+
+    source_id = SOURCE_RUNTIME_ID_BY_FAMILY.get(source_system)
+    if source_id is None:
+        return []
+    try:
+        from eurogas_nexus.db.models import SourceRuntimeStateRecord
+
+        row = (
+            session.query(SourceRuntimeStateRecord)
+            .filter(SourceRuntimeStateRecord.source_id == source_id)
+            .one_or_none()
+        )
+    except Exception:  # noqa: BLE001 - an unreadable state must not read as consent
+        return ["source_state_unreadable"]
+    if row is None:
+        return []
+    return [] if bool(row.enabled) else ["source_operation_disabled"]
+
+
 def _archive_raw_payload(
     session,
     *,
@@ -573,10 +535,14 @@ def _archive_raw_payload(
     payload_json: dict | None = None,
     record_count: int = 0,
     received_at: datetime,
-) -> None:
+) -> dict[str, str] | None:
     """Archive one raw provider payload for raw -> canonical lineage.
 
-    Oversized payloads are skipped with a printed warning (never truncated).
+    Oversized payloads are skipped with a printed warning (never truncated), and
+    an empty payload is not archived at all; both cases return ``None``. A
+    successful archive returns its exact safe identity (``archive_id`` and
+    ``payload_sha256``) so a caller can stamp the precise archive link on the
+    normalized rows it writes. The identity is never provider content.
     """
 
     from eurogas_nexus.db.repositories.raw_archive import archive_raw_payload
@@ -590,16 +556,17 @@ def _archive_raw_payload(
         digest = hashlib.sha256(serialized).hexdigest()
         size = len(serialized)
     else:
-        return
+        return None
     if size > MAX_ARCHIVE_BYTES:
         print(
             f"raw payload archive skipped (>{MAX_ARCHIVE_BYTES} bytes): "
             f"{source_system}/{dataset}"
         )
-        return
+        return None
+    archive_id = f"raw-{uuid.uuid4().hex[:20]}"
     archive_raw_payload(
         session,
-        archive_id=f"raw-{uuid.uuid4().hex[:20]}",
+        archive_id=archive_id,
         source_system=source_system,
         dataset=dataset,
         source_reference=source_reference,
@@ -609,6 +576,7 @@ def _archive_raw_payload(
         record_count=record_count,
         received_at_utc=received_at,
     )
+    return {"archive_id": archive_id, "payload_sha256": digest}
 
 
 def _get_with_retry(
@@ -664,28 +632,471 @@ def _retry_delay_seconds(response: httpx.Response, attempt: int) -> float:
     return 1.5 * (attempt + 1)
 
 
-def _resolve_gie_key(session_factory) -> str | None:
-    env_key = os.environ.get("GIE_API_KEY", "").strip()
-    if env_key:
-        return env_key
+def _resolve_gie_api_key(session_factory) -> GieApiKey | None:
+    """Resolve the GIE credential with the operator state enforced at fetch time.
 
+    Precedence is deterministic and owned by the transport resolver: env, then
+    secret file, then encrypted store. The same runtime path also reads the
+    stored credential status and the GIE source runtime state through
+    :func:`resolve_gie_runtime_api_key`, so an operator-disabled stored credential
+    or an explicitly disabled source operation cannot be silently re-enabled by
+    ``GIE_API_KEY``/``GIE_API_KEY_FILE``. A configured but unreadable
+    ``GIE_API_KEY_FILE`` raises rather than falling through to another source, and
+    an unreadable operator state fails closed with a stable code instead of being
+    reported as a confirmed permit.
+    """
+
+    return resolve_gie_runtime_api_key(session_factory=session_factory)
+
+
+def _resolve_gie_key(session_factory) -> str | None:
+    """Backward-compatible accessor returning only the resolved key value."""
+
+    resolved = _resolve_gie_api_key(session_factory)
+    return resolved.value if resolved is not None else None
+
+
+def _ingest_entsog_source(
+    client,
+    session,
+    *,
+    route: str,
+    args,
+    started: datetime,
+    report: dict[str, Any],
+) -> None:
+    """Execute one ENTSOG route while keeping other source transactions usable."""
+    source_name = {
+        "entsog": "ENTSOG",
+        "entsog-capacity": "ENTSOG-capacity",
+        "entsog-reference": "ENTSOG-reference",
+    }[route]
+    run_id = _new_run_id(source_name)
+    results: list[EntsogFetchResult] = []
+    persistence_started = False
+    selected_window = None
+    detail: dict[str, Any] = {
+        "records": 0,
+        "dataset": route,
+        "complete": False,
+        "snapshot_consistent": False,
+    }
+    report["sources"][source_name] = detail
     try:
-        from eurogas_nexus.security.credentials import (
-            credential_store_configured,
-            decrypt_credential_payload,
+        if route == "entsog-reference":
+            queries = (
+                ("connectionpoints", {"extended": "1"}),
+                ("operatorpointdirections", {"hasData": "1"}),
+            )
+        else:
+            policy = EntsogWindowPolicy(
+                args.entsog_from, args.entsog_to,
+                getattr(args, "entsog_lookback_gas_days", None),
+            )
+            selected_window = policy.select(getattr(args, "entsog_window_anchor", None))
+            detail["window"] = selected_window.metadata()
+            window = {"from": selected_window.from_date, "to": selected_window.to_date}
+            indicators = ("Physical Flow",) if route == "entsog" else ENTSOG_CAPACITY_INDICATORS
+            queries = tuple(
+                ("operationaldatas", {**window, "indicator": indicator}) for indicator in indicators
+            )
+        for dataset, filters in queries:
+            results.append(
+                fetch_entsog_dataset(
+                    client,
+                    dataset,
+                    filters=filters,
+                    max_records=args.limit,
+                    page_size=args.entsog_page_size,
+                    max_pages=args.entsog_max_pages,
+                )
+            )
+        detail.update(
+            {
+                "complete": all(result.complete for result in results),
+                "queries": [
+                    {
+                        "reference": result.source_reference,
+                        "received_at_utc": result.received_at_utc.isoformat(),
+                        "received_records": result.record_count,
+                        "complete": result.complete,
+                        "stop_reason": result.stop_reason,
+                    }
+                    for result in results
+                ],
+                "pages_fetched": sum(len(result.pages) for result in results),
+                "received_records": sum(result.record_count for result in results),
+            }
+        )
+        persistence_started = True
+        if route == "entsog-reference":
+            counts = persist_entsog_reference(
+                session,
+                results=results,
+                run_id=run_id,
+                replace_network=_replace_reference_network,
+            )
+        else:
+            counts = persist_entsog_observations(
+                session,
+                results=results,
+                run_id=run_id,
+                model=FlowObservationRecord if route == "entsog" else CapacityObservationRecord,
+            )
+        detail.update(counts)
+        warnings = (
+            not detail["complete"]
+            or bool(counts.get("skipped_records"))
+            or bool(counts.get("skipped_tables"))
+            or bool(selected_window and selected_window.rolling)
+        )
+        status = "SUCCEEDED_WITH_WARNINGS" if warnings else "succeeded"
+        detail["status"] = status
+        _record_run(
+            session,
+            source_name,
+            status,
+            started,
+            counts["records"],
+            " | ".join(result.source_reference for result in results)
+            + (f" | {selected_window.reference}" if selected_window else ""),
+            run_id=run_id,
+        )
+        if warnings:
+            if selected_window and selected_window.rolling:
+                report["warnings"].append(
+                    f"{source_name} includes gas day {selected_window.open_gas_day_label} open at "
+                    "the run anchor; offset exhaustion does not establish closed-day coverage."
+                )
+            report["warnings"].append(
+                f"{source_name} has a bounded partial result or skipped normalization; "
+                "see per-query completeness and row counters. Snapshot consistency is unproven."
+            )
+    except (
+        EntsogTransportError,
+        EntsogIngestionError,
+        EntsogObservationPersistenceError,
+        ValueError,
+        SQLAlchemyError,
+    ) as exc:
+        # Every canonical operation owns a savepoint. Expected source failures
+        # retain raw evidence and cannot roll back independent ECB/GIE work.
+        code = getattr(exc, "code", "entsog_normalization_or_persistence_failed")
+        prefix = getattr(exc, "validated_prefix_result", None)
+        if prefix is not None and not persistence_started:
+            results.append(prefix)
+        if results and not persistence_started:
+            # A later query may fail after earlier queries returned valid pages.
+            # Retain those completed queries without normalizing a partial batch.
+            try:
+                archived = archive_entsog_pages(session, results)
+                detail["archived_pages"] = sum(map(len, archived))
+                detail["received_records"] = sum(result.record_count for result in results)
+                detail["pages_fetched"] = sum(len(result.pages) for result in results)
+                detail["queries"] = [
+                    {
+                        "reference": result.source_reference,
+                        "complete": result.complete,
+                        "stop_reason": result.stop_reason,
+                    }
+                    for result in results
+                ]
+            except EntsogIngestionError as archive_error:
+                code = archive_error.code
+        detail["status"] = "failed"
+        _record_run(session, source_name, "failed", started, 0, f"entsog:{code}", run_id=run_id)
+        report["failures"].append({"source": source_name, "code": code})
+        report["warnings"].append(
+            f"{source_name} refused canonical writes ({code}); existing rows kept."
         )
 
-        if not credential_store_configured():
-            return None
-        with session_factory() as session:
-            row = session.get(ProviderCredentialRecord, "GIE")
-            if row is None:
-                return None
-            payload = decrypt_credential_payload(row.encrypted_payload)
-            key = str(payload.get("api_key") or "").strip()
-            return key or None
-    except Exception:
-        return None
+
+def _normalize_gie_page(
+    product: GieProduct,
+    page,
+    *,
+    fetch_reference: str = "",
+) -> list[dict[str, Any]]:
+    """Normalize one provider page and attach its per-page receipt metadata.
+
+    The response-receipt instant is passed to the normalizer so a bare provider
+    ``updatedAt`` (whose zone is not proven) uses the receipt while recording that
+    substitution in ``metadata_json``. The exact archived raw-payload identity is
+    stamped afterwards by :func:`_persist_gie_product`, which owns the archive
+    call, so a row can never claim an archive that was not written.
+    """
+
+    if product.product == "AGSI":
+        rows = gie_storage_observations_from_json(
+            page.raw_payload, observed_at_utc=page.received_at_utc
+        )
+    else:
+        rows = gie_lng_observations_from_json(
+            page.raw_payload, observed_at_utc=page.received_at_utc
+        )
+    for row in rows:
+        # The provider updatedAt must never replace the observed_at_utc the
+        # persistence comparison keys on: it is carried as availability metadata.
+        provider_updated_at = (row.get("metadata_json") or {}).get("updatedAt")
+        metadata = dict(row.get("metadata_json") or {})
+        metadata.update(
+            {
+                "source_page": page.page,
+                "source_page_size": page.size,
+                "provider_last_page": page.last_page,
+                "provider_total_on_page": page.total_on_page,
+                "source_receipt_at_utc": page.received_at_utc.isoformat(),
+                "fetch_reference": fetch_reference,
+            }
+        )
+        if provider_updated_at is not None:
+            metadata["provider_updated_at"] = provider_updated_at
+        row["metadata_json"] = metadata
+    return rows
+
+
+def _persist_gie_product(
+    session,
+    *,
+    product: GieProduct,
+    source_name: str,
+    gie_result,
+    model,
+    started: datetime,
+) -> dict[str, Any]:
+    """Persist one product's bounded batch with revision-safe, exact lineage.
+
+    The whole product batch is archived, normalized and written inside one
+    SAVEPOINT of the caller's transaction:
+
+    * every page is archived first and its **exact** ``archive_id`` + payload
+      SHA-256 is stamped on the rows normalized from that page;
+    * a page whose payload could not be archived (size/policy) fails the product
+      closed -- canonical rows are never written claiming archive lineage that
+      does not exist;
+    * a semantically unchanged existing row is left byte-for-byte unchanged; a
+      revised measurement is refused with ``gie_revision_requires_history`` and
+      the savepoint rollback leaves every original row untouched, with no
+      partial canonical write surviving the failure.
+
+    Returns a report fragment with counts and, on failure, an explicit failure
+    entry carrying only counts and observation ids -- never provider payload.
+    """
+
+    run_id = _new_run_id(source_name)
+    archive_refs: list[dict[str, str]] = []
+    partial_archive = _archive_page_payloads(
+        session,
+        product=product,
+        source_name=source_name,
+        gie_result=gie_result,
+        archive_refs=archive_refs,
+    )
+    if partial_archive is not None:
+        return _gie_persist_failure(
+            session,
+            source_name=source_name,
+            started=started,
+            run_id=run_id,
+            code=partial_archive.code,
+            observation_ids=[],
+            archived_pages=len(archive_refs),
+            warning=(
+                f"{source_name} did not persist canonical rows: {partial_archive}. No row "
+                "was written that claimed archive lineage it does not have."
+            ),
+        )
+
+    # Normalize each page and stamp exactly that page's archive identity on its
+    # rows; the per-page archive count and normalized row count must agree.
+    rows: list[dict[str, Any]] = []
+    for page, archive_ref in zip(gie_result.pages, archive_refs, strict=True):
+        page_rows = _normalize_gie_page(
+            product, page, fetch_reference=gie_result.source_reference
+        )
+        for row in page_rows:
+            metadata = dict(row.get("metadata_json") or {})
+            metadata.update(archive_ref)
+            row["metadata_json"] = metadata
+        rows.extend(page_rows)
+
+    # Validate before any canonical side effect, so a synthetic / empty provider
+    # payload fails the product without touching the observation tables.
+    _reject_synthetic_gie_rows(rows, product=product.product)
+    if not rows:
+        _record_run(session, source_name, "failed", started, 0, "empty_response", run_id=run_id)
+        return {
+            "failure": {"source": source_name, "code": "gie_empty_response", "records": 0},
+            "warning": f"{source_name} returned no observations.",
+            "counts": {"records": 0, "inserted": 0, "unchanged": 0},
+        }
+    observation_ids = _observation_ids(rows)
+
+    try:
+        with session.begin_nested():
+            stamped_rows = _stamp_lineage(
+                rows, run_id=run_id, adapter_version="public-source-ingestor/1"
+            )
+            outcome = upsert_revision_safe_observation_rows(session, model, stamped_rows)
+            session.flush()
+    except GieRevisionRequiresHistoryError as exc:
+        return _gie_persist_failure(
+            session,
+            source_name=source_name,
+            started=started,
+            run_id=run_id,
+            code=exc.code,
+            observation_ids=observation_ids,
+            archived_pages=len(archive_refs),
+            warning=(
+                f"{source_name} refused a revised measurement ({exc.code}); the "
+                "original rows are unchanged and no partial canonical write was kept. "
+                "Append-only revision history is required before revised values may be "
+                "stored."
+            ),
+        )
+
+    _record_run(
+        session,
+        source_name,
+        "succeeded" if gie_result.complete else "SUCCEEDED_WITH_WARNINGS",
+        started,
+        len(rows),
+        gie_result.source_reference,
+        run_id=run_id,
+    )
+    return {
+        "failure": None,
+        "warning": None,
+        "counts": {
+            "records": len(rows),
+            "inserted": outcome["inserted"],
+            "unchanged": outcome["unchanged"],
+            "archived_pages": len(archive_refs),
+        },
+    }
+
+
+class _GieArchiveLineageError(RuntimeError):
+    """A GIE payload could not be archived, so canonical rows must not be written."""
+
+    code = "gie_archive_lineage_required"
+
+
+def _archive_page_payloads(
+    session,
+    *,
+    product: GieProduct,
+    source_name: str,
+    gie_result,
+    archive_refs: list[dict[str, str]],
+) -> _GieArchiveLineageError | None:
+    """Archive every page and append its exact reference to ``archive_refs``.
+
+    Returns ``None`` on success. Any page that cannot be archived (size/policy)
+    stops the product: an :class:`_GieArchiveLineageError` is returned so the
+    caller fails closed instead of writing canonical rows that claim archive
+    lineage which does not exist.
+    """
+
+    for page in gie_result.pages:
+        archive_ref = _archive_raw_payload(
+            session,
+            source_system="GIE",
+            dataset=product.product,
+            source_reference=page.source_reference,
+            payload_json=page.raw_payload,
+            record_count=len(page.records),
+            received_at=page.received_at_utc,
+        )
+        if archive_ref is None:
+            return _GieArchiveLineageError(
+                "GIE raw payload could not be archived for "
+                f"{source_name} page {page.page}; refusing to persist canonical "
+                "rows without exact archive lineage."
+            )
+        archive_refs.append(archive_ref)
+    return None
+
+
+def _gie_persist_failure(
+    session,
+    *,
+    source_name: str,
+    started: datetime,
+    run_id: str,
+    code: str,
+    observation_ids: list[str],
+    archived_pages: int,
+    warning: str,
+) -> dict[str, Any]:
+    """Record the real failed run and return counts/ids only -- never payload."""
+
+    _record_run(
+        session,
+        source_name,
+        "failed",
+        started,
+        0,
+        f"persist:{code}",
+        run_id=run_id,
+    )
+    return {
+        "failure": {
+            "source": source_name,
+            "code": code,
+            "observation_ids": observation_ids,
+            "records": 0,
+        },
+        "warning": warning,
+        "counts": {
+            "records": 0,
+            "inserted": 0,
+            "unchanged": 0,
+            "refused": len(observation_ids),
+            "archived_pages": archived_pages,
+        },
+    }
+
+
+def _observation_ids(rows: list[dict[str, Any]]) -> list[str]:
+    """Return distinct observation ids without ever quoting provider payload."""
+
+    seen: list[str] = []
+    for row in rows:
+        observation_id = str(row.get("observation_id") or "")
+        if observation_id and observation_id not in seen:
+            seen.append(observation_id)
+    return seen
+
+
+def _reject_synthetic_gie_rows(
+    rows: list[dict[str, Any]], *, product: str
+) -> None:
+    """Refuse to persist anything that is not a real GIE provider row.
+
+    Bounded guard for the new GIE path: a mock/simulated row or a row attributed to
+    another source system fails the run instead of being written as if it were live
+    provider data.
+    """
+
+    for row in rows:
+        if row.get("source_system") != "GIE":
+            raise RuntimeError(
+                f"GIE {product} produced a row attributed to "
+                f"{row.get('source_system')!r}; refusing to persist synthetic data."
+            )
+        observation_id = str(row.get("observation_id") or "")
+        if observation_id.startswith(("mock-", "sim-")):
+            raise RuntimeError(
+                f"GIE {product} produced a synthetic observation id "
+                f"{observation_id!r}; refusing to persist it."
+            )
+        metadata = row.get("metadata_json") or {}
+        if metadata.get("simulated") or metadata.get("mock"):
+            raise RuntimeError(
+                f"GIE {product} produced a row marked simulated/mock; refusing it."
+            )
 
 
 
@@ -805,7 +1216,14 @@ def _emit(payload: dict[str, Any], *, as_json: bool) -> int:
         )
         print(f"public source ingestion succeeded: {counts}")
     else:
-        print(f"public source ingestion failed: {payload.get('error')}")
+        failures = payload.get("failures") or []
+        if failures:
+            detail = ", ".join(
+                f"{failure.get('source')}:{failure.get('code')}" for failure in failures
+            )
+        else:
+            detail = str(payload.get("error"))
+        print(f"public source ingestion failed: {detail}")
     return 0 if payload.get("ok") else 1
 
 

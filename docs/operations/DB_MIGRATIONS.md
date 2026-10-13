@@ -6,26 +6,39 @@ Operational runbook for Eurogas Nexus DB schema migrations.
 
 ## Local Development
 
-Start the PostgreSQL container before running migrations:
+The single local project entry point is:
+
+```powershell
+powershell -File scripts/ops/Start-LocalAcceptance.ps1
+```
+
+It starts or reuses the canonical Docker PostgreSQL container
+`eurogas-nexus-postgres` from the root `docker-compose.yml` on loopback
+`127.0.0.1:51356`, using the external verified volume
+`eurogas-nexus-postgres-data` and `PGDATA=/var/lib/postgresql/data/pgdata`, then
+starts API and Web. It fails closed when the volume or the ignored superuser
+secret is missing and never runs initdb, seed, migration or a volume reset.
+
+For a database-only start the same contract is:
 
 ```powershell
 docker compose up -d
 ```
 
-The local dev DSN is `postgresql+pg8000://eurogas:eurogas_dev@localhost:5432/eurogas_nexus`.
+There is no literal local DSN in the repository. The application URL lives in
+the ignored `.dnx-out/user-uat.env`, is read into the process by the launcher,
+and is never printed or passed on a command line. It points at the same loopback
+instance.
 
 Runtime API routes obtain sessions through the shared session factory, which
 reuses one bounded SQLAlchemy connection pool per resolved DSN. Route code must
 not create a new engine or pool per request; doing so can exhaust PostgreSQL
 connections during parallel workspace hydration.
 
-To reset local data:
-
-```powershell
-docker compose down -v
-docker compose up -d
-alembic upgrade head
-```
+The verified volume is retained acceptance evidence. `docker compose down -v`
+and every other volume removal or reset command must not be run against it.
+Destructive reset belongs to an explicitly disposable scratch database or a
+throwaway container that does not mount `eurogas-nexus-postgres-data`.
 
 ## Environment
 

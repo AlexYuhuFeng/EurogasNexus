@@ -21,6 +21,7 @@ import { SettingsCenter } from "@/components/SettingsCenter";
 import { SourceCenter } from "@/components/SourceCenter";
 import { StrategyLabWorkspace } from "@/components/strategy/StrategyLabWorkspace";
 import { useStrategyLab } from "@/app/model/useStrategyLab";
+import { useStrategyDesignDraft } from "@/app/model/useStrategyDesignDraft";
 
 interface WorkspaceRendererProps {
   controller: AppController;
@@ -56,6 +57,8 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
       setStrategyRunId: selection.setStrategyRunId,
     },
   });
+  // Keep the unsaved Design draft alive when the user visits Contracts.
+  const designDraft = useStrategyDesignDraft({ controller: strategyLab, selection, t });
   // Header composition is read from the Architecture V2 workspace-pattern
   // registry instead of a local list of primary ids, so the composition rule has
   // exactly one owner (docs/engineering/Architecture-V2/W1-02_*.md).
@@ -107,7 +110,13 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
       )}
 
       {activePrimaryWorkspace.id === "portfolio" && (
-        <PortfolioWorkspace controller={controller} />
+        <PortfolioWorkspace controller={controller} onOpenStrategyForResource={(resourceId) => {
+          const contract = api.upstreamContracts.find((item) => item.contract_id === resourceId);
+          if (!contract) return;
+          designDraft.offerContract(contract);
+          navigation.openWorkspace("strategy");
+          strategyLab.openTask("design");
+        }} />
       )}
 
       {activePrimaryWorkspace.id === "decision" && (
@@ -117,6 +126,7 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
       {activePrimaryWorkspace.id === "strategy" && (
         <StrategyLabWorkspace
           controller={strategyLab}
+          designDraft={designDraft}
           selection={{
             strategyId: selection.strategyId,
             strategyVersionId: selection.strategyVersionId,
@@ -148,6 +158,8 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
           credentialLabel={sources.credentialLabel}
           credentialValue={sources.credentialValue}
           credentialMessage={api.credentialMessage}
+          credentialConnection={sources.credentialConnection}
+          credentialEntryReadonly={sources.credentialEntryReadonly}
           flows={api.flows}
           capacity={api.capacity}
           storage={api.storage}

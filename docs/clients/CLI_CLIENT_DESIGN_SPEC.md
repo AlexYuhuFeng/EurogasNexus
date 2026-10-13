@@ -1,4 +1,4 @@
-﻿# CLI Client Design Spec
+# CLI Client Design Spec
 
 ## Objective
 

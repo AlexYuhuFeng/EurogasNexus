@@ -13,6 +13,7 @@ from typing import Any
 from xml.etree import ElementTree
 
 from eurogas_nexus.domain.ingestion.source_timezone import (
+    SourceTimezoneError,
     contract_for,
     parse_source_instant,
     resolve_payload_zone,
@@ -342,7 +343,11 @@ def ecb_fx_observations_from_xml(
     return rows
 
 
-def entsog_flow_observations_from_json(payload: dict[str, Any]) -> list[dict[str, Any]]:
+def entsog_flow_observations_from_json(
+    payload: dict[str, Any],
+    *,
+    observed_at_utc: datetime | None = None,
+) -> list[dict[str, Any]]:
     """Normalize ENTSOG operational data JSON into flow observation rows.
 
     Period instants are read through the ENTSOG timezone declaration
@@ -352,6 +357,9 @@ def entsog_flow_observations_from_json(payload: dict[str, Any]) -> list[dict[str
     whole rather than read as UTC.
     """
 
+    if observed_at_utc is not None and observed_at_utc.utcoffset() is None:
+        raise ValueError("ENTSOG receipt must be timezone-aware.")
+    receipt = observed_at_utc.astimezone(UTC) if observed_at_utc is not None else None
     contract = contract_for("ENTSOG", "operationaldatas")
     zone = resolve_payload_zone(contract, payload)
     records = _extract_records(payload, "operationaldatas")
@@ -382,7 +390,8 @@ def entsog_flow_observations_from_json(payload: dict[str, Any]) -> list[dict[str
                 "original_unit": unit or None,
                 "period_start_utc": period_start,
                 "period_end_utc": period_end,
-                "observed_at_utc": parse_source_instant(
+                "observed_at_utc": receipt
+                or parse_source_instant(
                     record.get("lastUpdateDateTime"), contract=contract, zone=zone
                 )
                 or datetime.now(UTC),
@@ -391,34 +400,44 @@ def entsog_flow_observations_from_json(payload: dict[str, Any]) -> list[dict[str
                 "source_record_id": record_id,
                 "freshness": "live",
                 "research_only": True,
-                "metadata_json": _metadata_subset(
-                    record,
-                    [
-                        "id",
-                        "pointKey",
-                        "pointLabel",
-                        "operatorKey",
-                        "operatorLabel",
-                        "tsoEicCode",
-                        "directionKey",
-                        "indicator",
-                        "unit",
-                        "periodType",
-                        "lastUpdateDateTime",
-                    ],
-                ),
+                "metadata_json": {
+                    **_metadata_subset(
+                        record,
+                        [
+                            "id",
+                            "pointKey",
+                            "pointLabel",
+                            "operatorKey",
+                            "operatorLabel",
+                            "tsoEicCode",
+                            "directionKey",
+                            "indicator",
+                            "unit",
+                            "periodType",
+                            "lastUpdateDateTime",
+                        ],
+                    ),
+                    **({"availability_basis": "response_receipt"} if receipt else {}),
+                },
             }
         )
     return rows
 
 
-def entsog_capacity_observations_from_json(payload: dict[str, Any]) -> list[dict[str, Any]]:
+def entsog_capacity_observations_from_json(
+    payload: dict[str, Any],
+    *,
+    observed_at_utc: datetime | None = None,
+) -> list[dict[str, Any]]:
     """Normalize ENTSOG operational data JSON into capacity observation rows.
 
     Periods are read through the same ENTSOG timezone declaration as the flow normalizer, so a
     capacity row and a flow row covering one gas day cannot disagree about which hour it started.
     """
 
+    if observed_at_utc is not None and observed_at_utc.utcoffset() is None:
+        raise ValueError("ENTSOG receipt must be timezone-aware.")
+    receipt = observed_at_utc.astimezone(UTC) if observed_at_utc is not None else None
     contract = contract_for("ENTSOG", "operationaldatas")
     zone = resolve_payload_zone(contract, payload)
     records = _extract_records(payload, "operationaldatas")
@@ -451,7 +470,8 @@ def entsog_capacity_observations_from_json(payload: dict[str, Any]) -> list[dict
                 "original_unit": unit or None,
                 "period_start_utc": period_start,
                 "period_end_utc": period_end,
-                "observed_at_utc": parse_source_instant(
+                "observed_at_utc": receipt
+                or parse_source_instant(
                     record.get("lastUpdateDateTime"), contract=contract, zone=zone
                 )
                 or datetime.now(UTC),
@@ -460,33 +480,45 @@ def entsog_capacity_observations_from_json(payload: dict[str, Any]) -> list[dict
                 "source_record_id": record_id,
                 "freshness": "live",
                 "research_only": True,
-                "metadata_json": _metadata_subset(
-                    record,
-                    [
-                        "id",
-                        "pointKey",
-                        "pointLabel",
-                        "operatorKey",
-                        "operatorLabel",
-                        "tsoEicCode",
-                        "directionKey",
-                        "indicator",
-                        "unit",
-                        "periodType",
-                        "lastUpdateDateTime",
-                    ],
-                ),
+                "metadata_json": {
+                    **_metadata_subset(
+                        record,
+                        [
+                            "id",
+                            "pointKey",
+                            "pointLabel",
+                            "operatorKey",
+                            "operatorLabel",
+                            "tsoEicCode",
+                            "directionKey",
+                            "indicator",
+                            "unit",
+                            "periodType",
+                            "lastUpdateDateTime",
+                        ],
+                    ),
+                    **({"availability_basis": "response_receipt"} if receipt else {}),
+                },
             }
         )
     return rows
 
 
-def gie_storage_observations_from_json(payload: dict[str, Any]) -> list[dict[str, Any]]:
+def gie_storage_observations_from_json(
+    payload: dict[str, Any],
+    *,
+    observed_at_utc: datetime | None = None,
+) -> list[dict[str, Any]]:
     """Normalize GIE AGSI records into storage observation rows.
 
     The gas-day dates go through the frozen CAM calendar (period boundaries); the feed's `updatedAt`
     freshness stamp has no proven zone in this repository, so the GIE declaration refuses a value
     without an offset rather than reading it as UTC (item M1-P0).
+
+    ``observed_at_utc`` is the response-receipt instant supplied by a live caller. It is used as the
+    availability instant **only** when the provider stamp cannot be placed in time, and the row then
+    records ``availability_basis="response_receipt"`` plus ``provider_updated_at_zone="unproven"``
+    so the substitution stays visible. A caller that supplies no receipt keeps the M1-P0 refusal.
     """
 
     contract = contract_for("GIE", "agsi")
@@ -499,6 +531,12 @@ def gie_storage_observations_from_json(payload: dict[str, Any]) -> list[dict[str
         if not code or gas_day is None:
             continue
         period_start, period_end = _gas_day_period(record)
+        observed_at, availability_basis = _gie_observed_instant(
+            record,
+            contract=gie_contract,
+            zone=gie_zone,
+            fallback=observed_at_utc,
+        )
         rows.append(
             {
                 "observation_id": f"gie-agsi-{code}-{gas_day.isoformat()}",
@@ -513,10 +551,7 @@ def gie_storage_observations_from_json(payload: dict[str, Any]) -> list[dict[str
                 "withdrawal_twh_d": _gwh_to_twh(record.get("withdrawal")),
                 "period_start_utc": period_start,
                 "period_end_utc": period_end,
-                "observed_at_utc": parse_source_instant(
-                    record.get("updatedAt"), contract=gie_contract, zone=gie_zone
-                )
-                or datetime.now(UTC),
+                "observed_at_utc": observed_at,
                 "source_system": "GIE",
                 "source_reference": "gie-agsi-api",
                 "source_record_id": f"{code}-{gas_day.isoformat()}",
@@ -540,17 +575,25 @@ def gie_storage_observations_from_json(payload: dict[str, Any]) -> list[dict[str
                         ],
                     ),
                     "calendar_version": EU_CAM_UTC_CALENDAR,
+                    "availability_basis": availability_basis,
+                    "provider_updated_at_zone": _provider_zone_label(availability_basis),
                 },
             }
         )
     return rows
 
 
-def gie_lng_observations_from_json(payload: dict[str, Any]) -> list[dict[str, Any]]:
+def gie_lng_observations_from_json(
+    payload: dict[str, Any],
+    *,
+    observed_at_utc: datetime | None = None,
+) -> list[dict[str, Any]]:
     """Normalize GIE ALSI records into LNG observation rows.
 
     Same declaration as AGSI: the CAM calendar owns the gas-day boundaries and the `updatedAt`
-    freshness stamp is refused when it carries no offset.
+    freshness stamp is refused when it carries no offset. ``observed_at_utc`` is the live caller's
+    response-receipt instant, used only when the provider stamp cannot be placed in time, with the
+    substitution recorded in ``metadata_json``.
     """
 
     contract = contract_for("GIE", "alsi")
@@ -563,6 +606,12 @@ def gie_lng_observations_from_json(payload: dict[str, Any]) -> list[dict[str, An
         if not code or gas_day is None:
             continue
         period_start, period_end = _gas_day_period(record)
+        observed_at, availability_basis = _gie_observed_instant(
+            record,
+            contract=gie_contract,
+            zone=gie_zone,
+            fallback=observed_at_utc,
+        )
         rows.append(
             {
                 "observation_id": f"gie-alsi-{code}-{gas_day.isoformat()}",
@@ -575,10 +624,7 @@ def gie_lng_observations_from_json(payload: dict[str, Any]) -> list[dict[str, An
                 "dtmi_twh": _gwh_to_twh(record.get("dtmi")),
                 "period_start_utc": period_start,
                 "period_end_utc": period_end,
-                "observed_at_utc": parse_source_instant(
-                    record.get("updatedAt"), contract=gie_contract, zone=gie_zone
-                )
-                or datetime.now(UTC),
+                "observed_at_utc": observed_at,
                 "source_system": "GIE",
                 "source_reference": "gie-alsi-api",
                 "source_record_id": f"{code}-{gas_day.isoformat()}",
@@ -602,10 +648,54 @@ def gie_lng_observations_from_json(payload: dict[str, Any]) -> list[dict[str, An
                         ],
                     ),
                     "calendar_version": EU_CAM_UTC_CALENDAR,
+                    "availability_basis": availability_basis,
+                    "provider_updated_at_zone": _provider_zone_label(availability_basis),
                 },
             }
         )
     return rows
+
+
+def _gie_observed_instant(
+    record: dict[str, Any],
+    *,
+    contract: Any,
+    zone: Any,
+    fallback: datetime | None,
+) -> tuple[datetime, str]:
+    """Place a GIE row in time without ever guessing an unproven zone.
+
+    Returns:
+        ``(instant, basis)`` where basis is ``provider_updated_at`` when the provider stamp carried
+        a usable offset, ``response_receipt`` when the live caller's receipt substitutes for an
+        unprovable/absent provider stamp, or ``ingest_clock`` when neither is available.
+
+    Raises:
+        SourceTimezoneError: The provider stamp has no proven zone and the caller supplied no
+            receipt instant -- the original M1-P0 refusal, preserved for direct normalizer callers.
+    """
+
+    unprovable: SourceTimezoneError | None = None
+    try:
+        provider = parse_source_instant(record.get("updatedAt"), contract=contract, zone=zone)
+    except SourceTimezoneError as exc:
+        if exc.code != "unprovable_source_timezone":
+            raise
+        provider = None
+        unprovable = exc
+    if provider is not None:
+        return provider, "provider_updated_at"
+    if fallback is not None:
+        return fallback, "response_receipt"
+    if unprovable is not None:
+        raise unprovable
+    return datetime.now(UTC), "ingest_clock"
+
+
+def _provider_zone_label(availability_basis: str) -> str:
+    """Whether the provider freshness stamp's zone was proven for this row."""
+
+    return "provider_offset" if availability_basis == "provider_updated_at" else "unproven"
 
 
 def _extract_records(payload: dict[str, Any], preferred_key: str) -> list[dict[str, Any]]:

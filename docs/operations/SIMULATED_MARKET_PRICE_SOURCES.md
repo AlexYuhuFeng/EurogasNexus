@@ -2,9 +2,13 @@
 
 ## Purpose
 
-Before licensed EEX, ICE OCM, ICIS, broker, and Trayport subscriptions are
-configured, Eurogas Nexus can inject simulated market prices into the runtime
-database. The simulator uses the same normalized `market_observations`,
+Simulation is restricted to development and test source checkouts. It is never
+shipped in a customer wheel, API image or Server operator bundle. Customer
+Compose does not declare preview-seed or simulated-prices services. Missing
+licensed EEX, ICE OCM, ICIS, broker or Trayport feeds must stay unavailable in
+customer deployments until the real entitlement and connector gates pass.
+
+In a development/test database the simulator uses the normalized `market_observations`,
 `market_quotes`, and `ingestion_runs` paths as real source connectors. Each
 L1 quote tick also triggers the backend opportunity scan, whose result is
 persisted in `intraday_opportunities`.
@@ -31,12 +35,20 @@ connected.
 
 ## Running The Simulator Worker
 
-Set `RUNTIME_STORE_DATABASE_URL` or `DATABASE_URL` to the active PostgreSQL
-runtime or test database, then run:
+Use a source checkout with development dependencies. Set
+`EUROGAS_NEXUS_ENV=test`, `EUROGAS_NEXUS_API_PROFILE=development` and
+`EUROGAS_NEXUS_ENABLE_SIMULATED_SOURCES=true`. Set `RUNTIME_STORE_DATABASE_URL`
+or `DATABASE_URL` to a dedicated development/test PostgreSQL database, then run:
 
 ```powershell
 python scripts/ops/ingest_simulated_market_prices.py --loop
 ```
+
+For an explicit one-shot development preview seed, the same source checkout
+and dedicated database can run `python scripts/ops/seed_preview_runtime_data.py`.
+Both commands refuse trial/release environments. The source scripts are retained
+for test work; they cannot be invoked from the customer API image. This document
+is the separate development workflow, outside the customer bundle allowlist.
 
 The worker continuously upserts tick-bucketed rows into PostgreSQL. Do not run a
 separate SQLite simulator database for normal project validation; the point of
@@ -84,8 +96,8 @@ Bounded validation, suitable for CI or a quick smoke test:
 python scripts/ops/ingest_simulated_market_prices.py --loop --max-iterations 3
 ```
 
-The same script without `--loop` writes one batch and exits. Use that only for
-connectivity checks; the project runtime should use the long-running worker.
+The same script without `--loop` writes one test batch and exits. It does not
+prove connectivity to a real provider.
 
 Each due tick writes:
 

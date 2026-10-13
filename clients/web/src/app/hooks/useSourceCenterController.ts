@@ -20,6 +20,11 @@ import {
   sourceRegistryReadSurface,
   type SourceRegistryReadFacts,
 } from "@/app/model/sourceRegistryRead";
+import {
+  canSubmitCredential,
+  credentialConnectionForProvider,
+  isExternallyManagedCredential,
+} from "@/app/model/credentialProviderModel";
 import type { ApiState } from "@/stores/api";
 
 /**
@@ -43,6 +48,8 @@ interface SourceCenterControllerParams {
   sourcePostureCategories: SourceCategoryPostureDTO[] | undefined;
   saveProviderCredential: ApiState["saveProviderCredential"];
   testProviderConnection: ApiState["testProviderConnection"];
+  /** The backend's own bounded connection-test aggregate for the last GIE probe. */
+  credentialConnection: ApiState["credentialConnection"];
   registryRead: SourceCenterRegistryReadParams;
   /** The store's existing bounded retry path; this surface only scopes the control to itself. */
   retryFailedWorkspaceEndpoints: ApiState["retryFailedWorkspaceEndpoints"];
@@ -68,6 +75,7 @@ export function useSourceCenterController({
   sourcePostureCategories,
   saveProviderCredential,
   testProviderConnection,
+  credentialConnection,
   registryRead,
   retryFailedWorkspaceEndpoints,
   language,
@@ -127,7 +135,10 @@ export function useSourceCenterController({
 
   async function submitCredential(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selectedCredentialProvider?.credential_required || !credentialValue.trim()) return;
+    // The handler enforces the same rule as the rendered control: an ineffective
+    // rotation of an externally managed (env/file) key is refused even if a caller
+    // submits the form directly.
+    if (!canSubmitCredential(selectedCredentialProvider, credentialValue)) return;
     try {
       await saveProviderCredential(credentialProvider, credentialValue.trim(), credentialLabel || "default");
       setCredentialValue("");
@@ -183,6 +194,15 @@ export function useSourceCenterController({
     credentialProvider,
     credentialLabel,
     credentialValue,
+    // Scoped to the selected provider: a stale aggregate from a previously selected
+    // provider is never surfaced as the current provider's connection.
+    credentialConnection: credentialConnectionForProvider(
+      credentialConnection,
+      selectedCredentialProvider?.provider_id,
+    ),
+    // An active env/file key is operator-managed: the entry form must not offer an
+    // ineffective rotation for it.
+    credentialEntryReadonly: isExternallyManagedCredential(selectedCredentialProvider),
     setCredentialProvider,
     setCredentialLabel,
     setCredentialValue,

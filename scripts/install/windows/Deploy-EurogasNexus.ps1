@@ -14,6 +14,7 @@ param(
     [string]$TlsCertificatePath,
     [string]$TlsPrivateKeyPath,
     [switch]$AllowUnsignedPreview,
+    # Obsolete compatibility parameter: customer simulation is always refused.
     [switch]$EnableSimulatedPrices,
     [switch]$SkipPublicData,
     [switch]$PurgeServerData,
@@ -22,6 +23,10 @@ param(
 
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
+
+if ($EnableSimulatedPrices) {
+    throw "CUSTOMER_SIMULATION_FORBIDDEN: -EnableSimulatedPrices is no longer supported. Use only the separate development/test source-checkout workflow. No installation work was performed."
+}
 
 $ServerRuntimeScript = Join-Path $PSScriptRoot "Install-EurogasNexusServerRuntime.ps1"
 
@@ -221,7 +226,6 @@ function Invoke-ServerRuntime([string]$RuntimeAction) {
         PrivateNetworkOnly = [bool]$PrivateNetworkOnly
         TlsCertificatePath = $TlsCertificatePath
         TlsPrivateKeyPath = $TlsPrivateKeyPath
-        EnableSimulatedPrices = [bool]$EnableSimulatedPrices
         SkipPublicData = [bool]$SkipPublicData
         PurgeData = [bool]$PurgeServerData
         Json = $true

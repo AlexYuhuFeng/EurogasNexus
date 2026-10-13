@@ -102,6 +102,38 @@ def emit_event(
         return
 
 
+def _pool_gauge(pool, name: str, default: int = 0) -> int:
+    """Read one numeric pool attribute, calling it when it is a method.
+
+    Two mistakes this removes, both of which produced a metric Prometheus cannot parse
+    rather than a number:
+
+    * ``SQLAlchemy``'s ``QueuePool.checkedout`` is a *method*, so
+      ``getattr(pool, "checkedout", 0) or 0`` yields the bound method 鈥?truthy, so the
+      ``or`` never fires 鈥?and the exposition line became
+      ``eurogas_db_pool_checked_out <bound method QueuePool.checkedout of ...>``. The
+      scrape fails on it, which loses every metric in the family, not just this one.
+    * ``size``/``maxsize`` differ by pool implementation, so a single attribute name is
+      not reliable; the caller passes candidates.
+
+    A non-numeric or raising attribute is reported as the default rather than leaking a
+    ``repr`` into the exposition text.
+    """
+
+    value = getattr(pool, name, None)
+    if value is None:
+        return default
+    if callable(value):
+        try:
+            value = value()
+        except Exception:  # noqa: BLE001 - a metric must never break the scrape
+            return default
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
 def prometheus_metrics(session, *, now_utc: datetime | None = None) -> str:
     """Render the low-cardinality data-operations metric family."""
 
@@ -114,18 +146,20 @@ def prometheus_metrics(session, *, now_utc: datetime | None = None) -> str:
     lines: list[str] = [*http_metric_lines()]
     pool = getattr(session.get_bind(), "pool", None)
     if pool is not None:
+        # `_pool` is the underlying implementation on a proxied pool; fall back to the
+        # pool itself when the attribute is absent.
+        inner = getattr(pool, "_pool", None) or pool
         lines.extend(
             [
                 "# HELP eurogas_db_pool_checked_out Checked-out connections.",
                 "# TYPE eurogas_db_pool_checked_out gauge",
-                f"eurogas_db_pool_checked_out {getattr(pool, 'checkedout', 0) or 0}",
+                f"eurogas_db_pool_checked_out {_pool_gauge(pool, 'checkedout')}",
                 "# HELP eurogas_db_pool_size Configured pool size.",
                 "# TYPE eurogas_db_pool_size gauge",
-                f"eurogas_db_pool_size "
-                f"{getattr(pool, '_pool', None) and getattr(pool._pool, 'maxsize', 0) or 0}",
+                f"eurogas_db_pool_size {_pool_gauge(inner, 'maxsize')}",
                 "# HELP eurogas_db_pool_overflow Maximum overflow.",
                 "# TYPE eurogas_db_pool_overflow gauge",
-                f"eurogas_db_pool_overflow {getattr(pool, '_max_overflow', 0) or 0}",
+                f"eurogas_db_pool_overflow {_pool_gauge(pool, '_max_overflow')}",
             ]
         )
     states = session.query(SourceRuntimeStateRecord).all()
@@ -200,3 +234,4 @@ def prometheus_metrics(session, *, now_utc: datetime | None = None) -> str:
 
     lines.append("")
     return "\n".join(lines)
+

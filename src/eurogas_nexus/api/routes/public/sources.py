@@ -430,10 +430,44 @@ def _credential_state(source: dict, credential: dict[str, Any] | None) -> str:
     if not source["credential_requirements"]:
         return "not_required"
     if credential is None:
+        # The GIE key can live outside the encrypted credential store (external
+        # file / env path). Resolve that through the shared transport resolver so
+        # the source status does not keep claiming "key missing" when an external
+        # owner-managed key is configured.
+        if _external_credential_configured(str(source.get("credential_provider_id") or "")):
+            return "configured"
         return "missing"
     if credential.get("status") == "disabled":
         return "disabled"
-    return "configured" if credential.get("configured") else "missing"
+    if credential.get("configured"):
+        return "configured"
+    if _external_credential_configured(str(source.get("credential_provider_id") or "")):
+        return "configured"
+    return "missing"
+
+
+def _external_credential_configured(provider_id: str) -> bool:
+    """Whether a provider credential is configured outside the encrypted store.
+
+    Only the GIE external owner-managed env/file path is supported today. The
+    same runtime resolver the fetch path and credential API use decides the
+    answer, so an operator-disabled stored credential or an explicitly disabled
+    source operation still blocks the registry status instead of being re-enabled
+    by environment/file precedence, and an unreadable operator state is never
+    reported as configured.
+    """
+
+    if provider_id != "GIE":
+        return False
+    try:
+        from eurogas_nexus.ingestion.gie_transport import (
+            resolve_gie_runtime_credential_status,
+        )
+
+        status = resolve_gie_runtime_credential_status()
+    except Exception:  # noqa: BLE001 - a status read must never fail the registry
+        return False
+    return status.configured
 
 
 def _connectivity_status(

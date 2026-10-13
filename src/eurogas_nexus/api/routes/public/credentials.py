@@ -27,6 +27,14 @@ ProviderId = Literal[
 ]
 
 PUBLIC_PROVIDERS = {"ECB", "ENTSOG"}
+
+#: Providers whose live connection test is implemented by the backend. The API
+#: reports this per provider as a capability flag so the UI derives support from
+#: the backend instead of hardcoding a provider list of its own.
+CONNECTION_TEST_PROVIDERS = frozenset({"DEEPSEEK", "LLM", "GIE"})
+
+#: The two GIE products probed independently by the bounded connection test.
+GIE_CONNECTION_PRODUCTS = ("AGSI", "ALSI")
 PROVIDERS: tuple[dict[str, object], ...] = (
     {"provider_id": "ECB", "display_name": "ECB", "credential_required": False},
     {"provider_id": "ENTSOG", "display_name": "ENTSOG", "credential_required": False},
@@ -84,11 +92,16 @@ def list_credential_providers() -> dict:
     """
 
     rows = _credential_rows()
+    gie_status = _gie_external_credential_status()
     data = []
     for provider in PROVIDERS:
         provider_id = str(provider["provider_id"])
         row = rows.get(provider_id)
-        data.append(_provider_status(provider, row))
+        status = _provider_status(provider, row)
+        status["connection_test_supported"] = provider_id in CONNECTION_TEST_PROVIDERS
+        if provider_id == "GIE":
+            status.update(gie_status)
+        data.append(status)
     return _env(data)
 
 
@@ -257,7 +270,7 @@ def test_provider_credential_connection(provider_id: ProviderId) -> dict:
     """Perform an explicit live provider check without returning the credential."""
 
     _ensure_private_provider(provider_id)
-    if provider_id not in {"DEEPSEEK", "LLM"}:
+    if provider_id not in CONNECTION_TEST_PROVIDERS:
         raise HTTPException(
             status_code=400,
             detail={
@@ -270,6 +283,9 @@ def test_provider_credential_connection(provider_id: ProviderId) -> dict:
         )
     if not _db_is_configured():
         raise _credential_store_unavailable("Runtime database is not configured.")
+
+    if provider_id == "GIE":
+        return _connection_test_gie()
 
     from eurogas_nexus.llm import test_deepseek_connection
     from eurogas_nexus.security.credentials import utc_now
@@ -308,6 +324,199 @@ def test_provider_credential_connection(provider_id: ProviderId) -> dict:
         raise
     except sqlalchemy_error as exc:
         raise _credential_store_unavailable(exc.__class__.__name__) from exc
+
+
+def _connection_test_gie() -> dict:
+    """Bounded one-page live connection test for GIE AGSI and ALSI.
+
+    Deliberately distinct from certification: a passing check is transport
+    connectivity plus envelope/normalization shape for the two products, not a
+    certification decision. The test writes no market data, inserts no fake
+    encrypted credential row when the key is externally configured, and never
+    returns provider payload text -- only aggregate counts, the provider's
+    advertised page count and stable error codes.
+    """
+
+    import httpx
+
+    from eurogas_nexus.ingestion.gie_transport import (
+        GIE_PRODUCT_HOSTS,
+        GieProduct,
+        test_gie_connection,
+    )
+    from eurogas_nexus.security.credentials import utc_now
+
+    status = _gie_external_credential_status()
+    if not status["configured"]:
+        return _env(
+            _gie_base_status(status)
+            | {
+                "connection": {
+                    "ok": False,
+                    "error_code": (
+                        status["credential_diagnostics"] or ["gie_credential_missing"]
+                    )[0],
+                    "products": [],
+                    "tested_at_utc": utc_now().isoformat(),
+                }
+            }
+        )
+
+    api_key = _resolve_gie_api_key_value()
+    products = (
+        GieProduct.agsi(f"https://{GIE_PRODUCT_HOSTS['AGSI']}/api"),
+        GieProduct.alsi(f"https://{GIE_PRODUCT_HOSTS['ALSI']}/api"),
+    )
+    with httpx.Client(
+        timeout=30.0,
+        follow_redirects=False,
+        headers={"User-Agent": "EurogasNexus/0.5 gie-connection-test"},
+    ) as client:
+        checks = test_gie_connection(client, api_key=api_key or "", products=products)
+
+    product_payloads = [
+        {
+            "product": check.product,
+            "ok": check.ok,
+            "error_code": check.error_code,
+            "http_status": check.http_status,
+            "record_count": check.record_count,
+            "normalized_rows": check.normalized_rows,
+            "provider_last_page": check.provider_last_page,
+            "page_size": check.page_size,
+            "complete": check.complete,
+            "bounded_partial": check.bounded_partial,
+            "response_date": check.response_date,
+        }
+        for check in checks
+    ]
+    aggregate_ok = bool(checks) and all(check.ok for check in checks)
+    aggregate_error = next(
+        (check.error_code for check in checks if not check.ok), None
+    )
+    now = utc_now()
+
+    sqlalchemy_error = _sqlalchemy_error_type()
+    try:
+        from eurogas_nexus.db.models import ProviderCredentialRecord
+        from eurogas_nexus.db.session import get_session_factory
+
+        with get_session_factory()() as session:
+            row = session.get(ProviderCredentialRecord, "GIE")
+            if row is not None:
+                # An externally configured key has no stored row: the test must
+                # not insert a fake encrypted credential just to record status.
+                row.last_tested_at_utc = now
+                row.updated_at_utc = now
+                row.last_test_status = (
+                    "connection_test_success"
+                    if aggregate_ok
+                    else f"connection_test_{aggregate_error or 'failed'}"
+                )
+                row.last_test_message = (
+                    "Bounded one-page GIE AGSI/ALSI connection test passed; this is "
+                    "not a certification decision."
+                    if aggregate_ok
+                    else "Bounded one-page GIE connection test failed; see connection "
+                    "error code."
+                )
+                session.commit()
+    except sqlalchemy_error as exc:
+        raise _credential_store_unavailable(exc.__class__.__name__) from exc
+
+    return _env(
+        _gie_base_status(status)
+        | {
+            "connection": {
+                "ok": aggregate_ok,
+                "error_code": aggregate_error,
+                "products": product_payloads,
+                "tested_at_utc": now.isoformat(),
+                "bounded": True,
+                "market_data_persisted": False,
+            },
+        }
+    )
+
+
+def _gie_base_status(status: dict) -> dict:
+    return {
+        "provider_id": "GIE",
+        "configured": status["configured"],
+        "status": status["status"],
+        "credential_source_kind": status["credential_source_kind"],
+        "credential_diagnostics": status["credential_diagnostics"],
+        "support_flags": status["support_flags"],
+        "connection_test_supported": True,
+        "certification": status["certification"],
+    }
+
+
+def _resolve_gie_api_key_value() -> str | None:
+    """Resolve the runtime GIE key value in memory only; never store or return it.
+
+    Uses the shared runtime resolver so the operator-disable enforcement at the
+    fetch boundary and the reported status cannot disagree.
+    """
+
+    from eurogas_nexus.ingestion.gie_transport import resolve_gie_runtime_api_key
+
+    resolved = resolve_gie_runtime_api_key()
+    return resolved.value if resolved is not None else None
+
+
+def _gie_external_credential_status() -> dict:
+    """Shared resolver-derived GIE status with only safe codes and flags.
+
+    The same runtime resolver the fetch path uses decides the reported status, so
+    an operator-disabled stored credential or a disabled source operation keeps
+    the status blocked -- external environment/file configuration cannot silently
+    re-enable it. An unreadable operator state is reported blocked with its own
+    diagnostic rather than as a confirmed permit.
+    """
+
+    from eurogas_nexus.ingestion.gie_transport import (
+        resolve_gie_runtime_credential_status,
+    )
+
+    resolved = resolve_gie_runtime_credential_status()
+    return {
+        "configured": resolved.configured,
+        "status": (
+            "configured"
+            if resolved.configured
+            else ("disabled" if resolved.blocked else "missing")
+        ),
+        "credential_source_kind": resolved.source_kind,
+        "credential_diagnostics": list(resolved.diagnostics),
+        "support_flags": list(resolved.support_flags),
+        "certification": _gie_certification_status(),
+    }
+
+
+def _gie_certification_status() -> dict:
+    """Report the existing certification gate state without changing it."""
+
+    try:
+        from eurogas_nexus.db.repositories.certification import latest_certification
+        from eurogas_nexus.db.session import get_session_factory
+        from eurogas_nexus.domain.ingestion.certification import certification_gate
+
+        with get_session_factory()() as session:
+            certification = latest_certification(session, "GIE")
+    except Exception:  # noqa: BLE001 - a status read must never fail the probe
+        certification = None
+    stage = (certification or {}).get("stage", "unverified")
+    gate = certification_gate(
+        "GIE",
+        stage=stage,
+        checks=(certification or {}).get("checks"),
+    )
+    return {
+        "stage": stage,
+        "allows_live": gate.allows_live,
+        "reason": gate.reason,
+    }
 
 
 def _write_provider_credential(provider_id: ProviderId, payload: CredentialUpdate) -> dict:
@@ -464,6 +673,7 @@ def _provider_status(provider: dict[str, object], row: object | None) -> dict:
         "display_name": provider["display_name"],
         "credential_required": provider["credential_required"],
         "default_model": provider.get("default_model"),
+        "label": None,
         "configured": False,
         "status": "public" if provider_id in PUBLIC_PROVIDERS else "missing",
         "redacted_preview": None,

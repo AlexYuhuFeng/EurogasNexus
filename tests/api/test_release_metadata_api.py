@@ -34,7 +34,11 @@ def test_release_metadata_separates_version_channel_and_commit() -> None:
     assert DB_SCHEMA_REVISION == latest_alembic_revision()
     assert data["minimum_supported_client"] == APPLICATION_VERSION
     assert data["minimum_supported_server"] == APPLICATION_VERSION
-    assert data["backtest_engine_version"] == "backtest-engine/1"
+    # The public application historical run executes engine/2; the legacy
+    # engine/1 helper identity is reported under its own name so stored engine/1
+    # results are never relabelled.
+    assert data["backtest_engine_version"] == "backtest-engine/2"
+    assert data["legacy_backtest_engine_version"] == "backtest-engine/1"
     assert data["strategy_schema_version"] == "strategy-definition/v1"
     assert data["solver_version"] == "min-cost-flow/v1"
 

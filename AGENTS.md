@@ -3,7 +3,7 @@
 
 1. Read `docs/engineering/Architecture-V2/CODEX_ENTRYPOINT.md` first.
 2. Read `docs/engineering/ARCHITECTURE_V2_EXECUTION_STATE.md` before planning work.
-3. GPT-6 Astra is the planner/architect/integration reviewer; routine implementation belongs to DeepSeek.
+3. GPT-6 Astra is the planner/architect/integration reviewer; routine implementation belongs to GPT-6.1 Sol per the owner's 2026-10-12 instruction. Do not launch new DeepSeek workers for this task.
 4. No big-bang rewrite.
 5. No new microservices/Kubernetes/Kafka/service mesh/datastore without reviewed ADR and measured need.
 6. Preserve FastAPI, React, Tauri, PostgreSQL/Alembic and existing security/release/DR foundations unless an approved migration says otherwise.

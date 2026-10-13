@@ -36,7 +36,7 @@ def test_worker_continues_after_failed_iteration_without_sleeping_at_end() -> No
         sleeper=sleeps.append,
     )
 
-    assert result == 0
+    assert result == 1
     assert len(calls) == 2
     assert sleeps == [60]
 
@@ -64,3 +64,43 @@ def test_worker_retries_transient_failure_before_next_interval() -> None:
     assert result == 0
     assert len(calls) == 2
     assert sleeps == [5]
+
+
+def test_bounded_configured_worker_exhausted_retries_exits_failure() -> None:
+    calls = []
+    sleeps = []
+
+    def runner(command, **kwargs):
+        calls.append(command)
+        return subprocess.CompletedProcess(command, 1)
+
+    result = run_worker(
+        sources=["entsog"],
+        limit=20,
+        interval_seconds=60,
+        max_iterations=1,
+        entsog_from="2026-10-10",
+        entsog_to="2026-10-11",
+        retry_max=2,
+        retry_backoff_seconds=5,
+        runner=runner,
+        sleeper=sleeps.append,
+    )
+    assert result == 1 and len(calls) == 3 and sleeps == [5, 10]
+
+
+def test_bounded_partial_warning_success_still_exits_success() -> None:
+    result = run_worker(
+        sources=["entsog"],
+        limit=20,
+        interval_seconds=60,
+        max_iterations=1,
+        entsog_from="2026-10-10",
+        entsog_to="2026-10-11",
+        runner=lambda command, **kwargs: subprocess.CompletedProcess(
+            command,
+            0,
+            stdout='{"ok":true,"sources":{"ENTSOG":{"status":"SUCCEEDED_WITH_WARNINGS"}}}',
+        ),
+    )
+    assert result == 0

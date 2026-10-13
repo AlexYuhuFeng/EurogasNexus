@@ -68,12 +68,12 @@ def test_server_runtime_is_db_first_and_has_explicit_migration() -> None:
         "public-ingestion:",
         "public-ingestion-worker:",
         "reference-ingestion-worker:",
-        "preview-seed:",
     ]:
         assert service in compose
     assert 'command: ["alembic", "upgrade", "head"]' in compose
     assert "postgresql+pg8000://" in compose
-    assert 'profiles: ["simulated-prices"]' in compose
+    assert "preview-seed:" not in compose
+    assert "simulated-prices:" not in compose
     assert 'profiles: ["server"]' in compose
     assert 'profiles: ["public-ingestion"]' in compose
     assert '"${HTTPS_BIND_ADDRESS}:${HTTPS_PORT}:443"' in compose

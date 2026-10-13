@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 from datetime import UTC, datetime, timedelta
 
@@ -29,6 +30,47 @@ from eurogas_nexus.security.oidc import OidcValidationError, clear_oidc_cache
 
 ISSUER = "https://idp.example.test"
 CLIENT_ID = "eurogas-nexus"
+
+
+def test_pkce_pair_is_rfc7636_s256_conformant() -> None:
+    """``pkce_pair`` must produce the challenge a conformant IdP recomputes.
+
+    RFC 7636 section 4.2 defines S256 as
+    ``BASE64URL-ENCODE(SHA256(ASCII(code_verifier)))`` with padding stripped. A
+    conformant server derives exactly that from the verifier presented at the
+    token endpoint and returns ``invalid_grant`` on any mismatch, so a hex
+    digest -- which is what this function used to return -- breaks every browser
+    and desktop login. No test called this function at all before, which is why
+    the defect survived.
+    """
+
+    from eurogas_nexus.application.enterprise_auth import pkce_pair
+
+    verifier, challenge = pkce_pair()
+
+    # The server's own derivation, computed independently of the implementation.
+    expected = (
+        base64.urlsafe_b64encode(hashlib.sha256(verifier.encode("ascii")).digest())
+        .rstrip(b"=")
+        .decode("ascii")
+    )
+    assert challenge == expected
+
+    # Base64url alphabet only, and no padding (RFC 7636 section 4.2).
+    assert "=" not in challenge
+    assert "+" not in challenge and "/" not in challenge
+    assert len(challenge) == 43  # 32-byte digest -> 43 unpadded base64url chars
+
+    # Verifier: 43..128 unreserved characters (RFC 7636 section 4.1).
+    assert 43 <= len(verifier) <= 128
+    assert all(character.isalnum() or character in "-._~" for character in verifier)
+
+
+def test_pkce_pair_is_unique_per_login() -> None:
+    from eurogas_nexus.application.enterprise_auth import pkce_pair
+
+    pairs = {pkce_pair() for _ in range(50)}
+    assert len(pairs) == 50
 
 
 @pytest.fixture(autouse=True)
@@ -403,7 +445,14 @@ def test_desktop_login_exchanges_loopback_code(env_db, monkeypatch, signing_key)
         )
         session.commit()
     verifier = "desktop-verifier-desktop-verifier-desktop-verifier-123"
-    challenge = __import__("hashlib").sha256(verifier.encode()).hexdigest()
+    # RFC 7636 section 4.2: S256 is BASE64URL(SHA256(verifier)) without padding.
+    # This test previously used a hex digest, mirroring the implementation's own
+    # mistake, so it could not have caught the non-conformant challenge.
+    challenge = (
+        base64.urlsafe_b64encode(hashlib.sha256(verifier.encode("ascii")).digest())
+        .rstrip(b"=")
+        .decode("ascii")
+    )
     with Session(engine) as session:
         start = start_desktop_login(
             session,

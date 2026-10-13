@@ -1,11 +1,16 @@
 """SDK HTTP helpers that attach release-profile auth headers.
 
-Release deployments require the public API token (``EUROGAS_NEXUS_API_TOKEN``)
-on every request and an explicit operator principal
-(``EUROGAS_NEXUS_PRINCIPAL``) for OPERATOR routes. Both are read from the
-environment so SDK/CLI operators can configure them without code changes;
-when unset (development/trial against the local API), no auth headers are
-sent and behavior is unchanged.
+Release deployments require the deployment token on every request and an
+explicit operator principal (``EUROGAS_NEXUS_PRINCIPAL``) for OPERATOR routes.
+Both are read from the environment so SDK/CLI operators can configure them
+without code changes; when unset (development/trial against the local API), no
+auth headers are sent and behavior is unchanged.
+
+The deployment token is resolved from ``EUROGAS_NEXUS_PUBLIC_API_TOKEN`` -- the
+name the server reads -- falling back to the older client-side
+``EUROGAS_NEXUS_API_TOKEN``. Reading only the old name meant an operator who set
+the server's variable (or read the deployment template) left the SDK sending no
+credential at all.
 """
 
 from __future__ import annotations
@@ -15,7 +20,8 @@ from typing import Any
 
 import httpx
 
-API_TOKEN_ENV = "EUROGAS_NEXUS_API_TOKEN"
+API_TOKEN_ENV = "EUROGAS_NEXUS_PUBLIC_API_TOKEN"
+LEGACY_API_TOKEN_ENV = "EUROGAS_NEXUS_API_TOKEN"
 PRINCIPAL_ENV = "EUROGAS_NEXUS_PRINCIPAL"
 IDENTITY_ENV = "EUROGAS_NEXUS_IDENTITY_BEARER"
 PRINCIPAL_HEADER = "X-Eurogas-Principal"
@@ -24,11 +30,29 @@ IDENTITY_HEADER = "X-Eurogas-Identity"
 _UNSET = object()
 
 
+def resolve_api_token(environ: dict[str, str] | None = None) -> str:
+    """Return the configured deployment token, preferring the canonical name.
+
+    ``EUROGAS_NEXUS_PUBLIC_API_TOKEN`` is the name the server reads and the one
+    the shipped template documents. ``EUROGAS_NEXUS_API_TOKEN`` is accepted as a
+    fallback so an existing SDK environment keeps working.
+    """
+
+    source = os.environ if environ is None else environ
+    # Iterate the variable *names*, not the constant names: this tuple must hold
+    # the environment keys themselves.
+    for env_name in (API_TOKEN_ENV, LEGACY_API_TOKEN_ENV):
+        value = (source.get(env_name) or "").strip()
+        if value:
+            return value
+    return ""
+
+
 def auth_headers() -> dict[str, str]:
     """Return release-profile auth headers from the environment."""
 
     headers: dict[str, str] = {}
-    token = os.environ.get(API_TOKEN_ENV, "").strip()
+    token = resolve_api_token()
     if token:
         headers["Authorization"] = f"Bearer {token}"
     principal = os.environ.get(PRINCIPAL_ENV, "").strip()

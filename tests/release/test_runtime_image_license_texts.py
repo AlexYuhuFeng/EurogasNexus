@@ -136,7 +136,7 @@ def read_manifest(output: Path) -> dict:
 
 def test_collector_runs_once_in_runtime_stage_after_install_and_script_copy() -> None:
     text = dockerfile_text()
-    assert text.count(COLLECTOR) == 1
+    assert text.count(f"python {COLLECTOR}") == 1
     # The output argument and the readability fix are the only two references:
     # nothing else creates, copies or pre-populates the evidence directory (the
     # collector refuses an existing output directory).
@@ -151,8 +151,8 @@ def test_collector_runs_once_in_runtime_stage_after_install_and_script_copy() ->
     lock_install = text.index(f"-r {LOCK_NAME}", runtime_stage_start)
     wheel_copy = text.index("COPY --from=builder /wheels ./wheels")
     project_install = text.index("--find-links ./wheels eurogas_nexus")
-    scripts_copy = text.index("COPY scripts ./scripts")
-    collector_index = text.index(COLLECTOR)
+    scripts_copy = text.index("COPY scripts/release/collect_python_license_texts.py")
+    collector_index = text.index(f"python {COLLECTOR}")
     chown = text.index("RUN chown -R eurogas:eurogas /app")
     user_directive = text.index("USER eurogas")
 

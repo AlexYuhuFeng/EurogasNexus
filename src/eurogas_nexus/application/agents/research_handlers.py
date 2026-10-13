@@ -205,13 +205,16 @@ def _register_dataset_capabilities(registry) -> None:
                     CapabilityFailureCode.DATA_MISSING,
                     f"Research artifact store is unavailable: {exc.detail}",
                 )
+            # The return value carries whether the snapshot was newly created; the
+            # handler reports the built dataset either way, so a repeat build of
+            # unchanged inputs succeeds instead of failing on the snapshot id.
             persist_dataset_snapshot(
                 session,
                 metadata=result.as_metadata(),
                 dependencies=dependencies,
                 issues=issues,
                 artifacts=artifacts,
-            )
+            )[0]
             session.commit()
         return _result(
             definition,
@@ -863,14 +866,30 @@ def _register_backtest_capabilities(registry) -> None:
             from eurogas_nexus.application.backtest_service import execute_backtest_run
             from eurogas_nexus.db.repositories.strategy import strategy_run_payload
 
-            row = execute_backtest_run(
-                session,
-                version=version,
-                definition=run_definition,
-                requested_by=context.principal_id,
-            )
+            # The capability goes through the same application service as the
+            # HTTP route, so a service refusal (for example the CR-04 missing
+            # evidence-target guard) is reported here with its stable code
+            # rather than escaping as an internal error.
+            try:
+                row = execute_backtest_run(
+                    session,
+                    version=version,
+                    definition=run_definition,
+                    requested_by=context.principal_id,
+                )
+            except ValueError as exc:
+                code = str(getattr(exc, "code", "") or "backtest_blocked")
+                return _blocked(
+                    definition,
+                    CapabilityFailureCode.BACKTEST_BLOCKED,
+                    f"{code}: {exc}",
+                )
             session.commit()
-        return _result(definition, strategy_run_payload(row))
+            # Read the payload while the session is still open: after the commit
+            # the row is expired, and serializing it outside the scope raised a
+            # DetachedInstanceError on the success path.
+            payload = strategy_run_payload(row)
+        return _result(definition, payload)
 
     def get_result(arguments, _context):
         definition = registry.get("backtest.get_result")

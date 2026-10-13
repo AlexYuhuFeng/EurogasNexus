@@ -30,6 +30,7 @@ export interface ServerReleaseMetadata {
   minimum_supported_client: string;
   minimum_supported_server: string;
   backtest_engine_version: string;
+  legacy_backtest_engine_version: string;
   strategy_schema_version: string;
   strategy_run_schema_version: string;
   solver_version: string;

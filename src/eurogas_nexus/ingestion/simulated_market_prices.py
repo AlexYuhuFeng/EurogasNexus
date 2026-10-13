@@ -22,8 +22,8 @@ from eurogas_nexus.domain.market.gas_day import (
     gas_day_start_for_date,
     gas_day_start_utc,
 )
+from eurogas_nexus.ingestion.provenance_versions import SIMULATOR_VERSION
 
-SIMULATOR_VERSION = "sim-market-v1"
 SIMULATED_MARKET_PRICE_SOURCE_SYSTEMS = (
     "EEX_Sim",
     "ICE_OCM_Sim",

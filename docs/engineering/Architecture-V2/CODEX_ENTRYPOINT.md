@@ -1,3 +1,12 @@
+# Current owner routing (2026-10-12)
+
+For the active supplier-acceptance task, the owner replaced DeepSeek execution
+with GPT-6.1 Sol. Use Sol for implementation and workflow testing; do not start
+new DeepSeek workers. GPT-6 Astra retains planning/architecture/integration
+review. Older DeepSeek routing below describes the original programme and is
+superseded for this task by the owner's instruction and root `AGENTS.md`.
+Preserve hard STOP conditions, security/product boundaries and acceptance gates.
+
 # AUTONOMOUS MODE OVERRIDE
 
 `AUTONOMOUS_EXECUTION_POLICY.md` is the highest operational authority for this programme.

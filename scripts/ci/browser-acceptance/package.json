@@ -1,0 +1,11 @@
+{
+  "name": "eurogas-nexus-browser-acceptance",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Pinned tooling for the CI browser-acceptance job. Not a shipped artifact: this exists so the acceptance run installs Playwright and axe-core through a lock file with integrity hashes instead of resolving unpinned versions from the registry at run time.",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "axe-core": "4.10.3",
+    "playwright": "1.55.0"
+  }
+}

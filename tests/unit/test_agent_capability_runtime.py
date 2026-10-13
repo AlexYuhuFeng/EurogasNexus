@@ -201,7 +201,10 @@ def test_dataset_build_capability_passes_context_scopes_without_wildcard_fallbac
     monkeypatch.setattr(
         research_repo,
         "persist_dataset_snapshot",
-        lambda _session, **_kwargs: None,
+        # The repository returns (row, created) so a rebuild of unchanged content can be
+        # reported as reused; the handler reads the row. Returning a bare None here made
+        # the handler raise on subscripting and the capability report BLOCKED.
+        lambda _session, **_kwargs: (None, True),
     )
     # The build handler now materializes artifacts; stub the writer so this unit
     # test never touches the configured artifact root.

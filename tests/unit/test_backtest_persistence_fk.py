@@ -29,6 +29,7 @@ from eurogas_nexus.domain.backtest.contracts import (
 from eurogas_nexus.domain.ontology.vocabulary import MissingDataPolicy
 from eurogas_nexus.domain.strategy_lab.registry import (
     StrategyComponentSpec,
+    StrategyEvidenceTarget,
     StrategyVersionDefinition,
 )
 
@@ -42,6 +43,22 @@ def _engine():
 
     Base.metadata.create_all(engine)
     return engine
+
+
+def _target(leg_id: str, name: str, tenor: str) -> StrategyEvidenceTarget:
+    return StrategyEvidenceTarget.model_validate(
+        {
+            "leg_id": leg_id,
+            "price_names": [name],
+            "role": "DELIVERY_PRICE",
+            "hub": "NBP",
+            "tenor": tenor,
+            "price_basis": "MID",
+            "target_basis": "GAS_DAY",
+            "calendar_id": "EU-CAM-UTC-2025",
+            "gas_day_offset": 0,
+        }
+    )
 
 
 def _definition() -> StrategyVersionDefinition:
@@ -62,6 +79,10 @@ def _definition() -> StrategyVersionDefinition:
                         "time_window_start": "05:00",
                         "time_window_end": "05:30",
                     },
+                    evidence_targets=[
+                        _target("day_ahead", "SAP", "day-ahead"),
+                        _target("intraday", "ICE_OCM", "within-day"),
+                    ],
                 )
             ]
         }

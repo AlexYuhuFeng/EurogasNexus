@@ -85,15 +85,11 @@ def _queue_run(
     definition: SourceDefinition,
     when: datetime,
 ) -> IngestionRunRecord:
-    state = dataops_repository.ensure_source_runtime_state(
-        session, definition, now_utc=when
-    )
+    state = dataops_repository.ensure_source_runtime_state(session, definition, now_utc=when)
     state.enabled = True
     state.next_run_at_utc = when
     session.flush()
-    claims = dataops_repository.claim_due_sources(
-        session, (definition,), now_utc=when, limit=10
-    )
+    claims = dataops_repository.claim_due_sources(session, (definition,), now_utc=when, limit=10)
     assert len(claims) == 1
     return claims[0][1]
 
@@ -142,9 +138,7 @@ def test_future_source_is_not_run_early(engine) -> None:
 def test_disabled_source_is_not_run(engine) -> None:
     definition = _test_definition()
     with Session(engine) as session:
-        dataops_repository.ensure_source_runtime_state(
-            session, definition, now_utc=NOW
-        )
+        dataops_repository.ensure_source_runtime_state(session, definition, now_utc=NOW)
         set_source_enabled(
             session,
             source_id=definition.source_id,
@@ -365,12 +359,95 @@ def test_each_claimed_run_registers_a_job_matching_the_run_outcome(engine) -> No
     assert list(succeeded_job.output_refs_json) == [f"ingestion_run:{successful_run_id}"]
     assert "SOURCE:src-test" in list(succeeded_job.scope_refs_json)
 
+
+def test_warning_qualified_ingestion_is_successful_job_with_warning_run(engine) -> None:
+    from sqlalchemy import select
+
+    from eurogas_nexus.db.models import JobRecord
+
+    definition = _test_definition()
+    with Session(engine) as session:
+        run = _queue_run(session, definition, NOW)
+        session.flush()
+        run_id = run.run_id
+        session.commit()
+    with Session(engine) as session:
+        outcome = execute_claimed_runs(
+            session,
+            runner=lambda _payload, _attempt: IngestionAttemptResult(
+                succeeded=True,
+                rows_received=4,
+                rows_accepted=3,
+                quality_issues=[
+                    QualityIssue(
+                        quality_code="entsog_bounded_partial",
+                        severity=QualitySeverity.WARNING,
+                        message="Bounded result; full coverage unproven.",
+                    )
+                ],
+            ),
+            definitions=(definition,),
+            now_utc=NOW + timedelta(seconds=1),
+        )
+        session.commit()
+        assert outcome["outcomes"][0]["status"] == "SUCCEEDED_WITH_WARNINGS"
+        assert session.get(IngestionRunRecord, run_id).quality_warning_count == 1
+        job = session.execute(select(JobRecord)).scalar_one()
+        assert job.status == "SUCCEEDED" and not job.error_code
+        assert list(job.output_refs_json) == [f"ingestion_run:{run_id}"]
+
+
+def test_entsog_rolling_revision_failure_persists_action_and_never_advances_success(engine) -> None:
+    import json
+    from types import SimpleNamespace
+
+    from sqlalchemy import select
+
+    from eurogas_nexus.db.models import IngestionRunIssueRecord
+    from scripts.ops.run_dataops_scheduler import run_ingestor_attempt
+
+    definition = _test_definition(source_id="src-entsog")
+    with Session(engine) as session:
+        run = _queue_run(session, definition, NOW)
+        run_id = run.run_id
+        session.commit()
+    calls = []
+
+    def child(command, **kwargs):
+        calls.append(command)
+        return SimpleNamespace(
+            returncode=1,
+            stderr="",
+            stdout=json.dumps(
+                {"ok": False, "failures": [{"code": "entsog_revision_requires_history"}]}
+            ),
+        )
+
+    with Session(engine) as session:
+        execute_claimed_runs(
+            session,
+            runner=run_ingestor_attempt(child, entsog_lookback_gas_days=2),
+            definitions=(definition,),
+            now_utc=NOW + timedelta(seconds=1),
+            sleeper=lambda seconds: pytest.fail("Terminal revision was retried"),
+        )
+        session.commit()
+        stored = session.get(IngestionRunRecord, run_id)
+        assert stored.status == "FAILED" and stored.attempt_number == 1 and len(calls) == 1
+        state = session.get(SourceRuntimeStateRecord, definition.source_id)
+        assert state.last_success_at_utc is None
+        issue = session.execute(select(IngestionRunIssueRecord)).scalar_one()
+        assert (
+            issue.quality_code == "entsog_revision_requires_history" and issue.severity == "ERROR"
+        )
+        assert "Review revisions" in issue.message
+        assert any("mode=rolling-gas-day" in ref for ref in stored.lineage_refs)
+
+
 def test_circuit_opens_then_recovery_probe_uses_recovery_trigger(engine) -> None:
     definition = _test_definition()
     with Session(engine) as session:
-        state = dataops_repository.ensure_source_runtime_state(
-            session, definition, now_utc=NOW
-        )
+        state = dataops_repository.ensure_source_runtime_state(session, definition, now_utc=NOW)
         state.enabled = True
         state.next_run_at_utc = NOW
         session.commit()
@@ -426,18 +503,14 @@ def test_circuit_opens_then_recovery_probe_uses_recovery_trigger(engine) -> None
 def test_success_resets_consecutive_failures(engine) -> None:
     definition = _test_definition()
     with Session(engine) as session:
-        state = dataops_repository.ensure_source_runtime_state(
-            session, definition, now_utc=NOW
-        )
+        state = dataops_repository.ensure_source_runtime_state(session, definition, now_utc=NOW)
         state.enabled = True
         state.consecutive_failures = 4
         state.circuit_state = CircuitState.DEGRADED.value
         state.next_run_at_utc = NOW
         session.commit()
     with Session(engine) as session:
-        claims = dataops_repository.claim_due_sources(
-            session, (definition,), now_utc=NOW, limit=10
-        )
+        claims = dataops_repository.claim_due_sources(session, (definition,), now_utc=NOW, limit=10)
         _state, run = claims[0]
         dataops_repository.finalize_run(
             session,

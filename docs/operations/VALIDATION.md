@@ -5,7 +5,10 @@ Run validation from the repository root.
 ## Prerequisites
 
 ```powershell
-docker compose up -d        # start PostgreSQL when runtime DB checks are needed
+# Single local entry: starts/reuses the canonical Docker PostgreSQL, then API + Web.
+powershell -File scripts/ops/Start-LocalAcceptance.ps1
+# Database-only alternative when only runtime DB checks are needed:
+docker compose up -d
 pip install -e ".[dev]"     # install project + dev dependencies
 ```
 
@@ -199,12 +202,16 @@ do want a store set it themselves, after that).
 `tests/integration` is the live path, and it skips unless a URL is present:
 
 ```powershell
-$env:RUNTIME_STORE_DATABASE_URL = "postgresql+pg8000://user:pass@127.0.0.1:5432/scratch"
+$env:RUNTIME_STORE_DATABASE_URL = "postgresql+pg8000://user:pass@127.0.0.1:51356/scratch"
 python -m alembic upgrade head          # apply the chain to the scratch database
 ruff check .
 pytest -q tests                         # everything, with the integration suite live
 pytest -q tests/integration             # the live half on its own
 ```
+
+Use a scratch database, never the preserved `nexus_browser` runtime database:
+`alembic upgrade head` is a write and the canonical local instance is retained
+acceptance evidence.
 
 The integration suite is re-runnable against a persistent database (CI's service
 container is throw-away, a developer's is not), and `python scripts/ops/migration_preflight.py`

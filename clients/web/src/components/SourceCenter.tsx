@@ -49,6 +49,14 @@ interface SourceCenterProps {
   credentialLabel: string;
   credentialValue: string;
   credentialMessage: string | null;
+  credentialConnection: {
+    providerId: string;
+    ok: boolean;
+    errorCode: string | null;
+    products: Array<{ product: string; ok: boolean; record_count: number; bounded_partial: boolean }>;
+  } | null;
+  /** Whether the active credential is operator-managed outside the store (env/file). */
+  credentialEntryReadonly: boolean;
   flows: FlowObsDTO[];
   capacity: CapacityObsDTO[];
   storage: StorageObsDTO[];
@@ -172,6 +180,8 @@ export function SourceCenter({
   credentialLabel,
   credentialValue,
   credentialMessage,
+  credentialConnection,
+  credentialEntryReadonly,
   flows,
   capacity,
   storage,
@@ -555,6 +565,7 @@ export function SourceCenter({
             aria-label={t("credentials.label")}
             autoComplete="username"
             value={credentialLabel}
+            disabled={credentialEntryReadonly}
             onChange={(event) => onCredentialLabelChange(event.target.value)}
             placeholder={t("credentials.label")}
           />
@@ -563,16 +574,25 @@ export function SourceCenter({
             type="password"
             autoComplete="current-password"
             value={credentialValue}
-            disabled={!selectedCredentialProvider?.credential_required}
+            disabled={credentialEntryReadonly || !selectedCredentialProvider?.credential_required}
             onChange={(event) => onCredentialValueChange(event.target.value)}
             placeholder={selectedCredentialProvider?.credential_required ? t("credentials.api_key") : t("credentials.not_required")}
           />
-          <button type="submit" disabled={!selectedCredentialProvider?.credential_required || !credentialValue.trim()}>{t("credentials.save")}</button>
+          <button
+            type="submit"
+            disabled={
+              credentialEntryReadonly ||
+              !selectedCredentialProvider?.credential_required ||
+              !credentialValue.trim()
+            }
+          >
+            {t("credentials.save")}
+          </button>
           <button
             type="button"
             disabled={
-              !selectedCredentialProvider?.configured ||
-              !["DEEPSEEK", "LLM"].includes(selectedCredentialProvider.provider_id)
+              !selectedCredentialProvider?.connection_test_supported ||
+              !selectedCredentialProvider?.configured
             }
             onClick={onCredentialConnectionTest}
           >
@@ -584,8 +604,52 @@ export function SourceCenter({
             <span>{selectedCredentialProvider.display_name}</span>
             <strong>{sourceLabel("sources.credential", selectedCredentialProvider.status)}</strong>
             {selectedCredentialProvider.default_model && <small>Model: {selectedCredentialProvider.default_model}</small>}
-            <small>{selectedCredentialProvider.last_test_status ?? t("sources.not_tested")}</small>
+            {selectedCredentialProvider.credential_source_kind && (
+              <small>
+                {t("credentials.source_kind")}: {t(
+                  `credentials.source_kind.${selectedCredentialProvider.credential_source_kind}`,
+                )}
+              </small>
+            )}
+            {selectedCredentialProvider.credential_diagnostics && selectedCredentialProvider.credential_diagnostics.length > 0 && (
+              <small>
+                {t("credentials.diagnostics")}: {selectedCredentialProvider.credential_diagnostics
+                  .map((code) => t(`sources.diagnostic.${code}`))
+                  .join(", ")}
+              </small>
+            )}
+            {selectedCredentialProvider.certification && (
+              <small>
+                {t("credentials.certification")}: {sourceLabel("sources.certification", selectedCredentialProvider.certification.stage)}
+              </small>
+            )}
+            {credentialConnection &&
+              credentialConnection.providerId === selectedCredentialProvider.provider_id &&
+              selectedCredentialProvider.provider_id === "GIE" && (
+              <div className="credential-connection-products">
+                <small>
+                  {t("credentials.live_connection")}: {credentialConnection.ok ? t("credentials.connected") : t("credentials.failed")}
+                </small>
+                {credentialConnection.products.map((product) => (
+                  <small key={`gie-connection-${product.product}`}>
+                    {product.product}: {product.ok ? t("credentials.connected") : t("credentials.failed")}
+                    {` (${product.record_count} ${t("panel.records")})`}
+                    {product.bounded_partial ? ` · ${t("credentials.bounded_partial")}` : ""}
+                  </small>
+                ))}
+              </div>
+            )}
+            {(!credentialConnection ||
+              credentialConnection.providerId !== selectedCredentialProvider.provider_id) && (
+              <small>{selectedCredentialProvider.last_test_status ?? t("sources.not_tested")}</small>
+            )}
           </div>
+        )}
+        {credentialEntryReadonly && (
+          // An active env/file key is external and operator-managed: the browser must
+          // not present a rotation control that cannot change the credential the source
+          // uses. A missing/disabled/unreadable/store-backed credential is not this case.
+          <small>{t("credentials.external_readonly")}</small>
         )}
         {credentialMessage && <p>{credentialMessage}</p>}
       </div>

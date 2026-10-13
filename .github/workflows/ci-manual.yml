@@ -10,6 +10,11 @@ concurrency:
   group: manual-ci-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # Mirrors `.python-version` / `.nvmrc`; see the note in ci.yml.
+  PYTHON_VERSION: "3.11.12"
+  NODE_VERSION: "24.13.1"
+
 jobs:
   validate:
     runs-on: ubuntu-latest
@@ -21,16 +26,30 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
-          python-version: "3.11.12"
+          python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install package
-        run: python -m pip install -e ".[dev]"
+      - name: Install package from hash-pinned locks
+        run: |
+          python -m pip install --require-hashes -r requirements-build.lock -r requirements.lock
+          python -m pip install --no-deps --no-build-isolation -e .
 
       - name: Ruff
         run: ruff check .
 
       - name: Markdown links
         run: python scripts/ci/check_markdown_links.py
+
+      - name: Configuration contract
+        run: python scripts/ci/check_config_contract.py
+
+      - name: Environment templates are current
+        run: python scripts/ci/generate_env_template.py --check
+
+      - name: Toolchain versions agree
+        run: python scripts/ci/check_toolchain_versions.py
+
+      - name: Configuration preflight (release-shaped environment)
+        run: python scripts/ops/check_config.py --env-file scripts/ci/fixtures/release.env --strict
 
       - name: Tests
         run: pytest -q tests
@@ -48,7 +67,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
-          node-version: "24.13.1"
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: clients/web/package-lock.json
 

@@ -1,4 +1,4 @@
-﻿# Target Product Architecture
+# Target Product Architecture
 
 ## Product Vision
 

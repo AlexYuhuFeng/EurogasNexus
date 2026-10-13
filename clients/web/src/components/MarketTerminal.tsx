@@ -1,5 +1,9 @@
 import { useMemo, useState } from "react";
 import { formatUtcTimestamp } from "@/app/model/evidencePresentation";
+import {
+  createHubSpreadResolver,
+  type ResolvedHubSpread,
+} from "@/app/marketSpread";
 import type {
   FxRateDTO,
   IntradayOpportunityDTO,
@@ -35,7 +39,7 @@ interface HubDefinition {
 interface HubTerminalRow extends HubDefinition {
   latest: NormalizedMarketObsDTO | null;
   history: NormalizedMarketObsDTO[];
-  spreadToTtf: number | null;
+  spreadToTtf: ResolvedHubSpread | null;
   tenor: string;
   sourceLabel: string;
   simulated: boolean;
@@ -314,15 +318,28 @@ export function MarketTerminal({
       return compareObservedDesc(left.latest, right.latest);
     }), [activeTenor, quoteHistoryByIdentity]);
 
-  const spreadToTtfByHubTenor = useMemo(() => {
-    const direct = new Map<string, number>();
-    const reverse = new Map<string, number>();
-    marketSpreads.forEach((row) => {
-      direct.set(`${row.from_hub}:${row.to_hub}:${row.period}`, row.spread_eur_mwh);
-      reverse.set(`${row.to_hub}:${row.from_hub}:${row.period}`, row.spread_eur_mwh);
-    });
-    return { direct, reverse };
-  }, [marketSpreads]);
+  // One resolver for the whole response. It ranks a directly-quoted direction above a
+  // value derived by negating the opposite one and breaks ties by a published venue
+  // order, so the figure no longer depends on which row the API returned last. The
+  // previous implementation keyed on hub pair and period only, so the seeded day-ahead
+  // TTF/NBP pair — quoted six times, once per venue — collapsed to the final row and its
+  // sign followed that row's direction.
+  const resolveHubSpread = useMemo(
+    () => createHubSpreadResolver(marketSpreads),
+    [marketSpreads],
+  );
+
+  /**
+   * The hub's premium over TTF: `price(hub) - price(TTF)`.
+   *
+   * Distinct from the directional `hub -> TTF` spread, which is the same magnitude with
+   * the opposite sign. The strip below is labelled "spread to TTF", so it needs this
+   * one; using the directional value made a dearer-than-TTF hub read as negative.
+   */
+  const premiumOverTtfFor = (hub: string, tenor: string): ResolvedHubSpread | null => {
+    if (hub.toUpperCase() === "TTF") return null;
+    return resolveHubSpread(hub, "TTF", tenor);
+  };
 
   const groupedByTenor = useMemo(() => {
     const grouped = new Map<string, NormalizedMarketObsDTO[]>();
@@ -335,14 +352,8 @@ export function MarketTerminal({
     return grouped;
   }, [markets]);
 
-  const spreadToTtfFor = (hub: string, tenor: string): number | null => {
-    if (hub.toUpperCase() === "TTF") return null;
-    const key = `${hub.toUpperCase()}:TTF:${tenor}`;
-    const direct = spreadToTtfByHubTenor.direct.get(key);
-    if (direct !== undefined) return direct;
-    const reverse = spreadToTtfByHubTenor.reverse.get(key);
-    return reverse !== undefined ? -reverse : null;
-  };
+  const spreadToTtfFor = (hub: string, tenor: string): ResolvedHubSpread | null =>
+    premiumOverTtfFor(hub, tenor);
 
   const marketRowsByTenor = useMemo(() => {
     const result = new Map<string, HubTerminalRow[]>();
@@ -362,7 +373,7 @@ export function MarketTerminal({
       }));
     });
     return result;
-  }, [groupedByTenor, spreadToTtfByHubTenor]);
+  }, [groupedByTenor, resolveHubSpread]);
 
   const marketRows = marketRowsByTenor.get(activeTenor) ?? [];
   const curveLanes = marketMajorHubs.map((definition) => {
@@ -703,17 +714,21 @@ export function MarketTerminal({
             <div key={`region-${row.hub}`}>
               <span>{row.label}</span>
               <strong>{(() => {
+                // A hub's premium over TTF is `price(hub) - price(TTF)`. One definition
+                // only: this previously preferred the persisted directional spread over a
+                // live mid-to-mid difference, and the two have opposite signs, so a hub
+                // trading above TTF could render as a negative "spread to TTF".
                 const quote = latestQuoteByHubTenor.get(`${row.hub}:${row.tenor}`);
                 const ttfQuote = latestQuoteByHubTenor.get(`TTF:${row.tenor}`);
                 const liveMid = quoteMid(quote);
                 const ttfMid = quoteMid(ttfQuote);
-                const liveSpread = row.hub === "TTF"
+                const premium = row.hub === "TTF"
                   ? 0
                   : liveMid !== null && ttfMid !== null
                     ? liveMid - ttfMid
-                    : null;
+                    : row.spreadToTtf?.value_eur_mwh ?? null;
                 return formatSpread(
-                  row.spreadToTtf ?? liveSpread,
+                  premium,
                   quote ? `${quote.currency}/${quote.unit}` : row.latest?.unit,
                 );
               })()}</strong>

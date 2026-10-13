@@ -14,6 +14,7 @@ __all__: list[str] = []
 def __getattr__(name: str) -> Any:
     if name in {
         "BACKTEST_ENGINE_VERSION",
+        "TARGET_BACKTEST_ENGINE_VERSION",
         "BacktestEconomicAssumptions",
         "BacktestEvidencePool",
         "BacktestPeriod",
@@ -23,7 +24,12 @@ def __getattr__(name: str) -> Any:
         from eurogas_nexus.domain.backtest import contracts
 
         return getattr(contracts, name)
-    if name in {"build_backtest_manifest", "generate_decision_times", "run_backtest"}:
+    if name in {
+        "build_backtest_manifest",
+        "generate_decision_times",
+        "run_backtest",
+        "run_target_backtest",
+    }:
         from eurogas_nexus.domain.backtest import engine
 
         return getattr(engine, name)

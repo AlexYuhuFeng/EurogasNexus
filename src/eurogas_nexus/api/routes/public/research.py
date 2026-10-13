@@ -285,12 +285,16 @@ class BacktestRequest(BaseModel):
         start_utc: Backtest start (ISO).
         end_utc: Backtest end (ISO).
         trades: Trade records.
+        capital_base_eur: Capital at risk, used only as the denominator of
+            ``max_drawdown_pct``. ``0`` means none is declared, and the percent
+            is then reported only once the cumulative PnL has been positive.
     """
 
     strategy_name: str = ""
     start_utc: str = ""
     end_utc: str = ""
     trades: list[TradeRecordRequest] = Field(default_factory=list)
+    capital_base_eur: float = Field(default=0.0, ge=0.0)
 
 
 class ShadowSignalRequest(BaseModel):
@@ -561,6 +565,7 @@ def post_backtest(body: BacktestRequest, request: Request) -> dict:
         start_utc=body.start_utc,
         end_utc=body.end_utc,
         trades=[t.model_dump() for t in body.trades],
+        capital_base_eur=body.capital_base_eur,
     )
     result = compute_backtest(input_)
     return _envelope(result)
@@ -751,6 +756,7 @@ def _envelope(result) -> dict:
         data["loss_count"] = result.loss_count
         data["win_rate_pct"] = result.win_rate_pct
         data["sharpe_ratio"] = result.sharpe_ratio
+        data["max_drawdown_eur"] = result.max_drawdown_eur
         data["max_drawdown_pct"] = result.max_drawdown_pct
         data["status"] = str(result.status)
 

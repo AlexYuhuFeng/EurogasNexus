@@ -1,4 +1,4 @@
-﻿# Market Positioning Cockpit Spec - EN
+# Market Positioning Cockpit Spec - EN
 
 ## Purpose
 

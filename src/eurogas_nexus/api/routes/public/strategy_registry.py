@@ -429,6 +429,23 @@ def _post_evaluation_run(
     return _env(data, request, source="runtime-postgresql")
 
 
+def _backtest_refusal(exc: ValueError) -> HTTPException:
+    """Map one backtest-service refusal to the documented 422 shape.
+
+    The application service raises structured refusals that carry a stable
+    ``code`` (the CR-04 target-declaration guard, for example). Those codes are
+    part of the contract the client renders, so they are echoed verbatim; any
+    other ``ValueError`` keeps the existing generic code. A backtest run is
+    created through exactly one service entry point, so the single-run and
+    experiment entry points cannot disagree about what a refusal means.
+    """
+
+    code = getattr(exc, "code", None)
+    if not isinstance(code, str) or not code:
+        code = "backtest_request_invalid"
+    return HTTPException(status_code=422, detail={"code": code, "message": str(exc)})
+
+
 def _post_backtest_run(
     body: StrategyRunCreateRequest, request: Request
 ) -> dict:
@@ -513,10 +530,7 @@ def _post_backtest_run(
                     requested_at_utc=None,
                 )
             except ValueError as exc:
-                raise HTTPException(
-                    status_code=422,
-                    detail={"code": "backtest_request_invalid", "message": str(exc)},
-                ) from exc
+                raise _backtest_refusal(exc) from exc
             job.add_output(f"strategy_run:{row.run_id}")
         data = strategy_run_payload(row)
     if body.analysis_snapshot_id:

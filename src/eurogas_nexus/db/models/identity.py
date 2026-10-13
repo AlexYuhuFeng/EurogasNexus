@@ -24,9 +24,9 @@ class IdentityPrincipalRecord(Base):
         Index("ix_identity_principals_role_status", "role", "status"),
     )
 
-    principal_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    principal_id: Mapped[str] = mapped_column(String(80), primary_key=True)
     principal_type: Mapped[str] = mapped_column(String(16), nullable=False)
-    name: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    name: Mapped[str] = mapped_column(String(80), nullable=False, unique=True)
     display_name: Mapped[str] = mapped_column(String(128), nullable=False)
     role: Mapped[str] = mapped_column(String(32), nullable=False)
     roles: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
@@ -51,8 +51,14 @@ class IdentityPrincipalRecord(Base):
 class IdentityApiKeyRecord(Base):
     """One hashed bearer API key bound to a principal.
 
-    ``key_hash`` is the SHA-256 hex digest of the generated secret; the full
-    bearer token is ``nexus_<key_id>_<secret>``.
+    ``key_hash`` holds either the legacy unkeyed SHA-256 hex digest (64
+    characters) or the keyed ``hmac:<sha256-hex>`` digest (69 characters) that
+    ``hash_key_secret`` produces once ``EUROGAS_NEXUS_SECRET_KEY`` is configured;
+    the full bearer token is ``nexus_<key_id>_<secret>``. The column is wider than
+    either digest so the keyed form fits: at ``String(64)`` PostgreSQL refused
+    every insert with ``22001``, which made minting an API key impossible on any
+    deployment that set the credential-encryption key. Migration
+    ``0039_identity_api_key_hash_width`` widens it.
     """
 
     __tablename__ = "identity_api_keys"
@@ -66,7 +72,7 @@ class IdentityApiKeyRecord(Base):
         ForeignKey("identity_principals.principal_id"),
         nullable=False,
     )
-    key_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    key_hash: Mapped[str] = mapped_column(String(80), nullable=False)
     key_prefix: Mapped[str] = mapped_column(String(16), nullable=False)
     display_name: Mapped[str] = mapped_column(String(128), nullable=False)
     expires_at_utc: Mapped[datetime | None] = mapped_column(
@@ -83,7 +89,7 @@ class IdentityApiKeyRecord(Base):
     )
     is_bootstrap: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     scopes: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
-    created_by: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    created_by: Mapped[str | None] = mapped_column(String(80), nullable=True)
 
 
 class IdentityExternalIdRecord(Base):
@@ -95,7 +101,7 @@ class IdentityExternalIdRecord(Base):
         Index("ix_identity_external_ids_email", "email"),
     )
 
-    identity_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    identity_id: Mapped[str] = mapped_column(String(80), primary_key=True)
     principal_id: Mapped[str] = mapped_column(
         String(64),
         ForeignKey("identity_principals.principal_id"),
@@ -103,7 +109,7 @@ class IdentityExternalIdRecord(Base):
     )
     issuer: Mapped[str] = mapped_column(String(256), nullable=False)
     subject: Mapped[str] = mapped_column(String(256), nullable=False)
-    provider_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    provider_id: Mapped[str] = mapped_column(String(80), nullable=False)
     email: Mapped[str | None] = mapped_column(String(254), nullable=True)
     display_name: Mapped[str] = mapped_column(String(128), nullable=False)
     created_at_utc: Mapped[datetime] = mapped_column(
@@ -124,13 +130,13 @@ class UserSessionRecord(Base):
         Index("uq_user_sessions_token", "session_token_hash", unique=True),
     )
 
-    session_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    session_id: Mapped[str] = mapped_column(String(80), primary_key=True)
     principal_id: Mapped[str] = mapped_column(
         String(64),
         ForeignKey("identity_principals.principal_id"),
         nullable=False,
     )
-    session_token_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    session_token_hash: Mapped[str] = mapped_column(String(80), nullable=False)
     created_at_utc: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False
     )
@@ -160,8 +166,8 @@ class OidcAuthorizationStateRecord(Base):
     state: Mapped[str] = mapped_column(String(128), primary_key=True)
     code_challenge: Mapped[str] = mapped_column(String(128), nullable=False)
     code_challenge_method: Mapped[str] = mapped_column(String(16), nullable=False)
-    code_verifier_hash: Mapped[str] = mapped_column(String(64), nullable=False)
-    nonce: Mapped[str] = mapped_column(String(64), nullable=False)
+    code_verifier_hash: Mapped[str] = mapped_column(String(80), nullable=False)
+    nonce: Mapped[str] = mapped_column(String(80), nullable=False)
     redirect_uri: Mapped[str] = mapped_column(String(512), nullable=False)
     flow_type: Mapped[str] = mapped_column(String(16), nullable=False, default="browser")
     client_type: Mapped[str] = mapped_column(String(16), nullable=False, default="browser")

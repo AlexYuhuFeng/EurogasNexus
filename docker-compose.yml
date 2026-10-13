@@ -1,20 +1,74 @@
+# Eurogas Nexus — LOCAL ACCEPTANCE PostgreSQL (single normal local entry).
+#
+# This is the one local Docker database contract for this repository:
+#
+#   * project                : eurogas-nexus-pg
+#   * container              : eurogas-nexus-postgres
+#   * image                  : official Docker Hub library postgres:16-alpine
+#   * volume                 : EXTERNAL eurogas-nexus-postgres-data (already verified and
+#                              populated by the reviewed cluster migration). `external: true`
+#                              makes startup FAIL CLOSED when the volume is missing instead of
+#                              silently creating an empty database.
+#   * data directory         : /var/lib/postgresql/data/pgdata (PGDATA)
+#   * published address      : loopback only, 127.0.0.1:51356 (never a public bind)
+#   * superuser credential   : file secret only (no literal password anywhere)
+#   * authentication         : scram-sha-256 for local AND host connections (no trust)
+#   * text search            : default_text_search_config=pg_catalog.simple, preserving the
+#                              verified source cluster's behaviour (the Alpine template default
+#                              is `english`; the two are not interchangeable for word parsing)
+#
+# The reviewed, now-historical migration artefacts live in
+# .dnx-out/docker-postgres-20261008/ (ignored). They created this container, volume and secret.
+# `scripts/ops/Start-LocalAcceptance.ps1` is the single tracked local API+Web+Docker startup and
+# drives this file. The separate production release deployment template
+# deploy/runtime/compose.yaml is NOT this file and is never pointed at this local instance.
+#
+# Local secret setup (value never printed or committed):
+#   The ignored file `.dnx-out/docker-postgres-20261008/secrets/postgres_superuser_password.txt`
+#   is the superuser secret that initialised the verified volume. It must already exist; this
+#   compose fails closed if it does not. Do NOT regenerate it for an existing volume: the
+#   POSTGRES_PASSWORD_FILE value only has effect at first initdb, so a new value would silently
+#   disagree with the stored scram verifier. The ignored application DSN lives in
+#   .dnx-out/user-uat.env (also never printed).
+#
+# Not for production. Destructive reset (`down -v`) is deliberately NOT part of this contract:
+# the verified volume is retained evidence and must never be removed by a normal command.
+
+name: eurogas-nexus-pg
+
 services:
   postgres:
-    image: postgres:16-alpine
-    container_name: eurogas-nexus-db
+    image: docker.io/library/postgres:16-alpine
+    container_name: eurogas-nexus-postgres
+    restart: unless-stopped
     environment:
-      POSTGRES_DB: eurogas_nexus
-      POSTGRES_USER: eurogas
-      POSTGRES_PASSWORD: eurogas_dev
+      POSTGRES_DB: nexus_browser
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD_FILE: /run/secrets/pg_superuser_password
+      POSTGRES_INITDB_ARGS: "--auth-local=scram-sha-256 --auth-host=scram-sha-256"
+      PGDATA: /var/lib/postgresql/data/pgdata
+    command:
+      - postgres
+      - -c
+      - default_text_search_config=pg_catalog.simple
     ports:
-      - "5432:5432"
+      - "127.0.0.1:51356:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - eurogas-nexus-postgres-data:/var/lib/postgresql/data
+    secrets:
+      - pg_superuser_password
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U eurogas -d eurogas_nexus"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432 -U postgres -d nexus_browser"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 30
+      start_period: 30s
+
+secrets:
+  pg_superuser_password:
+    file: ./.dnx-out/docker-postgres-20261008/secrets/postgres_superuser_password.txt
 
 volumes:
-  pgdata:
+  eurogas-nexus-postgres-data:
+    external: true
+    name: eurogas-nexus-postgres-data

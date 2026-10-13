@@ -7,6 +7,11 @@
     "destination": "release-identity.json"
   },
   "forbidden_member_globs": [
+    "**/.dnx*/**",
+    "**/seed_*.py",
+    "**/*simulated_market_prices*",
+    "**/scripts/uat/**",
+    "**/deploy/development/**",
     "**/.automation/**",
     "**/docs/engineering/**",
     "**/tests/**",

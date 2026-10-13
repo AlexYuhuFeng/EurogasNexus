@@ -17,6 +17,54 @@
 export const MISSING_DATA_POLICIES = ["FAIL", "SKIP_DECISION", "CARRY_FORWARD_WITH_MAX_AGE"] as const;
 export const TRANSACTION_COST_TREATMENTS = ["UNAVAILABLE", "MODELED_COST", "EXCLUDED"] as const;
 
+/**
+ * Which declared price-name keys each component type requires evidence for.
+ *
+ * Mirrors the backend evidence contract; the surface uses it only to *disclose*
+ * a missing declaration. The server remains the authority: a stale client that
+ * says READY still receives the structured ``target_delivery_not_declared``
+ * refusal.
+ */
+const COMPONENT_EVIDENCE_NAME_KEYS: Record<string, readonly string[]> = {
+  OCM_VS_DAY_AHEAD: ["day_ahead_price_names", "intraday_price_names"],
+};
+
+/**
+ * Whether a frozen definition declares a target for every required price name.
+ *
+ * A light, read-only projection of the backend rule so the preflight can show
+ * "declare a target" instead of READY. It never authorizes a run by itself.
+ */
+export function strategyEvidenceDeclarationComplete(
+  definition: Record<string, unknown> | undefined | null,
+): boolean {
+  if (!definition) return false;
+  const components = Array.isArray(definition.components) ? definition.components : [];
+  if (components.length === 0) return false;
+  return components.every((entry) => {
+    if (!entry || typeof entry !== "object") return false;
+    const component = entry as Record<string, unknown>;
+    const keys = COMPONENT_EVIDENCE_NAME_KEYS[String(component.component_type ?? "")];
+    if (!keys) return false;
+    const extension = (component.extension_json as Record<string, unknown>) ?? {};
+    const required = keys.flatMap((key) =>
+      Array.isArray(extension[key]) ? (extension[key] as unknown[]).map((item) => String(item)) : [],
+    );
+    if (required.length === 0) return false;
+    const targets = Array.isArray(component.evidence_targets)
+      ? (component.evidence_targets as Record<string, unknown>[])
+      : [];
+    const declared = new Set(
+      targets.flatMap((target) =>
+        Array.isArray(target.price_names)
+          ? (target.price_names as unknown[]).map((name) => String(name).toUpperCase())
+          : [],
+      ),
+    );
+    return required.every((name) => declared.has(name.toUpperCase()));
+  });
+}
+
 export type MissingDataPolicy = (typeof MISSING_DATA_POLICIES)[number];
 export type TransactionCostTreatment = (typeof TRANSACTION_COST_TREATMENTS)[number];
 
@@ -54,11 +102,22 @@ export function strategyBacktestReadiness(input: {
   readonly draft: StrategyBacktestDraft;
   /** The selected version is frozen, i.e. its numbers can no longer move under the run. */
   readonly frozen: boolean;
+  /**
+   * The frozen definition declares a complete per-leg evidence target mapping.
+   * An undeclared version is refused by the server, so the preflight must not
+   * show READY while the obvious declaration is missing. Defaults to `true` so
+   * callers that do not project the definition keep their previous behaviour and
+   * still rely on the server's refusal.
+   */
+  readonly evidenceDeclared?: boolean;
   /** A run (or the reads that feed the surface) is already in flight. */
   readonly running: boolean;
 }): StrategyBacktestReadiness {
   const blockerKeys: string[] = [];
   if (!input.frozen) blockerKeys.push("strategy_lab.blocker.frozen_required");
+  if (input.evidenceDeclared === false) {
+    blockerKeys.push("strategy_lab.blocker.evidence_target_missing");
+  }
   const { start, end, transactionCostTreatment, transactionCost } = input.draft;
   if (!start || !end || start >= end) blockerKeys.push("strategy_lab.blocker.period");
   if (transactionCostTreatment === "MODELED_COST" && Number.isNaN(Number(transactionCost))) {

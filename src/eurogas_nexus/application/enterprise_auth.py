@@ -20,6 +20,7 @@ login issues an equivalent opaque backend session.
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import secrets
 from collections.abc import Callable
@@ -84,14 +85,21 @@ class LoginResult:
 
 
 def pkce_pair() -> tuple[str, str]:
-    """Return (verifier, S256 challenge) for one login."""
+    """Return ``(verifier, S256 challenge)`` for one login.
+
+    RFC 7636 section 4.2 defines the S256 challenge as
+    ``BASE64URL-ENCODE(SHA256(ASCII(code_verifier)))`` with the padding removed.
+    A conformant authorization server recomputes that value from the verifier
+    sent to the token endpoint and rejects the exchange with ``invalid_grant``
+    when the two differ, so a hex digest here fails every login against a
+    compliant provider. RFC 7636 section 4.1 also requires the verifier to be a
+    high-entropy string of unreserved characters, which ``token_urlsafe`` gives.
+    """
 
     verifier = secrets.token_urlsafe(48)
-    challenge = (
-        hashlib.sha256(verifier.encode("ascii"))
-        .digest()
-        .hex()
-    )
+    challenge = base64.urlsafe_b64encode(
+        hashlib.sha256(verifier.encode("ascii")).digest()
+    ).rstrip(b"=").decode("ascii")
     return verifier, challenge
 
 

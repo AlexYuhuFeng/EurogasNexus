@@ -208,6 +208,36 @@
   width: auto;
 }
 
+/* CR-04 per-leg evidence declarations: one bounded block per price leg. */
+.strategy-evidence {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-subtle, #d9dee7);
+}
+
+.strategy-evidence-leg {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border-subtle, #d9dee7);
+  border-radius: 6px;
+}
+
+.strategy-evidence-leg legend {
+  padding: 0 6px;
+  color: var(--text-muted, #58657a);
+  font-size: 11.5px;
+}
+
+.strategy-evidence-leg .panel-copy {
+  margin: 0;
+}
+
 .strategy-design-actions {
   display: flex;
   gap: 8px;

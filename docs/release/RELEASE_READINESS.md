@@ -50,9 +50,19 @@ by a CLI flag.
 
 - Full local Python suite and Web tests/build: see `docs/product/SCHEDULED_AGENT_STATE.md`
   (updated after CR-15 validation).
-- OpenAPI public surface: **163 paths** (`/api/runtime/release`, CR-14 research data
-  routes, CR-15 agent/capability routes, and the development-only
-  `/api/dev/auth/login` added), pinned and permission-declared.
+- OpenAPI public surface: **182 paths / 194 operations**
+  (`/api/runtime/release`, CR-14 research data routes, CR-15 agent/capability
+  routes, and the development-only `/api/dev/auth/login` added), pinned and
+  permission-declared. Measure it rather than quoting this line:
+
+  ```
+  python -c "import sys; sys.path.insert(0, '.'); from apps.api.main import app; print(len(app.openapi()['paths']), sum(len(o) for o in app.openapi()['paths'].values()))"
+  ```
+
+  This line said 163 until 2026-10-07; the surface had grown by 19 paths and
+  nothing compared the claim with the application, so a reviewer counting them
+  found a discrepancy instead of a figure. The command above is the authority,
+  and tests/contract/test_openapi_surface_claim.py fails when the two disagree.
 - Version consistency: `python scripts/release/check_version_consistency.py`
   passes across pyproject, runtime module, Web/desktop package files,
   tauri/Cargo metadata, docs, install scripts, and the release workflow.

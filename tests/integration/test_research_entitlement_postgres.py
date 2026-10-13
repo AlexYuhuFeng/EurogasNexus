@@ -793,7 +793,7 @@ def test_builder_row_filtering_excludes_denied_and_unregistered_rows(
         # Persist the ICE_OCM build: the real built snapshot is readable by the
         # wildcard grant and denied to the ENTSOG-scoped identity, and its export
         # is refused from canonical provenance (not from the stored envelope).
-        persisted = repo.persist_dataset_snapshot(
+        persisted, _created = repo.persist_dataset_snapshot(
             session,
             metadata=ice.as_metadata(),
             dependencies=[],

@@ -10,6 +10,13 @@ permissions:
   contents: read
 
 env:
+  # Declared once. `.python-version`, `.nvmrc` and `rust-toolchain.toml` are the
+  # canonical files a developer toolchain reads; these mirror them for the runner,
+  # and `scripts/ci/check_toolchain_versions.py` fails the build when any of the
+  # five places disagree. Six hard-coded copies of the Python version used to sit
+  # throughout this file, so bumping a toolchain meant finding them all.
+  PYTHON_VERSION: "3.11.12"
+  NODE_VERSION: "24.13.1"
   RUST_TOOLCHAIN: "1.94.0"
 
 jobs:
@@ -23,16 +30,49 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
-          python-version: "3.11.12"
+          python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install package
-        run: python -m pip install -e ".[dev]"
+      - name: Install package from hash-pinned locks
+        # This job produces the G1 evidence the release gate trusts, so its
+        # dependencies must be the locked ones. Installing the `.[dev]` extra
+        # resolved versions from the index at run time, which meant the build whose
+        # green result authorises publication was not reproducible and could drift.
+        run: |
+          python -m pip install --require-hashes -r requirements-build.lock -r requirements.lock
+          python -m pip install --no-deps --no-build-isolation -e .
 
       - name: Ruff
         run: ruff check .
 
       - name: Markdown links
         run: python scripts/ci/check_markdown_links.py
+
+      - name: Configuration contract
+        # Every environment variable the code reads must be declared in
+        # src/eurogas_nexus/core/config_contract.py, every declaration must have a
+        # read site, and no shipped template may set an undeclared variable. This is
+        # what keeps .env.example from drifting away from the code, which is how the
+        # runtime DB URL, the credential key and the whole OIDC block came to be
+        # undocumented, and how a flag nothing reads came to be documented as a control.
+        run: python scripts/ci/check_config_contract.py
+
+      - name: Environment templates are current
+        run: python scripts/ci/generate_env_template.py --check
+
+      - name: Toolchain versions agree
+        # .python-version / .nvmrc / rust-toolchain.toml are canonical; pyproject,
+        # both client engines fields, the workflow env blocks and the lock headers
+        # must all match them. A partial bump leaves a developer or a runner on an
+        # interpreter the lock file was not compiled for.
+        run: python scripts/ci/check_toolchain_versions.py
+
+      - name: Configuration preflight (release-shaped environment)
+        # A complete release environment must pass with no findings at all. This is
+        # the gate that fails here rather than on a customer's first start-up when a
+        # contract change would break a valid production configuration. It runs in
+        # the same image the deployment uses, so it also proves the shipped check
+        # script is present and runnable in the operator's runtime.
+        run: python scripts/ops/check_config.py --env-file scripts/ci/fixtures/release.env --strict
 
       - name: Tests
         run: pytest -q tests
@@ -69,7 +109,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
-          python-version: "3.11.12"
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install package from hash-pinned locks
         run: |
@@ -85,8 +125,19 @@ jobs:
         # conservative lock coverage rather than shipped-artifact proof.
         run: python scripts/ci/audit_dependencies.py --npm-lock clients/web/package-lock.json --npm-lock clients/desktop/package-lock.json
 
-      - name: CVE audit (pip-audit)
+      - name: CVE audit (pip-audit, installed environment)
+        # Audits what is actually installed in this job. Kept because it also sees
+        # transitive packages the locks do not name, but on its own it only proves
+        # the CI environment is clean - not that the set a customer receives is.
         run: python -m pip_audit
+
+      - name: CVE audit (pip-audit, shipped lock set)
+        # Audits the declared dependency set rather than this environment, so the
+        # result is a statement about what ships: the runtime lock is the image's
+        # dependency set, and the full lock covers the development extras.
+        run: |
+          python -m pip_audit -r requirements-runtime.lock
+          python -m pip_audit -r requirements.lock
 
       - name: Set up Rust for locked metadata audit
         uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
@@ -114,7 +165,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
-          python-version: "3.11.12"
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install the runtime lock into an isolated venv
         # Only requirements-runtime.lock is installed, hash-checked, into a throwaway
@@ -181,10 +232,12 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
-          python-version: "3.11.12"
+          python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install package
-        run: python -m pip install -e ".[dev]"
+      - name: Install package from hash-pinned locks
+        run: |
+          python -m pip install --require-hashes -r requirements-build.lock -r requirements.lock
+          python -m pip install --no-deps --no-build-isolation -e .
 
       - name: PostgreSQL migrations + DB-backed smoke tests
         run: bash scripts/ci/run_postgres_ci.sh
@@ -199,7 +252,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
-          node-version: "24.13.1"
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: clients/web/package-lock.json
 
@@ -263,27 +316,36 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
-          python-version: "3.11.12"
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Set up Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
-          node-version: "24.13.1"
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: clients/web/package-lock.json
 
-      - name: Install application dependencies
-        run: python -m pip install -e ".[dev]"
+      - name: Install application dependencies from hash-pinned locks
+        run: |
+          python -m pip install --require-hashes -r requirements-build.lock -r requirements.lock
+          python -m pip install --no-deps --no-build-isolation -e .
 
       - name: Install Web dependencies
         working-directory: clients/web
         run: npm ci
 
       - name: Install pinned browser acceptance tools
+        # Installed from a committed lock file with integrity hashes rather than
+        # `npm install playwright@1.55.0`, which resolved the dependency tree from
+        # the registry at run time and verified no hash. This job's result is the
+        # G1 evidence the release gate consumes, so the tools that produce it are
+        # supply-chain surface too. The store is cached so a frozen install stays
+        # cheap.
         run: |
-          mkdir -p /tmp/eurogas-uat
-          npm install --prefix /tmp/eurogas-uat --no-package-lock --no-save playwright@1.55.0 axe-core@4.10.3
-          node /tmp/eurogas-uat/node_modules/playwright/cli.js install --with-deps chromium
+          corepack enable
+          corepack prepare pnpm@11.7.0 --activate
+          pnpm --dir scripts/ci/browser-acceptance install --frozen-lockfile
+          node scripts/ci/browser-acceptance/node_modules/playwright/cli.js install --with-deps chromium
 
       - name: Migrate and seed deterministic UAT runtime
         run: |
@@ -334,8 +396,8 @@ jobs:
 
       - name: Run whole-product browser acceptance
         env:
-          EUROGAS_UAT_PLAYWRIGHT_PATH: /tmp/eurogas-uat/node_modules/playwright/index.js
-          EUROGAS_UAT_AXE_PATH: /tmp/eurogas-uat/node_modules/axe-core/axe.min.js
+          EUROGAS_UAT_PLAYWRIGHT_PATH: scripts/ci/browser-acceptance/node_modules/playwright/index.js
+          EUROGAS_UAT_AXE_PATH: scripts/ci/browser-acceptance/node_modules/axe-core/axe.min.js
           EUROGAS_UAT_OUTPUT_DIR: artifacts/uat-browser
         run: |
           set +e
@@ -396,7 +458,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
-          node-version: "24.13.1"
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: |
             clients/web/package-lock.json

@@ -98,6 +98,14 @@ def load_backtest_evidence_pool(
                 source_reference=row.source_reference,
                 simulated=bool(metadata.get("simulated", False)),
                 temporal_integrity=integrity,
+                # Normalized CR-04 evidence classification: only explicit
+                # metadata is trusted. The legacy ``price_type`` heuristic above
+                # (from source/price_timing) is never used to assign a role,
+                # basis or reference validity.
+                evidence_role=_normalized_evidence_role(metadata.get("evidence_role")),
+                price_basis=_normalized_price_basis(
+                    metadata.get("price_basis") or metadata.get("price_type")
+                ),
             )
         )
 
@@ -113,6 +121,7 @@ def load_backtest_evidence_pool(
         for price_type, price in _quote_side_prices(row):
             if price is None:
                 continue
+            evidence_role, price_basis = _quote_evidence_normalization(row, price_type)
             observations.append(
                 BacktestObservation(
                     observation_id=f"{row.quote_id}:{price_type.lower()}",
@@ -138,6 +147,8 @@ def load_backtest_evidence_pool(
                         received_at_utc=row.received_at_utc,
                         observed_at_utc=row.observed_at_utc,
                     )[0],
+                    evidence_role=evidence_role,
+                    price_basis=price_basis,
                 )
             )
 
@@ -452,7 +463,60 @@ def _observation_price_type(metadata: dict) -> str:
     return "mid"
 
 
+#: Quote sides that the normalized deliverable-quote schema can classify
+#: without guessing. A ``LAST`` print is an explicit trade price but not a
+#: declared side, so it is left unknown rather than promoted to a deliverable.
+_QUOTE_DELIVERABLE_SIDES = {"BID", "ASK", "MID"}
+_NORMALIZED_EVIDENCE_ROLES = {"DELIVERY_PRICE", "REFERENCE_LEVEL"}
+
+
+def _normalized_evidence_role(value: object) -> str | None:
+    """Map explicit metadata to a known role, or ``None`` when not stated.
+
+    A source name (``SAP``), a product label, a period or a unit never decides
+    whether a row is a deliverable quote or a reference level.
+    """
+
+    if value is None:
+        return None
+    normalized = str(value).strip().upper()
+    return normalized if normalized in _NORMALIZED_EVIDENCE_ROLES else None
+
+
+def _normalized_price_basis(value: object) -> str | None:
+    """Normalize an explicitly stated quotation basis, or ``None``."""
+
+    if value is None:
+        return None
+    normalized = str(value).strip().upper()
+    return normalized or None
+
+
+def _quote_evidence_normalization(
+    row: MarketQuoteRecord, price_type: str
+) -> tuple[str | None, str | None]:
+    """Classify one deliverable-quote row, or leave it unknown.
+
+    A quote is deliverable evidence only when the row itself carries a valid
+    half-open delivery window (start strictly before end) and its explicit side
+    is one of the declared quote sides. Otherwise both the role and the basis
+    stay unknown, which blocks a target-aware leg instead of inventing one.
+    """
+
+    start = row.delivery_start_utc
+    end = row.delivery_end_utc
+    if start is None or end is None or _as_utc(start) >= _as_utc(end):
+        return (None, None)
+    side = price_type.strip().upper()
+    if side not in _QUOTE_DELIVERABLE_SIDES:
+        return (None, None)
+    return ("DELIVERY_PRICE", side)
+
+
 def _event_payload(row: BacktestDecisionEventRecord) -> dict:
+    attribution, evidence_selection_trace = _split_persisted_attribution(
+        row.attribution or []
+    )
     return {
         "event_id": row.event_id,
         "run_id": row.run_id,
@@ -481,10 +545,32 @@ def _event_payload(row: BacktestDecisionEventRecord) -> dict:
         "cost_evidence_refs": row.cost_evidence_refs or [],
         "resource_evidence_refs": row.resource_evidence_refs or [],
         "cost_trace": row.cost_trace or [],
-        "attribution": row.attribution or [],
+        "attribution": attribution,
+        "evidence_selection_trace": evidence_selection_trace,
         "research_only": row.research_only,
         "human_review_required": row.human_review_required,
     }
+
+
+def _split_persisted_attribution(value: list) -> tuple[list, list]:
+    """Separate financial attribution from the persisted selection trace.
+
+    The CR-04 evidence-selection trace is stored inside the existing event
+    ``attribution`` JSON under the clearly named ``evidence_selection``
+    dimension (no migration, no fake cost rows). Readers surface it as its own
+    field; financial attribution readers never see it.
+    """
+
+    financial: list = []
+    trace: list = []
+    for entry in value:
+        if isinstance(entry, dict) and entry.get("dimension") == "evidence_selection":
+            candidate = entry.get("trace")
+            if isinstance(candidate, list):
+                trace = candidate
+            continue
+        financial.append(entry)
+    return financial, trace
 
 
 def _series_payload(row: BacktestSeriesRecord) -> dict:

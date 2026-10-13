@@ -794,7 +794,27 @@ def test_ci_python_license_text_job_is_independent_and_reuses_pinned_actions() -
         assert uses == pinned[action], action
         assert ACTION_PIN_RE.match(uses), uses
 
-    assert _step("ci.yml", EVIDENCE_JOB, "Set up Python")["with"]["python-version"] == "3.11.12"
+    # The evidence job must run on the pinned interpreter. It now names that pin
+    # through the workflow env block instead of repeating the literal, so assert
+    # the reference resolves to the canonical version rather than matching text:
+    # `scripts/ci/check_toolchain_versions.py` guarantees the env block equals
+    # `.python-version`, and this asserts this job actually consumes it.
+    pin = _step("ci.yml", EVIDENCE_JOB, "Set up Python")["with"]["python-version"]
+    assert pin == "${{ env.PYTHON_VERSION }}", (
+        f"the evidence job must consume the shared PYTHON_VERSION pin, got {pin!r}"
+    )
+    assert payload["env"]["PYTHON_VERSION"] == _canonical_python_version(), (
+        "the workflow PYTHON_VERSION env value must equal .python-version"
+    )
+
+
+def _canonical_python_version() -> str:
+    """Return the interpreter pinned by ``.python-version``."""
+
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    return (root / ".python-version").read_text(encoding="utf-8").strip()
 
 
 def test_ci_python_license_text_job_installs_only_the_hash_checked_runtime_lock() -> None:

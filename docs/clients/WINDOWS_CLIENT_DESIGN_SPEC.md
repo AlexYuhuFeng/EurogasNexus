@@ -1,4 +1,4 @@
-﻿# Windows Client Design Spec
+# Windows Client Design Spec
 
 ## Objective
 

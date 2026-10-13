@@ -14,6 +14,7 @@ from typing import Any, Protocol
 
 from eurogas_nexus.domain.backtest.contracts import (
     BACKTEST_ENGINE_VERSION,
+    TARGET_BACKTEST_ENGINE_VERSION,
     BacktestDecisionEvent,
     BacktestEconomicAssumptions,
     BacktestEvidencePool,
@@ -22,6 +23,10 @@ from eurogas_nexus.domain.backtest.contracts import (
     BacktestResult,
     BacktestRunDefinition,
     BacktestSeriesPoint,
+)
+from eurogas_nexus.domain.backtest.target_selection import (
+    ComponentTargetSelection,
+    select_component_target_evidence,
 )
 from eurogas_nexus.domain.backtest.temporal import (
     apply_missing_data_policy,
@@ -44,10 +49,28 @@ from eurogas_nexus.domain.strategy_lab.evaluation import (
     StrategyPriceObservation,
     evaluate_strategy_lab,
 )
-from eurogas_nexus.domain.strategy_lab.registry import StrategyRunManifest
+from eurogas_nexus.domain.strategy_lab.registry import (
+    StrategyRunManifest,
+    StrategyVersionDefinition,
+)
 from eurogas_nexus.domain.strategy_lab.run_orchestration import (
     evaluation_scenario_from_version,
 )
+
+#: Share of evaluable decision points below which a run must say it covers only part of
+#: the requested period.
+#:
+#: The failure this prevents: a reviewer ran a 365-day backtest on a deployment whose first
+#: market observation was 306 days into the period. The engine behaved correctly -- those
+#: days were refused, counted as BLOCKED and excluded from the profit and loss -- but the
+#: run was stored as COMPLETED_WITH_WARNINGS whose only warning was "DATA QUALITY
+#: APPROXIMATE", and the surface presented "+51,009 GBP, Hit ratio 100%, Max drawdown 0" as
+#: the headline. `data_coverage` was 16.2% and accurate; nothing made it legible beside the
+#: profit figure, so a sixth of a year read as a year.
+#:
+#: Deliberately a warning, not a refusal: research over a short history is legitimate.
+#: Presenting it as a full-period result is not.
+MINIMUM_READABLE_BACKTEST_COVERAGE = 0.5
 
 
 class StrategyVersionLike(Protocol):
@@ -87,6 +110,64 @@ def run_backtest(
     run_id: str,
     requested_by: str,
 ) -> BacktestResult:
+    """Execute one full backtest with the deterministic legacy (engine/1) rules.
+
+    This is the pure legacy helper. The application never calls it for a new
+    historical run: ``run_target_backtest`` is the target-aware path, and the
+    application guard refuses an undeclared frozen version instead of falling
+    back here. It is kept explicit and unchanged for engine/1 research and
+    deterministic old-semantics verification.
+    """
+
+    return _run_backtest_impl(
+        version=version,
+        pool=pool,
+        definition=definition,
+        run_id=run_id,
+        requested_by=requested_by,
+        engine_version=BACKTEST_ENGINE_VERSION,
+        target_definition=None,
+    )
+
+
+def run_target_backtest(
+    *,
+    version: StrategyVersionLike,
+    pool: BacktestEvidencePool,
+    definition: BacktestRunDefinition,
+    run_id: str,
+    requested_by: str,
+    target_definition: StrategyVersionDefinition,
+) -> BacktestResult:
+    """Execute one target-aware (engine/2) historical backtest.
+
+    Every required price leg must already be declared and mapped; the caller
+    validates that mapping first. This function never falls back to the legacy
+    name-only selection when a leg cannot be matched: the leg is blocked with a
+    concrete reason and the event reports it.
+    """
+
+    return _run_backtest_impl(
+        version=version,
+        pool=pool,
+        definition=definition,
+        run_id=run_id,
+        requested_by=requested_by,
+        engine_version=TARGET_BACKTEST_ENGINE_VERSION,
+        target_definition=target_definition,
+    )
+
+
+def _run_backtest_impl(
+    *,
+    version: StrategyVersionLike,
+    pool: BacktestEvidencePool,
+    definition: BacktestRunDefinition,
+    run_id: str,
+    requested_by: str,
+    engine_version: str,
+    target_definition: StrategyVersionDefinition | None,
+) -> BacktestResult:
     """Execute one full backtest and return the semantic result."""
 
     decision_times = generate_decision_times(definition)
@@ -107,6 +188,7 @@ def run_backtest(
             decision_time_utc=decision_time,
             previous_cumulative_net=cumulative_net,
             previous_exposure=exposure,
+            target_definition=target_definition,
         )
         if event.outcome in {
             BacktestOutcomeStatus.COMPLETED.value,
@@ -147,7 +229,7 @@ def run_backtest(
         strategy_id=version.strategy_id,
         strategy_version_id=version.strategy_version_id,
         experiment_id=definition.experiment_id,
-        backtest_engine_version=BACKTEST_ENGINE_VERSION,
+        backtest_engine_version=engine_version,
         temporal_integrity=temporal_integrity,
         status=status,
         events=events,
@@ -202,8 +284,14 @@ def _evaluate_decision_event(
     decision_time_utc: datetime,
     previous_cumulative_net: float,
     previous_exposure: float,
+    target_definition: StrategyVersionDefinition | None = None,
 ) -> BacktestDecisionEvent:
-    """Evaluate one decision event with as-of evidence and explicit economics."""
+    """Evaluate one decision event with as-of evidence and explicit economics.
+
+    ``target_definition`` selects the evidence-selection rules. ``None`` keeps
+    the deterministic legacy (engine/1) name-only selection exactly as it was;
+    a parsed definition runs the target-aware (engine/2) selection instead.
+    """
 
     assumptions = definition.economic_assumptions
     gas_day, gas_day_start, gas_day_end = gas_day_window(
@@ -220,57 +308,45 @@ def _evaluate_decision_event(
     base_scenario = evaluation_scenario_from_version(version)
     raw_components = (version.definition_json or {}).get("components", [])
     selected_rows: list[BacktestObservation] = []
+    selection_trace: list[dict[str, Any]] = []
     for index, component in enumerate(base_scenario.components):
         raw = dict(raw_components[index]) if index < len(raw_components) else {}
-        hubs = {str(item).upper() for item in raw.get("hubs") or []}
-        tenors = {str(item).lower() for item in raw.get("tenors") or []}
-        day_names = {name.upper() for name in component.day_ahead_price_names}
-        intraday_names = {name.upper() for name in component.intraday_price_names}
-        required = day_names | intraday_names
-        eligible = as_of_price_observations(
-            pool,
-            decision_time_utc,
-            required_price_names=required,
-            hubs=hubs or None,
-            tenors=tenors or None,
-            bar_minutes=component.target_bar_minutes,
-            fill_price_policy=assumptions.fill_price_policy,
-        )
-        all_eligible = (
-            as_of_price_observations(
-                pool,
-                decision_time_utc,
-                hubs=hubs or None,
-                tenors=tenors or None,
-                bar_minutes=component.target_bar_minutes,
-                fill_price_policy=assumptions.fill_price_policy,
+        if target_definition is None:
+            rows, component_warnings, component_blockers = (
+                _select_legacy_component_rows(
+                    pool=pool,
+                    component=component,
+                    raw=raw,
+                    assumptions=assumptions,
+                    decision_time_utc=decision_time_utc,
+                )
             )
-            if assumptions.missing_data_policy
-            == MissingDataPolicy.USE_APPROVED_FALLBACK_SOURCE
-            else None
-        )
-        day_selected, day_warnings, day_blockers = apply_missing_data_policy(
-            eligible,
-            series_names=day_names,
-            decision_time_utc=decision_time_utc,
-            assumptions=assumptions,
-            fallback_rows=all_eligible,
-        )
-        intraday_selected, intraday_warnings, intraday_blockers = (
-            apply_missing_data_policy(
-                eligible,
-                series_names=intraday_names,
-                decision_time_utc=decision_time_utc,
-                assumptions=assumptions,
-                fallback_rows=all_eligible,
+        else:
+            trailing = (
+                target_definition.components[index]
+                if index < len(target_definition.components)
+                else None
             )
-        )
-        selected_rows.extend(day_selected)
-        selected_rows.extend(intraday_selected)
-        warnings.extend(day_warnings)
-        warnings.extend(intraday_warnings)
-        missing.extend(day_blockers)
-        missing.extend(intraday_blockers)
+            if trailing is None:
+                rows, component_warnings, component_blockers = (
+                    (),
+                    (),
+                    ("EVIDENCE_TARGET_NOT_DECLARED:missing-component",),
+                )
+            else:
+                selection: ComponentTargetSelection = select_component_target_evidence(
+                    pool=pool,
+                    component=trailing,
+                    assumptions=assumptions,
+                    decision_time_utc=decision_time_utc,
+                )
+                rows = selection.rows
+                component_warnings = selection.warnings
+                component_blockers = selection.blockers
+                selection_trace.extend(selection.leg_traces)
+        selected_rows.extend(rows)
+        warnings.extend(component_warnings)
+        missing.extend(component_blockers)
 
     selected_rows, duplicate_warnings = _dedupe_conflicting_observations(
         selected_rows
@@ -356,6 +432,7 @@ def _evaluate_decision_event(
             cost_trace=[],
             attribution=[],
             definition=definition,
+            evidence_selection_trace=selection_trace,
         )
 
     cost_trace, modeled_costs, cost_blockers = _modeled_costs(
@@ -432,7 +509,68 @@ def _evaluate_decision_event(
         gross=gross,
         modeled=modeled,
         net=net,
+        evidence_selection_trace=selection_trace,
     )
+
+
+def _select_legacy_component_rows(
+    *,
+    pool: BacktestEvidencePool,
+    component,
+    raw: dict[str, Any],
+    assumptions: BacktestEconomicAssumptions,
+    decision_time_utc: datetime,
+) -> tuple[list[BacktestObservation], list[str], list[str]]:
+    """The unchanged engine/1 name-only selection for one component.
+
+    Kept as an explicit helper so the legacy numerics can be asserted directly
+    and so the target-aware path can never silently reuse it.
+    """
+
+    hubs = {str(item).upper() for item in raw.get("hubs") or []}
+    tenors = {str(item).lower() for item in raw.get("tenors") or []}
+    day_names = {name.upper() for name in component.day_ahead_price_names}
+    intraday_names = {name.upper() for name in component.intraday_price_names}
+    required = day_names | intraday_names
+    eligible = as_of_price_observations(
+        pool,
+        decision_time_utc,
+        required_price_names=required,
+        hubs=hubs or None,
+        tenors=tenors or None,
+        bar_minutes=component.target_bar_minutes,
+        fill_price_policy=assumptions.fill_price_policy,
+    )
+    all_eligible = (
+        as_of_price_observations(
+            pool,
+            decision_time_utc,
+            hubs=hubs or None,
+            tenors=tenors or None,
+            bar_minutes=component.target_bar_minutes,
+            fill_price_policy=assumptions.fill_price_policy,
+        )
+        if assumptions.missing_data_policy == MissingDataPolicy.USE_APPROVED_FALLBACK_SOURCE
+        else None
+    )
+    day_selected, day_warnings, day_blockers = apply_missing_data_policy(
+        eligible,
+        series_names=day_names,
+        decision_time_utc=decision_time_utc,
+        assumptions=assumptions,
+        fallback_rows=all_eligible,
+    )
+    intraday_selected, intraday_warnings, intraday_blockers = apply_missing_data_policy(
+        eligible,
+        series_names=intraday_names,
+        decision_time_utc=decision_time_utc,
+        assumptions=assumptions,
+        fallback_rows=all_eligible,
+    )
+    rows = [*day_selected, *intraday_selected]
+    warnings = [*day_warnings, *intraday_warnings]
+    blockers = [*day_blockers, *intraday_blockers]
+    return rows, warnings, blockers
 
 
 def _event(
@@ -461,6 +599,7 @@ def _event(
     gross: float = 0.0,
     modeled: float = 0.0,
     net: float = 0.0,
+    evidence_selection_trace: list[dict[str, Any]] | None = None,
 ) -> BacktestDecisionEvent:
     """Assemble the structured decision event."""
 
@@ -525,6 +664,7 @@ def _event(
         resource_evidence_refs=_unique(resource_refs),
         cost_trace=cost_trace,
         attribution=attribution,
+        evidence_selection_trace=evidence_selection_trace or [],
         research_only=True,
         human_review_required=True,
     )
@@ -661,12 +801,38 @@ def aggregate_metrics(events: list[BacktestDecisionEvent]) -> BacktestMetricSet:
             code = warning.split(":", maxsplit=1)[0]
             warning_counts[code] = warning_counts.get(code, 0) + 1
 
+    data_coverage = _round4(len(completed) / total if total else 0.0)
+    # A headline return over a period the engine could mostly not price must say so.
+    # `data_coverage` was already computed and accurate; the gap was that nothing in the
+    # metric set made it legible next to the profit figure, so a partial run read as a
+    # result for the whole period.
+    if total and data_coverage < MINIMUM_READABLE_BACKTEST_COVERAGE:
+        warning_counts["PARTIAL_PERIOD_COVERAGE"] = warning_counts.get(
+            "PARTIAL_PERIOD_COVERAGE", 0
+        ) + 1
+
+    # Honest evidence diagnostics. These are deliberately independent of
+    # ``data_coverage`` (which stays completion/all evaluations) and are never
+    # presented as fresh observed coverage.
+    admitted_refs: set[str] = set()
+    events_reusing_refs = 0
+    for event in sorted(events, key=lambda item: item.decision_sequence):
+        refs = [ref for ref in event.price_evidence_refs if ref]
+        if any(ref in admitted_refs for ref in refs):
+            events_reusing_refs += 1
+        admitted_refs.update(refs)
+    events_with_simulated_evidence = sum(
+        1
+        for event in events
+        if "SOURCE_ENTITLEMENT_SIMULATED" in event.warnings
+    )
+
     return BacktestMetricSet(
         evaluation_count=total,
         candidate_decision_count=len(completed),
         blocked_decision_count=len(blocked),
         skipped_decision_count=len(skipped),
-        data_coverage=_round4(len(completed) / total if total else 0.0),
+        data_coverage=data_coverage,
         gross_indicative_pnl_gbp=gross,
         modeled_costs_gbp=modeled,
         net_indicative_pnl_gbp=net,
@@ -705,6 +871,9 @@ def aggregate_metrics(events: list[BacktestDecisionEvent]) -> BacktestMetricSet:
         ],
         warning_counts=warning_counts,
         temporal_integrity="APPROXIMATE",
+        distinct_admitted_price_refs=len(admitted_refs),
+        events_reusing_admitted_price_refs=events_reusing_refs,
+        events_with_simulated_evidence=events_with_simulated_evidence,
     )
 
 
@@ -719,10 +888,35 @@ def build_backtest_manifest(
     engine_version: str,
     application_version: str,
     git_commit_sha: str | None,
+    evidence_selection: dict[str, Any] | None = None,
 ) -> StrategyRunManifest:
-    """Build a CR-03 manifest with the complete backtest effective inputs."""
+    """Build a CR-03 manifest with the complete backtest effective inputs.
+
+    ``evidence_selection`` is the target-aware selection block (resolved rules
+    version plus the frozen declarations and policies). It is included in the
+    hashed ``evidence`` payload only for a target-aware run, so an engine/1
+    manifest keeps its existing hash exactly.
+    """
 
     definition_payload = version.definition_json or {}
+    evidence_payload: dict[str, Any] = {
+        "dataset_snapshot_id": snapshot_id,
+        "period_start_utc": _iso(definition.period.start_utc),
+        "period_end_utc": _iso(definition.period.end_utc),
+        "decision_schedule": definition.schedule.model_dump(mode="json"),
+        "price_observation_refs": pool.observation_refs(),
+        "fx_observation_refs": pool.fx_refs(),
+        "resource_snapshot_refs": pool.resource_refs(),
+        "cost_observation_refs": pool.cost_refs(),
+        "row_counts": {
+            "price_observations": len(pool.observations),
+            "fx_observations": len(pool.fx_rates),
+            "cost_observations": len(pool.cost_observations),
+            "resource_contexts": len(pool.resources),
+        },
+    }
+    if evidence_selection is not None:
+        evidence_payload["evidence_selection"] = evidence_selection
     return StrategyRunManifest(
         run_id=run_id,
         run_type="BACKTEST",
@@ -737,22 +931,7 @@ def build_backtest_manifest(
         assumptions=definition.economic_assumptions.model_dump(mode="json"),
         parameter_values=dict(definition_payload.get("parameter_values") or {}),
         economic_assumptions=definition.economic_assumptions.model_dump(mode="json"),
-        evidence={
-            "dataset_snapshot_id": snapshot_id,
-            "period_start_utc": _iso(definition.period.start_utc),
-            "period_end_utc": _iso(definition.period.end_utc),
-            "decision_schedule": definition.schedule.model_dump(mode="json"),
-            "price_observation_refs": pool.observation_refs(),
-            "fx_observation_refs": pool.fx_refs(),
-            "resource_snapshot_refs": pool.resource_refs(),
-            "cost_observation_refs": pool.cost_refs(),
-            "row_counts": {
-                "price_observations": len(pool.observations),
-                "fx_observations": len(pool.fx_rates),
-                "cost_observations": len(pool.cost_observations),
-                "resource_contexts": len(pool.resources),
-            },
-        },
+        evidence=evidence_payload,
         time_boundary={
             "period_start_utc": _iso(definition.period.start_utc),
             "period_end_utc": _iso(definition.period.end_utc),

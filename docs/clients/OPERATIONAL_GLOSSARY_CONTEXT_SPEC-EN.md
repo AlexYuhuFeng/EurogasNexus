@@ -1,4 +1,4 @@
-﻿# Operational Glossary Context Spec
+# Operational Glossary Context Spec
 
 ## Purpose
 

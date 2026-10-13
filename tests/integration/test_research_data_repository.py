@@ -286,13 +286,16 @@ def test_dataset_snapshot_persistence_is_immutable_and_linked(session) -> None:
             "sha256": "e" * 64,
         }
     ]
-    row = repo.persist_dataset_snapshot(
+    # persist_dataset_snapshot returns (row, created) so that a rebuild of unchanged
+    # content is reported as reused instead of failing on the content-addressed key.
+    row, created = repo.persist_dataset_snapshot(
         session,
         metadata=metadata,
         dependencies=dependencies,
         issues=issues,
         artifacts=artifacts,
     )
+    assert created is True
     session.flush()
 
     assert row.dataset_snapshot_id == metadata["dataset_snapshot_id"]
@@ -315,7 +318,7 @@ def test_dataset_artifact_read_path_is_format_specific(session) -> None:
 
     metadata, _spec = _build_metadata()
     snapshot_id = metadata["dataset_snapshot_id"]
-    row = repo.persist_dataset_snapshot(
+    row, _created = repo.persist_dataset_snapshot(
         session,
         metadata=metadata,
         dependencies=[],

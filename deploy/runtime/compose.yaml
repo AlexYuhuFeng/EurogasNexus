@@ -5,10 +5,27 @@ x-runtime-environment: &runtime-environment
   EUROGAS_NEXUS_ENV: release
   EUROGAS_NEXUS_API_PROFILE: release
   EUROGAS_NEXUS_VERSION: ${EUROGAS_NEXUS_VERSION}
-  EUROGAS_NEXUS_ALLOW_FILE_FALLBACK: "false"
   EUROGAS_NEXUS_SECRET_KEY: ${EUROGAS_NEXUS_SECRET_KEY}
   EUROGAS_NEXUS_INTERNAL_API_TOKEN: ${EUROGAS_NEXUS_INTERNAL_API_TOKEN}
   EUROGAS_NEXUS_PUBLIC_API_TOKEN: ${EUROGAS_NEXUS_PUBLIC_API_TOKEN}
+  EUROGAS_NEXUS_OIDC_ISSUER: ${EUROGAS_NEXUS_OIDC_ISSUER:-}
+  EUROGAS_NEXUS_OIDC_CLIENT_ID: ${EUROGAS_NEXUS_OIDC_CLIENT_ID:-}
+  EUROGAS_NEXUS_OIDC_CLIENT_SECRET: ${EUROGAS_NEXUS_OIDC_CLIENT_SECRET:-}
+  EUROGAS_NEXUS_OIDC_REDIRECT_URI: ${EUROGAS_NEXUS_OIDC_REDIRECT_URI:-}
+  EUROGAS_NEXUS_OIDC_AUDIENCE: ${EUROGAS_NEXUS_OIDC_AUDIENCE:-}
+  EUROGAS_NEXUS_OIDC_ROLE_CLAIM: ${EUROGAS_NEXUS_OIDC_ROLE_CLAIM:-roles}
+  EUROGAS_NEXUS_OIDC_SCOPE_CLAIM: ${EUROGAS_NEXUS_OIDC_SCOPE_CLAIM:-entitlements}
+  EUROGAS_NEXUS_OIDC_PROVISIONING_MODE: ${EUROGAS_NEXUS_OIDC_PROVISIONING_MODE:-preprovisioned}
+  EUROGAS_NEXUS_OIDC_APPROVED_DOMAINS: ${EUROGAS_NEXUS_OIDC_APPROVED_DOMAINS:-}
+  EUROGAS_NEXUS_OIDC_GROUPS_ROLE_MAP: ${EUROGAS_NEXUS_OIDC_GROUPS_ROLE_MAP:-}
+  EUROGAS_NEXUS_OIDC_GROUPS_SCOPE_MAP: ${EUROGAS_NEXUS_OIDC_GROUPS_SCOPE_MAP:-}
+  EUROGAS_NEXUS_OIDC_ALLOW_HTTP: ${EUROGAS_NEXUS_OIDC_ALLOW_HTTP:-0}
+  # The gateway terminates TLS and proxies to api:8000 over the container
+  # network, so uvicorn must trust that hop's X-Forwarded-Proto. Its default
+  # (127.0.0.1,::1) excludes the sidecar proxy, which would leave every request
+  # looking like plain http: the session cookie would then be issued without
+  # Secure, and the origin guard could not derive the browser's real origin.
+  FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-172.16.0.0/12}
 
 services:
   postgres:
@@ -29,6 +46,24 @@ services:
       retries: 20
       start_period: 10s
 
+  config-check:
+    # Refuses to let the stack come up on a misconfigured environment. This runs
+    # in the application image because the check reads the same contract the
+    # service does; a missing credential key or a half-configured OIDC block would
+    # otherwise surface only when a user first hits the affected feature.
+    #
+    # Errors block the stack; warnings do not. Warnings describe a deployment that
+    # can serve correctly but that a release gate should still question (an
+    # unrotatable credential key, an undeclared trusted proxy), so they are raised
+    # by `--strict` in CI rather than by refusing to start here.
+    image: ${EUROGAS_NEXUS_API_IMAGE}
+    environment: *runtime-environment
+    command: ["python", "scripts/ops/check_config.py"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
   migrate:
     image: ${EUROGAS_NEXUS_API_IMAGE}
     environment: *runtime-environment
@@ -36,6 +71,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      config-check:
+        condition: service_completed_successfully
     restart: "no"
 
   api:
@@ -48,11 +85,14 @@ services:
       migrate:
         condition: service_completed_successfully
     healthcheck:
+      # The token is read from the container's own environment rather than
+      # interpolated here: an interpolated value would appear in `docker inspect`
+      # output and in the process list.
       test:
         - CMD
         - python
         - -c
-        - "import json,urllib.request; req=urllib.request.Request('http://127.0.0.1:8000/api/health/ready'); req.add_header('X-Eurogas-Api-Key', '${EUROGAS_NEXUS_PUBLIC_API_TOKEN}'); assert json.load(urllib.request.urlopen(req, timeout=3))['status'] == 'ok'"
+        - "import json,os,urllib.request; req=urllib.request.Request('http://127.0.0.1:8000/api/health/ready'); req.add_header('X-Eurogas-Api-Key', os.environ['EUROGAS_NEXUS_PUBLIC_API_TOKEN']); assert json.load(urllib.request.urlopen(req, timeout=3))['status'] == 'ok'"
       interval: 10s
       timeout: 5s
       retries: 12
@@ -104,16 +144,6 @@ services:
         condition: service_completed_successfully
     restart: "no"
 
-  preview-seed:
-    image: ${EUROGAS_NEXUS_API_IMAGE}
-    profiles: ["tools"]
-    environment: *runtime-environment
-    command: ["python", "scripts/ops/seed_preview_runtime_data.py"]
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-    restart: "no"
-
   public-ingestion-worker:
     image: ${EUROGAS_NEXUS_API_IMAGE}
     profiles: ["public-ingestion"]
@@ -154,16 +184,6 @@ services:
       - "10000"
       - --interval-seconds
       - "86400"
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-
-  simulated-prices:
-    image: ${EUROGAS_NEXUS_API_IMAGE}
-    profiles: ["simulated-prices"]
-    restart: unless-stopped
-    environment: *runtime-environment
-    command: ["python", "scripts/ops/ingest_simulated_market_prices.py", "--loop"]
     depends_on:
       migrate:
         condition: service_completed_successfully

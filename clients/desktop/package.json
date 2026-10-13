@@ -3,6 +3,9 @@
   "private": true,
   "version": "0.5.0",
   "type": "module",
+  "engines": {
+    "node": ">=24.13.1 <25"
+  },
   "scripts": {
     "web:build": "npm --prefix ../web run build",
     "check": "cargo check --manifest-path src-tauri/Cargo.toml",

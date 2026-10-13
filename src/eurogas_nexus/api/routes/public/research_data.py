@@ -103,7 +103,32 @@ def _dataset_spec_error(exc: ValidationError) -> HTTPException:
     for error in exc.errors():
         location = ".".join(str(part) for part in error.get("loc", ())) or "dataset_spec"
         message = str(error.get("msg") or "")
-        if "origin count" in message:
+        # Split checks come first: their messages mention `end must be after start` and
+        # dates too, so a later branch would classify a split fault as a top-level one and
+        # the caller would look in the wrong place for the mistake.
+        if "split" in message and "overlaps" in message:
+            code = "split_overlap"
+            location = "split_specs"
+            safe_message = (
+                "Two declared splits overlap. An observation cannot belong to two splits, "
+                "and an overlapping holdout is not held back."
+            )
+        elif "split" in message and "outside the dataset period" in message:
+            code = "split_outside_period"
+            location = "split_specs"
+            safe_message = (
+                "A declared split lies outside the dataset period, so the build can never "
+                "select rows for it."
+            )
+        elif "split" in message and "end must be after start" in message:
+            code = "split_bounds_invalid"
+            location = "split_specs"
+            safe_message = "A declared split ends before it starts."
+        elif "split" in message and "non-negative" in message:
+            code = "split_embargo_invalid"
+            location = "split_specs"
+            safe_message = "A split's embargo_before and gap_after must be non-negative."
+        elif "origin count" in message:
             code = "origin_count_limit"
             location = "forecast_origin_frequency"
             safe_message = "The requested dataset has too many forecast origins."
@@ -159,6 +184,54 @@ def _registry_error(exc: DatasetRegistryError) -> HTTPException:
             "error": exc.error_code,
             "message": "Dataset specification references unavailable registry ids.",
             "issues": exc.issues,
+        },
+    )
+
+
+def _integrity_detail(exc: Exception) -> str:
+    """Extract the database's own explanation from an IntegrityError.
+
+    SQLAlchemy wraps the driver error, and the useful text (`duplicate key value violates
+    unique constraint "dataset_snapshots_pkey"`) sits in the original exception or in the
+    message. Only the constraint sentence is returned: the parameter values are not
+    echoed, because they include row content.
+    """
+
+    original = getattr(exc, "orig", None)
+    text = str(original or exc)
+    marker = "M': '"
+    if marker in text:
+        start = text.index(marker) + len(marker)
+        end = text.find("'", start)
+        if end > start:
+            return text[start:end]
+    return text.splitlines()[0][:200] if text else "integrity constraint violated"
+
+
+def _snapshot_conflict_error(detail: str) -> HTTPException:
+    """Return a 409 naming a snapshot-id conflict, with the reason attached.
+
+    A conflict is not a server fault: the caller asked for a snapshot id that already
+    describes different content, or two builds produced the same content at once. The
+    structured `issues` entry is what the client's refusal panel renders, so a conflict
+    no longer reaches the user as an empty panel.
+    """
+
+    return HTTPException(
+        status_code=409,
+        detail={
+            "error": "dataset_snapshot_conflict",
+            "message": (
+                "A dataset snapshot with this identity already exists with different "
+                "content, or an identical build is already in progress."
+            ),
+            "issues": [
+                {
+                    "field": "dataset_spec",
+                    "code": "dataset_snapshot_conflict",
+                    "message": detail,
+                }
+            ],
         },
     )
 
@@ -357,8 +430,16 @@ def materialize_dataset(body: DatasetMaterializeRequest, request: Request) -> di
             except (KeyError, TypeError, ValueError) as exc:
                 raise _dataset_build_error() from exc
             if body.materialize:
+                # SQLAlchemy is imported here rather than at module scope: a contract test
+                # asserts that importing the API does not import the database layer, so a
+                # top-level `from sqlalchemy.exc import IntegrityError` would couple them.
+                from sqlalchemy.exc import IntegrityError
+
                 from eurogas_nexus.application import research_artifacts
-                from eurogas_nexus.db.repositories.research import persist_dataset_snapshot
+                from eurogas_nexus.db.repositories.research import (
+                    DatasetSnapshotConflict,
+                    persist_dataset_snapshot,
+                )
 
                 try:
                     # CR14-ARTIFACT-001: materialize the format-specific artifacts
@@ -368,14 +449,30 @@ def materialize_dataset(body: DatasetMaterializeRequest, request: Request) -> di
                     artifacts = research_artifacts.write_dataset_artifacts(result)
                 except research_artifacts.ArtifactStoreUnavailable as exc:
                     raise _artifact_store_error(exc.detail) from exc
-                persist_dataset_snapshot(
-                    session,
-                    metadata=result.as_metadata(),
-                    dependencies=dependency_rows,
-                    issues=issue_rows,
-                    artifacts=artifacts,
-                )
+                try:
+                    _, created = persist_dataset_snapshot(
+                        session,
+                        metadata=result.as_metadata(),
+                        dependencies=dependency_rows,
+                        issues=issue_rows,
+                        artifacts=artifacts,
+                    )
+                except DatasetSnapshotConflict as exc:
+                    # The id already describes different content. Rolling back keeps the
+                    # session usable and the message names the conflict rather than
+                    # surfacing a driver error.
+                    session.rollback()
+                    raise _snapshot_conflict_error(str(exc)) from exc
+                except IntegrityError as exc:
+                    # A unique violation that slipped past the existence check, for
+                    # instance two builds racing on the same content. Previously this
+                    # escaped as an unhandled 500 with no structured issues, which is the
+                    # defect the review recorded.
+                    session.rollback()
+                    raise _snapshot_conflict_error(_integrity_detail(exc)) from exc
                 job.add_output(f"dataset_snapshot:{result.dataset_snapshot_id}")
+                if not created:
+                    job.add_output("dataset_snapshot_reused:true")
         # The tracked outcome commits with the work it describes; a validate-only
         # build persists nothing but its job record.
         session.commit()

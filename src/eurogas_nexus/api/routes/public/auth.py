@@ -26,6 +26,10 @@ from eurogas_nexus.api.dependencies.identity import (
 )
 from eurogas_nexus.api.route_profiles import get_route_profile
 from eurogas_nexus.core.config import resolve_dev_login_credentials_from_env
+from eurogas_nexus.security.cookie_policy import (
+    deployment_cookie_context,
+    request_cookie_secure,
+)
 from eurogas_nexus.security.identity import legacy_public_token_principal
 from eurogas_nexus.security.oidc import (
     OidcValidationError,
@@ -55,20 +59,36 @@ class DesktopTokenRequest(BaseModel):
     redirect_uri: str = Field(min_length=8, max_length=512)
 
 
-def _session_cookie(token: str, *, request: Request, max_age_seconds: int) -> str:
-    secure = request.url.scheme == "https"
-    value = (
-        f"{SESSION_COOKIE}={token}; Path=/; HttpOnly; SameSite=Lax; "
-        f"{'Secure; ' if secure else ''}Max-Age={max_age_seconds}"
+def _cookie_secure(request: Request) -> bool:
+    """Whether cookies for this request must be HTTPS-only.
+
+    Delegates to the explicit policy in ``eurogas_nexus.security.cookie_policy``:
+    a production deployment is always ``Secure`` even when the request scheme
+    looks like ``http`` because a reverse proxy in front of the API is not in
+    uvicorn's trusted-proxy list.
+    """
+
+    api_profile, environment = deployment_cookie_context(request)
+    return request_cookie_secure(
+        request, api_profile=api_profile, environment=environment
     )
-    return value
+
+
+def _secure_attribute(request: Request) -> str:
+    return "Secure; " if _cookie_secure(request) else ""
+
+
+def _session_cookie(token: str, *, request: Request, max_age_seconds: int) -> str:
+    return (
+        f"{SESSION_COOKIE}={token}; Path=/; HttpOnly; SameSite=Lax; "
+        f"{_secure_attribute(request)}Max-Age={max_age_seconds}"
+    )
 
 
 def _verifier_cookie(verifier: str, *, request: Request) -> str:
-    secure = request.url.scheme == "https"
     return (
         f"{OIDC_VERIFIER_COOKIE}={verifier}; Path=/api/auth; HttpOnly; "
-        f"SameSite=Lax; {'Secure; ' if secure else ''}Max-Age=300"
+        f"SameSite=Lax; {_secure_attribute(request)}Max-Age=300"
     )
 
 

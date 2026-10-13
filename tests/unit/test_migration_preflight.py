@@ -18,11 +18,18 @@ import pytest
 
 
 def test_the_preflight_reports_the_head_instead_of_crashing(monkeypatch, capsys) -> None:
-    """The head resolves on the real tree, prose and all."""
+    """The head resolves on the real tree, prose and all.
+
+    The expected head is read from ``DB_SCHEMA_REVISION`` rather than written out
+    here: a literal would have to be edited alongside every migration, and a test
+    that merely restates the current value cannot tell "the preflight resolves the
+    chain" from "the preflight returned what I typed".
+    """
 
     import scripts.ops.migration_preflight as preflight
+    from eurogas_nexus.release.constants import DB_SCHEMA_REVISION
 
-    assert preflight.alembic_head() == "0038_contract_payment_terms"
+    assert preflight.alembic_head() == DB_SCHEMA_REVISION
 
     # A docstring line that starts with "revision" must not be read as the assignment: this is
     # the exact shape that used to raise IndexError.
@@ -36,6 +43,7 @@ def test_the_preflight_reports_the_head_instead_of_crashing(monkeypatch, capsys)
 
 def test_the_preflight_without_a_database_reports_rather_than_fails(monkeypatch, capsys) -> None:
     import scripts.ops.migration_preflight as preflight
+    from eurogas_nexus.release.constants import DB_SCHEMA_REVISION
 
     for name in ("RUNTIME_STORE_DATABASE_URL", "DATABASE_URL", "EUROGAS_NEXUS_DB_DSN"):
         monkeypatch.delenv(name, raising=False)
@@ -44,7 +52,7 @@ def test_the_preflight_without_a_database_reports_rather_than_fails(monkeypatch,
 
     report = json.loads(capsys.readouterr().out)
     assert status == 1, "a deployment with no store is not ready to migrate"
-    assert report["source_head"] == "0038_contract_payment_terms"
+    assert report["source_head"] == DB_SCHEMA_REVISION
     assert report["database_url_present"] is False
     assert report["ok"] is False
     assert "RUNTIME_STORE_DATABASE_URL is not configured." in report["warnings"]

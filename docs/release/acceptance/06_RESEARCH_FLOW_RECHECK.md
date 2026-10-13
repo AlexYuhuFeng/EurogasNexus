@@ -1,0 +1,39 @@
+# Research workflow recheck — 2026-10-07
+
+Current verdict: PARTIAL. Actual authenticated Playwright UI writes ran against the recovered Windows PostgreSQL/API/Web runtime. The ADMIN+ANALYST fixture proves this identity's operation only; least-privilege acceptance remains open. No seed, installation, migration or existing-record deletion occurred.
+
+## Dataset evidence
+
+DeepSeek instrumentation was reviewed and run on the host. UI validation, build, identical rebuild, full reload and detail selection completed. Spec `DNX-UAT-20261007-spec-20261007T154718Z` produced `dataset-snapshot-ae713a2eed06-DNX-UAT-20261007-spec-20261007T154718Z`, 730 rows and 14 columns. Both UI builds returned the same snapshot; all three pre-existing snapshots remained unchanged. Evidence: `.dnx-out/uat-research-20261007/dataset-flow/evidence.json` and `dataset-host.log`.
+
+The snapshot is materialized, but is **not usable training data**: COMPLETE, build_blocked=true, coverage=0, missing_percentage=100, 365 leakage issues. Simulated lineage indicator **is present**; earlier missing-simulation allegations must not be carried forward. No train/validation/test split editor exists in the tested UI, so this run proves no split separation or out-of-sample validity. Materialization success must remain distinct from training fitness; diagnostic artifacts must be retained.
+
+Four original screenshots were captured; the result/detail full-page captures are over 80,000 pixels tall because the detail disclosures expand the page, requiring additional viewport captures for legible visual inspection. This is itself a usability limitation.
+
+## Strategy evidence — business acceptance blocked
+
+Selected existing frozen version `strategy-version-3286f52092c845719c77` without changing strategy content. UI POST 200 created `strategy-run-03fd8b53cfc84314a59738bd` for 2025-10-06 through 2026-10-06. Authenticated read and refreshed history verified persistence/version/period. Result: COMPLETED_WITH_WARNINGS, 16.2% coverage, 365 evaluations, 306 blocked, net/gross GBP 51,009, unavailable transaction costs. These values do not establish profitable, fully covered or out-of-sample performance.
+
+Two instrumentation failures were identified, not product failures: strict Z versus +00:00 timestamp comparison and failure to return from Result to Configure before entering the second window. Timestamp comparison now uses instants, navigation explicitly selects Configure. Resume reused the already written run instead of creating a duplicate. Original attempt evidence remains in strategy-flow-first-attempt and strategy-flow-second-attempt. The resumed script completed, but its PASS means workflow assertions only and does not override the business blocker below.
+
+Second UI POST 200 created `strategy-run-26be3f0740934ec4ae837f6d`, future window 2026-10-07 through 2027-10-07 with SKIP_DECISION. Read/reload/history verified it. Persisted metrics and the inspected `strategy-future-viewport.png` show 365 evaluations, 365 completed candidates, zero blocked/skipped, Coverage 100%, net/gross GBP 318,346.138 and constant event PnL 872.1812. Warnings include simulated source entitlement, stale intraday outside configured window and unavailable costs; temporal integrity is APPROXIMATE. No OOS/holdout result is established.
+
+Independent PostgreSQL READ ONLY trace (`future-source-trace.json`, `trace-future.py`) confirmed all 365 events from 2026-10-07 05:00 UTC to 2027-10-06 05:00 UTC share **one identical price-reference set** and identical PnL. Market rows matching the snapshot references end at **2026-10-06 22:00:05.924259 UTC**, before the future evaluation window. The snapshot holds 81 distinct references; matching source counts are not unique execution-price counts and must not be summed as effective observations. This is stale evidence reused across the future year, not measured future market coverage.
+
+Source review: `aggregate_metrics` defines coverage as completed events / all events (365/365 here), not fresh-observation coverage. `as_of_price_observations` bounds availability above by decision time but has no freshness bound; `apply_missing_data_policy` returns early when required names exist. The worker's initial claim that SKIP_DECISION turns missing inputs into candidates was **rejected and corrected**: `_skip_requested` produces SKIPPED, and both tested runs have zero skipped. Different windows and policies are confounded; no causal policy comparison is proven. Strategy numerical semantics were not changed. Next reviewed architecture slice must resolve historical-window/freshness requirements or clearly separate explicit scenario projection from historical backtest; this remains a release acceptance blocker.
+
+## Completed bounded qualification remediation (2026-10-08)
+
+Two sequential DeepSeek workers completed, never concurrently. Reviewed changes add evidence-derived qualification to the existing catalog, detail rail and build result. Blocked/all-missing/zero-coverage records read **Training unavailable** with reasons; incomplete metadata remains **Not established**. Positive quality requires explicit non-blocked state, known temporal state, leakage evidence and coverage meeting a declared threshold; it says **No recorded quality blocker**, not training/model/OOS readiness. Materialized COMPLETE and diagnostic exports remain intact.
+
+Read-only host recheck selected the same snapshot, with no further builds or runs. Inspected `dataset-detail-viewport.png` shows Training unavailable in the catalog beside 0% and COMPLETE; inspected `dataset-qualification-detail.png` shows build_blocked, leakage, all-missing and zero-coverage reasons. The original full-page screenshots and `dataset-rail.png` remain extremely tall; viewport/section captures are the legible evidence. Build-result wiring is covered by focused tests, not a new post-fix build. Catalog now requires horizontal table scrolling with the detail rail open; broad responsive/accessibility acceptance remains open.
+
+Consumer audit found no current training/model-fitting consumer of research dataset snapshots. Strategy backtests use a different strategy_data_snapshots entity. Therefore no server-side training gate was added or claimed; a future consumer needs its own reviewed eligibility enforcement. Authorized diagnostic artifact export remains available.
+
+Host independent validation: **24/24** focused research qualification/build tests passed; TypeScript `tsc --noEmit` passed; focused diff check passed. The first worker additionally reports 76 selected tests passed and an unnecessary broad sandbox run with 6 failures; that broad run is not a gate or proof of absence of regression. Whole-tree `git diff --check` still fails on pre-existing `dataops_observability.py:237` trailing blank line, outside this slice.
+
+Files in this slice: `clients/web/src/app/model/researchDataModel.ts`, `components/ResearchDataWorkspace.tsx`, `styles/researchDataWorkspace.css`, `i18n/en.json`, `i18n/zh.json`, new `clients/web/tests/researchTrainingQualification.test.ts`, this report and the execution checkpoint. Local instrumentation/evidence resides under `.dnx-out/uat-research-20261007/`. No commit/push was attempted against the large unreviewed working tree.
+
+Vite repeatedly exited with EBUSY while watching DeepSeek atomic-edit temporary files. After the workers exited, the existing `start-reviewed.ps1` restored Web without installation or duplicate stack; final API ready=ready and Web HTTP200. Follow-up should review local watcher exclusion for temporary edit/ignored directories, without changing global Vite security behavior.
+
+Split editing, strategy OOS/fresh-observation coverage, contract retirement, Hub/LNG flows, API management, authorization negative tests and reviewed delivery/push remain open under the full goal.
