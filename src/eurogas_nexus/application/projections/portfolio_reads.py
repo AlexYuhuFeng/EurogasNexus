@@ -35,26 +35,58 @@ PORTFOLIO_TABLE_LINEAGE: tuple[str, ...] = (
 )
 
 
-def screen_orders(session: Session) -> list[ScreenOrderObservation]:
+def screen_orders(
+    session: Session, *, principal_id: str | None = None
+) -> list[ScreenOrderObservation]:
     """Return imported read-only screen-order observations, newest first."""
 
-    from eurogas_nexus.db.models import ScreenOrderObservationRecord
+    from sqlalchemy import or_, select
 
-    rows = session.query(ScreenOrderObservationRecord).order_by(
-        ScreenOrderObservationRecord.observed_at_utc.desc(),
-        ScreenOrderObservationRecord.venue,
+    from eurogas_nexus.db.models import ScreenOrderObservationRecord, StrategyRecord
+    from eurogas_nexus.db.repositories.strategy_access import visible_strategy_clause
+
+    visible = select(StrategyRecord.strategy_id).where(visible_strategy_clause(principal_id))
+    rows = (
+        session.query(ScreenOrderObservationRecord)
+        .filter(
+            or_(
+                ScreenOrderObservationRecord.linked_strategy_id.is_(None),
+                ScreenOrderObservationRecord.linked_strategy_id == "",
+                ScreenOrderObservationRecord.linked_strategy_id.in_(visible),
+            )
+        )
+        .order_by(
+            ScreenOrderObservationRecord.observed_at_utc.desc(),
+            ScreenOrderObservationRecord.venue,
+        )
     )
     return [screen_order_from_row(row) for row in rows.all()]
 
 
-def pnl_snapshots(session: Session) -> list[PortfolioPnlSnapshot]:
+def pnl_snapshots(
+    session: Session, *, principal_id: str | None = None
+) -> list[PortfolioPnlSnapshot]:
     """Return indicative PnL snapshots, newest valuation first."""
 
-    from eurogas_nexus.db.models import PortfolioPnlSnapshotRecord
+    from sqlalchemy import or_, select
 
-    rows = session.query(PortfolioPnlSnapshotRecord).order_by(
-        PortfolioPnlSnapshotRecord.valuation_time_utc.desc(),
-        PortfolioPnlSnapshotRecord.portfolio_id,
+    from eurogas_nexus.db.models import PortfolioPnlSnapshotRecord, StrategyRecord
+    from eurogas_nexus.db.repositories.strategy_access import visible_strategy_clause
+
+    visible = select(StrategyRecord.strategy_id).where(visible_strategy_clause(principal_id))
+    rows = (
+        session.query(PortfolioPnlSnapshotRecord)
+        .filter(
+            or_(
+                PortfolioPnlSnapshotRecord.strategy_id.is_(None),
+                PortfolioPnlSnapshotRecord.strategy_id == "",
+                PortfolioPnlSnapshotRecord.strategy_id.in_(visible),
+            )
+        )
+        .order_by(
+            PortfolioPnlSnapshotRecord.valuation_time_utc.desc(),
+            PortfolioPnlSnapshotRecord.portfolio_id,
+        )
     )
     return [pnl_snapshot_from_row(row) for row in rows.all()]
 

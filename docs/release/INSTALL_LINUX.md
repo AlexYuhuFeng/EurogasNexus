@@ -14,7 +14,7 @@ package metadata both carry the architecture.
 sha256sum -c SHA256SUMS
 sudo apt install ./Eurogas-Nexus-Client-{VERSION}-linux-x64.deb   # or --reinstall for upgrade
 dpkg-deb -I Eurogas-Nexus-Client-{VERSION}-linux-x64.deb | grep -E 'Package|Version|Architecture'
-sudo apt remove eurogas-nexus-desktop
+sudo apt remove eurogas-nexus
 ```
 
 The package contains the desktop shell, application icon, and desktop entry.
@@ -30,7 +30,9 @@ create an APT repository.
 
 ## Validation matrix
 
-- x64 install/upgrade/remove: validated by release CI packaging; graphical
-  launch requires an operator desktop environment.
-- ARM64: built on `ubuntu-24.04-arm`; package architecture validation is part
-  of packaging acceptance.
+- x64 and ARM64 builds are configured in release CI on `ubuntu-24.04` and
+  `ubuntu-24.04-arm`, respectively. A workflow declaration is not evidence that
+  the current checkout produced or installed either package.
+- Install, upgrade, remove, package metadata/architecture checks and graphical
+  launch require recorded acceptance against the actual generated DEB on each
+  supported architecture. The packaging job alone does not exercise these flows.

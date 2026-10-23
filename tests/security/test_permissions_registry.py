@@ -18,6 +18,13 @@ def test_every_public_path_resolves_to_a_declared_permission() -> None:
         assert isinstance(permission, Permission), f"{path} -> {permission!r}"
 
 
+def test_strategy_collection_reads_do_not_grant_writes() -> None:
+    for path in ("/api/strategies", "/api/strategies/example/versions", "/api/strategy-runs"):
+        assert permission_for_path(path, "GET") is Permission.READ
+        assert permission_for_path(path, "POST") is Permission.GOVERNED
+        assert permission_for_path(path, "PATCH") is Permission.GOVERNED
+
+
 def test_credential_writes_are_operator_only() -> None:
     assert permission_for_path("/api/credentials/providers") is Permission.READ
     for path in (
@@ -72,9 +79,6 @@ def test_role_requirements_are_declared_per_permission() -> None:
 
 
 def test_operator_permission_documents_planned_enforcement() -> None:
-    assert (
-        enforcement_status(Permission.OPERATOR)
-        is EnforcementStatus.PRINCIPAL_REQUIRED
-    )
+    assert enforcement_status(Permission.OPERATOR) is EnforcementStatus.PRINCIPAL_REQUIRED
     assert enforcement_status(Permission.GOVERNED) is EnforcementStatus.API_TOKEN
     assert enforcement_status(Permission.READ) is EnforcementStatus.API_TOKEN

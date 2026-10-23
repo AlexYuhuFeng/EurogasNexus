@@ -103,6 +103,7 @@ def test_normalized_market_view_converts_fx_and_reports_unconvertible(
     rows = {row["observation_id"]: row for row in body["data"]}
 
     gbp = rows["market-gbp"]
+    assert gbp["price_name"] == "EEX_DAY_AHEAD"
     assert gbp["hub"] == "NBP"
     assert gbp["tenor"] == "day-ahead"
     assert gbp["is_gas_price"] is True

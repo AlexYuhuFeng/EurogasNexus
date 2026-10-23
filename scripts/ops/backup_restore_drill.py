@@ -27,6 +27,7 @@ from urllib.parse import unquote, urlparse
 
 from eurogas_nexus.db.registry import list_missing_required_tables
 from eurogas_nexus.db.session import get_engine, redact_database_url, resolve_database_url
+from eurogas_nexus.release.constants import DB_SCHEMA_REVISION
 
 ROOT = Path(__file__).resolve().parents[2]
 SRC = ROOT / "src"
@@ -67,7 +68,6 @@ def _pg_env(database_url: str) -> dict:
 
 
 def create_database_if_missing(database_url: str, *, docker_container: str | None = None) -> bool:
-
     """Create the target database when it does not exist (safe identifier)."""
 
     parts = _parts(database_url)
@@ -77,8 +77,15 @@ def create_database_if_missing(database_url: str, *, docker_container: str | Non
     if docker_container:
         exists = subprocess.run(
             [
-                "docker", "exec", docker_container, "psql",
-                "-U", parts["username"], "-d", "postgres", "-tAc",
+                "docker",
+                "exec",
+                docker_container,
+                "psql",
+                "-U",
+                parts["username"],
+                "-d",
+                "postgres",
+                "-tAc",
                 f"SELECT 1 FROM pg_database WHERE datname='{database}'",
             ],
             capture_output=True,
@@ -90,8 +97,13 @@ def create_database_if_missing(database_url: str, *, docker_container: str | Non
             return False
         created = subprocess.run(
             [
-                "docker", "exec", docker_container, "createdb",
-                "-U", parts["username"], database,
+                "docker",
+                "exec",
+                docker_container,
+                "createdb",
+                "-U",
+                parts["username"],
+                database,
             ],
             capture_output=True,
             text=True,
@@ -120,9 +132,7 @@ def create_database_if_missing(database_url: str, *, docker_container: str | Non
         # did not. An engine-level setting is applied when each connection is created, so
         # the statement's isolation is a property of the engine instead of of the call
         # site, and the ambiguity disappears.
-        ddl_engine = get_engine(maintenance_dsn).execution_options(
-            isolation_level="AUTOCOMMIT"
-        )
+        ddl_engine = get_engine(maintenance_dsn).execution_options(isolation_level="AUTOCOMMIT")
         try:
             with ddl_engine.connect() as connection:
                 connection.exec_driver_sql(f'CREATE DATABASE "{database}"')
@@ -131,6 +141,24 @@ def create_database_if_missing(database_url: str, *, docker_container: str | Non
         return True
     finally:
         engine.dispose()
+
+
+def restored_api_readiness(target_database_url: str) -> int:
+    """Probe the restored database, never the still-healthy source or liveness."""
+    from fastapi.testclient import TestClient
+
+    from eurogas_nexus.api.app import create_app
+
+    previous = os.environ.get("RUNTIME_STORE_DATABASE_URL")
+    os.environ["RUNTIME_STORE_DATABASE_URL"] = target_database_url
+    try:
+        with TestClient(create_app()) as client:
+            return client.get("/api/health/ready").status_code
+    finally:
+        if previous is None:
+            os.environ.pop("RUNTIME_STORE_DATABASE_URL", None)
+        else:
+            os.environ["RUNTIME_STORE_DATABASE_URL"] = previous
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -278,20 +306,13 @@ def main(argv: list[str] | None = None) -> int:
         finally:
             engine.dispose()
 
-        if report.get("revision") is None or missing:
+        if report.get("revision") != DB_SCHEMA_REVISION or missing:
             report["error"] = "restored_schema_invalid"
             return _emit(report)
 
-        from fastapi.testclient import TestClient
-
-        from apps.api.main import app
-
-        client = TestClient(app)
-        smoke = client.get("/api/health/live")
-        report["api_smoke_status"] = smoke.status_code
-        report["ok"] = bool(
-            smoke.status_code == 200 and not missing and report.get("revision")
-        )
+        report["api_smoke_status"] = restored_api_readiness(args.target_database_url)
+        report["api_smoke_path"] = "/api/health/ready"
+        report["ok"] = report["api_smoke_status"] == 200
         report["elapsed_seconds"] = round(time.perf_counter() - started, 3)
         return _emit(report)
     except Exception as exc:

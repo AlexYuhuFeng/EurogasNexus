@@ -23,7 +23,31 @@ import {
   type StrategyIdentityMetadata,
 } from "@/app/model/useStrategyIdentityMetadata";
 
+import { useApiStore } from "@/stores/api";
+import { strategyPriceCatalogue, type StrategyPriceChoice } from "@/app/model/strategyPriceCatalogue";
+
 type Translate = (key: string) => string;
+
+function PriceSeriesSelect({ value, choices, disabled, onChange, t }: {
+  value: string; choices: StrategyPriceChoice[]; disabled: boolean;
+  onChange: (value: string) => void; t: Translate;
+}) {
+  const selected = value.split(",").map((name) => name.trim()).filter(Boolean);
+  const missing = selected.filter((name) => !choices.some((choice) => choice.name === name));
+  const items = [
+    ...missing.map((name) => ({ name, description: t("strategy_lab.catalogue.unavailable") })),
+    ...choices,
+  ];
+  return <div className="strategy-price-catalogue" role="group">
+    {items.map((choice) => <label key={choice.name} className="strategy-price-choice">
+      <input type="checkbox" checked={selected.includes(choice.name)} disabled={disabled}
+        onChange={(event) => onChange((event.target.checked
+          ? [...selected, choice.name] : selected.filter((name) => name !== choice.name)).join(","))} />
+      <span><strong>{choice.name}</strong><small>{choice.description}</small></span>
+    </label>)}
+    {choices.length === 0 && <span className="muted">{t("strategy_lab.catalogue.empty")}</span>}
+  </div>;
+}
 
 /**
  * The opt-in fields of one leg's evidence declaration.
@@ -178,6 +202,11 @@ export function StrategyDesignWorkspace({
   // this panel renders it and reports the verdict it was handed.
   const { form, setField: set, validation } = draft;
   const { frozen, busy, message, error } = draft;
+  const readOnly = Boolean(controller.selectedStrategy) && !controller.canManageSelectedStrategy;
+  const marketRows = useApiStore((state) => state.normalizedMarkets);
+  const availableHubs = [...new Set([form.hubs, ...marketRows.filter((row) => row.is_gas_price).map((row) => row.hub)].filter(Boolean))].sort();
+  const dayAheadChoices = strategyPriceCatalogue(marketRows, "day_ahead", form.hubs);
+  const intradayChoices = strategyPriceCatalogue(marketRows, "intraday", form.hubs);
   const version = controller.selectedVersion;
   const strategy = controller.selectedStrategy;
 
@@ -219,29 +248,31 @@ export function StrategyDesignWorkspace({
         <h2>{t("strategy_lab.hypothesis")}</h2>
         <label>
           {t("strategy_lab.name")}
-          <input value={form.name} disabled={frozen} onChange={(event) => set("name", event.target.value)} />
+          <input value={form.name} disabled={frozen || readOnly} onChange={(event) => set("name", event.target.value)} />
         </label>
         <label>
           {t("strategy_lab.description")}
-          <input value={form.description} disabled={frozen} onChange={(event) => set("description", event.target.value)} />
+          <input value={form.description} disabled={frozen || readOnly} onChange={(event) => set("description", event.target.value)} />
         </label>
         <label>
           {t("strategy_lab.thesis")}
-          <textarea value={form.hypothesis} disabled={frozen} onChange={(event) => set("hypothesis", event.target.value)} />
+          <textarea value={form.hypothesis} disabled={frozen || readOnly} onChange={(event) => set("hypothesis", event.target.value)} />
         </label>
       </section>
       <section className="workspace-panel">
-        <h2>{t("strategy_lab.component")} · OCM_VS_DAY_AHEAD</h2>
+        <h2>{t("strategy_lab.catalogue.title")}</h2>
+        <p className="panel-copy">{t("strategy_lab.catalogue.scope")}</p>
+        <p className="muted">{t("strategy_lab.catalogue.selection")}</p>
         <div className="strategy-form-grid">
-          <label>{t("strategy_lab.hubs")}<input value={form.hubs} disabled={frozen} onChange={(event) => set("hubs", event.target.value)} /></label>
-          <label>{t("strategy_lab.day_ahead_names")}<input value={form.dayAheadNames} disabled={frozen} onChange={(event) => set("dayAheadNames", event.target.value)} /></label>
-          <label>{t("strategy_lab.intraday_names")}<input value={form.intradayNames} disabled={frozen} onChange={(event) => set("intradayNames", event.target.value)} /></label>
-          <label>{t("strategy_lab.weight")}<input type="number" step="0.1" value={form.weight} disabled={frozen} onChange={(event) => set("weight", event.target.value)} /></label>
-          <label>{t("strategy_lab.positive_threshold")}<input type="number" step="0.1" value={form.positiveThreshold} disabled={frozen} onChange={(event) => set("positiveThreshold", event.target.value)} /></label>
-          <label>{t("strategy_lab.negative_threshold")}<input type="number" step="0.1" value={form.negativeThreshold} disabled={frozen} onChange={(event) => set("negativeThreshold", event.target.value)} /></label>
-          <label>{t("strategy_lab.window_start")}<input value={form.windowStart} disabled={frozen} onChange={(event) => set("windowStart", event.target.value)} /></label>
-          <label>{t("strategy_lab.window_end")}<input value={form.windowEnd} disabled={frozen} onChange={(event) => set("windowEnd", event.target.value)} /></label>
-          <label>{t("strategy_lab.bar_minutes")}<input type="number" value={form.barMinutes} disabled={frozen} onChange={(event) => set("barMinutes", event.target.value)} /></label>
+          <label>{t("strategy_lab.hubs")}<select aria-label={t("strategy_lab.hubs")} value={form.hubs} disabled={frozen || readOnly} onChange={(event) => set("hubs", event.target.value)}>{!form.hubs && <option value="">—</option>}{availableHubs.map((hub) => <option key={hub} value={hub}>{hub}</option>)}</select></label>
+          <fieldset><legend>{t("strategy_lab.day_ahead_names")}</legend><PriceSeriesSelect value={form.dayAheadNames} choices={dayAheadChoices} disabled={frozen || readOnly} onChange={(value) => set("dayAheadNames", value)} t={t} /></fieldset>
+          <fieldset><legend>{t("strategy_lab.intraday_names")}</legend><PriceSeriesSelect value={form.intradayNames} choices={intradayChoices} disabled={frozen || readOnly} onChange={(value) => set("intradayNames", value)} t={t} /></fieldset>
+          <label>{t("strategy_lab.weight")}<input type="number" step="0.1" value={form.weight} disabled={frozen || readOnly} onChange={(event) => set("weight", event.target.value)} /></label>
+          <label>{t("strategy_lab.positive_threshold")}<input type="number" step="0.1" value={form.positiveThreshold} disabled={frozen || readOnly} onChange={(event) => set("positiveThreshold", event.target.value)} /></label>
+          <label>{t("strategy_lab.negative_threshold")}<input type="number" step="0.1" value={form.negativeThreshold} disabled={frozen || readOnly} onChange={(event) => set("negativeThreshold", event.target.value)} /></label>
+          <label>{t("strategy_lab.window_start")}<input value={form.windowStart} disabled={frozen || readOnly} onChange={(event) => set("windowStart", event.target.value)} /></label>
+          <label>{t("strategy_lab.window_end")}<input value={form.windowEnd} disabled={frozen || readOnly} onChange={(event) => set("windowEnd", event.target.value)} /></label>
+          <label>{t("strategy_lab.bar_minutes")}<input type="number" value={form.barMinutes} disabled={frozen || readOnly} onChange={(event) => set("barMinutes", event.target.value)} /></label>
         </div>
         {/* CR-04 per-leg evidence declarations. The declaration is what makes
             historical evidence selection target-aware: engine/2 resolves each
@@ -259,13 +290,13 @@ export function StrategyDesignWorkspace({
           {STRATEGY_EVIDENCE_LEGS.map((leg) => {
             const declaration = form[leg.stateKey];
             return (
-              <fieldset key={leg.legId} className="strategy-evidence-leg" disabled={frozen}>
+              <fieldset key={leg.legId} className="strategy-evidence-leg" disabled={frozen || readOnly}>
                 <legend>{t(leg.titleKey)}</legend>
                 <label className="strategy-checkbox">
                   <input
                     type="checkbox"
                     checked={declaration.enabled}
-                    disabled={frozen}
+                    disabled={frozen || readOnly}
                     onChange={(event) => draft.setEvidenceField(leg.stateKey, "enabled", event.target.checked)}
                   />
                   {t("strategy_lab.evidence.opt_in")}
@@ -290,19 +321,19 @@ export function StrategyDesignWorkspace({
       <section className="workspace-panel">
         <h2>{t("strategy_lab.resource_scope")}</h2>
         <div className="strategy-form-grid">
-          <label>{t("strategy_lab.resource_id")}<input value={form.resourceId} disabled={frozen} onChange={(event) => set("resourceId", event.target.value)} /></label>
-          <label>{t("strategy_lab.resource_name")}<input value={form.resourceName} disabled={frozen} onChange={(event) => set("resourceName", event.target.value)} /></label>
-          <label>{t("strategy_lab.resource_quantity")}<input type="number" value={form.resourceQuantity} disabled={frozen} onChange={(event) => set("resourceQuantity", event.target.value)} /></label>
-          <label>{t("strategy_lab.resource_cost")}<input type="number" value={form.resourceCost} disabled={frozen} onChange={(event) => set("resourceCost", event.target.value)} /></label>
+          <label>{t("strategy_lab.resource_id")}<input value={form.resourceId} disabled={frozen || readOnly} onChange={(event) => set("resourceId", event.target.value)} /></label>
+          <label>{t("strategy_lab.resource_name")}<input value={form.resourceName} disabled={frozen || readOnly} onChange={(event) => set("resourceName", event.target.value)} /></label>
+          <label>{t("strategy_lab.resource_quantity")}<input type="number" value={form.resourceQuantity} disabled={frozen || readOnly} onChange={(event) => set("resourceQuantity", event.target.value)} /></label>
+          <label>{t("strategy_lab.resource_cost")}<input type="number" value={form.resourceCost} disabled={frozen || readOnly} onChange={(event) => set("resourceCost", event.target.value)} /></label>
         </div>
       </section>
       <section className="workspace-panel">
         <h2>{t("strategy_lab.risk_controls")}</h2>
         <div className="strategy-form-grid">
-          <label>{t("strategy_lab.max_ocm")} %<input type="number" value={form.maxOcm} disabled={frozen} onChange={(event) => set("maxOcm", event.target.value)} /></label>
-          <label>{t("strategy_lab.min_day_ahead")} %<input type="number" value={form.minDayAhead} disabled={frozen} onChange={(event) => set("minDayAhead", event.target.value)} /></label>
+          <label>{t("strategy_lab.max_ocm")} %<input type="number" value={form.maxOcm} disabled={frozen || readOnly} onChange={(event) => set("maxOcm", event.target.value)} /></label>
+          <label>{t("strategy_lab.min_day_ahead")} %<input type="number" value={form.minDayAhead} disabled={frozen || readOnly} onChange={(event) => set("minDayAhead", event.target.value)} /></label>
           <label className="strategy-checkbox">
-            <input type="checkbox" checked={form.requireTsoAccess} disabled={frozen} onChange={(event) => set("requireTsoAccess", event.target.checked)} />
+            <input type="checkbox" checked={form.requireTsoAccess} disabled={frozen || readOnly} onChange={(event) => set("requireTsoAccess", event.target.checked)} />
             {t("strategy_lab.require_tso_access")}
           </label>
         </div>
@@ -311,27 +342,27 @@ export function StrategyDesignWorkspace({
         <h2>{t("strategy_lab.assumptions")}</h2>
         <div className="strategy-form-grid">
           <label>{t("strategy_lab.fill_price_policy")}
-            <select value={form.fillPricePolicy} disabled={frozen} onChange={(event) => set("fillPricePolicy", event.target.value)}>
+            <select value={form.fillPricePolicy} disabled={frozen || readOnly} onChange={(event) => set("fillPricePolicy", event.target.value)}>
               <option>NEXT_ELIGIBLE</option><option>MID</option><option>BID</option><option>ASK</option><option>LAST</option><option>ASSESSMENT</option>
             </select>
           </label>
           <label>{t("strategy_lab.missing_data_policy")}
-            <select value={form.missingDataPolicy} disabled={frozen} onChange={(event) => set("missingDataPolicy", event.target.value)}>
+            <select value={form.missingDataPolicy} disabled={frozen || readOnly} onChange={(event) => set("missingDataPolicy", event.target.value)}>
               <option>FAIL</option><option>SKIP_DECISION</option><option>CARRY_FORWARD_WITH_MAX_AGE</option><option>USE_APPROVED_FALLBACK_SOURCE</option>
             </select>
           </label>
           <label>{t("strategy_lab.transaction_cost_treatment")}
-            <select value={form.transactionCostTreatment} disabled={frozen} onChange={(event) => set("transactionCostTreatment", event.target.value)}>
+            <select value={form.transactionCostTreatment} disabled={frozen || readOnly} onChange={(event) => set("transactionCostTreatment", event.target.value)}>
               <option>UNAVAILABLE</option><option>MODELED_COST</option><option>EXCLUDED</option>
             </select>
           </label>
-          <label>{t("strategy_lab.transaction_cost")} GBP/MWh<input type="number" step="0.01" value={form.transactionCost} disabled={frozen} onChange={(event) => set("transactionCost", event.target.value)} /></label>
+          <label>{t("strategy_lab.transaction_cost")} GBP/MWh<input type="number" step="0.01" value={form.transactionCost} disabled={frozen || readOnly} onChange={(event) => set("transactionCost", event.target.value)} /></label>
           <label>{t("strategy_lab.slippage_treatment")}
-            <select value={form.slippageTreatment} disabled={frozen} onChange={(event) => set("slippageTreatment", event.target.value)}>
+            <select value={form.slippageTreatment} disabled={frozen || readOnly} onChange={(event) => set("slippageTreatment", event.target.value)}>
               <option>UNAVAILABLE</option><option>MODELED_COST</option><option>EXCLUDED</option>
             </select>
           </label>
-          <label>{t("strategy_lab.slippage")} GBP/MWh<input type="number" step="0.01" value={form.slippage} disabled={frozen} onChange={(event) => set("slippage", event.target.value)} /></label>
+          <label>{t("strategy_lab.slippage")} GBP/MWh<input type="number" step="0.01" value={form.slippage} disabled={frozen || readOnly} onChange={(event) => set("slippage", event.target.value)} /></label>
         </div>
       </section>
       {/* Saving the draft is the workspace's primary action. What remains here changes a version's
@@ -343,12 +374,12 @@ export function StrategyDesignWorkspace({
         <p className="panel-copy">{t("strategy_lab.version_actions_note")}</p>
         <div className="strategy-design-actions">
           {frozen && (
-            <button type="button" disabled={busy} onClick={() => void draft.createNewVersion()}>
+            <button type="button" disabled={busy || readOnly} onClick={() => void draft.createNewVersion()}>
               {t("strategy_lab.create_new_version")}
             </button>
           )}
           {version?.status === "DRAFT" && (
-            <button type="button" disabled={busy} onClick={() => void draft.freezeVersion()}>
+            <button type="button" disabled={busy || readOnly} onClick={() => void draft.freezeVersion()}>
               {t("strategy_lab.freeze_version")}
             </button>
           )}
@@ -370,6 +401,7 @@ export function StrategyDesignWorkspace({
               {t("strategy_lab.metadata.name")}
               <input
                 value={identity.name}
+                disabled={readOnly || identity.busy}
                 maxLength={STRATEGY_NAME_MAX_LENGTH}
                 onChange={(event) => identity.setName(event.target.value)}
               />
@@ -378,6 +410,7 @@ export function StrategyDesignWorkspace({
               {t("strategy_lab.metadata.description")}
               <textarea
                 value={identity.description}
+                disabled={readOnly || identity.busy}
                 maxLength={STRATEGY_DESCRIPTION_MAX_LENGTH}
                 onChange={(event) => identity.setDescription(event.target.value)}
               />
@@ -386,6 +419,7 @@ export function StrategyDesignWorkspace({
               {t("strategy_lab.metadata.tags")}
               <input
                 value={identity.tags}
+                disabled={readOnly || identity.busy}
                 placeholder={t("strategy_lab.metadata.tags_hint")}
                 onChange={(event) => identity.setTags(event.target.value)}
               />
@@ -393,7 +427,7 @@ export function StrategyDesignWorkspace({
             <div className="strategy-design-actions">
               <button
                 type="button"
-                disabled={!identity.canSave || identity.busy}
+                disabled={readOnly || !identity.canSave || identity.busy}
                 title={
                   identity.name.trim()
                     ? identity.dirty

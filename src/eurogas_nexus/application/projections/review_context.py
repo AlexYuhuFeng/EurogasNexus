@@ -73,8 +73,7 @@ TABLE_LINEAGE: tuple[str, ...] = (
 
 _DECISION_TIME_KEYS = ("created_at_utc",)
 _NO_ROW_FILTER_RULE = (
-    "the underlying review route applies no row-level commercial filter, so this "
-    "slice adds none"
+    "the underlying review route applies no row-level commercial filter, so this slice adds none"
 )
 _DEGRADED_RULE = "not evaluated: no runtime database read was possible"
 
@@ -164,6 +163,7 @@ def _populated_review_context(
 
     decisions = _review_decisions(
         session,
+        principal_id=principal.principal_id,
         entity_type=entity_type,
         entity_id=entity_id,
         limit=decision_limit,
@@ -185,11 +185,7 @@ def _populated_review_context(
     ]
     monitoring = _monitoring_summary(session)
 
-    evidence_warnings = [
-        warning
-        for entry in evidence
-        for warning in entry.get("warnings") or []
-    ]
+    evidence_warnings = [warning for entry in evidence for warning in entry.get("warnings") or []]
     slices: dict[str, dict[str, Any]] = {
         "decisions": projection_slice(
             source=SOURCE_RUNTIME_POSTGRESQL,
@@ -225,8 +221,7 @@ def _populated_review_context(
             },
             notes=[
                 "Rows of /api/review/decisions, newest first.",
-                "A review decision is evidence and rationale; it is never an "
-                "execution approval.",
+                "A review decision is evidence and rationale; it is never an execution approval.",
             ],
         ),
         "evidence": projection_slice(
@@ -255,9 +250,7 @@ def _populated_review_context(
             warnings=evidence_warnings,
             payload={
                 "requested_entity_count": len(requested_entities),
-                "resolved_entity_count": sum(
-                    1 for entry in evidence if entry.get("available")
-                ),
+                "resolved_entity_count": sum(1 for entry in evidence if entry.get("available")),
                 "supported_entity_types": list(SUPPORTED_ENTITY_TYPES),
             },
             notes=[
@@ -373,6 +366,7 @@ def _unavailable_review_context(
 def _review_decisions(
     session: Session,
     *,
+    principal_id: str | None,
     entity_type: str | None,
     entity_id: str | None,
     limit: int,
@@ -383,6 +377,7 @@ def _review_decisions(
 
     return list_review_decisions(
         session,
+        principal_id=principal_id,
         entity_type=entity_type,
         entity_id=entity_id,
         limit=limit,
@@ -441,6 +436,12 @@ def _resolve_evidence(
     }
     if entity_type not in SUPPORTED_ENTITY_TYPES:
         entry["unavailable_reason"] = "ENTITY_TYPE_NOT_RESOLVABLE"
+        return entry
+
+    from eurogas_nexus.db.repositories.review import can_read_review_target
+
+    if not can_read_review_target(session, entity_type, entity_id, principal.principal_id):
+        entry["unavailable_reason"] = "EVIDENCE_NOT_FOUND"
         return entry
 
     artifact, warnings = _EVIDENCE_RESOLVERS[entity_type](session, entity_id, now_utc)
@@ -553,10 +554,7 @@ def _agent_review_pack_evidence(
     if row is None:
         return None, []
     replay = replay_payload(session, row)
-    warnings = [
-        str(warning)
-        for warning in (replay.get("warnings") or [])
-    ]
+    warnings = [str(warning) for warning in (replay.get("warnings") or [])]
     return replay, warnings
 
 
@@ -582,9 +580,7 @@ def _review_warnings(
 ) -> list[str]:
     """Aggregate the review warning codes from the decisions and evidence."""
 
-    needs_attention = any(
-        row.get("decision") == "needs_attention" for row in decisions
-    )
+    needs_attention = any(row.get("decision") == "needs_attention" for row in decisions)
     incomplete = any(not entry.get("available") for entry in evidence)
     return dedupe(
         [

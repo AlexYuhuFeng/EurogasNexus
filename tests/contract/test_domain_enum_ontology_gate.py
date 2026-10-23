@@ -20,6 +20,9 @@ DOMAIN_ROOT = SRC / "eurogas_nexus" / "domain"
 # Adding an entry here is an ontology-review decision; prefer putting the
 # vocabulary into domain/ontology/vocabulary.py instead.
 _REVIEWED_DOMAIN_STR_ENUMS: set[str] = {
+    # Deployment namespaces, not gas-market geography or legal residency claims.
+    # Offline provisional exchange contract; transport remains disabled.
+    "eurogas_nexus.domain.federation.contracts:Region",
     "eurogas_nexus.domain.analysis.contracts:AnalysisTask",
     "eurogas_nexus.domain.ingestion.certification:CertificationStage",
     "eurogas_nexus.domain.market.gas_day:GasDayCalendar",

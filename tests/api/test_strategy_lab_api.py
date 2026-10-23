@@ -5,52 +5,46 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
 
 from eurogas_nexus.api.app import create_app
-from eurogas_nexus.db.models import StrategyRunRecord
+from eurogas_nexus.db.base import Base
+from eurogas_nexus.db.models import StrategyRecord, StrategyRunRecord
+from eurogas_nexus.db.repositories.identity import (
+    create_identity_api_key,
+    create_identity_principal,
+)
 
 
-class _FakeQuery:
-    def __init__(self, rows: list[StrategyRunRecord]) -> None:
-        self.rows = list(rows)
-
-    def filter(self, *_args, **_kwargs) -> _FakeQuery:
-        return self
-
-    def order_by(self, *_args, **_kwargs) -> _FakeQuery:
-        return self
-
-    def limit(self, limit: int) -> _FakeQuery:
-        self.rows = self.rows[:limit]
-        return self
-
-    def all(self) -> list[StrategyRunRecord]:
-        return self.rows
-
-
-class _FakeSession:
-    def __init__(self, run: StrategyRunRecord) -> None:
-        self.run = run
-
-    def __enter__(self) -> _FakeSession:
-        return self
-
-    def __exit__(self, *_args) -> None:
-        return None
-
-    def query(self, _model) -> _FakeQuery:
-        return _FakeQuery([self.run])
-
-    def get(self, _model, run_id: str) -> StrategyRunRecord | None:
-        return self.run if run_id == self.run.run_id else None
-
-
-class _FakeSessionFactory:
-    def __init__(self, session: _FakeSession) -> None:
-        self.session = session
-
-    def __call__(self) -> _FakeSession:
-        return self.session
+def _owned_client(tmp_path, monkeypatch, run: StrategyRunRecord | None = None) -> TestClient:
+    database_url = f"sqlite+pysqlite:///{(tmp_path / 'strategy-lab.sqlite').as_posix()}"
+    engine = create_engine(database_url, future=True)
+    Base.metadata.create_all(engine)
+    monkeypatch.setenv("RUNTIME_STORE_DATABASE_URL", database_url)
+    with Session(engine) as session:
+        owner = create_identity_principal(
+            session, name="lab-owner", display_name="Lab owner", role="ANALYST", data_scopes=["*"]
+        )
+        _, bearer = create_identity_api_key(session, owner.principal_id, display_name="lab-tests")
+        now = datetime(2026, 7, 22, 10, 0, tzinfo=UTC)
+        session.add(
+            StrategyRecord(
+                strategy_id="sap-icis-ocm",
+                name="SAP ICIS vs OCM",
+                owner_principal_id=owner.principal_id,
+                visibility="PRIVATE",
+                created_at_utc=now,
+                updated_at_utc=now,
+            )
+        )
+        if run is not None:
+            session.add(run)
+        session.commit()
+    return TestClient(
+        create_app(),
+        headers={"X-Eurogas-Identity": bearer, "X-Eurogas-Api-Key": "test-public-api-token"},
+    )
 
 
 def _history_run() -> StrategyRunRecord:
@@ -82,8 +76,10 @@ def _history_run() -> StrategyRunRecord:
     )
 
 
-def test_strategy_lab_evaluate_endpoint_returns_paper_allocation_targets() -> None:
-    client = TestClient(create_app())
+def test_strategy_lab_evaluate_endpoint_returns_paper_allocation_targets(
+    tmp_path, monkeypatch
+) -> None:
+    client = _owned_client(tmp_path, monkeypatch)
 
     response = client.post(
         "/api/strategy-lab/evaluate",
@@ -169,25 +165,19 @@ def test_strategy_lab_evaluate_endpoint_returns_paper_allocation_targets() -> No
     assert body["data"]["candidate_action_for_review"] == "REVIEW_HIGHER_OCM_ALLOCATION"
     assert body["data"]["allocation_targets"][0]["market_bucket"] == "ICE_OCM"
     assert body["data"]["allocation_targets"][0]["target_quantity_mwh_per_day"] > 0
-    assert "STRATEGY_RUN_NOT_PERSISTED" in body["meta"]["warnings"]
+    assert "STRATEGY_RUN_NOT_PERSISTED" not in body["meta"]["warnings"]
+    persisted = client.get(f"/api/strategy-lab/runs/{body['data']['run_id']}")
+    assert persisted.status_code == 200
+    assert persisted.json()["data"]["paper_pnl_gbp"] == body["data"]["paper_pnl_gbp"]
 
 
 def test_strategy_lab_runs_and_detail_expose_history_fields_via_serializer(
+    tmp_path,
     monkeypatch,
 ) -> None:
     """List and detail routes run the repository serializer on a real row."""
     run = _history_run()
-    session = _FakeSession(run)
-    monkeypatch.setattr(
-        "eurogas_nexus.db.session.resolve_database_url",
-        lambda: "postgresql+pg8000://test:test@localhost/test",
-    )
-    monkeypatch.setattr(
-        "eurogas_nexus.db.session.get_session_factory",
-        lambda: _FakeSessionFactory(session),
-    )
-
-    client = TestClient(create_app())
+    client = _owned_client(tmp_path, monkeypatch, run)
     list_response = client.get("/api/strategy-lab/runs")
     detail_response = client.get("/api/strategy-lab/runs/run-1")
 
@@ -224,6 +214,7 @@ def test_strategy_lab_runs_and_detail_expose_history_fields_via_serializer(
 
 
 def test_strategy_lab_runs_and_detail_legacy_serializer_fields_are_null(
+    tmp_path,
     monkeypatch,
 ) -> None:
     """Legacy rows expose null optional fields through list and detail routes."""
@@ -234,17 +225,7 @@ def test_strategy_lab_runs_and_detail_legacy_serializer_fields_are_null(
         "hit": True,
         "weighted_score": 0.4,
     }
-    session = _FakeSession(run)
-    monkeypatch.setattr(
-        "eurogas_nexus.db.session.resolve_database_url",
-        lambda: "postgresql+pg8000://test:test@localhost/test",
-    )
-    monkeypatch.setattr(
-        "eurogas_nexus.db.session.get_session_factory",
-        lambda: _FakeSessionFactory(session),
-    )
-
-    client = TestClient(create_app())
+    client = _owned_client(tmp_path, monkeypatch, run)
     list_response = client.get("/api/strategy-lab/runs")
     detail_response = client.get("/api/strategy-lab/runs/run-1")
 

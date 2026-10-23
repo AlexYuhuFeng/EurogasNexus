@@ -45,6 +45,9 @@ def _database(tmp_path, monkeypatch) -> str:
     monkeypatch.setenv("RUNTIME_STORE_DATABASE_URL", database_url)
     monkeypatch.delenv("DATABASE_URL", raising=False)
     monkeypatch.delenv("EUROGAS_NEXUS_DB_DSN", raising=False)
+    from tests.api.identity_fixture import install_named_client
+
+    install_named_client(database_url, monkeypatch)
     return database_url
 
 

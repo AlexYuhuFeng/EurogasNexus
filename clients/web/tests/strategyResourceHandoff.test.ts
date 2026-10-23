@@ -11,6 +11,9 @@ function contract(overrides: Record<string, unknown> = {}): UpstreamContractDTO 
 
 test("new and missing stored resources have no fabricated identity, energy or price", () => {
   for (const form of [DEFAULT_STRATEGY_FORM, strategyFormFromVersion({ strategy_name: "Missing" })]) {
+    assert.equal(form.hubs, ""); assert.equal(form.dayAheadNames, ""); assert.equal(form.intradayNames, "");
+    const blockers = strategyDraftValidation(form).blockerKeys;
+    for (const leg of ["hubs", "day_ahead", "intraday"]) assert.ok(blockers.includes(`strategy_lab.blocker.${leg}`));
     assert.equal(form.resourceId, ""); assert.equal(form.resourceQuantity, ""); assert.equal(form.resourceCost, "");
     assert.ok(strategyDraftValidation(form).blockerKeys.includes("strategy_lab.blocker.resource"));
     assert.throws(() => strategyDraftBody(form), /explicit compatible resource/);

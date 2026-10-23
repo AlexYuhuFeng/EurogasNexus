@@ -91,6 +91,10 @@ export function useStrategyLab({ selection, gasDay, locationRevision }: UseStrat
     () => strategies.find((item) => item.strategy_id === strategyId) ?? null,
     [strategies, strategyId],
   );
+  const canManageSelectedStrategy = selectedStrategy?.can_manage === true;
+  const replaceStrategy = useCallback((updated: StrategyDTO) => {
+    setStrategies((current) => current.map((item) => item.strategy_id === updated.strategy_id ? updated : item));
+  }, []);
   const versions = useMemo(
     () => (strategyId ? versionsByStrategy[strategyId] ?? [] : []),
     [strategyId, versionsByStrategy],
@@ -132,6 +136,7 @@ export function useStrategyLab({ selection, gasDay, locationRevision }: UseStrat
       const result = await apiClient.strategies();
       setStrategies(result.data);
     } catch (err) {
+      setStrategies([]);
       setError(String(err));
     }
   }, []);
@@ -262,6 +267,7 @@ export function useStrategyLab({ selection, gasDay, locationRevision }: UseStrat
 
   const runBacktest = useCallback(
     async (payload: Record<string, unknown>) => {
+      if (!canManageSelectedStrategy) return null;
       setLoading(true);
       setError(null);
       setMessage(null);
@@ -293,6 +299,7 @@ export function useStrategyLab({ selection, gasDay, locationRevision }: UseStrat
       }
     },
     [
+      canManageSelectedStrategy,
       loadRunDetails,
       openTask,
       refreshRuns,
@@ -320,6 +327,7 @@ export function useStrategyLab({ selection, gasDay, locationRevision }: UseStrat
    */
   const createExperiment = useCallback(
     async (draft: { name: string; hypothesis: string; period: { start: string; end: string } }) => {
+      if (!canManageSelectedStrategy) return null;
       const subject = {
         strategyId,
         version: selectedVersion
@@ -351,7 +359,7 @@ export function useStrategyLab({ selection, gasDay, locationRevision }: UseStrat
         setLoading(false);
       }
     },
-    [selectedVersion, strategyId],
+    [canManageSelectedStrategy, selectedVersion, strategyId],
   );
 
   const selectExperiment = useCallback(
@@ -405,6 +413,7 @@ export function useStrategyLab({ selection, gasDay, locationRevision }: UseStrat
    */
   const updateStrategyMetadata = useCallback(
     async (strategyIdToEdit: string, body: { name?: string; description?: string; tags?: string[] }) => {
+      if (!strategies.some((item) => item.strategy_id === strategyIdToEdit && item.can_manage === true)) return null;
       setLoading(true);
       setError(null);
       setMessage(null);
@@ -424,7 +433,7 @@ export function useStrategyLab({ selection, gasDay, locationRevision }: UseStrat
         setLoading(false);
       }
     },
-    [],
+    [strategies],
   );
 
   useEffect(() => {
@@ -450,6 +459,8 @@ export function useStrategyLab({ selection, gasDay, locationRevision }: UseStrat
     openTask,
     strategies,
     selectedStrategy,
+    canManageSelectedStrategy,
+    replaceStrategy,
     versions,
     selectedVersion,
     runs,

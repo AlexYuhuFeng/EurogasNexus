@@ -6,16 +6,37 @@ orders, trades or nominations from strategy-registry artifacts.
 
 from __future__ import annotations
 
+from typing import Literal
+from urllib.parse import quote
+
 from pydantic import BaseModel, Field
 
 from eurogas_nexus_sdk import _http
 from eurogas_nexus_sdk.strategy_lab import StrategyRunDTO
 
 
+class StrategySharingGroupDTO(BaseModel):
+    """Active group the authenticated caller may select for strategy read sharing."""
+
+    group_id: str
+    name: str
+
+
+def list_my_groups(base_url: str) -> list[StrategySharingGroupDTO]:
+    """List the authenticated caller's eligible local sharing groups."""
+    response = _http.get(f"{base_url.rstrip('/')}/api/me/groups", timeout=15)
+    response.raise_for_status()
+    return [StrategySharingGroupDTO(**row) for row in response.json()["data"]]
+
+
 class StrategyDTO(BaseModel):
     """Long-lived strategy research identity."""
 
     strategy_id: str
+    owner_principal_id: str | None = None
+    visibility: Literal["PRIVATE", "PUBLIC", "GROUPS"] = "PRIVATE"
+    shared_group_ids: list[str] = Field(default_factory=list)
+    can_manage: bool = False
     name: str
     description: str
     lifecycle_status: str
@@ -49,9 +70,7 @@ class StrategyVersionDTO(BaseModel):
 def list_strategies(base_url: str, *, limit: int = 200) -> list[StrategyDTO]:
     """List strategy identities, newest first."""
 
-    response = _http.get(
-        f"{base_url}/api/strategies", params={"limit": str(limit)}, timeout=15
-    )
+    response = _http.get(f"{base_url}/api/strategies", params={"limit": str(limit)}, timeout=15)
     response.raise_for_status()
     return [StrategyDTO(**row) for row in response.json()["data"]]
 
@@ -392,9 +411,7 @@ def list_experiments(base_url: str) -> list[BacktestExperimentDTO]:
 def get_experiment(base_url: str, experiment_id: str) -> BacktestExperimentDTO:
     """Fetch one persisted backtest experiment."""
 
-    response = _http.get(
-        f"{base_url}/api/backtest-experiments/{experiment_id}", timeout=15
-    )
+    response = _http.get(f"{base_url}/api/backtest-experiments/{experiment_id}", timeout=15)
     response.raise_for_status()
     return BacktestExperimentDTO(**response.json()["data"])
 
@@ -418,9 +435,7 @@ def list_run_series(base_url: str, run_id: str) -> list[BacktestSeriesPointDTO]:
 def list_run_attribution(base_url: str, run_id: str) -> list[BacktestAttributionDTO]:
     """Fetch persisted backtest attribution rows."""
 
-    response = _http.get(
-        f"{base_url}/api/strategy-runs/{run_id}/attribution", timeout=15
-    )
+    response = _http.get(f"{base_url}/api/strategy-runs/{run_id}/attribution", timeout=15)
     response.raise_for_status()
     return [BacktestAttributionDTO(**row) for row in response.json()["data"]]
 
@@ -453,3 +468,20 @@ def get_strategy_run(base_url: str, run_id: str) -> StrategyRunDTO:
     response = _http.get(f"{base_url}/api/strategy-runs/{run_id}", timeout=15)
     response.raise_for_status()
     return StrategyRunDTO(**response.json()["data"])
+
+
+def update_strategy_sharing(
+    base_url: str,
+    strategy_id: str,
+    *,
+    visibility: Literal["PRIVATE", "PUBLIC", "GROUPS"],
+    group_ids: list[str] | None = None,
+) -> StrategyDTO:
+    """Owner-selected local read sharing; never grants writes or cross-region consent."""
+    response = _http.patch(
+        f"{base_url.rstrip('/')}/api/strategies/{quote(strategy_id, safe='')}/sharing",
+        json={"visibility": visibility, "group_ids": group_ids or []},
+        timeout=15,
+    )
+    response.raise_for_status()
+    return StrategyDTO(**response.json()["data"])

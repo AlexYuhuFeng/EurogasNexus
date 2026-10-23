@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
+from eurogas_nexus.application.agents.strategy_privacy import guard_strategy_capability
 from eurogas_nexus.domain.agents.contracts import (
     ActionPolicy,
     CapabilityDefinition,
@@ -246,9 +247,7 @@ def _register_dataset_capabilities(registry) -> None:
             artifact_format = str(arguments.get("format") or "parquet")
             row = get_dataset_snapshot(session, snapshot_id)
             if row is None:
-                return _blocked(
-                    definition, CapabilityFailureCode.ENTITY_NOT_FOUND, snapshot_id
-                )
+                return _blocked(definition, CapabilityFailureCode.ENTITY_NOT_FOUND, snapshot_id)
             # Rights come from persisted canonical provenance and current grants
             # only: a request envelope (including any entitlement_envelope or
             # export_policy field) can never authorize an export.
@@ -275,9 +274,7 @@ def _register_dataset_capabilities(registry) -> None:
                 )
             artifacts = list_dataset_artifacts(session, snapshot_id)
             available_formats = sorted({artifact.format for artifact in artifacts})
-            artifact = next(
-                (item for item in artifacts if item.format == artifact_format), None
-            )
+            artifact = next((item for item in artifacts if item.format == artifact_format), None)
             if artifact is None:
                 # Fail closed: never return a reference for an artifact that was
                 # not registered, and never fabricate one.
@@ -317,9 +314,7 @@ def _register_dataset_capabilities(registry) -> None:
                     CapabilityFailureCode.ENTITY_NOT_FOUND,
                     str(arguments["dataset_snapshot_id"]),
                 )
-            if principal_can_read_snapshot(
-                _research_principal(context), row.metadata_json
-            ) is None:
+            if principal_can_read_snapshot(_research_principal(context), row.metadata_json) is None:
                 return _blocked(
                     definition,
                     CapabilityFailureCode.ENTITLEMENT_DENIED,
@@ -358,9 +353,7 @@ def _register_dataset_capabilities(registry) -> None:
                     CapabilityFailureCode.ENTITY_NOT_FOUND,
                     str(arguments["dataset_snapshot_id"]),
                 )
-            if principal_can_read_snapshot(
-                _research_principal(context), row.metadata_json
-            ) is None:
+            if principal_can_read_snapshot(_research_principal(context), row.metadata_json) is None:
                 return _blocked(
                     definition,
                     CapabilityFailureCode.ENTITLEMENT_DENIED,
@@ -393,9 +386,7 @@ def _register_dataset_capabilities(registry) -> None:
                     CapabilityFailureCode.ENTITY_NOT_FOUND,
                     str(arguments["dataset_snapshot_id"]),
                 )
-            if principal_can_read_snapshot(
-                _research_principal(context), row.metadata_json
-            ) is None:
+            if principal_can_read_snapshot(_research_principal(context), row.metadata_json) is None:
                 return _blocked(
                     definition,
                     CapabilityFailureCode.ENTITLEMENT_DENIED,
@@ -515,8 +506,15 @@ def _register_strategy_capabilities(registry) -> None:
                     CapabilityFailureCode.DATA_MISSING,
                     "Runtime PostgreSQL is not configured",
                 )
+            denied = guard_strategy_capability(
+                session, arguments, _context, definition, write=False
+            )
+            if denied is not None:
+                return denied
             rows = strategy_registry.list_strategies(
-                session, limit=int(arguments.get("limit") or 100)
+                session,
+                limit=int(arguments.get("limit") or 100),
+                principal_id=_context.principal_id,
             )
             payload = [strategy_registry.strategy_record_payload(row) for row in rows]
         return _result(definition, {"strategies": payload, "count": len(payload)})
@@ -530,6 +528,11 @@ def _register_strategy_capabilities(registry) -> None:
                     CapabilityFailureCode.DATA_MISSING,
                     "Runtime PostgreSQL is not configured",
                 )
+            denied = guard_strategy_capability(
+                session, arguments, _context, definition, write=False
+            )
+            if denied is not None:
+                return denied
             row = strategy_registry.get_strategy(session, str(arguments["strategy_id"]))
             if row is None:
                 return _blocked(
@@ -549,6 +552,9 @@ def _register_strategy_capabilities(registry) -> None:
                     CapabilityFailureCode.DATA_MISSING,
                     "Runtime PostgreSQL is not configured",
                 )
+            denied = guard_strategy_capability(session, arguments, context, definition, write=True)
+            if denied is not None:
+                return denied
             strategy_id = str(arguments.get("strategy_id") or f"strategy-{_now_hex()}")
             row = strategy_registry.create_strategy(
                 session,
@@ -556,6 +562,7 @@ def _register_strategy_capabilities(registry) -> None:
                 name=str(arguments.get("name") or strategy_id),
                 description=str(arguments.get("description") or ""),
                 created_by=context.principal_id,
+                owner_principal_id=context.principal_id,
                 now_utc=datetime.now(UTC),
                 tags=list(arguments.get("tags") or []),
             )
@@ -583,6 +590,9 @@ def _register_strategy_capabilities(registry) -> None:
                     CapabilityFailureCode.DATA_MISSING,
                     "Runtime PostgreSQL is not configured",
                 )
+            denied = guard_strategy_capability(session, arguments, context, definition, write=True)
+            if denied is not None:
+                return denied
             row = strategy_registry.create_strategy_version(
                 session,
                 strategy_id=str(arguments["strategy_id"]),
@@ -620,6 +630,9 @@ def _register_strategy_capabilities(registry) -> None:
                     CapabilityFailureCode.DATA_MISSING,
                     "Runtime PostgreSQL is not configured",
                 )
+            denied = guard_strategy_capability(session, arguments, context, definition, write=True)
+            if denied is not None:
+                return denied
             row = strategy_registry.get_strategy_version(
                 session, str(arguments["strategy_version_id"])
             )
@@ -647,6 +660,11 @@ def _register_strategy_capabilities(registry) -> None:
                     CapabilityFailureCode.DATA_MISSING,
                     "Runtime PostgreSQL is not configured",
                 )
+            denied = guard_strategy_capability(
+                session, arguments, _context, definition, write=False
+            )
+            if denied is not None:
+                return denied
             row = strategy_registry.get_strategy_version(
                 session, str(arguments["strategy_version_id"])
             )
@@ -671,6 +689,11 @@ def _register_strategy_capabilities(registry) -> None:
                     CapabilityFailureCode.DATA_MISSING,
                     "Runtime PostgreSQL is not configured",
                 )
+            denied = guard_strategy_capability(
+                session, arguments, _context, definition, write=False
+            )
+            if denied is not None:
+                return denied
             rows = strategy_registry.list_strategy_versions(
                 session, str(arguments["strategy_id"]), limit=50
             )
@@ -848,6 +871,9 @@ def _register_backtest_capabilities(registry) -> None:
                     CapabilityFailureCode.DATA_MISSING,
                     "Runtime PostgreSQL is not configured",
                 )
+            denied = guard_strategy_capability(session, arguments, context, definition, write=True)
+            if denied is not None:
+                return denied
             version = strategy_registry.get_strategy_version(
                 session, str(arguments["strategy_version_id"])
             )
@@ -900,6 +926,11 @@ def _register_backtest_capabilities(registry) -> None:
                     CapabilityFailureCode.DATA_MISSING,
                     "Runtime PostgreSQL is not configured",
                 )
+            denied = guard_strategy_capability(
+                session, arguments, _context, definition, write=False
+            )
+            if denied is not None:
+                return denied
             from eurogas_nexus.db.repositories.strategy import get_strategy_run
 
             payload = get_strategy_run(session, str(arguments["run_id"]))
@@ -918,6 +949,11 @@ def _register_backtest_capabilities(registry) -> None:
                     CapabilityFailureCode.DATA_MISSING,
                     "Runtime PostgreSQL is not configured",
                 )
+            denied = guard_strategy_capability(
+                session, arguments, _context, definition, write=False
+            )
+            if denied is not None:
+                return denied
             rows = backtest.list_backtest_events(session, str(arguments["run_id"]))
         return _result(definition, {"events": rows, "count": len(rows)})
 
@@ -930,6 +966,11 @@ def _register_backtest_capabilities(registry) -> None:
                     CapabilityFailureCode.DATA_MISSING,
                     "Runtime PostgreSQL is not configured",
                 )
+            denied = guard_strategy_capability(
+                session, arguments, _context, definition, write=False
+            )
+            if denied is not None:
+                return denied
             rows = backtest.list_backtest_attribution(session, str(arguments["run_id"]))
         return _result(definition, {"attribution": rows, "count": len(rows)})
 
@@ -942,6 +983,11 @@ def _register_backtest_capabilities(registry) -> None:
                     CapabilityFailureCode.DATA_MISSING,
                     "Runtime PostgreSQL is not configured",
                 )
+            denied = guard_strategy_capability(
+                session, arguments, _context, definition, write=False
+            )
+            if denied is not None:
+                return denied
             from eurogas_nexus.db.repositories.strategy import get_strategy_run
 
             payload = get_strategy_run(session, str(arguments["run_id"]))
@@ -1049,8 +1095,7 @@ def _register_backtest_capabilities(registry) -> None:
         name="Get robustness summary",
         domain=CapabilityDomain.BACKTEST,
         description=(
-            "Return supported robustness checks; unsupported checks are "
-            "DEFERRED, never faked."
+            "Return supported robustness checks; unsupported checks are DEFERRED, never faked."
         ),
         input_schema=_schema({"run_id": {"type": "string"}}, required=["run_id"]),
         output_schema={"type": "object"},

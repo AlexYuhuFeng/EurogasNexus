@@ -455,9 +455,7 @@ def list_contract_revisions(
     return _env(data, request, source="runtime-postgresql", warnings=warnings)
 
 
-@router.get(
-    "/api/route-cost/upstream-contracts/{contract_id}/revisions/{contract_revision_id}"
-)
+@router.get("/api/route-cost/upstream-contracts/{contract_id}/revisions/{contract_revision_id}")
 def get_contract_revision(
     contract_id: str,
     contract_revision_id: str,
@@ -664,6 +662,11 @@ def post_resource_pool_optimization(
         _optimize,
         kind="OPTIMISATION",
         principal=current_principal(request).name,
+        owner_principal_id=(
+            current_principal(request).principal_id
+            if ":" not in current_principal(request).principal_id
+            else None
+        ),
         scope_refs=(f"PORTFOLIO:{body.portfolio_id}",),
         snapshot_id=body.analysis_snapshot_id or "",
         inputs=body.model_dump(mode="json"),

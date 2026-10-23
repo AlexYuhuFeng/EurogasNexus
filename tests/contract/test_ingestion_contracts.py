@@ -83,8 +83,13 @@ def test_entsog_flow_ingestion_requests_and_upserts_physical_flow() -> None:
         encoding="utf-8"
     )
 
-    assert '"indicator": "Physical Flow"' in script
-    # re-run safe: natural-key upsert, never a destructive full replace
+    # The bounded collector now builds one filtered query per indicator and
+    # delegates revision-safe writes; this contract follows that extraction.
+    assert 'indicators = ("Physical Flow",) if route == "entsog"' in script
+    assert '"indicator": indicator' in script
     assert "delete(FlowObservationRecord)" not in script
-    assert "upsert_observation_rows(session, FlowObservationRecord, rows)" in script
-    assert "ENTSOG returned no physical-flow observations" in script
+    assert "persist_entsog_observations(" in script
+    assert 'model=FlowObservationRecord if route == "entsog"' in script
+    persistence = (ROOT / "src/eurogas_nexus/ingestion/entsog_ingestion.py").read_text()
+    assert "upsert_entsog_observation_rows(" in persistence
+    assert "raise EntsogEmptyNormalizationError(" in persistence

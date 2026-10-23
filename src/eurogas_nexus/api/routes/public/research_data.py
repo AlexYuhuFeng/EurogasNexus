@@ -136,8 +136,7 @@ def _dataset_spec_error(exc: ValidationError) -> HTTPException:
             code = "frequency_invalid"
             location = "forecast_origin_frequency"
             safe_message = (
-                "forecast_origin_frequency must be a positive integer with "
-                "suffix 'h' or 'd'."
+                "forecast_origin_frequency must be a positive integer with suffix 'h' or 'd'."
             )
         elif location in {"start", "end"} or "end must be after start" in message:
             location = "start/end"
@@ -146,9 +145,7 @@ def _dataset_spec_error(exc: ValidationError) -> HTTPException:
         elif location == "history_lookback" or "history_lookback" in message:
             location = "history_lookback"
             code = "history_lookback_invalid"
-            safe_message = (
-                "history_lookback must be non-negative and no greater than 3650 days."
-            )
+            safe_message = "history_lookback must be non-negative and no greater than 3650 days."
         else:
             code = "dataset_field_invalid"
             safe_message = "The dataset specification contains an invalid field."
@@ -413,6 +410,9 @@ def materialize_dataset(body: DatasetMaterializeRequest, request: Request) -> di
             session,
             kind="DATASET_BUILD",
             principal=principal.name,
+            owner_principal_id=(
+                principal.principal_id if ":" not in principal.principal_id else None
+            ),
             scope_refs=(f"SNAPSHOT:{body.snapshot_id}",) if body.snapshot_id else (),
             snapshot_id=body.snapshot_id,
             inputs=body.dataset_spec,
@@ -582,9 +582,7 @@ def export_dataset(dataset_snapshot_id: str, body: DatasetExportRequest, request
             )
         artifacts = list_dataset_artifacts(session, dataset_snapshot_id)
         available_formats = sorted({artifact.format for artifact in artifacts})
-        artifact = next(
-            (item for item in artifacts if item.format == body.format), None
-        )
+        artifact = next((item for item in artifacts if item.format == body.format), None)
         if artifact is None:
             raise HTTPException(
                 status_code=409,
@@ -711,15 +709,12 @@ def _build_from_runtime(
         .filter(MarketObservationRecord.observed_at_utc >= history_start)
         .filter(MarketObservationRecord.observed_at_utc < spec.end)
     )
-    temporal_rows = {
-        row.observation_id: row for row in temporal_query.all()
-    }
+    temporal_rows = {row.observation_id: row for row in temporal_query.all()}
     trusted_source_ids: set[str] = set()
     for row in market_rows:
-        source_definition = (
-            source_by_system.get(str(row.source_system).casefold())
-            or definition_for_runtime_source(str(row.source_system))
-        )
+        source_definition = source_by_system.get(
+            str(row.source_system).casefold()
+        ) or definition_for_runtime_source(str(row.source_system))
         if source_definition is None:
             continue
         metadata = row.metadata_json or {}

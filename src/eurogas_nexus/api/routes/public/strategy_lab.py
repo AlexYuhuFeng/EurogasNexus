@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 
 from eurogas_nexus.domain.strategy_lab.evaluation import (
     StrategyLabScenario,
@@ -19,6 +19,7 @@ router = APIRouter(tags=["strategy-lab"])
 def post_strategy_lab_evaluation(body: StrategyLabScenario, request: Request) -> dict:
     """Evaluate backtest, shadow-run, or live-monitor strategy inputs."""
 
+    _require_strategy(request, body.strategy_id, write=True)
     result = evaluate_strategy_lab(body)
     run_id = f"run-{uuid4().hex[:16]}"
     warnings = list(result.warnings)
@@ -42,7 +43,7 @@ def get_strategy_runs(
 ) -> dict:
     """List persisted strategy runs."""
 
-    data, warnings = _list_runs(strategy_id=strategy_id, run_mode=run_mode, limit=limit)
+    data, warnings = _list_runs(request, strategy_id=strategy_id, run_mode=run_mode, limit=limit)
     return _env(data, request, source="runtime-postgresql", warnings=warnings)
 
 
@@ -50,7 +51,7 @@ def get_strategy_runs(
 def get_strategy_run(run_id: str, request: Request) -> dict:
     """Return one persisted strategy run."""
 
-    data, warnings = _get_run(run_id)
+    data, warnings = _get_run(request, run_id)
     return _env(data, request, source="runtime-postgresql", warnings=warnings)
 
 
@@ -62,7 +63,7 @@ def get_strategy_summary(
 ) -> dict:
     """Aggregate cumulative shadow-run paper performance."""
 
-    data, warnings = _summarize(strategy_id=strategy_id, run_mode=run_mode)
+    data, warnings = _summarize(request, strategy_id=strategy_id, run_mode=run_mode)
     return _env(data, request, source="runtime-postgresql", warnings=warnings)
 
 
@@ -91,7 +92,7 @@ def _persist_run(run_id: str, scenario: StrategyLabScenario, result) -> bool:
 
 
 def _list_runs(
-    *, strategy_id: str | None, run_mode: str | None, limit: int
+    request: Request, *, strategy_id: str | None, run_mode: str | None, limit: int
 ) -> tuple[list, list[str]]:
     if not _db_is_configured():
         return [], ["RUNTIME_DB_NOT_CONFIGURED"]
@@ -105,12 +106,13 @@ def _list_runs(
                 strategy_id=strategy_id,
                 run_mode=run_mode,
                 limit=limit,
+                visible_strategy_ids=_visible_ids(session, request),
             ), []
     except _sqlalchemy_error_type():
         return [], ["RUNTIME_POSTGRESQL_UNAVAILABLE"]
 
 
-def _get_run(run_id: str) -> tuple[dict | None, list[str]]:
+def _get_run(request: Request, run_id: str) -> tuple[dict | None, list[str]]:
     if not _db_is_configured():
         return None, ["RUNTIME_DB_NOT_CONFIGURED"]
     try:
@@ -118,12 +120,18 @@ def _get_run(run_id: str) -> tuple[dict | None, list[str]]:
         from eurogas_nexus.db.session import get_session_factory
 
         with get_session_factory()() as session:
-            return get_strategy_run(session, run_id), []
+            data = get_strategy_run(session, run_id)
+            if data is None:
+                raise HTTPException(status_code=404, detail="Strategy run not found")
+            _require_in_session(session, request, data["strategy_id"])
+            return data, []
     except _sqlalchemy_error_type():
         return None, ["RUNTIME_POSTGRESQL_UNAVAILABLE"]
 
 
-def _summarize(*, strategy_id: str | None, run_mode: str | None) -> tuple[dict, list[str]]:
+def _summarize(
+    request: Request, *, strategy_id: str | None, run_mode: str | None
+) -> tuple[dict, list[str]]:
     if not _db_is_configured():
         return _empty_summary(strategy_id, run_mode), ["RUNTIME_DB_NOT_CONFIGURED"]
     try:
@@ -135,9 +143,38 @@ def _summarize(*, strategy_id: str | None, run_mode: str | None) -> tuple[dict, 
                 session,
                 strategy_id=strategy_id,
                 run_mode=run_mode,
+                visible_strategy_ids=_visible_ids(session, request),
             ), []
     except _sqlalchemy_error_type():
         return _empty_summary(strategy_id, run_mode), ["RUNTIME_POSTGRESQL_UNAVAILABLE"]
+
+
+def _visible_ids(session, request: Request) -> set[str]:
+    from eurogas_nexus.db.repositories.strategy_access import visible_strategy_ids
+
+    return visible_strategy_ids(
+        session, getattr(getattr(request.state, "identity", None), "principal_id", None)
+    )
+
+
+def _require_in_session(session, request: Request, strategy_id: str, *, write: bool = False):
+    from eurogas_nexus.db.repositories.strategy_access import require_strategy_access
+
+    return require_strategy_access(
+        session,
+        strategy_id,
+        getattr(getattr(request.state, "identity", None), "principal_id", None),
+        write=write,
+    )
+
+
+def _require_strategy(request: Request, strategy_id: str, *, write: bool = False):
+    from eurogas_nexus.db.session import get_session_factory
+
+    if not _db_is_configured():
+        raise HTTPException(status_code=503, detail="Strategy store not configured")
+    with get_session_factory()() as session:
+        _require_in_session(session, request, strategy_id, write=write)
 
 
 def _empty_summary(strategy_id: str | None, run_mode: str | None) -> dict:

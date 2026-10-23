@@ -102,9 +102,7 @@ def client(tmp_path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.delenv("EUROGAS_NEXUS_DB_DSN", raising=False)
     # CR14-ARTIFACT-001: artifacts go to the configurable research artifact root;
     # tests redirect it so nothing is written into the checkout.
-    monkeypatch.setenv(
-        "EUROGAS_NEXUS_RESEARCH_ARTIFACT_ROOT", str(tmp_path / "research-artifacts")
-    )
+    monkeypatch.setenv("EUROGAS_NEXUS_RESEARCH_ARTIFACT_ROOT", str(tmp_path / "research-artifacts"))
     with Session(engine) as session:
         feature = _feature()
         target = _target()
@@ -137,9 +135,7 @@ def client(tmp_path, monkeypatch: pytest.MonkeyPatch):
         repo.upsert_resampling_policy(
             session,
             policy_id="resampling/v1",
-            definition_json=ResamplingPolicy(semantic_type="market_price").model_dump(
-                mode="json"
-            ),
+            definition_json=ResamplingPolicy(semantic_type="market_price").model_dump(mode="json"),
             content_hash="0" * 64,
         )
         repo.upsert_resampling_policy(
@@ -226,12 +222,13 @@ def test_research_catalog_endpoints_are_read_only_metadata(client) -> None:
 
     capabilities = client.get("/api/research/capabilities")
     assert capabilities.status_code == 200
-    assert {
-        row["name"] for row in capabilities.json()["data"]
-    } >= {"dataset.build", "dataset.export", "ontology.resolve_entity"}
+    assert {row["name"] for row in capabilities.json()["data"]} >= {
+        "dataset.build",
+        "dataset.export",
+        "ontology.resolve_entity",
+    }
 
     assert client.get("/api/research/features/missing").status_code == 404
-
 
 
 def test_dataset_validate_reports_semantic_issues_without_persisting(client) -> None:
@@ -506,7 +503,7 @@ def test_snapshot_reads_fail_closed_for_unknown_mixed_and_legacy_provenance(
             role="ANALYST",
             data_scopes=["ENTSOG"],
         )
-        _, bearer = create_identity_api_key(session, principal.principal_id)
+        _, bearer = create_identity_api_key(session, principal.principal_id, scopes=["EEX"])
         session.commit()
 
     release_client = TestClient(create_app(Settings(api_profile="release")))
@@ -522,9 +519,7 @@ def test_snapshot_reads_fail_closed_for_unknown_mixed_and_legacy_provenance(
         "snapshot-mixed-source",
         "snapshot-legacy",
     ):
-        response = release_client.get(
-            f"/api/research/datasets/{snapshot_id}", headers=headers
-        )
+        response = release_client.get(f"/api/research/datasets/{snapshot_id}", headers=headers)
         assert response.status_code == 403
         quality = release_client.get(
             f"/api/research/datasets/{snapshot_id}/quality", headers=headers
@@ -554,7 +549,7 @@ def test_concrete_simulation_source_is_filtered_and_authorized_by_family(
             role="ANALYST",
             data_scopes=["EEX"],
         )
-        _, bearer = create_identity_api_key(session, principal.principal_id)
+        _, bearer = create_identity_api_key(session, principal.principal_id, scopes=["EEX"])
         session.commit()
 
     release_client = TestClient(create_app(Settings(api_profile="release")))
@@ -617,9 +612,7 @@ def test_dataset_build_registers_format_specific_artifact(client, tmp_path) -> N
         # A Parquet artifact exists exactly when the adapter is available.
         assert (parquet is not None) == ("parquet" in expected_formats)
         # The precedence-defining first format owns the snapshot's artifact_ref.
-        first_artifact = next(
-            item for item in artifacts if item.format == expected_formats[0]
-        )
+        first_artifact = next(item for item in artifacts if item.format == expected_formats[0])
         assert stored.artifact_ref == first_artifact.artifact_path
         assert first_artifact.sha256 and len(first_artifact.sha256) == 64
         csv_artifact = next(item for item in artifacts if item.format == "csv")
@@ -638,9 +631,7 @@ def test_dataset_build_registers_format_specific_artifact(client, tmp_path) -> N
     assert str(tmp_path) not in artifact_path
 
 
-def test_dataset_export_matches_requested_format_or_fails_closed(
-    client, monkeypatch
-) -> None:
+def test_dataset_export_matches_requested_format_or_fails_closed(client, monkeypatch) -> None:
     """Export resolves a STORED artifact; an unregistered format never returns 200.
 
     ``effective_entitlement_envelope`` is overridden to EXPORT_ALLOWED because the
@@ -663,9 +654,7 @@ def test_dataset_export_matches_requested_format_or_fails_closed(
     body = _build_materialized(client)
     snapshot_id = body["dataset_snapshot_id"]
 
-    denied = client.post(
-        f"/api/research/datasets/{snapshot_id}/export", json={"format": "csv"}
-    )
+    denied = client.post(f"/api/research/datasets/{snapshot_id}/export", json={"format": "csv"})
     assert denied.status_code == 403
     assert denied.json()["detail"]["code"] == "export_denied_entitlement"
 
@@ -691,9 +680,7 @@ def test_dataset_export_matches_requested_format_or_fails_closed(
         stored = repo.get_dataset_artifact(session, snapshot_id, "csv")
     assert stored is not None
 
-    allowed = client.post(
-        f"/api/research/datasets/{snapshot_id}/export", json={"format": "csv"}
-    )
+    allowed = client.post(f"/api/research/datasets/{snapshot_id}/export", json={"format": "csv"})
     assert allowed.status_code == 200
     payload = allowed.json()["data"]
     assert payload["format"] == "csv"
@@ -723,9 +710,7 @@ def test_dataset_export_fails_closed_when_registered_file_is_gone(
         lambda _definitions: {"export_policy": "EXPORT_ALLOWED", "policy_source": "test"},
     )
 
-    response = client.post(
-        f"/api/research/datasets/{snapshot_id}/export", json={"format": "csv"}
-    )
+    response = client.post(f"/api/research/datasets/{snapshot_id}/export", json={"format": "csv"})
 
     assert response.status_code == 409
     assert response.json()["detail"]["code"] == "artifact_not_available"
@@ -797,6 +782,5 @@ def test_dataset_build_uses_requested_resampling_policy(client) -> None:
     detail = client.get(f"/api/research/datasets/{bounded['dataset_snapshot_id']}")
     assert detail.status_code == 200
     assert (
-        detail.json()["data"]["metadata"]["resampling_policy"]["policy_id"]
-        == "resampling/bounded"
+        detail.json()["data"]["metadata"]["resampling_policy"]["policy_id"] == "resampling/bounded"
     )

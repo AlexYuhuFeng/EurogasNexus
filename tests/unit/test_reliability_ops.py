@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 
@@ -21,6 +22,7 @@ from eurogas_nexus.domain.operations.errors import (
     classify_exception,
     classify_http_status,
 )
+from eurogas_nexus.release.constants import DB_SCHEMA_REVISION
 
 
 def test_liveness_never_depends_on_database(monkeypatch) -> None:
@@ -46,7 +48,8 @@ def test_readiness_is_not_liveness(monkeypatch) -> None:
     assert response.json()["detail"]["code"] == "runtime_db_not_configured"
 
 
-def test_readiness_with_complete_sqlite_schema(tmp_path, monkeypatch) -> None:
+@pytest.mark.parametrize("revision", [DB_SCHEMA_REVISION, "0040_strategy_owner_sharing", None])
+def test_readiness_with_complete_sqlite_schema(tmp_path, monkeypatch, revision) -> None:
     db_path = tmp_path / "ready.sqlite"
     engine = create_engine(f"sqlite+pysqlite:///{db_path.as_posix()}", future=True)
     Base.metadata.create_all(engine)
@@ -54,6 +57,10 @@ def test_readiness_with_complete_sqlite_schema(tmp_path, monkeypatch) -> None:
         connection.exec_driver_sql(
             "CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL PRIMARY KEY)"
         )
+        if revision is not None:
+            connection.exec_driver_sql(
+                "INSERT INTO alembic_version (version_num) VALUES (?)", (revision,)
+            )
     monkeypatch.setenv(
         "RUNTIME_STORE_DATABASE_URL",
         f"sqlite+pysqlite:///{db_path.as_posix()}",
@@ -61,6 +68,15 @@ def test_readiness_with_complete_sqlite_schema(tmp_path, monkeypatch) -> None:
     monkeypatch.delenv("DATABASE_URL", raising=False)
     monkeypatch.delenv("EUROGAS_NEXUS_DB_DSN", raising=False)
     response = TestClient(create_app()).get("/api/health/ready")
+    if revision != DB_SCHEMA_REVISION:
+        assert response.status_code == 503
+        assert response.json()["detail"] == {
+            "code": "runtime_schema_revision_mismatch",
+            "message": "Runtime PostgreSQL migrations are not current.",
+            "current_revision": revision,
+            "required_revision": DB_SCHEMA_REVISION,
+        }
+        return
     assert response.status_code == 200
     assert response.json()["status"] == "ready"
 

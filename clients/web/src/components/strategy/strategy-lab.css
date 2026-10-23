@@ -416,7 +416,7 @@
   }
 
   .strategy-form-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .strategy-kpi-strip {
@@ -427,3 +427,46 @@
     grid-template-columns: 1fr;
   }
 }
+
+.strategy-sharing { grid-column: 1 / -1; display: grid; gap: 0.6rem; min-width: 0; padding-top: 0.75rem; border-top: 1px solid var(--border); }
+.strategy-sharing p { margin: 0; overflow-wrap: anywhere; }
+.strategy-sharing label { display: grid; gap: 0.35rem; min-width: 0; }
+.strategy-sharing select { max-width: 100%; min-width: 0; }
+.strategy-sharing button { justify-self: start; }
+
+/* Fieldsets retain an intrinsic minimum unless explicitly allowed to shrink. */
+.strategy-evidence-leg,
+.strategy-form-grid > label {
+  min-width: 0;
+}
+.strategy-lab-main input,
+.strategy-lab-main select,
+.strategy-lab-main textarea {
+  min-width: 0;
+  max-width: 100%;
+}
+
+@media (max-width: 600px) {
+  .strategy-lab-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .strategy-navigator {
+    min-height: 0;
+    max-height: 240px;
+  }
+  .strategy-kpi-strip {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 900px) {
+  .strategy-form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.strategy-price-catalogue { max-height: 16rem; overflow: auto; display: grid; gap: .5rem; }
+.strategy-price-choice { display: flex !important; align-items: flex-start; gap: .5rem; }
+.strategy-price-choice input[type="checkbox"] { width: auto; flex: 0 0 auto; margin-top: .25rem; }
+.strategy-price-choice span { min-width: 0; overflow-wrap: anywhere; }
+.strategy-price-choice small { display: block; color: var(--text-secondary); }

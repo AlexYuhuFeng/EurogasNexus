@@ -7,6 +7,7 @@ from datetime import datetime
 from sqlalchemy import (
     JSON,
     Boolean,
+    CheckConstraint,
     DateTime,
     Float,
     ForeignKey,
@@ -25,6 +26,19 @@ class StrategyRecord(Base):
     """Long-lived versioned strategy research identity."""
 
     __tablename__ = "strategies"
+    __table_args__ = (
+        CheckConstraint(
+            "visibility IN ('PRIVATE', 'PUBLIC', 'GROUPS')", name="ck_strategies_visibility"
+        ),
+        Index("ix_strategies_owner_visibility", "owner_principal_id", "visibility"),
+    )
+
+    owner_principal_id: Mapped[str | None] = mapped_column(
+        String(80), ForeignKey("identity_principals.principal_id"), nullable=True
+    )
+    visibility: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="PRIVATE", server_default="PRIVATE"
+    )
 
     strategy_id: Mapped[str] = mapped_column(String(128), primary_key=True)
     name: Mapped[str] = mapped_column(String(256), nullable=False)
@@ -133,9 +147,7 @@ class StrategyRunRecord(Base):
     evaluation_end_utc: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
-    data_cutoff_utc: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    data_cutoff_utc: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     dataset_snapshot_id: Mapped[str | None] = mapped_column(
         String(128), ForeignKey("strategy_data_snapshots.snapshot_id"), nullable=True
     )

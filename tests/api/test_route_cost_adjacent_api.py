@@ -60,6 +60,9 @@ def _database(tmp_path, monkeypatch) -> str:
     monkeypatch.setenv("RUNTIME_STORE_DATABASE_URL", database_url)
     monkeypatch.delenv("DATABASE_URL", raising=False)
     monkeypatch.delenv("EUROGAS_NEXUS_DB_DSN", raising=False)
+    from tests.api.identity_fixture import install_named_client
+
+    install_named_client(database_url, monkeypatch)
     return database_url
 
 
@@ -227,7 +230,7 @@ def test_resource_pool_optimization_run_is_tracked_in_jobs(tmp_path, monkeypatch
     assert len(rows) == 1
     job = rows[0]
     assert job["status"] == "SUCCEEDED"
-    assert job["principal"] == "public-api"
+    assert job["principal"] == "fixture-owner"
     assert job["scope_refs"] == ["PORTFOLIO:api-pool"]
     # A pure computation persists no artefact: no output reference is invented.
     assert job["output_refs"] == []
@@ -241,10 +244,9 @@ def test_resource_pool_optimization_job_commits_the_snapshot_it_cited(
 ) -> None:
     _database(tmp_path, monkeypatch)
     client = TestClient(create_app(Settings(api_profile="release")))
-    snapshot_id = (
-        client.post("/api/analysis-snapshots", json={}, headers=HEADERS)
-        .json()["data"]["snapshot_id"]
-    )
+    snapshot_id = client.post("/api/analysis-snapshots", json={}, headers=HEADERS).json()["data"][
+        "snapshot_id"
+    ]
 
     response = client.post(
         "/api/route-cost/resource-pool/optimize",
@@ -294,8 +296,7 @@ def test_resource_pool_optimization_refuses_an_omitted_financing_rate() -> None:
 
     assert response.status_code == 422
     assert any(
-        "annual_financing_rate_pct" in str(error["loc"])
-        for error in response.json()["detail"]
+        "annual_financing_rate_pct" in str(error["loc"]) for error in response.json()["detail"]
     )
 
 
@@ -333,9 +334,7 @@ def test_resource_pool_optimization_refuses_non_finite_financing_rates(
     """JSON can carry NaN/±Infinity tokens; the boundary refuses them."""
 
     client = TestClient(create_app())
-    body = json.dumps(
-        {**OPTIMIZATION_SCENARIO, "annual_financing_rate_pct": float(non_finite)}
-    )
+    body = json.dumps({**OPTIMIZATION_SCENARIO, "annual_financing_rate_pct": float(non_finite)})
 
     response = client.post(
         "/api/route-cost/resource-pool/optimize",
@@ -355,9 +354,7 @@ def _scenario_without_resource_field(field: str) -> dict:
     """The delivered scenario with one resource field removed."""
 
     resource = {
-        key: value
-        for key, value in OPTIMIZATION_SCENARIO["resources"][0].items()
-        if key != field
+        key: value for key, value in OPTIMIZATION_SCENARIO["resources"][0].items() if key != field
     }
     return {**OPTIMIZATION_SCENARIO, "resources": [resource]}
 
@@ -388,8 +385,7 @@ def test_resource_pool_optimization_refuses_an_omitted_payment_lag() -> None:
 
     assert response.status_code == 422
     assert any(
-        "upstream_payment_lag_days" in str(error["loc"])
-        for error in response.json()["detail"]
+        "upstream_payment_lag_days" in str(error["loc"]) for error in response.json()["detail"]
     )
 
 
@@ -410,8 +406,7 @@ def test_resource_pool_optimization_refuses_an_omitted_sale_cash_lag() -> None:
 
     assert response.status_code == 422
     assert any(
-        "screen_sale_cash_lag_days" in str(error["loc"])
-        for error in response.json()["detail"]
+        "screen_sale_cash_lag_days" in str(error["loc"]) for error in response.json()["detail"]
     )
 
 

@@ -869,12 +869,6 @@ python -m pytest -q @(测试文件第 29–55 个)  → 282 passed
 
 命令: Get-Content -LiteralPath <该文件>
 输出（节选）:
- .automation/.gitignore                             |   5 +
- .automation/README.md                              |  12 +
- .automation/SECURITY.md                            |  10 +
- .automation/codex/deepseek_model_catalog.json      |  35 +++
- .automation/prompts/deepseek_worker_prefix.md      |  21 ++
- .automation/scripts/supervisor.py                  |  92 +++++++
  ...
  65 files changed, 3757 insertions(+)
 ```

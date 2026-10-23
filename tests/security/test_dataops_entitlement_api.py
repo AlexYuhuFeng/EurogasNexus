@@ -95,7 +95,8 @@ def test_physical_flow_rows_respect_principal_scope(tmp_path, monkeypatch) -> No
 
 
 def test_route_candidate_derived_results_cannot_bypass_scope(
-    tmp_path, monkeypatch,
+    tmp_path,
+    monkeypatch,
 ) -> None:
     db_path = tmp_path / "route-entitlement.sqlite"
     database_url = f"sqlite+pysqlite:///{db_path.as_posix()}"
@@ -183,6 +184,20 @@ def test_strategy_run_evidence_respects_principal_scope(tmp_path, monkeypatch) -
             )
         )
         bearer = _create_principal(session, ["ENTSOG"])
+        from eurogas_nexus.db.repositories.identity import authenticate_identity_bearer
+        from eurogas_nexus.db.repositories.strategy_registry import create_strategy
+
+        owner = authenticate_identity_bearer(session, bearer)
+        create_strategy(
+            session,
+            strategy_id="strategy-eex",
+            name="Scoped private strategy",
+            description="",
+            created_by=owner.name,
+            owner_principal_id=owner.principal_id,
+            now_utc=now,
+        )
+
         session.commit()
 
     client, headers = _release_client(database_url)

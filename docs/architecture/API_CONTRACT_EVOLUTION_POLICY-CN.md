@@ -119,3 +119,38 @@ Windows/Linux 桌面外壳和双语运营文档。所有消费方都是同一契
 
 - URL 版本化（`/v1`、`/v2`）：已否决；无版本契约以只增方式演化。
 - 生成式客户端桩代码：SDK DTO 保持手写，由 parity 测试守护。
+
+
+## Strategy ownership and sharing — 2026-10-22
+
+The public path registry now contains 187 paths (previously 182). Added:
+
+- `/api/me/groups` (GET): the authenticated user's active sharing groups.
+- `/api/access/groups` (GET/POST): ADMIN group catalogue and creation.
+- `/api/access/groups/{group_id}` (PATCH): ADMIN group status/name changes.
+- `/api/access/groups/{group_id}/members/{principal_id}` (PUT/DELETE): ADMIN membership changes.
+- `/api/strategies/{strategy_id}/sharing` (PATCH): owner-selected PRIVATE, PUBLIC or GROUPS audience.
+
+Strategy responses add `owner_principal_id`, `visibility`, `shared_group_ids` and
+`can_manage`. New strategies are PRIVATE and bind ownership to the authenticated
+active directory principal, never a request's attribution text. PUBLIC grants
+read access within this deployment, still subject to roles and source licences;
+it grants no edit or cross-region transfer permission. GROUPS requires explicit
+active groups the owner belongs to. Shared readers cannot mutate strategy state.
+
+This deliberately narrows existing access: hidden strategies and their child
+resources return 404; lists filter before limiting. Jobs are restricted to their
+server-recorded owner; a foreign `principal` query returns an empty list. Review
+and portfolio projections withhold inaccessible strategy-linked records. Existing
+ownerless strategies remain PRIVATE and quarantined pending verified ownership
+assignment; migration 0040 does not infer owners from free-text attribution and
+refuses downgrade to code that would expose these records.
+
+Empty identity-key scopes now mean public-baseline access, not inheritance of
+commercial grants. Explicit key scopes are intersected with current principal
+grants. Operators must replace old implicit-scope keys with approved explicit
+scopes; see [API keys](../operations/API_KEYS.md).
+
+任务所有权补充：迁移 0041 增加独立的 `owner_principal_id` 外键，由服务端具名身份绑定。
+`principal` 仅保留为归属展示和进一步过滤条件；旧的仅含名称的任务暂不授权读取或取消。
+名称与身份 ID 相同也不构成访问授权，不自动推断或回填所有者。

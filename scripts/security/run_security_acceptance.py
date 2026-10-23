@@ -71,7 +71,9 @@ def _checks() -> list[dict]:
     # The count is a deliberate pin: a new public path must be declared in
     # tests/contract/test_api_surface_stability.py and recorded in the API contract
     # evolution policy in the same change.
-    check("public_surface_bounded", len(paths) == 182, f"public paths={len(paths)}")
+    # Five reviewed paths: strategy sharing, own group catalogue, group collection,
+    # group metadata, and membership management. Public remains authenticated.
+    check("public_surface_bounded", len(paths) == 187, f"public paths={len(paths)}")
 
     from eurogas_nexus.security.permissions import permission_for_path
 
@@ -188,18 +190,16 @@ def _checks() -> list[dict]:
     )
 
     private_settings = Settings(deployment=DeploymentConfig())
-    private_allowed, private_reason = public_network_deployment_allowed(
-        private_settings
-    )
+    private_allowed, private_reason = public_network_deployment_allowed(private_settings)
     check(
         "deployment_posture_defaults_private",
         private_allowed is False and "private_network_preview" in private_reason,
         private_reason,
     )
 
-    pause_text = (
-        ROOT / "docs" / "release" / "SECURITY_ACCEPTANCE_EVIDENCE.md"
-    ).read_text(encoding="utf-8")
+    pause_text = (ROOT / "docs" / "release" / "SECURITY_ACCEPTANCE_EVIDENCE.md").read_text(
+        encoding="utf-8"
+    )
     check(
         "private_network_posture_retained",
         "private-network/VPN-only" in pause_text,

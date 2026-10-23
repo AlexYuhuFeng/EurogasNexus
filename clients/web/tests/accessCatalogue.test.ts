@@ -19,6 +19,7 @@ import {
   roleRows,
   scopeFamilyRows,
   undeclaredScopes,
+  userAccessBlocker,
   type DataScopeCatalogue,
 } from "../src/app/model/accessCatalogueModel.ts";
 
@@ -157,6 +158,10 @@ test("the access vocabulary is bilingual", () => {
   const en = JSON.parse(readWebSource("i18n/en.json")) as Record<string, string>;
   const zh = JSON.parse(readWebSource("i18n/zh.json")) as Record<string, string>;
   const keys = [
+    "access.user.roles_required",
+    "access.user.unknown_grant",
+    "access.user.stored_grant",
+    "access.mutation_failed",
     "access.view.catalogue",
     "access.catalogue.roles",
     "access.catalogue.permissions",
@@ -189,4 +194,25 @@ test("the access vocabulary is bilingual", () => {
     assert.ok(zh[key]?.trim(), `zh ${key}`);
     assert.notEqual(en[key], zh[key], key);
   }
+});
+
+
+test("user grants require a loaded catalogue and at least one role", () => {
+  const stored = { roles: ["VIEWER"], data_scopes: ["EEX"] };
+  const roles = { VIEWER: ["read"], REVIEWER: ["review"] };
+  assert.equal(userAccessBlocker(stored, stored, null, CATALOGUE), "access.catalogue.unavailable");
+  assert.equal(userAccessBlocker(stored, stored, {}, CATALOGUE), "access.catalogue.unavailable");
+  assert.equal(userAccessBlocker(stored, stored, roles, null), "access.catalogue.unavailable");
+  assert.equal(userAccessBlocker({ ...stored, roles: [] }, stored, roles, CATALOGUE), "access.user.roles_required");
+  assert.equal(userAccessBlocker({ roles: ["REVIEWER"], data_scopes: [] }, stored, roles, CATALOGUE), null);
+});
+
+test("editing user grants cannot introduce an undeclared grant or silently discard a stored one", () => {
+  const stored = { roles: ["VIEWER", "LEGACY"], data_scopes: ["RETIRED_FEED"] };
+  const roles = { VIEWER: ["read"], REVIEWER: ["review"] };
+  assert.equal(userAccessBlocker(stored, stored, roles, CATALOGUE), null);
+  assert.equal(userAccessBlocker({ roles: ["VIEWER"], data_scopes: [] }, stored, roles, CATALOGUE), null);
+  assert.equal(userAccessBlocker({ ...stored, roles: ["INVENTED"] }, stored, roles, CATALOGUE), "access.user.unknown_grant");
+  assert.equal(userAccessBlocker({ ...stored, data_scopes: ["INVENTED"] }, stored, roles, CATALOGUE), "access.user.unknown_grant");
+  assert.deepEqual(stored, { roles: ["VIEWER", "LEGACY"], data_scopes: ["RETIRED_FEED"] });
 });

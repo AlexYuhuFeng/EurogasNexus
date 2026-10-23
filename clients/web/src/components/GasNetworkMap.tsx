@@ -9,7 +9,9 @@ import {
   Marker,
   NavigationControl,
   Popup,
+  setWorkerUrl,
 } from "maplibre-gl";
+import mapLibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { EdgeDTO, NodeDTO, RouteEligibilityDTO } from "@/api/client";
 import {
@@ -26,6 +28,10 @@ import {
   transformCoordinate,
 } from "@/app/mapTileProviders";
 import type { RouteGeometryState } from "@/components/ResourcePoolPathOverlay";
+
+// Let Vite resolve and bundle the module worker and its shared imports in both dev and build.
+// MapLibre's default relative URL otherwise points inside Vite's optimized dependency cache.
+setWorkerUrl(mapLibreWorkerUrl);
 
 type Translate = (key: string) => string;
 

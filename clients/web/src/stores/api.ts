@@ -1,3 +1,4 @@
+import { needsCommercialWorkspaceReads, workspaceReadNeeded } from "./workspaceReadScope";
 import { create } from "zustand";
 import {
   CLIENT_RELEASE_METADATA,
@@ -1470,7 +1471,8 @@ export const useApiStore = create<ApiState>((set, get) => ({
     // The pass's query and claims are taken here, in the tick that builds its requests: every retry
     // attempt asks this same question, and every answer is held to this claim rather than to
     // whatever the store holds when it returns.
-    const batchLoaders = workspaceLoaders(projectionRequestContext(get().tradingContext));
+    const batchLoaders = workspaceLoaders(projectionRequestContext(get().tradingContext))
+      .filter(([key]) => workspaceReadNeeded(key, get().currentUser));
     const claims = claimProjectionLanes(batchLoaders);
     const libraryClaim = claimContractLibraryFor(batchLoaders);
     const outcomes = await loadWorkspaceEndpoints(batchLoaders, {
@@ -1616,7 +1618,8 @@ export const useApiStore = create<ApiState>((set, get) => ({
     // pass started with, and every answer is held to the claim taken in the same tick.
     const query = projectionRequestContext(get().tradingContext);
     const loaderByKey = new Map([...workspaceLoaders(query), ...retryOnlyLoaders(query)]);
-    const retryableLoaders = knownWorkspaceLoaders(failedKeys, loaderByKey);
+    const retryableLoaders = knownWorkspaceLoaders(failedKeys, loaderByKey)
+      .filter(([key]) => workspaceReadNeeded(key, get().currentUser));
     if (retryableLoaders.length === 0) return;
 
     const load = startWorkspaceLoad();
@@ -1689,6 +1692,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
 
   refreshMarketData: async () => {
     if (logoutInProgress) return;
+    if (!needsCommercialWorkspaceReads(get().currentUser)) return;
     if (!isIdentityGateOpen(get().authState)) return;
     const refresh = readRefreshCoordinator.market.tryStart();
     if (!refresh) return;
@@ -1816,6 +1820,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
     // for an authenticated session and are closed by every identity change.
     if (!isIdentityGateOpen(get().authState)) return;
     closeDecisionStreams();
+    if (!needsCommercialWorkspaceReads(get().currentUser)) return;
     const streamGeneration = identityReadCoordinator.capture();
     const streamIsCurrent = () => identityReadCoordinator.isCurrent(streamGeneration);
     const onStatus = (status: "open" | "error") => {
@@ -2016,6 +2021,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
 
   refreshMonitoring: async () => {
     if (logoutInProgress) return;
+    if (!needsCommercialWorkspaceReads(get().currentUser)) return;
     if (!isIdentityGateOpen(get().authState)) return;
     const refresh = readRefreshCoordinator.monitoring.tryStart();
     if (!refresh) return;
@@ -2087,6 +2093,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
 
   fetchReviewContext: async () => {
     if (logoutInProgress) return;
+    if (!needsCommercialWorkspaceReads(get().currentUser)) return;
     if (!isIdentityGateOpen(get().authState)) return;
     // The review lane coalesces repeat opens: a second request while one is in flight is
     // the same question, and the answer would be the same payload.
@@ -2140,6 +2147,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
    */
   fetchNominationWindows: async (gasDay) => {
     if (logoutInProgress) return;
+    if (!needsCommercialWorkspaceReads(get().currentUser)) return;
     if (!isIdentityGateOpen(get().authState)) return;
     const refresh = readRefreshCoordinator.nominationWindows.tryStart();
     if (!refresh) return;
@@ -2601,6 +2609,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
 
   fetchStrategySummary: async () => {
     if (logoutInProgress) return;
+    if (!needsCommercialWorkspaceReads(get().currentUser)) return;
     const requestGeneration = identityReadCoordinator.capture();
     try {
       const result = await api.strategySummary({ strategy_id: DEFAULT_STRATEGY_ID });
@@ -2615,6 +2624,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
 
   fetchStrategyRuns: async () => {
     if (logoutInProgress) return;
+    if (!needsCommercialWorkspaceReads(get().currentUser)) return;
     const requestGeneration = identityReadCoordinator.capture();
     try {
       const result = await api.strategyRuns({ strategy_id: DEFAULT_STRATEGY_ID, limit: 20 });

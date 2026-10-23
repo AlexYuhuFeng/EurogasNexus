@@ -18,7 +18,7 @@
  * only the innermost surface (Copilot first, palette second).
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { PaletteCommand } from "@/app/experience/commandPalette";
 import type { AiActionKind } from "@/app/experience/vocabulary";
@@ -71,6 +71,17 @@ export function CommandPalette({
   onAiActionChange,
   aiSurface = "palette",
 }: CommandPaletteProps) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const returnFocus = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    function rememberFocus(event: FocusEvent) {
+      if (event.target instanceof HTMLElement && !event.target.closest(".command-palette")) {
+        returnFocus.current = event.target;
+      }
+    }
+    document.addEventListener("focusin", rememberFocus);
+    return () => document.removeEventListener("focusin", rememberFocus);
+  }, []);
   const [ownAiAction, setOwnAiAction] = useState<AiActionKind | null>(null);
   const copilotAction = aiAction === undefined ? ownAiAction : aiAction;
 
@@ -102,6 +113,33 @@ export function CommandPalette({
     return () => window.removeEventListener("keydown", onKeyDown, true);
   }, [open, copilotAction, setCopilotAction]);
 
+  useEffect(() => {
+    if (!open) return;
+    const previous = returnFocus.current;
+    function trapFocus(event: KeyboardEvent) {
+      if (event.key !== "Tab") return;
+      const controls = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>(
+        'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href], [tabindex="0"]',
+      ) ?? []).filter((element) => element.getClientRects().length > 0);
+      if (!controls.length) return;
+      const first = controls[0], last = controls[controls.length - 1];
+      if (event.shiftKey && (document.activeElement === first || !dialogRef.current?.contains(document.activeElement))) {
+        event.preventDefault(); last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !dialogRef.current?.contains(document.activeElement))) {
+        event.preventDefault(); first.focus();
+      }
+    }
+    window.addEventListener("keydown", trapFocus, true);
+    return () => {
+      window.removeEventListener("keydown", trapFocus, true);
+      if (previous instanceof HTMLElement && previous.isConnected) previous.focus();
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (open) document.getElementById(`palette-${results[activeIndex]?.id}`)?.scrollIntoView({ block: "nearest" });
+  }, [open, activeIndex, results]);
+
   if (!open) return null;
 
   /** Run a command, or open the Copilot for a canonical AI action. */
@@ -118,6 +156,7 @@ export function CommandPalette({
     return (
       <div className="command-palette-backdrop" role="presentation" onClick={onClose}>
         <div
+          ref={dialogRef}
           className="command-palette copilot"
           role="dialog"
           aria-modal="true"
@@ -138,6 +177,7 @@ export function CommandPalette({
   return (
     <div className="command-palette-backdrop" role="presentation" onClick={onClose}>
       <div
+        ref={dialogRef}
         className="command-palette"
         role="dialog"
         aria-modal="true"
@@ -155,6 +195,7 @@ export function CommandPalette({
           aria-activedescendant={results[activeIndex] ? `palette-${results[activeIndex].id}` : undefined}
           onChange={(event) => onQueryChange(event.target.value)}
           onKeyDown={(event) => {
+            if (event.nativeEvent.isComposing) return;
             if (event.key === "ArrowDown") {
               event.preventDefault();
               onMove(1);
@@ -211,6 +252,7 @@ export function CommandPalette({
             <li className="command-palette-empty">{t("experience.palette.empty")}</li>
           )}
         </ul>
+        <footer className="command-palette-help">{t("experience.palette.keyboard_help")}</footer>
       </div>
     </div>
   );

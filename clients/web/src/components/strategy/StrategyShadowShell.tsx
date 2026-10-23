@@ -66,6 +66,8 @@ export function StrategyShadowShell({
     () => monitors.find((monitor) => monitor.shadow_monitor_id === selectedMonitorId) ?? null,
     [monitors, selectedMonitorId],
   );
+  const canManageMonitor = controller.strategies.some((strategy) =>
+    strategy.strategy_id === selectedMonitor?.strategy_id && strategy.can_manage === true);
   // The single-monitor read is the current state; the list entry is what the surface loaded.
   const monitorNow = freshMonitor ?? selectedMonitor;
   const latestEvaluation = evaluations[0] ?? null;
@@ -136,6 +138,7 @@ export function StrategyShadowShell({
   }, [selectedMonitorId]);
 
   async function createMonitor() {
+    if (!controller.canManageSelectedStrategy) return;
     if (!controller.selectedVersion || controller.selectedVersion.status !== "FROZEN") {
       setError(t("strategy_lab.blocker.frozen_required"));
       return;
@@ -163,6 +166,7 @@ export function StrategyShadowShell({
   }
 
   async function lifecycle(action: "pause" | "resume" | "retire") {
+    if (!canManageMonitor) return;
     if (!selectedMonitor) return;
     try {
       if (action === "pause") await apiClient.pauseShadowMonitor(selectedMonitor.shadow_monitor_id);
@@ -220,7 +224,7 @@ export function StrategyShadowShell({
             </select>
           </label>
         </div>
-        <button type="button" onClick={() => void createMonitor()}>{t("strategy_lab.start_shadow_monitoring")}</button>
+        <button type="button" disabled={!controller.canManageSelectedStrategy} onClick={() => void createMonitor()}>{t("strategy_lab.start_shadow_monitoring")}</button>
         <p className="muted">{t("strategy_lab.no_execution_boundary")}</p>
       </section>
 
@@ -267,9 +271,9 @@ export function StrategyShadowShell({
               <span>{t("strategy_lab.next_evaluation")}: {formatTimestamp(monitorNow?.next_evaluation_at_utc, language)}</span>
               <span>{t("strategy_lab.consecutive_failures")}: {monitorNow?.consecutive_failures ?? 0}</span>
             </div>
-            <button type="button" onClick={() => void lifecycle("pause")}>{t("strategy_lab.pause")}</button>
-            <button type="button" onClick={() => void lifecycle("resume")}>{t("strategy_lab.resume")}</button>
-            <button type="button" onClick={() => void lifecycle("retire")}>{t("strategy_lab.retire")}</button>
+            <button type="button" disabled={!canManageMonitor} onClick={() => void lifecycle("pause")}>{t("strategy_lab.pause")}</button>
+            <button type="button" disabled={!canManageMonitor} onClick={() => void lifecycle("resume")}>{t("strategy_lab.resume")}</button>
+            <button type="button" disabled={!canManageMonitor} onClick={() => void lifecycle("retire")}>{t("strategy_lab.retire")}</button>
           </section>
           {candidate && (
             <section className="workspace-panel">

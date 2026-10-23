@@ -31,7 +31,7 @@ function readWebSource(relativePath: string): string {
 }
 
 function form(overrides: Partial<StrategyDesignFormState> = {}): StrategyDesignFormState {
-  return { ...DEFAULT_STRATEGY_FORM, name: "OCM vs DA", resourceId: "explicit-test-resource", resourceName: "Test resource", resourceQuantity: "100", resourceCost: "20", ...overrides };
+  return { ...DEFAULT_STRATEGY_FORM, hubs: "NBP", dayAheadNames: "SAP", intradayNames: "ICE_OCM", name: "OCM vs DA", resourceId: "explicit-test-resource", resourceName: "Test resource", resourceQuantity: "100", resourceCost: "20", ...overrides };
 }
 
 // Stored evidence fixtures explicitly supply a resource, so these tests isolate
@@ -209,6 +209,7 @@ test("a declaration whose price names moved is preserved instead of silently re-
     "strategy_lab.blocker.evidence_redeclare",
   );
   assert.deepEqual(strategyDraftValidation(restored).blockerKeys, [
+    "strategy_lab.blocker.hubs",
     "strategy_lab.blocker.evidence_redeclare",
   ]);
 });
@@ -290,6 +291,7 @@ test("an unreadable stored declaration disables saving rather than being guessed
   assert.equal(restored.evidenceRedeclarationRequired, true);
   assert.equal(restored.preservedEvidenceTargets.length, 1);
   assert.deepEqual(strategyDraftValidation(restored).blockerKeys, [
+    "strategy_lab.blocker.hubs",
     "strategy_lab.blocker.evidence_redeclare",
   ]);
 });

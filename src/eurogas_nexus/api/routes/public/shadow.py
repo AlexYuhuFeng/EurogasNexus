@@ -37,14 +37,23 @@ class ShadowAcknowledgeRequest(BaseModel):
 
 
 @router.post("/api/shadow-monitors")
-def post_shadow_monitor(
-    body: ShadowMonitorCreateRequest, request: Request
-) -> dict:
+def post_shadow_monitor(body: ShadowMonitorCreateRequest, request: Request) -> dict:
     """Create/activate a shadow monitor after preflight validation."""
 
     from eurogas_nexus.application.shadow_runtime import create_shadow_monitor
 
     with _session() as session:
+        from eurogas_nexus.db.models import StrategyRunRecord, StrategyVersionRecord
+
+        version = session.get(StrategyVersionRecord, body.strategy_version_id)
+        if version is None:
+            raise HTTPException(status_code=404, detail="Strategy version not found")
+        _require_strategy(session, request, version.strategy_id, write=True)
+        if body.baseline_run_id:
+            baseline = session.get(StrategyRunRecord, body.baseline_run_id)
+            if baseline is None:
+                raise HTTPException(status_code=404, detail="Strategy run not found")
+            _require_strategy(session, request, baseline.strategy_id)
         try:
             data = create_shadow_monitor(
                 session,
@@ -78,7 +87,9 @@ def get_shadow_monitors(
     from eurogas_nexus.db.repositories import shadow
 
     with _session() as session:
-        data = shadow.list_monitors(session, state=state)
+        data = shadow.list_monitors(
+            session, state=state, visible_strategy_ids=_visible_ids(session, request)
+        )
     return _env(data, request, source="runtime-postgresql")
 
 
@@ -91,9 +102,8 @@ def get_shadow_monitor(monitor_id: str, request: Request) -> dict:
     with _session() as session:
         row = shadow.get_monitor(session, monitor_id)
         if row is None:
-            raise HTTPException(
-                status_code=404, detail=f"Unknown shadow monitor: {monitor_id}"
-            )
+            raise HTTPException(status_code=404, detail=f"Unknown shadow monitor: {monitor_id}")
+        _require_strategy(session, request, row.strategy_id)
         data = shadow.monitor_payload(row)
     return _env(data, request, source="runtime-postgresql")
 
@@ -105,6 +115,7 @@ def pause_shadow_monitor(monitor_id: str, request: Request) -> dict:
     from eurogas_nexus.application.shadow_runtime import pause_monitor
 
     with _session() as session:
+        _require_monitor(session, request, monitor_id, write=True)
         try:
             data = pause_monitor(session, monitor_id=monitor_id)
         except ValueError as exc:
@@ -120,6 +131,7 @@ def resume_shadow_monitor(monitor_id: str, request: Request) -> dict:
     from eurogas_nexus.application.shadow_runtime import resume_monitor
 
     with _session() as session:
+        _require_monitor(session, request, monitor_id, write=True)
         try:
             data = resume_monitor(session, monitor_id=monitor_id)
         except ValueError as exc:
@@ -135,6 +147,7 @@ def retire_shadow_monitor(monitor_id: str, request: Request) -> dict:
     from eurogas_nexus.application.shadow_runtime import retire_monitor
 
     with _session() as session:
+        _require_monitor(session, request, monitor_id, write=True)
         try:
             data = retire_monitor(session, monitor_id=monitor_id)
         except ValueError as exc:
@@ -155,14 +168,11 @@ def get_shadow_evaluations(
 
     with _session() as session:
         if shadow.get_monitor(session, monitor_id) is None:
-            raise HTTPException(
-                status_code=404, detail=f"Unknown shadow monitor: {monitor_id}"
-            )
+            raise HTTPException(status_code=404, detail=f"Unknown shadow monitor: {monitor_id}")
+        _require_monitor(session, request, monitor_id)
         data = [
             row
-            for row in shadow.list_evaluations(
-                session, monitor_id=monitor_id, limit=limit
-            )
+            for row in shadow.list_evaluations(session, monitor_id=monitor_id, limit=limit)
             if _evaluation_visible(request, row)
         ]
     return _env(data, request, source="runtime-postgresql")
@@ -180,6 +190,7 @@ def get_shadow_evaluation(evaluation_id: str, request: Request) -> dict:
             raise HTTPException(
                 status_code=404, detail=f"Unknown shadow evaluation: {evaluation_id}"
             )
+        _require_monitor(session, request, row.shadow_monitor_id)
         data = shadow.evaluation_payload(row)
         data["risk_checks"] = shadow.list_risk_checks(session, evaluation_id)
         if row.candidate_id:
@@ -198,9 +209,8 @@ def get_shadow_drift(monitor_id: str, request: Request) -> dict:
 
     with _session() as session:
         if shadow.get_monitor(session, monitor_id) is None:
-            raise HTTPException(
-                status_code=404, detail=f"Unknown shadow monitor: {monitor_id}"
-            )
+            raise HTTPException(status_code=404, detail=f"Unknown shadow monitor: {monitor_id}")
+        _require_monitor(session, request, monitor_id)
         data = shadow.list_drift_snapshots(session, monitor_id=monitor_id)
     return _env(data, request, source="runtime-postgresql")
 
@@ -224,6 +234,7 @@ def get_shadow_alerts(
             severity=severity,
             monitor_id=monitor_id,
             limit=limit,
+            visible_strategy_ids=_visible_ids(session, request),
         )
     return _env(data, request, source="runtime-postgresql")
 
@@ -248,6 +259,12 @@ def acknowledge_shadow_alert(
     principal = require_acting_actor(request)
     now_utc = datetime.now(UTC)
     with _session() as session:
+        from eurogas_nexus.db.models import StrategyShadowAlertRecord
+
+        alert = session.get(StrategyShadowAlertRecord, alert_id)
+        if alert is None:
+            raise HTTPException(status_code=404, detail="Shadow alert not found")
+        _require_monitor(session, request, alert.shadow_monitor_id, write=True)
         try:
             data, transitioned = shadow.acknowledge_alert(
                 session,
@@ -278,10 +295,36 @@ def get_shadow_runtime_status(request: Request) -> dict:
     from eurogas_nexus.db.repositories import shadow
 
     with _session() as session:
-        data = shadow.runtime_status_payload(session)
+        data = shadow.runtime_status_payload(
+            session, visible_strategy_ids=_visible_ids(session, request)
+        )
     return _env(data, request, source="runtime-postgresql")
 
 
+def _principal_id(request: Request) -> str | None:
+    return getattr(getattr(request.state, "identity", None), "principal_id", None)
+
+
+def _visible_ids(session, request: Request) -> set[str]:
+    from eurogas_nexus.db.repositories.strategy_access import visible_strategy_ids
+
+    return visible_strategy_ids(session, _principal_id(request))
+
+
+def _require_strategy(session, request: Request, strategy_id: str, *, write: bool = False):
+    from eurogas_nexus.db.repositories.strategy_access import require_strategy_access
+
+    return require_strategy_access(session, strategy_id, _principal_id(request), write=write)
+
+
+def _require_monitor(session, request: Request, monitor_id: str, *, write: bool = False):
+    from eurogas_nexus.db.repositories.shadow import get_monitor
+
+    row = get_monitor(session, monitor_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Shadow monitor not found")
+    _require_strategy(session, request, row.strategy_id, write=write)
+    return row
 
 
 def _evaluation_visible(request: Request, data: dict) -> bool:
@@ -308,6 +351,7 @@ def _require_evaluation_visible(request: Request, data: dict) -> None:
                 "human_review_required": True,
             },
         )
+
 
 def _audit_action(request: Request, action: str, resource: str, outcome: str) -> None:
     try:

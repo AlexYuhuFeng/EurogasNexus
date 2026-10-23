@@ -59,6 +59,7 @@ def _build_report() -> tuple[dict[str, Any], int]:
         redact_database_url,
         resolve_database_url,
     )
+    from eurogas_nexus.release.constants import DB_SCHEMA_REVISION
 
     database_url = resolve_database_url()
     required_tables = list(list_required_tables())
@@ -113,6 +114,12 @@ def _build_report() -> tuple[dict[str, Any], int]:
     report["alembic_revision"] = get_alembic_revision(database_url)
     if report["missing_tables"]:
         report["warnings"].append("Required runtime tables are missing.")
+    if report["alembic_revision"] != DB_SCHEMA_REVISION:
+        report["warnings"].append(
+            f"Runtime schema revision does not match required revision {DB_SCHEMA_REVISION}."
+        )
+        return report, 2
+    if report["missing_tables"]:
         return report, 2
 
     return report, 0

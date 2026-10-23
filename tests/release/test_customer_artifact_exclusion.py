@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -183,7 +184,7 @@ def test_runtime_gate_refuses_missing_startup_payload(tmp_path) -> None:
 def test_docker_copy_payload_matches_policy_and_excludes_local_context() -> None:
     dockerfile = (ROOT / "deploy/runtime/Dockerfile.api").read_text(encoding="utf-8")
     assert "COPY scripts ./scripts" not in dockerfile
-    final_stage = dockerfile.split("FROM python:3.11-slim")[-1]
+    final_stage = re.split(r"(?m)^FROM\s+", dockerfile)[-1]
     instructions = final_stage.replace("\\\n", " ").splitlines()
     copied = []
     for line in instructions:

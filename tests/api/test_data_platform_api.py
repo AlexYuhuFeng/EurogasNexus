@@ -313,9 +313,7 @@ def test_a_measured_zero_stays_a_zero(db_url: str) -> None:
         assert entry["provenance"] is not None
         assert entry["provenance"]["row_count"] == 0
     # And a product nobody declared a source for says so rather than being merely empty.
-    assert any(
-        "NO_RUNTIME_ROWS" in entry["provenance"]["quality_flags"] for entry in allowed
-    )
+    assert any("NO_RUNTIME_ROWS" in entry["provenance"]["quality_flags"] for entry in allowed)
 
 
 # ---------------------------------------------------------------------------
@@ -374,11 +372,15 @@ def test_snapshot_round_trip_records_versions_and_absences(db_url: str) -> None:
     assert by_gas_day.json()["data"] == []
 
 
-def test_recording_a_snapshot_registers_it_in_the_unified_job_model(db_url: str) -> None:
+def test_recording_a_snapshot_registers_it_in_the_unified_job_model(
+    db_url: str, monkeypatch
+) -> None:
     """The snapshot family is tracked like every other run family (Architecture V2 Wave 8)."""
 
     from eurogas_nexus.db.models import JobRecord
+    from tests.api.identity_fixture import install_named_client
 
+    install_named_client(db_url, monkeypatch)
     _seed_runtime_rows(db_url)
     client = TestClient(create_app())
 
@@ -438,9 +440,7 @@ def test_snapshot_records_the_entitlement_context_of_its_creator(db_url: str) ->
     assert "ENTSOG" in context["entitled_source_families"]
     assert "CREATOR_ENTITLEMENT_LIMITED" in payload["warnings"]
     # Restricted family names are counted, never listed.
-    assert not any(
-        family in json.dumps(context) for family in ("EEX", "Trayport", "ICIS", "Kpler")
-    )
+    assert not any(family in json.dumps(context) for family in ("EEX", "Trayport", "ICIS", "Kpler"))
 
 
 def test_snapshot_requires_a_viewer_or_higher_and_a_database(db_url: str, monkeypatch) -> None:

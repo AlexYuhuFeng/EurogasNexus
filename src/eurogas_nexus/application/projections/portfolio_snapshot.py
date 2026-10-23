@@ -192,12 +192,10 @@ def _populated_portfolio_snapshot(
 ) -> dict[str, Any]:
     """Build every slice from one session and one as-of instant."""
 
-    orders = screen_orders(session)
-    snapshots = pnl_snapshots(session)
+    orders = screen_orders(session, principal_id=principal.principal_id)
+    snapshots = pnl_snapshots(session, principal_id=principal.principal_id)
     if portfolio_id:
-        snapshots = [
-            snapshot for snapshot in snapshots if snapshot.portfolio_id == portfolio_id
-        ]
+        snapshots = [snapshot for snapshot in snapshots if snapshot.portfolio_id == portfolio_id]
 
     entitled_orders = _filter_models(principal, orders, limit=order_limit)
     entitled_snapshots = _filter_models(principal, snapshots, limit=snapshot_limit)
@@ -323,9 +321,7 @@ def _populated_portfolio_snapshot(
             },
             freshness=freshness_block(
                 row_count=len(sale_options),
-                last_observed_at_utc=latest_iso_for_keys(
-                    sale_options, _SALE_PRICE_TIME_KEYS
-                ),
+                last_observed_at_utc=latest_iso_for_keys(sale_options, _SALE_PRICE_TIME_KEYS),
                 expectation_minutes=strictest_expectation(
                     option.get("sale_price_source_system") for option in sale_options
                 ),
@@ -567,8 +563,7 @@ def _payload_warnings(
     """Aggregate the payload-level warning codes from the slice results."""
 
     stale = any(
-        isinstance(item.get("freshness"), Mapping)
-        and item["freshness"].get("state") == "STALE"
+        isinstance(item.get("freshness"), Mapping) and item["freshness"].get("state") == "STALE"
         for item in slices.values()
     )
     filtered = any(

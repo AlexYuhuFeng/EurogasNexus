@@ -414,3 +414,66 @@
 .decision-pack-content-hash.is-unknown {
   color: var(--eg-muted);
 }
+/* Keep commercial navigation and selectable rows consistent with the workspace. */
+.commercial-workspace .data-table button.data-table-row {
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid var(--eg-hairline);
+  background: var(--eg-canvas);
+  color: var(--eg-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.commercial-workspace .data-table button.data-table-row:hover,
+.commercial-workspace .data-table button.data-table-row.selected {
+  background: var(--eg-canvas-soft-2);
+}
+
+.commercial-handoff-actions button {
+  min-height: 36px;
+  max-width: 100%;
+  padding: 7px 12px;
+  border: 1px solid var(--eg-hairline-strong);
+  border-radius: var(--eg-radius-sm, 6px);
+  background: var(--eg-canvas);
+  color: var(--eg-ink);
+  font: inherit;
+  font-size: var(--text-control);
+  text-align: left;
+  cursor: pointer;
+}
+
+.commercial-handoff-actions button:hover {
+  background: var(--eg-canvas-soft-2);
+}
+
+.commercial-workspace button:focus-visible {
+  outline: 2px solid var(--eg-link);
+  outline-offset: 2px;
+}
+
+@media (max-width: 600px) {
+  .decision-case-create label,
+  .decision-case-attach label,
+  .decision-case-record label {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .decision-case-list button {
+    grid-template-columns: minmax(0, 1fr);
+    overflow-wrap: anywhere;
+  }
+}
+
+.commercial-task-tabs {
+  max-width: 100%;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.commercial-task-tabs button {
+  min-height: 36px;
+}

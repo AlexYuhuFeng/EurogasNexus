@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+from eurogas_nexus.application.agents.strategy_privacy import guard_strategy_capability
 from eurogas_nexus.domain.agents.contracts import (
     ActionPolicy,
     CapabilityDefinition,
@@ -83,6 +84,8 @@ def register_review_capabilities(registry) -> None:
     from eurogas_nexus.application.agents.db_bridge import session_scope
 
     def get(arguments, _context):
+        from eurogas_nexus.db.repositories.strategy_access import visible_strategy_ids
+
         definition = registry.get("review.get")
         with session_scope() as session:
             if session is None:
@@ -91,6 +94,11 @@ def register_review_capabilities(registry) -> None:
                     CapabilityFailureCode.DATA_MISSING,
                     "Runtime PostgreSQL is not configured",
                 )
+            denied = guard_strategy_capability(
+                session, arguments, _context, definition, write=False
+            )
+            if denied is not None:
+                return denied
             from eurogas_nexus.db.repositories.review import list_review_decisions
 
             rows = list_review_decisions(
@@ -98,6 +106,8 @@ def register_review_capabilities(registry) -> None:
                 entity_type=arguments.get("entity_type"),
                 entity_id=arguments.get("entity_id"),
                 limit=int(arguments.get("limit") or 100),
+                visible_strategy_ids=visible_strategy_ids(session, _context.principal_id),
+                principal_id=_context.principal_id,
             )
         return _result(definition, {"decisions": rows, "count": len(rows)})
 

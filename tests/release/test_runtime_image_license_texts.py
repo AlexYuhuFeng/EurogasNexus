@@ -28,7 +28,7 @@ DOCKERFILE = ROOT / "deploy" / "runtime" / "Dockerfile.api"
 COLLECTOR = "scripts/release/collect_python_license_texts.py"
 EVIDENCE_DIR = "/usr/share/licenses/eurogas-nexus/python-license-texts"
 LOCK_NAME = "requirements-runtime.lock"
-BASE_IMAGE = "python:3.11-slim"
+BASE_IMAGE = "python:3.11-alpine"
 DIGEST = "0" * 64
 FROM_RE = re.compile(r"^FROM (.+)$", re.MULTILINE)
 
@@ -144,8 +144,9 @@ def test_collector_runs_once_in_runtime_stage_after_install_and_script_copy() ->
 
     froms = [(match.start(), match.group(1)) for match in FROM_RE.finditer(text)]
     assert len(froms) == 2, "the collector must not add a stage, base image or service"
-    assert froms[0][1] == f"{BASE_IMAGE} AS builder"
-    assert froms[1][1] == BASE_IMAGE
+    pinned_base = froms[1][1]
+    assert re.fullmatch(re.escape(BASE_IMAGE) + r"@sha256:[0-9a-f]{64}", pinned_base)
+    assert froms[0][1] == f"{pinned_base} AS builder"
     runtime_stage_start = froms[1][0]
 
     lock_install = text.index(f"-r {LOCK_NAME}", runtime_stage_start)

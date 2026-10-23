@@ -90,7 +90,7 @@ export function useStrategyIdentityMetadata({
   // A name is required and the edit must change something. The route accepts a no-op (it returns the
   // identity unchanged), but a surface that offers to write the values already stored is offering an
   // action with no effect.
-  const canSave = Boolean(strategy) && name.trim().length > 0 && dirty;
+  const canSave = strategy?.can_manage === true && name.trim().length > 0 && dirty;
 
   const save = useCallback(async () => {
     if (!strategy || !canSave) return;

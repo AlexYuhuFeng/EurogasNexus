@@ -4,3 +4,6 @@
 setuptools>=68
 wheel>=0.42
 pip-audit==2.10.1
+
+# Keep build-side HTTPS trust on the same patched baseline as runtime.
+certifi>=2026.10.19

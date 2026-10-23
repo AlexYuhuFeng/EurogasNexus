@@ -23,17 +23,14 @@ from eurogas_nexus.security.identity import (
 def list_identity_principals(session: Session) -> list[dict]:
     """List active and disabled identities with key metadata (never hashes)."""
 
-    rows = session.query(IdentityPrincipalRecord).order_by(
-        IdentityPrincipalRecord.principal_id
-    )
+    rows = session.query(IdentityPrincipalRecord).order_by(IdentityPrincipalRecord.principal_id)
     keys_by_principal: dict[str, list[IdentityApiKeyRecord]] = {}
-    for key in session.query(IdentityApiKeyRecord).order_by(
-        IdentityApiKeyRecord.created_at_utc
-    ).all():
+    for key in (
+        session.query(IdentityApiKeyRecord).order_by(IdentityApiKeyRecord.created_at_utc).all()
+    ):
         keys_by_principal.setdefault(key.principal_id, []).append(key)
     return [
-        _principal_payload(row, keys_by_principal.get(row.principal_id, []))
-        for row in rows.all()
+        _principal_payload(row, keys_by_principal.get(row.principal_id, [])) for row in rows.all()
     ]
 
 
@@ -76,9 +73,7 @@ def create_identity_principal(
         identity_source="LOCAL",
         status="ACTIVE",
         data_scopes=[
-            _normalize_scope(scope)
-            for scope in (data_scopes or [])
-            if _normalize_scope(scope)
+            _normalize_scope(scope) for scope in (data_scopes or []) if _normalize_scope(scope)
         ],
         created_at_utc=now,
         updated_at_utc=now,
@@ -278,7 +273,7 @@ def authenticate_identity_bearer(
         principal_type=principal.principal_type,
         role=principal.role,
         status=principal.status,
-        data_scopes=tuple(principal.data_scopes or []),
+        data_scopes=_effective_key_scopes(principal.data_scopes, key.scopes),
         roles=tuple(principal.roles or [principal.role]),
         email=principal.email,
         identity_source=principal.identity_source or "LOCAL",
@@ -314,15 +309,32 @@ def _key_payload(key: IdentityApiKeyRecord) -> dict:
         "key_prefix": key.key_prefix,
         "display_name": key.display_name,
         "expires_at_utc": key.expires_at_utc.isoformat() if key.expires_at_utc else None,
-        "last_used_at_utc": (
-            key.last_used_at_utc.isoformat() if key.last_used_at_utc else None
-        ),
+        "last_used_at_utc": (key.last_used_at_utc.isoformat() if key.last_used_at_utc else None),
         "created_at_utc": key.created_at_utc.isoformat(),
         "revoked_at_utc": key.revoked_at_utc.isoformat() if key.revoked_at_utc else None,
         "scopes": list(key.scopes or []),
         "created_by": key.created_by,
         "is_bootstrap": key.is_bootstrap,
     }
+
+
+def _effective_key_scopes(
+    principal_scopes: list[str] | None,
+    key_scopes: list[str] | None,
+) -> tuple[str, ...]:
+    """Attenuate a bearer to both grants; empty keys retain public access only."""
+
+    principal = {_normalize_scope(value) for value in (principal_scopes or [])}
+    key = {_normalize_scope(value) for value in (key_scopes or [])}
+    principal.discard("")
+    key.discard("")
+    if "*" in principal:
+        effective = key
+    elif "*" in key:
+        effective = principal
+    else:
+        effective = principal & key
+    return tuple(sorted(effective))
 
 
 def _normalize_scope(scope: str) -> str:

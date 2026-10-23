@@ -251,7 +251,7 @@ def _db_principal(session: Session, *, name: str, role: str, scopes: list[str]) 
         session, name=name, display_name=name.title(), role=role, data_scopes=scopes
     )
     _key, bearer = identity_repository.create_identity_api_key(
-        session, row.principal_id, display_name="experience-test"
+        session, row.principal_id, display_name="experience-test", scopes=scopes
     )
     return bearer
 

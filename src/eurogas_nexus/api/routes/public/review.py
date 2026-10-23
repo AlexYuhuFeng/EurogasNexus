@@ -10,7 +10,7 @@ lives in :mod:`eurogas_nexus.api.dependencies.acting_actor`, and a caller that s
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from eurogas_nexus.api.dependencies.acting_actor import acting_actor
@@ -65,6 +65,24 @@ def post_review_decision(body: ReviewDecisionRequest, request: Request) -> dict:
             from eurogas_nexus.db.session import get_session_factory
 
             with get_session_factory()() as session:
+                from eurogas_nexus.db.repositories.review import can_read_review_target
+
+                if not can_read_review_target(
+                    session, body.entity_type.value, body.entity_id, _principal_id(request)
+                ):
+                    raise HTTPException(status_code=404, detail="Review target not found")
+                if body.entity_type == ReviewEntityType.STRATEGY_RUN:
+                    from eurogas_nexus.db.models import StrategyRunRecord
+                    from eurogas_nexus.db.repositories.strategy_access import (
+                        require_strategy_access,
+                    )
+
+                    run = session.get(StrategyRunRecord, body.entity_id)
+                    if run is None:
+                        raise HTTPException(status_code=404, detail="Strategy run not found")
+                    require_strategy_access(
+                        session, run.strategy_id, _principal_id(request), write=True
+                    )
                 data = record_review_decision(
                     session,
                     entity_type=body.entity_type.value,
@@ -110,11 +128,23 @@ def get_review_decisions(
                     entity_type=entity_type,
                     entity_id=entity_id,
                     limit=limit,
+                    visible_strategy_ids=_visible_ids(session, request),
+                    principal_id=_principal_id(request),
                 )
         except _sqlalchemy_error_type():
             warnings.append("RUNTIME_POSTGRESQL_UNAVAILABLE")
 
     return _env(data, request, warnings=warnings)
+
+
+def _principal_id(request: Request) -> str | None:
+    return getattr(getattr(request.state, "identity", None), "principal_id", None)
+
+
+def _visible_ids(session, request: Request) -> set[str]:
+    from eurogas_nexus.db.repositories.strategy_access import visible_strategy_ids
+
+    return visible_strategy_ids(session, _principal_id(request))
 
 
 def _db_is_configured() -> bool:

@@ -149,6 +149,11 @@ PINNED_PUBLIC_PATHS = {
     "/api/sources/{source_id}",
     "/api/storage/observations",
     "/api/storage/sites",
+    "/api/strategies/{strategy_id}/sharing",
+    "/api/me/groups",
+    "/api/access/groups",
+    "/api/access/groups/{group_id}",
+    "/api/access/groups/{group_id}/members/{principal_id}",
     "/api/strategies",
     "/api/strategies/{strategy_id}",
     "/api/strategies/{strategy_id}/metadata",
@@ -210,12 +215,9 @@ def test_public_api_surface_is_exactly_the_pinned_set() -> None:
     removed = sorted(PINNED_PUBLIC_PATHS - paths)
     assert added == [], (
         "Public paths added without contract declaration "
-        "(update PINNED_PUBLIC_PATHS and API_CONTRACT_EVOLUTION_POLICY): "
-        + ", ".join(added)
+        "(update PINNED_PUBLIC_PATHS and API_CONTRACT_EVOLUTION_POLICY): " + ", ".join(added)
     )
-    assert removed == [], (
-        "Public paths removed without contract declaration: " + ", ".join(removed)
-    )
+    assert removed == [], "Public paths removed without contract declaration: " + ", ".join(removed)
 
 
 def test_no_versioned_path_aliases_are_served() -> None:

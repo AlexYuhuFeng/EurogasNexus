@@ -90,6 +90,7 @@ def post_analysis_query(body: AnalysisRequest, request: Request) -> dict:
     _require_known_analysis_snapshot(body.analysis_snapshot_id, resource="analysis_query")
 
     snapshot = _load_snapshot(
+        principal_id=ai_caller(request).principal_id,
         duration_start_utc=body.duration_start_utc,
         duration_end_utc=body.duration_end_utc,
     )
@@ -124,7 +125,9 @@ def post_analysis_query(body: AnalysisRequest, request: Request) -> dict:
     if body.invoke_provider and not body.include_contract_prices:
         # 未授权合约价格参与 LLM 载荷：显式过滤并告警（fail-closed）。
         result.warnings = _unique([*result.warnings, "LLM_PAYLOAD_FILTERED:contract_prices"])
-    _persist_analysis_if_db(body, snapshot, result)
+    _persist_analysis_if_db(
+        body, snapshot, result, owner_principal_id=ai_caller(request).principal_id
+    )
     return _env(
         _cited_payload(result),
         request,
@@ -171,6 +174,7 @@ def post_portfolio_report(body: PortfolioReportRequest, request: Request) -> dic
     _require_known_analysis_snapshot(body.analysis_snapshot_id, resource="portfolio_report")
 
     snapshot = _load_snapshot(
+        principal_id=ai_caller(request).principal_id,
         duration_start_utc=body.duration_start_utc,
         duration_end_utc=body.duration_end_utc,
     )
@@ -242,7 +246,9 @@ def post_portfolio_report(body: PortfolioReportRequest, request: Request) -> dic
     result.analysis_snapshot_id = body.analysis_snapshot_id
     if body.invoke_provider and not body.include_contract_prices:
         result.warnings = _unique([*result.warnings, "LLM_PAYLOAD_FILTERED:contract_prices"])
-    persisted, store_configured = _persist_report_if_db(body, snapshot, result)
+    persisted, store_configured = _persist_report_if_db(
+        body, snapshot, result, owner_principal_id=caller.principal_id
+    )
     if store_configured and not persisted:
         # A configured store that refused the write must not be silent: the caller is told
         # the report was generated but not stored, so nobody treats it as filed.
@@ -274,6 +280,7 @@ def post_portfolio_report(body: PortfolioReportRequest, request: Request) -> dic
 
 def _load_snapshot(
     *,
+    principal_id: str | None = None,
     duration_start_utc: datetime | None = None,
     duration_end_utc: datetime | None = None,
 ) -> AnalysisSnapshot:
@@ -283,6 +290,7 @@ def _load_snapshot(
             warnings=["RUNTIME_DB_NOT_CONFIGURED"],
         )
     return _db_snapshot(
+        principal_id=principal_id,
         duration_start_utc=duration_start_utc,
         duration_end_utc=duration_end_utc,
     )
@@ -302,6 +310,7 @@ def _empty_snapshot(*, source: str, warnings: list[str]) -> AnalysisSnapshot:
 
 def _db_snapshot(
     *,
+    principal_id: str | None = None,
     duration_start_utc: datetime | None = None,
     duration_end_utc: datetime | None = None,
 ) -> AnalysisSnapshot:
@@ -321,9 +330,12 @@ def _db_snapshot(
         from eurogas_nexus.db.session import get_session_factory
 
         with get_session_factory()() as session:
-            glossary = session.query(GlossaryTermRecord).filter(
-                GlossaryTermRecord.active.is_(True)
-            ).limit(50).all()
+            glossary = (
+                session.query(GlossaryTermRecord)
+                .filter(GlossaryTermRecord.active.is_(True))
+                .limit(50)
+                .all()
+            )
             market_query = session.query(MarketObservationRecord)
             if duration_start_utc:
                 market_query = market_query.filter(
@@ -348,13 +360,14 @@ def _db_snapshot(
                     LiveMarketMarkRecord.mark_time_utc <= duration_end_utc
                 )
             live_marks = (
-                live_mark_query.order_by(LiveMarketMarkRecord.mark_time_utc.desc())
-                .limit(50)
+                live_mark_query.order_by(LiveMarketMarkRecord.mark_time_utc.desc()).limit(50).all()
+            )
+            fx_rows = (
+                session.query(FxObservationRecord)
+                .order_by(FxObservationRecord.observed_at_utc.desc())
+                .limit(20)
                 .all()
             )
-            fx_rows = session.query(FxObservationRecord).order_by(
-                FxObservationRecord.observed_at_utc.desc()
-            ).limit(20).all()
             flow_query = session.query(FlowObservationRecord)
             if duration_start_utc:
                 flow_query = flow_query.filter(
@@ -364,11 +377,7 @@ def _db_snapshot(
                 flow_query = flow_query.filter(
                     FlowObservationRecord.period_start_utc <= duration_end_utc
                 )
-            flows = (
-                flow_query.order_by(FlowObservationRecord.period_end_utc.desc())
-                .limit(50)
-                .all()
-            )
+            flows = flow_query.order_by(FlowObservationRecord.period_end_utc.desc()).limit(50).all()
             capacity_query = session.query(CapacityProfileRecord)
             if duration_start_utc:
                 capacity_query = capacity_query.filter(
@@ -379,16 +388,24 @@ def _db_snapshot(
                     CapacityProfileRecord.valid_from_utc <= duration_end_utc
                 )
             capacities = (
-                capacity_query.order_by(CapacityProfileRecord.valid_from_utc.desc())
+                capacity_query.order_by(CapacityProfileRecord.valid_from_utc.desc()).limit(50).all()
+            )
+            routes = (
+                session.query(RouteCandidateRecord)
+                .filter(RouteCandidateRecord.active.is_(True))
                 .limit(50)
                 .all()
             )
-            routes = session.query(RouteCandidateRecord).filter(
-                RouteCandidateRecord.active.is_(True)
-            ).limit(50).all()
-            strategies = session.query(StrategyRunRecord).order_by(
-                StrategyRunRecord.started_at_utc.desc()
-            ).limit(20).all()
+            from eurogas_nexus.db.repositories.strategy_access import visible_strategy_ids
+
+            allowed = visible_strategy_ids(session, principal_id)
+            strategies = (
+                session.query(StrategyRunRecord)
+                .filter(StrategyRunRecord.strategy_id.in_(allowed))
+                .order_by(StrategyRunRecord.started_at_utc.desc())
+                .limit(20)
+                .all()
+            )
             contracts = session.query(UpstreamResourceContractRecord).limit(50).all()
             return AnalysisSnapshot(
                 snapshot_id=f"snapshot-{uuid4().hex[:12]}",
@@ -547,11 +564,7 @@ def _filtered_llm_payload(
     filtered_contracts = []
     for row in payload.get("portfolio_context") or []:
         filtered_contracts.append(
-            {
-                key: value
-                for key, value in row.items()
-                if key not in _LLM_CONTRACT_FINANCIAL_FIELDS
-            }
+            {key: value for key, value in row.items() if key not in _LLM_CONTRACT_FINANCIAL_FIELDS}
         )
     payload["portfolio_context"] = filtered_contracts
     return payload
@@ -834,6 +847,8 @@ def _persist_analysis_if_db(
     body: AnalysisRequest,
     snapshot: AnalysisSnapshot,
     result: AnalysisResult,
+    *,
+    owner_principal_id: str | None = None,
 ) -> None:
     if not _db_is_configured():
         return
@@ -849,7 +864,10 @@ def _persist_analysis_if_db(
                     provider_id=result.provider_id,
                     provider_status=result.provider_status,
                     prompt_snapshot={"question": body.question, "task": body.task.value},
-                    input_snapshot=snapshot.model_dump(mode="json"),
+                    input_snapshot={
+                        **snapshot.model_dump(mode="json"),
+                        "owner_principal_id": owner_principal_id,
+                    },
                     output_snapshot=result.model_dump(mode="json"),
                     source_refs=result.citations,
                     warnings=result.warnings,
@@ -867,6 +885,8 @@ def _persist_report_if_db(
     body: PortfolioReportRequest,
     snapshot: AnalysisSnapshot,
     result: AnalysisResult,
+    *,
+    owner_principal_id: str | None = None,
 ) -> tuple[bool, bool]:
     """Persist the generated report, reporting whether it really was stored.
 
@@ -896,7 +916,10 @@ def _persist_report_if_db(
                     status=result.provider_status,
                     duration_start_utc=body.duration_start_utc,
                     duration_end_utc=body.duration_end_utc,
-                    input_snapshot=snapshot.model_dump(mode="json"),
+                    input_snapshot={
+                        **snapshot.model_dump(mode="json"),
+                        "owner_principal_id": owner_principal_id,
+                    },
                     sections=[section.model_dump(mode="json") for section in result.sections],
                     source_refs=result.citations,
                     warnings=result.warnings,
@@ -944,6 +967,7 @@ def _track_report_run(
         # optimisation paths do: the compatibility deployment token's identifier is not
         # expressible in the principal vocabulary, its name is.
         principal=principal.name,
+        owner_principal_id=(principal.principal_id if ":" not in principal.principal_id else None),
         # A report is not scoped to individual resources: the route refuses a
         # resource selection, and the run records the scope it really had - the
         # cited Analysis Snapshot - rather than a narrowing that never happened.

@@ -33,6 +33,7 @@ def create_job(
     *,
     kind: str,
     principal: str,
+    owner_principal_id: str | None = None,
     scope_refs: tuple[str, ...] = (),
     snapshot_id: str = "",
     input_hash: str = "",
@@ -53,12 +54,17 @@ def create_job(
         raise ValueError("unknown_job_kind") from exc
 
     now = _as_utc(now_utc or datetime.now(UTC))
+    if owner_principal_id is not None:
+        from eurogas_nexus.db.repositories.strategy_access import require_named_principal
+
+        owner_principal_id = require_named_principal(session, owner_principal_id)
     row = JobRecord(
         job_id=f"job-{uuid4().hex[:24]}",
         kind=resolved_kind.value,
         job_version="job/v1",
         status=JobState.QUEUED.value,
         principal=normalize_principal(principal),
+        owner_principal_id=owner_principal_id,
         scope_refs_json=list(scope_refs),
         snapshot_id=snapshot_id,
         input_hash=input_hash,
@@ -182,11 +188,15 @@ def cancel_job(session: Session, job_id: str, *, now_utc: datetime | None = None
     return payload
 
 
-def get_job(session: Session, job_id: str) -> dict | None:
+def get_job(session: Session, job_id: str, *, owner_principal_id: str | None = None) -> dict | None:
     """Return one job payload, or ``None`` when it does not exist."""
 
     row = session.get(JobRecord, job_id)
-    return None if row is None else job_payload(_to_domain(row))
+    if row is None or (
+        owner_principal_id is not None and row.owner_principal_id != owner_principal_id
+    ):
+        return None
+    return job_payload(_to_domain(row))
 
 
 def list_jobs(
@@ -195,6 +205,7 @@ def list_jobs(
     status: str | None = None,
     kind: str | None = None,
     principal: str | None = None,
+    owner_principal_id: str | None = None,
     limit: int = 50,
 ) -> list[dict]:
     """List jobs newest first."""
@@ -206,11 +217,9 @@ def list_jobs(
         query = query.filter(JobRecord.kind == kind)
     if principal:
         query = query.filter(JobRecord.principal == principal)
-    rows = (
-        query.order_by(JobRecord.created_at_utc.desc())
-        .limit(max(1, min(limit, 200)))
-        .all()
-    )
+    if owner_principal_id is not None:
+        query = query.filter(JobRecord.owner_principal_id == owner_principal_id)
+    rows = query.order_by(JobRecord.created_at_utc.desc()).limit(max(1, min(limit, 200))).all()
     return [job_payload(_to_domain(row)) for row in rows]
 
 
@@ -241,9 +250,7 @@ def _to_domain(row: JobRecord) -> Job:
         progress=float(row.progress or 0.0),
         created_at_utc=_as_utc(row.created_at_utc).isoformat(),
         started_at_utc=_as_utc(row.started_at_utc).isoformat() if row.started_at_utc else None,
-        finished_at_utc=(
-            _as_utc(row.finished_at_utc).isoformat() if row.finished_at_utc else None
-        ),
+        finished_at_utc=(_as_utc(row.finished_at_utc).isoformat() if row.finished_at_utc else None),
         output_refs=tuple(str(value) for value in row.output_refs_json or []),
         error_code=row.error_code or "",
         error_message=row.error_message or "",

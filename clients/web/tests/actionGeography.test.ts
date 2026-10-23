@@ -169,7 +169,7 @@ test("a workspace header declares at most one primary action, and only a permitt
   // The action it passes is running a backtest: a `compute` consequence, disabled by the rule
   // the panel reports and explained by the first blocker.
   assert.match(strategy, /const primaryAction =\s*controller\.task === "backtest" \? \(/);
-  assert.match(strategy, /disabled=\{!backtestReadiness\.canRun\}/);
+  assert.match(strategy, /disabled=\{!controller\.canManageSelectedStrategy \|\| !backtestReadiness\.canRun\}/);
   assert.match(strategy, /const request = strategyBacktestRequest\(/);
   assert.equal(mayOccupyPrimarySlot("compute"), true);
   // The panel configures the run and reports the verdict; it no longer starts one.

@@ -1,0 +1,275 @@
+{
+  "$defs": {
+    "DeploymentRef": {
+      "additionalProperties": false,
+      "properties": {
+        "deployment_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Deployment Id",
+          "type": "string"
+        },
+        "region": {
+          "$ref": "#/$defs/Region"
+        }
+      },
+      "required": [
+        "deployment_id",
+        "region"
+      ],
+      "title": "DeploymentRef",
+      "type": "object"
+    },
+    "PayloadDescriptor": {
+      "additionalProperties": false,
+      "properties": {
+        "byte_length": {
+          "minimum": 0,
+          "title": "Byte Length",
+          "type": "integer"
+        },
+        "media_type": {
+          "enum": [
+            "application/json",
+            "application/vnd.apache.parquet",
+            "text/csv"
+          ],
+          "title": "Media Type",
+          "type": "string"
+        },
+        "schema_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^\\S+$",
+          "title": "Schema Id",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_id",
+        "media_type",
+        "sha256",
+        "byte_length"
+      ],
+      "title": "PayloadDescriptor",
+      "type": "object"
+    },
+    "PrincipalRef": {
+      "additionalProperties": false,
+      "description": "A local principal identifier always qualified by its issuing deployment.",
+      "properties": {
+        "deployment_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Deployment Id",
+          "type": "string"
+        },
+        "principal_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Principal Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "deployment_id",
+        "principal_id"
+      ],
+      "title": "PrincipalRef",
+      "type": "object"
+    },
+    "Region": {
+      "description": "Deployment labels, not a geographic authorization or compliance assertion.",
+      "enum": [
+        "EU",
+        "CN",
+        "CA",
+        "SG"
+      ],
+      "title": "Region",
+      "type": "string"
+    },
+    "ResourceRef": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "strategy",
+            "dataset"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "origin_deployment_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Origin Deployment Id",
+          "type": "string"
+        },
+        "resource_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Resource Id",
+          "type": "string"
+        },
+        "revision": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Revision",
+          "type": "string"
+        }
+      },
+      "required": [
+        "origin_deployment_id",
+        "kind",
+        "resource_id",
+        "revision"
+      ],
+      "title": "ResourceRef",
+      "type": "object"
+    }
+  },
+  "$id": "urn:eurogas-nexus:exchange-envelope:1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Metadata for one explicitly approved, immutable resource revision.\n\nEvidence references must be resolved and verified by a future trusted receiver.\nMerely filling them in is never sufficient to grant access.",
+  "properties": {
+    "actor": {
+      "$ref": "#/$defs/PrincipalRef"
+    },
+    "classification": {
+      "enum": [
+        "PUBLIC",
+        "INTERNAL",
+        "CONFIDENTIAL",
+        "RESTRICTED"
+      ],
+      "title": "Classification",
+      "type": "string"
+    },
+    "contract_version": {
+      "const": "eurogas.exchange/1",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "destination": {
+      "$ref": "#/$defs/DeploymentRef"
+    },
+    "entitlement_ref": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^\\S+$",
+      "title": "Entitlement Ref",
+      "type": "string"
+    },
+    "expires_at": {
+      "format": "date-time",
+      "title": "Expires At",
+      "type": "string"
+    },
+    "idempotency_key": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+      "title": "Idempotency Key",
+      "type": "string"
+    },
+    "owner": {
+      "$ref": "#/$defs/PrincipalRef"
+    },
+    "owner_approval_ref": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^\\S+$",
+      "title": "Owner Approval Ref",
+      "type": "string"
+    },
+    "payload": {
+      "$ref": "#/$defs/PayloadDescriptor"
+    },
+    "policy_ref": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^\\S+$",
+      "title": "Policy Ref",
+      "type": "string"
+    },
+    "provenance_refs": {
+      "items": {
+        "maxLength": 256,
+        "minLength": 1,
+        "pattern": "^\\S+$",
+        "type": "string"
+      },
+      "maxItems": 64,
+      "minItems": 1,
+      "title": "Provenance Refs",
+      "type": "array"
+    },
+    "purpose": {
+      "maxLength": 512,
+      "minLength": 1,
+      "pattern": "\\S",
+      "title": "Purpose",
+      "type": "string"
+    },
+    "resource": {
+      "$ref": "#/$defs/ResourceRef"
+    },
+    "source": {
+      "$ref": "#/$defs/DeploymentRef"
+    },
+    "source_visibility": {
+      "enum": [
+        "PRIVATE",
+        "PUBLIC",
+        "GROUPS"
+      ],
+      "title": "Source Visibility",
+      "type": "string"
+    },
+    "transfer_id": {
+      "format": "uuid",
+      "title": "Transfer Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "contract_version",
+    "transfer_id",
+    "idempotency_key",
+    "source",
+    "destination",
+    "actor",
+    "owner",
+    "resource",
+    "purpose",
+    "classification",
+    "source_visibility",
+    "provenance_refs",
+    "policy_ref",
+    "owner_approval_ref",
+    "entitlement_ref",
+    "created_at",
+    "expires_at",
+    "payload"
+  ],
+  "title": "ExchangeEnvelope",
+  "type": "object"
+}

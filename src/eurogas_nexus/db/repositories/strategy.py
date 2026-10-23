@@ -67,18 +67,19 @@ def list_strategy_runs(
     strategy_id: str | None = None,
     run_mode: str | None = None,
     limit: int = 100,
+    visible_strategy_ids: set[str] | None = None,
 ) -> list[dict]:
     """Return persisted strategy runs, newest first."""
 
     query = session.query(StrategyRunRecord)
+    if visible_strategy_ids is not None:
+        query = query.filter(StrategyRunRecord.strategy_id.in_(visible_strategy_ids))
     if strategy_id:
         query = query.filter(StrategyRunRecord.strategy_id == strategy_id)
     if run_mode:
         query = query.filter(StrategyRunRecord.run_mode == run_mode)
     rows = (
-        query.order_by(StrategyRunRecord.started_at_utc.desc())
-        .limit(max(1, min(limit, 500)))
-        .all()
+        query.order_by(StrategyRunRecord.started_at_utc.desc()).limit(max(1, min(limit, 500))).all()
     )
     return [strategy_run_payload(row) for row in rows]
 
@@ -95,10 +96,13 @@ def strategy_summary(
     *,
     strategy_id: str | None = None,
     run_mode: str | None = None,
+    visible_strategy_ids: set[str] | None = None,
 ) -> dict:
     """Aggregate cumulative paper performance across persisted runs."""
 
     query = session.query(StrategyRunRecord)
+    if visible_strategy_ids is not None:
+        query = query.filter(StrategyRunRecord.strategy_id.in_(visible_strategy_ids))
     if strategy_id:
         query = query.filter(StrategyRunRecord.strategy_id == strategy_id)
     if run_mode:

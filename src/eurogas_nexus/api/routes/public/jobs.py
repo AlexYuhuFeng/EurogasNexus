@@ -33,8 +33,14 @@ def get_jobs(
             from eurogas_nexus.db.session import get_session_factory
 
             with get_session_factory()() as session:
+                owner = _job_owner(session, request)
                 data = list_jobs(
-                    session, status=status, kind=kind, principal=principal, limit=limit
+                    session,
+                    status=status,
+                    kind=kind,
+                    principal=principal,
+                    owner_principal_id=owner,
+                    limit=limit,
                 )
         except _sqlalchemy_error_type():
             warnings.append("RUNTIME_POSTGRESQL_UNAVAILABLE")
@@ -56,7 +62,7 @@ def get_job(job_id: str, request: Request) -> dict:
             from eurogas_nexus.db.session import get_session_factory
 
             with get_session_factory()() as session:
-                data = load_job(session, job_id)
+                data = load_job(session, job_id, owner_principal_id=_job_owner(session, request))
         except _sqlalchemy_error_type():
             warnings.append("RUNTIME_POSTGRESQL_UNAVAILABLE")
 
@@ -79,9 +85,15 @@ def post_cancel_job(job_id: str, request: Request) -> dict:
     else:
         try:
             from eurogas_nexus.db.repositories.jobs import cancel_job
+            from eurogas_nexus.db.repositories.jobs import get_job as load_job
             from eurogas_nexus.db.session import get_session_factory
 
             with get_session_factory()() as session:
+                existing = load_job(
+                    session, job_id, owner_principal_id=_job_owner(session, request)
+                )
+                if existing is None:
+                    raise ValueError("unknown_job")
                 data = cancel_job(session, job_id)
                 session.commit()
         except ValueError as exc:
@@ -142,3 +154,12 @@ def _env(data: object, *, warnings: list[str]) -> dict:
             "warnings": warnings,
         },
     }
+
+
+def _job_owner(session, request: Request) -> str:
+    """Only stable named identity IDs grant job access; legacy names do not."""
+    from eurogas_nexus.db.repositories.strategy_access import require_named_principal
+
+    principal_id = getattr(getattr(request.state, "identity", None), "principal_id", None)
+    principal_id = require_named_principal(session, principal_id)
+    return principal_id

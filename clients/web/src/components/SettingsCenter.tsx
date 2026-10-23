@@ -245,7 +245,7 @@ export function SettingsCenter({
             <p className="panel-copy">{t("release.about_subtitle")}</p>
           </div>
           <span className={`status-badge status-${releaseCompatibility?.state === "compatible" ? "runtime" : "unavailable"}`}>
-            {t(`release.compat_${releaseCompatibility?.state ?? "unknown"}`)}
+            {t(releaseCompatibility?.messageKey ?? "release.compat_unknown")}
           </span>
         </div>
         <div className="settings-about-grid">

@@ -35,7 +35,7 @@ def list_screen_orders(
 ) -> dict:
     """List imported read-only external screen order observations."""
 
-    orders, source, warnings = _load_screen_orders()
+    orders, source, warnings = _load_screen_orders(_identity_id(request))
     if provider_id:
         orders = [order for order in orders if order.provider_id == provider_id]
     if venue:
@@ -56,7 +56,7 @@ def list_pnl_snapshots(
 ) -> dict:
     """List indicative PnL snapshots for portfolio/resource/strategy context."""
 
-    snapshots, source, warnings = _load_pnl_snapshots()
+    snapshots, source, warnings = _load_pnl_snapshots(_identity_id(request))
     if portfolio_id:
         snapshots = [snapshot for snapshot in snapshots if snapshot.portfolio_id == portfolio_id]
     if resource_id:
@@ -78,8 +78,8 @@ def get_live_summary(
 ) -> dict:
     """Return a cockpit summary of latest imported order/PnL observations."""
 
-    orders, order_source, order_warnings = _load_screen_orders()
-    snapshots, pnl_source, pnl_warnings = _load_pnl_snapshots()
+    orders, order_source, order_warnings = _load_screen_orders(_identity_id(request))
+    snapshots, pnl_source, pnl_warnings = _load_pnl_snapshots(_identity_id(request))
     if portfolio_id:
         snapshots = [snapshot for snapshot in snapshots if snapshot.portfolio_id == portfolio_id]
     # No snapshot evidence (unconfigured runtime, degraded read, empty table, or
@@ -107,7 +107,9 @@ def get_live_summary(
     )
 
 
-def _load_screen_orders() -> tuple[list[ScreenOrderObservation], str, list[str]]:
+def _load_screen_orders(
+    principal_id: str | None = None,
+) -> tuple[list[ScreenOrderObservation], str, list[str]]:
     if not _db_is_configured():
         return (
             [],
@@ -120,12 +122,14 @@ def _load_screen_orders() -> tuple[list[ScreenOrderObservation], str, list[str]]
         from eurogas_nexus.db.session import get_session_factory
 
         with get_session_factory()() as session:
-            return screen_orders(session), "runtime-postgresql", []
+            return screen_orders(session, principal_id=principal_id), "runtime-postgresql", []
     except sqlalchemy_error as exc:
         raise _db_unavailable(exc) from exc
 
 
-def _load_pnl_snapshots() -> tuple[list[PortfolioPnlSnapshot], str, list[str]]:
+def _load_pnl_snapshots(
+    principal_id: str | None = None,
+) -> tuple[list[PortfolioPnlSnapshot], str, list[str]]:
     if not _db_is_configured():
         return (
             [],
@@ -138,9 +142,13 @@ def _load_pnl_snapshots() -> tuple[list[PortfolioPnlSnapshot], str, list[str]]:
         from eurogas_nexus.db.session import get_session_factory
 
         with get_session_factory()() as session:
-            return pnl_snapshots(session), "runtime-postgresql", []
+            return pnl_snapshots(session, principal_id=principal_id), "runtime-postgresql", []
     except sqlalchemy_error as exc:
         raise _db_unavailable(exc) from exc
+
+
+def _identity_id(request: Request) -> str | None:
+    return getattr(getattr(request.state, "identity", None), "principal_id", None)
 
 
 def _db_is_configured() -> bool:

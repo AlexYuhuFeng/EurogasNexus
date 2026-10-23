@@ -51,8 +51,10 @@ def health_ready(request: Request) -> dict:
     and deliberately excluded from readiness.
     """
 
+    from eurogas_nexus.db.health import get_alembic_revision
     from eurogas_nexus.db.registry import list_missing_required_tables
     from eurogas_nexus.db.session import get_engine, resolve_database_url
+    from eurogas_nexus.release.constants import DB_SCHEMA_REVISION
 
     database_url = resolve_database_url()
     if database_url is None:
@@ -67,6 +69,17 @@ def health_ready(request: Request) -> dict:
     engine = None
     try:
         engine = get_engine(database_url)
+        revision = get_alembic_revision(database_url)
+        if revision != DB_SCHEMA_REVISION:
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "code": "runtime_schema_revision_mismatch",
+                    "message": "Runtime PostgreSQL migrations are not current.",
+                    "current_revision": revision,
+                    "required_revision": DB_SCHEMA_REVISION,
+                },
+            )
         missing = list(list_missing_required_tables(engine))
         if missing:
             raise HTTPException(

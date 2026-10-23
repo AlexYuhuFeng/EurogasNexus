@@ -254,6 +254,21 @@ def run_research(body: ResearchRunRequest, request: Request) -> dict:
     principal = _principal(request)
     run_id = f"agent-run-{uuid4().hex[:20]}"
     with _session() as session:
+        from eurogas_nexus.db.models import StrategyVersionRecord
+        from eurogas_nexus.db.repositories.strategy_access import (
+            require_named_principal,
+            require_strategy_access,
+        )
+
+        require_named_principal(session, principal.principal_id)
+        if body.frozen_strategy_version_id:
+            version = session.get(StrategyVersionRecord, body.frozen_strategy_version_id)
+            if version is None:
+                raise HTTPException(status_code=404, detail="Strategy version not found")
+            # Research can persist evaluations; a read-share does not grant writes.
+            require_strategy_access(
+                session, version.strategy_id, principal.principal_id, write=True
+            )
         # Wave 8: the governed research run registers into the unified job model, in the
         # same session that persists the run's own rows, so the job commits with the work
         # it describes (and is rolled back with it when the run fails).
@@ -261,6 +276,7 @@ def run_research(body: ResearchRunRequest, request: Request) -> dict:
             session,
             kind="AGENT_RUN",
             principal=_job_principal(request),
+            owner_principal_id=_named_job_owner(request),
             scope_refs=(f"AGENT_PROFILE:{body.agent_profile}",),
             inputs={
                 "objective": body.objective,
@@ -299,13 +315,7 @@ def run_research(body: ResearchRunRequest, request: Request) -> dict:
 
 
 def _job_principal(request: Request) -> str:
-    """The principal a tracked run is attributed to.
-
-    The compatibility deployment token's identifier is not expressible in the principal
-    vocabulary, so the job records the acting principal's name - the convention the
-    dataset-build, optimisation and report paths already follow.
-    """
-
+    """Server-recorded display attribution; authority uses owner_principal_id."""
     identity = getattr(request.state, "identity", None)
     return identity.name if identity is not None else "public-api"
 
@@ -340,9 +350,17 @@ def list_agent_runs(
     limit: int = Query(default=100, ge=1, le=500),
 ) -> dict:
     with _session() as session:
-        from eurogas_nexus.db.repositories import agents
+        from eurogas_nexus.db.models import AgentRunRecord
+        from eurogas_nexus.db.repositories.strategy_access import require_named_principal
 
-        rows = agents.list_agent_runs(session, limit=limit)
+        principal_id = require_named_principal(session, _principal(request).principal_id)
+        rows = (
+            session.query(AgentRunRecord)
+            .filter(AgentRunRecord.principal_id == principal_id)
+            .order_by(AgentRunRecord.created_at_utc.desc())
+            .limit(limit)
+            .all()
+        )
         data = [
             {
                 "agent_run_id": row.agent_run_id,
@@ -371,8 +389,11 @@ def get_agent_run(agent_run_id: str, request: Request) -> dict:
         from eurogas_nexus.db.repositories import agents
 
         row = agents.get_agent_run(session, agent_run_id)
-        if row is None:
-            raise HTTPException(status_code=404, detail=f"Unknown agent run: {agent_run_id}")
+        from eurogas_nexus.db.repositories.strategy_access import require_named_principal
+
+        principal_id = require_named_principal(session, _principal(request).principal_id)
+        if row is None or row.principal_id != principal_id:
+            raise HTTPException(status_code=404, detail="Agent run not found")
         data = {
             "agent_run_id": row.agent_run_id,
             "principal_id": row.principal_id,
@@ -405,8 +426,11 @@ def replay_agent_run(agent_run_id: str, request: Request) -> dict:
         from eurogas_nexus.db.repositories import agents
 
         row = agents.get_agent_run(session, agent_run_id)
-        if row is None:
-            raise HTTPException(status_code=404, detail=f"Unknown agent run: {agent_run_id}")
+        from eurogas_nexus.db.repositories.strategy_access import require_named_principal
+
+        principal_id = require_named_principal(session, _principal(request).principal_id)
+        if row is None or row.principal_id != principal_id:
+            raise HTTPException(status_code=404, detail="Agent run not found")
         data = agents.replay_payload(session, row)
     return _env(data, request, source="runtime-postgresql")
 
@@ -457,3 +481,9 @@ def validate_strategy_ir_route(body: dict[str, Any], request: Request) -> dict:
         )
     except Exception as exc:
         return _env({"ok": False, "issues": [str(exc)]}, request, source="domain-contract")
+
+
+def _named_job_owner(request: Request) -> str | None:
+    identity = getattr(request.state, "identity", None)
+    value = getattr(identity, "principal_id", None)
+    return value if value and ":" not in value else None

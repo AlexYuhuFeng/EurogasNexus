@@ -41,6 +41,22 @@ to change the deployment configuration.
   `api_key` immediately.
 - `POST /api/access/api-keys/{id}/revoke` revokes immediately.
 
+## Data scope attenuation
+
+An identity key can access only the intersection of its own `scopes` and its
+owner's current `data_scopes`. An empty key scope list grants public baseline
+data only. A key wildcard inherits the owner's scopes; it cannot elevate an
+owner with no commercial grants. An owner wildcard still respects a restricted
+key. Scope matching is case-insensitive. Revoking an owner's data grant takes
+effect on the next authenticated request, including for existing keys.
+
+Previously issued keys with empty scopes no longer inherit their owner's
+commercial grants. Where commercial access is intended, an administrator must
+issue a replacement with explicit approved scopes and revoke the old key.
+Do not add wildcard grants merely to preserve previous access. Browser sessions
+continue to use the signed-in owner's current grants; API-key attenuation does
+not create organisation, portfolio or geographic isolation.
+
 ## Verification
 
 - A valid identity key presented as `X-Eurogas-Identity: nexus_<key_id>_<secret>`

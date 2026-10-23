@@ -40,13 +40,7 @@ _MAX_ASSUMPTION_VALUE_LENGTH = 512
 
 
 def _job_principal(request: Request) -> str:
-    """The principal a tracked run is attributed to.
-
-    The compatibility deployment token's identifier is not expressible in the principal
-    vocabulary, so the job records the acting principal's name - the convention the
-    dataset-build, optimisation, report and agent-run paths already follow.
-    """
-
+    """Server-recorded display attribution; authority uses owner_principal_id."""
     identity = getattr(request.state, "identity", None)
     return identity.name if identity is not None else "public-api"
 
@@ -134,11 +128,11 @@ def create_analysis_snapshot(body: AnalysisSnapshotCreateRequest, request: Reque
                 session,
                 kind="SNAPSHOT",
                 principal=_job_principal(request),
+                owner_principal_id=_named_job_owner(request),
                 # The scope a snapshot run has is the Active Context it froze, recorded as the
                 # context's own references rather than invented.
                 scope_refs=tuple(
-                    f"{key.upper()}:{value}"
-                    for key, value in sorted(body.active_context.items())
+                    f"{key.upper()}:{value}" for key, value in sorted(body.active_context.items())
                 ),
                 inputs={
                     "as_of_utc": body.as_of_utc.isoformat() if body.as_of_utc else "",
@@ -376,3 +370,9 @@ def _env(data: object, *, source: str, warnings: list[str] | None = None) -> dic
             "warnings": list(dict.fromkeys(warnings or [])),
         },
     }
+
+
+def _named_job_owner(request: Request) -> str | None:
+    identity = getattr(request.state, "identity", None)
+    value = getattr(identity, "principal_id", None)
+    return value if value and ":" not in value else None

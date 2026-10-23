@@ -8,6 +8,11 @@ from datetime import UTC, datetime
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from eurogas_nexus.domain.strategy_lab.price_series import (
+    canonical_price_name,
+    evidence_tenor_from_product,
+)
+
 from eurogas_nexus.db.models import (
     CompanyTsoAccessRecord,
     FxObservationRecord,
@@ -204,7 +209,15 @@ def list_normalized_market_view(
     ]
     view = build_normalized_market_view(inputs, rates)
     rows = [
-        {**_observation_dict(row), **normalized}
+        {
+            **_observation_dict(row),
+            **normalized,
+            "price_name": (row.metadata_json or {}).get("price_name")
+            or canonical_price_name(
+                row.source_system,
+                (row.metadata_json or {}).get("tenor") or evidence_tenor_from_product(row.product),
+            ),
+        }
         for row, normalized in zip(observation_rows, view["rows"], strict=True)
     ]
     return {"rows": rows, "warnings": view["warnings"]}

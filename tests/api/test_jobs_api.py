@@ -27,6 +27,20 @@ def _db(tmp_path, monkeypatch) -> str:
     monkeypatch.setenv("RUNTIME_STORE_DATABASE_URL", database_url)
     monkeypatch.delenv("DATABASE_URL", raising=False)
     monkeypatch.delenv("EUROGAS_NEXUS_DB_DSN", raising=False)
+    from eurogas_nexus.db.repositories.identity import (
+        create_identity_api_key,
+        create_identity_principal,
+    )
+
+    with Session(create_engine(database_url)) as session:
+        owner = create_identity_principal(
+            session, name="analyst.one", display_name="Owner", role="ANALYST", data_scopes=[]
+        )
+        owner.principal_id = "principal-owner"
+        session.flush()
+        _, bearer = create_identity_api_key(session, owner.principal_id, scopes=[])
+        session.commit()
+    monkeypatch.setitem(HEADERS, "X-Eurogas-Identity", bearer)
     return database_url
 
 
@@ -39,6 +53,7 @@ def test_a_tracked_job_records_its_outcome_and_outputs(tmp_path, monkeypatch) ->
             session,
             kind="DATASET_BUILD",
             principal="analyst.one",
+            owner_principal_id="principal-owner",
             inputs={"dataset_spec_id": "spec-1"},
             correlation_id="corr-9",
         ) as job:
@@ -78,7 +93,12 @@ def test_a_failed_tracked_job_keeps_the_stable_code_and_reraises(tmp_path, monke
 
     with Session(engine) as session:
         try:
-            with track_job(session, kind="OPTIMISATION", principal="analyst.one"):
+            with track_job(
+                session,
+                kind="OPTIMISATION",
+                principal="analyst.one",
+                owner_principal_id="principal-owner",
+            ):
                 raise Boom("the store is down")
         except Boom:
             session.commit()
@@ -99,13 +119,17 @@ def test_cancellation_is_refused_for_a_finished_job(tmp_path, monkeypatch) -> No
     engine = create_engine(database_url, future=True)
 
     with Session(engine) as session:
-        with track_job(session, kind="REPORT", principal="analyst.one") as job:
+        with track_job(
+            session, kind="REPORT", principal="analyst.one", owner_principal_id="principal-owner"
+        ) as job:
             job.add_output("generated_report:r-1")
         session.commit()
 
         from eurogas_nexus.db.repositories.jobs import create_job, start_job
 
-        running = create_job(session, kind="BACKTEST", principal="analyst.one")
+        running = create_job(
+            session, kind="BACKTEST", principal="analyst.one", owner_principal_id="principal-owner"
+        )
         start_job(session, str(running["job_id"]))
         session.commit()
         finished_id = job.job_id
@@ -134,3 +158,61 @@ def test_the_job_surface_requires_authentication(tmp_path, monkeypatch) -> None:
     client = TestClient(create_app(Settings(api_profile="release")))
 
     assert client.get("/api/jobs").status_code == 401
+
+
+def test_foreign_jobs_are_hidden_and_cannot_be_cancelled(tmp_path, monkeypatch) -> None:
+    database_url = _db(tmp_path, monkeypatch)
+    from eurogas_nexus.db.repositories.jobs import create_job, get_job, start_job
+
+    with Session(create_engine(database_url)) as session:
+        foreign = create_job(session, kind="BACKTEST", principal="analyst.other")
+        foreign_id = str(foreign["job_id"])
+        start_job(session, foreign_id)
+        own = create_job(
+            session, kind="BACKTEST", principal="analyst.one", owner_principal_id="principal-owner"
+        )
+        session.commit()
+    client = TestClient(create_app(Settings(api_profile="release")))
+    response = client.get("/api/jobs", headers=HEADERS)
+    assert response.status_code == 200
+    assert [row["job_id"] for row in response.json()["data"]] == [own["job_id"]]
+    assert client.get("/api/jobs?principal=analyst.other", headers=HEADERS).json()["data"] == []
+    assert client.get(f"/api/jobs/{foreign_id}", headers=HEADERS).status_code == 404
+    assert client.post(f"/api/jobs/{foreign_id}/cancel", headers=HEADERS).status_code == 404
+    with Session(create_engine(database_url)) as session:
+        assert get_job(session, foreign_id)["status"] == "RUNNING"
+
+
+def test_legacy_name_and_id_collisions_do_not_grant_job_access(tmp_path, monkeypatch):
+    database_url = _db(tmp_path, monkeypatch)
+    from eurogas_nexus.db.repositories.jobs import create_job, get_job, list_jobs, start_job
+
+    with Session(create_engine(database_url)) as session:
+        legacy_name = create_job(session, kind="BACKTEST", principal="analyst.one")
+        legacy_id = create_job(session, kind="BACKTEST", principal="principal-owner")
+        own = create_job(
+            session,
+            kind="BACKTEST",
+            principal="different-display-attribution",
+            owner_principal_id="principal-owner",
+        )
+        for legacy in (legacy_name, legacy_id):
+            start_job(session, legacy["job_id"])
+        session.commit()
+        assert [
+            row["job_id"]
+            for row in list_jobs(session, owner_principal_id="principal-owner", limit=1)
+        ] == [own["job_id"]]
+        assert get_job(session, legacy_id["job_id"], owner_principal_id="principal-owner") is None
+    client = TestClient(create_app(Settings(api_profile="release")))
+    assert [row["job_id"] for row in client.get("/api/jobs", headers=HEADERS).json()["data"]] == [
+        own["job_id"]
+    ]
+    for legacy in (legacy_name, legacy_id):
+        assert client.get(f"/api/jobs/{legacy['job_id']}", headers=HEADERS).status_code == 404
+        assert (
+            client.post(f"/api/jobs/{legacy['job_id']}/cancel", headers=HEADERS).status_code == 404
+        )
+    with Session(create_engine(database_url)) as session:
+        for legacy in (legacy_name, legacy_id):
+            assert get_job(session, legacy["job_id"])["status"] == "RUNNING"

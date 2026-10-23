@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import io
 import json
 import os
 import shutil
@@ -40,6 +41,40 @@ def read(relative: str) -> str:
     """
 
     return (ROOT / relative).read_text(encoding="utf-8-sig")
+
+
+def test_api_container_probe_accepts_actual_readiness_response(monkeypatch) -> None:
+    """Execute the shipped probe against the route's successful response contract."""
+    import urllib.request
+    from unittest.mock import Mock
+
+    from starlette.requests import Request
+
+    from eurogas_nexus.api.routes.public.health import health_ready
+    from eurogas_nexus.db import health, registry, session
+    from eurogas_nexus.release.constants import DB_SCHEMA_REVISION
+
+    monkeypatch.setattr(session, "resolve_database_url", lambda: "postgresql://synthetic")
+    monkeypatch.setattr(session, "get_engine", lambda _: Mock())
+    monkeypatch.setattr(health, "get_alembic_revision", lambda _: DB_SCHEMA_REVISION)
+    monkeypatch.setattr(registry, "list_missing_required_tables", lambda _: ())
+    payload = health_ready(Request({"type": "http"}))
+    monkeypatch.setenv("EUROGAS_NEXUS_PUBLIC_API_TOKEN", "synthetic-probe-token")
+
+    def urlopen(request, timeout):
+        assert request.full_url == "http://127.0.0.1:8000/api/health/ready"
+        assert request.get_header("X-eurogas-api-key") == "synthetic-probe-token"
+        assert timeout == 3
+        return io.BytesIO(json.dumps(payload).encode())
+
+    monkeypatch.setattr(urllib.request, "urlopen", urlopen)
+    compose = yaml.safe_load(read("deploy/runtime/compose.yaml"))
+    probe = compose["services"]["api"]["healthcheck"]["test"]
+    assert probe[:3] == ["CMD", "python", "-c"]
+    exec(compile(probe[3], "<container-healthcheck>", "exec"), {})
+    payload["status"] = "unavailable"
+    with pytest.raises(AssertionError):
+        exec(compile(probe[3], "<container-healthcheck>", "exec"), {})
 
 
 def test_deployment_bundle_defines_exact_device_roles() -> None:

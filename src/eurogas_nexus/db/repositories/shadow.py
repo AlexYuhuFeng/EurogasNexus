@@ -65,14 +65,16 @@ def create_monitor(
     return row
 
 
-def get_monitor(
-    session: Session, monitor_id: str
-) -> StrategyShadowMonitorRecord | None:
+def get_monitor(session: Session, monitor_id: str) -> StrategyShadowMonitorRecord | None:
     return session.get(StrategyShadowMonitorRecord, monitor_id)
 
 
-def list_monitors(session: Session, *, state: str | None = None) -> list[dict]:
+def list_monitors(
+    session: Session, *, state: str | None = None, visible_strategy_ids: set[str] | None = None
+) -> list[dict]:
     query = session.query(StrategyShadowMonitorRecord)
+    if visible_strategy_ids is not None:
+        query = query.filter(StrategyShadowMonitorRecord.strategy_id.in_(visible_strategy_ids))
     if state:
         query = query.filter(StrategyShadowMonitorRecord.state == state.upper())
     rows = query.order_by(StrategyShadowMonitorRecord.created_at_utc.desc()).all()
@@ -203,9 +205,7 @@ def create_evaluation(
     return row
 
 
-def get_evaluation(
-    session: Session, evaluation_id: str
-) -> StrategyShadowEvaluationRecord | None:
+def get_evaluation(session: Session, evaluation_id: str) -> StrategyShadowEvaluationRecord | None:
     return session.get(StrategyShadowEvaluationRecord, evaluation_id)
 
 
@@ -309,9 +309,7 @@ def persist_candidate(
     return row
 
 
-def get_candidate(
-    session: Session, candidate_id: str
-) -> StrategyShadowCandidateRecord | None:
+def get_candidate(session: Session, candidate_id: str) -> StrategyShadowCandidateRecord | None:
     return session.get(StrategyShadowCandidateRecord, candidate_id)
 
 
@@ -367,9 +365,7 @@ def persist_risk_check(
     return row
 
 
-def list_risk_checks(
-    session: Session, evaluation_id: str
-) -> list[dict]:
+def list_risk_checks(session: Session, evaluation_id: str) -> list[dict]:
     rows = (
         session.query(StrategyShadowRiskCheckRecord)
         .filter(StrategyShadowRiskCheckRecord.shadow_evaluation_id == evaluation_id)
@@ -514,8 +510,15 @@ def list_alerts(
     severity: str | None = None,
     monitor_id: str | None = None,
     limit: int = 100,
+    visible_strategy_ids: set[str] | None = None,
 ) -> list[dict]:
     query = session.query(StrategyShadowAlertRecord)
+    if visible_strategy_ids is not None:
+        query = query.join(
+            StrategyShadowMonitorRecord,
+            StrategyShadowAlertRecord.shadow_monitor_id
+            == StrategyShadowMonitorRecord.shadow_monitor_id,
+        ).filter(StrategyShadowMonitorRecord.strategy_id.in_(visible_strategy_ids))
     if state:
         query = query.filter(StrategyShadowAlertRecord.state == state.upper())
     if severity:
@@ -687,16 +690,23 @@ def record_heartbeat(
     return row
 
 
-def runtime_status_payload(session: Session) -> dict:
+def runtime_status_payload(
+    session: Session, *, visible_strategy_ids: set[str] | None = None
+) -> dict:
     row = session.get(StrategyShadowSchedulerHeartbeatRecord, "primary")
+    monitors = session.query(StrategyShadowMonitorRecord)
+    if visible_strategy_ids is not None:
+        monitors = monitors.filter(
+            StrategyShadowMonitorRecord.strategy_id.in_(visible_strategy_ids)
+        )
     active = (
-        session.query(func.count(StrategyShadowMonitorRecord.shadow_monitor_id))
+        monitors.with_entities(func.count(StrategyShadowMonitorRecord.shadow_monitor_id))
         .filter(StrategyShadowMonitorRecord.state == "ACTIVE")
         .scalar()
         or 0
     )
     due = (
-        session.query(func.count(StrategyShadowMonitorRecord.shadow_monitor_id))
+        monitors.with_entities(func.count(StrategyShadowMonitorRecord.shadow_monitor_id))
         .filter(
             StrategyShadowMonitorRecord.state == "ACTIVE",
             StrategyShadowMonitorRecord.next_evaluation_at_utc <= datetime.now(UTC),
@@ -709,8 +719,12 @@ def runtime_status_payload(session: Session) -> dict:
         "last_heartbeat_at_utc": _iso(row.last_heartbeat_at_utc) if row else None,
         "active_monitors": active,
         "pending_evaluations": due,
-        "failed_evaluations_24h": row.failed_count if row else 0,
-        "duplicate_claims_prevented": row.duplicate_claim_count if row else 0,
+        "failed_evaluations_24h": (row.failed_count if row else 0)
+        if visible_strategy_ids is None
+        else None,
+        "duplicate_claims_prevented": (row.duplicate_claim_count if row else 0)
+        if visible_strategy_ids is None
+        else None,
     }
 
 

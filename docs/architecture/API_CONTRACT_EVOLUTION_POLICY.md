@@ -182,3 +182,40 @@ caller rather than additive.
   additively.
 - Generated client stubs: SDK DTOs remain hand-written and are guarded by
   parity tests.
+
+
+## Strategy ownership and sharing — 2026-10-22
+
+The public path registry now contains 187 paths (previously 182). Added:
+
+- `/api/me/groups` (GET): the authenticated user's active sharing groups.
+- `/api/access/groups` (GET/POST): ADMIN group catalogue and creation.
+- `/api/access/groups/{group_id}` (PATCH): ADMIN group status/name changes.
+- `/api/access/groups/{group_id}/members/{principal_id}` (PUT/DELETE): ADMIN membership changes.
+- `/api/strategies/{strategy_id}/sharing` (PATCH): owner-selected PRIVATE, PUBLIC or GROUPS audience.
+
+Strategy responses add `owner_principal_id`, `visibility`, `shared_group_ids` and
+`can_manage`. New strategies are PRIVATE and bind ownership to the authenticated
+active directory principal, never a request's attribution text. PUBLIC grants
+read access within this deployment, still subject to roles and source licences;
+it grants no edit or cross-region transfer permission. GROUPS requires explicit
+active groups the owner belongs to. Shared readers cannot mutate strategy state.
+
+This deliberately narrows existing access: hidden strategies and their child
+resources return 404; lists filter before limiting. Jobs are restricted to their
+server-recorded owner; a foreign `principal` query returns an empty list. Review
+and portfolio projections withhold inaccessible strategy-linked records. Existing
+ownerless strategies remain PRIVATE and quarantined pending verified ownership
+assignment; migration 0040 does not infer owners from free-text attribution and
+refuses downgrade to code that would expose these records.
+
+Empty identity-key scopes now mean public-baseline access, not inheritance of
+commercial grants. Explicit key scopes are intersected with current principal
+grants. Operators must replace old implicit-scope keys with approved explicit
+scopes; see [API keys](../operations/API_KEYS.md).
+
+Job ownership follow-up: migration 0041 adds nullable `owner_principal_id` to job
+records. HTTP producers bind this from the active named identity; display
+`principal` remains attribution and an optional narrowing filter. Name-only legacy
+jobs have no read/cancel grant until independently verified ownership is assigned.
+A principal-name/ID collision cannot grant access.

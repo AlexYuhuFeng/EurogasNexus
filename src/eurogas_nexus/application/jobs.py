@@ -81,6 +81,7 @@ def track_job(
     *,
     kind: str,
     principal: str,
+    owner_principal_id: str | None = None,
     scope_refs: tuple[str, ...] = (),
     snapshot_id: str = "",
     inputs: Any = None,
@@ -104,15 +105,14 @@ def track_job(
         session,
         kind=kind,
         principal=principal,
+        owner_principal_id=owner_principal_id,
         scope_refs=scope_refs,
         snapshot_id=snapshot_id,
         input_hash=job_input_hash(inputs) if inputs is not None else "",
         correlation_id=correlation_id,
         provenance=provenance,
     )
-    handle = JobHandle(
-        job_id=str(job["job_id"]), kind=kind, principal=principal, output_refs=[]
-    )
+    handle = JobHandle(job_id=str(job["job_id"]), kind=kind, principal=principal, output_refs=[])
     start_job(session, handle.job_id)
     try:
         yield handle
@@ -184,6 +184,7 @@ def run_tracked_job(
     *,
     kind: str,
     principal: str,
+    owner_principal_id: str | None = None,
     scope_refs: tuple[str, ...] = (),
     snapshot_id: str = "",
     inputs: Any = None,
@@ -229,6 +230,7 @@ def run_tracked_job(
     spec = {
         "kind": kind,
         "principal": principal,
+        "owner_principal_id": owner_principal_id,
         "scope_refs": scope_refs,
         "snapshot_id": snapshot_id,
         "inputs": inputs,

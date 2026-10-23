@@ -40,7 +40,7 @@ Classification: `IMPLEMENTED`, `PARTIAL`, `MISSING`,
 | Python dependency pinning | IMPLEMENTED | `requirements*.lock` with `--require-hashes`. |
 | Node dependency pinning | IMPLEMENTED | `package-lock.json` + `npm ci`. |
 | Rust dependency pinning | IMPLEMENTED | `Cargo.lock` + explicit `cargo check --locked`. |
-| Docker base image | PARTIAL | `python:3.11-slim` mutable tag; runtime non-root, no dev tools. |
+| Docker base image | LOCAL VERIFIED | Official Python 3.11 Alpine pinned by digest; non-root runtime, build tools removed, local HIGH/CRITICAL scan passed. See acceptance/17_BACKEND_RUNTIME_ACCEPTANCE.md for dated evidence and remaining release gates. |
 | Desktop packaging | IMPLEMENTED | Tauri v2 NSIS (perMachine) and architecture-specific DEB. |
 | Deployment bundles | IMPLEMENTED | Server operator ZIP; no embedded client or image. |
 | Checksums | MISSING -> IMPLEMENTED | `SHA256SUMS` computed after final signing/packaging and covering `release-manifest.json`. |

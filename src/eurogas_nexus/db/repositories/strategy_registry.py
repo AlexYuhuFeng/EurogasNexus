@@ -35,11 +35,14 @@ def create_strategy(
     created_by: str,
     now_utc: datetime,
     tags: list[str] | None = None,
+    owner_principal_id: str | None = None,
 ) -> StrategyRecord:
     if session.get(StrategyRecord, strategy_id) is not None:
         raise StrategyRegistryError(f"Strategy already exists: {strategy_id}")
     row = StrategyRecord(
         strategy_id=strategy_id,
+        owner_principal_id=owner_principal_id,
+        visibility="PRIVATE",
         name=name,
         description=description,
         lifecycle_status="RESEARCH",
@@ -85,10 +88,15 @@ def update_strategy(
     return row
 
 
-def list_strategies(session: Session, *, limit: int = 200) -> list[StrategyRecord]:
+def list_strategies(
+    session: Session, *, limit: int = 200, principal_id: str | None = None
+) -> list[StrategyRecord]:
+    from eurogas_nexus.db.repositories.strategy_access import visible_strategy_clause
+
     return list(
         session.scalars(
             select(StrategyRecord)
+            .where(visible_strategy_clause(principal_id) if principal_id is not None else True)
             .order_by(StrategyRecord.updated_at_utc.desc())
             .limit(max(1, min(limit, 500)))
         )
@@ -96,12 +104,11 @@ def list_strategies(session: Session, *, limit: int = 200) -> list[StrategyRecor
 
 
 def next_version_number(session: Session, strategy_id: str) -> int:
-    existing = (
-        session.scalars(
-            select(StrategyVersionRecord.version_number)
-            .where(StrategyVersionRecord.strategy_id == strategy_id)
-        ).all()
-    )
+    existing = session.scalars(
+        select(StrategyVersionRecord.version_number).where(
+            StrategyVersionRecord.strategy_id == strategy_id
+        )
+    ).all()
     return max(existing, default=0) + 1
 
 
@@ -178,9 +185,7 @@ def update_draft_version(
 
     row = get_strategy_version(session, strategy_version_id)
     if row is None:
-        raise StrategyRegistryError(
-            f"Strategy version does not exist: {strategy_version_id}"
-        )
+        raise StrategyRegistryError(f"Strategy version does not exist: {strategy_version_id}")
     if row.status != "DRAFT":
         raise StrategyRegistryError(
             f"Only DRAFT versions can be edited; current status is {row.status}"
@@ -205,9 +210,7 @@ def freeze_strategy_version(
 ) -> StrategyVersionRecord:
     version = get_strategy_version(session, strategy_version_id)
     if version is None:
-        raise StrategyRegistryError(
-            f"Strategy version does not exist: {strategy_version_id}"
-        )
+        raise StrategyRegistryError(f"Strategy version does not exist: {strategy_version_id}")
     if version.status != "DRAFT":
         raise StrategyRegistryError(
             f"Only DRAFT versions can be frozen; current status is {version.status}"
@@ -234,17 +237,13 @@ def fork_strategy_version(
 ) -> StrategyVersionRecord:
     source = get_strategy_version(session, source_version_id)
     if source is None:
-        raise StrategyRegistryError(
-            f"Strategy version does not exist: {source_version_id}"
-        )
+        raise StrategyRegistryError(f"Strategy version does not exist: {source_version_id}")
     if source.status != "FROZEN":
         raise StrategyRegistryError(
             "Only FROZEN versions may be forked; create a new draft from frozen "
             "research instead of mutating it"
         )
-    fork_definition = definition or StrategyVersionDefinition.model_validate(
-        source.definition_json
-    )
+    fork_definition = definition or StrategyVersionDefinition.model_validate(source.definition_json)
     return create_strategy_version(
         session,
         strategy_id=source.strategy_id,
@@ -354,14 +353,21 @@ def list_strategy_runs(
     strategy_version_id: str | None = None,
     run_type: str | None = None,
     limit: int = 100,
+    principal_id: str | None = None,
 ) -> list[StrategyRunRecord]:
     query = select(StrategyRunRecord).order_by(StrategyRunRecord.started_at_utc.desc())
+    if principal_id is not None:
+        from eurogas_nexus.db.repositories.strategy_access import visible_strategy_clause
+
+        query = query.where(
+            StrategyRunRecord.strategy_id.in_(
+                select(StrategyRecord.strategy_id).where(visible_strategy_clause(principal_id))
+            )
+        )
     if strategy_id:
         query = query.where(StrategyRunRecord.strategy_id == strategy_id)
     if strategy_version_id:
-        query = query.where(
-            StrategyRunRecord.strategy_version_id == strategy_version_id
-        )
+        query = query.where(StrategyRunRecord.strategy_version_id == strategy_version_id)
     if run_type:
         query = query.where(StrategyRunRecord.run_type == run_type)
     return list(session.scalars(query.limit(max(1, min(limit, 500)))))
@@ -370,6 +376,8 @@ def list_strategy_runs(
 def strategy_record_payload(row: StrategyRecord) -> dict:
     return {
         "strategy_id": row.strategy_id,
+        "owner_principal_id": row.owner_principal_id,
+        "visibility": row.visibility,
         "name": row.name,
         "description": row.description,
         "lifecycle_status": row.lifecycle_status,
@@ -377,9 +385,7 @@ def strategy_record_payload(row: StrategyRecord) -> dict:
         "created_by": row.created_by,
         "created_at_utc": _as_utc(row.created_at_utc).isoformat(),
         "updated_at_utc": _as_utc(row.updated_at_utc).isoformat(),
-        "retired_at_utc": (
-            _as_utc(row.retired_at_utc).isoformat() if row.retired_at_utc else None
-        ),
+        "retired_at_utc": (_as_utc(row.retired_at_utc).isoformat() if row.retired_at_utc else None),
         "tags": row.tags or [],
         "research_only": row.research_only,
     }
@@ -397,9 +403,7 @@ def strategy_version_payload(row: StrategyVersionRecord) -> dict:
         "parent_version_id": row.parent_version_id,
         "created_by": row.created_by,
         "created_at_utc": _as_utc(row.created_at_utc).isoformat(),
-        "frozen_at_utc": (
-            _as_utc(row.frozen_at_utc).isoformat() if row.frozen_at_utc else None
-        ),
+        "frozen_at_utc": (_as_utc(row.frozen_at_utc).isoformat() if row.frozen_at_utc else None),
         "content_hash": row.content_hash,
         "research_only": row.research_only,
     }

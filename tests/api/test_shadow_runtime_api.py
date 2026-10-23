@@ -14,7 +14,9 @@ from eurogas_nexus.application.shadow_runtime import (
 from eurogas_nexus.db.base import Base
 from eurogas_nexus.db.models import (
     AuditEventRecord,
+    IdentityPrincipalRecord,
     MarketObservationRecord,
+    StrategyRecord,
     StrategyShadowAlertRecord,
 )
 from eurogas_nexus.db.repositories import shadow as shadow_repository
@@ -39,7 +41,10 @@ def _configure_db(tmp_path, monkeypatch) -> tuple[str, TestClient]:
     monkeypatch.setenv("RUNTIME_STORE_DATABASE_URL", database_url)
     monkeypatch.delenv("DATABASE_URL", raising=False)
     monkeypatch.delenv("EUROGAS_NEXUS_DB_DSN", raising=False)
-    return database_url, TestClient(create_app())
+    with Session(engine) as session:
+        _, bearer = _analyst_bearer(session, name="shadow-owner")
+        session.commit()
+    return database_url, TestClient(create_app(), headers=_identity_headers(bearer))
 
 
 def _create_version(
@@ -55,6 +60,10 @@ def _create_version(
         name="Shadow strategy",
         description="",
         created_by="operator",
+        owner_principal_id=session.query(IdentityPrincipalRecord)
+        .filter_by(name="shadow-owner")
+        .one()
+        .principal_id,
         now_utc=now,
     )
     definition = StrategyVersionDefinition(
@@ -165,9 +174,7 @@ def test_draft_version_cannot_activate_and_frozen_can(tmp_path, monkeypatch) -> 
     engine = create_engine(database_url, future=True)
     with Session(engine) as session:
         draft_id = _create_version(session, freeze=False)
-        frozen_id = _create_version(
-            session, strategy_id="shadow-frozen", freeze=True
-        )
+        frozen_id = _create_version(session, strategy_id="shadow-frozen", freeze=True)
 
     draft = client.post("/api/shadow-monitors", json=_monitor_payload(draft_id))
     assert draft.status_code == 422
@@ -472,6 +479,7 @@ def test_shadow_acknowledgement_records_the_authenticated_principal_not_body_act
     with Session(engine) as session:
         alert_id = _seed_shadow_alert(session)
         analyst_id, analyst_bearer = _analyst_bearer(session, name="shadow-analyst")
+        session.get(StrategyRecord, "shadow-strategy").owner_principal_id = analyst_id
         session.commit()
 
     response = client.post(
@@ -501,6 +509,7 @@ def test_shadow_repeat_acknowledgement_preserves_original_attribution(
     with Session(engine) as session:
         alert_id = _seed_shadow_alert(session, fingerprint_suffix="repeat")
         first_id, first_bearer = _analyst_bearer(session, name="shadow-first")
+        session.get(StrategyRecord, "shadow-strategy").owner_principal_id = first_id
         _second_id, second_bearer = _analyst_bearer(session, name="shadow-second")
         session.commit()
 
@@ -511,17 +520,22 @@ def test_shadow_repeat_acknowledgement_preserves_original_attribution(
     )
     assert first.status_code == 200
 
-    repeat = client.post(
+    denied = client.post(
         f"/api/shadow-alerts/{alert_id}/acknowledge",
         json={"actor": "second-name"},
         headers=_identity_headers(second_bearer),
+    )
+    assert denied.status_code == 404
+    repeat = client.post(
+        f"/api/shadow-alerts/{alert_id}/acknowledge",
+        json={"actor": "second-name"},
+        headers=_identity_headers(first_bearer),
     )
     assert repeat.status_code == 200, repeat.text
     assert repeat.json()["data"]["state"] == "ACKNOWLEDGED"
     assert repeat.json()["data"]["acknowledged_by"] == first_id
     assert (
-        repeat.json()["data"]["acknowledged_at_utc"]
-        == first.json()["data"]["acknowledged_at_utc"]
+        repeat.json()["data"]["acknowledged_at_utc"] == first.json()["data"]["acknowledged_at_utc"]
     )
     assert len(_acknowledgement_audit_rows(database_url)) == 1
 
@@ -532,6 +546,7 @@ def test_resolved_shadow_alert_cannot_be_acknowledged(tmp_path, monkeypatch) -> 
     with Session(engine) as session:
         alert_id = _seed_shadow_alert(session, fingerprint_suffix="resolved")
         _analyst_id, analyst_bearer = _analyst_bearer(session, name="shadow-resolved")
+        session.get(StrategyRecord, "shadow-strategy").owner_principal_id = _analyst_id
         row = session.get(StrategyShadowAlertRecord, alert_id)
         row.state = "RESOLVED"
         row.resolved_at_utc = datetime(2026, 7, 1, 11, 0, tzinfo=UTC)
@@ -578,6 +593,7 @@ def test_shadow_acknowledgement_rolls_back_when_the_audit_cannot_be_written(
     with Session(engine) as session:
         alert_id = _seed_shadow_alert(session, fingerprint_suffix="rollback")
         _analyst_id, analyst_bearer = _analyst_bearer(session, name="shadow-rollback")
+        session.get(StrategyRecord, "shadow-strategy").owner_principal_id = _analyst_id
         session.commit()
 
     def _fail_audit(*_args, **_kwargs):

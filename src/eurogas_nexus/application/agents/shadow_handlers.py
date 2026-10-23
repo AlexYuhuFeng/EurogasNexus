@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+from eurogas_nexus.application.agents.strategy_privacy import guard_strategy_capability
 from eurogas_nexus.domain.agents.contracts import (
     ActionPolicy,
     CapabilityDefinition,
@@ -83,6 +84,8 @@ def register_shadow_capabilities(registry) -> None:
     from eurogas_nexus.db.repositories import shadow
 
     def get_status(arguments, _context):
+        from eurogas_nexus.db.repositories.strategy_access import visible_strategy_ids
+
         definition = registry.get("shadow.get_status")
         with session_scope() as session:
             if session is None:
@@ -91,7 +94,16 @@ def register_shadow_capabilities(registry) -> None:
                     CapabilityFailureCode.DATA_MISSING,
                     "Runtime PostgreSQL is not configured",
                 )
-            rows = shadow.list_monitors(session, state=arguments.get("state"))
+            denied = guard_strategy_capability(
+                session, arguments, _context, definition, write=False
+            )
+            if denied is not None:
+                return denied
+            rows = shadow.list_monitors(
+                session,
+                state=arguments.get("state"),
+                visible_strategy_ids=visible_strategy_ids(session, _context.principal_id),
+            )
         return _result(definition, {"monitors": rows, "count": len(rows)})
 
     def get_evaluations(arguments, _context):
@@ -103,6 +115,11 @@ def register_shadow_capabilities(registry) -> None:
                     CapabilityFailureCode.DATA_MISSING,
                     "Runtime PostgreSQL is not configured",
                 )
+            denied = guard_strategy_capability(
+                session, arguments, _context, definition, write=False
+            )
+            if denied is not None:
+                return denied
             rows = shadow.list_evaluations(session, str(arguments["monitor_id"]))
         return _result(definition, {"evaluations": rows, "count": len(rows)})
 
@@ -115,6 +132,11 @@ def register_shadow_capabilities(registry) -> None:
                     CapabilityFailureCode.DATA_MISSING,
                     "Runtime PostgreSQL is not configured",
                 )
+            denied = guard_strategy_capability(
+                session, arguments, _context, definition, write=False
+            )
+            if denied is not None:
+                return denied
             rows = shadow.list_drift_snapshots(session, str(arguments["monitor_id"]))
         return _result(definition, {"drift_snapshots": rows, "count": len(rows)})
 
@@ -127,6 +149,11 @@ def register_shadow_capabilities(registry) -> None:
                     CapabilityFailureCode.DATA_MISSING,
                     "Runtime PostgreSQL is not configured",
                 )
+            denied = guard_strategy_capability(
+                session, arguments, _context, definition, write=False
+            )
+            if denied is not None:
+                return denied
             rows = shadow.list_alerts(session, str(arguments["monitor_id"]))
         return _result(definition, {"alerts": rows, "count": len(rows)})
 
@@ -139,6 +166,9 @@ def register_shadow_capabilities(registry) -> None:
                     CapabilityFailureCode.DATA_MISSING,
                     "Runtime PostgreSQL is not configured",
                 )
+            denied = guard_strategy_capability(session, arguments, _context, definition, write=True)
+            if denied is not None:
+                return denied
             row = shadow.activate_monitor(
                 session, monitor_id=str(arguments["monitor_id"]), now_utc=datetime.now(UTC)
             )
@@ -154,6 +184,9 @@ def register_shadow_capabilities(registry) -> None:
                     CapabilityFailureCode.DATA_MISSING,
                     "Runtime PostgreSQL is not configured",
                 )
+            denied = guard_strategy_capability(session, arguments, _context, definition, write=True)
+            if denied is not None:
+                return denied
             row = shadow.pause_monitor(
                 session, monitor_id=str(arguments["monitor_id"]), now_utc=datetime.now(UTC)
             )
@@ -169,6 +202,9 @@ def register_shadow_capabilities(registry) -> None:
                     CapabilityFailureCode.DATA_MISSING,
                     "Runtime PostgreSQL is not configured",
                 )
+            denied = guard_strategy_capability(session, arguments, _context, definition, write=True)
+            if denied is not None:
+                return denied
             row = shadow.resume_monitor(
                 session, monitor_id=str(arguments["monitor_id"]), now_utc=datetime.now(UTC)
             )

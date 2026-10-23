@@ -12,6 +12,11 @@ from uuid import uuid4
 
 from sqlalchemy.orm import Session
 
+from eurogas_nexus.domain.strategy_lab.price_series import (
+    canonical_price_name as _price_name,
+    evidence_tenor_from_product as _tenor_from_product,
+)
+
 from eurogas_nexus.db.models import (
     BacktestAttributionRecord,
     BacktestDecisionEventRecord,
@@ -50,9 +55,7 @@ def load_backtest_evidence_pool(
 ) -> BacktestEvidencePool:
     """Load all potentially eligible evidence rows for one run."""
 
-    lookback_start = _as_utc(period.start_utc) - timedelta(
-        seconds=max_lookback_seconds
-    )
+    lookback_start = _as_utc(period.start_utc) - timedelta(seconds=max_lookback_seconds)
     period_end = _as_utc(period.end_utc)
     observations: list[BacktestObservation] = []
 
@@ -79,10 +82,7 @@ def load_backtest_evidence_pool(
                 hub=str(metadata.get("hub") or _hub_from_product(row.product, row.market_venue)),
                 product=row.product,
                 tenor=tenor,
-                price_name=str(
-                    metadata.get("price_name")
-                    or _price_name(row.source_system, tenor)
-                ),
+                price_name=str(metadata.get("price_name") or _price_name(row.source_system, tenor)),
                 price=row.price,
                 currency=row.currency,
                 unit=row.unit,
@@ -92,8 +92,7 @@ def load_backtest_evidence_pool(
                 delivery_end_utc=row.period_end_utc,
                 bar_minutes=None,
                 price_type=str(
-                    metadata.get("price_type")
-                    or _observation_price_type(metadata)
+                    metadata.get("price_type") or _observation_price_type(metadata)
                 ).lower(),
                 source_reference=row.source_reference,
                 simulated=bool(metadata.get("simulated", False)),
@@ -208,10 +207,7 @@ def load_backtest_evidence_pool(
     ]
 
     definition = version.definition_json or {}
-    resources = [
-        BacktestResourceEvidence(**row)
-        for row in definition.get("resource_contexts", [])
-    ]
+    resources = [BacktestResourceEvidence(**row) for row in definition.get("resource_contexts", [])]
 
     return BacktestEvidencePool(
         observations=observations,
@@ -237,11 +233,7 @@ def create_backtest_snapshot(
     resource_refs = sorted(pool.resource_refs())
     cost_refs = sorted(pool.cost_refs())
     source_systems = sorted(
-        {
-            row.source_system
-            for row in pool.observations
-            if row.source_system
-        }
+        {row.source_system for row in pool.observations if row.source_system}
         | {row.source_system for row in pool.fx_rates if row.source_system}
         | {row.source_system for row in pool.cost_observations if row.source_system}
     )
@@ -251,15 +243,14 @@ def create_backtest_snapshot(
         "cost_observations": len(pool.cost_observations),
         "resource_contexts": len(pool.resources),
     }
-    temporal_statuses = {
-        row.temporal_integrity.value for row in pool.observations
-    } | {row.temporal_integrity.value for row in pool.fx_rates}
+    temporal_statuses = {row.temporal_integrity.value for row in pool.observations} | {
+        row.temporal_integrity.value for row in pool.fx_rates
+    }
     quality_state = (
         "VERIFIED"
         if temporal_statuses == {"VERIFIED"}
         else "APPROXIMATE"
-        if temporal_statuses
-        and temporal_statuses <= {"VERIFIED", "APPROXIMATE"}
+        if temporal_statuses and temporal_statuses <= {"VERIFIED", "APPROXIMATE"}
         else "INSUFFICIENT"
     )
     content = {
@@ -367,15 +358,27 @@ def create_experiment(
     return row
 
 
-def get_experiment(
-    session: Session, experiment_id: str
-) -> BacktestExperimentRecord | None:
+def get_experiment(session: Session, experiment_id: str) -> BacktestExperimentRecord | None:
     return session.get(BacktestExperimentRecord, experiment_id)
 
 
-def list_experiments(session: Session, *, limit: int = 200) -> list[dict]:
+def list_experiments(
+    session: Session, *, limit: int = 200, principal_id: str | None = None
+) -> list[dict]:
+    from sqlalchemy import select
+
+    from eurogas_nexus.db.models import StrategyRecord
+    from eurogas_nexus.db.repositories.strategy_access import visible_strategy_clause
+
     rows = (
         session.query(BacktestExperimentRecord)
+        .filter(
+            BacktestExperimentRecord.strategy_id.in_(
+                select(StrategyRecord.strategy_id).where(visible_strategy_clause(principal_id))
+            )
+            if principal_id is not None
+            else True
+        )
         .order_by(BacktestExperimentRecord.updated_at_utc.desc())
         .limit(max(1, min(limit, 500)))
         .all()
@@ -414,36 +417,6 @@ def _quote_side_prices(row: MarketQuoteRecord) -> list[tuple[str, float | None]]
         ("MID", mid),
     ]
 
-
-def _price_name(source_system: str, tenor: str) -> str:
-    normalized_source = source_system.upper().replace("_SIM", "")
-    normalized_tenor = tenor.replace("-", "_").replace(" ", "_").upper()
-    if "ICE_OCM" in normalized_source:
-        return "ICE_OCM"
-    if "ICIS" in normalized_source or "HEREN" in normalized_source:
-        return "ICIS_HEREN_DAY_AHEAD"
-    if "SAP" in normalized_source:
-        return "SAP"
-    if "EEX" in normalized_source:
-        return (
-            "EEX_DAY_AHEAD"
-            if "DAY_AHEAD" in normalized_tenor or "DAYAHEAD" in normalized_tenor
-            else f"EEX_{normalized_tenor}"
-        )
-    return f"{normalized_source}_{normalized_tenor}"
-
-
-def _tenor_from_product(product: str) -> str:
-    lowered = product.lower()
-    if "within-day" in lowered or "withinday" in lowered:
-        return "within-day"
-    if "day-ahead" in lowered or "day ahead" in lowered:
-        return "day-ahead"
-    if "weekend" in lowered:
-        return "weekend"
-    if "month" in lowered:
-        return "month-ahead"
-    return lowered
 
 
 def _hub_from_product(product: str, venue: str) -> str:
@@ -514,9 +487,7 @@ def _quote_evidence_normalization(
 
 
 def _event_payload(row: BacktestDecisionEventRecord) -> dict:
-    attribution, evidence_selection_trace = _split_persisted_attribution(
-        row.attribution or []
-    )
+    attribution, evidence_selection_trace = _split_persisted_attribution(row.attribution or [])
     return {
         "event_id": row.event_id,
         "run_id": row.run_id,

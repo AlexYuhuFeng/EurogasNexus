@@ -7,6 +7,8 @@ from typing import Any
 
 import httpx
 
+from eurogas_nexus.core.config import get_settings
+
 DEEPSEEK_API_BASE_URL = "https://api.deepseek.com"
 DEEPSEEK_DEFAULT_MODEL = "deepseek-v4-flash"
 
@@ -31,6 +33,10 @@ def invoke_deepseek(
 ) -> DeepSeekCallResult:
     """Call the live DeepSeek chat-completions API with bounded output."""
 
+    if not get_settings().llm_external_provider_enabled:
+        return DeepSeekCallResult(
+            status="provider_disabled", error_code="LLM_PROVIDER_DISABLED_IN_PROFILE"
+        )
     if not api_key.strip():
         return DeepSeekCallResult(status="credential_missing", error_code="credential_missing")
     try:
@@ -72,6 +78,10 @@ def test_deepseek_connection(
 ) -> DeepSeekCallResult:
     """Validate a live DeepSeek credential without generating a completion."""
 
+    if not get_settings().llm_external_provider_enabled:
+        return DeepSeekCallResult(
+            status="provider_disabled", error_code="LLM_PROVIDER_DISABLED_IN_PROFILE"
+        )
     if not api_key.strip():
         return DeepSeekCallResult(status="credential_missing", error_code="credential_missing")
     try:

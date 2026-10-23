@@ -175,7 +175,8 @@ function AuthenticatedShell({ controller }: AuthenticatedShellProps) {
     labels: (command: PaletteCommand) => t(command.labelKey),
     onNavigate: (command: PaletteCommand) => {
       const page = command.target.page;
-      if (page) navigation.openWorkspace(page);
+      if (command.target.primary) navigation.openPrimaryWorkspace(command.target.primary);
+      else if (page) navigation.openWorkspace(page);
     },
     onInspect: (kind, ref) =>
       inspector.open({

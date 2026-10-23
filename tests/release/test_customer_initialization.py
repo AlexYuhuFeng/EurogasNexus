@@ -40,7 +40,8 @@ $tree = [System.Management.Automation.Language.Parser]::ParseFile(
 if ($errors.Count) {{ throw 'Installer syntax error' }}
 function Load-Function([string]$Name) {{
     $node = $tree.FindAll({{ param($item)
-        $item -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $item.Name -eq $Name
+        $item -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+        $item.Name -eq $Name
     }}, $true) | Select-Object -First 1
     if (-not $node) {{ throw "Missing installer function $Name" }}
     return [scriptblock]::Create($node.Extent.Text)
@@ -49,7 +50,10 @@ function Load-Function([string]$Name) {{
 """
     result = subprocess.run(
         [POWERSHELL, "-NoProfile", "-NonInteractive", "-Command", script],
-        cwd=ROOT, capture_output=True, text=True, timeout=40,
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        timeout=40,
     )
     assert result.returncode == 0, result.stderr
     return json.loads(result.stdout)
@@ -71,14 +75,16 @@ $global:Calls = [System.Collections.Generic.List[object]]::new()
 function docker {{
     $call = @($args | ForEach-Object {{ [string]$_ }})
     $global:Calls.Add($call)
-    $global:LASTEXITCODE = if ({'$true' if config_fails else '$false'} -and $call[-1] -eq 'config-check') {{ 17 }} else {{ 0 }}
+    $global:LASTEXITCODE = if ({"$true" if config_fails else "$false"} -and
+        $call[-1] -eq 'config-check') {{ 17 }} else {{ 0 }}
 }}
 $Action={quote(action)}; $UseLocalHttp=$false; $DeploymentRole='Server'
 $ApiImageArchivePath=''; $EnvironmentFile='synthetic.env'; $ComposeFile='synthetic.yaml'
-$SkipPublicData={'$true' if skip_public else '$false'}; $ApiBaseUrl='https://example.invalid/api'
+$SkipPublicData={"$true" if skip_public else "$false"}; $ApiBaseUrl='https://example.invalid/api'
 $failure=$null; $report=$null
 try {{ $report=Install-OrRepairRuntime }} catch {{ $failure=$_.Exception.Message }}
-@{{ calls=@($global:Calls.ToArray()); failure=$failure; report=$report }} | ConvertTo-Json -Depth 12 -Compress
+@{{ calls=@($global:Calls.ToArray()); failure=$failure; report=$report }} |
+    ConvertTo-Json -Depth 12 -Compress
 """)
     calls = [call[5:] for call in result["calls"]]
     assert calls[:3] == [
@@ -110,9 +116,21 @@ def test_obsolete_simulation_switch_refused_before_any_work(script, action, tmp_
     copied = tmp_path / script.name
     copied.write_bytes(script.read_bytes())
     result = subprocess.run(
-        [POWERSHELL, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", str(copied),
-         "-Action", action, "-EnableSimulatedPrices"],
-        capture_output=True, text=True, timeout=30,
+        [
+            POWERSHELL,
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            str(copied),
+            "-Action",
+            action,
+            "-EnableSimulatedPrices",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=30,
     )
     assert result.returncode != 0
     assert "CUSTOMER_SIMULATION_FORBIDDEN" in result.stderr
@@ -131,14 +149,16 @@ def initialize_synthetic_runtime(tmp_path: Path, oidc: dict[str, str]) -> dict[s
         **oidc,
     }
     environment = runtime / ".env"
-    environment.write_text("\n".join(f"{key}={value}" for key, value in existing.items()), encoding="utf-8")
+    environment.write_text(
+        "\n".join(f"{key}={value}" for key, value in existing.items()), encoding="utf-8"
+    )
     result = run_powershell(f"""
 . (Load-Function 'Initialize-RuntimeFiles')
 function Protect-EnvironmentFile {{}}
 function New-HexSecret {{ throw 'Existing synthetic credentials must be preserved' }}
 $InstallRoot={quote(runtime)}; $EnvironmentFile={quote(environment)}
-$SourceComposeFile={quote(ROOT / 'deploy/runtime/compose.yaml')}
-$ComposeFile={quote(runtime / 'compose.yaml')}; $DeploymentFile={quote(runtime / 'deployment.json')}
+$SourceComposeFile={quote(ROOT / "deploy/runtime/compose.yaml")}
+$ComposeFile={quote(runtime / "compose.yaml")}; $DeploymentFile={quote(runtime / "deployment.json")}
 $UseLocalHttp=$true; $DeploymentRole='Server'; $SkipPublicData=$true
 $ApiImage='example.invalid/customer:test'; $PackageVersion='0.0.0'; $ReleaseChannel='preview'
 $ApiPort=8765; $PostgresPort=55432; $HttpsPort=8443; $HttpsBindAddress='127.0.0.1'
@@ -147,7 +167,9 @@ Initialize-RuntimeFiles
 @{{ ok=$true }} | ConvertTo-Json -Compress
 """)
     assert result["ok"]
-    values = dict(line.split("=", 1) for line in environment.read_text(encoding="utf-8").splitlines())
+    values = dict(
+        line.split("=", 1) for line in environment.read_text(encoding="utf-8").splitlines()
+    )
     assert all(values[key] == value for key, value in existing.items())
     return values
 
@@ -163,7 +185,10 @@ def effective_compose_environment(values: dict[str, str]) -> dict[str, str]:
         name, default = match.group(1), match.group(2)
         return values.get(name) or default or ""
 
-    return {key: re.sub(r"\$\{([A-Z_]+)(?::-([^}]*))?\}", replace, value) for key, value in shared.items()}
+    return {
+        key: re.sub(r"\$\{([A-Z_]+)(?::-([^}]*))?\}", replace, value)
+        for key, value in shared.items()
+    }
 
 
 def resolve_actual_compose(tmp_path: Path) -> dict[str, str]:
@@ -173,15 +198,38 @@ def resolve_actual_compose(tmp_path: Path) -> dict[str, str]:
     # Only temporary synthetic values reach Compose. Ambient deployment values
     # must not override the fixture or enter captured configuration output.
     environment = {
-        key: value for key, value in os.environ.items()
+        key: value
+        for key, value in os.environ.items()
         if not key.startswith(("EUROGAS_NEXUS_", "POSTGRES_"))
-        and key not in {"FORWARDED_ALLOW_IPS", "API_PORT", "HTTPS_PORT", "HTTPS_BIND_ADDRESS", "SERVER_NAME"}
+        and key
+        not in {
+            "FORWARDED_ALLOW_IPS",
+            "API_PORT",
+            "HTTPS_PORT",
+            "HTTPS_BIND_ADDRESS",
+            "SERVER_NAME",
+        }
     }
     runtime = tmp_path / "synthetic-runtime"
     result = subprocess.run(
-        [docker, "compose", "--env-file", str(runtime / ".env"),
-         "-f", str(runtime / "compose.yaml"), "--profile", "*", "config", "--format", "json"],
-        cwd=runtime, env=environment, capture_output=True, text=True, timeout=30,
+        [
+            docker,
+            "compose",
+            "--env-file",
+            str(runtime / ".env"),
+            "-f",
+            str(runtime / "compose.yaml"),
+            "--profile",
+            "*",
+            "config",
+            "--format",
+            "json",
+        ],
+        cwd=runtime,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=30,
     )
     assert result.returncode == 0, "Synthetic Compose resolution failed (output withheld)"
     services = json.loads(result.stdout)["services"]
@@ -197,23 +245,29 @@ def resolve_actual_compose(tmp_path: Path) -> dict[str, str]:
 def test_repair_preserves_oidc_and_container_preflight_sees_it(tmp_path, shape) -> None:
     oidc = {} if shape == "absent" else {"EUROGAS_NEXUS_OIDC_ISSUER": "https://idp.example.invalid"}
     if shape in {"complete", "allow_http"}:
-        oidc.update({
-            "EUROGAS_NEXUS_OIDC_CLIENT_ID": "test-only-client",
-            "EUROGAS_NEXUS_OIDC_CLIENT_SECRET": "'test-only$UNDEFINED_TOKEN#\"quoted\"'",
-            "EUROGAS_NEXUS_OIDC_REDIRECT_URI": "https://customer.example.invalid/api/auth/oidc/callback",
-            "EUROGAS_NEXUS_OIDC_ROLE_CLAIM": "custom_roles",
-            "EUROGAS_NEXUS_OIDC_SCOPE_CLAIM": "custom_scopes",
-            "EUROGAS_NEXUS_OIDC_PROVISIONING_MODE": "preprovisioned",
-            "EUROGAS_NEXUS_OIDC_GROUPS_ROLE_MAP": "'{\"desk\": [\"READ\"]}'",
-            "EUROGAS_NEXUS_OIDC_GROUPS_SCOPE_MAP": "'{\"desk\": [\"public\"]}'",
-        })
+        oidc.update(
+            {
+                "EUROGAS_NEXUS_OIDC_CLIENT_ID": "test-only-client",
+                "EUROGAS_NEXUS_OIDC_CLIENT_SECRET": "'test-only$UNDEFINED_TOKEN#\"quoted\"'",
+                "EUROGAS_NEXUS_OIDC_REDIRECT_URI": "https://customer.example.invalid/api/auth/oidc/callback",
+                "EUROGAS_NEXUS_OIDC_ROLE_CLAIM": "custom_roles",
+                "EUROGAS_NEXUS_OIDC_SCOPE_CLAIM": "custom_scopes",
+                "EUROGAS_NEXUS_OIDC_PROVISIONING_MODE": "preprovisioned",
+                "EUROGAS_NEXUS_OIDC_GROUPS_ROLE_MAP": '\'{"desk": ["READ"]}\'',
+                "EUROGAS_NEXUS_OIDC_GROUPS_SCOPE_MAP": '\'{"desk": ["public"]}\'',
+            }
+        )
     if shape == "allow_http":
         oidc["EUROGAS_NEXUS_OIDC_ALLOW_HTTP"] = "1"
     values = initialize_synthetic_runtime(tmp_path, oidc)
-    assert {key: value for key, value in values.items() if key.startswith("EUROGAS_NEXUS_OIDC_")} == oidc
+    assert {
+        key: value for key, value in values.items() if key.startswith("EUROGAS_NEXUS_OIDC_")
+    } == oidc
     effective = resolve_actual_compose(tmp_path)
     assert effective["EUROGAS_NEXUS_SECRET_KEY"] == values["EUROGAS_NEXUS_SECRET_KEY"]
-    assert all(effective[key] == value.strip("'") for key, value in oidc.items()), "OIDC values changed during Compose resolution"
+    assert all(effective[key] == value.strip("'") for key, value in oidc.items()), (
+        "OIDC values changed during Compose resolution"
+    )
     assert effective["EUROGAS_NEXUS_OIDC_PROVISIONING_MODE"] == "preprovisioned"
     assert effective["EUROGAS_NEXUS_ENV"] == effective["EUROGAS_NEXUS_API_PROFILE"] == "release"
     report = check_environment(effective)
@@ -221,7 +275,10 @@ def test_repair_preserves_oidc_and_container_preflight_sees_it(tmp_path, shape) 
     if shape == "partial":
         assert any(item.code == "oidc_partially_configured" for item in report.findings)
     if shape == "allow_http":
-        assert any(item.variable == "EUROGAS_NEXUS_OIDC_ALLOW_HTTP" and item.severity == "error" for item in report.findings)
+        assert any(
+            item.variable == "EUROGAS_NEXUS_OIDC_ALLOW_HTTP" and item.severity == "error"
+            for item in report.findings
+        )
 
 
 @requires_powershell
@@ -236,25 +293,59 @@ def test_compose_literal_credentials_reach_isolated_immutable_image(tmp_path) ->
         "EUROGAS_NEXUS_OIDC_GROUPS_ROLE_MAP": '{"desk": ["READ"]}',
         "EUROGAS_NEXUS_OIDC_GROUPS_SCOPE_MAP": '{"desk": ["public"]}',
     }
-    initialize_synthetic_runtime(tmp_path, {key: "'" + value + "'" for key, value in literal.items()})
+    initialize_synthetic_runtime(
+        tmp_path, {key: "'" + value + "'" for key, value in literal.items()}
+    )
     runtime = tmp_path / "synthetic-runtime"
     source = yaml.safe_load((runtime / "compose.yaml").read_text(encoding="utf-8"))
     expected = {key: hashlib.sha256(value.encode()).hexdigest() for key, value in literal.items()}
     code = (
         "import hashlib,json,os; expected=" + repr(expected) + "; "
-        "print(json.dumps({'values_match':all(hashlib.sha256(os.environ[k].encode()).hexdigest()==v "
+        "print(json.dumps({'values_match':all("
+        "hashlib.sha256(os.environ[k].encode()).hexdigest()==v "
         "for k,v in expected.items()),'nonroot':os.getuid()!=0}))"
     )
     probe = runtime / "probe.yaml"
-    probe.write_text(yaml.safe_dump({"services": {"probe": {
-        "image": image_id, "pull_policy": "never", "network_mode": "none", "read_only": True,
-        "environment": source["x-runtime-environment"], "entrypoint": ["python", "-c", code],
-    }}}), encoding="utf-8")
-    environment = {key: value for key, value in os.environ.items() if not key.startswith("EUROGAS_NEXUS_")}
+    probe.write_text(
+        yaml.safe_dump(
+            {
+                "services": {
+                    "probe": {
+                        "image": image_id,
+                        "pull_policy": "never",
+                        "network_mode": "none",
+                        "read_only": True,
+                        "environment": source["x-runtime-environment"],
+                        "entrypoint": ["python", "-c", code],
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    environment = {
+        key: value for key, value in os.environ.items() if not key.startswith("EUROGAS_NEXUS_")
+    }
     result = subprocess.run(
-        [docker, "compose", "-p", "eurogas-customer-env-gate", "--env-file", str(runtime / ".env"),
-         "-f", str(probe), "run", "--rm", "--no-deps", "probe"],
-        cwd=runtime, env=environment, capture_output=True, text=True, timeout=45,
+        [
+            docker,
+            "compose",
+            "-p",
+            "eurogas-customer-env-gate",
+            "--env-file",
+            str(runtime / ".env"),
+            "-f",
+            str(probe),
+            "run",
+            "--rm",
+            "--no-deps",
+            "probe",
+        ],
+        cwd=runtime,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=45,
     )
     assert result.returncode == 0, "Isolated synthetic environment probe failed (output withheld)"
     assert json.loads(result.stdout) == {"values_match": True, "nonroot": True}
@@ -281,6 +372,8 @@ def test_customer_postgres_has_no_fixture_initialization_and_migrations_do_not_s
                 name = getattr(node.func, "attr", getattr(node.func, "id", ""))
                 assert not re.search(r"seed|fixture|bulk_insert|^insert$", name, re.I), path.name
             if isinstance(node, ast.Constant) and isinstance(node.value, str):
-                assert not re.match(r"\s*(INSERT|COPY|UPDATE|DELETE)\s", node.value, re.I), path.name
+                assert not re.match(r"\s*(INSERT|COPY|UPDATE|DELETE)\s", node.value, re.I), (
+                    path.name
+                )
             if isinstance(node, ast.ImportFrom):
                 assert not re.search(r"simulated|seed|fixture", node.module or "", re.I), path.name

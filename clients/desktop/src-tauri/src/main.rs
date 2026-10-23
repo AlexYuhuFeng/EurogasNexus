@@ -2,23 +2,27 @@
 
 use std::{
     env, fs,
-    io::Read,
+    io::{self, Read},
     net::TcpListener,
     path::PathBuf,
     process::Command,
     sync::mpsc::{self, Sender},
     sync::Mutex,
     thread,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use serde::{Deserialize, Serialize};
-use tauri::Manager;
+use tauri::menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder};
+use tauri::{Emitter, Manager};
 
 /// Upper bound for waiting on the Web workspace readiness signal. A backend that
 /// cannot be reached must still reveal the sign-in screen instead of trapping the
 /// user on the splashscreen.
 const CLIENT_READY_FALLBACK: Duration = Duration::from_secs(15);
+// Match the backend authorization-state lifetime; a cancelled browser login
+// must release the one-shot listener and let the user retry.
+const LOOPBACK_AUTH_TIMEOUT: Duration = Duration::from_secs(300);
 
 #[derive(Debug, Deserialize, Serialize)]
 struct DeploymentConfig {
@@ -123,7 +127,7 @@ fn start_loopback_auth(state: tauri::State<'_, LoopbackAuthState>) -> Result<Str
 }
 
 #[tauri::command]
-fn open_browser_login_and_wait(
+async fn open_browser_login_and_wait(
     state: tauri::State<'_, LoopbackAuthState>,
     authorization_url: String,
     expected_redirect_uri: String,
@@ -143,26 +147,32 @@ fn open_browser_login_and_wait(
     if registered_uri != expected_redirect_uri {
         return Err("redirect_uri does not match the started loopback listener".to_string());
     }
-    listener
-        .set_nonblocking(false)
-        .map_err(|error| format!("cannot configure loopback listener: {error}"))?;
+    // Async Tauri commands keep the window event loop responsive; all socket
+    // waits run on the blocking pool rather than an async executor thread.
+    tauri::async_runtime::spawn_blocking(move || {
+        wait_for_browser_login(listener, authorization_url)
+    })
+    .await
+    .map_err(|error| format!("desktop login task failed: {error}"))?
+}
 
-    thread::spawn(move || {
-        let url = authorization_url.clone();
-        #[cfg(target_os = "windows")]
-        {
-            let _ = Command::new("cmd")
-                .args(["/C", "start", "", &url])
-                .spawn();
-        }
-        #[cfg(not(target_os = "windows"))]
-        {
-            let _ = Command::new("xdg-open").arg(&url).spawn();
-        }
-    });
+fn wait_for_browser_login(
+    listener: TcpListener,
+    authorization_url: String,
+) -> Result<String, String> {
+    let url = validate_browser_login_url(&authorization_url)?;
+    #[cfg(target_os = "windows")]
+    let launch = Command::new("rundll32.exe")
+        .arg("url.dll,FileProtocolHandler")
+        .arg(&url)
+        .spawn();
+    #[cfg(target_os = "macos")]
+    let launch = Command::new("open").arg(&url).spawn();
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    let launch = Command::new("xdg-open").arg(&url).spawn();
+    launch.map_err(|error| format!("cannot open sign-in browser: {error}"))?;
 
-    let (mut stream, _) = listener
-        .accept()
+    let mut stream = accept_loopback_callback(&listener, LOOPBACK_AUTH_TIMEOUT)
         .map_err(|error| format!("loopback accept failed: {error}"))?;
     stream
         .set_read_timeout(Some(Duration::from_secs(15)))
@@ -185,26 +195,83 @@ fn open_browser_login_and_wait(
     Ok(path.trim_start_matches("/callback?").to_string())
 }
 
+fn validate_browser_login_url(value: &str) -> Result<String, String> {
+    let url = tauri::Url::parse(value).map_err(|_| "invalid sign-in URL".to_string())?;
+    if !matches!(url.scheme(), "https" | "http")
+        || url.host_str().is_none()
+        || !url.username().is_empty()
+        || url.password().is_some()
+    {
+        return Err("sign-in requires an HTTP(S) URL without embedded credentials".to_string());
+    }
+    Ok(url.to_string())
+}
+
+fn accept_loopback_callback(
+    listener: &TcpListener,
+    timeout: Duration,
+) -> io::Result<std::net::TcpStream> {
+    listener.set_nonblocking(true)?;
+    let started = Instant::now();
+    loop {
+        if started.elapsed() >= timeout {
+            return Err(io::Error::new(
+                io::ErrorKind::TimedOut,
+                "desktop login timed out; please sign in again",
+            ));
+        }
+        match listener.accept() {
+            Ok((stream, _)) => {
+                stream.set_nonblocking(false)?;
+                return Ok(stream);
+            }
+            Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                thread::sleep(
+                    Duration::from_millis(25).min(timeout - started.elapsed().min(timeout)),
+                );
+            }
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
+            Err(error) => return Err(error),
+        }
+    }
+}
+
 fn write_http_ok(stream: &mut std::net::TcpStream, body: &[u8]) -> std::io::Result<()> {
     use std::io::Write;
 
     write!(
         stream,
-        "HTTP/1.1 200 OK
-
-Content-Type: text/html; charset=utf-8
-
-Content-Length: {}
-
-Connection: close
-
-
-
-",
+        "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
         body.len()
     )?;
     stream.write_all(body)?;
     stream.flush()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn loopback_response_has_valid_headers_and_exact_body() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            write_http_ok(&mut stream, b"login complete").unwrap();
+        });
+        let mut client = std::net::TcpStream::connect(address).unwrap();
+        client
+            .set_read_timeout(Some(Duration::from_secs(5)))
+            .unwrap();
+        let mut response = String::new();
+        client.read_to_string(&mut response).unwrap();
+        server.join().unwrap();
+        assert_eq!(
+            response,
+            "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: 14\r\nConnection: close\r\n\r\nlogin complete"
+        );
+    }
 }
 
 fn main() {
@@ -218,10 +285,75 @@ fn main() {
             notify_client_ready,
             clear_client_session_data
         ])
+        .on_menu_event(|app, event| {
+            let id = event.id().as_ref();
+            if let Some(window) = app.get_webview_window("main") {
+                match id {
+                    "window.fullscreen" => {
+                        let _ = window.set_fullscreen(!window.is_fullscreen().unwrap_or(false));
+                    }
+                    "window.minimize" => {
+                        let _ = window.minimize();
+                    }
+                    "window.maximize" => {
+                        if window.is_maximized().unwrap_or(false) {
+                            let _ = window.unmaximize();
+                        } else {
+                            let _ = window.maximize();
+                        }
+                    }
+                    "palette.toggle"
+                    | "navigate.primary.market"
+                    | "navigate.primary.portfolio"
+                    | "navigate.primary.strategy"
+                    | "navigate.primary.decision"
+                    | "navigate.primary.system"
+                    | "navigate.primary.administration" => {
+                        let _ = window.emit("workstation-command", id);
+                    }
+                    _ => {}
+                }
+            }
+        })
         .setup(|app| {
             let main_window = app
                 .get_webview_window("main")
                 .expect("main window is configured");
+            // Native window commands work even when the API is unavailable.
+            // Navigation remains a permission-checked command in the shared client.
+            let workspace_menu = SubmenuBuilder::new(app, "Workspace")
+                .text("palette.toggle", "Search commands…")
+                .separator()
+                .text("navigate.primary.market", "Market")
+                .text("navigate.primary.portfolio", "Portfolio")
+                .text("navigate.primary.strategy", "Strategy Lab")
+                .text("navigate.primary.decision", "Decision Center")
+                .text("navigate.primary.system", "System")
+                .text("navigate.primary.administration", "Administration")
+                .build()?;
+            let edit_menu = SubmenuBuilder::new(app, "Edit")
+                .undo()
+                .redo()
+                .separator()
+                .cut()
+                .copy()
+                .paste()
+                .select_all()
+                .build()?;
+            let fullscreen = MenuItemBuilder::with_id("window.fullscreen", "Toggle full screen")
+                .accelerator("F11")
+                .build(app)?;
+            let window_menu = SubmenuBuilder::new(app, "Window")
+                .item(&fullscreen)
+                .text("window.minimize", "Minimize")
+                .text("window.maximize", "Maximize / Restore")
+                .build()?;
+            let menu = MenuBuilder::new(app)
+                .item(&workspace_menu)
+                .item(&edit_menu)
+                .item(&window_menu)
+                .build()?;
+            main_window.set_menu(menu)?;
             let splashscreen = app
                 .get_webview_window("splashscreen")
                 .expect("splashscreen is configured");
@@ -232,7 +364,7 @@ fn main() {
                 .lock()
                 .expect("client readiness state is available") = Some(sender);
 
-            tauri::async_runtime::spawn(async move {
+            tauri::async_runtime::spawn_blocking(move || {
                 // Wait for the Web workspace to report identity resolution (the
                 // sign-in screen counts), then reveal it. The bounded fallback keeps
                 // an unreachable backend from trapping the user on the splashscreen.
@@ -246,4 +378,38 @@ fn main() {
         })
         .run(tauri::generate_context!())
         .expect("failed to run Eurogas Nexus desktop shell");
+}
+#[test]
+fn loopback_accept_times_out_without_callback_and_releases_port() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let error = accept_loopback_callback(&listener, Duration::from_millis(30)).unwrap_err();
+    assert_eq!(error.kind(), io::ErrorKind::TimedOut);
+    drop(listener);
+    assert!(TcpListener::bind(address).is_ok());
+}
+
+#[test]
+fn loopback_accept_receives_a_real_callback_connection() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let _client = std::net::TcpStream::connect(address).unwrap();
+    let stream = accept_loopback_callback(&listener, Duration::from_secs(5)).unwrap();
+    assert_eq!(stream.local_addr().unwrap(), address);
+}
+
+#[test]
+fn browser_login_refuses_local_commands_and_embedded_credentials() {
+    for value in [
+        "file:///tmp/run",
+        "javascript:alert(1)",
+        "--help",
+        "https://user:secret@example.test/",
+    ] {
+        assert!(validate_browser_login_url(value).is_err());
+    }
+    assert_eq!(
+        validate_browser_login_url("https://idp.example.test/authorize?state=a&nonce=b").unwrap(),
+        "https://idp.example.test/authorize?state=a&nonce=b"
+    );
 }

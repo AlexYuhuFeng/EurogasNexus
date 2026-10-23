@@ -390,7 +390,7 @@ export function StrategyBacktestWorkspace({
         <div className="strategy-design-actions">
           <button
             type="button"
-            disabled={!experimentReadinessNow.canCreate || controller.loading}
+            disabled={!controller.canManageSelectedStrategy || !experimentReadinessNow.canCreate || controller.loading}
             title={
               experimentReadinessNow.firstBlockerKey
                 ? t(experimentReadinessNow.firstBlockerKey)

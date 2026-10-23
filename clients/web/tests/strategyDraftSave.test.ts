@@ -4,7 +4,7 @@ import type { StrategyVersionDTO } from "../src/api/client.ts";
 import { DEFAULT_STRATEGY_FORM, strategyDraftBody } from "../src/app/model/strategyDraftModel.ts";
 import { draftVersionRecoveryKey, newStrategyDraftCreation, saveFirstStrategyDraft, type StrategyDraftSaveClient } from "../src/app/model/strategyDraftSave.ts";
 
-const body = strategyDraftBody({ ...DEFAULT_STRATEGY_FORM, name: "DEV UAT", resourceId: "own-resource", resourceName: "Own", resourceQuantity: "987", resourceCost: "31.125" });
+const body = strategyDraftBody({ ...DEFAULT_STRATEGY_FORM, hubs: "NBP", dayAheadNames: "SAP", intradayNames: "ICE_OCM", name: "DEV UAT", resourceId: "own-resource", resourceName: "Own", resourceQuantity: "987", resourceCost: "31.125" });
 function version(status = "DRAFT"): StrategyVersionDTO {
   return { strategy_version_id: "owned-version", strategy_id: "own-id", status, hypothesis: "", definition_json: {
     ...body.definition, strategy_name: body.strategy_name, run_mode: body.run_mode,

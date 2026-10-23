@@ -426,6 +426,12 @@ export function buildDeepLink(
 /** Canonical workstation shortcuts. One binding, one scope, one command. */
 export const WORKSTATION_SHORTCUTS = [
   { id: "command-palette", binding: "Ctrl+K", scope: "shell", commandId: "palette.toggle" },
+  { id: "workspace-market", binding: "Ctrl+Shift+1", scope: "shell", commandId: "navigate.primary.market" },
+  { id: "workspace-portfolio", binding: "Ctrl+Shift+2", scope: "shell", commandId: "navigate.primary.portfolio" },
+  { id: "workspace-strategy", binding: "Ctrl+Shift+3", scope: "shell", commandId: "navigate.primary.strategy" },
+  { id: "workspace-decision", binding: "Ctrl+Shift+4", scope: "shell", commandId: "navigate.primary.decision" },
+  { id: "workspace-system", binding: "Ctrl+Shift+5", scope: "shell", commandId: "navigate.primary.system" },
+  { id: "workspace-administration", binding: "Ctrl+Shift+6", scope: "shell", commandId: "navigate.primary.administration" },
   { id: "inspector-close", binding: "Escape", scope: "inspector", commandId: "inspector.close" },
   { id: "inspector-back", binding: "Alt+ArrowLeft", scope: "inspector", commandId: "inspector.back" },
   { id: "profile-next-window", binding: "Ctrl+Alt+ArrowRight", scope: "shell", commandId: "window.focus-next" },

@@ -221,3 +221,20 @@ export function scopeFamilyRows(
     { family: "wildcard", scopes: [catalogue.wildcard] },
   ];
 }
+
+/** Stored grants outside today's catalogue remain visible until explicitly removed. */
+export interface UserAccessDraft { roles: string[]; data_scopes: string[] }
+export function userAccessBlocker(
+  draft: UserAccessDraft,
+  stored: UserAccessDraft,
+  roles: Record<string, string[]> | null,
+  catalogue: DataScopeCatalogue | null,
+): string | null {
+  if (!roles || Object.keys(roles).length === 0 || !catalogue) return "access.catalogue.unavailable";
+  if (draft.roles.length === 0) return "access.user.roles_required";
+  if (draft.roles.some((role) => !Object.hasOwn(roles, role) && !stored.roles.includes(role)) ||
+      draft.data_scopes.some((scope) => !declaredScopes(catalogue).includes(scope) && !stored.data_scopes.includes(scope))) {
+    return "access.user.unknown_grant";
+  }
+  return null;
+}

@@ -1,7 +1,8 @@
 """Enterprise Access & Identity administration endpoints.
 
-Every route in this module additionally requires ADMIN (or the documented
-operator compatibility for audit export via internal profile). Fine-grained
+Administration routes additionally require ADMIN (or the documented
+operator compatibility for audit export via internal profile). The self-service
+group picker exposes only the authenticated principal's own group names. Fine-grained
 checks are enforced in the handler; the coarse route permission enforces the
 ADMIN role floor.
 """
@@ -9,9 +10,10 @@ ADMIN role floor.
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from eurogas_nexus.security.authorization import (
     Permission,
@@ -38,6 +40,182 @@ class ApiKeyCreateRequest(BaseModel):
     display_name: str = Field(default="default", min_length=1, max_length=128)
     expires_at_utc: datetime | None = None
     scopes: list[str] = Field(default_factory=list)
+
+
+class GroupCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    name: str = Field(min_length=1, max_length=128)
+
+
+class GroupUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    name: str | None = Field(default=None, min_length=1, max_length=128)
+    status: str | None = Field(default=None, pattern="^(ACTIVE|DISABLED)$")
+
+
+def _group_payload(row) -> dict:
+    return {"group_id": row.group_id, "name": row.name, "status": row.status}
+
+
+@router.get("/api/me/groups")
+def own_groups(request: Request) -> dict:
+    from eurogas_nexus.db.models.strategy_access import (
+        IdentityGroupMemberRecord,
+        IdentityGroupRecord,
+    )
+    from eurogas_nexus.db.repositories.strategy_access import require_named_principal
+
+    principal = getattr(request.state, "identity", None)
+    _require_db()
+    with _session() as session:
+        principal_id = require_named_principal(session, getattr(principal, "principal_id", None))
+        rows = (
+            session.query(IdentityGroupRecord)
+            .join(
+                IdentityGroupMemberRecord,
+                IdentityGroupMemberRecord.group_id == IdentityGroupRecord.group_id,
+            )
+            .filter(
+                IdentityGroupMemberRecord.principal_id == principal_id,
+                IdentityGroupRecord.status == "ACTIVE",
+            )
+            .order_by(IdentityGroupRecord.name, IdentityGroupRecord.group_id)
+            .all()
+        )
+        return _env([{"group_id": row.group_id, "name": row.name} for row in rows])
+
+
+@router.get("/api/access/groups")
+def list_groups(request: Request) -> dict:
+    from eurogas_nexus.db.models.strategy_access import IdentityGroupRecord
+
+    _require_admin(request, Permission.IDENTITY_READ)
+    _require_db()
+    with _session() as session:
+        return _env(
+            [
+                _group_payload(row)
+                for row in session.query(
+                    IdentityGroupRecord,
+                )
+                .order_by(IdentityGroupRecord.name, IdentityGroupRecord.group_id)
+                .all()
+            ]
+        )
+
+
+@router.post("/api/access/groups")
+def create_group(body: GroupCreateRequest, request: Request) -> dict:
+    from sqlalchemy.exc import IntegrityError
+
+    from eurogas_nexus.db.models.strategy_access import IdentityGroupRecord
+
+    admin = _require_admin(request, Permission.IDENTITY_MANAGE)
+    _require_db()
+    with _session() as session:
+        row = IdentityGroupRecord(group_id=f"group-{uuid4().hex}", name=body.name, status="ACTIVE")
+        session.add(row)
+        try:
+            session.flush()
+        except IntegrityError as exc:
+            session.rollback()
+            raise HTTPException(status_code=409, detail={"error": "group_name_conflict"}) from exc
+        _audit_admin(
+            session,
+            actor=admin.principal_id,
+            action="access.group.create",
+            resource=f"identity_group:{row.group_id}",
+            outcome="created",
+        )
+        session.commit()
+        return _env(_group_payload(row))
+
+
+@router.patch("/api/access/groups/{group_id}")
+def update_group(group_id: str, body: GroupUpdateRequest, request: Request) -> dict:
+    from sqlalchemy.exc import IntegrityError
+
+    from eurogas_nexus.db.models.strategy_access import IdentityGroupRecord
+
+    admin = _require_admin(request, Permission.IDENTITY_MANAGE)
+    _require_db()
+    with _session() as session:
+        row = session.get(IdentityGroupRecord, group_id)
+        if row is None:
+            raise HTTPException(status_code=404, detail={"error": "group_not_found"})
+        if body.name is not None:
+            row.name = body.name
+        if body.status is not None:
+            row.status = body.status
+        try:
+            session.flush()
+        except IntegrityError as exc:
+            session.rollback()
+            raise HTTPException(status_code=409, detail={"error": "group_name_conflict"}) from exc
+        _audit_admin(
+            session,
+            actor=admin.principal_id,
+            action="access.group.update",
+            resource=f"identity_group:{group_id}",
+            outcome="updated",
+        )
+        session.commit()
+        return _env(_group_payload(row))
+
+
+@router.put("/api/access/groups/{group_id}/members/{principal_id}")
+def add_group_member(group_id: str, principal_id: str, request: Request) -> dict:
+    return _change_group_member(group_id, principal_id, request, add=True)
+
+
+@router.delete("/api/access/groups/{group_id}/members/{principal_id}")
+def remove_group_member(group_id: str, principal_id: str, request: Request) -> dict:
+    return _change_group_member(group_id, principal_id, request, add=False)
+
+
+def _change_group_member(group_id: str, principal_id: str, request: Request, *, add: bool) -> dict:
+    from eurogas_nexus.db.models import IdentityPrincipalRecord
+    from eurogas_nexus.db.models.strategy_access import (
+        IdentityGroupMemberRecord,
+        IdentityGroupRecord,
+    )
+
+    admin = _require_admin(request, Permission.IDENTITY_MANAGE)
+    _require_db()
+    with _session() as session:
+        group = session.get(IdentityGroupRecord, group_id)
+        if group is None:
+            raise HTTPException(status_code=404, detail={"error": "group_not_found"})
+        if session.get(IdentityPrincipalRecord, principal_id) is None:
+            raise HTTPException(status_code=404, detail={"error": "user_not_found"})
+        row = session.get(IdentityGroupMemberRecord, (group_id, principal_id))
+        # Membership grants read access to private commercial strategies. Like
+        # role/scope grants, an administrator cannot grant this to themselves.
+        if add and row is None and principal_id == admin.principal_id:
+            _audit_admin(
+                session,
+                actor=admin.principal_id,
+                action="access.group.member.add",
+                resource=f"identity_group:{group_id}",
+                outcome="denied",
+            )
+            session.commit()
+            raise HTTPException(status_code=403, detail={"error": ENTITLEMENT_SELF_GRANT_FORBIDDEN})
+        if add and group.status != "ACTIVE":
+            raise HTTPException(status_code=409, detail={"error": "group_disabled"})
+        if add and row is None:
+            session.add(IdentityGroupMemberRecord(group_id=group_id, principal_id=principal_id))
+        elif not add and row is not None:
+            session.delete(row)
+        _audit_admin(
+            session,
+            actor=admin.principal_id,
+            action="access.group.member.add" if add else "access.group.member.remove",
+            resource=f"identity_group:{group_id}/member:{principal_id}",
+            outcome="added" if add else "removed",
+        )
+        session.commit()
+        return _env({"group_id": group_id, "principal_id": principal_id, "member": add})
 
 
 def _changes_own_grants(
@@ -134,8 +312,7 @@ def patch_user(principal_id: str, body: AccessUpdateRequest, request: Request) -
                 resource=f"identity_principal:{principal_id}",
                 outcome="denied",
                 detail=(
-                    "self grant refused: roles and data scopes are changed by another "
-                    "administrator"
+                    "self grant refused: roles and data scopes are changed by another administrator"
                 ),
                 before=before,
             )
@@ -227,11 +404,7 @@ def list_api_keys(request: Request) -> dict:
 
     with _session() as session:
         rows = identity_repository.list_identity_principals(session)
-        keys = [
-            key
-            for row in rows
-            for key in row.get("keys", [])
-        ]
+        keys = [key for row in rows for key in row.get("keys", [])]
         _audit_admin(
             session,
             actor=admin.principal_id,

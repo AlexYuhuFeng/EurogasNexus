@@ -29,7 +29,7 @@ function readWebSource(relativePath: string): string {
 }
 
 function form(overrides: Partial<StrategyDesignFormState> = {}): StrategyDesignFormState {
-  return { ...DEFAULT_STRATEGY_FORM, name: "OCM vs DA", resourceId: "explicit-test-resource", resourceName: "Test resource", resourceQuantity: "100", resourceCost: "20", ...overrides };
+  return { ...DEFAULT_STRATEGY_FORM, hubs: "NBP", dayAheadNames: "SAP", intradayNames: "ICE_OCM", name: "OCM vs DA", resourceId: "explicit-test-resource", resourceName: "Test resource", resourceQuantity: "100", resourceCost: "20", ...overrides };
 }
 
 /**
@@ -205,8 +205,8 @@ test("the workspace hosts the save and the panel keeps only the guarded acts", (
 
   // The draft and its rule live with the action.
   assert.match(hook, /export function useStrategyDesignDraft\(/);
-  assert.match(hook, /const readiness = strategyDraftReadiness\(\{ validation, busy, frozen \}\);/);
-  assert.match(hook, /if \(!readiness\.canSave \|\| saveInFlight\.current\) return;/);
+  assert.match(hook, /const baseReadiness = strategyDraftReadiness\(\{ validation, busy, frozen \}\);/);
+  assert.match(hook, /if \(readOnly \|\| !readiness\.canSave \|\| saveInFlight\.current\) return;/);
   assert.match(hook, /const body = strategyDraftBody\(form\);/);
   assert.match(readWebSource("app/workspaces/WorkspaceRenderer.tsx"), /const designDraft = useStrategyDesignDraft\(/);
   assert.match(workspace, /controller\.task === "design" && !designDraft\.frozen \? \(/);

@@ -1,5 +1,7 @@
 import type { StrategyLabController } from "@/app/model/useStrategyLab";
 
+import { StrategySharing } from "./StrategySharing";
+
 type Translate = (key: string) => string;
 
 interface StrategyIdentityHeaderProps {
@@ -68,12 +70,13 @@ export function StrategyIdentityHeader({
         <span>{t("strategy_lab.gas_day")}: {gasDay}</span>
         <span>{t("strategy_lab.hubs")}: {hubs || t("data.unavailable")}</span>
         <span>{t("strategy_lab.resources")}: {resources || t("data.unavailable")}</span>
-        <span>{t("strategy_lab.owner")}: {strategy?.created_by ?? "n/a"}</span>
+        <span>{t("strategy_lab.owner")}: {strategy?.owner_principal_id ?? "n/a"}</span>
         <span>{t("strategy_lab.modified")}: {formatTimestamp(strategy?.updated_at_utc, language)}</span>
         {controller.selectedRun && (
           <span>{t("strategy_lab.selected_run")}: {controller.selectedRun.run_id}</span>
         )}
       </div>
+      {strategy && <StrategySharing strategy={strategy} onSaved={controller.replaceStrategy} t={t} />}
     </section>
   );
 }

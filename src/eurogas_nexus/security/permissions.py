@@ -51,6 +51,10 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     ("/api/auth/oidc/desktop/token", Permission.PUBLIC),
     ("/api/auth/logout", Permission.READ),
     ("/api/me", Permission.READ),
+    ("/api/me/groups", Permission.READ),
+    ("/api/access/groups", Permission.ADMIN),
+    ("/api/access/groups/{group_id}", Permission.ADMIN),
+    ("/api/access/groups/{group_id}/members/{principal_id}", Permission.ADMIN),
     ("/api/access/users", Permission.ADMIN),
     ("/api/access/users/{principal_id}", Permission.ADMIN),
     ("/api/access/roles", Permission.ADMIN),
@@ -134,6 +138,7 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     ("/api/shadow-runtime/status", Permission.READ),
     ("/api/strategies/{strategy_id}", Permission.READ),
     ("/api/strategies/{strategy_id}/metadata", Permission.GOVERNED),
+    ("/api/strategies/{strategy_id}/sharing", Permission.GOVERNED),
     ("/api/strategies/{strategy_id}/versions", Permission.GOVERNED),
     ("/api/strategies", Permission.GOVERNED),
     ("/api/strategy-versions/{version_id}", Permission.READ),
@@ -262,6 +267,9 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
 # legacy path registry intact for compatibility, and resolve these overrides
 # only when the caller supplies an HTTP method.
 METHOD_ROUTE_PERMISSIONS: tuple[tuple[str, str, Permission], ...] = (
+    ("GET", "/api/strategies", Permission.READ),
+    ("GET", "/api/strategies/{strategy_id}/versions", Permission.READ),
+    ("GET", "/api/strategy-runs", Permission.READ),
     ("POST", "/api/research/datasets", Permission.GOVERNED),
     ("POST", "/api/analysis-snapshots", Permission.GOVERNED),
     ("POST", "/api/decision-cases", Permission.GOVERNED),
@@ -332,8 +340,9 @@ COMMERCIAL_DATA_PREFIXES: tuple[str, ...] = (
 def serves_commercial_data(path: str) -> bool:
     """Whether a public path serves commercial data (V2 platform-admin boundary)."""
 
-    return any(path.startswith(prefix) for prefix in COMMERCIAL_DATA_PREFIXES)
-
+    return any(
+        path == prefix.rstrip("/") or path.startswith(prefix) for prefix in COMMERCIAL_DATA_PREFIXES
+    )
 
 
 def permission_for_path(path: str, method: str | None = None) -> Permission:

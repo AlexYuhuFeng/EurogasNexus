@@ -18,6 +18,8 @@ from typing import Any
 
 import pytest
 
+from eurogas_nexus.release.constants import DB_SCHEMA_REVISION
+
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts" / "ops" / "validate_runtime_db.py"
 
@@ -85,8 +87,9 @@ def test_an_unreachable_database_reports_the_driver_the_url_chose(
     assert "secret" not in str(report["redacted_database_url"])
 
 
+@pytest.mark.parametrize("revision", [DB_SCHEMA_REVISION, "0040_strategy_owner_sharing", None])
 def test_a_reachable_database_still_reconciles_the_required_tables(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, revision: str | None,
 ) -> None:
     from eurogas_nexus import db as db_module
 
@@ -96,7 +99,7 @@ def test_a_reachable_database_still_reconciles_the_required_tables(
     )
     monkeypatch.setattr(db_module, "check_db_connectivity", lambda url=None: _status(True, None))
     monkeypatch.setattr(db_module, "list_missing_required_tables", lambda engine: [])
-    monkeypatch.setattr(db_module, "get_alembic_revision", lambda url: "0036_job_records")
+    monkeypatch.setattr(db_module, "get_alembic_revision", lambda url: revision)
 
     class _Engine:
         def dispose(self) -> None:
@@ -106,11 +109,14 @@ def test_a_reachable_database_still_reconciles_the_required_tables(
 
     report, exit_code = _validator()._build_report()
 
-    assert exit_code == 0
+    assert exit_code == (0 if revision == DB_SCHEMA_REVISION else 2)
     assert report["table_inspection"] == "performed"
     assert report["missing_tables"] == []
-    assert report["alembic_revision"] == "0036_job_records"
-    assert report["warnings"] == []
+    assert report["alembic_revision"] == revision
+    if revision == DB_SCHEMA_REVISION:
+        assert report["warnings"] == []
+    else:
+        assert any("revision" in warning for warning in report["warnings"])
 
 
 def test_a_missing_table_is_still_reported_as_missing(
@@ -139,3 +145,18 @@ def test_a_missing_table_is_still_reported_as_missing(
     assert exit_code == 2
     assert report["table_inspection"] == "performed"
     assert report["missing_tables"] == ["decision_cases"]
+
+
+@pytest.mark.parametrize(
+    "missing", ["identity_groups", "identity_group_members", "strategy_group_shares"]
+)
+def test_privacy_schema_tables_are_required_for_runtime_readiness(missing: str) -> None:
+    from sqlalchemy import create_engine
+
+    from eurogas_nexus.db.registry import get_metadata, list_missing_required_tables
+
+    engine = create_engine("sqlite://")
+    metadata = get_metadata()
+    metadata.create_all(engine)
+    metadata.tables[missing].drop(engine)
+    assert missing in list_missing_required_tables(engine)

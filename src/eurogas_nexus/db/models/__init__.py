@@ -321,3 +321,9 @@ __all__ = [
     "AgentRunRecord",
     "AgentToolInvocationRecord",
 ]
+
+from eurogas_nexus.db.models.strategy_access import (  # noqa: F401, E402
+    IdentityGroupMemberRecord,
+    IdentityGroupRecord,
+    StrategyGroupShareRecord,
+)

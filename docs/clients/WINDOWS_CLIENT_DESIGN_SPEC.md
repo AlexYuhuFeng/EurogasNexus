@@ -59,7 +59,7 @@ Startup flow:
 Launch
   -> show borderless loading/splash window
   -> load packaged Web workspace in hidden main window
-  -> show borderless fullscreen main window
+  -> show resizable main window with native window controls
   -> close loading/splash window
   -> Web workspace calls /api/health and runtime status routes
   -> show connection/runtime/source warnings inside the workspace
@@ -67,7 +67,8 @@ Launch
 
 Window layout:
 
-- borderless fullscreen main trading workspace on startup;
+- resizable, decorated main workspace on startup; F11 toggles full screen;
+- native Workspace, Edit and Window menus; command search and keyboard workspace switching;
 - separate small borderless loading window during startup;
 - persistent backend connection indicator;
 - same workspace navigation as web;

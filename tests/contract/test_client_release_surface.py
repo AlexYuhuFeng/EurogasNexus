@@ -46,7 +46,7 @@ def test_release_versions_are_aligned() -> None:
     } == {"0.5.0"}
 
 
-def test_windows_client_wraps_shared_web_workspace() -> None:
+def test_desktop_workstation_shares_business_ui_with_native_window_controls() -> None:
 
     config = json.loads(
         (ROOT / "clients" / "desktop" / "src-tauri" / "tauri.conf.json").read_text(encoding="utf-8")
@@ -62,9 +62,9 @@ def test_windows_client_wraps_shared_web_workspace() -> None:
 
     assert config["app"]["windows"][0]["label"] == "main"
 
-    assert config["app"]["windows"][0]["decorations"] is False
+    assert config["app"]["windows"][0]["decorations"] is True
 
-    assert config["app"]["windows"][0]["fullscreen"] is True
+    assert config["app"]["windows"][0]["fullscreen"] is False
 
     assert config["app"]["windows"][0]["visible"] is False
 

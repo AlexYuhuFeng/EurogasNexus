@@ -125,7 +125,9 @@ def test_a_bom_inside_a_key_is_refused_rather_than_dropped(tmp_path, loader) -> 
     assert f"{path}:2:" in message
 
 
-@pytest.mark.parametrize("line", ["test-only-secret-without-assignment", "\ufefftest-only-secret=synthetic-value"])
+@pytest.mark.parametrize(
+    "line", ["test-only-secret-without-assignment", "\ufefftest-only-secret=synthetic-value"]
+)
 def test_invalid_environment_diagnostics_do_not_echo_input(tmp_path, loader, line) -> None:
     path = tmp_path / "invalid.env"
     path.write_text("# first line\n" + line, encoding="utf-8")

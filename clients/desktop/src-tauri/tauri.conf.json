@@ -16,12 +16,12 @@
         "title": "Eurogas Nexus",
         "width": 1440,
         "height": 900,
-        "minWidth": 1180,
+        "minWidth": 960,
         "minHeight": 720,
         "center": true,
         "resizable": true,
-        "decorations": false,
-        "fullscreen": true,
+        "decorations": true,
+        "fullscreen": false,
         "visible": false
       },
       {

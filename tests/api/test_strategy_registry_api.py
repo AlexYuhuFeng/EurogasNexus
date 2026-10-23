@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
 
 from eurogas_nexus.api.app import create_app
 from eurogas_nexus.db.base import Base
@@ -17,6 +18,30 @@ def _configure_db(tmp_path, monkeypatch) -> str:
     monkeypatch.setenv("RUNTIME_STORE_DATABASE_URL", database_url)
     monkeypatch.delenv("DATABASE_URL", raising=False)
     monkeypatch.delenv("EUROGAS_NEXUS_DB_DSN", raising=False)
+    from eurogas_nexus.db.repositories.identity import (
+        create_identity_api_key,
+        create_identity_principal,
+    )
+
+    with Session(engine) as session:
+        owner = create_identity_principal(
+            session,
+            name="registry-owner",
+            display_name="Registry Owner",
+            role="ANALYST",
+            data_scopes=["*"],
+        )
+        _, bearer = create_identity_api_key(session, owner.principal_id, scopes=["*"])
+        session.commit()
+    original_init = TestClient.__init__
+
+    def owner_client(self, app, *args, **kwargs):
+        headers = dict(kwargs.pop("headers", {}) or {})
+        headers.setdefault("X-Eurogas-Api-Key", "test-public-api-token")
+        headers.setdefault("X-Eurogas-Identity", bearer)
+        original_init(self, app, *args, headers=headers, **kwargs)
+
+    monkeypatch.setattr(TestClient, "__init__", owner_client)
     return database_url
 
 
@@ -120,7 +145,6 @@ def test_registry_requires_configured_runtime_db(monkeypatch) -> None:
     monkeypatch.delenv("RUNTIME_STORE_DATABASE_URL", raising=False)
     monkeypatch.delenv("DATABASE_URL", raising=False)
     monkeypatch.delenv("EUROGAS_NEXUS_DB_DSN", raising=False)
-
     client = TestClient(create_app())
     response = client.get("/api/strategies")
 
@@ -190,10 +214,13 @@ def test_run_type_backtest_requires_explicit_period(tmp_path, monkeypatch) -> No
 def test_draft_version_cannot_create_run(tmp_path, monkeypatch) -> None:
     _configure_db(tmp_path, monkeypatch)
     client = TestClient(create_app())
-    assert client.post(
-        "/api/strategies",
-        json={"strategy_id": "draft-strategy", "name": "Draft strategy"},
-    ).status_code == 200
+    assert (
+        client.post(
+            "/api/strategies",
+            json={"strategy_id": "draft-strategy", "name": "Draft strategy"},
+        ).status_code
+        == 200
+    )
     version = client.post(
         "/api/strategies/draft-strategy/versions",
         json=_definition(),
@@ -211,7 +238,8 @@ def test_draft_version_cannot_create_run(tmp_path, monkeypatch) -> None:
 
 
 def test_freeze_is_idempotently_rejected_and_fork_preserves_definition(
-    tmp_path, monkeypatch,
+    tmp_path,
+    monkeypatch,
 ) -> None:
     _configure_db(tmp_path, monkeypatch)
     client = TestClient(create_app())
@@ -225,9 +253,10 @@ def test_freeze_is_idempotently_rejected_and_fork_preserves_definition(
     forked = fork.json()["data"]
     assert forked["status"] == "DRAFT"
     assert forked["parent_version_id"] == version_id
-    assert forked["definition_json"] == client.get(
-        f"/api/strategy-versions/{version_id}"
-    ).json()["data"]["definition_json"]
+    assert (
+        forked["definition_json"]
+        == client.get(f"/api/strategy-versions/{version_id}").json()["data"]["definition_json"]
+    )
 
 
 def test_unknown_version_and_run_are_404(tmp_path, monkeypatch) -> None:
@@ -242,12 +271,13 @@ def test_draft_version_is_editable_and_frozen_is_immutable(tmp_path, monkeypatch
     _configure_db(tmp_path, monkeypatch)
     client = TestClient(create_app())
     strategy_id = "editable-strategy"
-    assert client.post(
-        "/api/strategies", json={"strategy_id": strategy_id, "name": "Editable"}
-    ).status_code == 200
-    version = client.post(
-        f"/api/strategies/{strategy_id}/versions", json=_definition()
+    assert (
+        client.post(
+            "/api/strategies", json={"strategy_id": strategy_id, "name": "Editable"}
+        ).status_code
+        == 200
     )
+    version = client.post(f"/api/strategies/{strategy_id}/versions", json=_definition())
     assert version.status_code == 200
     version_id = version.json()["data"]["strategy_version_id"]
 
@@ -258,10 +288,7 @@ def test_draft_version_is_editable_and_frozen_is_immutable(tmp_path, monkeypatch
     assert updated.status_code == 200, updated.text
     assert updated.json()["data"]["hypothesis"] == "edited hypothesis"
     assert (
-        updated.json()["data"]["definition_json"]["risk_controls"][
-            "max_ocm_allocation_pct"
-        ]
-        == 60.0
+        updated.json()["data"]["definition_json"]["risk_controls"]["max_ocm_allocation_pct"] == 60.0
     )
 
     metadata = client.patch(
@@ -272,7 +299,5 @@ def test_draft_version_is_editable_and_frozen_is_immutable(tmp_path, monkeypatch
     assert metadata.json()["data"]["description"] == "updated metadata"
 
     assert client.post(f"/api/strategy-versions/{version_id}/freeze").status_code == 200
-    frozen_edit = client.put(
-        f"/api/strategy-versions/{version_id}/draft", json=_definition()
-    )
+    frozen_edit = client.put(f"/api/strategy-versions/{version_id}/draft", json=_definition())
     assert frozen_edit.status_code == 409

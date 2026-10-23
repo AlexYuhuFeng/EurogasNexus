@@ -2,6 +2,8 @@
 
 Verifies critical platform surfaces without invoking external commercial
 providers. Exits non-zero on any critical failure.
+Use EUROGAS_NEXUS_IDENTITY_BEARER for a named, appropriately scoped
+read-only acceptance identity; the deployment token does not confer ownership.
 
 Usage:
     python scripts/release/smoke_release.py --base-url http://127.0.0.1:8000/api
@@ -41,6 +43,9 @@ def main(argv: list[str] | None = None) -> int:
     base = args.base_url.rstrip("/")
     token = os.environ.get("EUROGAS_NEXUS_PUBLIC_API_TOKEN", "").strip()
     headers = {"X-Eurogas-Api-Key": token} if token else {}
+    identity = os.environ.get("EUROGAS_NEXUS_IDENTITY_BEARER", "").strip()
+    if identity:
+        headers["X-Eurogas-Identity"] = identity
     results = []
     critical_failures = []
     with httpx.Client(timeout=args.timeout_seconds) as client:

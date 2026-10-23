@@ -712,6 +712,7 @@ export interface MarketObsDTO {
 }
 
 export interface NormalizedMarketObsDTO extends MarketObsDTO {
+  price_name?: string;
   hub: string;
   tenor: string;
   is_gas_price: boolean;
@@ -1605,7 +1606,17 @@ export interface StrategyVersionDefinitionDTO {
   evaluation_windows?: Record<string, unknown>[];
 }
 
+export type StrategyVisibility = "PRIVATE" | "PUBLIC" | "GROUPS";
+
+export interface StrategySharingInputDTO {
+  visibility: StrategyVisibility; group_ids: string[];
+}
+
+export interface StrategyGroupDTO { group_id: string; name: string }
+
 export interface StrategyDTO {
+  owner_principal_id?: string | null; visibility?: StrategyVisibility;
+  shared_group_ids?: string[]; can_manage?: boolean;
   strategy_id: string; name: string; description: string;
   lifecycle_status: string; current_version_id: string | null;
   created_by: string; created_at_utc: string; updated_at_utc: string;
@@ -3130,6 +3141,11 @@ export const api = {
 
   updateStrategyMetadata: (strategyId: string, body: StrategyMetadataUpdateInputDTO) =>
     patch<StrategyDTO>(`/strategies/${encodeURIComponent(strategyId)}/metadata`, body),
+
+  strategyGroups: () => get<StrategyGroupDTO[]>("/me/groups"),
+
+  updateStrategySharing: (strategyId: string, body: StrategySharingInputDTO) =>
+    patch<StrategyDTO>(`/strategies/${encodeURIComponent(strategyId)}/sharing`, body),
 
   strategyVersions: (strategyId: string) =>
     get<StrategyVersionDTO[]>(`/strategies/${encodeURIComponent(strategyId)}/versions`),

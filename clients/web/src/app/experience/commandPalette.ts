@@ -24,6 +24,7 @@ import {
 } from "../navigation/productNavigation.ts";
 import { workspacePageIds, type WorkspacePageId } from "../../workspaceNavigation.ts";
 import { actionPlacement, detailPlacement, type ActionConsequence } from "./actionGeography.ts";
+import { ADMINISTRATION_CAPABILITIES } from "./experienceProfile.ts";
 import { aiActionIsAvailable, aiActions } from "./aiActions.ts";
 import type {
   ActionPlacement,
@@ -176,6 +177,9 @@ export function paletteCommandAvailable(
   command: PaletteCommand,
   availability: PaletteAvailability,
 ): boolean {
+  if (command.group === "navigate" && (command.target.primary === "administration" || ["access", "sources", "runtime"].includes(command.target.page ?? ""))) {
+    return ADMINISTRATION_CAPABILITIES.some((capability) => availability.capabilities.includes(capability));
+  }
   if (command.target.aiAction) {
     const capability = AI_ACTION_CAPABILITY[command.target.aiAction];
     if (!availability.capabilities.includes(capability)) return false;
@@ -240,12 +244,15 @@ export interface PaletteKeyEvent {
   readonly metaKey?: boolean;
   readonly altKey?: boolean;
   readonly shiftKey?: boolean;
+  readonly code?: string;
+  readonly isComposing?: boolean;
+  readonly repeat?: boolean;
 }
 
 /** Ctrl+K (Windows/Linux) or Cmd+K (macOS): one palette shortcut, no chords. */
 export function isPaletteShortcut(event: PaletteKeyEvent): boolean {
   const modified = Boolean(event.ctrlKey) || Boolean(event.metaKey);
-  return modified && !event.altKey && !event.shiftKey && event.key.toLowerCase() === "k";
+  return !event.isComposing && !event.repeat && modified && !event.altKey && !event.shiftKey && event.key.toLowerCase() === "k";
 }
 
 export function isPaletteDismissKey(event: PaletteKeyEvent): boolean {
@@ -254,4 +261,13 @@ export function isPaletteDismissKey(event: PaletteKeyEvent): boolean {
 
 export function commandById(id: string): PaletteCommand | undefined {
   return buildPaletteCommands().find((command) => command.id === id);
+}
+
+/** Physical number keys work across keyboard layouts; never navigate while editing. */
+export function workspaceShortcutCommand(event: PaletteKeyEvent, editing: boolean): string | null {
+  if (editing || event.isComposing || event.repeat || event.altKey || !event.shiftKey ||
+      !(event.ctrlKey || event.metaKey)) return null;
+  const digit = /^(?:Digit)?([1-6])$/.exec(event.code ?? event.key)?.[1];
+  const primary = digit ? primaryWorkspaces[Number(digit) - 1] : undefined;
+  return primary ? `navigate.primary.${primary.id}` : null;
 }

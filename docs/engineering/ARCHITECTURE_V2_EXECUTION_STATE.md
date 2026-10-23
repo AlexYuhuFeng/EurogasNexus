@@ -2450,3 +2450,129 @@ as such rather than implied:
 | W9 workspace migration | Seven geography applications, the Inspector handover on eleven surfaces covering all thirteen declared subject kinds, panel disclosures audited. Left: the review task, whose primary slot is deliberately empty (a three-outcome decision must not be promoted) |
 | W10 desktop workstation | Contract, capability model, diagnostics consumer delivered; the **native half is blocked** on a Rust toolchain and is not claimed |
 | W11 RC/GA | **Partly verified here, blocked on external items.** Verified in this environment: the migration chain applied to a live PostgreSQL 16, the whole suite green against it (1807 passed), and the automated backup/restore drill passed with real data. Still external: IdP acceptance against a real issuer, provider certification, the browser/accessibility UAT run, the *production* restore drill, signing/notarisation and every sign-off |
+
+
+## 2026-10-22 — Linux role/privacy and regional contract checkpoint
+
+Current working tree is based on `c4ff4a9`; earlier environment-snapshot evidence
+must not be treated as validation of this tree. Owner-private strategy sharing,
+active group membership, child/capability/projection ACLs, identity-key attenuation,
+LLM egress enforcement, Web/SDK support and the offline EU/CN/CA/SG exchange contract
+are implemented. No new infrastructure or automatic cross-region transfer is enabled.
+
+Current evidence and remaining gates are recorded in
+[Linux role/privacy acceptance](../release/acceptance/16_LINUX_ROLE_PRIVACY_ACCEPTANCE.md).
+PostgreSQL HTTP sharing: 25 checks; Chromium strategy: 7; Chromium ADMIN: 8;
+backend regression: 506 passed; web: 935 passed, 3 skipped. Native installer,
+production/provider/SSO/release evidence and broader UI refinement remain open.
+No push, merge or customer deployment was performed. Routine integration work used
+GPT-6.1 Sol as instructed; final results still require integration review.
+
+Owner follow-up: Canada (`CA`) replaces the provisional North America region.
+Functional acceptance takes priority; regional exchange implementation is deferred.
+Before enabling any exchange, validate applicable privacy, residency, transfer and
+provider-licensing requirements and select proven infrastructure/control mechanisms.
+The offline envelope is provisional and supplies no legal-compliance assurance.
+
+Functional follow-up: migration 0041 introduces a separate stable job-owner FK;
+legacy name-only jobs remain quarantined. Review-pack ACL now resolves the actual
+pack-to-run relationship. Full security/contract regression: 952 passed; real
+PostgreSQL role workflows77, trader contracts15, sharing25, job isolation7;
+installed API6 and installed SDK6 checks passed. All-repository Ruff passes.
+The database validates95 required tables at0041 with no warnings. Backend wheel
+build succeeds; native installer and customer release gates remain unverified.
+Reusable install_script/start_skill were saved as a draft; publication/restoration
+has not been verified. Canada CA is the deferred regional scope.
+
+## 2026-10-22 — backend runtime gate closure
+
+See [backend runtime acceptance](../release/acceptance/17_BACKEND_RUNTIME_ACCEPTANCE.md).
+Fixed Compose ready-status mismatch, migration-revision readiness, named-identity
+release smoke and restore-target readiness. Local fresh restore passed at0041.
+Actual pinned Alpine amd64 image8cacf6d651fb… passed HIGH/CRITICAL gate after
+certifi2026.10.19 remediation and removing unnecessary base setuptools/wheel.
+Python/Web runtime audits found zero known vulnerabilities. Final image smoke8
+checks and non-root/CA-absence checks passed. API/SDK552, security/contract952,
+release/readiness450passed35skipped; subsequent affected tests recorded in report.
+Local60-request/concurrency4 baseline all200, p95<=155.56ms for measured reads;
+no production SLO claim. No publish/push/signing occurred. External customer
+SSO/provider/production acceptance and native/UI work remain outstanding.
+
+## 2026-10-23 — owner-authorized simulated integration acceptance
+
+See [simulated integration acceptance](../release/acceptance/18_SIMULATED_INTEGRATION_ACCEPTANCE.md).
+Real Linux release-container HTTP workflows passed again: roles77, sharing25,
+trader15. Refreshed synthetic browser sessions and restarted local Vite after
+fixture/service failures; strategy7 and ADMIN8 browser checks then passed.
+New loopback OIDC14 and provider9 cases exercise actual HTTP transport, signed
+tokens, application PKCE/session/replay, pagination/retry/timeouts and refusals.
+Combined OIDC35, provider regression236 and identity/deployment selection133
+passed17skipped (overlapping selections). No production controls changed.
+Synthetic acceptance is complete for this bounded scope; customer issuer/provider,
+native signing, production recovery and broader UI remain distinct work. Regional
+transport stays disabled/deferred. No publication or push occurred.
+
+## 2026-10-23 — UI and native workstation work in progress
+
+Responsive strategy and ADMIN actions fixed; real Chromium sharing7 and admin8
+passed. Current/other screenshot matrices cover12+27 viewport cases with no
+page-width overflow; local table/navigation scrolling is intentional. Root rejected
+initial loading screenshots and reran other captures waiting for runtime+DOM.
+MapLibre6 worker fixed using Vite worker URL; development and production worker
+verified. ADMIN-only commercial reads now omitted without hiding genuine errors.
+Settings compatibility label now uses authoritative messageKey.
+
+Desktop efficiency: native Workspace/Edit/Window menus, windowed decorated startup,
+F11 fullscreen, Ctrl+Shift1–6 workspace switching, Ctrl+K palette, focus trap/restore
+and IME guards implemented. Keyboard browser8 passed; Web939passed3skipped before
+last settings-label-only fix; production Web build passes. Native Rust1.94 plus
+GTK/WebKit installed only in disposable Debian13 amd64 container. Release DEB
+build passed; installation and same-version reinstall passed. Actual package name
+is eurogas-nexus (uninstall docs corrected). Native graphical launch/offline login
+and F11/menu observed in Xvfb/Openbox with test-only software rendering. Latest
+native changes include nonblocking async login,300s timeout, valid HTTP CRLF,
+HTTP(S)-only browser URLs and shell-free Windows browser launch; Rust4tests passed.
+Evidence under ignored .local-runtime/{ux-audit,native-acceptance}. Final package
+reinstall/remove and documentation report remain to finish; Ubuntu24/ARM64 and
+Windows/macOS native validation not claimed. No publication/signing/push.
+
+Latest owner steering: Windows/Linux Ctrl labels first (remove universal Cmd glyph
+from help); use test accounts for native login; professionally redesign strategy
+price selection and inter-module data use. Investigation found historical engine
+supports exactly one OCM_VS_DAY_AHEAD component, so arbitrary index/single-price or
+basket UI must not claim unsupported economics. Current free-text price names need
+authorised catalogue selection, explicit spread direction, source/hub/tenor/unit/
+delivery compatibility and proper handoffs. This strategy redesign is pending;
+no catalogue/source-binding implementation yet. Existing draft retention and
+source-entitlement/temporal restrictions must be preserved. Remaining Sol agents
+hit usage limits; root continues integration/implementation fallback.
+
+## 2026-10-23 — strategy catalogue bounded implementation
+
+See acceptance/19_STRATEGY_PRICE_CATALOGUE_ACCEPTANCE.md. Replaced arbitrary price
+name inputs with authorized loaded market choices; added hub selection and leg/hub
+matching, preserved unavailable stored names, wrapped checkbox descriptions.
+Shared canonical price-name and fallback tenor mapping across market discovery and
+backtest repository; normalized API adds price_name. No source-binding claim,
+new permission, numerical engine change or new supported strategy type.
+Backend43pass, affected39pass after final mapping refactor; catalogue3pass;
+Chromium analyst catalogue toggle/restore and1440/768/390 no page overflow; Ctrl
+keyboard8pass. Full Web regression/build logs under .local-runtime/ux-audit.
+Pending native authenticated acceptance/rebuild, source binding, expanded economic
+semantics and cross-module scenario acceptance remain explicit. No delivery claim.
+
+## 2026-10-23 — final local candidate and requested GitHub progress push
+
+Native development-account login and authoritative /me passed in packaged Debian13
+WebKit; Ctrl switching/palette and F11 passed. Final DEB rebuilt, installed and
+reinstalled; see acceptance20. Cross-module actual PG/API24 and Chromium contract
+handoff/save/reload/run-detail passed, with synthetic APPROXIMATE warnings retained;
+see acceptance21. New strategies no longer invent NBP/SAP/ICE_OCM selections.
+Final Web942pass3skip/build and affected backend/contract53pass; explicit price
+selection38pass. Final wheel customer exclusion passed, SHA256
+6f13119366c8def4e70c83c134073146db20d3ecbdb125ad7f7f314866844fea.
+Final local API image e59d03ec9e6b047e8b9728f34dd4427cf73e6753100a6dc30780d179bab62d9f
+built and HIGH/CRITICAL scan passed; Cargo lock scan also zero HIGH/CRITICAL.
+These are local candidate results, not same-commit remote CI/signing/provider/real
+customer acceptance. No live cross-region transport. User now expressly requested
+GitHub progress push; commit/push authorized, merge/publish/signing not requested.

@@ -115,6 +115,11 @@ SURFACED_BY_THE_DESK_SLICE: dict[str, str] = {
 
 #: Paths that are deliberately not a product surface, each with the reason it is not.
 DELIBERATE: dict[str, str] = {
+    "/api/access/groups": "ADMIN sharing-group catalogue; direct control-plane API",
+    "/api/access/groups/{group_id}": "ADMIN sharing-group lifecycle; direct control-plane API",
+    "/api/access/groups/{group_id}/members/{principal_id}": (
+        "ADMIN group membership; direct control-plane API, not an owner grant"
+    ),
     "/api/health/live": "liveness probe, read by operators and CI",
     "/api/health/ready": "readiness probe, read by operators and CI",
     "/api/runtime/metrics": "operational metrics, read by monitoring",

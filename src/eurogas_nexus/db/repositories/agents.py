@@ -363,9 +363,7 @@ def get_challenge_report_for_run(
     ).first()
 
 
-def get_review_pack_for_run(
-    session: Session, agent_run_id: str
-) -> AgentReviewPackRecord | None:
+def get_review_pack_for_run(session: Session, agent_run_id: str) -> AgentReviewPackRecord | None:
     """Return the latest persisted review pack of one agent run, if any."""
 
     return session.scalars(
@@ -381,8 +379,13 @@ def list_review_confirmation_decisions(session: Session, review_pack_id: str) ->
 
     from eurogas_nexus.db.repositories.review import list_review_decisions
 
+    pack = session.get(AgentReviewPackRecord, review_pack_id)
+    run = session.get(AgentRunRecord, pack.agent_run_id) if pack and pack.agent_run_id else None
+    if run is None:
+        return []
     return list_review_decisions(
         session,
+        principal_id=run.principal_id,
         entity_type=REVIEW_PACK_ENTITY_TYPE,
         entity_id=review_pack_id,
         limit=100,
@@ -510,9 +513,7 @@ def _artifact_chain(
 
     plan_id = plan.research_plan_id if plan is not None else row.research_plan_id
     finding_ids = [item.finding_id for item in findings]
-    strategy_ir_id = (
-        f"strategy-ir-{_digest(strategy_spec)[:20]}" if strategy_spec else None
-    )
+    strategy_ir_id = f"strategy-ir-{_digest(strategy_spec)[:20]}" if strategy_spec else None
     validation_id = f"validation:{plan_id}" if plan_id else None
     findings_id = f"findings:{plan_id}" if (plan_id and finding_ids) else None
 
@@ -558,9 +559,7 @@ def _artifact_chain(
             "created_at": pack.created_at_utc if (pack is not None and strategy_spec) else None,
             "lineage": {
                 **lineage,
-                "upstream_artifact_ids": [
-                    item for item in [plan_id, *finding_ids] if item
-                ],
+                "upstream_artifact_ids": [item for item in [plan_id, *finding_ids] if item],
             },
         },
         "validation": {
@@ -570,9 +569,7 @@ def _artifact_chain(
             "created_at": plan.created_at_utc if plan is not None else None,
             "lineage": {
                 **lineage,
-                "upstream_artifact_ids": [
-                    item for item in [plan_id, strategy_ir_id] if item
-                ],
+                "upstream_artifact_ids": [item for item in [plan_id, strategy_ir_id] if item],
             },
         },
         "challenge_report": {
@@ -639,12 +636,8 @@ def _artifact_chain(
     }
     summary = {
         "order": list(ARTIFACT_CHAIN_ORDER),
-        "present": [
-            name for name in ARTIFACT_CHAIN_ORDER if envelopes[name]["present"]
-        ],
-        "missing": [
-            name for name in ARTIFACT_CHAIN_ORDER if not envelopes[name]["present"]
-        ],
+        "present": [name for name in ARTIFACT_CHAIN_ORDER if envelopes[name]["present"]],
+        "missing": [name for name in ARTIFACT_CHAIN_ORDER if not envelopes[name]["present"]],
         "artifact_ids": _artifact_identifiers(row, artifacts),
     }
     summary["complete"] = not summary["missing"]
@@ -711,9 +704,7 @@ def _artifact_identifiers(row: AgentRunRecord, artifacts: dict[str, Any]) -> dic
         "findings": [item.finding_id for item in findings],
         "strategy_ir": [strategy_ir_id] if strategy_ir_id else [],
         "validation": [f"validation:{plan_id}"] if plan_id else [],
-        "challenge_report": (
-            [challenge.challenge_report_id] if challenge is not None else []
-        ),
+        "challenge_report": ([challenge.challenge_report_id] if challenge is not None else []),
         "review_pack": [pack.review_pack_id] if pack is not None else [],
     }
 
@@ -906,9 +897,7 @@ def _validation_payload(
     if strategy_spec:
         try:
             parsed = StrategyIR.model_validate(strategy_spec)
-            result = validate_strategy_ir(
-                parsed, feature_catalog=agent_research_feature_catalog()
-            )
+            result = validate_strategy_ir(parsed, feature_catalog=agent_research_feature_catalog())
             issues = [item.model_dump(mode="json") for item in result.issues]
             strategy_validation = {"ok": result.ok, "issues": issues}
         except (ValueError, TypeError):

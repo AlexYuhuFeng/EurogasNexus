@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Query, Request
@@ -122,6 +122,121 @@ class BacktestExperimentCreateRequest(BaseModel):
     evaluation_period_end_utc: datetime
 
 
+def require_strategy_access(*args, **kwargs):
+    from eurogas_nexus.db.repositories.strategy_access import require_strategy_access as check
+
+    return check(*args, **kwargs)
+
+
+def require_named_principal(*args, **kwargs):
+    from eurogas_nexus.db.repositories.strategy_access import require_named_principal as check
+
+    return check(*args, **kwargs)
+
+
+def can_read_strategy(*args, **kwargs):
+    from eurogas_nexus.db.repositories.strategy_access import can_read_strategy as check
+
+    return check(*args, **kwargs)
+
+
+class StrategySharingRequest(BaseModel):
+    visibility: Literal["PRIVATE", "PUBLIC", "GROUPS"]
+    group_ids: list[str] = Field(default_factory=list, max_length=100)
+
+
+def _principal_id(request: Request) -> str:
+    return getattr(getattr(request.state, "identity", None), "principal_id", "") or ""
+
+
+def _strategy_payload(
+    session, row, request: Request, *, shared_groups: dict[str, list[str]] | None = None
+) -> dict:
+    from sqlalchemy import select
+
+    from eurogas_nexus.db.models import StrategyGroupShareRecord
+    from eurogas_nexus.db.repositories.strategy_registry import strategy_record_payload
+
+    data = strategy_record_payload(row)
+    data["can_manage"] = row.owner_principal_id == _principal_id(request)
+    # Sharing audiences are owner metadata; readers need only visibility and owner.
+    if not data["can_manage"]:
+        data["shared_group_ids"] = []
+    elif shared_groups is not None:
+        data["shared_group_ids"] = shared_groups.get(row.strategy_id, [])
+    else:
+        data["shared_group_ids"] = list(
+            session.scalars(
+                select(StrategyGroupShareRecord.group_id)
+                .where(StrategyGroupShareRecord.strategy_id == row.strategy_id)
+                .order_by(StrategyGroupShareRecord.group_id)
+            )
+        )
+    return data
+
+
+def _require_version(session, version_id: str, request: Request, *, write: bool = False):
+    from eurogas_nexus.db.models import StrategyVersionRecord
+
+    version = session.get(StrategyVersionRecord, version_id)
+    if version is None:
+        raise HTTPException(status_code=404, detail="Strategy version not found")
+    require_strategy_access(session, version.strategy_id, _principal_id(request), write=write)
+    return version
+
+
+@router.patch("/api/strategies/{strategy_id}/sharing")
+def patch_strategy_sharing(
+    strategy_id: str, body: StrategySharingRequest, request: Request
+) -> dict:
+    from sqlalchemy import delete, select
+
+    from eurogas_nexus.db.models import (
+        IdentityGroupMemberRecord,
+        IdentityGroupRecord,
+        StrategyGroupShareRecord,
+    )
+
+    group_ids = sorted(set(body.group_ids))
+    if (body.visibility == "GROUPS") != bool(group_ids):
+        raise HTTPException(
+            status_code=422,
+            detail="GROUPS requires group_ids; PRIVATE and PUBLIC require no groups",
+        )
+    with _db_session() as session:
+        row = require_strategy_access(session, strategy_id, _principal_id(request), write=True)
+        if group_ids:
+            available = set(
+                session.scalars(
+                    select(IdentityGroupRecord.group_id)
+                    .join(
+                        IdentityGroupMemberRecord,
+                        IdentityGroupMemberRecord.group_id == IdentityGroupRecord.group_id,
+                    )
+                    .where(
+                        IdentityGroupRecord.status == "ACTIVE",
+                        IdentityGroupMemberRecord.principal_id == _principal_id(request),
+                        IdentityGroupRecord.group_id.in_(group_ids),
+                    )
+                )
+            )
+            if available != set(group_ids):
+                raise HTTPException(status_code=422, detail="Choose active groups you belong to")
+        session.execute(
+            delete(StrategyGroupShareRecord).where(
+                StrategyGroupShareRecord.strategy_id == strategy_id
+            )
+        )
+        for group_id in group_ids:
+            session.add(StrategyGroupShareRecord(strategy_id=strategy_id, group_id=group_id))
+        row.visibility = body.visibility
+        row.updated_at_utc = datetime.now(UTC)
+        session.flush()
+        data = _strategy_payload(session, row, request)
+    _audit_action(request, "strategy.sharing.update", f"strategy:{strategy_id}", body.visibility)
+    return _env(data, request, source="operator-input")
+
+
 @router.get("/api/strategies")
 def get_strategies(
     request: Request,
@@ -132,8 +247,28 @@ def get_strategies(
     with _db_session() as session:
         from eurogas_nexus.db.repositories import strategy_registry
 
-        rows = strategy_registry.list_strategies(session, limit=limit)
-        data = [strategy_registry.strategy_record_payload(row) for row in rows]
+        rows = strategy_registry.list_strategies(
+            session, limit=limit, principal_id=_principal_id(request)
+        )
+        # Batch only the owner's audiences for the already filtered, bounded page.
+        from sqlalchemy import select
+
+        from eurogas_nexus.db.models import StrategyGroupShareRecord
+
+        owned_ids = [
+            row.strategy_id for row in rows if row.owner_principal_id == _principal_id(request)
+        ]
+        shared_groups: dict[str, list[str]] = {}
+        if owned_ids:
+            for strategy_id, group_id in session.execute(
+                select(StrategyGroupShareRecord.strategy_id, StrategyGroupShareRecord.group_id)
+                .where(StrategyGroupShareRecord.strategy_id.in_(owned_ids))
+                .order_by(StrategyGroupShareRecord.group_id)
+            ):
+                shared_groups.setdefault(strategy_id, []).append(group_id)
+        data = [
+            _strategy_payload(session, row, request, shared_groups=shared_groups) for row in rows
+        ]
     return _env(data, request, source="runtime-postgresql")
 
 
@@ -153,8 +288,9 @@ def post_strategy(body: StrategyCreateRequest, request: Request) -> dict:
             created_by=_requested_by(request),
             now_utc=datetime.now(UTC),
             tags=body.tags,
+            owner_principal_id=require_named_principal(session, _principal_id(request)),
         )
-        data = strategy_registry.strategy_record_payload(row)
+        data = _strategy_payload(session, row, request)
     _audit_action(request, "strategy.create", f"strategy:{strategy_id}", "created")
     return _env(data, request, source="operator-input")
 
@@ -168,6 +304,7 @@ def patch_strategy_metadata(
     """Update strategy metadata; identity and history are never rewritten."""
 
     with _db_session() as session:
+        require_strategy_access(session, strategy_id, _principal_id(request), write=True)
         from eurogas_nexus.db.repositories import strategy_registry
 
         if strategy_registry.get_strategy(session, strategy_id) is None:
@@ -180,7 +317,7 @@ def patch_strategy_metadata(
             tags=body.tags,
             now_utc=datetime.now(UTC),
         )
-        data = strategy_registry.strategy_record_payload(row)
+        data = _strategy_payload(session, row, request)
     return _env(data, request, source="operator-input")
 
 
@@ -189,12 +326,13 @@ def get_strategy(strategy_id: str, request: Request) -> dict:
     """Return one strategy identity, or 404."""
 
     with _db_session() as session:
+        require_strategy_access(session, strategy_id, _principal_id(request))
         from eurogas_nexus.db.repositories import strategy_registry
 
         row = strategy_registry.get_strategy(session, strategy_id)
         if row is None:
             raise HTTPException(status_code=404, detail=f"Unknown strategy: {strategy_id}")
-        data = strategy_registry.strategy_record_payload(row)
+        data = _strategy_payload(session, row, request)
     return _env(data, request, source="runtime-postgresql")
 
 
@@ -207,6 +345,7 @@ def get_strategy_versions(
     """List semantic versions of one strategy, newest first."""
 
     with _db_session() as session:
+        require_strategy_access(session, strategy_id, _principal_id(request))
         from eurogas_nexus.db.repositories import strategy_registry
 
         if strategy_registry.get_strategy(session, strategy_id) is None:
@@ -225,6 +364,7 @@ def post_strategy_version(
     """Create a new draft semantic version of a strategy."""
 
     with _db_session() as session:
+        require_strategy_access(session, strategy_id, _principal_id(request), write=True)
         from eurogas_nexus.db.repositories import strategy_registry
 
         strategy = strategy_registry.get_strategy(session, strategy_id)
@@ -258,13 +398,12 @@ def put_strategy_version_draft(
     """Replace a DRAFT version definition. Frozen versions are immutable."""
 
     with _db_session() as session:
+        _require_version(session, version_id, request, write=True)
         from eurogas_nexus.db.repositories import strategy_registry
 
         row = strategy_registry.get_strategy_version(session, version_id)
         if row is None:
-            raise HTTPException(
-                status_code=404, detail=f"Unknown strategy version: {version_id}"
-            )
+            raise HTTPException(status_code=404, detail=f"Unknown strategy version: {version_id}")
         try:
             row = strategy_registry.update_draft_version(
                 session,
@@ -292,13 +431,12 @@ def get_strategy_version(version_id: str, request: Request) -> dict:
     """Return one immutable semantic version, or 404."""
 
     with _db_session() as session:
+        _require_version(session, version_id, request)
         from eurogas_nexus.db.repositories import strategy_registry
 
         row = strategy_registry.get_strategy_version(session, version_id)
         if row is None:
-            raise HTTPException(
-                status_code=404, detail=f"Unknown strategy version: {version_id}"
-            )
+            raise HTTPException(status_code=404, detail=f"Unknown strategy version: {version_id}")
         data = strategy_registry.strategy_version_payload(row)
     return _env(data, request, source="runtime-postgresql")
 
@@ -312,12 +450,11 @@ def freeze_strategy_version(version_id: str, request: Request) -> dict:
     """
 
     with _db_session() as session:
+        _require_version(session, version_id, request, write=True)
         from eurogas_nexus.db.repositories import strategy_registry
 
         if strategy_registry.get_strategy_version(session, version_id) is None:
-            raise HTTPException(
-                status_code=404, detail=f"Unknown strategy version: {version_id}"
-            )
+            raise HTTPException(status_code=404, detail=f"Unknown strategy version: {version_id}")
         row = strategy_registry.freeze_strategy_version(
             session,
             strategy_version_id=version_id,
@@ -338,12 +475,11 @@ def fork_strategy_version(
     """Fork a frozen version into a new draft without mutating the source."""
 
     with _db_session() as session:
+        _require_version(session, version_id, request, write=True)
         from eurogas_nexus.db.repositories import strategy_registry
 
         if strategy_registry.get_strategy_version(session, version_id) is None:
-            raise HTTPException(
-                status_code=404, detail=f"Unknown strategy version: {version_id}"
-            )
+            raise HTTPException(status_code=404, detail=f"Unknown strategy version: {version_id}")
         row = strategy_registry.fork_strategy_version(
             session,
             source_version_id=version_id,
@@ -387,10 +523,9 @@ def post_strategy_run(body: StrategyRunCreateRequest, request: Request) -> dict:
     )
 
 
-def _post_evaluation_run(
-    body: StrategyRunCreateRequest, request: Request
-) -> dict:
+def _post_evaluation_run(body: StrategyRunCreateRequest, request: Request) -> dict:
     with _db_session() as session:
+        _require_version(session, body.strategy_version_id, request, write=True)
         from eurogas_nexus.db.repositories import strategy_registry
         from eurogas_nexus.db.repositories.strategy import strategy_run_payload
         from eurogas_nexus.domain.strategy_lab.run_orchestration import (
@@ -398,9 +533,7 @@ def _post_evaluation_run(
             execute_evaluation_run,
         )
 
-        version = strategy_registry.get_strategy_version(
-            session, body.strategy_version_id
-        )
+        version = strategy_registry.get_strategy_version(session, body.strategy_version_id)
         if version is None:
             raise HTTPException(
                 status_code=404,
@@ -446,13 +579,8 @@ def _backtest_refusal(exc: ValueError) -> HTTPException:
     return HTTPException(status_code=422, detail={"code": code, "message": str(exc)})
 
 
-def _post_backtest_run(
-    body: StrategyRunCreateRequest, request: Request
-) -> dict:
-    if (
-        body.evaluation_period_start_utc is None
-        or body.evaluation_period_end_utc is None
-    ):
+def _post_backtest_run(body: StrategyRunCreateRequest, request: Request) -> dict:
+    if body.evaluation_period_start_utc is None or body.evaluation_period_end_utc is None:
         raise HTTPException(
             status_code=422,
             detail={
@@ -469,8 +597,7 @@ def _post_backtest_run(
             strategy_version_id=body.strategy_version_id,
             period=period,
             schedule=body.decision_schedule or BacktestDecisionSchedule(),
-            economic_assumptions=body.economic_assumptions
-            or BacktestEconomicAssumptions(),
+            economic_assumptions=body.economic_assumptions or BacktestEconomicAssumptions(),
             parameter_values=body.parameter_values,
             deterministic_seed=body.deterministic_seed,
             experiment_id=body.experiment_id,
@@ -483,19 +610,16 @@ def _post_backtest_run(
 
     # Architecture V2 Wave 4: a run that cites a reproducibility reference must
     # cite one the platform recorded. Verified before the run, echoed after it.
-    require_known_analysis_snapshot(
-        body.analysis_snapshot_id, resource="strategy-registry"
-    )
+    require_known_analysis_snapshot(body.analysis_snapshot_id, resource="strategy-registry")
 
     with _db_session() as session:
+        _require_version(session, body.strategy_version_id, request, write=True)
         from eurogas_nexus.application.backtest_service import execute_backtest_run
         from eurogas_nexus.application.jobs import track_job
         from eurogas_nexus.db.repositories import strategy_registry
         from eurogas_nexus.db.repositories.strategy import strategy_run_payload
 
-        version = strategy_registry.get_strategy_version(
-            session, body.strategy_version_id
-        )
+        version = strategy_registry.get_strategy_version(session, body.strategy_version_id)
         if version is None:
             raise HTTPException(
                 status_code=404,
@@ -511,12 +635,12 @@ def _post_backtest_run(
             session,
             kind="BACKTEST",
             principal=_requested_by(request),
+            owner_principal_id=request.state.identity.principal_id,
             scope_refs=(f"STRATEGY_VERSION:{body.strategy_version_id}",),
             snapshot_id=body.analysis_snapshot_id or "",
             inputs=definition.model_dump(mode="json"),
             correlation_id=(
-                body.correlation_request_id
-                or getattr(request.state, "request_id", None)
+                body.correlation_request_id or getattr(request.state, "request_id", None)
             ),
             provenance=("strategy-registry",),
         ) as job:
@@ -538,12 +662,8 @@ def _post_backtest_run(
     return _env(data, request, source="runtime-postgresql")
 
 
-
-
 @router.post("/api/backtest-experiments")
-def post_backtest_experiment(
-    body: BacktestExperimentCreateRequest, request: Request
-) -> dict:
+def post_backtest_experiment(body: BacktestExperimentCreateRequest, request: Request) -> dict:
     """Create a lightweight SINGLE_RUN backtest experiment group."""
 
     try:
@@ -559,16 +679,13 @@ def post_backtest_experiment(
         ) from exc
 
     with _db_session() as session:
+        require_strategy_access(session, body.strategy_id, _principal_id(request), write=True)
         from eurogas_nexus.db.repositories import backtest, strategy_registry
 
         strategy = strategy_registry.get_strategy(session, body.strategy_id)
         if strategy is None:
-            raise HTTPException(
-                status_code=404, detail=f"Unknown strategy: {body.strategy_id}"
-            )
-        version = strategy_registry.get_strategy_version(
-            session, body.base_strategy_version_id
-        )
+            raise HTTPException(status_code=404, detail=f"Unknown strategy: {body.strategy_id}")
+        version = strategy_registry.get_strategy_version(session, body.base_strategy_version_id)
         if version is None or version.strategy_id != body.strategy_id:
             raise HTTPException(
                 status_code=404,
@@ -617,7 +734,7 @@ def get_backtest_experiments(
     with _db_session() as session:
         from eurogas_nexus.db.repositories import backtest
 
-        data = backtest.list_experiments(session, limit=limit)
+        data = backtest.list_experiments(session, limit=limit, principal_id=_principal_id(request))
     return _env(data, request, source="runtime-postgresql")
 
 
@@ -630,9 +747,8 @@ def get_backtest_experiment(experiment_id: str, request: Request) -> dict:
 
         row = backtest.get_experiment(session, experiment_id)
         if row is None:
-            raise HTTPException(
-                status_code=404, detail=f"Unknown experiment: {experiment_id}"
-            )
+            raise HTTPException(status_code=404, detail=f"Unknown experiment: {experiment_id}")
+        require_strategy_access(session, row.strategy_id, _principal_id(request))
         data = {
             "experiment_id": row.experiment_id,
             "strategy_id": row.strategy_id,
@@ -671,6 +787,7 @@ def get_strategy_runs(
             strategy_version_id=strategy_version_id,
             run_type=run_type,
             limit=limit,
+            principal_id=_principal_id(request),
         )
         data = [
             row
@@ -692,7 +809,6 @@ def get_strategy_run(run_id: str, request: Request) -> dict:
             raise HTTPException(status_code=404, detail=f"Unknown strategy run: {run_id}")
     _require_strategy_run_visible(request, data)
     return _env(data, request, source="runtime-postgresql")
-
 
 
 @router.get("/api/strategy-runs/{run_id}/events")
@@ -758,9 +874,10 @@ def get_backtest_run_attribution(run_id: str, request: Request) -> dict:
     )
 
 
-
-
 def _strategy_run_visible(request: Request, data: dict) -> bool:
+    with _db_session() as session:
+        if not can_read_strategy(session, data.get("strategy_id"), _principal_id(request)):
+            return False
     from eurogas_nexus.api.dependencies.row_entitlement import current_principal
     from eurogas_nexus.domain.dataops.entitlement import derived_result_access
 
@@ -774,6 +891,8 @@ def _strategy_run_visible(request: Request, data: dict) -> bool:
 
 
 def _require_strategy_run_visible(request: Request, data: dict) -> None:
+    with _db_session() as session:
+        require_strategy_access(session, data.get("strategy_id") or "", _principal_id(request))
     if not _strategy_run_visible(request, data):
         raise HTTPException(
             status_code=403,
@@ -785,8 +904,8 @@ def _require_strategy_run_visible(request: Request, data: dict) -> None:
             },
         )
 
-# --- Persistence and envelope helpers ---------------------------------------
 
+# --- Persistence and envelope helpers ---------------------------------------
 
 
 def _has_backtest_fields(body: StrategyRunCreateRequest) -> bool:

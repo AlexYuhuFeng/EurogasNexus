@@ -194,7 +194,7 @@ test("the panel uses the declared experiment and metadata calls, not ad-hoc ones
   // which is the property the workspace's own test holds every panel to.
   assert.match(identity, /controller\.updateStrategyMetadata\(/);
   assert.match(design, /void identity\.save\(\)/);
-  assert.match(design, /disabled=\{!identity\.canSave \|\| identity\.busy\}/);
+  assert.match(design, /disabled=\{readOnly \|\| !identity\.canSave \|\| identity\.busy\}/);
   assert.equal(design.includes("useState"), false);
   assert.ok(EXPERIMENT_NAME_MAX_LENGTH === 256);
 });

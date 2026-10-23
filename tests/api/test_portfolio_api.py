@@ -8,7 +8,15 @@ from sqlalchemy.orm import Session
 
 from eurogas_nexus.api.app import create_app
 from eurogas_nexus.db.base import Base
-from eurogas_nexus.db.models import PortfolioPnlSnapshotRecord, ScreenOrderObservationRecord
+from eurogas_nexus.db.models import (
+    PortfolioPnlSnapshotRecord,
+    ScreenOrderObservationRecord,
+    StrategyRecord,
+)
+from eurogas_nexus.db.repositories.identity import (
+    create_identity_api_key,
+    create_identity_principal,
+)
 
 
 def test_portfolio_screen_orders_without_db_reports_missing_runtime_data(monkeypatch) -> None:
@@ -33,6 +41,26 @@ def test_portfolio_live_summary_uses_runtime_db_when_configured(tmp_path, monkey
     Base.metadata.create_all(engine)
     now = datetime(2026, 6, 1, 8, 30, tzinfo=UTC)
     with Session(engine) as session:
+        owner = create_identity_principal(
+            session,
+            name="portfolio-owner",
+            display_name="Portfolio owner",
+            role="ANALYST",
+            data_scopes=["*"],
+        )
+        _, bearer = create_identity_api_key(
+            session, owner.principal_id, display_name="portfolio-tests"
+        )
+        session.add(
+            StrategyRecord(
+                strategy_id="sap-icis-ocm",
+                name="Portfolio strategy",
+                owner_principal_id=owner.principal_id,
+                visibility="PRIVATE",
+                created_at_utc=now,
+                updated_at_utc=now,
+            )
+        )
         session.add(
             ScreenOrderObservationRecord(
                 order_observation_id="ord-obs-1",
@@ -89,7 +117,10 @@ def test_portfolio_live_summary_uses_runtime_db_when_configured(tmp_path, monkey
     monkeypatch.delenv("DATABASE_URL", raising=False)
     monkeypatch.delenv("EUROGAS_NEXUS_DB_DSN", raising=False)
 
-    response = TestClient(create_app()).get("/api/portfolio/live-summary")
+    response = TestClient(
+        create_app(),
+        headers={"X-Eurogas-Identity": bearer, "X-Eurogas-Api-Key": "test-public-api-token"},
+    ).get("/api/portfolio/live-summary")
 
     assert response.status_code == 200
     body = response.json()

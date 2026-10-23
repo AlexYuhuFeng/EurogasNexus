@@ -27,6 +27,30 @@ def _configure_db(tmp_path, monkeypatch) -> str:
     monkeypatch.setenv("RUNTIME_STORE_DATABASE_URL", database_url)
     monkeypatch.delenv("DATABASE_URL", raising=False)
     monkeypatch.delenv("EUROGAS_NEXUS_DB_DSN", raising=False)
+    from eurogas_nexus.db.repositories.identity import (
+        create_identity_api_key,
+        create_identity_principal,
+    )
+
+    with Session(engine) as session:
+        owner = create_identity_principal(
+            session,
+            name="registry-owner",
+            display_name="Registry Owner",
+            role="ANALYST",
+            data_scopes=["*"],
+        )
+        _, bearer = create_identity_api_key(session, owner.principal_id, scopes=["*"])
+        session.commit()
+    original_init = TestClient.__init__
+
+    def owner_client(self, app, *args, **kwargs):
+        headers = dict(kwargs.pop("headers", {}) or {})
+        headers.setdefault("X-Eurogas-Api-Key", "test-public-api-token")
+        headers.setdefault("X-Eurogas-Identity", bearer)
+        original_init(self, app, *args, headers=headers, **kwargs)
+
+    monkeypatch.setattr(TestClient, "__init__", owner_client)
     return database_url
 
 
@@ -157,9 +181,7 @@ def _seed_observations(tmp_path, monkeypatch, database_url: str) -> None:
                             "evidence_role": "DELIVERY_PRICE",
                             "price_basis": "MID",
                             "price_timing": (
-                                "instant"
-                                if observation_id == "ice"
-                                else "daily_assessment"
+                                "instant" if observation_id == "ice" else "daily_assessment"
                             ),
                             "simulated": True,
                         },
@@ -190,9 +212,7 @@ def _backtest_payload(version_id: str, **overrides) -> dict:
     return payload
 
 
-def test_create_backtest_run_and_retrieve_events_series_attribution(
-    tmp_path, monkeypatch
-) -> None:
+def test_create_backtest_run_and_retrieve_events_series_attribution(tmp_path, monkeypatch) -> None:
     database_url = _configure_db(tmp_path, monkeypatch)
     client = TestClient(create_app())
     version_id = _create_frozen_version(client)
@@ -278,19 +298,20 @@ def test_future_observation_is_not_used(tmp_path, monkeypatch) -> None:
 
     run = client.post("/api/strategy-runs", json=_backtest_payload(version_id))
     assert run.status_code == 200
-    events = client.get(
-        f"/api/strategy-runs/{run.json()['data']['run_id']}/events"
-    )
+    events = client.get(f"/api/strategy-runs/{run.json()['data']['run_id']}/events")
     assert events.json()["data"][0]["day_ahead_average_gbp_mwh"] == 25.0
 
 
 def test_draft_version_cannot_backtest(tmp_path, monkeypatch) -> None:
     _configure_db(tmp_path, monkeypatch)
     client = TestClient(create_app())
-    assert client.post(
-        "/api/strategies",
-        json={"strategy_id": "draft-bt", "name": "Draft BT"},
-    ).status_code == 200
+    assert (
+        client.post(
+            "/api/strategies",
+            json={"strategy_id": "draft-bt", "name": "Draft BT"},
+        ).status_code
+        == 200
+    )
     version = client.post(
         "/api/strategies/draft-bt/versions",
         json=_definition_body(),
@@ -388,9 +409,7 @@ def test_legacy_evaluation_path_still_works(tmp_path, monkeypatch) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_backtest_run_echoes_the_snapshot_it_was_computed_against(
-    tmp_path, monkeypatch
-) -> None:
+def test_backtest_run_echoes_the_snapshot_it_was_computed_against(tmp_path, monkeypatch) -> None:
     database_url = _configure_db(tmp_path, monkeypatch)
     client = TestClient(create_app())
     version_id = _create_frozen_version(client)
@@ -485,9 +504,7 @@ def test_backtest_run_job_commits_the_snapshot_it_cited(tmp_path, monkeypatch) -
     assert rows[0]["output_refs"] == [f"strategy_run:{run.json()['data']['run_id']}"]
 
 
-def test_backtest_run_refuses_a_period_that_has_not_occurred(
-    tmp_path, monkeypatch
-) -> None:
+def test_backtest_run_refuses_a_period_that_has_not_occurred(tmp_path, monkeypatch) -> None:
     # BACKTEST_ENGINE_SPEC section 1 promises a historical evaluation. A window
     # ending after the request instant is not historical, and the run must be
     # refused before any evidence snapshot or run row is written.

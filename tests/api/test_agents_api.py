@@ -69,9 +69,7 @@ def client(tmp_path, monkeypatch: pytest.MonkeyPatch):
         index = 0
         for sample in range(5):
             for hub, base_value in [("NBP", 30.0), ("TTF", 28.0)]:
-                observed = now - timedelta(
-                    microseconds=span_microseconds * (sample + 1) // 8
-                )
+                observed = now - timedelta(microseconds=span_microseconds * (sample + 1) // 8)
                 session.add(
                     MarketObservationRecord(
                         observation_id=f"obs-{index}",
@@ -93,8 +91,12 @@ def client(tmp_path, monkeypatch: pytest.MonkeyPatch):
                 )
                 index += 1
         session.commit()
+    from tests.api.identity_fixture import install_named_client
+
+    owner_id = install_named_client(database_url, monkeypatch)
     test_client = TestClient(create_app())
     test_client.engine = engine
+    test_client.owner_id = owner_id
     return test_client
 
 
@@ -166,10 +168,7 @@ def test_agent_run_list_matches_web_dto_objective_vocabulary(client) -> None:
     run_id = _run_full_chain_research(client)
     listed = client.get("/api/agent/runs", params={"limit": 50})
     assert listed.status_code == 200
-    run = next(
-        item for item in listed.json()["data"]
-        if item["agent_run_id"] == run_id
-    )
+    run = next(item for item in listed.json()["data"] if item["agent_run_id"] == run_id)
     assert run["user_objective"] == "Is the NBP premium over TTF persistent today?"
     # Historical clients may still read the alias; both values must stay equal.
     assert run["objective"] == run["user_objective"]
@@ -231,7 +230,7 @@ def test_a_governed_research_run_registers_a_job_with_its_artefacts(client, monk
     assert job.status == "SUCCEEDED"
     # The job is attributed to a principal the identity vocabulary accepts, and cites the
     # run plus every artefact that really carries an id - no bare artefact label.
-    assert job.principal == "public-api"
+    assert job.principal == "fixture-owner"
     assert f"agent_run:{run_id}" in list(job.output_refs_json)
     if strategy_version_id:
         assert f"strategy_version:{strategy_version_id}" in list(job.output_refs_json)
@@ -367,7 +366,7 @@ def test_replay_without_artifacts_returns_coherent_empty_shape(client) -> None:
         agents.create_agent_run(
             session,
             agent_run_id="agent-run-empty",
-            principal_id="analyst-1",
+            principal_id=client.owner_id,
             user_objective="Objective recorded before any artifact was produced.",
         )
         session.commit()
@@ -415,9 +414,8 @@ def test_review_pack_confirmation_is_recorded_and_replayed(client) -> None:
     assert body["entity_type"] == "agent_review_pack"
     assert body["entity_id"] == pack_id
     # W0-03 C13: the actor is the authenticated identity, never the body's claim. This
-    # deployment carries no verified identity, so the deployment's own principal is recorded
-    # and the ignored claim is reported rather than believed.
-    assert body["actor"] == "public-api"
+    # persisted named identity is recorded and the ignored claim is reported.
+    assert body["actor"] == "fixture-owner"
     assert decision.json()["meta"]["warnings"] == ["ACTOR_CLAIM_IGNORED:trader-a"]
 
     listed = client.get(
@@ -431,7 +429,7 @@ def test_review_pack_confirmation_is_recorded_and_replayed(client) -> None:
     confirmation = confirmed["artifacts"]["review_pack"]["payload"]["human_confirmation"]
     assert confirmation["entity_type"] == "agent_review_pack"
     assert [row["decision"] for row in confirmation["decisions"]] == ["accepted"]
-    assert confirmation["decisions"][0]["actor"] == "public-api"
+    assert confirmation["decisions"][0]["actor"] == "fixture-owner"
 
 
 def test_review_decision_rejects_unknown_entity_kind(client) -> None:

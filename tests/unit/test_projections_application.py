@@ -125,6 +125,27 @@ def _session(tmp_path, name: str = "projections.sqlite") -> Session:
     return Session(engine)
 
 
+def _owned_strategy_fixture(session: Session) -> None:
+    from eurogas_nexus.db.repositories.identity import create_identity_principal
+    from eurogas_nexus.db.repositories.strategy_registry import create_strategy
+
+    owner = create_identity_principal(
+        session, name="fixture-principal", display_name="Fixture", role="ANALYST", data_scopes=["*"]
+    )
+    owner.principal_id = "fixture-principal"
+    session.flush()
+    create_strategy(
+        session,
+        strategy_id="strategy-1",
+        name="Owned projection fixture",
+        description="",
+        created_by=owner.name,
+        owner_principal_id=owner.principal_id,
+        now_utc=AS_OF,
+    )
+    session.commit()
+
+
 def _observation(
     observation_id: str,
     source_system: str,
@@ -372,9 +393,7 @@ def test_market_context_reports_per_slice_freshness_from_declared_expectations(t
 
     # The per-source summary keeps the ENTSOG row (fresh) and the EEX row (stale)
     # apart instead of collapsing them into one verdict.
-    by_source = {
-        row["source_system"]: row for row in slices["data_sources"]["rows"]
-    }
+    by_source = {row["source_system"]: row for row in slices["data_sources"]["rows"]}
     assert by_source["EEX_Sim"]["freshness"]["state"] == "STALE"
     assert by_source["EEX_Sim"]["source_family"] == "EEX"
     assert by_source["EEX_Sim"]["simulated"] is True
@@ -402,9 +421,7 @@ def test_market_context_applies_entitlement_never_wider_than_the_market_route(tm
     with _session(tmp_path) as session:
         _market_fixture(session)
         scoped_payload = build_market_context(scoped, session=session, as_of_utc=AS_OF)
-        legacy_payload = build_market_context(
-            _legacy_principal(), session=session, as_of_utc=AS_OF
-        )
+        legacy_payload = build_market_context(_legacy_principal(), session=session, as_of_utc=AS_OF)
 
     scoped_slice = scoped_payload["data"]["slices"]["market_observations"]
     legacy_slice = legacy_payload["data"]["slices"]["market_observations"]
@@ -418,10 +435,9 @@ def test_market_context_applies_entitlement_never_wider_than_the_market_route(tm
     assert scoped_slice["entitlement"]["filtered_out"] == 1
     assert "ENTITLEMENT_FILTERED" in scoped_payload["meta"]["warnings"]
     # A restricted family is never named in the data-source summary.
-    assert (
-        {row["source_system"] for row in scoped_payload["data"]["slices"]["data_sources"]["rows"]}
-        == {"ENTSOG"}
-    )
+    assert {
+        row["source_system"] for row in scoped_payload["data"]["slices"]["data_sources"]["rows"]
+    } == {"ENTSOG"}
     # The unscoped legacy principal keeps the single-trust-domain view.
     assert legacy_slice["entitlement"]["row_filter_applied"] is False
 
@@ -532,9 +548,7 @@ def test_market_context_observation_slice_matches_the_unbounded_reference_read(
             )
 
         with monkeypatch.context() as patcher:
-            patcher.setattr(
-                market_context_module, "market_observation_page", reference_page
-            )
+            patcher.setattr(market_context_module, "market_observation_page", reference_page)
             reference_scoped = build_market_context(
                 scoped, session=session, as_of_utc=AS_OF, observation_limit=observation_limit
             )
@@ -655,8 +669,8 @@ def test_market_context_observation_read_is_bounded_before_it_reaches_python(
         event.listen(
             session.get_bind(),
             "before_cursor_execute",
-            lambda conn, cursor, statement, parameters, context, executemany: (
-                statements.append(statement)
+            lambda conn, cursor, statement, parameters, context, executemany: statements.append(
+                statement
             ),
         )
         monkeypatch.setattr(market_reads, "market_observation_row", counting_row)
@@ -676,9 +690,7 @@ def test_market_context_observation_read_is_bounded_before_it_reaches_python(
     # normalized view's source-coverage read loads rows too: it is one bounded
     # page per entitled source now, not a ``source_rank`` window over the table.
     full_row_statements = [
-        statement
-        for statement in statements
-        if "market_observations_observation_id" in statement
+        statement for statement in statements if "market_observations_observation_id" in statement
     ]
     assert full_row_statements
     assert all("LIMIT" in statement.upper() for statement in full_row_statements)
@@ -733,6 +745,7 @@ def test_market_context_observation_slice_fails_closed_without_an_entitled_sourc
 
 def test_portfolio_snapshot_keeps_unknown_totals_and_per_slice_freshness(tmp_path) -> None:
     with _session(tmp_path, "portfolio.sqlite") as session:
+        _owned_strategy_fixture(session)
         session.add(
             PortfolioPnlSnapshotRecord(
                 pnl_snapshot_id="pnl-1",
@@ -812,9 +825,10 @@ def test_portfolio_snapshot_keeps_unknown_totals_and_per_slice_freshness(tmp_pat
     assert summary["open_order_count"] == 1
     assert "FIXTURE_VALUATION_WARNING" in payload["meta"]["warnings"]
     assert slices["summary"]["freshness"]["derived_from"] == "pnl_snapshots"
-    assert slices["pnl_snapshots"]["freshness"]["last_observed_at_utc"] == (
-        AS_OF - timedelta(minutes=5)
-    ).isoformat()
+    assert (
+        slices["pnl_snapshots"]["freshness"]["last_observed_at_utc"]
+        == (AS_OF - timedelta(minutes=5)).isoformat()
+    )
     # Portfolio resources are composed by the same application-layer code
     # GET /api/route-cost/resource-pool/options calls (Wave 5 follow-up). This
     # session holds no contract and no candidate, so the slice is honest about
@@ -974,9 +988,7 @@ def test_portfolio_snapshot_resources_slice_composes_the_same_payload_as_the_rou
 
     with _session(tmp_path, "portfolio-resources.sqlite") as session:
         _seed_resource_pool_inputs(session)
-        payload = build_portfolio_snapshot(
-            _legacy_principal(), session=session, as_of_utc=AS_OF
-        )
+        payload = build_portfolio_snapshot(_legacy_principal(), session=session, as_of_utc=AS_OF)
 
     resources = payload["data"]["slices"]["resources"]
     assert resources["available"] is True
@@ -1002,12 +1014,10 @@ def test_portfolio_snapshot_resources_slice_composes_the_same_payload_as_the_rou
     # No blocker survived: every input the composition needs was present.
     assert resources["payload"]["blockers"] == []
     # Freshness is measured from the observation that priced the option.
-    assert resources["freshness"]["last_observed_at_utc"] == (
-        AS_OF - timedelta(minutes=5)
-    ).isoformat()
-    assert resources["freshness"]["derived_from"] == (
-        "route_candidates+market_observations"
+    assert (
+        resources["freshness"]["last_observed_at_utc"] == (AS_OF - timedelta(minutes=5)).isoformat()
     )
+    assert resources["freshness"]["derived_from"] == ("route_candidates+market_observations")
     assert resources["entitlement"]["row_filter_applied"] is False
     assert resources["entitlement"]["filtered_out"] == 0
 
@@ -1098,9 +1108,7 @@ def _review_fixture(session: Session) -> None:
             created_at_utc=AS_OF - timedelta(minutes=2),
         )
     )
-    session.add(
-        _opportunity("opp-1", detected_at=AS_OF - timedelta(minutes=5))
-    )
+    session.add(_opportunity("opp-1", detected_at=AS_OF - timedelta(minutes=5)))
     session.add(
         GeneratedReportRecord(
             report_id="report-1",
@@ -1109,7 +1117,7 @@ def _review_fixture(session: Session) -> None:
             status="success",
             duration_start_utc=AS_OF - timedelta(days=1),
             duration_end_utc=AS_OF,
-            input_snapshot={},
+            input_snapshot={"owner_principal_id": "fixture-principal"},
             sections=[{"title": "summary"}],
             source_refs=["runtime-postgresql"],
             warnings=["REPORT_WARNING"],
@@ -1136,7 +1144,7 @@ def test_review_context_resolves_decisions_evidence_and_warnings(tmp_path) -> No
         assert item["freshness"]["evaluated_at_utc"] == AS_OF.isoformat(), name
 
     decisions = slices["decisions"]
-    assert [row["decision_id"] for row in decisions["rows"]] == ["dec-2", "dec-3", "dec-1"]
+    assert [row["decision_id"] for row in decisions["rows"]] == ["dec-2", "dec-1"]
     assert decisions["payload"]["needs_attention_count"] == 1
 
     evidence = {entry["entity_id"]: entry for entry in slices["evidence"]["rows"]}
@@ -1144,15 +1152,16 @@ def test_review_context_resolves_decisions_evidence_and_warnings(tmp_path) -> No
     assert evidence["opp-1"]["artifact"]["opportunity_id"] == "opp-1"
     assert evidence["report-1"]["available"] is True
     assert evidence["report-1"]["artifact"]["section_count"] == 1
-    assert evidence["run-missing"]["available"] is False
-    assert evidence["run-missing"]["unavailable_reason"] == "EVIDENCE_NOT_FOUND"
+    # A missing strategy cannot prove ownership; its decision is withheld too.
+    assert "run-missing" not in evidence
     assert "REVIEW_DECISION_NEEDS_ATTENTION" in payload["meta"]["warnings"]
-    assert "REVIEW_EVIDENCE_INCOMPLETE" in payload["meta"]["warnings"]
+    assert "REVIEW_EVIDENCE_INCOMPLETE" not in payload["meta"]["warnings"]
 
 
 def test_review_context_withholds_evidence_from_an_unentitled_principal(tmp_path) -> None:
     scoped = _principal(scopes=("ENTSOG",))
     with _session(tmp_path, "review-scope.sqlite") as session:
+        _owned_strategy_fixture(session)
         session.add(
             StrategyRunRecord(
                 run_id="run-1",

@@ -156,9 +156,9 @@ export const DEFAULT_STRATEGY_FORM: StrategyDesignFormState = {
   name: "",
   description: "",
   hypothesis: "",
-  hubs: "NBP",
-  dayAheadNames: "SAP",
-  intradayNames: "ICE_OCM",
+  hubs: "",
+  dayAheadNames: "",
+  intradayNames: "",
   dayAheadEvidence: emptyEvidenceDeclaration(),
   intradayEvidence: emptyEvidenceDeclaration(),
   preservedEvidenceTargets: [],
@@ -286,10 +286,10 @@ export function strategyFormFromVersion(
     : null;
   const dayAheadNames = Array.isArray(extension.day_ahead_price_names)
     ? (extension.day_ahead_price_names as string[]).join(", ")
-    : "SAP";
+    : "";
   const intradayNames = Array.isArray(extension.intraday_price_names)
     ? (extension.intraday_price_names as string[]).join(", ")
-    : "ICE_OCM";
+    : "";
   const namesByLeg: Record<string, readonly string[]> = {
     day_ahead: strategyCsv(dayAheadNames),
     intraday: strategyCsv(intradayNames),
@@ -332,7 +332,7 @@ export function strategyFormFromVersion(
       || (component != null && component.component_type !== "OCM_VS_DAY_AHEAD"),
     name: String(definition.strategy_name ?? ""),
     hypothesis: String(definition.hypothesis ?? ""),
-    hubs: Array.isArray(component?.hubs) ? (component?.hubs as string[]).join(", ") : "NBP",
+    hubs: Array.isArray(component?.hubs) ? (component?.hubs as string[]).join(", ") : "",
     dayAheadNames,
     intradayNames,
     dayAheadEvidence: declarations.dayAheadEvidence ?? emptyEvidenceDeclaration(),

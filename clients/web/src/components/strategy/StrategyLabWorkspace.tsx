@@ -86,7 +86,7 @@ export function StrategyLabWorkspace({
     controller.task === "backtest" ? (
       <button
         type="button"
-        disabled={!backtestReadiness.canRun}
+        disabled={!controller.canManageSelectedStrategy || !backtestReadiness.canRun}
         title={
           backtestReadiness.firstBlockerKey
             ? t(backtestReadiness.firstBlockerKey)
@@ -107,7 +107,7 @@ export function StrategyLabWorkspace({
     ) : controller.task === "design" && !designDraft.frozen ? (
       <button
         type="button"
-        disabled={!designDraft.readiness.canSave}
+        disabled={(Boolean(controller.selectedStrategy) && !controller.canManageSelectedStrategy) || !designDraft.readiness.canSave}
         title={
           designDraft.readiness.firstBlockerKey
             ? t(designDraft.readiness.firstBlockerKey)

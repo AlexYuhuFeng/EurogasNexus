@@ -9550,3 +9550,41 @@ button.glossary-related-chip {
 .settings-map-licence.is-restricted strong {
   color: var(--eg-negative);
 }
+
+/* Editable access grants stay within their existing table cells. */
+.access-grant-editor {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+.access-grant-editor select {
+  width: 100%;
+  min-width: 0;
+}
+.access-grant-editor > span {
+  font-size: 0.75rem;
+}
+
+/* Grant actions must remain reachable within narrow access table cells. */
+.data-table-row.six > .access-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  overflow: visible;
+  white-space: normal;
+  padding-block: 6px;
+}
+.access-row-actions button {
+  max-width: 100%;
+  white-space: normal;
+}
+.access-row-actions > span {
+  flex-basis: 100%;
+  overflow-wrap: anywhere;
+}
+
+/* Compatibility notices remain readable beside the settings heading. */
+.settings-about-panel .panel-title-row { flex-wrap: wrap; }
+.settings-about-panel .panel-title-row > div { min-width: 0; flex: 1 1 220px; }
+.settings-about-panel .status-badge { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }

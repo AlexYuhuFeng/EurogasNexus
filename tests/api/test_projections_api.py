@@ -280,7 +280,7 @@ def _seed_review(engine) -> None:
                 status="success",
                 duration_start_utc=AS_OF - timedelta(days=1),
                 duration_end_utc=AS_OF,
-                input_snapshot={},
+                input_snapshot={"owner_principal_id": "fixture-principal"},
                 sections=[{"title": "summary"}],
                 source_refs=["runtime-postgresql"],
                 warnings=[],
@@ -397,7 +397,7 @@ def test_projections_are_never_wider_than_the_underlying_routes(monkeypatch, tmp
     # the underlying /api/market/opportunities route exposes it unfiltered too.)
     assert "obs-eex-restricted" not in projection.text
     assert "EEX_Sim" not in projection.text
-    assert "source_system\":\"EEX\"" not in projection.text
+    assert 'source_system":"EEX"' not in projection.text
 
 
 def test_portfolio_snapshot_reports_summary_and_unknown_totals(tmp_path, monkeypatch) -> None:
@@ -420,9 +420,10 @@ def test_portfolio_snapshot_reports_summary_and_unknown_totals(tmp_path, monkeyp
     slices = body["data"]["slices"]
     assert slices["summary"]["payload"]["total_indicative_pnl_gbp"] == 5400.0
     assert slices["pnl_snapshots"]["row_count"] == 1
-    assert slices["pnl_snapshots"]["freshness"]["last_observed_at_utc"] == (
-        AS_OF - timedelta(minutes=5)
-    ).isoformat()
+    assert (
+        slices["pnl_snapshots"]["freshness"]["last_observed_at_utc"]
+        == (AS_OF - timedelta(minutes=5)).isoformat()
+    )
     # The resources slice is composed, not deferred: it reports the same block
     # GET /api/route-cost/resource-pool/options returns, and here it honestly
     # names the inputs this empty runtime database cannot supply.
@@ -442,7 +443,9 @@ def test_review_context_returns_decisions_and_resolved_evidence(tmp_path, monkey
     _seed_review(engine)
     _use_database(monkeypatch, database_url)
 
-    response = _client().get("/api/projections/review-context", params=AS_OF_QUERY)
+    response = _client(_scoped_principal()).get(
+        "/api/projections/review-context", params=AS_OF_QUERY
+    )
 
     assert response.status_code == 200
     slices = response.json()["data"]["slices"]
@@ -518,7 +521,7 @@ def test_release_profile_identity_path_is_exercised_by_the_projection_router(
         "_authenticate_identity_key",
         lambda _bearer: principal,
     )
-    monkeypatch.setattr(db_session, "get_session_factory", lambda: (lambda: SimpleNamespace()))
+    monkeypatch.setattr(db_session, "get_session_factory", lambda: lambda: SimpleNamespace())
     app = create_app(Settings(api_profile="release"))
     if not any(
         str(getattr(route, "path", "")).startswith("/api/projections/") for route in app.routes

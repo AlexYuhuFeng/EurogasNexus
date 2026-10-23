@@ -89,6 +89,7 @@ export function useStrategyDesignDraft({
   const hydratedVersionId = useRef<string | null>(null);
   const version = controller.selectedVersion;
   const frozen = strategyVersionFrozen(version);
+  const readOnly = Boolean(selection.strategyId) && !controller.canManageSelectedStrategy;
 
   useEffect(() => {
     // Keep the entered form while a selected version is loading or this save
@@ -112,7 +113,8 @@ export function useStrategyDesignDraft({
   }, [version?.definition_json, version?.strategy_version_id, selection.strategyVersionId, busy]);
 
   const validation = useMemo(() => strategyDraftValidation(form), [form]);
-  const readiness = strategyDraftReadiness({ validation, busy, frozen });
+  const baseReadiness = strategyDraftReadiness({ validation, busy, frozen });
+  const readiness = readOnly ? { canSave: false, blockerKeys: ["strategy_lab.sharing.read_only"], firstBlockerKey: "strategy_lab.sharing.read_only" } : baseReadiness;
 
   function setField(key: keyof StrategyDesignFormState, value: string | boolean) {
     if (saveInFlight.current) return;
@@ -151,7 +153,7 @@ export function useStrategyDesignDraft({
   }
 
   async function saveDraft() {
-    if (!readiness.canSave || saveInFlight.current) return;
+    if (readOnly || !readiness.canSave || saveInFlight.current) return;
     saveInFlight.current = true;
     setBusy(true);
     setError(null);
@@ -220,7 +222,7 @@ export function useStrategyDesignDraft({
   }
 
   async function createNewVersion() {
-    if (!version || version.status !== "FROZEN") return;
+    if (readOnly || !version || version.status !== "FROZEN") return;
     setBusy(true);
     setError(null);
     try {
@@ -237,7 +239,7 @@ export function useStrategyDesignDraft({
   }
 
   async function freezeVersion() {
-    if (!version || version.status !== "DRAFT") return;
+    if (readOnly || !version || version.status !== "DRAFT") return;
     setBusy(true);
     try {
       await apiClient.freezeStrategyVersion(version.strategy_version_id);

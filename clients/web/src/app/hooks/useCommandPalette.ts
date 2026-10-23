@@ -22,6 +22,7 @@ import {
   inspectionCommands,
   isPaletteDismissKey,
   isPaletteShortcut,
+  workspaceShortcutCommand,
   paletteCommandAvailable,
   type PaletteAvailability,
   type PaletteCommand,
@@ -29,6 +30,8 @@ import {
 import type { InspectorSubjectKind } from "@/app/experience/vocabulary";
 import { copilotEvidenceRefs, type CopilotEvidenceRef } from "@/app/model/copilotModel";
 import type { WorkspacePageId } from "@/workspaceNavigation";
+
+import { listenDesktopCommands } from "@/app/host/desktopCommands";
 
 const GROUP_ORDER = ["navigate", "inspect", "ai", "utility"] as const;
 
@@ -190,6 +193,35 @@ export function useCommandPalette(options: CommandPaletteOptions): CommandPalett
     },
     [availability, options],
   );
+
+  useEffect(() => {
+    function editing() {
+      const target = document.activeElement;
+      return target instanceof HTMLElement && Boolean(target.closest(
+        "input, textarea, select, [contenteditable]:not([contenteditable=false]), [role=dialog]",
+      ));
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (open || event.defaultPrevented) return;
+      const id = workspaceShortcutCommand(event, editing());
+      const command = commands.find((item) => item.id === id);
+      if (command && paletteCommandAvailable(command, availability)) {
+        event.preventDefault();
+        run(command);
+      }
+    }
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+    void listenDesktopCommands((id) => {
+      if (id === "palette.toggle") { setOpen(true); return; }
+      if (open || editing()) return;
+      const command = commands.find((item) => item.id === id);
+      if (command) run(command);
+    }).then((cleanup) => { if (disposed) cleanup(); else unlisten = cleanup; })
+      .catch(() => { /* Older hosts still support the keyboard and on-screen entry. */ });
+    window.addEventListener("keydown", onKeyDown);
+    return () => { disposed = true; unlisten?.(); window.removeEventListener("keydown", onKeyDown); };
+  }, [open, commands, availability, run]);
 
   const runActive = useCallback(() => {
     const command = results[activeIndex];

@@ -109,6 +109,10 @@ def test_commercial_surface_declaration_matches_the_intended_boundary() -> None:
     assert all(
         prefix.startswith("/api/") and prefix.endswith("/") for prefix in COMMERCIAL_DATA_PREFIXES
     )
+    for prefix in COMMERCIAL_DATA_PREFIXES:
+        assert serves_commercial_data(prefix.rstrip("/"))
+        assert serves_commercial_data(prefix + "record")
+        assert not serves_commercial_data(prefix.rstrip("/") + "-unrelated")
 
 
 def test_platform_admin_cannot_read_commercial_data(tmp_path, monkeypatch) -> None:
@@ -127,6 +131,10 @@ def test_platform_admin_cannot_read_commercial_data(tmp_path, monkeypatch) -> No
     detail = denied.json()["detail"]
     assert detail["error"] == "commercial_access_not_granted"
     assert "ANALYST" in detail["message"]
+    for path in ("/api/strategies", "/api/strategy-runs", "/api/backtest-experiments"):
+        response = client.get(path, headers=_headers(admin_bearer))
+        assert response.status_code == 403
+        assert "data" not in response.json()
 
     allowed = client.get(PLATFORM_PATH, headers=_headers(admin_bearer))
     assert allowed.status_code == 200

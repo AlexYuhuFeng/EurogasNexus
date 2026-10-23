@@ -80,12 +80,25 @@ def _frozen_version(database_url: str, *, declared: bool = False) -> str:
         else None
     )
     with Session(engine) as session:
+        from eurogas_nexus.db.repositories.identity import create_identity_principal
+
+        owner = create_identity_principal(
+            session,
+            name="analyst-1",
+            display_name="Analyst 1",
+            role="ANALYST",
+            data_scopes=["*"],
+            now_utc=NOW,
+        )
+        owner.principal_id = "analyst-1"
+        session.flush()
         repo.create_strategy(
             session,
             strategy_id="agent-target-guard",
             name="Agent target guard",
             description="CR-04 guard on the capability path",
-            created_by="operator",
+            created_by="analyst-1",
+            owner_principal_id="analyst-1",
             now_utc=NOW,
         )
         version = repo.create_strategy_version(
@@ -107,7 +120,7 @@ def _frozen_version(database_url: str, *, declared: bool = False) -> str:
                 ]
             ),
             hypothesis="no declaration" if not declared else "declared",
-            created_by="operator",
+            created_by="analyst-1",
             now_utc=NOW,
             definition_overrides={
                 "strategy_name": "Agent target guard",
@@ -128,7 +141,7 @@ def _frozen_version(database_url: str, *, declared: bool = False) -> str:
         frozen = repo.freeze_strategy_version(
             session,
             strategy_version_id=version.strategy_version_id,
-            frozen_by="operator",
+            frozen_by="analyst-1",
             now_utc=NOW,
         )
         session.commit()

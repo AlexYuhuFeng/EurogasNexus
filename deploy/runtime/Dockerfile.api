@@ -1,5 +1,5 @@
 # Build stage: produce the project wheel using hash-pinned build dependencies.
-FROM python:3.11-slim AS builder
+FROM python:3.11-alpine@sha256:03c8e956bf1eee7763faf3a9fbb24b3ff9c0496cc2dbc5bcb0d6ac1f6268a287 AS builder
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -8,7 +8,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /build
 
 COPY requirements-build.lock requirements-runtime.lock ./
-RUN python -m pip install --no-cache-dir --require-hashes \
+# Optional build-only CA trust for managed proxies; no certificate enters an image layer.
+RUN --mount=type=secret,id=build_ca \
+    if [ -f /run/secrets/build_ca ]; then export PIP_CERT=/run/secrets/build_ca; fi; \
+    python -m pip install --no-cache-dir --require-hashes \
     -r requirements-build.lock \
     -r requirements-runtime.lock
 
@@ -20,25 +23,29 @@ RUN python -m pip wheel --no-deps --no-build-isolation . --wheel-dir /wheels \
     && python scripts/release/verify_customer_artifact.py --wheel /wheels/eurogas_nexus-*.whl
 
 # Runtime stage: install only the locked runtime dependencies and the wheel.
-FROM python:3.11-slim
+FROM python:3.11-alpine@sha256:03c8e956bf1eee7763faf3a9fbb24b3ff9c0496cc2dbc5bcb0d6ac1f6268a287
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
-RUN groupadd --system eurogas \
-    && useradd --system --gid eurogas --create-home eurogas
+RUN addgroup -S eurogas \
+    && adduser -S -G eurogas -h /home/eurogas eurogas
 
 WORKDIR /app
 
 COPY requirements-runtime.lock ./
-RUN python -m pip install --no-cache-dir --require-hashes \
+# Optional build-only CA trust for managed proxies; no certificate enters an image layer.
+RUN --mount=type=secret,id=build_ca \
+    if [ -f /run/secrets/build_ca ]; then export PIP_CERT=/run/secrets/build_ca; fi; \
+    python -m pip install --no-cache-dir --require-hashes \
     -r requirements-runtime.lock
 
 COPY --from=builder /wheels ./wheels
 RUN python -m pip install --no-cache-dir --no-deps --no-index \
     --find-links ./wheels eurogas_nexus \
-    && rm -rf ./wheels
+    && rm -rf ./wheels \
+    && python -m pip uninstall --yes setuptools wheel
 
 COPY alembic.ini ./
 COPY alembic ./alembic

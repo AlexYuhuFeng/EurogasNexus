@@ -210,21 +210,11 @@ REQUIRED_TABLES: tuple[RequiredTable, ...] = (
         name="observation_temporal_metadata", introduced_in="0031_research_data_foundation"
     ),
     RequiredTable(name="agent_runs", introduced_in="0032_agent_capability_layer"),
-    RequiredTable(
-        name="agent_tool_invocations", introduced_in="0032_agent_capability_layer"
-    ),
-    RequiredTable(
-        name="agent_research_plans", introduced_in="0032_agent_capability_layer"
-    ),
-    RequiredTable(
-        name="agent_research_findings", introduced_in="0032_agent_capability_layer"
-    ),
-    RequiredTable(
-        name="agent_research_budgets", introduced_in="0032_agent_capability_layer"
-    ),
-    RequiredTable(
-        name="agent_challenge_reports", introduced_in="0032_agent_capability_layer"
-    ),
+    RequiredTable(name="agent_tool_invocations", introduced_in="0032_agent_capability_layer"),
+    RequiredTable(name="agent_research_plans", introduced_in="0032_agent_capability_layer"),
+    RequiredTable(name="agent_research_findings", introduced_in="0032_agent_capability_layer"),
+    RequiredTable(name="agent_research_budgets", introduced_in="0032_agent_capability_layer"),
+    RequiredTable(name="agent_challenge_reports", introduced_in="0032_agent_capability_layer"),
     RequiredTable(name="agent_review_packs", introduced_in="0032_agent_capability_layer"),
     RequiredTable(name="analysis_snapshots", introduced_in="0034_analysis_snapshots"),
     RequiredTable(name="decision_cases", introduced_in="0035_decision_cases"),
@@ -234,6 +224,9 @@ REQUIRED_TABLES: tuple[RequiredTable, ...] = (
         name="upstream_contract_revisions",
         introduced_in="0037_contract_revisions",
     ),
+    RequiredTable(name="identity_groups", introduced_in="0040_strategy_owner_sharing"),
+    RequiredTable(name="identity_group_members", introduced_in="0040_strategy_owner_sharing"),
+    RequiredTable(name="strategy_group_shares", introduced_in="0040_strategy_owner_sharing"),
 )
 
 
