@@ -130,7 +130,7 @@ export function StrategyBacktestWorkspace({
     () =>
       (details?.series ?? []).map((point) => ({
         label: point.gas_day,
-        value: -(point.drawdown_gbp ?? 0),
+        value: point.drawdown_gbp == null ? null : -point.drawdown_gbp,
       })),
     [details?.series],
   );

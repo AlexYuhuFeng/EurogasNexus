@@ -1,4 +1,11 @@
 {
+  "portfolio.scope.title": "数量与证据口径",
+  "portfolio.scope.quantity": "情景声明数量",
+  "portfolio.scope.register": "情景资源登记表",
+  "portfolio.scope.allocated": "情景内已分配",
+  "portfolio.scope.unallocated": "情景内未分配",
+  "portfolio.scope.scenario": "合同数量是情景声明输入。分配仅在单个情景内生效，不构成天然气成交，也不核对已承诺数量。此处的剩余可用量及交付义务尚不明确。比较方案前请核实资源条款、交付背景与准入条件。",
+  "portfolio.scope.observations": "导入的屏幕订单和指示性损益仅为只读观测，未与情景资源登记表核对，不能据此确认剩余可用量或交付义务。",
   "app.title": "Eurogas Nexus",
   "app.subtitle": "欧洲天然气管网与合同决策支持工作台",
   "nav.network": "管网",
@@ -3035,5 +3042,13 @@
   "strategy_lab.catalogue.scope": "此组件比较日内与日前价格证据。当前历史引擎不支持单价格信号或任意多腿价差。请在下方明确每条腿的交付区间、枢纽、期限与价格口径。",
   "strategy_lab.catalogue.selection": "从当前已加载且有权限的市场数据中选择。可勾选一个或多个序列，同一条腿内所选序列将合并计算。来源标签说明已有数据，并不限制回测来源；历史证据是否适用由回测校验。",
   "strategy_lab.catalogue.unavailable": "当前视图中不适用于所选枢纽和价格腿",
-  "strategy_lab.catalogue.empty": "当前市场视图中没有可选的已授权价格序列。"
+  "strategy_lab.catalogue.empty": "当前市场视图中没有可选的已授权价格序列。",
+  "review.supporting_tools": "单次运行评估与报告",
+  "review.supporting_tools_help": "这些工具用于评估单次运行或生成报告，不能替代决策案例及其关联证据。",
+  "strategy_lab.chart_categorical_axis": "各天然气日观测值等距排列；横向距离不表示实际经过的时间。",
+  "strategy_lab.chart_missing": "有 {{count}} 个观测值不可用；保留数据缺口。",
+  "strategy_lab.chart_data": "数据表",
+  "strategy_lab.chart_gas_day": "天然气日",
+  "strategy_lab.chart_unavailable": "不可用",
+  "strategy_lab.chart_summary": "{{title}}。{{count}} 个观测值，其中 {{missing}} 个不可用。最后值：{{last}}。"
 }

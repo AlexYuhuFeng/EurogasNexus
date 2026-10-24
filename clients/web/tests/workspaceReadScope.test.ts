@@ -42,3 +42,17 @@ test("ADMIN-only workspace and refreshes issue no commercial reads and keep genu
   await store.getState().fetchWorkspace();
   assert.match(store.getState().endpointErrors.runtimeDb, /runtime unavailable/);
 });
+
+test("review composition retains evidence reads without issuing governed resource preparation reads", async () => {
+  const { store } = await loadApiStore();
+  const { calls, handlers } = apiRegistry();
+  const reviewer = { role: "REVIEWER", roles: ["REVIEWER"], permissions: ["portfolio.read", "review.read", "review.record"] } as CurrentUserDTO;
+  store.setState({ authState: AUTHENTICATED_AUTH_STATE, currentUser: reviewer } as Parameters<typeof store.setState>[0]);
+  handlers.me = () => ({ data: reviewer, meta: {} });
+  await store.getState().fetchWorkspace();
+  const methods = calls.map((call) => call.method);
+  assert.equal(methods.includes("upstreamContracts"), false);
+  assert.ok(methods.includes("reviewDecisions"));
+  assert.ok(methods.includes("portfolioSnapshot"));
+  assert.equal(workspaceReadNeeded("upstreamContracts", { ...reviewer, permissions: [...reviewer.permissions, "scenario.create"] }), true);
+});

@@ -19,6 +19,7 @@ export const TRADER_CONTEXT_QUERY_KEYS = {
 } as const;
 
 export const SELECTION_CONTEXT_QUERY_KEYS = {
+  case: "case",
   route: "route",
   resource: "resource",
   run: "run",
@@ -33,6 +34,7 @@ export interface TraderContextUrlValues {
 }
 
 export interface SelectionContextUrlValues {
+  case?: string | null;
   route?: string | null;
   resource?: string | null;
   run?: string | null;
@@ -114,6 +116,7 @@ export function resolveSelectionContext(
   urlValues: SelectionContextUrlValues,
 ): SelectionContext {
   return {
+    decisionCaseId: normalizeSelectionId(urlValues.case),
     routeId: urlValues.route !== undefined
       ? normalizeSelectionId(urlValues.route)
       : EMPTY_SELECTION_CONTEXT.routeId,
@@ -137,6 +140,7 @@ export function selectionContextToSearchParams(
   context: SelectionContext,
 ): string {
   const next = new URLSearchParams(currentSearch);
+  setOrDelete(next, SELECTION_CONTEXT_QUERY_KEYS.case, context.decisionCaseId ?? null);
   setOrDelete(next, SELECTION_CONTEXT_QUERY_KEYS.route, context.routeId);
   setOrDelete(next, SELECTION_CONTEXT_QUERY_KEYS.resource, context.resourceId);
   setOrDelete(next, SELECTION_CONTEXT_QUERY_KEYS.run, context.strategyRunId);

@@ -1,9 +1,9 @@
 /**
  * Decision Case panel (Architecture V2 Wave 6, product surface).
  *
- * A self-contained surface over `/api/decision-cases`, following the pattern the
- * agent workspace already uses: it loads its own data, keeps its own state and
- * receives only the Active Context and the translator from the shell.
+ * A surface over `/api/decision-cases`. The URL/context owns the selected case
+ * identity; this panel loads that case and owns its local form drafts. The shell
+ * supplies Active Context, capabilities and the translator.
  *
  * What it deliberately does *not* do:
  *
@@ -17,7 +17,7 @@
  * A Decision Record is evidence and rationale, never approval to execute anything.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ApiError, api } from "@/api/client";
 import type {
@@ -49,6 +49,10 @@ import { MetricStrip, PanelHeader, WorkspaceTabs } from "@/components/ui";
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
 interface DecisionCasePanelProps {
+  canPrepare: boolean;
+  canAssess: boolean;
+  selectedCaseId: string | null;
+  onSelectCaseId: (id: string | null) => void;
   gasDay: string;
   deliveryProduct: string;
   hubId: string | null;
@@ -66,6 +70,10 @@ interface DecisionCasePanelProps {
 type PanelView = "open" | "decided";
 
 export function DecisionCasePanel({
+  canPrepare,
+  canAssess,
+  selectedCaseId,
+  onSelectCaseId,
   gasDay,
   deliveryProduct,
   hubId,
@@ -75,7 +83,14 @@ export function DecisionCasePanel({
   t,
 }: DecisionCasePanelProps) {
   const [cases, setCases] = useState<DecisionCaseSummaryDTO[]>([]);
-  const [selected, setSelected] = useState<DecisionCaseDTO | null>(null);
+  const [loadedCase, setSelected] = useState<DecisionCaseDTO | null>(null);
+  const currentCaseId = useRef(selectedCaseId);
+  const selectionEpoch = useRef(0);
+  if (currentCaseId.current !== selectedCaseId) {
+    currentCaseId.current = selectedCaseId;
+    selectionEpoch.current += 1;
+  }
+  const selected = loadedCase?.case_id === selectedCaseId ? loadedCase : null;
   const [view, setView] = useState<PanelView>("open");
   const [objective, setObjective] = useState("");
   const [evidenceKind, setEvidenceKind] =
@@ -93,12 +108,12 @@ export function DecisionCasePanel({
    */
   const [refusalBlockers, setRefusalBlockers] = useState<string[]>([]);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (isCurrent: () => boolean = () => true) => {
     try {
       const response = await api.decisionCases({ limit: "50" });
-      setCases(response.data);
+      if (isCurrent()) setCases(response.data);
     } catch (error) {
-      setErrorText(explainError(error, t));
+      if (isCurrent()) setErrorText(explainError(error, t));
     }
   }, [t]);
 
@@ -130,16 +145,21 @@ export function DecisionCasePanel({
   }
 
   async function run(operation: () => Promise<{ data: DecisionCaseDTO }>) {
+    const startedEpoch = selectionEpoch.current;
+    const isCurrent = () => selectionEpoch.current === startedEpoch;
     setBusy(true);
     setErrorText(null);
     try {
       const response = await operation();
-      setSelected(await withPack(response.data));
-      await refresh();
+      const updated = await withPack(response.data);
+      if (!isCurrent()) return false;
+      setSelected(updated);
+      await refresh(isCurrent);
+      return isCurrent();
     } catch (error) {
-      setErrorText(explainError(error, t));
+      if (isCurrent()) setErrorText(explainError(error, t));
     } finally {
-      setBusy(false);
+      if (isCurrent()) setBusy(false);
     }
   }
 
@@ -154,37 +174,50 @@ export function DecisionCasePanel({
    */
   async function recordOutcome(outcome: string, noteText: string) {
     if (!selected) return;
+    const startedEpoch = selectionEpoch.current;
+    const isCurrent = () => selectionEpoch.current === startedEpoch;
     setBusy(true);
     setErrorText(null);
     setRefusalBlockers([]);
-    const result = await api.recordDecisionCaseDecisionOutcome(selected.case_id, {
-      outcome: outcome as DecisionCaseDecisionInputDTO["outcome"],
-      note: noteText,
-    });
-    if (result.ok) {
-      setSelected(await withPack(result.data));
-      await refresh();
-    } else {
-      const detail =
-        result.failure.detail && typeof result.failure.detail === "object"
-          ? (result.failure.detail as Record<string, unknown>)
-          : null;
-      const blockers = Array.isArray(detail?.blockers)
-        ? (detail?.blockers as string[])
-        : [];
-      if (blockers.length > 0) {
-        // The blockers are the answer: the case is not decidable yet, and these are the reasons.
-        setRefusalBlockers(blockers);
-        setErrorText(result.failure.message);
+    try {
+      const result = await api.recordDecisionCaseDecisionOutcome(selected.case_id, {
+        outcome: outcome as DecisionCaseDecisionInputDTO["outcome"],
+        note: noteText,
+      });
+      if (!isCurrent()) return false;
+      if (result.ok) {
+        const updated = await withPack(result.data);
+        if (!isCurrent()) return false;
+        setSelected(updated);
+        await refresh(isCurrent);
+        return isCurrent();
       } else {
-        setErrorText(explainError({ status: result.failure.status, detail: result.failure.detail, body: result.failure.body }, t));
+        const detail =
+          result.failure.detail && typeof result.failure.detail === "object"
+            ? (result.failure.detail as Record<string, unknown>)
+            : null;
+        const blockers = Array.isArray(detail?.blockers)
+          ? (detail?.blockers as string[])
+          : [];
+        if (blockers.length > 0) {
+          // The blockers are the answer: the case is not decidable yet, and these are the reasons.
+          setRefusalBlockers(blockers);
+          setErrorText(result.failure.message);
+        } else {
+          setErrorText(explainError({ status: result.failure.status, detail: result.failure.detail, body: result.failure.body }, t));
+        }
       }
+    } catch (error) {
+      if (isCurrent()) setErrorText(explainError(error, t));
+    } finally {
+      if (isCurrent()) setBusy(false);
     }
-    setBusy(false);
   }
 
   async function openCase() {
     if (!objective.trim()) return;
+    const startedEpoch = selectionEpoch.current;
+    const isCurrent = () => selectionEpoch.current === startedEpoch;
     setBusy(true);
     setErrorText(null);
     try {
@@ -194,41 +227,60 @@ export function DecisionCasePanel({
         delivery_product: deliveryProduct,
         hub_id: hubId ?? "",
       });
-      setSelected(await withPack(response.data));
+      const updated = await withPack(response.data);
+      if (!isCurrent()) return false;
+      await refresh(isCurrent);
+      if (!isCurrent()) return;
+      setSelected(updated);
       setObjective("");
-      await refresh();
-    } catch (error) {
-      setErrorText(explainError(error, t));
-    } finally {
       setBusy(false);
+      onSelectCaseId(response.data.case_id);
+    } catch (error) {
+      if (isCurrent()) setErrorText(explainError(error, t));
+    } finally {
+      if (isCurrent()) setBusy(false);
     }
   }
 
   async function attachEvidence() {
     if (!selected || !evidenceRef.trim()) return;
     const caseId = selected.case_id;
-    await run(() =>
+    const draftRef = evidenceRef;
+    const attached = await run(() =>
       api.attachDecisionCaseEvidence(caseId, {
         kind: evidenceKind,
         ref: evidenceRef.trim(),
         snapshot_id: selected.snapshot_id || "",
       }),
     );
-    setEvidenceRef("");
+    if (attached) setEvidenceRef((current) => current === draftRef ? "" : current);
   }
 
-  async function selectCase(caseId: string) {
-    setBusy(true);
+  // The URL/context owns the selected identity; this component owns only its
+  // authorised read. Clear old evidence immediately and ignore superseded reads.
+  useEffect(() => {
+    let active = true;
+    const startedEpoch = selectionEpoch.current;
+    const isCurrent = () => active && selectionEpoch.current === startedEpoch;
+    setSelected(null);
+    setRefusalBlockers([]);
+    setNote("");
+    setEvidenceRef("");
     setErrorText(null);
-    try {
-      const response = await api.decisionCase(caseId);
-      setSelected(response.data);
-    } catch (error) {
-      setErrorText(explainError(error, t));
-    } finally {
-      setBusy(false);
-    }
-  }
+    if (!selectedCaseId) { setBusy(false); return; }
+    setBusy(true);
+    void api.decisionCase(selectedCaseId).then((response) => {
+      if (isCurrent()) {
+        setSelected(response.data);
+        setView(isDecided(response.data) ? "decided" : "open");
+      }
+    }).catch((error) => {
+      if (isCurrent()) setErrorText(explainError(error, t));
+    }).finally(() => {
+      if (isCurrent()) setBusy(false);
+    });
+    return () => { active = false; };
+  }, [selectedCaseId, t]);
 
   return (
     <section className="decision-case-panel" aria-label={t("decision_case.title")}>
@@ -237,7 +289,7 @@ export function DecisionCasePanel({
         meta={t("decision_case.subtitle")}
       />
 
-      <div className="decision-case-create">
+      {canPrepare && <div className="decision-case-create">
         <label>
           <span>{t("decision_case.objective")}</span>
           <input
@@ -251,7 +303,7 @@ export function DecisionCasePanel({
         <button type="button" disabled={busy || !objective.trim()} onClick={() => void openCase()}>
           {t("decision_case.create")}
         </button>
-      </div>
+      </div>}
 
       <WorkspaceTabs
         idPrefix="decision-case-view"
@@ -272,7 +324,8 @@ export function DecisionCasePanel({
             key={row.case_id}
             type="button"
             className={selected?.case_id === row.case_id ? "active" : undefined}
-            onClick={() => void selectCase(row.case_id)}
+            disabled={busy}
+            onClick={() => onSelectCaseId(row.case_id)}
           >
             <strong>{row.objective}</strong>
             <span>{t(caseStatusLabelKey(row.status))}</span>
@@ -333,7 +386,7 @@ export function DecisionCasePanel({
             ))}
           </ul>
 
-          <div className="decision-case-attach">
+          {canPrepare && <div className="decision-case-attach">
             <label>
               <span>{t("decision_case.evidence_kind")}</span>
               <select
@@ -375,7 +428,7 @@ export function DecisionCasePanel({
             >
               {t("decision_case.attach")}
             </button>
-          </div>
+          </div>}
 
           {selected.blockers.length > 0 && (
             <ul className="decision-case-blockers" role="status">
@@ -409,13 +462,13 @@ export function DecisionCasePanel({
                 <button
                   key={outcome}
                   type="button"
-                  disabled={busy || !canRecordDecision(selected)}
+                  disabled={busy || !canAssess || !canRecordDecision(selected)}
                   onClick={() => void recordOutcome(outcome, note)}
                 >
                   {t(outcomeLabelKey(outcome))}
                 </button>
               ))}
-              {canReopen(selected) && (
+              {canAssess && canReopen(selected) && (
                 <button
                   type="button"
                   disabled={busy}

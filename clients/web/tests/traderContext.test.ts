@@ -15,6 +15,7 @@ import {
   readSelectionContextUrl,
   readTraderContextUrl,
   resolveSelectionContext,
+  selectionContextToSearchParams,
   resolveTraderContext,
 } from "../src/app/context/contextUrl.ts";
 import {
@@ -103,6 +104,7 @@ test("selection context restores from explicit deep-link query values", () => {
     readSelectionContextUrl("?workspace=scenario&route=route-1&resource=res-2&run=run-3"),
   );
   assert.deepEqual(selection, {
+    decisionCaseId: null,
     routeId: "route-1",
     resourceId: "res-2",
     strategyRunId: "run-3",
@@ -114,6 +116,7 @@ test("selection context restores from explicit deep-link query values", () => {
 test("selection context is empty for legacy workspace-only links", () => {
   const selection = resolveSelectionContext(readSelectionContextUrl("?workspace=scenario"));
   assert.deepEqual(selection, {
+    decisionCaseId: null,
     routeId: null,
     resourceId: null,
     strategyRunId: null,
@@ -139,4 +142,14 @@ test("URL reader preserves field presence for invalid-value fail-safe", () => {
     product: "bad",
     hub: "bad",
   });
+});
+
+test("decision case selection survives navigation URLs and rejects unsafe references", () => {
+  const selection = resolveSelectionContext(readSelectionContextUrl("?workspace=review&case=case-42&resource=res-2"));
+  assert.equal(selection.decisionCaseId, "case-42");
+  const query = selectionContextToSearchParams("?workspace=review&task=review", selection);
+  assert.equal(new URLSearchParams(query).get("case"), "case-42");
+  assert.equal(new URLSearchParams(query).get("resource"), "res-2");
+  assert.notEqual(selectionContextKey(selection), selectionContextKey({ ...selection, decisionCaseId: "case-43" }));
+  assert.equal(resolveSelectionContext(readSelectionContextUrl("?case=../private")).decisionCaseId, null);
 });

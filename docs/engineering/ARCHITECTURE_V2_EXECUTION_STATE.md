@@ -2576,3 +2576,67 @@ built and HIGH/CRITICAL scan passed; Cargo lock scan also zero HIGH/CRITICAL.
 These are local candidate results, not same-commit remote CI/signing/provider/real
 customer acceptance. No live cross-region transport. User now expressly requested
 GitHub progress push; commit/push authorized, merge/publish/signing not requested.
+
+## 2026-10-23 — owner redirects to architectural/business workflow redesign
+
+Owner explicitly rejects incremental UI repairs as the primary method; asks to
+reassess potentially false foundations and redesign around personas/business
+workflows. New target baseline:
+docs/architecture/decisions/2026-10-23-business-workflow-redesign.md.
+No claim that target is implemented. Current code2cc1010 pushed to origin/work;
+local network min-height/overlay/tab-style corrections are tested work-in-progress,
+not the redesign. Preserve these edits; do not continue treating patch count as
+readiness. Current audit captures .local-runtime/business-redesign; read product
+TRADING_BUSINESS_ACCEPTANCE and numerical engine implementation as source evidence.
+Next: complete current persona capture inspection, reconcile capability/decision
+contracts, then implement shared task/context shell and complete vertical journeys.
+Retain security, numerical versioning, private-by-default owner sharing and Canada
+regional boundary. No speculative cross-region deployment/transport.
+
+Owner further clarified operating European pipeline gas business as design lens:
+day-ahead/within-day trading, whole portfolio, LNG regas, researcher/trader/admin;
+retain/add/remove data according to real business use (weather, network, EEX etc).
+Target details recorded in docs/product/EUROPEAN_GAS_BUSINESS_WORKFLOWS.md and
+DATA_TO_COMMERCIAL_DECISION_MAP.md. Current weather connector/API is explicitly
+mock/empty; no demand/forecast capability may be claimed. Quantities/rights,
+price-mark types, costs/cash and forecast vintages are foundational semantics.
+Current audit reviewer session expired, refreshed only existing reviewer/admin
+synthetic sessions without grant changes; controls capture resumed separately.
+
+Owner preservation clarification: current project is generally rigorous; do not
+break that premise or change before thinking through implications. The redesign
+document is now explicitly a candidate under validation, not an automatically
+accepted replacement architecture. Classify presentation/integration/capability/
+semantic defects before changes; preserve proven security/numerical/temporal/audit
+contracts. No new blanket approval requirement inferred. Fresh current audit
+screens for trader portfolio, analyst strategy, reviewer and admin inspected;
+reviewer upstream-resource403 is a concrete composition/permission mismatch to
+investigate, not authority to broaden permissions. Sources weather mock/empty
+verified from source; other alleged gaps require current-code reconciliation.
+
+Fresh persona screenshots now inspected and source reconciliation recorded in
+BUSINESS_REDESIGN_CURRENT_STATE_REVIEW.md. Confirmed many foundations already
+exist (business data-product catalogue, cash valuation, constrained allocation,
+regas readiness, case/snapshot services). Reuse before adding types/services.
+Trader/analyst/admin capture plus reviewer role403 reflects task read composition;
+do not broaden permission. Next whole-workflow design should put selected case/
+resource/interval and resulting artifact ahead of module routes or technical forms.
+
+## 2026-10-24 — case workflow, chart integrity and requested main consolidation
+
+Owner explicitly requested push, merge work to main and retain one tree. One Git
+worktree exists at /workspace/EurogasNexus; fetched main is ancestor of work.
+Current validated scope: canonical case URL/reload context and logout scrub,
+capability-based preparation/review composition, selection epoch race guards,
+case-first review; preserve backend authority. ActiveContext's separate gap list
+has not yet been integrated with this case selection and remains a follow-up.
+Actual independent reviewer synthetic browser9 passed; case API5 passed. Source
+mutation runtime tests cover A→B→A stale completion. Chart missing drawdown is no
+longer zero; gaps and zero-baseline area are tested, units/table/categorical dates
+and frozen comparison periods disclosed. Portfolio labels now distinguish scenario
+quantities from reconciled obligations. No numerical engine changes.
+Web950passed3skipped; production build passed (existing dynamic-import warning).
+Actual analyst backtest and trader portfolio screenshots inspected; scope and
+remaining gates in acceptance22. Native artifact not rebuilt for this revision.
+Role analytics requirements added; VaR/clearing margin and broader business
+redesign are not complete. No production readiness assertion accompanies merge.

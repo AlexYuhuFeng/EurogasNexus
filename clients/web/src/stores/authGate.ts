@@ -186,6 +186,7 @@ export const PROTECTED_CONTEXT_QUERY_KEYS: readonly string[] = [
   "run",
   "strategy",
   "version",
+  "case",
   "gasDay",
   "product",
   "hub",

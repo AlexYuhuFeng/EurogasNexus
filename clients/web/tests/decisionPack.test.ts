@@ -465,8 +465,10 @@ test("the pack panel is mounted where the case detail is, beside the decision co
   // The pack rides on the read the case panel already makes, and a write is followed by that read
   // so the artefact does not vanish the moment a reviewer records the outcome.
   assert.match(casePanel, /const read = await api\.decisionCase\(caseDto\.case_id\);/);
-  assert.match(casePanel, /setSelected\(await withPack\(result\.data\)\)/);
-  assert.match(casePanel, /const response = await api\.decisionCase\(caseId\);/);
+  assert.match(casePanel, /const updated = await withPack\(result\.data\);/);
+  assert.match(casePanel, /if \(!isCurrent\(\)\) return false;/);
+  assert.match(casePanel, /setSelected\(updated\)/);
+  assert.match(casePanel, /api\.decisionCase\(selectedCaseId\)\.then/);
 });
 
 test("the panel adds no primary action, no interactivity and no second read", () => {

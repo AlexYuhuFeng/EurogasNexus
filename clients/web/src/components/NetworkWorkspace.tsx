@@ -343,14 +343,14 @@ export function NetworkWorkspace({
               <small>{t("map.empty_help")}</small>
             </div>
           )}
-          <div className="map-visual-legend" aria-label={t("map.visual_legend")}>
+          {mapHasVisibleEvidence && <div className="map-visual-legend" aria-label={t("map.visual_legend")}>
             <span><i className="node-swatch network" />{t("map.layer.network")}<strong>{displayedNetworkCount}</strong></span>
             <span><i className="node-swatch lng" />{t("map.layer.lng")}<strong>{displayedLngCount}</strong></span>
             <span><i className="node-swatch ips" />{t("map.layer.ips")}<strong>{displayedIpCount}</strong></span>
             <span><i className="node-swatch hubs" />{t("map.layer.hubs")}<strong>{displayedHubCount}</strong></span>
             <span><i className="line-swatch verified" />{t("map.verified_pipeline_lines")}<strong>{verifiedPipelineCount}</strong></span>
             <span><i className="line-swatch indicative" />{t("map.indicative_route_lines")}<strong>{indicativeRouteCount}</strong></span>
-          </div>
+          </div>}
         </div>
       </section>
 

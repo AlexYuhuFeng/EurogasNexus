@@ -63,6 +63,13 @@ export function useSelectionContext() {
     return () => window.removeEventListener("popstate", syncFromUrl);
   }, [authState]);
 
+  const setDecisionCaseId = useCallback((value: string | null) => {
+    setSelection((current) => {
+      const decisionCaseId = normalizeSelectionId(value);
+      return current.decisionCaseId === decisionCaseId ? current : { ...current, decisionCaseId };
+    });
+  }, []);
+
   const setRouteId = useCallback((value: string | null) => {
     setSelection((current) => ({ ...current, routeId: normalizeSelectionId(value) }));
   }, []);
@@ -92,6 +99,8 @@ export function useSelectionContext() {
 
   return {
     selection,
+    decisionCaseId: selection.decisionCaseId ?? null,
+    setDecisionCaseId,
     routeId: selection.routeId,
     resourceId: selection.resourceId,
     strategyRunId: selection.strategyRunId,

@@ -1,4 +1,11 @@
 {
+  "portfolio.scope.title": "Quantity and evidence basis",
+  "portfolio.scope.quantity": "Declared scenario quantity",
+  "portfolio.scope.register": "Scenario resource register",
+  "portfolio.scope.allocated": "Allocated in scenario",
+  "portfolio.scope.unallocated": "Unallocated in scenario",
+  "portfolio.scope.scenario": "Contract quantities are declared scenario inputs. Allocations apply within one scenario; they do not book gas or reconcile commitments. Remaining availability and delivery obligations are unknown here. Verify resource terms, delivery context and access before comparing alternatives.",
+  "portfolio.scope.observations": "Imported screen orders and indicative PnL are read-only observations. They are not reconciled with the scenario resource register and do not establish remaining availability or delivery obligations.",
   "app.title": "Eurogas Nexus",
   "app.subtitle": "European gas network and contract decision-support workspace",
   "nav.network": "Network",
@@ -3035,5 +3042,13 @@
   "strategy_lab.catalogue.scope": "This component compares intraday and day-ahead evidence. Single-price signals and arbitrary multi-leg spreads are not supported by this historical engine. Declare each leg’s delivery interval, hub, tenor and price basis below.",
   "strategy_lab.catalogue.selection": "Choose from authorized market observations currently loaded. Select one or more series, combined within each leg. Listed sources describe observations, not a source restriction. Backtests check historical eligibility.",
   "strategy_lab.catalogue.unavailable": "not available for this hub and leg in the current view",
-  "strategy_lab.catalogue.empty": "No authorized price series are available in the current market view."
+  "strategy_lab.catalogue.empty": "No authorized price series are available in the current market view.",
+  "review.supporting_tools": "Individual run assessments and reports",
+  "review.supporting_tools_help": "These tools assess individual runs or generate reports. They do not replace a decision case and its linked evidence.",
+  "strategy_lab.chart_categorical_axis": "Gas days are equally spaced observations; horizontal distance does not represent elapsed time.",
+  "strategy_lab.chart_missing": "{{count}} unavailable observation(s); gaps are preserved.",
+  "strategy_lab.chart_data": "Data table",
+  "strategy_lab.chart_gas_day": "Gas day",
+  "strategy_lab.chart_unavailable": "Unavailable",
+  "strategy_lab.chart_summary": "{{title}}. {{count}} observations. {{missing}} unavailable. Last: {{last}}."
 }

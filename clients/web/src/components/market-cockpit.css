@@ -271,3 +271,33 @@
     contain: size;
   }
 }
+
+/* The reference register follows the map in the same task. It must not consume
+   the map's viewport allocation when warnings or a short desktop window leave
+   little vertical space. Scroll the task body while preserving usable rails. */
+@media (min-width: 1101px) {
+  .cockpit-app.workspace-network .market-cockpit-panel {
+    overflow-y: auto;
+  }
+
+  .cockpit-app.workspace-network .network-workspace-shell {
+    flex: 1 0 640px;
+    min-height: 640px;
+    grid-template-rows: minmax(420px, 1fr) auto;
+  }
+
+  .cockpit-app.workspace-network .market-cockpit-panel > :not(.network-workspace-shell) {
+    flex-shrink: 0;
+  }
+}
+
+.cockpit-app.workspace-network .network-map-column .map-basemap-state {
+  top: 50px;
+  max-width: min(340px, calc(100% - 24px));
+}
+
+.cockpit-app.workspace-network .network-map-column .map-empty-state {
+  top: auto;
+  bottom: 16px;
+  transform: translateX(-50%);
+}

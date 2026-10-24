@@ -345,10 +345,30 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
           <StorageDispatchPanel t={t} assessment={dispatch} record={optimizationRun} />
         )}
         {task === "review" && (
+          <DecisionCasePanel
+            canPrepare={Boolean(api.currentUser?.permissions.includes("scenario.create"))}
+            canAssess={Boolean(api.currentUser?.permissions.includes("review.record"))}
+            selectedCaseId={selection.decisionCaseId}
+            onSelectCaseId={selection.setDecisionCaseId}
+            gasDay={traderContext.gasDay}
+            deliveryProduct={traderContext.deliveryProduct}
+            hubId={traderContext.hubId}
+            routeId={selection.routeId}
+            strategyRunId={selection.strategyRunId ?? api.strategyRuns[0]?.run_id ?? null}
+            // The Decision Case chain cites AI findings and challenges, so the run this
+            // identity last completed is offered as evidence by reference.
+            analysisId={api.analysisResult?.analysis_id ?? null}
+            t={t}
+          />
+        )}
+        {task === "review" && (
           /* The raw pool payload is handed to the review panel only so it can state that a stale
              run is being withheld; the panel gates its allocations and evidence pack with the
              same provenance flag (`poolResultContextMismatch`) and never presents the raw
              payload as current evidence. */
+          <details className="review-supporting-tools" open={Boolean(selection.strategyRunId)}>
+          <summary>{t("review.supporting_tools")}</summary>
+          <p className="panel-copy">{t("review.supporting_tools_help")}</p>
           <ReviewWorkspace
             allocations={portfolio.poolAllocations}
             saleOptionById={portfolio.saleOptionById}
@@ -403,20 +423,9 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
               if (subject) inspector.open(subject);
             }}
           />
+          </details>
         )}
-        {task === "review" && (
-          <DecisionCasePanel
-            gasDay={traderContext.gasDay}
-            deliveryProduct={traderContext.deliveryProduct}
-            hubId={traderContext.hubId}
-            routeId={selection.routeId}
-            strategyRunId={selection.strategyRunId ?? api.strategyRuns[0]?.run_id ?? null}
-            // The Decision Case chain cites AI findings and challenges, so the run this
-            // identity last completed is offered as evidence by reference.
-            analysisId={api.analysisResult?.analysis_id ?? null}
-            t={t}
-          />
-        )}
+
       </div>
     </div>
   );

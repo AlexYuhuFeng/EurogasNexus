@@ -1,4 +1,5 @@
 export interface SelectionContext {
+  decisionCaseId?: string | null;
   routeId: string | null;
   resourceId: string | null;
   strategyRunId: string | null;
@@ -7,6 +8,7 @@ export interface SelectionContext {
 }
 
 export const EMPTY_SELECTION_CONTEXT: SelectionContext = {
+  decisionCaseId: null,
   routeId: null,
   resourceId: null,
   strategyRunId: null,
@@ -31,5 +33,6 @@ export function selectionContextKey(context: SelectionContext): string {
     context.strategyRunId ?? "-",
     context.strategyId ?? "-",
     context.strategyVersionId ?? "-",
+    ...(context.decisionCaseId ? ["case", context.decisionCaseId] : []),
   ].join("|");
 }

@@ -8241,7 +8241,7 @@ button.glossary-related-chip {
   flex: 0 0 auto;
 }
 
-.workspace-network .network-rail-tab {
+.workspace-network .network-rail-tabs > button {
   min-width: 0;
   min-height: 32px;
   border: 1px solid var(--eg-hairline);
@@ -8255,7 +8255,7 @@ button.glossary-related-chip {
   text-transform: uppercase;
 }
 
-.workspace-network .network-rail-tab.active {
+.workspace-network .network-rail-tabs > button.active {
   border-color: var(--eg-accent);
   background: var(--eg-canvas);
   color: var(--eg-ink);

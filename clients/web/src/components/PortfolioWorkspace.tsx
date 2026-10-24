@@ -50,10 +50,10 @@ function PortfolioOverview({ controller }: { controller: AppController }) {
   return (
     <div className="commercial-overview">
       <section className="commercial-metric-strip" aria-label={t("portfolio.overview")}>
-        <span><small>{t("home.pool_volume")}</small><strong>{totalVolume.toLocaleString()} MWh/d</strong></span>
+        <span><small>{t("portfolio.scope.quantity")}</small><strong>{totalVolume.toLocaleString()} MWh/d</strong></span>
         <span><small>{t("portfolio.weighted_cost")}</small><strong>{weightedCost === null ? "n/a" : `${weightedCost.toFixed(2)} GBP/MWh`}</strong></span>
-        <span><small>{t("portfolio.allocated")}</small><strong>{poolResult?.total_allocated_mwh_per_day?.toLocaleString() ?? "n/a"} MWh/d</strong></span>
-        <span><small>{t("portfolio.unallocated")}</small><strong>{poolResult?.total_unallocated_mwh_per_day?.toLocaleString() ?? "n/a"} MWh/d</strong></span>
+        <span><small>{t("portfolio.scope.allocated")}</small><strong>{poolResult?.total_allocated_mwh_per_day?.toLocaleString() ?? "n/a"} MWh/d</strong></span>
+        <span><small>{t("portfolio.scope.unallocated")}</small><strong>{poolResult?.total_unallocated_mwh_per_day?.toLocaleString() ?? "n/a"} MWh/d</strong></span>
         <span><small>{t("portfolio.net_indicative")}</small><strong>{money(poolResult?.total_net_pnl_gbp_per_day, "/d")}</strong></span>
         <span><small>{t("portfolio.warnings")}</small><strong>{diagnostics.length}</strong></span>
       </section>
@@ -65,7 +65,7 @@ function PortfolioOverview({ controller }: { controller: AppController }) {
       )}
       <section className="workspace-panel">
         <PanelHeader
-          title={t("portfolio.resource_pool")}
+          title={t("portfolio.scope.register")}
           meta={`${resources.length} ${t("home.resources")}`}
         />
         <div className="data-table" tabIndex={0}>
@@ -277,6 +277,10 @@ export function PortfolioWorkspace({ controller, onOpenStrategyForResource }: {
       />
       <div id="portfolio-task-panel">
         <PortfolioContextStrip projection={api.portfolioSnapshot} t={t} />
+        <section className="workspace-panel" aria-label={t("portfolio.scope.title")}>
+          <strong>{t("portfolio.scope.title")}</strong>
+          <p className="panel-copy">{t(task === "exposure" ? "portfolio.scope.observations" : "portfolio.scope.scenario")}</p>
+        </section>
         {task === "overview" && <PortfolioOverview controller={controller} />}
         {task === "resources" && (
           <ContractWorkbench

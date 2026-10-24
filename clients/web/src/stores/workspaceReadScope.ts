@@ -17,6 +17,12 @@ const COMMERCIAL_WORKSPACE_KEYS = new Set([
   "marketContext", "reviewContext",
 ]);
 
+/** Raw editable resource terms belong to scenario preparation. Reviewers read
+ * persisted case evidence and portfolio projections instead of issuing this
+ * governed preparation read. This is composition, never an authorization gate. */
 export function workspaceReadNeeded(key: string, user: CurrentUserDTO | null): boolean {
+  if (key === "upstreamContracts" && Array.isArray(user?.permissions)) {
+    return needsCommercialWorkspaceReads(user) && user.permissions.includes("scenario.create");
+  }
   return !COMMERCIAL_WORKSPACE_KEYS.has(key) || needsCommercialWorkspaceReads(user);
 }

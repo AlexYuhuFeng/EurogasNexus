@@ -86,6 +86,12 @@ function portfolioProjection(scope: string, optionIds: string[]) {
 }
 
 function authenticated(harness: ApiStoreHarness) {
+  // Exercise the contract-preparation lane with an authoritative preparer
+  // identity, including subsequent batches after /me has populated the store.
+  harness.answer("me", () => envelope({
+    principal_id: "contract-preparer", roles: ["ANALYST"],
+    permissions: ["scenario.create"],
+  }));
   harness.store.setState({ authState: AUTHENTICATED_AUTH_STATE });
   return harness.store;
 }

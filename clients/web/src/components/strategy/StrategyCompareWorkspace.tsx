@@ -186,7 +186,8 @@ export function StrategyCompareWorkspace({
           </section>
 
           <section className="workspace-panel">
-            <h2>{t("strategy_lab.synchronized_pnl")}</h2>
+            <h2>{t("strategy_lab.cumulative_net_pnl")} (GBP)</h2>
+            <p className="muted">{t("strategy_lab.period")}: {selectedRuns.map((run) => `${run.run_id.slice(-12)} · ${timestamp(run.evaluation_start_utc, language)} → ${timestamp(run.evaluation_end_utc, language)}`).join("; ")}</p>
             <div className="strategy-compare-charts">
               {selectedRuns.map((run) => {
                 const details = controller.detailsByRun[run.run_id];
