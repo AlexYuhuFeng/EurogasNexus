@@ -62,9 +62,15 @@ jobs:
           persist-credentials: false
 
       - name: Set up Python
+        if: runner.os != 'Windows'
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install verified canonical Python (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: pwsh -File scripts/ci/install_windows_canonical_python.ps1
 
       - name: Enforce canonical toolchain declarations
         run: python scripts/ci/check_toolchain_versions.py

@@ -210,6 +210,9 @@ def test_workflow_is_manual_read_only_and_has_no_publish_surface() -> None:
     assert "bundle: nsis" in text
     assert "bundle: deb" in text
     assert "bash scripts/ci/install_linux_tauri_dependencies.sh" in text
+    assert "if: runner.os != 'Windows'" in text
+    assert "if: runner.os == 'Windows'" in text
+    assert "pwsh -File scripts/ci/install_windows_canonical_python.ps1" in text
     assert "cargo check --manifest-path src-tauri/Cargo.toml --locked" in text
     assert "cargo build --manifest-path src-tauri/Cargo.toml --release --locked" in text
     assert "npm run build -- --bundles ${{ matrix.bundle }} -- --locked" in text
@@ -217,6 +220,16 @@ def test_workflow_is_manual_read_only_and_has_no_publish_surface() -> None:
     assert "npm ci" in text
     assert "write_native_build_evidence.py" in text
     assert "eurogas-nexus-unsigned-native-acceptance" in text
+
+
+def test_windows_python_installer_is_a_hash_bound_build_input(tmp_path: Path) -> None:
+    relative = "scripts/ci/install_windows_canonical_python.ps1"
+    assert relative in native.BUILD_INPUT_FILES
+
+    repo, _stage, evidence = _invoke(tmp_path)
+    record = evidence["build_inputs"][relative]
+    assert record["sha256"] == _sha(repo / relative)
+    assert record["bytes"] == (repo / relative).stat().st_size
 
 
 def test_workflow_passes_ref_through_quoted_environment_expansion() -> None:

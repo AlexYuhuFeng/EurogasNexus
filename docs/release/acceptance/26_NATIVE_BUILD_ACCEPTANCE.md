@@ -1,6 +1,7 @@
 # Native build-only acceptance workflow
 
-Status: **implemented, not dispatched, unsigned, unreviewed, build-only.**
+Status: **implemented; Windows fallback unverified; unsigned, unreviewed,
+build-only.**
 
 This document describes `.github/workflows/native-acceptance.yml` and
 `scripts/uat/write_native_build_evidence.py`. It does not assert that a hosted run
@@ -118,8 +119,8 @@ The document binds:
 - SHA-256 and byte counts for all committed dependency locks
   (`requirements*.lock`, both npm lockfiles and `Cargo.lock`);
 - SHA-256 and byte counts for the build inputs, including the workflow, the Linux
-  dependency installer, the two client manifests, the Tauri configuration and
-  the evidence writer itself;
+  dependency installer, the Windows Python installer, the two client manifests,
+  the Tauri configuration and the evidence writer itself;
 - the build output path, staged path, SHA-256 and byte count for both the installer
   and the portable native binary (the Linux tar's source binary and archive member
   are both recorded); and
@@ -250,3 +251,65 @@ and canonical declaration consistency pass. Root checked the installed locked
 Tauri CLI2.11.2 help: runner arguments follow the second `--`, so the workflow
 uses `npm run build -- --bundles <bundle> -- --locked`. These checks do not claim
 a hosted native build, installation, launch, signing or customer acceptance.
+
+## Windows Python setup failure and fallback status
+
+A dispatched Windows job at run `40555545694` / job `122370525386` failed in
+`actions/setup-python` because Python `3.11.12` is not available for
+`windows-2025`. Root checked the official
+[actions/python-versions manifest](https://github.com/actions/python-versions/blob/main/versions-manifest.json):
+the `3.11.12` entry has no `win32` archive, and `3.11.9` is the last Windows
+3.11 entry. Lowering Python, changing the canonical version, lock headers or
+`check_toolchain_versions.py` is not an acceptable fallback.
+
+The Windows-only step instead uses Astral's official
+[python-build-standalone 20250529 release](https://github.com/astral-sh/python-build-standalone/releases/tag/20250529)
+and this fixed archive:
+
+`https://github.com/astral-sh/python-build-standalone/releases/download/20250529/cpython-3.11.12%2B20250529-x86_64-pc-windows-msvc-install_only_stripped.tar.gz`
+
+The `SHA256SUMS` asset for that release is
+<https://github.com/astral-sh/python-build-standalone/releases/download/20250529/SHA256SUMS>.
+The installer pins
+`f794b1e74349a989d1b9a466d2207527d4e16a36c92a1277802458293bc4be31` (the value
+Root fetched from that `SHA256SUMS` asset); it verifies that checksum before
+invoking the runner's built-in `tar.exe`, requires the archive's
+`python\python.exe`, and requires `python --version` to print exactly
+`Python 3.11.12`.
+
+`scripts/ci/install_windows_canonical_python.ps1` first reads
+`.python-version`; a canonical change therefore fails until a new URL and
+checksum are reviewed. It refuses a pre-existing install directory, changes no
+registry, machine `PATH`, system setting or default interpreter, and appends
+only the verified `python` directory to the job-scoped `GITHUB_PATH` after the
+version check. It has no caller-supplied URL, checksum or destination.
+
+**The fallback is not passed.** The failed run is not evidence of a pass, and the
+implementation session could not execute PowerShell because the local shell/ACL
+is unavailable. Root must run the installer in a dedicated local fixture with
+process-scoped `RUNNER_TEMP` and `GITHUB_PATH`, verify the exact version, and
+then dispatch a Windows retry at the reviewed commit. Windows acceptance remains
+unproven until both the local execution and hosted retry succeed.
+
+Static tests cover the pinned URL, checksum and version, hash-before-extraction
+ordering, absence of caller-supplied download or destination inputs, the
+Windows-only workflow branch and the installer's hash binding. The subprocess
+preflight tests are skipped when `pwsh` is unavailable; they assert missing
+configuration fails before any download.
+
+Failed-run evidence:
+<https://github.com/AlexYuhuFeng/EurogasNexus/actions/runs/40555545694/job/122370525386>
+
+## Root execution of Windows bootstrap — 2026-10-28
+
+The isolated local fallback **passed**: the exact pinned archive downloaded, its
+SHA-256 matched before extraction, and the installed executable reported
+Python3.11.12. Only a dedicated generated directory and a local GITHUB_PATH
+fixture were written; no registry or machine PATH change. Evidence is retained
+under ignored `windows-python-bootstrap-local/summary.json` within the delivery
+runtime directory. Native/bootstrap focused selection **36 passed**, Ruff passed.
+
+This supersedes the implementation-session-only "fallback is not passed" note
+for local bootstrap execution. The hosted Windows retry, full native installation
+and UI acceptance remain open. The original run's Windows failure remains a
+failed result; Linux builds from that run are assessed separately.

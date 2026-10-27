@@ -64,6 +64,7 @@ BUILD_INPUT_FILES = (
     "rust-toolchain.toml",
     "pyproject.toml",
     "scripts/ci/install_linux_tauri_dependencies.sh",
+    "scripts/ci/install_windows_canonical_python.ps1",
     "scripts/uat/write_native_build_evidence.py",
     "clients/web/package.json",
     "clients/desktop/package.json",

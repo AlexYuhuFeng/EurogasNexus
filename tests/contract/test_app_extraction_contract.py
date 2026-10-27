@@ -158,9 +158,19 @@ def test_route_recommendation_request_builder_is_wired_into_app() -> None:
         'request_id: "web-db-backed-route-allocation"',
         'capacity_product: "ANNUAL"',
         'firmness: "FIRM"',
-        'price_unit: option.sale_price_unit ?? "EUR/MWh"',
+        'price_currency: "GBP"',
+        'price_unit: "GBP/MWh"',
+        'const manualCost = option.route_cost_gbp_mwh ?? null',
+        'const costKnown = manualCost !== null',
+        'cost_currency: costKnown ? "GBP" : null',
+        'cost_unit: costKnown ? "GBP/MWh" : null',
+        'const capacityStatus = (option.capacity_status?.trim() || "UNKNOWN").toUpperCase()',
+        'tariff_applicability_date: tariffApplicabilityDate',
+        'tariff_applicability_date: option.tariff_applicability_date?.trim() || null',
     ]:
         assert phrase in module_text
+    assert '?? "EUR/MWh"' not in module_text
+    assert 'route_cost_gbp_mwh ?? 0' not in module_text
     assert "research_only" not in module_text
 
 
