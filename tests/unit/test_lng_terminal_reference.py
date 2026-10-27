@@ -1,13 +1,15 @@
-"""Synthetic tests for the versioned LNG terminal-reference contract.
+"""Validation tests plus golden checks of the committed LNG terminal-reference manifest.
 
-Every fixture in this module is synthetic. None of these facts may be promoted into
-the committed manifest or treated as operator evidence, terminal rights or
+Synthetic fixtures exercise validation edge cases and are never promoted into the
+committed manifest. ``CAPTURED_SOURCES`` and ``CAPTURED_FACTS`` assert the metadata and
+claims already committed; they are not new source evidence, terminal rights or
 readiness.
 """
 
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 from datetime import UTC, date, datetime, timedelta, timezone
@@ -49,6 +51,129 @@ CAPTURE_BYTES = b"synthetic captured operator page bytes\n"
 CAPTURE_SHA256 = sha256(CAPTURE_BYTES).hexdigest()
 RETRIEVED_AT = datetime(2026, 10, 27, 9, 0, tzinfo=UTC)
 REVIEWED_AT = datetime(2026, 10, 27, 10, 0, tzinfo=UTC)
+
+# Golden metadata from the preserved captures named in the committed candidate
+# manifest. These are assertions about the committed records, not new source evidence.
+CAPTURED_SOURCES: dict[str, dict[str, object]] = {
+    "gate-operational": {
+        "official_url": "https://www.gateterminal.com/en/commercial/operational-data/",
+        "operator": "Gate terminal",
+        "document_title": "Operational data",
+        "captured_sha256": (
+            "222f6d89f422fd8f33fbd4959461fa4b49959be744d2850b55dfb36fd860f205"
+        ),
+        "retrieved_at_utc": datetime(2026, 10, 27, 14, 13, 49, 470061, tzinfo=UTC),
+    },
+    "gate-faq": {
+        "official_url": "https://www.gateterminal.com/en/gate-terminal/faq/",
+        "operator": "Gate terminal",
+        "document_title": "FAQ",
+        "captured_sha256": (
+            "e7bcff83d859b7f9025450d11ea6e6f48c58f33abea78abcc5ecc657f681752f"
+        ),
+        "retrieved_at_utc": datetime(2026, 10, 27, 14, 14, 45, 979968, tzinfo=UTC),
+    },
+    "dunkerque-infrastructure": {
+        "official_url": "https://www.fluxys.com/en/about-us/dunkerque-lng/infrastructure",
+        "operator": "Dunkerque LNG",
+        "document_title": "Dunkerque LNG Infrastructure",
+        "captured_sha256": (
+            "aca9b21f8bb8cb705481e2016e910f2ceea411000fa3bf61adb16832e64a82ad"
+        ),
+        "retrieved_at_utc": datetime(2026, 10, 27, 14, 13, 49, 505751, tzinfo=UTC),
+    },
+    "grain-operational": {
+        "official_url": "https://www.grainlng.com/operational-information",
+        "operator": "Grain LNG",
+        "document_title": "Operational information",
+        "captured_sha256": (
+            "9243ff6f925f5ae2e5a3dcda66d309ec6a6cd7fc3c83efe5c43614e4b64dfc5e"
+        ),
+        "retrieved_at_utc": datetime(2026, 10, 27, 14, 13, 49, 931386, tzinfo=UTC),
+    },
+    "southhook-operations": {
+        "official_url": "https://www.southhooklng.com/operations/what-we-do/",
+        "operator": "South Hook LNG",
+        "document_title": "What We Do",
+        "captured_sha256": (
+            "792b29e57c4f306c177ce7f4796171e9f4341085b2107249a8fe18c669bfa22c"
+        ),
+        "retrieved_at_utc": datetime(2026, 10, 27, 14, 13, 49, 640660, tzinfo=UTC),
+    },
+}
+
+CAPTURED_FACTS: dict[str, dict[str, object]] = {
+    "gate-vessel-unloading-max": {
+        "terminal_id": "gate-terminal",
+        "parameter": FactParameter.VESSEL_UNLOADING_MAX_RATE,
+        "value": "12500",
+        "original_value_text": "12.500 m3/h of LNG",
+        "original_unit": "m3/h of LNG",
+        "quantity_basis": QuantityBasis.LIQUID_LNG_M3_PER_HOUR,
+        "quotation": "Max. Vessel discharge rate is 12.500 m3/h of LNG",
+        "source_id": "gate-operational",
+    },
+    "gate-minimum-sendout": {
+        "terminal_id": "gate-terminal",
+        "parameter": FactParameter.MINIMUM_SENDOUT_RATE,
+        "value": "139000",
+        "original_value_text": "139.000 m3(n)/h",
+        "original_unit": "m3(n)/h",
+        "quantity_basis": QuantityBasis.NORMAL_GAS_NM3_PER_HOUR,
+        "quotation": "Min delivery rate of the terminal is 139.000 m3(n)/h",
+        "source_id": "gate-operational",
+    },
+    "gate-tank-evaporation": {
+        "terminal_id": "gate-terminal",
+        "parameter": FactParameter.TANK_EVAPORATION_RATE,
+        "value": "0.07",
+        "original_value_text": "approximately 0.07% of the tank capacity per day",
+        "original_unit": "% of tank capacity per day",
+        "quantity_basis": QuantityBasis.TANK_CAPACITY_PERCENT_PER_DAY,
+        "quotation": "approximately 0.07% of the tank capacity per day",
+        "source_id": "gate-faq",
+    },
+    "dunkerque-vessel-unloading-max": {
+        "terminal_id": "dunkerque-lng",
+        "parameter": FactParameter.VESSEL_UNLOADING_MAX_RATE,
+        "value": "14000",
+        "original_value_text": "14,000 m³ per hour",
+        "original_unit": "m³ per hour",
+        "quantity_basis": QuantityBasis.LIQUID_LNG_M3_PER_HOUR,
+        "quotation": "maximum flow rate of 14,000 m³ per hour",
+        "source_id": "dunkerque-infrastructure",
+    },
+    "grain-regasification-equipment-645": {
+        "terminal_id": "grain-lng",
+        "parameter": FactParameter.REGASIFICATION_CAPACITY,
+        "value": "645",
+        "original_value_text": "645 GWh/d",
+        "original_unit": "GWh/d",
+        "quantity_basis": QuantityBasis.ENERGY_GWH_PER_DAY,
+        "quotation": "capable of regasifying 645 GWh/d",
+        "source_id": "grain-operational",
+    },
+    "grain-primary-capacity-654": {
+        "terminal_id": "grain-lng",
+        "parameter": FactParameter.REGASIFICATION_CAPACITY,
+        "value": "654",
+        "original_value_text": "circa 654 GWh/d",
+        "original_unit": "GWh/d",
+        "quantity_basis": QuantityBasis.ENERGY_GWH_PER_DAY,
+        "quotation": "circa 654 GWh/d regasification capacity",
+        "source_id": "grain-operational",
+    },
+    "southhook-vessel-discharge-duration": {
+        "terminal_id": "south-hook-lng",
+        "parameter": FactParameter.VESSEL_DISCHARGE_DURATION,
+        "value": "24",
+        "original_value_text": "up to 24 hours",
+        "original_unit": "hours",
+        "quantity_basis": QuantityBasis.DURATION_HOURS,
+        "quotation": "discharge process which can take up to 24 hours",
+        "source_id": "southhook-operations",
+    },
+}
 
 
 def _source(**overrides: object) -> LngTerminalSource:
@@ -152,15 +277,145 @@ def test_models_are_frozen_and_immutable() -> None:
         manifest.facts[0].value = "0.000"
 
 
-def test_committed_manifest_is_empty_and_states_promotion_boundary() -> None:
+def test_committed_manifest_has_five_sources_and_seven_candidate_facts() -> None:
     manifest = load_lng_terminal_reference_manifest(COMMITTED_MANIFEST)
 
     assert manifest.schema_version == MANIFEST_SCHEMA_VERSION
     assert manifest.model_version == MANIFEST_MODEL_VERSION
-    assert manifest.sources == ()
-    assert manifest.facts == ()
-    assert "await" in manifest.notes.lower()
-    assert "no official fact" in manifest.notes.lower()
+    assert len(manifest.sources) == 5
+    assert len(manifest.facts) == 7
+    assert {source.source_id for source in manifest.sources} == set(CAPTURED_SOURCES)
+    assert {fact.fact_id for fact in manifest.facts} == set(CAPTURED_FACTS)
+    assert "CANDIDATE" in manifest.notes
+    assert "No fact is REVIEWED" in manifest.notes
+
+    for source in manifest.sources:
+        expected = CAPTURED_SOURCES[source.source_id]
+        assert source.official_url == expected["official_url"]
+        assert source.operator == expected["operator"]
+        assert source.document_title == expected["document_title"]
+        assert source.published_date is None
+        assert source.publication_version == "UNDATED_PAGE"
+        assert source.retrieved_at_utc == expected["retrieved_at_utc"]
+        assert source.captured_sha256 == expected["captured_sha256"]
+        assert re.fullmatch(r"[0-9a-f]{64}", source.captured_sha256)
+
+    for fact in manifest.facts:
+        assert fact.review_status is FactReviewStatus.CANDIDATE
+        assert fact.reviewed_by is None
+        assert fact.reviewed_at is None
+        assert fact.effective_from is None
+        assert fact.effective_to is None
+        assert fact.has_known_applicability_start is False
+
+
+def test_committed_candidate_facts_preserve_values_raw_text_and_units() -> None:
+    manifest = load_lng_terminal_reference_manifest(COMMITTED_MANIFEST)
+    facts = {fact.fact_id: fact for fact in manifest.facts}
+
+    assert set(facts) == set(CAPTURED_FACTS)
+    for fact_id, expected in CAPTURED_FACTS.items():
+        fact = facts[fact_id]
+        for field, expected_value in expected.items():
+            assert getattr(fact, field) == expected_value
+
+    evaporation = facts["gate-tank-evaporation"]
+    grain_equipment = facts["grain-regasification-equipment-645"]
+    grain_primary = facts["grain-primary-capacity-654"]
+    south_hook = facts["southhook-vessel-discharge-duration"]
+    assert evaporation.quantity_basis is QuantityBasis.TANK_CAPACITY_PERCENT_PER_DAY
+    assert evaporation.quantity_basis is not QuantityBasis.CARGO_ENERGY_PERCENT
+    assert "Equipment subsection" in grain_equipment.applicability_notes
+    assert "Primary-market subsection" in grain_primary.applicability_notes
+    assert "jetty" in south_hook.applicability_notes
+    assert {fact.fact_id for fact in manifest.facts if fact.source_id == "gate-operational"} == {
+        "gate-vessel-unloading-max",
+        "gate-minimum-sendout",
+    }
+    assert {fact.fact_id for fact in manifest.facts if fact.source_id == "grain-operational"} == {
+        "grain-regasification-equipment-645",
+        "grain-primary-capacity-654",
+    }
+
+
+def test_committed_candidates_are_excluded_from_reviewed_scenario_lookup() -> None:
+    manifest = load_lng_terminal_reference_manifest(COMMITTED_MANIFEST)
+
+    for fact in manifest.facts:
+        result = lookup_reviewed_lng_terminal_fact(
+            manifest,
+            terminal_id=fact.terminal_id,
+            parameter=fact.parameter,
+            quantity_basis=fact.quantity_basis,
+            scenario_date=date(2026, 10, 27),
+        )
+        assert result.status is LngFactLookupStatus.NO_REVIEWED_FACT
+        assert result.reviewed_facts == ()
+        assert result.selected_fact is None
+        assert "CANDIDATE_FACTS_EXCLUDED_FROM_REVIEWED_SELECTION" in result.warnings
+
+    inspected = inspect_candidate_lng_terminal_facts(manifest)
+    assert len(inspected) == 7
+    assert all(fact.review_status is FactReviewStatus.CANDIDATE for fact in inspected)
+
+
+def test_committed_grain_capacity_claims_remain_distinct_candidates() -> None:
+    manifest = load_lng_terminal_reference_manifest(COMMITTED_MANIFEST)
+
+    grain = inspect_candidate_lng_terminal_facts(
+        manifest,
+        terminal_id="grain-lng",
+        parameter=FactParameter.REGASIFICATION_CAPACITY,
+        quantity_basis=QuantityBasis.ENERGY_GWH_PER_DAY,
+    )
+
+    assert [fact.fact_id for fact in grain] == [
+        "grain-regasification-equipment-645",
+        "grain-primary-capacity-654",
+    ]
+    assert {fact.value for fact in grain} == {"645", "654"}
+    assert {fact.quotation for fact in grain} == {
+        "capable of regasifying 645 GWh/d",
+        "circa 654 GWh/d regasification capacity",
+    }
+    assert all(fact.review_status is FactReviewStatus.CANDIDATE for fact in grain)
+
+
+@pytest.mark.parametrize(
+    ("source_id", "affected_fact_ids"),
+    [
+        ("gate-operational", ("gate-minimum-sendout", "gate-vessel-unloading-max")),
+        ("gate-faq", ("gate-tank-evaporation",)),
+        ("dunkerque-infrastructure", ("dunkerque-vessel-unloading-max",)),
+        (
+            "grain-operational",
+            ("grain-primary-capacity-654", "grain-regasification-equipment-645"),
+        ),
+        ("southhook-operations", ("southhook-vessel-discharge-duration",)),
+    ],
+)
+def test_committed_source_change_lists_affected_facts_without_mutation(
+    source_id: str,
+    affected_fact_ids: tuple[str, ...],
+) -> None:
+    manifest = load_lng_terminal_reference_manifest(COMMITTED_MANIFEST)
+    before = dump_lng_terminal_reference_manifest(manifest)
+
+    result = compare_lng_terminal_source_bytes(
+        manifest,
+        source_id=source_id,
+        candidate_bytes=b"changed official publication bytes\n",
+        retrieved_at_utc=datetime(2026, 10, 28, 12, 0, tzinfo=UTC),
+    )
+
+    assert result.status is SourceChangeStatus.REVIEW_REQUIRED
+    assert result.source_id == source_id
+    assert result.before_sha256 == CAPTURED_SOURCES[source_id]["captured_sha256"]
+    assert result.affected_fact_ids == affected_fact_ids
+    assert result.auto_replace is False
+    assert result.semantic_change_established is False
+    assert dump_lng_terminal_reference_manifest(manifest) == before
+    assert all(fact.review_status is FactReviewStatus.CANDIDATE for fact in manifest.facts)
 
 
 @pytest.mark.parametrize(

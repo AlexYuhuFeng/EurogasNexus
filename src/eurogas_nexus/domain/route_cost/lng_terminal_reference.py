@@ -5,8 +5,13 @@ terminal access or capacity rights, does not establish technical readiness, and 
 not perform energy, volume, FX, hours/day or capacity conversions. It performs no
 network, database or environment access; callers supply explicit local JSON or bytes.
 
-The committed manifest is intentionally empty. Researched operator candidates remain
-research evidence until a separate structured promotion is reviewed.
+The committed manifest records five captured official publications and seven CANDIDATE
+facts. No reviewed fact exists: candidates are informational only, not scenario-eligible
+economic inputs, terminal rights, availability statements or operational-ID mappings.
+Source bytes and hashes identify a captured publication, not authentication or rights.
+``value`` stores the decimal quantity without grouping separators; ``original_value_text``
+retains the publication's literal notation, including thousands notation such as Gate's
+``12.500``.
 """
 
 from __future__ import annotations
@@ -35,9 +40,9 @@ from pydantic import (
 MANIFEST_SCHEMA_VERSION = "eurogas.lng-terminal-reference/1"
 MANIFEST_MODEL_VERSION = "lng-terminal-reference-model/1"
 EMPTY_MANIFEST_NOTE = (
-    "Empty informational reference manifest. Researched operator-publication candidates "
-    "await separate structured promotion and review; this file asserts no official fact, "
-    "right, booking, technical availability or readiness."
+    "Note for an intentionally empty informational reference manifest. The committed "
+    "manifest is not empty: it contains CANDIDATE records only. An empty manifest asserts "
+    "no official fact, right, booking, technical availability or readiness."
 )
 MAX_REFERENCE_BYTES = 10 * 1024 * 1024
 MAX_CANDIDATE_BYTES = 10 * 1024 * 1024
@@ -176,6 +181,7 @@ _UNIT_VARIANTS: Mapping[QuantityBasis, frozenset[str]] = MappingProxyType(
                 "m3/hour",
                 "m3/hour lng",
                 "m3/hour of lng",
+                "m3 per hour",
                 "m3 per hour lng",
                 "m3 per hour of lng",
             }

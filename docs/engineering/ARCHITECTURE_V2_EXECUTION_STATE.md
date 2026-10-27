@@ -2,6 +2,33 @@
 
 ## 2026-10-27 — fresh Windows recovery and acceptance continuation
 
+Latest independently verified checkpoint: DeepSeek reconstructed LNG economics-only
+and explicit energy-stage accounting, preserving the strict legacy readiness path
+and sharing one monetary/cash composer. Root reviewed conservation precision,
+separate consumed/loss totals, no extra energy monetization and shared cash
+valuation. LNG legacy/new economics/energy/terminal/regas selection:192pass;
+changed Python files Ruffpass. Official terminal manifest now contains five
+captured sources/seven CANDIDATE facts, retaining exact bytes' hashes, literal
+units and unresolved Grain645/654GWh/d bases. No reviewed facts/effective dates
+or source-to-operational-system identity binding are inferred.
+
+Capacity domain/API/SDK/portfolio selection:86pass, Ruffpass. Dedicated synthetic
+PostgreSQL real HTTP: anonymous401, separate VIEWER403, ANALYST23h/25h/pence
+calculations200 with exact expected decimal strings; numeric JSON/inconsistent
+billing/runtime-context requests422. Source SDK real HTTP200; installed artifact
+verification remains open. OpenAPI188paths/202operations census:6pass. Web
+capacity workflow is being implemented, so surface-reachability gate is still
+pending; no exemption was added to hide it. API was restarted from current source
+in our managed loopback session53759; Web session27879 remains in use.
+
+Existing synthetic browser sweep completed:96checks,16workspaces, EN/zh-CN,
+three viewports, zero failures in that bounded read/render workflow. This does
+not close distinct-persona business workflows, real providers, production SSO,
+performance or final Windows/Linux artifact gates. DeepSeek Harness shell calls
+hit a temp-lock ACL failure; root runs actual tests and does not treat workers'
+static review as passing evidence. Owner-authorized Flash1017/max workers now
+implement capacity Web and LNG API/SDK; a separate read-only source census runs.
+
 Accepted replacement slice: official local Harness workers completed the missing
 EEX byte-preserving local capture inspector/CLI and LNG terminal-reference
 contract/offline comparison. Root reviewed the actual implementations and ran
