@@ -1,0 +1,145 @@
+name: Native build-only acceptance
+
+# Manual, read-only build acceptance. This workflow creates unsigned, unreviewed
+# internal artifacts for one immutable dispatched commit. It is deliberately
+# separate from release.yml: it has no release, tag, package/registry, attestation,
+# deployment or publishing jobs and no write permission.
+#
+# It does not install or launch the native applications. A green run proves that
+# the three authoritative desktop packages and portable native binaries built from
+# this source with the pinned toolchain and locks. Installed UI acceptance and code
+# signing remain separate gates (see docs/release/acceptance/26_NATIVE_BUILD_ACCEPTANCE.md).
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # Canonical values mirrored from .python-version, .nvmrc and
+  # rust-toolchain.toml. scripts/ci/check_toolchain_versions.py fails the build
+  # when any workflow declaration drifts from those files.
+  PYTHON_VERSION: "3.11.12"
+  NODE_VERSION: "24.13.1"
+  RUST_TOOLCHAIN: "1.94.0"
+
+jobs:
+  native-build:
+    name: Build-only native acceptance (${{ matrix.artifact_label }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Windows x64 NSIS package. Release parity is windows-2025.
+          - os: windows-2025
+            bundle: nsis
+            artifact_label: windows-x64
+            package_glob: clients/desktop/src-tauri/target/release/bundle/nsis/*.exe
+            portable_source: clients/desktop/src-tauri/target/release/eurogas-nexus-desktop.exe
+          # Linux x64 DEB package.
+          - os: ubuntu-24.04
+            bundle: deb
+            artifact_label: linux-x64
+            package_glob: clients/desktop/src-tauri/target/release/bundle/deb/*.deb
+            portable_source: clients/desktop/src-tauri/target/release/eurogas-nexus-desktop
+          # Linux ARM64 DEB package.
+          - os: ubuntu-24.04-arm
+            bundle: deb
+            artifact_label: linux-arm64
+            package_glob: clients/desktop/src-tauri/target/release/bundle/deb/*.deb
+            portable_source: clients/desktop/src-tauri/target/release/eurogas-nexus-desktop
+
+    steps:
+      - name: Check out the dispatched commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # github.sha is the immutable commit being dispatched, not a moving branch.
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Enforce canonical toolchain declarations
+        run: python scripts/ci/check_toolchain_versions.py
+
+      - name: Install Linux Tauri dependencies
+        if: runner.os == 'Linux'
+        run: bash scripts/ci/install_linux_tauri_dependencies.sh
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            clients/web/package-lock.json
+            clients/desktop/package-lock.json
+
+      - name: Set up Rust (pinned by rust-toolchain.toml)
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+
+      - name: Install Web dependencies
+        working-directory: clients/web
+        run: npm ci
+
+      - name: Install desktop dependencies
+        working-directory: clients/desktop
+        run: npm ci
+
+      - name: Enforce Cargo.lock
+        working-directory: clients/desktop
+        run: cargo check --manifest-path src-tauri/Cargo.toml --locked
+
+      - name: Build native bundle
+        working-directory: clients/desktop
+        run: npm run build -- --bundles ${{ matrix.bundle }} -- --locked
+
+      - name: Build portable native binary with locked dependencies
+        working-directory: clients/desktop
+        run: cargo build --manifest-path src-tauri/Cargo.toml --release --locked
+
+      - name: Stage artifacts and write hash-bound evidence
+        shell: bash
+        env:
+          PLATFORM_LABEL: ${{ matrix.artifact_label }}
+          BUNDLE: ${{ matrix.bundle }}
+          PACKAGE_GLOB: ${{ matrix.package_glob }}
+          PORTABLE_SOURCE: ${{ matrix.portable_source }}
+        run: |
+          set -euo pipefail
+          python scripts/uat/write_native_build_evidence.py \
+            --repo-root . \
+            --source-sha "$GITHUB_SHA" \
+            --platform-label "$PLATFORM_LABEL" \
+            --runner-os "$RUNNER_OS" \
+            --runner-arch "$RUNNER_ARCH" \
+            --bundle "$BUNDLE" \
+            --package-glob "$PACKAGE_GLOB" \
+            --portable-source "$PORTABLE_SOURCE" \
+            --stage-dir "artifacts/native-acceptance/$PLATFORM_LABEL" \
+            --output "artifacts/native-acceptance/$PLATFORM_LABEL/evidence/native-build-evidence.json" \
+            --python-version "$PYTHON_VERSION" \
+            --node-version "$NODE_VERSION" \
+            --rust-version "$RUST_TOOLCHAIN" \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --ref "$GITHUB_REF" \
+            --event-name "$GITHUB_EVENT_NAME" \
+            --repository "$GITHUB_REPOSITORY"
+
+      - name: Upload unsigned, unreviewed build-only evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: eurogas-nexus-unsigned-native-acceptance-${{ matrix.artifact_label }}
+          path: artifacts/native-acceptance/${{ matrix.artifact_label }}
+          if-no-files-found: error
+          retention-days: 14
