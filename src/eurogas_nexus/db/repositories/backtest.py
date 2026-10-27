@@ -12,11 +12,6 @@ from uuid import uuid4
 
 from sqlalchemy.orm import Session
 
-from eurogas_nexus.domain.strategy_lab.price_series import (
-    canonical_price_name as _price_name,
-    evidence_tenor_from_product as _tenor_from_product,
-)
-
 from eurogas_nexus.db.models import (
     BacktestAttributionRecord,
     BacktestDecisionEventRecord,
@@ -37,6 +32,12 @@ from eurogas_nexus.domain.backtest.contracts import (
     BacktestResourceEvidence,
 )
 from eurogas_nexus.domain.backtest.temporal import classify_source_temporal_integrity
+from eurogas_nexus.domain.strategy_lab.price_series import (
+    canonical_price_name as _price_name,
+)
+from eurogas_nexus.domain.strategy_lab.price_series import (
+    evidence_tenor_from_product as _tenor_from_product,
+)
 from eurogas_nexus.domain.strategy_lab.registry import (
     canonical_content_hash,
 )

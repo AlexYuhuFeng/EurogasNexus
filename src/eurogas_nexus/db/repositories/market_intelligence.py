@@ -8,11 +8,6 @@ from datetime import UTC, datetime
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from eurogas_nexus.domain.strategy_lab.price_series import (
-    canonical_price_name,
-    evidence_tenor_from_product,
-)
-
 from eurogas_nexus.db.models import (
     CompanyTsoAccessRecord,
     FxObservationRecord,
@@ -38,6 +33,10 @@ from eurogas_nexus.domain.market_intelligence.opportunity_engine import (
 )
 from eurogas_nexus.domain.route_cost.route_cost_service import calculate_route_cost
 from eurogas_nexus.domain.route_cost.schemas import RouteCostScenario, RouteTariffLeg
+from eurogas_nexus.domain.strategy_lab.price_series import (
+    canonical_price_name,
+    evidence_tenor_from_product,
+)
 
 
 def upsert_market_quotes(session: Session, rows: list[dict]) -> int:

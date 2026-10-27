@@ -1,5 +1,38 @@
 # Architecture V2 Execution State
 
+## 2026-10-27 — fresh Windows recovery and acceptance continuation
+
+Current source baseline was `35a587b`; recovery audit checkpoint `c5e0672` is
+pushed to main. The previous cloud workspace is unavailable here; reported local
+checkpoints and unpublished LNG/EEX files are absent. Original **Set up
+EurogasNexus** conversation was read for development requirements; missing work
+extends to earlier tariff/capacity, route, context and key-rotation slices.
+No recovery of original commits or files is claimed. See
+`docs/release/acceptance/23_DELIVERY_RECOVERY_AND_GATES.md` for current evidence
+and the full gate register. Historical entries below retain their original scope.
+
+Owner now explicitly requires DeepSeek implementation (superseding the older
+task-specific Sol-only routing), max reasoning on subsequent tasks, reconstruction
+of missing work, user acceptance readiness, data-source integrations and periodic
+reviewed non-force pushes. Keep one worktree and existing rigorous foundations.
+
+Secure local DeepSeek binding and authenticated connection verified; first bounded
+DeepSeek edits correct two import-order failures and Vite dependency floor.
+Reviewed final locks resolve Vite8.1.6/source-map-js1.2.2. Clean npm12 install:
+zero known vulnerabilities; Web950pass3skip, build pass, Ruff pass, affected
+backend33pass. Fresh baseline API/SDK/contracts1102pass; LNG/EEX174pass.
+No commercial readiness inference from these counts.
+
+WSL installed, Ubuntu24.04 runs under WSL2, Docker linux/x86_64 available.
+Distinct fresh PostgreSQL16 acceptance container is healthy at loopback55432;
+generated secret is ignored, old environments/containers/data remain untouched.
+Next: migrate/verify isolated DB, map all unpublished slices against current source,
+then reconstruct capacity/route and LNG prerequisites with DeepSeek max before
+Web/SDK/source-to-consumer acceptance and final-source artifact rebuilds.
+
+Full delivery goal remains active; customer/provider/signing/production gates
+remain unproven. Regional exchange remains disabled and deferred.
+
 Last updated: 2026-10-13
 Audit baseline: `e911fae`, equal to `origin/main` at audit start. Historical slice records below do not constitute current production approval.
 
