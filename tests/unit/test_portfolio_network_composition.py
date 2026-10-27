@@ -6,6 +6,12 @@ from datetime import UTC, date, datetime, timedelta
 
 import pytest
 
+from eurogas_nexus.domain.route_cost.enums import (
+    CapacityProduct,
+    Firmness,
+    TariffDirection,
+    TariffStatus,
+)
 from eurogas_nexus.domain.route_cost.european_public_tariffs import (
     published_european_corridor_tariffs,
 )
@@ -225,7 +231,12 @@ def test_complete_composition_builds_contracts_routes_tariffs_and_access() -> No
     assert composition.edges[0].tariff_gbp_mwh == pytest.approx(0.85)
     assert composition.edge_lineage[0]["source_node_id"] == "node-ttf"
     assert composition.edge_lineage[0]["target_node_id"] == "node-nbp"
+    assert composition.edge_lineage[0]["tariff_applicability_date"] == GAS_DAY.isoformat()
     assert composition.sale_option_lineage[0]["sale_price_currency"] == "GBP"
+    assert (
+        composition.sale_option_lineage[0]["tariff_applicability_date"]
+        == GAS_DAY.isoformat()
+    )
 
 
 def test_local_sale_does_not_require_tariff_capacity_or_tso() -> None:
@@ -493,3 +504,71 @@ def test_capacity_tariff_without_explicit_billing_basis_blocks_before_optimizati
     assert [option.option_id for option in composition.sale_options] == ["route:local-ttf"]
     with pytest.raises(ValueError, match="composition is blocked"):
         optimize_composed_portfolio_network(composition)
+
+
+def test_overlapping_tariffs_for_gas_day_block_route_instead_of_zero_charge() -> None:
+    """Two final rows cover the date, so row order cannot price the route."""
+
+    gas_day = date(2026, 1, 20)
+    now_utc = datetime(2026, 1, 20, 12, 0, tzinfo=UTC)
+    overlapping = [
+        CapacityTariff(
+            tariff_id="bbl-overlap-a",
+            document_id="doc-overlap",
+            country="NL",
+            tso="BBL Company",
+            market_area="BBL",
+            gas_year="2025+",
+            point_id="bbl-forward-nl-gb",
+            source_point_name="BBL Forward Flow NL to GB",
+            direction=TariffDirection.EXIT,
+            capacity_product=CapacityProduct.ANNUAL,
+            firmness=Firmness.FIRM,
+            tariff_value=1.0,
+            currency="EUR",
+            unit="EUR/MWh",
+            effective_from=date(2026, 1, 1),
+            effective_to=date(2026, 1, 31),
+            tariff_status=TariffStatus.FINAL,
+            source_table="synthetic overlapping table",
+            source_refs=["test:synthetic-overlap-a"],
+            manual_review_required=False,
+        ),
+        CapacityTariff(
+            tariff_id="bbl-overlap-b",
+            document_id="doc-overlap",
+            country="NL",
+            tso="BBL Company",
+            market_area="BBL",
+            gas_year="2025+",
+            point_id="bbl-forward-nl-gb",
+            source_point_name="BBL Forward Flow NL to GB",
+            direction=TariffDirection.EXIT,
+            capacity_product=CapacityProduct.ANNUAL,
+            firmness=Firmness.FIRM,
+            tariff_value=2.0,
+            currency="EUR",
+            unit="EUR/MWh",
+            effective_from=date(2026, 1, 15),
+            effective_to=date(2026, 2, 28),
+            tariff_status=TariffStatus.FINAL,
+            source_table="synthetic overlapping table",
+            source_refs=["test:synthetic-overlap-b"],
+            manual_review_required=False,
+        ),
+    ]
+
+    composition = _compose(
+        routes=[_local_route(), _bbl_route()],
+        tariffs=overlapping,
+        gas_day=gas_day,
+        now_utc=now_utc,
+    )
+
+    assert composition.is_complete is False
+    assert (
+        "ROUTE_COST_MISSING:TARIFF_APPLICABILITY_AMBIGUOUS:"
+        "bbl-forward:bbl-route"
+    ) in composition.blockers
+    assert composition.edges == ()
+    assert [option.option_id for option in composition.sale_options] == ["route:local-ttf"]

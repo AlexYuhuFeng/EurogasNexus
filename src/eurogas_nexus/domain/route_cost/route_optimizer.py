@@ -7,9 +7,11 @@ TSO 准入、容量、成本/净回值评估（fail-closed），再按经济性�
 
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
+from datetime import date, datetime
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from eurogas_nexus.domain.constraints.access import (
     inaccessible_tsos,
@@ -31,6 +33,21 @@ from eurogas_nexus.domain.route_cost.enums import (
 from eurogas_nexus.domain.route_cost.route_cost_service import calculate_route_cost
 from eurogas_nexus.domain.route_cost.schemas import RouteCostScenario, RouteTariffLeg
 from eurogas_nexus.domain.route_cost.tariff_models import CapacityTariff
+from eurogas_nexus.domain.route_cost.tariff_selection import (
+    TARIFF_APPLICABILITY_NOT_ASSESSED,
+)
+
+
+def _explicit_calendar_date_value(value: object) -> object:
+    """Refuse timestamp/numeric coercion into an asserted applicability date."""
+
+    if value is None or (isinstance(value, date) and not isinstance(value, datetime)):
+        return value
+    if isinstance(value, str) and len(value) == 10:
+        parsed = date.fromisoformat(value)
+        if parsed.isoformat() == value:
+            return value
+    raise ValueError("tariff_applicability_date must be an explicit YYYY-MM-DD date")
 
 
 class RouteOptionCandidate(BaseModel):
@@ -47,9 +64,17 @@ class RouteOptionCandidate(BaseModel):
         available_capacity_mwh_per_day: Known capacity, or None.
         capacity_status: Capacity state; see the validator below.
         tariff_legs: Tariff legs for route-cost estimation.
-        manual_cost: Operator-supplied route cost override, or None.
+        manual_cost: Operator-supplied route cost override, or None. ``None`` is
+            unknown, never zero; only an explicit ``0.0`` is a known zero cost.
         cost_currency: Currency of the manual cost.
         cost_unit: Unit of the manual cost.
+        tariff_applicability_date: The source option's own tariff date, when the
+            caller knows it. It is evidence, not a second selector: a value that
+            disagrees with the request-level date blocks the candidate.
+        source_refs: Caller-supplied provenance references for this candidate.
+            They are echoed on a selected allocation as unverified input
+            provenance only; they grant no entitlement and are never used as an
+            economic input.
         notes: Free notes (display only).
     """
 
@@ -66,7 +91,16 @@ class RouteOptionCandidate(BaseModel):
     manual_cost: float | None = None
     cost_currency: str | None = None
     cost_unit: str | None = None
+    tariff_applicability_date: date | None = None
+    source_refs: list[str] = Field(default_factory=list)
     notes: list[str] = Field(default_factory=list)
+
+    @field_validator("tariff_applicability_date", mode="before")
+    @classmethod
+    def _explicit_source_calendar_date(cls, value: object) -> object:
+        """Refuse timestamp/numeric coercion into a source-option date."""
+
+        return _explicit_calendar_date_value(value)
 
     @model_validator(mode="after")
     def _infer_capacity_status(self) -> RouteOptionCandidate:
@@ -92,7 +126,11 @@ class RouteRecommendationRequest(BaseModel):
         source_point_id: Source point of the volume.
         target_point_id: Target point, or None.
         required_quantity_mwh_per_day: Volume to allocate, MWh/d.
-        gas_year: Gas year of the allocation.
+        gas_year: Gas year of the allocation. It filters tariff identity and is
+            never used as a date proxy.
+        tariff_applicability_date: Explicit calendar date the selected tariffs
+            must cover, or None. None means applicability is not assessed; no
+            clock, gas year or metadata instant is substituted.
         capacity_product: Capacity product requested.
         firmness: Firmness requested.
         company_accessible_tsos: Company's accessible TSOs, or None.
@@ -108,11 +146,19 @@ class RouteRecommendationRequest(BaseModel):
     target_point_id: str | None = None
     required_quantity_mwh_per_day: float
     gas_year: str
+    tariff_applicability_date: date | None = None
     capacity_product: CapacityProduct
     firmness: Firmness
     company_accessible_tsos: list[str] | None = None
     candidates: list[RouteOptionCandidate] = Field(default_factory=list)
     analysis_snapshot_id: str | None = None
+
+    @field_validator("tariff_applicability_date", mode="before")
+    @classmethod
+    def _explicit_calendar_date(cls, value: object) -> object:
+        """Refuse timestamp/numeric coercion into an asserted applicability date."""
+
+        return _explicit_calendar_date_value(value)
 
 
 class RouteAllocation(BaseModel):
@@ -129,6 +175,14 @@ class RouteAllocation(BaseModel):
         unit: Cost unit, or None.
         sale_price: Sale price, or None.
         netback: Executable netback, or None.
+        source_refs: Provenance of the route cost actually used (tariff rows and
+            their source documents), followed by caller-supplied references
+            prefixed ``unverified_input:``. The prefixed references are
+            provenance claims only: they are not entitlement evidence and are
+            never used as an economic input.
+        unverified_input_source_refs: The caller-supplied references exactly as
+            received (no prefix), reported separately so they cannot be confused
+            with backend-verified tariff provenance. They grant no rights.
         rationale: Machine-readable selection rationale tags.
     """
 
@@ -142,6 +196,8 @@ class RouteAllocation(BaseModel):
     unit: str | None = None
     sale_price: float | None = None
     netback: float | None = None
+    source_refs: list[str] = Field(default_factory=list)
+    unverified_input_source_refs: list[str] = Field(default_factory=list)
     rationale: list[str] = Field(default_factory=list)
 
 
@@ -176,6 +232,8 @@ class RouteRecommendationResult(BaseModel):
         excluded_routes: Candidates excluded with reasons.
         warnings: Aggregated warnings.
         assumptions: Explicit modelling assumptions.
+        tariff_applicability_date: The explicit date the caller declared for
+            tariff selection, or None when applicability was not assessed.
         analysis_snapshot_id: The Analysis Snapshot this result was computed
             against, echoed from the request; ``None`` when the caller supplied
             no reproducibility reference.
@@ -192,6 +250,7 @@ class RouteRecommendationResult(BaseModel):
     excluded_routes: list[ExcludedRoute] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     assumptions: list[str] = Field(default_factory=list)
+    tariff_applicability_date: date | None = None
     analysis_snapshot_id: str | None = None
     research_only: bool = True
     human_review_required: bool = True
@@ -205,6 +264,8 @@ class _EvaluatedRoute(BaseModel):
     currency: str | None
     unit: str | None
     netback: float | None
+    source_refs: list[str] = Field(default_factory=list)
+    unverified_input_source_refs: list[str] = Field(default_factory=list)
     blockers: list[str] = Field(default_factory=list)
 
 
@@ -235,6 +296,10 @@ def recommend_route_allocation(
     """
 
     warnings: list[str] = []
+    if request.tariff_applicability_date is None:
+        # A request without a declared date keeps the legacy selection but must
+        # say so at the recommendation level as well as on each priced leg.
+        warnings.append(TARIFF_APPLICABILITY_NOT_ASSESSED)
     excluded: list[ExcludedRoute] = []
     evaluated: list[_EvaluatedRoute] = []
 
@@ -274,8 +339,10 @@ def recommend_route_allocation(
             continue
 
         capacity = route.candidate.available_capacity_mwh_per_day
-        if capacity is None and route.candidate.capacity_status is CapacityStatus.UNKNOWN:
-            # 容量未知且未声明 NOT_REQUIRED：fail-closed 阻断。
+        if capacity is None and route.candidate.capacity_status is not CapacityStatus.NOT_REQUIRED:
+            # 容量缺失且未明确声明 NOT_REQUIRED：fail-closed 阻断。显式 UNKNOWN
+            # 与缺失状态都不能被当作无限容量；只有调用方明确声明 NOT_REQUIRED
+            # 的本地销售才允许无容量上限。
             excluded.append(
                 ExcludedRoute(
                     route_id=route.candidate.route_id,
@@ -313,6 +380,8 @@ def recommend_route_allocation(
                 unit=route.unit,
                 sale_price=route.candidate.sale_price,
                 netback=route.netback,
+                source_refs=route.source_refs,
+                unverified_input_source_refs=route.unverified_input_source_refs,
                 rationale=_allocation_rationale(route),
             )
         )
@@ -346,8 +415,16 @@ def recommend_route_allocation(
         assumptions=[
             "Candidates with sale prices are ranked by executable netback.",
             "Candidates without sale prices are ranked by lowest route cost.",
+            "A candidate whose cost is missing or cannot be priced is excluded; "
+            "an unknown cost is never treated as a zero charge.",
+            "Caller-supplied source references are echoed as unverified input "
+            "provenance only; they establish no entitlement and no economics.",
+            "Tariff applicability is assessed only against the caller-declared "
+            "tariff_applicability_date; no clock, gas year or metadata instant is "
+            "substituted for it.",
             "The result is decision support only; it does not execute trades or nominations.",
         ],
+        tariff_applicability_date=request.tariff_applicability_date,
         analysis_snapshot_id=request.analysis_snapshot_id,
         research_only=True,
         human_review_required=True,
@@ -366,7 +443,15 @@ def _evaluate_candidate(
     """
 
     blockers = _tso_access_blockers(candidate, request.company_accessible_tsos)
-    route_cost, currency, unit, cost_blockers = _candidate_cost(request, candidate, tariffs)
+    blockers.extend(_candidate_date_blockers(request, candidate))
+    blockers.extend(_sale_price_metadata_blockers(candidate))
+    route_cost, currency, unit, cost_blockers, source_refs = _candidate_cost(
+        request, candidate, tariffs
+    )
+    unverified_input_source_refs = list(
+        dict.fromkeys(ref for ref in candidate.source_refs if ref)
+    )
+    source_refs = _unverified_input_refs(source_refs, unverified_input_source_refs)
     blockers.extend(cost_blockers)
     blockers = list(dict.fromkeys(blockers))
     netback = _candidate_netback(candidate, route_cost, currency, unit)
@@ -379,6 +464,8 @@ def _evaluate_candidate(
         currency=currency,
         unit=unit,
         netback=netback,
+        source_refs=source_refs,
+        unverified_input_source_refs=unverified_input_source_refs,
         blockers=blockers,
     )
 
@@ -387,17 +474,29 @@ def _candidate_cost(
     request: RouteRecommendationRequest,
     candidate: RouteOptionCandidate,
     tariffs: Sequence[CapacityTariff],
-) -> tuple[float | None, str | None, str | None, list[str]]:
-    """Estimate the candidate's route cost and its currency/unit/blockers.
+) -> tuple[float | None, str | None, str | None, list[str], list[str]]:
+    """Estimate the candidate's route cost, currency/unit, blockers and sources.
 
-    成本估算优先级：手动成本 > 费率腿计算 > 零成本（无腿时按 0 处理）。
+    成本估算优先级：调用方明确给出的手动成本 > 费率腿计算。缺失成本既不是
+    零成本，也不从售价币种/单位推断；无法定价的候选被阻断而不是按 0 分配。
     费率腿计算走 route_cost_service，其缺失输入与单位换算告警转为阻断项。
+    The caller's explicit ``tariff_applicability_date`` is passed through
+    unchanged; an out-of-period, gapped or ambiguous selection blocks the
+    candidate instead of becoming a zero charge.
     """
 
     if candidate.manual_cost is not None:
-        return candidate.manual_cost, candidate.cost_currency, candidate.cost_unit, []
+        if not math.isfinite(candidate.manual_cost):
+            return None, None, None, ["ROUTE_COST_INVALID"], []
+        metadata_blockers = _manual_cost_metadata_blockers(candidate)
+        if metadata_blockers:
+            return None, None, None, metadata_blockers, []
+        return candidate.manual_cost, candidate.cost_currency, candidate.cost_unit, [], []
     if not candidate.tariff_legs:
-        return 0.0, candidate.price_currency, candidate.price_unit, []
+        # No manual cost and no leg the backend can price: the cost is unknown,
+        # not zero. A candidate with no priceable legs is excluded rather than
+        # allocated at an invented zero charge.
+        return None, None, None, ["ROUTE_COST_MISSING"], []
 
     scenario = RouteCostScenario(
         scenario_id=f"{request.request_id}:{candidate.route_id}",
@@ -407,6 +506,7 @@ def _candidate_cost(
         business_model=BusinessModel.CROSS_BORDER_TRANSFER,
         delivery_mode=DeliveryMode.BORDER_TRANSFER,
         gas_year=request.gas_year,
+        tariff_applicability_date=request.tariff_applicability_date,
         capacity_product=request.capacity_product,
         firmness=request.firmness,
         required_tso_access=candidate.required_tso_access,
@@ -418,7 +518,105 @@ def _candidate_cost(
         *result.missing_inputs,
         *[warning for warning in result.warnings if warning == "UNIT_CONVERSION_NOT_IMPLEMENTED"],
     ]
-    return result.total_cost, result.currency, result.unit, blockers
+    if result.total_cost is None and not blockers:
+        # A blocked route with no stated reason must not be ranked or allocated
+        # as if it cost nothing.
+        blockers.append("ROUTE_COST_MISSING")
+    source_refs = _route_cost_source_refs(result)
+    return result.total_cost, result.currency, result.unit, blockers, source_refs
+
+
+def _route_cost_source_refs(result) -> list[str]:
+    """Provenance of the tariff rows and documents used by one route cost."""
+
+    refs = [
+        f"tariff_document:{document_id}"
+        for document_id in result.used_tariff_documents
+    ]
+    for component in result.cost_breakdown:
+        if component.tariff_id:
+            refs.append(f"tariff:{component.tariff_id}")
+        refs.extend(component.source_refs)
+    return list(dict.fromkeys(refs))
+
+
+def _candidate_date_blockers(
+    request: RouteRecommendationRequest,
+    candidate: RouteOptionCandidate,
+) -> list[str]:
+    """Block a source-option date that disagrees with the request's declared date.
+
+    The request-level date remains the single selector. The candidate date is
+    evidence of the option read the caller used; when it names a different day,
+    the explicit cost derived for that old day cannot be reused under the new
+    request context. A candidate that carries no date keeps the previous
+    compatibility path.
+    """
+
+    declared = candidate.tariff_applicability_date
+    requested = request.tariff_applicability_date
+    if declared is None or requested is None or declared == requested:
+        return []
+    return [f"TARIFF_APPLICABILITY_DATE_MISMATCH:{declared.isoformat()}"]
+
+
+def _sale_price_metadata_blockers(candidate: RouteOptionCandidate) -> list[str]:
+    """Blockers for a supplied sale price whose basis is not usable.
+
+    A sale price is a comparison input, so a missing or non-energy basis would
+    let the allocator rank prices it cannot actually compare. The Web adapter
+    always sends the backend-normalized GBP/MWh identity; a direct caller that
+    omits it fails closed here instead of being treated as compatible.
+    """
+
+    if candidate.sale_price is None:
+        return []
+    if not math.isfinite(candidate.sale_price):
+        return ["SALE_PRICE_INVALID"]
+    currency = (candidate.price_currency or "").strip()
+    unit = (candidate.price_unit or "").strip()
+    if not currency or not unit:
+        return ["SALE_PRICE_METADATA_MISSING"]
+    if not unit.upper().endswith("/MWH"):
+        return ["SALE_PRICE_UNIT_INCOMPATIBLE"]
+    return []
+
+
+def _manual_cost_metadata_blockers(candidate: RouteOptionCandidate) -> list[str]:
+    """Blockers for a manual cost whose currency/unit identity is not usable.
+
+    A numeric manual cost is an explicitly known amount, but it is only usable
+    when the caller also stated the currency and an energy-price unit. Missing
+    metadata is never defaulted (for example to EUR) and never inferred from a
+    sale-price field; an incompatible unit is refused rather than converted.
+    """
+
+    currency = (candidate.cost_currency or "").strip()
+    unit = (candidate.cost_unit or "").strip()
+    if not currency or not unit:
+        return ["ROUTE_COST_METADATA_MISSING"]
+    if not unit.upper().endswith("/MWH"):
+        return ["ROUTE_COST_UNIT_INCOMPATIBLE"]
+    return []
+
+
+def _unverified_input_refs(
+    backend_refs: Sequence[str],
+    caller_refs: Sequence[str],
+) -> list[str]:
+    """Append caller-supplied references as unverified input provenance.
+
+    They are prefixed so a consumer can distinguish them from the tariff and
+    document references the backend actually used. They are evidence of what the
+    caller claimed, not entitlement and not an economic input.
+    """
+
+    refs = list(backend_refs)
+    for ref in caller_refs:
+        if not ref:
+            continue
+        refs.append(f"unverified_input:{ref}")
+    return list(dict.fromkeys(refs))
 
 
 def _candidate_netback(

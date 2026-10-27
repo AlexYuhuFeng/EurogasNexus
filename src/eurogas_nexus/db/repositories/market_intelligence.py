@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -33,6 +33,9 @@ from eurogas_nexus.domain.market_intelligence.opportunity_engine import (
 )
 from eurogas_nexus.domain.route_cost.route_cost_service import calculate_route_cost
 from eurogas_nexus.domain.route_cost.schemas import RouteCostScenario, RouteTariffLeg
+from eurogas_nexus.domain.route_cost.tariff_selection import (
+    TARIFF_APPLICABILITY_NOT_ASSESSED,
+)
 from eurogas_nexus.domain.strategy_lab.price_series import (
     canonical_price_name,
     evidence_tenor_from_product,
@@ -612,8 +615,16 @@ def scan_and_persist_intraday_opportunities(
     *,
     detected_at_utc: datetime | None = None,
     policy: OpportunityScanPolicy | None = None,
+    tariff_applicability_date: date | None = None,
 ) -> dict:
-    """Compose DB-owned inputs, evaluate route spreads, and persist snapshots."""
+    """Compose DB-owned inputs, evaluate route spreads, and persist snapshots.
+
+    ``detected_at_utc`` is the valuation/age clock. ``tariff_applicability_date``
+    is the explicit delivery date the route tariffs must cover; when it is
+    absent the route economics keep the legacy selection but disclose
+    ``TARIFF_APPLICABILITY_NOT_ASSESSED`` instead of treating the valuation
+    instant as a delivery date.
+    """
 
     detected_at = _as_utc(detected_at_utc or datetime.now(UTC))
     scan_id = f"intraday-scan-{detected_at.strftime('%Y%m%dT%H%M%S%f')}"
@@ -624,7 +635,11 @@ def scan_and_persist_intraday_opportunities(
         .all()
     )
     quotes = [MarketQuote.model_validate(_quote_dict(row)) for row in _latest_quotes(quote_rows)]
-    routes = _route_economics(session, detected_at)
+    routes = _route_economics(
+        session,
+        detected_at,
+        tariff_applicability_date=tariff_applicability_date,
+    )
     fx_rates = _latest_fx_rates(session)
     opportunities: list[IntradayOpportunity] = []
 
@@ -675,20 +690,30 @@ def _latest_quotes(rows: list[MarketQuoteRecord]) -> list[MarketQuoteRecord]:
     return list(latest.values())
 
 
-def _route_economics(session: Session, at_utc: datetime) -> list[RouteEconomics]:
+def _route_economics(
+    session: Session,
+    at_utc: datetime,
+    tariff_applicability_date: date | None = None,
+) -> list[RouteEconomics]:
+    """Cost the active routes for one intraday scan.
+
+    ``at_utc`` is the valuation instant used for TSO-access validity and quote
+    age. It is never copied into ``tariff_applicability_date``: without an
+    explicit delivery date the route-cost engine uses its disclosed legacy
+    selection and this function adds ``TARIFF_APPLICABILITY_NOT_ASSESSED`` to
+    every route's warnings.
+    """
+
     candidates = (
         session.query(RouteCandidateRecord)
         .filter(RouteCandidateRecord.active.is_(True))
         .order_by(RouteCandidateRecord.route_id)
         .all()
     )
-    tariff_date = at_utc.date()
-    tariffs = [
-        tariff
-        for tariff in list_tso_tariffs(session)
-        if tariff.effective_from <= tariff_date
-        and (tariff.effective_to is None or tariff.effective_to >= tariff_date)
-    ]
+    # The exact selector owns date applicability. It sees every tariff row so a
+    # gap, inverted window, duplicate id or overlapping final row refuses the
+    # route instead of hiding behind a clock-derived prefilter.
+    tariffs = list_tso_tariffs(session)
     access_rows = session.query(CompanyTsoAccessRecord).all()
     active_access, denied_access = _access_sets(access_rows, at_utc)
     results: list[RouteEconomics] = []
@@ -724,6 +749,7 @@ def _route_economics(session: Session, at_utc: datetime) -> list[RouteEconomics]
                 business_model="CROSS_BORDER_TRANSFER",
                 delivery_mode="BORDER_TRANSFER",
                 gas_year=legs[0].gas_year or "2025+",
+                tariff_applicability_date=tariff_applicability_date,
                 capacity_product=legs[0].capacity_product or "ANNUAL",
                 firmness=legs[0].firmness or "FIRM",
                 required_tso_access=required_access,
@@ -745,6 +771,11 @@ def _route_economics(session: Session, at_utc: datetime) -> list[RouteEconomics]
                 for item in result.cost_breakdown
                 for ref in item.source_refs
             )
+
+        if tariff_applicability_date is None:
+            # A route with no tariff legs would otherwise carry no disclosure at
+            # all; the warning must exist at the route-economics consumer.
+            warnings.append(TARIFF_APPLICABILITY_NOT_ASSESSED)
 
         results.append(
             RouteEconomics(

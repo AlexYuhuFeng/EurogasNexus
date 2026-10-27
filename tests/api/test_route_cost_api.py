@@ -246,6 +246,118 @@ def test_recommend_route_allocation_selects_local_sale_when_reroute_is_worse(
     ]
 
 
+def test_recommend_route_allocation_threads_explicit_tariff_applicability_date(
+    monkeypatch,
+) -> None:
+    tariffs = [
+        _dated_tariff(
+            tariff_id="jan",
+            effective_from=date(2026, 1, 1),
+            effective_to=date(2026, 1, 31),
+            tariff_value=2.0,
+        ),
+        _dated_tariff(
+            tariff_id="feb",
+            effective_from=date(2026, 2, 1),
+            effective_to=date(2026, 2, 28),
+            tariff_value=3.0,
+        ),
+    ]
+    monkeypatch.setattr(
+        route_cost_routes,
+        "_load_tariffs",
+        lambda: (tariffs, "runtime-postgresql", []),
+    )
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/api/route-cost/recommend",
+        json={
+            "request_id": "api-dated-recommendation",
+            "source_point_id": "TTF",
+            "target_point_id": "NBP",
+            "required_quantity_mwh_per_day": 100,
+            "gas_year": "2025+",
+            "tariff_applicability_date": "2026-01-31",
+            "capacity_product": "ANNUAL",
+            "firmness": "FIRM",
+            "company_accessible_tsos": ["BBL Company"],
+            "candidates": [
+                {
+                    "route_id": "dated-bbl",
+                    "route_name": "TTF -> BBL -> NBP",
+                    "required_tso_access": ["BBL Company"],
+                    "available_capacity_mwh_per_day": 100,
+                    "tariff_legs": [
+                        {
+                            "leg_id": "bbl-forward",
+                            "country": "NL",
+                            "tso": "BBL Company",
+                            "market_area": "BBL",
+                            "point_name": "BBL Forward Flow NL to GB",
+                            "direction": "EXIT",
+                        }
+                    ],
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["tariff_applicability_date"] == "2026-01-31"
+    assert data["allocations"][0]["route_cost"] == 2.0
+    assert "tariff:jan" in data["allocations"][0]["source_refs"]
+    assert "test:synthetic-api-tariff" in data["allocations"][0]["source_refs"]
+
+
+def test_resource_pool_options_route_threads_explicit_gas_day(monkeypatch) -> None:
+    from contextlib import contextmanager
+
+    import eurogas_nexus.db.session as db_session
+
+    captured: dict = {}
+
+    @contextmanager
+    def fake_session_factory():
+        yield object()
+
+    def fake_compose(**kwargs) -> dict:
+        captured.update(kwargs)
+        return {
+            "scope": "RESOURCE_POOL_ROUTE_OPTIONS",
+            "data_source": "runtime-postgresql",
+            "portfolio_resources": [],
+            "sale_options": [],
+            "blockers": [],
+            "warnings": [],
+            "tariff_applicability_date": "2026-01-31",
+        }
+
+    monkeypatch.setattr(route_cost_routes, "_db_is_configured", lambda: True)
+    monkeypatch.setattr(
+        route_cost_routes,
+        "read_resource_pool_inputs",
+        lambda _session: {},
+    )
+    monkeypatch.setattr(
+        route_cost_routes,
+        "compose_resource_pool_options",
+        fake_compose,
+    )
+    monkeypatch.setattr(db_session, "get_session_factory", lambda: fake_session_factory)
+    client = TestClient(create_app())
+
+    response = client.get(
+        "/api/route-cost/resource-pool/options",
+        params={"gas_day": "2026-01-31"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["data"]["tariff_applicability_date"] == "2026-01-31"
+    assert captured["gas_day"] == date(2026, 1, 31)
+
+
 def _dated_tariff(
     *,
     tariff_id: str,

@@ -465,6 +465,7 @@ def compose_portfolio_network(
                     "source_node_id": start_node.id,
                     "target_node_id": target_node.id,
                     "tariff_gbp_mwh": route_cost_gbp_mwh,
+                    "tariff_applicability_date": gas_day.isoformat(),
                     "available_capacity_mwh": route_capacity,
                     "capacity_source_refs": capacity_refs,
                     "tariff_source_refs": cost_refs,
@@ -509,6 +510,7 @@ def compose_portfolio_network(
                 "sale_price_age_hours": market_price["age_hours"],
                 **sale_provenance,
                 "route_cost_gbp_mwh": route_cost_gbp_mwh,
+                "tariff_applicability_date": gas_day.isoformat(),
                 "capacity_limit_mwh_per_day": sale_capacity,
                 "required_tso_access": list(required_access),
                 "source_refs": [
@@ -545,6 +547,9 @@ def compose_portfolio_network(
             "rate is available.",
             "Only tariff rows whose effective window covers the requested gas day "
             "are eligible for selection.",
+            "Route tariffs are selected against the requested gas day, not row order "
+            "or an evaluation clock; an out-of-period, gapped or overlapping final "
+            "row blocks the route.",
         ]
     )
 
@@ -1174,12 +1179,6 @@ def _route_cost_gbp_mwh(
     if not legs:
         return 0.0, [], ["ROUTE_LEGS_MISSING"], []
 
-    effective_tariffs = [
-        tariff
-        for tariff in tariffs
-        if tariff.effective_from <= gas_day
-        and (tariff.effective_to is None or tariff.effective_to >= gas_day)
-    ]
     scenario = RouteCostScenario(
         scenario_id=f"portfolio-network:{route.route_id}",
         source_resource_type="PIPELINE_IMPORT",
@@ -1192,13 +1191,18 @@ def _route_cost_gbp_mwh(
             else "BORDER_TRANSFER"
         ),
         gas_year=legs[0].gas_year or _gas_year(gas_day),
+        # The requested gas day is the authority for tariff applicability. The
+        # exact selector blocks a gap, an inverted window, a duplicate id or an
+        # overlapping final row; this function never falls back to a created_at
+        # or current-clock date instead.
+        tariff_applicability_date=gas_day,
         capacity_product=capacity_product,  # type: ignore[arg-type]
         firmness=firmness,  # type: ignore[arg-type]
         required_tso_access=list(route.required_tso_access),
         company_accessible_tsos=sorted(active_access) if route.required_tso_access else None,
         tariff_legs=legs,
     )
-    result = calculate_route_cost(scenario, effective_tariffs)
+    result = calculate_route_cost(scenario, tariffs)
     cost_blockers: list[str] = [
         *[f"ROUTE_COST_MISSING:{item}" for item in result.missing_inputs],
         *[

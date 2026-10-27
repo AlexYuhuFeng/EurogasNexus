@@ -114,6 +114,23 @@ def test_runtime_decision_rejected_for_unimplemented_endpoints() -> None:
         assert response.json()["detail"]["code"] == "runtime_decision_not_supported"
 
 
+def test_sandbox_resource_pool_refuses_a_date_it_cannot_apply() -> None:
+    """Sandbox inputs are explicit; a DB route-tariff date is not accepted there."""
+
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/api/optimization/resource-pool",
+        json={
+            "decision_context": "SANDBOX_SCENARIO",
+            "gas_day": "2026-01-01",
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "sandbox_gas_day_not_supported"
+
+
 def test_runtime_resource_pool_requires_db_and_rejects_client_inputs() -> None:
     client = TestClient(create_app())
 
@@ -247,13 +264,18 @@ def test_runtime_resource_pool_uses_db_snapshot(tmp_path, monkeypatch) -> None:
     client = TestClient(create_app())
     response = client.post(
         "/api/optimization/resource-pool",
-        json={"portfolio_id": "runtime-p1", "decision_context": "RUNTIME_DECISION"},
+        json={
+            "portfolio_id": "runtime-p1",
+            "decision_context": "RUNTIME_DECISION",
+            "gas_day": "2026-01-01",
+        },
     )
 
     assert response.status_code == 200
     payload = response.json()
     meta = payload["meta"]
     assert meta["decision_context"] == "RUNTIME_DECISION"
+    assert meta["gas_day"] == "2026-01-01"
     assert meta["source_references"] == ["runtime-postgresql"]
     run_id = meta["run_id"]
     assert run_id is not None
@@ -268,6 +290,7 @@ def test_runtime_resource_pool_uses_db_snapshot(tmp_path, monkeypatch) -> None:
     snapshot = evidence.json()["data"]["input_snapshot"]
     assert snapshot["portfolio_id"] == "runtime-p1"
     assert snapshot["decision_context"] == "RUNTIME_DECISION"
+    assert snapshot["gas_day"] == "2026-01-01"
     assert snapshot["fx_observation_ids"] == ["fx-eur-gbp"]
     assert snapshot["sale_options"][0]["destination_node"] == "TTF"
 

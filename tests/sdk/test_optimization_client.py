@@ -1,5 +1,7 @@
 """SDK optimization client tests (P1 coverage closure)."""
 
+from datetime import date
+
 import httpx
 import pytest
 from eurogas_nexus_sdk.optimization import (
@@ -100,11 +102,13 @@ def test_optimize_resource_pool_supports_runtime_decision(monkeypatch) -> None:
         sale_options=[],
         decision_context="RUNTIME_DECISION",
         portfolio_id="p1",
+        gas_day=date(2026, 1, 31),
     )
 
     assert result.data.status == "optimal"
     assert result.meta.run_id == "opt-abc"
     assert result.meta.source_references == ["runtime-postgresql"]
+    assert captured["body"]["gas_day"] == "2026-01-31"
 
 
 def test_optimize_capacity_and_contracts(monkeypatch) -> None:

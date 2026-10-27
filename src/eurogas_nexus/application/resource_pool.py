@@ -53,6 +53,9 @@ from eurogas_nexus.domain.dataops.contracts import EntitlementOutcome
 from eurogas_nexus.domain.dataops.entitlement import derived_result_access
 from eurogas_nexus.domain.route_cost.route_cost_service import calculate_route_cost
 from eurogas_nexus.domain.route_cost.schemas import RouteCostScenario, RouteTariffLeg
+from eurogas_nexus.domain.route_cost.tariff_selection import (
+    TARIFF_APPLICABILITY_NOT_ASSESSED,
+)
 from eurogas_nexus.security.identity import AuthenticatedPrincipal
 
 if TYPE_CHECKING:  # pragma: no cover - import boundary: importing the API must not
@@ -236,6 +239,7 @@ def compose_resource_pool_options(
     market_rows: list,
     fx_rows: list,
     company_accessible_tsos: list[str] | None = None,
+    gas_day: date | None = None,
 ) -> dict:
     """Compose DB-backed portfolio resources and executable sale options.
 
@@ -251,14 +255,21 @@ def compose_resource_pool_options(
         market_rows: Market observation rows, newest first.
         fx_rows: FX observation rows, newest first.
         company_accessible_tsos: Currently active company TSO access names.
+        gas_day: Explicit delivery gas day the route tariffs must cover, or
+            ``None``. ``None`` keeps the legacy selection but discloses
+            ``TARIFF_APPLICABILITY_NOT_ASSESSED``; no observation clock, gas
+            year or metadata instant is substituted for it.
 
     Returns:
         ``{"scope", "data_source", "portfolio_resources", "sale_options",
-        "blockers", "warnings"}`` - the payload the route has always returned.
+        "blockers", "warnings"}`` - the payload the route has always returned,
+        plus the explicit ``tariff_applicability_date`` echo.
     """
 
     blockers: list[str] = []
     warnings: list[str] = []
+    if gas_day is None:
+        warnings.append(TARIFF_APPLICABILITY_NOT_ASSESSED)
     if not contracts:
         blockers.append("UPSTREAM_CONTRACTS_MISSING")
     if not candidates:
@@ -304,14 +315,20 @@ def compose_resource_pool_options(
             warnings.append(f"ROUTE_TARGET_NOT_ALLOWED_BY_CONTRACT:{candidate['route_id']}")
             continue
 
-        route_cost, cost_currency, cost_unit, cost_warnings, cost_blockers = (
-            candidate_route_cost(
-                candidate,
-                tariffs,
-                price_currency=market_price["currency"],
-                price_unit=market_price["unit"],
-                company_accessible_tsos=company_accessible_tsos,
-            )
+        (
+            route_cost,
+            cost_currency,
+            cost_unit,
+            cost_warnings,
+            cost_blockers,
+            route_cost_source_refs,
+        ) = candidate_route_cost(
+            candidate,
+            tariffs,
+            price_currency=market_price["currency"],
+            price_unit=market_price["unit"],
+            company_accessible_tsos=company_accessible_tsos,
+            tariff_applicability_date=gas_day,
         )
         warnings.extend(cost_warnings)
         blockers.extend(cost_blockers)
@@ -332,7 +349,10 @@ def compose_resource_pool_options(
         capacity_status = "KNOWN" if capacity_limit is not None else "NOT_REQUIRED"
 
         observed_at_iso = market_price["observed_at_utc"]
-        asof_date = date_from_iso(observed_at_iso)
+        # FX is as-of the explicit delivery gas day when the caller declared one;
+        # the observation instant is only the legacy fallback because it is a
+        # valuation clock, never a statement of tariff applicability.
+        asof_date = gas_day or date_from_iso(observed_at_iso)
 
         sale_price_gbp, sale_fx_info, sale_fx_warning = value_in_gbp(
             market_price["price"],
@@ -387,6 +407,10 @@ def compose_resource_pool_options(
                 "route_cost_gbp_mwh": route_cost_gbp,
                 "route_cost_currency": "GBP",
                 "route_cost_unit": "GBP/MWh",
+                "tariff_applicability_date": (
+                    gas_day.isoformat() if gas_day is not None else None
+                ),
+                "route_cost_source_refs": route_cost_source_refs,
                 **route_fx_info,
                 "capacity_limit_mwh_per_day": capacity_limit,
                 "capacity_status": capacity_status,
@@ -395,11 +419,14 @@ def compose_resource_pool_options(
                     contract["contract_id"] for contract in eligible_contracts
                 ],
                 "required_tso_access": candidate["required_tso_access"],
-                "source_refs": [
-                    f"route_candidate:{candidate['route_id']}",
-                    market_price["source_reference"],
-                    *candidate.get("source_systems", []),
-                ],
+                "source_refs": unique(
+                    [
+                        f"route_candidate:{candidate['route_id']}",
+                        market_price["source_reference"],
+                        *candidate.get("source_systems", []),
+                        *route_cost_source_refs,
+                    ]
+                ),
             }
         )
 
@@ -410,6 +437,9 @@ def compose_resource_pool_options(
         "sale_options": sale_options,
         "blockers": unique(blockers),
         "warnings": unique(warnings),
+        "tariff_applicability_date": (
+            gas_day.isoformat() if gas_day is not None else None
+        ),
     }
 
 
@@ -639,16 +669,38 @@ def candidate_route_cost(
     price_currency: str,
     price_unit: str,
     company_accessible_tsos: list[str] | None = None,
-) -> tuple[float | None, str | None, str | None, list[str], list[str]]:
-    """Cost one route candidate with the shared route-cost engine."""
+    tariff_applicability_date: date | None = None,
+) -> tuple[
+    float | None,
+    str | None,
+    str | None,
+    list[str],
+    list[str],
+    list[str],
+]:
+    """Cost one route candidate with the shared route-cost engine.
+
+    The explicit ``tariff_applicability_date`` is passed to the exact selector.
+    A date gap, overlap, inverted window or duplicate id blocks the candidate
+    with its stable code; it is never converted into a zero charge. Without a
+    date the legacy selection is used and the route-cost result discloses that
+    applicability was not assessed.
+    """
 
     if not candidate["route_legs"]:
-        return 0.0, None, None, [], []
+        return 0.0, None, None, [], [], []
 
     try:
         legs = [RouteTariffLeg.model_validate(leg) for leg in candidate["route_legs"]]
     except ValidationError:
-        return 0.0, None, None, [], [f"ROUTE_LEG_INVALID:{candidate['route_id']}"]
+        return (
+            0.0,
+            None,
+            None,
+            [],
+            [f"ROUTE_LEG_INVALID:{candidate['route_id']}"],
+            [],
+        )
 
     scenario = RouteCostScenario(
         scenario_id=f"resource-pool-options:{candidate['route_id']}",
@@ -658,6 +710,7 @@ def candidate_route_cost(
         business_model="CROSS_BORDER_TRANSFER",
         delivery_mode="BORDER_TRANSFER",
         gas_year=legs[0].gas_year or "2025+",
+        tariff_applicability_date=tariff_applicability_date,
         capacity_product=legs[0].capacity_product or "ANNUAL",
         firmness=legs[0].firmness or "FIRM",
         required_tso_access=candidate["required_tso_access"],
@@ -675,13 +728,42 @@ def candidate_route_cost(
             if warning == "UNIT_CONVERSION_NOT_IMPLEMENTED"
         ],
     ]
+    source_refs = unique(
+        [
+            *[f"tariff_document:{document}" for document in result.used_tariff_documents],
+            *[
+                f"tariff:{component.tariff_id}"
+                for component in result.cost_breakdown
+                if component.tariff_id
+            ],
+            *[
+                ref
+                for component in result.cost_breakdown
+                for ref in component.source_refs
+            ],
+        ]
+    )
     if result.total_cost is None:
         blockers.append(f"ROUTE_COST_MISSING:{candidate['route_id']}")
-        return 0.0, result.currency, result.unit, result.warnings, blockers
+        return (
+            0.0,
+            result.currency,
+            result.unit,
+            result.warnings,
+            blockers,
+            source_refs,
+        )
     # Currency/unit harmonisation happens downstream in value_in_gbp, which
     # converts both sale price and route cost to GBP/MWh with as-of FX and
     # fails closed when conversion is unavailable.
-    return result.total_cost, result.currency, result.unit, result.warnings, blockers
+    return (
+        result.total_cost,
+        result.currency,
+        result.unit,
+        result.warnings,
+        blockers,
+        source_refs,
+    )
 
 
 def value_in_gbp(

@@ -382,18 +382,27 @@ def optimize_resource_pool(
     accessible_tsos: list[str] | None = None,
     decision_context: DecisionContext = "SANDBOX_SCENARIO",
     portfolio_id: str | None = None,
+    gas_day: date | str | None = None,
 ) -> SdkResult[ResourcePoolResultDTO]:
-    """Allocate upstream resources across sale options (sandbox or DB snapshot)."""
+    """Allocate upstream resources across sale options (sandbox or DB snapshot).
 
+    ``gas_day`` is the explicit delivery date for RUNTIME_DECISION route-tariff
+    costing. Omitted keeps the legacy path, which discloses that applicability
+    was not assessed; a SANDBOX_SCENARIO request must not carry it.
+    """
+
+    body: dict = {
+        "portfolio_id": portfolio_id,
+        "accessible_tsos": accessible_tsos,
+        "resources": [_as_dict(resource) for resource in resources],
+        "sale_options": [_as_dict(option) for option in sale_options],
+        "decision_context": decision_context,
+    }
+    if gas_day is not None:
+        body["gas_day"] = gas_day.isoformat() if isinstance(gas_day, date) else gas_day
     data, meta = _post_envelope(
         _url(base_url, "optimization/resource-pool"),
-        {
-            "portfolio_id": portfolio_id,
-            "accessible_tsos": accessible_tsos,
-            "resources": [_as_dict(resource) for resource in resources],
-            "sale_options": [_as_dict(option) for option in sale_options],
-            "decision_context": decision_context,
-        },
+        body,
     )
     return SdkResult(data=ResourcePoolResultDTO.model_validate(data), meta=meta)
 

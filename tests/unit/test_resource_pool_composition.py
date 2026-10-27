@@ -9,11 +9,23 @@ unknown that refuses the pair) and never counts a boolean, negative, float or
 string as a declared lag.
 """
 
+from datetime import date
 from types import SimpleNamespace
 
 from eurogas_nexus.application.resource_pool import (
     compose_resource_pool_options,
     screen_cash_lag_days,
+)
+from eurogas_nexus.domain.route_cost.enums import (
+    CapacityProduct,
+    Firmness,
+    TariffDirection,
+    TariffStatus,
+)
+from eurogas_nexus.domain.route_cost.tariff_models import CapacityTariff
+from eurogas_nexus.domain.route_cost.tariff_selection import (
+    TARIFF_APPLICABILITY_NOT_ASSESSED,
+    TARIFF_NOT_EFFECTIVE_ON_DATE,
 )
 
 
@@ -187,3 +199,163 @@ def test_compose_does_not_count_a_boolean_contract_lag_as_a_day() -> None:
     )
 
     assert data["sale_options"][0]["screen_sale_cash_lag_days"] == 4
+
+
+def _bbl_candidate() -> dict:
+    return {
+        "route_id": "ttf-nbp",
+        "route_name": "TTF -> BBL -> NBP",
+        "start_point_name": "TTF",
+        "target_point_name": "NBP",
+        "business_model": "CROSS_BORDER_TRANSFER",
+        "route_legs": [
+            {
+                "leg_id": "bbl-forward",
+                "country": "NL",
+                "tso": "BBL Company",
+                "market_area": "BBL",
+                "point_name": "BBL Forward Flow NL to GB",
+                "direction": "EXIT",
+                "gas_year": "2025+",
+                "capacity_product": "ANNUAL",
+                "firmness": "FIRM",
+                "available_capacity_mwh_per_day": 5_000,
+            }
+        ],
+        "required_tso_access": ["BBL Company"],
+        "source_systems": ["public_route_template", "BBL"],
+    }
+
+
+def _bbl_market_row() -> SimpleNamespace:
+    return _market_row(
+        observation_id="nbp-gbp-day",
+        market_venue="ICE_OCM_Sim",
+        product="NBP day-ahead",
+        price=30.0,
+        currency="GBP",
+        unit="GBP/MWh",
+        source_system="ICE_OCM_Sim",
+        source_reference="sim:ICE_OCM:NBP:day-ahead:20260701",
+        metadata_json={
+            "hub": "NBP",
+            "tenor": "day-ahead",
+            "simulated": True,
+            "source_family": "ICE_OCM",
+        },
+    )
+
+
+def _dated_bbl_tariff(
+    *,
+    tariff_id: str,
+    effective_from: date,
+    effective_to: date | None,
+    tariff_value: float,
+) -> CapacityTariff:
+    return CapacityTariff(
+        tariff_id=tariff_id,
+        document_id=f"doc-{tariff_id}",
+        country="NL",
+        tso="BBL Company",
+        market_area="BBL",
+        gas_year="2025+",
+        point_id="bbl-forward-nl-gb",
+        source_point_name="BBL Forward Flow NL to GB",
+        direction=TariffDirection.EXIT,
+        capacity_product=CapacityProduct.ANNUAL,
+        firmness=Firmness.FIRM,
+        tariff_value=tariff_value,
+        currency="GBP",
+        unit="GBP/MWh",
+        effective_from=effective_from,
+        effective_to=effective_to,
+        tariff_status=TariffStatus.FINAL,
+        source_table="synthetic resource-pool applicability table",
+        source_refs=["test:synthetic-pool-tariff"],
+        manual_review_required=False,
+    )
+
+
+def _compose_bbl(*, tariffs: list[CapacityTariff], gas_day: date | None) -> dict:
+    return compose_resource_pool_options(
+        contracts=[
+            _contract(
+                delivery_point_name="TTF",
+                allowed_exit_points=["NBP"],
+            )
+        ],
+        candidates=[_bbl_candidate()],
+        tariffs=tariffs,
+        market_rows=[_bbl_market_row()],
+        fx_rows=[],
+        company_accessible_tsos=["BBL Company"],
+        gas_day=gas_day,
+    )
+
+
+def test_explicit_gas_day_blocks_out_of_date_route_without_zero_charge() -> None:
+    data = _compose_bbl(
+        tariffs=[
+            _dated_bbl_tariff(
+                tariff_id="feb",
+                effective_from=date(2026, 2, 1),
+                effective_to=date(2026, 2, 28),
+                tariff_value=2.0,
+            )
+        ],
+        gas_day=date(2026, 1, 31),
+    )
+
+    assert data["sale_options"] == []
+    assert (
+        f"ROUTE_COST_MISSING:ttf-nbp:{TARIFF_NOT_EFFECTIVE_ON_DATE}:bbl-forward"
+        in data["blockers"]
+    )
+    assert data["tariff_applicability_date"] == "2026-01-31"
+    assert TARIFF_APPLICABILITY_NOT_ASSESSED not in data["warnings"]
+
+
+def test_explicit_gas_day_prices_valid_energy_tariff_and_keeps_source_date_echo() -> None:
+    data = _compose_bbl(
+        tariffs=[
+            _dated_bbl_tariff(
+                tariff_id="valid-jan",
+                effective_from=date(2026, 1, 1),
+                effective_to=date(2026, 1, 31),
+                tariff_value=2.0,
+            )
+        ],
+        gas_day=date(2026, 1, 31),
+    )
+
+    assert data["blockers"] == []
+    option = data["sale_options"][0]
+    assert option["route_cost_gbp_mwh"] == 2.0
+    assert option["tariff_applicability_date"] == "2026-01-31"
+    assert "tariff:valid-jan" in option["route_cost_source_refs"]
+    assert "test:synthetic-pool-tariff" in option["route_cost_source_refs"]
+    assert "test:synthetic-pool-tariff" in option["source_refs"]
+    assert data["tariff_applicability_date"] == "2026-01-31"
+
+
+def test_resource_pool_without_gas_day_discloses_not_assessed() -> None:
+    data = _compose_bbl(
+        tariffs=[
+            _dated_bbl_tariff(
+                tariff_id="valid-jan",
+                effective_from=date(2026, 1, 1),
+                effective_to=date(2026, 1, 31),
+                tariff_value=2.0,
+            )
+        ],
+        gas_day=None,
+    )
+
+    assert data["blockers"] == []
+    assert TARIFF_APPLICABILITY_NOT_ASSESSED in data["warnings"]
+    assert data["tariff_applicability_date"] is None
+    assert data["sale_options"][0]["tariff_applicability_date"] is None
+    # Legacy selection still prices the leg; applicability is explicitly
+    # disclosed as unassessed rather than inferred from an observation clock.
+    assert data["sale_options"][0]["route_cost_gbp_mwh"] == 2.0

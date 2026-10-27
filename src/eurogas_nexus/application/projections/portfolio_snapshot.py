@@ -34,7 +34,7 @@ removed; it is therefore strictly narrower than the route, never wider.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from datetime import datetime
+from datetime import date, datetime
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:  # pragma: no cover - import boundary: importing the API must not
@@ -213,7 +213,15 @@ def _populated_portfolio_snapshot(
         principal,
         read_resource_pool_inputs(session),
     )
-    resource_pool = compose_resource_pool_options(**pool_inputs)
+    # The projection's context already owns the canonical gas-day label: it is
+    # the caller's declared trading context, or the calendar label containing the
+    # one as-of instant. Hand that exact date to the shared composition so route
+    # tariffs are selected for the context the read model declares. No second
+    # calendar is derived here and no clock/metadata instant is substituted.
+    resource_pool = compose_resource_pool_options(
+        **pool_inputs,
+        gas_day=date.fromisoformat(context.gas_day),
+    )
     sale_options = resource_pool["sale_options"]
     contracts = pool_inputs["contracts"][:contract_limit]
 
@@ -311,6 +319,9 @@ def _populated_portfolio_snapshot(
             payload={
                 "scope": resource_pool["scope"],
                 "data_source": resource_pool["data_source"],
+                # Echo the composition's own date payload (the same field the
+                # resource-pool route returns), not a projection-specific date.
+                "tariff_applicability_date": resource_pool.get("tariff_applicability_date"),
                 "portfolio_resources": resource_pool["portfolio_resources"],
                 "blockers": resource_pool["blockers"],
                 "warnings": resource_pool["warnings"],
@@ -340,6 +351,9 @@ def _populated_portfolio_snapshot(
                 "Portfolio resources and executable sale options, composed by "
                 "application.resource_pool - the same code "
                 "GET /api/route-cost/resource-pool/options calls (Wave 5 follow-up).",
+                "Route tariffs are selected for this projection's canonical context "
+                "gas day; tariff_applicability_date is the composition's own echo, "
+                "not a second calendar.",
                 "A sale option is a derivative of a route candidate and a market "
                 "observation, so both contributing reads are entitlement-filtered "
                 "here; the underlying route applies no row filter, so this slice is "

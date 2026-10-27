@@ -1400,9 +1400,40 @@ export interface UpstreamContractRevisionListDTO {
   revisions: UpstreamContractRevisionDTO[];
 }
 
+/**
+ * One candidate in a route-comparison request.
+ *
+ * `manual_cost` is an explicit value or null for unknown. It is never defaulted
+ * to zero. A `*_gbp_mwh` value is already GBP/MWh and travels with that identity.
+ */
+export interface RouteRecommendationCandidateDTO {
+  route_id: string;
+  route_name: string;
+  destination_market?: string | null;
+  sale_price?: number | null;
+  price_currency?: string | null;
+  price_unit?: string | null;
+  required_tso_access?: string[];
+  available_capacity_mwh_per_day?: number | null;
+  capacity_status?: string | null;
+  manual_cost?: number | null;
+  cost_currency?: string | null;
+  cost_unit?: string | null;
+  /** Source-option date carried as evidence; the request-level date governs. */
+  tariff_applicability_date?: string | null;
+  /** Caller provenance only; the backend echoes it as unverified input. */
+  source_refs?: string[];
+}
+
 export interface RouteRecommendationRequestDTO {
   request_id: string; source_point_id: string; target_point_id?: string | null;
   required_quantity_mwh_per_day: number; gas_year: string;
+  /**
+   * Explicit delivery gas day the selected tariffs must cover, or null.
+   * The Web builder carries the caller's current canonical gas day here; null
+   * is "not assessed" and is never replaced with a clock or metadata instant.
+   */
+  tariff_applicability_date?: string | null;
   capacity_product: string; firmness: string; company_accessible_tsos?: string[] | null;
   candidates: Array<Record<string, unknown>>;
 }
@@ -1414,10 +1445,17 @@ export interface RouteRecommendationResultDTO {
     route_id: string; route_name: string; destination_market?: string | null;
     allocated_mwh_per_day: number; route_cost?: number | null;
     currency?: string | null; unit?: string | null; sale_price?: number | null;
-    netback?: number | null; rationale: string[];
+    netback?: number | null;
+    /** Backend tariff references plus caller refs prefixed `unverified_input:`. */
+    source_refs?: string[];
+    /** Caller refs exactly as supplied; unverified and non-binding. */
+    unverified_input_source_refs?: string[];
+    rationale: string[];
   }>;
   excluded_routes: Array<Record<string, unknown>>;
   warnings: string[]; assumptions: string[];
+  /** The explicit date the tariffs were selected for, or null when not assessed. */
+  tariff_applicability_date?: string | null;
   research_only: boolean; human_review_required: boolean;
 }
 
@@ -1435,12 +1473,23 @@ export interface PortfolioResourceDTO {
 export interface PortfolioSaleOptionDTO {
   option_id: string; label: string; delivery_mode: string; target_point_name: string;
   route_topology_kind?: "LOCAL_MARKET_DISPOSITION" | "NETWORK_ROUTE";
-  sale_price_gbp_mwh: number; route_cost_gbp_mwh?: number;
+  sale_price_gbp_mwh: number; route_cost_gbp_mwh?: number | null;
+  /** The backend-normalized identity of `sale_price_gbp_mwh` (GBP/MWh). */
+  sale_price_currency?: string | null; sale_price_unit?: string | null;
+  /** The backend-normalized identity of `route_cost_gbp_mwh` (GBP/MWh). */
+  route_cost_currency?: string | null; route_cost_unit?: string | null;
   sale_price_source_system?: string | null; sale_price_source_reference?: string | null;
   sale_price_observed_at_utc?: string | null; sale_price_freshness?: string | null;
   sale_price_quality_score?: number | null; sale_price_simulated?: boolean;
   sale_price_source_family?: string | null;
-  capacity_limit_mwh_per_day?: number | null; screen_sale_cash_lag_days?: number | null;
+  capacity_limit_mwh_per_day?: number | null;
+  /** KNOWN | NOT_REQUIRED | UNKNOWN; missing state must not be read as NOT_REQUIRED. */
+  capacity_status?: "KNOWN" | "NOT_REQUIRED" | "UNKNOWN" | string | null;
+  /** The date the backend selected this option's tariff for, or null if unassessed. */
+  tariff_applicability_date?: string | null;
+  /** Tariff/document provenance the backend actually used for the route cost. */
+  route_cost_source_refs?: string[];
+  screen_sale_cash_lag_days?: number | null;
   required_tso_access?: string[]; source_refs?: string[];
   eligible_resource_ids?: string[];
 }
@@ -1466,11 +1515,10 @@ export interface PortfolioOptimizationResultDTO {
 
 export interface ResourcePoolOptionsDTO {
   scope: string; data_source: string;
+  /** The explicit gas day the composition selected tariffs for, or null. */
+  tariff_applicability_date?: string | null;
   portfolio_resources: PortfolioResourceDTO[];
-  sale_options: Array<PortfolioSaleOptionDTO & {
-    sale_price_currency?: string; sale_price_unit?: string;
-    route_cost_currency?: string; route_cost_unit?: string;
-  }>;
+  sale_options: PortfolioSaleOptionDTO[];
   blockers: string[]; warnings: string[];
 }
 

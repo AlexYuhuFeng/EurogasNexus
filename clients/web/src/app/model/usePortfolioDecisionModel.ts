@@ -120,8 +120,12 @@ export function usePortfolioDecisionModel({
       saleOptions,
       totalPoolVolume,
       api.upstreamContracts,
+      // The request's tariff date is the caller's current canonical trading
+      // context gas day. It is part of the request identity, so a context move
+      // invalidates a held comparison and cannot reuse the prior allocation.
+      gasDay,
     ),
-    [api.upstreamContracts, portfolioResources, saleOptions, totalPoolVolume],
+    [api.upstreamContracts, gasDay, portfolioResources, saleOptions, totalPoolVolume],
   );
   const strategyScenario = useMemo(
     () => buildStrategyScenario(

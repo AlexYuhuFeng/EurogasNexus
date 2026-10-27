@@ -235,3 +235,14 @@ Public census: 189 paths / 203 operations.
 It requires explicit ordered energy stages, charged cost bases and dated cash
 inputs. Readiness remains NOT_ASSESSED; API and SDK delegate to the shared domain
 composition. See [LNG capability](LNG_ECONOMICS_ONLY_CAPABILITY.md).
+
+## 2026-10-28 additive route-date and provenance carriers
+
+Route recommendation accepts an explicit `tariff_applicability_date` and optional
+candidate date/source references; results preserve date and source provenance.
+Caller references are labelled unverified and confer no access. Resource-pool
+runtime composition accepts `gas_day`; sandbox composition refuses that field.
+PortfolioSnapshot uses its existing normalized trading-context gas day for tariff
+selection. Unknown cost is never substituted with zero; missing price/cost basis
+or conflicting dates blocks allocation. Existing paths/counts remain unchanged.
+See [consumer contract](ROUTE_TARIFF_DATE_CONSUMERS.md).

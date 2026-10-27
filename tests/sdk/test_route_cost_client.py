@@ -145,3 +145,70 @@ def test_calculate_route_cost_serializes_explicit_applicability_date(monkeypatch
         "tariff_applicability_date": "2026-01-31",
     }
     assert result.tariff_applicability_date == date(2026, 1, 31)
+
+
+def test_recommend_route_allocation_serializes_explicit_applicability_date(
+    monkeypatch,
+) -> None:
+    from eurogas_nexus_sdk.route_cost import recommend_route_allocation
+
+    captured: dict[str, object] = {}
+
+    def fake_post(url: str, json: dict, timeout: int) -> httpx.Response:
+        captured["url"] = url
+        captured["json"] = json
+        return httpx.Response(
+            200,
+            request=httpx.Request("POST", url),
+            json={
+                "data": {
+                    "request_id": "sdk-dated-recommendation",
+                    "status": "SUCCESS",
+                    "total_requested_mwh_per_day": 100,
+                    "total_allocated_mwh_per_day": 100,
+                    "unallocated_mwh_per_day": 0,
+                    "allocations": [
+                        {
+                            "route_id": "dated-bbl",
+                            "route_name": "TTF -> BBL -> NBP",
+                            "allocated_mwh_per_day": 100,
+                            "route_cost": 2.0,
+                            "currency": "EUR",
+                            "unit": "EUR/MWh",
+                            "source_refs": ["tariff:jan"],
+                        }
+                    ],
+                    "excluded_routes": [],
+                    "warnings": [],
+                    "assumptions": [],
+                    "tariff_applicability_date": "2026-01-31",
+                    "research_only": True,
+                    "human_review_required": True,
+                },
+                "meta": {
+                    "research_only": True,
+                    "human_review_required": True,
+                    "source_references": [],
+                    "warnings": [],
+                },
+            },
+        )
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+
+    result = recommend_route_allocation(
+        "http://testserver",
+        request_id="sdk-dated-recommendation",
+        source_point_id="TTF",
+        required_quantity_mwh_per_day=100,
+        gas_year="2025+",
+        capacity_product="ANNUAL",
+        firmness="FIRM",
+        candidates=[],
+        tariff_applicability_date=date(2026, 1, 31),
+    )
+
+    assert captured["url"] == "http://testserver/api/route-cost/recommend"
+    assert captured["json"]["tariff_applicability_date"] == "2026-01-31"
+    assert result.tariff_applicability_date == date(2026, 1, 31)
+    assert result.allocations[0].source_refs == ["tariff:jan"]

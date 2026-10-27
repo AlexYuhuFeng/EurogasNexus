@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, Request
@@ -514,11 +514,19 @@ def get_contract_revision(
 
 
 @router.get("/api/route-cost/resource-pool/options")
-def get_resource_pool_options(request: Request) -> dict:
+def get_resource_pool_options(
+    request: Request,
+    gas_day: date | None = None,
+) -> dict:
     """Compose DB-backed portfolio resources and executable sale options.
 
     This endpoint is intentionally read-only. It exists so clients do not
     fabricate route options locally when the runtime DB is missing inputs.
+
+    ``gas_day`` is the explicit delivery date the route tariffs must cover and
+    the as-of date for FX. Omitting it keeps the legacy selection but discloses
+    ``TARIFF_APPLICABILITY_NOT_ASSESSED``; the observation clock is never
+    presented as the delivery date.
 
     The composition itself lives in
     :mod:`eurogas_nexus.application.resource_pool`, so the Wave 5
@@ -547,7 +555,10 @@ def get_resource_pool_options(request: Request) -> dict:
         from eurogas_nexus.db.session import get_session_factory
 
         with get_session_factory()() as session:
-            data = compose_resource_pool_options(**read_resource_pool_inputs(session))
+            data = compose_resource_pool_options(
+                **read_resource_pool_inputs(session),
+                gas_day=gas_day,
+            )
         return _env(data, request, source="runtime-postgresql", warnings=data["warnings"])
     except sqlalchemy_error as exc:
         raise _db_unavailable(exc) from exc
@@ -748,6 +759,7 @@ def _compose_resource_pool_options(
     market_rows: list,
     fx_rows: list,
     company_accessible_tsos: list[str] | None = None,
+    gas_day: date | None = None,
 ) -> dict:
     """Compose portfolio resources and sale options (compatibility alias)."""
 
@@ -758,6 +770,7 @@ def _compose_resource_pool_options(
         market_rows=market_rows,
         fx_rows=fx_rows,
         company_accessible_tsos=company_accessible_tsos,
+        gas_day=gas_day,
     )
 
 

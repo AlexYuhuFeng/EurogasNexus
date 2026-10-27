@@ -202,6 +202,9 @@ class ResourcePoolOptimizationRequest(BaseModel):
         resources: Supply resources.
         sale_options: Sale options.
         accessible_tsos: Company's accessible TSOs, or None.
+        gas_day: Explicit delivery gas day for RUNTIME_DECISION route-tariff
+            costing, or None. It is not accepted for SANDBOX_SCENARIO, whose
+            inputs are already explicit.
         decision_context: SANDBOX_SCENARIO or RUNTIME_DECISION.
     """
 
@@ -209,6 +212,7 @@ class ResourcePoolOptimizationRequest(BaseModel):
     resources: list[SupplyResourceRequest] = Field(default_factory=list)
     sale_options: list[SaleOptionRequest] = Field(default_factory=list)
     accessible_tsos: list[str] | None = None
+    gas_day: date | None = None
     decision_context: DecisionContext = "SANDBOX_SCENARIO"
 
 
@@ -389,6 +393,20 @@ def optimize_resource_pool(body: ResourcePoolOptimizationRequest) -> dict:
 
     if body.decision_context == "RUNTIME_DECISION":
         return _runtime_resource_pool(body)
+    if body.gas_day is not None:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "sandbox_gas_day_not_supported",
+                "message": (
+                    "SANDBOX_SCENARIO prices the explicit sandbox inputs and does "
+                    "not read DB route tariffs; gas_day is accepted only by "
+                    "RUNTIME_DECISION."
+                ),
+                "research_only": True,
+                "human_review_required": True,
+            },
+        )
     optimizer = PhaseTwoOptimizer(
         accessible_tsos=set(body.accessible_tsos) if body.accessible_tsos is not None else None
     )
@@ -1229,6 +1247,7 @@ def _runtime_resource_pool(body: ResourcePoolOptimizationRequest) -> dict:
         market_rows=market_rows,
         fx_rows=fx_rows,
         company_accessible_tsos=active_company_tsos(access_rows),
+        gas_day=body.gas_day,
     )
     blockers = list(composed["blockers"])
     warnings = list(composed["warnings"])
@@ -1300,6 +1319,10 @@ def _runtime_resource_pool(body: ResourcePoolOptimizationRequest) -> dict:
         "fx_observation_ids": [fx_row.observation_id for fx_row in fx_rows],
         "blockers": blockers,
     }
+    if body.gas_day is not None:
+        # Additive: a caller that declares no date keeps the previous snapshot
+        # shape instead of receiving a null that looks like a measured value.
+        input_snapshot["gas_day"] = body.gas_day.isoformat()
     run_id = _persist_run(
         optimization_type="resource_pool",
         decision_context="RUNTIME_DECISION",
@@ -1308,18 +1331,18 @@ def _runtime_resource_pool(body: ResourcePoolOptimizationRequest) -> dict:
         output_snapshot=asdict(result),
         warnings=list(result.warnings),
     )
-    return {
-        "data": asdict(result),
-        "meta": {
-            "research_only": True,
-            "human_review_required": True,
-            "source_references": ["runtime-postgresql"],
-            "warnings": list(result.warnings),
-            "run_id": run_id,
-            "snapshot_id": run_id,
-            "decision_context": "RUNTIME_DECISION",
-        },
+    meta = {
+        "research_only": True,
+        "human_review_required": True,
+        "source_references": ["runtime-postgresql"],
+        "warnings": list(result.warnings),
+        "run_id": run_id,
+        "snapshot_id": run_id,
+        "decision_context": "RUNTIME_DECISION",
     }
+    if body.gas_day is not None:
+        meta["gas_day"] = body.gas_day.isoformat()
+    return {"data": asdict(result), "meta": meta}
 
 
 def _envelope_run(

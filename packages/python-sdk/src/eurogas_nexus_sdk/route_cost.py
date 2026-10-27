@@ -142,6 +142,7 @@ class RouteAllocation(BaseModel):
         unit: Pricing unit of the route cost.
         sale_price: Expected sale price at destination, when provided.
         netback: Netback value (sale price minus route cost), when priced.
+        source_refs: Provenance of the route cost actually used.
         rationale: Ordered reasons for choosing this route.
     """
 
@@ -154,6 +155,7 @@ class RouteAllocation(BaseModel):
     unit: str | None = None
     sale_price: float | None = None
     netback: float | None = None
+    source_refs: list[str] = Field(default_factory=list)
     rationale: list[str] = Field(default_factory=list)
 
 
@@ -170,6 +172,8 @@ class RouteRecommendationResult(BaseModel):
         excluded_routes: Candidate routes excluded, with exclusion reasons.
         warnings: Human-readable recommendation warnings.
         assumptions: Assumptions the recommendation relies on.
+        tariff_applicability_date: Explicit date the caller declared for tariff
+            selection, or None when applicability was not assessed.
         research_only: True when the payload is a research-only envelope.
         human_review_required: True when output needs human review before use.
     """
@@ -183,6 +187,7 @@ class RouteRecommendationResult(BaseModel):
     excluded_routes: list[dict] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     assumptions: list[str] = Field(default_factory=list)
+    tariff_applicability_date: date | None = None
     research_only: bool
     human_review_required: bool
 
@@ -392,17 +397,33 @@ def calculate_route_cost(
     return RouteCostResult(**data)
 
 
-def recommend_route_allocation(base_url: str, **kwargs) -> RouteRecommendationResult:
+def recommend_route_allocation(
+    base_url: str,
+    *,
+    tariff_applicability_date: date | str | None = None,
+    **kwargs,
+) -> RouteRecommendationResult:
     """Recommend how to split requested demand across candidate routes.
 
     Args:
         base_url: Base URL of the backend server.
+        tariff_applicability_date: Explicit calendar date the selected tariffs
+            must cover. A ``date`` is serialized as ISO ``YYYY-MM-DD``; an
+            already-serialized string is forwarded unchanged. Omitted keeps the
+            backend's disclosed legacy path and reports that applicability was
+            not assessed.
         **kwargs: Request fields forwarded to the recommend API.
 
     Returns:
         Recommendation with per-route allocations and exclusions.
     """
 
+    if tariff_applicability_date is not None:
+        kwargs["tariff_applicability_date"] = (
+            tariff_applicability_date.isoformat()
+            if isinstance(tariff_applicability_date, date)
+            else tariff_applicability_date
+        )
     data = _post(f"{base_url}/api/route-cost/recommend", kwargs)["data"]
     return RouteRecommendationResult(**data)
 
