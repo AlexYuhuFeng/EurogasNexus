@@ -25,6 +25,11 @@ def refresh_cost_source(
 ) -> int:
     """Fetch and upsert cost observations from the configured JSON URL.
 
+    Connector refusals propagate unchanged, so a provider/HTTP failure is never
+    reported as a successful zero-row refresh. The whole batch is validated
+    before a session opens and is committed once; a persistence failure rolls
+    the session back.
+
     Returns the number of observations refreshed.
     """
 
@@ -42,11 +47,20 @@ def refresh_cost_source(
 
     now = now_utc or datetime.now(UTC)
     with session_factory() as session:
-        for observation in observations:
-            if not observation.created_at_utc:
-                object.__setattr__(observation, "created_at_utc", now.isoformat())
-            upsert_cost_observation(session, observation, now_utc=now)
-        session.commit()
+        try:
+            for observation in observations:
+                if not observation.created_at_utc:
+                    object.__setattr__(observation, "created_at_utc", now.isoformat())
+                upsert_cost_observation(session, observation, now_utc=now)
+            session.commit()
+        except Exception:
+            rollback = getattr(session, "rollback", None)
+            if callable(rollback):
+                try:
+                    rollback()
+                except Exception:
+                    pass
+            raise
     return len(observations)
 
 
