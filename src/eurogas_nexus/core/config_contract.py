@@ -594,6 +594,31 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
             "role floors and data scopes are actually enforced",
         ),
     ),
+    # --- UAT SDK acceptance example ----------------------------------------
+    ConfigVar(
+        name="EUROGAS_UAT_API_BASE_URL",
+        scope="TOOLING",
+        purpose="Explicit API origin the UAT SDK economics example calls.",
+        sensitivity="public",
+        required_when="running scripts/examples/lng_capacity_economics.py",
+        example="http://127.0.0.1:8000",
+        notes=(
+            "No implicit default: the example refuses to run without an explicit origin.",
+            "Must be an http(s) origin only, with no path, query, fragment or credentials.",
+            "Loopback origins (127.0.0.1, localhost, ::1) need no further opt-in.",
+        ),
+    ),
+    ConfigVar(
+        name="EUROGAS_UAT_ALLOW_NON_LOOPBACK",
+        scope="TOOLING",
+        purpose="Opt in to an explicit non-loopback UAT API for the SDK economics example.",
+        sensitivity="public",
+        notes=(
+            "Unset or empty keeps the example loopback-only; exactly '1' opts in.",
+            "Any other value is refused.",
+            "An opted-in non-loopback API origin must use HTTPS.",
+        ),
+    ),
     # --- Build metadata (stamped, not operator-set) ------------------------
     ConfigVar(
         name="EUROGAS_NEXUS_BUILD_GIT_SHA",
