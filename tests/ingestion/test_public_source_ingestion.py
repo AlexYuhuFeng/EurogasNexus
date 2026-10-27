@@ -307,3 +307,7 @@ def test_gie_alsi_json_is_normalized_into_lng_observations() -> None:
     assert rows[0]["period_start_utc"] == datetime(2026, 5, 29, 4, 0, tzinfo=UTC)
     assert rows[0]["period_end_utc"] == datetime(2026, 5, 30, 4, 0, tzinfo=UTC)
     assert rows[0]["metadata_json"]["calendar_version"] == "EU-CAM-UTC-2025"
+    provenance = rows[0]["metadata_json"]["measurement_provenance"]
+    assert provenance["inventory"]["raw"] == {"lng": "9.5", "gwh": "42.5"}
+    assert provenance["dtmi"]["raw"] == {"lng": "14.4", "gwh": "65.0"}
+    assert rows[0]["metadata_json"]["unit_warnings"] == []

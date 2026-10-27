@@ -7,6 +7,7 @@ explicit operator invocation.
 from __future__ import annotations
 
 import hashlib
+import math
 import re
 from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
@@ -590,10 +591,18 @@ def gie_lng_observations_from_json(
 ) -> list[dict[str, Any]]:
     """Normalize GIE ALSI records into LNG observation rows.
 
+    The reviewed GIE API manual v007 (4 October 2022) documents ``inventory`` and ``dtmi`` as LNG
+    volume in 10**3 m3, and ``sendOut`` as GWh/d. DTMI is the Declared Total Maximum Inventory, not
+    a days-to-monitor figure. Only an explicit nested ``gwh`` member is converted to TWh (/1000);
+    a scalar or ``lng``-only inventory/DTMI stays raw provenance with the energy field ``None``.
+    No calorific factor or volume-to-energy inference is applied. A malformed, boolean or non-finite
+    explicit ``gwh`` also fails closed to ``None`` and records a unit warning.
+
     Same declaration as AGSI: the CAM calendar owns the gas-day boundaries and the `updatedAt`
     freshness stamp is refused when it carries no offset. ``observed_at_utc`` is the live caller's
     response-receipt instant, used only when the provider stamp cannot be placed in time, with the
-    substitution recorded in ``metadata_json``.
+    substitution recorded in ``metadata_json``. The source-unit contract above is the reviewed v007
+    contract; later GIE versions are not asserted here.
     """
 
     contract = contract_for("GIE", "alsi")
@@ -612,6 +621,15 @@ def gie_lng_observations_from_json(
             zone=gie_zone,
             fallback=observed_at_utc,
         )
+        inventory_twh, inventory_provenance, inventory_warnings = _alsi_volume_energy(
+            record.get("inventory"), "inventory"
+        )
+        dtmi_twh, dtmi_provenance, dtmi_warnings = _alsi_volume_energy(
+            record.get("dtmi"), "dtmi"
+        )
+        send_out_twh_d, send_out_provenance, send_out_warnings = _alsi_send_out_energy(
+            record.get("sendOut")
+        )
         rows.append(
             {
                 "observation_id": f"gie-alsi-{code}-{gas_day.isoformat()}",
@@ -619,9 +637,9 @@ def gie_lng_observations_from_json(
                 "terminal_id": code,
                 "terminal_name": str(record.get("name") or code),
                 "country": code,
-                "inventory_twh": _gwh_to_twh(record.get("inventory")),
-                "send_out_twh_d": _gwh_to_twh(record.get("sendOut")),
-                "dtmi_twh": _gwh_to_twh(record.get("dtmi")),
+                "inventory_twh": inventory_twh,
+                "send_out_twh_d": send_out_twh_d,
+                "dtmi_twh": dtmi_twh,
                 "period_start_utc": period_start,
                 "period_end_utc": period_end,
                 "observed_at_utc": observed_at,
@@ -650,6 +668,19 @@ def gie_lng_observations_from_json(
                     "calendar_version": EU_CAM_UTC_CALENDAR,
                     "availability_basis": availability_basis,
                     "provider_updated_at_zone": _provider_zone_label(availability_basis),
+                    "unit_contract": (
+                        "GIE ALSI API v007 (2022-10-04); later versions unverified"
+                    ),
+                    "measurement_provenance": {
+                        "inventory": inventory_provenance,
+                        "dtmi": dtmi_provenance,
+                        "send_out": send_out_provenance,
+                    },
+                    "unit_warnings": [
+                        *inventory_warnings,
+                        *dtmi_warnings,
+                        *send_out_warnings,
+                    ],
                 },
             }
         )
@@ -719,6 +750,144 @@ def _gwh_to_twh(value: object) -> float | None:
         value = value.get("gwh")
     numeric = _to_float(value)
     return numeric / 1000 if numeric is not None else None
+
+
+_ALSI_RAW_TEXT_LIMIT = 80
+
+
+def _alsi_finite_float(value: object) -> float | None:
+    """Read an explicit energy scalar without accepting booleans or non-finite values."""
+
+    if isinstance(value, bool) or value is None:
+        return None
+    if isinstance(value, str) and not value.strip():
+        return None
+    try:
+        numeric = float(str(value).replace(",", ""))
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return numeric if math.isfinite(numeric) else None
+
+
+def _alsi_bounded_raw_scalar(value: object) -> object:
+    """Keep raw provenance JSON-safe and bounded instead of echoing an arbitrary payload."""
+
+    if isinstance(value, str):
+        if len(value) <= _ALSI_RAW_TEXT_LIMIT:
+            return value
+        return f"{value[:_ALSI_RAW_TEXT_LIMIT]}..."
+    if isinstance(value, bool | int):
+        return value
+    if isinstance(value, float):
+        return value if math.isfinite(value) else repr(value)
+    if value is None:
+        return None
+    return {"unsupported_type": type(value).__name__}
+
+
+def _alsi_bounded_raw_measurement(raw: object) -> object:
+    if isinstance(raw, dict):
+        return {
+            key: _alsi_bounded_raw_scalar(raw.get(key))
+            for key in ("lng", "gwh")
+            if key in raw
+        }
+    return _alsi_bounded_raw_scalar(raw)
+
+
+def _alsi_measurement_absent(raw: object) -> bool:
+    return raw is None or (isinstance(raw, str) and not raw.strip())
+
+
+def _alsi_volume_energy(
+    raw: object,
+    field: str,
+) -> tuple[float | None, dict[str, Any], list[str]]:
+    """Map inventory/DTMI to energy only through an explicit nested ``gwh`` member.
+
+    A scalar or ``lng``-only value is the provider's LNG volume (10**3 m3 in the reviewed v007
+    contract), not GWh, so it is retained as provenance and the canonical energy field stays
+    ``None``. Booleans, non-finite numbers and malformed explicit ``gwh`` values fail closed too.
+    """
+
+    provenance: dict[str, Any] = {
+        "raw": _alsi_bounded_raw_measurement(raw),
+        "shape": "absent",
+        "energy_basis": "absent",
+    }
+    if _alsi_measurement_absent(raw):
+        provenance["raw"] = None
+        return None, provenance, []
+    if isinstance(raw, dict):
+        provenance["shape"] = "nested"
+        if "gwh" in raw:
+            numeric = _alsi_finite_float(raw.get("gwh"))
+            if numeric is None:
+                provenance["energy_basis"] = "malformed_explicit_gwh"
+                return None, provenance, [f"{field}_explicit_gwh_invalid"]
+            provenance["energy_basis"] = "explicit_gwh"
+            return numeric / 1000, provenance, []
+        if "lng" in raw:
+            provenance["energy_basis"] = "literal_lng_volume"
+            return (
+                None,
+                provenance,
+                [f"{field}_lng_volume_without_explicit_gwh"],
+            )
+        provenance["energy_basis"] = "unrecognized_nested"
+        return (
+            None,
+            provenance,
+            [f"{field}_nested_measurement_without_explicit_gwh"],
+        )
+    if isinstance(raw, list | tuple | set):
+        provenance["shape"] = "unsupported"
+        provenance["energy_basis"] = "unsupported"
+        return None, provenance, [f"{field}_measurement_unsupported"]
+    provenance["shape"] = "scalar"
+    provenance["energy_basis"] = "scalar_volume_not_energy"
+    return None, provenance, [f"{field}_scalar_volume_not_converted"]
+
+
+def _alsi_send_out_energy(
+    raw: object,
+) -> tuple[float | None, dict[str, Any], list[str]]:
+    """Read send-out as GWh/d; an optional nested object still needs an explicit ``gwh`` member."""
+
+    provenance: dict[str, Any] = {
+        "raw": _alsi_bounded_raw_measurement(raw),
+        "shape": "absent",
+        "energy_basis": "absent",
+    }
+    if _alsi_measurement_absent(raw):
+        provenance["raw"] = None
+        return None, provenance, []
+    if isinstance(raw, dict):
+        provenance["shape"] = "nested"
+        if "gwh" in raw:
+            numeric = _alsi_finite_float(raw.get("gwh"))
+            if numeric is None:
+                provenance["energy_basis"] = "malformed_explicit_gwh"
+                return None, provenance, ["send_out_explicit_gwh_invalid"]
+            provenance["energy_basis"] = "explicit_gwh"
+            return numeric / 1000, provenance, []
+        if "lng" in raw:
+            provenance["energy_basis"] = "literal_lng_volume"
+            return None, provenance, ["send_out_lng_volume_without_explicit_gwh"]
+        provenance["energy_basis"] = "unrecognized_nested"
+        return None, provenance, ["send_out_nested_measurement_without_explicit_gwh"]
+    if isinstance(raw, list | tuple | set):
+        provenance["shape"] = "unsupported"
+        provenance["energy_basis"] = "unsupported"
+        return None, provenance, ["send_out_measurement_unsupported"]
+    numeric = _alsi_finite_float(raw)
+    if numeric is None:
+        provenance["shape"] = "scalar"
+        provenance["energy_basis"] = "malformed_scalar_gwh"
+        return None, provenance, ["send_out_scalar_gwh_invalid"]
+    provenance["shape"] = "scalar"
+    provenance["energy_basis"] = "scalar_gwh_per_day"
+    return numeric / 1000, provenance, []
 
 
 def _parse_date(value: object) -> date | None:

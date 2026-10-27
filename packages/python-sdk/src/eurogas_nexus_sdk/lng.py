@@ -1,4 +1,12 @@
-"""SDK client for /api/lng."""
+"""SDK client for /api/lng.
+
+The current GIE ALSI read surface publishes TWh measurements keyed by
+``terminal_id``/``terminal_name``. Only source measurements carrying explicit
+energy data are represented as TWh; a raw LNG volume is not converted without a
+calorific factor. The coordinates and mcm capacity carried by the original SDK
+models are not part of that payload: they remain explicit, optional legacy fields
+and are never derived from the actual TWh fields.
+"""
 
 from pydantic import BaseModel
 
@@ -6,55 +14,104 @@ from eurogas_nexus_sdk import _http
 
 
 class LngTerminal(BaseModel):
-    """An LNG regasification terminal.
+    """An LNG terminal returned by ``GET /api/lng/terminals``.
 
     Attributes:
         terminal_id: Stable identifier of the terminal.
         name: Display name of the terminal.
-        country: Two-letter country code of the terminal.
-        lat: Latitude in decimal degrees.
-        lon: Longitude in decimal degrees.
-        capacity_mcm_d: Regasification capacity in million cubic metres per day;
-            None when not published.
-        storage_capacity_mcm: LNG storage capacity in million cubic metres;
-            None when not published.
-        status: Operational status (default ``operational``).
+        country: Country code published with the terminal row.
+        inventory_twh: Latest inventory in TWh, populated only when the source
+            carries an explicit ``gwh`` value; None when only an LNG volume or
+            no measurement is published.
+        send_out_twh_d: Latest send-out in TWh/day, converted from the source's
+            scalar GWh/day value; None when not published.
+        dtmi_twh: Declared Total Maximum Inventory (DTMI) in TWh, populated
+            only when the source carries an explicit ``gwh`` value. DTMI is not
+            a days-to-monitor estimate; None when only an LNG volume or no
+            measurement is published.
+        observed_at_utc: Capture time of the observation the row aggregates;
+            None only for legacy constructions.
+        source_system: Source that produced the row; None only for legacy
+            constructions.
+        status: Status published by the API (``observed``). The default keeps
+            the original carrier usable for legacy callers.
+        lat: Legacy latitude. The API publishes no coordinates, so this is
+            None unless a caller explicitly supplies a legacy value.
+        lon: Legacy longitude; see ``lat``.
+        capacity_mcm_d: Legacy regasification capacity in mcm/day. Never
+            converted from the TWh fields.
+        storage_capacity_mcm: Legacy LNG storage capacity in mcm. Never
+            converted from the TWh fields.
     """
 
     terminal_id: str
     name: str
     country: str
-    lat: float
-    lon: float
-    # 再气化/储罐容量并非所有终端都公开，缺失保留 None 而不是默认 0，
-    # 供调用方区分"未披露"与"确实为零"。
+    inventory_twh: float | None = None
+    send_out_twh_d: float | None = None
+    dtmi_twh: float | None = None
+    observed_at_utc: str | None = None
+    source_system: str | None = None
+    status: str = "operational"
+    # Legacy carriers only: the actual API publishes neither geo coordinates
+    # nor mcm capacity, so these stay None instead of being invented.
+    lat: float | None = None
+    lon: float | None = None
     capacity_mcm_d: float | None = None
     storage_capacity_mcm: float | None = None
-    status: str = "operational"
 
 
 class LngObservation(BaseModel):
-    """One LNG send-out or inventory observation.
+    """One ALSI observation returned by ``GET /api/lng/observations``.
 
     Attributes:
-        observation_id: Unique identifier of the observation.
-        terminal_id: Identifier of the terminal.
-        terminal_name: Display name of the terminal.
-        observation_type: Kind of observation (e.g. send-out, stock).
-        value_mcm: Observed value in million cubic metres; None when absent.
-        period_start_utc: Start of the observation window (ISO-8601 UTC).
-        period_end_utc: End of the observation window (ISO-8601 UTC).
+        observation_id: Stable observation identifier.
+        terminal_id: ALSI terminal code from the API.
+        terminal_name: Terminal display name.
+        country: Country code supplied with the terminal row; None only for
+            legacy constructions that predate the field.
+        source_dataset: Source dataset label (for example ``ALSI``).
+        inventory_twh: Gas inventory in TWh, populated only when the source
+            carries an explicit ``gwh`` value; None when only an LNG volume or
+            no measurement is published.
+        send_out_twh_d: Send-out rate in TWh/day, converted from the source's
+            scalar GWh/day value; None when absent.
+        dtmi_twh: Declared Total Maximum Inventory (DTMI) in TWh, populated
+            only when the source carries an explicit ``gwh`` value. DTMI is not
+            a days-to-monitor estimate; None when only an LNG volume or no
+            measurement is published.
+        period_start_utc: UTC period start supplied by the API.
+        period_end_utc: UTC period end supplied by the API.
+        observed_at_utc: Capture time; None only for legacy constructions.
+        source_system: Source system; None only for legacy constructions.
+        source_reference: Source reference; None only for legacy constructions.
+        freshness: Source freshness verdict; None only for legacy constructions.
+        research_only: Research-only flag published by the API.
+        observation_type: Legacy observation kind. The current API does not
+            publish it, so API rows leave it as None.
+        value_mcm: Legacy mcm value. This is never converted from the TWh
+            fields.
     """
 
     observation_id: str
     terminal_id: str
     terminal_name: str
-    observation_type: str
-    # value_mcm 的语义随 observation_type 变化（发送量或库存），
-    # 缺失保留 None，避免把"缺测"误当"零流量"。
-    value_mcm: float | None = None
+    country: str | None = None
+    source_dataset: str | None = None
+    inventory_twh: float | None = None
+    send_out_twh_d: float | None = None
+    dtmi_twh: float | None = None
     period_start_utc: str = ""
     period_end_utc: str = ""
+    observed_at_utc: str | None = None
+    source_system: str | None = None
+    source_reference: str | None = None
+    freshness: str | None = None
+    research_only: bool = True
+    # Legacy carriers only: accepted for existing callers, never fabricated
+    # for an API row and never converted between mcm and TWh.
+    observation_type: str | None = None
+    value_mcm: float | None = None
 
 
 def _get(url: str) -> dict:
@@ -74,7 +131,9 @@ def fetch_lng_terminals(base_url: str) -> list[LngTerminal]:
     Returns:
         All LNG terminals currently exposed by the backend.
     """
+
     return [LngTerminal(**t) for t in _get(f"{base_url}/api/lng/terminals")["data"]]
+
 
 def fetch_lng_observations(base_url: str) -> list[LngObservation]:
     """Return all LNG send-out and inventory observations.
@@ -85,4 +144,6 @@ def fetch_lng_observations(base_url: str) -> list[LngObservation]:
     Returns:
         All LNG observations currently exposed by the backend.
     """
-    return [LngObservation(**o) for o in _get(f"{base_url}/api/lng/observations")["data"]]
+
+    url = f"{base_url}/api/lng/observations"
+    return [LngObservation(**o) for o in _get(url)["data"]]
