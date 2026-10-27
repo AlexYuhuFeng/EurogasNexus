@@ -187,6 +187,52 @@ Coverage and its limits:
 
 Metadata reference: [cargo metadata](https://doc.rust-lang.org/stable/cargo/commands/cargo-metadata.html).
 
+#### Reviewed Cargo license choices (RFC-0002)
+
+`docs/policies/reviewed-cargo-license-choices.json` is a fixed, reviewed,
+Cargo-only record set. It is not a CLI flag, environment override, wildcard,
+name-only rule or general SPDX `OR` allowlist. Each record binds one exact
+`(name, version, source)` identity to:
+
+- the exact canonical crates.io source and `Cargo.lock` SHA-256 checksum;
+- the exact upstream `declared_expression`, with no normalization or reordering;
+- a human-authored, ordered flat `expression_terms` list whose `" OR "` join
+  must equal the declared expression exactly;
+- `chosen_license: MIT`, which must be one of those terms;
+- the repository-relative complete retained AUTHORS text path and SHA-256; and
+- an approved state, review roles, ISO approval date and public reference.
+
+Only `state: approved` records can exempt, and only when every field matches,
+the retained text file is a regular non-symlink/non-junction file whose SHA-256
+equals the record, and the actual Cargo-resolved `<manifest parent>/AUTHORS`
+file is regular and has the same SHA-256. Unknown fields, malformed JSON,
+duplicate ids or identities, unknown/alternate-registry identities, path
+traversal, missing/tampered text, checksum/expression drift and approved
+records that do not match exactly once in the graph all fail closed. There is
+no environment variable or CLI option for another record path.
+
+The accepted records are exactly `r-efi` 5.3.0 and 6.0.0, both declaring
+`MIT OR Apache-2.0 OR LGPL-2.1-or-later` and selecting `MIT`. The complete
+original upstream AUTHORS bytes, including the MIT permission text and
+copyright notices, are retained under `docs/policies/licenses/`. The
+Apache-2.0 and LGPL-2.1-or-later branches remain in the declared expression and
+are **not approved**. Every unrecorded package still goes through the generic
+restricted-term check, including `MIT OR GPL-3.0-only`, `AND`, `WITH`,
+`LicenseRef-`, placeholders and file-only values; npm and Python modes never
+consult the Cargo record file.
+
+SBOM and notice generation use the same loader. `licenseDeclared` keeps the
+original upstream expression, `licenseConcluded` is `MIT` only for an applied
+record, `licenseComments` names the record id, expression, chosen license and
+text hash, the Cargo.lock checksum remains the SPDX checksum, and
+`THIRD_PARTY_NOTICES.md` includes both the declared/selected lines and the
+complete retained AUTHORS text. The release manifest records the text hash and
+size. This is technical review evidence for one selected branch; it is not
+legal clearance, patent analysis, a combined-work or LGPL-relinking conclusion,
+or a certification that redistribution obligations are fully satisfied. A new
+version, source or expression requires a new reviewed record and a policy-level
+review.
+
 ### Python license text collection (CI review evidence, not release publishing)
 
 `python scripts/release/collect_python_license_texts.py --site-packages <dir>

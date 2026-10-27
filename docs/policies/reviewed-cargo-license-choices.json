@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "records": [
+    {
+      "id": "RCLC-0001",
+      "state": "approved",
+      "package": {
+        "name": "r-efi",
+        "version": "5.3.0",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "checksum_sha256": "69cdb34c158ceb288df11e18b4bd39de994f6657d83847bdffdbd7f346754b0f"
+      },
+      "declared_expression": "MIT OR Apache-2.0 OR LGPL-2.1-or-later",
+      "expression_terms": [
+        "MIT",
+        "Apache-2.0",
+        "LGPL-2.1-or-later"
+      ],
+      "chosen_license": "MIT",
+      "license_text": {
+        "repo_path": "docs/policies/licenses/r-efi-5.3.0-AUTHORS.txt",
+        "sha256": "ff92bed461f50338dd703a9ba9aee496a425957873df1d91192776e4bdf5dda7",
+        "upstream_url": "https://static.crates.io/crates/r-efi/r-efi-5.3.0.crate"
+      },
+      "review": {
+        "approved_by": [
+          "root-architecture-integration-reviewer"
+        ],
+        "approved_on": "2026-10-28",
+        "reference": "RFC-0002: Reviewed Cargo License Choices (accepted 2026-10-28; docs/engineering/RFC-0002-REVIEWED-CARGO-LICENSE-CHOICES.md)"
+      }
+    },
+    {
+      "id": "RCLC-0002",
+      "state": "approved",
+      "package": {
+        "name": "r-efi",
+        "version": "6.0.0",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "checksum_sha256": "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
+      },
+      "declared_expression": "MIT OR Apache-2.0 OR LGPL-2.1-or-later",
+      "expression_terms": [
+        "MIT",
+        "Apache-2.0",
+        "LGPL-2.1-or-later"
+      ],
+      "chosen_license": "MIT",
+      "license_text": {
+        "repo_path": "docs/policies/licenses/r-efi-6.0.0-AUTHORS.txt",
+        "sha256": "d027e91dbc9cdbb2f1190068e498bd6b61cff022b6a032b191021ba658d96111",
+        "upstream_url": "https://static.crates.io/crates/r-efi/r-efi-6.0.0.crate"
+      },
+      "review": {
+        "approved_by": [
+          "root-architecture-integration-reviewer"
+        ],
+        "approved_on": "2026-10-28",
+        "reference": "RFC-0002: Reviewed Cargo License Choices (accepted 2026-10-28; docs/engineering/RFC-0002-REVIEWED-CARGO-LICENSE-CHOICES.md)"
+      }
+    }
+  ]
+}

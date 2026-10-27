@@ -739,3 +739,163 @@ def test_notices_disclose_scope_and_unknown_licenses(
     assert "not a legal review" in text
     assert "container image" in text
     assert "dev/optional" in text
+
+
+# --- Reviewed Cargo license-choice records (RFC-0002) -----------------------
+
+REAL_RECORDS_PATH = ROOT / "docs/policies/reviewed-cargo-license-choices.json"
+
+
+def real_records_payload() -> dict[str, Any]:
+    return json.loads(REAL_RECORDS_PATH.read_text(encoding="utf-8"))
+
+
+def write_reviewed_record_tree(root: Path, payload: dict[str, Any]) -> None:
+    for record in real_records_payload()["records"]:
+        relative = record["license_text"]["repo_path"]
+        target = root / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes((ROOT / relative).read_bytes())
+    record_path = root / "docs/policies/reviewed-cargo-license-choices.json"
+    record_path.parent.mkdir(parents=True, exist_ok=True)
+    record_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+
+def reviewed_cargo_entries(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        {
+            "name": record["package"]["name"],
+            "version": record["package"]["version"],
+            "source": record["package"]["source"],
+            "checksum": record["package"]["checksum_sha256"],
+        }
+        for record in records
+    ]
+
+
+def test_approved_records_keep_declared_set_concluded_and_emit_full_notices(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = minimal_tree(tmp_path)
+    payload = real_records_payload()
+    write_reviewed_record_tree(root, payload)
+    write_cargo_lock(
+        root / "clients/desktop/src-tauri/Cargo.lock",
+        [*reviewed_cargo_entries(payload["records"]), *DEFAULT_CARGO_ENTRIES],
+    )
+
+    output = tmp_path / "sbom"
+    assert generate(root, output, monkeypatch) == 0
+
+    document = json.loads(
+        (output / "eurogas-nexus-desktop-rust.spdx.json").read_text(encoding="utf-8")
+    )
+    by_version = {
+        (package["name"], package["versionInfo"]): package for package in document["packages"]
+    }
+    for record in payload["records"]:
+        package_data = record["package"]
+        spdx = by_version[(package_data["name"], package_data["version"])]
+        assert spdx["licenseDeclared"] == record["declared_expression"]
+        assert spdx["licenseConcluded"] == "MIT"
+        assert record["id"] in spdx["licenseComments"]
+        assert record["declared_expression"] in spdx["licenseComments"]
+        assert record["license_text"]["sha256"] in spdx["licenseComments"]
+        assert spdx["checksums"] == [
+            {"algorithm": "SHA256", "checksumValue": package_data["checksum_sha256"]}
+        ]
+
+    # Unrecorded Rust packages keep the pre-RFC NOASSERTION behaviour.
+    serde = by_version[("serde", "1.0.219")]
+    assert serde["licenseDeclared"] == "NOASSERTION"
+    assert serde["licenseConcluded"] == "NOASSERTION"
+    assert "licenseComments" not in serde
+
+    text = (output / "THIRD_PARTY_NOTICES.md").read_text(encoding="utf-8")
+    assert "declared: MIT OR Apache-2.0 OR LGPL-2.1-or-later; selected: MIT" in text
+    assert "RCLC-0001" in text
+    assert "RCLC-0002" in text
+    assert "## Reviewed Cargo license-choice evidence" in text
+    # The complete retained AUTHORS bytes, including the MIT text and the
+    # copyright line, are delivered, not just a generic MIT template.
+    assert "AUTHORS-MIT:" in text
+    assert "Copyright (C) 2017-2023 Red Hat, Inc." in text
+    assert "Permission is hereby granted, free of charge" in text
+
+    manifest = json.loads((output / "sbom-manifest.json").read_text(encoding="utf-8"))
+    cargo_input = next(
+        item for item in manifest["inputs"] if item["component"] == "desktop-rust"
+    )
+    assert len(cargo_input["reviewed_choices"]) == 2
+    for entry in cargo_input["reviewed_choices"]:
+        assert entry["text_sha256"]
+        assert entry["text_size_bytes"] > 0
+        assert entry["declared_expression"] == "MIT OR Apache-2.0 OR LGPL-2.1-or-later"
+        assert entry["chosen_license"] == "MIT"
+
+
+def test_sbom_rejects_tampered_missing_proposed_and_stale_reviewed_evidence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    tampered_root = minimal_tree(tmp_path / "tampered")
+    payload = real_records_payload()
+    write_reviewed_record_tree(tampered_root, payload)
+    write_cargo_lock(
+        tampered_root / "clients/desktop/src-tauri/Cargo.lock",
+        [*reviewed_cargo_entries(payload["records"]), *DEFAULT_CARGO_ENTRIES],
+    )
+    retained = tampered_root / payload["records"][0]["license_text"]["repo_path"]
+    retained.write_bytes(retained.read_bytes() + b"tamper\n")
+    with pytest.raises(generate_sboms.SbomInputError) as tampered_error:
+        generate_sboms.collect_components(root=tampered_root)
+    assert "SHA-256 mismatch" in str(tampered_error.value)
+    assert generate(tampered_root, tmp_path / "tampered-sbom", monkeypatch) == 1
+    assert not (tmp_path / "tampered-sbom").exists()
+
+    missing_root = minimal_tree(tmp_path / "missing")
+    write_reviewed_record_tree(missing_root, payload)
+    write_cargo_lock(
+        missing_root / "clients/desktop/src-tauri/Cargo.lock",
+        [*reviewed_cargo_entries(payload["records"]), *DEFAULT_CARGO_ENTRIES],
+    )
+    (missing_root / payload["records"][0]["license_text"]["repo_path"]).unlink()
+    with pytest.raises(generate_sboms.SbomInputError) as missing_error:
+        generate_sboms.collect_components(root=missing_root)
+    assert "retained text is missing" in str(missing_error.value)
+    assert generate(missing_root, tmp_path / "missing-sbom", monkeypatch) == 1
+    assert not (tmp_path / "missing-sbom").exists()
+
+    proposed_root = minimal_tree(tmp_path / "proposed")
+    proposed = real_records_payload()
+    proposed["records"][0]["state"] = "proposed"
+    proposed["records"][0]["license_text"]["sha256"] = None
+    proposed["records"][0]["review"] = {
+        "approved_by": [],
+        "approved_on": None,
+        "reference": None,
+    }
+    write_reviewed_record_tree(proposed_root, proposed)
+    write_cargo_lock(
+        proposed_root / "clients/desktop/src-tauri/Cargo.lock",
+        [*reviewed_cargo_entries(proposed["records"]), *DEFAULT_CARGO_ENTRIES],
+    )
+    with pytest.raises(generate_sboms.SbomInputError) as proposed_error:
+        generate_sboms.collect_components(root=proposed_root)
+    assert "refuses proposed or unapproved records" in str(proposed_error.value)
+    assert generate(proposed_root, tmp_path / "proposed-sbom", monkeypatch) == 1
+    assert not (tmp_path / "proposed-sbom").exists()
+
+    stale_root = minimal_tree(tmp_path / "stale")
+    write_reviewed_record_tree(stale_root, payload)
+    write_cargo_lock(
+        stale_root / "clients/desktop/src-tauri/Cargo.lock",
+        [*reviewed_cargo_entries(payload["records"][:1]), *DEFAULT_CARGO_ENTRIES],
+    )
+    with pytest.raises(generate_sboms.SbomInputError) as stale_error:
+        generate_sboms.collect_components(root=stale_root)
+    assert "stale reviewed choice RCLC-0002" in str(stale_error.value)
+    assert generate(stale_root, tmp_path / "stale-sbom", monkeypatch) == 1
+    assert not (tmp_path / "stale-sbom").exists()
+    capsys.readouterr()

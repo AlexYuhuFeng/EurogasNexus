@@ -123,6 +123,11 @@ CARGO_LOCK_FLAG = "--cargo-lock"
 #: stalling it.
 CARGO_METADATA_TIMEOUT_SECONDS = 300.0
 
+#: Fixed repository root for the reviewed-choice record file. The path is a
+#: source-relative constant: no CLI flag or environment variable can point the
+#: gate at another record file.
+REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+
 #: Cargo failure reports never echo raw tool output -- stderr can carry private
 #: registry URLs or credentials -- so they carry the exit/status plus this
 #: safe instruction instead.
@@ -780,9 +785,24 @@ def audit_cargo_lock(lock_path: Path, *, timeout: float | None = None) -> int:
         metadata_by_identity[identity] = entry
         metadata_by_name_version.setdefault((entry.name, entry.version), []).append(entry)
 
+    try:
+        reviewed_choices = sboms.load_reviewed_choices(REPOSITORY_ROOT)
+    except sboms.ReviewedChoiceError as error:
+        print(f"Cargo lock inventory: {lock_path}")
+        print(
+            "CARGO GATE PROBLEMS (fail-closed; the reviewed license-choice records were "
+            "not accepted):"
+        )
+        print("  " + "\n  ".join(sorted(error.errors)))
+        return 1
+
+    approved_choices = [choice for choice in reviewed_choices if choice.approved]
+    applied_choices: dict[str, int] = {choice.id: 0 for choice in approved_choices}
+
     violations: list[str] = []
     review: list[str] = []
     ok: list[str] = []
+    reviewed: list[str] = []
     matched: set[tuple[str, str, str | None]] = set()
     for item in inventory.packages:
         identity = (item["name"], item["version"], item.get("source"))
@@ -794,6 +814,46 @@ def audit_cargo_lock(lock_path: Path, *, timeout: float | None = None) -> int:
             continue
         matched.add(identity)
         origin = item.get("origin", "other")
+        choice = next(
+            (candidate for candidate in approved_choices if candidate.identity == identity),
+            None,
+        )
+        if choice is not None:
+            choice_problems: list[str] = []
+            if origin != "registry":
+                choice_problems.append(
+                    f"reviewed record {choice.id} may only apply to an exact canonical "
+                    f"crates.io registry package (origin {origin!r})"
+                )
+            if item.get("checksum") != choice.checksum_sha256:
+                choice_problems.append(
+                    f"Cargo.lock checksum {item.get('checksum')!r} does not match reviewed "
+                    f"record {choice.id} checksum {choice.checksum_sha256!r}"
+                )
+            if entry.license != choice.declared_expression:
+                choice_problems.append(
+                    f"cargo metadata license {entry.license!r} does not match reviewed "
+                    f"record {choice.id} declared_expression "
+                    f"{choice.declared_expression!r}"
+                )
+            authors_size = 0
+            try:
+                authors_size = sboms.verify_package_authors_file(choice, entry.manifest_path)
+            except sboms.ReviewedChoiceError as error:
+                choice_problems.extend(error.errors)
+            if choice_problems:
+                problems.append(
+                    f"{entry.described} [{origin}]: reviewed record {choice.id} did not "
+                    "match: " + "; ".join(choice_problems)
+                )
+            else:
+                reviewed.append(
+                    f"{entry.described}: declared {choice.declared_expression!r}; "
+                    f"selected {choice.chosen_license} (record {choice.id}; text "
+                    f"SHA-256 {choice.text_sha256}; AUTHORS {authors_size} bytes)"
+                )
+                applied_choices[choice.id] += 1
+            continue
         license_problem = _cargo_license_problem(entry)
         if license_problem is not None:
             violations.append(f"{entry.described} [{origin}]: {license_problem}")
@@ -884,12 +944,23 @@ def audit_cargo_lock(lock_path: Path, *, timeout: float | None = None) -> int:
             "covered by the Cargo.lock inventory; refusing to leave it unaudited"
         )
 
+    for choice in approved_choices:
+        matched_count = applied_choices.get(choice.id, 0)
+        if matched_count != 1:
+            problems.append(
+                f"stale reviewed license-choice record {choice.id} ({choice.described}): "
+                f"matched exactly {matched_count} time(s) in the audited graph; an approved "
+                "record must match exactly once or be removed/re-reviewed"
+            )
+
     print(f"Cargo lock inventory: {lock_path}")
     print(f"Cargo metadata command: {' '.join(_cargo_metadata_argv(manifest_path))}")
     print(f"Audited root manifest: {manifest_path} (structural [package] identity {root_spec})")
     print(
         f"Audited {len(inventory.packages)} third-party crate entries from the Cargo.lock "
         f"inventory: {len(ok)} registry entries passed the declared-license check, "
+        f"{len(reviewed)} exact reviewed Cargo license choices applied (the non-MIT "
+        f"branches of those expressions remain unapproved), "
         f"{len(review)} git/path/alternate-registry entries are listed for provenance review, "
         f"{len(violations)} entries carry a failing declared license."
     )
@@ -921,12 +992,20 @@ def audit_cargo_lock(lock_path: Path, *, timeout: float | None = None) -> int:
             "determination):"
         )
         print("  " + "\n  ".join(sorted(violations)))
+    if reviewed:
+        print(
+            "REVIEWED LICENSE CHOICES (exact approved records; only the selected MIT branch "
+            "is chosen and the other expression terms remain unapproved):"
+        )
+        print("  " + "\n  ".join(sorted(reviewed)))
     if problems or violations or review:
         return 1
     print(
-        "cargo declared-license policy: OK (no restricted, missing, unknown, UNLICENSED or "
-        "file-only declared license values detected; review-required detection, not a legal "
-        "determination and not a commercial or redistribution clearance)"
+        "cargo declared-license policy: OK (no unreviewed restricted, missing, unknown, "
+        "UNLICENSED or file-only declared license values detected; "
+        f"{len(reviewed)} exact reviewed Cargo license choice(s) applied; the non-MIT "
+        "branches of reviewed expressions remain unapproved; review-required detection, "
+        "not a legal determination and not a commercial or redistribution clearance)"
     )
     return 0
 

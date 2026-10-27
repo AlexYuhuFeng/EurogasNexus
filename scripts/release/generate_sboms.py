@@ -37,6 +37,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 from scripts.release.release_artifacts import sha256_file  # noqa: E402
+from scripts.release.reviewed_cargo_license_choices import (  # noqa: E402
+    CRATES_IO_SOURCES,
+    ReviewedChoiceError,
+    load_reviewed_choices,
+)
+from scripts.release.reviewed_cargo_license_choices import (
+    verify_package_authors_file as verify_package_authors_file,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -89,14 +97,10 @@ _PEP503_RUN_RE = re.compile(r"[-_.]+")
 
 _NPM_NAME_RE = re.compile(r"^(@[A-Za-z0-9._-]+/)?[A-Za-z0-9._~-]+$")
 
-#: The exact canonical crates.io index sources. A custom registry or mirror
-#: whose URL merely contains ``crates.io-index`` is not crates.io.
-_CRATES_IO_SOURCES = frozenset(
-    {
-        "registry+https://github.com/rust-lang/crates.io-index",
-        "sparse+https://index.crates.io/",
-    }
-)
+#: The exact canonical crates.io index sources are owned by the shared reviewed-
+#: choice validator so the audit and SBOM cannot disagree. A custom registry or
+#: mirror whose URL merely contains ``crates.io-index`` is not crates.io.
+_CRATES_IO_SOURCES = CRATES_IO_SOURCES
 
 _CARGO_CHECKSUM_RE = re.compile(r"[0-9a-fA-F]{64}")
 
@@ -503,7 +507,95 @@ def _input_provenance(
             origin = item.get("origin")
             origins[origin if origin in origins else "other"] += 1
         entry["origins"] = origins
+        reviewed = [
+            {
+                "record_id": item["review_record_id"],
+                "name": item["name"],
+                "version": item["version"],
+                "declared_expression": item["license"],
+                "chosen_license": item["license_concluded"],
+                "text_path": item["review_text_path"],
+                "text_sha256": item["review_text_sha256"],
+                "text_size_bytes": item["review_text_size"],
+                "reference": item.get("review_reference"),
+            }
+            for item in packages
+            if item.get("review_record_id")
+        ]
+        if reviewed:
+            entry["reviewed_choices"] = reviewed
     return entry
+
+
+def _apply_reviewed_choices(root: Path, packages: list[dict]) -> None:
+    """Annotate exact approved Cargo.lock identities with the reviewed choice.
+
+    Cargo.lock carries no license expression, so an approved reviewed record
+    supplies the exact upstream ``licenseDeclared`` and the selected MIT
+    conclusion. Every approved record must match exactly one canonical
+    registry package and the lock checksum must match; proposed, unapproved,
+    stale or mismatched records fail the whole run instead of emitting a
+    partial or misleading notice.
+    """
+
+    choices = load_reviewed_choices(root)
+    if not choices:
+        return
+    for choice in choices:
+        if not choice.approved:
+            raise ReviewedChoiceError(
+                f"reviewed choice {choice.id} ({choice.described}) is {choice.state!r}; "
+                "SBOM/notice generation refuses proposed or unapproved records"
+            )
+    by_identity = {choice.identity: choice for choice in choices}
+    applied: dict[str, int] = {choice.id: 0 for choice in choices}
+    for item in packages:
+        identity = (item["name"], item["version"], item.get("source"))
+        choice = by_identity.get(identity)
+        if choice is None:
+            continue
+        if item.get("origin") != "registry":
+            raise ReviewedChoiceError(
+                f"reviewed choice {choice.id} ({choice.described}) matched a "
+                f"{item.get('origin')!r} package; only canonical crates.io registry "
+                "identities may receive a reviewed choice"
+            )
+        if item.get("checksum") != choice.checksum_sha256:
+            raise ReviewedChoiceError(
+                f"reviewed choice {choice.id} ({choice.described}): Cargo.lock checksum "
+                f"{item.get('checksum')!r} does not match the record checksum "
+                f"{choice.checksum_sha256!r}"
+            )
+        text_path = root / choice.text_repo_path
+        try:
+            text = text_path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as error:
+            raise ReviewedChoiceError(
+                f"reviewed choice {choice.id} ({choice.described}): retained text is not "
+                f"readable UTF-8 ({type(error).__name__}): {choice.text_repo_path}"
+            ) from error
+        item["license"] = choice.declared_expression
+        item["license_concluded"] = choice.chosen_license
+        item["license_comments"] = (
+            f"Project-selected {choice.chosen_license} branch per reviewed record "
+            f"{choice.id}; declared expression {choice.declared_expression!r}; retained "
+            f"text {choice.text_repo_path} SHA-256 {choice.text_sha256}; evidence reference "
+            f"{choice.reference}; technical review evidence, not legal clearance"
+        )
+        item["review_record_id"] = choice.id
+        item["review_text_path"] = choice.text_repo_path
+        item["review_text_sha256"] = choice.text_sha256
+        item["review_text_size"] = len(text.encode("utf-8"))
+        item["review_reference"] = choice.reference
+        item["review_text"] = text
+        applied[choice.id] += 1
+    for choice in choices:
+        if applied.get(choice.id, 0) != 1:
+            raise ReviewedChoiceError(
+                f"stale reviewed choice {choice.id} ({choice.described}): matched exactly "
+                f"{applied.get(choice.id, 0)} time(s) in the Cargo.lock inventory; an "
+                "approved record must match exactly once or be removed/re-reviewed"
+            )
 
 
 def collect_components(
@@ -526,6 +618,12 @@ def collect_components(
             errors.extend(error.errors)
             continue
         components[key] = inventory.packages
+        if key == "desktop-rust":
+            try:
+                _apply_reviewed_choices(base, inventory.packages)
+            except ReviewedChoiceError as error:
+                errors.extend(error.errors)
+                continue
         inputs.append(_input_provenance(key, relative, ecosystem, path, inventory))
     if errors:
         raise SbomInputError(errors)
@@ -541,11 +639,13 @@ def _add_packages(document: dict[str, Any], packages: list[dict]) -> None:
             "versionInfo": item["version"],
             "downloadLocation": "NOASSERTION",
             "filesAnalyzed": False,
-            "licenseConcluded": "NOASSERTION",
+            "licenseConcluded": item.get("license_concluded") or "NOASSERTION",
             "licenseDeclared": item.get("license") or "NOASSERTION",
             "copyrightText": "NOASSERTION",
             "supplier": "NOASSERTION",
         }
+        if item.get("license_comments"):
+            package["licenseComments"] = item["license_comments"]
         if item.get("purl"):
             package["externalRefs"] = [
                 {
@@ -615,15 +715,20 @@ def notices(packages_by_component: dict[str, list[dict]]) -> str:
         "- The Python lock is the runtime lock; Python build/test tooling is not",
         "  inventoried here.",
         "- Cargo.lock and the Python lock carry no license metadata, so their",
-        "  packages are reported as `NOASSERTION` and need manual review.",
+        "  packages are reported as `NOASSERTION` and need manual review, except",
+        "  exact approved reviewed-choice records whose evidence is reproduced below.",
         "- Operating-system packages inside the runtime container image, native",
         "  binaries bundled by the installers, and vendored third-party code are",
         "  not inventoried here.",
         "- npm `link: true` workspace entries are local paths, not registry",
         "  packages; they are excluded from these lists and disclosed under",
         "  `excluded_entries` in `sbom-manifest.json`.",
-        "- This file is not a legal review and contains no full license texts;",
-        "  obtain those from the upstream packages and confirm obligations with",
+        "- Reviewed Cargo license choices select only the named MIT branch for one",
+        "  exact package identity; the original expression remains declared above,",
+        "  the other branches are not approved, and this is not legal clearance.",
+        "- This file is not a legal review; it includes full retained AUTHORS text",
+        "  only for exact reviewed Cargo choices and otherwise no full license texts.",
+        "  Obtain other texts from the upstream packages and confirm obligations with",
         "  legal counsel before distribution.",
         "",
         "Package counts and the SHA-256 of every lock input are recorded in",
@@ -632,11 +737,13 @@ def notices(packages_by_component: dict[str, list[dict]]) -> str:
     ]
     for component, packages in sorted(packages_by_component.items()):
         declared = sum(1 for item in packages if item.get("license"))
+        reviewed = sum(1 for item in packages if item.get("review_record_id"))
         lines.append(f"## {component}")
         lines.append("")
         lines.append(
             f"{len(packages)} packages recorded: {declared} with a lock-declared license "
-            f"expression, {len(packages) - declared} unknown (`NOASSERTION`)."
+            f"expression, {len(packages) - declared} unknown (`NOASSERTION`), "
+            f"{reviewed} exact reviewed choice(s)."
         )
         lines.append("")
         if not packages:
@@ -646,8 +753,55 @@ def notices(packages_by_component: dict[str, list[dict]]) -> str:
             packages, key=lambda package: (package["name"].lower(), package["version"])
         ):
             license_text = item.get("license") or "NOASSERTION"
-            lines.append(f"- {item['name']} {item['version']} ({license_text})")
+            if item.get("review_record_id"):
+                lines.append(
+                    f"- {item['name']} {item['version']} - declared: {license_text}; "
+                    f"selected: {item['license_concluded']} (record "
+                    f"{item['review_record_id']}; text SHA-256 "
+                    f"{item['review_text_sha256']}; {item['review_text_size']} bytes)"
+                )
+            else:
+                lines.append(f"- {item['name']} {item['version']} ({license_text})")
         lines.append("")
+    reviewed_items = [
+        item
+        for packages in packages_by_component.values()
+        for item in packages
+        if item.get("review_record_id")
+    ]
+    if reviewed_items:
+        lines.extend(
+            [
+                "## Reviewed Cargo license-choice evidence",
+                "",
+                "These records select the MIT branch for exact package identities only.",
+                "The original upstream expression is retained above and in the SPDX",
+                "`licenseDeclared`; the other expression terms are not approved. The",
+                "complete retained upstream AUTHORS text is reproduced below as notice",
+                "evidence. This is technical review evidence, not legal clearance.",
+                "",
+            ]
+        )
+        for item in sorted(
+            reviewed_items, key=lambda package: (package["name"].lower(), package["version"])
+        ):
+            lines.extend(
+                [
+                    f"### {item['name']} {item['version']} - {item['review_record_id']}",
+                    "",
+                    f"- Declared expression: `{item['license']}`",
+                    f"- Selected license: `{item['license_concluded']}`",
+                    f"- Evidence text: `{item['review_text_path']}` (SHA-256 "
+                    f"`{item['review_text_sha256']}`, {item['review_text_size']} bytes)",
+                    "- Record reference: "
+                    f"{item.get('review_reference') or 'reviewed-choice record file'}",
+                    "",
+                    "```text",
+                    *item["review_text"].splitlines(),
+                    "```",
+                    "",
+                ]
+            )
     return "\n".join(lines)
 
 

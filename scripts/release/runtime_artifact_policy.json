@@ -25,6 +25,7 @@
     "scripts/release/generate_sboms.py",
     "scripts/release/release_artifacts.py",
     "scripts/release/release_metadata.py",
+    "scripts/release/reviewed_cargo_license_choices.py",
     "scripts/release/smoke_release.py",
     "scripts/release/verify_python_license_texts.py",
     "scripts/release/verify_customer_artifact.py"

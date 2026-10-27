@@ -1055,3 +1055,393 @@ def test_all_rust_setup_actions_supply_the_repository_toolchain_pin() -> None:
         assert len(setups) == 2
         for step in setups:
             assert step["with"]["toolchain"] == "${{ env.RUST_TOOLCHAIN }}"
+
+
+# --- Reviewed Cargo license-choice records (RFC-0002) -----------------------
+
+REAL_RECORDS_PATH = ROOT / "docs/policies/reviewed-cargo-license-choices.json"
+
+
+@pytest.fixture(autouse=True)
+def _isolate_reviewed_choice_records(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Keep the fixed record file out of unrelated fixture graphs.
+
+    Production always resolves ``REPOSITORY_ROOT`` from this source file. The
+    tests point it at the per-test tree so a repository record set cannot make
+    an unrelated fixture look stale; tests for the real records opt back in.
+    """
+
+    monkeypatch.setattr(audit_dependencies, "REPOSITORY_ROOT", tmp_path)
+
+
+def real_payload() -> dict[str, Any]:
+    return json.loads(REAL_RECORDS_PATH.read_text(encoding="utf-8"))
+
+
+def write_record_payload(root: Path, payload: dict[str, Any]) -> None:
+    for record in real_payload()["records"]:
+        relative = record["license_text"]["repo_path"]
+        target = root / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes((ROOT / relative).read_bytes())
+    path = root / "docs/policies/reviewed-cargo-license-choices.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+
+def package_authors_fixture(
+    tmp_path: Path,
+    record: dict[str, Any],
+    *,
+    write_authors: bool = True,
+    authors_bytes: bytes | None = None,
+) -> str:
+    package_data = record["package"]
+    package_dir = (
+        tmp_path / "cargo-registry" / f"{package_data['name']}-{package_data['version']}"
+    )
+    package_dir.mkdir(parents=True, exist_ok=True)
+    manifest = package_dir / "Cargo.toml"
+    manifest.write_text(
+        f"[package]\nname = \"{package_data['name']}\"\nversion = "
+        f"\"{package_data['version']}\"\n",
+        encoding="utf-8",
+    )
+    if write_authors:
+        retained = (ROOT / record["license_text"]["repo_path"]).read_bytes()
+        (package_dir / "AUTHORS").write_bytes(
+            retained if authors_bytes is None else authors_bytes
+        )
+    return str(manifest)
+
+
+def reviewed_cargo_fixture(
+    tmp_path: Path,
+    records: list[dict[str, Any]],
+    *,
+    missing_authors: tuple[str, ...] = (),
+    authors_overrides: dict[str, bytes] | None = None,
+) -> tuple[Path, list[dict[str, Any]]]:
+    lock_entries: list[dict[str, Any]] = [project_entry()]
+    metadata_packages: list[dict[str, Any]] = []
+    for record in records:
+        package_data = record["package"]
+        lock_entries.append(
+            {
+                "name": package_data["name"],
+                "version": package_data["version"],
+                "source": package_data["source"],
+                "checksum": package_data["checksum_sha256"],
+            }
+        )
+        version = package_data["version"]
+        manifest_path = package_authors_fixture(
+            tmp_path,
+            record,
+            write_authors=version not in missing_authors,
+            authors_bytes=(authors_overrides or {}).get(version),
+        )
+        metadata_packages.append(
+            package(
+                package_data["name"],
+                version,
+                license=record["declared_expression"],
+                manifest_path=manifest_path,
+            )
+        )
+    lock = fixture_tree(tmp_path, lock_entries)
+    return lock, metadata_packages
+
+
+def set_path(payload: dict[str, Any], keys: tuple[Any, ...], value: Any) -> None:
+    target: Any = payload
+    for key in keys[:-1]:
+        target = target[key]
+    target[keys[-1]] = value
+
+
+def test_actual_approved_records_accept_both_r_efi_versions(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Use the real, fixed repository record file and the real retained AUTHORS
+    # bytes; only the Cargo-resolved package directories are staged in tmp.
+    monkeypatch.setattr(audit_dependencies, "REPOSITORY_ROOT", ROOT)
+    lock, metadata_packages = reviewed_cargo_fixture(tmp_path, real_payload()["records"])
+    install(
+        monkeypatch,
+        FakeCargo(stdout=cargo_metadata([root_package(lock), *metadata_packages])),
+    )
+
+    assert audit_cargo_lock(lock) == 0
+    output = capsys.readouterr().out
+    assert "2 exact reviewed Cargo license choices applied" in output
+    assert "REVIEWED LICENSE CHOICES" in output
+    assert "RCLC-0001" in output
+    assert "RCLC-0002" in output
+    assert "declared 'MIT OR Apache-2.0 OR LGPL-2.1-or-later'" in output
+    assert "selected MIT" in output
+    assert "the non-MIT branches of those expressions remain unapproved" in output
+    assert "cargo declared-license policy: OK" in output
+
+
+@pytest.mark.parametrize(
+    ("keys", "value", "expected"),
+    [
+        (
+            ("records", 0, "package", "name"),
+            "not-r-efi",
+            "stale reviewed license-choice record RCLC-0001",
+        ),
+        (
+            ("records", 0, "package", "version"),
+            "5.3.1",
+            "stale reviewed license-choice record RCLC-0001",
+        ),
+        (
+            ("records", 0, "package", "source"),
+            "registry+https://mirror.invalid/crates.io-index",
+            "exact canonical crates.io source",
+        ),
+        (
+            ("records", 0, "package", "checksum_sha256"),
+            "0" * 64,
+            "Cargo.lock checksum",
+        ),
+        (
+            ("records", 0, "declared_expression"),
+            "MIT OR Apache-2.0",
+            "expression_terms",
+        ),
+        (
+            ("records", 0, "expression_terms"),
+            ["Apache-2.0", "MIT", "LGPL-2.1-or-later"],
+            "expression_terms",
+        ),
+        (("records", 0, "chosen_license"), "Apache-2.0", "chosen_license"),
+        (
+            ("records", 0, "license_text", "sha256"),
+            "0" * 64,
+            "SHA-256 mismatch",
+        ),
+        (
+            ("records", 0, "license_text", "repo_path"),
+            "../outside.txt",
+            "under docs/policies/licenses",
+        ),
+        (
+            ("records", 0, "review", "approved_on"),
+            "not-a-date",
+            "ISO date",
+        ),
+    ],
+)
+def test_reviewed_record_field_mutations_fail_closed(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    keys: tuple[Any, ...],
+    value: Any,
+    expected: str,
+) -> None:
+    payload = real_payload()
+    set_path(payload, keys, value)
+    write_record_payload(tmp_path, payload)
+    # The audited graph still uses the real lock identities so name/version/
+    # checksum drift is exercised against the exact approved packages.
+    lock, metadata_packages = reviewed_cargo_fixture(tmp_path, real_payload()["records"])
+    install(
+        monkeypatch,
+        FakeCargo(stdout=cargo_metadata([root_package(lock), *metadata_packages])),
+    )
+
+    assert audit_cargo_lock(lock) == 1
+    output = capsys.readouterr().out
+    assert expected in output
+    assert "cargo declared-license policy: OK" not in output
+
+
+def test_reviewed_record_duplicate_ids_and_identities_fail_closed(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    duplicate_id = real_payload()
+    duplicate_id["records"].append(json.loads(json.dumps(duplicate_id["records"][0])))
+    write_record_payload(tmp_path, duplicate_id)
+    lock, metadata_packages = reviewed_cargo_fixture(tmp_path, real_payload()["records"])
+    install(
+        monkeypatch,
+        FakeCargo(stdout=cargo_metadata([root_package(lock), *metadata_packages])),
+    )
+    assert audit_cargo_lock(lock) == 1
+    assert "duplicate reviewed-choice record id" in capsys.readouterr().out
+
+    duplicate_identity = real_payload()
+    extra = json.loads(json.dumps(duplicate_identity["records"][0]))
+    extra["id"] = "RCLC-9999"
+    duplicate_identity["records"].append(extra)
+    write_record_payload(tmp_path, duplicate_identity)
+    install(
+        monkeypatch,
+        FakeCargo(stdout=cargo_metadata([root_package(lock), *metadata_packages])),
+    )
+    assert audit_cargo_lock(lock) == 1
+    assert "duplicate reviewed-choice identity" in capsys.readouterr().out
+
+
+def test_reviewed_record_unknown_field_and_malformed_json_fail_closed(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = real_payload()
+    payload["records"][0]["unexpected"] = True
+    write_record_payload(tmp_path, payload)
+    lock, metadata_packages = reviewed_cargo_fixture(tmp_path, real_payload()["records"])
+    install(
+        monkeypatch,
+        FakeCargo(stdout=cargo_metadata([root_package(lock), *metadata_packages])),
+    )
+    assert audit_cargo_lock(lock) == 1
+    assert "unknown field" in capsys.readouterr().out
+
+    record_path = tmp_path / "docs/policies/reviewed-cargo-license-choices.json"
+    record_path.write_text("{not json", encoding="utf-8")
+    install(
+        monkeypatch,
+        FakeCargo(stdout=cargo_metadata([root_package(lock), *metadata_packages])),
+    )
+    assert audit_cargo_lock(lock) == 1
+    assert "not valid JSON" in capsys.readouterr().out
+
+
+def test_reviewed_record_missing_retained_text_fails_closed(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = real_payload()
+    write_record_payload(tmp_path, payload)
+    missing = tmp_path / payload["records"][0]["license_text"]["repo_path"]
+    missing.unlink()
+    lock, metadata_packages = reviewed_cargo_fixture(tmp_path, real_payload()["records"])
+    install(
+        monkeypatch,
+        FakeCargo(stdout=cargo_metadata([root_package(lock), *metadata_packages])),
+    )
+    assert audit_cargo_lock(lock) == 1
+    assert "retained text is missing" in capsys.readouterr().out
+
+
+def test_reviewed_record_unknown_approved_identity_is_stale(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = real_payload()
+    unknown = json.loads(json.dumps(payload["records"][0]))
+    unknown["id"] = "RCLC-9999"
+    unknown["package"]["version"] = "9.9.9"
+    unknown["package"]["checksum_sha256"] = "a" * 64
+    payload["records"].append(unknown)
+    write_record_payload(tmp_path, payload)
+    lock, metadata_packages = reviewed_cargo_fixture(tmp_path, real_payload()["records"])
+    install(
+        monkeypatch,
+        FakeCargo(stdout=cargo_metadata([root_package(lock), *metadata_packages])),
+    )
+    assert audit_cargo_lock(lock) == 1
+    assert "stale reviewed license-choice record RCLC-9999" in capsys.readouterr().out
+
+
+def test_proposed_record_does_not_exempt_the_restricted_expression(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = real_payload()
+    payload["records"][0]["state"] = "proposed"
+    payload["records"][0]["license_text"]["sha256"] = None
+    payload["records"][0]["review"] = {
+        "approved_by": [],
+        "approved_on": None,
+        "reference": None,
+    }
+    write_record_payload(tmp_path, payload)
+    lock, metadata_packages = reviewed_cargo_fixture(tmp_path, real_payload()["records"])
+    install(
+        monkeypatch,
+        FakeCargo(stdout=cargo_metadata([root_package(lock), *metadata_packages])),
+    )
+    assert audit_cargo_lock(lock) == 1
+    output = capsys.readouterr().out
+    assert "restricted term 'gpl' in 'MIT OR Apache-2.0 OR LGPL-2.1-or-later'" in output
+    assert "cargo declared-license policy: OK" not in output
+
+
+def test_actual_cargo_resolved_authors_missing_and_tampered_fail_closed(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(audit_dependencies, "REPOSITORY_ROOT", ROOT)
+    lock, metadata_packages = reviewed_cargo_fixture(
+        tmp_path, real_payload()["records"], missing_authors=("5.3.0",)
+    )
+    install(
+        monkeypatch,
+        FakeCargo(stdout=cargo_metadata([root_package(lock), *metadata_packages])),
+    )
+    assert audit_cargo_lock(lock) == 1
+    assert "Cargo-resolved AUTHORS" in capsys.readouterr().out
+
+    lock, metadata_packages = reviewed_cargo_fixture(
+        tmp_path / "tampered",
+        real_payload()["records"],
+        authors_overrides={"5.3.0": b"tampered AUTHORS\n"},
+    )
+    install(
+        monkeypatch,
+        FakeCargo(stdout=cargo_metadata([root_package(lock), *metadata_packages])),
+    )
+    assert audit_cargo_lock(lock) == 1
+    output = capsys.readouterr().out
+    assert "Cargo-resolved AUTHORS" in output
+    assert "SHA-256 mismatch" in output
+
+
+@pytest.mark.parametrize(
+    "license_value",
+    [
+        "MIT OR GPL-3.0-only",
+        "MIT AND BUSL-1.1",
+        "MIT WITH GPL-3.0-only",
+        "GPL-3.0-only OR MIT",
+    ],
+)
+def test_unrecorded_restricted_combinations_still_fail_the_generic_gate(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    license_value: str,
+) -> None:
+    # No record file exists in the isolated per-test root, so this is exactly
+    # the pre-RFC generic path: a permissive branch never approves the rest.
+    lock = fixture_tree(tmp_path, [project_entry(), registry_entry("unrelated")])
+    install(
+        monkeypatch,
+        FakeCargo(
+            stdout=cargo_metadata(
+                [root_package(lock), package("unrelated", license=license_value)]
+            )
+        ),
+    )
+    assert audit_cargo_lock(lock) == 1
+    output = capsys.readouterr().out
+    assert "RUST LICENSE PROBLEMS" in output
+    assert "restricted term" in output
+    assert "cargo declared-license policy: OK" not in output
