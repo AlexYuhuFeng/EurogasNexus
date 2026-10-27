@@ -2,6 +2,26 @@
 
 ## 2026-10-27 — fresh Windows recovery and acceptance continuation
 
+CI recovery checkpoint: GitHub a8af2b7 revealed five build-tool vulnerabilities;
+reviewed patched floors and universal hashes pushed8ba6045, with only filelock/
+msgpack/setuptools version changes. Isolated hash install, installed-environment
+and fully pinned direct-lock CVE audits: no known vulnerabilities.69-package
+metadata license detection passes. Patched setuptools builds the unified
+backend/SDK wheel; isolated installed imports expose189paths and installed SDK
+example passes six actual synthetic HTTP checks. Resolver-enabled shipped-lock
+CI3.11 audits and final artifact binding remain required.
+
+Fresh full API/SDK regression617pass. Browser CI also exposed relative configured
+Playwright entry being treated as a package name; resolve it against cwd. Review
+history now declares record ids and is compared with its actual ReviewContext
+projection, replacing a whole-page n/a heuristic (no exemption or disabled
+checks). Fresh-source API session28829 and Web38053; same relative dependency
+configuration now completes96browser checks/16workspaces/EN+zh-CN/threeviewports,
+zero failures. Review-focused Web31pass. An earlier rerun500 came from an old
+API process mixing lazily imported updated repository code with an old dataclass;
+it is recorded as failed, not ignored. Restarting our owned API from consistent
+current source resolved it. Final immutable artifacts need their own verification.
+
 2026-10-28 integration update: reviewed tariff-date selection pushed8b1edad;
 cost JSON missing/zero/atomicity fix9b3a893; retained EEX decimal consumption
 0b73bed; GIE SDK payload parity and ALSI explicit-energy-unit fix9c006ac;

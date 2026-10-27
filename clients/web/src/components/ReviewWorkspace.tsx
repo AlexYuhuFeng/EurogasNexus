@@ -319,7 +319,8 @@ export function ReviewWorkspace({
             const entityRef = `${row.entity_type}:${row.entity_id}`;
             const resolved = reviewEvidenceFor(reviewProjection, row.entity_type, row.entity_id);
             return (
-              <div key={`review-history-${row.decision_id}`} className="data-table-row four">
+              <div key={`review-history-${row.decision_id}`} className="data-table-row four"
+                data-record="review-decision" data-record-id={row.decision_id}>
                 <strong>{entityRef}</strong>
                 <span className={`review-decision-badge review-decision-${row.decision}`}>
                   {row.decision} / {row.actor}
@@ -345,7 +346,7 @@ export function ReviewWorkspace({
             );
           })}
           {reviewDecisions.length === 0 && (
-            <div className="data-table-row four"><strong>{t("review.no_decisions")}</strong><span>n/a</span><span>n/a</span><span>n/a</span></div>
+            <div className="data-table-row four" data-empty-state="review-decisions"><strong>{t("review.no_decisions")}</strong><span>n/a</span><span>n/a</span><span>n/a</span></div>
           )}
         </div>
       </div>

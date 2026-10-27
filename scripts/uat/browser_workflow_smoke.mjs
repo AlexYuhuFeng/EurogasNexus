@@ -46,7 +46,9 @@ import {
 
 const require = createRequire(import.meta.url);
 const { chromium } = require(
-  process.env.EUROGAS_UAT_PLAYWRIGHT_PATH || "playwright",
+  process.env.EUROGAS_UAT_PLAYWRIGHT_PATH
+    ? path.resolve(process.env.EUROGAS_UAT_PLAYWRIGHT_PATH)
+    : "playwright",
 );
 const axePath =
   process.env.EUROGAS_UAT_AXE_PATH || require.resolve("axe-core/axe.min.js");
@@ -171,7 +173,10 @@ const SURFACE_SIGNALS = {
   // rather than against an empty state this view does not render.
   contracts: { heading: /portfolio|contract/i, apiPath: "/api/route-cost/upstream-contracts", readToRender: [{ label: "upstream contracts", rowsPath: "data", recordIdField: "contract_id", rowSelectors: ['[data-record="portfolio-resource"]', '[data-record="upstream-contract"]'], rowLimit: 25 }] },
   strategy: { heading: /strategy/i, apiPath: "/api/strategies?limit=5" },
-  review: { heading: /review|decision/i, apiPath: "/api/review/decisions?limit=5" },
+  // Compare the Review workspace's actual projection and its bounded history rows.
+  // Unrelated unavailable evidence elsewhere on the page must not turn a rendered decision
+  // into a missing-row finding; exact record identity is the authority.
+  review: { heading: /review|decision/i, apiPath: "/api/projections/review-context", readToRender: [{ label: "review decisions", rowsPath: "data.slices.decisions", recordIdField: "decision_id", rowSelectors: ['[data-record="review-decision"]'], emptySelector: '[data-empty-state="review-decisions"]', rowLimit: 12 }] },
   // The orders surface renders the rows of the portfolio projection it reads in its own workspace
   // batch (`screen_orders`/`pnl_snapshots`), not the legacy live-summary aggregate the probe used
   // to read: an aggregate is not a row set. `rowLimit` 8 mirrors the PnL table's own bound.
