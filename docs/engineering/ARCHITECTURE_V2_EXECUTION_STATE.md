@@ -2,6 +2,36 @@
 
 ## 2026-10-27 — fresh Windows recovery and acceptance continuation
 
+Latest integration checkpoint: local installed DeepSeek Harness0.2.1-rc.2 is
+verified with headless Flash1017/max. Owner explicitly authorizes multiple
+DeepSeek workers; disjoint EEX capture, terminal-reference and capacity API/SDK
+tasks now run through separate Harness sessions and perform their own focused
+checks. Earlier one-shot generations hit reasoning/output limits; incomplete
+files were not treated as accepted output. Root still reviews actual diffs/tests.
+
+Fresh browser bootstrap found a real UAT seeder defect: repeated synthetic ICIS
+day-ahead IDs across autumn DST queued duplicate INSERTs with autoflush=False.
+DeepSeek's bounded fix flushes once per chronological simulated day, preserving
+one transaction and existing generator/calendar/identity semantics. Regression
+invoking the actual60-day seeder fails before the fix (duplicate primary key),
+passes after it including a repeated run and unrelated-row preservation; Ruff
+passes. Actual same isolated PostgreSQL browser DB now seeds2350 labeled
+synthetic observations and the existing test-identity helper succeeds. No reset,
+source activation, commercial grants or production AI enablement performed.
+
+Reconstructed capacity core independently reviewed: exact Fraction billing-basis
+comparison and half-even money rounding, explicit UTC duration, shared cash bound,
+strict Decimal inputs, NOT_ASSESSED physical readiness.44focused tests pass.
+It remains uncommitted pending complete legacy-guard/API/typed-SDK integration.
+Root supplied an additional exact rounded-equality counterexample to the worker;
+passing the easier near-coefficient test alone does not close that precision gate.
+
+Acceptance infrastructure: WSL2/Ubuntu24.04 and isolated PostgreSQL remain healthy.
+Browser fixtures are in distinct nexus_browser_20261027; the integration DB is
+nexus_verify. Source API/Web background startup was rejected by automatic policy
+review before execution; managed foreground service acceptance remains to run.
+No browser workflow or native artifact acceptance is claimed from fixture setup.
+
 Current source baseline was `35a587b`; recovery audit checkpoint `c5e0672` is
 pushed to main. The previous cloud workspace is unavailable here; reported local
 checkpoints and unpublished LNG/EEX files are absent. Original **Set up

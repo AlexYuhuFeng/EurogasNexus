@@ -295,6 +295,10 @@ def main() -> int:
                 )
             )
             inserted += 1
+            # Flush once per simulated day so a later merge of a repeated synthetic
+            # identity (e.g. ICIS day-ahead across the DST gas-day boundary) sees the
+            # row already inserted and updates it instead of queuing a second INSERT.
+            session.flush()
 
         # CR-15 deterministic research semantics. These are schema/identity
         # fixtures only; no licensed vendor data is introduced.
